@@ -419,11 +419,15 @@ chunk would leave the index describing a rule the plan had not yet exercised.
     was built on.
 
     So the deliverable is the opposite one: **prove the branch still guards
-    something.** Chunk 04 keeps it and adds the test that constructs the state — an
-    accepted work with an original, a current rendition and no mat row — and
-    asserts it is excluded with this reason. The default makes that state rare;
-    rare is not impossible, and a guarantee asserted in a plan is not a guarantee
-    enforced by a schema.
+    something.** The test that pins it already exists —
+    `test_a_work_with_no_current_mat_colour_is_excluded_and_named`
+    (`curation/tests/unit/test_manifest.py`), reaching the state through the
+    `ready_work(mat=False)` fixture — so Chunk 04 **keeps and strengthens** it
+    rather than adding one: the strengthening is to reach that state through the
+    real service calls this chunk adds, since a fixture that constructs it
+    directly cannot show that the new default path leaves it reachable. The
+    default makes the state rare; rare is not impossible, and a guarantee asserted
+    in a plan is not a guarantee enforced by a schema.
   - **The § Boundaries norm-index row**, per the decision recorded above. Taken
     here because this is the chunk the amended clause governs.
 - **Deliberately not here:** anything that spends. The AI control is Chunk 05.
@@ -433,8 +437,12 @@ chunk would leave the index describing a rule the plan had not yet exercised.
   - No mat value is written into `curation/src/curation/http/static/app.css`; `curation/tests/unit/test_design_tokens.py` passes
     unchanged.
   - Every control has an accessible name that does not depend on its colour.
-  - `NO_MAT_COLOR` is gone from the enum, from the builder, and from any test
-    that asserted it — and a work with no explicit choice reaches the wall.
+  - `NO_MAT_COLOR` is **still in the enum and still raised by the builder**, and a
+    work holding an original, a current rendition and no `mat_color` row is
+    excluded with that reason rather than reaching the wall unmatted. (This
+    criterion said the opposite until the plan's own review caught it — the
+    deliverable had been corrected and the criterion a builder builds to had not,
+    which would have left the correction decorative.)
   - An existing mat is never overwritten without a curator's act.
 - **Done when:**
   0. **Spike the preview primitive** — compose at an arbitrary mat colour without

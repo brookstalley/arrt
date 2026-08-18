@@ -113,8 +113,16 @@ guaranteed default mat guarantees *which* colour is chosen, not *that a row
 exists*: `record_mat_color` runs from `prepare()`, `set_mat` and the seed, so a
 work with an original, a current rendition and no mat row still reaches the
 builder — and with the branch deleted it would go to the wall unmatted with
-nothing reporting why. The chunk now keeps the branch and adds the test that
-constructs the state. A defect found here costs a paragraph; the same one found
+nothing reporting why. The chunk now keeps the branch, and keeps and strengthens
+the test that already pins the state.
+
+The resolutions pass then caught that the correction was only half made: the
+deliverable had been reversed and the *acceptance criterion* twenty lines below it
+still said `NO_MAT_COLOR` should be gone and a work with no explicit choice should
+reach the wall. Acceptance criteria are what a builder builds to and what the
+chunk's own review grades against, so a corrected deliverable above a stale
+criterion is a correction that does not bind. Fixed in the same pass that recorded
+it. A defect found here costs a paragraph; the same one found
 in Chunk 04 costs the chunk.
 
 It also caught that three of six code pointers named stale lines, and that the
