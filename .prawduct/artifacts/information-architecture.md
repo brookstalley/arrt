@@ -620,9 +620,21 @@ What this interface does **not** include, stated so the absences read as decisio
 - **No editing of artwork metadata.** Titles, artists and dates come from the
   source and are the label's evidence; a free-text override would make the physical
   label unfalsifiable against the collection it cites.
-- **No in-browser image editing** — no crop, no colour adjustment, no manual mat
-  override beyond re-deriving it. The mat engine is the product's hardest-won logic
-  and a hand-placed mat would have no recorded basis.
+- **No in-browser image editing** — no crop, no colour adjustment, nothing that
+  paints on the picture. The mat engine is the product's hardest-won logic and the
+  interface does not reimplement it. **What a mat may never be is unrecorded**:
+  every mat the catalogue holds says how it was arrived at.
+
+  > **Amended 2026-08-18, ruled by the operator, on #91.** The clause used to read
+  > "no manual mat override beyond re-deriving it… a hand-placed mat would have no
+  > recorded basis". That reason was false when it was written and had been since
+  > before the artifact existed: `MatMethod.MANUAL` is in `records.py`'s enum and
+  > `art_catalogue(action='set_mat_color')` already writes it, so a hand-picked mat
+  > has always carried a recorded basis. The boundary now names the property it was
+  > reaching for — a recorded method — instead of the actor. Its only actual effect
+  > was to forbid the curator what an agent could already do, which is the defect
+  > #91 was filed about; the presets it blocked were settled with the operator on
+  > 2026-08-05 and refined on 2026-08-10 against measured evidence.
 - **No mobile-native app.** Responsive web only.
 - **No TV-facing or panel-facing screen here.** Those surfaces have no interface by
   requirement — they are the artwork and the label.

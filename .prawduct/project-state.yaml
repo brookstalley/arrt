@@ -3039,7 +3039,7 @@ build_state:
 # longer something governance can resolve a chunk against, and v1 is the live
 # work again — `build-plan.md` is unfinished on 13A, 13B and 24–27, every one of
 # them waiting on a television or a panel.
-active_build_plan: artifacts/build-plan.md
+active_build_plan: artifacts/build-plan-curation-ui-round-2.md
 
 # =============================================================================
 # DERIVED VIEWS — RETIRED, and deliberately absent

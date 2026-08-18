@@ -54,6 +54,58 @@
                   the whole vocabulary.
        scope    - rollup identifier (e.g., v1.4) -->
 
+## 2026-08-18: A mat becomes the curator's to choose, and a plan for round two
+
+<!-- prawduct: chunks=01,02,03,04,05 | scope=curation-ui-round-2 -->
+
+**Why:** round one shipped the whole of `area:curation-ui` that was buildable
+without a design round. What was left sat at `stage:design`, so the next step was
+design rather than code. The operator picked three items on 2026-08-18 — #89
+(alternates unusable in a grid column), #91 (mat colour has no human control) and
+#116 (thumbnail provenance unmodelled) — and #120 was pulled in because #91 edits
+the module it renames.
+
+**The ruling that unblocked #91.** `information-architecture.md` § Boundaries
+forbade *"manual mat override beyond re-deriving it"*, on the stated ground that
+*"a hand-placed mat would have no recorded basis"*. That ground was false, and had
+been since before the artifact existed: `MatMethod.MANUAL` is in `records.py`'s
+enum and `art_catalogue(action='set_mat_color')` already writes it. The clause's
+only effect was to forbid the curator what an agent could already do — which is
+the defect #91 was filed about — and it was enough to make the item unbuildable,
+since building the operator's own presets against it would have shipped a
+documented violation.
+
+**Amended by the operator's ruling of 2026-08-18**, and the amendment names the
+property rather than the actor: nothing paints on the picture, and no mat the
+catalogue holds is unrecorded. The presets it blocked were settled on 2026-08-05
+and refined on 2026-08-10 against the 41 hand-tuned mats' measured L\* range.
+
+**§ Boundaries had been binding while sitting outside the index of what binds.**
+Writing the amendment turned that up: the only indexed IA norm is *organised
+around what a curator does*, and § Boundaries — ten clauses that plainly govern
+future work — has no row at all. That is how a false rationale sat in a binding
+clause unexamined. The plan takes one row for the section rather than ten for the
+clauses or none, recorded as a vetoable decision on Chunk 04, which is the chunk
+the amended clause governs.
+
+**#89's decision, also the operator's.** An open review card takes the grid row
+(`grid-column: 1 / -1`) rather than adapting to a cramped one with a container
+query. The measurement behind it: `.alternate` is `12rem 1fr` inside a
+`minmax(15rem, 1fr)` track, and the only relief keys on the **viewport**, which is
+wide exactly when the card is narrow. A container query fixes that axis and leaves
+the picture at 12rem — too small to judge a scan by, on a screen whose job is
+judging scans.
+
+**#116 is relabelled `area:curation`.** Not one line of its fix is on a screen —
+it is a provenance column and the read that consumes it. Its own triage said so
+and left the change to whoever picked it up. The symptom is what a curator sees,
+which is presumably how the label was chosen, but an area that tracks the symptom
+routes the item to the wrong reader, and this is the proof: a persistence fix
+arrived in a UI triage set.
+
+**No code changed.** This entry ships an artifact amendment, a build plan and the
+`active_build_plan` pointer.
+
 ## 2026-08-17: The curation UI backlog — four ready items, on their own plan
 
 <!-- prawduct: chunks=01,02,03,04 | scope=curation-ui-fixes -->
