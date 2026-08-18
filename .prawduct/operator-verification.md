@@ -1519,3 +1519,45 @@ computed from a direction. 1.15 is the factor that reproduces that artifact's ow
 42-inch worked example, so it is inference rather than invention — but it is a
 subtle weighting, and a more pronounced one is taste, not correctness. It is
 `MAT_BOTTOM_WEIGHT` in `.env`, so overruling it is a one-line change.
+
+## Decisions taken 2026-08-18, at the terminal rather than at a walkthrough
+
+**Four rulings, all taken while scoping the second curation-UI round.** Recorded
+here because the two mat sessions above are what this repo's artifacts cite when
+they need the operator's word on a mat, and a ruling that lives only in a change
+log is one a future item cannot cite. None of these needed the set, the panel or
+the Pi — the display service stayed down, at the operator's instruction.
+
+- **§ Boundaries is amended: a mat may be chosen by hand, provided the choice is
+  recorded.** `information-architecture.md` forbade *"manual mat override beyond
+  re-deriving it"* on the ground that *"a hand-placed mat would have no recorded
+  basis"*. That ground was false before the artifact existed — `MatMethod.MANUAL`
+  is in the enum and `art_catalogue(action='set_mat_color')` already writes it —
+  so the clause's only effect was to forbid the curator what an agent could
+  already do, which is the defect #91 was filed about. The amended clause names
+  the property instead of the actor: nothing paints on the picture, and no mat the
+  catalogue holds is unrecorded. **This unblocks the two dark presets** settled on
+  2026-08-05 and refined on 2026-08-10.
+
+- **§ Boundaries gets one row in the norm index, not ten and not none.** Writing
+  the amendment turned up that the section binds future work while sitting outside
+  `project-preferences.md`'s index of what binds — which is how a false rationale
+  survived in it unexamined. One row for the section, mechanism `Critic`, saying
+  that adding back anything § Boundaries excludes is a ruling rather than a build
+  decision. Taken on Chunk 04 of `build-plan-curation-ui-round-2.md`.
+
+- **An open review card takes the grid row.** #89's alternates are illegible
+  because `.alternate`'s two columns sit inside a `minmax(15rem, 1fr)` track and
+  the only relief keys on the viewport, which is wide exactly when the card is
+  narrow. The fix widens the container (`grid-column: 1 / -1`) rather than adapting
+  to a cramped one with a container query: the task is comparing pictures, and a
+  container query leaves the picture at 12rem.
+
+- **The second round is #89, #91 and #116, with #120 riding along.** #92 is
+  ordered after #116 by its own triage. #120 is not one of the three but is pulled
+  in because #91 edits the module it renames.
+
+**Nothing here is queued for verification** — these are decisions, not things to
+check at the wall. What this round queues for the operator's eye is named in the
+plan's own § Verification strategy: the three chunks carrying
+`Visual change: yes`.

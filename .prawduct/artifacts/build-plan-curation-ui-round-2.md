@@ -299,12 +299,19 @@ chunk would leave the index describing a rule the plan had not yet exercised.
 ### Chunk 03: An open card takes the row
 
 - **Description:** Expanding "other scans" crams the alternates into the column a
-  review card occupies. `.alternate` is `grid-template-columns: 12rem 1fr`
-  (`curation/src/curation/http/static/app.css:857`) inside a grid of `repeat(auto-fill, minmax(15rem, 1fr))`
-  (`curation/src/curation/http/static/app.css:315`) — a 12rem picture and a column of facts, in a 15rem track. The
-  only relief is `@media (max-width: 40rem)` (`curation/src/curation/http/static/app.css:884`), which keys on the
+  review card occupies. The `.alternate` rule is `grid-template-columns: 12rem 1fr`
+  and it sits inside the `.grid` rule's `repeat(auto-fill, minmax(15rem, 1fr))` — a
+  12rem picture and a column of facts, in a 15rem track. The only relief is the
+  `@media (max-width: 40rem)` block that restates `.alternate`, which keys on the
   **viewport**, so at the desktop width the curator actually uses every card is
   narrow and no query fires. **The wrong axis is the defect in one sentence.**
+
+  **Scoped by selector rather than by line, deliberately.** An earlier draft of
+  this chunk cited four line numbers in `curation/src/curation/http/static/app.css`
+  and three were already stale — the brittleness the planning guide names under
+  *line-number scoping*. Worse, the citation hid a fact the chunk needs: that
+  stylesheet has **two** `@media (max-width: 40rem)` blocks, not one. The other
+  gives the Collection grid its phone layout and has nothing to do with this.
 - **Depends on:** none.
 - **Issue:** #89
 - **Artifacts consumed:** `information-architecture.md` §§ User Flows (flow 3),
@@ -321,9 +328,11 @@ chunk would leave the index describing a rule the plan had not yet exercised.
 - **Deliverables:**
   - **An open card spans the row.** The disclosure's open state widens its own
     container instead of the layout adapting to a cramped one.
-  - **The viewport media query goes or is re-aimed.** Leaving a rule that keys on
-    the wrong axis beside a fix for the wrong axis is how the next reader
-    concludes the axis was fine.
+  - **The `.alternate` viewport query goes or is re-aimed** — the one restating
+    `.alternate`'s columns, and **not** the Collection grid's block at the same
+    breakpoint, which is a different rule about a different surface. Leaving a rule
+    that keys on the wrong axis beside a fix for the wrong axis is how the next
+    reader concludes the axis was fine.
   - **The DOM order is unchanged by the reflow.** A visual widening that reorders
     content changes what a screen reader hears; the accessibility norm binds this
     directly and it is the one thing a CSS diff can break invisibly.
@@ -378,14 +387,43 @@ chunk would leave the index describing a rule the plan had not yet exercised.
     derivation rather than off-white — which was proposed and withdrawn on
     evidence, the 41 hand-tuned mats running L\* 6.7–45.2 against a pale work's
     competition.
+
+    **What #115's closure did and did not settle, because "unblocked" overstates
+    it.** It fixed the *breach*: `_DERIVED_LIGHTNESS_CEILING` at 45.2 — the
+    corpus's own lightest mat, deliberately tighter than the stated bar — took
+    7/40 mats over the line to 0/40, and merging perceptually-identical clusters
+    at CIEDE2000 10 took instability from 5/25 to 2/25. **The lightness bias
+    remains, deliberately: the derivation is still lighter than the operator's own
+    choice on 31 of 40 works**, and `curation/src/curation/acquisition/mat.py`
+    assigns the rest to the vision model — which is this item's third bullet, not
+    a reopening of this one. So the default clears the bar without closing the gap
+    under it, and what a curator gets with no AI is a mat that is *acceptable*
+    rather than *the one they would have picked*. That is the operator's settled
+    policy and not a defect; it is written here because a builder reading only
+    "unblocked" would think the derivation now matches the corpus, and would size
+    Chunk 05 as a nicety rather than as the half that closes the gap.
   - **Each control names itself.** A swatch is a colour and colour is never the
     sole carrier: every control carries a name and the hex, and the current choice
     is marked by more than being highlighted.
-  - **`ExclusionReason.NO_MAT_COLOR` retired.** A guaranteed default mat means the
-    branch at `curation/src/curation/manifest/builder.py:187` can never fire again. Dead code that
-    describes a reachable state is worse than absent code, so it goes with the
-    change that makes it unreachable — and its removal is what proves the
-    guarantee is real.
+  - **`ExclusionReason.NO_MAT_COLOR` stays, and this plan was wrong to retire it.**
+    An earlier draft of this chunk deleted the enum member, the branch in
+    `curation/src/curation/manifest/builder.py` that raises it, and the tests
+    asserting it, on the ground that a guaranteed default mat makes it
+    unreachable. **It does not.** The guarantee is about *which* colour is chosen,
+    not about *when* a `mat_color` row exists: `record_mat_color` runs from
+    `prepare()`, from `set_mat` and from the seed, so a work holding an original
+    and a current TV rendition and no mat row still reaches the builder's
+    assessment. With the branch deleted that work is not excluded — it goes to the
+    wall unmatted, with nothing reported saying why. The exclusion is the only
+    thing that makes the state visible, which is the argument the exclusion report
+    was built on.
+
+    So the deliverable is the opposite one: **prove the branch still guards
+    something.** Chunk 04 keeps it and adds the test that constructs the state — an
+    accepted work with an original, a current rendition and no mat row — and
+    asserts it is excluded with this reason. The default makes that state rare;
+    rare is not impossible, and a guarantee asserted in a plan is not a guarantee
+    enforced by a schema.
   - **The § Boundaries norm-index row**, per the decision recorded above. Taken
     here because this is the chunk the amended clause governs.
 - **Deliberately not here:** anything that spends. The AI control is Chunk 05.

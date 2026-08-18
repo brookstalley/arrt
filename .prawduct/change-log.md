@@ -103,8 +103,36 @@ which is presumably how the label was chosen, but an area that tracks the sympto
 routes the item to the wrong reader, and this is the proof: a persistence fix
 arrived in a UI triage set.
 
-**No code changed.** This entry ships an artifact amendment, a build plan and the
-`active_build_plan` pointer.
+**The plan's own review caught a defect in it, which is the argument for
+reviewing a plan.** `/prawduct:critic` first declined the bundle — exit 3, no
+judgeable file, every path a free edge for the coverage gate — and it was right
+by its own predicate and wrong about the value: five chunks were about to be
+built against this. Forced, it found that **Chunk 04's retirement of
+`ExclusionReason.NO_MAT_COLOR` rested on a claim that does not hold.** A
+guaranteed default mat guarantees *which* colour is chosen, not *that a row
+exists*: `record_mat_color` runs from `prepare()`, `set_mat` and the seed, so a
+work with an original, a current rendition and no mat row still reaches the
+builder — and with the branch deleted it would go to the wall unmatted with
+nothing reporting why. The chunk now keeps the branch and adds the test that
+constructs the state. A defect found here costs a paragraph; the same one found
+in Chunk 04 costs the chunk.
+
+It also caught that three of six code pointers named stale lines, and that the
+citation had hidden something the chunk needs: `app.css` has **two**
+`@media (max-width: 40rem)` blocks, and Chunk 03 says that query "goes or is
+re-aimed". Rescoped by selector, which is what the planning guide says to do and
+what this plan had not done.
+
+**One thing the backlog pass turned up that the plan had understated.** #115 is
+closed, but closing it fixed the *breach* rather than the gap: 7/40 mats over the
+bar became 0/40, and the derivation is **still lighter than the operator's own
+choice on 31 of 40 works**, by design, with the remainder assigned to the vision
+model. The plan now says so, because a builder reading "unblocked" would size
+Chunk 05 as a nicety rather than as the half that closes the gap.
+
+**No code changed.** This entry ships an artifact amendment, a build plan, the
+`active_build_plan` pointer, and the four rulings recorded where a future item
+can cite them.
 
 ## 2026-08-17: The curation UI backlog — four ready items, on their own plan
 

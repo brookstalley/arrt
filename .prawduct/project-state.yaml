@@ -3039,6 +3039,14 @@ build_state:
 # longer something governance can resolve a chunk against, and v1 is the live
 # work again — `build-plan.md` is unfinished on 13A, 13B and 24–27, every one of
 # them waiting on a television or a panel.
+#
+# Pointed at curation-ui-round-2 on 2026-08-18, for that plan's duration, and for
+# the reason both paragraphs above record. The evidence is no longer hypothetical:
+# three consecutive Critic rounds on the round-one branch came back
+# `chunk-ref-missing: unchecked`, each having graded chunk 13A — hardware work
+# unrelated to anything under review — because the dispatch carried no `--chunk`
+# and the round-one plan was by then archived. That is this pointer's failure mode
+# observed rather than predicted.
 active_build_plan: artifacts/build-plan-curation-ui-round-2.md
 
 # =============================================================================
