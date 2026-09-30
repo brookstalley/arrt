@@ -22,6 +22,7 @@ from arrt.daemon import Clock, Daemon
 from arrt.manifest import Watcher
 from arrt.panel import Geometry, LabelSurface, SurfaceUnavailable
 from arrt.panel.legibility import TypeScale, ViewingConditionsUnknown, margin_for, type_scale_for
+from arrt.pull import Pull
 from arrt.state import DisplayState, StateSchemaTooNew
 from arrt.tv.samsung import SamsungTv
 
@@ -188,8 +189,39 @@ async def _run() -> int:
             surface=surface,
             surface_error=surface_error,
         )
-        await daemon.run(stop)
+        if not settings.pulls_over_http:
+            await daemon.run(stop)
+            return 0
+        # HTTP mode: the pull fills the cache the watcher reads, beside the
+        # daemon and stopped by the same signal.
+        pulling = asyncio.create_task(Pull(settings).run(stop), name="pull")
+        pulling.add_done_callback(lambda task: _pull_ended(task, stop))
+        try:
+            await daemon.run(stop)
+        finally:
+            stop.set()
+            # Re-raises a pull that crashed, so the unit exits failed and
+            # systemd restarts the Player and its pull together.
+            await pulling
     return 0
+
+
+def _pull_ended(task: asyncio.Task[None], stop: asyncio.Event) -> None:
+    """Say at once that the pull died, and stop the plane so it restarts.
+
+    A dead pull leaves the wall rotating its cache and taking no updates and
+    sending no heartbeat, which is invisible from the wall and would stay
+    invisible until somebody stopped the daemon. Stopping it instead turns the
+    fault into a restart systemd performs and the journal records.
+    """
+    if task.cancelled() or task.exception() is None:
+        return
+    log.error(
+        "the pull stopped on an error; stopping the display plane so it restarts and pulls again",
+        exc_info=task.exception(),
+        extra={"event": "pull.crashed"},
+    )
+    stop.set()
 
 
 def main() -> int:

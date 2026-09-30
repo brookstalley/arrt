@@ -852,6 +852,7 @@ technical_decisions:
         - "TV favourites (MY-C0004) as the active set — the library author states favourites cannot be applied to user uploads on 2022+ sets (unconfirmed on real hardware), and it would support only ONE active subset, not named themes."
       date: 2026-07-19
     - decision: "The theme manifest file is the ONLY channel from curation to display."
+      amended: "2026-09-30, wave 2b: the per-wall manifest and its media, read from the shared file or pulled over HTTP into a Player-local cache by arrt/src/arrt/pull.py, are the only channel. architecture.md § Direction holds the current statement."
       rationale: >
         Decided 2026-07-20 once both planes landed on one host. A JSON document in
         the shared ART_ROOT, written atomically by curation (temp file + os.replace,

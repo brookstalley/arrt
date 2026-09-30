@@ -39,8 +39,8 @@ meanwhile:
 - **Several norms are `in-transition`**, each with an interim rule. Read
   `architecture.md` § Direction before touching the manifest, the display
   plane's I/O, or the theme, wall and directive tables.
-  `tests/preferences/test_plane_isolation.py` keeps its assertions on purpose
-  until wave 2b narrows it.
+  `tests/preferences/test_plane_isolation.py` allows an HTTP client in
+  `arrt/src/arrt/pull.py` only, since wave 2b; everything else it holds is unchanged.
 - **Each wave has its own plan, which names its branch.** What comes next is
   `re-architecture.md` § Order of work, and the plan whose `branch:` you are on
   is the one in force. Branch from `develop`. The parked round-2 UI plan lives

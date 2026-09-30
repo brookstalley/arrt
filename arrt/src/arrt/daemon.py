@@ -668,7 +668,7 @@ class Daemon:
     async def _show(self, manifest: Manifest, entry: Entry) -> Shown:
         """Put one work on the wall, or say why it could not be."""
         with work_context(entry.work_id):
-            render = self._settings.art_root / entry.render_path
+            render = self._settings.render_root / entry.render_path
             if not render.is_file():
                 log.warning(
                     "skipping %s: its render is not at %s",
@@ -1282,7 +1282,7 @@ class Daemon:
         as long as the theme is long.
         """
         for entry in manifest.entries:
-            render = self._settings.art_root / entry.render_path
+            render = self._settings.render_root / entry.render_path
             binding = self._state.binding_for(entry.work_id)
             if _is_current(binding, render):
                 continue
@@ -1460,7 +1460,7 @@ class Daemon:
         )
         try:
             heartbeat_module.write(
-                self._settings.art_root,
+                self._settings.heartbeat_root,
                 health,
                 wall_id=self._settings.wall_id,
                 reported_at=self._clock.now(),
@@ -1469,7 +1469,7 @@ class Daemon:
             if self._heartbeat_failed.begin():
                 log.warning(
                     "could not write the heartbeat to %s (%s); the wall is unaffected",
-                    heartbeat_module.path_in(self._settings.art_root, self._settings.wall_id),
+                    heartbeat_module.path_in(self._settings.heartbeat_root, self._settings.wall_id),
                     exc,
                     extra={"event": "heartbeat.failed"},
                 )
@@ -1559,7 +1559,9 @@ def _render_changed(binding: Binding, render: Path) -> bool:
     mat colour rewrites the bytes under an unchanged name; the binding still reads
     `uploaded`, and the television goes on showing the old composition for ever.
     Both `set_mat_color` and `regenerate` are live actions, so this is reachable
-    by ordinary use rather than by mishap.
+    by ordinary use rather than by mishap. In HTTP mode the cached name is the
+    render's hash, so a re-render arrives under a new name instead; the
+    fingerprint is what notices a change either way.
 
     A binding with no recorded fingerprint — every row written before the column
     existed — counts as changed. That costs one re-upload per work on the first

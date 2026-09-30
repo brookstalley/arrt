@@ -144,7 +144,7 @@ Each is lock-in, so the questions come before the fields.
 
 - [x] Chunk 01: Library and Programming packages, the `playable()` facade, and the import guard
 - [x] Chunk 02: Library events, and Programming's reconciliation at startup
-- [ ] Chunk 03: Curatarr's HTTP surface — manifest, media by content hash, heartbeat, and wall tokens
+- [x] Chunk 03: Curatarr's HTTP surface — manifest, media by content hash, heartbeat, and wall tokens
 - [ ] Chunk 04: Arrt's HTTP mode — pull into a cache, render only from it, and survive the server
 
 ### Chunk 01: Library and Programming packages, the `playable()` facade, and the import guard
@@ -418,3 +418,30 @@ Each is lock-in, so the questions come before the fields.
 - **Done when:** all three suites and lint pass; the isolation test is narrowed
   and still fails on a second HTTP client module (proved by mutation); the queue
   entry exists.
+- **How it is built (decided at the chunk's start, 2026-09-30):**
+  - **All HTTP is in `arrt/src/arrt/pull.py`, including the heartbeat.** The daemon
+    goes on writing its heartbeat file, into `CACHE_DIR` in HTTP mode, and the
+    pull POSTs each new report. So the watcher, rotation, directives and the
+    label are untouched, the daemon changes only where it resolves renders and
+    writes its heartbeat (`render_root`, `heartbeat_root`), and the isolation
+    test's exemption is one file.
+  - **`aiohttp`, declared.** It is already in the lockfile at 3.14.3 through
+    `samsungtvws`, it is asyncio like the daemon, and its test server is the
+    stub. Declared rather than inherited, because an indirect copy disappears
+    when the package that brings it changes.
+  - **The cache holds only what the Player can render.** The pull rewrites each
+    cached entry's `render_path` to `media/sha256-<hex>`, relative to
+    `CACHE_DIR`, and the daemon resolves renders against `render_root`, which is
+    `CACHE_DIR` in HTTP mode and `ART_ROOT` otherwise. An entry with no `media`,
+    a media `404`, or bytes that do not match their hash is left out of the
+    cached manifest (the contract's "skip that work and keep rotating"). A
+    transport failure on media adopts nothing and tries again next poll.
+  - **The manifest is checked with Arrt's own parser before it is cached**, so a
+    refused major never becomes the "last good manifest" a restart would read.
+  - **The token goes only to the server's own origin.** A `media.url` on another
+    host is fetched without it.
+  - `ART_ROOT` keeps the Player's state file in HTTP mode. The heartbeat file
+    moves to `CACHE_DIR` (found at review): on a Pi running both planes the
+    server writes each POSTed heartbeat into `ART_ROOT`, and a Player watching
+    that same file posted every echo again. A Player without `ART_ROOT` at all is
+    wave 3.

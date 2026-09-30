@@ -41,14 +41,37 @@ def _parse(row: dict) -> manifest.Manifest:
     return manifest.parse(text, rotation_interval_fallback=180, shuffle_fallback=False)
 
 
+#: A rotation interval no fixture carries, so a reader that fell back to it
+#: instead of reading the document's value cannot pass.
+_UNUSED_INTERVAL = 7919
+
+
 @pytest.mark.parametrize("row", [row for row in MANIFESTS if row["valid"]], ids=lambda row: row["path"])
-def test_every_valid_manifest_in_the_contract_is_adopted(row):
+def test_every_valid_manifest_in_the_contract_is_adopted_whole(row):
+    """Every field the Player acts on, read from the document rather than defaulted.
+
+    The fallbacks are ones no fixture carries, the shuffle one set against each
+    fixture's own value, so a reader that ignored a field and used its fallback
+    fails here instead of passing on a coincidence.
+    """
     document = json.loads((CONTRACT / row["path"]).read_text(encoding="utf-8"))
+    assert document["rotation"]["interval_seconds"] != _UNUSED_INTERVAL
 
-    adopted = _parse(row)
+    adopted = manifest.parse(
+        (CONTRACT / row["path"]).read_text(encoding="utf-8"),
+        rotation_interval_fallback=_UNUSED_INTERVAL,
+        shuffle_fallback=not document["rotation"]["shuffle"],
+    )
 
-    assert [entry.work_id for entry in adopted.entries] == [entry["work_id"] for entry in document["entries"]]
+    assert (adopted.schema_major, adopted.schema_minor) == (document["schema"]["major"], document["schema"]["minor"])
+    assert (adopted.theme_id, adopted.theme_name) == (document["theme"]["id"], document["theme"]["name"])
+    assert adopted.rotation_interval_seconds == document["rotation"]["interval_seconds"]
+    assert adopted.shuffle == document["rotation"]["shuffle"]
     assert adopted.directive_sequence == document["directive"]["sequence"]
+    assert adopted.pinned_work_id == document["directive"]["pinned_work_id"]
+    assert [(entry.work_id, entry.render_path, entry.label) for entry in adopted.entries] == [
+        (entry["work_id"], entry["render_path"], entry["label"]) for entry in document["entries"]
+    ]
 
 
 @pytest.mark.parametrize(

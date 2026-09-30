@@ -10,6 +10,34 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Switch the Pi to HTTP mode, and let it soak — added 2026-09-30
+
+**Wave 2b Chunk 04.** Arrt can now pull its wall from Curatarr instead of
+reading the shared file. The file channel stays the default, and wave 3 retires
+it only after this has run on the real wall. After wave 2b reaches the Pi:
+
+1. On the Walls screen, issue a Player token for the wall (Player token panel).
+2. In the display plane's `.env`, set `MANIFEST_SOURCE=http`,
+   `SERVER_URL=http://127.0.0.1:<CURATION_PORT>`, `WALL_TOKEN=<the token>` and
+   `CACHE_DIR=` to a local directory the service account can write. Then
+   `sudo systemctl restart display.service`.
+3. **Watch the journal** (`journalctl -u display.service -f`): `pull.started`,
+   then `pull.adopted` with every entry cached. Press Next on the Walls screen:
+   the set should step within a couple of seconds.
+4. **Stop the server** (`sudo systemctl stop curation.service`): expect one
+   `pull.unreachable` line and nothing more, and the wall keeps rotating. Restart
+   `display.service` while the server is still down: the wall comes back from
+   the cache. Start `curation.service` again: expect one `pull.reachable`.
+5. **Rotate the token** on the Walls screen without updating `.env`: expect one
+   `pull.refused` line naming WALL_TOKEN, and one `pull.heartbeat_refused`, and
+   the wall keeps rotating. Put the new token in `.env` and restart.
+6. **The health panel** should keep showing the wall's heartbeat throughout. In
+   HTTP mode the Player writes its heartbeat into `CACHE_DIR`, and only the
+   server writes the one in `ART_ROOT` that the panel reads, so a panel showing a
+   fresh heartbeat is proof the POST works. During step 5 it should go stale.
+7. Let it run for a few days, then record here what the journal showed. To go
+   back, set `MANIFEST_SOURCE=file` and restart.
+
 ### The Player token panel on the Walls screen — added 2026-09-30
 
 **Wave 2b Chunk 03.** Each wall's section on the Walls screen ends with a

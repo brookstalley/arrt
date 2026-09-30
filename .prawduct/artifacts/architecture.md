@@ -83,6 +83,14 @@ database. Adding a second channel is a departure requiring a recorded decision.
 > no-curation-import clause whole. Wave 3 retires the file channel. The
 > one-directional corollary survives: the Player writes nothing the server owns,
 > and the heartbeat is a report, as the heartbeat file is today.
+>
+> **Wave 2 landed 2026-09-30 (wave 2b Chunks 03 and 04).** Curatarr serves the
+> three routes behind a per-wall token, and Arrt's `MANIFEST_SOURCE=http` pulls
+> into `CACHE_DIR` through `arrt/src/arrt/pull.py`, the one module the isolation test now
+> lets open an HTTP client, and only to routes `contract/routes.json` names. The
+> file channel is still the default and still works, so today both channels are
+> in force, and a Pi switches by configuration after a soak. Wave 3 retires the
+> file channel.
 
 <!-- Ratified by the owner 2026-08-07, in the words they stated it: "The display
      device HAS to render the label. We may have multiple pi's with different

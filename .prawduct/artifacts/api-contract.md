@@ -1814,7 +1814,7 @@ omit them and MCP assumes `destructiveHint: true` and `openWorldHint: true`, whi
 costs the operator a confirmation prompt on every call. Each tool declares `title`
 plus honest `readOnlyHint` / `destructiveHint`.
 
-## The Server↔Player surface — PLANNED 2026-09-30, the server's half BUILT 2026-09-30
+## The Server↔Player surface — PLANNED 2026-09-30, BUILT 2026-09-30
 
 > **Built (wave 2b Chunk 03): the server's three routes, and wall tokens.**
 > `curatarr/src/curatarr/http/player.py` mounts them at the root beside `/api`,
@@ -1827,8 +1827,8 @@ plus honest `readOnlyHint` / `destructiveHint`.
 > already uses. Tokens are issued from `POST /api/walls/{wall_id}/token` (the
 > Walls screen's Player token panel) and `art_display(action='issue_token')`.
 > Both return the token once, and the wall's `token_issued_at` is on both
-> surfaces' wall shapes. The Player's side, the pull into a cache, is wave 2b
-> Chunk 04. What follows is the design as recorded before the build, and where it
+> surfaces' wall shapes. The Player's side is `arrt/src/arrt/pull.py` (Chunk 04):
+> `MANIFEST_SOURCE=http` pulls into `CACHE_DIR` and renders only from there. What follows is the design as recorded before the build, and where it
 > disagrees with the code or with `player-contract.md`, those win.
 
 **Before 2026-09-30 nothing in this section existed in code.** It records the target that
