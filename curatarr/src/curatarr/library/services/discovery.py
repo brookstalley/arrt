@@ -572,8 +572,9 @@ class DiscoveryService:
 
         **A run can propose a work the library already holds**: `propose_work`
         refuses only a suppressed work, one the curator rejected, and nothing
-        excludes one they accepted. The review card says so instead of offering
-        Accept, which would mint a second artwork for the same painting — Sonarr's
+        excludes one they accepted. The review card says so and leads with opening
+        the held artwork, since accepting again would mint a second artwork for
+        the same painting — Sonarr's
         *Already in your library* on an Add New result, and the same answer here.
 
         Found by the same identity `is_work_suppressed` uses, `work_dedup_key`,
