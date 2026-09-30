@@ -1,12 +1,12 @@
 /* One intent-forming conversation: the thread, the turns, and the commit seam.
  *
- * Contextual, opened from Discover, and it returns there.
+ * Contextual, opened from Add New, and it returns there.
  *
  * THE SEAM IS THIS SCREEN'S HARD REQUIREMENT, NOT A POLISH ITEM. Committing a
  * direction never navigates: the commit card *becomes* the run's progress card
  * in place, and then becomes "12 works ready to review", with the transcript
  * above it the whole time. A commit that called `go("run", …)` — which is what
- * the direct-intent box on Discover does, correctly, because it has no
+ * the direct-intent box on Add New does, correctly, because it has no
  * transcript to keep — would turn this conversation into a wizard wearing a
  * costume, which is the exact risk the flow was designed against.
  *
@@ -133,7 +133,7 @@ async function paint(view, { conversationId, generation, pollGeneration }) {
   }
 
   // Asked for only when there is a direction to offer, and it is the same flat
-  // bound Discover shows: one model call plus the search allowance. There is no
+  // bound Add New shows: one model call plus the search allowance. There is no
   // intent-aware pricing anywhere in this product, and inventing one here would
   // put a figure on the card that nothing else could reproduce.
   let estimate = null;
@@ -403,19 +403,19 @@ function reactions(entry, turnId) {
  *
  * **Kept visually apart from the three reactions because it is a different kind
  * of act.** The reactions record taste and stay; this one navigates, filtering
- * Collection to the artist. Sitting it among them would put a control that loses
+ * Artworks to the artist. Sitting it among them would put a control that loses
  * the curator's place in a row of controls that do not, and the only way to find
  * that out is to press it.
  *
  * Offered for artists only, and that is the vocabulary's doing rather than a
- * simplification: Collection filters by facet kind, and "go to Surrealism's
+ * simplification: Artworks filters by facet kind, and "go to Surrealism's
  * work" would be a filter on a kind the grid can take — but the artists a
  * conversation surfaces are the ones this control exists for, and an artist is
  * the only kind whose samples came from the collection at all.
  *
  * Where it lands is usually nowhere, and that is expected: the artists a
  * conversation names are by definition ones the curator could not have named, so
- * a collection holding none of them is the ordinary outcome. Collection says so
+ * a collection holding none of them is the ordinary outcome. Artworks says so
  * as a normal state rather than as a failed query. */
 function departure(entry) {
   if (entry.kind !== "artist") return null;
@@ -426,9 +426,9 @@ function departure(entry) {
       text: `Go to ${entry.value}'s work`,
       // `encodeURIComponent` before the value goes in, because a facet in the
       // fragment is escaped once by whoever writes it and once more by
-      // `core/route.js` — Collection unescapes both on the way back out, which
+      // `core/route.js` — Artworks unescapes both on the way back out, which
       // is how a value holding the separator survives the trip. The one call is
-      // duplicated from Collection's own `joinValues` rather than shared,
+      // duplicated from the Artworks screen's own `joinValues` rather than shared,
       // because a screen never imports another screen; the browser test that
       // follows this button into the empty state is what holds the two together.
       onclick: () => go("collection", null, { artist: encodeURIComponent(entry.value) }),

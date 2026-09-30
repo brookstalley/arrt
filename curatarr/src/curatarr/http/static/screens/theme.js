@@ -1,11 +1,10 @@
 /* Theme — a saved selection over the collection, and the acts that are its own.
  *
- * **Contextual, not a destination.** `information-architecture.md` records the
- * change and the reason: a theme is a saved selection over the collection, not a
- * parallel noun, and promoting it to a peer of the collection is what forces a
- * curator to hold the mapping between the two in their head. What belongs here
- * is what is genuinely about the theme rather than about a work — its name, the
- * order its works reach the wall in, where it hangs, and whether it exists.
+ * **Themes, under Artworks**, as Radarr keeps its Collections under Movies
+ * (`information-architecture.md` § The *arr layout): a theme is a saved
+ * selection over the library, not a parallel noun. What belongs here is what is
+ * genuinely about the theme rather than about a work — its name, the order its
+ * works reach the wall in, where it hangs, and whether it exists.
  *
  * **An index and an addressable detail, from one module.** `#theme` is every
  * theme; `#theme/<id>` is one, which is what a wall's theme control points at

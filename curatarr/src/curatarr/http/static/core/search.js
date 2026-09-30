@@ -1,12 +1,12 @@
 /* The persistent search affordance.
  *
- * `information-architecture.md` § Navigation Structure requires search to be in
- * the masthead rather than inside a screen, and gives the reason: at thousands of
- * works it is the primary retrieval mechanism, "and a retrieval mechanism you
- * must first navigate to is one more step on the most frequent action".
+ * `information-architecture.md` § Navigation Structure keeps search in the top
+ * bar on every page, as the *arr apps do, and for this product's own reason: at
+ * thousands of works it is the primary way in, and a search you must first
+ * navigate to is one more step on the most frequent action.
  *
  * Searching is a **navigation**, not a mode. It writes `?q=` into the fragment
- * and goes to Collection, which means a search is bookmarkable, sendable, and —
+ * and goes to Artworks, which means a search is bookmarkable, sendable, and —
  * because it lands in the history like every other navigation — undone by the
  * browser's own back button rather than by a Clear control the curator has to
  * find.
@@ -33,7 +33,7 @@ export function installSearch() {
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     const query = document.getElementById("search").value.trim();
-    // Filters already in the address survive a search made from Collection, and
+    // Filters already in the address survive a search made from Artworks, and
     // do not follow one made from anywhere else: narrowing what you are looking
     // at is a different act from starting a search over the whole collection,
     // and carrying a rail's state onto the second would silently hide most of

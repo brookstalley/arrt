@@ -1,14 +1,10 @@
-/* Health — the observations the panel states, and the spend record.
+/* Status — the observations the panel states, and the spend record.
  *
- * **Reachable, and not in the navigation.** `information-architecture.md` takes
- * it out on the grounds that an appliance-status panel must not be a peer of the
- * art in a product whose identity claim is "museum, not gadget", and the masthead
- * indicator in `core/status.js` is what makes that safe: it is always present, it
- * names what is wrong, and this screen is what it expands to.
- *
- * It has a real address, so a failure can link to it and a curator can bookmark
- * it — "not navigable-to" is a statement about the navigation, never about the
- * URL.
+ * **Status, under System**, where every *arr app keeps its health checks
+ * (`information-architecture.md` § The *arr layout). The top-bar indicator and
+ * the System badge in `core/status.js` summarise it on every page and open it.
+ * Its address is still `#health`, from before the rename, so a failure's link
+ * and a curator's bookmark keep working.
  *
  * **One heartbeat panel per wall.** The reading became one per wall because a
  * single observation for an installation with two rooms cannot name the room

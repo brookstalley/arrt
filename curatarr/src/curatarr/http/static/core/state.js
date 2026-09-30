@@ -13,7 +13,7 @@
  * repaint even when the data is identical: the DOM it describes is gone by then.
  *
  * `params` is the fragment's `?key=value` state — a search query, an active
- * filter set, and the destination a contextual screen was opened from. It is
+ * filter set, and the page a contextual screen was opened from. It is
  * always an object, never null, so every reader can index it without a guard.
  *
  * **`watch` belongs to the run view alone, and it is the exception rather than

@@ -51,7 +51,7 @@ export function el(tag, attrs = {}, children = []) {
  * is not ceremony: every view here awaits at least one request and three page
  * through up to fifty, so a paint routinely completes after the view it belongs
  * to is gone — and `replaceChildren` would put it over whatever replaced it,
- * with the destination highlight and the fragment both naming the other screen.
+ * with the sidebar highlight and the fragment both naming the other screen.
  * A stale screen that looks live is the class of defect this client has shipped
  * three times.
  *

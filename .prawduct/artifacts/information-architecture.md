@@ -73,8 +73,9 @@ inside an existing section, not a section of its own.
 > goes where § The *arr layout places it, and nothing is added to Add New that
 > Activity is due to take.
 >
-> **Retroactivity:** migrate: `build-plan-arr-navigation.md`. The built surface
-> does not conform, since it has three destinations and opens on the Walls. If the
+> **Retroactivity:** migrate: `build-plan-arr-navigation.md`. The sidebar and
+> the home page conform since Chunk 02. Activity, the two-scope search and the
+> toolbar do not yet exist, so runs still sit on Add New. If the
 > plan merges as one PR, the norm is steady-state at merge with no residual sites.
 
 **A working prototype of everything below is committed beside this file:**
@@ -121,15 +122,14 @@ Priority is **core** (on a stated core flow) or **supporting**.
 | **Artworks** | Everything acquired. Find, sort, filter, group, organise into themes, archive. The product's home. *(Collection until 2026-09-30.)* | Launch; the sidebar; search from anywhere; from a theme; after a run's accepted works land | core (flows 3, 5) |
 | **Work** | One work at full size, with its sources, renditions, mat history and theme membership. | A tile in Collection; a tile on a Wall; a row in Review | core (flows 4, 5) |
 | **Add New** | Conversation, the runs it seeds, and the review of what they return — one continuous place. *(Discover until 2026-09-30.)* | The sidebar, under Artworks; "find something new" on the Walls and on an empty Artworks | core (flows 1, 2, 3) |
-| **Run** | One discovery run while it works and after it stops: what it proposed, what it found images for, the gate where phase 2 is approved, and its work table. | Discover; a re-search started on the review grid; its own address | core (flow 2) |
-| **Review** | Judging one run's candidates: accept, reject, choose a scan, ask for a better one. | A completed run in Discover; the run's own notification | core (flow 3) |
+| **Run** | One discovery run while it works and after it stops: what it proposed, what it found images for, the gate where phase 2 is approved, and its work table. | Add New; a re-search started on the review grid; its own address | core (flow 2) |
+| **Review** | Judging one run's candidates: accept, reject, choose a scan, ask for a better one. | A completed run in Add New; the run's own notification | core (flow 3) |
 | **Themes** | The themes there are, and — at its own address — one of them: its members in curated order, its name, and the act of hanging it. | The sidebar, under Artworks; Artworks' theme rail; a wall's theme control; its own address | core (flows 5, 6) |
 | **Status** | The three observations the panel states, and the spend record. *(Health until 2026-09-30.)* | The sidebar, under System; the top bar's status indicator; a failure's own link | supporting |
-| **Conversation** *(new)* | One intent-forming thread, its samples, and what it committed to. | Discover; the conversation list; an affinity's provenance | core (flow 1) |
-| **Taste** *(new)* | The affinities the product has accumulated, with their derivation, correctable. | Discover; a suggestion's "why am I seeing this?" | supporting |
+| **Conversation** *(new)* | One intent-forming thread, its samples, and what it committed to. | Add New; the conversation list; an affinity's provenance | core (flow 1) |
+| **Taste** *(new)* | The affinities the product has accumulated, with their derivation, correctable. | The sidebar, under Settings; a suggestion's "why am I seeing this?" | supporting |
 
-**One row here per screen the client routes, and Health is the one that is
-reachable without being navigable-to.** Two are new and exist only because
+**One row here per screen the client routes.** Two are new and exist only because
 conversational intent-forming does (`product-brief.md` flow 1, amended
 2026-08-10).
 
@@ -494,9 +494,9 @@ be traced means the inventory is wrong.
 
 ### Flow 1 — Express curatorial intent *(rewritten 2026-08-10)*
 
-`The Walls → Discover → Conversation → [commit] → Conversation (run inline)`
+`Artworks → Add New → Conversation → [commit] → Conversation (run inline)`
 
-1. Curator opens Discover and types, or picks up an existing thread.
+1. Curator opens Add New and types, or picks up an existing thread.
 2. Each turn answers from model knowledge and shows a few sample pictures. Reactions
    are captured both in prose and by direct control on each sample — a sample
    carries "more like this" / "not this" / "tell me more", which is what writes an
@@ -542,7 +542,7 @@ be traced means the inventory is wrong.
 
 ### Flow 2 — Discovery
 
-`Conversation (commit) or Discover (direct intent) → run → Review`
+`Conversation (commit) or Add New (direct intent) → run → Review`
 
 Unchanged from the built behaviour, and deliberately so: two phases, an estimate
 against a real work list once phase 1 settles, a trimmable list, then phase 2.
@@ -734,7 +734,7 @@ almost no considered empty states.
 | Work | n/a | Image placeholder at the work's own aspect ratio | Named per missing part — a work with no rendition is not a failed page |
 | Add New | No conversations and no runs → the intent box, prominent, with two or three worked examples | Per-turn, in the thread | A failed turn stays in the thread and is retryable; it never silently vanishes |
 | Run | n/a — a run always has a status, and "no works yet" is a populated run in `resolving_works` | The sentence first, then the work table filling in beneath it without moving it | **The watch says whether it is still watching.** A blip is reported and retried; after five consecutive failures it says it has given up and to reload, because a page that stopped polling silently is indistinguishable from a live one |
-| Conversation | A thread with no turns → the intent box, with the same worked examples Discover offers | Per-turn, in the thread, with the turn in flight named as such | A failed turn stays in the thread and is retryable; it never silently vanishes |
+| Conversation | A thread with no turns → the intent box, with the same worked examples Add New offers | Per-turn, in the thread, with the turn in flight named as such | A failed turn stays in the thread and is retryable; it never silently vanishes |
 | Review | No candidates: which of the four kinds of nothing (Q12) | Per-card | Per-card, so one bad candidate does not blank the grid |
 | Themes | A theme with no members → how to add from Artworks | Skeleton rows | Inline |
 | Taste | No affinities yet → what would create some | — | Inline |

@@ -1,11 +1,9 @@
-/* The Walls — what is hanging right now, on each wall.
+/* Walls — what is hanging right now, on each wall.
  *
- * The product's home, and the first of the three destinations.
- * `information-architecture.md` argues the case and records the counter-argument:
- * most sessions begin with an intention, so opening on a screen of pictures puts
- * a click in front of them. The answer is that this screen carries the live entry
- * points rather than being a dead end, and that the product's identity claim is
- * that it is a collection rather than a tool.
+ * Second in the sidebar, in the slot Sonarr gives its Calendar: the nearest *arr
+ * idea to "what is showing when" (`information-architecture.md` § The *arr
+ * layout). It was the home page until the library took that place, as it has in
+ * every *arr app.
  *
  * **One wall is the degenerate case of many, never a special case.** There is one
  * section per wall and no single-wall layout for a second display to replace: with

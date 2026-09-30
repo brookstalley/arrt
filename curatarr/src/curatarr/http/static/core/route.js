@@ -16,7 +16,7 @@
  * run, a conversation) is addressable". The query half was added when the
  * fragment could carry a view and an id and nothing else, so a search and a
  * filter set had nowhere to live and a contextual screen had no way to record
- * which destination it was opened from.
+ * which page it was opened from.
  */
 
 /* A route's `detail` says what it addresses, and there are three answers.
@@ -48,7 +48,7 @@ export const OPTIONAL_ID = "optional";
  * screen that took over its job, so an old address arrives at the new screen
  * rather than at the default one.
  *
- * They are aliases, never destinations: `formatRoute` never writes one, so
+ * They are aliases, never routes of their own: `formatRoute` never writes one, so
  * following an old link rewrites the address bar to the new spelling. */
 export const FRAGMENT_ALIASES = {
   works: "collection",

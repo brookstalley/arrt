@@ -156,7 +156,7 @@ export function go(view, detailId = null, params = null) {
  * mutation sweep survived gutting it, which is what an exported convenience with
  * no caller looks like from the outside. Changing one piece of the addressable
  * state is `go(state.view, state.detailId, { ...state.params, ...changes })`,
- * and the one caller that does it — the masthead search — writes it out, where
+ * and the one caller that does it — the top-bar search — writes it out, where
  * the rule about which state survives a search is written beside it. The helper
  * belongs to whichever chunk builds the second caller. */
 

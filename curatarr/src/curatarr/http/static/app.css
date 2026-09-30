@@ -399,6 +399,19 @@ nav.sidebar a[aria-current="page"] {
   nav.sidebar[data-open] {
     display: block;
   }
+
+  .drawer-backdrop[data-open] {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 19;
+    background: var(--scrim);
+  }
+}
+
+/* Only ever shown by the phone rules above, behind an open drawer. */
+.drawer-backdrop {
+  display: none;
 }
 
 /* No auto margins: in the shell's grid they would stop `main` stretching, and it

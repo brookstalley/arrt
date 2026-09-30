@@ -123,15 +123,30 @@ export function lightSidebar(page) {
  * Below 40rem the stylesheet hides the sidebar unless `data-open` is set on it,
  * and shows the menu button, which is hidden everywhere else. Escape closes it
  * and focus goes back to the button, because a drawer that closes with focus
- * inside it leaves a keyboard user standing on nothing. */
+ * inside it leaves a keyboard user standing on nothing.
+ *
+ * **A backdrop behind it closes it on a tap.** The open drawer covers the menu
+ * button, and a phone has no Escape key, so without one the only way out was to
+ * pick a page. */
 export function installDrawer() {
   const nav = document.getElementById("sidebar");
   const button = document.querySelector("button.menu-button");
+  const backdrop = el("div", { class: "drawer-backdrop", "aria-hidden": true });
+  nav.after(backdrop);
   const set = (open) => {
     button.setAttribute("aria-expanded", open ? "true" : "false");
-    if (open) nav.setAttribute("data-open", "");
-    else nav.removeAttribute("data-open");
+    if (open) {
+      nav.setAttribute("data-open", "");
+      backdrop.setAttribute("data-open", "");
+    } else {
+      nav.removeAttribute("data-open");
+      backdrop.removeAttribute("data-open");
+    }
   };
+  backdrop.addEventListener("click", () => {
+    set(false);
+    button.focus();
+  });
   button.addEventListener("click", () => {
     const opening = !nav.hasAttribute("data-open");
     set(opening);

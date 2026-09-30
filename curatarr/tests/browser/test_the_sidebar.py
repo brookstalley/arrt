@@ -229,6 +229,20 @@ def test_the_drawer_closes_on_escape_and_hands_focus_back(phone, seeded_service)
     assert phone.page.evaluate("() => document.activeElement.classList.contains('menu-button')")
 
 
+def test_tapping_beside_the_drawer_closes_it(phone, seeded_service):
+    """A phone has no Escape key, and the open drawer covers the menu button."""
+    phone.open("#collection")
+    phone.page.wait_for_selector("#view h2")
+
+    phone.page.click("button.menu-button")
+    assert phone.page.locator("nav.sidebar").is_visible()
+    # To the right of the drawer, which is at most 85% of the width.
+    phone.page.mouse.click(365, 400)
+
+    assert not phone.page.locator("nav.sidebar").is_visible()
+    assert phone.page.locator("button.menu-button").get_attribute("aria-expanded") == "false"
+
+
 def test_picking_a_page_from_the_drawer_closes_it(phone, seeded_service):
     phone.open("#collection")
     phone.page.wait_for_selector("#view h2")
@@ -659,6 +673,35 @@ def test_a_work_reached_with_no_opener_still_has_a_way_out(ui, one_work):
     ui.page.wait_for_selector("#view h2")
 
     assert ui.page.locator("#view button", has_text="←").first.inner_text() == "← Artworks"
+
+
+@pytest.fixture
+def a_theme(services):
+    return services.display.add_theme(name="Late night")
+
+
+def test_a_theme_reached_with_no_opener_returns_to_themes(ui, a_theme):
+    """One theme's default return is its own index, now that Themes is a page.
+
+    A bookmark or an agent's link carries no opener. Without this default a theme
+    reached that way had no way back and nothing lit in the sidebar, because a
+    page has no `opensFrom` to fall back to.
+    """
+    ui.open(f"#theme/{a_theme.id}")
+    ui.page.wait_for_selector("#view h2:has-text('Late night')")
+
+    assert ui.page.locator("#view button", has_text="←").first.inner_text() == "← Themes"
+    assert lit(ui, "theme").count() == 1
+
+
+def test_a_theme_opened_from_the_themes_page_carries_no_opener(ui, a_theme):
+    """The default is left out of the address, as it is for every contextual screen."""
+    ui.open("#theme")
+    ui.page.wait_for_selector("#view h2:has-text('Themes')")
+    ui.page.evaluate(f"() => go('theme', {a_theme.id!r})")
+    ui.page.wait_for_selector("#view h2:has-text('Late night')")
+
+    assert ui.page.evaluate("() => window.location.hash") == f"#theme/{a_theme.id}"
 
 
 # -- the persistent search affordance -----------------------------------------

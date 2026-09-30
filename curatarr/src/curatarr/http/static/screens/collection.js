@@ -1,11 +1,11 @@
-/* Collection — everything acquired, in one place, with the organising beside it.
+/* Artworks — everything acquired, in one place, with the organising beside it.
  *
- * One of the three destinations, and the one that has to survive thousands of
- * works. `information-architecture.md` § Information Hierarchy is what this
- * implements: the grid of images is the primary content, the counts and the
- * active filters are secondary, and the rails that narrow it sit beside the works
- * rather than in another tab — a theme stopped being a destination when the
- * navigation was reshaped, and this is where it went.
+ * The home page, as the library is in every *arr app, at the address
+ * `#collection` it had before the rename; and the page that has to survive
+ * thousands of works. `information-architecture.md` § Information Hierarchy is
+ * what this implements: the grid of images is the primary content, the counts
+ * and the active filters are secondary, and the rails that narrow it sit beside
+ * the works.
  *
  * Four things here are decisions rather than layout, and each is written down at
  * the place it takes effect:

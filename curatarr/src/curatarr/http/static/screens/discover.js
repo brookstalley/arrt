@@ -1,10 +1,9 @@
-/* Discover — asking for something new, and every search that has been asked.
+/* Add New — asking for something new, and every search that has been asked.
  *
- * The third destination. `information-architecture.md` describes it as
- * "conversation, the runs it seeds, and the review of what they return — one
- * continuous place"; the conversation half and the in-place commit seam are a
- * later chunk's. What this chunk moved is the built discovery screen: the direct
- * intent box, which does not go away, and the run list.
+ * Radarr's Add New, under Artworks (`information-architecture.md` § The *arr
+ * layout), at the address `#discover` it had before the rename. It holds the
+ * direct intent box, the conversations, and the run list, which moves to
+ * Activity when that section is built.
  */
 
 import { api } from "../core/api.js";
@@ -55,7 +54,7 @@ export async function viewDiscover(generation) {
   /* The way into what the product has come to believe about the curator.
    *
    * Here rather than in the navigation: Taste is a contextual screen, and its
-   * entry points are Discover and a suggestion's provenance. It sits beside the
+   * entry points are Add New and a suggestion's provenance. It sits beside the
    * two ways of asking for something because it is the thing that shapes what
    * comes back — a curator wondering why they keep being offered pale grids
    * looks for the answer where they do the asking. */

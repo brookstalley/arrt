@@ -523,7 +523,7 @@ export async function viewReview(runId, generation) {
   const named = page.works.filter((card) => card.work.provenance !== "offered");
 
   const panels = [
-    // Back to the run rather than to a destination: Review is opened from one
+    // Back to the run rather than to a sidebar page: Review is opened from one
     // particular search and the way out is that search, which is a screen and
     // not a place in the navigation.
     el("p", {}, [

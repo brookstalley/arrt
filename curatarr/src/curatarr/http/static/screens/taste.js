@@ -1,11 +1,8 @@
 /* Taste — what the product has come to believe about the curator, correctable.
  *
- * **Contextual, not a fourth destination.** `information-architecture.md` puts
- * it beside Theme, Work, Review and Conversation: reached from Discover and from
- * a suggestion's "why am I seeing this?", returning to wherever it was opened
- * from. A destination for it would be a tab named after the product's memory
- * rather than after anything a curator does, which is the one thing the
- * navigation is not allowed to be.
+ * **A page under Settings**, where Radarr keeps the profiles that rank what it
+ * finds (`information-architecture.md` § The *arr layout). Also reached from a
+ * suggestion's "why am I seeing this?".
  *
  * **Every row shows where its judgment came from, and that is the screen's whole
  * reason to exist.** A taste model that cannot say where a judgment came from is
