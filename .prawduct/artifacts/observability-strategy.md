@@ -503,9 +503,9 @@ the session, which is what makes self-announcing failures self-announcing.
 > - a Watch that hit its per-period spending cap;
 > - a Watch that auto-accepted something.
 >
-> Revisiting is not deciding to add push notifications. The operator's
-> homelab has declined notifications for its other apps for now. The decision is
-> the operator's, made with this trigger in view.
+> Revisiting is not deciding to add push notifications. The operator has
+> declined notifications for now. The decision is the operator's, made with this
+> trigger in view.
 
 ### The one surface the panel does not cover: CI
 

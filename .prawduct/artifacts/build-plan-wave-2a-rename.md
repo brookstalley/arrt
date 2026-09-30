@@ -84,6 +84,16 @@ proof.
     archive are left alone, because they are history.
   - `SERVER_NAME` in the MCP server, and its contract test. The User-Agent in
     `config.py` and the live test.
+- **Carried into this chunk's commit**, because it rewrites `CLAUDE.md`'s
+  commands anyway:
+  - Wave 1 cumulative review R-4 (`rev-20260930T151634Z-9a02d6ac`): `CLAUDE.md`
+    carries about 240 project lines against a budget of about 150. Move "The
+    browser suite" and "The live suites" into a testing doc under `docs/` and
+    leave a one-line pointer to each. The renamed commands land in the moved
+    text, not in a copy.
+  - Wave 1 review observation O-3: the Change-of-direction section's "Next up"
+    points at `re-architecture.md` § Order of work instead of naming a wave, so
+    it doesn't go stale at each wave.
 - **Tests:** all three suites pass with no test weakened. Proof the rename is
   complete comes from two greps, each with a count taken before the rename, so
   an empty result means "renamed" and not "the pattern never matched":

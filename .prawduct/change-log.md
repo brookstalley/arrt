@@ -108,6 +108,12 @@ guess.
     Displayarr's cache-first pull.
   - The one HIGH-impact assumption, whether a readiness-removing Library change
     republishes walls, is put to the operator.
+- `deploy/README.md` no longer says the Player pulls over HTTP from wave 2. In
+  wave 2 the pull is switched on by configuration while the file channel keeps
+  working; it becomes the only mode in wave 3.
+- `project-state.yaml` sets `base_branch: develop`. The re-architecture
+  integrates on `develop` and releases to `main`, and the remote's default is
+  still `main`, so without it every PR gate measured from `main`.
 - **The cumulative review found 2 blocking findings, both fixed:**
   - The root test imported `referencing` without declaring it.
   - The rename plan's proof grep matched nothing on this Mac even before a

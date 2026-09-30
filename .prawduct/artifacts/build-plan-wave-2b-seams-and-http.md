@@ -67,8 +67,9 @@ defend.
   changes that **remove** readiness (archiving, an image change that makes a
   render stale), because a wall should never show what the curator withdrew.
   I recommend against it for changes that add, because deciding when new work
-  reaches the wall is what `sync` is for. That changes behaviour, so it is
-  the operator's call, and it is recorded as an assumption in Chunk 02.
+  reaches the wall is what `sync` is for. That changes behaviour, so it was
+  the operator's call. **The operator confirmed it on 2026-09-30: removals
+  republish, additions wait for sync.** Chunk 02 builds it.
 - **The cut: no Player-side "HTTP by default" in wave 2.** Chunk 04 builds the
   mode, and the Pi switches to it by configuration after a soak. Making it the
   default is wave 3's retirement of the file, not this plan's.
@@ -78,10 +79,10 @@ defend.
 **Medium.** The shape is settled by `re-architecture.md` and `player-contract.md`.
 These are unconfirmed:
 
-- `[ASSUMPTION: a Library change that removes a work's readiness (archive, a
-  stale render) republishes every wall whose published manifest carries the
-  work; a change that adds readiness waits for sync | HIGH impact | user can
-  correct]`
+- **Confirmed by the operator 2026-09-30, no longer an assumption:** a Library
+  change that removes a work's readiness (archive, a stale render) republishes
+  every wall whose published manifest carries the work; a change that adds
+  readiness waits for sync.
 - `[ASSUMPTION: the published manifest stays a file in ART_ROOT through wave 2,
   written by sync as today, and GET /walls/{id}/manifest serves that file's
   bytes with an ETag of their SHA-256; the snapshot semantics of sync are
@@ -98,8 +99,8 @@ These are unconfirmed:
   written; renders that predate the column are hashed on first need and
   recorded then | MED impact | user can correct]`
 
-**What would raise it:** the operator's answer on automatic republishing, the
-one HIGH-impact assumption.
+**What would raise it:** the one HIGH-impact question, automatic republishing,
+is answered. What remains is MED, and each is checked by its chunk's tests.
 
 ## Persisted formats, and the questions each must answer
 
@@ -181,19 +182,27 @@ Each is lock-in, so the questions come before the fields.
   it owns. Programming subscribes. The pin withdrawal that
   `archive_artwork` performs today by writing Programming's directives moves to
   Programming's `work.archived` handler, so the Library stops writing a
-  Programming table. That behaviour is preserved and its tests move with it. If
-  the operator confirms the assumption above, readiness-removing events also
-  republish every wall whose published manifest carries the work. At startup,
+  Programming table. That behaviour is preserved and its tests move with it. Readiness-removing
+  events (`work.archived`, and `work.image_changed` when it leaves a render
+  stale) also republish every wall whose published manifest carries the work.
+  Events that add readiness do not, and wait for sync (the operator's ruling,
+  2026-09-30). At startup,
   Programming reconciles each published manifest and each pin against
   `playable()`, so an event lost to a crash delays a correction until the next
   start and never leaves it undone.
 - **Tests:** each event reaches its handler. Archiving withdraws pins on every
-  wall, as today. The Library no longer imports or writes any Programming
+  wall, as today. Archiving a work republishes exactly the walls whose manifest
+  carries it, and no other wall's manifest changes. Accepting a work republishes
+  nothing. The Library no longer imports or writes any Programming
   table (the import guard plus a store-level assertion). Reconciliation repairs
   a manifest and a pin that a dropped event left stale: simulated by writing
   the Library change with the publisher disconnected, then starting. A
   multi-hop test covers two starts in a row: the second finds nothing to do and
   says so.
+- **Related open item:** backlog #35. `activate_theme` commits before it
+  publishes, so a failed manifest write leaves the catalogue naming a theme the
+  wall is not showing. This chunk reworks that publish path, so fix #35 here or
+  say in the chunk's review why not.
 - **Done when:** the suites and lint pass; the norm's rule 4 is marked migrated
   in `architecture.md`.
 
@@ -231,9 +240,24 @@ Each is lock-in, so the questions come before the fields.
   - a token is never logged: the test captures the journal while a request
     fails.
 
-  The browser suite covers issuing and rotating a token. The contract's
-  `minor-2-with-media` fixture is replaced by a builder-written manifest in
-  the curatarr contract test.
+  The browser suite covers issuing and rotating a token. The curatarr contract
+  test also validates a builder-written manifest that carries `media`, **beside**
+  the contract's `minor-2-with-media` fixture, never in place of it. That fixture
+  is the only valid major 1 manifest carrying `media`, and the Player's suite,
+  Chunk 04's stub server and Displayarr after the repo split all read it.
+- **Carried from wave 1's cumulative review** (`rev-20260930T151634Z-9a02d6ac`),
+  because this chunk already edits the contract's fixtures and its tests:
+  - R-2: an invalid major 2 fixture for each of the two unreached branches of
+    `semantic_errors` in `tests/preferences/test_player_contract.py`: a slot that
+    starts before the horizon, and a horizon of zero or negative length. Delete
+    each branch once and watch its fixture go red.
+  - R-5/R-9: one root assertion that each fixture's `valid/` or `invalid/`
+    directory agrees with its `valid` flag in `index.json`.
+  - R-6: drop `_errors`' unused `schema_name` parameter in curatarr's contract
+    test.
+  - R-10: correct the root test docstring that says a row missing
+    `player_must_refuse` is skipped by the display suite. It errors at
+    collection.
 - **Visual change:** yes. The token panel on the Walls screen goes on the
   operator-verification queue.
 - **Done when:** the suites, the browser suite and lint pass; the `security-model.md`
@@ -266,6 +290,10 @@ Each is lock-in, so the questions come before the fields.
   - a restarted Player with the server down starts from its cached manifest;
   - eviction removes only unreferenced media;
   - the token never reaches the journal.
+- **Carried from wave 1's cumulative review** (R-1): display's contract test
+  asserts the whole adopted manifest (pin, rotation, shuffle, theme,
+  `render_path`, label), not only work ids and directives, with fallback values
+  no fixture carries. This chunk already rewrites how that manifest is adopted.
 - **Visual change:** no. **Operator verification:** yes. Switch the Pi to HTTP
   mode against the Pi's own Curatarr and let it soak before wave 3 retires the
   file. The entry names what to watch in the journal and on the health panel.

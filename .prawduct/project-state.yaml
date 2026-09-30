@@ -3138,8 +3138,7 @@ build_state:
 # chunks were not finished. 13A, 13B and 24–27 are proposed to survive as Player
 # work, and 20 to be re-scoped; the table under the plan's header records each.
 # The operator abandoned them later that day (wave 0 closed); the requirements
-# they served are placed in later waves by re-architecture.md. Point this at the
-# wave-2 build-plan-<scope>.md when it is written.
+# they served are placed in later waves by re-architecture.md.
 #
 # Left unset from wave 1 on: each wave's plan declares its own `branch:`, which
 # governance resolves ahead of this line and which two branches cannot conflict on.
