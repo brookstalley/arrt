@@ -572,7 +572,7 @@ API consumers. Three consequences that are easy to miss:
 |---|---|
 | Kubernetes, NATS, multi-pod deployment | Stated directly by the operator. One household, one TV, one curation process — the coherence problems that infrastructure solves do not exist here. |
 | 3tears agent memory | Depends on `pgvector`, which forces Postgres. Operator confirmed agents may be stateless across sessions, so this is dropped rather than deferred — and dropping it is what keeps the curation plane infrastructure-free. |
-| Migrating the existing `all.json` schema | Decided to start over through curation. The 41 records have known defects (identity keyed on source URL, per-device TV state embedded, semi-structured `artist_details`) and every work is re-fetchable from its source URL. |
+| Migrating the existing `all.json` schema | Decided to start over through curation. The 41 records have known defects (identity keyed on source URL, per-device TV state embedded, semi-structured `artist_details`, and `raw/` filenames in three mutually inconsistent conventions) and every work is re-fetchable from its source URL. |
 | Public or third-party API consumers | The HTTP surface exists only to back this product's own UI and its display plane. |
 
 > **Amended 2026-09-30.** The server↔Player contract becomes a published,

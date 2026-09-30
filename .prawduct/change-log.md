@@ -56,6 +56,27 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-09-30: The learnings compacted into one-line rules
+
+<!-- prawduct: scope=learnings-compact -->
+
+**Why:** `core.md` had grown to 78KB of narrative against a 12KB cap and was
+frozen until compacted. It is now 9.3KB of one-line rules, with `display.md`,
+`surface.md` and `acquisition.md` scoped to their planes by path.
+
+**What moved:** the narrative sections that were project facts rather than rules
+(platform and dependencies, the two-plane split, the 3tears tiers, the `ART_ROOT`
+data contract, the `all.json` defects) now live only in the artifacts that
+already carried them. Every pointer into the retired sections is retargeted
+there, and the one fact no artifact held (the three inconsistent `raw/` filename
+conventions) was added to `product-brief.md` § Out of scope.
+
+**Corrected on the way:** the claim that the display plane needs an HTTP client
+and PIL survived in `product-brief.md`, `3tears-integration-findings.md` and
+`project-state.yaml` after 2026-08-06 made it false. Each now says what it needs
+today and points at `architecture.md` § Direction for wave 2's change to the
+plane-isolation rule.
+
 ## 2026-09-30: The Player contract (wave 1)
 
 <!-- prawduct: scope=wave-1-contract -->

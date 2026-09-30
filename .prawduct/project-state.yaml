@@ -796,7 +796,8 @@ technical_decisions:
 
         The split is retained on its independent merits: the display plane does not
         want 3tears at all (it needs samsungtvws and the e-paper driver, and
-        neither an HTTP client nor PIL, corrected 2026-09-30 — three-tier entities are useless to it, and the
+        not PIL; an HTTP client stays forbidden until wave 2 narrows the
+        plane-isolation rule, per architecture.md § Direction — three-tier entities are useless to it, and the
         shared-catalogue case that would justify them is the multi-pod coherence
         problem the operator ruled out); it matches the upstream/derived data
         contract in boundary-patterns.md § ART_ROOT filesystem contract; it makes "e-paper behind an interface" a process
