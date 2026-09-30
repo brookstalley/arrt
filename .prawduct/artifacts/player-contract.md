@@ -65,6 +65,12 @@ with an explicit pattern, because a JSON Schema validator does not have to check
 `format`, and the common Python one does not unless an optional package is
 installed. A timestamp without an offset would then pass silently.
 
+**Integers are written without a fractional part.** JSON Schema's `integer`
+admits `1.0`, and the Player's reader refuses it where a count matters (the
+directive sequence) or falls back to its default (the rotation interval). The
+schema is the looser of the two, so the writer's obligation is stated here:
+Curatarr writes `1`, never `1.0`, as Python's `json` does.
+
 ## Major 1
 
 ### The manifest
@@ -123,9 +129,13 @@ The file channel keeps working until wave 3 retires it. Over HTTP:
   Curatarr issues one per wall from its UI, shows it once and keeps only a
   verifier. A missing or wrong token is `401`, and a token for another wall is
   `403`. `/media/...` accepts any wall's valid token.
-- **Media is addressed by the SHA-256 of its bytes.** The manifest gives `url`,
-  `sha256`, `bytes` and `content_type`. The Player verifies the hash after
-  download and discards a mismatch, so a corrupted transfer is never shown.
+- **Media is identified by the SHA-256 of its bytes and located by its `url`.**
+  The manifest gives `url`, `sha256`, `bytes` and `content_type`. The `url` is
+  a URI reference resolved against the manifest's own URL. Today it is
+  `/media/sha256-<hex>` on the same server; after a Library/Programming split it
+  may name the Library's host, and no Player changes. The Player verifies the
+  bytes against `sha256` and discards a mismatch. So a corrupted transfer, or a
+  `url` that disagrees with its hash, is never shown.
 - **Every failure keeps the cache.** Transport errors, timeouts and `5xx` mean
   the server is unreachable: the Player backs off and keeps showing what it
   has. `401`, `403` and a `404` on the wall are configuration errors, stated
@@ -167,7 +177,8 @@ is the reference statement, and each rule has an invalid fixture.
 2. **Each slot starts before it ends, and the slots run forward in time without
    overlapping.**
 3. **Every slot lies inside the horizon.**
-4. **The horizon is a whole number of days**, which rule 5 below depends on.
+4. **The horizon is a whole number of days of absolute time**, a multiple of 24
+   hours, which the replay rule under § Time depends on.
 5. **A scene with an end time ends after it starts.**
 
 ### Time
@@ -188,6 +199,15 @@ is the reference statement, and each rule has an invalid fixture.
   days, each slot keeps its time of day, and so does each dark gap. A wall cut
   off from the server for a week goes on keeping its household's hours. It never
   goes dark because it has not heard from the server.
+- **Clock changes.** Days here are 24 hours of absolute time, not calendar days
+  in the household's zone. Programming computes slots in local time and
+  publishes them as instants, so a published schedule is right across a clock
+  change: the `across-a-clock-change` fixture spans one. The one cost is in
+  replay. A Player replaying its schedule across a clock change, because the
+  server has been out of reach that long, keeps the dark hours an hour off local
+  time until it hears from the server again. That was chosen over putting a
+  time zone in the Player, which would make every Player keep a zone database
+  current to fix a case that needs an outage of days.
 
 ### Scenes
 
@@ -244,6 +264,9 @@ major it reads was considered and not planned: it would mean building two
 documents for every wall through a transition that lasts minutes in a household.
 
 ### Still open in the draft
+
+These are settled before wave 4 builds major 2, not in wave 1. Wave 1 wrote the
+fields that carry them.
 
 - **The horizon's length.** One day is the proposal. The schema allows any whole
   number of days, and a week costs a few hundred kilobytes at a three-minute

@@ -308,8 +308,11 @@ there is no budget signal to log and none is invented.
 > contract for the same reason it is one today. The wall id moves from the
 > filename into the path. Both copies of the name are still checked against each
 > other, because the Player and server must agree on the route exactly as they
-> agree on the filename today. The contract artifact (wave 1) carries the check
-> after the repo split.
+> agree on the filename today. Wave 1's contract pins the key: both planes are
+> tested against `contract/schemas/heartbeat.v1.schema.json`. The route's
+> spelling is pinned when wave 2 builds it, by a `contract/routes.json` that the
+> server's route tests and the Player's client tests both assert against. After
+> the repo split, `contract/` is the only thing both repos share.
 >
 > What changes with the transport:
 > - **The 60-second interval stops being a wear budget.** It remains bounded by

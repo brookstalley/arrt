@@ -137,9 +137,10 @@
       ],
       "properties": {
         "url": {
-          "description": "Relative to the server's base URL.",
+          "description": "Where to fetch it: a URI reference, resolved against the manifest's own URL. Today the server serves it at /media/sha256-<hex>; after a Library/Programming split it may name the Library's host, and no Player needs to change. The sha256 is the identity: the Player verifies the bytes against it, so a url that disagrees is caught at download and discarded.",
           "type": "string",
-          "pattern": "^/media/sha256-[0-9a-f]{64}$"
+          "format": "uri-reference",
+          "minLength": 1
         },
         "sha256": {
           "type": "string",

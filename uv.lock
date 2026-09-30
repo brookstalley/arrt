@@ -356,6 +356,7 @@ dev = [
     { name = "black" },
     { name = "jsonschema" },
     { name = "pytest" },
+    { name = "referencing" },
     { name = "ruff" },
 ]
 
@@ -367,6 +368,7 @@ dev = [
     { name = "black", specifier = ">=24" },
     { name = "jsonschema", specifier = ">=4.23" },
     { name = "pytest", specifier = ">=8" },
+    { name = "referencing", specifier = ">=0.35" },
     { name = "ruff", specifier = ">=0.6" },
 ]
 

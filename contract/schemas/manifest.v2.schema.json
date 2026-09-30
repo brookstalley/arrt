@@ -4,48 +4,94 @@
   "title": "Wall manifest, major 2 (DRAFT)",
   "description": "DRAFT until wave 4 builds it; nothing reads it before then. What one wall should show and how it should look: a time-anchored schedule, an optional scene overriding it, works to fetch ahead, and the wall's settings. The Player composes the mat itself, so works carry a device-independent master and a mat colour, not a composed render. Rules a schema cannot state (every referenced work is in works, slots do not overlap, the horizon is whole days) are in .prawduct/artifacts/player-contract.md § Major 2, and a document that breaks one is malformed.",
   "type": "object",
-  "required": ["schema", "generated_at", "playlist", "settings", "works", "schedule", "scene", "staging"],
+  "required": [
+    "schema",
+    "generated_at",
+    "playlist",
+    "settings",
+    "works",
+    "schedule",
+    "scene",
+    "staging"
+  ],
   "properties": {
     "schema": {
       "type": "object",
-      "required": ["major", "minor"],
+      "required": [
+        "major",
+        "minor"
+      ],
       "properties": {
-        "major": {"const": 2},
-        "minor": {"type": "integer", "minimum": 0}
+        "major": {
+          "const": 2
+        },
+        "minor": {
+          "type": "integer",
+          "minimum": 0
+        }
       }
     },
-    "generated_at": {"$ref": "#/$defs/instant"},
+    "generated_at": {
+      "$ref": "#/$defs/instant"
+    },
     "playlist": {
       "description": "What hangs on the wall: a theme until the rename, a playlist after.",
       "type": "object",
-      "required": ["id", "name"],
+      "required": [
+        "id",
+        "name"
+      ],
       "properties": {
-        "id": {"type": "string", "minLength": 1},
-        "name": {"type": "string"}
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string"
+        }
       }
     },
     "settings": {
       "description": "Set centrally for this wall, so nobody configures a Player to change them.",
       "type": "object",
-      "required": ["label", "mat", "viewing_distance_m"],
+      "required": [
+        "label",
+        "mat",
+        "viewing_distance_m"
+      ],
       "properties": {
         "label": {
           "type": "object",
-          "required": ["mode"],
+          "required": [
+            "mode"
+          ],
           "properties": {
             "mode": {
               "description": "Chosen from the modes this wall's Player reports it can do.",
-              "enum": ["panel", "caption", "none"]
+              "enum": [
+                "panel",
+                "caption",
+                "none"
+              ]
             }
           }
         },
         "mat": {
           "description": "The mat in inches on the wall, so the same numbers mean the same thing on any screen. The bottom takes width_inches times bottom_weight.",
           "type": "object",
-          "required": ["width_inches", "bottom_weight"],
+          "required": [
+            "width_inches",
+            "bottom_weight"
+          ],
           "properties": {
-            "width_inches": {"type": "number", "minimum": 0},
-            "bottom_weight": {"type": "number", "minimum": 1}
+            "width_inches": {
+              "type": "number",
+              "minimum": 0
+            },
+            "bottom_weight": {
+              "type": "number",
+              "minimum": 1
+            }
           }
         },
         "viewing_distance_m": {
@@ -58,41 +104,81 @@
     "works": {
       "description": "Every work the schedule, the scene or staging names, keyed by work id. A Player never holds a reference it cannot resolve.",
       "type": "object",
-      "propertyNames": {"minLength": 1},
-      "additionalProperties": {"$ref": "#/$defs/work"}
+      "propertyNames": {
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/work"
+      }
     },
     "schedule": {
       "type": "object",
-      "required": ["horizon", "slots"],
+      "required": [
+        "horizon",
+        "slots"
+      ],
       "properties": {
         "horizon": {
           "description": "The span the slots cover, a whole number of days. After it ends with no fresh manifest, the Player replays the slots shifted by whole horizons.",
           "type": "object",
-          "required": ["from", "until"],
+          "required": [
+            "from",
+            "until"
+          ],
           "properties": {
-            "from": {"$ref": "#/$defs/instant"},
-            "until": {"$ref": "#/$defs/instant"}
+            "from": {
+              "$ref": "#/$defs/instant"
+            },
+            "until": {
+              "$ref": "#/$defs/instant"
+            }
           }
         },
         "slots": {
           "description": "In time order, not overlapping, inside the horizon. A time no slot covers is dark.",
           "type": "array",
-          "items": {"$ref": "#/$defs/slot"}
+          "items": {
+            "$ref": "#/$defs/slot"
+          }
         }
       }
     },
     "scene": {
       "description": "A live override, or null. While active it wins over the schedule; when until passes the wall returns to the schedule on its own. until null holds until released.",
       "oneOf": [
-        {"type": "null"},
+        {
+          "type": "null"
+        },
         {
           "type": "object",
-          "required": ["id", "work_id", "from", "until"],
+          "required": [
+            "id",
+            "work_id",
+            "from",
+            "until"
+          ],
           "properties": {
-            "id": {"type": "string", "minLength": 1},
-            "work_id": {"type": "string", "minLength": 1},
-            "from": {"$ref": "#/$defs/instant"},
-            "until": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/instant"}]}
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "work_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "from": {
+              "$ref": "#/$defs/instant"
+            },
+            "until": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/$defs/instant"
+                }
+              ]
+            }
           }
         }
       ]
@@ -100,7 +186,10 @@
     "staging": {
       "description": "Works to fetch and compose ahead, because a scene is being assembled. Nothing is shown because of this list.",
       "type": "array",
-      "items": {"type": "string", "minLength": 1},
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
       "uniqueItems": true
     }
   },
@@ -113,31 +202,78 @@
     },
     "slot": {
       "type": "object",
-      "required": ["work_id", "from", "until"],
+      "required": [
+        "work_id",
+        "from",
+        "until"
+      ],
       "properties": {
-        "work_id": {"type": "string", "minLength": 1},
-        "from": {"$ref": "#/$defs/instant"},
-        "until": {"$ref": "#/$defs/instant"}
+        "work_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "from": {
+          "$ref": "#/$defs/instant"
+        },
+        "until": {
+          "$ref": "#/$defs/instant"
+        }
       }
     },
     "work": {
       "type": "object",
-      "required": ["media", "mat_color", "label"],
+      "required": [
+        "media",
+        "mat_color",
+        "label"
+      ],
       "properties": {
         "media": {
           "description": "The presentation master: unmatted, device-independent, long edge capped.",
           "type": "object",
-          "required": ["url", "sha256", "bytes", "content_type", "width", "height"],
+          "required": [
+            "url",
+            "sha256",
+            "bytes",
+            "content_type",
+            "width",
+            "height"
+          ],
           "properties": {
-            "url": {"type": "string", "pattern": "^/media/sha256-[0-9a-f]{64}$"},
-            "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-            "bytes": {"type": "integer", "minimum": 1},
-            "content_type": {"enum": ["image/jpeg", "image/png"]},
-            "width": {"type": "integer", "minimum": 1},
-            "height": {"type": "integer", "minimum": 1}
+            "url": {
+              "description": "Where to fetch it: a URI reference, resolved against the manifest's own URL. Today the server serves it at /media/sha256-<hex>; after a Library/Programming split it may name the Library's host, and no Player needs to change. The sha256 is the identity: the Player verifies the bytes against it, so a url that disagrees is caught at download and discarded.",
+              "type": "string",
+              "format": "uri-reference",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "content_type": {
+              "enum": [
+                "image/jpeg",
+                "image/png"
+              ]
+            },
+            "width": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 1
+            }
           }
         },
-        "mat_color": {"type": "string", "pattern": "^#[0-9a-f]{6}$"},
+        "mat_color": {
+          "type": "string",
+          "pattern": "^#[0-9a-f]{6}$"
+        },
         "label": {
           "description": "The same label text as major 1.",
           "$ref": "manifest.v1.schema.json#/$defs/label"

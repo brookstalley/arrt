@@ -182,7 +182,8 @@ disagreements between majors.
   rename to `curatarr` and `displayarr`, then the Library/Programming package
   split with the facade, events and reconciliation, then the HTTP routes with
   tokens, then the Player's pull-to-cache. Each chunk has its dispositions and
-  tests. `active_build_plan` points at it once this plan is archived.
+  tests. Each wave 2 plan declares its own `branch:`, so no `active_build_plan`
+  pointer is needed.
 - **Done when:** the plan exists, and the cumulative review of this plan is
   resolved.
 - **Built as two plans, not one.** The rename is mechanical cleanup across

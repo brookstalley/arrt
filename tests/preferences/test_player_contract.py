@@ -56,9 +56,7 @@ def _validator(schema_path: str) -> Draft202012Validator:
     # checks them; the schemas do not rely on it, because without an optional
     # package `date-time` is not checked at all, and each instant carries a
     # pattern for that reason.
-    return Draft202012Validator(
-        _schema(schema_path), registry=REGISTRY, format_checker=Draft202012Validator.FORMAT_CHECKER
-    )
+    return Draft202012Validator(_schema(schema_path), registry=REGISTRY, format_checker=Draft202012Validator.FORMAT_CHECKER)
 
 
 def _document(row: dict) -> dict:

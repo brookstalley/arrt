@@ -242,6 +242,11 @@
       "valid": true
     },
     {
+      "path": "fixtures/manifest.v2/valid/across-a-clock-change.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": true
+    },
+    {
       "path": "fixtures/manifest.v2/valid/caption-wall-week-horizon.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": true

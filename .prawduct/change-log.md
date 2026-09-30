@@ -108,6 +108,20 @@ guess.
     Displayarr's cache-first pull.
   - The one HIGH-impact assumption, whether a readiness-removing Library change
     republishes walls, is put to the operator.
+- **The cumulative review found 2 blocking findings, both fixed:**
+  - The root test imported `referencing` without declaring it.
+  - The rename plan's proof grep matched nothing on this Mac even before a
+    rename. It now uses a code-only `-P` pattern, with counts recorded before
+    the rename.
+- **Also fixed from the review:**
+  - Days in the schedule are 24 absolute hours, with a fixture across a clock
+    change and the replay cost stated.
+  - Media `url` is a resolvable reference; the hash is the identity.
+  - Stale wave 1 promises are corrected in five places.
+  - `CLAUDE.md` is trimmed, and warns that a plain `uv sync` drops the optional
+    groups.
+  - A black failure committed in Chunk 02 is fixed.
+- The rest is accepted on the record. The verification review found 0 blocking.
 
 ## 2026-09-30: Curatarr and Displayarr; a token per wall; wave 0 closed
 

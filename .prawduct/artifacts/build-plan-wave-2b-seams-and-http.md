@@ -212,7 +212,13 @@ Each is lock-in, so the questions come before the fields.
   Every route requires the wall's bearer token: `401` without a valid one, `403`
   for another wall's. Tokens are issued and rotated from the Walls screen (shown
   once, with its issue date after) and by an `art_display` action for MCP
-  parity. Renders gain `content_sha256` and `byte_size`, with the backfill the
+  parity. The three route templates go into a new `contract/routes.json`, which
+  the server's route tests assert against here and the Player's client tests
+  assert against in Chunk 04. That is what keeps the route's spelling agreed
+  across the repo split, as the heartbeat filename is agreed today. Media `url` is
+  `format: uri-reference` in the schemas, which no installed validator checks, so
+  this chunk either adds a pattern beside the format or states the obligation in
+  prose, and adds a fixture with an absolute URL, when it first writes one. Renders gain `content_sha256` and `byte_size`, with the backfill the
   assumption above describes. `SCHEMA_MINOR` becomes 2.
 - **Tests:** against a real booted server, as the suite's surface tests already
   run:

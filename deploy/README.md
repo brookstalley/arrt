@@ -10,10 +10,11 @@
 >   tree. That deployment is recorded in the operator's homelab repository, not
 >   here. Until then, `curation.service` below keeps running on the Pi.
 > - **The Player (today's `display` plane) stays on the Pi** under systemd. From
->   wave 2 it pulls each wall's manifest and media over HTTP into a local cache
->   and renders only from that cache. A server restart or a NAS reboot therefore
->   never blanks the wall. The Pi then needs no `ART_ROOT` shared with anything,
->   only a cache directory of its own.
+>   wave 2 it *can* pull each wall's manifest and media over HTTP into a local
+>   cache and render only from that cache, switched on by configuration while the
+>   file channel keeps working. From wave 3 that is the only mode. A server
+>   restart or a NAS reboot then never blanks the wall, and the Pi needs no
+>   `ART_ROOT` shared with anything, only a cache directory of its own.
 > - **After the wave-5 repo split**, the Player's deployment docs move to the
 >   player repository along with `display/`.
 >

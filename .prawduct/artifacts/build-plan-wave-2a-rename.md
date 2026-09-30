@@ -85,11 +85,16 @@ proof.
   - `SERVER_NAME` in the MCP server, and its contract test. The User-Agent in
     `config.py` and the live test.
 - **Tests:** all three suites pass with no test weakened. Proof the rename is
-  complete: `git grep -nE '\b(from|import) (curation|display)\b'` and
-  `git grep -nE '(curation|display)/(src|tests|tools)'` return nothing outside
-  the archives.
+  complete comes from two greps, each with a count taken before the rename, so
+  an empty result means "renamed" and not "the pattern never matched":
+  - `git grep -nP '^\s*(from|import) (curation|display)\b' -- '*.py'`: 842
+    lines before, 0 after. It matches code only, so the role names the prose
+    keeps cannot hold it open. `-P`, because this Mac's `git grep -E` has no
+    `\b` and silently matches nothing.
+  - `git grep -nP '\b(curation|display)/(src|tests|tools)\b' -- . ':!.prawduct/artifacts/archive' ':!.prawduct/change-log*'`:
+    134 lines before, 0 after.
 - **Visual change:** no. **Operator verification:** yes. The Pi's units must be
   reinstalled from `deploy/` after this lands, or they start the old module
   names and fail. The step joins `operator-verification.md` with the commands.
 - **Done when:** the three suites and their lint pass under the new names; the
-  greps above are empty; CI passes on the branch; the queue entry exists.
+  greps above are empty against their recorded "before" counts; CI passes on the branch; the queue entry exists.

@@ -19,6 +19,9 @@ dev = [
     # Declared rather than inherited, because an indirect copy disappears the
     # day the package that brings it changes its own dependencies.
     "jsonschema>=4.23",
+    # Imported directly by the root contract test to resolve one schema's $ref
+    # into another, so declared for the same reason as jsonschema above.
+    "referencing>=0.35",
 ]
 
 [tool.black]

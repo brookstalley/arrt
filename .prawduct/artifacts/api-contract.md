@@ -1860,7 +1860,7 @@ teach. They need to be classifiable.
 The wall going black stays worse than the wall being incomplete. That is the rule
 this whole surface is judged by.
 
-**Open, to be settled in wave 1 or before wave 3:**
+**Open, each settled before the wave named in `re-architecture.md` § Open questions:**
 - **Authentication** is settled: a bearer token per wall, on every route
   (`player-contract.md` § Transport).
 - **ETag polling or server-sent events** for directive latency. Polling matches
