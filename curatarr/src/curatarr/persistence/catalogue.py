@@ -19,7 +19,7 @@ caller — a store that also enforced would be a second place for those rules to
 live, and the two would disagree.
 """
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field, replace
 from typing import Protocol
@@ -30,7 +30,6 @@ from curatarr.persistence.records import (
     Artwork,
     ArtworkPage,
     ArtworkStatus,
-    Directive,
     MatColor,
     Original,
     Rendition,
@@ -120,6 +119,16 @@ class CatalogueStore(Protocol):
 
         Nesting joins the outer scope, and a read scope inside a transaction is
         permitted.
+        """
+        ...
+
+    def after_commit(self, callback: Callable[[], None]) -> None:
+        """Run `callback` once the writes made so far are committed, and not before.
+
+        Inside `transaction()` it waits for the outermost block to commit and is
+        discarded on rollback; outside one it runs at once. The Library announces
+        its changes this way, so no announcement describes a write that was
+        rolled back.
         """
         ...
 
@@ -268,22 +277,6 @@ class CatalogueStore(Protocol):
 
     def list_mat_colors(self, artwork_id: str) -> Sequence[MatColor]:
         """Return a work's mat colours newest first, which is its history."""
-        ...
-
-    # -- the display directives, until Programming handles archiving ------------
-
-    def list_directives(self) -> Sequence[Directive]:
-        """Every wall's standing directive, in a stable order.
-
-        On this protocol only because `CatalogueService.archive_artwork`
-        withdraws a pin naming the work it archives. That write is Programming's,
-        and it moves to Programming's handler for the Library's `work.archived`
-        event, which takes these two methods off this protocol.
-        """
-        ...
-
-    def set_directive(self, directive: Directive) -> None:
-        """Replace a wall's standing directive. Raises if that wall has none."""
         ...
 
 

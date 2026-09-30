@@ -30,6 +30,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Final
 
+from curatarr.library.events import LibraryEvents, WorkChange, WorkChanged, WorkChangedHandler
 from curatarr.library.services.display_fit import ArtworkBox, FitAssessment, assess_display_fit
 from curatarr.persistence.catalogue import CatalogueStore, WorkQuery
 from curatarr.persistence.records import (
@@ -189,10 +190,23 @@ def _offered(options: Sequence[FacetOption]) -> Sequence[FacetOption]:
 
 
 class CatalogueService:
-    """Read and write the catalogue."""
+    """Read and write the catalogue, and announce what changed."""
 
-    def __init__(self, store: CatalogueStore) -> None:
+    def __init__(self, store: CatalogueStore, events: LibraryEvents | None = None) -> None:
         self._store = store
+        #: The Library owns its publisher, so a catalogue built without one still
+        #: announces, to nobody. The container passes the one Programming is
+        #: subscribed to.
+        self._events = events if events is not None else LibraryEvents()
+
+    def subscribe(self, handler: WorkChangedHandler) -> None:
+        """Be told, after each commit, which work changed and how."""
+        self._events.subscribe(handler)
+
+    def _announce(self, change: WorkChange, artwork_id: str) -> None:
+        """Publish once the change is committed, and not at all if it is rolled back."""
+        event = WorkChanged(change=change, work_id=artwork_id)
+        self._store.after_commit(lambda: self._events.publish(event))
 
     # -- reads: works ---------------------------------------------------------
 
@@ -526,6 +540,7 @@ class CatalogueService:
             commentary=commentary,
         )
         store_write(self._store.add_artwork, artwork)
+        self._announce(WorkChange.ACCEPTED, artwork.id)
         return artwork
 
     def archive_artwork(self, artwork_id: str) -> Artwork:
@@ -534,30 +549,11 @@ class CatalogueService:
         if artwork.status is ArtworkStatus.ARCHIVED:
             raise ServiceError(f"Artwork {artwork_id!r} is already archived.")
         archived = replace(artwork, status=ArtworkStatus.ARCHIVED)
-        with self._store.transaction():
-            store_write(self._store.update_artwork, archived)
-            # A pin naming a work that is out of circulation is an instruction
-            # the display plane can never carry out, so archiving withdraws it.
-            #
-            # This is the one directive write outside the service that owns the
-            # directive, and the line it respects is integrity versus semantics:
-            # clearing an unsatisfiable reference in the same transaction that
-            # creates it, exactly as a dangling reference anywhere else would be.
-            # It deliberately does NOT advance the sequence — archiving is not an
-            # instruction to the display plane, and an advance would step the wall
-            # to an unrelated work. Every rule about what an advance *means* lives
-            # in the display service; none of them is duplicated here.
-            # Every wall, not the one: a work can be pinned in two rooms at once,
-            # and a withdrawal that cleared only the first would leave the second
-            # holding an instruction that can never be carried out.
-            for directive in self._store.list_directives():
-                if directive.pinned_work_id != artwork_id:
-                    continue
-                # Said out loud: a standing instruction disappearing is exactly the
-                # kind of silent state change that turns into "the wall stopped
-                # doing what I told it" with nothing to read back.
-                log.info("archiving %s withdrew the standing pin naming it on wall %s", artwork_id, directive.wall_id)
-                store_write(self._store.set_directive, replace(directive, pinned_work_id=None))
+        store_write(self._store.update_artwork, archived)
+        # A pin naming a work out of circulation is withdrawn by Programming,
+        # which hears this and owns the directive. The Library writes no
+        # Programming table, and so needs to know nothing about walls.
+        self._announce(WorkChange.ARCHIVED, artwork_id)
         return archived
 
     def restore_artwork(self, artwork_id: str) -> Artwork:
@@ -572,6 +568,7 @@ class CatalogueService:
             raise ServiceError(f"Artwork {artwork_id!r} is not archived.")
         restored = replace(artwork, status=ArtworkStatus.ACCEPTED)
         store_write(self._store.update_artwork, restored)
+        self._announce(WorkChange.ACCEPTED, artwork_id)
         return restored
 
     # -- what a work is -------------------------------------------------------
@@ -801,6 +798,7 @@ class CatalogueService:
                 store_write(self._store.add_original, original)
             else:
                 store_write(self._store.update_original, original)
+        self._announce(WorkChange.IMAGE_CHANGED, artwork_id)
         return original
 
     def record_rendition(
@@ -852,6 +850,7 @@ class CatalogueService:
                 store_write(self._store.add_rendition, rendition)
             else:
                 store_write(self._store.update_rendition, rendition)
+        self._announce(WorkChange.IMAGE_CHANGED, artwork_id)
         return rendition
 
     # -- writes: the mat ------------------------------------------------------
@@ -909,6 +908,7 @@ class CatalogueService:
                     superseded = replace(previous, is_current=False)
                     store_write(self._store.update_mat_color, superseded)
             store_write(self._store.add_mat_color, mat_color)
+        self._announce(WorkChange.MAT_CHANGED, artwork_id)
         return mat_color
 
     # -- internals ------------------------------------------------------------

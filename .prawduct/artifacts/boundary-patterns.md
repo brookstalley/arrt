@@ -126,8 +126,9 @@
   - **Built 2026-09-30 (wave 2b Chunk 01): the packages and the facade.**
     `curatarr.library` and `curatarr.programming`, with `library/facade.py` the
     one Library module Programming imports, held by
-    `tests/preferences/test_seam_imports.py`. The events are wave 2b Chunk 02,
-    and the store split is wave 3.
+    `tests/preferences/test_seam_imports.py`. **The events were built the same
+    day (Chunk 02)**: published after commit, heard through the facade, and
+    backed by startup reconciliation. The store split is wave 3.
 
 ### curation ↔ display contract
 

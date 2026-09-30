@@ -10,6 +10,23 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Next and show_now move the wall without a sync — added 2026-09-30
+
+**Wave 2b Chunk 02.** Until now, pressing **Next** on the Walls screen, or asking
+for `art_display(action='next')` or `show_now`, advanced the directive in the
+catalogue and never wrote it into the wall's manifest. The Player reads its
+directive only from the manifest, so the wall did not move until something else
+synced. After this reaches the Pi:
+
+1. Hang a theme on the wall, wait for it to settle, then press **Next** once.
+   The set should step to another work within about a second of the Player's
+   next poll, with no sync in between.
+2. Archive a work that is currently in the wall's rotation. It should come out
+   of the rotation without a sync. The journal says `took works the Library no
+   longer offers off the published manifest`.
+3. Restart `curation.service`. The journal should say `Reconciled … against the
+   Library at startup: nothing to change`.
+
 ### The Pi's units after the rename to curatarr/ and arrt/ — added 2026-09-30
 
 **Wave 2a.** The projects moved from `curation/` and `display/` to `curatarr/` and

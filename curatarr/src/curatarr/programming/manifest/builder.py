@@ -198,6 +198,30 @@ def as_document(build: ManifestBuild) -> dict[str, Any]:
     }
 
 
+def read_published(path: Path) -> dict[str, Any] | None:
+    """The manifest as last published to this path, or None if there is none to patch.
+
+    Programming reads back its own output, never the Library's tables, to learn
+    what a wall was last told. A missing file is ordinary: nothing has been hung
+    there. An unreadable one is logged and treated the same way, because the
+    only thing a caller does with the answer is patch it. A document that cannot
+    be read cannot be patched, and the next sync replaces it whole.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
+    try:
+        document = json.loads(text)
+    except json.JSONDecodeError as exc:
+        log.warning("The manifest at %s is not valid JSON (%s); leaving it for the next sync to replace.", path, exc)
+        return None
+    if not isinstance(document, dict) or not isinstance(document.get("entries"), list):
+        log.warning("The manifest at %s has no entry list; leaving it for the next sync to replace.", path)
+        return None
+    return document
+
+
 def write_atomically(path: Path, document: dict[str, Any]) -> None:
     """Replace the manifest in one step, so no reader ever sees a partial one.
 

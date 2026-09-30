@@ -9,28 +9,26 @@ a theme changes when a curator changes their mind about an evening.
 `curatarr.library.facade`. A theme is a grouping of works, so building one
 requires asking about them; nothing about a work requires knowing which themes
 hold it. Works are held here as ids, and the facade says whether each can go on a
-wall. The one place that direction looks violated is
-`CatalogueService.archive_artwork`, which nulls a pin naming the work it
-archives. That is deliberate, and the split it respects is *integrity* versus
-*semantics*: a pin naming an archived work is an unsatisfiable reference, cleared
-in the same transaction that creates it exactly as any other dangling reference
-would be, and it never advances the sequence. Every rule about what an advance
-*means* — that the counter is monotonic, that rebuilds carry it forward, that a
-step supersedes a pin — lives here.
+wall. **The Library tells this service when a work changes**, and this service
+decides what that means for a wall: `on_work_changed` takes a work the Library
+now refuses off every published manifest and withdraws any pin naming it. Every
+rule about what an advance *means* — that the counter is monotonic, that
+rebuilds carry it forward, that a step supersedes a pin, that a withdrawal is
+not a step — lives here.
 
 Methods are synchronous, for the reason `catalogue.py` gives.
 """
 
 import logging
 import uuid
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final
 
 from curatarr import observations
-from curatarr.library.facade import LibraryFacade, PlayableWork, Unplayable, UnplayableReason
+from curatarr.library.facade import LibraryFacade, PlayableWork, Unplayable, UnplayableReason, WorkChanged
 from curatarr.persistence.records import Directive, Theme, ThemeAssignment, ThemeMembership, Wall
 from curatarr.programming.manifest import heartbeat
 from curatarr.programming.manifest.builder import (
@@ -39,6 +37,7 @@ from curatarr.programming.manifest.builder import (
     ManifestEntry,
     as_document,
     manifest_path_in,
+    read_published,
     write_atomically,
 )
 from curatarr.programming.manifest.heartbeat import HeartbeatReading, heartbeat_path_in
@@ -182,6 +181,24 @@ class ThemePlacement:
 
     theme: Theme
     walls: Sequence[Wall]
+
+
+@dataclass(frozen=True, slots=True)
+class Reconciliation:
+    """What one reconciliation found and did, so a caller and a test can read it rather than the journal."""
+
+    #: How many works it asked the Library about.
+    asked: int
+    #: The ids the Library refused, whether or not any wall was carrying them.
+    refused: Sequence[str]
+    #: Walls whose published manifest was rewritten.
+    republished: Sequence[str]
+    #: Walls whose standing pin was withdrawn.
+    pins_withdrawn: Sequence[str]
+
+    @property
+    def changed(self) -> bool:
+        return bool(self.republished or self.pins_withdrawn)
 
 
 class DisplayService:
@@ -400,11 +417,16 @@ class DisplayService:
         """
         self.get_theme(theme_id)
         self.get_wall(wall_id)
-        store_write(
-            self._store.set_assignment,
-            ThemeAssignment(wall_id=wall_id, theme_id=theme_id, assigned_at=datetime.now(UTC)),
-        )
-        return self.sync(wall_id, theme_id)
+        # One transaction around the hang and the publish, so a manifest that
+        # could not be written takes the hang back with it. Recording the hang
+        # and then failing to publish left the catalogue naming a theme the wall
+        # was not showing, with nothing to say the two disagreed.
+        with self._store.transaction():
+            store_write(
+                self._store.set_assignment,
+                ThemeAssignment(wall_id=wall_id, theme_id=theme_id, assigned_at=datetime.now(UTC)),
+            )
+            return self.sync(wall_id, theme_id)
 
     def clear_wall(self, wall_id: str) -> None:
         """Take down whatever is hanging, leaving the wall holding nothing.
@@ -760,8 +782,13 @@ class DisplayService:
         independent themes and independent directive sequences without either
         plane coordinating anything.
         """
-        build = self.build_manifest(wall_id, theme_id)
-        write_atomically(self._settings.manifest_path(wall_id), as_document(build))
+        # Built and written inside one transaction, which is also what serialises
+        # every rewrite of a published manifest: a step or a reconciliation
+        # patching this file between the build and the write would otherwise be
+        # overwritten by a document built before it.
+        with self._store.transaction():
+            build = self.build_manifest(wall_id, theme_id)
+            write_atomically(self._settings.manifest_path(wall_id), as_document(build))
         if build.exclusions:
             # Named at WARNING with the count, because a theme quietly showing
             # fewer works than it holds is precisely this product's
@@ -782,6 +809,94 @@ class DisplayService:
         )
         return build
 
+    # -- keeping published manifests true to the Library ---------------------
+
+    def on_work_changed(self, event: WorkChanged) -> None:
+        """The Library changed a work: take it off any wall it can no longer go on.
+
+        Subscribed to the Library's announcements. The rule is the one startup
+        reconciliation applies, narrowed to the one work, so the running server
+        and a restarted one cannot disagree.
+        """
+        self.reconcile([event.work_id], cause=event.change.value)
+
+    def reconcile(self, work_ids: Iterable[str] | None = None, *, cause: str = "startup") -> Reconciliation:
+        """Make every published manifest and pin agree with what the Library will still show.
+
+        Asks the facade about the works in question: the ones named, or, with
+        none named, every work any published manifest or standing pin mentions.
+        For each wall whose published manifest carries a work the Library now
+        refuses, those entries are removed and nothing else in the document
+        changes. A pin naming a refused work is withdrawn without advancing the
+        sequence, because withdrawing is not an instruction to move on.
+
+        **Removals only.** A work that became showable is not added. Deciding
+        when new work reaches the wall is what sync is for (the operator's
+        ruling, 2026-09-30), and a reconciliation that also added would publish
+        a theme's unsynced changes as a side effect of archiving something.
+
+        **Run at every start**, because an announcement lost to a crash between
+        the Library's commit and this handler would otherwise leave a wall
+        showing a work the curator withdrew until someone happened to sync.
+        """
+        with self._store.transaction():
+            walls = self._store.list_walls()
+            published = {wall.id: read_published(self._settings.manifest_path(wall.id)) for wall in walls}
+            directives = {directive.wall_id: directive for directive in self._store.list_directives()}
+            mentioned = {entry.get("work_id") for document in published.values() if document for entry in document["entries"]}
+            mentioned |= {directive.pinned_work_id for directive in directives.values() if directive.pinned_work_id}
+            mentioned.discard(None)
+            asked = mentioned if work_ids is None else mentioned & set(work_ids)
+            answers = self._library.playable(sorted(asked))
+            refused = {work_id for work_id, answer in answers.items() if not isinstance(answer, PlayableWork)}
+
+            withdrawn: list[str] = []
+            for wall_id, directive in directives.items():
+                if directive.pinned_work_id in refused:
+                    store_write(self._store.set_directive, replace(directive, pinned_work_id=None))
+                    withdrawn.append(wall_id)
+
+            republished: list[str] = []
+            for wall in walls:
+                document = published[wall.id]
+                if document is None:
+                    continue
+                kept = [entry for entry in document["entries"] if entry.get("work_id") not in refused]
+                pin = (document.get("directive") or {}).get("pinned_work_id")
+                if len(kept) == len(document["entries"]) and pin not in refused:
+                    continue
+                document["entries"] = kept
+                if pin in refused:
+                    document["directive"] = {**document["directive"], "pinned_work_id": None}
+                document["generated_at"] = datetime.now(UTC).isoformat()
+                write_atomically(self._settings.manifest_path(wall.id), document)
+                republished.append(wall.id)
+
+        result = Reconciliation(
+            asked=len(asked),
+            refused=tuple(sorted(refused)),
+            republished=tuple(republished),
+            pins_withdrawn=tuple(withdrawn),
+        )
+        names = {wall.id: wall.name for wall in walls}
+        for wall_id in republished:
+            log.info(
+                "Wall %r: took works the Library no longer offers off the published manifest (%s, after %s).",
+                names[wall_id],
+                ", ".join(sorted(refused)),
+                cause,
+            )
+        for wall_id in withdrawn:
+            # Said out loud: a standing instruction disappearing is the kind of
+            # silent change that becomes "the wall stopped doing what I told it"
+            # with nothing to read back.
+            log.info(
+                "Wall %r: withdrew the standing pin, whose work the Library no longer offers (after %s).", names[wall_id], cause
+            )
+        if work_ids is None and not result.changed:
+            log.info("Reconciled %d walls against the Library at startup: nothing to change.", len(walls))
+        return result
+
     # -- internals ------------------------------------------------------------
 
     def _advance(self, wall_id: str, *, pinned_work_id: str | None) -> Directive:
@@ -797,7 +912,29 @@ class DisplayService:
             current = self._store.get_directive(wall_id)
             advanced = replace(current, sequence=current.sequence + 1, pinned_work_id=pinned_work_id)
             store_write(self._store.set_directive, advanced)
+            # Inside the transaction, so a directive that could not reach the
+            # wall is not recorded as issued.
+            self._publish_directive(wall_id, advanced)
         return advanced
+
+    def _publish_directive(self, wall_id: str, directive: Directive) -> None:
+        """Put this directive in the wall's published manifest, and change nothing else in it.
+
+        The Player reads its directive only from the manifest, so a directive
+        that stays in the catalogue never reaches the wall. **A patch, not a
+        sync**: rebuilding from the theme would also publish every work added
+        since the last sync, and deciding when new work reaches the wall is what
+        sync is for. A wall with nothing published yet has nothing to patch, and
+        its first sync carries the directive out, since a build reads the current
+        one.
+        """
+        path = self._settings.manifest_path(wall_id)
+        document = read_published(path)
+        if document is None:
+            return
+        document["directive"] = {"sequence": directive.sequence, "pinned_work_id": directive.pinned_work_id}
+        document["generated_at"] = datetime.now(UTC).isoformat()
+        write_atomically(path, document)
 
     def _require_hanging(self, wall: Wall) -> Theme:
         assignment = self._store.get_assignment(wall.id)

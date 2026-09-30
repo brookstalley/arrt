@@ -267,8 +267,17 @@ display plane a command; it writes desired state, and display converges on it.**
 |---|---|---|
 | `status` | Reads the display plane's heartbeat file | Nothing — it wrote the heartbeat already |
 | `sync` | Rebuilds and rewrites **that wall's** manifest from the theme hanging on it — `theme-manifest-{wall_id}.json` | Picks up the new manifest on its next poll and reconciles. Each display plane reads the one file its `WALL_ID` names, so syncing one wall cannot disturb another |
-| `show_now(wall_id, artwork_id)` | Increments **that wall's** directive `sequence` and sets its `pinned_work_id` | Jumps to that work, then continues rotating from there |
-| `next(wall_id)` | Increments **that wall's** directive `sequence` with no pin | Steps to the next work in the list |
+| `show_now(wall_id, artwork_id)` | Increments **that wall's** directive `sequence` and sets its `pinned_work_id`, and writes that directive into the wall's published manifest | Jumps to that work, then continues rotating from there |
+| `next(wall_id)` | Increments **that wall's** directive `sequence` with no pin, and writes that directive into the wall's published manifest | Steps to the next work in the list |
+
+> **Built 2026-09-30 (wave 2b Chunk 02): the directive reaches the manifest.**
+> Until then `show_now` and `next` advanced the stored directive and nothing
+> wrote it into the manifest, so neither reached the wall until something else
+> synced. The write patches the published document's `directive` block and
+> nothing else. It is not a sync, so a step publishes no work added to the theme
+> since the last one. A wall with nothing published yet carries the directive
+> out with its first sync. A write that fails refuses the step, so a directive
+> is never recorded as issued when it never reached the wall.
 
 **Every action but `status` takes a required `wall_id`**, built 2026-08-12. The
 directive is a row per wall rather than a singleton, so a `next` in the living

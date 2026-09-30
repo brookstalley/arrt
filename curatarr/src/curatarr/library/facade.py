@@ -15,6 +15,7 @@ reaches nothing in Programming.
 
 from collections.abc import Iterable
 
+from curatarr.library.events import WorkChange, WorkChanged, WorkChangedHandler
 from curatarr.library.readiness import (
     PlayableWork,
     Unplayable,
@@ -30,7 +31,16 @@ from curatarr.library.services.catalogue import CatalogueService
 #: One work's answer: it can go on a wall, or it cannot and here is why.
 type Playability = PlayableWork | Unplayable
 
-__all__ = ["LibraryFacade", "Playability", "PlayableWork", "Unplayable", "UnplayableReason"]
+__all__ = [
+    "LibraryFacade",
+    "Playability",
+    "PlayableWork",
+    "Unplayable",
+    "UnplayableReason",
+    "WorkChange",
+    "WorkChanged",
+    "WorkChangedHandler",
+]
 
 
 class LibraryFacade:
@@ -49,6 +59,16 @@ class LibraryFacade:
         dangling reference unbuildable. An id asked twice is answered once.
         """
         return {work_id: self._answer(work_id) for work_id in dict.fromkeys(work_ids)}
+
+    def subscribe(self, handler: WorkChangedHandler) -> None:
+        """Be told which work changed, after each change commits.
+
+        The announcement names the work and what happened, and nothing else. A
+        subscriber that needs to know whether the work can still go on a wall
+        asks `playable`, which is the only verdict there is. After a split this
+        is a webhook registration.
+        """
+        self._catalogue.subscribe(handler)
 
     def _answer(self, work_id: str) -> Playability:
         inputs = self._gather(work_id)

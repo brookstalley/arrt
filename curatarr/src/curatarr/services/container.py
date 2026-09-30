@@ -202,6 +202,10 @@ class Services:
         # The same open file passed as Programming's store: one object serves
         # both protocols until Programming's tables get a file of their own.
         display_service = DisplayService(catalogue, library, display_settings)
+        # Programming hears the Library's changes here, where both are composed,
+        # rather than subscribing itself: the subscription is wiring, and a
+        # service that wired itself could not be built for a test without it.
+        library.subscribe(display_service.on_work_changed)
         thumbnail_service = ThumbnailService(catalogue_service, thumbnails)
         # The artwork box reaches discovery for one reason: automatic selection
         # must withhold an instance that would render below the floor, and the
@@ -321,15 +325,16 @@ class Services:
         the one call a process start has to remember, so a service gaining a
         repair does not mean an entry point gaining a line.
 
-        **The display service had the other one until 2026-08-12**, and it was
-        dropped rather than made per-wall: it promoted the oldest theme when none
-        was active, which with more than one wall would hang the same theme in
-        every room unbidden. What the file may predate about hanging is a *shape*
-        rather than a rule now — the single-wall columns — and a shape is moved by
-        `persistence/migrations.py` when the file is opened, before any service
-        can read it.
+        **The display service reconciles too, and for a different reason**: not
+        a rule the file predates, but an announcement it may have missed. The
+        Library tells Programming when a work changes, after the change commits,
+        and a crash between the two loses the announcement. So every start takes
+        any work the Library now refuses off every published manifest and pin,
+        and a lost announcement delays that until the next start rather than
+        leaving it undone.
         """
         self.discovery.reconcile()
+        self.display.reconcile()
 
 
 def _default_acquisition(art_root: Path) -> AcquisitionSettings:

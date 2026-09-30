@@ -226,9 +226,18 @@ convenience would otherwise make that split a migration.
 > sides' record types in a shared module, so the guard cannot see Programming
 > naming a Library record type. Programming's store hands it only its own
 > tables, which is what prevents that in practice until rule 3 moves the records.
-> **Still in the inventory:** the two foreign keys (rule 3), and
-> `archive_artwork` withdrawing pins by writing Programming's directives, which
-> Chunk 02 moves to Programming's handler for `work.archived` (rule 4).
+> **Rule 4 migrated 2026-09-30** (wave 2b Chunk 02). The Library announces
+> `work.accepted`, `work.archived`, `work.image_changed` and `work.mat_changed`
+> through `library/events.py`, only after the change commits
+> (`CatalogueStore.after_commit`). Programming subscribes through the facade.
+> Its handler and its startup reconciliation apply one rule: any work the Library
+> now refuses comes off every published manifest carrying it, and any pin naming
+> it is withdrawn. The published document is patched, never rebuilt, so
+> additions still wait for sync. `archive_artwork` writes no Programming table.
+> `curatarr/tests/unit/test_library_events.py` and
+> `curatarr/tests/unit/test_reconciliation.py` hold it. **Still in the
+> inventory:** the two foreign keys (rule 3). Media URLs in manifests (the rest
+> of rule 4) arrive with Chunk 03's content-addressed media.
 > *(Re-scheduled 2026-09-30 from wave 6, after review: building the endpoint on
 > the unsplit code would mean building it twice.)*
 >

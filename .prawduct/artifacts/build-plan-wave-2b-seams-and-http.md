@@ -142,7 +142,7 @@ Each is lock-in, so the questions come before the fields.
 
 ## Status
 
-- [ ] Chunk 01: Library and Programming packages, the `playable()` facade, and the import guard
+- [x] Chunk 01: Library and Programming packages, the `playable()` facade, and the import guard
 - [ ] Chunk 02: Library events, and Programming's reconciliation at startup
 - [ ] Chunk 03: Curatarr's HTTP surface — manifest, media by content hash, heartbeat, and wall tokens
 - [ ] Chunk 04: Arrt's HTTP mode — pull into a cache, render only from it, and survive the server
@@ -185,12 +185,12 @@ Each is lock-in, so the questions come before the fields.
     `curatarr/src/curatarr/programming/` takes `display.py` and `manifest/`
     (builder, heartbeat), and gains
     `curatarr/src/curatarr/programming/store.py`.
-  - **Shared kernel**, importable from either side: `services/errors.py`,
-    `services/store.py`, `services/fields.py`, `persistence/`, `counting`,
-    `observations`, `logs`, `art_root`. **Composition**, which may import both
-    and which neither side may import: `services/container.py`,
-    `services/health.py`, `config.py`, `app.py`, `__main__.py`, `http/`,
-    `mcp/`, `seed/`.
+  - **Shared kernel**, importable from either side (module names under
+    `curatarr.`): `services.errors`, `services.store`, `services.fields`,
+    `persistence`, `counting`, `observations`, `logs`, `art_root`.
+    **Composition**, which may import both and which neither side may import:
+    `services.container`, `services.health`, `config`, `app`, `__main__`,
+    `http`, `mcp`, `seed`.
   - **Cracks found before the move, which the guard must show and the chunk
     must close:** `library.discovery.artic` imports `config` for a preview byte
     cap, and `config` imports the manifest; `survey` imports the display service;
@@ -204,7 +204,7 @@ Each is lock-in, so the questions come before the fields.
   - **`theme_works` splits along the seam.** Programming returns the theme's
     work ids in order, and each surface resolves them through the Library (rule
     6). Tests that called it change their call, not what they assert.
-  - **Records stay in `persistence/records.py` for now**, in the shared kernel,
+  - **Records stay in `curatarr.persistence.records` for now**, in the shared kernel,
     and `CatalogueStore` keeps `list_directives`/`set_directive` until Chunk 02
     moves the pin withdrawal out of `archive_artwork`. Programming's records
     move with rule 3 in wave 3.
@@ -240,6 +240,48 @@ Each is lock-in, so the questions come before the fields.
   say in the chunk's review why not.
 - **Done when:** the suites and lint pass; the norm's rule 4 is marked migrated
   in `architecture.md`.
+- **How it is built (decided at the chunk's start, 2026-09-30):**
+  - **Events fire after the commit, never inside it.** The durable store gains
+    `after_commit(callback)`. It runs the callback once the outermost
+    transaction commits and drops it on rollback. Acceptance calls `add_artwork`
+    inside discovery's transaction, so an event published inside it would reach
+    Programming for a work that might never exist. A handler that raises is
+    logged at ERROR and does not fail the Library's operation, which has already
+    committed. Startup reconciliation repairs what the handler left undone.
+  - **Programming subscribes through the facade** (`LibraryFacade.subscribe`),
+    so it still imports only the facade. After a split the subscription is a
+    webhook registration.
+  - **One rule serves the handler and startup reconciliation.** Ask `playable()`
+    about the works in question. For each wall whose published manifest carries
+    a work the Library now refuses, rewrite that manifest with those entries
+    removed and nothing else changed. Withdraw any pin naming a refused work
+    without advancing the sequence. The published document is patched rather
+    than rebuilt from the theme, because a rebuild would also put works on the
+    wall that were added since the last sync, and additions wait for sync (the
+    operator's ruling). The handler asks about one work; startup asks about
+    every work any manifest or pin names.
+  - **Pins are withdrawn for any refused work, not only an archived one.** The
+    plan's reconciliation checks pins against `playable()`, so the running
+    server follows the same rule or a restart would disagree with it.
+    Archiving is the case today's tests pin; a stale render is the case this
+    adds.
+  - **Events emitted:** `work.accepted` by `add_artwork` and `restore_artwork`,
+    `work.archived` by `archive_artwork`, `work.image_changed` by
+    `record_original` and `record_rendition`, and `work.mat_changed` by
+    `record_mat_color`. Programming's rule reads readiness rather than the
+    event's kind, so the kinds matter for logs and for a future webhook
+    consumer, not for correctness.
+  - **A defect found while reading this path, fixed here:** `next` and
+    `show_now` advance the stored directive and never rewrite the manifest. The
+    Player reads its directive only from the manifest, so neither reaches the
+    wall until something syncs. That contradicts `api-contract.md` § How
+    `art_display` reaches the display plane. The fix patches the published
+    document's `directive` block the same way reconciliation patches its
+    entries. It is not a sync, so a step publishes no new works. A wall with no
+    published manifest carries the directive out with its first sync, as it
+    does today.
+  - **Backlog #35:** `activate_theme` records the hang and writes the manifest
+    inside one store transaction, so a failed write rolls the hang back.
 
 ### Chunk 03: Curatarr's HTTP surface — manifest, media by content hash, heartbeat, and wall tokens
 

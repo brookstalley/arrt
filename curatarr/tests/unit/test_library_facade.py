@@ -141,5 +141,7 @@ def test_the_answers_are_plain_frozen_data(library, ready_work):
             value = getattr(answer, field.name)
             if field.name == "label":
                 assert all(isinstance(key, str) and (text is None or isinstance(text, str)) for key, text in value.items())
+                with pytest.raises(TypeError):
+                    value["title"] = "changed"
             else:
                 assert value is None or isinstance(value, str), f"{type(answer).__name__}.{field.name} is {type(value)}"
