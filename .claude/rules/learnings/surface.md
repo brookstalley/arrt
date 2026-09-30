@@ -1,8 +1,5 @@
 ---
 paths:
-  - "curation/src/curation/http/**"
-  - "curation/src/curation/mcp/**"
-  - "curation/src/curation/services/**"
   - "curatarr/src/curatarr/http/**"
   - "curatarr/src/curatarr/mcp/**"
   - "curatarr/src/curatarr/services/**"

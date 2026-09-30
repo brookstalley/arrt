@@ -412,10 +412,10 @@ pinned, per Chunk 27.)
 > holding the remote wins, always, and the plane's way of conceding is to stop
 > for the night rather than to wait a while and try again.
 >
-> **Status:** in-transition. The v1 plan's Chunks 24–27 that tracked it were abandoned on 2026-09-30. Its requirement is rebuilt as Displayarr power control (`re-architecture.md` § Where the v1 open chunks' requirements went), and the dark hours move to Programming's schedule.
+> **Status:** in-transition. The v1 plan's Chunks 24–27 that tracked it were abandoned on 2026-09-30. Its requirement is rebuilt as Arrt power control (`re-architecture.md` § Where the v1 open chunks' requirements went), and the dark hours move to Programming's schedule.
 > **Interim rule: no code that runs unattended sends a power key until the
 > power-transition measurement (formerly the v1 plan's Chunk 24, now part of
-> Displayarr power control) has recorded what the keys do.** The transitions are a sketch today —
+> Arrt power control) has recorded what the keys do.** The transitions are a sketch today —
 > `platform-and-dependency-findings.md` observed two presses from one starting state
 > and never tested press-and-hold — and the state its map is missing is the
 > television one, where a press is the interruption the paragraphs above forbid.
@@ -424,19 +424,19 @@ pinned, per Chunk 27.)
 > written, because the measurement itself needs something that sends one. The
 > original wording forbade the instrument that satisfies its own precondition,
 > which is a rule that cannot be complied with. **What the narrowing turns on is
-> the operator, not the code**: `display/tools/power_probe.py` refuses to send
+> the operator, not the code**: `arrt/tools/power_probe.py` refuses to send
 > anything without `--i-am-at-the-set`, so every press it makes has somebody
 > standing in front of the set watching — which is the whole distinction this norm
 > draws. It is stated here rather than only in the build plan because a plan is
 > archived when it completes and this sentence outlives it.)*
 >
 > **Retroactivity:** migrate, no residual sites in the daemon. Nothing on the
-> unattended path holds a power verb: `display/src/display/tv/` opens the art
+> unattended path holds a power verb: `arrt/src/arrt/tv/` opens the art
 > channel only and sends no key, and that is what Chunk 25 changes.
 >
 > Two places a reader will find power code today, and neither is the plane running
 > on the wall. `tvart.py` has every `KEY_POWER` line commented out — inert, the 2024
-> plane, deleted by Chunk 20. `display/tools/power_probe.py` sends them for real, by
+> plane, deleted by Chunk 20. `arrt/tools/power_probe.py` sends them for real, by
 > hand, guarded as above; it is an instrument rather than a plane, and it is listed
 > here because a retroactivity claim that misses a live call site is worse than no
 > claim.
@@ -788,7 +788,7 @@ than a silent truncation of results.
 > re-deriving them every time a vendor's rate moves would make the bound follow
 > the market instead of the household. A cap has to sit at the ceiling of the
 > recorded range rather than at its middle, or it stops runs the analysis says are
-> ordinary. `curation/tests/unit/test_config.py` recomputes both
+> ordinary. `curatarr/tests/unit/test_config.py` recomputes both
 > figures from the shipped settings, so the derivation is checked rather than
 > asserted, and a settings change that walks away from this analysis fails.
 >
@@ -842,7 +842,7 @@ the MCP tool surface.
 
 > **"CLI" struck 2026-08-02.** This sentence listed a third surface the product
 > does not have and has never planned: no CLI appears in `api-contract.md`'s
-> surface inventory or `product-brief.md`'s flows, and `curation/__main__.py` only
+> surface inventory or `product-brief.md`'s flows, and `curatarr/__main__.py` only
 > starts the server. Left standing it would read as an unbuilt requirement — a
 > surface silently owed by whichever chunk noticed — when in fact nothing was ever
 > dropped. Struck rather than deleted quietly, so a reader of an earlier revision
@@ -1169,7 +1169,7 @@ artwork box  =  canvas − mat(panel geometry, mat inches)
 bottom weighting produces: 1723 implies a bottom margin 1.97x the top while the
 42" row implies 1.15x, so at most one of the two could ever have been right. Both
 rows above are now computed by `Settings.tv_artwork_box` and asserted against
-these exact figures in `curation/tests/unit/test_config.py`, so this table has a
+these exact figures in `curatarr/tests/unit/test_config.py`, so this table has a
 mechanism behind it rather than being arithmetic done once by hand.)*
 
 **The floor is a minimum rendered size on the wall, in inches** — the same units as

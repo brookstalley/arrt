@@ -121,7 +121,7 @@ requirement below is about the drawn result rather than about a mechanism.
 
 ### The panel must be driven at 16 grey levels, and the mode must be read back
 
-**Practised** — `display/src/display/panel/epaper.py` sets `mode = "gray16"` and
+**Practised** — `arrt/src/arrt/panel/epaper.py` sets `mode = "gray16"` and
 asserts what the driver took.
 
 This is an accessibility requirement rather than a driver detail, and the reason it
@@ -139,7 +139,7 @@ success from every direction except standing in front of it.
 
 ### Type never shrinks to fit, except for the facts that identify the work
 
-**Practised** — `display/src/display/panel/layout.py`. The optional tier's drop
+**Practised** — `arrt/src/arrt/panel/layout.py`. The optional tier's drop
 rule was built first; **the mandatory tier landed 2026-08-13 with the fill
 model**, and with it the journal event the tier is conditional on
 (`label.shrunk`, a warning rather than an info line — a dropped medium is the
@@ -147,9 +147,9 @@ engine working, and type below the floor is a deployment that cannot show this
 corpus legibly).
 
 Which tier a fact belongs to is carried on the fact itself
-(`display/src/display/panel/content.py`), so nothing downstream infers it from a
-position. Guarded by `display/tests/test_label_layout.py` for what the rules are
-and by `display/tests/test_label_properties.py` for the claim that they always
+(`arrt/src/arrt/panel/content.py`), so nothing downstream infers it from a
+position. Guarded by `arrt/tests/test_label_layout.py` for what the rules are
+and by `arrt/tests/test_label_properties.py` for the claim that they always
 hold — ten independently optional fields is 1024 content shapes, and both defects
 this replaced were about *which* fields a record happened to have rather than
 about any one line.
@@ -220,7 +220,7 @@ Four properties of the rule, all of them load-bearing:
 
 ### The type floor is derived from viewing distance, not chosen for a panel
 
-**Practised** — `display/src/display/panel/legibility.py`, built 2026-08-11 as
+**Practised** — `arrt/src/arrt/panel/legibility.py`, built 2026-08-11 as
 13B-1. It replaces the settlement below rather than answering it. Settled
 2026-08-11 with the operator, at the panel, once the two physical facts were
 known: the reference panel is **6 inches diagonal at 1448×1072**, which is
@@ -428,12 +428,12 @@ because it is a set of decisions and not a layout tweak.**
 
 **Practised.** 13B-3 built the *content model* — the ordering, the one-line
 identification block, the stored name parts and the commentary field, all in
-`display/src/display/panel/metadata.py` and carried there by the manifest.
+`arrt/src/arrt/panel/metadata.py` and carried there by the manifest.
 **13B-2 built the typography on 2026-08-13**: a line is a tuple of styled runs
-(`display/src/display/panel/styling.py`), the family name is set bold and
+(`arrt/src/arrt/panel/styling.py`), the family name is set bold and
 capitalised, titles are set in italic, and the renderer applies Pango attributes
 over byte ranges. **13B-4 built the fill model and the name ladder the same
-day** — `display/src/display/panel/content.py` for what a fact is and
+day** — `arrt/src/arrt/panel/content.py` for what a fact is and
 `layout.py` for what survives.
 
 **The styling cost room, the ladder gave it back, and both figures are from the
@@ -472,7 +472,7 @@ of composing two rules this section states separately:
   same name twice.
 
 **Built 2026-08-11 as 13B-3**, with the tests in
-`display/tests/test_label_metadata.py` § TestWhoMadeIt.
+`arrt/tests/test_label_metadata.py` § TestWhoMadeIt.
 
 **The artist outranks the work.** The 2024-era ordering led with the title, and on
 a 6-inch panel that is what wastes it: measured on the panel, "Under the Well of
@@ -710,7 +710,7 @@ panel wrong. Every figure in this amendment is from the panel's own machine.
   reason to guess at one.
 
   **Where the split for the seeded corpus comes from: a written table, not a
-  rule** (`curation/src/curation/seed/names.py`). Thirty-one names, each with its
+  rule** (`curatarr/src/curatarr/seed/names.py`). Thirty-one names, each with its
   parts spelled out, because this corpus alone defeats every heuristic in a
   different way — "Frank Lloyd Wright" defeats last-word, "Georgia O'Keeffe"
   defeats first-word, "Katsushika Hokusai" inverts the Western order it appears
@@ -761,9 +761,9 @@ panel wrong. Every figure in this amendment is from the panel's own machine.
   character count is invisible on `O'Keeffe` and wrong on everything else — an en
   dash spends three bytes, so every life date on this wall already contains one.
   What a character offset produces is a run of the wrong length set in the wrong
-  weight, with nothing raising. Guarded by `display/tests/test_label_styling.py`
+  weight, with nothing raising. Guarded by `arrt/tests/test_label_styling.py`
   (the offsets, including a capital that changes byte length) and by
-  `display/tests/raster/test_pango.py` § TestTheStylingReachesTheType, which
+  `arrt/tests/raster/test_pango.py` § TestTheStylingReachesTheType, which
   checks a style over non-ASCII text against a reference that uses no indices at
   all.
 
@@ -951,8 +951,8 @@ rather than being added after the fill rule was tuned without it.
 **Closed 2026-08-11 by 13B-1. Kept as a record of how they failed**, because the
 way they failed is the reason the sections above are written the way they are.
 
-`display/src/display/panel/layout.py` carried `TITLE_SIZE_PX = 40`,
-`ARTIST_SIZE_PX = 32` and `BODY_SIZE_PX = 26`; `display/src/display/config.py`
+`arrt/src/arrt/panel/layout.py` carried `TITLE_SIZE_PX = 40`,
+`ARTIST_SIZE_PX = 32` and `BODY_SIZE_PX = 26`; `arrt/src/arrt/config.py`
 carried `DEFAULT_EPD_MARGIN_PX = 40`. **None of the four exists any more**, and
 none of them was ever a measurement. The operator's 2026-08-04 look at the real
 panel killed the 2024 `"Sans 18"` and narrowed the live range to roughly the
@@ -990,7 +990,7 @@ rather than deleted.
 
 ### Line length has a bound, and this panel will stop reaching it
 
-**Practised** — `MEASURE_EM` in `display/src/display/panel/layout.py`, added
+**Practised** — `MEASURE_EM` in `arrt/src/arrt/panel/layout.py`, added
 2026-08-11. `design_decisions.accessibility_approach` names three things that
 carry legibility — type size at reading distance, contrast on a non-emissive
 panel, and **line length** — and the third had no mechanism at all. Layout wrapped
@@ -1026,7 +1026,7 @@ label, and the label travels as metadata"* (`architecture.md` § Direction, rati
 
 Its accessibility content is easy to miss: several devices may carry panels of
 different sizes, and the 2024 plane's baked-in 648×480 is the anti-pattern being
-retired. Geometry arrives as a parameter; `display/src/display/config.py` defaults to the reference
+retired. Geometry arrives as a parameter; `arrt/src/arrt/config.py` defaults to the reference
 1448×1072 and every value is overridable. **A device with no label surface at all
 is a configuration, not a fault** — which matters here because a household adding a
 display without a panel must not read as a broken one.
@@ -1042,7 +1042,7 @@ display without a panel must not read as a broken one.
 ### The panel has no brightness control, and that is why the rest of this matters
 
 The label surface is non-emissive: there is no backlight to raise and no ambient
-adaptation available to it. `display/src/display/brightness.py` follows the sun,
+adaptation available to it. `arrt/src/arrt/brightness.py` follows the sun,
 but it maps onto **the television's** scale — the panel is not in that loop. So the
 panel's legibility in a dim room is entirely a function of the 16 levels, the type
 size and the measure. There is no runtime lever that compensates for getting them
@@ -1059,7 +1059,7 @@ colour, so chrome must never sit at a contrast that competes with the artwork.
 
 ### Contrast is computed, not claimed
 
-**Practised, and mechanically enforced** — `curation/tests/unit/test_design_tokens.py`.
+**Practised, and mechanically enforced** — `curatarr/tests/unit/test_design_tokens.py`.
 
 The test reads the real token values out of the served stylesheet and computes the
 ratios, in **both** colour schemes, against WCAG 2.1's own luminance definition. A
@@ -1098,12 +1098,12 @@ caught or would catch:
 **Practised, and only half of it is mechanical.** This is the split to respect
 rather than paper over.
 
-The mechanism covers the part a machine can see. `curation/tests/unit/test_design_tokens.py` derives
+The mechanism covers the part a machine can see. `curatarr/tests/unit/test_design_tokens.py` derives
 every state a badge can carry **from the enums rather than from a written-out
 list**, and asserts that each has a CSS block of its own and that no two states of
 one axis are pixel-identical — a block copy-pasted for a new verdict with only the
 selector changed would otherwise make a rejection look like an acceptance in
-greyscale. `curation/tests/unit/test_client_vocabulary.py` asserts that every enum value the server can
+greyscale. `curatarr/tests/unit/test_client_vocabulary.py` asserts that every enum value the server can
 send has a sentence in the client, so no raw token leaks onto a screen.
 
 **What no test can see is whether the glyph actually distinguishes anything.** That
@@ -1249,7 +1249,7 @@ descriptions of it.
 
 **Owed, with the same status as the revised palettes.** `design-direction.md`
 requires control heights of 2.75rem (44px) under `@media (pointer: coarse)`, with a
-2.25rem default that clears WCAG 2.2 AA's 24px floor. **`curation/src/curation/http/static/app.css` contains no
+2.25rem default that clears WCAG 2.2 AA's 24px floor. **`curatarr/src/curatarr/http/static/app.css` contains no
 `pointer: coarse` block and no control height**, verified 2026-08-11 — so the rule
 is a proposal today and is recorded as one here rather than as a practice.
 
@@ -1322,14 +1322,14 @@ is the same reason `information-architecture.md` § Boundaries lists it.
 
 | Requirement | How it is checked | Where |
 |---|---|---|
-| Contrast, both schemes, both floors | Test — computed from the served stylesheet | `curation/tests/unit/test_design_tokens.py` |
+| Contrast, both schemes, both floors | Test — computed from the served stylesheet | `curatarr/tests/unit/test_design_tokens.py` |
 | No colour outside the token blocks | Test, with an asserted scan scope | same file |
 | Every badge state has a distinct block | Test, derived from the enums | same file |
-| Every server enum has a client sentence | Test, reads the served `app.js` | `curation/tests/unit/test_client_vocabulary.py` |
-| The panel runs at 16 levels | Test — the mode is set, and a panel that quietly stays in one bit is refused | `display/tests/test_epaper.py` |
-| Content drops rather than shrinking | Test, against an injected measurer so it runs without a font | `display/tests/test_label_layout.py` |
+| Every server enum has a client sentence | Test, reads the served `app.js` | `curatarr/tests/unit/test_client_vocabulary.py` |
+| The panel runs at 16 levels | Test — the mode is set, and a panel that quietly stays in one bit is refused | `arrt/tests/test_epaper.py` |
+| Content drops rather than shrinking | Test, against an injected measurer so it runs without a font | `arrt/tests/test_label_layout.py` |
 | Glyph actually distinguishes state | **Critic judgment.** No test can see this | `/prawduct:critic` |
-| Focus lands where it should, and a poll does not steal it | **Browser suite**, `-m browser` — a real Chromium against a booted server | `curation/tests/browser/` |
+| Focus lands where it should, and a poll does not steal it | **Browser suite**, `-m browser` — a real Chromium against a booted server | `curatarr/tests/browser/` |
 | Type size, margin and measure at reading distance | **The operator, at the panel.** Nothing else can | Chunk 13B, `Visual change: yes` |
 
 **The last row is the one to watch.** It is the only requirement in this artifact

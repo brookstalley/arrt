@@ -1,7 +1,5 @@
 ---
 paths:
-  - "curation/src/curation/acquisition/**"
-  - "curation/tools/mat_*.py"
   - "curatarr/src/curatarr/acquisition/**"
   - "curatarr/tools/mat_*.py"
 ---

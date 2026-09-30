@@ -248,7 +248,7 @@ path.
 **Corrected 2026-08-10 — this section was titled "needs no distro packages" and
 that is not what was measured.** What the Pi run shows is that no distro *Python*
 package is needed; it says nothing about C headers, and the difference cost a red
-CI job the first time the typesetting leg ever executed. `display/uv.lock` is the
+CI job the first time the typesetting leg ever executed. `arrt/uv.lock` is the
 authority and it is unambiguous: **pycairo 1.29.1 publishes Windows wheels only
 (`win32`, `win_amd64` and `win_arm64`, across cp312–cp315), and PyGObject 3.56.3
 publishes no wheel at all** — sdist only. The load-bearing half is that **no Linux
@@ -282,7 +282,7 @@ tested by CI rather than only by whoever last had a Pi in front of them.**
 
 **PyGObject DOES work on this project's development Mac — corrected 2026-08-13.**
 It resolves as a uv wheel (PyGObject 3.56.3 against Pango 1.57.1) and imports,
-renders through PangoCairo and passes `display/tests/raster` there. What this
+renders through PangoCairo and passes `arrt/tests/raster` there. What this
 paragraph said before, and said for months, was that it "does not work at all"
 and that no time should be spent on it: it built under Homebrew and then failed
 at import inside `gi/overrides/__init__.py`, and reinstalling
@@ -321,7 +321,7 @@ at all. The low end of the live range was half the resolvable size, and the high
 end barely reached it.
 
 The numbers are no longer judged. They derive from the two physical facts above
-against a calibrated cap height — `display/src/display/panel/legibility.py`, with
+against a calibrated cap height — `arrt/src/arrt/panel/legibility.py`, with
 the reasoning in `accessibility-spec.md` § The type floor is derived from viewing
 distance. On this panel that is a 130 px primary tier over a 92 px floor.
 

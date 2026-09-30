@@ -1,7 +1,7 @@
 """The Player contract's schemas and fixtures agree with each other.
 
-The contract under `contract/` is what Curatarr and Displayarr are each tested
-against, and after the repo split it is what Displayarr pins. So the fixtures are
+The contract under `contract/` is what Curatarr and Arrt are each tested
+against, and after the repo split it is what Arrt pins. So the fixtures are
 a claim about the schemas, and this file is what makes the claim true: every
 valid fixture validates, and every invalid one fails for exactly one reason.
 

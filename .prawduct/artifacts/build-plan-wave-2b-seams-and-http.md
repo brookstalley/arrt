@@ -42,18 +42,18 @@ last_validated: null
 The rest of `re-architecture.md`'s wave 2, after the rename (`build-plan-wave-2a-rename.md`).
 Curatarr splits into Library and Programming packages, with a facade and events
 between them. It then serves each wall's manifest, media and heartbeat over HTTP
-under a token per wall, and Displayarr gains a mode that pulls them into a local
+under a token per wall, and Arrt gains a mode that pulls them into a local
 cache. **The file channel keeps working throughout.** The Pi can run either mode,
 and wave 3 retires the file only once HTTP has run on the real wall.
 
-Paths below use the names 2a gives them (`curatarr/`, `displayarr/`).
+Paths below use the names 2a gives them (`curatarr/`, `arrt/`).
 
 | Chunk | What it is |
 |---|---|
 | 01 | Library and Programming packages, the `playable()` facade, and the import guard |
 | 02 | Library events, and Programming's reconciliation at startup |
 | 03 | Curatarr's HTTP surface: manifest, media by content hash, heartbeat, and wall tokens |
-| 04 | Displayarr's HTTP mode: pull into a cache, render only from it, and survive the server |
+| 04 | Arrt's HTTP mode: pull into a cache, render only from it, and survive the server |
 
 ## What I would do differently
 
@@ -132,7 +132,7 @@ Each is lock-in, so the questions come before the fields.
   - *Observability:* one journal line per refused token, rate-limited per wall,
     and the heartbeat's age is already on the health panel.
   - *Versioning:* the contract's, recorded in `player-contract.md`.
-- **Displayarr's pull client and cache** (Chunk 04).
+- **Arrt's pull client and cache** (Chunk 04).
   - *Errors:* keep the cache; back off.
   - *Observability:* report-once journal lines for "server unreachable",
     "token refused" and "hash mismatch", in the style the manifest watcher
@@ -145,7 +145,7 @@ Each is lock-in, so the questions come before the fields.
 - [ ] Chunk 01: Library and Programming packages, the `playable()` facade, and the import guard
 - [ ] Chunk 02: Library events, and Programming's reconciliation at startup
 - [ ] Chunk 03: Curatarr's HTTP surface — manifest, media by content hash, heartbeat, and wall tokens
-- [ ] Chunk 04: Displayarr's HTTP mode — pull into a cache, render only from it, and survive the server
+- [ ] Chunk 04: Arrt's HTTP mode — pull into a cache, render only from it, and survive the server
 
 ### Chunk 01: Library and Programming packages, the `playable()` facade, and the import guard
 
@@ -244,7 +244,7 @@ Each is lock-in, so the questions come before the fields.
   test also validates a builder-written manifest that carries `media`, **beside**
   the contract's `minor-2-with-media` fixture, never in place of it. That fixture
   is the only valid major 1 manifest carrying `media`, and the Player's suite,
-  Chunk 04's stub server and Displayarr after the repo split all read it.
+  Chunk 04's stub server and Arrt after the repo split all read it.
 - **Carried from wave 1's cumulative review** (`rev-20260930T151634Z-9a02d6ac`),
   because this chunk already edits the contract's fixtures and its tests:
   - R-2: an invalid major 2 fixture for each of the two unreached branches of
@@ -263,13 +263,13 @@ Each is lock-in, so the questions come before the fields.
 - **Done when:** the suites, the browser suite and lint pass; the `security-model.md`
   inventory row exists; the queue entry exists.
 
-### Chunk 04: Displayarr's HTTP mode — pull into a cache, render only from it, and survive the server
+### Chunk 04: Arrt's HTTP mode — pull into a cache, render only from it, and survive the server
 
 - **Depends on:** Chunk 03 (built against the contract, not against Chunk 03's
   code, so it could start once the contract fixtures exist)
 - **Description:**
   - **The mode.** `MANIFEST_SOURCE=http` with `SERVER_URL`, `WALL_TOKEN` and
-    `CACHE_DIR` switches Displayarr from reading the manifest file to pulling it.
+    `CACHE_DIR` switches Arrt from reading the manifest file to pulling it.
     The file mode stays the default.
   - **The pull client.** One module polls `GET /walls/{id}/manifest` with
     `If-None-Match` about once a second. On a new manifest it fetches each

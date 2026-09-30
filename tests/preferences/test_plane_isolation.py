@@ -36,7 +36,7 @@ from collections.abc import Iterator
 import pytest
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
-DISPLAY_PACKAGE = REPOSITORY_ROOT / "display" / "src" / "display"
+DISPLAY_PACKAGE = REPOSITORY_ROOT / "arrt" / "src" / "arrt"
 
 #: Where a module name may resolve to a file **in this repository**. Ordered by
 #: how a plane's own code would find it, and **first match wins** — a name
@@ -49,13 +49,13 @@ DISPLAY_PACKAGE = REPOSITORY_ROOT / "display" / "src" / "display"
 #: curation copy of anything. Resolution exists only to keep walking repo-local
 #: files, and following the display copy is the honest answer there.
 SEARCH_ROOTS: tuple[pathlib.Path, ...] = (
-    REPOSITORY_ROOT / "display" / "src",
-    REPOSITORY_ROOT / "curation" / "src",
+    REPOSITORY_ROOT / "arrt" / "src",
+    REPOSITORY_ROOT / "curatarr" / "src",
     REPOSITORY_ROOT,
 )
 
 #: The forbidden side of the channel. Anything under this package is curation's.
-CURATION_PACKAGE = "curation"
+CURATION_PACKAGE = "curatarr"
 
 #: HTTP clients, by the name a module would import them under. **`websockets` and
 #: `samsungtvws` are deliberately absent**: the television is reached over a
@@ -111,7 +111,7 @@ class TestTheGuardCanFail:
     """Planted violations, because a check never seen red is a check never wired up."""
 
     def test_it_catches_a_curation_import(self, tmp_path: pathlib.Path):
-        module = _plant(tmp_path, "shortcut.py", "from curation.services.catalogue import CatalogueService\n")
+        module = _plant(tmp_path, "shortcut.py", "from curatarr.services.catalogue import CatalogueService\n")
 
         offences = _audit([module], roots=(tmp_path,))
 
@@ -130,7 +130,7 @@ class TestTheGuardCanFail:
         A direct-only check reads `shortcut.py`, sees an innocent local import,
         and passes — while the helper next to it does the forbidden thing.
         """
-        _plant(tmp_path, "helper.py", "from curation.config import load\n")
+        _plant(tmp_path, "helper.py", "from curatarr.config import load\n")
         module = _plant(tmp_path, "shortcut.py", "import helper\n")
 
         offences = _audit([module], roots=(tmp_path,))
@@ -222,8 +222,8 @@ def _audit(entry_points: list[pathlib.Path], roots: tuple[pathlib.Path, ...] = S
     """
     offences: list[Offence] = []
     seen: set[pathlib.Path] = set()
-    # One offence per (kind, package, file). `from curation.x import Y` yields
-    # both `curation.x` and `curation.x.Y` — the resolver needs both readings,
+    # One offence per (kind, package, file). `from curatarr.x import Y` yields
+    # both `curatarr.x` and `curatarr.x.Y` — the resolver needs both readings,
     # since only the filesystem knows whether the tail is a submodule — but a
     # reader wants one line per place that does the forbidden thing, not one per
     # spelling of it.

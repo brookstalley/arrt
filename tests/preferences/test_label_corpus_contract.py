@@ -1,6 +1,6 @@
 """The display plane's corpus quotes the name splits curation actually seeds.
 
-**The claim, not the duplication, is what needs guarding.** `display/src/display/
+**The claim, not the duplication, is what needs guarding.** `arrt/src/arrt/
 panel/corpus.py` holds real records so the label engine is measured against the
 words the wall really carries, and its docstring says the name splits are "the
 split the seed table actually stores". The duplication itself is deliberate and
@@ -32,8 +32,8 @@ import pathlib
 import pytest
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
-CORPUS = REPOSITORY_ROOT / "display" / "src" / "display" / "panel" / "corpus.py"
-SEED_TABLE = REPOSITORY_ROOT / "curation" / "src" / "curation" / "seed" / "names.py"
+CORPUS = REPOSITORY_ROOT / "arrt" / "src" / "arrt" / "panel" / "corpus.py"
+SEED_TABLE = REPOSITORY_ROOT / "curatarr" / "src" / "curatarr" / "seed" / "names.py"
 
 #: The name of curation's lookup, so a rename is a failure here rather than a
 #: silently empty comparison.

@@ -1,6 +1,6 @@
 # Run the browser suite, which is the only thing that executes the client.
 #
-# WHAT THIS IS FOR. `curation/src/curation/http/static/app.js` is the product's
+# WHAT THIS IS FOR. `curatarr/src/curatarr/http/static/app.js` is the product's
 # only human interface, and neither Python suite runs a line of it. This suite
 # drives it in a real Chromium against a real booted server. Unlike the API-drift
 # probes, it is about whether our own code is right — so it runs on every pull
@@ -47,16 +47,16 @@ jobs:
         with:
           enable-cache: true
       - name: Install the browser group
-        working-directory: curation
+        working-directory: curatarr
         run: uv sync --group browser
       - name: Install Chromium
-        working-directory: curation
+        working-directory: curatarr
         # Only the one browser. The suite pins behaviour of the client, not of
         # any particular engine's rendering, so paying for three downloads would
         # buy a longer job and no extra information.
         run: uv run playwright install --with-deps chromium
       - name: Run the browser suite
-        working-directory: curation
+        working-directory: curatarr
         # The path is scoped as well as the marker, and that is load-bearing
         # rather than tidy. `-m browser` alone still *collects* the whole tests
         # tree, so the eval module — whose group is deliberately not installed
@@ -71,4 +71,4 @@ jobs:
         # is the guard that tells the two apart, and it is exactly why the
         # modules skip rather than fail when the group is missing: that is the
         # right behaviour locally and a trap here.
-        run: python3 .github/scripts/assert_tests_ran.py curation/results.xml
+        run: python3 .github/scripts/assert_tests_ran.py curatarr/results.xml

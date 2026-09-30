@@ -344,7 +344,7 @@ is no network between planes.
   the divergence the shared service layer exists to prevent, reappearing one
   layer up. No framework and no build step: a Node toolchain on the Pi buys
   nothing a single operator on a private network can see.)*
-- **A fourth binding is not a surface:** `curation/seed/` is a hand-run command
+- **A fourth binding is not a surface:** `curatarr/seed/` is a hand-run command
   that reads the 2024 index and mints its works through `CatalogueService`. It is
   bound by the same rule for the same reason — it enforces no catalogue
   constraint of its own, so a work that arrived from the old index obeys exactly
@@ -370,7 +370,7 @@ is no network between planes.
 
   A screen needing something another screen has is the signal that the thing is
   shared, and the move is to `core/` — not an import across the boundary.
-  `curation/tests/unit/test_client_module_boundaries.py` enforces it, which it
+  `curatarr/tests/unit/test_client_module_boundaries.py` enforces it, which it
   can because — unlike the Direction norm the same work implements — this
   violation is exactly an import and therefore greppable.
 - **Internal layering, inside that plane** (established 2026-07-27; `acquisition/`
@@ -697,7 +697,7 @@ is no network between planes.
     lacks; that is the only change SQLite applies in place without losing data,
     so a column that goes *away*, a table replaced by a differently-keyed one, or
     rows carried between the two is written by hand in
-    `curation/src/curation/persistence/migrations.py`. The facts a later schema
+    `curatarr/src/curatarr/persistence/migrations.py`. The facts a later schema
     change needs and cannot infer from reading one migration:
     - Migrations are **handed to the store at construction** —
       `SqliteDurableStore(path, schema, migrations=...)` — never reached for from
@@ -936,8 +936,8 @@ failure this whole arrangement removes: a television showing another room's
 pictures while every log line reads fine. The value is the id the curation
 catalogue minted, read off the Walls screen or `art_display(action='walls')`.
 
-**Built 2026-08-12** (`curation/src/curation/manifest/builder.py`,
-`display/src/display/config.py`). The one-wall installation is the degenerate
+**Built 2026-08-12** (`curatarr/src/curatarr/manifest/builder.py`,
+`arrt/src/arrt/config.py`). The one-wall installation is the degenerate
 case: one wall, one manifest, one heartbeat, and behaviour identical to the
 single-file form apart from the filename. Neither filename may be imported across
 the planes — the isolation norm forbids it — so both are declared twice and held
@@ -1365,7 +1365,7 @@ They stay independently formatted rather than merged: the MCP side returns plain
 dicts and the HTTP side pydantic models whose field docstrings are documentation,
 so a shared formatter would cost one of those. What changed is that divergence is
 now a test failure at the moment of the edit —
-`curation/tests/unit/test_surface_parity.py`, which also asserts the artwork pair
+`curatarr/tests/unit/test_surface_parity.py`, which also asserts the artwork pair
 still differs, since that divergence is this entry's only evidence.
 
 **2026-07-20 — Readiness is manifest membership, not a stored flag.** Resolves the

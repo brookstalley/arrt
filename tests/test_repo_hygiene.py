@@ -2,7 +2,7 @@
 
 This exists because of a real near-miss: the stock Python `.gitignore` carries an
 unanchored `MANIFEST` rule for the setuptools artifact, and on a case-insensitive
-filesystem (macOS) that also matched `curation/src/curation/manifest/` — the
+filesystem (macOS) that also matched `curatarr/src/curatarr/manifest/` — the
 theme-manifest builder, which is the only channel between the two planes. The
 package existed on disk, imports succeeded, and tests passed; it was simply never
 committed. A fresh clone, or the Pi, would have had a missing module.
@@ -16,11 +16,11 @@ import subprocess
 
 import pytest
 
-#: Every tree whose absence from a fresh clone would matter. `curation/tests`
+#: Every tree whose absence from a fresh clone would matter. `curatarr/tests`
 #: carries almost all of the curation plane's coverage, and a tree the guard does
 #: not walk is exactly the tree this guard was built for: the suite stays green
 #: locally while the clone and the Pi quietly lose it.
-SOURCE_TREES = ("curation/src", "curation/tests", "display/src", "tests")
+SOURCE_TREES = ("curatarr/src", "curatarr/tests", "arrt/src", "arrt/tests", "tests")
 
 
 def _ignored(paths: list[pathlib.Path]) -> list[str]:

@@ -28,7 +28,7 @@ stays version-free.
 ## Change of direction — 2026-09-30 (read before anything else)
 
 **The product is becoming two: Curatarr, a server holding the Library and
-Programming, and Displayarr, a Player at each wall.** The target, the waves and
+Programming, and Arrt, a Player at each wall.** The target, the waves and
 the open questions are in `.prawduct/artifacts/re-architecture.md`. The contract
 between the two is `player-contract.md` and `contract/`. Rules for working here
 meanwhile:
@@ -39,12 +39,12 @@ meanwhile:
 - **Several norms are `in-transition`**, each with an interim rule. Read
   `architecture.md` § Direction before touching the manifest, the display
   plane's I/O, or the theme, wall and directive tables.
-  `tests/preferences/test_plane_isolation.py` is unchanged on purpose until wave
-  2 narrows it.
-- **Each wave has its own plan, which names its branch.** Next up: wave 2a, the
-  rename to `curatarr/` and `displayarr/` (`build-plan-wave-2a-rename.md`), then
-  wave 2b. Branch from `develop`. The parked round-2 UI plan lives on
-  `curation-ui/rulings-and-plan`.
+  `tests/preferences/test_plane_isolation.py` keeps its assertions on purpose
+  until wave 2b narrows it.
+- **Each wave has its own plan, which names its branch.** What comes next is
+  `re-architecture.md` § Order of work, and the plan whose `branch:` you are on
+  is the one in force. Branch from `develop`. The parked round-2 UI plan lives
+  on `curation-ui/rulings-and-plan`.
 - **This repo is public.** The operator's NAS deployment is recorded in their
   private homelab repo. Don't put network addresses, hostnames or usernames here.
 
@@ -54,9 +54,9 @@ Three independent projects, three interpreters, three suites.
 
 | | 2024 modules (repo root) | curation plane | display plane |
 |---|---|---|---|
-| Test | `uv run pytest tests` | `cd curation && uv run pytest` | `cd display && uv run --group raster pytest` |
-| Lint | `uv run ruff check .` | `cd curation && uv run ruff check .` | `cd display && uv run ruff check .` |
-| Format | `uv run black .` | `cd curation && uv run black .` | `cd display && uv run black .` |
+| Test | `uv run pytest tests` | `cd curatarr && uv run pytest` | `cd arrt && uv run --group raster pytest` |
+| Lint | `uv run ruff check .` | `cd curatarr && uv run ruff check .` | `cd arrt && uv run ruff check .` |
+| Format | `uv run black .` | `cd curatarr && uv run black .` | `cd arrt && uv run black .` |
 
 **All three must pass.** The display plane got its suite, its `test_commands`
 entry and its CI leg on 2026-08-06, with its first modules — until then its
@@ -67,7 +67,7 @@ claim about when a guard starts guarding.
 **Nothing in any of the three reaches a television, a panel, or a museum.** The
 display suite drives a double behind the TV interface, which is why it runs on a
 GitHub runner; the hardware is exercised by `tv_api_check.py`, by
-`display/tools/power_probe.py`, and by the `live_*` markers below, all of them run
+`arrt/tools/power_probe.py`, and by the `live_*` markers below, all of them run
 by hand.
 
 **`power_probe.py` presses power on the real television, and it is the only thing
@@ -84,7 +84,7 @@ does.** Without it `pytest` collects a strictly smaller suite than the one
 claiming a green display leg are talking about different suites — and the
 difference is the typesetter, the plane's most important accessibility surface.
 
-**`display/tests/raster` needs one optional group and skips itself without it.**
+**`arrt/tests/raster` needs one optional group and skips itself without it.**
 The label is typeset with Pango through PyGObject, which a default `uv sync` does
 not install. **It does install and import on this Mac** — verified 2026-08-13,
 PyGObject 3.56.3 resolving as a wheel against Pango 1.57.1, rendering through
@@ -94,7 +94,7 @@ product's most important accessibility surface goes unexercised locally and is
 first seen in CI.) So run it:
 
 ```sh
-cd display && uv run --group raster pytest tests/raster
+cd arrt && uv run --group raster pytest tests/raster
 ```
 
 The display CI leg carries `--ignore=tests/raster` so the collection skip is not
@@ -108,7 +108,7 @@ nothing in either suite needs it, because the driver is passed into
 
 **A plain `uv sync` uninstalls the optional groups.** uv treats anything outside
 the default groups as extraneous and removes it, so after a bare `uv sync` in
-`curation/` the browser suite skips itself, and in `display/` the typesetter
+`curatarr/` the browser suite skips itself, and in `arrt/` the typesetter
 does. The suites stay green and quietly shrink. Sync with the groups the run
 needs: `uv sync --group browser` in curation, `uv sync --group raster` in display.
 
@@ -119,12 +119,12 @@ pytest that resolves different dependencies and reports a green suite that means
 nothing. This table is the authority README.md points at for running the tests, so
 a wrong command here costs a fresh clone its first hour.
 
-Run the curation plane: `cd curation && uv run python -m curation`. It needs
+Run the curation plane: `cd curatarr && uv run python -m curatarr`. It needs
 `ART_ROOT` (copy `.env.example` to `.env`); the browser interface serves on
 `CURATION_PORT`, its JSON API under `/api`, and MCP clients connect to `/mcp` on
 the same port.
 
-Run the display plane: `cd display && uv run python -m display`. **It drives the
+Run the display plane: `cd arrt && uv run python -m arrt`. **It drives the
 real television**, so it is not a thing to start casually: it uploads, deletes and
 selects against whatever `TV_ADDRESS` points at. **Stop it with SIGTERM, never
 SIGKILL** — the set holds an abandoned art-channel client's slot for minutes, and
@@ -134,11 +134,12 @@ is not in art mode, so it will not interrupt somebody watching television.
 **The mutation sweep runs per plane, and the display plane needs `--project`:**
 
 ```sh
-cd display && uv run python ../curation/tools/mutation_sweep.py --project . m.json tests/
+cd arrt && uv run python ../curatarr/tools/mutation_sweep.py --project . m.json tests/
 ```
 
 Without it the tool sweeps the curation project with the display plane's paths and
-reports every mutation as drifted.
+reports every mutation as drifted. How to read a sweep, budget one, and sweep the
+browser suite: `docs/testing.md`.
 
 The curation suite boots a real uvicorn server per test class of surface work.
 Do not replace that with an in-process ASGI transport: Starlette does not run a
@@ -158,109 +159,14 @@ live — plane isolation, the heartbeat, the norm index, the label corpus, and t
 screen tables. Those span two projects by design: `test_screen_tables.py` reads
 the *curation* plane's `http/static/app.js` against
 `.prawduct/artifacts/information-architecture.md`, and neither plane's own suite
-can see both. So a change made entirely inside `curation/` — routing a screen,
+can see both. So a change made entirely inside `curatarr/` — routing a screen,
 editing those IA tables — is guarded by a leg in the repo root.
 
-## The browser suite
+## The browser suite and the live suites
 
-The client under `curation/src/curation/http/static/` is the product's only
-human interface, and neither Python suite executes a line of it. **It is a tree
-of ES modules, not one file**: `app.js` is the boot and the route table,
-`core/*.js` is what every screen shares, and `screens/*.js` is one module per
-screen. `-m browser` runs it, in a real Chromium against a real booted server:
-
-```sh
-cd curation && uv sync --group browser        # once
-cd curation && uv run playwright install chromium   # once, ~200MB
-cd curation && uv run pytest -m browser -n0
-```
-
-**Deselected by default for the browser download, not for anything about the
-tests** — they are deterministic, free, and reach no foreign API. Run them when
-you touch anything under `static/` — `app.js`, a `core/` module or a `screens/`
-one; `.github/workflows/browser.yml` runs them on pull requests
-and on pushes to `main`. Without the group the modules skip with the command
-that fixes it, so a default `uv sync` is unaffected.
-
-**`-n0` matters here.** These tests time real two-second poll intervals, and
-`-n auto` — which a command-line `-m` leaves in place — turns those windows into
-flakes when workers contend for cores.
-
-**A behaviour is not covered because a browser test exercises it.** Prove it with
-`tools/mutation_sweep.py`, which drives a JavaScript module as happily as a
-Python file: delete the branch and watch a test go red.
-
-**Sweeping this suite needs the marker passed through:**
-
-```sh
-cd curation && uv run python tools/mutation_sweep.py m.json tests/browser/test_x.py -- -m browser
-```
-
-Without it pytest collects nothing and exits 5. The tool refuses to sweep unless
-the chosen tests run and pass unmutated, so forgetting the marker now fails
-loudly instead of reporting every mutation caught by runs that executed no test.
-(`-n0` is the tool's own default — see the sweep paragraph below.)
-
-## The live suites
-
-Four markers — `live_museum`, `live_binary`, `live_api`, `llm_eval` — all
-deselected by default. They are not correctness tests; the fakes cover that.
-They are the durable form of the `*-api-findings.md` documents, and they fail
-when a foreign API stops matching what the product was built against.
-
-**Always pass `-n0` when you run one.** A `-m` on the command line replaces the
-marker expression but leaves `-n auto` in place, so `-m live_museum` alone fires
-concurrent requests at a public museum API — which comes back as a rate limit and
-is indistinguishable from the contract change you were looking for.
-
-```sh
-cd curation && uv run pytest -m live_museum -n0     # free, needs the network
-cd curation && uv run pytest -m live_binary -n0     # free, needs dezoomify-rs
-cd curation && uv run pytest -m live_api -n0        # SPENDS REAL MONEY
-```
-
-**Locally the marker alone is enough; in CI it is not.** These commands collect
-the whole tree and the opt-in modules `importorskip`, which is a skip you can
-ignore at a terminal. In a workflow that same skip fails the job through
-`assert_tests_ran.py` while every probe passed, so **a CI invocation scopes the
-path as well** — `uv run pytest tests/live -m live_museum …`. That is asserted by
-`tests/test_assert_tests_ran.py`, which reads the workflow files, so a new job
-written from the line above fails at home rather than on a schedule.
-
-Run one when your work touches that client. Otherwise leave the **three
-`live_*` markers** to `.github/workflows/api-drift.yml`, which runs the two free
-tiers weekly and the paid one monthly — drift is on the provider's schedule, not
-on our commit rate.
-
-**`llm_eval` is not in that workflow and is not meant to be.** It drives the
-surface with a real model, so it spends and it can reach the same goal by a
-different route next time; a non-deterministic check on a schedule either flakes
-or gets loosened until it asserts nothing. It measures, and the contract level
-gates. Run it by hand before shipping a tool-surface change — nothing else will.
-
-**Every one of these tests skips itself when its dependency is missing**, which
-is right locally and a trap in CI, where a green run that made no request looks
-identical to a passing one. `.github/scripts/assert_tests_ran.py` is what closes
-that: it fails the job on any skip and names which dependency was absent.
-
-**Touching `acquisition/mat.py` or `acquisition/color.py`? Run the masters by
-hand** — `cd curation && uv run python tools/mat_masters.py ../all.json`. The
-corpus's colours are in the repo but the paintings are the operator's masters, so
-every test here uses synthetic flats, which have no cluster competition and no
-pale regions; a near-white mat over a Mondrian shipped green for exactly that.
-Needs `ART_ROOT`, spends nothing, writes nothing.
-
-**A green suite says nothing about a branch no test reaches.** Before believing
-new branches are covered, break them on purpose:
-`cd curation && uv run python tools/mutation_sweep.py <mutations.json> <test paths>`.
-Its docstring has the format. It has found something on every change it has been
-run on, and it is the check that a diff review does not substitute for — the
-undefended branches all looked right when read.
-
-Budget `(mutations + 1) x the time your chosen test paths take`. **The sweep runs
-serial by the tool's own doing** — it passes `-n0` ahead of your arguments, so a
-`-n` of your own still wins. That is correctness, not speed: with `-x` under
-xdist a failing test ends the session as INTERRUPTED and pytest exits **2**, not
-1, so every *caught* mutation looked like the unclassifiable exit the tool
-refuses to guess at. Serial costs nothing worth having here — 67s against 65s for
-ten mutations over two files, a slice being dominated by per-run worker startup.
+The client under `curatarr/src/curatarr/http/static/` is the product's only human
+interface, and neither Python suite runs it: `-m browser` does, and you run it
+whenever you touch anything under `static/`. The four live markers (`live_museum`,
+`live_binary`, `live_api`, `llm_eval`) check foreign APIs and are deselected by
+default; `live_api` and `llm_eval` spend real money, and every live run takes
+`-n0`. Commands, setup and the reasons behind each rule: `docs/testing.md`.

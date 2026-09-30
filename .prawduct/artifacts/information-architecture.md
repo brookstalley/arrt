@@ -62,7 +62,7 @@ out to do, not by being a subsystem that acquired a UI.
 opened directly in a browser. It carries a synthetic 2,000-work corpus because
 every scale claim here is unfalsifiable against the real 41. It is a **design
 deliverable, not a component**: it shares the product's tokens deliberately, but
-nothing in `curation/` imports from it and it ships to no one.
+nothing in `curatarr/` imports from it and it ships to no one.
 
 > **What the prototype does not demonstrate, so it is not mistaken for complete.**
 > It has no archived works, so the **Restore** half of the archive rule below has
@@ -354,7 +354,7 @@ the curator's taste be matched against it in one set of terms.
 Two consequences the interface must show rather than hide:
 
 - **Most facets are `inferred`, and the marking is therefore inverted.**
-  `curation/src/curation/discovery/browse.py` records that for the wired collection
+  `curatarr/src/curatarr/discovery/browse.py` records that for the wired collection
   "style, classification and period were measured missing on ordinary spellings",
   and the recorded field inventory has no style field at all. The operator's
   direction is to lean on model inference rather than accept that coverage — so

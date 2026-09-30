@@ -17,11 +17,12 @@ That is this repo's stated trigger for a mechanical guard rather than vigilance
 sweep needed no test because an ignore rule enforces itself; two hand-mirrored lists
 in two syntaxes do not.
 
-**What this does not cover:** ruff's own matching semantics. That `extend-exclude =
-["display"]` excludes the future `display/` package and *not* the legacy root module
-`display.py` was verified by hand on 2026-08-02 (`ruff check --show-files` lists
-`display.py`; `black --verbose` walks it) and is asserted here only on the black
-side, where it costs no subprocess.
+**What this does not cover:** ruff's own matching semantics. That a plane's
+exclusion leaves a root module of the same stem alone was verified by hand on
+2026-08-02, when the display plane was still `display/` beside the 2024 module
+`display.py` (`ruff check --show-files` listed `display.py`; `black --verbose`
+walked it). It is asserted here only on the black side, where it costs no
+subprocess.
 """
 
 import pathlib
@@ -78,9 +79,11 @@ def test_black_excludes_exactly_the_planes_ruff_excludes():
 
 
 def test_a_root_module_sharing_a_plane_name_is_still_formatted():
-    """`display.py` is a 2024 module; `display/` will be a plane. Only the plane goes.
+    """A plane's directory goes; a root module whose stem matches it stays.
 
-    A pattern written without the trailing slash would exclude the module too, and
+    The planes were once `curation/` and `display/`, beside the 2024 module
+    `display.py`, and the names may collide again. A pattern written without the
+    trailing slash would exclude such a module too, and
     silently drop a file that both tools are supposed to hold to the strict set —
     the kind of near-miss that leaves the suite green.
     """
@@ -90,3 +93,4 @@ def test_a_root_module_sharing_a_plane_name_is_still_formatted():
             f"`{plane}/` plane. It needs the trailing slash."
         )
     assert not _excluded_by_black("/config.py"), "root modules must stay under the root tool config"
+    assert not _excluded_by_black("/display.py"), "the 2024 display module must stay under the root tool config"

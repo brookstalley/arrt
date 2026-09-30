@@ -1,7 +1,6 @@
 ---
 paths:
-  - "display/**"
-  - "displayarr/**"
+  - "arrt/**"
 ---
 # Learnings — display
 

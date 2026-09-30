@@ -1173,7 +1173,7 @@ exemption's reasoning and must not be cited for the manifest contract.)*
 
 | Element | Tier | Meaning |
 |---|---|---|
-| Tool names (every row of § The surface) | **Frozen** | Never renamed or removed. **Pinned by test from the day the tool is declared, and frozen by decision until then** — `FROZEN_TOOL_NAMES` in `curation/tests/contract/test_mcp_surface.py` asserts set-equality against the live server, so it can only ever cover tools that exist. `art_taste` was Frozen from 2026-08-11 and, for one day, was the one name nothing pinned; it shipped on 2026-08-12 and its entry joined that set with it. *(The row said only "Pinned by test" until 2026-08-11 — Critic R-16 — while widening itself to cover exactly the name the pin cannot reach.)* |
+| Tool names (every row of § The surface) | **Frozen** | Never renamed or removed. **Pinned by test from the day the tool is declared, and frozen by decision until then** — `FROZEN_TOOL_NAMES` in `curatarr/tests/contract/test_mcp_surface.py` asserts set-equality against the live server, so it can only ever cover tools that exist. `art_taste` was Frozen from 2026-08-11 and, for one day, was the one name nothing pinned; it shipped on 2026-08-12 and its entry joined that set with it. *(The row said only "Pinned by test" until 2026-08-11 — Critic R-16 — while widening itself to cover exactly the name the pin cannot reach.)* |
 | `action` values | **Stable** | Additive; retirement is announced and annotated. |
 | Required parameters | **Stable** | New ones must be optional with a default. |
 | Optional parameters | **Additive** | May be added freely. |
@@ -1184,7 +1184,7 @@ exemption's reasoning and must not be cited for the manifest contract.)*
 
 Recorded so "carries no obligation" is not read as "is undocumented". These
 routes exist and are exercised end to end against a booted server by
-`curation/tests/integration/test_browser_surface.py`; nothing outside this
+`curatarr/tests/integration/test_browser_surface.py`; nothing outside this
 repository may bind to them, and they may be reshaped in any commit that reshapes
 the client with them.
 
@@ -1203,7 +1203,7 @@ the client with them.
 | `GET /api/health` | Every observation the panel states: **one heartbeat per wall** with the document that wall's display reported, the backup's age, and this deployment's resolved artwork box. **Three observations and no fourth** — there is deliberately no budget balance, settled 2026-08-04. Shape below. |
 
 Added 2026-08-05 with the run half of the browser surface, and exercised by
-`curation/tests/integration/test_browser_discovery.py`:
+`curatarr/tests/integration/test_browser_discovery.py`:
 
 | Route | What it is |
 |---|---|
@@ -1215,7 +1215,7 @@ Added 2026-08-05 with the run half of the browser surface, and exercised by
 | `GET /api/runs/{id}/spend` | What the run actually cost, including every re-search descended from it. Read by the run view's costs panel once the run is terminal — it is the only place the **family total** appears, since the run record carries only the run's own direct spend. |
 
 Added 2026-08-05 with the review half, and exercised by
-`curation/tests/integration/test_browser_review.py`:
+`curatarr/tests/integration/test_browser_review.py`:
 
 | Route | What it is |
 |---|---|
@@ -1340,7 +1340,7 @@ takes the same six arrays and `q`, and returns the same groups.
 
 > **Measured 2026-08-12 on the 4,000-work corpus, and the FTS5 question is
 > settled: `LIKE`, and no full-text index.** Run
-> `cd curation && uv run python tools/search_latency.py` to reproduce; figures are
+> `cd curatarr && uv run python tools/search_latency.py` to reproduce; figures are
 > medians of 50 runs on an Apple-silicon laptop, and the tool prints p95 and worst
 > beside them.
 >
@@ -2102,14 +2102,14 @@ the distinction above is exactly what produced it.)* Asserting a model can use t
 surface needs a model, and a model is not deterministic: it may reach the same goal
 by a different route on the next run. So the harness is:
 
-- **A scenario runner** (`curation/tests/contract/`), deterministic and in the
+- **A scenario runner** (`curatarr/tests/contract/`), deterministic and in the
   default suite, driving real product flows as a real MCP client. Each step passes
   an id the *previous* step's envelope returned, which is what fails when two tools
   disagree about the name of the thing they hand each other — a defect neither
   tool's own tests can see. It also checks two envelope invariants on every call:
   that `isError` agrees with the payload's `success`, and that the JSON text and
   `structuredContent` bodies match.
-- **A model-driven evaluation** (`curation/tests/eval/`), behind the `llm_eval`
+- **A model-driven evaluation** (`curatarr/tests/eval/`), behind the `llm_eval`
   marker and deselected by default, running verifiable operator prompts and
   measuring accuracy, call count and error rate against the scripted route as its
   yardstick. It asserts the **end state, not the route** — a model that takes six
