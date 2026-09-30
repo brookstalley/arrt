@@ -198,7 +198,7 @@ classification:
           requirement is removable in 16 mechanical sites), and the 2026-07-20
           co-location decision means there is no second machine — both planes run on
           the one Pi. This is the third site where the "forced" phrasing outlived its
-          amendment; see learnings.md on retiring a claim being a repo-wide grep.
+          amendment; see .claude/rules/learnings/core.md on retiring a claim being a repo-wide grep.
 
           The seam is now a single versioned JSON file on a shared local filesystem,
           written atomically and read one-way, with no network between the planes and
@@ -762,7 +762,7 @@ technical_decisions:
         e-paper driver — three-tier entities are useless to it, and the
         shared-catalogue case that would justify them is the multi-pod coherence
         problem the operator ruled out); it matches the upstream/derived data
-        contract in learnings.md; it makes "e-paper behind an interface" a process
+        contract in .claude/rules/learnings/core.md; it makes "e-paper behind an interface" a process
         boundary; and it is what lets the display plane keep working when curation
         is down.
 
@@ -1579,7 +1579,7 @@ technical_decisions:
         - "Leave all.json as-is — carries all three defects into the new design."
       date: 2026-07-19
     - decision: "Per-device runtime state never lives in the catalogue."
-      rationale: "tv_content_id, tv_content_thumb_md5, and geometry-stamped label filenames are facts about one specific television and one specific panel, not about the artwork. Keeping them out is what lets the catalogue be plane-independent and lets derived artifacts regenerate per-device (learnings.md, Data and cache contract)."
+      rationale: "tv_content_id, tv_content_thumb_md5, and geometry-stamped label filenames are facts about one specific television and one specific panel, not about the artwork. Keeping them out is what lets the catalogue be plane-independent and lets derived artifacts regenerate per-device (.claude/rules/learnings/core.md, Data and cache contract)."
       alternatives_considered: ["Keep them in the record as today — the defect being corrected."]
       date: 2026-07-19
     - decision: "A WORK is distinct from an IMAGE of it, at every stage. Discovery is two-phase: intent resolves to works, then each work is searched for image instances and one is selected as canonical."

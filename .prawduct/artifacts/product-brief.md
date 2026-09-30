@@ -620,7 +620,7 @@ justify them is exactly the multi-pod coherence problem ruled out of scope.
 
 The separation therefore stands on its own merits:
 
-- It matches the data contract already recorded in `learnings.md` — upstream
+- It matches the data contract already recorded in `.claude/rules/learnings/core.md` — upstream
   artifacts (`raw/`) are expensive and device-independent; derived artifacts
   (`ready/`, `thumbs/`, `tv-thumbs/`) are cheap and device-specific and must
   never be transported. (`label/` belonged to this list in the 2024 layout; it is

@@ -651,7 +651,7 @@ lost as files. The television still holds its uploaded copies, which is what the
 adoption path in the build plan's Chunk 12 is for; everything else re-renders
 from the masters.
 
-**The lesson generalises past this card and is in `learnings.md`:** a claim about
+**The lesson generalises past this card and is in `.claude/rules/learnings/core.md`:** a claim about
 a live machine's current state decays silently. `deploy/README.md`, the unit file
 and the recovery findings above all still *read* correctly — the machine moved
 out from under them without touching a line of the text that describes it.

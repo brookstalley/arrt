@@ -121,7 +121,7 @@ synced between machines.
 > pass finds and finishes — rather than bytes nothing references, which nothing
 > would ever reclaim.
 
-> **Why:** Recorded in `learnings.md` § Data and cache contract. Derived files
+> **Why:** Recorded in `.claude/rules/learnings/core.md` § Data and cache contract. Derived files
 > are rendered for whichever display was targeted; copying them between machines
 > produces either wrong output or a cache that cannot be trusted. Regenerating on
 > the target is cheap and correct.

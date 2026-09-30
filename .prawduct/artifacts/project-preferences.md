@@ -46,7 +46,7 @@ Developer preferences for how code is written in this project. Captured during d
   - _(Resolved 2026-07-27: this said `pyproject.toml` "still declares
     `target-version = ["py312"]` and matches neither plane". The sibling-project
     split gave each plane its own.)_
-  See [learnings.md](../learnings.md) § Platform and dependencies.
+  See [core.md](../../.claude/rules/learnings/core.md) § Platform and dependencies.
 - **Package manager**: pip against a pinned `requirements.txt` _(inferred)_. `pyproject.toml`
   exists but carries only black config — there is no project/dependency table, so the repo is
   not an installable package. **DECIDED 2026-07-20: uv for both planes**, structured as
@@ -187,7 +187,7 @@ Developer preferences for how code is written in this project. Captured during d
 - **Data modeling**: hand-rolled classes with `to_json`/`from_json`-style methods
   (`ArtFile`, `ArtSet` in `art.py`), persisted to `all.json` _(inferred)_. The catalogue's
   known defects — identity keyed on source URL, per-device state mixed into the record,
-  semi-structured `artist_details` — are recorded in [learnings.md](../learnings.md)
+  semi-structured `artist_details` — are recorded in [core.md](../../.claude/rules/learnings/core.md)
   § Known problems in the existing index.
 - **Error handling**: exceptions, with one custom domain exception (`DownloadError` in
   `art.py`) _(inferred)_. _(target)_ Catch specific exception types; a genuinely necessary

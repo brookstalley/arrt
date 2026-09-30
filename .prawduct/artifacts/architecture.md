@@ -1373,5 +1373,5 @@ availability norm. Independent restarts create a real skew window even on one ho
 
 **Superseded — 2026-07-19's "the split moves image processing off a Pi 4".**
 Retired by the co-location decision above. Retained here only so a future reader
-who encounters the old phrasing in `learnings.md` or `project-state.yaml` knows it
+who encounters the old phrasing in `.claude/rules/learnings/core.md` or `project-state.yaml` knows it
 was withdrawn deliberately.

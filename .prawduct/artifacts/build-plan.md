@@ -2353,7 +2353,7 @@ core, built against the surfaces the contract tests already pin.
   resolved, `nonfunctional-requirements.md` § Cost Constraints updated); the
   derivation recorded in `data-model.md` and implemented once in the service
   layer with the three call sites named; both decisions swept per
-  `learnings.md` § "Retiring a claim is a repo-wide grep, not a local edit" —
+  `.claude/rules/learnings/core.md` § "Retiring a claim is a repo-wide grep, not a local edit" —
   each dependent artifact acknowledged explicitly ("updated" / "checked,
   unaffected"), never inferred. This is the plan's largest amendment burst and
   the sweep is manual until the mechanical check ships upstream
@@ -3700,7 +3700,7 @@ cumulative review is the release-readiness gate.
   re-solve it. Filed upstream as `brookstalley/prawduct#136` with the full
   thirteen-recurrence evidence and the five cause classes. **The obligation it
   was to mechanize still binds in the meantime** — every amendment in this build
-  sweeps its dependent artifacts by hand per `learnings.md` § "Retiring a claim
+  sweeps its dependent artifacts by hand per `.claude/rules/learnings/core.md` § "Retiring a claim
   is a repo-wide grep, not a local edit", with per-artifact acknowledgement in
   the commit message. Chunk 15 carries the largest such burst and says so.
 - **Issue #10 (second-look shelf)** and **issue #2 (design system)** — decided

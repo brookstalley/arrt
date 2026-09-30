@@ -1,51 +1,244 @@
-# Learnings
+# Learnings — core
 
-Accumulated wisdom from building this product. Each `## ` heading states a rule.
+**Apply a rule below where it bears on the decision in front of you, and cite it where it changed what you did.**
 
-**Evidence lives in `learnings-detail.md`, under the identical heading** — the
-worked instances, the recurrence tallies, and what actually happened. A heading
-here with no body under it is not an entry that lost its evidence; it is one whose
-evidence is in that file. Entries written before 2026-07-31 still carry theirs
-inline, which the record linter flags; moving them is tracked as issue #26.
+Each rule is one line of at most 250 characters. This file is capped, so a new rule is paid for by merging or retiring one.
 
-**Position in this file does not encode time — new rules go at the top, under the
-descent obligation.** Stated 2026-08-11 (Critic R-18) because both habits were
-alive in the same week: some rounds appended, this one inserted. A reviewer
-resolving two rules that genuinely conflict would otherwise reach for "later in
-the file is later in time", which would read the newest three as the oldest. Date
-a rule if its recency matters; never infer recency from where it sits.
+## Ratifying a norm creates retroactive obligations on ARTIFACTS, not just code
 
-<!-- prawduct:descent-obligation — the statement below is the HOME of the
-     descent rule; `/prawduct:learnings` points here rather than restating
-     it. Reword the prose freely; keep this marker, above the first rule. -->
+**When a norm is ratified, the artifacts written before it are as much in scope as
+the code — and in a planning-stage product they are the *only* thing in scope.**
+Re-derive every specification the norm now governs, before calling ratification done.
 
-**Reading a rule is not applying it.** The failure mode of a learnings file is not absence, it is assent: a rule arrives at the right moment, is read, is agreed with, and changes nothing, because nothing made you recognize the case in hand as an instance of it. So for any rule you read here, name the decision you are about to make and say what the rule changes about it — or say that it does not apply, which is also an answer.
+**What happened, 2026-07-20.** Three norms were ratified. For each, the Retroactivity
+line read some version of *"no existing code has two planes — nothing to migrate"*,
+which was true and useless. All four blocking Critic findings that followed were
+norm-versus-predating-*artifact* conflicts:
 
-## Changing a contract closes on the implementations, not on the red tests — when you widen or retype a seam like `Measure`, enumerate every implementation and convert them together, because the ones a green run exercises without asserting anything (test doubles above all) go silently wrong
+- `data-model.md` still told the display plane to resolve `Theme → ThemeMembership →
+  Artwork → TvBinding` — catalogue entities — hours after a norm was ratified saying
+  the display plane "queries no curation database".
+- `Rendition(kind='label')` still carried one panel's geometry in the catalogue,
+  which that artifact's *own* Direction norm forbids and whose cited anti-pattern is
+  the 2024 `_w648_h480` filename. Moving geometry from a filename into columns had
+  fixed the *encoding* and left the *ownership* violation intact — which is how it
+  survived a norm written to catch it.
+- `api_contract.md` exposed `art_display(show_now|next)`, unimplementable the moment
+  the manifest became the only channel.
 
-## A "do not spend time on this" note is one nobody ever re-tests — when a record says a tool or dependency cannot work here, re-verify it before building around the limitation, because such a note removes itself from every future check while the world moves under it, and the cost is paid as coverage silently routed away from whatever it excused
+**Root cause:** "retroactivity" was read as a code-migration question, because that
+is what the word connotes and what the examples describe. In a product with zero
+production code the field reads as trivially satisfied — so the one question it
+exists to force never gets asked.
 
-## Distinguishing SOME styling from NONE does not pin a RANGE — when a test proves an attribute, flag or slice took effect, also compare against the version where it covers everything, because "applied somewhere" and "applied to the right span" produce the same difference from the unstyled case and only the saturated case tells them apart
+**What to do:** at ratification, list the artifacts the norm governs and re-read each
+one *against* the norm. Specifications violate norms exactly the way code does, and a
+spec violation is worse: it is the instruction a builder will faithfully follow.
 
-## A check that never reached its subject reports the same green as one that passed — when a test, linter or record check covers something you did not watch fail, make it fail on purpose once, because "not run", "ran against a state the product cannot produce" and "ran and passed" are one indistinguishable line of output
+**Related principle:** Complete Delivery — a decision whose consequences are not
+propagated is not delivered. Also `docs/norms.md` § Birth, whose three retroactivity
+outcomes (migrate / contain / grandfather) all read as code-shaped and may deserve an
+artifact-shaped fourth reading.
 
-## An instrument a human judges by must exercise the SHIPPED branch, not a legal fallback — when a preview tool, sample or fixture feeds the path a person uses to make a call, assert it produces what production produces, because a fallback renders cleanly and reports cleanly and shows the wrong thing, which is worse than the crash a missing field would have caused
+## Platform and dependencies
 
-## A directory no suite imports is code with no tests, and a signature change breaks it silently — when you delete a constant or add a required parameter, grep `tools/` and `scripts/` for consumers, because the linter, the type checker and a green suite are all silent about a file nothing imports
+See [platform-and-dependency-findings.md](artifacts/platform-and-dependency-findings.md)
+for the full record established 2026-07-19. Summary:
 
-## A demoted finding is dispositioned and ridden, never fixed on its own commit — when a review returns 0 blocking with cheap observations, accept them or carry them into the next commit that was happening anyway, because a one-line fix and a six-minute review round are not the same cost and each fix commit buys another round
+- Python version is **per plane, not one number** (corrected 2026-07-20 — the
+  product-wide "target 3.13" predates the two-plane split and kept resurfacing).
+  **Display plane: 3.13** (matches Raspberry Pi OS Trixie), floor 3.12. _(Updated
+  2026-08-04: this said "falling back to 3.12; verified working on 3.12, and 3.13 is
+  an open assumption until a build proves it". A build proved it — the IT8951 stack
+  builds and imports on 3.13/aarch64 — so the fallback contingency is discharged and
+  3.12 is a floor rather than a landing site.)_
+  **Curation plane: 3.14** on a uv-managed standalone build. _(Re-based
+  2026-07-27 and again 2026-08-02: this said "with `3tears` unmodified", then that
+  "the floor rests on `3tears-models`". Neither holds — that package moved to the
+  opt-in `eval` group when discovery went to a first-party OpenRouter client, so
+  no default dependency requires 3.14. What holds the floor is stated once, in
+  `artifacts/project-preferences.md` § Language & Runtime; this entry points there
+  rather than restating it, because restating it is what produced four
+  simultaneously-stale copies.)_
+- Hardware is a **Pi 4 Model B**, so `RPi.GPIO` works and none of the Pi 5 /
+  RP1 / `rpi-lgpio` complications apply.
+- Both display drivers are **dormant** (omni-epd 2024-11, IT8951 2023-11), and
+  **pinning a parent does not pin what the parent resolves** — pin the child
+  yourself, and the compiler that builds it. IT8951 was pinned to `9f13613` on
+  both install paths 2026-08-07; detail in `learnings-detail.md`.
+- The hardware surface is only ~119 lines (`display.py`, `spi_test.py`), so it
+  belongs behind an interface. That is what keeps a frozen 2023 driver from
+  dictating the project's Python version.
 
-## A mutation sweep that flips verdict between identical runs is a property test finding its case by luck, not flaky tooling — when a sweep's result changes with no source change, apply the mutation by hand and search the input space for a real difference; if one exists and is rare, the fix is an example test naming the case, because a property reaching it by chance defends nothing
+**This constraint turned out to be architecture-defining.** See below.
 
-## A surviving mutation says a branch is unexercised, not which of the two reasons it is — when a sweep flags a guard, construct the case you claim cannot reach it before deleting it, because "no test covers this" and "this branch is unreachable" look identical from outside and only one of them lets you delete code
+## The two-plane split is a choice, not a forced constraint
 
-## A guard that is badly SHAPED is a reason to reshape it, not a licence to drop it quietly — when you delete a test because it asserts the wrong thing, replace it with one asserting the right thing in the same commit and record why, because reasoning that lives only in your head reads to every later reader as carelessness
+> **Corrected 2026-07-19.** This section previously read *"The Python version split
+> is not negotiable"* and described the split as **forced** by an irreconcilable
+> version conflict. An audit the same day proved otherwise, and the correction was
+> carried into `product-brief.md`, `project-state.yaml`, and
+> `3tears-integration-findings.md` — but not here, which left the project's
+> learnings file asserting the opposite of its own architecture decision. Caught by
+> Critic review on 2026-07-19.
+>
+> **The durable lesson is the one that generalises:** "forced by X" is a claim about
+> X, and it needs the same verification as any other foreign-system claim. Recording
+> a constraint as non-negotiable without auditing it is how a removable limit becomes
+> permanent architecture.
 
-## A requirement about human perception is under-specified until the artifact carries the PHYSICAL quantity it depends on — record viewing distance, angular size or luminance beside any rendered number (px, pt), because pixels are a fact about a panel while legibility is a fact about a person at a distance
+Established 2026-07-19 during discovery; full record in
+[3tears-integration-findings.md](artifacts/3tears-integration-findings.md).
 
-## A test asserting that a producer STORED a value does not pin a producer-to-consumer seam — assert on the consumer's own output, because a fixture that feeds the consumer the same number by both routes cannot tell the two expressions apart
+Every 3tears package declares `requires-python = ">=3.14"`, and the e-paper driver
+stack is pinned to **3.13/3.12** for the reasons above. Taken at face value these
+cannot share an interpreter. **But the audit found 3.14 is required only by 16
+mechanical source sites, with no third-party dependency imposing any floor above
+3.10** — so the constraint is removable, and "forced" is not an honest rationale.
 
-## Before putting a decision to the owner, check whether the code already made it
+The split stands on its own merits:
+
+- **Curation plane** — Python 3.14. Web UI, LLM discovery, image acquisition and
+  preparation. **Runs on the Pi** (amended 2026-07-20 — previously "runs off the Pi").
+- **Display plane** — Python 3.13 on the Pi 4. TV websocket, e-paper, and label
+  rendering.
+
+**Both planes run on the same Pi 4 (8 GB), sharing `ART_ROOT` and communicating
+through exactly one file — the theme manifest.** The clause "it moves gigapixel
+fetching and 4K compositing off a Pi 4" is **retired and must not be cited**;
+nothing moved off it. That claim was also weaker than it read — the existing code
+downsizes to 2048² before the LAB/k-means work, so peak memory is a few hundred MB.
+
+It survives because the display plane **does not want 3tears at all** — it needs
+`samsungtvws`, the e-paper driver, and nothing else that plane offers; three-tier
+entities are of no use to it. *(Corrected 2026-08-06, when that plane was built:
+this read "it needs an HTTP client, `samsungtvws`, PIL, and the e-paper driver".
+It needs neither of the other two, and the HTTP client is now **forbidden** —
+`tests/preferences/test_plane_isolation.py` fails the build on one, because the
+only thing this plane could reach with a general client is the curation process,
+which is the second channel the manifest-only norm exists to prevent. PIL went
+the same way for a duller reason: the television is handed a path and streams the
+file itself, so nothing here decodes an image. A dependency list written from a
+design sketch is a guess until the code lands.)* Beyond that: it matches the upstream/derived data contract below,
+it makes "e-paper behind an interface" a process boundary rather than a convention,
+and it is what lets the display plane keep working when curation is down.
+
+Co-location did not weaken the split, it made it cheaper: the *cost* was the
+distributed-systems tax (network contract, sync, two deployments) and a shared
+filesystem removes it, while the *benefit* — the wall staying lit through a curation
+restart — matters more on one box, not less.
+
+Relaxing 3tears to 3.13 remains worth doing on *its* merits, but it is no longer a
+dependency of this product's architecture.
+
+## 3tears can run with zero infrastructure
+
+Also 2026-07-19, verified by reading the source — not assumed:
+
+- **L2 (NATS) is optional by design.** `CollectionRegistry` initialises all tiers
+  to `None`; `BaseCollection` guards every L2 use and has one-shot warning
+  machinery for the missing-client case. Spam suppression for a path implies the
+  path is expected.
+- **L3 is pluggable.** The `DurableStore` protocol is explicitly documented as
+  "the seam that makes a non-SQL durable backend possible", and scriob's
+  `GitL3Backend` is a working precedent.
+- **`3tears-models` needs no core at all** — only `media-contracts` and `observe`.
+  **Still true as a fact; retired as an adoption argument on 2026-08-02, because
+  "no core" is not "no weight".** Measured and declined on its install size; it
+  is an optional dependency group now. `learnings-detail.md`,
+  `openrouter-api-findings.md` § The install lands on the Pi.
+- **`3tears-agent-memory` is the exception**: it depends on `pgvector`, so it
+  genuinely requires Postgres. Deferring it is what keeps the curation plane
+  infrastructure-free.
+
+> The whole decision reduces to one question: do you want 3tears agent memory?
+> No → zero infrastructure. Yes → Postgres. Nothing in between buys anything,
+> because NATS only earns its keep across multiple pods.
+
+**Corrected 2026-07-27 — "zero infrastructure" is true and was read as "zero
+work".** L1 is a *named in-memory* SQLite database (`cache/sqlite.py` hardcodes a
+`memdb` URI), and 3tears ships no SQLite `DurableStore` — only asyncpg. So the
+tier that actually persists anything is always one you write yourself. The bullets
+above are accurate about *infrastructure*; none of them was ever about *durability*,
+and the gap between those two words survived three artifacts for a week.
+
+**The general form, which is the reusable part:** "no infrastructure required" and
+"no code required" are different claims, and a framework's optional-tier
+documentation answers the first while sounding like it answers the second. When a
+dependency is adopted for a capability, name the capability and find the code that
+provides it — the absence of a shipped implementation is invisible in exactly the
+material that advertises the seam.
+
+## Data and cache contract
+
+Established 2026-07-19. The `art/` tree is not one thing, and the two halves are
+transported differently:
+
+- **Upstream, expensive, device-independent** — `raw/`. Costs network fetches and
+  real API spend to regenerate. See `learnings-detail.md`.
+- **Derived, cheap, device-specific** — `ready/`, `thumbs/`, `tv-thumbs/`, `label/`.
+  Rendered for a particular target geometry (4K for the TV, 1448x1072 for the
+  e-paper). *(Annotated 2026-07-20: `label/` described the 2024 single-plane
+  layout and is retired from the prospective ART_ROOT contract — labels render on
+  the display plane, and any cache is display-side. The class rule stands;
+  `boundary-patterns.md` carries the prospective contract.)*
+
+  > **Narrowed 2026-08-02: "device-specific" is not one property, and reading it
+  > as one caused a real mistake.** `boundary-patterns.md` § `ART_ROOT` filesystem
+  > contract makes the distinction — each derived directory is device-specific in
+  > a *different* way. `ready/` is composed for the television's panel; `label/`
+  > for the e-paper's; and **`thumbs/`, the browser surface's cache added
+  > 2026-08-01, is specific to nothing** — it is derived and cheap and belongs to
+  > no device at all. Reading the class as uniform is what made `tv-thumbs/` look
+  > like the right home for it, which is keyed by the television's own content
+  > ids: per-device state, the class this catalogue exists to keep out. Recorded
+  > here as well as there because a reader of this file alone would still conclude
+  > every derived directory is device-specific.
+
+The rule that falls out:
+
+> Git carries the code and the `all.json` index. Rsync carries the upstream
+> blobs. Derived artifacts are never transported at all — they regenerate
+> per-device.
+
+Derived artifacts must **not** be copied between machines even though it is
+technically possible: they are rendered for whichever display was targeted, so
+shipping them produces either wrong output or a cache that cannot be trusted.
+Regenerating them on the target is cheap and correct.
+
+`all.json` is already the right shape for this — a 68 KB index tracked in git
+while the blobs stay out of it. The design is sound; it needs making explicit,
+starting with hoisting the art root into configuration as a single `ART_ROOT`
+(it was hardcoded to `/home/tvpi/art`, correctly outside the repo, but only
+implicitly).
+
+## Unsorted
+
+### Changing a contract closes on the implementations, not on the red tests — when you widen or retype a seam like `Measure`, enumerate every implementation and convert them together, because the ones a green run exercises without asserting anything (test doubles above all) go silently wrong
+
+### A "do not spend time on this" note is one nobody ever re-tests — when a record says a tool or dependency cannot work here, re-verify it before building around the limitation, because such a note removes itself from every future check while the world moves under it, and the cost is paid as coverage silently routed away from whatever it excused
+
+### Distinguishing SOME styling from NONE does not pin a RANGE — when a test proves an attribute, flag or slice took effect, also compare against the version where it covers everything, because "applied somewhere" and "applied to the right span" produce the same difference from the unstyled case and only the saturated case tells them apart
+
+### A check that never reached its subject reports the same green as one that passed — when a test, linter or record check covers something you did not watch fail, make it fail on purpose once, because "not run", "ran against a state the product cannot produce" and "ran and passed" are one indistinguishable line of output
+
+### An instrument a human judges by must exercise the SHIPPED branch, not a legal fallback — when a preview tool, sample or fixture feeds the path a person uses to make a call, assert it produces what production produces, because a fallback renders cleanly and reports cleanly and shows the wrong thing, which is worse than the crash a missing field would have caused
+
+### A directory no suite imports is code with no tests, and a signature change breaks it silently — when you delete a constant or add a required parameter, grep `tools/` and `scripts/` for consumers, because the linter, the type checker and a green suite are all silent about a file nothing imports
+
+### A demoted finding is dispositioned and ridden, never fixed on its own commit — when a review returns 0 blocking with cheap observations, accept them or carry them into the next commit that was happening anyway, because a one-line fix and a six-minute review round are not the same cost and each fix commit buys another round
+
+### A mutation sweep that flips verdict between identical runs is a property test finding its case by luck, not flaky tooling — when a sweep's result changes with no source change, apply the mutation by hand and search the input space for a real difference; if one exists and is rare, the fix is an example test naming the case, because a property reaching it by chance defends nothing
+
+### A surviving mutation says a branch is unexercised, not which of the two reasons it is — when a sweep flags a guard, construct the case you claim cannot reach it before deleting it, because "no test covers this" and "this branch is unreachable" look identical from outside and only one of them lets you delete code
+
+### A guard that is badly SHAPED is a reason to reshape it, not a licence to drop it quietly — when you delete a test because it asserts the wrong thing, replace it with one asserting the right thing in the same commit and record why, because reasoning that lives only in your head reads to every later reader as carelessness
+
+### A requirement about human perception is under-specified until the artifact carries the PHYSICAL quantity it depends on — record viewing distance, angular size or luminance beside any rendered number (px, pt), because pixels are a fact about a panel while legibility is a fact about a person at a distance
+
+### A test asserting that a producer STORED a value does not pin a producer-to-consumer seam — assert on the consumer's own output, because a fixture that feeds the consumer the same number by both routes cannot tell the two expressions apart
+
+### Before putting a decision to the owner, check whether the code already made it
 
 **When** an artifact records a question as open — a fork, a "recommendation:", a
 decision "owed to the operator" — **grep the implementation for the behaviour
@@ -61,7 +254,7 @@ existed* — the last-theme case had a documented rationale and was invisible to
 question posed from the artifact, so the owner ruled on two options while a third
 behaviour shipped underneath them.
 
-## An invariant stated as an absolute is a claim someone will act on
+### An invariant stated as an absolute is a claim someone will act on
 
 **When** you write or cite a constraint as "exactly one" / "always" / "never",
 **check what the store or the guard actually enforces** and state that instead.
@@ -70,7 +263,7 @@ different claim — a partial unique index enforcing *at most* one reads as "exa
 one" to everyone downstream, and the reasoning built on top of it inherits an
 invariant the system has never had.
 
-## A list written to record a DEBT is not an inventory of a SURFACE
+### A list written to record a DEBT is not an inventory of a SURFACE
 
 **When** you build a set of operations, routes or requirements from a list in a
 § Status table, a handoff file or a backlog item, **derive it from the thing itself
@@ -79,7 +272,7 @@ debt list only to check what you found. **Because** a debt list was written to
 answer "what do we still owe?", which is a smaller question than "what is there?",
 and it is complete only about the moment it was written.
 
-## A repair that fixes the instance can leave the failure class untouched
+### A repair that fixes the instance can leave the failure class untouched
 
 **When** you fix a stale constant, list or count by deriving it, **ask separately
 what happens to an input the derivation still does not know** — and make that input
@@ -87,7 +280,7 @@ fail by name rather than by falling through to a default. **Because** derivation
 removes today's wrong value and usually leaves the mechanism that made a wrong
 value silent, so the next occurrence looks identical to the one you just paid for.
 
-## A rule about a control binds its styling and its label, not just its word
+### A rule about a control binds its styling and its label, not just its word
 
 **When** you rule that an action must be named for what it really does, **check how
 it is presented as well** — destructive styling on a reversible act makes the same
@@ -95,13 +288,13 @@ false promise the wrong word did. **Because** the reason for the rule is the
 hesitation a false promise causes, and colour reaches the reader before the label
 does.
 
-## A measured behaviour and an explanation of it are separate claims
+### A measured behaviour and an explanation of it are separate claims
 
 **Record what the system did and what you inferred about why as two things, and
 label which is which** — a measurement earns confidence, and the mechanism written
 beside it inherits that confidence without earning any.
 
-## A test double that fails EARLIER than the real thing makes every test past it vacuous
+### A test double that fails EARLIER than the real thing makes every test past it vacuous
 
 **When** a fake stands in for a client with connection state, **make it fail where
 the real one fails**, not at the first opportunity — and check what it *lets
@@ -128,13 +321,13 @@ misreports in both directions, and nothing reached it — the suite runs against
 the double by design. A green suite, a passing review, and a symbol-reference
 coverage floor all agreed it was covered.
 
-## Do not trust a foreign client's return value in either direction — confirm against the system itself
+### Do not trust a foreign client's return value in either direction — confirm against the system itself
 
 **When a boundary library reports success or failure, verify the claim against the
 remote system's own state before acting on it** — ask, then read the remote list
 back, and keep *unconfirmable* apart from *failed*.
 
-## A test double expresses what you already believe the dependency does, so it cannot catch "says yes, does nothing"
+### A test double expresses what you already believe the dependency does, so it cannot catch "says yes, does nothing"
 
 **When a dependency's state-changing verb has no confirming read, make the double
 able to model acceptance-without-effect before trusting a green suite** — because
@@ -142,7 +335,7 @@ a double is written from your model of the dependency, so the failure mode you d
 not know about is exactly the one it cannot express, and every test passes while
 the real system ignores you.
 
-## A test that advances an injected clock must not step by a multiple of the interval under test
+### A test that advances an injected clock must not step by a multiple of the interval under test
 
 **When a test drives a fake clock, choose amounts that are not multiples of the
 period the code computes against** — because a step equal to the interval makes a
@@ -150,13 +343,13 @@ daemon that *wrongly consumed* that interval indistinguishable from one that
 correctly withheld it, and the test then passes on arithmetic rather than on
 behaviour.
 
-## A guard aimed at a named line must be verified against that line
+### A guard aimed at a named line must be verified against that line
 
 **When you clamp, filter or redact one named line in a dependency, open the
 dependency and read that line before choosing the threshold** — because a guard
 built on a remembered level protects nothing and looks exactly like protection.
 
-## Retiring a claim is a repo-wide grep, not a local edit
+### Retiring a claim is a repo-wide grep, not a local edit
 
 **When you void, amend, or supersede a factual claim, grep the whole repo for it
 before calling the correction done.** Prose has no compiler, so a claim that lives in
@@ -171,7 +364,7 @@ four artifacts stays true in three of them until someone looks.
 > the assent failure the descent obligation at the top of this file names: the rule
 > was read, agreed with, and changed nothing.
 
-## A format example is not a template, and its placeholders are the trap
+### A format example is not a template, and its placeholders are the trap
 
 **When a file documents its own format with a filled example, do not paste that
 example into a real entry** — write the minimum keys the entry actually needs.
@@ -534,7 +727,7 @@ as though it were). Verification instincts fire on the part that looks like a
 foreign-system claim, not on what is attached to it. Principle 24 (Retrieval Over
 Generation) and the Complete Delivery principle both bear on this.
 
-## "Verified" must enumerate what was actually measured
+### "Verified" must enumerate what was actually measured
 
 **When writing a verification claim, name the fields, cases, or files the check
 actually covered — never restate the thing's full shape as though the check had
@@ -637,7 +830,7 @@ value no default could have produced. The cheap way to know whether you have:
 the wiring is undefended. This is a different failure from the corollary above:
 not a claim wider than its check, but a check aimed at the wrong layer.
 
-## After a scripted mass edit, verify with a different detection method
+### After a scripted mass edit, verify with a different detection method
 
 **A check that shares its detection logic with the edit shares its blind spots.**
 Verify a scripted bulk change with a method that keys on something the edit did
@@ -657,21 +850,21 @@ matched?" and search for *that*. Roster/invariant checks (is the set complete? d
 all references resolve to something that exists?) are good second methods because
 they test the outcome rather than the transformation.
 
-## When an artifact works a rule on two cases, derive the rule from one and check the other
+### When an artifact works a rule on two cases, derive the rule from one and check the other
 
-## An idempotence test that holds the inputs still tests the wrong half
+### An idempotence test that holds the inputs still tests the wrong half
 
-## A backlog item's body is evidence about the day it was written — re-verify each item against the current tree before acting on it, because closed work goes on looking open, and a thorough body makes re-verification cheap rather than unnecessary
+### A backlog item's body is evidence about the day it was written — re-verify each item against the current tree before acting on it, because closed work goes on looking open, and a thorough body makes re-verification cheap rather than unnecessary
 
-## A guard that lives only in code scheduled for deletion leaves with it — when fixing a defect in a retiring module, fix the surviving replacement too even where it is currently unreachable, because the reachability argument is about today and the deletion is about the code that stays
+### A guard that lives only in code scheduled for deletion leaves with it — when fixing a defect in a retiring module, fix the surviving replacement too even where it is currently unreachable, because the reachability argument is about today and the deletion is about the code that stays
 
-## Adding code to a repo means asking which guards were scoped to the old shape
+### Adding code to a repo means asking which guards were scoped to the old shape
 
-## Prose explaining a distinction is not a mechanism recording it
+### Prose explaining a distinction is not a mechanism recording it
 
-## A negative claim needs the search that would have falsified it
+### A negative claim needs the search that would have falsified it
 
-## Prose that ships to a caller is behaviour, and needs a test aimed at it
+### Prose that ships to a caller is behaviour, and needs a test aimed at it
 
 **Assert the thing the sentence claims, not that the sentence is present.** A
 notice describing an *ordering*, a *completeness* or a *remedy* is making a
@@ -683,7 +876,7 @@ was on the card, which is false once they alone outrun the cap. Both shipped pas
 tests asserting counts and membership. Position is what catches an ordering claim;
 a second test for the other branch is what catches a completeness one.
 
-## "Device-independent" is only evidence if it was checked against a second, different device — when you argue a derived artifact belongs upstream because it is not about any one screen, name a screen it would be wrong for before accepting the argument, because with one device in the room every device-specific choice passes as a property of the content
+### "Device-independent" is only evidence if it was checked against a second, different device — when you argue a derived artifact belongs upstream because it is not about any one screen, name a screen it would be wrong for before accepting the argument, because with one device in the room every device-specific choice passes as a property of the content
 
 **Recorded 2026-09-30, at the re-architecture (`re-architecture.md`).** The
 `tv_display` rendition, a 3840×2160 canvas with the mat composed in, was defended
@@ -694,7 +887,7 @@ monitor, a 16:10 LCD, or a caption that needs the mat sized for its type breaks
 it in one sentence, and moving it is now the largest built-code change in the
 program (wave 4).
 
-## When a behaviour is retired, grep the sentences that justified it, not just the code
+### When a behaviour is retired, grep the sentences that justified it, not just the code
 
 **A retired rule outlives its retirement in prose, and the code may cite that
 prose as authority for the opposite of what it now does.** Replacing a best-first
@@ -702,13 +895,13 @@ cut left the rule stated in the constant's own rationale five lines above the ne
 function, and in the artifact — which a docstring then pointed at as "states the
 requirement". Search on the *claim's words*, not on the identifier.
 
-## A package's declared dependency floor is a claim; what it imports is the constraint
+### A package's declared dependency floor is a claim; what it imports is the constraint
 
-## Before answering the question a spec asks about a candidate, check that the candidate is one
+### Before answering the question a spec asks about a candidate, check that the candidate is one
 
-## An index that under-claims its enforcement is defective, not conservatively safe
+### An index that under-claims its enforcement is defective, not conservatively safe
 
-## A mutation test must prove it mutated, or its green is indistinguishable from a pass
+### A mutation test must prove it mutated, or its green is indistinguishable from a pass
 
 **Extended 2026-08-03 with the two ways a sweep lies in the other direction**, both
 found by running one: a mutation that changes no behaviour, and a `find` pattern
@@ -717,7 +910,7 @@ exactly like a finding. `curation/tools/mutation_sweep.py` now refuses an ambigu
 pattern; the no-op case it cannot detect, so confirm your mutation breaks something
 before writing a test for it.
 
-## Treat a finding's recommendation as a checklist, and tick each item off in the file
+### Treat a finding's recommendation as a checklist, and tick each item off in the file
 
 **Fix the parts you were not already thinking about.** A finding named two
 contradictory sentences in one state; I removed the one I had been editing, left
@@ -727,7 +920,7 @@ carrying a comment that claims completeness reads exactly like a complete one**,
 review and on re-reading, so nothing downstream catches it. Go back to the
 finding's text after the edit and confirm each named item against the file.
 
-## When you rewrite a test's assertions, re-read its name against what it now checks
+### When you rewrite a test's assertions, re-read its name against what it now checks
 
 **A dropped contract and an adjusted wording look identical in a diff; the test's
 name is what tells them apart.** Rewriting assertions to match changed output is
@@ -740,7 +933,7 @@ body, so a name that no longer describes the assertions is the signal a contract
 was dropped rather than adjusted. Record any assertion you remove where a reader
 will find it — one that nothing records is indistinguishable from one never written.
 
-## Assert what must be absent, not only what must be present
+### Assert what must be absent, not only what must be present
 
 **A conditional clause needs the case where it must not appear.** Two sweep
 survivors in one function were both this: nothing checked that a card still
@@ -750,7 +943,7 @@ unconditional version would have shipped "the 0 you have already turned down".
 Present-only assertions pass under every over-firing bug, which is the whole class
 a notice built from branches is prone to.
 
-## A fixture that reaches the branch is not a fixture that can falsify its claim
+### A fixture that reaches the branch is not a fixture that can falsify its claim
 
 **Build the member that would make the claim false, not just enough members to
 execute the line.** Twice in one chunk a test reached the code and excluded the
@@ -767,7 +960,7 @@ was reachable *only* when the slot set filled from survivors alone — which is
 exactly when every rejected scan was omitted, and rejected scans outrank the rest.
 Its precondition and its falsifier were the same fact.
 
-## Run a new regression test against the unfixed code, not just the fixed code
+### Run a new regression test against the unfixed code, not just the fixed code
 
 **A test written from a defect's *description* can pass on both sides of the fix,
 because the fixture never reaches the state described.** Written for a card that
@@ -778,7 +971,7 @@ defended nothing. Two survivors reach it, because the instance that falls off is
 the unselected alternate. The check is one mutation that restores the old
 behaviour: if the new test still passes, the fixture is wrong, not the fix.
 
-## A survivor says a branch is undefended, never that it deserves defending
+### A survivor says a branch is undefended, never that it deserves defending
 
 **Before writing the test a survivor asks for, check whether the branch does
 anything** — the reflex is to defend it, and twice on one surface the right answer
@@ -787,7 +980,7 @@ rule already did) or actively harmful (a three-character token floor that exclud
 initials as advertised *and* discarded every short surname, so `Wu Li` reduced to
 nothing). Deleting both made the rule simpler and unbiased at once.
 
-## A guard's comment names what it excludes, not what it silently breaks
+### A guard's comment names what it excludes, not what it silently breaks
 
 **Treat an explanation as a claim about one category, never as coverage of the
 rest.** The comment is written by whoever chose the guard, so it can only name the
@@ -795,7 +988,7 @@ cases they thought of — and it reads convincingly precisely because the catego
 names is real. Prose cannot flag an omission its author did not make. Where the
 claim is checkable in one line, check it rather than read it.
 
-## A verify pass verifies findings, not intervals
+### A verify pass verifies findings, not intervals
 
 **A fix that lands in the *base* of the reviewed interval is invisible to every
 pass over that interval** — the finding stays undispositioned and the next pass,
@@ -804,21 +997,21 @@ exactly this. When a pass says nothing about a finding you expected it to settle
 check where the fix sits before concluding anything about the fix; naming the
 finding explicitly in the pass's arguments is what closes it.
 
-## A commit message is evidence about intent, never about content
+### A commit message is evidence about intent, never about content
 
 **Count the hunks.** A message says what its author believed they did, which is the
 thing under review — one claiming "three prose totals replaced" carried a diff with
 two, and repeating the claim put a false resolution into the ledger for work that
 was never done.
 
-## A cap sized from one part of a result is not a cap
+### A cap sized from one part of a result is not a cap
 
 **When you bound a result with an arithmetic, name every term that scales with the
 same N** — the one you leave out is the one that will dominate. Sizing a thumbnail
 cap from image tokens alone left the rows, which scale with the same batch, to add
 nearly as much again and push a full page past the client's warning threshold.
 
-## A rule stated at one level does not enforce itself one level up
+### A rule stated at one level does not enforce itself one level up
 
 **When an artifact states a rule about a detail view, check what the *listing*
 does with it.** "Shown, labelled, never hidden" governed the image list; the work
@@ -826,23 +1019,23 @@ list carried one picture per row keyed on the selected instance, and a work with
 selection arrived with no picture — not withheld by any rule, just absent, and
 indistinguishable to a curator from a work no picture exists for.
 
-## A field whose only defence would be a test written to defend it is a field to delete
+### A field whose only defence would be a test written to defend it is a field to delete
 
 **When a sweep says nothing covers a field, ask whether the field earns a test
 before writing one.** Two survivors here were a `run_id` duplicating a value the
 same payload already carried under another name, and a read performed solely to
 produce it.
 
-## Governance you put where it cannot see is governance that did not run
+### Governance you put where it cannot see is governance that did not run
 
 **Match the structural form the tooling matches on** — a heading level, a tag, a
 filename. Authoring a chunk as `####` where every other split chunk uses `###` made
 the record linter return `chunk_graded: null`, and null is not zero: nothing about
 the chunk's declared deliverables was checked, and the report said so quietly.
 
-## A guard built from recurrences is scoped to where you looked, not to the failure
+### A guard built from recurrences is scoped to where you looked, not to the failure
 
-## A rule that could not be violated yet is a rule nobody has implemented
+### A rule that could not be violated yet is a rule nobody has implemented
 
 **When a chunk makes a previously impossible operation possible, treat every
 artifact claim about that operation as unverified — the age of the sentence is
@@ -851,7 +1044,7 @@ exercised, so "written down since July" and "enforced" are indistinguishable
 until the operation exists. Find them by writing the test the artifact's own
 sentence describes, and expecting it to fail.
 
-## An action is only usable if its arguments are obtainable from something built
+### An action is only usable if its arguments are obtainable from something built
 
 **Before advertising an action, construct a real call to it using only surfaces
 that ship — and if a test needs a service-layer call to build a tool argument,
@@ -859,7 +1052,7 @@ that is the finding, not a convenience.** Withholding an action until it works i
 half the bar; the other half is that a caller can reach its inputs. A test that
 reaches past the surface for an id makes the whole suite blind to the gap.
 
-## When a result gains a collection, name what bounds it before deciding it needs no cap
+### When a result gains a collection, name what bounds it before deciding it needs no cap
 
 **Write the bound down as a comment, and the false ones announce themselves.** A
 list added to a payload is unbounded until something specific bounds it, and the
@@ -868,7 +1061,7 @@ threshold computed *after* a list is recorded pauses the work without shortening
 the list. Where a caller cannot page, truncation still beats a blown budget, and
 the notice must not promise an affordance that does not exist.
 
-## A test that indexes an unordered read is wrong even while it passes
+### A test that indexes an unordered read is wrong even while it passes
 
 **Key on identity, not position, whenever a store read promises no order — and
 treat `caplog` the same way, since `at_level` scopes the level and not the
@@ -876,223 +1069,15 @@ buffer.** Both failures look identical: green alone, red in the suite. Fixing on
 as a fixture concern does not generalise; the rule belongs to the *data*, so the
 next test written against the same read reintroduces it.
 
-## Ratifying a norm creates retroactive obligations on ARTIFACTS, not just code
+### At the moment of a fix, ask what the change now COVERS that it did not before — a wrapper added to translate a read will also catch the write beside it, and a claim added to one payload will be published by the branch that shares it
 
-**When a norm is ratified, the artifacts written before it are as much in scope as
-the code — and in a planning-stage product they are the *only* thing in scope.**
-Re-derive every specification the norm now governs, before calling ratification done.
+### A claim repeated in three artifacts is ONE piece of evidence copied twice — when a property is asserted in prose, verify it against the code before adding the third statement of it, because every later text inherits it from the earlier prose rather than from the behaviour
 
-**What happened, 2026-07-20.** Three norms were ratified. For each, the Retroactivity
-line read some version of *"no existing code has two planes — nothing to migrate"*,
-which was true and useless. All four blocking Critic findings that followed were
-norm-versus-predating-*artifact* conflicts:
+### When a module's docstring says it exists to stop two callers drifting, adding a caller is the moment to READ that docstring — the drift it warns about reappears in the new caller, and the escaping case will be the common path rather than the one being written
 
-- `data-model.md` still told the display plane to resolve `Theme → ThemeMembership →
-  Artwork → TvBinding` — catalogue entities — hours after a norm was ratified saying
-  the display plane "queries no curation database".
-- `Rendition(kind='label')` still carried one panel's geometry in the catalogue,
-  which that artifact's *own* Direction norm forbids and whose cited anti-pattern is
-  the 2024 `_w648_h480` filename. Moving geometry from a filename into columns had
-  fixed the *encoding* and left the *ownership* violation intact — which is how it
-  survived a norm written to catch it.
-- `api_contract.md` exposed `art_display(show_now|next)`, unimplementable the moment
-  the manifest became the only channel.
+### When a fixture seeds a file at a path the code DERIVES, learn that path from an observed run instead of spelling it out — a rename leaves the fixture pointing at nothing, and the test stays green while the branch it guards goes undefended
 
-**Root cause:** "retroactivity" was read as a code-migration question, because that
-is what the word connotes and what the examples describe. In a product with zero
-production code the field reads as trivially satisfied — so the one question it
-exists to force never gets asked.
-
-**What to do:** at ratification, list the artifacts the norm governs and re-read each
-one *against* the norm. Specifications violate norms exactly the way code does, and a
-spec violation is worse: it is the instruction a builder will faithfully follow.
-
-**Related principle:** Complete Delivery — a decision whose consequences are not
-propagated is not delivered. Also `docs/norms.md` § Birth, whose three retroactivity
-outcomes (migrate / contain / grandfather) all read as code-shaped and may deserve an
-artifact-shaped fourth reading.
-
-## Platform and dependencies
-
-See [platform-and-dependency-findings.md](artifacts/platform-and-dependency-findings.md)
-for the full record established 2026-07-19. Summary:
-
-- Python version is **per plane, not one number** (corrected 2026-07-20 — the
-  product-wide "target 3.13" predates the two-plane split and kept resurfacing).
-  **Display plane: 3.13** (matches Raspberry Pi OS Trixie), floor 3.12. _(Updated
-  2026-08-04: this said "falling back to 3.12; verified working on 3.12, and 3.13 is
-  an open assumption until a build proves it". A build proved it — the IT8951 stack
-  builds and imports on 3.13/aarch64 — so the fallback contingency is discharged and
-  3.12 is a floor rather than a landing site.)_
-  **Curation plane: 3.14** on a uv-managed standalone build. _(Re-based
-  2026-07-27 and again 2026-08-02: this said "with `3tears` unmodified", then that
-  "the floor rests on `3tears-models`". Neither holds — that package moved to the
-  opt-in `eval` group when discovery went to a first-party OpenRouter client, so
-  no default dependency requires 3.14. What holds the floor is stated once, in
-  `artifacts/project-preferences.md` § Language & Runtime; this entry points there
-  rather than restating it, because restating it is what produced four
-  simultaneously-stale copies.)_
-- Hardware is a **Pi 4 Model B**, so `RPi.GPIO` works and none of the Pi 5 /
-  RP1 / `rpi-lgpio` complications apply.
-- Both display drivers are **dormant** (omni-epd 2024-11, IT8951 2023-11), and
-  **pinning a parent does not pin what the parent resolves** — pin the child
-  yourself, and the compiler that builds it. IT8951 was pinned to `9f13613` on
-  both install paths 2026-08-07; detail in `learnings-detail.md`.
-- The hardware surface is only ~119 lines (`display.py`, `spi_test.py`), so it
-  belongs behind an interface. That is what keeps a frozen 2023 driver from
-  dictating the project's Python version.
-
-**This constraint turned out to be architecture-defining.** See below.
-
-## The two-plane split is a choice, not a forced constraint
-
-> **Corrected 2026-07-19.** This section previously read *"The Python version split
-> is not negotiable"* and described the split as **forced** by an irreconcilable
-> version conflict. An audit the same day proved otherwise, and the correction was
-> carried into `product-brief.md`, `project-state.yaml`, and
-> `3tears-integration-findings.md` — but not here, which left the project's
-> learnings file asserting the opposite of its own architecture decision. Caught by
-> Critic review on 2026-07-19.
->
-> **The durable lesson is the one that generalises:** "forced by X" is a claim about
-> X, and it needs the same verification as any other foreign-system claim. Recording
-> a constraint as non-negotiable without auditing it is how a removable limit becomes
-> permanent architecture.
-
-Established 2026-07-19 during discovery; full record in
-[3tears-integration-findings.md](artifacts/3tears-integration-findings.md).
-
-Every 3tears package declares `requires-python = ">=3.14"`, and the e-paper driver
-stack is pinned to **3.13/3.12** for the reasons above. Taken at face value these
-cannot share an interpreter. **But the audit found 3.14 is required only by 16
-mechanical source sites, with no third-party dependency imposing any floor above
-3.10** — so the constraint is removable, and "forced" is not an honest rationale.
-
-The split stands on its own merits:
-
-- **Curation plane** — Python 3.14. Web UI, LLM discovery, image acquisition and
-  preparation. **Runs on the Pi** (amended 2026-07-20 — previously "runs off the Pi").
-- **Display plane** — Python 3.13 on the Pi 4. TV websocket, e-paper, and label
-  rendering.
-
-**Both planes run on the same Pi 4 (8 GB), sharing `ART_ROOT` and communicating
-through exactly one file — the theme manifest.** The clause "it moves gigapixel
-fetching and 4K compositing off a Pi 4" is **retired and must not be cited**;
-nothing moved off it. That claim was also weaker than it read — the existing code
-downsizes to 2048² before the LAB/k-means work, so peak memory is a few hundred MB.
-
-It survives because the display plane **does not want 3tears at all** — it needs
-`samsungtvws`, the e-paper driver, and nothing else that plane offers; three-tier
-entities are of no use to it. *(Corrected 2026-08-06, when that plane was built:
-this read "it needs an HTTP client, `samsungtvws`, PIL, and the e-paper driver".
-It needs neither of the other two, and the HTTP client is now **forbidden** —
-`tests/preferences/test_plane_isolation.py` fails the build on one, because the
-only thing this plane could reach with a general client is the curation process,
-which is the second channel the manifest-only norm exists to prevent. PIL went
-the same way for a duller reason: the television is handed a path and streams the
-file itself, so nothing here decodes an image. A dependency list written from a
-design sketch is a guess until the code lands.)* Beyond that: it matches the upstream/derived data contract below,
-it makes "e-paper behind an interface" a process boundary rather than a convention,
-and it is what lets the display plane keep working when curation is down.
-
-Co-location did not weaken the split, it made it cheaper: the *cost* was the
-distributed-systems tax (network contract, sync, two deployments) and a shared
-filesystem removes it, while the *benefit* — the wall staying lit through a curation
-restart — matters more on one box, not less.
-
-Relaxing 3tears to 3.13 remains worth doing on *its* merits, but it is no longer a
-dependency of this product's architecture.
-
-## 3tears can run with zero infrastructure
-
-Also 2026-07-19, verified by reading the source — not assumed:
-
-- **L2 (NATS) is optional by design.** `CollectionRegistry` initialises all tiers
-  to `None`; `BaseCollection` guards every L2 use and has one-shot warning
-  machinery for the missing-client case. Spam suppression for a path implies the
-  path is expected.
-- **L3 is pluggable.** The `DurableStore` protocol is explicitly documented as
-  "the seam that makes a non-SQL durable backend possible", and scriob's
-  `GitL3Backend` is a working precedent.
-- **`3tears-models` needs no core at all** — only `media-contracts` and `observe`.
-  **Still true as a fact; retired as an adoption argument on 2026-08-02, because
-  "no core" is not "no weight".** Measured and declined on its install size; it
-  is an optional dependency group now. `learnings-detail.md`,
-  `openrouter-api-findings.md` § The install lands on the Pi.
-- **`3tears-agent-memory` is the exception**: it depends on `pgvector`, so it
-  genuinely requires Postgres. Deferring it is what keeps the curation plane
-  infrastructure-free.
-
-> The whole decision reduces to one question: do you want 3tears agent memory?
-> No → zero infrastructure. Yes → Postgres. Nothing in between buys anything,
-> because NATS only earns its keep across multiple pods.
-
-**Corrected 2026-07-27 — "zero infrastructure" is true and was read as "zero
-work".** L1 is a *named in-memory* SQLite database (`cache/sqlite.py` hardcodes a
-`memdb` URI), and 3tears ships no SQLite `DurableStore` — only asyncpg. So the
-tier that actually persists anything is always one you write yourself. The bullets
-above are accurate about *infrastructure*; none of them was ever about *durability*,
-and the gap between those two words survived three artifacts for a week.
-
-**The general form, which is the reusable part:** "no infrastructure required" and
-"no code required" are different claims, and a framework's optional-tier
-documentation answers the first while sounding like it answers the second. When a
-dependency is adopted for a capability, name the capability and find the code that
-provides it — the absence of a shipped implementation is invisible in exactly the
-material that advertises the seam.
-
-## Data and cache contract
-
-Established 2026-07-19. The `art/` tree is not one thing, and the two halves are
-transported differently:
-
-- **Upstream, expensive, device-independent** — `raw/`. Costs network fetches and
-  real API spend to regenerate. See `learnings-detail.md`.
-- **Derived, cheap, device-specific** — `ready/`, `thumbs/`, `tv-thumbs/`, `label/`.
-  Rendered for a particular target geometry (4K for the TV, 1448x1072 for the
-  e-paper). *(Annotated 2026-07-20: `label/` described the 2024 single-plane
-  layout and is retired from the prospective ART_ROOT contract — labels render on
-  the display plane, and any cache is display-side. The class rule stands;
-  `boundary-patterns.md` carries the prospective contract.)*
-
-  > **Narrowed 2026-08-02: "device-specific" is not one property, and reading it
-  > as one caused a real mistake.** `boundary-patterns.md` § `ART_ROOT` filesystem
-  > contract makes the distinction — each derived directory is device-specific in
-  > a *different* way. `ready/` is composed for the television's panel; `label/`
-  > for the e-paper's; and **`thumbs/`, the browser surface's cache added
-  > 2026-08-01, is specific to nothing** — it is derived and cheap and belongs to
-  > no device at all. Reading the class as uniform is what made `tv-thumbs/` look
-  > like the right home for it, which is keyed by the television's own content
-  > ids: per-device state, the class this catalogue exists to keep out. Recorded
-  > here as well as there because a reader of this file alone would still conclude
-  > every derived directory is device-specific.
-
-The rule that falls out:
-
-> Git carries the code and the `all.json` index. Rsync carries the upstream
-> blobs. Derived artifacts are never transported at all — they regenerate
-> per-device.
-
-Derived artifacts must **not** be copied between machines even though it is
-technically possible: they are rendered for whichever display was targeted, so
-shipping them produces either wrong output or a cache that cannot be trusted.
-Regenerating them on the target is cheap and correct.
-
-`all.json` is already the right shape for this — a 68 KB index tracked in git
-while the blobs stay out of it. The design is sound; it needs making explicit,
-starting with hoisting the art root into configuration as a single `ART_ROOT`
-(it was hardcoded to `/home/tvpi/art`, correctly outside the repo, but only
-implicitly).
-
-## At the moment of a fix, ask what the change now COVERS that it did not before — a wrapper added to translate a read will also catch the write beside it, and a claim added to one payload will be published by the branch that shares it
-
-## A claim repeated in three artifacts is ONE piece of evidence copied twice — when a property is asserted in prose, verify it against the code before adding the third statement of it, because every later text inherits it from the earlier prose rather than from the behaviour
-
-## When a module's docstring says it exists to stop two callers drifting, adding a caller is the moment to READ that docstring — the drift it warns about reappears in the new caller, and the escaping case will be the common path rather than the one being written
-
-## When a fixture seeds a file at a path the code DERIVES, learn that path from an observed run instead of spelling it out — a rename leaves the fixture pointing at nothing, and the test stays green while the branch it guards goes undefended
-
-## Known problems in the existing index
+### Known problems in the existing index
 
 `all.json` conflates three separate concerns in one record, which the planned
 pivot to canonical artwork identities plus a URL-resolution layer needs to
@@ -1113,53 +1098,54 @@ filenames encode identity in at least three mutually inconsistent conventions
 (`Surname, Forename; Title; Year`, `Forename Surname - Title`, and at least one
 `Title - Forename Surname` with the fields reversed).
 
-## A comment that justifies code by naming a constraint is a CLAIM — check the constraint before inheriting the workaround, because a false reason usually sits on top of wrong behaviour
+### A comment that justifies code by naming a constraint is a CLAIM — check the constraint before inheriting the workaround, because a false reason usually sits on top of wrong behaviour
 
-## A decision that DESCOPES something has to be walked back through every artifact that promised it — the promising artifacts are never the one you are editing when you make the call
+### A decision that DESCOPES something has to be walked back through every artifact that promised it — the promising artifacts are never the one you are editing when you make the call
 
-## When a chunk is parked behind access it does not have, check which of its DEPENDENCIES actually need that access — a dependency inherits the parking by adjacency rather than by need, and one that gates the parked work is the cheapest thing to take early
+### When a chunk is parked behind access it does not have, check which of its DEPENDENCIES actually need that access — a dependency inherits the parking by adjacency rather than by need, and one that gates the parked work is the cheapest thing to take early
 
-## A claim about a live machine's current state decays silently — read the machine, never a comment that describes it, because when shell access is available the check costs one command and the assertion costs a wrong plan
+### A claim about a live machine's current state decays silently — read the machine, never a comment that describes it, because when shell access is available the check costs one command and the assertion costs a wrong plan
 
-## A sweep grep built from the text you just wrote searches for your own vocabulary — when retiring a claim, run the second pass with a pattern the OLD text would have produced, because the phrasings the diff removed are exactly the ones the new phrasings cannot match
+### A sweep grep built from the text you just wrote searches for your own vocabulary — when retiring a claim, run the second pass with a pattern the OLD text would have produced, because the phrasings the diff removed are exactly the ones the new phrasings cannot match
 
-## Reachability of an enum value is a property of the paths that ARRIVE at it, not of the site that looks most likely to set it — search for a route, never reason from one write site, or a value gets ruled out while a test covering its real path already passes
+### Reachability of an enum value is a property of the paths that ARRIVE at it, not of the site that looks most likely to set it — search for a route, never reason from one write site, or a value gets ruled out while a test covering its real path already passes
 
-## A guard evaluated inside the filters it guards can manufacture the confidence it exists to withhold — range a safety check over the population the HAZARD lives in, never the narrowed one the feature reads, because the filter that makes the feature correct is the one that can hide the colliding case
+### A guard evaluated inside the filters it guards can manufacture the confidence it exists to withhold — range a safety check over the population the HAZARD lives in, never the narrowed one the feature reads, because the filter that makes the feature correct is the one that can hide the colliding case
 
-## A computed value with no production reader is an unimplemented requirement — before calling a "report X separately" requirement done, grep the symbol and check that a caller outside `tests/` exists, because a property with tests and no consumer looks finished from inside and changes nothing a user sees
+### A computed value with no production reader is an unimplemented requirement — before calling a "report X separately" requirement done, grep the symbol and check that a caller outside `tests/` exists, because a property with tests and no consumer looks finished from inside and changes nothing a user sees
 
-## A generated block's stale-looking state is evidence about the generator, not a defect to tidy — when a checkbox, index or table looks wrong, find what writes it before editing it, because hand-fixing derived output desynchronises it from its source and destroys the signal that something upstream is unset
+### A generated block's stale-looking state is evidence about the generator, not a defect to tidy — when a checkbox, index or table looks wrong, find what writes it before editing it, because hand-fixing derived output desynchronises it from its source and destroys the signal that something upstream is unset
 
-## Closing a gap means sweeping the artifacts that assert the gap is open — grep for the absence you just removed, not only for the thing you just added, because a document saying "there is no X" reads as current guidance and sends the next builder to rebuild the debt you just paid
+### Closing a gap means sweeping the artifacts that assert the gap is open — grep for the absence you just removed, not only for the thing you just added, because a document saying "there is no X" reads as current guidance and sends the next builder to rebuild the debt you just paid
 
-## Two verification passes that agree can both be vacuous — when a result is one you cannot derive, run the smallest thing that reproduces it by hand before believing either, because agreement between two runs of the same broken instrument is not corroboration
+### Two verification passes that agree can both be vacuous — when a result is one you cannot derive, run the smallest thing that reproduces it by hand before believing either, because agreement between two runs of the same broken instrument is not corroboration
 
-## A pytest exit code that is neither 0 nor 1 is not a verdict — any tool reading `returncode != 0` as "the test caught it" reports success for a run that collected nothing, and every opt-in marker in this repo makes that the DEFAULT outcome of naming such a test on the command line
+### A pytest exit code that is neither 0 nor 1 is not a verdict — any tool reading `returncode != 0` as "the test caught it" reports success for a run that collected nothing, and every opt-in marker in this repo makes that the DEFAULT outcome of naming such a test on the command line
 
-## Running a generator tells you what it will DO, not whether its input is right — when derived output looks wrong, ask the generator AND then check the source tag against how every prior instance was tagged, because "no tag" reads identically as a deliberate state and as a missing one
+### Running a generator tells you what it will DO, not whether its input is right — when derived output looks wrong, ask the generator AND then check the source tag against how every prior instance was tagged, because "no tag" reads identically as a deliberate state and as a missing one
 
-## A sentence a UI shows is a claim about what the software can do, and needs the same verification as a docstring's claim about a guard — before writing "do X to fix this", grep for the endpoint and the control that would let a user do X, because the wording ships as a promise and a mutation check cannot tell a reachable assertion from a true one
-## A docstring's safety argument is a claim about the code beside it — when a comment names a failure mode as unacceptable, the next thing written is the test proving it cannot happen, derived from the DOCSTRING rather than the diff, because stating a danger reads as defending against it and a mutation sweep only asks whether the lines you wrote are defended
+### A sentence a UI shows is a claim about what the software can do, and needs the same verification as a docstring's claim about a guard — before writing "do X to fix this", grep for the endpoint and the control that would let a user do X, because the wording ships as a promise and a mutation check cannot tell a reachable assertion from a true one
 
-## Two redundant defences look exactly like two undefended branches in a mutation sweep — when a survivor surprises you on a line you believe is load-bearing, check whether a SIBLING guard rescues the same input before writing anything, because the fix is a case per guard that the other cannot rescue, not a broader test
+### A docstring's safety argument is a claim about the code beside it — when a comment names a failure mode as unacceptable, the next thing written is the test proving it cannot happen, derived from the DOCSTRING rather than the diff, because stating a danger reads as defending against it and a mutation sweep only asks whether the lines you wrote are defended
 
-## A bug report's stated CAUSE is a hypothesis, held to the same standard of proof as its symptom — run the cheapest experiment that could refute it before building on it, because the symptom was observed while the cause was reasoned, and both get recorded in artifacts as though they were observed
+### Two redundant defences look exactly like two undefended branches in a mutation sweep — when a survivor surprises you on a line you believe is load-bearing, check whether a SIBLING guard rescues the same input before writing anything, because the fix is a case per guard that the other cannot rescue, not a broader test
 
-## A grep that retires a claim must be scoped by the repository, never by the file type you found it in — run it with no `--include` and filter by eye, or state the scope you searched beside the claim you retired, because a scoped search is indistinguishable from an exhaustive one in its output
+### A bug report's stated CAUSE is a hypothesis, held to the same standard of proof as its symptom — run the cheapest experiment that could refute it before building on it, because the symptom was observed while the cause was reasoned, and both get recorded in artifacts as though they were observed
 
-## A defect class found in one module is a question to ask of every module the same commit touches — grep the diff for the shape you just fixed before committing, because the fix is the cheapest moment to notice the sibling and having just fixed "this must never raise" does not prompt "can what I just wrote raise?"
+### A grep that retires a claim must be scoped by the repository, never by the file type you found it in — run it with no `--include` and filter by eye, or state the scope you searched beside the claim you retired, because a scoped search is indistinguishable from an exhaustive one in its output
 
-## When a comment names a SYMBOL as the source of truth for a set, derive the test's inputs from that symbol — parametrise over the tuple/enum/registry the prose points at rather than retyping its members, because a hand-copied list makes the invariant true only for the members that existed when it was written, and the failure of the one added later is exactly the silent outcome the comment was warning about
+### A defect class found in one module is a question to ask of every module the same commit touches — grep the diff for the shape you just fixed before committing, because the fix is the cheapest moment to notice the sibling and having just fixed "this must never raise" does not prompt "can what I just wrote raise?"
 
-## A test rewritten to accommodate a change needs the mutation check MORE than a new test does — after adjusting an assertion that your own change turned red, re-break the thing the test originally caught and confirm it still fails, because the pressure is to make it pass and the cheapest way to do that is to drop the assertion that was doing the work
+### When a comment names a SYMBOL as the source of truth for a set, derive the test's inputs from that symbol — parametrise over the tuple/enum/registry the prose points at rather than retyping its members, because a hand-copied list makes the invariant true only for the members that existed when it was written, and the failure of the one added later is exactly the silent outcome the comment was warning about
 
-## A dependency bump's evidence is the call sites, never the suite — before believing a version move, exercise the upstream API the code actually reaches in a clean interpreter, because a manifest no suite installs (`requirements.txt` here, which the root project does not declare) makes a green `pytest` a statement about versions that did not move
+### A test rewritten to accommodate a change needs the mutation check MORE than a new test does — after adjusting an assertion that your own change turned red, re-break the thing the test originally caught and confirm it still fails, because the pressure is to make it pass and the cheapest way to do that is to drop the assertion that was doing the work
 
-## Before calling a shared pinned upstream risky to bump, read the SIBLING lockfiles — when two projects in a repo pin the same git dependency, one plane's resolved lock is evidence about the other's, and the version you are afraid to move to may already be resolved and running next door
+### A dependency bump's evidence is the call sites, never the suite — before believing a version move, exercise the upstream API the code actually reaches in a clean interpreter, because a manifest no suite installs (`requirements.txt` here, which the root project does not declare) makes a green `pytest` a statement about versions that did not move
 
-## A diagnostic whose "all clear" and "cannot tell" print the same line has retired the question it asks — when a check can be quiet for more than one reason, give each quiet state its own outcome naming which side said nothing, because a reader treats a pass as a measurement and the false one propagates into artifacts as evidence
+### Before calling a shared pinned upstream risky to bump, read the SIBLING lockfiles — when two projects in a repo pin the same git dependency, one plane's resolved lock is evidence about the other's, and the version you are afraid to move to may already be resolved and running next door
 
-## A regression corpus is its INPUTS, not its recorded answers — when a corpus exists, run the producer you are judging over the images/rows the corpus was derived FROM and compare pairwise, because checking only the stored answers against a bar leaves the producer unmeasured, and a substitute input that has no cluster competition and no pale regions (synthetic flat colours here) passes a test whose docstring already admits it says "most" while asserting "every"
+### A diagnostic whose "all clear" and "cannot tell" print the same line has retired the question it asks — when a check can be quiet for more than one reason, give each quiet state its own outcome naming which side said nothing, because a reader treats a pass as a measurement and the false one propagates into artifacts as evidence
 
-## A decision's stated PREMISE is checkable at the moment you build on it, and that moment is the last cheap one — before implementing a recorded decision, run the measurement its justifying clause asserts, because a premise written in prose during a walkthrough reads afterwards as an observation, and here "the mechanical derivation lands in the region the corpus occupies" was false by +15.2 L* on 31 of 40 works
+### A regression corpus is its INPUTS, not its recorded answers — when a corpus exists, run the producer you are judging over the images/rows the corpus was derived FROM and compare pairwise, because checking only the stored answers against a bar leaves the producer unmeasured, and a substitute input that has no cluster competition and no pale regions (synthetic flat colours here) passes a test whose docstring already admits it says "most" while asserting "every"
+
+### A decision's stated PREMISE is checkable at the moment you build on it, and that moment is the last cheap one — before implementing a recorded decision, run the measurement its justifying clause asserts, because a premise written in prose during a walkthrough reads afterwards as an observation, and here "the mechanical derivation lands in the region the corpus occupies" was false by +15.2 L* on 31 of 40 works
