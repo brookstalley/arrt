@@ -380,3 +380,18 @@ def test_the_two_verdict_notices_are_both_silent_on_the_same_input():
 
     assert http_api._verdict_notice(outcome) is None
     assert bindings._verdict_notice(outcome) is None
+
+
+def test_a_held_work_is_reported_as_held_on_every_surface():
+    """The review card and both tool shapes carry which artwork a candidate already is.
+
+    A non-default value, so a formatter that dropped the field, or wrote a
+    constant, fails here rather than passing on the null every other view carries.
+    """
+    from curatarr.library.services.review import CandidateView  # noqa: PLC0415
+
+    view = CandidateView(work=_work(), instances_held=0, instances_surviving=0, shown=None, held_artwork_id="aw_7")
+
+    assert http_api._candidate_card(view).held_artwork_id == "aw_7"
+    assert bindings._candidate_summary(view, bindings._Pictures())["held_artwork_id"] == "aw_7"
+    assert bindings._candidate_detail(view, bindings._Pictures())["held_artwork_id"] == "aw_7"

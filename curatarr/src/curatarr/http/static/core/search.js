@@ -12,6 +12,7 @@
  * find.
  */
 
+import { api } from "./api.js";
 import { el } from "./render.js";
 import { go } from "./router.js";
 import { state } from "./state.js";
@@ -28,11 +29,168 @@ export function paintSearch() {
   if (document.activeElement !== field && field.value !== current) field.value = current;
 }
 
+/* How many library matches the dropdown shows. Enough to recognise the one you
+ * meant; more is what Enter, which opens every match in Artworks, is for. */
+const SUGGESTIONS = 6;
+
+/* Wait this long after the last keystroke before asking, so typing a word asks
+ * once rather than once a letter. */
+const PAUSE_MS = 200;
+
+/* The dropdown under the search box: Sonarr's two groups, in Curatarr's words.
+ *
+ * `information-architecture.md` § The *arr layout records Sonarr's pattern from
+ * its source: the box searches the library as you type, and the last row offers
+ * the same words as a search of everything. Here that row goes to Add New with
+ * the words filled in, and Add New does not start the search, because a
+ * museum search is a paid run and nothing may spend on a keystroke.
+ *
+ * **Enter with nothing highlighted opens Artworks filtered to the query**, as it
+ * did before the dropdown existed. That departs from Sonarr, which opens the
+ * first match, and the owner ruled it on 2026-09-30: an artist or a movement
+ * matches many works where a series title matches one.
+ *
+ * An ARIA combobox: the input keeps focus, arrow keys move
+ * `aria-activedescendant` through the options, Escape closes the list, and the
+ * two groups are named so a screen reader says which one an option is in. */
+function installSuggestions(field) {
+  const list = el("ul", { id: "search-suggestions", class: "suggestions", role: "listbox", "aria-label": "Suggestions" });
+  list.hidden = true;
+  field.after(list);
+  field.setAttribute("role", "combobox");
+  field.setAttribute("aria-autocomplete", "list");
+  field.setAttribute("aria-controls", "search-suggestions");
+  field.setAttribute("aria-expanded", "false");
+
+  let options = [];
+  let active = -1;
+  let asked = 0;
+  let timer = null;
+
+  const close = () => {
+    list.hidden = true;
+    field.setAttribute("aria-expanded", "false");
+    field.removeAttribute("aria-activedescendant");
+    options = [];
+    active = -1;
+  };
+
+  const highlight = (index) => {
+    active = index;
+    options.forEach((option, at) => option.node.setAttribute("aria-selected", at === index ? "true" : "false"));
+    if (index < 0) field.removeAttribute("aria-activedescendant");
+    else field.setAttribute("aria-activedescendant", options[index].node.id);
+  };
+
+  const choose = (option) => {
+    close();
+    option.act();
+  };
+
+  const option = (id, text, act) => {
+    const node = el("li", { id, role: "option", "aria-selected": "false", text });
+    // Mousedown rather than click: a click lands after the field's blur, which
+    // has already closed the list the click was aimed at.
+    node.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      choose(entry);
+    });
+    const entry = { node, act };
+    return entry;
+  };
+
+  const group = (id, label, entries) =>
+    el("li", { role: "presentation" }, [
+      el("ul", { role: "group", "aria-labelledby": id }, [
+        el("li", { id, role: "presentation", class: "suggestions-label", text: label }),
+        ...entries.map((entry) => entry.node),
+      ]),
+    ]);
+
+  const paint = (query, works) => {
+    const held = works.map((work, at) =>
+      option(`suggestion-work-${at}`, work.artist ? `${work.title} — ${work.artist.name}` : work.title, () =>
+        go("work", work.artwork_id),
+      ),
+    );
+    const museums = option("suggestion-museums", `Search museums for “${query}”`, () =>
+      go("discover", null, { term: query }),
+    );
+    options = [...held, museums];
+    list.replaceChildren(
+      ...(held.length ? [group("suggestions-held", "In your library", held)] : []),
+      group("suggestions-elsewhere", "Everywhere else", [museums]),
+    );
+    list.hidden = false;
+    field.setAttribute("aria-expanded", "true");
+    highlight(-1);
+  };
+
+  const ask = async () => {
+    const query = field.value.trim();
+    const ticket = ++asked;
+    if (!query) {
+      close();
+      return;
+    }
+    let works = [];
+    try {
+      const page = await api(`/api/works?q=${encodeURIComponent(query)}&limit=${SUGGESTIONS}`);
+      works = page.works;
+    } catch (failure) {
+      // The dropdown is a shortcut; the search itself still works on Enter, so
+      // a failed suggestion shows only the row that needs no answer.
+      works = [];
+    }
+    // A slower answer to an earlier keystroke must not replace a later one.
+    if (ticket !== asked || document.activeElement !== field) return;
+    paint(query, works);
+  };
+
+  field.addEventListener("input", () => {
+    clearTimeout(timer);
+    timer = setTimeout(ask, PAUSE_MS);
+  });
+  field.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      if (!list.hidden) {
+        event.preventDefault();
+        close();
+      }
+      return;
+    }
+    if (list.hidden || !options.length) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      highlight((active + 1) % options.length);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      highlight(active <= 0 ? options.length - 1 : active - 1);
+    } else if (event.key === "Enter" && active >= 0) {
+      event.preventDefault();
+      choose(options[active]);
+    }
+  });
+  field.addEventListener("blur", () => {
+    clearTimeout(timer);
+    asked += 1;
+    close();
+  });
+  return () => {
+    clearTimeout(timer);
+    asked += 1;
+    close();
+  };
+}
+
 export function installSearch() {
   const form = document.getElementById("search-form");
+  const field = document.getElementById("search");
+  const dismiss = installSuggestions(field);
   form.addEventListener("submit", (event) => {
     event.preventDefault();
-    const query = document.getElementById("search").value.trim();
+    dismiss();
+    const query = field.value.trim();
     // Filters already in the address survive a search made from Artworks, and
     // do not follow one made from anywhere else: narrowing what you are looking
     // at is a different act from starting a search over the whole collection,

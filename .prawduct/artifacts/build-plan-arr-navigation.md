@@ -210,7 +210,14 @@ free estimate, and does not start a run. A Review candidate that is already an
 accepted work is marked *Already in your library* and opens that work instead of
 offering Accept.
 
-**Step 0:** find out what a run does today with a work that is already accepted:
+**Step 0, answered 2026-09-30:** a run can propose a work already accepted.
+`propose_work` refuses only suppressed (rejected) works, and nothing excludes
+accepted ones; `tests/unit/test_discovery_questions.py` builds the case. The mark
+is `DiscoveryService.held_artwork_id`, found through an earlier proposal's
+`artwork_id` under the same key, and carried on the review card and both MCP
+shapes.
+
+**Step 0 as planned:** find out what a run does today with a work that is already accepted:
 whether it skips it, proposes it again, or marks it. Read
 `curatarr/src/curatarr/library/services/discovery.py` and build the case in a
 test. The marking design depends on the answer, and nothing in this plan has

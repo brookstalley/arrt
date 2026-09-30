@@ -72,9 +72,8 @@ inside an existing section, not a section of its own.
 > is built. Interim rule: until the plan's remaining chunks land, a new screen
 > goes where § The *arr layout places it.
 >
-> **Retroactivity:** migrate: `build-plan-arr-navigation.md`. The sidebar, the
-> home page and Activity conform. The two-scope search and the toolbar do not yet
-> exist. If the
+> **Retroactivity:** migrate: `build-plan-arr-navigation.md`. Everything conforms
+> except the page toolbar, which does not yet exist. If the
 > plan merges as one PR, the norm is steady-state at merge with no residual sites.
 
 **A working prototype of everything below is committed beside this file:**
@@ -184,10 +183,8 @@ It becomes a rail inside Collection — a filter that is also editable — plus 
 
 ## The *arr layout (target, amended 2026-09-30)
 
-This is the layout § Direction now requires. **The sidebar, the top bar, the
-badge, the drawer and Activity are built. The two-scope search and the toolbar
-are not yet**, and `build-plan-arr-navigation.md` builds them in Chunks 04–05.
-Until then, the search box searches Artworks only.
+This is the layout § Direction now requires. **Everything below is built except
+the page toolbar**, which `build-plan-arr-navigation.md` builds in Chunk 05.
 
 > **A gap in Activity, recorded 2026-09-30 while building it.** Radarr's Queue
 > also holds what finished but needs the user, such as a manual import. Curatarr's

@@ -1041,6 +1041,7 @@ def _candidate_card(view: CandidateView) -> CandidateCardOut:
         shown_is_on_offer=view.shown_is_on_offer,
         instances_held=view.instances_held,
         instances_surviving=view.instances_surviving,
+        held_artwork_id=view.held_artwork_id,
     )
 
 

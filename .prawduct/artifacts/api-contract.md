@@ -231,6 +231,16 @@ is all there is, and nothing chose it" — and the only row that carries no pict
 is one whose instances are all rejected or absent, where there is genuinely
 nothing to show.
 
+**A work the library already holds says so (2026-09-30).** A run refuses only a
+work the curator rejected, so it can propose one an earlier run acquired.
+`list_works` and `get_work` (and the browser's candidate listing) carry
+`held_artwork_id`: the catalogue artwork an earlier proposal of the same
+`work_dedup_key` became, or null. It is additive, and a caller that ignores it
+behaves as before. The browser shows *Already in your library* and opens that
+artwork in place of Accept, following Sonarr's Add New
+(`information-architecture.md` § The *arr layout). The identity is the dedup
+key, with that key's limits: two works sharing a title and an artist read as one.
+
 **`rights_status` is returned alongside**, as a provenance and source-quality
 signal. It gates nothing (`data-model.md` constraint 13).
 

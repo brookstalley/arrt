@@ -11,6 +11,7 @@ import { api } from "../core/api.js";
 import { table } from "../core/badges.js";
 import { el, guard, render } from "../core/render.js";
 import { go } from "../core/router.js";
+import { state } from "../core/state.js";
 
 export async function viewDiscover(generation) {
   // Both in one round trip: the estimate exists to inform the decision being
@@ -19,6 +20,10 @@ export async function viewDiscover(generation) {
   const [estimate, conversations] = await Promise.all([api("/api/estimate"), api("/api/conversations")]);
 
   const intent = el("textarea", { id: "intent", rows: 3, required: true });
+  // A search handed over from the top bar's "Search museums for …" row, as
+  // Sonarr hands its term to Add New. Filled in and never started: a search here
+  // is a paid run, and the curator presses the button beside its price.
+  intent.value = state.params.term || "";
   const start = el("button", {
     class: "action",
     type: "button",

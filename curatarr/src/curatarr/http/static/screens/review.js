@@ -310,12 +310,31 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
           })
         : null,
       notice ? el("p", { class: "note", text: notice }) : null,
+      // Sonarr's *Already in your library* on an Add New result: a run can
+      // propose a work an earlier run acquired, and accepting it again would mint
+      // a second artwork for one painting. So the card says so, and its first
+      // control opens the one already held. Reject stays, because "stop
+      // proposing this" is a fair thing to say about a work you already own.
+      card.held_artwork_id
+        ? el("p", { class: "note already-held" }, [
+            el("span", { class: "glyph", text: "✓", "aria-hidden": true }),
+            el("span", { text: " Already in your library. Accepting it again would acquire a second copy." }),
+          ])
+        : null,
       el("div", { class: "row" }, [
         el("div", { class: "field" }, [
           el("label", { for: `reason-${work.work_id}`, text: "Why (optional)" }),
           reason,
         ]),
-        el("button", { class: "action", type: "button", text: "Accept", "aria-label": `Accept ${work.title}`, onclick: () => decide("accepted") }),
+        card.held_artwork_id
+          ? el("button", {
+              class: "action",
+              type: "button",
+              text: "Open it in Artworks",
+              "aria-label": `Open ${work.title} in Artworks`,
+              onclick: () => go("work", card.held_artwork_id),
+            })
+          : el("button", { class: "action", type: "button", text: "Accept", "aria-label": `Accept ${work.title}`, onclick: () => decide("accepted") }),
         el("button", { class: "action quiet", type: "button", text: "Reject", "aria-label": `Reject ${work.title}`, onclick: () => decide("rejected") }),
       ]),
       disclosure,

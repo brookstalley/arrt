@@ -32,6 +32,10 @@ curatarr`) and open it in a browser.
    gate, then move to History when it ends. Is a finished search with works to
    review easy enough to find in History, or does it need to stay in Queue
    (the recorded gap)?
+6. **Search in two scopes** (Chunk 04): type an artist in the top bar. The
+   dropdown should list your matches, then *Search museums for "…"*, which
+   opens Add New with the words filled in and nothing started. Enter with
+   nothing highlighted opens Artworks filtered.
 
 ### Switch the Pi to HTTP mode, and let it soak — added 2026-09-30
 

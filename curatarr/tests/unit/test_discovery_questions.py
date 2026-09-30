@@ -37,6 +37,51 @@ def test_a_work_nobody_has_seen_is_not_suppressed(discovery):
     assert discovery.is_work_suppressed("hopper::automat") is False
 
 
+# -- is a proposed work already in the library? ----------------------------------
+#
+# A run refuses only works the curator rejected, so it can propose one they
+# accepted in an earlier run. The review card must say so rather than offer to
+# acquire the same painting twice.
+
+
+def test_a_later_proposal_of_an_accepted_work_is_known_to_be_held(discovery, resolved_work):
+    first = resolved_work("Nighthawks", dedup_key="hopper::nighthawks")
+    discovery.set_verdict(first.id, Verdict.ACCEPTED)
+    artwork_id = discovery.get_candidate_work(first.id).artwork_id
+    assert artwork_id is not None, "accepting did not mint an artwork, so this test cannot say anything"
+
+    # Proposed again, in a later run: nothing refuses it.
+    again = resolved_work("Nighthawks", dedup_key="hopper::nighthawks")
+
+    assert again.id != first.id
+    assert discovery.held_artwork_id(again) == artwork_id
+
+
+def test_a_work_is_not_held_because_it_was_proposed_before_and_rejected(discovery, resolved_work):
+    """Rejected is suppressed, not held: the key alone must not be the answer."""
+    first = resolved_work("Nighthawks", dedup_key="hopper::nighthawks")
+    discovery.set_verdict(first.id, Verdict.REJECTED)
+    again = resolved_work("Nighthawks", dedup_key="hopper::nighthawks", reconsider=True)
+
+    assert discovery.held_artwork_id(again) is None
+
+
+def test_an_accepted_work_is_not_marked_held_by_itself(discovery, resolved_work):
+    """The card that did the acquiring is the acquisition, not a duplicate of it."""
+    work = resolved_work("Nighthawks", dedup_key="hopper::nighthawks")
+    discovery.set_verdict(work.id, Verdict.ACCEPTED)
+
+    assert discovery.held_artwork_id(discovery.get_candidate_work(work.id)) is None
+
+
+def test_a_different_work_is_not_held(discovery, resolved_work):
+    first = resolved_work("Nighthawks", dedup_key="hopper::nighthawks")
+    discovery.set_verdict(first.id, Verdict.ACCEPTED)
+    other = resolved_work("Automat", dedup_key="hopper::automat")
+
+    assert discovery.held_artwork_id(other) is None
+
+
 # -- Q4: what has been spent this month, and what did this run cost? ----------
 
 

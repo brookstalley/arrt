@@ -58,7 +58,7 @@
 
 ## 2026-09-30: The *arr navigation: the norm amended, and the sidebar built
 
-<!-- prawduct: chunks=01,02,03 | scope=arr-navigation -->
+<!-- prawduct: chunks=01,02,03,04 | scope=arr-navigation -->
 
 **Why:** the owner ruled that Curatarr's browser surface should be laid out like
 the *arr apps: *"More important to be familiar than to have our own thing."*
@@ -95,6 +95,15 @@ the *arr apps: *"More important to be familiar than to have our own thing."*
   A finished run with unjudged candidates belongs in Queue as Radarr's "manual
   import" does, but the listing has no signal for it. That gap is recorded in
   `information-architecture.md` and not built here.
+- **Search in two scopes (Chunk 04).** The top-bar search is Sonarr's: typing
+  shows *In your library* matches and a *Search museums for "…"* row, which
+  hands the words to Add New without starting a run (runs cost money). Enter
+  with nothing highlighted opens Artworks filtered to the query, as the owner
+  ruled. Review cards for a work the library already holds say *Already in your
+  library* and open that artwork in place of Accept. A run could always
+  re-propose an accepted work, which would have acquired a duplicate.
+  `held_artwork_id` is new, additive, on the HTTP card and both `art_review`
+  shapes.
 - `test_the_three_destinations.py` became `test_the_sidebar.py`. Its docstring
   records which tests were kept, which rewritten to the amended norm, and which
   retired: *no entry names a pipeline stage* and *the navigation is flat*, both

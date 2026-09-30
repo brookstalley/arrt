@@ -1212,3 +1212,30 @@ def test_the_group_heading_rule_does_not_reach_the_cards_inside_the_group(grid):
     assert set(margins["inside"]) == set(
         margins["outside"]
     ), f"a card title is styled differently for sitting inside an offer group: {margins}"
+
+
+# -- a work the library already holds ------------------------------------------
+
+
+def test_a_work_already_in_the_library_says_so_and_opens_it_instead_of_accepting(ui):
+    """Sonarr's *Already in your library*, on a review card.
+
+    A run can propose a work an earlier run acquired. Two cards, one held and
+    one not, so a mark shown on every card, or on none, fails here.
+    """
+    held = a_card(a_candidate(work_id="work-held", title="Nighthawks"), held_artwork_id="artwork-held")
+    fresh = a_card(a_candidate(work_id="work-fresh", title="Automat"))
+    ui.serve_image("**/api/candidate-images/*/preview")
+    ui.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([held, fresh]))
+    ui.open(f"#review/{RUN_ID}")
+    ui.page.wait_for_selector("li.card")
+
+    held_card = ui.page.locator("li.card", has_text="Nighthawks")
+    fresh_card = ui.page.locator("li.card", has_text="Automat")
+    assert "Already in your library" in held_card.inner_text()
+    assert held_card.locator("button[aria-label='Accept Nighthawks']").count() == 0
+    assert "Already in your library" not in fresh_card.inner_text()
+    assert fresh_card.locator("button[aria-label='Accept Automat']").count() == 1
+
+    held_card.locator("button:has-text('Open it in Artworks')").click()
+    ui.page.wait_for_function("() => window.location.hash.startsWith('#work/artwork-held')")
