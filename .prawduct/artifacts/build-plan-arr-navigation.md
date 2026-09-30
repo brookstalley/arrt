@@ -98,7 +98,7 @@ visible without running anything.
 ## Status
 
 - [x] Chunk 01: The norm amendment and the target layout, in the artifacts
-- [ ] Chunk 02: The sidebar and the top bar, with Artworks as home
+- [x] Chunk 02: The sidebar and the top bar, with Artworks as home
 - [ ] Chunk 03: Activity › Queue and History
 - [ ] Chunk 04: Search in two scopes
 - [ ] Chunk 05: The page toolbar
