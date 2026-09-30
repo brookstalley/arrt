@@ -81,14 +81,30 @@ transport that does not depend on sharing a filesystem with the server.
 - Arrt can run with `MANIFEST_SOURCE=http`. It pulls into `CACHE_DIR` and
   renders only from that cache, so it keeps showing its last good wall while
   the server is down. File mode is still the default. Only `arrt/pull.py`
-  speaks HTTP.
+  speaks HTTP, and `aiohttp` is now a declared dependency of Arrt (it was
+  already locked, through `samsungtvws`). In HTTP mode the heartbeat file moves
+  into `CACHE_DIR` and the pull forwards it.
+- The facade adds a new reason a work is left off a wall: `not_in_catalogue`.
+  It cannot happen while the foreign keys hold, and exists for when rule 3
+  drops them.
+- Several of wave 1's review items were carried here: R-1, R-2, R-5/R-9, R-6
+  and R-10.
+
+**The catalogue file changes, additively:** `walls` gains `token_verifier` and
+`token_issued_at`, `renditions` gains `content_sha256` and `byte_size`, and
+there is a new index, `renditions_by_content`. All four columns are nullable.
+The store adds them to an existing file the first time it opens it (the
+`ALTER TABLE ADD COLUMN` path in `persistence/durable.py`), and logs each
+addition. Rolling back to wave 2a's code on a widened file has not been
+tried, so the way back is the copy of the file taken before the upgrade.
 
 **Fixed along the way:** `next` and `show_now` did not write the directive into
 the manifest, so neither reached the wall until the next sync. Backlog #35:
 a failed manifest write in `activate_theme` now undoes the hang.
 
 **Operator verification queued:** the HTTP soak on the Pi, the token panel,
-the Next fix, the archive removal, and reinstalling the Pi's units.
+the Next fix, and the archive removal. (Reinstalling the Pi's units is also on
+the queue, but from wave 2a.)
 
 ## 2026-09-30: Curatarr and Arrt, in the code (wave 2a)
 
