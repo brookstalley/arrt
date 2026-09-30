@@ -87,7 +87,12 @@ module `display.py`, which `tvart.py` still imports.
 up" now points at `re-architecture.md` § Order of work instead of naming a wave
 (O-3). `test_tool_config.py` now pins that the real `display.py` stays under the
 root tools, because the name collision that motivated its trailing-slash guard
-no longer exists by name.
+no longer exists by name. `tests/test_repo_hygiene.py` now scans `arrt/tests`
+as well, which widens that guard rather than only renaming its paths. And
+`re-architecture.md`'s wave 5 command for splitting the player into its own repo
+now filters on both `display/` and `arrt/`, because filter-repo does not follow
+renames and filtering on `arrt/` alone would drop the player's history from
+before this rename.
 
 ## 2026-09-30: The learnings compacted into one-line rules
 

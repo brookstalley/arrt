@@ -24,7 +24,7 @@ last_validated: null
 ## What this plan is
 
 The operator named the products on 2026-09-30: Curatarr (the server) and
-Arrt (the player). The GitHub repo is already renamed. This plan renames
+Displayarr (the player), and renamed the player Arrt later the same day. The GitHub repo is already renamed. This plan renames
 the code: the `curation/` project and `curation` package become `curatarr`,
 and `display/` and `display` become `arrt`. It is its own plan because it
 is a different kind of change from the rest of wave 2. It is purely mechanical,
@@ -95,7 +95,7 @@ proof.
     points at `re-architecture.md` § Order of work instead of naming a wave, so
     it doesn't go stale at each wave.
 - **Tests:** all three suites pass with no test weakened. Proof the rename is
-  complete comes from two greps, each with a count taken before the rename, so
+  complete comes from three greps, each with a count taken before the rename, so
   an empty result means "renamed" and not "the pattern never matched":
   - `git grep -nP '^\s*(from|import) (curation|display)\b' -- '*.py'`: 842
     lines before, 1 after. It matches code only, so the role names the prose

@@ -38,6 +38,11 @@ names now start `curatarr.` and `arrt.`, so a saved journal filter on
 `curation.` or `display.` stops matching. The wall is dark between the stop and
 the start, so do it when nobody is looking at it.
 
+**To go back**, check out the commit before this merge and run the same steps
+with the names swapped: stop both units, remove `curatarr/` and `arrt/` (only
+`.venv` and caches remain after the checkout), `uv sync` in `curation/` and
+`display/`, copy the units back in, reload and start.
+
 ### ✅ The rebuilt identification block, at the panel — added 2026-08-13, VERIFIED 2026-08-14
 
 **Verified at the panel on 2026-08-14**, together with the entry below it — one
