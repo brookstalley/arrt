@@ -6,12 +6,12 @@ Curated art on a Samsung Frame TV, with a matching e-paper label beside it.
 
 This repo is turning into **two products**:
 
-- **A server,** in the manner of Radarr/Sonarr. It holds two roles: the
+- **Curatarr, the server,** in the manner of Radarr/Sonarr. It holds two roles: the
   **Library** finds, acquires, maintains, upgrades and enhances artwork, including
   standing "watch for new abstract expressionists" searches; **Programming**
   decides which playlist hangs on which wall. It runs as a container on a home
   NAS.
-- **A player,** in the manner of a Plex client. It reads what the server
+- **Displayarr, the player,** in the manner of a Plex client. It reads what the server
   publishes and shows it on whatever screen it owns: a Samsung Frame, a plain
   LCD, a monitor. It composes the mat for that screen. The e-ink label is
   optional, and a caption in the mat is the alternative.
@@ -20,7 +20,8 @@ Most of it already exists here: `curation/` is most of the server and `display/`
 is most of the player. The work is moving the seams. The shared directory becomes
 an HTTP manifest that the player pulls into a local cache, and mat compositing
 moves from the server to the player. That happens in waves, and splitting this
-repo in two comes **last**, once the contract between them has settled.
+repo in two comes **last**, once the contract between them has settled. This
+repo then becomes Curatarr, and Displayarr moves to a repo of its own.
 
 **The record, the reasoning and the order of work:**
 `.prawduct/artifacts/re-architecture.md`. Everything below describes the product

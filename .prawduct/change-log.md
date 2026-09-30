@@ -56,6 +56,30 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-09-30: Curatarr and Displayarr; a token per wall; wave 0 closed
+
+<!-- prawduct: scope=re-architecture -->
+
+**Why:** The operator made three rulings: "wave 0 -- abandon. We'll rebuild with
+this new plan"; "each wall gets a token"; and "The library/performance
+controller will be Curatarr, the device side playback will be Displayarr."
+
+**What:** Documentation only.
+- The names are recorded in `re-architecture.md`, the product brief's Identity,
+  `project-state.yaml`, `CLAUDE.md` and the README. The GitHub repo and the
+  Python packages are not renamed yet.
+- Per-wall tokens are recorded in `re-architecture.md` § Seam 2, with a
+  decision block, in `security-model.md` (option b chosen) and in
+  `api-contract.md` (`401` and `403`). The token is checked on every wall route
+  and on media, which is the advisor's extension and vetoable. It lands in
+  wave 2.
+- Wave 0 is closed. The v1 open chunks are abandoned, and a table maps the
+  requirement each served to where it is rebuilt: power control becomes a
+  Displayarr stream in wave 6+, the dark hours go to the wave 4 schedule, backup
+  goes to wave 3, and retiring the legacy modules goes to wave 5. The power
+  norm's status and interim rule now point there.
+- Three open questions are closed.
+
 ## 2026-09-30: Wave 1 begins: what is showing versus how, the schedule, scenes, and the waves re-cut
 
 <!-- prawduct: scope=re-architecture -->

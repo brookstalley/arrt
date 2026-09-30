@@ -67,6 +67,13 @@ reason to continue this project rather than adopt an existing one.
 > a monitor with no e-ink. It is a label the Player sets in the mat area under the
 > label typography rules (`accessibility-spec.md`), not an overlay on the work.
 
+**Names, from 2026-09-30:** **Curatarr** is the server (the Library and
+Programming), and **Displayarr** is the player at each wall. Both names are the
+operator's. "Samsung Frame Art Loader" describes the product as built, and
+retires as the waves land. The *arr suffix is deliberate: the model is Radarr and
+Sonarr (`re-architecture.md`). No branding reaches a wall, so the names appear
+only on the curator's and operator's surfaces.
+
 **Museum, not gadget.**
 
 The curator-facing surface should read like a private collection management tool:

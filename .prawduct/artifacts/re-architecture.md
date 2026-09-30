@@ -38,9 +38,10 @@ both passes.
 The product was **a curated-art appliance for a Samsung Frame TV**. It is
 becoming **two products**:
 
-1. **A server** in the manner of Radarr/Sonarr. It finds, acquires, maintains,
-   upgrades and enhances artwork, and decides what hangs on which wall.
-2. **A player** in the manner of a Plex client. It reads what the server
+1. **Curatarr, the server,** in the manner of Radarr/Sonarr. It finds,
+   acquires, maintains, upgrades and enhances artwork, and decides what hangs on
+   which wall.
+2. **Displayarr, the player,** in the manner of a Plex client. It reads what the server
    publishes and shows it on whatever screen it owns: a Samsung Frame, a plain
    LCD, a monitor on a Mac. An optional e-ink label is supported, and a caption
    drawn in the mat is the alternative.
@@ -49,6 +50,11 @@ The server runs on the household NAS, next to the operator's existing *arr stack
 Players run at the walls. Most of the code already exists: `curation/` is most of
 the server and `display/` is most of the player. The change is mainly about
 **where the seams are drawn**, not a rewrite.
+
+**The names were given by the operator on 2026-09-30:** "The library/performance
+controller will be Curatarr, the device side playback will be Displayarr." The
+Samsung name no longer fits a product that drives any screen. This file keeps
+saying "server" and "player" where the role matters more than the product.
 
 ## The owner's rulings (2026-09-30)
 
@@ -212,6 +218,22 @@ exact failure the norm exists to prevent | user can veto/override]`
 The one-directional corollary survives in spirit. The Player never writes
 anything the server owns; the heartbeat is the Player *reporting*, exactly as the
 heartbeat file does today.
+
+**Each wall has a token.** The operator ruled on 2026-09-30: "each wall gets a
+token". Curatarr issues one per wall from the UI, shows it once and keeps only a
+verifier. Displayarr holds it as local configuration next to `WALL_ID` and sends
+it on every request. Curatarr checks it on every `/walls/{wall_id}/...` route,
+the manifest GET as well as the heartbeat POST, and a token only opens its own
+wall. `/media/{hash}` accepts any valid wall token. Rotation is: issue a new
+token in the UI, then update the Player. A leaked token lets someone read one
+wall's schedule and forge its health, and nothing more. It never reaches the
+catalogue or the curator's surfaces. It lands in wave 2, with the routes.
+
+`[DECISION: per-wall bearer tokens, checked on every wall route and on media;
+the server stores only a verifier | the operator's ruling "each wall gets a
+token". Checking the GETs as well as the POST is the advisor's addition: one rule
+for every route is simpler to get right than two, and the schedule a manifest
+carries says when the household is home | user can veto/override]`
 
 **The contract gets its own artifact** before it is built: a JSON Schema plus
 example manifests, owned by the server, and pinned by the Player's tests after the
@@ -536,13 +558,30 @@ plan: each wave gets its own `build-plan-<scope>.md` when it starts, per
 
 | Wave | Scope | Notes |
 |---|---|---|
-| **0: clear the decks** | Park round 2. Retire the 2024 root modules. Reconcile the open chunks of the v1 plan (archived 2026-09-30 as `archive/build-plan.md`). | Round 2 is **parked, not abandoned**, on branch `curation-ui/rulings-and-plan` (three commits, local only as of 2026-09-30). It is curation-UI work that remains valid for the server; revisit after wave 2. The v1 plan's open chunks (13A, 13B, 24–27) wait on hardware; decide which survive the new direction. |
+| **0: clear the decks** *(closed 2026-09-30)* | Park round 2. ~~Reconcile the v1 plan's open chunks.~~ | Round 2 is **parked, not abandoned**, on branch `curation-ui/rulings-and-plan`. It is curation-UI work that remains valid for the server; revisit after wave 2. **The operator closed the rest of this wave: "wave 0 -- abandon. We'll rebuild with this new plan."** The v1 plan's open chunks (13A, 13B, 20, 24–27) are abandoned, not carried; § Where the v1 open chunks' requirements went records what each one served and where it is rebuilt. Retiring the 2024 root modules moves to wave 5, when this repo becomes Curatarr. |
 | **1: plan** | Amend the artifacts (this change started that). Write the Player contract artifact with a JSON Schema and fixtures. Write the wave-2 build plan. | Doc-only. The amendments were drafted 2026-09-30; see § Artifacts touched. |
-| **2: seams and the HTTP channel, alongside the file** | Split curation into Library and Programming packages with one-way imports and the `playable()` facade. Move the manifest's readiness logic behind the facade. Add the events, and Programming's reconciliation at startup (§ Seam 1). Then serve manifest, media and heartbeat over HTTP, with Programming's manifest endpoint as the facade's first consumer. Display gains a pull-to-local-cache mode behind configuration. Schema minor bump. | The package split comes first because the manifest endpoint is built on exactly the readiness logic rule 2 moves; building it before the split means building it twice. The static import guard for rule 1 lands here. The wall never goes dark: the file channel keeps working until wave 3 retires it. `tests/preferences/test_plane_isolation.py` forbids any HTTP client in display today. Narrow it in the same chunk that adds the pull (one manifest-client module, three endpoints), not before and not after. **Heartbeat authentication is decided before this wave ships the POST**, because the server on the Pi is already reachable on the LAN. The cache claim gets a test that stops the server while the wall runs. |
+| **2: seams and the HTTP channel, alongside the file** | Split curation into Library and Programming packages with one-way imports and the `playable()` facade. Move the manifest's readiness logic behind the facade. Add the events, and Programming's reconciliation at startup (§ Seam 1). Then serve manifest, media and heartbeat over HTTP, with Programming's manifest endpoint as the facade's first consumer. Display gains a pull-to-local-cache mode behind configuration. Schema minor bump. | The package split comes first because the manifest endpoint is built on exactly the readiness logic rule 2 moves; building it before the split means building it twice. The static import guard for rule 1 lands here. The wall never goes dark: the file channel keeps working until wave 3 retires it. `tests/preferences/test_plane_isolation.py` forbids any HTTP client in display today. Narrow it in the same chunk that adds the pull (one manifest-client module, three endpoints), not before and not after. **The per-wall tokens land with the routes** (§ Seam 2), because the server on the Pi is already reachable on the LAN. The cache claim gets a test that stops the server while the wall runs. |
 | **3: server to the NAS** | First, split the store: Programming's tables move to their own SQLite file, and the two cross-seam foreign keys become opaque references (rule 3), so the data moves once. Then containerize the server, deploy it on the NAS, point the Pi at HTTP and retire the file channel. Move the backup and restore exercise to NAS storage, with `VACUUM INTO` and the two catalogue files backed up as a pair. | The deployment side lives in the operator's homelab repo. The image needs what the Pi's install has today: a uv-managed Python 3.14, the `dezoomify-rs` binary, and a memory limit in place of `MemoryMax`. It does not need Pango unless the server ever typesets. The schema test for rule 3 lands here. |
 | **4: schema major 2** | Add the presentation master and the quality profile. Remove the `tv_display` rendition and `TV_PANEL_*` from the server, and turn `MAT_*` into per-wall settings. Display composes, with the wall's mat proportions. The manifest becomes the schedule, with scenes, staging and wall settings. The heartbeat reports capabilities, and Programming judges per-wall adequacy from them. | The largest built-code change, and the only breaking one. Mat-colour regression corpus: `curation/tools/mat_masters.py`. Blocked on a compositing budget measured on a Pi 4 (§ Compositing moves to the Player). Rotation logic moves from the display plane to Programming, along with the wake/sleep window from the v1 plan's Chunk 26. |
-| **5: split the repos** | `git filter-repo --subdirectory-filter display` into a new player repo. `/prawduct:onboard` there. Carry the player's artifacts. Pin contract fixtures. Rename this repo for the server. | GitHub keeps redirects on rename. |
-| **6+: in parallel** | Server: Watches, the scheduler and upgrades to the quality profile's cutoff; **facet population**, then Programming tags and smart playlists. Player: a framebuffer backend and caption in the mat. | Independent streams after the split. Watches carry the security and observability re-derivations above. Facet population needs its own requirements cycle (§ Two layers of tags), and smart playlists wait for it. |
+| **5: split the repos** | `git filter-repo --subdirectory-filter display` into a new player repo. `/prawduct:onboard` there. Carry the player's artifacts. Pin contract fixtures. The new repo is **Displayarr**, and this repo is renamed **Curatarr**. Remove the 2024 root modules as this repo becomes Curatarr. | GitHub keeps redirects on rename. |
+| **6+: in parallel** | Server: Watches, the scheduler and upgrades to the quality profile's cutoff; **facet population**, then Programming tags and smart playlists. Player: a framebuffer backend, caption in the mat, and **power control** (the television's power read, the guardrails, and acting on the schedule's dark hours). | Independent streams after the split. Watches carry the security and observability re-derivations above. Facet population needs its own requirements cycle (§ Two layers of tags), and smart playlists wait for it. |
+
+### Where the v1 open chunks' requirements went
+
+The chunks are abandoned. The requirements they served are not, and each is
+rebuilt in this program:
+
+| v1 chunk | The requirement it served | Rebuilt in |
+|---|---|---|
+| 13A, 13B | The label on the panel, and the wall surviving a television power-cycle unattended | Displayarr. The label code is built and is carried as it stands. The unattended power-cycle check becomes an acceptance check on the Player once it pulls over HTTP (wave 3). |
+| 24 | Measure what the set's power keys do, before any code presses them | Displayarr power control (wave 6+). `display/tools/power_probe.py` already exists and is the instrument. |
+| 25, 27 | A three-way power reading, a channel that can press, and a heartbeat that says why | Displayarr power control (wave 6+). The heartbeat's reason travels in the HTTP heartbeat. |
+| 26 | When the wall may wake and must go dark, and the guardrails against fighting the household | Split: the dark hours are gaps in Programming's schedule (wave 4); the guardrails are Displayarr power control (wave 6+). |
+| 20 | Backup and restore, and retiring legacy | Backup and restore: wave 3, on NAS storage. Legacy retirement: wave 5. |
+
+`nonfunctional-requirements.md`'s power norm (§ The television belongs to
+whoever is using it) keeps its interim rule until power control is built: no
+code that runs unattended sends a power key until the transitions are measured.
 
 **Agents.** Through wave 5, run one Claude session in this repo, so prawduct's
 hooks and gates apply. Parallel agents in worktrees are fine inside a wave. After
@@ -552,16 +591,8 @@ the other way round.
 
 ## Open questions
 
-- **Names** for the two products and their repos. Unset. This file says
-  "server" and "player".
 - **The presentation master's size cap and encoding.** About 8K long edge is a
   starting guess, to be measured against the corpus and the Pi's decode time.
-- **Player authentication on the LAN.** The endpoints are read-only except the
-  heartbeat, and today's trust boundary is the network (`security-model.md`).
-  **Decide before wave 2 ships the heartbeat POST**, because the server on the
-  Pi is already reachable on the LAN. The POST is an integrity exposure: anything
-  on the LAN can make a wall's health read green or red. The options are to
-  accept that or to issue each wall a token.
 - **Directive latency:** an ETag poll at about 1 s, or server-sent events.
   Polling matches today and is the default. Scenes are the test of whether it is
   fast enough (§ Scenes).
@@ -590,8 +621,6 @@ the other way round.
   auto-accept is offered at all, the `initiated_by` value for a Watch
   (`api-contract.md`), and whether scheduled jobs revisit the no-push-alerts
   decision (`observability-strategy.md`).
-- **The fate of the v1 plan's open chunks** (`archive/build-plan.md`, proposed dispositions under its header). They are hardware checks
-  on the Frame and the panel. Most remain meaningful for the Player.
 - **Filing the program as backlog items.** The live backlog is public GitHub
   Issues (`backlog_service_repo`). Filing them is the operator's call and has not
   been done. Until then this file is the tracking reference for the
@@ -638,6 +667,10 @@ becomes distributed. It added missing notes to `project-preferences.md`'s norm
 index, `3tears-integration-findings.md` and `openrouter-api-findings.md`. It
 moved the open questions into `project-state.yaml` and brought the Seam 1 norms'
 schedule in `architecture.md` into line with the new wave table.
+
+**Settled by the operator later the same day:** the names (Curatarr and
+Displayarr), Player authentication (a token per wall, § Seam 2), and the v1 open
+chunks (abandoned; § Where the v1 open chunks' requirements went).
 
 **Settled by the second pass:** who owns the wake/sleep window (Programming, as
 gaps in the schedule, with the guardrails staying on the Player), and the

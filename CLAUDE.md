@@ -30,10 +30,11 @@ stays version-free.
 **The product is being re-architected. Start with
 `.prawduct/artifacts/re-architecture.md`.** In short:
 
-- It becomes **two products with three roles**. A **server** runs on the
-  operator's NAS and holds the **Library** (find, acquire, maintain, upgrade and
-  enhance artwork) and **Programming** (walls, playlists, hanging). A **Player**
-  at each wall renders to any screen: a Samsung Frame, an LCD, a monitor.
+- It becomes **two products with three roles**. **Curatarr**, the server, runs
+  on the operator's NAS and holds the **Library** (find, acquire, maintain,
+  upgrade and enhance artwork) and **Programming** (walls, playlists, the
+  schedule, scenes). **Displayarr**, the Player, runs at each wall and renders to
+  any screen: a Samsung Frame, an LCD, a monitor. Each wall has a token.
 - The e-ink label is optional, and a caption in the mat is the alternative.
 - The model is Radarr/Sonarr for the server and a Plex client for the Player.
 - `curation/` is most of the server. `display/` is most of the Player.
@@ -53,10 +54,11 @@ stays version-free.
   `tests/preferences/test_plane_isolation.py` is **unchanged on purpose** until
   wave 2.
 - **The work is a program in waves (0–6), not one plan.** Each wave gets its own
-  `build-plan-<scope>.md` when it starts. Next up: **wave 0** (confirm the v1
-  plan's open-chunk dispositions and retire the 2024 root modules), then
-  **wave 1** (write the Player contract artifact with a JSON Schema and fixtures,
-  and the wave-2 build plan). The repo split into server and player repos
+  `build-plan-<scope>.md` when it starts. Wave 0 is closed: the v1 plan's open
+  chunks were abandoned, and the requirements they served are rebuilt in later
+  waves (`re-architecture.md` § Where the v1 open chunks' requirements went).
+  Next up: **wave 1** (write the Player contract artifact with a JSON Schema and
+  fixtures, and the wave-2 build plan). The repo split into server and player repos
   (`git filter-repo` on `display/`) is **wave 5, deliberately last**.
 - **Branches.** Work on `develop`. The round-2 curation UI plan
   (`build-plan-curation-ui-round-2.md`) is **parked** on local branch
@@ -64,8 +66,7 @@ stays version-free.
   work, to revisit after wave 2.
 - **The operator's open questions** are listed in `re-architecture.md` § Open
   questions and in `project-state.yaml` `open_questions`. The ones that block
-  planning: product and repo names; Player auth before wave 2 ships the
-  heartbeat POST; the compositing budget on a Pi 4 before wave 4.
+  planning: the compositing budget on a Pi 4, before wave 4.
 - **This repo is public.** The operator's NAS deployment is recorded in their
   private homelab repo. Don't put network addresses, hostnames or usernames here.
 

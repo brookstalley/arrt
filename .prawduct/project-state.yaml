@@ -600,7 +600,10 @@ product_definition:
 
   # Product identity.
   product_identity:
-    name: "Samsung Frame Art Loader"
+    # Renamed 2026-09-30 by the operator: "The library/performance controller
+    # will be Curatarr, the device side playback will be Displayarr." This repo
+    # holds both until the wave 5 split, when it becomes Curatarr alone.
+    name: "Curatarr and Displayarr"
     personality: >
       Museum, not gadget. The curator-facing surface should feel like a private
       collection management tool — calm, typographic, image-forward — and the
@@ -2542,9 +2545,11 @@ open_questions:
   # questions settled (the wake/sleep window goes to Programming as gaps in the
   # schedule; the resolution floor becomes a Library quality profile, which also
   # answers what a review card shows about size), and the deferrals the forward
-  # notes carried were added.
-  - question: "Re-architecture open questions (artifacts/re-architecture.md § Open questions is the full text): product and repo names; Player auth on the LAN (before wave 2 ships the heartbeat POST); the Player cache's location (wave 2); the server image's provenance (before wave 3); the schedule horizon and a scene's default preview lifetime (wave 1 contract); the compositing budget on a Pi 4 (before wave 4); the quality profile's numbers (wave 4); the presentation master's size cap and encoding; directive latency (ETag poll or server-sent events); the smart-playlist rule language; mat colour per aspect ratio; facet editing in the UI; the Watch questions (prompt-injection re-derivation, whether auto-accept is offered, initiated_by, push alerts); the fate of the v1 plan's open chunks (wave 0); filing the program as backlog issues."
-    blocking: "Waves 0–4 of re-architecture.md. Player auth blocks wave 2's heartbeat POST; the compositing budget blocks planning wave 4."
+  # notes carried were added. Three more closed the same day by the operator:
+  # the names (Curatarr, Displayarr), Player auth (a token per wall), and the v1
+  # open chunks (abandoned; their requirements are rebuilt in later waves).
+  - question: "Re-architecture open questions (artifacts/re-architecture.md § Open questions is the full text): the Player cache's location (wave 2); the server image's provenance (before wave 3); the schedule horizon and a scene's default preview lifetime (wave 1 contract); the compositing budget on a Pi 4 (before wave 4); the quality profile's numbers (wave 4); the presentation master's size cap and encoding; directive latency (ETag poll or server-sent events); the smart-playlist rule language; mat colour per aspect ratio; facet editing in the UI; the Watch questions (prompt-injection re-derivation, whether auto-accept is offered, initiated_by, push alerts); filing the program as backlog issues."
+    blocking: "Waves 1–4 of re-architecture.md. The compositing budget blocks planning wave 4."
     waiting_on: operator
     priority: high
   # RESOLVED 2026-08-11 by the operator: RATIFIED, with an amendment that is
@@ -3128,8 +3133,9 @@ build_state:
 # `artifacts/re-architecture.md` (`artifacts/archive/build-plan.md`). Its open
 # chunks were not finished. 13A, 13B and 24–27 are proposed to survive as Player
 # work, and 20 to be re-scoped; the table under the plan's header records each.
-# Confirming those dispositions is wave 0, and the chunks that survive move into
-# the next wave's build-plan-<scope>.md. Point this at that plan when it is written.
+# The operator abandoned them later that day (wave 0 closed); the requirements
+# they served are placed in later waves by re-architecture.md. Point this at the
+# wave-2 build-plan-<scope>.md when it is written.
 
 # =============================================================================
 # DERIVED VIEWS — RETIRED, and deliberately absent

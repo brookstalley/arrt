@@ -412,9 +412,10 @@ pinned, per Chunk 27.)
 > holding the remote wins, always, and the plane's way of conceding is to stop
 > for the night rather than to wait a while and try again.
 >
-> **Status:** in-transition. Tracked by Chunks 24–27 of the v1 plan, archived 2026-09-30 as `archive/build-plan.md`; they are proposed to survive as Player work (`re-architecture.md` wave 0).
-> **Interim rule: no code that runs unattended sends a power key until Chunk 24 has
-> recorded what the keys do.** The transitions are a sketch today —
+> **Status:** in-transition. The v1 plan's Chunks 24–27 that tracked it were abandoned on 2026-09-30. Its requirement is rebuilt as Displayarr power control (`re-architecture.md` § Where the v1 open chunks' requirements went), and the dark hours move to Programming's schedule.
+> **Interim rule: no code that runs unattended sends a power key until the
+> power-transition measurement (formerly the v1 plan's Chunk 24, now part of
+> Displayarr power control) has recorded what the keys do.** The transitions are a sketch today —
 > `platform-and-dependency-findings.md` observed two presses from one starting state
 > and never tested press-and-hold — and the state its map is missing is the
 > television one, where a press is the interruption the paragraphs above forbid.

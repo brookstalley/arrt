@@ -1828,6 +1828,12 @@ recorded in `architecture.md` § Direction.
 | `GET /media/{hash}` | Player → server | From wave 4, the **presentation master**: device-independent, unmatted, long edge capped (starting proposal about 8K, to be measured). In waves 2 and 3, before any master exists, today's composed `tv_display` rendition. Immutable. `Cache-Control: immutable` and a long max-age, because the name *is* the content. | **Frozen per hash.** A hash never serves different bytes. |
 | `POST /walls/{wall_id}/heartbeat` | Player → server | Today's heartbeat document (`reported_at` and the rest; see `observability-strategy.md`). From wave 4 it also carries the Player's **capabilities** (geometry, backend, label hardware) **as observations**. | **Bounded**, like the manifest. Programming reads the capabilities and judges per-wall adequacy from them; the Library never sees them. |
 
+**Every route carries the wall's token** (decided 2026-09-30,
+`re-architecture.md` § Seam 2) as a bearer credential. A missing or wrong token
+is `401`, and a token for another wall is `403`. The Player treats either as a
+configuration error, stated once in the journal, and keeps its cache, like a
+`404` on its wall.
+
 **Versioning carries over rather than being re-decided.** `SCHEMA_MAJOR` and
 `SCHEMA_MINOR` keep their meanings: additive changes are free, and a breaking
 change bumps the major, which the Player refuses while keeping the manifest it

@@ -27,6 +27,11 @@ by inference.
 >   is composed on the player for this set's geometry. On a wall configured for
 >   captions, that image carries the label burned into the mat. The upload and
 >   selection behaviour recorded here is what that path relies on.
+> - The v1 plan's Chunks 24 and 25 were abandoned later on 2026-09-30. Where the
+>   text below says "Chunk 24's sitting" or "what Chunk 25 changes", read
+>   Displayarr power control (`re-architecture.md` § Where the v1 open chunks'
+>   requirements went). The sitting is still owed, and nothing measured here is
+>   lost.
 
 ## The states
 

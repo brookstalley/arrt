@@ -87,8 +87,13 @@ re-derivation protocol, not a patch.
 >      POST, and optionally on the GETs.
 >
 >    (b) adds the product's first credential held by something other than the
->    curator's own processes, and a row in the Inventory below. It stays a
->    **decision to record**, not a default.
+>    curator's own processes, and a row in the Inventory below.
+>
+>    **Decided 2026-09-30: (b).** The operator ruled "each wall gets a token".
+>    The token is checked on every wall route and on media, not only on the
+>    POST. That extension is the advisor's, and it is vetoable. The full
+>    record, including issue, storage and rotation, is in `re-architecture.md`
+>    § Seam 2.
 >
 > The Player's reverse path (the TV websocket, SPI) is unchanged, and it stays
 > the only thing that talks to a television.
@@ -121,10 +126,10 @@ than being separately enforced.
 > - **The TV pairing token stays with the Player** on the Pi at the wall. The
 >   server never holds it, and after wave 4 the server does not even know a
 >   television exists.
-> - **If Player authentication is chosen** (§ Trust Boundary, option b), each
->   Player gains a per-wall token and the server holds the matching verifier.
->   That would be a new row here. It is LAN-scoped, and a leak lets someone
->   forge one wall's health.
+> - **Each Player holds a per-wall token** (§ Trust Boundary, option b, decided
+>   2026-09-30), and the server holds only the matching verifier. The row lands
+>   in the Inventory when wave 2 builds it. It is LAN-scoped, and a leak lets
+>   someone read one wall's schedule and forge its health.
 
 ### The repository is public
 
@@ -516,8 +521,8 @@ not an oversight.
   re-verification path live in `operational-spec.md` § Risks — not restated here,
   because the version numbers will move and one home for them is enough.
 - **Opened 2026-09-30:**
-  - **Player authentication on the LAN** (§ Trust Boundary, the note on the
-    re-architecture). Decide before wave 2 ships the heartbeat POST.
+  - **Player authentication on the LAN.** Closed 2026-09-30: a per-wall token
+    (§ Trust Boundary, the note on the re-architecture).
   - **The re-derivation of § Prompt Injection for Watches.** Owed by the plan
     that builds them, before any Watch runs unattended.
 
