@@ -100,7 +100,8 @@ the *arr apps: *"More important to be familiar than to have our own thing."*
   hands the words to Add New without starting a run (runs cost money). Enter
   with nothing highlighted opens Artworks filtered to the query, as the owner
   ruled. Review cards for a work the library already holds say *Already in your
-  library* and open that artwork in place of Accept. A run could always
+  library*, with opening that artwork as the first control and a quieter
+  *Accept anyway* for works that only share a title and artist. A run could always
   re-propose an accepted work, which would have acquired a duplicate.
   `held_artwork_id` is new, additive, on the HTTP card and both `art_review`
   shapes.

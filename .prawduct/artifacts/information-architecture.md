@@ -253,11 +253,12 @@ listed below so it can be disputed.
     marked *"Already in your library"*, and clicking it opens the library entry
     instead of the add dialog.
 
-  Curatarr follows that shape. The groups read *In your library* and *Search
-  museums for "{query}"*. Picking the second goes to `#add?term={query}`, and a
-  candidate that is already an accepted work is marked *Already in your
-  library* and opens that work. **Two departures, each forced by a fact Sonarr
-  does not face:**
+  Curatarr follows that shape. The groups are *In your library* and *Add New*,
+  named as Sonarr names its second group for the page it opens, and the Add
+  New row reads *Search museums for "{query}"*. Picking it goes to
+  `#discover?term={query}`. A candidate that is already an accepted work is
+  marked *Already in your library*, and its first control opens that work.
+  **Three departures, each forced by a fact Sonarr does not face:**
   - **Add New fills in the term and does not start the search.** Sonarr's lookup
     is free and instant. Curatarr's is a discovery run, which takes minutes and
     spends money, so Add New shows the free estimate beside the filled-in box
@@ -270,6 +271,13 @@ listed below so it can be disputed.
     thousands of works. The matches in the dropdown are still one arrow key
     away. *(Ruled by the owner 2026-09-30: "yes to filtered to the query". This is
     a recorded departure from the *arr precedent, for the reason above.)*
+  - **A held work keeps a quieter *Accept anyway*.** Sonarr's card for a series
+    already in the library offers no add at all, because a TVDB id makes
+    "already held" certain. Curatarr's is found by title and artist, which two
+    different works can share ("Untitled"), so removing Accept would block
+    acquiring a painting the library does not hold. Opening the held work is
+    the card's first control. *(Builder's ruling, 2026-09-30, recorded as a
+    DECISION in `build-plan-arr-navigation.md`. The owner can overrule it.)*
 - **The toolbar** on list pages puts actions on the left and View, Sort and
   Filter on the right. On Artworks, View offers Posters, Overview and Table.
   Posters and Overview replace today's contact sheet and catalogue, and Table is

@@ -313,12 +313,15 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
       // Sonarr's *Already in your library* on an Add New result: a run can
       // propose a work an earlier run acquired, and accepting it again would mint
       // a second artwork for one painting. So the card says so, and its first
-      // control opens the one already held. Reject stays, because "stop
+      // control opens the one already held. **Accept stays, quieter, as "Accept
+      // anyway"**: "held" is found by title and artist, and two different works
+      // can share both ("Untitled"), so taking Accept away would block acquiring
+      // a painting the library does not hold. Reject stays too, because "stop
       // proposing this" is a fair thing to say about a work you already own.
       card.held_artwork_id
         ? el("p", { class: "note already-held" }, [
             el("span", { class: "glyph", text: "✓", "aria-hidden": true }),
-            el("span", { text: " Already in your library. Accepting it again would acquire a second copy." }),
+            el("span", { text: " Already in your library, by title and artist. Accepting it again acquires a second artwork." }),
           ])
         : null,
       el("div", { class: "row" }, [
@@ -335,6 +338,15 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
               onclick: () => go("work", card.held_artwork_id),
             })
           : el("button", { class: "action", type: "button", text: "Accept", "aria-label": `Accept ${work.title}`, onclick: () => decide("accepted") }),
+        card.held_artwork_id
+          ? el("button", {
+              class: "action quiet",
+              type: "button",
+              text: "Accept anyway",
+              "aria-label": `Accept ${work.title} anyway, as a second artwork`,
+              onclick: () => decide("accepted"),
+            })
+          : null,
         el("button", { class: "action quiet", type: "button", text: "Reject", "aria-label": `Reject ${work.title}`, onclick: () => decide("rejected") }),
       ]),
       disclosure,

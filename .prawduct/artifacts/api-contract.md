@@ -236,8 +236,9 @@ work the curator rejected, so it can propose one an earlier run acquired.
 `list_works` and `get_work` (and the browser's candidate listing) carry
 `held_artwork_id`: the catalogue artwork an earlier proposal of the same
 `work_dedup_key` became, or null. It is additive, and a caller that ignores it
-behaves as before. The browser shows *Already in your library* and opens that
-artwork in place of Accept, following Sonarr's Add New
+behaves as before. The browser shows *Already in your library*, makes opening
+that artwork the card's first control and keeps a quieter *Accept anyway*,
+following Sonarr's Add New
 (`information-architecture.md` § The *arr layout). The identity is the dedup
 key, with that key's limits: two works sharing a title and an artist read as one.
 

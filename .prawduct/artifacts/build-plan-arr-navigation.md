@@ -90,6 +90,7 @@ filled in Radarr's answer where it has one:
 - `[DECISION: Add New fills in a search term handed to it and does not start the run | Sonarr's lookup is free and instant, while a Curatarr search is a discovery run that takes minutes and spends money. Nothing may spend on a keystroke | user can veto/override]`
 - `[DECISION: Enter in the top-bar search opens Artworks filtered to the query, not the first match as Sonarr does | an artist or movement matches many works where a series title matches one, so the first match is arbitrary. This departs from the *arr norm. **Ruled by the owner 2026-09-30: "yes to filtered to the query"** | settled]`
 - `[DECISION, taken while building Chunk 03: Queue is the runs that have not ended, not "working or waiting for review" | the run listing carries no signal for a finished run with unjudged candidates, and adding one is an API change on GET /api/runs and its MCP twin, outside this plan. Nothing is lost against today's single list, and the gap is recorded in information-architecture.md § The *arr layout as owed | user can veto/override]`
+- `[DECISION, taken while building Chunk 04: a card for a work already in the library keeps a quieter "Accept anyway" rather than losing Accept, as Sonarr's Add New does | "already held" is matched by work_dedup_key, normalised title and artist, which collides on distinct works ("Untitled", "Composition"); with Accept gone, a painting the library does not hold could not be acquired from that card. Opening the held work stays the first control, so the ordinary case still reads as Sonarr's | user can veto/override]`
 - `[DECISION: keep the top-bar status indicator beside the *arr System badge | accessibility-spec.md requires glyph + word + colour, and a count-only badge has no word; the familiarity norm governs placement and naming, not legibility of state | user can veto/override]`
 
 **What would raise it:** the owner reading the placement table in
@@ -205,10 +206,11 @@ The top-bar search follows Sonarr's pattern, recorded from its source in
 `information-architecture.md` § The *arr layout. Typing shows a dropdown with
 *In your library* (works matching the query, from the catalogue search that
 exists today) and one row, *Search museums for "{query}"*, which goes to
-`#add?term={query}`. Add New fills in its intent box from `term` and shows the
+`#discover?term={query}`. Add New fills in its intent box from `term` and shows the
 free estimate, and does not start a run. A Review candidate that is already an
-accepted work is marked *Already in your library* and opens that work instead of
-offering Accept.
+accepted work is marked *Already in your library*, and its first control opens
+that work. Plain Accept is replaced by a quieter *Accept anyway* (revised while
+building; see the Chunk 04 DECISION in Requirements Confidence).
 
 **Step 0, answered 2026-09-30:** a run can propose a work already accepted.
 `propose_work` refuses only suppressed (rejected) works, and nothing excludes
@@ -231,7 +233,7 @@ work for this plan.
 2. The dropdown is a keyboard-operable combobox (`role="combobox"`, a listbox,
    arrow keys, Escape) whose two groups are announced by name.
 3. Following *Search museums* never starts a run. A test asserts that no run
-   exists after landing on `#add?term=…`, and that the box holds the term.
+   exists after landing on `#discover?term=…`, and that the box holds the term.
 4. Enter opens Artworks filtered to the query, as the owner ruled. It is tested
    with several library matches, where it must not open the first one, and with none.
 5. *Already in your library* is tested with a candidate that is an accepted work

@@ -35,9 +35,12 @@ def test_typing_offers_library_matches_then_a_search_of_everything(ui, seeded_se
     type_into_search(ui, "Dalí")
 
     assert options(ui) == ["The Persistence of Memory — Salvador Dalí", "Search museums for “Dalí”"]
-    # The groups are named, so a screen reader says which scope an option is in.
-    labels = ui.page.locator(f"{LISTBOX} .suggestions-label").all_inner_texts()
-    assert [label.lower() for label in labels] == ["in your library", "everywhere else"]
+    # The groups are named through `aria-labelledby`, so a screen reader says
+    # which scope an option is in: asserted by role and accessible name, which
+    # visible text alone cannot prove.
+    listbox = ui.page.get_by_role("listbox", name="Suggestions")
+    assert listbox.get_by_role("group", name="In your library").get_by_role("option").count() == 1
+    assert listbox.get_by_role("group", name="Add New").get_by_role("option").all_inner_texts() == ["Search museums for “Dalí”"]
 
 
 def test_with_no_library_match_only_the_search_of_everything_is_offered(ui, seeded_service):
@@ -133,3 +136,45 @@ def test_enter_with_no_match_opens_artworks_saying_so(ui, seeded_service):
     ui.page.wait_for_selector("#view .empty")
     assert ui.page.evaluate("() => window.location.hash") == "#collection?q=Vermeer"
     assert not ui.page.locator(LISTBOX).is_visible()
+
+
+def test_a_failed_library_lookup_still_offers_the_search_of_everything(ui, seeded_service):
+    """The dropdown is a shortcut, so a failed lookup costs the matches and nothing else."""
+    ui.page.route("**/api/works?q=*", lambda route: route.fulfill(status=503, body="{}"))
+    ui.open("#walls")
+    ui.page.wait_for_selector("#view h2")
+
+    type_into_search(ui, "Dalí")
+
+    assert options(ui) == ["Search museums for “Dalí”"]
+
+
+def test_a_slow_answer_to_an_earlier_keystroke_does_not_replace_a_later_one(ui, seeded_service):
+    """The first lookup is held until the second has painted, then released."""
+    held = []
+
+    def handler(route):
+        if "q=Nig" in route.request.url and "Nighthawks" not in route.request.url:
+            held.append(route)
+        else:
+            route.continue_()
+
+    ui.page.route("**/api/works?q=*", handler)
+    ui.open("#walls")
+    ui.page.wait_for_selector("#view h2")
+
+    ui.page.click("#search")
+    ui.page.keyboard.type("Nig")
+    ui.page.wait_for_timeout(400)
+    ui.page.keyboard.type("hthawks")
+    ui.page.wait_for_selector(f"{LISTBOX} [role='option']:has-text('Nighthawks')")
+    assert held, "the earlier lookup was never made, so this test cannot say anything"
+
+    held[0].fulfill(
+        status=200,
+        content_type="application/json",
+        body='{"works": [], "total": 0, "limit": 6, "offset": 0, "truncated": false, "facets": []}',
+    )
+    ui.page.wait_for_timeout(300)
+
+    assert "Nighthawks" in " ".join(options(ui)), "the earlier, emptier answer replaced the later one"

@@ -224,7 +224,8 @@ class CandidateView:
     instances_surviving: int
     #: The catalogue artwork this work already became through an earlier
     #: proposal, when it did (`DiscoveryService.held_artwork_id`). A card showing
-    #: one says *Already in your library* rather than offering to acquire it again.
+    #: one says *Already in your library* and leads with opening it; acquiring it
+    #: again is still possible, quietly, since title and artist can collide.
     held_artwork_id: str | None = None
 
     @property

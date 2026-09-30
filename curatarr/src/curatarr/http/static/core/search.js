@@ -119,7 +119,9 @@ function installSuggestions(field) {
     options = [...held, museums];
     list.replaceChildren(
       ...(held.length ? [group("suggestions-held", "In your library", held)] : []),
-      group("suggestions-elsewhere", "Everywhere else", [museums]),
+      // Named for the page the row opens, as Sonarr names its group "Add New
+      // Series": the *arr precedent decides what things are called here.
+      group("suggestions-add-new", "Add New", [museums]),
     );
     list.hidden = false;
     field.setAttribute("aria-expanded", "true");
