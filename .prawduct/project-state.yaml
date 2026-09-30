@@ -3336,6 +3336,12 @@ backlog_last_groomed_at: 2026-08-10
 # the old name, and issue numbers are unchanged.
 backlog_service_repo: brookstalley/curatarr
 
+# Set 2026-09-30, when wave 1 was the first feature PR'd into develop rather than
+# main. The re-architecture integrates on develop and releases develop→main, but
+# the remote default is still main, so the resolver can't infer it. Unset this if
+# the repo goes back to trunk.
+base_branch: develop
+
 # =============================================================================
 # NORM HEALTH
 # =============================================================================
