@@ -27,46 +27,24 @@ stays version-free.
 
 ## Change of direction — 2026-09-30 (read before anything else)
 
-**The product is being re-architected. Start with
-`.prawduct/artifacts/re-architecture.md`.** In short:
+**The product is becoming two: Curatarr, a server holding the Library and
+Programming, and Displayarr, a Player at each wall.** The target, the waves and
+the open questions are in `.prawduct/artifacts/re-architecture.md`. The contract
+between the two is `player-contract.md` and `contract/`. Rules for working here
+meanwhile:
 
-- It becomes **two products with three roles**. **Curatarr**, the server, runs
-  on the operator's NAS and holds the **Library** (find, acquire, maintain,
-  upgrade and enhance artwork) and **Programming** (walls, playlists, the
-  schedule, scenes). **Displayarr**, the Player, runs at each wall and renders to
-  any screen: a Samsung Frame, an LCD, a monitor. Each wall has a token.
-- The e-ink label is optional, and a caption in the mat is the alternative.
-- The model is Radarr/Sonarr for the server and a Plex client for the Player.
-- `curation/` is most of the server. `display/` is most of the Player.
-
-**What that means for work in this repo:**
-
-- **The as-built artifacts are still true of the code.** Each one that the new
-  direction changes carries a dated `Direction changed 2026-09-30` note saying
-  what changes, in which wave, and what stays. For the **target**,
-  `re-architecture.md` wins. For **what runs today**, the older text wins until
-  its wave lands.
-- **Norms in transition.** The "manifest file is the only channel" norm, the
-  display-independence and label-legibility norms, and four new Library/
-  Programming seam norms are `in-transition`, each with an interim rule. Read
+- **The as-built artifacts are still true of the code.** Where one carries a
+  dated `Direction changed 2026-09-30` note, `re-architecture.md` wins for the
+  target and the older text wins for what runs today, until its wave lands.
+- **Several norms are `in-transition`**, each with an interim rule. Read
   `architecture.md` § Direction before touching the manifest, the display
   plane's I/O, or the theme, wall and directive tables.
-  `tests/preferences/test_plane_isolation.py` is **unchanged on purpose** until
-  wave 2.
-- **The work is a program in waves (0–6), not one plan.** Each wave gets its own
-  `build-plan-<scope>.md` when it starts. Wave 0 is closed: the v1 plan's open
-  chunks were abandoned, and the requirements they served are rebuilt in later
-  waves (`re-architecture.md` § Where the v1 open chunks' requirements went).
-  Next up: **wave 1** (write the Player contract artifact with a JSON Schema and
-  fixtures, and the wave-2 build plan). The repo split into server and player repos
-  (`git filter-repo` on `display/`) is **wave 5, deliberately last**.
-- **Branches.** Work on `develop`. The round-2 curation UI plan
-  (`build-plan-curation-ui-round-2.md`) is **parked** on local branch
-  `curation-ui/rulings-and-plan`, not abandoned. Its work is valid server UI
-  work, to revisit after wave 2.
-- **The operator's open questions** are listed in `re-architecture.md` § Open
-  questions and in `project-state.yaml` `open_questions`. The ones that block
-  planning: the compositing budget on a Pi 4, before wave 4.
+  `tests/preferences/test_plane_isolation.py` is unchanged on purpose until wave
+  2 narrows it.
+- **Each wave has its own plan, which names its branch.** Next up: wave 2a, the
+  rename to `curatarr/` and `displayarr/` (`build-plan-wave-2a-rename.md`), then
+  wave 2b. Branch from `develop`. The parked round-2 UI plan lives on
+  `curation-ui/rulings-and-plan`.
 - **This repo is public.** The operator's NAS deployment is recorded in their
   private homelab repo. Don't put network addresses, hostnames or usernames here.
 
@@ -127,6 +105,12 @@ at home if a leg ignores a directory no other job runs. The panel *driver* group
 (`--group epaper`, `omni_epd`) installs on a Raspberry Pi and nowhere else;
 nothing in either suite needs it, because the driver is passed into
 `EpaperSurface` rather than opened by it.
+
+**A plain `uv sync` uninstalls the optional groups.** uv treats anything outside
+the default groups as extraneous and removes it, so after a bare `uv sync` in
+`curation/` the browser suite skips itself, and in `display/` the typesetter
+does. The suites stay green and quietly shrink. Sync with the groups the run
+needs: `uv sync --group browser` in curation, `uv sync --group raster` in display.
 
 **`uv run` in every column, including the root.** pytest, ruff and black live in a
 `[dependency-groups] dev` group that only uv installs — `pip install -e .` does

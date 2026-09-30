@@ -2364,8 +2364,10 @@ clock from its cache. Wave 4, with schema major 2.
 
 A live override spanning walls: a pin per wall, and a lifetime of *preview*
 (expires back to the schedule), *hold* (until released) or *keep* (becomes
-ordinary Programming state). It generalizes today's per-wall directive, which
-already carries a sequence number. The manifest also lists works under
+ordinary Programming state). It takes over the pin's temporary, multi-wall
+uses; `show_now` and `next` themselves become republishes of the schedule, and
+the directive's sequence retires with major 1 (`player-contract.md` § Major 2).
+The manifest also lists works under
 **staging**, so Players fetch and compose a scene's works while it is being
 assembled. Wave 4.
 

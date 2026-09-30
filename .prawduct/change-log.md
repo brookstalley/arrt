@@ -56,6 +56,79 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-09-30: The Player contract (wave 1)
+
+<!-- prawduct: scope=wave-1-contract -->
+
+**Why:** Wave 2 builds both ends of the HTTP channel between Curatarr and
+Displayarr. The contract between them has to exist first, and be tested against
+the code that already writes and reads it, so neither side is built against a
+guess.
+
+**What:**
+- `player-contract.md` is the contract's home. JSON Schemas (Draft 2020-12) and
+  indexed fixtures live under `contract/`.
+- **Major 1** describes the manifest and heartbeat as written today, plus wave
+  2's additive changes: a content-addressed `media` reference per entry, a
+  `schema` key on the heartbeat, the routes, the per-wall bearer token, status
+  codes, and an error model that always keeps the cache.
+- **Tests on three sides:**
+  - The root suite checks that fixtures and schemas agree. Every invalid fixture
+    breaks exactly one rule, the one its filename names.
+  - Curation validates manifests its real builder writes, and runs its heartbeat
+    reader over the fixtures.
+  - Display runs its manifest reader over the fixtures, including refusing
+    major 2 as an unsupported version, and validates the heartbeat it writes.
+- Eight deliberate breakages, four per plane, were each caught by the new tests.
+- `jsonschema` is declared in all three `dev` groups, rather than inherited
+  indirectly in one of them.
+- Each `date-time` is backed by a pattern, because the common validator skips
+  `format` unless an optional package is installed. The dry run proved it: a
+  timestamp without an offset passed on `format` alone.
+- **Major 2, as a draft:**
+  - A works map carrying presentation masters, mat colours and labels.
+  - A time-anchored schedule whose gaps are dark hours. When the horizon runs
+    out, the Player replays it by whole days, so a wall cut off from the server
+    keeps its household's hours.
+  - Scenes with lifetimes, a staging list, and wall settings.
+  - Capabilities as heartbeat minor 2.
+  - Five rules no schema can state (references resolve, slots are ordered and
+    inside a whole-day horizon, scenes run forward) have a reference validator
+    in the root test and one invalid fixture each.
+  - Display pins the cutover: every major 2 shape is refused as an unsupported
+    version.
+- A mutation sweep found a real gap: no fixture proved major 2's reused label is
+  enforced. That fixture is added.
+- `show_now` and `next` become schedule republishes in major 2. The
+  re-architecture and data model no longer say a scene replaces them.
+- **Wave 2 is planned as two plans:**
+  - `build-plan-wave-2a-rename.md`: the package rename, one cleanup chunk, first.
+  - `build-plan-wave-2b-seams-and-http.md`: the Library/Programming split, events
+    with startup reconciliation, the HTTP surface with wall tokens, and
+    Displayarr's cache-first pull.
+  - The one HIGH-impact assumption, whether a readiness-removing Library change
+    republishes walls, is put to the operator.
+- `deploy/README.md` no longer says the Player pulls over HTTP from wave 2. In
+  wave 2 the pull is switched on by configuration while the file channel keeps
+  working; it becomes the only mode in wave 3.
+- `project-state.yaml` sets `base_branch: develop`. The re-architecture
+  integrates on `develop` and releases to `main`, and the remote's default is
+  still `main`, so without it every PR gate measured from `main`.
+- **The cumulative review found 2 blocking findings, both fixed:**
+  - The root test imported `referencing` without declaring it.
+  - The rename plan's proof grep matched nothing on this Mac even before a
+    rename. It now uses a code-only `-P` pattern, with counts recorded before
+    the rename.
+- **Also fixed from the review:**
+  - Days in the schedule are 24 absolute hours, with a fixture across a clock
+    change and the replay cost stated.
+  - Media `url` is a resolvable reference; the hash is the identity.
+  - Stale wave 1 promises are corrected in five places.
+  - `CLAUDE.md` is trimmed, and warns that a plain `uv sync` drops the optional
+    groups.
+  - A black failure committed in Chunk 02 is fixed.
+- The rest is accepted on the record. The verification review found 0 blocking.
+
 ## 2026-09-30: Curatarr and Displayarr; a token per wall; wave 0 closed
 
 <!-- prawduct: scope=re-architecture -->

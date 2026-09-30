@@ -2540,15 +2540,15 @@ design_decisions:
 
 open_questions:
   # OPENED 2026-09-30 with the re-architecture (artifacts/re-architecture.md §
-  # Open questions). Kept as one entry so they travel together until wave 1's
-  # plan splits them out. Re-sorted later on 2026-09-30, after review: two
+  # Open questions). Kept as one entry so they travel together until the plan
+  # of the wave each blocks splits it out; wave 1 settled none of them. Re-sorted later on 2026-09-30, after review: two
   # questions settled (the wake/sleep window goes to Programming as gaps in the
   # schedule; the resolution floor becomes a Library quality profile, which also
   # answers what a review card shows about size), and the deferrals the forward
   # notes carried were added. Three more closed the same day by the operator:
   # the names (Curatarr, Displayarr), Player auth (a token per wall), and the v1
   # open chunks (abandoned; their requirements are rebuilt in later waves).
-  - question: "Re-architecture open questions (artifacts/re-architecture.md § Open questions is the full text): the Player cache's location (wave 2); the server image's provenance (before wave 3); the schedule horizon and a scene's default preview lifetime (wave 1 contract); the compositing budget on a Pi 4 (before wave 4); the quality profile's numbers (wave 4); the presentation master's size cap and encoding; directive latency (ETag poll or server-sent events); the smart-playlist rule language; mat colour per aspect ratio; facet editing in the UI; the Watch questions (prompt-injection re-derivation, whether auto-accept is offered, initiated_by, push alerts); filing the program as backlog issues."
+  - question: "Re-architecture open questions (artifacts/re-architecture.md § Open questions is the full text): the Player cache's location (wave 2); the server image's provenance (before wave 3); the schedule horizon and a scene's default preview lifetime (before wave 4; the fields exist in the major 2 draft); the compositing budget on a Pi 4 (before wave 4); the quality profile's numbers (wave 4); the presentation master's size cap and encoding; directive latency (ETag poll or server-sent events); the smart-playlist rule language; mat colour per aspect ratio; facet editing in the UI; the Watch questions (prompt-injection re-derivation, whether auto-accept is offered, initiated_by, push alerts); filing the program as backlog issues."
     blocking: "Waves 1–4 of re-architecture.md. The compositing budget blocks planning wave 4."
     waiting_on: operator
     priority: high
@@ -3052,6 +3052,10 @@ artifact_manifest:
       file_path: .prawduct/artifacts/re-architecture.md
       version: 1
       depends_on: [product-brief, architecture, data-model]
+    - name: player-contract
+      file_path: .prawduct/artifacts/player-contract.md
+      version: 1
+      depends_on: [re-architecture, api-contract, data-model, security-model]
     # Edges mirror build-plan.md's own `depends_on:` front matter. The plan is
     # the most decision-dense artifact here: leaving it unedged would make every
     # decision it rests on unreachable by a dependency walk — precisely the
@@ -3134,8 +3138,10 @@ build_state:
 # chunks were not finished. 13A, 13B and 24–27 are proposed to survive as Player
 # work, and 20 to be re-scoped; the table under the plan's header records each.
 # The operator abandoned them later that day (wave 0 closed); the requirements
-# they served are placed in later waves by re-architecture.md. Point this at the
-# wave-2 build-plan-<scope>.md when it is written.
+# they served are placed in later waves by re-architecture.md.
+#
+# Left unset from wave 1 on: each wave's plan declares its own `branch:`, which
+# governance resolves ahead of this line and which two branches cannot conflict on.
 
 # =============================================================================
 # DERIVED VIEWS — RETIRED, and deliberately absent
@@ -3328,6 +3334,12 @@ backlog_last_groomed_at: 2026-08-10
 # Renamed 2026-09-30 from brookstalley/samsung-frame-art-loader. GitHub redirects
 # the old name, and issue numbers are unchanged.
 backlog_service_repo: brookstalley/curatarr
+
+# Set 2026-09-30, when wave 1 was the first feature PR'd into develop rather than
+# main. The re-architecture integrates on develop and releases develop→main, but
+# the remote default is still main, so the resolver can't infer it. Unset this if
+# the repo goes back to trunk.
+base_branch: develop
 
 # =============================================================================
 # NORM HEALTH

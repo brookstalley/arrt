@@ -303,9 +303,10 @@ is the baseline, and a **scene** overrides it.
 
 - **A scene is one object spanning walls.** It holds a pin for each wall
   ("living room left: Dalí A") and a lifetime. The Player's rule is: show the
-  active scene if there is one, or follow the schedule otherwise. It generalizes
-  today's per-wall `show_now` / `next` directive, which already has a sequence
-  number.
+  active scene if there is one, or follow the schedule otherwise. It takes over
+  the temporary, multi-wall uses of today's per-wall pin. `show_now` and `next`
+  themselves become republishes of the schedule, which keeps their "jump there,
+  then carry on" meaning (`player-contract.md` § Major 2).
 - **A scene has a lifetime, so a test cannot strand a wall.** *Preview*, the
   default, holds for a set time and then the wall returns to the schedule. The
   expiry travels in each wall's manifest, so walls revert on their own even if
@@ -559,11 +560,11 @@ plan: each wave gets its own `build-plan-<scope>.md` when it starts, per
 | Wave | Scope | Notes |
 |---|---|---|
 | **0: clear the decks** *(closed 2026-09-30)* | Park round 2. ~~Reconcile the v1 plan's open chunks.~~ | Round 2 is **parked, not abandoned**, on branch `curation-ui/rulings-and-plan`. It is curation-UI work that remains valid for the server; revisit after wave 2. **The operator closed the rest of this wave: "wave 0 -- abandon. We'll rebuild with this new plan."** The v1 plan's open chunks (13A, 13B, 20, 24–27) are abandoned, not carried; § Where the v1 open chunks' requirements went records what each one served and where it is rebuilt. Retiring the 2024 root modules moves to wave 5, when this repo becomes Curatarr. |
-| **1: plan** | Amend the artifacts (this change started that). Write the Player contract artifact with a JSON Schema and fixtures. Write the wave-2 build plan. | Doc-only. The amendments were drafted 2026-09-30; see § Artifacts touched. |
+| **1: plan** *(closed 2026-09-30)* | Amend the artifacts (this change started that). Write the Player contract artifact with a JSON Schema and fixtures. Write the wave-2 build plan. | Planned as doc-only; it shipped code as well. The contract's schemas and fixtures are tested from all three suites, which each declare `jsonschema` in their `dev` group. The amendments were drafted 2026-09-30; see § Artifacts touched. Wave 2 is two plans: `build-plan-wave-2a-rename.md`, then `build-plan-wave-2b-seams-and-http.md`. |
 | **2: seams and the HTTP channel, alongside the file** | Split curation into Library and Programming packages with one-way imports and the `playable()` facade. Move the manifest's readiness logic behind the facade. Add the events, and Programming's reconciliation at startup (§ Seam 1). Then serve manifest, media and heartbeat over HTTP, with Programming's manifest endpoint as the facade's first consumer. Display gains a pull-to-local-cache mode behind configuration. Schema minor bump. | The package split comes first because the manifest endpoint is built on exactly the readiness logic rule 2 moves; building it before the split means building it twice. The static import guard for rule 1 lands here. The wall never goes dark: the file channel keeps working until wave 3 retires it. `tests/preferences/test_plane_isolation.py` forbids any HTTP client in display today. Narrow it in the same chunk that adds the pull (one manifest-client module, three endpoints), not before and not after. **The per-wall tokens land with the routes** (§ Seam 2), because the server on the Pi is already reachable on the LAN. The cache claim gets a test that stops the server while the wall runs. |
 | **3: server to the NAS** | First, split the store: Programming's tables move to their own SQLite file, and the two cross-seam foreign keys become opaque references (rule 3), so the data moves once. Then containerize the server, deploy it on the NAS, point the Pi at HTTP and retire the file channel. Move the backup and restore exercise to NAS storage, with `VACUUM INTO` and the two catalogue files backed up as a pair. | The deployment side lives in the operator's homelab repo. The image needs what the Pi's install has today: a uv-managed Python 3.14, the `dezoomify-rs` binary, and a memory limit in place of `MemoryMax`. It does not need Pango unless the server ever typesets. The schema test for rule 3 lands here. |
 | **4: schema major 2** | Add the presentation master and the quality profile. Remove the `tv_display` rendition and `TV_PANEL_*` from the server, and turn `MAT_*` into per-wall settings. Display composes, with the wall's mat proportions. The manifest becomes the schedule, with scenes, staging and wall settings. The heartbeat reports capabilities, and Programming judges per-wall adequacy from them. | The largest built-code change, and the only breaking one. Mat-colour regression corpus: `curation/tools/mat_masters.py`. Blocked on a compositing budget measured on a Pi 4 (§ Compositing moves to the Player). Rotation logic moves from the display plane to Programming, along with the wake/sleep window from the v1 plan's Chunk 26. |
-| **5: split the repos** | `git filter-repo --subdirectory-filter display` into a new player repo. `/prawduct:onboard` there. Carry the player's artifacts. Pin contract fixtures. The new repo is **Displayarr**, and this repo is renamed **Curatarr**. Remove the 2024 root modules as this repo becomes Curatarr. | GitHub keeps redirects on rename. |
+| **5: split the repos** | `git filter-repo --subdirectory-filter display` into a new player repo. `/prawduct:onboard` there. Carry the player's artifacts. Pin `contract/` together with `player-contract.md` and the major 2 semantic validator (today in `tests/preferences/test_player_contract.py`), because the schemas alone do not carry the rules a schema cannot state. The new repo is **Displayarr**, and this repo is renamed **Curatarr**. Remove the 2024 root modules as this repo becomes Curatarr. | GitHub keeps redirects on rename. |
 | **6+: in parallel** | Server: Watches, the scheduler and upgrades to the quality profile's cutoff; **facet population**, then Programming tags and smart playlists. Player: a framebuffer backend, caption in the mat, and **power control** (the television's power read, the guardrails, and acting on the schedule's dark hours). | Independent streams after the split. Watches carry the security and observability re-derivations above. Facet population needs its own requirements cycle (§ Two layers of tags), and smart playlists wait for it. |
 
 ### Where the v1 open chunks' requirements went
@@ -597,8 +598,9 @@ the other way round.
   Polling matches today and is the default. Scenes are the test of whether it is
   fast enough (§ Scenes).
 - **The schedule's horizon and a scene's default preview lifetime.** About a day,
-  and about twenty minutes, are starting proposals. Both are settled in the wave
-  1 contract.
+  and about twenty minutes, are starting proposals. The wave 1 contract wrote
+  the fields that carry them (`player-contract.md` § Major 2). The values are
+  settled before wave 4 builds major 2.
 - **The compositing budget on a Pi 4.** Measure it before wave 4 is planned. An
   image is composed once per work and geometry, ahead of its slot, and cached,
   so the risk is judged low but unmeasured.

@@ -10,7 +10,19 @@ dependencies = ["python-dotenv"]
 # retired once the two planes are built. This project exists so `uv run pytest`
 # works at the root and so tool configuration has one home.
 [dependency-groups]
-dev = ["pytest>=8", "ruff>=0.6", "black>=24"]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+    "black>=24",
+    # **The Player contract's schemas are checked with this**, against real
+    # documents, so the contract under contract/ is tested rather than trusted.
+    # Declared rather than inherited, because an indirect copy disappears the
+    # day the package that brings it changes its own dependencies.
+    "jsonschema>=4.23",
+    # Imported directly by the root contract test to resolve one schema's $ref
+    # into another, so declared for the same reason as jsonschema above.
+    "referencing>=0.35",
+]
 
 [tool.black]
 target-version = ["py312"]

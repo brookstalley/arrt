@@ -316,6 +316,7 @@ browser = [
 dev = [
     { name = "black" },
     { name = "httpx" },
+    { name = "jsonschema" },
     { name = "langchain-core" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -343,6 +344,7 @@ browser = [{ name = "pytest-playwright", specifier = ">=0.5" }]
 dev = [
     { name = "black", specifier = ">=24" },
     { name = "httpx" },
+    { name = "jsonschema", specifier = ">=4.23" },
     { name = "langchain-core" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-asyncio", specifier = ">=0.24" },
