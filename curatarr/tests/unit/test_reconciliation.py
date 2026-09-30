@@ -335,3 +335,56 @@ def test_a_hang_that_is_refused_before_writing_changes_nothing(display, wall_id)
         display.activate_theme("no-such-theme", wall_id=wall_id)
 
     assert display.hanging_on(wall_id) is None
+
+
+def test_a_manifest_whose_entries_are_malformed_is_left_for_the_next_sync(display, ready_work, hung, wall_id, wall_settings):
+    """Reconciliation runs before the plane serves, so a bad entry must not stop it starting."""
+    hung(wall_id, ready_work())
+    document = _published(wall_settings, wall_id)
+    document["entries"].append("not an entry")
+    wall_settings.manifest_path(wall_id).write_text(json.dumps(document))
+
+    assert not display.reconcile().changed
+
+
+def test_a_start_that_cannot_rewrite_a_manifest_still_serves(
+    store, services, ready_work, hung, wall_id, wall_settings, monkeypatch, caplog
+):
+    """The wall keeps its last manifest; the interface is where a curator finds out why."""
+    gone = ready_work()
+    hung(wall_id, gone, ready_work(title="Automat"))
+    services.display.show_work_now(wall_id, gone.id)
+    CatalogueService(store).archive_artwork(gone.id)
+
+    def full_disk(path, document):
+        raise OSError("No space left on device")
+
+    monkeypatch.setattr(display_module, "write_atomically", full_disk)
+    with caplog.at_level(logging.ERROR, logger="curatarr.services.container"):
+        services.reconcile()
+
+    assert any("serving anyway" in record.getMessage() for record in caplog.records)
+    # Nothing half-applied: the pin withdrawal rolled back with the failed write.
+    assert services.display.read_directive(wall_id).pinned_work_id == gone.id
+    monkeypatch.undo()
+    services.reconcile()
+    assert services.display.read_directive(wall_id).pinned_work_id is None
+
+
+def test_each_wall_names_only_the_works_it_lost(store, display, ready_work, hung, wall_id, study, caplog):
+    """A start that finds two works refused on two walls names each on its own wall's line."""
+    first = ready_work(title="Nighthawks")
+    second = ready_work(title="Automat")
+    hung(wall_id, first, ready_work(title="Kept"))
+    hung(study, second, name="Daylight")
+    unheard = CatalogueService(store)
+    unheard.archive_artwork(first.id)
+    unheard.archive_artwork(second.id)
+
+    with caplog.at_level(logging.INFO, logger="curatarr.programming.display"):
+        display.reconcile()
+
+    lines = [record.getMessage() for record in caplog.records if "took works" in record.getMessage()]
+    assert len(lines) == 2, lines
+    assert [line for line in lines if first.id in line] == [line for line in lines if second.id not in line]
+    assert [line for line in lines if second.id in line] == [line for line in lines if first.id not in line]

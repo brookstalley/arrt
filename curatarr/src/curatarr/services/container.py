@@ -16,6 +16,7 @@ facts about the product rather than conveniences of one call site, which is why
 they are settled in one place instead of per constructor.
 """
 
+import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -74,6 +75,8 @@ from curatarr.programming.display import DisplayService, DisplaySettings
 from curatarr.programming.store import ProgrammingStore
 from curatarr.services.errors import ServiceError
 from curatarr.services.health import HealthService
+
+log = logging.getLogger(__name__)
 
 
 class OneCatalogueFile(CatalogueStore, ProgrammingStore, Protocol):
@@ -334,7 +337,17 @@ class Services:
         leaving it undone.
         """
         self.discovery.reconcile()
-        self.display.reconcile()
+        try:
+            self.display.reconcile()
+        except OSError:
+            # A manifest that cannot be rewritten (a full disk, a directory gone
+            # read-only) must not keep the curation interface down: the wall
+            # goes on showing its last manifest, which is where it would be with
+            # this plane stopped, and the interface is where a curator finds out
+            # why. Nothing is half-applied, because the reconciliation runs in
+            # one transaction that the failure rolled back, and the next start
+            # tries again.
+            log.exception("Could not reconcile the walls' manifests against the Library at startup; serving anyway.")
 
 
 def _default_acquisition(art_root: Path) -> AcquisitionSettings:

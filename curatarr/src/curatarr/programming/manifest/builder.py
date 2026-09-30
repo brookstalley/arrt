@@ -216,8 +216,11 @@ def read_published(path: Path) -> dict[str, Any] | None:
     except json.JSONDecodeError as exc:
         log.warning("The manifest at %s is not valid JSON (%s); leaving it for the next sync to replace.", path, exc)
         return None
-    if not isinstance(document, dict) or not isinstance(document.get("entries"), list):
-        log.warning("The manifest at %s has no entry list; leaving it for the next sync to replace.", path)
+    entries = document.get("entries") if isinstance(document, dict) else None
+    if not isinstance(entries, list) or not all(
+        isinstance(entry, dict) and isinstance(entry.get("work_id"), str) for entry in entries
+    ):
+        log.warning("The manifest at %s has no well-formed entry list; leaving it for the next sync to replace.", path)
         return None
     return document
 

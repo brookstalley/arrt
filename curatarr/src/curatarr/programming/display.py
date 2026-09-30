@@ -843,9 +843,8 @@ class DisplayService:
             walls = self._store.list_walls()
             published = {wall.id: read_published(self._settings.manifest_path(wall.id)) for wall in walls}
             directives = {directive.wall_id: directive for directive in self._store.list_directives()}
-            mentioned = {entry.get("work_id") for document in published.values() if document for entry in document["entries"]}
+            mentioned = {entry["work_id"] for document in published.values() if document for entry in document["entries"]}
             mentioned |= {directive.pinned_work_id for directive in directives.values() if directive.pinned_work_id}
-            mentioned.discard(None)
             asked = mentioned if work_ids is None else mentioned & set(work_ids)
             answers = self._library.playable(sorted(asked))
             refused = {work_id for work_id, answer in answers.items() if not isinstance(answer, PlayableWork)}
@@ -856,12 +855,13 @@ class DisplayService:
                     store_write(self._store.set_directive, replace(directive, pinned_work_id=None))
                     withdrawn.append(wall_id)
 
-            republished: list[str] = []
+            republished: dict[str, list[str]] = {}
             for wall in walls:
                 document = published[wall.id]
                 if document is None:
                     continue
-                kept = [entry for entry in document["entries"] if entry.get("work_id") not in refused]
+                kept = [entry for entry in document["entries"] if entry["work_id"] not in refused]
+                removed = [entry["work_id"] for entry in document["entries"] if entry["work_id"] in refused]
                 pin = (document.get("directive") or {}).get("pinned_work_id")
                 if len(kept) == len(document["entries"]) and pin not in refused:
                     continue
@@ -870,7 +870,7 @@ class DisplayService:
                     document["directive"] = {**document["directive"], "pinned_work_id": None}
                 document["generated_at"] = datetime.now(UTC).isoformat()
                 write_atomically(self._settings.manifest_path(wall.id), document)
-                republished.append(wall.id)
+                republished[wall.id] = removed
 
         result = Reconciliation(
             asked=len(asked),
@@ -879,11 +879,14 @@ class DisplayService:
             pins_withdrawn=tuple(withdrawn),
         )
         names = {wall.id: wall.name for wall in walls}
-        for wall_id in republished:
+        for wall_id, removed in republished.items():
+            # Only the works this wall carried: naming every refused work on
+            # every wall's line would send an operator looking for works that
+            # were never there.
             log.info(
                 "Wall %r: took works the Library no longer offers off the published manifest (%s, after %s).",
                 names[wall_id],
-                ", ".join(sorted(refused)),
+                ", ".join(removed) or "none, only its pin",
                 cause,
             )
         for wall_id in withdrawn:
