@@ -147,6 +147,18 @@ def test_a_fixture_invalid_by_semantics_passes_the_schema_and_breaks_exactly_one
     assert len(_semantics(row)) == 1, _semantics(row)
 
 
+def test_each_fixtures_directory_agrees_with_its_flag():
+    """`valid/` holds only valid fixtures and `invalid/` only invalid ones.
+
+    A reader choosing fixtures by directory, as Arrt's suite and the curation
+    plane's both do, would otherwise be told the opposite of what the index says.
+    """
+    for row in INDEX:
+        directory = Path(row["path"]).parent.name
+        assert directory in {"valid", "invalid"}, row["path"]
+        assert (directory == "valid") == row["valid"], row["path"]
+
+
 def test_every_invalid_fixture_says_what_it_breaks():
     for row in INDEX:
         if not row["valid"]:
@@ -154,7 +166,7 @@ def test_every_invalid_fixture_says_what_it_breaks():
 
 
 def test_invalid_manifests_say_whether_a_player_must_refuse_them():
-    """The display suite reads this flag; a row without it would be skipped there, not failed."""
+    """Arrt's suite reads this flag while collecting, so a row without it stops that suite at collection."""
     for row in INDEX:
         if row["path"].startswith("fixtures/manifest.v1/invalid/"):
             assert isinstance(row.get("player_must_refuse"), bool), row["path"]

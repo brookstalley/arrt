@@ -76,7 +76,8 @@ Curatarr writes `1`, never `1.0`, as Python's `json` does.
 ### The manifest
 
 `contract/schemas/manifest.v1.schema.json`. Minor 1 is what the curation plane's
-`programming/manifest/builder.py` writes today. Minor 2 (wave 2) adds `media` to each entry.
+`programming/manifest/builder.py` wrote until 2026-09-30. Minor 2 adds `media` to each entry, and the builder has
+written it since wave 2b Chunk 03, omitting `media` for a render whose file it could not hash.
 
 - **The wall is named by where the document lives**, never inside it: today by
   the file name `theme-manifest-{wall_id}.json`, from wave 2 by the URL
@@ -136,6 +137,13 @@ The file channel keeps working until wave 3 retires it. Over HTTP:
   may name the Library's host, and no Player changes. The Player verifies the
   bytes against `sha256` and discards a mismatch. So a corrupted transfer, or a
   `url` that disagrees with its hash, is never shown.
+- **`url` is an RFC 3986 URI reference, relative or absolute, and that is the
+  writer's obligation.** The schemas mark it `format: uri-reference`, which no
+  validator installed here checks, so a malformed `url` passes the schema. A
+  pattern would either reject real references or check nothing, so the rule is
+  stated here instead. The fixture `minor-2-media-on-another-host` carries an
+  absolute `url`, which is what a manifest looks like once the Library serves
+  media from its own host.
 - **Every failure keeps the cache.** Transport errors, timeouts and `5xx` mean
   the server is unreachable: the Player backs off and keeps showing what it
   has. `401`, `403` and a `404` on the wall are configuration errors, stated

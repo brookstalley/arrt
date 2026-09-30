@@ -593,8 +593,18 @@ rather than retry.
 
 **No secret may ever reach a log line.** This has unusual force here because the
 repository is **public** and log excerpts are exactly what gets pasted into a
-GitHub issue. Concretely: no OpenRouter API key, no TV pairing token, no full
-`Authorization` header, no `.env` dump on startup.
+GitHub issue. Concretely: no OpenRouter API key, no TV pairing token, no wall
+Player token, no full `Authorization` header, no `.env` dump on startup. A refused
+Player request is logged by wall and by status (`Refused a Player request for …`),
+once per wall per ten minutes, and never with the token it presented;
+`curatarr/tests/contract/test_player_surface.py` holds that.
+
+**Programming's reconciliation says what it changed** (from 2026-09-30): `Wall
+…: took works the Library no longer offers off the published manifest (…)` and
+`withdrew the standing pin` at INFO, naming only the works that wall lost, and at
+startup, when there is nothing to do, `Reconciled N walls against the Library at
+startup: nothing to change`. A start that cannot rewrite a manifest logs the
+failure at ERROR and serves anyway.
 
 Beyond credentials there is very little to filter — no accounts and no user
 records. Prompts and model responses may be logged freely; they contain artwork

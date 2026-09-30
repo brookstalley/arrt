@@ -1,0 +1,8 @@
+{
+  "_about": "The Player surface's routes, as the server mounts them and a Player requests them. player-contract.md § Transport says what each answers. Kept here, beside the schemas, so the spelling is agreed across the repository split the way the heartbeat's filename is agreed today: Curatarr's route tests assert its mounted routes against this file, and Arrt's client tests assert the paths it requests against it. {sha256} is the lowercase hex SHA-256 of the media's bytes.",
+  "routes": {
+    "manifest": {"method": "GET", "path": "/walls/{wall_id}/manifest"},
+    "media": {"method": "GET", "path": "/media/sha256-{sha256}"},
+    "heartbeat": {"method": "POST", "path": "/walls/{wall_id}/heartbeat"}
+  }
+}

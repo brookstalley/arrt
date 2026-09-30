@@ -1,5 +1,5 @@
 {
-  "_about": "Every fixture, the schema it is judged against, whether that schema accepts it, and, for invalid manifests, whether a major 1 Player must refuse it. A Player may be more tolerant than the schema, which states the writer's obligations; player_must_refuse lists the rules the reader enforces. Filenames name the one rule an invalid fixture breaks. An invalid fixture breaks either the schema or one of the semantic rules in player-contract.md \u00a7 Major 2; 'breaks' says which.",
+  "_about": "Every fixture, the schema it is judged against, whether that schema accepts it, and, for invalid manifests, whether a major 1 Player must refuse it. A Player may be more tolerant than the schema, which states the writer's obligations; player_must_refuse lists the rules the reader enforces. Filenames name the one rule an invalid fixture breaks. An invalid fixture breaks either the schema or one of the semantic rules in player-contract.md § Major 2; 'breaks' says which.",
   "fixtures": [
     {
       "path": "fixtures/heartbeat.v1/invalid/backend-unknown.json",
@@ -132,6 +132,11 @@
       "valid": true
     },
     {
+      "path": "fixtures/manifest.v1/valid/minor-2-media-on-another-host.json",
+      "schema": "schemas/manifest.v1.schema.json",
+      "valid": true
+    },
+    {
       "path": "fixtures/manifest.v1/valid/minor-2-with-media.json",
       "schema": "schemas/manifest.v1.schema.json",
       "valid": true
@@ -148,6 +153,12 @@
     },
     {
       "path": "fixtures/manifest.v2/invalid/horizon-not-whole-days.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "semantics"
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/horizon-of-no-length.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": false,
       "breaks": "semantics"
@@ -214,6 +225,12 @@
     },
     {
       "path": "fixtures/manifest.v2/invalid/slot-outside-the-horizon.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "semantics"
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/slot-starts-before-the-horizon.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": false,
       "breaks": "semantics"

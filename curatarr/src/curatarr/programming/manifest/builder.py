@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any, Final
 
 from curatarr.counting import agree, agree_partitive, counted
-from curatarr.library.facade import PlayableWork, Unplayable, UnplayableReason
+from curatarr.library.facade import Media, PlayableWork, Unplayable, UnplayableReason
 from curatarr.persistence.records import Theme, Wall
 
 log = logging.getLogger(__name__)
@@ -52,7 +52,7 @@ SCHEMA_MAJOR: Final[int] = 1
 
 #: Bumped by additive changes. Display ignores a minor it does not know, which is
 #: what makes adding a field free.
-SCHEMA_MINOR: Final[int] = 1
+SCHEMA_MINOR: Final[int] = 2
 
 
 def manifest_path_in(art_root: Path, wall_id: str) -> Path:
@@ -97,11 +97,20 @@ class ManifestEntry:
     #: disagree about where the tree is mounted without disagreeing about this.
     render_path: str
     label: dict[str, str | None]
+    #: Minor 2: where a Player on HTTP fetches the render, and how it checks it.
+    #: Absent when the Library could not hash the render, and then the entry
+    #: plays on the file channel alone.
+    media: Media | None = None
 
     @classmethod
     def of(cls, playable: PlayableWork) -> ManifestEntry:
         """The entry for a work the Library says can go on a wall."""
-        return cls(work_id=playable.work_id, render_path=playable.render_path, label=dict(playable.label))
+        return cls(
+            work_id=playable.work_id,
+            render_path=playable.render_path,
+            label=dict(playable.label),
+            media=playable.media,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -192,10 +201,20 @@ def as_document(build: ManifestBuild) -> dict[str, Any]:
             "sequence": build.directive_sequence,
             "pinned_work_id": build.pinned_work_id,
         },
-        "entries": [
-            {"work_id": entry.work_id, "render_path": entry.render_path, "label": entry.label} for entry in build.entries
-        ],
+        "entries": [_entry_document(entry) for entry in build.entries],
     }
+
+
+def _entry_document(entry: ManifestEntry) -> dict[str, Any]:
+    document: dict[str, Any] = {"work_id": entry.work_id, "render_path": entry.render_path, "label": entry.label}
+    if entry.media is not None:
+        document["media"] = media_document(entry.media)
+    return document
+
+
+def media_document(media: Media) -> dict[str, Any]:
+    """An entry's `media` as the document spells it."""
+    return {"url": media.url, "sha256": media.sha256, "bytes": media.byte_size, "content_type": media.content_type}
 
 
 def read_published(path: Path) -> dict[str, Any] | None:

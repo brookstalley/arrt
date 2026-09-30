@@ -20,7 +20,9 @@ one by name.
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import PurePosixPath
 from types import MappingProxyType
+from typing import Final
 
 from curatarr.persistence.records import (
     Artist,
@@ -63,6 +65,41 @@ class UnplayableReason(StrEnum):
     NOT_IN_CATALOGUE = "not_in_catalogue"
 
 
+#: Where the Library serves a render, by the hash of its bytes. The Library's,
+#: because the manifest names Library-served media: after a split this is
+#: rewritten to name the Library's host and no Player changes, since each one
+#: resolves the URL against the manifest's own. `contract/routes.json` holds the
+#: same template, and the HTTP route is mounted from it.
+MEDIA_PATH_TEMPLATE: Final[str] = "/media/sha256-{sha256}"
+
+#: The content types the contract allows, by file suffix. A render in any other
+#: format is not offered as media.
+CONTENT_TYPES: Final[Mapping[str, str]] = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
+
+
+@dataclass(frozen=True, slots=True)
+class Media:
+    """Where a render is fetched from and how to know it arrived whole."""
+
+    url: str
+    sha256: str
+    byte_size: int
+    content_type: str
+
+
+def media_of(rendition: Rendition) -> Media | None:
+    """The render as media, or None if it has no recorded hash or an unservable type."""
+    content_type = CONTENT_TYPES.get(PurePosixPath(rendition.relative_path).suffix.lower())
+    if rendition.content_sha256 is None or rendition.byte_size is None or content_type is None:
+        return None
+    return Media(
+        url=MEDIA_PATH_TEMPLATE.format(sha256=rendition.content_sha256),
+        sha256=rendition.content_sha256,
+        byte_size=rendition.byte_size,
+        content_type=content_type,
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class PlayableWork:
     """A work that can go on a wall, as the wall is to be told about it."""
@@ -73,6 +110,9 @@ class PlayableWork:
     #: disagree about where the tree is mounted without disagreeing about this.
     render_path: str
     label: Mapping[str, str | None]
+    #: None when the render's file could not be hashed. The work still plays on
+    #: the file channel, which reads `render_path`; a Player on HTTP skips it.
+    media: Media | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -187,6 +227,7 @@ def playable_from(inputs: WorkInputs) -> PlayableWork:
         work_id=inputs.artwork.id,
         title=inputs.artwork.title,
         render_path=inputs.tv_rendition.relative_path,
+        media=media_of(inputs.tv_rendition),
         # Read-only, so the answer is as frozen as the dataclass holding it:
         # nothing a caller does to the label can change what the next caller
         # is told.

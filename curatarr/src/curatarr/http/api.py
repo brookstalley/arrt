@@ -69,6 +69,7 @@ from curatarr.http.models import (
     MatColorOut,
     MoveWork,
     OriginalOut,
+    PlayerTokenOut,
     RenameTheme,
     RenditionOut,
     RunListOut,
@@ -376,6 +377,18 @@ def create_wall(request: Request, body: CreateWall) -> WallOut:
     """
     services = _services(request)
     return _wall(services.display.get_wall_view(services.display.add_wall(name=body.name).id))
+
+
+@router.post("/walls/{wall_id}/token")
+def issue_token(request: Request, wall_id: str) -> PlayerTokenOut:
+    """Issue the wall's Player token, replacing any it had. It is shown here once.
+
+    The Walls screen's "Issue token" and "Rotate token", and
+    `art_display(action='issue_token')`. Nothing can read it back afterwards,
+    because only a verifier is kept.
+    """
+    issued = _services(request).access.issue(wall_id)
+    return PlayerTokenOut(wall_id=issued.wall_id, token=issued.token, token_issued_at=issued.issued_at.isoformat())
 
 
 @router.delete("/walls/{wall_id}/theme")
@@ -890,6 +903,7 @@ def _wall(view: WallView) -> WallOut:
         theme=None if view.hanging is None else _theme(view.hanging),
         directive_sequence=view.directive.sequence,
         pinned_work_id=view.directive.pinned_work_id,
+        token_issued_at=None if view.wall.token_issued_at is None else view.wall.token_issued_at.isoformat(),
     )
 
 

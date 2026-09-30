@@ -261,6 +261,10 @@ class CatalogueStore(Protocol):
         """Overwrite a stored rendition with this one. Raises if the id is absent."""
         ...
 
+    def find_renditions_by_content(self, content_sha256: str) -> Sequence[Rendition]:
+        """Every rendition whose file hashed to this, in a stable order. Usually one."""
+        ...
+
     def list_renditions(self, artwork_id: str) -> Sequence[Rendition]:
         """Return a work's renditions in a stable order."""
         ...

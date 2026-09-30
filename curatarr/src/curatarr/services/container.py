@@ -71,6 +71,7 @@ from curatarr.library.services.thumbnails import ThumbnailService, ThumbnailSett
 from curatarr.persistence.backup import BACKUP_RECEIPT_FILENAME
 from curatarr.persistence.catalogue import CatalogueStore
 from curatarr.persistence.discovery import DiscoveryStore
+from curatarr.programming.access import PlayerAccess
 from curatarr.programming.display import DisplayService, DisplaySettings
 from curatarr.programming.store import ProgrammingStore
 from curatarr.services.errors import ServiceError
@@ -97,6 +98,8 @@ class Services:
     #: binding asking "can this work go on a wall" gets the answer the manifest
     #: build gets, from the same object.
     library: LibraryFacade
+    #: Which Player may read which wall, by the wall's token.
+    access: PlayerAccess
     discovery: DiscoveryService
     display: DisplayService
     thumbnails: ThumbnailService
@@ -200,7 +203,7 @@ class Services:
         plane runs phase 1 and stops, which is a coherent deployment — and the
         one every test that has no business reaching a museum uses.
         """
-        catalogue_service = CatalogueService(catalogue)
+        catalogue_service = CatalogueService(catalogue, art_root=thumbnails.art_root)
         library = LibraryFacade(catalogue_service)
         # The same open file passed as Programming's store: one object serves
         # both protocols until Programming's tables get a file of their own.
@@ -240,6 +243,7 @@ class Services:
         return cls(
             catalogue=catalogue_service,
             library=library,
+            access=PlayerAccess(catalogue),
             discovery=discovery_service,
             display=display_service,
             thumbnails=thumbnail_service,

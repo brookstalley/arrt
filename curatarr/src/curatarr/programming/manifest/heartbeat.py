@@ -97,6 +97,24 @@ def heartbeat_path_in(art_root: Path, wall_id: str) -> Path:
     return art_root / HEARTBEAT_FILENAME_TEMPLATE.format(wall_id=wall_id)
 
 
+def problem_with(document: object) -> str | None:
+    """Why this document is not a heartbeat this plane can read, or None if it is.
+
+    The same test `read` applies to a file, so a heartbeat accepted over HTTP is
+    one the health panel will show and never one it reports as unreadable. A
+    `schema` major other than 1 is refused too, because the contract says a
+    reader refuses a major it does not know.
+    """
+    if not isinstance(document, dict):
+        return "a heartbeat is a JSON object."
+    if observations.instant(document.get(REPORTED_AT_KEY)) is None:
+        return f"a heartbeat carries a readable {REPORTED_AT_KEY!r} timestamp."
+    schema = document.get("schema")
+    if schema is not None and (not isinstance(schema, dict) or schema.get("major") != 1):
+        return "this plane reads heartbeat schema major 1."
+    return None
+
+
 def read(path: Path, *, now: datetime | None = None) -> HeartbeatReading:
     """Observe the heartbeat file. Absent is an answer, not a failure."""
     seen = observations.observe(path, key=REPORTED_AT_KEY, now=now)

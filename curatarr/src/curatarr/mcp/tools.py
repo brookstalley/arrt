@@ -887,6 +887,19 @@ ART_DISPLAY: Final = ToolRecord(
                 "Repeated calls inside one poll interval coalesce into a single step — latest wins.",
             ),
         ),
+        Action(
+            name="issue_token",
+            description="Issue a new token for the Player that serves a named wall, replacing any it had.",
+            example="art_display(action='issue_token', wall_id='<a wall_id>')",
+            params=(_WALL_ID,),
+            tips=(
+                "The token is returned once and never again: only a verifier is kept. It belongs in the "
+                "Player's environment file as WALL_TOKEN, and nowhere a transcript is kept for longer.",
+                "Issuing again is how a token is rotated: the old one stops working at once, so the Player "
+                "holding it is refused until it is given the new one.",
+                "Every Player request for this wall's manifest, its heartbeat and any render needs it.",
+            ),
+        ),
     ),
 )
 

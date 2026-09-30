@@ -502,7 +502,7 @@ who did not edit this table.
 
 | Screen | Primary | Secondary | Actions | Status |
 |---|---|---|---|---|
-| The Walls | Each wall's hanging work, large | Title, artist, theme, which wall | Change theme, next, open work | Panel + TV health, quietly |
+| The Walls | Each wall's hanging work, large | Title, artist, theme, which wall | Change theme, next, open work, issue or rotate the wall's Player token *(added 2026-09-30: the token is shown once, in place, and rotating asks first)* | Panel + TV health, quietly |
 | Collection | The grid of images | Counts, active filters | Search, filter, select, add to theme, archive | Total, and what is filtered out |
 | Work | The image at full size | Artist, facets, mat colour, rendition size | Theme membership, re-mat, archive | Fit verdict, image state |
 | Discover | The conversation, or the run list | Samples inline | Type, react, commit, start direct | Run progress, spend |

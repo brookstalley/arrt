@@ -13,10 +13,13 @@ Programming reaches nothing in the Library but this module, and the Library
 reaches nothing in Programming.
 """
 
+import logging
 from collections.abc import Iterable
+from dataclasses import replace
 
 from curatarr.library.events import WorkChange, WorkChanged, WorkChangedHandler
 from curatarr.library.readiness import (
+    Media,
     PlayableWork,
     Unplayable,
     UnplayableReason,
@@ -28,11 +31,14 @@ from curatarr.library.readiness import (
 )
 from curatarr.library.services.catalogue import CatalogueService
 
+log = logging.getLogger(__name__)
+
 #: One work's answer: it can go on a wall, or it cannot and here is why.
 type Playability = PlayableWork | Unplayable
 
 __all__ = [
     "LibraryFacade",
+    "Media",
     "Playability",
     "PlayableWork",
     "Unplayable",
@@ -75,7 +81,24 @@ class LibraryFacade:
         if inputs is None:
             return not_in_catalogue(work_id)
         refused = assess(inputs)
-        return refused if refused is not None else playable_from(inputs)
+        if refused is not None:
+            return refused
+        # Hashed on first need for a render recorded before hashes were, so the
+        # answer can say where its bytes are and how to check them.
+        rendition = self._catalogue.with_content(inputs.tv_rendition) if inputs.tv_rendition else None
+        playable = playable_from(replace(inputs, tv_rendition=rendition))
+        if playable.media is None:
+            # Said here, where the gap is decided: the work still reaches a wall
+            # on the file channel, which reads `render_path`, and a Player on HTTP
+            # skips it. Without this line that Player's wall would be one work
+            # short with nothing on the server saying which or why.
+            log.warning(
+                "Work %s is offered without media: its render at %s could not be read or is not a JPEG or PNG. "
+                "A Player on HTTP skips it until the render is readable.",
+                work_id,
+                playable.render_path,
+            )
+        return playable
 
     def _gather(self, work_id: str) -> WorkInputs | None:
         """Collect everything the readiness rule judges one work on, or None if it is not held.

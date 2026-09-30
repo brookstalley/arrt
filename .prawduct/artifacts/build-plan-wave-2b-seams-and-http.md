@@ -339,6 +339,47 @@ Each is lock-in, so the questions come before the fields.
   operator-verification queue.
 - **Done when:** the suites, the browser suite and lint pass; the `security-model.md`
   inventory row exists; the queue entry exists.
+- **How it is built (decided at the chunk's start, 2026-09-30):**
+  - **The Library serves media and names its URL** (rule 4's second half). The
+    facade's `PlayableWork` gains `media`: sha256, byte count, content type and
+    `url`, where the URL template is the Library's. The builder copies it into
+    the entry. A render with no recorded hash is hashed from its file on first
+    need and recorded. A render whose file cannot be read gets no `media`: that
+    entry still works on the file channel and is logged, and whether a missing
+    file should make a work unplayable is left to wave 3, when the file channel
+    goes.
+  - **`GET /media/sha256-{hex}` hashes the bytes it is about to send** and
+    refuses (`404`) if they no longer match. A re-render overwrites a file at
+    the same path before its row is updated, and "a hash never serves
+    different bytes" has to hold through that window. A render is about 2.5 MB,
+    and Players fetch each one once.
+  - **The heartbeat POST accepts exactly what the health panel can read**, using
+    the same parse (a JSON object with a readable `reported_at`, and a `schema`
+    major of 1 when present). It answers `400` otherwise, in the error shape `/api`
+    already uses (a body that is not a JSON object is FastAPI's `422`, before the
+    token is checked), and writes atomically to the file the reader already reads. No runtime JSON Schema dependency is
+    added. The contract test checks the POST against the heartbeat fixtures.
+  - **Tokens:** `secrets.token_urlsafe(32)`, stored as its SHA-256 hex digest on
+    the wall, compared with `hmac.compare_digest`. A wall route checks the named
+    wall first, then all walls, to tell `403` (another wall's token) from `401`.
+    `/media` accepts any wall's token. Issuing a token replaces the old one, so
+    rotating is issuing again. Refusals are logged once per wall per
+    ten minutes, naming the wall and the status and never the token. They are
+    keyed by a wall this plane holds, never by the id in the URL, which is the
+    caller's choice: every unknown id shares one key and none reaches the journal.
+  - **A re-render follows into the published manifest** (the builder's call, prompted by the chunk review): the
+    Library announces `work.image_changed`, and reconciliation replaces a kept
+    entry's `media` when its hash no longer matches, changing nothing else, so a
+    Player on HTTP does not lose the work until the next sync. A render that
+    cannot be hashed is logged by the facade, naming the work.
+  - **The routes live in `curatarr/http/player.py`**, at the root beside `/api`,
+    not under it: they are the Player's surface, not the curator's. The client
+    already owns `/walls` exactly, and these are sub-paths, so nothing collides.
+    `contract/routes.json` holds the three templates, and a test asserts the
+    mounted routes against it.
+  - **The manifest route serves the published file's bytes**, with the ETag being
+    the SHA-256 of those bytes. A wall with nothing published answers `404`,
+    which the contract already classes as a configuration error.
 
 ### Chunk 04: Arrt's HTTP mode — pull into a cache, render only from it, and survive the server
 

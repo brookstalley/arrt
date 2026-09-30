@@ -223,7 +223,9 @@ def test_an_empty_theme_still_states_the_walls_standing_facts(ui, services, a_th
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
-    assert ui.page.locator("section.wall .panel h4").count() == 3
+    # The manifest's three panels. The Player token panel sits beside them on
+    # every wall whatever it shows, so it is not one of the facts this is about.
+    assert ui.page.locator("section.wall .panel:not(.player-token) h4").count() == 3
     assert "Showing (0)" in ui.text()
 
 
@@ -632,3 +634,73 @@ def test_a_repaint_this_screen_did_not_navigate_to_does_not_send_focus_to_the_vi
     ui.page.wait_for_selector("section.wall")
 
     assert ui.focused() != "view"
+
+
+# -- the Player token -----------------------------------------------------------------
+
+
+def _token_panel(ui, wall):
+    return ui.page.locator("section.wall .player-token")
+
+
+def test_a_wall_with_no_token_says_so_and_offers_to_issue_one(ui, the_wall):
+    ui.open("#walls")
+    ui.page.wait_for_selector("section.wall .player-token")
+
+    panel = _token_panel(ui, the_wall)
+    assert f"{the_wall.name} has no Player token yet." in panel.inner_text()
+    assert panel.locator("button", has_text=f"Issue a Player token for {the_wall.name}").count() == 1
+    assert panel.locator("input.token").count() == 0
+
+
+def test_issuing_shows_the_token_once_and_it_opens_the_wall(ui, services, the_wall, store):
+    """The token on screen is the one the server verifies, and a repaint never shows it again."""
+    ui.open("#walls")
+    ui.page.wait_for_selector("section.wall .player-token")
+    panel = _token_panel(ui, the_wall)
+
+    panel.locator("button", has_text=f"Issue a Player token for {the_wall.name}").click()
+    ui.page.wait_for_selector("section.wall .player-token input.token")
+
+    shown = panel.locator("input.token").input_value()
+    assert services.access.admit(the_wall.id, shown).value == "admitted"
+    assert "only time it is shown" in panel.inner_text()
+    assert f"Rotate the Player token for {the_wall.name}" in panel.inner_text()
+    # Focus goes to the token, so a keyboard user lands on the thing to copy.
+    assert ui.page.evaluate("document.activeElement.classList.contains('token')")
+
+    ui.page.reload()
+    ui.page.wait_for_selector("section.wall .player-token")
+    assert _token_panel(ui, the_wall).locator("input.token").count() == 0
+    assert shown not in ui.page.content()
+    assert "was issued" in _token_panel(ui, the_wall).inner_text()
+
+
+def test_rotating_asks_first_and_a_cancel_keeps_the_token(ui, services, the_wall):
+    first = services.access.issue(the_wall.id).token
+    ui.open("#walls")
+    ui.page.wait_for_selector("section.wall .player-token")
+
+    _token_panel(ui, the_wall).locator("button", has_text=f"Rotate the Player token for {the_wall.name}").click()
+    ui.page.wait_for_selector("dialog.confirm[open]")
+    assert the_wall.name in ui.page.locator("dialog.confirm").inner_text()
+    ui.page.click(".confirm-actions button:has-text('Cancel')")
+    ui.page.wait_for_selector("dialog.confirm", state="detached")
+
+    assert services.access.admit(the_wall.id, first).value == "admitted"
+
+
+def test_rotating_replaces_the_token(ui, services, the_wall):
+    first = services.access.issue(the_wall.id).token
+    ui.open("#walls")
+    ui.page.wait_for_selector("section.wall .player-token")
+
+    _token_panel(ui, the_wall).locator("button", has_text=f"Rotate the Player token for {the_wall.name}").click()
+    ui.page.wait_for_selector("dialog.confirm[open]")
+    ui.page.click(".confirm-actions button:has-text('Rotate token')")
+    ui.page.wait_for_selector("section.wall .player-token input.token")
+
+    second = _token_panel(ui, the_wall).locator("input.token").input_value()
+    assert second != first
+    assert services.access.admit(the_wall.id, first).value == "unknown"
+    assert services.access.admit(the_wall.id, second).value == "admitted"

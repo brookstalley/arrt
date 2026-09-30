@@ -91,6 +91,10 @@ class ProgrammingStore(Protocol):
         """Return the wall, or None if no such id is stored."""
         ...
 
+    def update_wall(self, wall: Wall) -> None:
+        """Overwrite a stored wall with this one. Raises if the id is absent."""
+        ...
+
     def list_walls(self) -> Sequence[Wall]:
         """Return every wall in a stable order.
 

@@ -304,6 +304,17 @@ class WallOut(BaseModel):
     #: the thing a reader has to be able to see is per-wall.
     directive_sequence: int
     pinned_work_id: str | None
+    #: When the wall's Player token was issued, or null while it has none. The
+    #: token itself is never here: it exists only in the answer that issued it.
+    token_issued_at: str | None
+
+
+class PlayerTokenOut(BaseModel):
+    """A wall's new Player token. The only time it is ever shown."""
+
+    wall_id: str
+    token: str
+    token_issued_at: str
 
 
 class WallListOut(BaseModel):

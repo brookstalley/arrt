@@ -9,6 +9,8 @@ without a case fails here by name.
 """
 
 import dataclasses
+import hashlib
+import logging
 from collections.abc import Callable
 
 import pytest
@@ -145,3 +147,89 @@ def test_the_answers_are_plain_frozen_data(library, ready_work):
                     value["title"] = "changed"
             else:
                 assert value is None or isinstance(value, str), f"{type(answer).__name__}.{field.name} is {type(value)}"
+
+
+# -- the render's content hash, as stored -----------------------------------------------
+
+
+def _render_of(service, work_id):
+    return next(view.rendition for view in service.list_renditions(work_id))
+
+
+def test_recording_a_render_whose_file_exists_stores_its_hash_and_a_re_render_stores_the_new_one(
+    service, ready_work, wall_settings
+):
+    from curatarr.persistence.records import RenditionKind
+
+    work = ready_work(rendition=False)
+    path = f"ready/{work.id}.jpg"
+    target = wall_settings.art_root / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(b"first render")
+
+    def record():
+        service.record_rendition(
+            artwork_id=work.id, kind=RenditionKind.TV_DISPLAY, target_width=3840, target_height=2160, path=path
+        )
+        return _render_of(service, work.id)
+
+    first = record()
+    assert (first.content_sha256, first.byte_size) == (hashlib.sha256(b"first render").hexdigest(), 12)
+
+    target.write_bytes(b"a second, longer render")
+    second = record()
+    assert (second.content_sha256, second.byte_size) == (hashlib.sha256(b"a second, longer render").hexdigest(), 23)
+
+
+def test_a_render_recorded_before_its_hash_is_hashed_and_stored_on_first_need(library, service, ready_work, wall_settings):
+    """Stored, so the next ask does not re-read a few megabytes to learn the same thing."""
+    work = ready_work()
+    assert _render_of(service, work.id).content_sha256 is None, "the fixture's render had a file after all"
+    (wall_settings.art_root / _render_of(service, work.id).relative_path).parent.mkdir(parents=True, exist_ok=True)
+    (wall_settings.art_root / _render_of(service, work.id).relative_path).write_bytes(b"an older render")
+
+    answer = library.playable([work.id])[work.id]
+
+    stored = _render_of(service, work.id)
+    assert stored.content_sha256 == hashlib.sha256(b"an older render").hexdigest()
+    assert stored.byte_size == len(b"an older render")
+    assert answer.media.sha256 == stored.content_sha256
+
+
+def test_a_render_that_cannot_be_read_is_recorded_without_a_hash_and_says_where(service, ready_work, wall_settings, caplog):
+    """Unreadable, not missing: a directory stands where the file should be, which fails the same way on every host."""
+    from curatarr.persistence.records import RenditionKind
+
+    work = ready_work(rendition=False)
+    path = f"ready/{work.id}.jpg"
+    (wall_settings.art_root / path).mkdir(parents=True)
+
+    with caplog.at_level(logging.WARNING, logger="curatarr.library.services.catalogue"):
+        service.record_rendition(
+            artwork_id=work.id, kind=RenditionKind.TV_DISPLAY, target_width=3840, target_height=2160, path=path
+        )
+
+    stored = _render_of(service, work.id)
+    assert (stored.content_sha256, stored.byte_size) == (None, None)
+    assert any(path in record.getMessage() for record in caplog.records)
+
+
+def test_a_hashed_render_that_becomes_unreadable_is_not_served(service, ready_work, wall_settings, caplog):
+    """`/media` answers 404 for it rather than 500: the Player skips a work, it does not decide the server is down."""
+    from curatarr.persistence.records import RenditionKind
+
+    work = ready_work(rendition=False)
+    path = f"ready/{work.id}.jpg"
+    target = wall_settings.art_root / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(b"a render")
+    service.record_rendition(artwork_id=work.id, kind=RenditionKind.TV_DISPLAY, target_width=3840, target_height=2160, path=path)
+    sha = _render_of(service, work.id).content_sha256
+    assert service.read_media(sha) is not None, "the render was never servable, so this checks nothing"
+    target.unlink()
+    target.mkdir()
+
+    with caplog.at_level(logging.WARNING, logger="curatarr.library.services.catalogue"):
+        assert service.read_media(sha) is None
+
+    assert any(path in record.getMessage() for record in caplog.records)

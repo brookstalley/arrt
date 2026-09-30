@@ -25,7 +25,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Final
+from typing import Any, Final
 
 from curatarr import observations
 from curatarr.library.facade import LibraryFacade, PlayableWork, Unplayable, UnplayableReason, WorkChanged
@@ -37,6 +37,7 @@ from curatarr.programming.manifest.builder import (
     ManifestEntry,
     as_document,
     manifest_path_in,
+    media_document,
     read_published,
     write_atomically,
 )
@@ -809,6 +810,34 @@ class DisplayService:
         )
         return build
 
+    # -- what a Player reads and writes --------------------------------------------
+
+    def published_manifest(self, wall_id: str) -> bytes | None:
+        """The bytes of this wall's manifest as last published, or None if nothing has been.
+
+        The bytes, not a parse of them, so the ETag a Player compares is a hash
+        of exactly what it was sent.
+        """
+        self.get_wall(wall_id)
+        try:
+            return self._settings.manifest_path(wall_id).read_bytes()
+        except FileNotFoundError:
+            return None
+
+    def record_heartbeat(self, wall_id: str, document: dict[str, Any]) -> None:
+        """Keep what a Player said about itself, where the health panel already looks.
+
+        Written to the same file the file channel writes, so every existing
+        reader sees a heartbeat that arrived over HTTP exactly as it sees one
+        that did not. Refused, and nothing written, if the health panel could
+        not read it.
+        """
+        self.get_wall(wall_id)
+        problem = heartbeat.problem_with(document)
+        if problem is not None:
+            raise ServiceError(f"That is not a heartbeat this plane can read: {problem}")
+        write_atomically(self._settings.heartbeat_path(wall_id), document)
+
     # -- keeping published manifests true to the Library ---------------------
 
     def on_work_changed(self, event: WorkChanged) -> None:
@@ -826,14 +855,18 @@ class DisplayService:
         Asks the facade about the works in question: the ones named, or, with
         none named, every work any published manifest or standing pin mentions.
         For each wall whose published manifest carries a work the Library now
-        refuses, those entries are removed and nothing else in the document
-        changes. A pin naming a refused work is withdrawn without advancing the
+        refuses, those entries are removed, and no other entry leaves or
+        arrives. A pin naming a refused work is withdrawn without advancing the
         sequence, because withdrawing is not an instruction to move on.
 
-        **Removals only.** A work that became showable is not added. Deciding
-        when new work reaches the wall is what sync is for (the operator's
-        ruling, 2026-09-30), and a reconciliation that also added would publish
-        a theme's unsynced changes as a side effect of archiving something.
+        **No work is ever added.** A work that became showable is not published.
+        Deciding when new work reaches the wall is what sync is for (the
+        operator's ruling, 2026-09-30), and a reconciliation that also added
+        would publish a theme's unsynced changes as a side effect of archiving
+        something. The one change to a kept entry is its `media`, replaced when
+        the Library's hash for it moved (a re-render), because the old hash is
+        one `/media` no longer serves and a Player on HTTP would otherwise lose
+        the work until the next sync.
 
         **Run at every start**, because an announcement lost to a crash between
         the Library's commit and this handler would otherwise leave a wall
@@ -855,22 +888,34 @@ class DisplayService:
                     store_write(self._store.set_directive, replace(directive, pinned_work_id=None))
                     withdrawn.append(wall_id)
 
-            republished: dict[str, list[str]] = {}
+            republished: dict[str, tuple[list[str], list[str]]] = {}
             for wall in walls:
                 document = published[wall.id]
                 if document is None:
                     continue
                 kept = [entry for entry in document["entries"] if entry["work_id"] not in refused]
                 removed = [entry["work_id"] for entry in document["entries"] if entry["work_id"] in refused]
+                # A kept work whose render was redone since the sync: its old
+                # hash is one `/media` no longer serves, so a Player on HTTP
+                # would skip it until the next sync while the file channel went
+                # on showing it. The entry keeps its place and changes only its
+                # `media`; this adds no work to the wall.
+                refreshed = [entry for entry in kept if _media_moved(entry, answers.get(entry["work_id"]))]
+                for entry in refreshed:
+                    fresh = answers[entry["work_id"]].media  # type: ignore[union-attr]
+                    if fresh is None:
+                        entry.pop("media", None)
+                    else:
+                        entry["media"] = media_document(fresh)
                 pin = (document.get("directive") or {}).get("pinned_work_id")
-                if len(kept) == len(document["entries"]) and pin not in refused:
+                if len(kept) == len(document["entries"]) and pin not in refused and not refreshed:
                     continue
                 document["entries"] = kept
                 if pin in refused:
                     document["directive"] = {**document["directive"], "pinned_work_id": None}
                 document["generated_at"] = datetime.now(UTC).isoformat()
                 write_atomically(self._settings.manifest_path(wall.id), document)
-                republished[wall.id] = removed
+                republished[wall.id] = (removed, [entry["work_id"] for entry in refreshed])
 
         result = Reconciliation(
             asked=len(asked),
@@ -879,16 +924,24 @@ class DisplayService:
             pins_withdrawn=tuple(withdrawn),
         )
         names = {wall.id: wall.name for wall in walls}
-        for wall_id, removed in republished.items():
+        for wall_id, (removed, refreshed_ids) in republished.items():
             # Only the works this wall carried: naming every refused work on
             # every wall's line would send an operator looking for works that
             # were never there.
-            log.info(
-                "Wall %r: took works the Library no longer offers off the published manifest (%s, after %s).",
-                names[wall_id],
-                ", ".join(removed) or "none, only its pin",
-                cause,
-            )
+            if removed:
+                log.info(
+                    "Wall %r: took works the Library no longer offers off the published manifest (%s, after %s).",
+                    names[wall_id],
+                    ", ".join(removed),
+                    cause,
+                )
+            if refreshed_ids:
+                log.info(
+                    "Wall %r: pointed the published manifest at the current render of %s (after %s).",
+                    names[wall_id],
+                    ", ".join(refreshed_ids),
+                    cause,
+                )
         for wall_id in withdrawn:
             # Said out loud: a standing instruction disappearing is the kind of
             # silent change that becomes "the wall stopped doing what I told it"
@@ -975,3 +1028,12 @@ class DisplayService:
         if seconds is not None and seconds <= 0:
             raise ServiceError(f"A rotation interval must be greater than zero seconds, got {seconds}.")
         return seconds
+
+
+def _media_moved(entry: dict[str, Any], answer: object) -> bool:
+    """Whether a published entry names different media from what the Library now offers for it."""
+    if not isinstance(answer, PlayableWork):
+        return False
+    published = (entry.get("media") or {}).get("sha256")
+    offered = None if answer.media is None else answer.media.sha256
+    return published != offered

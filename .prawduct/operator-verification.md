@@ -10,6 +10,23 @@ each entry, which is the durable form.
 
 ## Pending
 
+### The Player token panel on the Walls screen — added 2026-09-30
+
+**Wave 2b Chunk 03.** Each wall's section on the Walls screen ends with a
+**Player token** panel. Run `cd curatarr && uv run python -m curatarr` and open
+the Walls.
+
+1. **A wall with no token** says so and offers "Issue a Player token for …".
+2. **Issuing** shows the token once, in a read-only field with focus on it, and
+   says it is the only time. Reload the page: the token is gone, and the panel
+   says when one was issued. Is "shown once, in place" clear enough that nobody
+   reloads before copying it?
+3. **Rotating** asks first, naming the wall and the consequence (the current
+   Player stops until it has the new token). Cancel keeps the old token working.
+4. The panel sits below the manifest's three panels on every wall. Does a token
+   belong on the home screen at all, or on a wall's own settings once one
+   exists? It's here because the Walls screen is where walls are managed today.
+
 ### Next and show_now move the wall without a sync — added 2026-09-30
 
 **Wave 2b Chunk 02.** Until now, pressing **Next** on the Walls screen, or asking

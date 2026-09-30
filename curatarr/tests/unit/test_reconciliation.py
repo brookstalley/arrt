@@ -13,6 +13,7 @@ and `show_now` reach the published manifest, and a hang whose manifest cannot be
 written is not recorded.
 """
 
+import hashlib
 import json
 import logging
 
@@ -388,3 +389,62 @@ def test_each_wall_names_only_the_works_it_lost(store, display, ready_work, hung
     assert len(lines) == 2, lines
     assert [line for line in lines if first.id in line] == [line for line in lines if second.id not in line]
     assert [line for line in lines if second.id in line] == [line for line in lines if first.id not in line]
+
+
+def test_a_re_render_points_the_published_manifest_at_the_new_bytes(service, display, ready_work, hung, wall_id, wall_settings):
+    """The old hash is one `/media` no longer serves, so the entry follows the render without a sync."""
+    work = ready_work()
+    render = next(view.rendition for view in service.list_renditions(work.id))
+    target = wall_settings.art_root / render.relative_path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(b"the first render")
+    theme = hung(wall_id, work)
+    before = _published(wall_settings, wall_id)
+    waiting = ready_work(title="Automat")
+    display.add_to_theme(theme_id=theme.id, artwork_id=waiting.id)
+
+    target.write_bytes(b"the render, redone")
+    service.record_rendition(
+        artwork_id=work.id,
+        kind=render.kind,
+        target_width=render.target_width,
+        target_height=render.target_height,
+        path=render.relative_path,
+    )
+
+    after = _published(wall_settings, wall_id)
+    assert [entry["work_id"] for entry in after["entries"]] == [work.id], "a sync's worth of works was published"
+    assert after["entries"][0]["media"]["sha256"] == hashlib.sha256(b"the render, redone").hexdigest()
+    assert before["entries"][0]["media"]["sha256"] != after["entries"][0]["media"]["sha256"]
+    assert {k: v for k, v in after["entries"][0].items() if k != "media"} == {
+        k: v for k, v in before["entries"][0].items() if k != "media"
+    }
+
+
+def test_a_re_render_that_cannot_be_read_takes_the_media_off_the_entry_and_says_so(
+    service, ready_work, hung, wall_id, wall_settings, caplog
+):
+    """The entry stays for the file channel, and names no hash `/media` would refuse."""
+    work = ready_work()
+    render = next(view.rendition for view in service.list_renditions(work.id))
+    target = wall_settings.art_root / render.relative_path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(b"the first render")
+    hung(wall_id, work)
+    assert "media" in _published(wall_settings, wall_id)["entries"][0], "no media was ever published"
+
+    target.unlink()
+    target.mkdir()
+    with caplog.at_level(logging.INFO, logger="curatarr.programming.display"):
+        service.record_rendition(
+            artwork_id=work.id,
+            kind=render.kind,
+            target_width=render.target_width,
+            target_height=render.target_height,
+            path=render.relative_path,
+        )
+
+    entry = _published(wall_settings, wall_id)["entries"][0]
+    assert entry["work_id"] == work.id
+    assert "media" not in entry
+    assert any("pointed the published manifest at the current render" in record.getMessage() for record in caplog.records)

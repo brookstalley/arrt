@@ -82,7 +82,7 @@ _EXPECTED_SCHEMA = {
     # widening step cannot do — `migrations.py` does, and the test below watches
     # a legacy file lose it.
     "themes": {"id", "name", "description", "created_at", "rotation_interval_seconds", "shuffle"},
-    "walls": {"id", "name", "created_at"},
+    "walls": {"id", "name", "created_at", "token_verifier", "token_issued_at"},
     "theme_assignments": {"wall_id", "theme_id", "assigned_at"},
     "directives": {"wall_id", "sequence", "pinned_work_id"},
     "sources": {
@@ -122,6 +122,8 @@ _EXPECTED_SCHEMA = {
         "relative_path",
         "source_content_hash",
         "generated_at",
+        "content_sha256",
+        "byte_size",
     },
     "mat_colors": {
         "id",

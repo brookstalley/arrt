@@ -237,7 +237,8 @@ convenience would otherwise make that split a migration.
 > `curatarr/tests/unit/test_library_events.py` and
 > `curatarr/tests/unit/test_reconciliation.py` hold it. **Still in the
 > inventory:** the two foreign keys (rule 3). Media URLs in manifests (the rest
-> of rule 4) arrive with Chunk 03's content-addressed media.
+> of rule 4) arrived with Chunk 03: the Library names each render's URL by the
+> hash of its bytes (`library/readiness.py` `MEDIA_PATH_TEMPLATE`) and serves it.
 > *(Re-scheduled 2026-09-30 from wave 6, after review: building the endpoint on
 > the unsplit code would mean building it twice.)*
 >

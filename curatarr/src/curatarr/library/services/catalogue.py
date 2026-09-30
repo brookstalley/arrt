@@ -23,11 +23,13 @@ well under a millisecond, and a synchronous core keeps this logic testable
 without an event loop.
 """
 
+import hashlib
 import logging
 import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Final
 
 from curatarr.library.events import LibraryEvents, WorkChange, WorkChanged, WorkChangedHandler
@@ -192,12 +194,16 @@ def _offered(options: Sequence[FacetOption]) -> Sequence[FacetOption]:
 class CatalogueService:
     """Read and write the catalogue, and announce what changed."""
 
-    def __init__(self, store: CatalogueStore, events: LibraryEvents | None = None) -> None:
+    def __init__(self, store: CatalogueStore, events: LibraryEvents | None = None, *, art_root: Path | None = None) -> None:
         self._store = store
         #: The Library owns its publisher, so a catalogue built without one still
         #: announces, to nobody. The container passes the one Programming is
         #: subscribed to.
         self._events = events if events is not None else LibraryEvents()
+        #: Where a render's relative path points, so its bytes can be hashed.
+        #: None for a catalogue that never serves media, which records renders
+        #: without a content hash and serves none.
+        self._art_root = art_root
 
     def subscribe(self, handler: WorkChangedHandler) -> None:
         """Be told, after each commit, which work changed and how."""
@@ -846,12 +852,87 @@ class CatalogueService:
                 source_content_hash=original.content_hash,
                 generated_at=datetime.now(UTC),
             )
+            # Hashed here from the file, never accepted from the caller, for the
+            # reason the parent's hash is: the hash is what a Player checks the
+            # bytes against, and a caller-supplied one could name other bytes.
+            content = self._content_of(rendition.relative_path)
+            if content is not None:
+                rendition = replace(rendition, content_sha256=content[0], byte_size=content[1])
             if existing is None:
                 store_write(self._store.add_rendition, rendition)
             else:
                 store_write(self._store.update_rendition, rendition)
         self._announce(WorkChange.IMAGE_CHANGED, artwork_id)
         return rendition
+
+    # -- media: renders served by the hash of their bytes -------------------------
+
+    def with_content(self, rendition: Rendition) -> Rendition:
+        """This rendition with its content hash, hashing and recording it if it has none.
+
+        Renders recorded before the hash was are hashed the first time they are
+        needed rather than all at once at startup: most are never served, and a
+        startup pass would read every render on the card to answer a question
+        nobody asked. A render whose file cannot be read is returned unhashed,
+        and the caller treats it as having no media.
+        """
+        if rendition.content_sha256 is not None:
+            return rendition
+        content = self._content_of(rendition.relative_path)
+        if content is None:
+            return rendition
+        hashed = replace(rendition, content_sha256=content[0], byte_size=content[1])
+        store_write(self._store.update_rendition, hashed)
+        return hashed
+
+    def read_media(self, content_sha256: str) -> tuple[Rendition, bytes] | None:
+        """The bytes of the render with this hash, or None if none is held.
+
+        **The bytes are hashed again before they are returned**, and bytes that
+        no longer match are refused as not held. A re-render overwrites its file
+        at the same path before its row records the new hash, and "a hash never
+        serves different bytes" has to hold through that window too. A render is
+        a few megabytes, and a Player fetches each one once.
+        """
+        if self._art_root is None:
+            return None
+        for rendition in self._store.find_renditions_by_content(content_sha256):
+            try:
+                data = (self._art_root / rendition.relative_path).read_bytes()
+            except OSError as exc:
+                # Any read failure is "not held" to the Player, which skips the
+                # work, rather than a 500 it would treat as the server being down.
+                log.warning("Could not read the render at %s to serve it: %s", rendition.relative_path, exc)
+                continue
+            if hashlib.sha256(data).hexdigest() == content_sha256:
+                return rendition, data
+            log.warning(
+                "The render at %s no longer hashes to %s; it was rewritten since it was recorded, so it is not served.",
+                rendition.relative_path,
+                content_sha256,
+            )
+        return None
+
+    def _content_of(self, path: str) -> tuple[str, int] | None:
+        """The SHA-256 and size of a render's file, or None if there is no file to read."""
+        if self._art_root is None:
+            return None
+        digest = hashlib.sha256()
+        size = 0
+        try:
+            with (self._art_root / path).open("rb") as stream:
+                while chunk := stream.read(1 << 20):
+                    digest.update(chunk)
+                    size += len(chunk)
+        except FileNotFoundError:
+            return None
+        except OSError as exc:
+            # A permission or directory fault is logged, not raised: recording a
+            # render must not fail because its file cannot be hashed yet, and the
+            # hash is filled in the next time the render is needed.
+            log.warning("Could not read the render at %s to hash it: %s", path, exc)
+            return None
+        return digest.hexdigest(), size
 
     # -- writes: the mat ------------------------------------------------------
 

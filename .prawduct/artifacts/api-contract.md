@@ -1814,9 +1814,24 @@ omit them and MCP assumes `destructiveHint: true` and `openWorldHint: true`, whi
 costs the operator a confirmation prompt on every call. Each tool declares `title`
 plus honest `readOnlyHint` / `destructiveHint`.
 
-## The Server↔Player surface — PLANNED 2026-09-30, not built
+## The Server↔Player surface — PLANNED 2026-09-30, the server's half BUILT 2026-09-30
 
-**Nothing in this section exists in code.** It records the target that
+> **Built (wave 2b Chunk 03): the server's three routes, and wall tokens.**
+> `curatarr/src/curatarr/http/player.py` mounts them at the root beside `/api`,
+> spelled exactly as `contract/routes.json` spells them, and a test holds the
+> router to that file. The manifest route serves the published file's bytes with
+> their SHA-256 as the `ETag`, and answers `404` for a wall with nothing
+> published. The media route hashes the bytes it is about to send and refuses
+> (`404`) if they no longer match. The heartbeat POST accepts exactly what the
+> health panel can read and answers `400` otherwise, in the error shape `/api`
+> already uses. Tokens are issued from `POST /api/walls/{wall_id}/token` (the
+> Walls screen's Player token panel) and `art_display(action='issue_token')`.
+> Both return the token once, and the wall's `token_issued_at` is on both
+> surfaces' wall shapes. The Player's side, the pull into a cache, is wave 2b
+> Chunk 04. What follows is the design as recorded before the build, and where it
+> disagrees with the code or with `player-contract.md`, those win.
+
+**Before 2026-09-30 nothing in this section existed in code.** It records the target that
 `re-architecture.md` § Seam 2 sets. **The contract artifact now exists:
 `player-contract.md`, with its schemas and fixtures under `contract/`.** Where
 this section and that file disagree, that file wins.

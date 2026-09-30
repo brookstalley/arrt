@@ -442,6 +442,8 @@ A derived, device-specific output. **Regenerated, never transported.**
 | `relative_path` | string | required | Relative to `ART_ROOT`. |
 | `source_content_hash` | string | required | The `Original.content_hash` this was rendered from. Mismatch ⇒ stale ⇒ regenerate. Note it is the *Original's* hash on every row, including a `thumbnail` actually drawn from a `tv_display` canvas — see invariant 4. |
 | `generated_at` | datetime | auto | Refreshed on upsert, so a recomposed canvas is newer than it was. Load-bearing rather than bookkeeping: it is the only column that moves when a canvas is redrawn at the same path from the same Original, which is what makes a stale `thumbnail` of it detectable (invariant 4). |
+| `content_sha256` | string | optional, indexed | *(Added 2026-09-30, wave 2b.)* The SHA-256 of the file's bytes: the render's identity once it is served, at `/media/sha256-<hex>`. The catalogue service hashes the file itself when the rendition is recorded, never taking it from the caller, for the reason `source_content_hash` is read rather than accepted. Null for a render recorded before the column existed, or whose file was not there to read, and filled in the first time the Library is asked to offer it as media. |
+| `byte_size` | integer | optional | *(Added 2026-09-30.)* The file's size, recorded with the hash so a manifest can state it. |
 
 > **Q8.** Geometry is *columns*, not a filename suffix. The 2024 design encoded
 > it as `_w648_h480` in the filename, which is why the recovered catalogue points
@@ -582,9 +584,13 @@ operator's ruling that themes are created globally and assigned per wall.)*
 | `id` | UUID | PK | Stable identity, referenced across the plane boundary **by id only**, exactly as `TvBinding` already references an Artwork. |
 | `name` | string | required, unique | "Living room". The curator's own word, and the noun every confirmation names — "Hang Winter in the living room". |
 | `created_at` | datetime | auto | |
+| `token_verifier` | string | optional | *(Added 2026-09-30, wave 2b.)* The SHA-256 hex digest of the wall's Player token, never the token. Null until one is issued. `security-model.md` § Inventory has the credential. |
+| `token_issued_at` | datetime | optional | *(Added 2026-09-30.)* When the current token was issued, shown on the Walls screen so a curator can tell which Player is still on an old one after a rotation. |
 
-**Three fields, and the shortness is the design.** A Wall is an identity and a
-name; it is not a device.
+**Few fields, and the shortness is the design.** A Wall is an identity, a name,
+and the verifier of the one credential that lets a Player serve it; it is not a
+device. The token belongs to the wall and not to a device: replace the television
+and the token stays, rotate it and every device holding the old one is refused.
 
 > **This entity sits inside the catalogue, and that is a ruling against the third
 > Direction norm rather than an oversight.** "Per-device runtime state never lives

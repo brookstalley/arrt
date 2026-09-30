@@ -838,6 +838,11 @@ def _next(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     return ok(**_directive_fields(services.display.step_display(arguments["wall_id"])))
 
 
+def _issue_token(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    issued = services.access.issue(arguments["wall_id"])
+    return ok(wall_id=issued.wall_id, token=issued.token, token_issued_at=_moment(issued.issued_at))
+
+
 #: Every built action, keyed by tool and action name. A tool absent from here
 #: answers `help` and nothing else, which is what its registry record says.
 BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
@@ -880,6 +885,7 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_display", "sync"): _sync,
     ("art_display", "show_now"): _show_now,
     ("art_display", "next"): _next,
+    ("art_display", "issue_token"): _issue_token,
     ("art_taste", "list"): _list_taste,
     ("art_taste", "set"): _set_taste,
     ("art_taste", "delete"): _delete_taste,
@@ -1042,7 +1048,14 @@ def _theme_fields(theme: Theme) -> dict[str, Any]:
 
 def _wall_fields(wall: Wall) -> dict[str, Any]:
     """One wall as a caller sees it: a place and a name, never a device."""
-    return {"wall_id": wall.id, "name": wall.name, "created_at": _moment(wall.created_at)}
+    return {
+        "wall_id": wall.id,
+        "name": wall.name,
+        "created_at": _moment(wall.created_at),
+        # When the Player token was issued, or None while the wall has none. The
+        # token itself is never read back: it exists only in the issuing answer.
+        "token_issued_at": None if wall.token_issued_at is None else _moment(wall.token_issued_at),
+    }
 
 
 def _wall_view_fields(view: WallView) -> dict[str, Any]:
