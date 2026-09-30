@@ -145,7 +145,7 @@ Each is lock-in, so the questions come before the fields.
 - [x] Chunk 01: Library and Programming packages, the `playable()` facade, and the import guard
 - [x] Chunk 02: Library events, and Programming's reconciliation at startup
 - [x] Chunk 03: Curatarr's HTTP surface — manifest, media by content hash, heartbeat, and wall tokens
-- [ ] Chunk 04: Arrt's HTTP mode — pull into a cache, render only from it, and survive the server
+- [x] Chunk 04: Arrt's HTTP mode — pull into a cache, render only from it, and survive the server
 
 ### Chunk 01: Library and Programming packages, the `playable()` facade, and the import guard
 
