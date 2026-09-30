@@ -56,9 +56,9 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
-## 2026-09-30: The *arr navigation, planned (norm amended)
+## 2026-09-30: The *arr navigation: the norm amended, and the sidebar built
 
-<!-- prawduct: chunks=01 | scope=arr-navigation -->
+<!-- prawduct: chunks=01,02 | scope=arr-navigation -->
 
 **Why:** the owner ruled that Curatarr's browser surface should be laid out like
 the *arr apps: *"More important to be familiar than to have our own thing."*
@@ -72,8 +72,27 @@ the *arr apps: *"More important to be familiar than to have our own thing."*
   norm note the amendment.
 - `re-architecture.md` § Open questions gains external identity (Wikidata, ULAN)
   before Watches: use registries, never become one.
-- `build-plan-arr-navigation.md` plans the build in five chunks. Chunk 01 is
-  this entry.
+- `build-plan-arr-navigation.md` plans the build in five chunks.
+- **The sidebar (Chunk 02).** The three tabs became Sonarr's sidebar. Artworks
+  (was Collection) is home, with Add New (was Discover) and Themes beneath it,
+  followed by Walls, Settings › Taste, and System › Status (was Health). System
+  shows a problem-count badge whose words are the link's name. The top-bar
+  indicator stays beside it, because a badge is a number and a state needs a
+  word. Below 40rem the sidebar is a drawer behind a Menu button. Fragments keep
+  their spellings (`#collection`, `#discover`, `#health`), so no bookmark or
+  agent link breaks.
+- **One theme (`#theme/<id>`) returns to Themes by default**, since Themes is a
+  sidebar page. Opened from Artworks or a wall, it records `?from=` and returns
+  there, as other contextual screens do.
+- **The skip link had sent keyboard users to the home page.** The hash router
+  read `#view` as an address. It now moves focus instead, with a test that
+  fails without the fix.
+- `test_the_three_destinations.py` became `test_the_sidebar.py`. Its docstring
+  records which tests were kept, which rewritten to the amended norm, and which
+  retired: *no entry names a pipeline stage* and *the navigation is flat*, both
+  of which the ruling deliberately gave up. Six re-breaks (skip link, badge,
+  pages shown under every section, Escape, a second `aria-current`, the home
+  page) each turned their tests red.
 
 ## 2026-09-30: The Library/Programming seam, and the Player pulls over HTTP (wave 2b)
 

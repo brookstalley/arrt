@@ -1,10 +1,9 @@
-/* Navigation: which screen is showing, which destination is lit, and where back goes.
+/* Navigation: which screen is showing, which sidebar page is lit, and where back goes.
  *
- * **Three destinations, flat** — the Walls, Collection, Discover — and everything
- * else contextual. `information-architecture.md` § Direction is the norm this
- * implements: the surface is organised around what a curator does, never around
- * the pipeline's stages. The five equal tabs this replaced were the pipeline's
- * internal stages in pipeline order.
+ * **Pages in the *arr sidebar, and everything else contextual.**
+ * `information-architecture.md` § Direction is the norm this implements: the
+ * surface is laid out like the *arr apps, and `core/sidebar.js` draws the
+ * sections this module lights.
  *
  * The route table itself lives in `app.js`, which is the only module that knows
  * every screen. This file holds the mechanism and no policy: it is handed the
@@ -14,8 +13,8 @@
  *
  * A table entry is one of two shapes:
  *
- *   { render, destination: "<label>" }        a destination; the label is its nav button
- *   { render, opensFrom: "<view>", detail? }  contextual; that is where it returns by default
+ *   { render, section: "<key>", page: "<label>", detail? }  a sidebar page in that section
+ *   { render, opensFrom: "<view>", detail? }                contextual; that is where it returns by default
  *
  * `detail` means the screen addresses one thing and carries its id in the
  * fragment. Held as data rather than as a chain of comparisons about which
@@ -38,70 +37,96 @@
 import { state } from "./state.js";
 import { el, guard } from "./render.js";
 import { formatRoute, parseRoute } from "./route.js";
+import { installDrawer, lightSidebar, paintSidebar } from "./sidebar.js";
 
 let table = {};
+let home = null;
 let announce = () => {};
+let closeDrawer = () => {};
 
-/* Which destination a screen belongs to, for the highlight and for back.
+/* Which sidebar page a screen belongs to, for the highlight and for back.
  *
- * **A contextual screen returns to the destination it was opened from, not to a
- * fixed parent.** That is the requirement — a Work opened from Review returns to
- * Review's destination, the same Work opened from Collection returns to
- * Collection — and `params.from` is how it survives being bookmarked, reloaded
+ * **A contextual screen returns to the page it was opened from, not to a fixed
+ * parent.** That is the requirement — a Work opened from Review returns to
+ * Review's page, the same Work opened from Artworks returns to Artworks — and
+ * `params.from` is how it survives being bookmarked, reloaded
  * and sent to somebody else. A fixed parent is what this replaced: the old table
  * hard-coded `work → works` and `run → discovery`, so every route out of a
  * detail screen led to the same place however you had arrived.
  *
  * `opensFrom` is the fallback for a deep link that carries no opener, which is
- * every link an agent or a bookmark produces. It is a default, not a parent. */
-export function destinationFor(view = state.view, params = state.params) {
+ * every link an agent or a bookmark produces. It is a default, not a parent.
+ *
+ * **A sidebar page showing one of its things is contextual too.** `#theme` is
+ * the Themes page; `#theme/<id>` is one theme, reached from a wall as often as
+ * from the index, and it returns to whichever it was opened from. Its default
+ * is its own index. */
+export function pageFor(view = state.view, params = state.params, detailId = state.detailId) {
   const entry = table[view];
   if (!entry) return null;
-  if (entry.destination) return view;
+  if (entry.page && !detailId) return view;
   const from = params && params.from;
-  if (from && table[from] && table[from].destination) return from;
-  return entry.opensFrom || null;
+  if (from && table[from] && table[from].page) return from;
+  return entry.page ? view : entry.opensFrom || null;
+}
+
+/* Where a screen returns to when nothing says otherwise. */
+function defaultReturn(view) {
+  const entry = table[view];
+  return entry.page ? view : entry.opensFrom;
 }
 
 /* The way back out of a contextual screen, named for where it goes.
  *
  * Named rather than a bare "Back" for the reason every wall control is named:
  * a control whose target the reader has to infer is one they can only check by
- * pressing it. */
+ * pressing it.
+ *
+ * **A sidebar page has no way back, because it is not inside anything** — its
+ * way out is the sidebar. The exception is a page showing one of its things,
+ * `#theme/<id>`, whose way back is its own index. */
 export function backLink() {
-  const destination = destinationFor();
-  if (!destination) return null;
+  const page = pageFor();
+  if (!page) return null;
+  if (page === state.view && !state.detailId) return null;
   return el("button", {
     class: "action quiet",
     type: "button",
-    text: `← ${table[destination].destination}`,
-    onclick: () => go(destination),
+    text: `← ${table[page].page}`,
+    onclick: () => go(page),
   });
+}
+
+/* The back link in the paragraph every screen sets it in, or nothing when the
+ * screen is a sidebar page with nowhere to go back to. */
+export function backRow() {
+  const back = backLink();
+  return back ? el("p", {}, [back]) : null;
 }
 
 /* The state a navigation carries over when the caller did not say.
  *
- * Opening a contextual screen records the destination it was opened from, and
- * that is the whole of the return path. Arriving at a destination carries
- * nothing over: a search made in Collection is not a search Discover is running,
- * and inheriting it would put a filter on a screen that never offered one.
+ * Opening a contextual screen records the page it was opened from, and that is
+ * the whole of the return path. Arriving at a page carries nothing over: a
+ * search made in Artworks is not a search Add New is running, and inheriting it
+ * would put a filter on a screen that never offered one.
  *
  * **Omitted when it is the screen's own default**, which is the ordinary case:
- * a Work opened from Collection, a Review opened from Discover. A parameter that
+ * a Work opened from Artworks, a Review opened from Add New. A parameter that
  * says what its absence already says is noise in a URL a curator copies, and it
- * changes nothing — `destinationFor` resolves a missing `from` to exactly the
+ * changes nothing — `pageFor` resolves a missing `from` to exactly the
  * default this would have written. The parameter appears when it carries
  * information: this Work was opened from somewhere else. */
-function inherited(view) {
+function inherited(view, detailId) {
   const entry = table[view];
-  if (!entry || entry.destination) return {};
-  const from = destinationFor();
-  return from && from !== entry.opensFrom ? { from } : {};
+  if (!entry || (entry.page && !detailId)) return {};
+  const from = pageFor();
+  return from && from !== defaultReturn(view) ? { from } : {};
 }
 
 export function go(view, detailId = null, params = null) {
   const entry = table[view];
-  const next = params === null ? inherited(view) : params;
+  const next = params === null ? inherited(view, detailId) : params;
   state.view = view;
   state.detailId = detailId;
   state.params = next;
@@ -111,7 +136,7 @@ export function go(view, detailId = null, params = null) {
   //
   // The `nav` bump here is load-bearing only on the path that does NOT change
   // the hash — navigating to the screen already displayed, which is what
-  // clicking the current destination does. Every other path writes the fragment
+  // clicking the current page does. Every other path writes the fragment
   // and re-enters through `readHash`, which bumps it again. Written down because
   // a mutation sweep survives its removal: the cross-screen case is covered, and
   // this is the narrow one that is not, so the next reader should not take the
@@ -137,12 +162,8 @@ export function go(view, detailId = null, params = null) {
 
 export function refresh(moveFocus = false) {
   const entry = table[state.view];
-  const lit = destinationFor();
-  for (const button of document.querySelectorAll("nav.destinations button")) {
-    if (button.dataset.view === lit) button.setAttribute("aria-current", "page");
-    else button.removeAttribute("aria-current");
-  }
-  // The masthead's status indicator and search box, repainted on every
+  lightSidebar(pageFor());
+  // The top bar's status indicator and search box, repainted on every
   // navigation. Registered by `app.js` rather than imported, because the
   // indicator navigates and the router would then import the thing that imports
   // it. It is called before the screen's own paint so the chrome is never a
@@ -166,7 +187,7 @@ export function refresh(moveFocus = false) {
 }
 
 export function readHash() {
-  const route = parseRoute(window.location.hash, table, { path: window.location.pathname });
+  const route = parseRoute(window.location.hash, table, { path: window.location.pathname, fallback: home });
   state.view = route.view;
   state.detailId = route.id;
   state.params = route.params;
@@ -188,32 +209,34 @@ export function readHash() {
   state.painted = null;
 }
 
-/* Build the navigation from the table, so the labels have one source.
+/* The skip link moves focus past the sidebar and leaves the address alone.
  *
- * The three buttons are written here rather than in `index.html` because the
- * acceptance criterion — no destination in the navigation names a pipeline
- * stage — is a claim about the route table, and a static copy of the labels
- * beside it is a second place for it to stop being true. */
-function paintDestinations() {
-  const nav = document.querySelector("nav.destinations");
-  nav.replaceChildren(
-    ...Object.entries(table)
-      .filter(([, entry]) => entry.destination)
-      .map(([view, entry]) =>
-        el("button", {
-          type: "button",
-          "data-view": view,
-          text: entry.destination,
-          onclick: () => go(view),
-        }),
-      ),
-  );
+ * Every `#…` is an address to this router, so a plain `href="#view"` would be a
+ * link to a page called "view" — which does not exist, and falls back to the
+ * home page. The link keeps its `href` for anything that reads it, and the
+ * click does the skip instead. */
+function installSkipLink() {
+  document.querySelector(".skip-link").addEventListener("click", (event) => {
+    event.preventDefault();
+    document.getElementById("view").focus();
+  });
 }
 
-export function install(routes, { onNavigate } = {}) {
+/* `sections` is the sidebar's list, in order; see `core/sidebar.js`.
+ *
+ * **The home page is the first sidebar page in the table**, and is the one
+ * place it is decided: an address that names nothing lands there. As in every
+ * *arr app, that is the library. */
+export function install(routes, { sections, onNavigate } = {}) {
   table = routes;
+  home = Object.keys(table).find((view) => table[view].page);
   if (onNavigate) announce = onNavigate;
-  paintDestinations();
+  paintSidebar(table, sections, (view) => {
+    closeDrawer();
+    go(view);
+  });
+  closeDrawer = installDrawer();
+  installSkipLink();
   window.addEventListener("hashchange", () => {
     readHash();
     refresh(true);

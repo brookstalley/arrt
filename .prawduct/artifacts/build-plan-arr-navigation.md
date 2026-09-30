@@ -85,7 +85,7 @@ filled in Radarr's answer where it has one:
 - `[ASSUMPTION: Taste goes under Settings, following Radarr's Profiles (the preferences that rank what it finds) | MED impact | user can correct]`
 - `[ASSUMPTION: the Walls sits second, in Calendar's slot, as a top-level entry with no sub-pages | LOW impact | user can correct]`
 - `[ASSUMPTION: Collection's facets and theme rail move into the toolbar's Filter menu. The facet rules come with them unchanged: counts shown, each facet counted over the other facets, and a zero option disabled rather than hidden | MED impact | user can correct]`
-- `[ASSUMPTION: canonical fragments are #artworks, #artwork/<id>, #add, #themes, #themes/<id>, #walls, #queue, #history, #taste, #status, and every older fragment is an alias for its successor | LOW impact | user can correct]`
+- `[DECISION, revised while building Chunk 02: fragments keep their spellings (#collection is Artworks, #discover is Add New, #health is Status), and only the labels change | renaming them would have touched about 150 test addresses and every link an agent has already been given, for a word the curator never sees. The plan first assumed new spellings (#artworks, #add, #status) | user can veto/override]`
 - `[ASSUMPTION: sub-pages show only under the current section, as Sonarr and Radarr show them | LOW impact | user can correct]`
 - `[DECISION: Add New fills in a search term handed to it and does not start the run | Sonarr's lookup is free and instant, while a Curatarr search is a discovery run that takes minutes and spends money. Nothing may spend on a keystroke | user can veto/override]`
 - `[DECISION: Enter in the top-bar search opens Artworks filtered to the query, not the first match as Sonarr does | an artist or movement matches many works where a series title matches one, so the first match is arbitrary. This departs from the *arr norm. **Ruled by the owner 2026-09-30: "yes to filtered to the query"** | settled]`
@@ -97,7 +97,7 @@ visible without running anything.
 
 ## Status
 
-- [ ] Chunk 01: The norm amendment and the target layout, in the artifacts
+- [x] Chunk 01: The norm amendment and the target layout, in the artifacts
 - [ ] Chunk 02: The sidebar and the top bar, with Artworks as home
 - [ ] Chunk 03: Activity › Queue and History
 - [ ] Chunk 04: Search in two scopes

@@ -49,26 +49,27 @@ TABLE_SECTIONS = ("Screen Inventory", "Information Hierarchy", "Screen States")
 
 #: What each route key is called in the artifact's prose.
 #:
-#: The two lists cannot be compared without it: the route table keys on `walls`
-#: and the artifact writes "The Walls", because one is an identifier and the
-#: other is a name a curator reads. Declared here rather than derived by
-#: title-casing, which would map `walls` to "Walls" and miss the article.
+#: The two lists cannot be compared without it: the route table keys on
+#: `collection` and the artifact writes "Artworks", because one is an address
+#: that outlived a rename and the other is the name a curator reads. Declared
+#: here rather than derived from the table's `page` labels, because contextual
+#: screens carry no label to derive from.
 #:
 #: **A route with no entry here fails `test_every_route_has_a_name`**, so this
 #: mapping cannot silently fall behind the route table the way the tables it
 #: exists to check did. Adding a screen means adding a line here, and the test
 #: says so when you have not.
 SCREEN_NAMES = {
-    "walls": "The Walls",
-    "collection": "Collection",
-    "discover": "Discover",
+    "walls": "Walls",
+    "collection": "Artworks",
+    "discover": "Add New",
     "work": "Work",
     "run": "Run",
     "conversation": "Conversation",
     "review": "Review",
-    "theme": "Theme",
+    "theme": "Themes",
     "taste": "Taste",
-    "health": "Health",
+    "health": "Status",
 }
 
 
@@ -93,9 +94,10 @@ def routes() -> dict[str, str]:
 
     **Comments are stripped before anything is read, and that is load-bearing.**
     The table is heavily commented and the prose discusses the very keys this
-    parses: the note above `conversation` calls it "contextual rather than a
-    fourth destination:", which read as a `destination:` field and made a
-    contextual screen parse as a fourth destination.
+    parses: a note once called `conversation` "contextual rather than a fourth
+    destination:", which read as a field and made a contextual screen parse as a
+    navigation entry. The note above it now says "rather than a page:", which
+    would do the same to the `page:` key this file reads today.
     """
     source = _without_comments(ROUTE_TABLE.read_text(encoding="utf-8"))
     start = source.index("const ROUTES = {") + len("const ROUTES = ")
@@ -193,19 +195,19 @@ def test_both_sources_exist_to_be_compared():
 def test_the_route_table_parses():
     """A parser that silently matched nothing would make every check below green.
 
-    Pinned against the three destinations rather than a count: those three are
-    `information-architecture.md` § Direction's ratified navigation and the one
-    part of this table that is not free to change quietly.
+    Pinned against the sidebar's pages, in order, rather than a count: they are
+    `information-architecture.md` § The *arr layout, the first of them is the
+    product's home, and it is the part of this table that is not free to change
+    quietly.
     """
     found = routes()
     assert {"walls", "collection", "discover"} <= set(found), (
-        f"{_relative(ROUTE_TABLE)} parsed as {sorted(found)}, which is missing a destination — "
-        "the parser is reading the wrong thing"
+        f"{_relative(ROUTE_TABLE)} parsed as {sorted(found)}, which is missing a page — " "the parser is reading the wrong thing"
     )
-    destinations = [key for key, body in found.items() if "destination:" in body]
-    assert destinations == ["walls", "collection", "discover"], (
-        f"the navigation's destinations are {destinations}. "
-        "§ Direction ratifies three, named for what a curator does rather than for a pipeline stage"
+    pages = [key for key, body in found.items() if "page:" in body]
+    assert pages == ["collection", "discover", "theme", "walls", "taste", "health"], (
+        f"the sidebar's pages are {pages}. § The *arr layout places each by its *arr precedent, "
+        "and the first is the home, which every *arr app makes its library"
     )
 
 
@@ -249,19 +251,12 @@ def test_every_row_is_a_screen(heading: str):
 
 
 def test_the_contextual_enumeration_matches_the_route_table():
-    """A contextual screen is one reached from a destination, and returns to it.
+    """A contextual screen is one reached from a sidebar page, and returns to it.
 
-    Derived from the route table's own shape — an `opensFrom` and no
-    `destination` — rather than from a second hand-kept list. Health is excluded
-    because § Navigation Structure excludes it in its own bullet, deliberately:
-    it is reachable and not navigable-to, and the masthead indicator is what
-    makes that demotion safe.
+    Derived from the route table's own shape — an `opensFrom` and no `page` —
+    rather than from a second hand-kept list.
     """
-    contextual = {
-        SCREEN_NAMES[key]
-        for key, body in routes().items()
-        if "opensFrom:" in body and "destination:" not in body and key != "health"
-    }
+    contextual = {SCREEN_NAMES[key] for key, body in routes().items() if "opensFrom:" in body and "page:" not in body}
     assert contextual_screens() == contextual, (
         f"§ Navigation Structure enumerates {sorted(contextual_screens())}; "
         f"the route table's contextual screens are {sorted(contextual)}"
@@ -286,7 +281,7 @@ class TestTheGuardCanFail:
             test_every_screen_has_a_row("Screen Inventory")
 
     def test_it_catches_a_row_for_a_screen_that_is_not_routed(self, monkeypatch: pytest.MonkeyPatch):
-        monkeypatch.setattr(sys.modules[__name__], "routes", lambda: {"walls": "{ destination: 'The Walls' }"})
+        monkeypatch.setattr(sys.modules[__name__], "routes", lambda: {"walls": "{ page: 'Walls' }"})
         with pytest.raises(AssertionError, match="has rows for"):
             test_every_row_is_a_screen("Screen Inventory")
 
@@ -300,19 +295,19 @@ class TestTheGuardCanFail:
         monkeypatch.setattr(
             sys.modules[__name__],
             "routes",
-            lambda: {"walls": "{ destination: 'x' }", "work": "{ opensFrom: 'collection' }"},
+            lambda: {"walls": "{ page: 'x' }", "work": "{ opensFrom: 'collection' }"},
         )
         with pytest.raises(AssertionError, match="enumerates"):
             test_the_contextual_enumeration_matches_the_route_table()
 
     def test_the_comment_stripper_does_not_eat_the_code(self):
         """It runs over every read of the route table, so its own failure is silent."""
-        assert _without_comments("a: 1, // destination: no\nb: 2\n") == "a: 1, \nb: 2\n"
-        assert _without_comments("/* a\nfourth destination: */\nkeep") == "\n\nkeep"
+        assert _without_comments("a: 1, // page: no\nb: 2\n") == "a: 1, \nb: 2\n"
+        assert _without_comments("/* a\nfourth page: */\nkeep") == "\n\nkeep"
 
     def test_the_table_parser_reads_a_real_row(self):
         """So the row parsers are known to return something before they are trusted."""
-        assert "The Walls" in screens_in_table("Screen Inventory")
+        assert "Walls" in screens_in_table("Screen Inventory")
         assert "Screen" not in screens_in_table("Screen Inventory")
 
     def test_the_row_parser_strips_emphasis_and_notes(self):

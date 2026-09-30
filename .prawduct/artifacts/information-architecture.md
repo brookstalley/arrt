@@ -68,9 +68,10 @@ inside an existing section, not a section of its own.
 > pages, and the home page) from `build-plan-arr-navigation.md` Chunk 02 on.
 >
 > **Status:** in-transition. `build-plan-arr-navigation.md` is the migration and
-> tracks it, and is meant to land in the same PR as this amendment. Interim rule:
-> until that plan's Chunk 02 lands, the built three destinations stay as they are,
-> and no screen is added to them. A new screen waits for the sidebar.
+> tracks it, and is meant to land in the same PR as this amendment. The sidebar
+> is built. Interim rule: until the plan's remaining chunks land, a new screen
+> goes where § The *arr layout places it, and nothing is added to Add New that
+> Activity is due to take.
 >
 > **Retroactivity:** migrate: `build-plan-arr-navigation.md`. The built surface
 > does not conform, since it has three destinations and opens on the Walls. If the
@@ -116,14 +117,14 @@ Priority is **core** (on a stated core flow) or **supporting**.
 
 | Screen | Purpose | Entry points | Priority |
 |---|---|---|---|
-| **The Walls** | What is hanging right now on each display, the theme it is drawn from, and what is next. The product's home. | Launch; masthead brand; after activating a theme | core (flow 6) |
-| **Collection** | Everything acquired. Find, sort, filter, group, organise into themes, archive. | Primary nav; search from anywhere; from a theme; after a run's accepted works land | core (flows 3, 5) |
+| **Walls** | What is hanging right now on each display, the theme it is drawn from, and what is next. | The sidebar; after activating a theme | core (flow 6) |
+| **Artworks** | Everything acquired. Find, sort, filter, group, organise into themes, archive. The product's home. *(Collection until 2026-09-30.)* | Launch; the sidebar; search from anywhere; from a theme; after a run's accepted works land | core (flows 3, 5) |
 | **Work** | One work at full size, with its sources, renditions, mat history and theme membership. | A tile in Collection; a tile on a Wall; a row in Review | core (flows 4, 5) |
-| **Discover** | Conversation, the runs it seeds, and the review of what they return — one continuous place. | Primary nav; "find something new" on the Walls and on an empty Collection | core (flows 1, 2, 3) |
+| **Add New** | Conversation, the runs it seeds, and the review of what they return — one continuous place. *(Discover until 2026-09-30.)* | The sidebar, under Artworks; "find something new" on the Walls and on an empty Artworks | core (flows 1, 2, 3) |
 | **Run** | One discovery run while it works and after it stops: what it proposed, what it found images for, the gate where phase 2 is approved, and its work table. | Discover; a re-search started on the review grid; its own address | core (flow 2) |
 | **Review** | Judging one run's candidates: accept, reject, choose a scan, ask for a better one. | A completed run in Discover; the run's own notification | core (flow 3) |
-| **Theme** | The themes there are, and — at its own address — one of them: its members in curated order, its name, and the act of hanging it. | Collection's theme rail; a wall's theme control; its own address | core (flows 5, 6) |
-| **Health** | The three observations the panel states, and the spend record. | The masthead status indicator; a failure's own link | supporting |
+| **Themes** | The themes there are, and — at its own address — one of them: its members in curated order, its name, and the act of hanging it. | The sidebar, under Artworks; Artworks' theme rail; a wall's theme control; its own address | core (flows 5, 6) |
+| **Status** | The three observations the panel states, and the spend record. *(Health until 2026-09-30.)* | The sidebar, under System; the top bar's status indicator; a failure's own link | supporting |
 | **Conversation** *(new)* | One intent-forming thread, its samples, and what it committed to. | Discover; the conversation list; an affinity's provenance | core (flow 1) |
 | **Taste** *(new)* | The affinities the product has accumulated, with their derivation, correctable. | Discover; a suggestion's "why am I seeing this?" | supporting |
 
@@ -182,10 +183,11 @@ It becomes a rail inside Collection — a filter that is also editable — plus 
 
 ## The *arr layout (target, amended 2026-09-30)
 
-This is the layout § Direction now requires. It is **not built yet**:
-§ Navigation Structure below still describes what runs today, and
-`build-plan-arr-navigation.md` replaces that section with this one chunk by
-chunk. The owner chose the name, the home page and the scope on 2026-09-30. The
+This is the layout § Direction now requires. **The sidebar, the top bar, the
+badge and the drawer are built. Activity, the two-scope search and the toolbar
+are not yet**, and `build-plan-arr-navigation.md` builds them in Chunks 03–05.
+Until then, runs are listed on Add New and the search box searches Artworks
+only. The owner chose the name, the home page and the scope on 2026-09-30. The
 placement of each page is the builder's reading of Radarr, and each placement is
 listed below so it can be disputed.
 
@@ -275,48 +277,42 @@ listed below so it can be disputed.
 
 ## Navigation Structure
 
-**As built until `build-plan-arr-navigation.md` Chunk 02 lands. After that, the
-section above is the navigation.**
+**Primary pattern: the *arr sidebar**, laid out in § The *arr layout above. That
+section places each page and says which *arr page it follows; this one holds the
+rules that apply to all of them.
 
-**Primary pattern: three destinations, flat.** No hierarchy above them, no drawer,
-no nesting.
+- **Persistent:** the sidebar (a drawer behind the menu button below 40rem), the
+  search box, and the status indicator, in the top bar on every page.
+- **Contextual:** everything that is not a sidebar page. Work, Run, Review and
+  Conversation are reached *from* a page and return to it. A page showing one
+  of its own things — one theme, at `#theme/<id>` — is contextual in the same
+  way, and returns to whichever page opened it.
+- **Status is a page under System**, with Sonarr's count badge on System. The
+  top-bar indicator stays beside the badge and keeps the contract it had when it
+  was the only way to reach health: it is always present, and it reads "Well" or
+  names what is wrong. § The *arr layout records why the badge could not take
+  that contract over.
 
-```
-  The Walls  ·  Collection  ·  Discover                   [status] [search]
-```
-
-- **Persistent:** the three destinations, a status indicator, and a search
-  affordance. Search is persistent because at thousands of works it is the primary
-  retrieval mechanism, and a retrieval mechanism you must first navigate to is one
-  more step on the most frequent action.
-- **Contextual:** everything else. Theme, Work, Run, Review, Conversation and Taste are
-  reached *from* a destination and return to it.
-- **Health is not in the navigation.** It is a status indicator in the masthead
-  that reads "well" or names what is wrong, and expands to the Health screen. This
-  is the demotion the "museum, not gadget" identity asks for, and it is safe
-  **only because the indicator is always present and speaks up** — a status surface
-  you must remember to visit is worse than one in the nav. The indicator is the
-  contract; the tab was merely the location.
-
-**Back/escape.** Every contextual screen returns to the destination it was opened
-from, not to a fixed parent — a Work opened from Review returns to Review, the same
-Work opened from Collection returns to Collection with scroll position intact.
-Browser back does this natively if each is a real URL, which is the reason they are.
+**Back/escape.** Every contextual screen returns to the page it was opened from,
+not to a fixed parent — a Work opened from Review returns to Review, the same Work
+opened from Artworks returns to Artworks with scroll position intact. Browser back
+does this natively if each is a real URL, which is the reason they are. A sidebar
+page has no back link: the sidebar is its way out.
 
 **URLs.** Every screen and every consequential state (a search query, an active
-filter set, a run, a conversation) is addressable. The built client already routes
-on the hash; this keeps that property and extends it to search and filter state, so
-a curator can bookmark "unmatted works by Kandinsky" and an agent can link to one.
+filter set, a run, a conversation) is addressable, so a curator can bookmark
+"unmatted works by Kandinsky" and an agent can link to one. **The fragments kept
+their spellings when the labels changed on 2026-09-30** — `#collection` is
+Artworks, `#discover` is Add New, `#health` is Status — because an address is
+what a bookmark and an agent's link hold, and none of them should break over a
+word the curator never sees. Older fragments still resolve through
+`FRAGMENT_ALIASES` in `core/route.js`.
 
-> **The counter-argument to the Walls as home, recorded because it is real.** Most
-> sessions begin with an *intention* — find something, organise something — and
-> opening on a screen that mostly shows pictures puts a click in front of every
-> such session. Two things answer it: the Walls screen carries the live entry
-> points (search, "find something new", the theme control) rather than being a dead
-> end, and the product's identity claim is that it is a collection rather than a
-> tool. If the click proves to cost more than the orientation is worth, the fix is
-> to make the entry points better, not to open on a grid. **Revisit trigger:** the
-> operator reports routinely skipping past it.
+> **The home page was the Walls until 2026-09-30,** with a recorded
+> counter-argument: most sessions begin with an intention, and opening on
+> pictures puts a click in front of each. The owner's *arr ruling settled it
+> the other way — every *arr app opens on its library — and the Walls moved to
+> second in the sidebar.
 
 ## More than one wall
 
@@ -618,16 +614,16 @@ who did not edit this table.
 
 | Screen | Primary | Secondary | Actions | Status |
 |---|---|---|---|---|
-| The Walls | Each wall's hanging work, large | Title, artist, theme, which wall | Change theme, next, open work, issue or rotate the wall's Player token *(added 2026-09-30: the token is shown once, in place, and rotating asks first)* | Panel + TV health, quietly |
-| Collection | The grid of images | Counts, active filters | Search, filter, select, add to theme, archive | Total, and what is filtered out |
+| Walls | Each wall's hanging work, large | Title, artist, theme, which wall | Change theme, next, open work, issue or rotate the wall's Player token *(added 2026-09-30: the token is shown once, in place, and rotating asks first)* | Panel + TV health, quietly |
+| Artworks | The grid of images | Counts, active filters | Search, filter, select, add to theme, archive | Total, and what is filtered out |
 | Work | The image at full size | Artist, facets, mat colour, rendition size | Theme membership, re-mat, archive | Fit verdict, image state |
-| Discover | The conversation, or the run list | Samples inline | Type, react, commit, start direct | Run progress, spend |
+| Add New | The conversation, or the run list | Samples inline | Type, react, commit, start direct | Run progress, spend |
 | Run | The run's own sentence, and its work table | The tally behind the sentence, and the gate's price broken down | Approve, decline, cancel, open a work, go to the review | Which state the run is in, and whether the watch is still live |
 | Conversation | The thread, newest exchange last | Each turn's suggestions, with their samples | Type, react to a sample, commit a direction, delete the thread | Whether a turn is in flight, and what the exchange cost |
 | Taste | The judgments, grouped by kind | Sentiment, openness, and how the claim was derived | React, correct, forget, follow a claim back to its turn | Which claims the product inferred rather than was told |
 | Review | The candidate picture | Title, artist, size on this wall | Accept, reject, choose scan, ask better | Verdict, provenance, resolution |
-| Theme | Members in wall order | Name, count | Reorder, rename, hang, delete | Whether it is the active theme |
-| Health | The three observations | Spend history | — | The whole screen is status |
+| Themes | Members in wall order | Name, count | Reorder, rename, hang, delete | Whether it is the active theme |
+| Status | The three observations | Spend history | — | The whole screen is status |
 
 **"Remove" is the wrong word for a *work*, and that control must not use it.**
 `Artwork.status` is `accepted` or `archived` and restoration is permitted — **there
@@ -733,16 +729,16 @@ almost no considered empty states.
 
 | Screen | Empty | Loading | Error |
 |---|---|---|---|
-| The Walls | Nothing hanging on a wall: name the reason (no active theme / empty theme / display plane silent) and offer the fix for that reason specifically | The frame, then the image | Cannot reach the display plane — say which of the two planes answered |
-| Collection | **Three different empties.** No works at all → an invitation into Discover. No works *matching the filter* → the filter, and how to clear it. **Filtered to one artist and holding none of them** → say so as a normal state and offer the search (see flow 1). Conflating the first two tells a curator with 3,000 works that they own nothing; conflating the third with the second reports the expected result of following a suggestion as a failed query | Skeleton tiles at the grid's real geometry, so nothing reflows | Partial page: show what arrived and say what did not |
+| Walls | Nothing hanging on a wall: name the reason (no active theme / empty theme / display plane silent) and offer the fix for that reason specifically | The frame, then the image | Cannot reach the display plane — say which of the two planes answered |
+| Artworks | **Three different empties.** No works at all → an invitation into Add New. No works *matching the filter* → the filter, and how to clear it. **Filtered to one artist and holding none of them** → say so as a normal state and offer the search (see flow 1). Conflating the first two tells a curator with 3,000 works that they own nothing; conflating the third with the second reports the expected result of following a suggestion as a failed query | Skeleton tiles at the grid's real geometry, so nothing reflows | Partial page: show what arrived and say what did not |
 | Work | n/a | Image placeholder at the work's own aspect ratio | Named per missing part — a work with no rendition is not a failed page |
-| Discover | No conversations and no runs → the intent box, prominent, with two or three worked examples | Per-turn, in the thread | A failed turn stays in the thread and is retryable; it never silently vanishes |
+| Add New | No conversations and no runs → the intent box, prominent, with two or three worked examples | Per-turn, in the thread | A failed turn stays in the thread and is retryable; it never silently vanishes |
 | Run | n/a — a run always has a status, and "no works yet" is a populated run in `resolving_works` | The sentence first, then the work table filling in beneath it without moving it | **The watch says whether it is still watching.** A blip is reported and retried; after five consecutive failures it says it has given up and to reload, because a page that stopped polling silently is indistinguishable from a live one |
 | Conversation | A thread with no turns → the intent box, with the same worked examples Discover offers | Per-turn, in the thread, with the turn in flight named as such | A failed turn stays in the thread and is retryable; it never silently vanishes |
 | Review | No candidates: which of the four kinds of nothing (Q12) | Per-card | Per-card, so one bad candidate does not blank the grid |
-| Theme | A theme with no members → how to add from Collection | Skeleton rows | Inline |
+| Themes | A theme with no members → how to add from Artworks | Skeleton rows | Inline |
 | Taste | No affinities yet → what would create some | — | Inline |
-| Health | n/a — every observation has a value, and "never reported" is one of them | Per observation, so a slow plane does not hold the other two | **A plane that cannot be reached is an observation, not a failed page.** This screen's subject is failure, so rendering an error over it would hide the thing it was opened to show |
+| Status | n/a — every observation has a value, and "never reported" is one of them | Per observation, so a slow plane does not hold the other two | **A plane that cannot be reached is an observation, not a failed page.** This screen's subject is failure, so rendering an error over it would hide the thing it was opened to show |
 
 **The loading state's job is to not move.** Skeletons occupy the final geometry.
 The built client has already been bitten by layout that reflows as images arrive

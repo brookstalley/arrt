@@ -132,7 +132,7 @@ class TestTheClientIsServed:
         response = http.get("/")
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
-        assert "<title>Curation</title>" in response.text
+        assert "<title>Curatarr</title>" in response.text
 
     def test_a_deep_link_survives_a_reload(self, http):
         """In-page navigation writes a fragment, but a bookmark is a real path.

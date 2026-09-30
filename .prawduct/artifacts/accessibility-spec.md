@@ -1125,7 +1125,18 @@ convenient".
 **Practised:**
 
 - A skip link to `#view` is the first focusable element, and `#view` carries
-  `tabindex="-1"` so it can receive the jump.
+  `tabindex="-1"` so it can receive the jump. **The link moves focus in script
+  and leaves the address alone**, because the hash router reads `#view` as a
+  page called "view" and a plain link sent the reader to the home page instead
+  (`core/router.js`, found and fixed 2026-09-30).
+- **The sidebar is a `nav` landmark labelled "Sections"**, and exactly one of its
+  links carries `aria-current="page"`: the page's own link, never its section's
+  as well. Below 40rem it is a drawer behind a menu button with
+  `aria-expanded`. Opening the drawer moves focus into it, Escape closes it, and
+  focus returns to the button.
+- **The System badge is a number, so the System link's name carries the words**:
+  *"System: 2 problems"*, or *"System: all well"* when there is no badge. The
+  top-bar indicator keeps its visible word beside it (glyph + word + colour).
 - `:focus-visible` draws a 2px outline at 2px offset, in a `--focus` token whose
   contrast against the surfaces it appears on is one of the pairs the token test
   computes. Focus visibility is therefore not a matter of care.

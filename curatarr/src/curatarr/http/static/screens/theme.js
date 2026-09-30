@@ -37,7 +37,7 @@ import { fitBadge, shortfallNote, table } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
 import { hangTheme } from "../core/hanging.js";
 import { el, guard, render } from "../core/render.js";
-import { backLink, go, refresh } from "../core/router.js";
+import { backLink, backRow, go, refresh } from "../core/router.js";
 
 export async function viewTheme(themeId, generation) {
   // The walls come along because hanging is an act against a named wall: a
@@ -81,7 +81,7 @@ export async function viewTheme(themeId, generation) {
     ]),
   ]);
 
-  const panels = [el("p", {}, [backLink()]), el("h2", { text: "Themes" }), create, ...notes];
+  const panels = [backRow(), el("h2", { text: "Themes" }), create, ...notes];
 
   /* The themes, in their own container so a delete can repaint them from the
    * answer it was given rather than reloading the screen. Nothing else on this

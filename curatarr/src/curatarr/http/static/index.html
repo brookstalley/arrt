@@ -3,29 +3,31 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Curation</title>
+    <title>Curatarr</title>
     <link rel="stylesheet" href="/static/app.css" />
   </head>
   <body>
     <a class="skip-link" href="#view">Skip to content</a>
-    <header class="masthead">
-      <h1>Curation</h1>
-      <!-- Three destinations, flat: no hierarchy above them, no drawer, no
-           nesting. Filled by the router from the route table in app.js, so the
-           labels have one source — a static copy here is a second place for the
-           navigation to stop matching what it navigates to. -->
-      <nav class="destinations" aria-label="Destinations"></nav>
+    <!-- The *arr layout (`information-architecture.md` § The *arr layout): a bar
+         across the top and a sidebar of sections down the left. -->
+    <header class="topbar">
+      <!-- Shown below 40rem only, where the sidebar becomes a drawer behind it. -->
+      <button class="menu-button" type="button" aria-controls="sidebar" aria-expanded="false">
+        <span class="glyph" aria-hidden="true">☰</span><span>Menu</span>
+      </button>
+      <h1 class="brand">Curatarr</h1>
       <!-- Persistent, because at thousands of works search is the primary
            retrieval mechanism and one you must first navigate to is one more
            step on the most frequent action. -->
       <form class="search" id="search-form" role="search">
-        <label class="visually-hidden" for="search">Search the collection</label>
-        <input type="search" id="search" name="q" placeholder="Search the collection" autocomplete="off" />
+        <label class="visually-hidden" for="search">Search artworks</label>
+        <input type="search" id="search" name="q" placeholder="Search artworks" autocomplete="off" />
         <button class="action quiet" type="submit">Search</button>
       </form>
-      <!-- The status indicator, and the whole of what makes demoting Health
-           safe: always present, reads "well" or names what is wrong, and expands
-           to the Health screen.
+      <!-- Always present, and never silent: reads "Well" or names what is wrong,
+           and opens System › Status. It stays beside the sidebar's System badge
+           rather than giving way to it, because a badge is a number and a state
+           needs a word (`core/status.js`).
 
            `aria-live` rather than `role="status"`, which means the same thing:
            the review grid's re-search offer is the page's `role="status"` region
@@ -33,18 +35,23 @@
            unrelated announcements tellable apart. It carries its own words
            before the first reading lands, because a status surface that is blank
            while it thinks is one a reader learns to ignore. -->
-      <button class="status-indicator" type="button" id="status" aria-live="polite" title="Open the health screen">
+      <button class="status-indicator" type="button" id="status" aria-live="polite" title="Open System › Status">
         <span class="glyph" aria-hidden="true">◌</span><span>Reading the panel&hellip;</span>
       </button>
     </header>
-    <main>
-      <!-- Failures are announced, not only shown: a curator who learns about a
-           refused operation by noticing a colour is a curator who misses it. -->
-      <p class="note error" id="error" role="alert" hidden></p>
-      <div id="view" tabindex="-1">
-        <p class="muted">Loading the catalogue&hellip;</p>
-      </div>
-    </main>
+    <div class="shell">
+      <!-- Filled by the router from the route table in app.js, so the labels
+           have one source. -->
+      <nav class="sidebar" id="sidebar" aria-label="Sections"></nav>
+      <main>
+        <!-- Failures are announced, not only shown: a curator who learns about a
+             refused operation by noticing a colour is a curator who misses it. -->
+        <p class="note error" id="error" role="alert" hidden></p>
+        <div id="view" tabindex="-1">
+          <p class="muted">Loading the catalogue&hellip;</p>
+        </div>
+      </main>
+    </div>
     <script type="module" src="/static/app.js"></script>
   </body>
 </html>

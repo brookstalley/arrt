@@ -102,6 +102,7 @@
   /* Layout. */
   --rail: 13rem;
   --masthead: 3.5rem;
+  --sidebar: 14rem;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -176,26 +177,28 @@ a {
 
 /* -- chrome ---------------------------------------------------------------- */
 
-/* The masthead carries four things and has to keep carrying them on a narrow
-   window: the brand, three destinations, a search box and a status indicator.
-   Wrapping rather than a fixed row, because the indicator is the one element
-   that must never be pushed off the page — it is the whole contract that makes
-   Health safe to demote. */
-header.masthead {
+/* The *arr layout: a bar across the top, a sidebar of sections down the left
+   (`information-architecture.md` § The *arr layout). The top bar carries the
+   brand, the search and the status indicator, and wraps rather than overflowing
+   on a narrow window, because the indicator is the one element that must never
+   be pushed off the page. */
+header.topbar {
   border-bottom: 1px solid var(--border);
   background: var(--surface-1);
-  padding: var(--space-4) var(--space-5) 0;
+  padding: var(--space-3) var(--space-5);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3) var(--space-4);
 }
 
-.masthead h1 {
+.topbar .brand {
   margin: 0;
   font: 400 var(--text-xl) / 1.2 var(--font-label);
   letter-spacing: 0.01em;
   color: var(--text-strong);
+  /* Sits above the sidebar's own column, so the two read as one strip. */
+  min-width: calc(var(--sidebar) - var(--space-5) - var(--space-4));
 }
 
 /* Available to a screen reader and to nobody else. Clipped rather than
@@ -212,15 +215,15 @@ header.masthead {
   white-space: nowrap;
 }
 
-.masthead .search {
+.topbar .search {
   display: flex;
   gap: var(--space-2);
   align-items: center;
-  /* Takes the slack, so the destinations stay left and the indicator right. */
-  margin-left: auto;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
-.masthead .search input {
+.topbar .search input {
   font: var(--text-sm) / 1.4 var(--font-ui);
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border-strong);
@@ -235,6 +238,9 @@ header.masthead {
    state is legible in the DOM to a reader who cannot see the hue. */
 .status-indicator {
   appearance: none;
+  margin-left: auto;
+  flex: 0 1 auto;
+  min-width: 0;
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -258,43 +264,150 @@ header.masthead {
   color: var(--warn);
 }
 
-nav.destinations {
-  display: flex;
-  gap: var(--space-1);
-  align-self: flex-end;
-}
-
-nav.destinations button {
+/* Shown only where the sidebar is a drawer; see the phone rules below. */
+.menu-button {
+  display: none;
   appearance: none;
-  border: 1px solid transparent;
-  border-bottom: none;
-  background: none;
-  color: var(--text-muted);
-  font: var(--text-sm) / 1 var(--font-ui);
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  font: var(--text-sm) / 1.2 var(--font-ui);
+  background: var(--surface-0);
+  color: var(--text);
   cursor: pointer;
 }
 
-nav.destinations button:hover {
+.shell {
+  display: grid;
+  grid-template-columns: var(--sidebar) minmax(0, 1fr);
+  align-items: start;
+}
+
+nav.sidebar {
+  position: sticky;
+  top: 0;
+  min-height: calc(100vh - var(--masthead));
+  background: var(--surface-1);
+  border-right: 1px solid var(--border);
+  padding: var(--space-4) 0;
+}
+
+nav.sidebar ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+nav.sidebar a {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-5);
+  color: var(--text-muted);
+  font: var(--text-sm) / 1.4 var(--font-ui);
+  text-decoration: none;
+  border-left: 3px solid transparent;
+}
+
+nav.sidebar a:hover {
   color: var(--text-strong);
 }
 
-/* The destination you are in is marked three ways — weight, an underline
-   rule, and aria-current — so the navigation reads correctly in greyscale and
-   to a screen reader, not only to someone who can see the accent. */
-nav.destinations button[aria-current="page"] {
+nav.sidebar .glyph {
+  width: 1.25em;
+  text-align: center;
+}
+
+/* The current section reads as open by weight; its pages sit indented under it.
+   The pages of every other section are hidden, as Sonarr hides them. */
+nav.sidebar li.section[data-open] > a.section-link {
   color: var(--text-strong);
   font-weight: 600;
-  border-color: var(--border);
-  background: var(--surface-0);
-  box-shadow: inset 0 -2px 0 var(--accent);
 }
 
+nav.sidebar ul.pages {
+  display: none;
+}
+
+nav.sidebar li.section[data-open] > ul.pages {
+  display: block;
+}
+
+nav.sidebar ul.pages a {
+  padding-left: calc(var(--space-5) + 1.25em + var(--space-3));
+}
+
+/* The page you are on is marked three ways — weight, a rule down its left edge,
+   and aria-current — so the sidebar reads correctly in greyscale and to a screen
+   reader, not only to someone who can see the accent. */
+nav.sidebar a[aria-current="page"] {
+  color: var(--text-strong);
+  font-weight: 600;
+  background: var(--surface-0);
+  border-left-color: var(--accent);
+}
+
+/* Sonarr's badge: a count on the System link when something is wrong. Its words
+   are the link's accessible name, set by `core/status.js`; the number is what a
+   sighted reader scans for. */
+.status-slot {
+  margin-left: auto;
+}
+
+.status-count {
+  display: inline-block;
+  min-width: 1.5em;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--warn);
+  border-radius: var(--radius-md);
+  background: var(--warn-quiet);
+  color: var(--warn);
+  font: 600 var(--text-xs) / 1.5 var(--font-ui);
+  text-align: center;
+}
+
+/* Below 40rem the sidebar is a drawer behind the menu button, as the *arr apps
+   do it. It overlays the page rather than pushing it, and `data-open` is set by
+   `core/sidebar.js`. */
+@media (max-width: 40rem) {
+  .menu-button {
+    display: inline-flex;
+  }
+
+  .topbar .brand {
+    min-width: 0;
+  }
+
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  nav.sidebar {
+    display: none;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(var(--sidebar), 85vw);
+    z-index: 20;
+    overflow-y: auto;
+    box-shadow: var(--shadow-2);
+  }
+
+  nav.sidebar[data-open] {
+    display: block;
+  }
+}
+
+/* No auto margins: in the shell's grid they would stop `main` stretching, and it
+   would shrink to whatever the view holds at the moment — a skeleton, then a
+   wider grid — so the page's width would jump as it loads. */
 main {
   padding: var(--space-5);
   max-width: 96rem;
-  margin: 0 auto;
+  min-width: 0;
 }
 
 h2 {

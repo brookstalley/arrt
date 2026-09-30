@@ -82,7 +82,7 @@ export async function viewDiscover(generation) {
     el("div", { class: "row" }, [start, talk, taste]),
   ]);
 
-  const panels = [el("h2", { text: "Discover" }), entry];
+  const panels = [el("h2", { text: "Add New" }), entry];
 
   // The conversations, above the searches they seed rather than below them: a
   // thread is where a search comes from, and the list reads in that order.

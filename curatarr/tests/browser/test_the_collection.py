@@ -63,7 +63,7 @@ def test_a_collection_holding_nothing_at_all_invites_the_curator_into_discover(u
     assert "Nothing by" not in ui.text()
     # The invitation, not merely the statement: an empty state that names no next
     # move is a dead end with better wording.
-    assert ui.page.locator("button:has-text('Go to Discover')").count() == 1
+    assert ui.page.locator("button:has-text('Go to Add New')").count() == 1
 
 
 def test_a_filter_matching_nothing_names_the_filter_and_offers_a_way_out(ui):
@@ -97,7 +97,7 @@ def test_filtering_to_one_artist_and_holding_none_says_so_as_a_normal_state(ui):
     # Named as normal rather than broken, and the offer is the search that would
     # actually find some — the collection holds none, so searching the collection
     # is not it.
-    assert ui.page.locator("button:has-text('Look for some in Discover')").count() == 1
+    assert ui.page.locator("button:has-text('Look for some in Add New')").count() == 1
 
 
 def test_an_artist_filter_with_a_search_beside_it_is_the_filter_empty(ui):
@@ -533,7 +533,11 @@ def test_the_rails_opener_goes_to_the_theme_rather_than_filtering_the_grid(ui, a
     ui.page.click("button[aria-label='Open Baroque']")
     ui.page.wait_for_selector("h2:has-text('Baroque')")
 
-    assert ui.page.evaluate("() => window.location.hash") == f"#theme/{theme.id}"
+    # With the opener, since the *arr navigation: a theme's own default return is
+    # the Themes page, so a theme opened from Artworks records that it came from
+    # there, and its back link returns there.
+    assert ui.page.evaluate("() => window.location.hash") == f"#theme/{theme.id}?from=collection"
+    assert ui.page.locator("#view button", has_text="←").first.inner_text() == "← Artworks"
     assert ui.page.locator("ul.grid").count() == 0, "opening a theme left the grid rather than filtering it"
 
 

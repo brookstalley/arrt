@@ -207,14 +207,14 @@ added for the Walls screen's single large heading.
 |---|---|
 | ≥ 60rem | Full layout. Theme rail vertical and sticky |
 | 40–60rem | Rail becomes a horizontal scroller of pill filters; work detail stacks |
-| < 40rem | Destinations move to a bottom bar; masthead keeps search and status only; grid at two columns |
+| < 40rem | The sidebar becomes a drawer behind a menu button, as in the *arr apps (`information-architecture.md` § The *arr layout); the top bar keeps the menu button, search and status; grid at two columns. *(Until 2026-09-30 this row said destinations moved to a bottom bar. That was never built.)* |
 
-**Every element in the masthead after the destinations must be allowed to
-compress** (`flex: 0 1 auto; min-width: 0`), and long labels ellipsize. This is
-stated as a rule because its absence is a defect the built surface already has —
-five non-wrapping tabs overflow a 375px viewport — and the prototype reproduced the
-same failure at *tablet* width the moment the status label grew. A masthead whose
-items cannot shrink will overflow again the next time a word gets longer.
+**Every element in the top bar after the brand must be allowed to compress**
+(`flex: 0 1 auto; min-width: 0`), and long labels ellipsize. This is stated as a
+rule because its absence was a defect the built surface had — five non-wrapping
+tabs overflowed a 375px viewport — and the prototype reproduced the same failure
+at *tablet* width the moment the status label grew. A top bar whose items cannot
+shrink will overflow again the next time a word gets longer.
 
 **Touch targets are keyed on the pointer, not the viewport.** `@media (pointer:
 coarse)` raises control heights to 2.75rem (44px). The 2.25rem default clears WCAG

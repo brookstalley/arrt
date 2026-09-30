@@ -62,12 +62,22 @@ ROUTES = {
 }
 
 
+#: The fallback these tests pass, as the router passes the real home (the first
+#: sidebar page in `app.js`'s table). The home is decided there, not defaulted
+#: inside `route.js`, so what is tested here is that the parser lands on whatever
+#: it is given. `health` because no test in this file asks for it: landing on it
+#: can only mean falling back, where the real home would also be what several
+#: tests ask for by name.
+HOME = "health"
+
+
 def parse(fragment: str, *, path: str = "") -> dict:
-    """Run `parseRoute` in node and hand back what it returned."""
+    """Run `parseRoute` in node, as the router calls it, and hand back what it returned."""
     driver = f"""
         const module = await import({json.dumps(ROUTE_MODULE.as_uri())});
         const routes = {json.dumps(ROUTES)};
-        const answer = module.parseRoute({json.dumps(fragment)}, routes, {{ path: {json.dumps(path)} }});
+        const options = {{ path: {json.dumps(path)}, fallback: {json.dumps(HOME)} }};
+        const answer = module.parseRoute({json.dumps(fragment)}, routes, options);
         process.stdout.write(JSON.stringify(answer));
     """
     result = subprocess.run(
@@ -114,7 +124,7 @@ def test_a_screen_that_addresses_one_thing_is_not_entered_without_one():
     Falling back is what makes a truncated or half-typed address land somewhere
     a curator can act from.
     """
-    assert parse("#work")["view"] == "walls"
+    assert parse("#work")["view"] == HOME
 
 
 def test_an_id_is_decoded():
@@ -197,8 +207,8 @@ def test_a_screen_that_requires_an_id_is_still_refused_without_one():
     a trailing slash somebody's copy-paste left behind. Neither may become a
     screen now that "no tail" has a legitimate meaning for a different route.
     """
-    assert parse("#work")["view"] == "walls"
-    assert parse("#work/")["view"] == "walls"
+    assert parse("#work")["view"] == HOME
+    assert parse("#work/")["view"] == HOME
 
 
 def test_an_id_that_will_not_decode_is_used_as_it_stands():
@@ -269,7 +279,7 @@ def test_a_cleared_field_is_the_absence_of_state_rather_than_empty_state():
     ("old", "now"),
     [("#works", "collection"), ("#manifest", "walls"), ("#discovery", "discover"), ("#themes", "theme")],
 )
-def test_an_address_from_before_the_three_destinations_opens_the_screen_that_took_over(old, now):
+def test_an_address_from_before_the_reshape_opens_the_screen_that_took_over(old, now):
     """These have been real, reloadable paths since the client was built.
 
     A bookmark that lands on the default screen is a curator told, wrongly, that
@@ -300,5 +310,5 @@ def test_a_fragment_outranks_the_path():
 
 
 def test_an_address_naming_nothing_lands_on_the_product_home():
-    assert parse("#nonsense", path="/nonsense")["view"] == "walls"
-    assert parse("")["view"] == "walls"
+    assert parse("#nonsense", path="/nonsense")["view"] == HOME
+    assert parse("")["view"] == HOME

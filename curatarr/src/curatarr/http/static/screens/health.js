@@ -21,7 +21,7 @@
 import { api } from "../core/api.js";
 import { facts } from "../core/badges.js";
 import { el, render } from "../core/render.js";
-import { backLink } from "../core/router.js";
+import { backRow } from "../core/router.js";
 
 /* The display plane's own report, whatever it chose to put in it.
  *
@@ -131,8 +131,8 @@ export async function viewHealth(generation) {
   const box = health.artwork_box;
   render(
     generation,
-    el("p", {}, [backLink()]),
-    el("h2", { text: "Health" }),
+    backRow(),
+    el("h2", { text: "Status" }),
     // The server's own summary of the readings below it. Shown as prose and
     // used for nothing else: it applies no threshold and reaches no verdict, so
     // deriving a state from it here would be inventing a judgement the plane

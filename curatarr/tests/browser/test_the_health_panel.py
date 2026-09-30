@@ -52,7 +52,7 @@ def test_the_panel_names_every_wall_it_is_reporting_on(ui, settings, two_walls):
     _reported(settings, living_room)
 
     ui.open("#health")
-    ui.page.wait_for_selector("h2:has-text('Health')")
+    ui.page.wait_for_selector("h2:has-text('Status')")
 
     # `.wall-reading h3` since the client was split into modules: each wall's
     # reading became a panel of its own with its name as the heading, where it had

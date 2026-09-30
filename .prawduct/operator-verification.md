@@ -10,6 +10,24 @@ each entry, which is the durable form.
 
 ## Pending
 
+### The *arr sidebar, at desktop width and on a phone — added 2026-09-30
+
+**`build-plan-arr-navigation.md` Chunk 02.** The three tabs are now a Sonarr-style
+sidebar: Artworks (home, with Add New and Themes beneath it), Walls, Settings ›
+Taste, and System › Status with a problem-count badge. The top bar keeps the
+search and the status indicator. Run it (`cd curatarr && uv run python -m
+curatarr`) and open it in a browser.
+
+1. **Does it feel like Sonarr?** The question the owner's ruling asks: would a
+   Sonarr user find each page where they expect it? Click through every section.
+2. **Does the sidebar crowd the Walls page?** It takes 14rem on every page,
+   including the one whose content is the artwork.
+3. **Stop a wall's heartbeat or remove the backup receipt:** the System link
+   should show a count, and the top-bar indicator should name the problem.
+4. **Narrow the window below 40rem** (or open it on a phone): the sidebar
+   should be gone behind a Menu button, which opens it as a drawer. Escape
+   closes it.
+
 ### Switch the Pi to HTTP mode, and let it soak — added 2026-09-30
 
 **Wave 2b Chunk 04.** Arrt can now pull its wall from Curatarr instead of

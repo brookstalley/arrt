@@ -174,7 +174,7 @@ def test_leaving_the_run_view_stops_its_polling(at_the_gate):
     # masthead indicator that replaced the tab. What this test is about is
     # unchanged: navigating away from a run must stop its watch.
     ui.page.click("#status")
-    ui.page.wait_for_selector("h2:has-text('Health')")
+    ui.page.wait_for_selector("h2:has-text('Status')")
 
     settled = len(ui.requests_matching(f"/api/runs/{RUN_ID}"))
     ui.page.wait_for_timeout(POLL_MS * 2 + 500)

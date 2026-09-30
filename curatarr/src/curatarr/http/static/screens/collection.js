@@ -649,10 +649,10 @@ function emptyState(query, chosen, showingTheme, themeName) {
         class: "muted",
         text:
           "That is the normal answer, not a failed search: the collection holds what has been acquired, " +
-          "not everything that exists. Discover is where more comes from.",
+          "not everything that exists. Add New is where more comes from.",
       }),
       el("div", { class: "row" }, [
-        el("button", { class: "action", type: "button", text: "Look for some in Discover", onclick: () => go("discover") }),
+        el("button", { class: "action", type: "button", text: "Look for some in Add New", onclick: () => go("discover") }),
         el("button", {
           class: "action quiet",
           type: "button",
@@ -668,10 +668,10 @@ function emptyState(query, chosen, showingTheme, themeName) {
       el("h3", { text: "Nothing is held yet." }),
       el("p", {
         class: "muted",
-        text: "The collection fills from Discover: ask for something, judge what comes back, and what you accept lands here.",
+        text: "Artworks fill from Add New: ask for something, judge what comes back, and what you accept lands here.",
       }),
       el("div", { class: "row" }, [
-        el("button", { class: "action", type: "button", text: "Go to Discover", onclick: () => go("discover") }),
+        el("button", { class: "action", type: "button", text: "Go to Add New", onclick: () => go("discover") }),
       ]),
     ]);
   }

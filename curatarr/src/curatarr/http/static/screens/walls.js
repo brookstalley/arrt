@@ -97,7 +97,7 @@ export async function viewWalls(generation) {
  * which is this one: the product's home saying so, at a size nothing else on the
  * client reaches. */
 function heading() {
-  return el("h2", { class: "walls-heading", text: "The Walls" });
+  return el("h2", { class: "walls-heading", text: "Walls" });
 }
 
 /* The fact the MCP surface already states after an unhang, said here too: taking

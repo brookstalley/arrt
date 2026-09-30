@@ -30,7 +30,7 @@
 import { api } from "../core/api.js";
 import { confirmAct } from "../core/confirm.js";
 import { el, guard, render } from "../core/render.js";
-import { backLink, go, refresh } from "../core/router.js";
+import { backRow, go, refresh } from "../core/router.js";
 import { REACTIONS, recordReaction } from "../core/taste.js";
 
 /* The six kinds, in the words a curator reads rather than the enum's.
@@ -92,7 +92,7 @@ export async function viewTaste(generation) {
 }
 
 function paint(taste, generation) {
-  const panels = [el("p", {}, [backLink()]), el("h2", { text: "What this product thinks you like" })];
+  const panels = [backRow(), el("h2", { text: "What this product thinks you like" })];
 
   if (!taste.count) {
     panels.push(empty());
@@ -134,7 +134,7 @@ function empty() {
         "tell me more — is what records a judgment here.",
     }),
     el("div", { class: "row" }, [
-      el("button", { class: "action", type: "button", text: "Start a conversation in Discover", onclick: () => go("discover") }),
+      el("button", { class: "action", type: "button", text: "Start a conversation in Add New", onclick: () => go("discover") }),
     ]),
   ]);
 }
