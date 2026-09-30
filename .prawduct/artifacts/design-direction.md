@@ -48,7 +48,10 @@ colour written outside the token blocks**.
 > colour wearing a token's name.
 >
 > **Status:** steady-state. Ratified by the owner 2026-08-11, together with the
-> navigation norm in `information-architecture.md`.
+> navigation norm in `information-architecture.md`. *(That navigation norm was
+> amended to the *arr layout on 2026-09-30. This token norm is unchanged, and the
+> amendment keeps the current palette: the *arr apps' look was offered and not
+> chosen.)*
 >
 > **Retroactivity:** the revised palettes are **not** in `app.css`, so the norm's
 > own subject does not conform on the day it was ratified. That is deliberate and

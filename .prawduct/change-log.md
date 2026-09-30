@@ -56,6 +56,25 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-09-30: The *arr navigation, planned (norm amended)
+
+<!-- prawduct: chunks=01 | scope=arr-navigation -->
+
+**Why:** the owner ruled that Curatarr's browser surface should be laid out like
+the *arr apps: *"More important to be familiar than to have our own thing."*
+
+**What changed:**
+- `information-architecture.md` § Direction is amended, and states what the old
+  norm (three destinations, organised around what a curator does) gave up.
+  § The *arr layout (new) places each page by its Radarr precedent, and records
+  Sonarr's two-scope search from its source.
+- `project-preferences.md`'s enforcement row and `design-direction.md`'s token
+  norm note the amendment.
+- `re-architecture.md` § Open questions gains external identity (Wikidata, ULAN)
+  before Watches: use registries, never become one.
+- `build-plan-arr-navigation.md` plans the build in five chunks. Chunk 01 is
+  this entry.
+
 ## 2026-09-30: The Library/Programming seam, and the Player pulls over HTTP (wave 2b)
 
 <!-- prawduct: scope=wave-2b-seams-and-http -->

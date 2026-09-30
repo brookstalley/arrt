@@ -20,8 +20,9 @@ those differ is marked **CHANGE** with the reasoning.
 > plane becomes the **server** of a two-product system. That server holds a
 > *Library* (what exists and what to acquire) and *Programming* (what hangs
 > where), and it runs on the household NAS rather than the Pi. **This remains the
-> one human interface, and the navigation norm below is unchanged**: the Walls,
-> Collection and Discover are still the destinations. What moves underneath:
+> one human interface.** *(The navigation norm below was amended later the same
+> day, to the *arr layout. The owner's ruling and its cost are in § Direction.)*
+> What moves underneath:
 > themes become **playlists** owned by Programming, possibly smart ones defined
 > by rules over facts and tags; a second, open layer of *programming tags* sits
 > beside the Library's facets; and **Watches** (standing searches) join
@@ -31,31 +32,49 @@ those differ is marked **CHANGE** with the reasoning.
 
 ## Direction
 
-<!-- Ratified by the owner 2026-08-11. Enforcement row in project-preferences.md. -->
+<!-- Ratified by the owner 2026-08-11. Amended by the owner 2026-09-30. Enforcement row in project-preferences.md. -->
 
-**The curation surface is organised around what a curator does, never around the
-pipeline's stages.** Three destinations — the Walls, Collection, Discover — and a
-new screen earns a place in that navigation only by being a thing a curator sets
-out to do, not by being a subsystem that acquired a UI.
+**The curation surface is laid out like the *arr apps.** It has a sidebar of
+sections, each with its pages listed beneath it, a top bar that carries search,
+a toolbar on list pages, and the library as the home page. If Curatarr has a
+page that an *arr app also has, it goes where the *arr app puts it and uses the
+*arr app's name. If Curatarr has a page no *arr app has, it goes in the section
+whose *arr meaning is closest. A new top-level section needs an *arr precedent
+(Wanted, Calendar) or an owner ruling. A subsystem that gains a UI gets a page
+inside an existing section, not a section of its own.
 
-> **Why:** the built surface's five tabs were the pipeline's stages in pipeline
-> order, and each one was correct as the chunk that produced it. That is the
-> failure mode this norm exists to catch: it is invisible per-chunk and only
-> visible in the sum, so no per-chunk review would ever have caught it. A sixth
-> subsystem will want a sixth tab for exactly the same locally-good reasons.
+> **Why:** the owner ruled on 2026-09-30: *"More important to be familiar than to
+> have our own thing."* Curatarr runs on the NAS beside Sonarr, Radarr and
+> tacularr (`re-architecture.md` § Deployment target), and its operator moves
+> between them. A page placed where every sibling app places it takes no effort to
+> find. A page placed where only Curatarr would place it has to be learned, and
+> relearned by anyone else who opens it.
 >
-> **Enforcement is judgment (Critic), not a test.** The violation is a
-> destination that names a stage rather than an intention, which has no import
-> signature and no grep.
+> **What the amendment replaced, and what it costs.** The 2026-08-11 statement
+> read: *"The curation surface is organised around what a curator does, never
+> around the pipeline's stages."* It required three flat destinations (the
+> Walls, Collection, Discover), no drawer, and the Walls as home. Its why was that
+> five tabs named for pipeline stages had each been correct as the chunk that
+> produced it, and wrong in the sum. The *arr layout knowingly breaks that rule in
+> two places: **Activity** (Queue, History) and **System** (Status) are organised
+> around how the software works. The owner's ruling accepts that cost. *(Builder's
+> reading, 2026-09-30:)* the old why survives in one clause. A subsystem that
+> gains a UI still does not get a section of its own, which is the last sentence
+> of the statement. That clause catches the same sixth-tab drift the old norm was
+> written against.
 >
-> **Status:** steady-state. Ratified by the owner 2026-08-11, together with the
-> token norm in `design-direction.md`.
+> **Enforcement:** the Critic judges placement and naming, because neither can be
+> found with a grep. The browser suite holds the sidebar's shape (its sections, their
+> pages, and the home page) from `build-plan-arr-navigation.md` Chunk 02 on.
 >
-> **Retroactivity:** the built surface does **not** conform — five tabs named for
-> pipeline stages — and this artifact is the plan for making it do so. The norm was
-> ratified in that state deliberately: it binds the work that reshapes the surface,
-> and a norm written only after the code already agreed with it would have bound
-> nothing. No code changed on the commit that introduced it.
+> **Status:** in-transition. `build-plan-arr-navigation.md` is the migration and
+> tracks it, and is meant to land in the same PR as this amendment. Interim rule:
+> until that plan's Chunk 02 lands, the built three destinations stay as they are,
+> and no screen is added to them. A new screen waits for the sidebar.
+>
+> **Retroactivity:** migrate: `build-plan-arr-navigation.md`. The built surface
+> does not conform, since it has three destinations and opens on the Walls. If the
+> plan merges as one PR, the norm is steady-state at merge with no residual sites.
 
 **A working prototype of everything below is committed beside this file:**
 `prototypes/curation-ia-prototype.html` — one self-contained page, no build step,
@@ -161,7 +180,103 @@ It becomes a rail inside Collection — a filter that is also editable — plus 
 > the themes that remain, and the addressed view has to leave, because the thing
 > it addresses is gone.
 
+## The *arr layout (target, amended 2026-09-30)
+
+This is the layout § Direction now requires. It is **not built yet**:
+§ Navigation Structure below still describes what runs today, and
+`build-plan-arr-navigation.md` replaces that section with this one chunk by
+chunk. The owner chose the name, the home page and the scope on 2026-09-30. The
+placement of each page is the builder's reading of Radarr, and each placement is
+listed below so it can be disputed.
+
+```
+┌──────────────┬──────────────────────────────────────────────┐
+│ Curatarr     │ [ Search artworks…                        ]  │
+├──────────────┼──────────────────────────────────────────────┤
+│ ▣ Artworks   │  actions …                View ▾ Sort ▾ Filter ▾
+│   Add New    │                                              │
+│   Themes     │                                              │
+│ ▢ Walls      │                                              │
+│ ↻ Activity   │                                              │
+│   Queue      │                                              │
+│   History    │                                              │
+│ ⚙ Settings   │                                              │
+│   Taste      │                                              │
+│ ♥ System  ②  │                                              │
+│   Status     │                                              │
+└──────────────┴──────────────────────────────────────────────┘
+```
+
+| Sidebar entry | Was | The *arr page it follows |
+|---|---|---|
+| **Artworks** (home) | Collection, with Work as its detail page | Radarr's Movies index and movie page. Named with the plural noun of the item, as every *arr app names this section |
+| Artworks › **Add New** | Discover's intent box and its conversations | Radarr's Add New: search a source for something to add |
+| Artworks › **Themes** | Theme, index and one theme | Radarr's Collections: a named grouping of items in the library |
+| **Walls** | The Walls | No *arr page. It sits second, in Calendar's slot, because the wave-4 schedule (`re-architecture.md` § The manifest is a schedule) is the nearest *arr idea to "what is showing when" |
+| Activity › **Queue** | Discover's run list: runs working or waiting for review | Radarr's Queue: work in flight. Run and Review open from here |
+| Activity › **History** | Discover's run list: finished runs | Radarr's History |
+| Settings › **Taste** | Taste | Radarr's Profiles: the preferences that rank what it finds |
+| System › **Status** | Health, with the spend record | Radarr's System › Status, with health checks at the top |
+
+- **Sub-pages show only under the current section**, as in Sonarr and Radarr.
+  Other sections show just their names.
+- **Health gets the *arr badge on System, and keeps the status indicator in the
+  top bar.** The badge shows the number of problems, as Sonarr's does. A number
+  alone breaks `accessibility-spec.md`'s rule of glyph plus word plus colour, which
+  says a state indicator with no word is a bug at every viewport. So the badge
+  cannot carry the old indicator's contract (always present, never silent). The
+  top-bar indicator keeps it, reading "well" or naming what is wrong, and opens
+  System › Status. tacularr's top bar carries its status the same way.
+  *(Builder's collision ruling, 2026-09-30: the accessibility rule outranks
+  familiarity where they meet, because the familiarity norm governs where things
+  are and what they are called, not whether a state can be read. The owner can
+  overrule it.)*
+- **One search box, two scopes, as in Sonarr.** Read from Sonarr's source on
+  2026-09-30 (`frontend/src/Components/Page/Header/SeriesSearchInput.js` and
+  `AddSeries/AddNewSeries/AddNewSeriesSearchResult.js`; Radarr shares the code):
+  - The top-bar box searches **the library** as you type. Its dropdown has two
+    groups: *Existing Series*, the library's matches, and *Add New Series*, one
+    row reading *"Search for {query}"*. Picking a match opens it, and picking the
+    second row goes to `/add/new?term={query}`.
+  - On Enter, Sonarr opens the first library match, or goes to Add New when
+    nothing in the library matches.
+  - Add New searches **everywhere** (TVDB). A result already in the library is
+    marked *"Already in your library"*, and clicking it opens the library entry
+    instead of the add dialog.
+
+  Curatarr follows that shape. The groups read *In your library* and *Search
+  museums for "{query}"*. Picking the second goes to `#add?term={query}`, and a
+  candidate that is already an accepted work is marked *Already in your
+  library* and opens that work. **Two departures, each forced by a fact Sonarr
+  does not face:**
+  - **Add New fills in the term and does not start the search.** Sonarr's lookup
+    is free and instant. Curatarr's is a discovery run, which takes minutes and
+    spends money, so Add New shows the free estimate beside the filled-in box
+    and the curator presses Search. *(Builder's ruling: nothing may spend on a
+    keystroke.)*
+  - **Enter opens Artworks filtered to the query, not its first match.** A series
+    title usually matches one series, but an artist or a movement matches many
+    works, so the first match is an arbitrary one. Opening the filtered library
+    keeps today's behaviour, where search is the main way to find things at
+    thousands of works. The matches in the dropdown are still one arrow key
+    away. *(Builder's proposal, which departs from Sonarr. It needs the owner's
+    ruling, since the norm says to follow Sonarr.)*
+- **The toolbar** on list pages puts actions on the left and View, Sort and
+  Filter on the right. On Artworks, View offers Posters, Overview and Table.
+  Posters and Overview replace today's contact sheet and catalogue, and Table is
+  new.
+- **Wanted is not shown yet.** It is where *Cutoff Unmet* (works below the
+  quality profile's cutoff, `re-architecture.md` wave 4) and *Missing* (a Watch's
+  unmet wants, wave 6) land, and it appears when the first of those exists.
+  Watches themselves follow Radarr's Lists and go under Settings.
+- **On phones the sidebar becomes a drawer** behind a menu button, as it does in
+  the *arr apps. This replaces the bottom bar in `design-direction.md`'s layout
+  table.
+
 ## Navigation Structure
+
+**As built until `build-plan-arr-navigation.md` Chunk 02 lands. After that, the
+section above is the navigation.**
 
 **Primary pattern: three destinations, flat.** No hierarchy above them, no drawer,
 no nesting.
@@ -277,7 +392,8 @@ wall). That is what lets the health panel meet this artifact's requirement to na
 section per wall with no single-wall layout underneath it, the Theme screen hangs
 on named walls and takes down from them, and Collection, Discover, Work, Review,
 Conversation and Taste all ship — with the navigation being the three
-destinations this section's Direction asks for rather than a list of screens.
+destinations the Direction asked for until its 2026-09-30 amendment, rather than a
+list of screens.
 Every layout described in this artifact is built.
 
 **What is not built is named where it is described, not here.** A blanket "the
@@ -713,8 +829,10 @@ by `re-architecture.md` (`archive/build-plan.md`).
   2026-09-30; see `re-architecture.md`)*. Each needs a home that satisfies the
   navigation norm, meaning a thing a curator sets out to do rather than a
   subsystem that acquired a tab:
-  - **Watches** most plausibly belong under Discover, as the standing form of a
-    run.
+  - **Watches** follow Radarr's Lists under Settings, and what they still want
+    appears under Wanted › Missing. *(Changed 2026-09-30 with the *arr
+    amendment. The earlier answer was under Discover, as the standing form of a
+    run.)*
   - **Programming tags** belong on Collection and Work, beside the facets they
     are deliberately distinct from.
   - **Smart-playlist rules** belong on the Theme screen.
