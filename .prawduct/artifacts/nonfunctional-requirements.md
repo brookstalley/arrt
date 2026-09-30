@@ -179,7 +179,8 @@ latency numbers in the product, and they are inherited, not chosen.
 
 > **Direction changed 2026-09-30. See `re-architecture.md`.** Image preparation
 > leaves the Pi in wave 3, when the server moves to the NAS. That covers
-> acquisition, tiling, mat-colour analysis and the presentation master. In wave 4
+> acquisition, tiling and mat-colour analysis, and from wave 4 the presentation
+> master, which does not exist before then. In wave 4
 > the Pi takes on a **new** preparation cost: compositing the mat around a
 > presentation master (long edge capped at about 8K, to be measured) at its own
 > screen's geometry, and, in caption mode, setting the label into the mat. That
@@ -514,7 +515,7 @@ curator every judgement they have already made. So:
 > unchanged: the curatorial layer is the irreplaceable asset, and images are
 > not. What moves:
 > - **Where it lives.** The catalogue moves to NAS storage in wave 3.
-> - **How many files it is.** Wave 6 splits the store into a Library file and a
+> - **How many files it is.** Wave 3 splits the store, before it moves, into a Library file and a
 >   Programming file, with no foreign keys between them. Both hold curatorial
 >   judgement: the Library holds verdicts, suppression, mat colours, facets and
 >   taste; Programming holds playlists, hanging, directive counters and
@@ -1138,17 +1139,16 @@ the numbers reproduce. Panel dimensions therefore join
 > The worked examples remain the specification the Player's compositor must
 > reproduce.
 >
-> **The floor is the open problem this move creates.** Today the
-> below-floor exclusion in automatic instance selection (`services/selection.py`)
+> **The floor was the open problem this move created, and it is settled.** Today
+> the below-floor exclusion in automatic instance selection (`services/selection.py`)
 > reads the artwork box from server settings. After wave 4 the Library has no box
-> to read. The options:
-> - a device-independent Library floor in pixels;
-> - a reference geometry that Programming derives from Players' reported
->   geometry and hands to the Library as a plain number;
-> - moving the floor judgement to review time only.
->
-> It is unresolved and must be settled in the wave-4 plan. Losing the floor
-> silently would let a below-floor scan be auto-selected, the exact silent
+> to read. Later on 2026-09-30 the floor became a **Library quality profile** in
+> pixels, independent of any device, with a minimum that selection and the review
+> card judge against and an upgrade cutoff (`re-architecture.md` § Compositing
+> moves to the Player). Per-wall adequacy is Programming's comparison against the
+> geometry each Player reports. The wave-4 plan states the profile's numbers and
+> must land it in the same change that removes the panel settings. Losing the
+> floor silently would let a below-floor scan be auto-selected, the exact silent
 > acceptance this section forbids.
 
 Everything else follows arithmetically:
@@ -1235,4 +1235,4 @@ one — see `design_decisions.accessibility_approach`.
 | Acquisition pipeline design | The minimum-resolution floor — **resolved 2026-07-20**: a minimum rendered size in inches, derived from panel geometry and mat width, both deployment values |
 | `operational-spec.md` | Panel geometry joins `ART_ROOT` as configuration both planes must agree on |
 | Build plan | The search-engine spike, with its stated comparison constraint |
-| `re-architecture.md` *(added 2026-09-30)* | Four things this artifact now owes a wave plan: a Player compositing-cost budget (wave 4); where the resolution floor lives once the server has no geometry (wave 4); backing up two catalogue files as a pair (wave 6); detection for server-side scheduled jobs such as Watches and upgrades (wave 6) |
+| `re-architecture.md` *(added 2026-09-30)* | Four things this artifact now owes a wave plan: a Player compositing-cost budget (wave 4); the resolution floor, settled later on 2026-09-30 as a Library quality profile in pixels, whose numbers wave 4 states; backing up two catalogue files as a pair (wave 3); detection for server-side scheduled jobs such as Watches and upgrades (wave 6) |

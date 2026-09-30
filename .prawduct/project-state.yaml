@@ -96,11 +96,15 @@ classification:
     multi_process_distributed:
       topology: shared-filesystem-pipeline
       # FLIP RECORDED 2026-09-30 by the owner, effective at re-architecture wave 2.
+      # AMENDED later on 2026-09-30 by the advisor, in review, to wave 3: wave 2
+      # puts HTTP between two processes still on one Pi, and the processes first
+      # run on separate machines in wave 3. Vetoable.
       # The value above stays as long as it describes the running system. The
       # target is `client-server`: one server (Library plus Programming) as a
       # container on the operator's NAS, and one Player per wall pulling an HTTP
-      # manifest and content-addressed media into a local cache. It is
-      # multi-process AND distributed from wave 2 on, so the resilience story in
+      # manifest and content-addressed media into a local cache. Wave 2 puts an
+      # HTTP protocol between the processes while both still run on the Pi. From
+      # wave 3 they run on separate machines, and it is distributed, so the resilience story in
       # architecture.md grows the network rows it was able to omit. Re-derivation
       # and the assumption audit are owed per docs/norms.md § Ambient norms. They
       # were begun 2026-09-30 as forward notes across the artifacts, and are
@@ -743,6 +747,36 @@ technical_decisions:
         Compositing moves to the Player. The repos split last, after the
         contract settles. Full record, rulings, waves and open questions:
         artifacts/re-architecture.md.
+    - decision: "What is showing is coordinated centrally, and how it is shown is local to each device. Walls exist only in Programming, as logical targets. Settings flow down in the manifest, and capabilities flow up in the heartbeat. From schema major 2 the manifest is a time-anchored schedule, with scenes as a live override layer and a staging hint."
+      date: 2026-09-30
+      alternatives_considered:
+        - "The server renders each wall's image from reported geometry, as a Plex server transcodes for its clients. Proposed by the advisor in review and withdrawn: it puts how a work is shown on the server, against the operator's split."
+        - "Each Player shuffles its own playlist, as today. Rejected: walls cannot be coordinated (no duplicates across walls, changing together) without a central calculation."
+        - "A true push channel for live control. Rejected: it puts a network listener, and so authentication, on every Player. A 1 s ETag poll delivers a scene in about a second, and the real latency is rendering, which staging addresses."
+      rationale: >
+        The operator's framing: the server "should not even have the concept of
+        walls, and should only have media management", but walls' "rotations and
+        displays should be coordinated and not require me to go change settings
+        on each player individually". The Library has no walls. Programming holds
+        walls as logical targets, with the schedule, scenes and wall settings
+        (label mode, mat proportions, viewing distance). The Player holds only
+        what reaches its hardware and the server, and reports its capabilities.
+        Scenes answer the operator's requirement to try a combination (three
+        Dalis in the living room) without writing a schedule: a preview expires
+        back to the schedule on its own, so a test cannot strand a wall. Full
+        text: artifacts/re-architecture.md § What is showing, and how it is shown.
+        Advisor's proposal, accepted as "This makes sense"; vetoable.
+    - decision: "The resolution floor is a Library quality profile in pixels, with a minimum and an upgrade cutoff. Per-wall adequacy is Programming's comparison against the geometry each Player reports."
+      date: 2026-09-30
+      alternatives_considered:
+        - "A reference geometry derived from the largest screen any Player reports. Rejected: it puts device geometry in the Library."
+        - "Judge adequacy only at hang time. Rejected: review would accept scans no wall could use."
+      rationale: >
+        When TV_PANEL_* and MAT_* leave the server in wave 4, instance selection
+        and the review card lose their input, and below-floor scans would be
+        auto-selected silently. A pixel profile names no device, and its cutoff
+        is what the wave 6+ upgrade job needs anyway (Radarr's quality profile).
+        Advisor's recommendation, 2026-09-30; vetoable.
     - decision: "Split into a curation plane and a display plane, communicating over a defined contract."
       rationale: >
         AMENDED 2026-07-19, same day, after auditing the constraint that originally
@@ -2504,9 +2538,13 @@ design_decisions:
 open_questions:
   # OPENED 2026-09-30 with the re-architecture (artifacts/re-architecture.md §
   # Open questions). Kept as one entry so they travel together until wave 1's
-  # plan splits them out.
-  - question: "Re-architecture open questions: product and repo names; the presentation master's size cap and encoding; Player auth on the LAN; directive latency (ETag poll or server-sent events); the smart-playlist rule language; mat colour per aspect ratio; the fate of v1 build-plan's open chunks; filing the program as backlog issues."
-    blocking: "Waves 1–4 of re-architecture.md. Player auth blocks wave 3's LAN listener."
+  # plan splits them out. Re-sorted later on 2026-09-30, after review: two
+  # questions settled (the wake/sleep window goes to Programming as gaps in the
+  # schedule; the resolution floor becomes a Library quality profile, which also
+  # answers what a review card shows about size), and the deferrals the forward
+  # notes carried were added.
+  - question: "Re-architecture open questions (artifacts/re-architecture.md § Open questions is the full text): product and repo names; Player auth on the LAN (before wave 2 ships the heartbeat POST); the Player cache's location (wave 2); the server image's provenance (before wave 3); the schedule horizon and a scene's default preview lifetime (wave 1 contract); the compositing budget on a Pi 4 (before wave 4); the quality profile's numbers (wave 4); the presentation master's size cap and encoding; directive latency (ETag poll or server-sent events); the smart-playlist rule language; mat colour per aspect ratio; facet editing in the UI; the Watch questions (prompt-injection re-derivation, whether auto-accept is offered, initiated_by, push alerts); the fate of the v1 plan's open chunks (wave 0); filing the program as backlog issues."
+    blocking: "Waves 0–4 of re-architecture.md. Player auth blocks wave 2's heartbeat POST; the compositing budget blocks planning wave 4."
     waiting_on: operator
     priority: high
   # RESOLVED 2026-08-11 by the operator: RATIFIED, with an amendment that is
@@ -2866,7 +2904,7 @@ user_expertise:
   evidence:
     - dimension: technical_depth
       signal: "Authors 3tears, a three-tier caching and agent framework with NATS KV, asyncpg, protocol-based backend seams, and RBAC-gated MCP."
-      inferred_from: "/Users/brookstalley/source/3tears"
+      inferred_from: "a local checkout of 3tears"
     - dimension: technical_depth
       signal: "Asked precisely the right question about the framework — 'is there really no way to avoid pulling in docker/postgres/nats' — rather than accepting the stack as given."
       inferred_from: "discovery, 2026-07-19"

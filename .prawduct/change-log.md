@@ -56,6 +56,39 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-09-30: Wave 1 begins: what is showing versus how, the schedule, scenes, and the waves re-cut
+
+<!-- prawduct: scope=re-architecture -->
+
+**Why:** A review of the morning's re-architecture found internal contradictions
+in the forward notes and four structural gaps. Separately, the operator framed
+the server's responsibilities: the server should manage media without knowing
+walls, yet walls must be coordinated without configuring each Player. This
+entry writes the resulting model and the approved review points into the
+artifacts.
+
+**What:** Documentation only. No code changed.
+- `re-architecture.md` gains § What is showing, and how it is shown:
+  - Walls exist only in Programming, as logical targets. Settings flow down and
+    capabilities flow up.
+  - From schema major 2 the manifest is a time-anchored schedule, with scenes as
+    a live override that expires back to it, and a staging hint.
+  - The resolution floor becomes a Library quality profile.
+  - These are recorded as vetoable decisions, each naming its author.
+- Seam rules 1, 2 and 4 move from wave 6 to wave 2, and rule 3 (the store split)
+  to the start of wave 3. Rule 4 gains a reconciliation duty at startup. Facet
+  population joins wave 6+, ahead of smart playlists. Major 2 carries every
+  breaking change at once.
+- The contradictions are reconciled across 12 other files: the floor options,
+  who judges adequacy, the wave for label mode, mat settings and the
+  presentation master, and when the system becomes distributed. The heartbeat
+  auth deadline moves to before wave 2.
+- Missing notes are added: two norm-index rows and two findings files. The open
+  questions are re-sorted in `project-state.yaml`, with two settled, and two
+  technical decisions are added.
+- Two home-directory paths that exposed a username are removed from the public
+  artifacts.
+
 ## 2026-09-30: Direction change — a Library/Programming server and a Player, documented before any code
 
 <!-- prawduct: scope=re-architecture -->

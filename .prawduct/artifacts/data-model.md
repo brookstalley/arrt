@@ -420,10 +420,13 @@ the art tree that rsync carries and git does not.
 
 > **Direction changed 2026-09-30.** The derived `display_fit` verdict above is
 > computed from panel geometry that the server will no longer hold after wave 4.
-> Target: a Player judges adequacy against its own geometry and reports it
-> in its heartbeat. Programming surfaces it per wall ("this work is too small for
-> the living room"). The Library keeps only `width` and `height`, as this section
-> already requires.
+> Target (settled later on 2026-09-30): the Player reports its geometry in its
+> heartbeat as a capability, and **Programming** judges adequacy per wall by
+> comparing it with the work's pixel dimensions ("this work is too small for the
+> living room"). The Player composes and does not judge. Selection and the review
+> card judge against the Library's quality profile, which is stated in pixels
+> and names no device. The Library keeps only `width` and `height`, as this
+> section already requires.
 
 ### Rendition
 
@@ -2335,10 +2338,43 @@ works whose verdict is `awaiting_better_image`) runs on the same scheduler.
 
 ### Player observation *(Programming)*
 
-A heartbeat may carry the Player's output geometry, label mode, cache state and
-per-work adequacy verdicts. Programming keeps the latest per wall for the health
-view. This is device information held by Programming as an **observation**,
+From wave 4, a heartbeat carries the Player's **capabilities**: output geometry,
+backend (Frame, LCD, monitor) and label hardware present. It also carries cache
+state. Programming keeps the latest per wall for the health view and the
+per-wall adequacy verdict, which Programming computes; the Player sends no
+verdicts. This is device information held by Programming as an **observation**,
 never as configuration, and never in the Library.
+
+### Wall settings *(Programming; fields on Wall)*
+
+Set centrally and sent down in the manifest, so the operator never configures a
+Player to change them: label mode (chosen from the capabilities the wall's Player
+reports), which facts the label shows, and viewing distance. Viewing distance is
+a fact about the room, and the Player uses it with its own geometry to size
+label type. Wave 4.
+
+### Schedule entry *(Programming)*
+
+A work for one wall over a time span (from, until), computed for all walls
+together over a horizon of about a day, so rules such as "no work on two walls
+at once" are central calculations. Dark hours are gaps. The Player follows the
+clock from its cache. Wave 4, with schema major 2.
+
+### Scene *(Programming)*
+
+A live override spanning walls: a pin per wall, and a lifetime of *preview*
+(expires back to the schedule), *hold* (until released) or *keep* (becomes
+ordinary Programming state). It generalizes today's per-wall directive, which
+already carries a sequence number. The manifest also lists works under
+**staging**, so Players fetch and compose a scene's works while it is being
+assembled. Wave 4.
+
+### Quality profile *(Library)*
+
+A resolution floor and an upgrade cutoff, in pixels, naming no device. Instance
+selection and the review card judge against the minimum. The upgrade job stops
+at the cutoff. It replaces the artwork box derived from `TV_PANEL_*` / `MAT_*`
+in wave 4.
 
 ## Deliberately not modelled
 

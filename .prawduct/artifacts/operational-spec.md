@@ -413,15 +413,20 @@ Panel geometry was briefly listed as a second shared value; it is not, because
 
 > **Direction changed 2026-09-30. See `re-architecture.md` § Compositing moves
 > to the Player.** In wave 4 the **TV panel geometry and the mat settings**
-> (`TV_PANEL_*`, `MAT_WIDTH_INCHES`, `MAT_BOTTOM_WEIGHT`) move from curation to
-> the Player, and become per-wall Player configuration next to the `EPD_*`
-> values. The server then holds no screen geometry at all. One more Player value
-> arrives with it: the **label mode** (e-ink panel, caption in the mat, or none).
-> A Player running caption mode is exactly the "device drawing its label into the
-> mat area" the `EPD_MARGIN_PX` note above anticipated.
+> (`TV_PANEL_*`, `MAT_WIDTH_INCHES`, `MAT_BOTTOM_WEIGHT`) leave curation's
+> configuration, and they split along "settings flow down, capabilities flow up"
+> (`re-architecture.md` § What is showing, and how it is shown). `TV_PANEL_*`
+> is a physical fact about the device, so it becomes Player configuration next to
+> the `EPD_*` values, and the Player reports it in its heartbeat. `MAT_*` is how
+> the operator wants a wall presented, so it becomes a **wall setting** in
+> Programming, sent in the manifest. The server then holds no screen geometry.
+> The **label mode** (e-ink panel, caption in the mat, or none) is a wall setting
+> too, chosen from what the Player reports. Caption mode arrives in wave 6+. A
+> Player running it is exactly the "device drawing its label into the mat area"
+> the `EPD_MARGIN_PX` note above anticipated.
 >
 > In wave 2 the shared `.env` stops being shared. The Player gains the server's
-> base URL and its wall id. The server keeps its own configuration, delivered as
+> base URL and a cache directory, and keeps the `WALL_ID` it already has. The server keeps its own configuration, delivered as
 > container environment on the NAS. The single root `.env` read by both planes is
 > a property of co-location and retires with it.
 
@@ -503,7 +508,7 @@ that will actually get run rather than skipped.
 > - **The source moves to the NAS in wave 3.** The backup then runs on the NAS,
 >   beside the server's storage, and "the destination is awake" stops being the
 >   limitation it is from a Pi.
-> - **Wave 6 splits the catalogue** into a Library file and a Programming file,
+> - **Wave 3 splits the catalogue**, before it moves, into a Library file and a Programming file,
 >   with no foreign keys between them. Both are curatorial and both are backed up,
 >   using the same SQLite backup API, taken together. The restore exercise has to
 >   cover the pair, including what a restored Programming file does with a work

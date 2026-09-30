@@ -64,8 +64,8 @@ stays version-free.
   work, to revisit after wave 2.
 - **The operator's open questions** are listed in `re-architecture.md` § Open
   questions and in `project-state.yaml` `open_questions`. The ones that block
-  planning: product and repo names; Player auth before wave 3; the resolution
-  floor's home before wave 4.
+  planning: product and repo names; Player auth before wave 2 ships the
+  heartbeat POST; the compositing budget on a Pi 4 before wave 4.
 - **This repo is public.** The operator's NAS deployment is recorded in their
   private homelab repo. Don't put network addresses, hostnames or usernames here.
 

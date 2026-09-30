@@ -122,7 +122,8 @@
   - The UI and MCP bindings stay the only code allowed to call both sides. A
     composition of two services' calls is still dispatch, not logic, so the
     thin-binding norm holds.
-  - Not built. Scheduled for wave 6 or later.
+  - Not built. The packages, the facade and the events are wave 2, ahead of the
+    HTTP manifest endpoint. The store split is wave 3.
 
 ### curation ↔ display contract
 
@@ -295,8 +296,8 @@
     halves and has to commit once" needs is a Library-internal fact. It is not
     affected, because acceptance is entirely Library-side.
   - This is a data migration, and so a rollback-is-a-restore change in the sense
-    `architecture.md` § Deployment & Version Skew records. Not built. Wave 6 or
-    later.
+    `architecture.md` § Deployment & Version Skew records. Not built. Wave 3,
+    first, so the catalogue moves to the NAS once.
 
 ### `ART_ROOT` filesystem contract
 

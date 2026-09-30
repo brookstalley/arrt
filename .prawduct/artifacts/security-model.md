@@ -60,8 +60,9 @@ curation plane publicly is a structural characteristic flip and triggers the ful
 re-derivation protocol, not a patch.
 
 > **Direction changed 2026-09-30 — see `re-architecture.md` § Seam 2 and
-> § Deployment target.** Three things change at this boundary, from wave 3
-> onwards. None of them is the public-exposure cliff above, and that paragraph
+> § Deployment target.** Three things change at this boundary. The first comes in
+> wave 3, and the other two in wave 2, when the HTTP routes first appear on the
+> server that already listens on the Pi. None of them is the public-exposure cliff above, and that paragraph
 > binds as it stands.
 >
 > 1. **The server moves from the Pi to the operator's NAS.** The surfaces stay
@@ -77,7 +78,9 @@ re-derivation protocol, not a patch.
 >    confidentiality one, and it cannot reach the catalogue. It is still the
 >    first write route held by something that is not the curator.
 > 3. **"Anyone on the network is the curator" needs a narrower statement for
->    that route.** Before wave 3 exposes the listener, decide one of:
+>    that route.** Before wave 2 ships the POST, decide one of. *(Moved
+>    later on 2026-09-30 from "before wave 3": the curation server on the Pi is
+>    already reachable on the LAN, so the route exists from wave 2.)*
 >    - (a) the LAN stays the whole boundary, and the heartbeat is accepted from
 >      any LAN host, recorded as an accepted risk; or
 >    - (b) each Player holds a per-wall token that the server checks on the
@@ -514,7 +517,7 @@ not an oversight.
   because the version numbers will move and one home for them is enough.
 - **Opened 2026-09-30:**
   - **Player authentication on the LAN** (§ Trust Boundary, the note on the
-    re-architecture). Decide before wave 3 exposes the listener.
+    re-architecture). Decide before wave 2 ships the heartbeat POST.
   - **The re-derivation of § Prompt Injection for Watches.** Owed by the plan
     that builds them, before any Watch runs unattended.
 

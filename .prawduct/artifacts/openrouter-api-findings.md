@@ -5,6 +5,14 @@ fake built against assumed shapes encodes the assumptions rather than testing
 them. Everything below is **measured**, not recalled or read from documentation,
 except where a line says otherwise.
 
+> **Direction changed 2026-09-30 — see `re-architecture.md` § Deployment
+> target.** § "The client is first-party, behind a seam" counts the install
+> landing on the Pi as one reason. From wave 3 the server, which holds this
+> client, runs as a container on the NAS. The decision stands on its other two
+> reasons: everything routes through one provider, and the eval harness's model
+> and the engine's model are unrelated roles. The Pi-install weight no longer
+> applies to it.
+
 **Two probe rounds, on different keys, and which one produced a finding matters
 when reading it.** The first used a **borrowed key** from another product on this
 machine (`limit` 10, not this product's ceiling): adequate for response shapes and

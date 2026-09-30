@@ -202,19 +202,29 @@ convenience would otherwise make that split a migration.
    Library-served and content-addressed. *Why:* events become webhooks and URLs
    repoint at the split, with no code change on the consuming side.
 
-> **Status:** `in-transition`, tracked by `re-architecture.md` wave 6 (backlog
-> items not yet filed). **Interim rule:** new code that touches themes, walls,
-> directives or manifests is written against the rules above wherever it can be
-> without the package split: no new cross-seam foreign keys, no new direct reads
-> of catalogue tables from `services/display.py`'s domain.
+> **Status:** `in-transition`, tracked by `re-architecture.md` § Order of work
+> (backlog items not yet filed). **Interim rule:** new code that touches themes,
+> walls, directives or manifests is written against the rules above wherever it
+> can be without the package split: no new cross-seam foreign keys, no new direct
+> reads of catalogue tables from `services/display.py`'s domain.
 >
 > **Retroactivity: migrate.** The inventory is the two foreign keys above, and
 > `services/display.py` / `manifest/builder.py` reading catalogue records
-> directly. The migration is wave 6.
+> directly. Rules 1, 2 and 4 migrate in wave 2, ahead of the HTTP manifest
+> endpoint, which is the facade's first consumer. Rule 3, the store split,
+> migrates at the start of wave 3, so the data moves to the NAS once.
+> *(Re-scheduled 2026-09-30 from wave 6, after review: building the endpoint on
+> the unsplit code would mean building it twice.)*
 >
-> **Enforcement:** Critic until wave 6. Wave 6 adds a static import guard in
-> the style of `tests/preferences/test_plane_isolation.py` for rule 1, and a
-> schema test for rule 3. Rows are in `project-preferences.md` § Enforcement.
+> Rule 4 also carries a reconciliation duty. With two stores there is no
+> transaction spanning the Library's commit and Programming's handler, so a crash
+> can lose an event. Programming reconciles every manifest against the facade at
+> startup, so a lost event delays an update and never leaves a manifest wrong.
+>
+> **Enforcement:** Critic until each rule migrates. Wave 2 adds a static import
+> guard in the style of `tests/preferences/test_plane_isolation.py` for rule 1.
+> Wave 3 adds a schema test for rule 3. Rows are in `project-preferences.md`
+> § Enforcement.
 
 ## Overview & Topology
 

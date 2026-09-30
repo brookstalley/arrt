@@ -1,9 +1,16 @@
 # 3tears Integration Findings
 
 Recorded 2026-07-19 during discovery. Everything below was verified by reading
-`/Users/brookstalley/source/3tears` at the checkout present on this machine, not
-recalled. 3tears is **alpha (`0.x`)**; its README states the public API can shift
+a local checkout of `3tears` on the development machine, not recalled. 3tears is **alpha (`0.x`)**; its README states the public API can shift
 between minor versions, so re-verify these findings when the pinned version moves.
+
+> **Direction changed 2026-09-30 — see `re-architecture.md` § Deployment
+> target.** Several judgements below weigh an install that "lands on the Pi,
+> under a `MemoryMax`". From wave 3 the server runs as a container on the NAS,
+> with a container memory limit instead, so that premise weakens for the server.
+> The decisions stand: none rested on the Pi alone. Anyone reopening a
+> dependency choice from here should re-weigh the install cost against the
+> container, not the Pi.
 
 ## The question this answers
 

@@ -1824,9 +1824,9 @@ recorded in `architecture.md` § Direction.
 
 | Route | Direction | Shape | Obligation |
 |---|---|---|---|
-| `GET /walls/{wall_id}/manifest` | Player → server, polled at about 1 s | Today's manifest document with `ETag`, answered `304` when unchanged. Carries the playlist entries, rotation settings, the directive block (`sequence`, `pinned_work_id`), the label text and, per entry, a **content-addressed media URL and hash**. From major 2 it also carries the current mat colour. | **Bounded.** The same major/minor rule as the file channel, described below. |
-| `GET /media/{hash}` | Player → server | The **presentation master**: device-independent, unmatted, long edge capped (starting proposal about 8K, to be measured). Immutable. `Cache-Control: immutable` and a long max-age, because the name *is* the content. | **Frozen per hash.** A hash never serves different bytes. |
-| `POST /walls/{wall_id}/heartbeat` | Player → server | Today's heartbeat document (`reported_at` and the rest; see `observability-strategy.md`), optionally with the Player's screen geometry **as an observation**. | **Bounded**, like the manifest. Programming reads the geometry; the Library never sees it. |
+| `GET /walls/{wall_id}/manifest` | Player → server, polled at about 1 s | Today's manifest document with `ETag`, answered `304` when unchanged. Carries the playlist entries, rotation settings, the directive block (`sequence`, `pinned_work_id`), the label text and, per entry, a **content-addressed media URL and hash**. From major 2 it also carries the current mat colour, and the playlist, rotation and directive become the **schedule**, any active **scene**, a **staging** list and the **wall settings** (`re-architecture.md` § What is showing, and how it is shown). | **Bounded.** The same major/minor rule as the file channel, described below. |
+| `GET /media/{hash}` | Player → server | From wave 4, the **presentation master**: device-independent, unmatted, long edge capped (starting proposal about 8K, to be measured). In waves 2 and 3, before any master exists, today's composed `tv_display` rendition. Immutable. `Cache-Control: immutable` and a long max-age, because the name *is* the content. | **Frozen per hash.** A hash never serves different bytes. |
+| `POST /walls/{wall_id}/heartbeat` | Player → server | Today's heartbeat document (`reported_at` and the rest; see `observability-strategy.md`). From wave 4 it also carries the Player's **capabilities** (geometry, backend, label hardware) **as observations**. | **Bounded**, like the manifest. Programming reads the capabilities and judges per-wall adequacy from them; the Library never sees them. |
 
 **Versioning carries over rather than being re-decided.** `SCHEMA_MAJOR` and
 `SCHEMA_MINOR` keep their meanings: additive changes are free, and a breaking
@@ -1835,9 +1835,10 @@ has.
 - **The HTTP channel is a minor bump (wave 2).** It is built *alongside* the
   file channel, and the document itself does not change shape. Only its
   transport and its media references are new.
-- **Moving compositing to the Player is major 2 (wave 4).** `render_path` to a
+- **Major 2 (wave 4) carries every breaking change at once.** `render_path` to a
   composed 4K canvas is replaced by a presentation-master reference plus the mat
-  colour, and a major-1 Player cannot draw a wall from that. The refusal rule is
+  colour, and the playlist and directive become the schedule and scenes. A
+  major-1 Player cannot draw a wall from either. The refusal rule is
   what makes the cutover safe: an un-upgraded Player keeps showing yesterday's
   wall instead of misreading today's.
 

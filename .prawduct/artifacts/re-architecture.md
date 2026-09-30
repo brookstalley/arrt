@@ -26,6 +26,13 @@ workspace, not in this repo. Its substance, including the owner's own words
 where they decided something, is reproduced below so nobody has to go and find
 it.
 
+**Amended later the same day, after a review.** It adds § What is showing, and
+how it is shown (walls, settings, the schedule and scenes), and settles the
+resolution floor as a Library quality profile. It adds a reconciliation rule to
+Seam 1 and brings the package split forward to wave 2. It also adds facet
+population to wave 6+ and re-sorts § Open questions. § Artifacts touched lists
+both passes.
+
 ## What changed, in one paragraph
 
 The product was **a curated-art appliance for a Samsung Frame TV**. It is
@@ -79,9 +86,9 @@ accepted the plan as a whole rather than deciding each point one by one.
 
 | Role | Owns | Deploys as |
 |---|---|---|
-| **Library** | What exists and what to go and get. Works, artists, sources, originals, image instances, verdicts, mat colour (a paid judgement about the work), label *text*, library facets (facts), discovery runs and conversations, taste, spend. New: **Watches** (standing searches), upgrade monitoring, a scheduler, and a device-independent *presentation master* per work. | **Server** (one process) |
-| **Programming** | What hangs where, and when. Themes (now *playlists*), membership, walls, hanging (ThemeAssignment), directives (`next` / `show_now` pins), rotation and shuffle, publishing the per-wall manifest, receiving player heartbeats, wall health. New: **programming tags** and **smart playlists**. | **Server** (the same process) |
-| **Player** | Making one wall's screen match its manifest. Screen geometry and backend, **compositing the mat**, drawing the label (e-ink panel, caption in the mat, or none), a local media cache, TV bindings and orphan removal, the heartbeat. | **Player** (one process per wall, at the wall) |
+| **Library** | What exists and what to go and get. Works, artists, sources, originals, image instances, verdicts, mat colour (a paid judgement about the work), label *text*, library facets (facts), discovery runs and conversations, taste, spend. New: **Watches** (standing searches), upgrade monitoring, a scheduler, a **quality profile** (the resolution floor and upgrade cutoff), and a device-independent *presentation master* per work. The Library has no concept of a wall. | **Server** (one process) |
+| **Programming** | What hangs where, and when. Themes (now *playlists*), membership, walls as logical targets, hanging (ThemeAssignment), directives (`next` / `show_now` pins), publishing the per-wall manifest, receiving player heartbeats, wall health. New: **the schedule** (rotation computed centrally, across walls), **scenes** (live overrides), **wall settings** (label mode, viewing distance), **programming tags** and **smart playlists**. | **Server** (the same process) |
+| **Player** | Making one wall's screen match its manifest. Screen geometry and backend, **compositing the mat**, drawing the label (e-ink panel, caption in the mat, or none), a local media cache, TV bindings and orphan removal, the guardrails that keep it from fighting the household for the screen, the heartbeat, which **reports its capabilities**. | **Player** (one process per wall, at the wall) |
 
 `[DECISION: Library and Programming ship as one server process, with seams that
 keep a later split a deployment change rather than a rewrite | the owner's ruling
@@ -104,9 +111,10 @@ what keep that decision cheap to reverse.
 
 ## Seam 1: Library ↔ Programming (in-process today, network-ready)
 
-These rules are what make a future split a **deployment change**. Each is
-proposed as a Direction norm in `architecture.md` (§ Direction, born
-`in-transition`, tracked by this program).
+These rules are what make a future split a **deployment change**.
+`architecture.md` § Direction carries them as four norms, born `in-transition`
+and tracked by this program. Rules 4 and 5 merge into its fourth norm. Rule 6 is
+a ruling under the existing thin-binding norm, not a norm of its own.
 
 1. **Two packages, one-way imports.** Programming imports only a small Library
    *facade*. The Library never imports Programming. Enforce it the way
@@ -131,7 +139,12 @@ proposed as a Direction norm in `architecture.md` (§ Direction, born
    In-process events such as `work.accepted`, `work.archived`,
    `work.image_changed` and `work.mat_changed` drive manifest rebuilds and pin
    withdrawal. After a split they become webhooks, the same way Radarr notifies
-   its neighbours.
+   its neighbours. **Events make updates prompt, not correct.** With two
+   SQLite files there is no transaction spanning the Library's commit and
+   Programming's handler, so a crash between them loses the event. Programming
+   therefore reconciles every manifest against the facade at startup. The
+   codebase already treats an interrupted discovery run this way. A lost event
+   then delays an update until the next start, and never leaves a manifest wrong.
 5. **Manifests point at Library-served, content-addressed media.** Programming
    never serves image bytes. After a split, the manifest's media URLs name the
    Library's host and no Player notices.
@@ -141,22 +154,45 @@ proposed as a Direction norm in `architecture.md` (§ Direction, born
    in the service layer): bindings stay thin, and a *composition* of two services'
    calls is still dispatch, not logic.
 
+`[DECISION: events are a promptness mechanism, and Programming reconciles every
+manifest against the facade at startup | two stores have no shared transaction,
+so a crash between the Library's commit and Programming's handler loses an event,
+and without reconciliation that manifest stays wrong. Advisor's recommendation in
+review, 2026-09-30, approved by the operator | user can veto/override]`
+
+`[DECISION: the seam rules migrate in waves 2 and 3, not wave 6. Rules 1, 2 and 4
+(packages, facade, events) come in wave 2, ahead of the HTTP manifest endpoint.
+Rule 3 (the store split) comes at the start of wave 3, before the catalogue moves
+to the NAS | the manifest endpoint is built on exactly the readiness logic rule 2
+moves, so building it before the split means building it twice, and splitting
+the store before the move means the data moves once. Advisor's recommendation in
+review, 2026-09-30, approved by the operator | user can veto/override]`
+
 ## Seam 2: Server ↔ Player (a real network contract from day one)
 
 Today the channel is a file per wall in a shared directory, plus a heartbeat file
 back (`architecture.md` § Communication & Boundaries). The target is:
 
 - `GET /walls/{wall_id}/manifest`: polled at about the cadence of today's mtime
-  check (about 1 s), with an ETag. It carries the playlist entries, rotation
-  settings, the directive sequence and pin, the label text, the current mat
-  colour, and a **content-addressed media URL and hash** per entry.
-- `GET /media/{hash}`: immutable, cacheable forever. It serves the
+  check (about 1 s), with an ETag. It carries the label text and a
+  **content-addressed media URL and hash** per entry. From major 2 it also
+  carries the current mat colour, because the Player composes the mat from then
+  on. Until
+  schema major 2 it also carries the playlist entries, rotation settings and
+  the directive sequence and pin, as today. From major 2 those become the
+  **schedule**, any active **scene**, a **staging** list and the **wall
+  settings** (§ What is showing, and how it is shown).
+- `GET /media/{hash}`: immutable, cacheable forever. From wave 4 it serves the
   **presentation master**, a device-independent image derived from the Original:
   no mat, long edge capped (starting proposal about 8K, to be measured), so a
-  Pi never pulls a gigapixel file.
-- `POST /walls/{wall_id}/heartbeat`: today's heartbeat document, over HTTP. The
-  Player may include its screen geometry *as an observation*, so Programming can
-  warn "this work is too small for the living room". The Library never sees it.
+  Pi never pulls a gigapixel file. In waves 2 and 3, before any master exists,
+  it serves today's composed `tv_display` rendition, which is what the display
+  plane already reads from the file tree.
+- `POST /walls/{wall_id}/heartbeat`: today's heartbeat document, over HTTP. From
+  wave 4 it also reports the Player's **capabilities**: screen geometry,
+  backend and label hardware. These are observations, not configuration, and
+  Programming uses them to warn "this work is too small for the living room".
+  The Library never sees them.
 
 **The Player plays from a local cache, always.** It pulls the manifest and the
 media into local storage and renders only from there, so a NAS reboot or a
@@ -180,8 +216,99 @@ heartbeat file does today.
 **The contract gets its own artifact** before it is built: a JSON Schema plus
 example manifests, owned by the server, and pinned by the Player's tests after the
 repo split. Today's `SCHEMA_MAJOR` / `SCHEMA_MINOR` scheme carries over. The
-additive HTTP channel is a minor bump. Moving compositing to the Player (below)
-is **major 2**.
+additive HTTP channel is a minor bump. **Major 2 carries every breaking change
+at once**: compositing moving to the Player (below), plus the schedule, scenes
+and wall settings (next section). One breaking bump costs less than three. The
+wave 1 contract artifact specifies all of them, even though they are built in
+wave 4.
+
+## What is showing, and how it is shown
+
+The operator's framing, 2026-09-30: the server "should not even have the concept
+of walls, and should only have media management", but "if I have three walls in
+the house, their rotations and displays should be coordinated and not require me
+to go change settings on each player individually". The split that satisfies
+both is between **what is showing**, which is coordinated centrally, and **how
+it is shown**, which is local to each device.
+
+- **The Library has no walls.** It manages media, which is the first half of the
+  instinct.
+- **Programming has walls, but only as logical targets.** "Living room" is a
+  name, what plays there, when, and how the operator would like it presented. It
+  has no address, no pixel size and no driver. Coordinating walls needs one place
+  that knows all of them, and Programming is that place.
+- **The Player owns the device.** It holds only what it needs to reach its
+  hardware and the server.
+
+**Settings flow down, and capabilities flow up.**
+
+| Lives in | What | Examples |
+|---|---|---|
+| **Player**, local configuration set once | What it needs to reach its hardware and the server | server URL, `WALL_ID`, the television's address and token, the panel's physical size (today's `TV_PANEL_*`), the e-ink driver |
+| **Player to server**, in the heartbeat | What its hardware can do, as observed | geometry, backend (Frame, LCD, monitor), label hardware present |
+| **Programming**, set centrally and sent in the manifest | Everything the operator would otherwise walk round the house to change | playlist rules, the schedule, dark hours, the mat's proportions (today's `MAT_*`), the label mode (chosen from what the hardware reports), which facts the label shows, viewing distance |
+| **Library** | The work itself | the Original, mat colour, label text, facets, pixel dimensions |
+
+Viewing distance is a fact about the room rather than the device, so it is a
+wall setting. The Player uses it with its own geometry to size label type under
+the legibility norm (`accessibility-spec.md`).
+
+### The manifest is a schedule, not a playlist
+
+Today each Player shuffles its own list. Three walls therefore cannot avoid
+showing the same work at once, and cannot change together. From major 2,
+Programming publishes a **time-anchored schedule** for each wall: this work from
+14:00 until 14:30, then that one, covering a horizon of about a day. Programming
+computes all walls together, so "no work on two walls at once", "change the
+whole house together" and "spread this playlist across rooms" become central
+calculations. The Player follows the clock from its cache, so an unreachable
+server still never blanks a wall. It just runs to the end of the horizon.
+
+- **The dark hours are gaps in the schedule.** That settles who owns the
+  wake/sleep window: Programming, because "when" is Programming's. The
+  guardrails that stop a Player waking a set someone is watching, or fighting
+  the household for the remote, stay on the Player, because they are about the
+  device. The v1 plan's Chunk 26 splits along that line.
+- **Rotation logic leaves the display plane.** The Player's timed selection
+  becomes "show what the schedule says now". That is a real move of built code,
+  and it lands with major 2 in wave 4.
+
+### Scenes: live control above the schedule
+
+The operator's case: put three Dalís next to each other in the living room and
+see what that looks like, without writing a schedule and waiting. The schedule
+is the baseline, and a **scene** overrides it.
+
+- **A scene is one object spanning walls.** It holds a pin for each wall
+  ("living room left: Dalí A") and a lifetime. The Player's rule is: show the
+  active scene if there is one, or follow the schedule otherwise. It generalizes
+  today's per-wall `show_now` / `next` directive, which already has a sequence
+  number.
+- **A scene has a lifetime, so a test cannot strand a wall.** *Preview*, the
+  default, holds for a set time and then the wall returns to the schedule. The
+  expiry travels in each wall's manifest, so walls revert on their own even if
+  the server goes down mid-test. *Hold* lasts until released. *Keep* turns the
+  scene into ordinary Programming state, as pins or a playlist.
+- **It stays a pull.** The 1 s ETag poll gets a scene to every wall within about
+  a second. A true push would put a network listener, and so authentication, on
+  every Player. Server-sent events remain the upgrade if a second proves too
+  slow. Either way the Player pulls.
+- **The real delay is rendering, so the UI stages a scene before applying it.**
+  While the operator assembles a scene, Programming lists its works under
+  **staging** in the affected manifests, and those Players fetch and compose
+  them ahead. Applying the scene is then only a switch. On a Frame, that means
+  selecting an image already uploaded.
+- **A scene respects the Player's guardrails.** It does not interrupt someone
+  watching the set. The UI shows that wall as waiting for the TV to be free.
+
+`[DECISION: walls exist only in Programming, as logical targets; settings flow
+down in the manifest and capabilities flow up in the heartbeat; from schema
+major 2 the manifest is a time-anchored schedule with scenes as an override layer
+and a staging hint | the operator's framing above ("This makes sense", on the
+advisor's proposal) and the operator's scene requirement. Rejected alternative:
+the server rendering each wall's image from reported geometry, the way a Plex
+server transcodes for its clients. It would have put "how it is shown" on the
+server, against the operator's split | user can veto/override]`
 
 ## Compositing moves to the Player
 
@@ -203,21 +330,26 @@ caption drawn in the mat, which needs the mat *sized for the caption*.
 - **The mat colour engine reasons partly about mat proportion.** One colour per
   work is expected to remain good enough across screens. Recomputing per aspect
   ratio is an open question, not a requirement.
-- **Image adequacy becomes a Player/Programming observation.** A Player knows its
-  geometry and can report "below floor" for a work. The Library stores only
-  panel-independent facts (width, height), exactly as `data-model.md` already
-  requires.
-- **The resolution floor loses its input, and this must be decided before
-  wave 4.** Automatic instance selection (`curation/src/curation/services/
-  selection.py`) excludes below-floor instances using the artwork box computed
-  from the server's `TV_PANEL_*` / `MAT_*` settings, and review cards show a fit
-  verdict from the same source. When geometry leaves the server, both lose
-  their input. If nothing replaces it, below-floor scans get auto-selected
-  silently. The options:
-  - a pixel floor stated in the Library, independent of any device;
-  - a reference geometry derived from the largest screen any Player has
-    reported;
-  - judging adequacy only at hang time, per wall.
+- **Image adequacy for a wall is Programming's judgement.** Programming compares
+  a work's pixel dimensions, which it gets through the facade, with the geometry
+  that wall's Player reports in its heartbeat. The result is one answer per wall
+  ("too small for the living room"). The Player composes and does not judge. The
+  Library stores only panel-independent facts (width, height), exactly as
+  `data-model.md` already requires.
+- **The resolution floor becomes a Library quality profile.** Automatic instance
+  selection (`curation/src/curation/services/selection.py`) excludes
+  below-floor instances using the artwork box computed from the server's
+  `TV_PANEL_*` / `MAT_*` settings, and review cards show a fit verdict from the
+  same source. When geometry leaves the server, both would lose their input, and
+  below-floor scans would be auto-selected silently. The replacement is a
+  profile stated in pixels, independent of any device. It has a **minimum**,
+  which selection and the review card judge against, and a **cutoff**, above
+  which the Library stops looking for a better scan. That is Radarr's quality
+  profile, and the cutoff is what the wave 6+ upgrade job needs anyway. Two
+  alternatives were weighed and not taken. One was a reference geometry derived
+  from the largest screen any Player reports, which would put device geometry
+  in the Library. The other was judging only at hang time, which would let
+  review accept scans no wall could use.
 - **Compositing on a Pi 4 has no measured cost.** Composing from an 8K-class
   master whenever a new work arrives or the geometry changes needs a budget in
   `nonfunctional-requirements.md` before wave 4 is planned.
@@ -227,12 +359,19 @@ caption drawn in the mat, which needs the mat *sized for the caption*.
   `data-model.md` § Direction.
 
 `[DECISION: compositing moves from curation to the Player, and the tv_display
-Rendition, TV_PANEL_* and MAT_* leave the server | the ratified 2026-08-07 norm
+Rendition and TV_PANEL_* leave the server, and MAT_* stops being server
+configuration and becomes a per-wall setting in Programming | the ratified 2026-08-07 norm
 "a display device renders its own label" (architecture.md § Direction) already
 names a monitor that draws the label in the mat area, and that is only possible
 if the device composes the mat. Keeping compositing upstream would force the
 catalogue to learn every screen's geometry, which is the data-model norm's cited
 anti-pattern | user can veto/override]`
+
+`[DECISION: the resolution floor is a Library quality profile in pixels, with a
+minimum and an upgrade cutoff; per-wall adequacy is Programming's comparison
+against reported geometry | it keeps device geometry out of the Library, gives
+selection and review an input that survives wave 4, and is the shape the upgrade
+job needs. Advisor's recommendation, 2026-09-30 | user can veto/override]`
 
 ## Two layers of tags
 
@@ -247,8 +386,12 @@ whose wall it hangs on? If so, it is a Library facet.
 
 - **Library facets already exist** as `WorkFacet` (`data-model.md`), with the
   closed `VocabularyKind` shared with taste (`artist | movement | era | subject |
-  medium | palette`) and each row marked `sourced` or `inferred`. Nothing writes
-  them yet.
+  medium | palette`) and each row marked `sourced` or `inferred`. **Nothing
+  writes them yet**, so every smart playlist below depends on a pipeline that
+  does not exist. Filling them means mapping museum fields and inferring the
+  rest with paid model calls, and museum fields rarely copy across unchanged.
+  That needs its own requirements cycle, and wave 6+ schedules it ahead of smart
+  playlists.
 - **The line is not objective versus subjective.** Taste (`Affinity`) is
   subjective and stays in the Library, because it drives what gets acquired. The
   line is between *what the work is and what to acquire* (Library) and *when,
@@ -273,8 +416,9 @@ tags, plus manual additions and exclusions. For example:
   exists.
 
 Hand-tags are then only needed for what cannot be derived. Programming evaluates
-a rule by asking the Library facade for matching ids (AND/OR over kind and value,
-maybe a date range) and then applying its own tags in Python. At a few thousand
+a rule by asking the Library facade for matching ids (AND, OR and NOT over kind
+and value, maybe a date range; the kids' room above needs the NOT) and then
+applying its own tags in Python. At a few thousand
 works that is cheap.
 
 **"More like my party playlist" feeds discovery one way.** The UI passes those
@@ -341,8 +485,10 @@ There are two families of screen, behind one "show this work" interface:
   authority on it.
 - **Framebuffer (HDMI LCD on a Pi, a monitor on a Mac):** composite, then draw.
 
-**Label mode is set per wall:** e-ink panel (today's `LabelSurface`,
-`EpaperSurface`), caption in the mat, or none. The label typography rules in
+**Label mode is a wall setting in Programming,** chosen from what the wall's
+Player reports it can do: e-ink panel (today's `LabelSurface`, `EpaperSurface`),
+caption in the mat, or none. Until caption mode exists (wave 6+) the only modes
+are the panel and none, and today's `EPD_*` Player configuration decides which. The label typography rules in
 `accessibility-spec.md` (a type floor derived from geometry and reading distance)
 apply to a caption in the mat exactly as they apply to the panel.
 
@@ -371,7 +517,7 @@ it.
 - **The server container gets a memory limit.** On a shared NAS, a gigapixel
   acquisition must not be able to starve the operator's other applications.
   This replaces the `MemoryMax` in `curation.service`.
-- **After wave 6, the backup covers two catalogue files as a pair.** A restore
+- **From wave 3, the backup covers two catalogue files as a pair.** A restore
   has to be exercised against Programming references to works the restored
   Library does not hold.
 - **The co-location decision of 2026-07-20** (curation on the Pi, see
@@ -392,11 +538,11 @@ plan: each wave gets its own `build-plan-<scope>.md` when it starts, per
 |---|---|---|
 | **0: clear the decks** | Park round 2. Retire the 2024 root modules. Reconcile the open chunks of the v1 plan (archived 2026-09-30 as `archive/build-plan.md`). | Round 2 is **parked, not abandoned**, on branch `curation-ui/rulings-and-plan` (three commits, local only as of 2026-09-30). It is curation-UI work that remains valid for the server; revisit after wave 2. The v1 plan's open chunks (13A, 13B, 24–27) wait on hardware; decide which survive the new direction. |
 | **1: plan** | Amend the artifacts (this change started that). Write the Player contract artifact with a JSON Schema and fixtures. Write the wave-2 build plan. | Doc-only. The amendments were drafted 2026-09-30; see § Artifacts touched. |
-| **2: HTTP channel, alongside the file** | The server serves manifest, media and heartbeat over HTTP. Display gains a pull-to-local-cache mode behind configuration. Schema minor bump. | The wall never goes dark. The file channel keeps working until wave 3 retires it. `tests/preferences/test_plane_isolation.py` forbids any HTTP client in display today. Narrow it in the same chunk that adds the pull (one manifest-client module, three endpoints), not before and not after. |
-| **3: server to the NAS** | Containerize curation. Deploy on the NAS. Point the Pi at HTTP. Retire the file channel. | The deployment side lives in the operator's homelab repo. |
-| **4: compositing to the Player** | Add the presentation master. Remove the `tv_display` rendition and `TV_PANEL_*` / `MAT_*` from the server. Display composes. **Schema major 2.** | The largest built-code change. Mat-colour regression corpus: `curation/tools/mat_masters.py`. Blocked on deciding the resolution floor's new home and a compositing budget (see § Compositing moves to the Player). |
+| **2: seams and the HTTP channel, alongside the file** | Split curation into Library and Programming packages with one-way imports and the `playable()` facade. Move the manifest's readiness logic behind the facade. Add the events, and Programming's reconciliation at startup (§ Seam 1). Then serve manifest, media and heartbeat over HTTP, with Programming's manifest endpoint as the facade's first consumer. Display gains a pull-to-local-cache mode behind configuration. Schema minor bump. | The package split comes first because the manifest endpoint is built on exactly the readiness logic rule 2 moves; building it before the split means building it twice. The static import guard for rule 1 lands here. The wall never goes dark: the file channel keeps working until wave 3 retires it. `tests/preferences/test_plane_isolation.py` forbids any HTTP client in display today. Narrow it in the same chunk that adds the pull (one manifest-client module, three endpoints), not before and not after. **Heartbeat authentication is decided before this wave ships the POST**, because the server on the Pi is already reachable on the LAN. The cache claim gets a test that stops the server while the wall runs. |
+| **3: server to the NAS** | First, split the store: Programming's tables move to their own SQLite file, and the two cross-seam foreign keys become opaque references (rule 3), so the data moves once. Then containerize the server, deploy it on the NAS, point the Pi at HTTP and retire the file channel. Move the backup and restore exercise to NAS storage, with `VACUUM INTO` and the two catalogue files backed up as a pair. | The deployment side lives in the operator's homelab repo. The image needs what the Pi's install has today: a uv-managed Python 3.14, the `dezoomify-rs` binary, and a memory limit in place of `MemoryMax`. It does not need Pango unless the server ever typesets. The schema test for rule 3 lands here. |
+| **4: schema major 2** | Add the presentation master and the quality profile. Remove the `tv_display` rendition and `TV_PANEL_*` from the server, and turn `MAT_*` into per-wall settings. Display composes, with the wall's mat proportions. The manifest becomes the schedule, with scenes, staging and wall settings. The heartbeat reports capabilities, and Programming judges per-wall adequacy from them. | The largest built-code change, and the only breaking one. Mat-colour regression corpus: `curation/tools/mat_masters.py`. Blocked on a compositing budget measured on a Pi 4 (§ Compositing moves to the Player). Rotation logic moves from the display plane to Programming, along with the wake/sleep window from the v1 plan's Chunk 26. |
 | **5: split the repos** | `git filter-repo --subdirectory-filter display` into a new player repo. `/prawduct:onboard` there. Carry the player's artifacts. Pin contract fixtures. Rename this repo for the server. | GitHub keeps redirects on rename. |
-| **6+: in parallel** | Server: the Library/Programming package and database split with events; Watches, the scheduler and upgrades; Programming tags and smart playlists. Player: a framebuffer backend and caption in the mat. | Independent streams after the split. Watches carry the security and observability re-derivations above. |
+| **6+: in parallel** | Server: Watches, the scheduler and upgrades to the quality profile's cutoff; **facet population**, then Programming tags and smart playlists. Player: a framebuffer backend and caption in the mat. | Independent streams after the split. Watches carry the security and observability re-derivations above. Facet population needs its own requirements cycle (§ Two layers of tags), and smart playlists wait for it. |
 
 **Agents.** Through wave 5, run one Claude session in this repo, so prawduct's
 hooks and gates apply. Parallel agents in worktrees are fine inside a wave. After
@@ -412,25 +558,38 @@ the other way round.
   starting guess, to be measured against the corpus and the Pi's decode time.
 - **Player authentication on the LAN.** The endpoints are read-only except the
   heartbeat, and today's trust boundary is the network (`security-model.md`).
-  Decide before wave 3 exposes a LAN listener. The heartbeat POST is an integrity
-  exposure: anything on the LAN can make a wall's health read green or red. The
-  options are to accept that or to issue each wall a token.
+  **Decide before wave 2 ships the heartbeat POST**, because the server on the
+  Pi is already reachable on the LAN. The POST is an integrity exposure: anything
+  on the LAN can make a wall's health read green or red. The options are to
+  accept that or to issue each wall a token.
 - **Directive latency:** an ETag poll at about 1 s, or server-sent events.
-  Polling matches today and is the default.
+  Polling matches today and is the default. Scenes are the test of whether it is
+  fast enough (§ Scenes).
+- **The schedule's horizon and a scene's default preview lifetime.** About a day,
+  and about twenty minutes, are starting proposals. Both are settled in the wave
+  1 contract.
+- **The compositing budget on a Pi 4.** Measure it before wave 4 is planned. An
+  image is composed once per work and geometry, ahead of its slot, and cached,
+  so the risk is judged low but unmeasured.
+- **The quality profile's numbers:** the minimum and the upgrade cutoff, in
+  pixels. The floor the code derives from today's panel is the starting point.
 - **The smart-playlist rule language:** how rich, and whether the facade's
-  query needs anything beyond AND/OR over (kind, value) plus a date range.
+  query needs anything beyond AND, OR and NOT over (kind, value) plus a date
+  range.
 - **Mat colour per aspect ratio:** see § Compositing moves to the Player.
-- **Who owns the wake/sleep window?** v1 Chunk 26 puts the bedtime window on
-  the display plane. "When" is otherwise Programming's (rotation, schedules).
-  Decide whether it is Player configuration or Programming policy carried in the
-  manifest.
 - **Can facts be edited in the UI?** Correcting a facet is a Library edit, but
   `information-architecture.md` § Boundaries forbids editing artwork metadata.
   Facets are not titles, artists or dates, so the two need not conflict, but
   this needs an operator ruling before facet editing is built.
-- **What a review card shows about size before any wall hangs the work.** This
-  follows from the resolution-floor question in § Compositing moves to the
-  Player.
+- **Where the Player's cache lives,** and whether the SD card can carry it
+  (`operational-spec.md`). A wave 2 decision.
+- **The server image's provenance:** how the container image is pinned and
+  where it is built (`security-model.md`). Before wave 3.
+- **Watches, before the plan that builds them:** the re-derived
+  prompt-injection bounds (`security-model.md` § Prompt Injection), whether
+  auto-accept is offered at all, the `initiated_by` value for a Watch
+  (`api-contract.md`), and whether scheduled jobs revisit the no-push-alerts
+  decision (`observability-strategy.md`).
 - **The fate of the v1 plan's open chunks** (`archive/build-plan.md`, proposed dispositions under its header). They are hardware checks
   on the Frame and the panel. Most remain meaningful for the Player.
 - **Filing the program as backlog items.** The live backlog is public GitHub
@@ -469,3 +628,19 @@ rewritten, because it remains true of the code until the wave that changes it.
   `platform-and-dependency-findings.md`, `samsung-tv-state-findings.md` and
   `design-direction.md`: forward notes where their target-state claims change.
 - `README.md`, `CLAUDE.md`, `deploy/README.md`: orientation for a new reader.
+
+**The second pass, later on 2026-09-30,** followed a review of the first. It
+wrote the decisions in § What is showing, and how it is shown and the quality
+profile, and reconciled the forward notes that disagreed with this file or with
+each other. The disagreements were over the floor options, who judges adequacy,
+the wave for label mode and for the presentation master, and when the system
+becomes distributed. It added missing notes to `project-preferences.md`'s norm
+index, `3tears-integration-findings.md` and `openrouter-api-findings.md`. It
+moved the open questions into `project-state.yaml` and brought the Seam 1 norms'
+schedule in `architecture.md` into line with the new wave table.
+
+**Settled by the second pass:** who owns the wake/sleep window (Programming, as
+gaps in the schedule, with the guardrails staying on the Player), and the
+resolution floor's home (a Library quality profile). Also settled: what a review
+card shows about size before any wall hangs a work, which is the verdict against
+that profile.
