@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/brookstalley/curatarr/contract/schemas/heartbeat.v1.schema.json",
+  "title": "Player heartbeat, major 1",
+  "description": "What Displayarr reports about one wall, as facts rather than a verdict. The document Displayarr writes today has no schema key, and a heartbeat without one is 1.0. Wave 2 adds the schema key (1.1) when the heartbeat moves to an HTTP POST. The server reads reported_at and keeps the rest as it came; additive keys are allowed. Semantics are in .prawduct/artifacts/player-contract.md.",
+  "type": "object",
+  "required": [
+    "reported_at",
+    "manifest_schema",
+    "theme_id",
+    "current_work_id",
+    "announced_content_id",
+    "television_reachable",
+    "television_showing_art",
+    "has_label_surface",
+    "label_surface_working",
+    "last_error"
+  ],
+  "properties": {
+    "schema": {
+      "description": "Minor 1 (wave 2). Absent means 1.0.",
+      "type": "object",
+      "required": [
+        "major",
+        "minor"
+      ],
+      "properties": {
+        "major": {
+          "const": 1
+        },
+        "minor": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "reported_at": {
+      "description": "The instant of the report, RFC 3339 with an offset. The server treats any other spelling of this key as an unreadable heartbeat. The pattern is what enforces the offset; 'format' alone is not checked by every validator.",
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
+    },
+    "manifest_schema": {
+      "description": "The major.minor of the manifest the Player has loaded, or null before it has adopted one.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]+\\.[0-9]+$"
+    },
+    "theme_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "current_work_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "announced_content_id": {
+      "description": "What the television last announced it is showing, in the set's own words.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "television_reachable": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "television_showing_art": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "has_label_surface": {
+      "type": "boolean"
+    },
+    "label_surface_working": {
+      "description": "Null until the surface has been given a label, including on a Player with no surface.",
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "last_error": {
+      "description": "The last thing that went wrong, in the words the journal got. Not cleared by a good pass.",
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

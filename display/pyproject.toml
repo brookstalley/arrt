@@ -99,6 +99,11 @@ dependencies = [
 dev = [
     "pytest>=8",
     "pytest-asyncio>=0.24",
+    # **The Player contract's schemas are checked with this**, against real
+    # documents, so the contract under contract/ is tested rather than trusted.
+    # Declared rather than inherited, because an indirect copy disappears the
+    # day the package that brings it changes its own dependencies.
+    "jsonschema>=4.23",
     "ruff>=0.6",
     "black>=24",
     # **The label engine is defined by invariants over a space too large to

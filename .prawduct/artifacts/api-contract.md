@@ -1808,10 +1808,9 @@ plus honest `readOnlyHint` / `destructiveHint`.
 ## The Server↔Player surface — PLANNED 2026-09-30, not built
 
 **Nothing in this section exists in code.** It records the target that
-`re-architecture.md` § Seam 2 sets, so that wave 1 can write the contract
-artifact against a stated shape rather than inventing one. Where this section and
-that file disagree, that file wins until the contract artifact is written, and
-after that the contract artifact wins.
+`re-architecture.md` § Seam 2 sets. **The contract artifact now exists:
+`player-contract.md`, with its schemas and fixtures under `contract/`.** Where
+this section and that file disagree, that file wins.
 
 **Why it replaces the file channel.** Once the server moves to the NAS, the
 shared `ART_ROOT` would have to become a network mount on every Pi. Network
@@ -1862,9 +1861,8 @@ The wall going black stays worse than the wall being incomplete. That is the rul
 this whole surface is judged by.
 
 **Open, to be settled in wave 1 or before wave 3:**
-- **Authentication** for these routes on the LAN. Today the network carries the
-  trust boundary; see `security-model.md` § Trust Boundary. The heartbeat POST is
-  the first write surface a non-curator device holds.
+- **Authentication** is settled: a bearer token per wall, on every route
+  (`player-contract.md` § Transport).
 - **ETag polling or server-sent events** for directive latency. Polling matches
   today's roughly 1 s behaviour and is the default.
 - **The presentation master's encoding and cap.**

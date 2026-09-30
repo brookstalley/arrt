@@ -1,0 +1,120 @@
+{
+  "_about": "Every fixture, the schema it is judged against, whether that schema accepts it, and, for invalid manifests, whether a major 1 Player must refuse it. A Player may be more tolerant than the schema, which states the writer's obligations; player_must_refuse lists the rules the reader enforces. Filenames name the one rule an invalid fixture breaks.",
+  "fixtures": [
+    {
+      "path": "fixtures/heartbeat.v1/invalid/has-label-surface-null.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/manifest-schema-not-major-minor.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/timestamp-instead-of-reported-at.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false
+    },
+    {
+      "path": "fixtures/heartbeat.v1/valid/as-built.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/heartbeat.v1/valid/fresh-start-no-panel.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/heartbeat.v1/valid/minor-1-with-schema.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/manifest.v1/invalid/absolute-render-path.json",
+      "schema": "schemas/manifest.v1.schema.json",
+      "valid": false,
+      "player_must_refuse": false
+    },
+    {
+      "path": "fixtures/manifest.v1/invalid/boolean-directive-sequence.json",
+      "schema": "schemas/manifest.v1.schema.json",
+      "valid": false,
+      "player_must_refuse": true
+    },
+    {
+      "path": "fixtures/manifest.v1/invalid/entries-not-a-list.json",
+      "schema": "schemas/manifest.v1.schema.json",
+      "valid": false,
+      "player_must_refuse": true
+    },
+    {
+      "path": "fixtures/manifest.v1/invalid/entry-empty-work-id.json",
+      "schema": "schemas/manifest.v1.schema.json",
+      "valid": false,
+      "player_must_refuse": true
+    },
+    {
+      "path": "fixtures/manifest.v1/invalid/entry-missing-render-path.json",
+      "schema": "schemas/manifest.v1.schema.json",
+      "valid": false,
+      "player_must_refuse": true
+    },
+    {
+      "path": "fixtures/manifest.v1/invalid/generated-at-without-offset.json",
+      "schema": "schemas/manifest.v1.schema.json",
+      "valid": false,
+      "player_must_refuse": false
+    },
+    {
+      "path": "fixtures/manifest.v1/invalid/major-2.json",
+      "schema": "schemas/manifest.v1.schema.json",
+      "valid": false,
+      "player_must_refuse": true
+    },
+    {
+      "path": "fixtures/manifest.v1/invalid/media-sha256-not-hex.json",
+      "schema": "schemas/manifest.v1.schema.json",
+      "valid": false,
+      "player_must_refuse": false
+    },
+    {
+      "path": "fixtures/manifest.v1/invalid/missing-directive-sequence.json",
+      "schema": "schemas/manifest.v1.schema.json",
+      "valid": false,
+      "player_must_refuse": true
+    },
+    {
+      "path": "fixtures/manifest.v1/invalid/pinned-work-id-not-a-string.json",
+      "schema": "schemas/manifest.v1.schema.json",
+      "valid": false,
+      "player_must_refuse": true
+    },
+    {
+      "path": "fixtures/manifest.v1/valid/as-built.json",
+      "schema": "schemas/manifest.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/manifest.v1/valid/empty-theme.json",
+      "schema": "schemas/manifest.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/manifest.v1/valid/minor-2-with-media.json",
+      "schema": "schemas/manifest.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/manifest.v1/valid/pinned.json",
+      "schema": "schemas/manifest.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/manifest.v1/valid/unknown-minor-and-key.json",
+      "schema": "schemas/manifest.v1.schema.json",
+      "valid": true
+    }
+  ]
+}

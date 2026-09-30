@@ -3052,6 +3052,10 @@ artifact_manifest:
       file_path: .prawduct/artifacts/re-architecture.md
       version: 1
       depends_on: [product-brief, architecture, data-model]
+    - name: player-contract
+      file_path: .prawduct/artifacts/player-contract.md
+      version: 1
+      depends_on: [re-architecture, api-contract, data-model, security-model]
     # Edges mirror build-plan.md's own `depends_on:` front matter. The plan is
     # the most decision-dense artifact here: leaving it unedged would make every
     # decision it rests on unreachable by a dependency walk — precisely the
@@ -3136,6 +3140,9 @@ build_state:
 # The operator abandoned them later that day (wave 0 closed); the requirements
 # they served are placed in later waves by re-architecture.md. Point this at the
 # wave-2 build-plan-<scope>.md when it is written.
+#
+# Pointed at the wave 1 contract plan 2026-09-30, for that plan's duration.
+active_build_plan: artifacts/build-plan-wave-1-contract.md
 
 # =============================================================================
 # DERIVED VIEWS — RETIRED, and deliberately absent
