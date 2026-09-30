@@ -1,0 +1,140 @@
+{
+  "schema": {
+    "major": 1,
+    "minor": 0
+  },
+  "generated_at": "2026-10-01T06:59:30+00:00",
+  "playlist": {
+    "id": "th-surrealism",
+    "name": "Surrealism"
+  },
+  "settings": {
+    "label": {
+      "mode": "panel"
+    },
+    "mat": {
+      "width_inches": 2.5,
+      "bottom_weight": 1.15
+    },
+    "viewing_distance_m": 2.5
+  },
+  "works": {
+    "w-dali-1": {
+      "media": {
+        "url": "/media/sha256-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "bytes": 5200000,
+        "content_type": "image/jpeg",
+        "width": 7680,
+        "height": 5600
+      },
+      "mat_color": "#27285b",
+      "label": {
+        "title": "The Persistence of Memory",
+        "artist": "Salvador Dalí",
+        "artist_family_name": "Dalí",
+        "artist_given_name": "Salvador",
+        "artist_nationality": "Spanish",
+        "artist_dates": "1904–1989",
+        "date_created": "1931",
+        "medium": "Oil on canvas",
+        "dimensions": "24.1 × 33 cm",
+        "commentary": null
+      }
+    },
+    "w-dali-2": {
+      "media": {
+        "url": "/media/sha256-dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "bytes": 5200000,
+        "content_type": "image/jpeg",
+        "width": 6900,
+        "height": 7680
+      },
+      "mat_color": "#3b2f2a",
+      "label": {
+        "title": "The Elephants",
+        "artist": "Salvador Dalí",
+        "artist_family_name": "Dalí",
+        "artist_given_name": "Salvador",
+        "artist_nationality": "Spanish",
+        "artist_dates": "1904–1989",
+        "date_created": "1948",
+        "medium": "Oil on canvas",
+        "dimensions": "24.1 × 33 cm",
+        "commentary": null
+      }
+    },
+    "w-dali-3": {
+      "media": {
+        "url": "/media/sha256-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "bytes": 5200000,
+        "content_type": "image/jpeg",
+        "width": 7680,
+        "height": 6100
+      },
+      "mat_color": "#1f2a33",
+      "label": {
+        "title": "Swans Reflecting Elephants",
+        "artist": "Salvador Dalí",
+        "artist_family_name": "Dalí",
+        "artist_given_name": "Salvador",
+        "artist_nationality": "Spanish",
+        "artist_dates": "1904–1989",
+        "date_created": "1937",
+        "medium": "Oil on canvas",
+        "dimensions": "24.1 × 33 cm",
+        "commentary": null
+      }
+    },
+    "w-moche-1": {
+      "media": {
+        "url": "/media/sha256-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "bytes": 5200000,
+        "content_type": "image/jpeg",
+        "width": 5400,
+        "height": 7680
+      },
+      "mat_color": "#e9e4d8",
+      "label": {
+        "title": "Stirrup-spout vessel",
+        "artist": null,
+        "artist_family_name": null,
+        "artist_given_name": null,
+        "artist_nationality": null,
+        "artist_dates": null,
+        "date_created": "100 BCE–500 CE",
+        "medium": "Ceramic",
+        "dimensions": null,
+        "commentary": null
+      }
+    }
+  },
+  "schedule": {
+    "horizon": {
+      "from": "2026-10-01T00:00:00+00:00",
+      "until": "2026-10-02T00:00:00+00:00"
+    },
+    "slots": [
+      {
+        "work_id": "w-dali-1",
+        "from": "2026-10-01T07:00:00+00:00",
+        "until": "2026-10-01T12:00:00+00:00"
+      },
+      {
+        "work_id": "w-moche-1",
+        "from": "2026-10-01T12:00:00+00:00",
+        "until": "2026-10-01T17:00:00+00:00"
+      },
+      {
+        "work_id": "w-dali-2",
+        "from": "2026-10-01T17:00:00+00:00",
+        "until": "2026-10-01T23:00:00+00:00"
+      }
+    ]
+  },
+  "scene": null,
+  "staging": []
+}

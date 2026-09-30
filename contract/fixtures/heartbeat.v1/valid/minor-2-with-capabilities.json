@@ -1,0 +1,32 @@
+{
+  "reported_at": "2026-09-30T14:00:05+00:00",
+  "manifest_schema": "2.0",
+  "theme_id": "th-surrealism",
+  "current_work_id": "w-dali-1",
+  "announced_content_id": "MY_F0042",
+  "television_reachable": true,
+  "television_showing_art": true,
+  "has_label_surface": true,
+  "label_surface_working": true,
+  "last_error": null,
+  "schema": {
+    "major": 1,
+    "minor": 2
+  },
+  "capabilities": {
+    "screen": {
+      "width_px": 3840,
+      "height_px": 2160
+    },
+    "backend": "frame",
+    "label_modes": [
+      "panel",
+      "none"
+    ],
+    "manifest_majors": [
+      1,
+      2
+    ]
+  },
+  "scene_id": "sc-three-dalis"
+}

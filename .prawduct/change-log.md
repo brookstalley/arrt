@@ -85,6 +85,22 @@ guess.
 - Each `date-time` is backed by a pattern, because the common validator skips
   `format` unless an optional package is installed. The dry run proved it: a
   timestamp without an offset passed on `format` alone.
+- **Major 2, as a draft:**
+  - A works map carrying presentation masters, mat colours and labels.
+  - A time-anchored schedule whose gaps are dark hours. When the horizon runs
+    out, the Player replays it by whole days, so a wall cut off from the server
+    keeps its household's hours.
+  - Scenes with lifetimes, a staging list, and wall settings.
+  - Capabilities as heartbeat minor 2.
+  - Five rules no schema can state (references resolve, slots are ordered and
+    inside a whole-day horizon, scenes run forward) have a reference validator
+    in the root test and one invalid fixture each.
+  - Display pins the cutover: every major 2 shape is refused as an unsupported
+    version.
+- A mutation sweep found a real gap: no fixture proved major 2's reused label is
+  enforced. That fixture is added.
+- `show_now` and `next` become schedule republishes in major 2. The
+  re-architecture and data model no longer say a scene replaces them.
 
 ## 2026-09-30: Curatarr and Displayarr; a token per wall; wave 0 closed
 

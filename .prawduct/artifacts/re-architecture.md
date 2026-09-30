@@ -303,9 +303,10 @@ is the baseline, and a **scene** overrides it.
 
 - **A scene is one object spanning walls.** It holds a pin for each wall
   ("living room left: Dalí A") and a lifetime. The Player's rule is: show the
-  active scene if there is one, or follow the schedule otherwise. It generalizes
-  today's per-wall `show_now` / `next` directive, which already has a sequence
-  number.
+  active scene if there is one, or follow the schedule otherwise. It takes over
+  the temporary, multi-wall uses of today's per-wall pin. `show_now` and `next`
+  themselves become republishes of the schedule, which keeps their "jump there,
+  then carry on" meaning (`player-contract.md` § Major 2).
 - **A scene has a lifetime, so a test cannot strand a wall.** *Preview*, the
   default, holds for a set time and then the wall returns to the schedule. The
   expiry travels in each wall's manifest, so walls revert on their own even if

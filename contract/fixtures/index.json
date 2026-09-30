@@ -1,20 +1,35 @@
 {
-  "_about": "Every fixture, the schema it is judged against, whether that schema accepts it, and, for invalid manifests, whether a major 1 Player must refuse it. A Player may be more tolerant than the schema, which states the writer's obligations; player_must_refuse lists the rules the reader enforces. Filenames name the one rule an invalid fixture breaks.",
+  "_about": "Every fixture, the schema it is judged against, whether that schema accepts it, and, for invalid manifests, whether a major 1 Player must refuse it. A Player may be more tolerant than the schema, which states the writer's obligations; player_must_refuse lists the rules the reader enforces. Filenames name the one rule an invalid fixture breaks. An invalid fixture breaks either the schema or one of the semantic rules in player-contract.md \u00a7 Major 2; 'breaks' says which.",
   "fixtures": [
+    {
+      "path": "fixtures/heartbeat.v1/invalid/backend-unknown.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
     {
       "path": "fixtures/heartbeat.v1/invalid/has-label-surface-null.json",
       "schema": "schemas/heartbeat.v1.schema.json",
-      "valid": false
+      "valid": false,
+      "breaks": "schema"
     },
     {
       "path": "fixtures/heartbeat.v1/invalid/manifest-schema-not-major-minor.json",
       "schema": "schemas/heartbeat.v1.schema.json",
-      "valid": false
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/no-label-modes.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
     },
     {
       "path": "fixtures/heartbeat.v1/invalid/timestamp-instead-of-reported-at.json",
       "schema": "schemas/heartbeat.v1.schema.json",
-      "valid": false
+      "valid": false,
+      "breaks": "schema"
     },
     {
       "path": "fixtures/heartbeat.v1/valid/as-built.json",
@@ -32,64 +47,79 @@
       "valid": true
     },
     {
+      "path": "fixtures/heartbeat.v1/valid/minor-2-with-capabilities.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
       "path": "fixtures/manifest.v1/invalid/absolute-render-path.json",
       "schema": "schemas/manifest.v1.schema.json",
       "valid": false,
-      "player_must_refuse": false
+      "player_must_refuse": false,
+      "breaks": "schema"
     },
     {
       "path": "fixtures/manifest.v1/invalid/boolean-directive-sequence.json",
       "schema": "schemas/manifest.v1.schema.json",
       "valid": false,
-      "player_must_refuse": true
+      "player_must_refuse": true,
+      "breaks": "schema"
     },
     {
       "path": "fixtures/manifest.v1/invalid/entries-not-a-list.json",
       "schema": "schemas/manifest.v1.schema.json",
       "valid": false,
-      "player_must_refuse": true
+      "player_must_refuse": true,
+      "breaks": "schema"
     },
     {
       "path": "fixtures/manifest.v1/invalid/entry-empty-work-id.json",
       "schema": "schemas/manifest.v1.schema.json",
       "valid": false,
-      "player_must_refuse": true
+      "player_must_refuse": true,
+      "breaks": "schema"
     },
     {
       "path": "fixtures/manifest.v1/invalid/entry-missing-render-path.json",
       "schema": "schemas/manifest.v1.schema.json",
       "valid": false,
-      "player_must_refuse": true
+      "player_must_refuse": true,
+      "breaks": "schema"
     },
     {
       "path": "fixtures/manifest.v1/invalid/generated-at-without-offset.json",
       "schema": "schemas/manifest.v1.schema.json",
       "valid": false,
-      "player_must_refuse": false
+      "player_must_refuse": false,
+      "breaks": "schema"
     },
     {
       "path": "fixtures/manifest.v1/invalid/major-2.json",
       "schema": "schemas/manifest.v1.schema.json",
       "valid": false,
-      "player_must_refuse": true
+      "player_must_refuse": true,
+      "breaks": "schema"
     },
     {
       "path": "fixtures/manifest.v1/invalid/media-sha256-not-hex.json",
       "schema": "schemas/manifest.v1.schema.json",
       "valid": false,
-      "player_must_refuse": false
+      "player_must_refuse": false,
+      "breaks": "schema"
     },
     {
       "path": "fixtures/manifest.v1/invalid/missing-directive-sequence.json",
       "schema": "schemas/manifest.v1.schema.json",
       "valid": false,
-      "player_must_refuse": true
+      "player_must_refuse": true,
+      "breaks": "schema"
     },
     {
       "path": "fixtures/manifest.v1/invalid/pinned-work-id-not-a-string.json",
       "schema": "schemas/manifest.v1.schema.json",
       "valid": false,
-      "player_must_refuse": true
+      "player_must_refuse": true,
+      "breaks": "schema"
     },
     {
       "path": "fixtures/manifest.v1/valid/as-built.json",
@@ -114,6 +144,121 @@
     {
       "path": "fixtures/manifest.v1/valid/unknown-minor-and-key.json",
       "schema": "schemas/manifest.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/horizon-not-whole-days.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "semantics"
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/label-mode-unknown.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/major-1.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/mat-bottom-weight-below-one.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/mat-color-not-hex.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/media-missing-dimensions.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/scene-ends-before-it-starts.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "semantics"
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/scene-names-a-work-not-in-works.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "semantics"
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/slot-ends-before-it-starts.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "semantics"
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/slot-missing-until.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/slot-names-a-work-not-in-works.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "semantics"
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/slot-outside-the-horizon.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "semantics"
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/slots-overlap.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "semantics"
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/staging-names-a-work-not-in-works.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "semantics"
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/work-label-missing-title.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/manifest.v2/valid/a-day-with-dark-hours.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/manifest.v2/valid/caption-wall-week-horizon.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/manifest.v2/valid/scene-hold.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/manifest.v2/valid/scene-preview.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/manifest.v2/valid/staging-a-scene.json",
+      "schema": "schemas/manifest.v2.schema.json",
       "valid": true
     }
   ]

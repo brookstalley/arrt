@@ -70,6 +70,25 @@ def test_a_future_major_is_refused_as_a_version_not_as_a_malformed_document():
     assert refused.value.major == 2
 
 
+@pytest.mark.parametrize(
+    "row",
+    [row for row in INDEX if row["schema"] == "schemas/manifest.v2.schema.json" and row["valid"]],
+    ids=lambda row: row["path"],
+)
+def test_every_major_2_manifest_is_refused_by_this_major_1_reader(row):
+    """The cutover, pinned from the Player's side for every shape major 2 can take.
+
+    Wave 4 publishes major 2 to every wall at once. A Player not yet upgraded must
+    keep its wall rather than misread a document with no entries list, and it
+    must say why in terms of the version, so the fix is "upgrade this Player"
+    rather than "debug the server".
+    """
+    with pytest.raises(manifest.ManifestVersionUnsupported) as refused:
+        _parse(row)
+
+    assert refused.value.major == 2
+
+
 def _heartbeat_errors(document: dict) -> list[str]:
     schema = json.loads((CONTRACT / "schemas" / "heartbeat.v1.schema.json").read_text(encoding="utf-8"))
     validator = Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER)

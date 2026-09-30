@@ -17,30 +17,89 @@ passes by reading nothing.
 
 It lives in the root suite because the contract belongs to neither plane: each
 plane's own suite checks its side against these same files.
+
+**Major 2 has rules no schema can state**: every work the schedule, a scene or
+staging names is in `works`, slots run forward in order without overlapping and
+stay inside the horizon, and the horizon is whole days. `semantic_errors` below is
+the reference statement of those rules. A Player enforces the same ones when
+wave 4 builds its reader, and an invalid fixture is marked as breaking either the
+schema or one of these.
 """
 
 import json
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
 from jsonschema import Draft202012Validator
+from referencing import Registry, Resource
 
 CONTRACT = Path(__file__).resolve().parents[2] / "contract"
 INDEX = json.loads((CONTRACT / "fixtures" / "index.json").read_text(encoding="utf-8"))["fixtures"]
 
 
+def _schema(schema_path: str) -> dict:
+    return json.loads((CONTRACT / schema_path).read_text(encoding="utf-8"))
+
+
+# Every schema, registered under its $id, so a reference from one major to another
+# (major 2 reuses major 1's label) resolves to the file on disk rather than to a
+# URL nobody serves.
+REGISTRY = Registry().with_resources(
+    (schema["$id"], Resource.from_contents(schema))
+    for schema in (_schema(str(path.relative_to(CONTRACT))) for path in (CONTRACT / "schemas").glob("*.json"))
+)
+
+
 def _validator(schema_path: str) -> Draft202012Validator:
-    schema = json.loads((CONTRACT / schema_path).read_text(encoding="utf-8"))
     # The format checker is passed so that a validator which does check formats
     # checks them; the schemas do not rely on it, because without an optional
     # package `date-time` is not checked at all, and each instant carries a
     # pattern for that reason.
-    return Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER)
+    return Draft202012Validator(
+        _schema(schema_path), registry=REGISTRY, format_checker=Draft202012Validator.FORMAT_CHECKER
+    )
+
+
+def _document(row: dict) -> dict:
+    return json.loads((CONTRACT / row["path"]).read_text(encoding="utf-8"))
 
 
 def _errors(row: dict) -> list[str]:
-    document = json.loads((CONTRACT / row["path"]).read_text(encoding="utf-8"))
-    return [error.message for error in _validator(row["schema"]).iter_errors(document)]
+    return [error.message for error in _validator(row["schema"]).iter_errors(_document(row))]
+
+
+def _instant(text: str) -> datetime:
+    return datetime.fromisoformat(text)
+
+
+def semantic_errors(document: dict) -> list[str]:
+    """The major 2 rules a schema cannot state, each broken rule reported once."""
+    errors = []
+    works = document["works"]
+    slots = document["schedule"]["slots"]
+    scene = document["scene"]
+    named = [slot["work_id"] for slot in slots] + document["staging"] + ([scene["work_id"]] if scene else [])
+    if any(work_id not in works for work_id in named):
+        errors.append("a work is named that is not in works")
+    if any(_instant(slot["from"]) >= _instant(slot["until"]) for slot in slots):
+        errors.append("a slot ends before it starts")
+    elif any(_instant(first["until"]) > _instant(second["from"]) for first, second in zip(slots, slots[1:], strict=False)):
+        errors.append("slots overlap or are out of order")
+    horizon_from = _instant(document["schedule"]["horizon"]["from"])
+    horizon_until = _instant(document["schedule"]["horizon"]["until"])
+    span = horizon_until - horizon_from
+    if span <= timedelta(0) or span % timedelta(days=1):
+        errors.append("the horizon is not a whole number of days")
+    if any(_instant(slot["from"]) < horizon_from or _instant(slot["until"]) > horizon_until for slot in slots):
+        errors.append("a slot falls outside the horizon")
+    if scene and scene["until"] is not None and _instant(scene["until"]) <= _instant(scene["from"]):
+        errors.append("the scene ends before it starts")
+    return errors
+
+
+def _semantics(row: dict) -> list[str]:
+    return semantic_errors(_document(row)) if row["schema"] == "schemas/manifest.v2.schema.json" else []
 
 
 @pytest.mark.parametrize("schema_path", sorted({row["schema"] for row in INDEX}))
@@ -72,11 +131,28 @@ def test_every_schema_has_valid_and_invalid_fixtures():
 @pytest.mark.parametrize("row", [row for row in INDEX if row["valid"]], ids=lambda row: row["path"])
 def test_a_valid_fixture_validates(row):
     assert _errors(row) == []
+    assert _semantics(row) == []
 
 
-@pytest.mark.parametrize("row", [row for row in INDEX if not row["valid"]], ids=lambda row: row["path"])
-def test_an_invalid_fixture_breaks_exactly_one_rule(row):
+@pytest.mark.parametrize(
+    "row", [row for row in INDEX if not row["valid"] and row["breaks"] == "schema"], ids=lambda row: row["path"]
+)
+def test_a_fixture_invalid_by_schema_breaks_exactly_one_rule(row):
     assert len(_errors(row)) == 1, _errors(row)
+
+
+@pytest.mark.parametrize(
+    "row", [row for row in INDEX if not row["valid"] and row["breaks"] == "semantics"], ids=lambda row: row["path"]
+)
+def test_a_fixture_invalid_by_semantics_passes_the_schema_and_breaks_exactly_one_rule(row):
+    assert _errors(row) == []
+    assert len(_semantics(row)) == 1, _semantics(row)
+
+
+def test_every_invalid_fixture_says_what_it_breaks():
+    for row in INDEX:
+        if not row["valid"]:
+            assert row.get("breaks") in {"schema", "semantics"}, row["path"]
 
 
 def test_invalid_manifests_say_whether_a_player_must_refuse_them():

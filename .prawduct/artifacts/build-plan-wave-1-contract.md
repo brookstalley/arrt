@@ -91,7 +91,7 @@ wave 2 channel must not paint wave 4 into a corner.
 ## Status
 
 - [x] Chunk 01: Major 1 — the as-built documents, the HTTP transport, and the tests that pin both planes
-- [ ] Chunk 02: Major 2 as a draft — schedule, scenes, staging, wall settings, capabilities
+- [x] Chunk 02: Major 2 as a draft — schedule, scenes, staging, wall settings, capabilities
 - [ ] Chunk 03: The wave 2 build plan
 
 Critic mode: cumulative-final. One cumulative review covers the plan when Chunk
