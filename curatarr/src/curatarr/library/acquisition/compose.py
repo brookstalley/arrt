@@ -27,9 +27,9 @@ from typing import Final
 
 from PIL import Image, ImageOps
 
-from curatarr.acquisition.color import parse_hex
-from curatarr.services.display_fit import ArtworkBox, DisplayFit, FitAssessment, assess_display_fit
-from curatarr.services.imaging import reading
+from curatarr.library.acquisition.color import parse_hex
+from curatarr.library.services.display_fit import ArtworkBox, DisplayFit, FitAssessment, assess_display_fit
+from curatarr.library.services.imaging import reading
 
 log = logging.getLogger(__name__)
 

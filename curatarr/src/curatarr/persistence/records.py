@@ -7,7 +7,7 @@ the store, whose contract is `catalogue.py`.
 
 **Only stored facts live here.** A value the catalogue derives rather than keeps
 belongs with the function that derives it — `DisplayFit` is the worked example
-and it is deliberately in `services/display_fit.py`, because a verdict about
+and it is deliberately in `library/services/display_fit.py`, because a verdict about
 whether an image is big enough depends on panel geometry and mat configuration,
 which are deployment values this plane does not own. Storing it would make the
 row a claim about one particular television that goes silently wrong the day the
@@ -149,7 +149,7 @@ class FacetDerivation(StrEnum):
     Never absent — an unlabelled facet is a guess wearing a citation.
 
     **The expected steady state is that most facets are `INFERRED`**, and that is
-    a fact about the providers rather than a defect: `discovery/browse.py` records
+    a fact about the providers rather than a defect: `library/discovery/browse.py` records
     that for the Art Institute "style, classification and period were measured
     missing on ordinary spellings", and that collection publishes no style field
     at all. Which is exactly why every row has to say which it is — a facet the
@@ -179,7 +179,7 @@ class Artist:
     label leads with the family name and sets it apart, which needs to know which
     part of the name that is — and no rule over `name` can say. "Titian (Tiziano
     Vecellio)", "van Gogh" and "Frank Lloyd Wright" each break a different
-    last-word heuristic, and the heuristic in `discovery/artic.py` documents its
+    last-word heuristic, and the heuristic in `library/discovery/artic.py` documents its
     own unreliability. So the parts are stored facts, supplied by whoever knows,
     and an artist who has neither is set unstyled under `name` rather than split
     by a guess. Both parts are optional because the corpus holds records that are

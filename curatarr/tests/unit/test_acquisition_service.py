@@ -13,14 +13,14 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from curatarr.acquisition.dezoomify import DezoomifyUnavailable
-from curatarr.acquisition.service import (
+from curatarr.library.acquisition.dezoomify import DezoomifyUnavailable
+from curatarr.library.acquisition.service import (
     AcquisitionOutcome,
     AcquisitionService,
     AcquisitionSettings,
 )
-from curatarr.acquisition.space import NotEnoughSpace
-from curatarr.acquisition.tiles import TileTargetUnavailable
+from curatarr.library.acquisition.space import NotEnoughSpace
+from curatarr.library.acquisition.tiles import TileTargetUnavailable
 from curatarr.persistence.records import (
     AcquisitionMethod,
     FetchStatus,
@@ -568,7 +568,7 @@ class TestTiledAcquisition:
     def test_a_missing_binary_raises_rather_than_blaming_the_source(self, service, acq_settings):
         from dataclasses import replace
 
-        from curatarr.acquisition.dezoomify import DezoomifyUnavailable
+        from curatarr.library.acquisition.dezoomify import DezoomifyUnavailable
 
         work, source = self._tiled_work(service)
         absent = replace(acq_settings, tile_binary="/nonexistent/dezoomify-rs")
@@ -1066,7 +1066,7 @@ class TestResolvingTheTileTargetBeforeFetching:
         """
         from dataclasses import replace
 
-        from curatarr.acquisition.tiles import TileTargetUnavailable
+        from curatarr.library.acquisition.tiles import TileTargetUnavailable
 
         (tmp_path / "seed.jpg").write_bytes(_jpeg_bytes(200, 150))
         binary, argv_log = self._binary_recording_argv(tmp_path, tmp_path / "seed.jpg")
@@ -1082,7 +1082,7 @@ class TestResolvingTheTileTargetBeforeFetching:
     def test_a_provider_that_cannot_be_asked_records_a_failure_against_the_source(self, service, acq_settings, tmp_path):
         from dataclasses import replace
 
-        from curatarr.discovery.images import ImageSearchFailure
+        from curatarr.library.discovery.images import ImageSearchFailure
 
         def unreachable(_: str) -> str:
             raise ImageSearchFailure("could not reach the collection")

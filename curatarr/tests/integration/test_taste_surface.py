@@ -20,7 +20,7 @@ from decimal import Decimal
 import httpx
 import pytest
 
-from curatarr.discovery.conversation import Suggestion
+from curatarr.library.discovery.conversation import Suggestion
 from curatarr.persistence.discovery_records import SpendCategory
 
 

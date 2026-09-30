@@ -282,7 +282,7 @@ the display plane are separate processes on separate Python versions.
 > > than edited away, because the reasoning above is still the record of what was
 > > believed when.** `3tears-models` did **not** arrive with the discovery work.
 > > Discovery reaches OpenRouter through a first-party client
-> > (`curatarr/src/curatarr/discovery/openrouter.py`) behind the engine seam, and
+> > (`curatarr/src/curatarr/library/discovery/openrouter.py`) behind the engine seam, and
 > > `3tears-models` stays confined to the opt-in `eval` group, where it plays the
 > > *curator* driving the MCP surface from outside rather than the discovery
 > > worker behind it. The deciding factor is the one this file already cares

@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator
 
-from curatarr.manifest import heartbeat
+from curatarr.programming.manifest import heartbeat
 
 CONTRACT = Path(__file__).resolve().parents[3] / "contract"
 

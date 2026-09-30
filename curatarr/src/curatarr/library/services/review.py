@@ -28,12 +28,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
+from curatarr.library.services import selection
+from curatarr.library.services.discovery import DiscoveryService
+from curatarr.library.services.display_fit import ArtworkBox, FitAssessment, assess_display_fit
+from curatarr.library.services.previews import InlinePreview, RenderedPreview, browser_preview, inline_preview
 from curatarr.persistence.discovery_records import CandidateImage, CandidateWork, DiscoveryRun
-from curatarr.services import selection
-from curatarr.services.discovery import DiscoveryService
-from curatarr.services.display_fit import ArtworkBox, FitAssessment, assess_display_fit
 from curatarr.services.errors import ServiceError
-from curatarr.services.previews import InlinePreview, RenderedPreview, browser_preview, inline_preview
 
 #: The most one review listing will return, and **the bound is the pictures, not
 #: the rows.** Every entry carries an image content block, which costs a client

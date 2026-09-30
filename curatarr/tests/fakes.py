@@ -20,21 +20,21 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal
 
-from curatarr.discovery.browse import BrowseQuery, CollectionBrowseFailure, OfferedGroup
-from curatarr.discovery.conversation import (
+from curatarr.library.discovery.browse import BrowseQuery, CollectionBrowseFailure, OfferedGroup
+from curatarr.library.discovery.conversation import (
     ConversationFailure,
     ConversationReply,
     Suggestion,
     ThreadTurn,
 )
-from curatarr.discovery.engine import (
+from curatarr.library.discovery.engine import (
     EngineFailure,
     EngineSpend,
     ProposedWork,
     WorkList,
     WorkListRequest,
 )
-from curatarr.discovery.images import FoundImage, ImageQuery, ImageSearchFailure
+from curatarr.library.discovery.images import FoundImage, ImageQuery, ImageSearchFailure
 from curatarr.persistence.discovery_records import SpendCategory
 from curatarr.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
 

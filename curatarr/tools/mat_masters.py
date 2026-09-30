@@ -14,8 +14,8 @@ both. That is the whole gap, and this tool is what closes it — by hand, on the
 machine that holds the masters.
 
 **It reads and reports; it writes nothing.** No catalogue row, no rendition, no
-file under `ART_ROOT`. Run it after any change to `acquisition/mat.py` or
-`acquisition/color.py`:
+file under `ART_ROOT`. Run it after any change to `library/acquisition/mat.py` or
+`library/acquisition/color.py`:
 
     cd curatarr
     uv run python tools/mat_masters.py ../all.json
@@ -38,9 +38,9 @@ from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from curatarr.acquisition.color import format_hex, hex_distance, parse_hex, rgb_to_lab  # noqa: E402
-from curatarr.acquisition.mat import CORPUS_MAX_LIGHTNESS, MatChoice, MatEngine, dominant_color  # noqa: E402
 from curatarr.config import CATALOGUE_FILENAME, DEFAULT_MAT_IMAGE_MAX_EDGE  # noqa: E402
+from curatarr.library.acquisition.color import format_hex, hex_distance, parse_hex, rgb_to_lab  # noqa: E402
+from curatarr.library.acquisition.mat import CORPUS_MAX_LIGHTNESS, MatChoice, MatEngine, dominant_color  # noqa: E402
 from curatarr.seed.legacy import read_index  # noqa: E402
 
 #: One work as this tool pairs it: its title, its master on disk, and the colour a

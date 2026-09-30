@@ -27,11 +27,11 @@ from mcp.client.streamable_http import streamable_http_client
 from PIL import Image
 
 from curatarr.config import DEFAULT_RESOLUTION_FLOOR_INCHES
-from curatarr.discovery.engine import WorkList
+from curatarr.library.discovery.engine import WorkList
+from curatarr.library.services.previews import PreviewSettings
+from curatarr.library.services.review import DEFAULT_REVIEW_LIMIT, MAX_INSTANCES_LISTED, MAX_REVIEW_LIMIT
 from curatarr.persistence.discovery_records import RunStatus
 from curatarr.services.container import Services
-from curatarr.services.previews import PreviewSettings
-from curatarr.services.review import DEFAULT_REVIEW_LIMIT, MAX_INSTANCES_LISTED, MAX_REVIEW_LIMIT
 
 #: The client's two thresholds for a tool result, per `api-contract.md` § Token
 #: budget. They are different failures and the surface holds them with different

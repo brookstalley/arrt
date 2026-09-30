@@ -19,8 +19,8 @@ import subprocess
 
 import pytest
 
-from curatarr.discovery.conversation import SUGGESTION_KINDS
 from curatarr.http.pages import STATIC_DIR
+from curatarr.library.discovery.conversation import SUGGESTION_KINDS
 from curatarr.mcp.bindings import RESTORE_NOTICE
 from curatarr.persistence.discovery_records import (
     AffinityDerivation,

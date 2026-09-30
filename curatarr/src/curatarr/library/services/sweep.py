@@ -65,8 +65,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
+from curatarr.library.services.discovery import DiscoveryService
 from curatarr.persistence.discovery_records import CandidateImage
-from curatarr.services.discovery import DiscoveryService
 from curatarr.services.errors import ServiceError
 
 log = logging.getLogger(__name__)

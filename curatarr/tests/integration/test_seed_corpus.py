@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from curatarr.manifest.builder import ExclusionReason
+from curatarr.programming.manifest.builder import ExclusionReason
 from curatarr.seed.ingest import SeedNote, seed_catalogue
 from curatarr.seed.legacy import read_index
 

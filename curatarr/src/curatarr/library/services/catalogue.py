@@ -30,6 +30,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Final
 
+from curatarr.library.services.display_fit import ArtworkBox, FitAssessment, assess_display_fit
 from curatarr.persistence.catalogue import CatalogueStore, WorkQuery
 from curatarr.persistence.records import (
     AcquisitionMethod,
@@ -50,7 +51,6 @@ from curatarr.persistence.records import (
     WorkFacet,
     is_current,
 )
-from curatarr.services.display_fit import ArtworkBox, FitAssessment, assess_display_fit
 from curatarr.services.errors import ServiceError
 from curatarr.services.fields import description_markup, relative_path, require_member, require_text
 from curatarr.services.store import store_write

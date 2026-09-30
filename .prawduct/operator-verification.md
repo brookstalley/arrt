@@ -1230,7 +1230,7 @@ one. So a corpus run is a sample of the engine's behaviour, not a fixed output,
 and a single bad pair is weaker evidence than a pattern across several.
 
 If the verdict is "worse than 2024", the cheapest levers in order: the prompt in
-`acquisition/mat.py` (`MAT_PROMPT` — its guidance is deliberately carried over
+`library/acquisition/mat.py` (`MAT_PROMPT` — its guidance is deliberately carried over
 from 2024's, so it is the least likely culprit), then `MAT_MODEL` in `.env`,
 which was chosen on cost among models that cleared the bar rather than on taste.
 `art_catalogue(action='set_mat_color', ...)` overrides any individual work

@@ -11,6 +11,7 @@ that read the row directly would pass even if no caller could ever get the
 answer out.
 """
 
+from curatarr.library.services.display_fit import ArtworkBox, DisplayFit
 from curatarr.persistence.records import (
     AcquisitionMethod,
     FetchStatus,
@@ -19,7 +20,6 @@ from curatarr.persistence.records import (
     RightsStatus,
     SourceClass,
 )
-from curatarr.services.display_fit import ArtworkBox, DisplayFit
 
 
 def _make_showable(service, work):

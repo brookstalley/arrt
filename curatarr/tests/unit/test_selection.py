@@ -9,9 +9,9 @@ image a work is represented by.
 
 from datetime import UTC, datetime
 
+from curatarr.library.services import selection
 from curatarr.persistence.discovery_records import CandidateImage
 from curatarr.persistence.records import AcquisitionMethod, SourceClass
-from curatarr.services import selection
 
 
 def _image(identifier: str, *, confidence: float, quality: float | None = None, rejected: bool = False) -> CandidateImage:

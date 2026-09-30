@@ -13,8 +13,8 @@ from typing import Final, Never
 
 import httpx
 
-from curatarr.acquisition.direct import StreamOpener
-from curatarr.acquisition.urls import check_fetchable
+from curatarr.library.acquisition.direct import StreamOpener
+from curatarr.library.acquisition.urls import check_fetchable
 from curatarr.services.errors import ServiceError
 
 log = logging.getLogger(__name__)

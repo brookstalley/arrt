@@ -38,10 +38,10 @@ from typing import Final
 
 from PIL import Image, UnidentifiedImageError
 
+from curatarr.library.services.catalogue import CatalogueService
+from curatarr.library.services.imaging import encode_downscaled
 from curatarr.persistence.records import Rendition, RenditionKind, tv_renditions_newest_first
-from curatarr.services.catalogue import CatalogueService
 from curatarr.services.errors import ServiceError
-from curatarr.services.imaging import encode_downscaled
 
 log = logging.getLogger(__name__)
 

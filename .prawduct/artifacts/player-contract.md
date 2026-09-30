@@ -76,7 +76,7 @@ Curatarr writes `1`, never `1.0`, as Python's `json` does.
 ### The manifest
 
 `contract/schemas/manifest.v1.schema.json`. Minor 1 is what the curation plane's
-`manifest/builder.py` writes today. Minor 2 (wave 2) adds `media` to each entry.
+`programming/manifest/builder.py` writes today. Minor 2 (wave 2) adds `media` to each entry.
 
 - **The wall is named by where the document lives**, never inside it: today by
   the file name `theme-manifest-{wall_id}.json`, from wave 2 by the URL

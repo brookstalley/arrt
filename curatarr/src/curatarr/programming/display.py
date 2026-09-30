@@ -28,8 +28,11 @@ from pathlib import Path
 from typing import Final
 
 from curatarr import observations
-from curatarr.manifest import heartbeat
-from curatarr.manifest.builder import (
+from curatarr.library.services.catalogue import ArtworkDetail, CatalogueService
+from curatarr.persistence.catalogue import CatalogueStore
+from curatarr.persistence.records import Directive, Theme, ThemeAssignment, ThemeMembership, Wall
+from curatarr.programming.manifest import heartbeat
+from curatarr.programming.manifest.builder import (
     ManifestBuild,
     WorkInputs,
     as_document,
@@ -39,10 +42,7 @@ from curatarr.manifest.builder import (
     tv_rendition_of,
     write_atomically,
 )
-from curatarr.manifest.heartbeat import HeartbeatReading, heartbeat_path_in
-from curatarr.persistence.catalogue import CatalogueStore
-from curatarr.persistence.records import Directive, Theme, ThemeAssignment, ThemeMembership, Wall
-from curatarr.services.catalogue import ArtworkDetail, CatalogueService
+from curatarr.programming.manifest.heartbeat import HeartbeatReading, heartbeat_path_in
 from curatarr.services.errors import ServiceError
 from curatarr.services.fields import require_text
 from curatarr.services.store import store_write

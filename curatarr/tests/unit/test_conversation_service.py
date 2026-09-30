@@ -13,9 +13,9 @@ from decimal import Decimal
 import pytest
 from fakes import a_billed_failure, a_collection_holding
 
-from curatarr.discovery.conversation import ConversationFailure, Suggestion
+from curatarr.library.discovery.conversation import ConversationFailure, Suggestion
+from curatarr.library.services.conversation import ConversationService
 from curatarr.persistence.discovery_records import SpendCategory, TurnRole
-from curatarr.services.conversation import ConversationService
 from curatarr.services.errors import ServiceError
 
 

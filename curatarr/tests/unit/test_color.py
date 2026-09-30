@@ -9,7 +9,7 @@ CIE's function rather than something that agrees with it on easy pairs.
 
 import pytest
 
-from curatarr.acquisition.color import (
+from curatarr.library.acquisition.color import (
     ColorError,
     Lab,
     delta_e,

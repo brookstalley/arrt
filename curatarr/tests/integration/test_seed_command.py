@@ -11,11 +11,11 @@ import json
 
 import pytest
 
+from curatarr.library.services.catalogue import CatalogueService
 from curatarr.persistence.file import open_catalogue_file
 from curatarr.persistence.sqlite import SqliteCatalogue
 from curatarr.seed.__main__ import main, render
 from curatarr.seed.ingest import SeededWork, SeedNote, SeedNoteEntry, SeedReport
-from curatarr.services.catalogue import CatalogueService
 
 
 @pytest.fixture(autouse=True)

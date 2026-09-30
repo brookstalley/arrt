@@ -19,11 +19,11 @@ from typing import Final
 
 from dotenv import load_dotenv
 
-from curatarr.manifest.builder import MANIFEST_FILENAME_TEMPLATE, manifest_path_in
-from curatarr.manifest.heartbeat import heartbeat_path_in
+from curatarr.library.services.display_fit import ArtworkBox
+from curatarr.library.services.runner import DiscoverySettings
 from curatarr.persistence.migrations import DEFAULT_WALL_NAME
-from curatarr.services.display_fit import ArtworkBox
-from curatarr.services.runner import DiscoverySettings
+from curatarr.programming.manifest.builder import MANIFEST_FILENAME_TEMPLATE, manifest_path_in
+from curatarr.programming.manifest.heartbeat import heartbeat_path_in
 
 #: The catalogue's filename under `ART_ROOT`. Not configurable: both planes
 #: and the backup path need to agree on where the catalogue is, and a setting

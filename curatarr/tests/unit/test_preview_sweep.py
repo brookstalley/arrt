@@ -14,11 +14,11 @@ import threading
 
 import pytest
 
+from curatarr.library.services import sweep as sweep_module
+from curatarr.library.services.sweep import PreviewSweep, run_periodically, start_sweeping
 from curatarr.persistence.discovery_records import Verdict
 from curatarr.persistence.records import AcquisitionMethod, SourceClass
-from curatarr.services import sweep as sweep_module
 from curatarr.services.errors import ServiceError
-from curatarr.services.sweep import PreviewSweep, run_periodically, start_sweeping
 
 
 @pytest.fixture

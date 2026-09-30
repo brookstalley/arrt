@@ -47,15 +47,15 @@ from time import monotonic
 from typing import Final
 
 from curatarr.counting import agree, counted, noun
-from curatarr.discovery.browse import (
+from curatarr.library.discovery.browse import (
     OFFERED_CONFIDENCE,
     BrowseQuery,
     CollectionBrowse,
     CollectionBrowseFailure,
     OfferedGroup,
 )
-from curatarr.discovery.dedup import work_dedup_key
-from curatarr.discovery.engine import (
+from curatarr.library.discovery.dedup import work_dedup_key
+from curatarr.library.discovery.engine import (
     BudgetExhausted,
     DiscoveryEngine,
     EngineFailure,
@@ -63,8 +63,10 @@ from curatarr.discovery.engine import (
     WorkList,
     WorkListRequest,
 )
-from curatarr.discovery.images import FoundImage, ImageQuery, ImageSearchFailure
-from curatarr.discovery.phase_two import JudgedImage, PhaseTwoEngine
+from curatarr.library.discovery.images import FoundImage, ImageQuery, ImageSearchFailure
+from curatarr.library.discovery.phase_two import JudgedImage, PhaseTwoEngine
+from curatarr.library.services.discovery import DiscoveryService
+from curatarr.library.services.previews import PreviewCache
 from curatarr.logs import run_context
 from curatarr.persistence.discovery_records import (
     CandidateWork,
@@ -75,9 +77,7 @@ from curatarr.persistence.discovery_records import (
     RunStatus,
     WorkProvenance,
 )
-from curatarr.services.discovery import DiscoveryService
 from curatarr.services.errors import ServiceError
-from curatarr.services.previews import PreviewCache
 
 log = logging.getLogger(__name__)
 

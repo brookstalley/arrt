@@ -34,12 +34,12 @@ from enum import Enum
 from pathlib import Path
 from typing import Final
 
-from curatarr.acquisition.color import ColorError, format_hex, parse_hex
-from curatarr.acquisition.compose import compose
-from curatarr.acquisition.mat import MatChoice, MatEngine
+from curatarr.library.acquisition.color import ColorError, format_hex, parse_hex
+from curatarr.library.acquisition.compose import compose
+from curatarr.library.acquisition.mat import MatChoice, MatEngine
+from curatarr.library.services.catalogue import CatalogueService
+from curatarr.library.services.display_fit import ArtworkBox, DisplayFit
 from curatarr.persistence.records import MatColor, MatMethod, RenditionKind
-from curatarr.services.catalogue import CatalogueService
-from curatarr.services.display_fit import ArtworkBox, DisplayFit
 from curatarr.services.errors import ServiceError
 
 log = logging.getLogger(__name__)

@@ -337,7 +337,7 @@ loaded, the work currently displayed, TV connectivity state, e-paper state, and
 the last error if any.
 
 **Two names in it are a contract, not a suggestion, because the reader is already
-built** (`curatarr/src/curatarr/manifest/heartbeat.py`): the file is named by the
+built** (`curatarr/src/curatarr/programming/manifest/heartbeat.py`): the file is named by the
 template **`display-heartbeat-{wall_id}.json`** under `ART_ROOT`, and the timestamp
 key is **`reported_at`**, an ISO-8601 instant.
 The reader treats any other spelling as an unreadable heartbeat and says so — so a

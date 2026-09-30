@@ -31,10 +31,19 @@ from typing import Any, Final
 
 from PIL import Image, ImageOps
 
-from curatarr.acquisition.color import ColorError, Lab, delta_e, format_hex, lab_to_rgb, parse_hex, rgb_to_lab, scale_lightness
-from curatarr.discovery.openrouter import Completion, ImageAttachment, OpenRouterClient, OpenRouterError
+from curatarr.library.acquisition.color import (
+    ColorError,
+    Lab,
+    delta_e,
+    format_hex,
+    lab_to_rgb,
+    parse_hex,
+    rgb_to_lab,
+    scale_lightness,
+)
+from curatarr.library.discovery.openrouter import Completion, ImageAttachment, OpenRouterClient, OpenRouterError
+from curatarr.library.services.imaging import reading
 from curatarr.persistence.records import MatMethod
-from curatarr.services.imaging import reading
 
 log = logging.getLogger(__name__)
 

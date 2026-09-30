@@ -13,11 +13,11 @@ So the tests below are mostly about refusal: what must *not* come back, and the
 
 import pytest
 
-from curatarr.discovery.images import FoundImage, ImageQuery, ImageSearchFailure
-from curatarr.discovery.phase_two import CONFIDENT, TITLE_ONLY, UNATTRIBUTED_RECORD, PhaseTwoEngine
+from curatarr.library.discovery.images import FoundImage, ImageQuery, ImageSearchFailure
+from curatarr.library.discovery.phase_two import CONFIDENT, TITLE_ONLY, UNATTRIBUTED_RECORD, PhaseTwoEngine
+from curatarr.library.services.display_fit import ArtworkBox, DisplayFit
 from curatarr.persistence.discovery_records import UnresolvedReason
 from curatarr.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
-from curatarr.services.display_fit import ArtworkBox, DisplayFit
 
 #: A 42" panel, as `Settings.tv_artwork_box` composes it — a fixed geometry chosen
 #: so the numbers below are checkable, NOT the operator's set, which is 50". A

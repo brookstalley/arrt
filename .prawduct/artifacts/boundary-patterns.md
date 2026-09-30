@@ -118,7 +118,7 @@
     is guarded statically, as `test_plane_isolation.py` guards the planes.
     Library changes reach Programming as in-process events (`work.accepted`,
     `work.archived`, `work.image_changed`, `work.mat_changed`).
-  - Manifest readiness (`manifest/builder.py` `assess`) moves behind the facade.
+  - Manifest readiness (`programming/manifest/builder.py` `assess`) moves behind the facade.
   - The UI and MCP bindings stay the only code allowed to call both sides. A
     composition of two services' calls is still dispatch, not logic, so the
     thin-binding norm holds.

@@ -17,10 +17,10 @@ from decimal import Decimal
 import pytest
 from fakes import FakeImageSearch, a_work, an_image
 
-from curatarr.discovery.engine import WorkList
+from curatarr.library.discovery.engine import WorkList
+from curatarr.library.services.previews import PreviewSettings
 from curatarr.persistence.discovery_records import RunKind, RunStatus, SpendCategory, Verdict
 from curatarr.services.container import Services
-from curatarr.services.previews import PreviewSettings
 
 
 async def call(server_url: str, tool: str, **arguments) -> tuple[dict, bool]:

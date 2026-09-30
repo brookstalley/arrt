@@ -23,13 +23,19 @@ from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime
 from typing import Any, Final
 
-from curatarr.acquisition.dezoomify import DezoomifyUnavailable
-from curatarr.acquisition.preparation import PreparationResult
-from curatarr.acquisition.service import AcquisitionOutcome, AcquisitionResult
-from curatarr.acquisition.space import NotEnoughSpace
-from curatarr.acquisition.tiles import TileTargetUnavailable
 from curatarr.counting import agree, agree_partitive, counted
-from curatarr.manifest.builder import ManifestBuild
+from curatarr.library.acquisition.dezoomify import DezoomifyUnavailable
+from curatarr.library.acquisition.preparation import PreparationResult
+from curatarr.library.acquisition.service import AcquisitionOutcome, AcquisitionResult
+from curatarr.library.acquisition.space import NotEnoughSpace
+from curatarr.library.acquisition.tiles import TileTargetUnavailable
+from curatarr.library.services.catalogue import MAX_LIST_LIMIT, ArtworkDetail, ArtworkListing, FacetGroup
+from curatarr.library.services.discovery import VerdictOutcome
+from curatarr.library.services.display_fit import DisplayFit
+from curatarr.library.services.previews import InlinePreview
+from curatarr.library.services.review import MAX_REVIEW_LIMIT, CandidatePage, CandidateView, InstanceListing, InstanceView
+from curatarr.library.services.runner import RunListing, RunView
+from curatarr.library.services.taste import AffinityView
 from curatarr.mcp.envelope import ImageBlock, ok, with_images
 from curatarr.mcp.registry import HELP_ACTION, RegistryError
 from curatarr.mcp.tools import TOOLS
@@ -42,16 +48,10 @@ from curatarr.persistence.discovery_records import (
     RunStatus,
 )
 from curatarr.persistence.records import Artist, Artwork, Directive, Source, Theme, VocabularyKind, Wall
-from curatarr.services.catalogue import MAX_LIST_LIMIT, ArtworkDetail, ArtworkListing, FacetGroup
+from curatarr.programming.display import UNSET, ThemePlacement, WallView, describe_wall_status
+from curatarr.programming.manifest.builder import ManifestBuild
 from curatarr.services.container import Services
-from curatarr.services.discovery import VerdictOutcome
-from curatarr.services.display import UNSET, ThemePlacement, WallView, describe_wall_status
-from curatarr.services.display_fit import DisplayFit
 from curatarr.services.errors import ServiceError
-from curatarr.services.previews import InlinePreview
-from curatarr.services.review import MAX_REVIEW_LIMIT, CandidatePage, CandidateView, InstanceListing, InstanceView
-from curatarr.services.runner import RunListing, RunView
-from curatarr.services.taste import AffinityView
 
 #: A bound action: validated arguments in, a result payload out. Every binding
 #: takes the whole container rather than the one service it happens to need, so

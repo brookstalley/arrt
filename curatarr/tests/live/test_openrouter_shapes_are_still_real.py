@@ -21,11 +21,11 @@ from decimal import Decimal
 import pytest
 
 from curatarr.config import DEFAULT_DISCOVERY_MODEL, DEFAULT_DISCOVERY_SEARCH_ENGINE, DEFAULT_SEARCH_COST_USD
-from curatarr.discovery.engine import WorkListRequest
-from curatarr.discovery.openrouter import OpenRouterClient
-from curatarr.discovery.phase_one import build_engine
+from curatarr.library.discovery.engine import WorkListRequest
+from curatarr.library.discovery.openrouter import OpenRouterClient
+from curatarr.library.discovery.phase_one import build_engine
+from curatarr.library.services.runner import DiscoveryRunner
 from curatarr.persistence.discovery_records import InitiatedBy, RunStatus
-from curatarr.services.runner import DiscoveryRunner
 
 pytestmark = pytest.mark.live_api
 

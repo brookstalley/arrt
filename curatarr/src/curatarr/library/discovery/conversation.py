@@ -29,8 +29,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Final, Protocol, runtime_checkable
 
-from curatarr.discovery.engine import EngineSpend
-from curatarr.discovery.openrouter import Completion, KeyExhausted, Message, OpenRouterClient, OpenRouterError
+from curatarr.library.discovery.engine import EngineSpend
+from curatarr.library.discovery.openrouter import Completion, KeyExhausted, Message, OpenRouterClient, OpenRouterError
 from curatarr.persistence.discovery_records import SpendCategory, TurnRole
 
 log = logging.getLogger(__name__)

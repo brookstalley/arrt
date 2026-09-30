@@ -22,6 +22,13 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
+from curatarr.library.services.thumbnails import (
+    THUMBNAIL_MAX_EDGE_PX,
+    ThumbnailSettings,
+    ThumbnailSource,
+    ThumbnailUnavailable,
+    _drawn_from,
+)
 from curatarr.persistence.records import (
     AcquisitionMethod,
     FetchStatus,
@@ -32,13 +39,6 @@ from curatarr.persistence.records import (
     SourceClass,
 )
 from curatarr.services.errors import ServiceError
-from curatarr.services.thumbnails import (
-    THUMBNAIL_MAX_EDGE_PX,
-    ThumbnailSettings,
-    ThumbnailSource,
-    ThumbnailUnavailable,
-    _drawn_from,
-)
 
 
 @pytest.fixture
@@ -177,7 +177,7 @@ class TestTheSupersededSignal:
             path=rendered,
         )
 
-        with caplog.at_level(logging.INFO, logger="curatarr.services.thumbnails"):
+        with caplog.at_level(logging.INFO, logger="curatarr.library.services.thumbnails"):
             thumbnails.thumbnail(artwork.id)
 
         records = self._events(caplog)
@@ -195,7 +195,7 @@ class TestTheSupersededSignal:
         artwork = work()
         thumbnails.thumbnail(artwork.id).unlink()
 
-        with caplog.at_level(logging.INFO, logger="curatarr.services.thumbnails"):
+        with caplog.at_level(logging.INFO, logger="curatarr.library.services.thumbnails"):
             thumbnails.thumbnail(artwork.id)
 
         assert self._events(caplog) == []
@@ -219,7 +219,7 @@ class TestTheSupersededSignal:
             fetch_status=FetchStatus.OK,
         )
 
-        with caplog.at_level(logging.INFO, logger="curatarr.services.thumbnails"):
+        with caplog.at_level(logging.INFO, logger="curatarr.library.services.thumbnails"):
             thumbnails.thumbnail(artwork.id)
 
         assert self._events(caplog) == []

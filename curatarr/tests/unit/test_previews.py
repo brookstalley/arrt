@@ -7,8 +7,8 @@ same instance, and a write interrupted partway.
 
 import pytest
 
+from curatarr.library.services.previews import PreviewCache, PreviewSettings
 from curatarr.services.errors import ServiceError
-from curatarr.services.previews import PreviewCache, PreviewSettings
 
 URL = "https://www.artic.edu/iiif/2/b272df73-a965-ac37-4172-be4e99483637/full/843,/0/default.jpg"
 JPEG = b"\xff\xd8\xff\xe0 jpeg bytes"
@@ -203,10 +203,10 @@ def test_a_run_completes_when_no_preview_can_be_written(services, settings, engi
     """
     from fakes import FakeImageSearch, a_work, an_image
 
-    from curatarr.discovery.engine import WorkList
-    from curatarr.discovery.phase_two import PhaseTwoEngine
+    from curatarr.library.discovery.engine import WorkList
+    from curatarr.library.discovery.phase_two import PhaseTwoEngine
+    from curatarr.library.services.runner import DiscoveryRunner
     from curatarr.persistence.discovery_records import InitiatedBy, ResolutionStatus, RunStatus
-    from curatarr.services.runner import DiscoveryRunner
 
     def explode(self, _data):
         raise OSError("no space left on device")

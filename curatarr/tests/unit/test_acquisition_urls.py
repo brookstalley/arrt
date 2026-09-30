@@ -2,7 +2,7 @@
 
 import pytest
 
-from curatarr.acquisition.urls import UrlRefused, check_fetchable
+from curatarr.library.acquisition.urls import UrlRefused, check_fetchable
 
 
 def _resolves_to(*addresses: str):

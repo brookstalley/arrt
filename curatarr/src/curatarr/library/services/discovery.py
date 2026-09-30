@@ -32,7 +32,10 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from curatarr.discovery.dedup import clean_name, work_dedup_key
+from curatarr.library.discovery.dedup import clean_name, work_dedup_key
+from curatarr.library.services import attribution, selection
+from curatarr.library.services.catalogue import CatalogueService
+from curatarr.library.services.display_fit import ArtworkBox, DisplayFit, assess_display_fit
 from curatarr.persistence.discovery import DiscoveryStore
 from curatarr.persistence.discovery_records import (
     CandidateImage,
@@ -50,9 +53,6 @@ from curatarr.persistence.discovery_records import (
     WorkProvenance,
 )
 from curatarr.persistence.records import AcquisitionMethod, Artist, RightsStatus, SourceClass
-from curatarr.services import attribution, selection
-from curatarr.services.catalogue import CatalogueService
-from curatarr.services.display_fit import ArtworkBox, DisplayFit, assess_display_fit
 from curatarr.services.errors import ServiceError
 from curatarr.services.fields import relative_path, require_member, require_text
 from curatarr.services.store import store_write

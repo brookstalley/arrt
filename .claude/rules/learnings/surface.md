@@ -3,6 +3,8 @@ paths:
   - "curatarr/src/curatarr/http/**"
   - "curatarr/src/curatarr/mcp/**"
   - "curatarr/src/curatarr/services/**"
+  - "curatarr/src/curatarr/library/services/**"
+  - "curatarr/src/curatarr/programming/**"
 ---
 # Learnings — surface
 

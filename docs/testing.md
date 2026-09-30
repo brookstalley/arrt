@@ -85,7 +85,7 @@ is right locally and a trap in CI, where a green run that made no request looks
 identical to a passing one. `.github/scripts/assert_tests_ran.py` is what closes
 that: it fails the job on any skip and names which dependency was absent.
 
-**Touching `acquisition/mat.py` or `acquisition/color.py`? Run the masters by
+**Touching `library/acquisition/mat.py` or `library/acquisition/color.py`? Run the masters by
 hand** — `cd curatarr && uv run python tools/mat_masters.py ../all.json`. The
 corpus's colours are in the repo but the paintings are the operator's masters, so
 every test here uses synthetic flats, which have no cluster competition and no

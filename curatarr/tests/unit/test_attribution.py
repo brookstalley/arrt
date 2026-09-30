@@ -10,8 +10,8 @@ resembling the other: an unattributed work, and a name that normalises away.
 
 import pytest
 
+from curatarr.library.services.attribution import resolve
 from curatarr.persistence.records import Artist
-from curatarr.services.attribution import resolve
 
 
 def artist(name: str) -> Artist:

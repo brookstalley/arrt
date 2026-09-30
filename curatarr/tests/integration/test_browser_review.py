@@ -27,10 +27,10 @@ import pytest
 from fakes import FakeImageSearch, a_decodable_jpeg, a_work, an_image
 from PIL import Image
 
-from curatarr.discovery.engine import WorkList
+from curatarr.library.discovery.engine import WorkList
+from curatarr.library.services.previews import PreviewSettings
 from curatarr.persistence.discovery_records import RunStatus, Verdict
 from curatarr.services.container import Services
-from curatarr.services.previews import PreviewSettings
 
 
 @pytest.fixture

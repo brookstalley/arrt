@@ -47,12 +47,12 @@ from curatarr.config import (
     DEFAULT_TV_PANEL_WIDTH_PX,
     Settings,
 )
-from curatarr.discovery.phase_one import OpenRouterEngine
+from curatarr.library.discovery.phase_one import OpenRouterEngine
+from curatarr.library.services.catalogue import CatalogueService
 from curatarr.persistence.file import open_catalogue_file
 from curatarr.persistence.migrations import DEFAULT_WALL_NAME
 from curatarr.persistence.sqlite import SqliteCatalogue
-from curatarr.services.catalogue import CatalogueService
-from curatarr.services.display import DisplayService, DisplaySettings
+from curatarr.programming.display import DisplayService, DisplaySettings
 
 #: A key shaped like the real thing, so a naive redaction that only hides values
 #: it recognises as secret-looking cannot pass by accident.

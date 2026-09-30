@@ -2,7 +2,7 @@
 
 This exists because of a real near-miss: the stock Python `.gitignore` carries an
 unanchored `MANIFEST` rule for the setuptools artifact, and on a case-insensitive
-filesystem (macOS) that also matched `curatarr/src/curatarr/manifest/` — the
+filesystem (macOS) that also matched `curatarr/src/curatarr/programming/manifest/` — the
 theme-manifest builder, which is the only channel between the two planes. The
 package existed on disk, imports succeeded, and tests passed; it was simply never
 committed. A fresh clone, or the Pi, would have had a missing module.

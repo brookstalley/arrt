@@ -208,7 +208,7 @@ CREATE TABLE IF NOT EXISTS affinities (
     -- delete nulls this column: a NOT NULL would forbid the delete outright and
     -- a cascade would destroy the judgment the delete is required to leave
     -- standing. The rule that an `inferred` row cites a turn is enforced on the
-    -- write path, in `services/taste.py`, and cannot be enforced here without
+    -- write path, in `library/services/taste.py`, and cannot be enforced here without
     -- making the deletion ruling unimplementable.
     source_turn_id TEXT REFERENCES conversation_turns(id),
     artist_id      TEXT REFERENCES artists(id),
@@ -276,7 +276,7 @@ _BY_TITLE: Final[tuple[OrderBy, ...]] = (OrderBy("proposed_title", ignore_case=T
 
 #: The chosen instance leads where one exists. Rejected instances keep their place
 #: in this order rather than sorting last, so a surface that caps this list decides
-#: for itself which rows a curator can still act on — see `services/review.py`.
+#: for itself which rows a curator can still act on — see `library/services/review.py`.
 _BY_SELECTION: Final[tuple[OrderBy, ...]] = (
     OrderBy("is_selected", descending=True),
     OrderBy("confidence", descending=True),

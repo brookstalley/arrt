@@ -31,11 +31,11 @@ from pathlib import Path
 
 import pytest
 
-from curatarr.discovery.artic import build_image_search
-from curatarr.discovery.dedup import clean_name
-from curatarr.discovery.images import ImageQuery, ImageSearchFailure
-from curatarr.discovery.phase_two import PhaseTwoEngine
-from curatarr.services.display_fit import ArtworkBox
+from curatarr.library.discovery.artic import build_image_search
+from curatarr.library.discovery.dedup import clean_name
+from curatarr.library.discovery.images import ImageQuery, ImageSearchFailure
+from curatarr.library.discovery.phase_two import PhaseTwoEngine
+from curatarr.library.services.display_fit import ArtworkBox
 
 pytestmark = pytest.mark.live_museum
 

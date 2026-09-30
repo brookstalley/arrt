@@ -102,8 +102,14 @@ from curatarr.http.models import (
     WorkOut,
     WorkPageOut,
 )
-from curatarr.manifest.builder import ManifestBuild
-from curatarr.manifest.heartbeat import HeartbeatReading
+from curatarr.library.services.catalogue import FacetGroup, RenditionView
+from curatarr.library.services.conversation import ConversationDeletion, ConversationView, TurnView
+from curatarr.library.services.discovery import VerdictOutcome
+from curatarr.library.services.display_fit import ArtworkBox
+from curatarr.library.services.review import CandidatePage, CandidateView, InstanceListing, InstanceView
+from curatarr.library.services.runner import Estimate, RunView, SpendReport
+from curatarr.library.services.survey import WorkDossier, WorkSurvey
+from curatarr.library.services.taste import AffinityView
 from curatarr.persistence.backup import BackupReading
 from curatarr.persistence.discovery_records import (
     CandidateImage,
@@ -113,17 +119,11 @@ from curatarr.persistence.discovery_records import (
     InitiatedBy,
 )
 from curatarr.persistence.records import Artist, Directive, MatColor, Original, Source, Theme, WorkFacet
-from curatarr.services.catalogue import FacetGroup, RenditionView
+from curatarr.programming.display import ThemePlacement, WallView
+from curatarr.programming.manifest.builder import ManifestBuild
+from curatarr.programming.manifest.heartbeat import HeartbeatReading
 from curatarr.services.container import Services
-from curatarr.services.conversation import ConversationDeletion, ConversationView, TurnView
-from curatarr.services.discovery import VerdictOutcome
-from curatarr.services.display import ThemePlacement, WallView
-from curatarr.services.display_fit import ArtworkBox
 from curatarr.services.health import HealthReading
-from curatarr.services.review import CandidatePage, CandidateView, InstanceListing, InstanceView
-from curatarr.services.runner import Estimate, RunView, SpendReport
-from curatarr.services.survey import WorkDossier, WorkSurvey
-from curatarr.services.taste import AffinityView
 
 log = logging.getLogger(__name__)
 

@@ -50,8 +50,8 @@ sys.path.insert(0, str(_CURATION / "tests"))
 
 from conftest import _open_seeded_catalogue  # noqa: E402
 
+from curatarr.library.services.catalogue import CatalogueService  # noqa: E402
 from curatarr.persistence.durable import SqliteDurableStore  # noqa: E402
-from curatarr.services.catalogue import CatalogueService  # noqa: E402
 
 #: Terms chosen to span selectivity, which is the whole axis the two strategies
 #: differ on: a full scan pays the same for every question, an index pays in

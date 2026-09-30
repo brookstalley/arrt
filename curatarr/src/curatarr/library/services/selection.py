@@ -24,8 +24,8 @@ is exactly one ordering, and that a caller never invents its own.
 
 from collections.abc import Iterable
 
+from curatarr.library.services.display_fit import ArtworkBox, DisplayFit, assess_display_fit
 from curatarr.persistence.discovery_records import CandidateImage
-from curatarr.services.display_fit import ArtworkBox, DisplayFit, assess_display_fit
 
 
 def surviving(images: Iterable[CandidateImage]) -> list[CandidateImage]:

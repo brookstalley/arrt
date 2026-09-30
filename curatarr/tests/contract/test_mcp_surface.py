@@ -11,10 +11,10 @@ import pytest
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
-from curatarr.manifest.builder import ExclusionReason, assess
 from curatarr.mcp.registry import DESCRIPTION_BUDGET_BYTES
 from curatarr.mcp.tools import ART_DISPLAY, ART_THEME, TOOLS, TOOLS_BY_NAME
 from curatarr.persistence.records import FetchStatus, VocabularyKind
+from curatarr.programming.manifest.builder import ExclusionReason, assess
 from curatarr.services.errors import ServiceError
 
 #: A regression here silently renames the entire MCP tool surface for every

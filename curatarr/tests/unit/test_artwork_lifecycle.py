@@ -15,6 +15,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from curatarr.library.services.catalogue import CatalogueService
 from curatarr.persistence.file import open_catalogue_file
 from curatarr.persistence.records import (
     AcquisitionMethod,
@@ -27,8 +28,7 @@ from curatarr.persistence.records import (
     Theme,
 )
 from curatarr.persistence.sqlite import SqliteCatalogue
-from curatarr.services.catalogue import CatalogueService
-from curatarr.services.display import DisplayService, DisplaySettings
+from curatarr.programming.display import DisplayService, DisplaySettings
 from curatarr.services.errors import ServiceError
 
 

@@ -16,8 +16,8 @@ where both must pick one of several renders they pick the same one.
 
 import pytest
 
-from curatarr.manifest.builder import ExclusionReason, assess, tv_rendition_of
 from curatarr.persistence.records import FetchStatus, RenditionKind, is_current, tv_renditions_newest_first
+from curatarr.programming.manifest.builder import ExclusionReason, assess, tv_rendition_of
 
 
 def _grid_says_current(service, artwork_id) -> bool:

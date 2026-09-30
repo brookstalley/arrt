@@ -16,13 +16,13 @@ from dataclasses import replace
 import pytest
 from fakes import FakeImageSearch, a_work, an_image
 
-from curatarr.discovery.engine import WorkList
-from curatarr.discovery.phase_two import PhaseTwoEngine
+from curatarr.library.discovery.engine import WorkList
+from curatarr.library.discovery.phase_two import PhaseTwoEngine
+from curatarr.library.services.previews import PreviewCache, PreviewSettings
+from curatarr.library.services.runner import DiscoveryRunner
 from curatarr.persistence.discovery_records import InitiatedBy, ResolutionStatus, RunStatus, Verdict
 from curatarr.services.container import Services
 from curatarr.services.errors import ServiceError
-from curatarr.services.previews import PreviewCache, PreviewSettings
-from curatarr.services.runner import DiscoveryRunner
 
 
 def a_list(*titles: str, artist: str | None = "Salvador Dalí") -> WorkList:
@@ -409,7 +409,7 @@ def test_the_failure_log_line_agrees_with_itself_over_a_single_work(services, en
     engine.result = a_list("The Elephants")
     museum.unreachable = True
 
-    with caplog.at_level(logging.WARNING, logger="curatarr.services.runner"):
+    with caplog.at_level(logging.WARNING, logger="curatarr.library.services.runner"):
         start(runner)
 
     said = [record.message for record in caplog.records if "could not reach an image provider for any" in record.message]

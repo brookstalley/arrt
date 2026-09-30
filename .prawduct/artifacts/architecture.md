@@ -206,10 +206,10 @@ convenience would otherwise make that split a migration.
 > (backlog items not yet filed). **Interim rule:** new code that touches themes,
 > walls, directives or manifests is written against the rules above wherever it
 > can be without the package split: no new cross-seam foreign keys, no new direct
-> reads of catalogue tables from `services/display.py`'s domain.
+> reads of catalogue tables from `programming/display.py`'s domain.
 >
 > **Retroactivity: migrate.** The inventory is the two foreign keys above, and
-> `services/display.py` / `manifest/builder.py` reading catalogue records
+> `programming/display.py` / `programming/manifest/builder.py` reading catalogue records
 > directly. Rules 1, 2 and 4 migrate in wave 2, ahead of the HTTP manifest
 > endpoint, which is the facade's first consumer. Rule 3, the store split,
 > migrates at the start of wave 3, so the data moves to the NAS once.
@@ -567,7 +567,7 @@ is no network between planes.
 
   **What is deliberately *not* behind it: the judgement.** A provider reports
   what its collection holds; whether any of it is the work that was asked for is
-  decided above the seam, in `discovery/phase_two.py`, so two providers cannot
+  decided above the seam, in `library/discovery/phase_two.py`, so two providers cannot
   come to disagree about what "confident" means. That placement is a measurement
   rather than a preference — the Art Institute's own relevance score was measured
   unusable for the purpose (`artic-api-findings.md`), and a design that trusted
@@ -583,8 +583,8 @@ is no network between planes.
   which is exactly what happened to the one it replaced.
 
   **The real implementation landed 2026-08-02 and is two modules, both behind the
-  seam.** `discovery/openrouter.py` is a first-party HTTP client — one provider,
-  one account, and no knowledge of what a discovery run is; `discovery/phase_one.py`
+  seam.** `library/discovery/openrouter.py` is a first-party HTTP client — one provider,
+  one account, and no knowledge of what a discovery run is; `library/discovery/phase_one.py`
   is the engine, which turns an intent into works and attributes what that cost.
   The split is what keeps the client's measured response shapes testable against a
   recorded transport while the engine's decisions stay testable without either.
@@ -936,7 +936,7 @@ failure this whole arrangement removes: a television showing another room's
 pictures while every log line reads fine. The value is the id the curation
 catalogue minted, read off the Walls screen or `art_display(action='walls')`.
 
-**Built 2026-08-12** (`curatarr/src/curatarr/manifest/builder.py`,
+**Built 2026-08-12** (`curatarr/src/curatarr/programming/manifest/builder.py`,
 `arrt/src/arrt/config.py`). The one-wall installation is the degenerate
 case: one wall, one manifest, one heartbeat, and behaviour identical to the
 single-file form apart from the filename. Neither filename may be imported across
@@ -1051,7 +1051,7 @@ See `re-architecture.md`.)* What remains:
 | E-paper write fails | label stale | Log and continue; never let a panel failure stop the TV rotation |
 | Budget exhausted mid-run (the provider refuses — a 403; see `openrouter-api-findings.md`) | discovery halts partially | `halted_by_budget`, a modelled outcome. Already-acquired works stay acquired |
 | Preview sweep stops running | **curation only, and silently** | The characteristic failure of the plane's one periodic job: no error, no refusal, and no symptom until the SD card fills. It is upstream of the row below, and the only signal is positive — `preview.swept` at INFO on **every** pass, including the ones that reclaim nothing, so absence over an interval is the fault. A pass that hangs instead of stopping is the neighbouring case and reads differently: `preview.sweep_started` with no `preview.swept`, and at shutdown a `preview.sweep_wedged` warning, because that pass holds the store lock the next generation of services will want |
-| SD card full | **both planes** | The one genuinely shared failure. **Built 2026-08-03**: `acquisition/space.py` refuses before a fetch begins, sized by `MIN_FREE_BYTES` (2 GiB) and protecting `catalogue.sqlite` on the same device rather than the fetch. It raises rather than recording, because a full disk is a fact about the machine that every work behind this one would hit. **It is not the only one, and this row said it was until 2026-08-04.** The rule is general: a condition no source is at fault for raises, because a `failed` row against a source sends whoever reads it to the museum to look for a problem that is in the deployment. Three qualify today — a full disk, `dezoomify-rs` missing, and a provider with no tile resolver wired — and the next acquisition failure is judged against that rule rather than against this list, which is why the rule is stated here and the count is not |
+| SD card full | **both planes** | The one genuinely shared failure. **Built 2026-08-03**: `library/acquisition/space.py` refuses before a fetch begins, sized by `MIN_FREE_BYTES` (2 GiB) and protecting `catalogue.sqlite` on the same device rather than the fetch. It raises rather than recording, because a full disk is a fact about the machine that every work behind this one would hit. **It is not the only one, and this row said it was until 2026-08-04.** The rule is general: a condition no source is at fault for raises, because a `failed` row against a source sends whoever reads it to the museum to look for a problem that is in the deployment. Three qualify today — a full disk, `dezoomify-rs` missing, and a provider with no tile resolver wired — and the next acquisition failure is judged against that rule rather than against this list, which is why the rule is stated here and the count is not |
 | SD card corruption | catastrophic | The catalogue is the irreplaceable asset and it lives here. Mitigation is off-device backup — see `operational-spec.md` |
 
 **Restart order does not exist**, and that is a property worth naming: neither

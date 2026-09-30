@@ -111,7 +111,7 @@ class TestTheGuardCanFail:
     """Planted violations, because a check never seen red is a check never wired up."""
 
     def test_it_catches_a_curation_import(self, tmp_path: pathlib.Path):
-        module = _plant(tmp_path, "shortcut.py", "from curatarr.services.catalogue import CatalogueService\n")
+        module = _plant(tmp_path, "shortcut.py", "from curatarr.library.services.catalogue import CatalogueService\n")
 
         offences = _audit([module], roots=(tmp_path,))
 

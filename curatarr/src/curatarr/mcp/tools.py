@@ -26,11 +26,11 @@ service method answers it, and the service method does the work.
 
 from typing import Final
 
+from curatarr.library.services.catalogue import MAX_LIST_LIMIT
+from curatarr.library.services.review import MAX_REVIEW_LIMIT
 from curatarr.mcp.registry import Action, Param, ToolRecord
 from curatarr.persistence.discovery_records import AffinityDerivation, AffinitySentiment, RunKind, RunStatus
 from curatarr.persistence.records import ArtworkStatus, VocabularyKind
-from curatarr.services.catalogue import MAX_LIST_LIMIT
-from curatarr.services.review import MAX_REVIEW_LIMIT
 
 _STATUS = Param(
     name="status",

@@ -13,15 +13,15 @@ from dataclasses import replace
 
 import pytest
 
-from curatarr.manifest import builder
-from curatarr.manifest.builder import (
-    SCHEMA_MAJOR,
-    ExclusionReason,
-    write_atomically,
-)
 from curatarr.persistence.records import (
     FetchStatus,
     RenditionKind,
+)
+from curatarr.programming.manifest import builder
+from curatarr.programming.manifest.builder import (
+    SCHEMA_MAJOR,
+    ExclusionReason,
+    write_atomically,
 )
 from curatarr.services.errors import ServiceError
 

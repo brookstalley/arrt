@@ -18,11 +18,11 @@ master must not look like a card whose work is small.
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
+from curatarr.library.services.catalogue import ArtworkDetail, CatalogueService, FacetGroup, RenditionView
+from curatarr.library.services.display_fit import ArtworkBox, FitAssessment
+from curatarr.library.services.thumbnails import ThumbnailService, ThumbnailUnavailable
 from curatarr.persistence.records import MatColor, Original, Source, WorkFacet
-from curatarr.services.catalogue import ArtworkDetail, CatalogueService, FacetGroup, RenditionView
-from curatarr.services.display import DisplayService
-from curatarr.services.display_fit import ArtworkBox, FitAssessment
-from curatarr.services.thumbnails import ThumbnailService, ThumbnailUnavailable
+from curatarr.programming.display import DisplayService
 
 
 @dataclass(frozen=True, slots=True)

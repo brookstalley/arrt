@@ -8,8 +8,8 @@ every hop is re-checked.
 
 import pytest
 
-from curatarr.acquisition.transport import MAX_REDIRECTS, http_stream
-from curatarr.acquisition.urls import UrlRefused
+from curatarr.library.acquisition.transport import MAX_REDIRECTS, http_stream
+from curatarr.library.acquisition.urls import UrlRefused
 from curatarr.services.errors import ServiceError
 
 
@@ -63,7 +63,7 @@ class _Client:
 def patched(monkeypatch):
     def install(script):
         client = _Client(script)
-        monkeypatch.setattr("curatarr.acquisition.transport.httpx.Client", lambda **_kw: client)
+        monkeypatch.setattr("curatarr.library.acquisition.transport.httpx.Client", lambda **_kw: client)
         return client
 
     return install

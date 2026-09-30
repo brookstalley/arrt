@@ -19,8 +19,10 @@ from decimal import Decimal
 import pytest
 from fakes import FakeImageSearch, a_work, an_image
 
-from curatarr.discovery.engine import WorkList
-from curatarr.discovery.phase_two import PhaseTwoEngine
+from curatarr.library.discovery.engine import WorkList
+from curatarr.library.discovery.phase_two import PhaseTwoEngine
+from curatarr.library.services.previews import PreviewCache, PreviewSettings
+from curatarr.library.services.runner import MAX_RUNS_LISTED, DiscoveryRunner
 from curatarr.persistence.discovery_records import (
     DiscoveryRun,
     InitiatedBy,
@@ -31,8 +33,6 @@ from curatarr.persistence.discovery_records import (
     Verdict,
 )
 from curatarr.services.errors import ServiceError
-from curatarr.services.previews import PreviewCache, PreviewSettings
-from curatarr.services.runner import MAX_RUNS_LISTED, DiscoveryRunner
 
 
 @pytest.fixture

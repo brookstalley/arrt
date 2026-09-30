@@ -23,7 +23,7 @@ import pathlib
 import httpx
 import pytest
 
-from curatarr.discovery.openrouter import Message, OpenRouterClient, OpenRouterError
+from curatarr.library.discovery.openrouter import Message, OpenRouterClient, OpenRouterError
 
 FIXTURES = pathlib.Path(__file__).resolve().parents[1] / "fixtures" / "openrouter_conversation"
 
@@ -100,7 +100,7 @@ def test_an_image_may_not_ride_an_assistant_turn():
     incorrect modal `image` was entered … or was placed in the wrong position"*.
     A sample the model should look at again rides the curator's next turn.
     """
-    from curatarr.discovery.openrouter import ImageAttachment
+    from curatarr.library.discovery.openrouter import ImageAttachment
 
     picture = ImageAttachment(base64_data="/9j/4AAQ", media_type="image/jpeg")
     with pytest.raises(ValueError, match="only travel on a user turn"):

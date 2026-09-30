@@ -9,31 +9,31 @@ from collections.abc import Sequence
 import uvicorn
 
 from curatarr import art_root, logs
-from curatarr.acquisition.mat import MatEngine
-from curatarr.acquisition.preparation import PreparationSettings
-from curatarr.acquisition.service import AcquisitionSettings
-from curatarr.acquisition.transport import http_stream
 from curatarr.app import create_app
 from curatarr.config import Settings
-from curatarr.discovery.artic import build_collection_browse, build_image_search
-from curatarr.discovery.browse import CollectionBrowse
-from curatarr.discovery.conversation import (
+from curatarr.library.acquisition.mat import MatEngine
+from curatarr.library.acquisition.preparation import PreparationSettings
+from curatarr.library.acquisition.service import AcquisitionSettings
+from curatarr.library.acquisition.transport import http_stream
+from curatarr.library.discovery.artic import build_collection_browse, build_image_search
+from curatarr.library.discovery.browse import CollectionBrowse
+from curatarr.library.discovery.conversation import (
     NO_CONVERSATION_KEY,
     ConversationEngine,
     UnavailableConversation,
     build_conversation_engine,
 )
-from curatarr.discovery.engine import DiscoveryEngine, unavailable_engine
-from curatarr.discovery.images import ImageSearch
-from curatarr.discovery.openrouter import OpenRouterClient
-from curatarr.discovery.phase_one import build_engine
+from curatarr.library.discovery.engine import DiscoveryEngine, unavailable_engine
+from curatarr.library.discovery.images import ImageSearch
+from curatarr.library.discovery.openrouter import OpenRouterClient
+from curatarr.library.discovery.phase_one import build_engine
+from curatarr.library.services.previews import PreviewSettings
+from curatarr.library.services.thumbnails import ThumbnailSettings
 from curatarr.persistence.file import open_catalogue_file
 from curatarr.persistence.sqlite import SqliteCatalogue
 from curatarr.persistence.sqlite_discovery import SqliteDiscovery
+from curatarr.programming.display import DisplaySettings
 from curatarr.services.container import Services
-from curatarr.services.display import DisplaySettings
-from curatarr.services.previews import PreviewSettings
-from curatarr.services.thumbnails import ThumbnailSettings
 
 #: What a deployment with no key is told when it tries to discover. Written for
 #: the curator or agent who reads it back off a refusal, and it names the one

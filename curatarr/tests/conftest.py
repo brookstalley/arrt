@@ -21,7 +21,6 @@ import uvicorn
 from fakes import FakeConversationEngine, FakeEngine
 from PIL import Image
 
-from curatarr.acquisition.preparation import PreparationSettings
 from curatarr.app import create_app
 from curatarr.config import (
     CATALOGUE_FILENAME,
@@ -57,6 +56,12 @@ from curatarr.config import (
     DEFAULT_TV_PANEL_WIDTH_PX,
     Settings,
 )
+from curatarr.library.acquisition.preparation import PreparationSettings
+from curatarr.library.services.catalogue import CatalogueService
+from curatarr.library.services.conversation import ConversationService
+from curatarr.library.services.discovery import DiscoveryService
+from curatarr.library.services.runner import DiscoveryRunner
+from curatarr.library.services.thumbnails import ThumbnailService, ThumbnailSettings
 from curatarr.persistence.discovery_records import DiscoveryRun, InitiatedBy
 from curatarr.persistence.durable import SqliteDurableStore
 from curatarr.persistence.file import open_catalogue_file
@@ -75,13 +80,8 @@ from curatarr.persistence.records import (
 )
 from curatarr.persistence.sqlite import SqliteCatalogue
 from curatarr.persistence.sqlite_discovery import SqliteDiscovery
-from curatarr.services.catalogue import CatalogueService
+from curatarr.programming.display import DisplayService, DisplaySettings
 from curatarr.services.container import Services
-from curatarr.services.conversation import ConversationService
-from curatarr.services.discovery import DiscoveryService
-from curatarr.services.display import DisplayService, DisplaySettings
-from curatarr.services.runner import DiscoveryRunner
-from curatarr.services.thumbnails import ThumbnailService, ThumbnailSettings
 
 _SEEDED_TITLES = ("I Saw the Figure 5 in Gold", "Nighthawks", "The Persistence of Memory")
 

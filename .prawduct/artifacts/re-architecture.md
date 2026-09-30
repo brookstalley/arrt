@@ -131,7 +131,7 @@ a ruling under the existing thin-binding norm, not a norm of its own.
    takes and returns ids and plain data (no ORM rows, no lazy loads), and is
    idempotent. The central call is roughly
    `playable(work_ids) -> {id: PlayableWork | Unplayable(reason)}`. Today's
-   manifest readiness logic (`manifest/builder.py` `assess` / `entry_for`) moves
+   manifest readiness logic (`programming/manifest/builder.py` `assess` / `entry_for`) moves
    behind it, because whether a work has an original and a current mat colour,
    and is not archived, is the Library's question. If splitting later would force
    a redesign of this interface, it was drawn wrong.
@@ -339,7 +339,7 @@ server, against the operator's split | user can veto/override]`
 This is the biggest change to built code. Today curation composes a 3840×2160
 canvas with the mat in it (`Rendition.kind = tv_display`), sized from
 `TV_PANEL_*` and `MAT_*` configuration, and judges image adequacy
-(`services/display_fit.py`) against that panel. `data-model.md` defended this as
+(`library/services/display_fit.py`) against that panel. `data-model.md` defended this as
 "a property of the artwork's presentation, not of a device". That stops being
 true the moment a second screen exists: a 1920×1200 LCD, a portrait monitor, or a
 caption drawn in the mat, which needs the mat *sized for the caption*.
@@ -361,7 +361,7 @@ caption drawn in the mat, which needs the mat *sized for the caption*.
   Library stores only panel-independent facts (width, height), exactly as
   `data-model.md` already requires.
 - **The resolution floor becomes a Library quality profile.** Automatic instance
-  selection (`curatarr/src/curatarr/services/selection.py`) excludes
+  selection (`curatarr/src/curatarr/library/services/selection.py`) excludes
   below-floor instances using the artwork box computed from the server's
   `TV_PANEL_*` / `MAT_*` settings, and review cards show a fit verdict from the
   same source. When geometry leaves the server, both would lose their input, and

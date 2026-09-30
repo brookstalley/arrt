@@ -173,6 +173,38 @@ Each is lock-in, so the questions come before the fields.
   cross-seam import turns it red.
 - **Done when:** the suites and lint pass; the guard is green and proved; the
   norm's row in `project-preferences.md` moves rule 1 from Critic to Test.
+- **How it is built (decided at the chunk's start, 2026-09-30):**
+  - **The full move, by the operator's choice** over a lighter "move Programming
+    only" shape the builder offered. Under `curatarr/src/curatarr/`:
+    `library/services/` takes catalogue, discovery, runner, conversation,
+    review, taste, survey, thumbnails, previews, imaging, attribution,
+    selection, sweep and display_fit; `library/discovery/` and
+    `library/acquisition/` are the old packages whole; `library/facade.py` and
+    `library/readiness.py` are new. `programming/` takes `display.py` and
+    `manifest/` (builder, heartbeat), and gains `store.py`.
+  - **Shared kernel**, importable from either side: `services/errors.py`,
+    `services/store.py`, `services/fields.py`, `persistence/`, `counting`,
+    `observations`, `logs`, `art_root`. **Composition**, which may import both
+    and which neither side may import: `services/container.py`,
+    `services/health.py`, `config.py`, `app.py`, `__main__.py`, `http/`,
+    `mcp/`, `seed/`.
+  - **Cracks found before the move, which the guard must show and the chunk
+    must close:** `library.discovery.artic` imports `config` for a preview byte
+    cap, and `config` imports the manifest; `survey` imports the display service;
+    the display service reads `CatalogueService` directly.
+  - **The facade answers every id it is asked about.** An id that does not
+    resolve is `Unplayable` with reason `not_in_catalogue`. It cannot happen
+    while the two foreign keys hold, and it has to exist before wave 3 drops them,
+    or the interface changes then. The existence checks in `add_to_theme` and
+    `show_work_now` go through it and keep today's "No artwork with id … is in
+    the catalogue." wording.
+  - **`theme_works` splits along the seam.** Programming returns the theme's
+    work ids in order, and each surface resolves them through the Library (rule
+    6). Tests that called it change their call, not what they assert.
+  - **Records stay in `persistence/records.py` for now**, in the shared kernel,
+    and `CatalogueStore` keeps `list_directives`/`set_directive` until Chunk 02
+    moves the pin withdrawal out of `archive_artwork`. Programming's records
+    move with rule 3 in wave 3.
 
 ### Chunk 02: Library events, and Programming's reconciliation at startup
 

@@ -17,11 +17,11 @@ from pathlib import Path
 
 from curatarr import logs
 from curatarr.config import Settings
+from curatarr.library.services.catalogue import CatalogueService
 from curatarr.persistence.file import open_catalogue_file
 from curatarr.persistence.sqlite import SqliteCatalogue
 from curatarr.seed.ingest import SeedReport, seed_catalogue
 from curatarr.seed.legacy import LegacyIndexError, read_index
-from curatarr.services.catalogue import CatalogueService
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -29,21 +29,21 @@ from enum import Enum
 from pathlib import Path
 from typing import Final
 
-from curatarr.acquisition.dezoomify import (
+from curatarr.library.acquisition.dezoomify import (
     DezoomifyUnavailable,
     TileOutcome,
     reclaim_tile_cache,
     tile_fetch,
 )
-from curatarr.acquisition.direct import StreamOpener, direct_fetch
-from curatarr.acquisition.space import NotEnoughSpace, require_free_space
-from curatarr.acquisition.tiles import TileTargetResolver, TileTargetUnavailable, resolve_tile_target
-from curatarr.acquisition.urls import Resolver, UrlRefused, check_fetchable, system_resolver
-from curatarr.discovery.images import ImageSearchFailure
+from curatarr.library.acquisition.direct import StreamOpener, direct_fetch
+from curatarr.library.acquisition.space import NotEnoughSpace, require_free_space
+from curatarr.library.acquisition.tiles import TileTargetResolver, TileTargetUnavailable, resolve_tile_target
+from curatarr.library.acquisition.urls import Resolver, UrlRefused, check_fetchable, system_resolver
+from curatarr.library.discovery.images import ImageSearchFailure
+from curatarr.library.services.catalogue import CatalogueService
+from curatarr.library.services.imaging import measure
 from curatarr.persistence.records import AcquisitionMethod, FetchStatus, Source
-from curatarr.services.catalogue import CatalogueService
 from curatarr.services.errors import ServiceError
-from curatarr.services.imaging import measure
 
 log = logging.getLogger(__name__)
 

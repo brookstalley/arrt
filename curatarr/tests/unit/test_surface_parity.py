@@ -34,10 +34,10 @@ import pytest
 
 from curatarr.http import api as http_api
 from curatarr.http import models as http_models
+from curatarr.library.services.discovery import VerdictOutcome
 from curatarr.mcp import bindings
 from curatarr.persistence.discovery_records import CandidateWork, DiscoveryRun, InitiatedBy, RunKind, RunStatus
 from curatarr.persistence.records import Artist, Artwork, Theme
-from curatarr.services.discovery import VerdictOutcome
 
 WHEN = datetime(2026, 8, 6, 12, 0, tzinfo=UTC)
 
@@ -339,7 +339,7 @@ def _view(work: CandidateWork):
     parity claim is about key *names*, so an empty view exercises every key
     without needing a store, a run, or an image on disk.
     """
-    from curatarr.services.review import CandidateView  # noqa: PLC0415
+    from curatarr.library.services.review import CandidateView  # noqa: PLC0415
 
     return CandidateView(work=work, instances_held=0, instances_surviving=0, shown=None)
 

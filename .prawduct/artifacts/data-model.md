@@ -277,7 +277,7 @@ re-parsing a blob, and so two works by the same artist agree.
 > than a person. Both are nullable and the two ways of being null are the same
 > fact downstream — the label falls back to `name`, unstyled. Supplied for the
 > seeded corpus by a written table (`curatarr/src/curatarr/seed/names.py`), never by a
-> heuristic; `discovery/artic.py` documents its own surname guess as unreliable.
+> heuristic; `library/discovery/artic.py` documents its own surname guess as unreliable.
 > Nothing derives one part from the other, and nothing derives `name` from them.
 >
 > **`display_nationality` is the same decision one field over, added 2026-08-13.**
@@ -473,7 +473,7 @@ A derived, device-specific output. **Regenerated, never transported.**
 > `tv_display` is device-specific after all, and this is the `label` removal above
 > repeated one level down. Target: `kind` gains `presentation_master`, which is
 > device-independent, capped, unmatted, and served by hash to Players.
-> `tv_display` is removed, and its producers (`acquisition/compose.py`, the
+> `tv_display` is removed, and its producers (`library/acquisition/compose.py`, the
 > `TV_PANEL_*` and `MAT_*` settings on the server) move to or are rebuilt on the
 > Player. `thumbnail` is unchanged.
 
@@ -760,7 +760,7 @@ Answers Q15. Added 2026-08-10 with the collection's retrieval surface
 > silently breaks the join that makes taste useful.
 
 > **`derivation` is load-bearing, not bookkeeping, and a measurement says so.**
-> `curatarr/src/curatarr/discovery/browse.py` records that for the Art Institute
+> `curatarr/src/curatarr/library/discovery/browse.py` records that for the Art Institute
 > **"style, classification and period were measured missing on ordinary
 > spellings"** — which is why widening its browse facet past artist was gated. The
 > field inventory in `artic-api-findings.md` bears this out: there is
@@ -881,13 +881,13 @@ to arbitrate between. The history that matters is the turns, which are retained.
 > an artist they explicitly asked to keep hearing about — the same shape as
 > Q3-versus-Q11, where rejecting an image must not suppress the work.
 
-> **Built 2026-08-12**, as the `affinities` table, `services/taste.py`, the Taste
+> **Built 2026-08-12**, as the `affinities` table, `library/services/taste.py`, the Taste
 > screen, and the `art_taste` tool. Every field above is as designed. Three things
 > the build decided that the design did not state:
 >
 > **What makes one provenance "weaker" than another was undefined, and `set`
 > refuses to overwrite with a weaker one.** The ranking built is `stated` >
-> `observed` > `inferred`, at `_PROVENANCE_RANK` in `services/taste.py`: what the
+> `observed` > `inferred`, at `_PROVENANCE_RANK` in `library/services/taste.py`: what the
 > curator said outranks what their behaviour showed, which outranks what a model
 > read into their words. Equal ranks are permitted, so a re-inference can correct
 > an earlier inference and a second statement can correct a first. *This is the
@@ -1228,7 +1228,7 @@ artworks.
 > already written under the provisional rule must be recomputed, or suppression
 > silently splits into two regimes and the same work gets proposed twice.
 >
-> **Shipped 2026-08-02 at one site: `curatarr/src/curatarr/discovery/dedup.py`.**
+> **Shipped 2026-08-02 at one site: `curatarr/src/curatarr/library/discovery/dedup.py`.**
 > Normalised artist and title — casefolded, accents stripped, punctuation
 > dropped, whitespace collapsed — joined by a separator normalisation guarantees
 > cannot appear inside either half. A work with no artist is keyed under
@@ -1495,7 +1495,7 @@ with it.
 (recorded because "settled with `work_dedup_key`" used to stand here and is too
 strong).** Artist matching is the third call site the derivation is meant to
 serve, alongside cross-run suppression and within-run dedup. The first two are
-live and share `curatarr/src/curatarr/discovery/dedup.py`; **this one must derive
+live and share `curatarr/src/curatarr/library/discovery/dedup.py`; **this one must derive
 its identity from that module rather than reimplement normalisation**, which is
 the whole point of settling it once.
 

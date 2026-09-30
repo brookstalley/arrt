@@ -18,12 +18,12 @@ import pytest
 from fakes import a_museum_holding, a_work, a_work_list
 from scenarios import ACCEPTANCE_ROUTE, DISCOVERY_ROUTE, REFERENCE_ROUTE, REVIEW_ROUTE, Call, Transcript, connect
 
-from curatarr.discovery.engine import WorkList
+from curatarr.library.discovery.engine import WorkList
+from curatarr.library.services.previews import PreviewSettings
 from curatarr.mcp.registry import HELP_ACTION
 from curatarr.mcp.tools import TOOLS
 from curatarr.persistence.discovery_records import RunStatus
 from curatarr.services.container import Services
-from curatarr.services.previews import PreviewSettings
 
 #: Every tool, by name, as the registry holds them. Parametrising from this is
 #: what makes a newly-registered tool arrive already covered.

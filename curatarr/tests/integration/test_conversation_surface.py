@@ -19,7 +19,7 @@ import httpx
 import pytest
 from fakes import a_collection_holding
 
-from curatarr.discovery.conversation import ConversationFailure, Suggestion
+from curatarr.library.discovery.conversation import ConversationFailure, Suggestion
 from curatarr.persistence.discovery_records import InitiatedBy, SpendCategory
 
 

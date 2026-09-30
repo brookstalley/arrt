@@ -12,7 +12,7 @@ run, or wrote rows nothing could read back, would produce numbers that looked
 fine and meant nothing.
 """
 
-from curatarr.services.catalogue import MAX_LIST_LIMIT
+from curatarr.library.services.catalogue import MAX_LIST_LIMIT
 
 
 class TestDeterminism:

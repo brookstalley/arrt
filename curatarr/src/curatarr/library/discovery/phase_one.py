@@ -30,8 +30,8 @@ import logging
 from collections.abc import Mapping
 from typing import Any, Final
 
-from curatarr.discovery.dedup import clean_name
-from curatarr.discovery.engine import (
+from curatarr.library.discovery.dedup import clean_name
+from curatarr.library.discovery.engine import (
     BudgetExhausted,
     EngineFailure,
     EngineSpend,
@@ -39,7 +39,7 @@ from curatarr.discovery.engine import (
     WorkList,
     WorkListRequest,
 )
-from curatarr.discovery.openrouter import Completion, KeyExhausted, OpenRouterClient, OpenRouterError
+from curatarr.library.discovery.openrouter import Completion, KeyExhausted, OpenRouterClient, OpenRouterError
 from curatarr.persistence.discovery_records import SpendCategory
 
 log = logging.getLogger(__name__)

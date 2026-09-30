@@ -354,7 +354,7 @@ the curator's taste be matched against it in one set of terms.
 Two consequences the interface must show rather than hide:
 
 - **Most facets are `inferred`, and the marking is therefore inverted.**
-  `curatarr/src/curatarr/discovery/browse.py` records that for the wired collection
+  `curatarr/src/curatarr/library/discovery/browse.py` records that for the wired collection
   "style, classification and period were measured missing on ordinary spellings",
   and the recorded field inventory has no style field at all. The operator's
   direction is to lean on model inference rather than accept that coverage — so

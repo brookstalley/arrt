@@ -35,9 +35,9 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, Protocol
 
-from curatarr.discovery.browse import BrowseQuery, CollectionBrowse, CollectionBrowseFailure
-from curatarr.discovery.conversation import ConversationEngine, ConversationFailure, Suggestion, ThreadTurn
-from curatarr.discovery.engine import EngineSpend
+from curatarr.library.discovery.browse import BrowseQuery, CollectionBrowse, CollectionBrowseFailure
+from curatarr.library.discovery.conversation import ConversationEngine, ConversationFailure, Suggestion, ThreadTurn
+from curatarr.library.discovery.engine import EngineSpend
 from curatarr.persistence.discovery import DiscoveryStore
 from curatarr.persistence.discovery_records import (
     Affinity,

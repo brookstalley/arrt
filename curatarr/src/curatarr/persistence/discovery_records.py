@@ -505,7 +505,7 @@ class Affinity:
     **`source_turn_id` may be null on an `inferred` row, and that is a legal state
     rather than a corruption.** Deleting a conversation nulls it. The rule that an
     inferred judgment cites a turn is an invariant on the **write path** — see
-    `services/taste.py` — and building it into the file would make the delete
+    `library/services/taste.py` — and building it into the file would make the delete
     impossible, which is the opposite of what the deletion ruling asks for.
     """
 

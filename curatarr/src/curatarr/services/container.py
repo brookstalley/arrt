@@ -20,14 +20,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from curatarr.acquisition.direct import StreamOpener
-from curatarr.acquisition.mat import MatEngine
-from curatarr.acquisition.preparation import PreparationService, PreparationSettings
-from curatarr.acquisition.service import AcquisitionService, AcquisitionSettings
-from curatarr.acquisition.tiles import TileTargetResolver
-from curatarr.acquisition.transport import no_transport
-from curatarr.acquisition.urls import Resolver
-
 # Module scope, and the three `_default_*` helpers below used to import this at
 # function scope instead, explained as breaking a cycle: "config reads this
 # package to compose its settings objects". It does not. `curatarr.config`
@@ -50,28 +42,35 @@ from curatarr.config import (
     READY_DIRNAME,
     TILE_CACHE_DIRNAME,
 )
-from curatarr.discovery.browse import CollectionBrowse
-from curatarr.discovery.conversation import NO_CONVERSATION_KEY, ConversationEngine, UnavailableConversation
-from curatarr.discovery.engine import DiscoveryEngine
-from curatarr.discovery.images import ImageSearch
-from curatarr.discovery.phase_two import PhaseTwoEngine
+from curatarr.library.acquisition.direct import StreamOpener
+from curatarr.library.acquisition.mat import MatEngine
+from curatarr.library.acquisition.preparation import PreparationService, PreparationSettings
+from curatarr.library.acquisition.service import AcquisitionService, AcquisitionSettings
+from curatarr.library.acquisition.tiles import TileTargetResolver
+from curatarr.library.acquisition.transport import no_transport
+from curatarr.library.acquisition.urls import Resolver
+from curatarr.library.discovery.browse import CollectionBrowse
+from curatarr.library.discovery.conversation import NO_CONVERSATION_KEY, ConversationEngine, UnavailableConversation
+from curatarr.library.discovery.engine import DiscoveryEngine
+from curatarr.library.discovery.images import ImageSearch
+from curatarr.library.discovery.phase_two import PhaseTwoEngine
+from curatarr.library.services.catalogue import CatalogueService
+from curatarr.library.services.conversation import ConversationService
+from curatarr.library.services.discovery import DiscoveryService
+from curatarr.library.services.display_fit import ArtworkBox
+from curatarr.library.services.previews import PreviewCache, PreviewSettings
+from curatarr.library.services.review import ReviewService
+from curatarr.library.services.runner import DiscoveryRunner, DiscoverySettings
+from curatarr.library.services.survey import SurveyService
+from curatarr.library.services.sweep import PreviewSweep
+from curatarr.library.services.taste import TasteService
+from curatarr.library.services.thumbnails import ThumbnailService, ThumbnailSettings
 from curatarr.persistence.backup import BACKUP_RECEIPT_FILENAME
 from curatarr.persistence.catalogue import CatalogueStore
 from curatarr.persistence.discovery import DiscoveryStore
-from curatarr.services.catalogue import CatalogueService
-from curatarr.services.conversation import ConversationService
-from curatarr.services.discovery import DiscoveryService
-from curatarr.services.display import DisplayService, DisplaySettings
-from curatarr.services.display_fit import ArtworkBox
+from curatarr.programming.display import DisplayService, DisplaySettings
 from curatarr.services.errors import ServiceError
 from curatarr.services.health import HealthService
-from curatarr.services.previews import PreviewCache, PreviewSettings
-from curatarr.services.review import ReviewService
-from curatarr.services.runner import DiscoveryRunner, DiscoverySettings
-from curatarr.services.survey import SurveyService
-from curatarr.services.sweep import PreviewSweep
-from curatarr.services.taste import TasteService
-from curatarr.services.thumbnails import ThumbnailService, ThumbnailSettings
 
 
 @dataclass(frozen=True, slots=True)

@@ -19,7 +19,7 @@ import pathlib
 import httpx
 import pytest
 
-from curatarr.discovery.conversation import (
+from curatarr.library.discovery.conversation import (
     NO_CONVERSATION_KEY,
     ConversationFailure,
     OpenRouterConversation,
@@ -27,7 +27,7 @@ from curatarr.discovery.conversation import (
     ThreadTurn,
     UnavailableConversation,
 )
-from curatarr.discovery.openrouter import OpenRouterClient
+from curatarr.library.discovery.openrouter import OpenRouterClient
 from curatarr.persistence.discovery_records import SpendCategory, TurnRole
 
 FIXTURES = pathlib.Path(__file__).resolve().parents[1] / "fixtures" / "openrouter_conversation"

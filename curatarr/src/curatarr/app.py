@@ -30,10 +30,10 @@ from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from starlette.types import Receive, Scope, Send
 
 from curatarr.http import api, pages
+from curatarr.library.services.sweep import start_sweeping
 from curatarr.mcp.server import build_server
 from curatarr.services.container import Services
 from curatarr.services.errors import ServiceError
-from curatarr.services.sweep import start_sweeping
 
 log = logging.getLogger(__name__)
 

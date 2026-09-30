@@ -54,11 +54,11 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Final
 
-from curatarr.discovery.dedup import artist_key, title_key
-from curatarr.discovery.images import FoundImage, ImageQuery, ImageSearch
+from curatarr.library.discovery.dedup import artist_key, title_key
+from curatarr.library.discovery.images import FoundImage, ImageQuery, ImageSearch
+from curatarr.library.services.display_fit import ArtworkBox, DisplayFit, FitAssessment, assess_display_fit
 from curatarr.persistence.discovery_records import UnresolvedReason
 from curatarr.persistence.records import RightsStatus
-from curatarr.services.display_fit import ArtworkBox, DisplayFit, FitAssessment, assess_display_fit
 
 log = logging.getLogger(__name__)
 

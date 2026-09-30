@@ -40,7 +40,7 @@ nullability is for.
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from curatarr.discovery.dedup import artist_key, clean_name
+from curatarr.library.discovery.dedup import artist_key, clean_name
 from curatarr.persistence.records import Artist
 
 

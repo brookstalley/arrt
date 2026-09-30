@@ -39,8 +39,8 @@ from typing import Final
 
 from PIL import Image, UnidentifiedImageError
 
+from curatarr.library.services.imaging import EncodedFrame, encode_downscaled
 from curatarr.services.errors import ServiceError
-from curatarr.services.imaging import EncodedFrame, encode_downscaled
 
 log = logging.getLogger(__name__)
 

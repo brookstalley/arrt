@@ -34,7 +34,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Final, Protocol, runtime_checkable
 
-from curatarr.discovery.images import FoundImage
+from curatarr.library.discovery.images import FoundImage
 
 #: Confidence recorded for an offered work's instance.
 #:

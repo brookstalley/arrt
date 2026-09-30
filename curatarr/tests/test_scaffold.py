@@ -27,12 +27,26 @@ def test_runs_on_the_pinned_interpreter():
 
 def test_the_package_layout_imports():
     import curatarr
-    from curatarr import acquisition, discovery, http, manifest, mcp, persistence, services
+    from curatarr import http, library, mcp, persistence, programming, services
+    from curatarr.library import acquisition, discovery
+    from curatarr.library import services as library_services
+    from curatarr.programming import manifest
 
     assert curatarr.__all__ == []
     # The module boundaries the architecture makes load-bearing exist as real
     # packages from the start, so nothing later has to invent them mid-chunk.
-    for module in (services, persistence, mcp, http, discovery, acquisition, manifest):
+    for module in (
+        services,
+        persistence,
+        mcp,
+        http,
+        library,
+        library_services,
+        discovery,
+        acquisition,
+        programming,
+        manifest,
+    ):
         assert module.__doc__
 
 

@@ -31,8 +31,8 @@ import pytest
 from PIL import Image
 
 from curatarr.config import DEFAULT_CONVERSATION_MAX_OUTPUT_TOKENS, DEFAULT_CONVERSATION_MODEL
-from curatarr.discovery.conversation import REASONING_OFF, REPLY_SCHEMA
-from curatarr.discovery.openrouter import ImageAttachment, Message, OpenRouterClient
+from curatarr.library.discovery.conversation import REASONING_OFF, REPLY_SCHEMA
+from curatarr.library.discovery.openrouter import ImageAttachment, Message, OpenRouterClient
 
 pytestmark = pytest.mark.live_api
 

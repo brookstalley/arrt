@@ -18,9 +18,9 @@ from decimal import Decimal
 
 import pytest
 
-from curatarr.discovery.conversation import Suggestion
+from curatarr.library.discovery.conversation import Suggestion
+from curatarr.library.services.conversation import ConversationService
 from curatarr.persistence.discovery_records import AffinityDerivation, SpendCategory
-from curatarr.services.conversation import ConversationService
 from curatarr.services.errors import ServiceError
 
 
