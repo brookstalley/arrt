@@ -226,3 +226,10 @@ all.json.backup2
 # the harness and removed with them -- never repo content, and they register as
 # embedded repositories if staged.
 .claude/worktrees/
+
+# Prawduct session files
+.prawduct/.delegate-brief.md
+.prawduct/.test-report.xml
+.prawduct/.test-report.xml.scope.json
+.prawduct/.critic-review-dispatch.json
+.prawduct/.pr-review-dispatch.json
