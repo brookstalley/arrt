@@ -572,7 +572,7 @@ API consumers. Three consequences that are easy to miss:
 |---|---|
 | Kubernetes, NATS, multi-pod deployment | Stated directly by the operator. One household, one TV, one curation process — the coherence problems that infrastructure solves do not exist here. |
 | 3tears agent memory | Depends on `pgvector`, which forces Postgres. Operator confirmed agents may be stateless across sessions, so this is dropped rather than deferred — and dropping it is what keeps the curation plane infrastructure-free. |
-| Migrating the existing `all.json` schema | Decided to start over through curation. The 41 records have known defects (identity keyed on source URL, per-device TV state embedded, semi-structured `artist_details`) and every work is re-fetchable from its source URL. |
+| Migrating the existing `all.json` schema | Decided to start over through curation. The 41 records have known defects (identity keyed on source URL, per-device TV state embedded, semi-structured `artist_details`, and `raw/` filenames in three mutually inconsistent conventions) and every work is re-fetchable from its source URL. |
 | Public or third-party API consumers | The HTTP surface exists only to back this product's own UI and its display plane. |
 
 > **Amended 2026-09-30.** The server↔Player contract becomes a published,
@@ -621,13 +621,16 @@ source sites**, with no third-party dependency imposing a floor above 3.10 — s
 the constraint is removable.
 
 That does not merge the planes, because **the display plane does not want 3tears
-at all.** It needs an HTTP client, `samsungtvws`, PIL, and the e-paper driver.
+at all.** It needs `samsungtvws` and the e-paper driver.
 Three-tier entities are of no use to it, and the shared-catalogue case that would
 justify them is exactly the multi-pod coherence problem ruled out of scope.
+(Corrected 2026-09-30: this said it also needs an HTTP client and PIL. It needs
+neither — `architecture.md` § Direction carries the plane-isolation rule that
+forbids the client, and wave 2's change to it.)
 
 The separation therefore stands on its own merits:
 
-- It matches the data contract already recorded in `.claude/rules/learnings/core.md` — upstream
+- It matches the data contract recorded in `boundary-patterns.md` § `ART_ROOT` filesystem contract — upstream
   artifacts (`raw/`) are expensive and device-independent; derived artifacts
   (`ready/`, `thumbs/`, `tv-thumbs/`) are cheap and device-specific and must
   never be transported. (`label/` belonged to this list in the 2024 layout; it is

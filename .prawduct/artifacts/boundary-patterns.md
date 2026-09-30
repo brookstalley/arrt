@@ -301,8 +301,7 @@
 
 ### `ART_ROOT` filesystem contract
 
-- **Exists:** partially — the 2024 layout exists on the Pi; the split is recorded in
-  `.claude/rules/learnings/core.md` § Data and cache contract.
+- **Exists:** partially — the 2024 layout exists on the Pi; the split is recorded here.
 - **Producer:** acquisition and rendering. **Consumer:** both planes.
 - **Direction changed 2026-09-30 — see `re-architecture.md`.** The contract's
   consumers, and one of its classes, change.
