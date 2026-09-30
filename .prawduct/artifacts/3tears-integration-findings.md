@@ -231,10 +231,12 @@ better covered than 3.14) and the workspace-wide `uv.lock`, which stays at
 
 Relaxing 3tears would remove the *forcing* reason for the two-plane split, but it
 does not follow that the planes should merge — **the display plane does not want
-3tears at all.** It needs an HTTP client, `samsungtvws`, PIL, and the e-paper
-driver. Three-tier entities are of no use to it, and the shared-catalogue use case
-that would justify them is precisely the multi-pod coherence problem the operator
-ruled out.
+3tears at all.** It needs `samsungtvws` and the e-paper driver. Three-tier
+entities are of no use to it, and the shared-catalogue use case that would justify
+them is precisely the multi-pod coherence problem the operator ruled out.
+(Corrected 2026-09-30: this said it also needs an HTTP client and PIL. It needs
+neither — `architecture.md` § Direction carries the plane-isolation rule that
+forbids the client, and wave 2's change to it.)
 
 So the split survives on its independent merits (the display plane's
 hardware-pinned interpreter, the upstream/derived data contract, availability

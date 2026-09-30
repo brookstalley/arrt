@@ -508,7 +508,7 @@ curator every judgement they have already made. So:
 - **The image tree is disposable.** `raw/`, `ready/`, `tv-thumbs/` and
   `tile-cache/` are all reconstructible. They are excluded from
   backup deliberately, not by oversight — this is the upstream/derived split
-  already recorded in `.claude/rules/learnings/core.md`, applied to durability. (`label/` was listed
+  already recorded in `boundary-patterns.md` § `ART_ROOT` filesystem contract, applied to durability. (`label/` was listed
   here from the 2024 layout; it is retired from the prospective `ART_ROOT`
   contract — labels render on the display plane. See `boundary-patterns.md`.)
 
