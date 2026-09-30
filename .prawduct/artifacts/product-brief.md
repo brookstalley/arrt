@@ -21,6 +21,23 @@ The distinction that defines the product: **this is discovery, not search.** A
 system that filters a known collection is a different, easier product. The
 requirement is to find works the curator has not seen and could not have named.
 
+> **Vision amended 2026-09-30 by the owner. Full record in `re-architecture.md`.**
+> "A curated art appliance for a Samsung Frame TV" is what was built. The
+> product being built toward is **two products**:
+> - **A server, in the manner of Radarr/Sonarr,** that finds, acquires, maintains,
+>   upgrades and enhances artwork (the *Library*) and decides what hangs on which
+>   wall (*Programming*).
+> - **A player, in the manner of a Plex client,** that "reads that library and
+>   displays it, either on a Samsung tv or dumb LCD display or anything else". In
+>   the owner's words: "the artwork cards on e-ink displays will be supported and
+>   optional, with on-screen captions as an alternative."
+>
+> The defining distinction above, **discovery, not search**, is unchanged, and so
+> is the curator's promise of never managing files, URLs or geometry. What changes
+> is that the wall is no longer assumed to be one Samsung Frame. The Library gains
+> **Watches** (standing searches that keep acquiring against an intent) and
+> upgrade monitoring, the *arr half of the analogy.
+
 ## Landscape
 
 The closest existing thing is [NickWaterton/gallery](https://github.com/NickWaterton/gallery),
@@ -43,6 +60,12 @@ That third item is the hardest-won logic in the existing codebase and the cleare
 reason to continue this project rather than adopt an existing one.
 
 ## Identity
+
+> **Amended 2026-09-30.** "No chrome, no overlay" (below) stays the rule for the
+> artwork itself. A **caption in the mat** is now a supported, per-wall label mode,
+> as the 2026-08-07 ruling (`architecture.md` § Direction) already anticipated for
+> a monitor with no e-ink. It is a label the Player sets in the mat area under the
+> label typography rules (`accessibility-spec.md`), not an overlay on the work.
 
 **Museum, not gadget.**
 
@@ -335,6 +358,18 @@ This is the human-in-the-loop gate. It bounds three things, in ascending order o
 how well the argument holds: spend (weakest — the ceiling is $20), taste, and
 **content appropriateness** (strongest — see flow 8).
 
+> **Flows 4–6 after 2026-09-30 (`re-architecture.md`).**
+> - **Flow 4:** "prepare" splits. The Library prepares a device-independent
+>   presentation master, and each Player composes its own mat.
+> - **Flow 5:** themes become Programming's **playlists**, optionally smart
+>   (rules over facts and household tags).
+> - **Flow 6:** "keep the accepted library uploaded to the TV" becomes each
+>   Player making its own screen match its wall's manifest, whatever the screen
+>   is.
+> - **New, under flows 1–2:** a **Watch** repeats flow 2 on a schedule against
+>   a standing intent, with a spend cap, and queues matches for flow 3's review by
+>   default.
+
 **4. Acquire and prepare.** Fetch at gallery resolution (tiled where the source
 requires it), extract and normalise metadata across providers, select a mat
 colour, and render the 4K TV image. Largely exists today in `art.py` and
@@ -507,6 +542,11 @@ API consumers. Three consequences that are easy to miss:
 - Multiple TVs / multiple display planes
 - Swapping the e-paper panel or driver without touching curation
 
+> **Amended 2026-09-30.** "Multiple TVs / multiple display planes" and "swapping
+> the panel without touching curation" move from *accommodate* to **target**, as
+> multiple walls with one Player each and any screen type (`re-architecture.md`).
+> Multiple household accounts stays in *accommodate*.
+
 ### Later
 
 - ~~Re-enabling automatic art-mode on/off scheduling (commented out in
@@ -528,7 +568,21 @@ API consumers. Three consequences that are easy to miss:
 | Migrating the existing `all.json` schema | Decided to start over through curation. The 41 records have known defects (identity keyed on source URL, per-device TV state embedded, semi-structured `artist_details`) and every work is re-fetchable from its source URL. |
 | Public or third-party API consumers | The HTTP surface exists only to back this product's own UI and its display plane. |
 
+> **Amended 2026-09-30.** The server↔Player contract becomes a published,
+> versioned contract, because the Player is meant to be an independent product
+> that could read any library emitting the manifest format. Its consumers are
+> still this product's own Players, and it stays LAN-only. Kubernetes and NATS
+> remain out of scope. The server is a single container on the operator's NAS,
+> which is the "no heavy infrastructure" constraint honoured.
+
 ## Platform
+
+> **Direction changed 2026-09-30.** What follows is the **current** platform,
+> still live. Target: the server (curation plus Programming) runs as one
+> container on the operator's NAS (x86_64), and Players run at the walls:
+> Raspberry Pis for the Frame and e-ink, and possibly a Mac or a Pi with HDMI for
+> an LCD. See `re-architecture.md` § Deployment target and `architecture.md` §
+> Overview & Topology.
 
 Two processes, **one machine**.
 

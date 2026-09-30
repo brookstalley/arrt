@@ -15,6 +15,19 @@ boring, and this document exists mostly to make sure the two things that are *no
 boring — getting Python 3.14 onto a Pi, and having a restore path that actually
 works — are decided rather than discovered.
 
+> **Direction changed 2026-09-30. See `re-architecture.md`.** This specification
+> describes the deployment that is **live today** and stays correct for it until
+> wave 3. At that point the **server** (curation, with its catalogue and art
+> tree) moves to the operator's NAS (TrueNAS SCALE) as a container, and the Pi
+> keeps only the **Player** (today's display plane) with a local media cache.
+> The NAS deployment is recorded in the operator's homelab repository, not here.
+>
+> This file will then describe the Player's host, plus whatever the server image
+> needs that is product-side: the container build, its configuration contract
+> and its backup. Sections below carry dated notes where their target moves.
+> Nothing written here about the running Pi should be removed before wave 3
+> lands.
+
 ## Deployment Target
 
 | | |
@@ -24,6 +37,21 @@ works — are decided rather than discovered.
 | Boot media | SD card — see Risks |
 | Processes | `curation` (Python 3.14, uv-managed standalone) and `display` (Python 3.13, system interpreter), both under systemd |
 | Shared state | `ART_ROOT` on local disk |
+
+> **Target after wave 3 (2026-09-30, `re-architecture.md` § Deployment target):**
+>
+> | | Server | Player |
+> |---|---|---|
+> | Host | The operator's NAS (TrueNAS SCALE, x86_64), as a custom app | The Pi at the wall (today's Raspberry Pi 4), one Player per wall |
+> | Packaging | A container image in the operator's LAN registry | systemd unit, as today |
+> | State | Catalogue and art tree on NAS storage | A local media cache plus `display-state.sqlite` |
+> | Reached as | A LAN hostname through the operator's reverse proxy | Makes outbound HTTP to the server, nothing inbound |
+>
+> **There is no shared state in the target.** `ART_ROOT` stops being a directory
+> two processes share and becomes the server's private data root. The Player
+> gets its own cache root. Choosing that cache root, and deciding whether it lives
+> on the card, is a wave-2 decision. Its writes are bounded by playlist churn,
+> which is the additive profile § Risks already reasons about.
 
 ## The Service Account — decided
 
@@ -111,6 +139,14 @@ norm against deployment values in source put it. The unit files are the only
 things that carry the other two, and they are version-controlled.
 
 ## The Curation Interpreter — decided
+
+> **Direction changed 2026-09-30. See `re-architecture.md`.** This section solves
+> "3.14 on a Pi", a problem that ends in wave 3, when curation runs from a
+> container image on the NAS. There the interpreter is whatever the image's base
+> provides, and uv-in-the-image is the natural carry-over. It stays authoritative
+> for the running Pi until then. The Player keeps the Pi's system 3.13 for the
+> e-paper driver's reasons (`architecture.md` § Overview & Topology), so the
+> two-interpreter split survives, now across two machines instead of within one.
 
 **Raspberry Pi OS Trixie ships Python 3.13. The curation plane gets its 3.14 from
 a uv-managed standalone build: `uv python install 3.14`.**
@@ -201,6 +237,13 @@ acquisition (a genuine gigapixel scan is 20–40× the measured corpus maximum) 
 not be able to invoke the OOM killer against the display plane. Capping curation
 converts a shared-fate failure into a contained one, which is most of what the
 process split is for on a single box.
+
+> **Direction changed 2026-09-30.** The `curation` unit and its `MemoryMax`
+> exist because of co-location, and both retire in wave 3, when the server leaves
+> the Pi. Memory containment for a gigapixel acquisition is still needed on the
+> NAS, and becomes the container's memory limit, so a runaway fetch cannot
+> starve the operator's other apps. `display` keeps everything said here and
+> below. The rate-limit rule applies to any unit the Player ships with.
 
 **No unit may rely on systemd's stock start rate limit** (settled 2026-08-02).
 The default is five starts in ten seconds, and `Restart=always` with a fault that
@@ -368,6 +411,20 @@ Panel geometry was briefly listed as a second shared value; it is not, because
   reason: a wrong size gives a label that looks wrong, a refusal gives no label at
   all, and the label may never be a reason the wall stops.)*
 
+> **Direction changed 2026-09-30. See `re-architecture.md` § Compositing moves
+> to the Player.** In wave 4 the **TV panel geometry and the mat settings**
+> (`TV_PANEL_*`, `MAT_WIDTH_INCHES`, `MAT_BOTTOM_WEIGHT`) move from curation to
+> the Player, and become per-wall Player configuration next to the `EPD_*`
+> values. The server then holds no screen geometry at all. One more Player value
+> arrives with it: the **label mode** (e-ink panel, caption in the mat, or none).
+> A Player running caption mode is exactly the "device drawing its label into the
+> mat area" the `EPD_MARGIN_PX` note above anticipated.
+>
+> In wave 2 the shared `.env` stops being shared. The Player gains the server's
+> base URL and its wall id. The server keeps its own configuration, delivered as
+> container environment on the NAS. The single root `.env` read by both planes is
+> a property of co-location and retires with it.
+
 Because neither is shared, neither can drift between planes. A wrong TV size is
 still a real defect — the mat comes out the wrong width and the review grid's
 warnings are computed against a TV that isn't there — but it is a single-plane
@@ -441,6 +498,24 @@ The system self-heals **visibly**. Verifying a restore therefore does not requir
 staging gigabytes of imagery — which is exactly what makes the exercise something
 that will actually get run rather than skipped.
 
+> **Direction changed 2026-09-30. See `re-architecture.md`.** The rule is the
+> same: back up the curatorial layer, not the images. Its setting changes:
+> - **The source moves to the NAS in wave 3.** The backup then runs on the NAS,
+>   beside the server's storage, and "the destination is awake" stops being the
+>   limitation it is from a Pi.
+> - **Wave 6 splits the catalogue** into a Library file and a Programming file,
+>   with no foreign keys between them. Both are curatorial and both are backed up,
+>   using the same SQLite backup API, taken together. The restore exercise has to
+>   cover the pair, including what a restored Programming file does with a work
+>   id the restored Library does not hold. It is designed to tolerate such
+>   references (`re-architecture.md` § Seam 1), and the restore is where that
+>   claim gets tested.
+> - **The Player backs up nothing.** Its media cache re-pulls, and its TV bindings
+>   are rebuilt by reconciliation against the set, as today.
+> - **The self-healing walk-through above changes shape in wave 4.** "No current
+>   render" becomes "no presentation master", and a Player whose cache is empty
+>   re-pulls once the server has regenerated the masters.
+
 ## Routine Operations
 
 | Operation | Procedure |
@@ -455,6 +530,15 @@ that will actually get run rather than skipped.
 | **Diagnosis after a reboot** | There is none from the journal: `Storage=volatile` means it does not survive one. If the wall froze and the Pi restarted, `journalctl` holds nothing about the run that failed. **Do not reach for `Storage=persistent` here** — it was declined on 2026-08-04 and switching it reverses a recorded decision and puts logging on the card, which is the top operational risk. Diagnose from the health surface's heartbeat age or the catalogue instead; see § Risks |
 | Patch curation's CPython | `uv python upgrade 3.14`, then rebuild the venv and restart. **`apt upgrade` does not do this** — it patches the display plane's 3.13 only |
 | Re-pair the TV | Rotates the pairing token. Nothing to untrack first — `token_file` was untracked 2026-07-27 and the token now resolves under `ART_ROOT`, outside the checkout, so a `git pull` no longer deletes it and re-pairing needs no repo work at all. Just re-pair at the hardware. *(Updated 2026-08-01: this row still ordered an untracking step that is done, and carried a `git pull` hazard `security-model.md` withdrew on 2026-07-27.)* See `security-model.md` |
+
+> **Direction changed 2026-09-30.** After wave 3, "Deploy" and "Rollback" split
+> in two. The server deploys as a new container image on the NAS, following the
+> operator's homelab procedure. The Player deploys as today, with `git pull` and a
+> restart, until the wave-5 repo split gives it its own repo. "No migration spans
+> the planes" stays true, because the manifest document is still regenerated,
+> never migrated. The HTTP contract adds a new skew case: a Player older than the
+> server's manifest major. It is handled the way the file channel handles it
+> today: refuse the unknown major and keep the last manifest.
 
 ## Failure Recovery
 
@@ -526,6 +610,23 @@ put the wall's uptime behind a second machine, since the display plane polls the
 manifest and reads the image tree continuously, and it would rest the manifest and
 heartbeat channels' atomic write-and-rename on semantics a network filesystem
 decides rather than the kernel.
+
+> **Direction changed 2026-09-30. See `re-architecture.md`. Read this against
+> the rejection above, which it does not overturn.** In wave 3 the catalogue
+> moves to the NAS, but not onto a network filesystem. The server process
+> moves with it and opens SQLite on storage **local to its own host**, so
+> locking and WAL behave exactly as they do on the Pi today. What was rejected on
+> 2026-08-04 was the Pi reaching its catalogue over the network, and that stays
+> rejected. The second objection (the wall's uptime behind a second machine)
+> is answered by the Player's local cache, not ignored: the Player renders only
+> from what it has already pulled (`nonfunctional-requirements.md` § Direction,
+> amended 2026-09-30).
+>
+> After wave 3 the card carries no irreplaceable asset. It holds the Player's
+> cache and device state, both rebuildable, and its continuous-write path is still
+> the heartbeat, which becomes an HTTP POST and stops writing to the card at all.
+> The SD card stops being the top operational risk. The backup gap (issue #14)
+> moves with the catalogue to the NAS and remains open until it is built.
 
 *The trade-off, stated plainly.* Card death costs a rebuild plus whatever curation
 happened since the last backup, at an accepted frequency of once every few years.

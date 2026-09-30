@@ -1,5 +1,26 @@
 # Deployment
 
+> **Direction changed 2026-09-30. See `.prawduct/artifacts/re-architecture.md`.
+> This file documents the Pi deployment that is live today, and every procedure
+> in it still applies to that machine.**
+>
+> The target splits this deployment across two machines:
+> - **The server (today's `curation` plane) moves to the operator's NAS**
+>   (TrueNAS SCALE) as a container in wave 3, together with the catalogue and art
+>   tree. That deployment is recorded in the operator's homelab repository, not
+>   here. Until then, `curation.service` below keeps running on the Pi.
+> - **The Player (today's `display` plane) stays on the Pi** under systemd. From
+>   wave 2 it pulls each wall's manifest and media over HTTP into a local cache
+>   and renders only from that cache. A server restart or a NAS reboot therefore
+>   never blanks the wall. The Pi then needs no `ART_ROOT` shared with anything,
+>   only a cache directory of its own.
+> - **After the wave-5 repo split**, the Player's deployment docs move to the
+>   player repository along with `display/`.
+>
+> Do not remove anything below before the wave that retires it has landed. The
+> cutover record, the power-key measurements and the e-paper pin are hardware
+> facts about the wall, and they travel with the Player.
+
 **`display.service` and `curation.service` run the wall**, as the `tvpi` service
 account on the Raspberry Pi driving the Frame TV. They were installed and enabled
 on 2026-08-11; § The cutover below is what was run.
@@ -304,6 +325,14 @@ Read as evidence that the arrangement works, not as a promise about your machine
   a panel and has not yet had anything to draw.
 
 ### How to tell your own install worked
+
+> *2026-09-30: every check below reads files under `/srv/art`, meaning the
+> manifest, the heartbeat and the catalogue, because both planes share that
+> directory today. From wave 3 the Pi holds none of them. The equivalent checks
+> become an HTTP `GET` of the wall's manifest from the server, the server's
+> health view for the heartbeat, and a listing of the Player's cache. Rewrite
+> this section when wave 3 lands, not before. See
+> `.prawduct/artifacts/re-architecture.md`.*
 
 **The two failures this arrangement deliberately makes loud both happen before the
 process runs**, which is why "read the journal" is not the answer to them: a

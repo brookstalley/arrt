@@ -16,6 +16,19 @@ after the surface had already been built across six chunks — so this artifact 
 partly a description of what exists and partly a redesign of it, and every place
 those differ is marked **CHANGE** with the reasoning.
 
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** The curation
+> plane becomes the **server** of a two-product system. That server holds a
+> *Library* (what exists and what to acquire) and *Programming* (what hangs
+> where), and it runs on the household NAS rather than the Pi. **This remains the
+> one human interface, and the navigation norm below is unchanged**: the Walls,
+> Collection and Discover are still the destinations. What moves underneath:
+> themes become **playlists** owned by Programming, possibly smart ones defined
+> by rules over facts and tags; a second, open layer of *programming tags* sits
+> beside the Library's facets; and **Watches** (standing searches) join
+> discovery. None of that is designed into a screen yet. § Open questions names
+> where each is expected to land. No table in this artifact changed, because no
+> screen was added or removed.
+
 ## Direction
 
 <!-- Ratified by the owner 2026-08-11. Enforcement row in project-preferences.md. -->
@@ -216,6 +229,15 @@ Three consequences, all cheap to honour now and expensive to retrofit:
 - **A theme is not owned by a wall.** Themes stay collection-scoped; *hanging* is
   the per-wall act. Two walls may hang the same theme, and that must not require
   duplicating it.
+
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** This rule survives
+> and gains an owner: a theme is a **playlist**, owned by the Programming role,
+> still global, and still hung per wall. What changes is what a playlist *can be*.
+> Besides a hand-ordered list, it may be a **smart playlist**: a rule over Library
+> facets (`subject: Nativity`) and programming tags (`party`), plus manual
+> additions and exclusions. The Theme screen will need to show which members came
+> from the rule and which were placed by hand. That is new design owed here, and
+> it is not started.
 
 ### Two structural blockers, found 2026-08-10 — both ruled on 2026-08-12
 
@@ -446,6 +468,12 @@ Activation is the one act in the product that changes what other people in the
 house see. It gets a confirmation that names the consequence in those terms, and
 the wall repaints from the published manifest rather than from optimism.
 
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** Unchanged for the
+> curator. Underneath, "the published manifest" becomes a per-wall document the
+> server serves over HTTP (wave 2) instead of a file in a shared directory, and a
+> wall's player pulls it into a local cache. The confirmation's wording still
+> names the wall and the consequence.
+
 ## Information Hierarchy
 
 The governing rule, inherited from `product-brief.md` § Identity: **the artwork is
@@ -631,6 +659,18 @@ What this interface does **not** include, stated so the absences read as decisio
   states carry the work an onboarding flow would otherwise do.
 - **No offline mode.** The curation plane is a loopback service on the same Pi.
 
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** Two items above
+> move, and neither is decided here.
+> - **Offline mode.** The server moves off the Pi to the household NAS (wave 3),
+>   so the curation surface stops being loopback on the wall's own machine. It
+>   stays a LAN service with no offline mode.
+> - **Metadata editing.** The re-architecture sends factual corrections ("that's
+>   an eel, not a snake") to the Library through this UI. That is a **facet**
+>   edit, not the title, artist or date edit the metadata item forbids, and the
+>   facet's `derivation` is what keeps it honest. Whether the item above should
+>   say so explicitly is open for the operator. Until then, facet editing is not
+>   designed.
+
 ## Status — what this artifact is waiting on
 
 Recorded here rather than only in a session handoff file, because a handoff file is
@@ -667,3 +707,18 @@ it behind hardware bought nothing but delay. `build-plan.md` stays the
   thousands-scale corpus, not now.
 - **Whether Review needs its own density control.** Judging wants maximum picture;
   a run of 40 wants an overview. Deferred until a run is large enough to hurt.
+
+- **Where the re-architecture's new objects live on the surface** *(added
+  2026-09-30; see `re-architecture.md`)*. Each needs a home that satisfies the
+  navigation norm, meaning a thing a curator sets out to do rather than a
+  subsystem that acquired a tab:
+  - **Watches** most plausibly belong under Discover, as the standing form of a
+    run.
+  - **Programming tags** belong on Collection and Work, beside the facets they
+    are deliberately distinct from.
+  - **Smart-playlist rules** belong on the Theme screen.
+  - **Watch spend** belongs on the health indicator.
+
+  None is designed. The screen tables above will need rows only if one of them
+  turns out to be a screen rather than a panel on an existing one, and
+  `tests/preferences/test_screen_tables.py` will hold that to `app.js`.

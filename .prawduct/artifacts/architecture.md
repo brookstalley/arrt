@@ -15,6 +15,20 @@ them. That is the whole system, and the shape is deliberate: the split exists so
 the wall keeps showing art while the curation process is restarted, upgraded, or
 crashing — not because the work is too big for one box.
 
+> **Direction changed 2026-09-30. Read `re-architecture.md` first.** Everything
+> below describes the system **as built**, and it stays accurate until the wave
+> that changes each part lands. The **target** is different in three ways:
+> - **Three roles in two deployables:** a server (Library plus Programming) on
+>   the operator's NAS, and a Player at each wall.
+> - **The channel between them** is an HTTP manifest plus immutable media, which
+>   the Player pulls into a local cache. It replaces the shared directory.
+> - **The Player composes the mat** for its own screen.
+>
+> The first Direction norm below is amended and `in-transition`. The second and
+> third gain rulings. Four new norms for the Library/Programming seam are born
+> `in-transition` at the end of § Direction. The Decision Log's 2026-09-30
+> entries record the reversal of the 2026-07-20 co-location decision.
+
 ## Direction
 
 <!-- Ratified by the owner 2026-07-20. Enforcement row in project-preferences.md. -->
@@ -40,6 +54,35 @@ database. Adding a second channel is a departure requiring a recorded decision.
 > **Status:** steady-state.
 >
 > **Retroactivity:** No existing code has two planes. Nothing to migrate.
+>
+> **AMENDED 2026-09-30 (owner's direction; see `re-architecture.md` § Seam 2).**
+> Target statement: **the per-wall manifest document and immutable,
+> content-addressed media, pulled into a Player-local cache, are the only channel
+> from the server to a Player.** The Player renders only from its cache, imports
+> no server module, and queries no server database. It makes exactly three
+> kinds of request: fetch the manifest, fetch media by hash, post its heartbeat.
+>
+> `[DECISION: the file-only channel becomes an HTTP pull into a Player-local
+> cache | the norm's why has two halves, and both survive. (1) Display must never
+> require curation to be reachable: the Player renders from its cache, so a
+> server restart or NAS reboot leaves the wall running. (2) A fallback path is
+> never exercised until the night it matters: the cache is not a fallback, it is
+> the only path the Player ever renders from, exercised on every rotation. The
+> "just fetch the label text live" shortcut this norm exists to stop is still
+> forbidden: the Player may not ask the server anything the manifest does not
+> already carry. NFS or SMB mounts of the art tree were rejected because a network
+> mount that hangs on a NAS reboot is exactly the failure the norm prevents |
+> user can veto/override]`
+>
+> **Status:** `in-transition`. The tracking ref is `re-architecture.md` (waves
+> 2–3; the backlog items are not yet filed). **Interim rule:** until wave 2 lands,
+> the file channel as built is the only channel, and
+> `tests/preferences/test_plane_isolation.py` keeps enforcing it unchanged. Wave 2
+> narrows that test's "opens no HTTP client" clause to "only the manifest client
+> module opens HTTP, and only to the three endpoints", and keeps the
+> no-curation-import clause whole. Wave 3 retires the file channel. The
+> one-directional corollary survives: the Player writes nothing the server owns,
+> and the heartbeat is a report, as the heartbeat file is today.
 
 <!-- Ratified by the owner 2026-08-07, in the words they stated it: "The display
      device HAS to render the label. We may have multiple pi's with different
@@ -82,6 +125,18 @@ both live on the display device.
 >
 > **Retroactivity:** The 2024 `ArtLabel` hardcodes one geometry and one panel and
 > is retired with the rest of the 2024 modules; nothing else renders a label yet.
+>
+> **RULING 2026-09-30: the norm extends to the mat** (see `re-architecture.md`
+> § Compositing moves to the Player). A device that draws its label into the mat
+> area, which this norm's own ratifying words name, has to compose the mat to do
+> it. So compositing belongs on the device too, and curation's `tv_display`
+> rendition (a 3840×2160 canvas with the mat composed upstream) is the last
+> place where output geometry lives upstream of the device. It moves to the
+> Player in wave 4. On a Samsung Frame, a caption in the mat means burning it
+> into the image before upload, which is a second reason the composer and the
+> label must be one plane. This is conformance, not amendment: the statement is
+> unchanged, and this ruling applies it to a case (the mat) the built code had
+> exempted.
 
 <!-- Ratified by the owner 2026-07-20. Enforcement row in project-preferences.md.
      Given a Direction home on 2026-07-20 after Critic review found it cited as
@@ -115,6 +170,51 @@ result. A handler that validates, orders, or decides is the violation.
 > places validation at the service boundary. **No specified behaviour violates the
 > norm.** The one thing it does bind going forward is the registry-generated tool
 > definitions — generation must not become a place where per-tool logic accretes.
+>
+> **RULING 2026-09-30: composing two services is still dispatch.** When
+> Library and Programming are separate service packages (`re-architecture.md`
+> § Seam 1), a surface action such as "accept this candidate into the Winter
+> playlist" is two service calls composed by the binding. That is permitted,
+> because the binding still decides nothing. A composition that branches on one
+> call's result to choose the second is the violation, and belongs in a service.
+
+**The Library/Programming seam: four norms, born 2026-09-30 and `in-transition`.**
+They come from the owner's ruling to "collapse the first two [roles], design with
+seams to allow future separation" (`re-architecture.md` § The owner's rulings).
+Their shared why: a later split of Programming from the Library has to be a
+**deployment change, not a rewrite**. Each rule below closes one way the in-process
+convenience would otherwise make that split a migration.
+
+1. **One-way imports through a facade.** Programming imports only the Library's
+   facade module, and the Library never imports Programming. *Why:* a
+   transitive import is the seam's first crack, and it is invisible in review.
+2. **The facade is written as if remote.** It is coarse-grained, takes and returns
+   ids and plain data, never hands out ORM rows or lazy loads, and is idempotent.
+   *Why:* an interface that only works in-process has to be redesigned at the
+   split, which is the rewrite this rule avoids.
+3. **Separate stores, no cross-seam foreign keys.** Programming's tables live in
+   their own SQLite file and hold work ids as opaque references that may fail to
+   resolve. *Why:* one file makes the cross-seam join too easy to resist, and a
+   split then needs a data migration. Today `theme_memberships.artwork_id` and
+   `directives.pinned_work_id` cross it.
+4. **Library changes reach Programming as events.** Programming never reads
+   Library tables to detect change, and media URLs in manifests are
+   Library-served and content-addressed. *Why:* events become webhooks and URLs
+   repoint at the split, with no code change on the consuming side.
+
+> **Status:** `in-transition`, tracked by `re-architecture.md` wave 6 (backlog
+> items not yet filed). **Interim rule:** new code that touches themes, walls,
+> directives or manifests is written against the rules above wherever it can be
+> without the package split: no new cross-seam foreign keys, no new direct reads
+> of catalogue tables from `services/display.py`'s domain.
+>
+> **Retroactivity: migrate.** The inventory is the two foreign keys above, and
+> `services/display.py` / `manifest/builder.py` reading catalogue records
+> directly. The migration is wave 6.
+>
+> **Enforcement:** Critic until wave 6. Wave 6 adds a static import guard in
+> the style of `tests/preferences/test_plane_isolation.py` for rule 1, and a
+> schema test for rule 3. Rows are in `project-preferences.md` § Enforcement.
 
 ## Overview & Topology
 
@@ -156,6 +256,27 @@ recorded plan (curation on a desktop, NAS, or second Pi) — see Decision Log.
                                                                        1448×1072
 
   (C) = written by curation only    (D) = written by display only
+```
+
+**Target topology (2026-09-30, `re-architecture.md`).** None of this is built yet.
+
+```
+            ┌──────────── operator's NAS (container) ─────────────┐
+ Browser ──►│  server                                              │
+ MCP ──────►│   ├─ Library      works · originals · facets · mat   │── HTTPS ──► OpenRouter,
+            │   │               discovery · Watches · scheduler    │             museum APIs
+            │   │               presentation masters (by hash)     │
+            │   └─ Programming  playlists · walls · hanging ·      │
+            │                   directives · tags · heartbeats     │
+            │   GET /walls/{id}/manifest   GET /media/{hash}       │
+            │   POST /walls/{id}/heartbeat                         │
+            └───────────────────────┬──────────────────────────────┘
+                                    │ LAN HTTP, pulled
+          ┌─────────────────────────┼─────────────────────────┐
+          ▼                         ▼                         ▼
+   Player (Pi, wall A)       Player (Pi, wall B)       Player (Mac, wall C)
+   local cache · composes    local cache · composes    local cache · composes
+   Samsung Frame + e-ink     HDMI LCD, caption in mat  monitor, caption in mat
 ```
 
 **Why the product is split at all.** The original rationale — "it moves gigapixel
@@ -647,6 +768,11 @@ is no network between planes.
   to a full interval. It is the person standing in front of the wall who cannot
   tell a confident wrong label from a right one, so a picture the manifest cannot
   name gets an empty label rather than a stale one.
+- **Direction changed 2026-09-30:** the sentence above ("display does *not*
+  render the mat") is true of the built code and is reversed in wave 4
+  (`re-architecture.md` § Compositing moves to the Player). The Player will
+  compose for its own geometry and gain a framebuffer backend beside the
+  Samsung one.
 - **Must never:** write the catalogue, write the manifest, call the curation
   process, or import curation code.
 
@@ -673,6 +799,11 @@ the open internet and are where prompt-injection content enters; bounds are in
 
 **Channels 1 and 2 are not trust boundaries** — same host, same user, same
 filesystem. They are *coordination* boundaries.
+
+> **Direction changed 2026-09-30.** Channels 1, 2 and 2b become LAN HTTP in waves
+> 2–3: a manifest GET, a media GET by hash, and a heartbeat POST. At that point
+> they **are** trust boundaries (a listener on the LAN), which `security-model.md`
+> takes up. Channel 5 moves with the Player, and a framebuffer output joins it.
 
 ### The theme manifest
 
@@ -892,7 +1023,12 @@ mode — see Failure Modes.
 ## Failure Modes & Resilience
 
 There is no network between the planes, so most of the usual multi-runtime failure
-catalogue does not apply. What remains:
+catalogue does not apply. *(True as built. From wave 2 there is a network
+between server and Player, and the rows to add are server unreachable, which
+the Player keeps rendering from its cache, a normal condition; a stale cache
+past a threshold, which is reported in the heartbeat; and a media hash that
+fails to fetch, which skips that work, the same as today's missing-file row.
+See `re-architecture.md`.)* What remains:
 
 | Failure | Effect on the rest | Intended behaviour |
 |---|---|---|
@@ -916,6 +1052,13 @@ unnecessary. Either can start first, in any order, at any time.
 is overwritten, so backpressure is structurally impossible.
 
 ## Deployment & Version Skew
+
+> **Direction changed 2026-09-30.** "One deploy unit in practice" ends at wave 3,
+> when the server runs as a container on the NAS and the Player stays on the Pi.
+> After wave 5 they live in separate repos. Skew then becomes routine rather than a
+> restart window, and the manifest's major/minor rule below is what absorbs it.
+> Contract fixtures pinned by the Player's tests are what enforce it
+> (`re-architecture.md` § Seam 2).
 
 **One deploy unit in practice, two in principle.** Both planes live in one git
 repo, are updated together (`git pull` plus two `systemctl restart`s), and there is
@@ -1011,6 +1154,11 @@ retrieval and the browser client, both above this layer.
 households, concurrent discovery runs, and any form of high availability. These sit
 in the product brief's *accommodate* list — designed around, not built.
 
+> **Direction changed 2026-09-30.** Multiple walls and multiple Players move from
+> *accommodate* to **target** (per-wall manifests have existed since 2026-08-12).
+> Components stay singletons: one server, one Player per wall. The SD-card
+> bottleneck above retires for the server when it moves to NAS storage in wave 3.
+
 ## Cross-Cutting Runtime Concerns
 
 **Correlation.** A discovery run id is the correlation key across the curation
@@ -1065,6 +1213,29 @@ faked end-to-end. This is already recorded as the reason "verify the TV still
 works" is a gating item rather than a routine test.
 
 ## Decision Log
+
+**2026-09-30 — Three roles, two deployables; co-location reversed.** The owner
+split the product into a Library (procure, maintain, upgrade, enhance), Programming
+(walls, playlists, hanging) and a Player (render to a screen), and collapsed the
+first two into one server "with seams to allow future separation". The server
+moves to the operator's NAS and Players stay at the walls. This **reverses
+2026-07-20's "both planes run on the Raspberry Pi"**. That decision's accepted
+trade-off, one hardware failure domain with curation competing for the Pi, no
+longer has to be carried, and its benefit (no network contract) is exchanged
+for a pull-to-cache contract that keeps the availability norm true. *Alternatives:*
+three processes now (rejected: a second server for no consumer), and a monorepo
+forever (rejected by the owner, who wants a Player that "reads that library" as
+an independent product; the repo split is sequenced last, after the contract
+settles). Full record: `re-architecture.md`.
+
+**2026-09-30 — Compositing moves to the Player.** Reverses the 2026-07-20 reading
+in `data-model.md` that a 3840×2160 matted canvas is "a property of the artwork's
+presentation, not of a device". Plural screens (an LCD, a portrait monitor, a
+caption in the mat) make that canvas device-specific. The Library keeps the
+Original, the mat colour and the label text, and publishes a device-independent
+presentation master. *Trade-off accepted:* the Pi composes, which the retired
+"move image work off a Pi 4" rationale once argued against. That rationale was
+already withdrawn (below), and a capped presentation master bounds the work.
 
 **2026-07-27 — The catalogue's durable tier is first-party code shaped to the
 `DurableStore` contract, and no framework dependency is taken.** The recorded plan

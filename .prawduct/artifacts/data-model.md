@@ -8,6 +8,24 @@ last_validated: null
 
 # Data Model
 
+> **Direction changed 2026-09-30. Read `re-architecture.md`.** The entities below
+> are as built. The target assigns each to one of three roles:
+> - **Library:** Artwork, Artist, Source, Original, MatColor, WorkFacet, Affinity,
+>   Conversation and ConversationTurn, DiscoveryRun, CandidateWork,
+>   CandidateImage, SpendRecord and ResolveRunWork.
+> - **Programming:** Theme (now a playlist), ThemeMembership, Wall,
+>   ThemeAssignment and Directive.
+> - **Player:** TvBinding (already display-only).
+>
+> Library and Programming share one server process but get **separate stores
+> with no cross-seam foreign keys** (`architecture.md` § Direction, the
+> Library/Programming seam norms). Three changes are planned and not built:
+> - The `tv_display` Rendition leaves the catalogue. Compositing moves to the
+>   Player (wave 4), and a device-independent presentation master takes its place.
+> - The entities in § Planned entities are added.
+> - The two foreign keys that cross the seam today are dropped:
+>   `theme_memberships.artwork_id` and `directives.pinned_work_id`.
+
 ## Direction
 
 **Identity is never a source URL.** Every artwork carries a stable internal
@@ -109,6 +127,16 @@ synced between machines.
 > the target is cheap and correct.
 >
 > **Status:** steady-state.
+>
+> **RULING 2026-09-30: a presentation master is not a derived artifact in this
+> norm's sense, and caching it on a Player conforms.** The norm covers
+> "anything rendered for a specific output geometry". The presentation master
+> (`re-architecture.md` § Seam 2) is rendered for **no** geometry: no mat, and a
+> size cap that exists only to bound transfer and decode cost. It is content-
+> addressed, so a Player's cached copy cannot silently go stale, because a
+> changed master has a different hash. What *is* geometry-specific, the composed
+> and matted canvas, is regenerated on the Player that owns the screen, which is
+> this norm applied more strictly than the built code applies it.
 
 ## What this data must answer
 
@@ -390,6 +418,13 @@ the art tree that rsync carries and git does not.
 > with no producer is the same defect the re-search review flagged, so the value is
 > removed rather than reserved.
 
+> **Direction changed 2026-09-30.** The derived `display_fit` verdict above is
+> computed from panel geometry that the server will no longer hold after wave 4.
+> Target: a Player judges adequacy against its own geometry and reports it
+> in its heartbeat. Programming surfaces it per wall ("this work is too small for
+> the living room"). The Library keeps only `width` and `height`, as this section
+> already requires.
+
 ### Rendition
 
 A derived, device-specific output. **Regenerated, never transported.**
@@ -427,6 +462,17 @@ A derived, device-specific output. **Regenerated, never transported.**
 > What remains here is correct: `tv_display` at 3840×2160 is a property of the
 > *artwork's presentation*, not of a device — any 4K display shows it, and the mat
 > is composed against that canvas. `thumbnail` is device-independent by definition.
+>
+> **Reversed 2026-09-30 (effective at wave 4; `re-architecture.md` § Compositing
+> moves to the Player).** The paragraph above held only while there was one
+> screen. A 1920×1200 LCD, a portrait monitor, or a caption set in the mat (which
+> needs the mat sized for the caption) each need a different canvas. So
+> `tv_display` is device-specific after all, and this is the `label` removal above
+> repeated one level down. Target: `kind` gains `presentation_master`, which is
+> device-independent, capped, unmatted, and served by hash to Players.
+> `tv_display` is removed, and its producers (`acquisition/compose.py`, the
+> `TV_PANEL_*` and `MAT_*` settings on the server) move to or are rebuilt on the
+> Player. `thumbnail` is unchanged.
 
 ### MatColor
 
@@ -461,6 +507,8 @@ regenerating it costs money.
 
 ### Theme
 
+> **Programming-owned from 2026-09-30** (`re-architecture.md`). A theme becomes a **playlist**, and can become a **smart playlist**: a rule over Library facets and Programming tags, plus manual additions and exclusions (see § Planned entities). Its store moves to Programming's own file.
+
 The curator's unit of intention. What "per-user preferences" resolved to — a
 naming and grouping concept, not an accounts concept.
 
@@ -486,6 +534,8 @@ naming and grouping concept, not an accounts concept.
 > took the column away.
 
 ### ThemeMembership
+
+> **Programming-owned from 2026-09-30** (`re-architecture.md`). `artwork_id` is a foreign key across the seam today. The target holds it as an opaque work id that may fail to resolve, and the Library's `work.archived` event, not a join, is what removes a work from rotation.
 
 Join entity. Explicit rather than implicit so ordering can be curated.
 
@@ -518,6 +568,8 @@ Join entity. Explicit rather than implicit so ordering can be curated.
 > routes.
 
 ### Wall
+
+> **Programming-owned from 2026-09-30** (`re-architecture.md`). The forbidden list below holds harder in the target. A Player may report its geometry as a heartbeat *observation*, held by Programming. The Library never sees it, and a Wall row still never stores it.
 
 A place where art hangs. One display serves one wall. *(Added 2026-08-12, on the
 operator's ruling that themes are created globally and assigned per wall.)*
@@ -560,6 +612,8 @@ name; it is not a device.
 > Direction norm draws | user can veto/override]`
 
 ### ThemeAssignment
+
+> **Programming-owned from 2026-09-30** (`re-architecture.md`). Unchanged in meaning. It moves to Programming's store with Wall and Theme.
 
 What is hanging on one wall. The act `information-architecture.md` flow 6 calls
 *hanging*, and the replacement for `Theme.is_active`.
@@ -607,6 +661,8 @@ What is hanging on one wall. The act `information-architecture.md` flow 6 calls
 > existing wall so no deployment loses its picture | MED impact | user can veto/override]`
 
 ### Directive
+
+> **Programming-owned from 2026-09-30** (`re-architecture.md`). `pinned_work_id` is a foreign key across the seam today. Its target is an opaque id, and pin withdrawal on archive is driven by the Library's `work.archived` event.
 
 The standing instruction to the display plane. **One row per Wall**, seeded when
 the wall is created so that no caller ever has to make it.
@@ -666,6 +722,13 @@ the wall is created so that no caller ever has to make it.
 > one and relying on the manifest to filter it out later.
 
 ### WorkFacet
+
+> **This is the Library's fact layer (2026-09-30, `re-architecture.md` § Two
+> layers of tags).** Facets are what a museum cataloguer would say is true of the
+> work, whoever's wall it hangs on: subject "snake, cup, biblical", movement,
+> palette. Household-use labels ("funny", "party", "morning") are **Programming
+> tags**, which are a separate entity in Programming's store. Programming never
+> writes a facet.
 
 What a work *is*, in the same typed vocabulary the curator's taste is expressed in.
 Answers Q15. Added 2026-08-10 with the collection's retrieval surface
@@ -2223,6 +2286,59 @@ single interaction the product exists to make easy.
 > `architecture.md` § Readiness). `TvBinding` is device state and lives in the
 > display plane's own store, not in the catalogue — per this artifact's own third
 > Direction norm.
+
+## Planned entities (re-architecture, 2026-09-30, not built)
+
+Proposals from `re-architecture.md`, to be settled in the wave that builds each.
+Field lists are starting points, not contracts. Each is a persisted format, so
+its wave's plan enumerates the questions it must answer before the fields are
+fixed (`methodology/planning.md`).
+
+### ProgrammingTag *(Programming)*
+
+| Field | Type | Description |
+|---|---|---|
+| `work_id` | string | An opaque Library work id. **Not a foreign key.** |
+| `tag` | string | Open vocabulary, normalized (case, whitespace), offered through autocomplete. "funny", "party", "morning". |
+| `derivation` | enum | `curator` \| `suggested` (a model read the work's facts; paid, so recorded in `SpendRecord`). |
+| `created_at` | datetime | |
+
+Unique on (`work_id`, `tag`). The vocabulary is open, unlike `VocabularyKind`,
+because it is household language rather than a taxonomy that taste has to join
+against.
+
+### Smart playlist rule *(Programming; fields on Theme)*
+
+A theme gains an optional **rule**: boolean AND/OR/NOT over Library facets
+(`kind: value`), Programming tags, and perhaps a date range. Explicit
+memberships act as manual additions, and an exclusion list removes works. The
+rule is evaluated in Programming: the Library facade returns the ids matching the
+facet terms, and Programming applies its tags. How rich the rule language gets is
+an open question.
+
+### Watch *(Library)*
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | UUID | |
+| `intent` | text | In words, as a conversation would state it. |
+| `facet_filter` | json | Optional (`kind`, `value`) constraints. |
+| `sources` | list | Which providers to check. |
+| `cadence` | interval | How often it re-runs (it polls; museum APIs have no feeds). |
+| `on_match` | enum | `notify` \| `queue_for_review` (default) \| `auto_accept`. |
+| `spend_cap_usd` | decimal | Per period. Every run records `SpendRecord`s against it. |
+| `last_run_at`, `enabled` | | |
+
+The memory of what a Watch has already seen is the existing dedup and
+rejected-candidate records, not a new table. Upgrade monitoring (re-searching
+works whose verdict is `awaiting_better_image`) runs on the same scheduler.
+
+### Player observation *(Programming)*
+
+A heartbeat may carry the Player's output geometry, label mode, cache state and
+per-work adequacy verdicts. Programming keeps the latest per wall for the health
+view. This is device information held by Programming as an **observation**,
+never as configuration, and never in the Library.
 
 ## Deliberately not modelled
 

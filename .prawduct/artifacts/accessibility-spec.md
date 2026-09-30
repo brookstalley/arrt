@@ -16,6 +16,19 @@ of what is owed; every requirement here is either **practised** (with the mechan
 named), **owed** (with what would close it), or **open** (with what could settle
 it, and by whom).
 
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** The product is
+> becoming a server (library plus programming) and a player that drives any
+> screen, not only a Samsung Frame. For this artifact that means **the label gains
+> a second surface**: besides the e-paper panel, a wall may set the label as a
+> caption in the mat, on a framebuffer screen or burned into the image before a
+> Frame upload. The label mode is chosen per wall: panel, caption, or none. What
+> stays is everything this artifact derives: the type floor from geometry and
+> reading distance, the two content tiers, and the fill rule. They apply to a
+> caption exactly as they apply to the panel, because they were written against
+> a reader at a distance and not against a panel. Norm 1 below carries the
+> amendment; § The television carries the one decision it reverses. Nothing about
+> the panel as built changes. The caption mode is Player work in wave 6+.
+
 ## Direction
 
 The two norms this artifact carries, stated where the convention says a norm
@@ -32,6 +45,25 @@ decision to record rather than something to sync the prose to.
    which tier and what follows from it — this sentence is the rule, that section
    is its detail. `open_questions` closed on the same date; the clause could not
    be ratified before the floor it refers to existed, and by then it existed.)*
+
+   **Amendment, 2026-09-30: the norm's subject becomes "the label", on whichever
+   surface a wall uses.** The e-paper panel remains one surface. A caption set
+   in the mat is the other, and the same floor, tiers and fill rule bind it.
+   The 16-grey-level clause is specific to the panel and stays scoped to it.
+
+   `[DECISION: norm 1 extends from the e-paper label to the label on any surface a
+   wall uses, the panel or a caption in the mat, with the floor and the tiers
+   unchanged | the owner ruled on 2026-09-30 that e-ink cards are "supported and
+   optional, with on-screen captions as an alternative" (re-architecture.md).
+   The norm's why is a household reader at standing distance with no affordance
+   to adapt what they read. That reader is the same person whichever surface
+   carries the words, so a caption exempt from the floor would reopen exactly the
+   hole the norm closes | user can veto/override]`
+
+   **Status:** in-transition. The panel conforms as built. No caption surface
+   exists yet, and the norm binds the Player chunk that builds one. **Tracking
+   ref:** `re-architecture.md` § Player outputs (wave 6+). **Retroactivity:**
+   none needed: the only built surface already conforms.
 2. **WCAG 2.1 AA on the curation browser, and colour is never the sole carrier of
    state.** Ratified; the decision it implements is
    `design_decisions.accessibility_approach`.
@@ -54,6 +86,12 @@ requirement is written, and it is the opposite of the obvious answer:
 | **The e-paper label** | Household members and guests, at standing distance, in whatever light the room has | **Legibility.** There is no interface to navigate — type size, contrast on a non-emissive panel, and line length *are* the whole story |
 | **The curation browser** | One advanced operator, on a LAN | WCAG 2.1 AA — keyboard, focus, labels, contrast |
 | **The television** | The same household members and guests | Nothing, deliberately. It is artwork on a wall |
+
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** The third row
+> becomes "the screen", which may be a Frame, an LCD or a monitor. On a wall
+> configured for captions, the screen also carries the label, set in the mat
+> under norm 1. The ordering argument below is unchanged: the label still
+> outranks the browser, whichever surface it is drawn on.
 
 > **The label outranks the browser, and this artifact is ordered to say so.** A
 > specification that opened with WCAG and treated the panel as a footnote would be
@@ -993,6 +1031,14 @@ retired. Geometry arrives as a parameter; `display/src/display/config.py` defaul
 is a configuration, not a fault** — which matters here because a household adding a
 display without a panel must not read as a broken one.
 
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** This rule is about
+> to reach further than the label. The television's own geometry leaves the
+> catalogue in wave 4: the mat is composed on the Player for its own screen, and
+> the `tv_display` rendition and `TV_PANEL_*` leave curation. A caption in the mat
+> makes that necessary for accessibility too, because the mat has to be sized
+> for the caption's type, and only the device that knows the reading distance
+> and the screen can size it.
+
 ### The panel has no brightness control, and that is why the rest of this matters
 
 The label surface is non-emissive: there is no backlight to raise and no ambient
@@ -1252,6 +1298,24 @@ not the picture.
 Stated here so the absence reads as a decision rather than as an oversight, which
 is the same reason `information-architecture.md` § Boundaries lists it.
 
+> **Amended 2026-09-30 — see `re-architecture.md`.** "No caption" is reversed for
+> walls configured for one. What survives is the substance of the paragraph
+> above: no overlay on the artwork, no status, no chrome. A caption is set **in
+> the mat**, never over the picture, and only where a wall's label mode asks for
+> it. A wall with an e-paper panel, or with its label mode set to none, still
+> shows the artwork and nothing else. On a Samsung Frame the caption can only
+> exist burned into the image before upload, which is one of the reasons
+> compositing moves to the Player.
+>
+> `[DECISION: a caption in the mat is permitted on a screen when the wall's label
+> mode selects it, while overlays, status and chrome stay forbidden | the owner
+> ruled on 2026-09-30 for "on-screen captions as an alternative" to e-ink cards.
+> The why of the original rule was that the picture has no chrome and that the
+> identifying facts have a home that is not the picture. The mat is not the
+> picture: the product already treats it as a deliberate framing choice, and a
+> museum's own convention puts the label beside the work, not on it | user can
+> veto/override]`
+
 ---
 
 ## Verification
@@ -1270,3 +1334,9 @@ is the same reason `information-architecture.md` § Boundaries lists it.
 
 **The last row is the one to watch.** It is the only requirement in this artifact
 that no machine can close, on the surface this artifact says matters most.
+
+> **Owed from 2026-09-30 — see `re-architecture.md`.** The caption surface needs
+> its own rows in this table when it is built: the floor holding in caption
+> mode, the mat sized for the caption, and an operator sitting at reading
+> distance, as Chunk 13B did for the panel. None exist yet, because no caption
+> surface exists.

@@ -54,6 +54,11 @@ classification:
       #   * MCP tool surface — external consumers (Claude Code, the in-UI agent)
       #   * HTTP API backing the curation UI's direct controls — internal
       #   * curation↔display plane contract — internal
+      #   * PLANNED 2026-09-30: the server↔Player HTTP contract (manifest by
+      #     ETag, media by hash, heartbeat POST). Internal consumers on the LAN,
+      #     but published and versioned, because the Player is meant to be an
+      #     independent product. See artifacts/re-architecture.md § Seam 2 and
+      #     api-contract.md.
       # Consumes six foreign surfaces; see foreign_apis below.
       #
       # Consequences re-derived on the flip (methodology/discovery.md, "A
@@ -90,6 +95,16 @@ classification:
     # Multiple processes or services communicating at runtime. topology: monolith-with-workers|client-server|microservices|pipeline
     multi_process_distributed:
       topology: shared-filesystem-pipeline
+      # FLIP RECORDED 2026-09-30 by the owner, effective at re-architecture wave 2.
+      # The value above stays as long as it describes the running system. The
+      # target is `client-server`: one server (Library plus Programming) as a
+      # container on the operator's NAS, and one Player per wall pulling an HTTP
+      # manifest and content-addressed media into a local cache. It is
+      # multi-process AND distributed from wave 2 on, so the resilience story in
+      # architecture.md grows the network rows it was able to omit. Re-derivation
+      # and the assumption audit are owed per docs/norms.md § Ambient norms. They
+      # were begun 2026-09-30 as forward notes across the artifacts, and are
+      # completed by each wave's plan. Record: artifacts/re-architecture.md.
       # AMENDED 2026-07-20. Previously `client-server`, described as "two planes on
       # two machines, forced by an irreconcilable Python version constraint". Every
       # part of that is now wrong:
@@ -708,6 +723,26 @@ product_definition:
 
 technical_decisions:
   architecture:
+    - decision: "Three roles (Library, Programming, Player) in two deployables: a server on the NAS and a Player per wall."
+      date: 2026-09-30
+      alternatives_considered:
+        - "Three processes now (Library, Programming and Player each separate). Rejected by the owner as 'a lot of complexity and two servers for a moderately simple app'."
+        - "NFS or SMB mounts of the art tree on each Pi. Rejected because a network mount hangs on a NAS reboot, the failure the availability norm exists to prevent."
+        - "Two fresh repos rebuilt by agents from this one. Rejected: it loses the artifacts, history and learnings. This repo becomes the server, and display/ is extracted with its history in wave 5."
+        - "Keep compositing upstream at 3840x2160. Rejected: plural screens and caption-in-mat make the canvas device-specific."
+      rationale: >
+        Owner's direction, 2026-09-30. It supersedes the target (not the
+        as-built description) of the curation/display split below and of the
+        2026-07-20 co-location decision. The Library procures, maintains,
+        upgrades and enhances artwork. Programming assigns playlists to walls.
+        The Player renders to any screen (Samsung Frame, LCD, monitor), with an
+        optional e-ink label or a caption in the mat. Library and Programming
+        are "collapsed" into one server "with seams to allow future separation"
+        (owner's words): separate packages and stores, a remote-shaped facade,
+        and events. The channel becomes an HTTP pull into a Player-local cache.
+        Compositing moves to the Player. The repos split last, after the
+        contract settles. Full record, rulings, waves and open questions:
+        artifacts/re-architecture.md.
     - decision: "Split into a curation plane and a display plane, communicating over a defined contract."
       rationale: >
         AMENDED 2026-07-19, same day, after auditing the constraint that originally
@@ -2467,6 +2502,13 @@ design_decisions:
 #   priority: high | medium | low
 
 open_questions:
+  # OPENED 2026-09-30 with the re-architecture (artifacts/re-architecture.md §
+  # Open questions). Kept as one entry so they travel together until wave 1's
+  # plan splits them out.
+  - question: "Re-architecture open questions: product and repo names; the presentation master's size cap and encoding; Player auth on the LAN; directive latency (ETag poll or server-sent events); the smart-playlist rule language; mat colour per aspect ratio; the fate of v1 build-plan's open chunks; filing the program as backlog issues."
+    blocking: "Waves 1–4 of re-architecture.md. Player auth blocks wave 3's LAN listener."
+    waiting_on: operator
+    priority: high
   # RESOLVED 2026-08-11 by the operator: RATIFIED, with an amendment that is
   # larger than the question asked. The answer was not yes or no — it was that
   # the clause is right for the wrong half of the content, so the norm now has
@@ -2963,6 +3005,10 @@ artifact_manifest:
       file_path: .prawduct/artifacts/accessibility-spec.md
       version: 1
       depends_on: [design-direction, information-architecture, nonfunctional-requirements]
+    - name: re-architecture
+      file_path: .prawduct/artifacts/re-architecture.md
+      version: 1
+      depends_on: [product-brief, architecture, data-model]
     # Edges mirror build-plan.md's own `depends_on:` front matter. The plan is
     # the most decision-dense artifact here: leaving it unedged would make every
     # decision it rests on unreachable by a dependency walk — precisely the

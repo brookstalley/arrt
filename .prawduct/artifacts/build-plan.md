@@ -58,6 +58,31 @@ last_validated: 2026-08-11
 
 # Build Plan — Samsung Frame Art Loader v1
 
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** This is the v1 plan for
+the co-located, one-Frame product, and that is no longer the product being built
+toward. The product is becoming a **server** (library plus programming, on the
+household NAS) and a **player** (any screen, with e-ink optional). The work runs
+as a program of waves, each with its own `build-plan-<scope>.md` when it starts.
+**This plan stays the `active_build_plan` pointer only because its open chunks
+are unfinished**, and every open chunk waits on hardware. Its governed-by
+dispositions above were written against the norms as they stood. The manifest
+channel norm was amended on 2026-09-30 (`architecture.md` § Direction), and no
+chunk left here changes the channel, so none of them is re-disposed.
+
+**Proposed dispositions for the open chunks.** These are proposals for the
+operator to confirm in wave 0, not decisions. No Status box was ticked or
+unticked.
+
+| Chunk | Proposal |
+|---|---|
+| 13A | **Survives as Player (Frame backend) work.** Its remaining step, the announcement reaching both subscribers, is a fact about the set and unaffected. |
+| 13B | **Survives as Player work.** Run the unattended power-cycle check on the current deployment as the baseline, before wave 2 changes the channel. Re-run it after wave 3, because a new channel changes what "unattended" exercises. |
+| 24 | **Survives unchanged.** It measures the set's power transitions, which is hardware truth for the Frame backend. |
+| 25 | **Survives, with a naming caution.** The tri-state power read belongs to the Frame backend of a screen interface that will also have framebuffer backends (wave 6+). Keep "cannot tell" and "no power verb" expressible so an LCD backend is not forced into Samsung's shape. |
+| 26 | **Survives as Player work, with an open question.** The wake and sleep window is *when a wall shows art*, which `re-architecture.md` assigns to Programming, while the guardrails are device-specific. Decide in wave 0 whether the window is configured on the player (as planned) or published by Programming in the manifest. |
+| 27 | **Survives.** Its heartbeat reason carries over unchanged into the HTTP heartbeat (wave 2). "The Pi gets the values" stays player configuration. |
+| 20 | **Re-scope.** Legacy retirement moves to wave 0. The backup and restore exercise should wait until wave 3, when the catalogue lives on NAS storage. `VACUUM INTO` is still needed there, because a snapshot is not a consistent SQLite copy, so re-plan it against that home rather than "another LAN machine". |
+
 ## Requirements Confidence
 
 **Level:** Medium
@@ -1761,6 +1786,9 @@ two missing deliverables.)*
 
 ### Chunk 13A: The panel, the label, the heartbeat and the two units — no hardware
 
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** *Proposed disposition:*
+survives as Player (Frame backend) work. The open step is a fact about the set.
+
 **Split from a single Chunk 13 on 2026-08-07** at the operator's call, on the
 seam the original entry already admitted: its own Visual-change line records that
 Pango type sizing cannot be settled without the operator in front of the panel,
@@ -1906,6 +1934,10 @@ hardware.
   3. Committed and chunk marked `[x]` in Status
 
 ### Chunk 13B: The Pi — service account, units installed, legibility, cutover
+
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** *Proposed disposition:*
+survives as Player work. Run the power-cycle check as a baseline before wave 2,
+and again after wave 3.
 
 - **Description:** The hardware half of the original Chunk 13. The `tvpi` service
   account is created with its `spi` and `gpio` groups and given ownership of
@@ -3159,6 +3191,9 @@ listed "13 (heartbeat to display)", but heartbeat age shipped with 10B and
 
 ### Chunk 24: Map the set's power transitions, with the Apple TV in the loop
 
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** *Proposed disposition:*
+survives unchanged. It is hardware truth for the Frame backend.
+
 - **Description:** Everything downstream of this chunk sends a key to a
   television, and **nobody has measured what the keys do.**
   `platform-and-dependency-findings.md` records two presses from `standby` and
@@ -3281,6 +3316,10 @@ listed "13 (heartbeat to display)", but heartbeat age shipped with 10B and
 
 ### Chunk 25: The power seam — one tri-state read, and a channel that can press
 
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** *Proposed disposition:*
+survives. Name the seam so a framebuffer backend can answer "cannot tell" or "no
+power verb" (wave 6+).
+
 - **Description:** The vertical slice. The `TvClient` contract gains the
   television's power state in the product's own vocabulary and the ability to
   press power, the Samsung implementation grows a remote-control channel behind
@@ -3376,6 +3415,10 @@ listed "13 (heartbeat to display)", but heartbeat age shipped with 10B and
 
 ### Chunk 26: The schedule and its guardrails — decided without a television
 
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** *Proposed disposition:*
+survives as Player work. Open for wave 0: is the window player configuration, or
+Programming policy carried in the manifest?
+
 - **Description:** When the wall may be woken, when it must be sent dark, and
   every rule that stops the daemon fighting the household for the remote. **A
   pure module that never touches the set**, so the policy can be tested across a
@@ -3458,6 +3501,9 @@ listed "13 (heartbeat to display)", but heartbeat age shipped with 10B and
 
 ### Chunk 27: The daemon acts, the heartbeat says why, and the Pi gets the values
 
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** *Proposed disposition:*
+survives. The heartbeat reason moves into the HTTP heartbeat in wave 2 unchanged.
+
 - **Description:** The wiring, and the first chunk whose behaviour reaches the
   living room. The daemon consults the policy each pass, sends the presses it
   calls for through the safety gate, says what it did in the journal, and carries
@@ -3513,6 +3559,10 @@ listed "13 (heartbeat to display)", but heartbeat age shipped with 10B and
      done because the tests pass
 
 ### Chunk 20: Backup/restore exercise (issue #14), ops close-out, legacy retirement
+
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** *Proposed disposition:*
+re-scope. Legacy retirement moves to wave 0. Backup and restore wait for wave 3,
+re-planned against NAS storage, with `VACUUM INTO` still required.
 
 - **Description:** The catalogue is the irreplaceable asset — the image tree is
   deliberately not backed up. Scheduled backup of `catalogue.sqlite` to another

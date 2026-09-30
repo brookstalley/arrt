@@ -25,6 +25,50 @@ The hardest rules (everything else is in the plugin):
 The session-start banner shows the active version and what changed — this anchor
 stays version-free.
 
+## Change of direction — 2026-09-30 (read before anything else)
+
+**The product is being re-architected. Start with
+`.prawduct/artifacts/re-architecture.md`.** In short:
+
+- It becomes **two products with three roles**. A **server** runs on the
+  operator's NAS and holds the **Library** (find, acquire, maintain, upgrade and
+  enhance artwork) and **Programming** (walls, playlists, hanging). A **Player**
+  at each wall renders to any screen: a Samsung Frame, an LCD, a monitor.
+- The e-ink label is optional, and a caption in the mat is the alternative.
+- The model is Radarr/Sonarr for the server and a Plex client for the Player.
+- `curation/` is most of the server. `display/` is most of the Player.
+
+**What that means for work in this repo:**
+
+- **The as-built artifacts are still true of the code.** Each one that the new
+  direction changes carries a dated `Direction changed 2026-09-30` note saying
+  what changes, in which wave, and what stays. For the **target**,
+  `re-architecture.md` wins. For **what runs today**, the older text wins until
+  its wave lands.
+- **Norms in transition.** The "manifest file is the only channel" norm, the
+  display-independence and label-legibility norms, and four new Library/
+  Programming seam norms are `in-transition`, each with an interim rule. Read
+  `architecture.md` § Direction before touching the manifest, the display
+  plane's I/O, or the theme, wall and directive tables.
+  `tests/preferences/test_plane_isolation.py` is **unchanged on purpose** until
+  wave 2.
+- **The work is a program in waves (0–6), not one plan.** Each wave gets its own
+  `build-plan-<scope>.md` when it starts. Next up: **wave 0** (confirm the v1
+  plan's open-chunk dispositions and retire the 2024 root modules), then
+  **wave 1** (write the Player contract artifact with a JSON Schema and fixtures,
+  and the wave-2 build plan). The repo split into server and player repos
+  (`git filter-repo` on `display/`) is **wave 5, deliberately last**.
+- **Branches.** Work on `develop`. The round-2 curation UI plan
+  (`build-plan-curation-ui-round-2.md`) is **parked** on local branch
+  `curation-ui/rulings-and-plan`, not abandoned. Its work is valid server UI
+  work, to revisit after wave 2.
+- **The operator's open questions** are listed in `re-architecture.md` § Open
+  questions and in `project-state.yaml` `open_questions`. The ones that block
+  planning: product and repo names; Player auth before wave 3; the resolution
+  floor's home before wave 4.
+- **This repo is public.** The operator's NAS deployment is recorded in their
+  private homelab repo. Don't put network addresses, hostnames or usernames here.
+
 ## Dev commands
 
 Three independent projects, three interpreters, three suites.

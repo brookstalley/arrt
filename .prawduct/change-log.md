@@ -54,6 +54,40 @@
                   the whole vocabulary.
        scope    - rollup identifier (e.g., v1.4) -->
 
+## 2026-09-30: Direction change — a Library/Programming server and a Player, documented before any code
+
+<!-- prawduct: scope=re-architecture -->
+
+**Why:** The operator decided to split the product into an *arr-style server,
+holding the Library (procure, maintain, upgrade, enhance) and Programming (walls,
+playlists), and a Plex-style Player that renders to any screen, with the e-ink
+label optional and a caption in the mat as the alternative. The decision was made
+in the operator's homelab workspace. This entry brings that conversation into
+the repo so the next session starts from it rather than from the old target.
+
+**What:** Documentation only. No code changed.
+- **New:** `artifacts/re-architecture.md`. It holds the owner's rulings in their
+  words, the three roles, both seams, the two tag layers, Watches, Player
+  outputs, the deployment target, waves 0–6 and the open questions.
+- **Amended, with recorded decisions:**
+  - `architecture.md` § Direction: the manifest channel is amended and
+    `in-transition`; two rulings; four seam norms born `in-transition`; Decision
+    Log entries reversing the 2026-07-20 co-location.
+  - `nonfunctional-requirements.md`: the display-independence norm.
+  - `accessibility-spec.md`: the legibility norm now covers any label surface;
+    § The television admits a caption in the mat.
+  - `data-model.md`: two rulings, the reversal of the `tv_display` rendition, a
+    role for every entity, and § Planned entities.
+  - `product-brief.md`: Vision, Identity, flows and scope.
+  - `project-state.yaml`: the `multi_process_distributed` flip recorded, a
+    technical decision, an open question, and the artifact manifest.
+  - `project-preferences.md`: norm index rows.
+- **Forward notes** (as-built text left intact): every other artifact whose
+  target-state claims change, plus `README.md`, `CLAUDE.md` and
+  `deploy/README.md`.
+- **Parked, not archived:** the round-2 UI plan, on local branch
+  `curation-ui/rulings-and-plan`. This work is on `develop`, branched from `main`.
+
 ## 2026-08-17: The curation UI backlog — four ready items, on their own plan
 
 <!-- prawduct: chunks=01,02,03,04 | scope=curation-ui-fixes -->

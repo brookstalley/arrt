@@ -15,6 +15,19 @@ API version `5.0.1.0`, `remote 1.0`, `version 2.0.25`. Reached at
 marked *not observed* are gaps, deliberately left visible rather than filled in
 by inference.
 
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** The display plane
+> is becoming a **player** that drives several kinds of screen, and the Samsung
+> Frame is one backend among them: the *push-to-appliance* family (upload,
+> select, bindings, orphan removal), beside a framebuffer family for plain LCDs
+> and monitors. **This document stays the authority for that backend**, and it
+> moves with the player at the repo split (wave 5). Nothing measured here is
+> changed by the new direction. Two consequences for readers:
+> - "The display plane" below means the Frame backend of the player.
+> - Once compositing moves to the player (wave 4), the image this set receives
+>   is composed on the player for this set's geometry. On a wall configured for
+>   captions, that image carries the label burned into the mat. The upload and
+>   selection behaviour recorded here is what that path relies on.
+
 ## The states
 
 The set's own vocabulary and the library's disagree, and both disagree with what

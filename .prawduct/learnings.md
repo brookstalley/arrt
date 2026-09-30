@@ -683,6 +683,17 @@ was on the card, which is false once they alone outrun the cap. Both shipped pas
 tests asserting counts and membership. Position is what catches an ordering claim;
 a second test for the other branch is what catches a completeness one.
 
+## "Device-independent" is only evidence if it was checked against a second, different device — when you argue a derived artifact belongs upstream because it is not about any one screen, name a screen it would be wrong for before accepting the argument, because with one device in the room every device-specific choice passes as a property of the content
+
+**Recorded 2026-09-30, at the re-architecture (`re-architecture.md`).** The
+`tv_display` rendition, a 3840×2160 canvas with the mat composed in, was defended
+in `data-model.md` as "a property of the artwork's presentation, not of a
+device", and so was left in the catalogue plane. It was sized from `TV_PANEL_*`
+and `MAT_*`. The argument held only because one Frame existed. Naming a portrait
+monitor, a 16:10 LCD, or a caption that needs the mat sized for its type breaks
+it in one sentence, and moving it is now the largest built-code change in the
+program (wave 4).
+
 ## When a behaviour is retired, grep the sentences that justified it, not just the code
 
 **A retired rule outlives its retirement in prose, and the code may cite that

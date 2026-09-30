@@ -14,6 +14,18 @@ This artifact is therefore mostly **a record of decisions that already hold**, p
 the tokens the interface work added. Where it merely describes what the stylesheet
 does, the stylesheet wins; where it states a rule, the rule binds.
 
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** The product is
+> becoming a server (library plus programming) and a player. **This artifact's
+> scope and its Direction norm are unchanged**: they govern the curation browser,
+> which stays the one human interface and moves with the server. The one new
+> *visual* surface the change creates is the **caption set in the mat** on a
+> player's screen. That surface belongs to the Player, and its type is governed
+> by `accessibility-spec.md` (norm 1, amended the same day), not by the browser's
+> tokens. **Nothing in `app.css` is a source of truth for anything a player
+> draws.** The two products share no stylesheet, and the player repo will not
+> have one to share after the split (wave 5). If a caption ever wants the
+> browser's palette, that is a design decision to make then, not an inheritance.
+
 ## Direction
 
 <!-- Ratified by the owner 2026-08-11. Enforcement row in project-preferences.md. -->
