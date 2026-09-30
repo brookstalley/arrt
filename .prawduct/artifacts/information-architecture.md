@@ -195,7 +195,9 @@ Until then, the search box searches Artworks only.
 > belongs in Queue. The run listing carries no signal for it, so today it sits in
 > History with its state. Adding one is an API change: a count of unjudged
 > candidates per run, on `GET /api/runs` and its MCP twin. It is owed, and not
-> part of this plan. The owner chose the name, the home page and the scope on 2026-09-30. The
+> part of this plan.
+
+The owner chose the name, the home page and the scope on 2026-09-30. The
 placement of each page is the builder's reading of Radarr, and each placement is
 listed below so it can be disputed.
 
@@ -742,8 +744,8 @@ almost no considered empty states.
 | Walls | Nothing hanging on a wall: name the reason (no active theme / empty theme / display plane silent) and offer the fix for that reason specifically | The frame, then the image | Cannot reach the display plane — say which of the two planes answered |
 | Artworks | **Three different empties.** No works at all → an invitation into Add New. No works *matching the filter* → the filter, and how to clear it. **Filtered to one artist and holding none of them** → say so as a normal state and offer the search (see flow 1). Conflating the first two tells a curator with 3,000 works that they own nothing; conflating the third with the second reports the expected result of following a suggestion as a failed query | Skeleton tiles at the grid's real geometry, so nothing reflows | Partial page: show what arrived and say what did not |
 | Work | n/a | Image placeholder at the work's own aspect ratio | Named per missing part — a work with no rendition is not a failed page |
-| Queue | Nothing in flight → say so, say what would appear here, and offer Add New | The heading, then the table | The request's refusal, in the page's error banner |
-| History | No search has finished → say so | The heading, then the table | The request's refusal, in the page's error banner |
+| Queue | Nothing in flight → say so, say what would appear here, and offer Add New. Over a truncated listing it says what it checked, since an older search may still be at the gate | Nothing until the listing arrives, then the heading and the table together | The request's refusal, in the page's error banner |
+| History | No search has finished → say so | Nothing until the listing arrives, then the heading and the table together | The request's refusal, in the page's error banner |
 | Add New | No conversations and no runs → the intent box, prominent, with two or three worked examples | Per-turn, in the thread | A failed turn stays in the thread and is retryable; it never silently vanishes |
 | Run | n/a — a run always has a status, and "no works yet" is a populated run in `resolving_works` | The sentence first, then the work table filling in beneath it without moving it | **The watch says whether it is still watching.** A blip is reported and retried; after five consecutive failures it says it has given up and to reload, because a page that stopped polling silently is indistinguishable from a live one |
 | Conversation | A thread with no turns → the intent box, with the same worked examples Add New offers | Per-turn, in the thread, with the turn in flight named as such | A failed turn stays in the thread and is retryable; it never silently vanishes |

@@ -112,7 +112,7 @@ export function backRow() {
  * would put a filter on a screen that never offered one.
  *
  * **Omitted when it is the screen's own default**, which is the ordinary case:
- * a Work opened from Artworks, a Review opened from Add New. A parameter that
+ * a Work opened from Artworks, a Run opened from Queue. A parameter that
  * says what its absence already says is noise in a URL a curator copies, and it
  * changes nothing — `pageFor` resolves a missing `from` to exactly the
  * default this would have written. The parameter appears when it carries

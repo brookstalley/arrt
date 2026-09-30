@@ -100,7 +100,7 @@ visible without running anything.
 
 - [x] Chunk 01: The norm amendment and the target layout, in the artifacts
 - [x] Chunk 02: The sidebar and the top bar, with Artworks as home
-- [ ] Chunk 03: Activity › Queue and History
+- [x] Chunk 03: Activity › Queue and History
 - [ ] Chunk 04: Search in two scopes
 - [ ] Chunk 05: The page toolbar
 
@@ -178,8 +178,9 @@ Artworks*, and *health is not in the navigation* becomes *Status is under System
 
 **Visual change:** yes
 
-Runs leave Add New. Activity › **Queue** lists runs that are working or waiting
-for review. Activity › **History** lists finished runs, keeping the "most recent
+Runs leave Add New. Activity › **Queue** lists runs that have not ended (revised
+while building from "working or waiting for review"; see the Chunk 03 DECISION in
+Requirements Confidence). Activity › **History** lists finished runs, keeping the "most recent
 N of M" truncation the run list has now. Add New keeps the intent box and the
 conversations. Run and Review open from Queue or History and return to whichever
 one they were opened from.
@@ -187,8 +188,10 @@ one they were opened from.
 **Done when:**
 1. The curation suite, the browser suite and the root suite pass, with Queue and
    History in the three tables and in `SCREEN_NAMES`.
-2. A run shows in Queue while it works, stays there while it waits for review,
-   and moves to History when it finishes. This is tested with a run in each
+2. A run shows in Queue while it works and while it waits at the approval gate,
+   and moves to History when it ends. "Waits for review" was the plan's wording,
+   and it is out of reach until the listing carries a signal for it (the Chunk
+   03 DECISION in Requirements Confidence). This is tested with a run in each
    state, including one that each list must *not* show.
 3. Every Screen States row for Queue and History is written: empty, loading and
    error.

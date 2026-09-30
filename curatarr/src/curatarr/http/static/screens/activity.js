@@ -12,7 +12,7 @@
  * nobody has judged yet is *also* waiting on the curator — Radarr shows the
  * like of it in its Queue — but the listing carries no signal for it, so it
  * lands in History with its state. That signal is a recorded gap
- * (`build-plan-arr-navigation.md` Chunk 03), not an oversight here.
+ * (`information-architecture.md` § The *arr layout), not an oversight here.
  *
  * One module for both pages because they are one table over one listing, cut
  * two ways; a screen module may hold several views, and must never import
@@ -67,11 +67,17 @@ export async function viewQueue(generation) {
   const active = runs.runs.filter((run) => !run.is_terminal);
   const panels = [el("h2", { text: "Queue" })];
   if (!active.length) {
+    // Only as sure as the listing: when the cap left older searches out, one of
+    // them may still be at the approval gate, so the page says what it checked
+    // rather than that nothing is in flight.
+    const nothing = runs.truncated
+      ? `Nothing is in flight among the ${runs.count} most recent searches.`
+      : "Nothing is in flight.";
     panels.push(
       el("div", { class: "panel empty" }, [
         el("p", {
           text:
-            "Nothing is in flight. A search you start in Add New shows here while it works, " +
+            `${nothing} A search you start in Add New shows here while it works, ` +
             "and while it waits for you to approve its price.",
         }),
         el("button", { class: "action", type: "button", text: "Go to Add New", onclick: () => go("discover") }),

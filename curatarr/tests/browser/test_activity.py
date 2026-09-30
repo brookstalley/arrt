@@ -127,3 +127,40 @@ def test_a_search_opened_from_the_queue_carries_no_opener(ui):
     ui.page.wait_for_function("() => window.location.hash.startsWith('#run/')")
 
     assert ui.page.evaluate("() => window.location.hash") == "#run/r-working"
+
+
+def test_an_empty_queue_over_a_truncated_listing_does_not_claim_nothing_is_in_flight(ui):
+    """The cap can leave out an older search still at the approval gate.
+
+    So the empty Queue says what it checked. The paired case above, over a
+    complete listing, keeps the plain sentence.
+    """
+    ui.serve(
+        "**/api/runs",
+        RunListOut(runs=[DONE], count=1, total=60, truncated=True).model_dump(mode="json"),
+    )
+    ui.open("#queue")
+    ui.page.wait_for_selector("#view .empty")
+
+    assert "Nothing is in flight among the 1 most recent searches." in ui.text()
+
+
+def test_a_complete_empty_queue_says_nothing_is_in_flight_plainly(ui):
+    ui.serve("**/api/runs", a_listing(DONE))
+    ui.open("#queue")
+    ui.page.wait_for_selector("#view .empty")
+
+    assert "Nothing is in flight. " in ui.text()
+    assert "most recent" not in ui.text()
+
+
+@pytest.mark.parametrize("where", ["queue", "history"])
+def test_a_listing_that_fails_is_announced_not_shown_as_empty(ui, where):
+    """A refused request is not an empty history, and must not read as one."""
+    ui.serve("**/api/runs", [(503, {"error": "the catalogue is unavailable"})])
+    ui.open(f"#{where}")
+    ui.page.wait_for_selector("#error:not([hidden])")
+
+    assert "unavailable" in ui.page.inner_text("#error")
+    assert "Nothing is in flight" not in ui.page.inner_text("body")
+    assert "No search has finished yet" not in ui.page.inner_text("body")

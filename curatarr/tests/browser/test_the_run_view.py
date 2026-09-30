@@ -501,8 +501,6 @@ def test_a_truncated_search_list_says_how_much_history_it_is_not_showing(ui):
     """
     ui.serve("**/api/runs*", _a_run_list(count=50, total=407))
 
-    # Queue since the *arr navigation, which moved the listing off Add New; the
-    # note is the same claim about the same capped listing.
     ui.open("#queue")
     ui.page.wait_for_selector("h3:has-text('In flight')")
 
