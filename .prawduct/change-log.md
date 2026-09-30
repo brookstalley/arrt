@@ -56,6 +56,40 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-09-30: The Library/Programming seam, and the Player pulls over HTTP (wave 2b)
+
+<!-- prawduct: scope=wave-2b-seams-and-http -->
+
+**Why:** wave 2 of `re-architecture.md`. Programming has to stop reaching into
+the Library before the store can be split (wave 3). And the Player needs a
+transport that does not depend on sharing a filesystem with the server.
+
+**What changed:**
+- Library code now lives under `curatarr/library/` and Programming code under
+  `curatarr/programming/`. Programming reads the Library only through
+  `library/facade.py`. `tests/preferences/test_seam_imports.py` holds that
+  boundary (seam rules 1 and 2).
+- The Library announces `work.accepted`, `work.archived`,
+  `work.image_changed` and `work.mat_changed` after each commit. Programming
+  subscribes to them, and at startup reconciles every published manifest
+  against the Library. `archive_artwork` no longer writes Programming's tables
+  (rule 4).
+- Curatarr serves `GET /walls/{id}/manifest` (with ETag/304),
+  `GET /media/sha256-{hex}` and `POST /walls/{id}/heartbeat`. Each is behind a
+  per-wall token, issued from the Walls screen or through MCP. Manifest minor 2
+  adds `media` to each entry.
+- Arrt can run with `MANIFEST_SOURCE=http`. It pulls into `CACHE_DIR` and
+  renders only from that cache, so it keeps showing its last good wall while
+  the server is down. File mode is still the default. Only `arrt/pull.py`
+  speaks HTTP.
+
+**Fixed along the way:** `next` and `show_now` did not write the directive into
+the manifest, so neither reached the wall until the next sync. Backlog #35:
+a failed manifest write in `activate_theme` now undoes the hang.
+
+**Operator verification queued:** the HTTP soak on the Pi, the token panel,
+the Next fix, the archive removal, and reinstalling the Pi's units.
+
 ## 2026-09-30: Curatarr and Arrt, in the code (wave 2a)
 
 <!-- prawduct: scope=wave-2a-rename -->
