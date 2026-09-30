@@ -2,6 +2,8 @@
 artifact: build-plan
 version: 1
 scope: wave-1-contract
+branch: feature/wave-1-player-contract
+partition: serial — each chunk builds on the contract files the one before it wrote
 depends_on:
   - artifact: re-architecture
   - artifact: api-contract
@@ -92,11 +94,11 @@ wave 2 channel must not paint wave 4 into a corner.
 
 - [x] Chunk 01: Major 1 — the as-built documents, the HTTP transport, and the tests that pin both planes
 - [x] Chunk 02: Major 2 as a draft — schedule, scenes, staging, wall settings, capabilities
-- [ ] Chunk 03: The wave 2 build plan
+- [x] Chunk 03: The wave 2 build plans
 
-Critic mode: cumulative-final. One cumulative review covers the plan when Chunk
-03 lands, because the three chunks are one contract and a reviewer reading them
-apart would miss disagreements between majors.
+A short plan, reviewed once: Chunk 03 is the cumulative review of all three,
+because they are one contract and a reviewer reading them apart would miss
+disagreements between majors.
 
 ### Chunk 01: Major 1 — the as-built documents, the HTTP transport, and the tests that pin both planes
 
@@ -173,6 +175,7 @@ apart would miss disagreements between majors.
 
 ### Chunk 03: The wave 2 build plan
 
+- **Type:** cumulative-final
 - **Depends on:** Chunks 01 and 02
 - **Deliverables:** `build-plan-wave-2-seams-and-http.md`, the chunks of
   `re-architecture.md`'s wave 2 row in build order. The order is the package
@@ -182,3 +185,10 @@ apart would miss disagreements between majors.
   tests. `active_build_plan` points at it once this plan is archived.
 - **Done when:** the plan exists, and the cumulative review of this plan is
   resolved.
+- **Built as two plans, not one.** The rename is mechanical cleanup across
+  about two hundred files, and the rest of wave 2 is behaviour. The planning
+  guide splits a plan whose chunks differ in type, because one review over
+  both would bury a refactor inside a rename. So there are
+  `build-plan-wave-2a-rename.md` (one chunk, first) and
+  `build-plan-wave-2b-seams-and-http.md` (four chunks). Each declares its own
+  branch.

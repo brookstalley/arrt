@@ -3141,8 +3141,8 @@ build_state:
 # they served are placed in later waves by re-architecture.md. Point this at the
 # wave-2 build-plan-<scope>.md when it is written.
 #
-# Pointed at the wave 1 contract plan 2026-09-30, for that plan's duration.
-active_build_plan: artifacts/build-plan-wave-1-contract.md
+# Left unset from wave 1 on: each wave's plan declares its own `branch:`, which
+# governance resolves ahead of this line and which two branches cannot conflict on.
 
 # =============================================================================
 # DERIVED VIEWS — RETIRED, and deliberately absent

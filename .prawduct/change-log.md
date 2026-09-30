@@ -101,6 +101,13 @@ guess.
   enforced. That fixture is added.
 - `show_now` and `next` become schedule republishes in major 2. The
   re-architecture and data model no longer say a scene replaces them.
+- **Wave 2 is planned as two plans:**
+  - `build-plan-wave-2a-rename.md`: the package rename, one cleanup chunk, first.
+  - `build-plan-wave-2b-seams-and-http.md`: the Library/Programming split, events
+    with startup reconciliation, the HTTP surface with wall tokens, and
+    Displayarr's cache-first pull.
+  - The one HIGH-impact assumption, whether a readiness-removing Library change
+    republishes walls, is put to the operator.
 
 ## 2026-09-30: Curatarr and Displayarr; a token per wall; wave 0 closed
 
