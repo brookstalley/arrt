@@ -133,7 +133,7 @@ than being separately enforced.
 
 ### The repository is public
 
-`brookstalley/samsung-frame-art-loader` is a **public** GitHub repository. This is
+`brookstalley/curatarr` (renamed 2026-09-30 from `samsung-frame-art-loader`) is a **public** GitHub repository. This is
 the single most important fact in this document, because it converts "don't commit
 secrets" from hygiene into a hard requirement with an audience.
 

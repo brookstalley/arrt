@@ -1,4 +1,7 @@
-# samsung-frame-art-loader
+# Curatarr
+
+*Formerly samsung-frame-art-loader. The player half, Displayarr, lives here
+until it moves to its own repo.*
 
 Curated art on a Samsung Frame TV, with a matching e-paper label beside it.
 

@@ -3325,7 +3325,9 @@ backlog_last_groomed_at: 2026-08-10
 #
 # Rollback is total and cheap: unset this key. backlog.md is unmodified in git.
 
-backlog_service_repo: brookstalley/samsung-frame-art-loader
+# Renamed 2026-09-30 from brookstalley/samsung-frame-art-loader. GitHub redirects
+# the old name, and issue numbers are unchanged.
+backlog_service_repo: brookstalley/curatarr
 
 # =============================================================================
 # NORM HEALTH
