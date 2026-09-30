@@ -18,7 +18,7 @@ would be the cross-plane drift `operational-spec.md` § Configuration warns abou
 """
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Final
 
@@ -48,6 +48,9 @@ MANIFEST_FILENAME_TEMPLATE: Final[str] = "theme-manifest-{wall_id}.json"
 #: This plane's own store, under `ART_ROOT` beside the manifest it reads. Display
 #: is its sole writer and nothing else ever opens it.
 STATE_FILENAME: Final[str] = "display-state.sqlite"
+
+#: The last good pulled manifest, under `CACHE_DIR` in HTTP mode.
+CACHED_MANIFEST_FILENAME: Final[str] = "manifest.json"
 
 #: The name this process pairs to the television under. **Changing it costs a
 #: pairing prompt somebody has to walk over and accept**: the set issues a token
@@ -230,6 +233,43 @@ class Settings:
     rotation_interval_fallback_seconds: int
     rotation_shuffle_fallback: bool
 
+    #: Where the manifest comes from: `file`, the shared `ART_ROOT` (the default
+    #: through wave 2), or `http`, pulled from Curatarr into `cache_dir`. The file
+    #: channel stays the default until wave 3 retires it, once HTTP has soaked on
+    #: the real wall.
+    manifest_source: str = "file"
+    #: Curatarr's base URL, in HTTP mode. Unset in file mode.
+    server_url: str | None = None
+    #: This wall's Player token, in HTTP mode. Kept out of `repr` and out of the
+    #: startup line, because both reach the journal.
+    wall_token: str | None = field(default=None, repr=False)
+    #: Where HTTP mode keeps the last good manifest and the renders it names, so a
+    #: Player that starts while the server is down still shows the wall.
+    cache_dir: Path | None = None
+
+    @property
+    def pulls_over_http(self) -> bool:
+        return self.manifest_source == "http"
+
+    @property
+    def render_root(self) -> Path:
+        """What an entry's `render_path` is relative to: the shared tree, or this Player's own cache."""
+        return self.cache_dir if self.pulls_over_http and self.cache_dir is not None else self.art_root
+
+    @property
+    def heartbeat_root(self) -> Path:
+        """Where this Player writes its heartbeat file: the shared tree, or its own cache.
+
+        **In HTTP mode, never the shared tree.** The server writes each heartbeat
+        it is POSTed into `ART_ROOT`, where its health panel reads it, and on a Pi
+        running both that is the same directory. A Player that wrote there too
+        would see the server's write as a new heartbeat, post it again, and loop
+        once a poll, wearing the card and able to overwrite a newer report with
+        an older one. In its own cache the file is the Player's alone, and the
+        pull forwards it.
+        """
+        return self.cache_dir if self.pulls_over_http and self.cache_dir is not None else self.art_root
+
     @property
     def manifest_path(self) -> Path:
         """The one channel from curation, and the only file this plane waits on.
@@ -239,6 +279,12 @@ class Settings:
         there is no listing, no glob and no wall id read from a document — the
         manifests for every other room are files this process never opens.
         """
+        if self.pulls_over_http and self.cache_dir is not None:
+            # The cache's copy, written only once every render it names is cached
+            # and verified. The watcher reads it exactly as it reads the shared
+            # file, so rotation, directives and the label cannot tell the modes
+            # apart.
+            return self.cache_dir / CACHED_MANIFEST_FILENAME
         return self.art_root / MANIFEST_FILENAME_TEMPLATE.format(wall_id=self.wall_id)
 
     @property
@@ -266,8 +312,9 @@ class Settings:
         renders off the edge of a display nobody is looking at closely.
 
         No secret is resolvable from these, and none is added: this plane reaches
-        no paid API and holds no key. The pairing token is a **path** here, never
-        its contents.
+        no paid API and holds no paid key. The pairing token is a **path** here,
+        never its contents, and in HTTP mode the wall's Player token is left out
+        altogether.
         """
         return {
             "art_root": str(self.art_root),
@@ -279,7 +326,7 @@ class Settings:
             # anywhere else, so both are one `journalctl` away from here.
             "wall_id": self.wall_id,
             "manifest_path": str(self.manifest_path),
-            "heartbeat_path": str(heartbeat_path_in(self.art_root, self.wall_id)),
+            "heartbeat_path": str(heartbeat_path_in(self.heartbeat_root, self.wall_id)),
             "state_path": str(self.state_path),
             "epd_panel_px": f"{self.epd_panel_width_px}x{self.epd_panel_height_px}",
             # **The line that would have caught the defect this pair exists for.**
@@ -296,6 +343,10 @@ class Settings:
             "tv_address": f"{self.tv_address}:{self.tv_port}",
             "tv_token_file": str(self.tv_token_file),
             "tv_client_name": self.tv_client_name,
+            # The channel and where it points. Never the token: this line goes to
+            # the journal, and a journal is what gets pasted into an issue.
+            "manifest_source": self.manifest_source,
+            **({"server_url": self.server_url, "cache_dir": str(self.cache_dir)} if self.pulls_over_http else {}),
         }
 
 
@@ -354,7 +405,30 @@ def load(environ: dict[str, str] | None = None) -> Settings:
         tv_retry_max_seconds=_float(env, "TV_RETRY_MAX_SECONDS", DEFAULT_TV_RETRY_MAX_SECONDS),
         rotation_interval_fallback_seconds=_int(env, "ROTATION_INTERVAL_SECONDS", DEFAULT_ROTATION_INTERVAL_SECONDS),
         rotation_shuffle_fallback=_bool(env, "ROTATION_SHUFFLE", DEFAULT_ROTATION_SHUFFLE),
+        **_manifest_source(env),
     )
+
+
+def _manifest_source(env: dict[str, str]) -> dict[str, object]:
+    """File mode, or HTTP mode with everything it needs, refused rather than half-set.
+
+    HTTP mode with no token or no cache would start, poll, and show nothing, which
+    reads as a server that has not published. So every one of its settings is
+    required once the mode is asked for, and a mode that is neither is refused
+    rather than read as the default.
+    """
+    source = (env.get("MANIFEST_SOURCE") or "file").strip().lower()
+    if source == "file":
+        return {"manifest_source": "file"}
+    if source != "http":
+        raise ConfigError(f"MANIFEST_SOURCE is {source!r}; it is either 'file' (the default) or 'http'.")
+    cache_dir = Path(_require(env, "CACHE_DIR")).expanduser()
+    return {
+        "manifest_source": "http",
+        "server_url": _require(env, "SERVER_URL").rstrip("/"),
+        "wall_token": _require(env, "WALL_TOKEN"),
+        "cache_dir": cache_dir,
+    }
 
 
 def _require_wall(env: dict[str, str]) -> str:

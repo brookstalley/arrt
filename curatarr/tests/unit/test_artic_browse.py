@@ -17,8 +17,8 @@ import json
 import httpx
 import pytest
 
-from curatarr.discovery.artic import PROVIDER, ArticCollectionBrowse
-from curatarr.discovery.browse import BrowseQuery, CollectionBrowseFailure
+from curatarr.library.discovery.artic import PROVIDER, ArticCollectionBrowse
+from curatarr.library.discovery.browse import BrowseQuery, CollectionBrowseFailure
 from curatarr.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
 
 USER_AGENT = "curatarr (test@example.org)"

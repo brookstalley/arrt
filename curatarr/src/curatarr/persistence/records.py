@@ -7,7 +7,7 @@ the store, whose contract is `catalogue.py`.
 
 **Only stored facts live here.** A value the catalogue derives rather than keeps
 belongs with the function that derives it — `DisplayFit` is the worked example
-and it is deliberately in `services/display_fit.py`, because a verdict about
+and it is deliberately in `library/services/display_fit.py`, because a verdict about
 whether an image is big enough depends on panel geometry and mat configuration,
 which are deployment values this plane does not own. Storing it would make the
 row a claim about one particular television that goes silently wrong the day the
@@ -149,7 +149,7 @@ class FacetDerivation(StrEnum):
     Never absent — an unlabelled facet is a guess wearing a citation.
 
     **The expected steady state is that most facets are `INFERRED`**, and that is
-    a fact about the providers rather than a defect: `discovery/browse.py` records
+    a fact about the providers rather than a defect: `library/discovery/browse.py` records
     that for the Art Institute "style, classification and period were measured
     missing on ordinary spellings", and that collection publishes no style field
     at all. Which is exactly why every row has to say which it is — a facet the
@@ -179,7 +179,7 @@ class Artist:
     label leads with the family name and sets it apart, which needs to know which
     part of the name that is — and no rule over `name` can say. "Titian (Tiziano
     Vecellio)", "van Gogh" and "Frank Lloyd Wright" each break a different
-    last-word heuristic, and the heuristic in `discovery/artic.py` documents its
+    last-word heuristic, and the heuristic in `library/discovery/artic.py` documents its
     own unreliability. So the parts are stored facts, supplied by whoever knows,
     and an artist who has neither is set unstyled under `name` rather than split
     by a guess. Both parts are optional because the corpus holds records that are
@@ -345,6 +345,13 @@ class Rendition:
     relative_path: str
     source_content_hash: str
     generated_at: datetime
+    #: The SHA-256 of the file's bytes, which is the render's identity once it is
+    #: served: a Player fetches `/media/sha256-<hex>` and checks what arrives
+    #: against it. None for a render recorded before this was, until it is next
+    #: needed and hashed then.
+    content_sha256: str | None = None
+    #: The file's size, recorded with the hash so a manifest can state it.
+    byte_size: int | None = None
 
 
 def is_current(rendition: Rendition, original: Original | None) -> bool:
@@ -475,8 +482,9 @@ class Theme:
 class Wall:
     """A place where art hangs. One display serves one wall.
 
-    **Three fields, and the shortness is the design.** A wall is an identity and
-    a name; it is not a device. Geometry, network address, panel model, TV
+    **Few fields, and the shortness is the design.** A wall is an identity, a
+    name, and the verifier of the one credential that lets a Player serve it; it
+    is not a device. Geometry, network address, panel model, TV
     content ids, upload state, reachability and last-heartbeat are all per-device
     runtime state and are permanently forbidden here — they belong to the display
     plane's own store or to the configuration both planes read. Which display
@@ -496,6 +504,14 @@ class Wall:
     id: str
     name: str
     created_at: datetime
+    #: The SHA-256 hex digest of the wall's Player token, never the token. None
+    #: until a token is issued, which the Walls screen shows as "no token yet".
+    #: Whichever device holds the token serves this wall, so replacing the
+    #: television does not change it; rotating does.
+    token_verifier: str | None = None
+    #: When the current token was issued, so a curator can tell which Player
+    #: still holds the old one after a rotation.
+    token_issued_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)

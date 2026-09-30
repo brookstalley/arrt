@@ -20,13 +20,13 @@ from dataclasses import replace
 
 import pytest
 
+from curatarr.library.services.catalogue import MAX_FACET_VALUES, MAX_SEARCH_TERMS, CatalogueService
 from curatarr.persistence.catalogue import StorageError, WorkQuery
 from curatarr.persistence.durable import SqliteDurableStore
 from curatarr.persistence.file import open_catalogue_file
 from curatarr.persistence.records import FacetDerivation, VocabularyKind
 from curatarr.persistence.sqlite import CATALOGUE_SCHEMA, SqliteCatalogue
 from curatarr.persistence.sqlite_discovery import DISCOVERY_SCHEMA
-from curatarr.services.catalogue import MAX_FACET_VALUES, MAX_SEARCH_TERMS, CatalogueService
 from curatarr.services.errors import ServiceError
 
 #: A tiny corpus with a hole in it: no Baroque work is from the 20th century and

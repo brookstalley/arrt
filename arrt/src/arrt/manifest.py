@@ -66,9 +66,10 @@ class Entry:
     """One work on the wall: what to show, and what a label would say about it."""
 
     work_id: str
-    #: Relative to `ART_ROOT`, never absolute — the manifest is written on the
-    #: machine that also reads it today, but the path crossing as a relative one
-    #: is what keeps that from being load-bearing.
+    #: Relative to the render root, never absolute: `ART_ROOT` in file mode, and in
+    #: HTTP mode this Player's cache, where the pull names each render by its
+    #: hash. The path crossing as a relative one is what keeps where the tree is
+    #: mounted from being load-bearing.
     render_path: str
     #: Label *text* crosses the channel; label *rendering* does not. Nothing in
     #: this chunk reads it, and it is carried rather than dropped because the

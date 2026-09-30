@@ -15,8 +15,10 @@ from dataclasses import replace
 import pytest
 from fakes import FakeCollectionBrowse, FakeImageSearch, a_collection_holding, a_work, an_image
 
-from curatarr.discovery.engine import WorkList
-from curatarr.discovery.phase_two import PhaseTwoEngine
+from curatarr.library.discovery.engine import WorkList
+from curatarr.library.discovery.phase_two import PhaseTwoEngine
+from curatarr.library.services.previews import PreviewCache, PreviewSettings
+from curatarr.library.services.runner import DiscoveryRunner
 from curatarr.persistence.discovery_records import (
     InitiatedBy,
     ResolutionStatus,
@@ -24,8 +26,6 @@ from curatarr.persistence.discovery_records import (
     Verdict,
     WorkProvenance,
 )
-from curatarr.services.previews import PreviewCache, PreviewSettings
-from curatarr.services.runner import DiscoveryRunner
 
 
 def a_list(*works: tuple[str, str]) -> WorkList:
@@ -482,8 +482,8 @@ def test_the_spread_yields_each_work_once_and_takes_the_facets_in_turn():
     records come out right whether or not the spread repeats itself. What only
     shows here is the order, and the order is the whole reason it exists.
     """
-    from curatarr.discovery.browse import BrowseQuery, OfferedGroup
-    from curatarr.services.runner import _round_robin
+    from curatarr.library.discovery.browse import BrowseQuery, OfferedGroup
+    from curatarr.library.services.runner import _round_robin
 
     shared = an_image("Shared", artist="A", url="https://artic.edu/shared")
     groups = [
@@ -738,8 +738,8 @@ def test_the_gate_sentence_agrees_at_a_single_proposed_work(services, engine, ru
     branch proposes several works, where the plural is right — which is exactly
     the shape that let "1 works" ship on four surfaces.
     """
+    from curatarr.library.services.runner import RunView
     from curatarr.mcp.bindings import _run_notice
-    from curatarr.services.runner import RunView
 
     engine.result = a_list(("Spectrum IV", "Ellsworth Kelly"))
     run_id = start(runner).id
@@ -793,8 +793,8 @@ def test_a_run_still_in_flight_describes_the_work_list_it_is_resolving(services,
     statements, so a run read from the outside is already finished. `_run_notice`
     is a pure function of the view, which is how the other notice tests reach it.
     """
+    from curatarr.library.services.runner import RunView
     from curatarr.mcp.bindings import _run_notice
-    from curatarr.services.runner import RunView
 
     engine.result = a_list(("Spectrum IV", "Ellsworth Kelly"))
     collection.holdings = a_collection_holding(**{"Ellsworth Kelly": ["Kelly 1", "Kelly 2"]}).holdings

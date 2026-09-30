@@ -29,11 +29,11 @@ from fastapi.staticfiles import StaticFiles
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from starlette.types import Receive, Scope, Send
 
-from curatarr.http import api, pages
+from curatarr.http import api, pages, player
+from curatarr.library.services.sweep import start_sweeping
 from curatarr.mcp.server import build_server
 from curatarr.services.container import Services
 from curatarr.services.errors import ServiceError
-from curatarr.services.sweep import start_sweeping
 
 log = logging.getLogger(__name__)
 
@@ -128,6 +128,7 @@ def create_app(services: Services, *, preview_sweep_interval_seconds: int = 0) -
         return api.service_error_response(str(error))
 
     app.include_router(api.router)
+    app.include_router(player.router)
     app.include_router(pages.router)
     app.mount(STATIC_PATH, StaticFiles(directory=pages.STATIC_DIR), name="static")
 

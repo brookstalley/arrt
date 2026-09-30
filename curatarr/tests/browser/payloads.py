@@ -42,6 +42,7 @@ from curatarr.http.models import (
     WorkOut,
     WorkPageOut,
 )
+from curatarr.library.services.display_fit import DisplayFit
 from curatarr.persistence.discovery_records import (
     AffinityDerivation,
     AffinitySentiment,
@@ -54,7 +55,6 @@ from curatarr.persistence.discovery_records import (
     WorkProvenance,
 )
 from curatarr.persistence.records import ArtworkStatus, VocabularyKind
-from curatarr.services.display_fit import DisplayFit
 
 
 def a_catalogue_work(**overrides) -> WorkOut:

@@ -552,7 +552,7 @@ def test_a_theme_still_lists_a_work_that_has_been_archived(service, display):
 
     service.archive_artwork(work.id)
 
-    listed = display.theme_works(theme.id)
+    listed = service.resolve_details(display.theme_work_ids(theme.id))
     assert [entry.artwork.id for entry in listed] == [work.id]
     assert listed[0].artwork.status is ArtworkStatus.ARCHIVED
 
@@ -600,7 +600,10 @@ def test_a_work_can_be_returned_to_unplaced_in_a_theme(service, display):
 
     display.move_in_theme(theme_id=theme.id, artwork_id=first.id, position=None)
 
-    assert [entry.artwork.title for entry in display.theme_works(theme.id)] == ["Chop Suey", "Nighthawks"]
+    assert [entry.artwork.title for entry in service.resolve_details(display.theme_work_ids(theme.id))] == [
+        "Chop Suey",
+        "Nighthawks",
+    ]
 
 
 def test_a_negative_position_is_refused(service, display):

@@ -19,7 +19,7 @@ from dataclasses import replace
 import pytest
 from fakes import a_work_list, spent, works
 
-from curatarr.discovery.engine import BudgetExhausted, WorkList
+from curatarr.library.discovery.engine import BudgetExhausted, WorkList
 from curatarr.persistence.discovery_records import RunStatus
 
 

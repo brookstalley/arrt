@@ -11,10 +11,10 @@ are not the same thing on a wall.
 import pytest
 from PIL import Image
 
+from curatarr.library.services.previews import INLINE_MAX_EDGE_PX, inline_preview
+from curatarr.library.services.review import MAX_REVIEW_LIMIT
 from curatarr.persistence.discovery_records import RunKind
 from curatarr.services.errors import ServiceError
-from curatarr.services.previews import INLINE_MAX_EDGE_PX, inline_preview
-from curatarr.services.review import MAX_REVIEW_LIMIT
 
 
 @pytest.fixture

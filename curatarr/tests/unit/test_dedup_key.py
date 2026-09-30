@@ -17,7 +17,7 @@ demonstrate them.
 
 import pytest
 
-from curatarr.discovery.dedup import clean_name, work_dedup_key
+from curatarr.library.discovery.dedup import clean_name, work_dedup_key
 
 
 def test_the_same_work_named_the_same_way_keys_the_same():

@@ -18,10 +18,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from curatarr.acquisition.dezoomify import DezoomifyUnavailable
-from curatarr.acquisition.service import _DEPLOYMENT_FAULTS, AcquisitionOutcome, AcquisitionResult
-from curatarr.acquisition.space import NotEnoughSpace
-from curatarr.acquisition.tiles import TileTargetUnavailable
+from curatarr.library.acquisition.dezoomify import DezoomifyUnavailable
+from curatarr.library.acquisition.service import _DEPLOYMENT_FAULTS, AcquisitionOutcome, AcquisitionResult
+from curatarr.library.acquisition.space import NotEnoughSpace
+from curatarr.library.acquisition.tiles import TileTargetUnavailable
+from curatarr.library.services.catalogue import MAX_LIST_LIMIT
+from curatarr.library.services.runner import MAX_RUNS_LISTED, RunListing, RunView
 from curatarr.mcp.bindings import (
     _RUN_DETAIL_ONLY,
     MAX_WORKS_LISTED,
@@ -35,9 +37,7 @@ from curatarr.mcp.bindings import (
     _truncation_notice,
 )
 from curatarr.persistence.discovery_records import CandidateWork, DiscoveryRun, InitiatedBy, ResolutionStatus, RunKind, RunStatus
-from curatarr.services.catalogue import MAX_LIST_LIMIT
 from curatarr.services.errors import ServiceError
-from curatarr.services.runner import MAX_RUNS_LISTED, RunListing, RunView
 
 
 def test_a_complete_page_gets_no_notice(seeded_service):

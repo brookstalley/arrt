@@ -255,3 +255,55 @@ class TestTheStartupLine:
 
         assert lines["tv_token_file"] == str(token)
         assert "a-real-pairing-token" not in " ".join(str(value) for value in lines.values())
+
+
+class TestHttpMode:
+    """Asked for, it needs all of its settings; not asked for, file mode is unchanged."""
+
+    HTTP = {
+        "MANIFEST_SOURCE": "http",
+        "SERVER_URL": "http://127.0.0.1:8770/",
+        "WALL_TOKEN": "the-walls-token",
+        "CACHE_DIR": "/var/cache/arrt",
+    }
+
+    def test_file_mode_is_the_default(self, art_root: Path):
+        settings = load(an_environment(art_root))
+
+        assert settings.manifest_source == "file"
+        assert not settings.pulls_over_http
+        assert (settings.server_url, settings.wall_token, settings.cache_dir) == (None, None, None)
+        assert settings.render_root == settings.heartbeat_root == art_root
+
+    def test_http_mode_reads_its_settings(self, art_root: Path):
+        settings = load(an_environment(art_root, **self.HTTP))
+
+        assert settings.pulls_over_http
+        assert settings.server_url == "http://127.0.0.1:8770", "a trailing slash doubled every route's first one"
+        assert settings.wall_token == "the-walls-token"
+        assert settings.cache_dir == Path("/var/cache/arrt")
+        assert settings.manifest_path == Path("/var/cache/arrt/manifest.json")
+        assert settings.render_root == settings.heartbeat_root == Path("/var/cache/arrt")
+        assert settings.state_path.parent == art_root, "the Player's own store moved with the mode"
+
+    @pytest.mark.parametrize("missing", ["SERVER_URL", "WALL_TOKEN", "CACHE_DIR"])
+    def test_http_mode_without_one_of_its_settings_refuses_by_name(self, art_root: Path, missing: str):
+        environment = an_environment(art_root, **self.HTTP)
+        del environment[missing]
+
+        with pytest.raises(ConfigError, match=missing):
+            load(environment)
+
+    def test_a_mode_that_is_neither_is_refused_rather_than_read_as_the_default(self, art_root: Path):
+        with pytest.raises(ConfigError, match="MANIFEST_SOURCE"):
+            load(an_environment(art_root, MANIFEST_SOURCE="htpp"))
+
+    def test_the_token_is_in_neither_the_settings_repr_nor_the_startup_line(self, art_root: Path):
+        settings = load(an_environment(art_root, **self.HTTP))
+        line = settings.startup_lines()
+
+        assert "the-walls-token" not in repr(settings)
+        assert "the-walls-token" not in repr(line)
+        assert line["manifest_source"] == "http"
+        assert line["server_url"] == "http://127.0.0.1:8770"
+        assert line["heartbeat_path"].startswith("/var/cache/arrt/")

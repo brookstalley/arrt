@@ -195,6 +195,9 @@ class SqliteDurableStore:
         #: How many `transaction()` blocks are open. Non-zero means a write must
         #: leave committing to the outermost one.
         self._depth = 0
+        #: Callbacks waiting for the outermost `transaction()` to commit. Emptied
+        #: when it does, and discarded when it rolls back.
+        self._after_commit: list[Callable[[], None]] = []
         self._connection = sqlite3.connect(str(path), check_same_thread=False)
         self._connection.row_factory = sqlite3.Row
         with self._lock:
@@ -241,6 +244,7 @@ class SqliteDurableStore:
         Nesting joins the outer group, so a service operation assembled from
         other service operations still commits exactly once.
         """
+        committed: list[Callable[[], None]] = []
         with self._lock:
             if self._depth:
                 self._depth += 1
@@ -258,12 +262,38 @@ class SqliteDurableStore:
                 # `KeyboardInterrupt` or a generator being closed early leaves
                 # the body just as surely as an error does, and leaving half a
                 # rule applied is the one outcome this block exists to prevent.
+                self._after_commit.clear()
                 self._connection.rollback()
                 raise
             else:
                 self._connection.commit()
+                committed, self._after_commit = self._after_commit, []
             finally:
                 self._depth = 0
+        # Outside the lock, so a callback that opens a transaction of its own
+        # waits its turn like any other caller rather than joining this one.
+        for callback in committed:
+            callback()
+
+    def after_commit(self, callback: Callable[[], None]) -> None:
+        """Run `callback` once the writes made so far are committed, and not before.
+
+        Outside `transaction()` every write has already committed, so it runs at
+        once. Inside one, it waits for the outermost block to commit and is
+        discarded if that block rolls back. That is what lets a change be
+        announced only when it is true: an announcement made inside a
+        transaction that later rolled back would describe a catalogue that never
+        existed.
+
+        A callback that raises stops the ones queued after it and reaches the
+        caller of the outermost block after its commit. Callers that must not
+        fail a committed operation catch inside the callback.
+        """
+        with self._lock:
+            if self._depth:
+                self._after_commit.append(callback)
+                return
+        callback()
 
     # -- the matched contract -------------------------------------------------
 

@@ -12,9 +12,9 @@ report it.
 import pytest
 from PIL import Image
 
-from curatarr.acquisition.color import ColorError
-from curatarr.acquisition.compose import compose
-from curatarr.services.display_fit import ArtworkBox, DisplayFit
+from curatarr.library.acquisition.color import ColorError
+from curatarr.library.acquisition.compose import compose
+from curatarr.library.services.display_fit import ArtworkBox, DisplayFit
 from curatarr.services.errors import ServiceError
 
 #: The reference 42" 4K Frame, as `nonfunctional-requirements.md` works it out.

@@ -9,8 +9,8 @@ join, not about either side.
 
 import pytest
 
-from curatarr.acquisition.service import AcquisitionOutcome, AcquisitionSettings
-from curatarr.acquisition.tiles import (
+from curatarr.library.acquisition.service import AcquisitionOutcome, AcquisitionSettings
+from curatarr.library.acquisition.tiles import (
     RESOLUTION_REQUIRED,
     TileTargetUnavailable,
     resolve_tile_target,
@@ -105,8 +105,8 @@ class TestTheContainerWiresResolutionFromTheConfiguredProvider:
     def _container(
         self, store, discovery_store, wall_settings, thumbnail_settings, settings, engine, image_search, tmp_path, resolve=None
     ):
+        from curatarr.library.services.previews import PreviewSettings
         from curatarr.services.container import Services
-        from curatarr.services.previews import PreviewSettings
 
         services = Services.bind(
             catalogue=store,

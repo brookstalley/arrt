@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from curatarr.acquisition.dezoomify import (
+from curatarr.library.acquisition.dezoomify import (
     DezoomifyUnavailable,
     TileOutcome,
     reclaim_tile_cache,
@@ -192,7 +192,7 @@ class TestClassification:
         clean up after a failure. The sibling helpers in `direct.py` and
         `service.py` already logged and carried on; this one did not.
         """
-        import curatarr.acquisition.dezoomify as module
+        import curatarr.library.acquisition.dezoomify as module
 
         script = _fake_binary(tmp_path, ZERO_BYTE_THEN_FAIL)
         real_unlink = Path.unlink

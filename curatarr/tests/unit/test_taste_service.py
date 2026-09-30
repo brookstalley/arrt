@@ -17,6 +17,7 @@ from datetime import UTC, datetime
 
 import pytest
 
+from curatarr.library.services.taste import NEEDS_RATIONALE, TasteService, validated_write
 from curatarr.persistence.discovery_records import (
     Affinity,
     AffinityDerivation,
@@ -27,7 +28,6 @@ from curatarr.persistence.discovery_records import (
 )
 from curatarr.persistence.records import VocabularyKind
 from curatarr.services.errors import ServiceError
-from curatarr.services.taste import NEEDS_RATIONALE, TasteService, validated_write
 
 
 @pytest.fixture

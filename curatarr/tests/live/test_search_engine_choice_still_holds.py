@@ -26,7 +26,7 @@ from urllib.parse import urlsplit
 import pytest
 
 from curatarr.config import DEFAULT_DISCOVERY_MODEL, DEFAULT_DISCOVERY_SEARCH_ENGINE
-from curatarr.discovery.openrouter import OpenRouterClient
+from curatarr.library.discovery.openrouter import OpenRouterClient
 
 pytestmark = pytest.mark.live_api
 

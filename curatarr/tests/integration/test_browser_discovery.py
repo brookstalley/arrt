@@ -31,10 +31,10 @@ from fakes import (
     works,
 )
 
-from curatarr.discovery.engine import WorkList
+from curatarr.library.discovery.engine import WorkList
+from curatarr.library.services.previews import PreviewSettings
 from curatarr.persistence.discovery_records import RunStatus, UnresolvedReason
 from curatarr.services.container import Services
-from curatarr.services.previews import PreviewSettings
 
 
 @pytest.fixture

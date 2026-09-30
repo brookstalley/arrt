@@ -112,9 +112,11 @@ parity split MCP exists to prevent.
 | OpenRouter API key | curation plane | **Real money.** Bounded by the per-key credit limit, which is the same control that bounds a runaway agent |
 | Samsung TV pairing token | display plane | LAN-scoped. Lets a LAN-present attacker drive the TV |
 | Museum API keys, if any | curation plane | Negligible; the ARTIC API is free and public |
+| Wall Player token, one per wall | the Player serving that wall, in its environment file as `WALL_TOKEN`; the server keeps only its SHA-256 (`walls.token_verifier`) | LAN-scoped. Lets someone on the LAN read that wall's manifest and renders, and forge its heartbeat. It cannot change what hangs anywhere, and it opens no other wall's manifest or heartbeat. Rotated by issuing again from the Walls screen or `art_display(action='issue_token')`, which stops the old one at once |
 
-The display plane holds no credential except the TV pairing token, and the
-curation plane holds no device credentials. That falls out of the topology rather
+The display plane holds no credential except the TV pairing token and, once it
+pulls over HTTP, its own wall's Player token, and the curation plane holds no
+device credentials. That falls out of the topology rather
 than being separately enforced.
 
 > **Direction changed 2026-09-30 — see `re-architecture.md`.** The separation
@@ -127,9 +129,12 @@ than being separately enforced.
 >   server never holds it, and after wave 4 the server does not even know a
 >   television exists.
 > - **Each Player holds a per-wall token** (§ Trust Boundary, option b, decided
->   2026-09-30), and the server holds only the matching verifier. The row lands
->   in the Inventory when wave 2 builds it. It is LAN-scoped, and a leak lets
->   someone read one wall's schedule and forge its health.
+>   2026-09-30), and the server holds only the matching verifier. **Built
+>   2026-09-30 (wave 2b Chunk 03)**, and its row is in the Inventory above. It is
+>   32 random bytes, shown once, compared in constant time, and never logged: a
+>   refusal is logged by wall and status, once per wall per ten minutes. Media
+>   answers to any wall's token, because a render is shared by every wall that
+>   shows it.
 
 ### The repository is public
 
@@ -298,7 +303,7 @@ properties, and each is weaker than "the tool cannot do this":
    >
    > What carries the weight instead is two checks, both in code and both tested:
    > the advertised IIIF base must start with the museum's own `https` host before
-   > it is used (`discovery/artic.py`, and the mutation sweep kills a version that
+   > it is used (`library/discovery/artic.py`, and the mutation sweep kills a version that
    > trusts whatever is advertised), and **bound 2 below runs on the resolved URL
    > rather than on the recorded one** — so scheme and routability are checked on
    > the address actually fetched. *(It read "re-runs … rather than only on the

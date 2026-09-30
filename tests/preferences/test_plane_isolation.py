@@ -1,4 +1,18 @@
-"""The display plane imports no curation module and opens no HTTP client.
+"""The display plane imports no curation module, and opens an HTTP client in one module only.
+
+**Narrowed 2026-09-30 (wave 2b Chunk 04), as the norm's own row scheduled.** The
+channel from curation is now the per-wall manifest and content-addressed media,
+pulled into a Player-local cache (`architecture.md` § Direction). So one module,
+`arrt/src/arrt/pull.py`, may open an HTTP client. The paths it spells are only
+the routes `contract/routes.json` names; renders it fetches from the addresses
+the manifest's entries give, which is the contract's design. Only the entry point
+may import it, so the exemption cannot be reached by re-export. **What no import
+reader can see:** a module reaching `arrt.pull.aiohttp` as an attribute of a
+package the entry point has already loaded. That is evasion rather than the
+convenience this guard is for, and it is stated here as the guard's limit. Every other module is held exactly as before: a
+second client anywhere else is the "just fetch it live" shortcut this guard
+exists for. The no-curation-import clause is whole, and stays whole: the Player
+reads documents, never Curatarr's code.
 
 **This is the one norm whose violation looks exactly like success.** The ratified
 rule is that the theme manifest file is the only channel from curation to
@@ -30,13 +44,19 @@ guard nobody has watched go red is a guard nobody knows is wired up.
 """
 
 import ast
+import json
 import pathlib
-from collections.abc import Iterator
+import re
 
 import pytest
+from import_graph import imported_names, resolve
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 DISPLAY_PACKAGE = REPOSITORY_ROOT / "arrt" / "src" / "arrt"
+
+#: The one module that may open an HTTP client: HTTP mode's pull of the manifest,
+#: its renders and the heartbeat.
+PULL_MODULE = DISPLAY_PACKAGE / "pull.py"
 
 #: Where a module name may resolve to a file **in this repository**. Ordered by
 #: how a plane's own code would find it, and **first match wins** — a name
@@ -76,9 +96,6 @@ HTTP_CLIENTS: frozenset[str] = frozenset(
     }
 )
 
-#: How a module smuggles an import past an AST that only reads `import` lines.
-DYNAMIC_IMPORTERS: frozenset[str] = frozenset({"__import__", "import_module"})
-
 
 def display_modules() -> list[pathlib.Path]:
     return sorted(DISPLAY_PACKAGE.rglob("*.py"))
@@ -101,17 +118,77 @@ def test_no_display_module_reaches_the_curation_plane():
     assert offences == [], "\n".join(str(offence) for offence in offences)
 
 
-def test_no_display_module_opens_an_http_client():
-    offences = [offence for offence in _audit(display_modules()) if offence.kind == "http"]
+def test_no_display_module_but_the_pull_opens_an_http_client():
+    offences = [offence for offence in _audit(display_modules()) if offence.kind == "http" and not _exempt(offence)]
 
     assert offences == [], "\n".join(str(offence) for offence in offences)
+
+
+def test_the_pull_is_where_the_http_client_is():
+    """The exemption names a real module that really opens a client, or it exempts nothing."""
+    assert PULL_MODULE.is_file(), f"{PULL_MODULE} does not exist; the exemption names nothing"
+    assert any(offence.kind == "http" and _exempt(offence) for offence in _audit(display_modules()))
+
+
+def test_only_the_entry_point_imports_the_pull():
+    """The exemption is for the pull, not for whatever the pull re-exports.
+
+    `from arrt.pull import aiohttp` in any other module would reach the client
+    through the one file allowed to hold it, and the transitive audit, which
+    stops at that file, would see nothing. So the pull has exactly one importer,
+    the entry point that starts it.
+    """
+    importers = sorted(
+        str(path.relative_to(REPOSITORY_ROOT))
+        for path in display_modules()
+        if path != PULL_MODULE and any(name == "arrt.pull" or name.startswith("arrt.pull.") for name in imported_names(path))
+    )
+
+    assert importers == ["arrt/src/arrt/__main__.py"]
+
+
+def test_the_pull_requests_only_the_routes_the_contract_names():
+    """Its route constants are the contract's, and it spells no other path.
+
+    Media is the one route it does not spell: its address comes from each
+    manifest entry's `media.url`, which the contract says to resolve against the
+    manifest's own URL.
+    """
+    routes = json.loads((REPOSITORY_ROOT / "contract" / "routes.json").read_text(encoding="utf-8"))["routes"]
+    contract_paths = {route["path"] for route in routes.values()}
+    tree = ast.parse(PULL_MODULE.read_text(encoding="utf-8"))
+    spelled = {
+        node.value
+        for node in ast.walk(tree)
+        # A string that starts a path segment: "/walls/…", or "/api/" as an
+        # f-string splits one. A bare "/" joining the cache's own relative paths
+        # names no route.
+        if isinstance(node, ast.Constant) and isinstance(node.value, str) and re.match(r"/\w", node.value)
+    }
+
+    assert spelled, "the pull spells no path, so this checks nothing"
+    assert spelled <= contract_paths, f"paths the contract does not name: {spelled - contract_paths}"
+
+
+def _exempt(offence: "Offence", pull: pathlib.Path = PULL_MODULE) -> bool:
+    """Whether the file that imports the client is the one module allowed to."""
+    return offence.chain[-1] == pull
 
 
 class TestTheGuardCanFail:
     """Planted violations, because a check never seen red is a check never wired up."""
 
+    def test_the_exemption_covers_the_pull_and_nothing_beside_it(self, tmp_path: pathlib.Path):
+        """The narrowed clause, planted: the pull may hold a client, a second module may not."""
+        pull = _plant(tmp_path, "pull.py", "import aiohttp\n")
+        second = _plant(tmp_path, "second.py", "import httpx\n")
+
+        offences = [offence for offence in _audit([pull, second], roots=(tmp_path,)) if not _exempt(offence, pull)]
+
+        assert [offence.chain[-1].name for offence in offences] == ["second.py"]
+
     def test_it_catches_a_curation_import(self, tmp_path: pathlib.Path):
-        module = _plant(tmp_path, "shortcut.py", "from curatarr.services.catalogue import CatalogueService\n")
+        module = _plant(tmp_path, "shortcut.py", "from curatarr.library.services.catalogue import CatalogueService\n")
 
         offences = _audit([module], roots=(tmp_path,))
 
@@ -236,7 +313,7 @@ def _audit(entry_points: list[pathlib.Path], roots: tuple[pathlib.Path, ...] = S
             continue
         seen.add(path)
 
-        for name in _imported_names(path):
+        for name in imported_names(path):
             forbidden = _forbidden(name)
             if forbidden is not None:
                 kind, package = forbidden
@@ -244,7 +321,7 @@ def _audit(entry_points: list[pathlib.Path], roots: tuple[pathlib.Path, ...] = S
                     reported.add((kind, package, path))
                     offences.append(Offence(kind, name, chain))
                 continue
-            local = _resolve(name, roots)
+            local = resolve(name, roots)
             if local is not None and local not in seen:
                 queue.append((local, (*chain, local)))
 
@@ -258,72 +335,6 @@ def _forbidden(name: str) -> tuple[str, str] | None:
     for client in HTTP_CLIENTS:
         if name == client or name.startswith(f"{client}."):
             return ("http", client)
-    return None
-
-
-def _imported_names(path: pathlib.Path) -> Iterator[str]:
-    """Every module name this file imports, absolute and relative alike.
-
-    Relative imports are resolved against the file's own package, so
-    `from .helper import x` yields `plane.helper` and can be followed like any
-    other name. Names passed to `import_module` or `__import__` as literals are
-    yielded too — an import expressed as a string is still an import.
-    """
-    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    package = _package_of(path)
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                yield alias.name
-        elif isinstance(node, ast.ImportFrom):
-            if node.level:
-                # `_package_of` ends with the module's own stem, so the package a
-                # level-1 import resolves against is everything before it — one
-                # more level strips one more parent. Getting this off by one is
-                # how a guard silently stops following the relative imports that
-                # make up most of a well-formed package.
-                base = package[: max(0, len(package) - node.level)]
-                prefix = ".".join([*base, node.module] if node.module else base)
-            else:
-                prefix = node.module or ""
-            if prefix:
-                yield prefix
-                for alias in node.names:
-                    # `from x import y` may be importing the submodule `x.y`
-                    # rather than a name inside `x`, and only the filesystem can
-                    # say which — so both readings are offered to the resolver.
-                    yield f"{prefix}.{alias.name}"
-        elif isinstance(node, ast.Call):
-            called = node.func
-            name = called.attr if isinstance(called, ast.Attribute) else getattr(called, "id", None)
-            if name in DYNAMIC_IMPORTERS and node.args and isinstance(node.args[0], ast.Constant):
-                if isinstance(node.args[0].value, str):
-                    yield node.args[0].value
-
-
-def _package_of(path: pathlib.Path) -> list[str]:
-    """The dotted package this file sits in, by walking up while `__init__.py` lasts."""
-    parts: list[str] = []
-    directory = path.parent
-    while (directory / "__init__.py").is_file():
-        parts.insert(0, directory.name)
-        directory = directory.parent
-    return [*parts, path.stem]
-
-
-def _resolve(name: str, roots: tuple[pathlib.Path, ...]) -> pathlib.Path | None:
-    """Where a module name lands in this repository, or None if it is third-party.
-
-    Returning None for third-party names is what keeps the television's transport
-    out of scope: `samsungtvws` imports `aiohttp`, and following into
-    site-packages would report the library's own dependency as this plane's.
-    """
-    relative = pathlib.Path(*name.split("."))
-    for root in roots:
-        for candidate in (root / relative.with_suffix(".py"), root / relative / "__init__.py"):
-            if candidate.is_file():
-                return candidate
     return None
 
 

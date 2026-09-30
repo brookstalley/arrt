@@ -35,11 +35,11 @@ import struct
 
 import pytest
 
-from curatarr.discovery.artic import PROVIDER, build_image_search
-from curatarr.discovery.images import ImageQuery
-from curatarr.discovery.phase_two import CONFIDENT, PhaseTwoEngine
+from curatarr.library.discovery.artic import PROVIDER, build_image_search
+from curatarr.library.discovery.images import ImageQuery
+from curatarr.library.discovery.phase_two import CONFIDENT, PhaseTwoEngine
+from curatarr.library.services.display_fit import ArtworkBox
 from curatarr.persistence.records import AcquisitionMethod, SourceClass
-from curatarr.services.display_fit import ArtworkBox
 
 pytestmark = pytest.mark.live_museum
 
@@ -236,7 +236,7 @@ def test_the_resolved_image_service_is_really_a_iiif_endpoint(museum):
 @pytest.fixture(scope="module")
 def collection():
     """The real browse client, against the live collection. Free, like its sibling."""
-    from curatarr.discovery.artic import build_collection_browse
+    from curatarr.library.discovery.artic import build_collection_browse
 
     return build_collection_browse(user_agent=USER_AGENT)
 
@@ -248,7 +248,7 @@ def test_a_browse_still_returns_per_facet_buckets_with_their_own_works(collectio
     come back empty and a run would silently offer nothing — the failure mode
     that looks exactly like a collection holding nothing for the intent.
     """
-    from curatarr.discovery.browse import BrowseQuery
+    from curatarr.library.discovery.browse import BrowseQuery
 
     groups = collection.browse([BrowseQuery(artist="Ellsworth Kelly"), BrowseQuery(artist="Morris Louis")], per_query=3)
 
@@ -268,7 +268,7 @@ def test_the_surname_retry_still_recovers_a_name_the_museum_spells_its_own_way(c
     match the ordinary spelling, this test goes green for a new reason and the
     retry becomes dead weight — worth knowing either way.
     """
-    from curatarr.discovery.browse import BrowseQuery
+    from curatarr.library.discovery.browse import BrowseQuery
 
     (group,) = collection.browse([BrowseQuery(artist="Wassily Kandinsky")], per_query=3)
 
@@ -285,7 +285,7 @@ def test_a_surname_two_artists_share_is_still_refused(collection):
     wrong one. A failure here means that guard stopped holding against the live
     collection, whatever the unit fixtures say.
     """
-    from curatarr.discovery.browse import BrowseQuery
+    from curatarr.library.discovery.browse import BrowseQuery
 
     (group,) = collection.browse([BrowseQuery(artist="Antonio Martorell")], per_query=3)
 

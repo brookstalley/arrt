@@ -19,7 +19,7 @@ caller — a store that also enforced would be a second place for those rules to
 live, and the two would disagree.
 """
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field, replace
 from typing import Protocol
@@ -30,16 +30,11 @@ from curatarr.persistence.records import (
     Artwork,
     ArtworkPage,
     ArtworkStatus,
-    Directive,
     MatColor,
     Original,
     Rendition,
     Source,
-    Theme,
-    ThemeAssignment,
-    ThemeMembership,
     VocabularyKind,
-    Wall,
     WorkFacet,
 )
 
@@ -124,6 +119,16 @@ class CatalogueStore(Protocol):
 
         Nesting joins the outer scope, and a read scope inside a transaction is
         permitted.
+        """
+        ...
+
+    def after_commit(self, callback: Callable[[], None]) -> None:
+        """Run `callback` once the writes made so far are committed, and not before.
+
+        Inside `transaction()` it waits for the outermost block to commit and is
+        discarded on rollback; outside one it runs at once. The Library announces
+        its changes this way, so no announcement describes a write that was
+        rolled back.
         """
         ...
 
@@ -256,6 +261,10 @@ class CatalogueStore(Protocol):
         """Overwrite a stored rendition with this one. Raises if the id is absent."""
         ...
 
+    def find_renditions_by_content(self, content_sha256: str) -> Sequence[Rendition]:
+        """Every rendition whose file hashed to this, in a stable order. Usually one."""
+        ...
+
     def list_renditions(self, artwork_id: str) -> Sequence[Rendition]:
         """Return a work's renditions in a stable order."""
         ...
@@ -272,111 +281,6 @@ class CatalogueStore(Protocol):
 
     def list_mat_colors(self, artwork_id: str) -> Sequence[MatColor]:
         """Return a work's mat colours newest first, which is its history."""
-        ...
-
-    # -- themes ---------------------------------------------------------------
-
-    def add_theme(self, theme: Theme) -> None:
-        """Persist a theme. Raises if the id or the name is already present."""
-        ...
-
-    def get_theme(self, theme_id: str) -> Theme | None:
-        """Return the theme, or None if no such id is stored."""
-        ...
-
-    def update_theme(self, theme: Theme) -> None:
-        """Overwrite a stored theme with this one. Raises if the id is absent."""
-        ...
-
-    def list_themes(self) -> Sequence[Theme]:
-        """Return every theme in a stable order."""
-        ...
-
-    def remove_theme(self, theme_id: str) -> None:
-        """Delete a theme. Its membership rows must already be gone."""
-        ...
-
-    # -- theme membership -----------------------------------------------------
-
-    def add_membership(self, membership: ThemeMembership) -> None:
-        """Place a work in a theme. Raises if it is already in that theme."""
-        ...
-
-    def get_membership(self, theme_id: str, artwork_id: str) -> ThemeMembership | None:
-        """Return the entry, or None if the work is not in the theme."""
-        ...
-
-    def update_membership(self, membership: ThemeMembership) -> None:
-        """Overwrite a stored entry with this one. Raises if it is absent."""
-        ...
-
-    def remove_membership(self, theme_id: str, artwork_id: str) -> None:
-        """Take a work out of a theme. Removing an absent entry is not an error."""
-        ...
-
-    def list_memberships(self, theme_id: str) -> Sequence[ThemeMembership]:
-        """Return a theme's entries in curated order, unordered entries last."""
-        ...
-
-    # -- walls ----------------------------------------------------------------
-
-    def add_wall(self, wall: Wall) -> None:
-        """Persist a wall. Raises if the id or the name is already present."""
-        ...
-
-    def get_wall(self, wall_id: str) -> Wall | None:
-        """Return the wall, or None if no such id is stored."""
-        ...
-
-    def list_walls(self) -> Sequence[Wall]:
-        """Return every wall in a stable order.
-
-        Unpaged: a household has as many walls as it has displays.
-        """
-        ...
-
-    # -- what is hanging ------------------------------------------------------
-
-    def get_assignment(self, wall_id: str) -> ThemeAssignment | None:
-        """What is hanging on this wall, or None while nothing is."""
-        ...
-
-    def set_assignment(self, assignment: ThemeAssignment) -> None:
-        """Hang a theme on a wall, replacing whatever was hanging there.
-
-        There is no second row to displace: `wall_id` is the whole primary key,
-        so a wall holding a theme already is an update rather than a conflict to
-        resolve.
-        """
-        ...
-
-    def remove_assignment(self, wall_id: str) -> None:
-        """Take down whatever is hanging. Clearing an empty wall is not an error."""
-        ...
-
-    def list_assignments(self) -> Sequence[ThemeAssignment]:
-        """Every wall that has something hanging on it, in a stable order.
-
-        Walls with nothing hanging have no row and do not appear.
-        """
-        ...
-
-    # -- the display directives -----------------------------------------------
-
-    def add_directive(self, directive: Directive) -> None:
-        """Persist a wall's directive. Raises if that wall already has one."""
-        ...
-
-    def get_directive(self, wall_id: str) -> Directive:
-        """Return this wall's standing directive. A wall has one from creation."""
-        ...
-
-    def set_directive(self, directive: Directive) -> None:
-        """Replace a wall's standing directive. Raises if that wall has none."""
-        ...
-
-    def list_directives(self) -> Sequence[Directive]:
-        """Every wall's standing directive, in a stable order."""
         ...
 
 

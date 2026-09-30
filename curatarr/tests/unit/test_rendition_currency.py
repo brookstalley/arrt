@@ -16,7 +16,8 @@ where both must pick one of several renders they pick the same one.
 
 import pytest
 
-from curatarr.manifest.builder import ExclusionReason, assess, tv_rendition_of
+from curatarr.library.facade import PlayableWork, UnplayableReason
+from curatarr.library.readiness import tv_rendition_of
 from curatarr.persistence.records import FetchStatus, RenditionKind, is_current, tv_renditions_newest_first
 
 
@@ -27,22 +28,25 @@ def _grid_says_current(service, artwork_id) -> bool:
     return chosen is not None and not views[chosen.id].stale
 
 
-def _wall_says_current(display, artwork_id) -> bool:
-    """What the manifest would decide: no exclusion, or one that is not staleness."""
-    excluded = assess(display._gather(artwork_id))
-    return excluded is None or excluded.reason is not ExclusionReason.STALE_RENDITION
+def _wall_says_current(library, artwork_id) -> bool:
+    """What the manifest would decide: no exclusion, or one that is not staleness.
+
+    Asked of the Library's facade, which is where the manifest build asks it.
+    """
+    answer = library.playable([artwork_id])[artwork_id]
+    return isinstance(answer, PlayableWork) or answer.reason is not UnplayableReason.STALE_RENDITION
 
 
 class TestTheGridAndTheWallCannotDisagree:
     """The matrix, driven through both real surfaces rather than through the rule."""
 
-    def test_a_freshly_rendered_work_is_current_to_both(self, service, display, ready_work):
+    def test_a_freshly_rendered_work_is_current_to_both(self, service, library, ready_work):
         work = ready_work()
 
         assert _grid_says_current(service, work.id) is True
-        assert _wall_says_current(display, work.id) is True
+        assert _wall_says_current(library, work.id) is True
 
-    def test_a_work_re_acquired_since_its_render_is_stale_to_both(self, service, display, ready_work):
+    def test_a_work_re_acquired_since_its_render_is_stale_to_both(self, service, library, ready_work):
         """The case the rule exists for: the render describes an image no longer held."""
         work = ready_work()
         source = service.list_sources(work.id)[0]
@@ -58,9 +62,9 @@ class TestTheGridAndTheWallCannotDisagree:
         )
 
         assert _grid_says_current(service, work.id) is False
-        assert _wall_says_current(display, work.id) is False
+        assert _wall_says_current(library, work.id) is False
 
-    def test_a_work_with_no_render_at_all_is_current_to_neither(self, service, display, ready_work):
+    def test_a_work_with_no_render_at_all_is_current_to_neither(self, service, library, ready_work):
         """The neighbouring exclusion, kept apart from staleness on both surfaces.
 
         `no_rendition` and `stale_rendition` are acted on differently — render
@@ -70,7 +74,7 @@ class TestTheGridAndTheWallCannotDisagree:
         work = ready_work(rendition=False)
 
         assert _grid_says_current(service, work.id) is False
-        assert assess(display._gather(work.id)).reason is ExclusionReason.NO_RENDITION
+        assert library.playable([work.id])[work.id].reason is UnplayableReason.NO_RENDITION
 
 
 class TestBothTieBreaksPickTheSameRender:

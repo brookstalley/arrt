@@ -1,6 +1,6 @@
 ---
 paths:
-  - "curatarr/src/curatarr/acquisition/**"
+  - "curatarr/src/curatarr/library/acquisition/**"
   - "curatarr/tools/mat_*.py"
 ---
 # Learnings — acquisition

@@ -11,7 +11,7 @@ import pytest
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
-from curatarr.manifest.builder import ExclusionReason, assess
+from curatarr.library.facade import PlayableWork, UnplayableReason
 from curatarr.mcp.registry import DESCRIPTION_BUDGET_BYTES
 from curatarr.mcp.tools import ART_DISPLAY, ART_THEME, TOOLS, TOOLS_BY_NAME
 from curatarr.persistence.records import FetchStatus, VocabularyKind
@@ -156,20 +156,23 @@ async def test_every_description_lists_the_actions_the_schema_allows(tools):
 #: — the first version of this table gave both rendition reasons "render", so a
 #: stale render went unmentioned in the tip while this guard reported it covered.
 _SHOW_NOW_TIP_PREPARES_FOR = {
-    ExclusionReason.ARCHIVED: "archived",
-    ExclusionReason.NO_ORIGINAL: "master image",
-    ExclusionReason.NO_MAT_COLOR: "mat colour",
-    ExclusionReason.NO_RENDITION: "television render",
+    UnplayableReason.ARCHIVED: "archived",
+    UnplayableReason.NO_ORIGINAL: "master image",
+    UnplayableReason.NO_MAT_COLOR: "mat colour",
+    UnplayableReason.NO_RENDITION: "television render",
     # A stale render is present rather than missing, so "render" alone does not
     # describe it and would be satisfied by the row above.
-    ExclusionReason.STALE_RENDITION: "earlier acquisition",
+    UnplayableReason.STALE_RENDITION: "earlier acquisition",
+    # An id that resolves to nothing. Refused before the facade existed too, by
+    # the catalogue's own lookup; naming it as a reason is what put it in the tip.
+    UnplayableReason.NOT_IN_CATALOGUE: "catalogue holds",
 }
 
 
-def _exclusion_for(display, work):
+def _exclusion_for(library, work):
     """What the readiness rule actually says about this work."""
-    excluded = assess(display._gather(work.id))
-    assert excluded is not None, "this work is displayable, so the row it stands for is untested"
+    excluded = library.playable([work.id])[work.id]
+    assert not isinstance(excluded, PlayableWork), "this work is displayable, so the row it stands for is untested"
     return excluded
 
 
@@ -181,10 +184,10 @@ def _show_now_tips() -> str:
 def test_every_reason_show_now_can_refuse_for_is_named_in_its_tip():
     """A new exclusion cause must not silently outrun the text that documents it.
 
-    This fails the moment someone adds a sixth `ExclusionReason`, which is the
+    This fails the moment someone adds another `UnplayableReason`, which is the
     point: readiness widened once already and the tip did not follow.
     """
-    missing = [reason for reason in ExclusionReason if reason not in _SHOW_NOW_TIP_PREPARES_FOR]
+    missing = [reason for reason in UnplayableReason if reason not in _SHOW_NOW_TIP_PREPARES_FOR]
     assert not missing, f"exclusion reasons with no entry in this table: {missing}"
 
     tokens = list(_SHOW_NOW_TIP_PREPARES_FOR.values())
@@ -200,12 +203,12 @@ def test_every_reason_show_now_can_refuse_for_is_named_in_its_tip():
 @pytest.mark.parametrize(
     ("reason", "unready"),
     [
-        (ExclusionReason.NO_ORIGINAL, {"original": False}),
-        (ExclusionReason.NO_MAT_COLOR, {"mat": False}),
-        (ExclusionReason.NO_RENDITION, {"rendition": False}),
+        (UnplayableReason.NO_ORIGINAL, {"original": False}),
+        (UnplayableReason.NO_MAT_COLOR, {"mat": False}),
+        (UnplayableReason.NO_RENDITION, {"rendition": False}),
     ],
 )
-def test_each_documented_refusal_is_one_the_service_actually_raises(display, ready_work, reason, unready, wall_id):
+def test_each_documented_refusal_is_one_the_service_actually_raises(display, library, ready_work, reason, unready, wall_id):
     """The other half: the tip must not promise a refusal the code does not make.
 
     Driving the real service rather than reading the table above, so this pins
@@ -215,7 +218,7 @@ def test_each_documented_refusal_is_one_the_service_actually_raises(display, rea
     """
     work = ready_work(**unready)
 
-    excluded = _exclusion_for(display, work)
+    excluded = _exclusion_for(library, work)
     assert excluded.reason is reason, "the fixture did not reach the state this row is about"
 
     with pytest.raises(ServiceError) as refused:
@@ -226,12 +229,12 @@ def test_each_documented_refusal_is_one_the_service_actually_raises(display, rea
     assert excluded.detail in str(refused.value)
 
 
-def test_an_archived_work_is_refused_in_the_words_the_tip_uses(service, display, ready_work, wall_id):
+def test_an_archived_work_is_refused_in_the_words_the_tip_uses(service, display, library, ready_work, wall_id):
     work = ready_work()
     service.archive_artwork(work.id)
 
-    excluded = _exclusion_for(display, work)
-    assert excluded.reason is ExclusionReason.ARCHIVED
+    excluded = _exclusion_for(library, work)
+    assert excluded.reason is UnplayableReason.ARCHIVED
 
     with pytest.raises(ServiceError) as refused:
         display.show_work_now(wall_id, work.id)
@@ -240,7 +243,7 @@ def test_an_archived_work_is_refused_in_the_words_the_tip_uses(service, display,
     assert "archived" in str(refused.value).lower()
 
 
-def test_a_stale_render_is_refused_in_the_words_the_tip_uses(service, display, ready_work, wall_id):
+def test_a_stale_render_is_refused_in_the_words_the_tip_uses(service, display, library, ready_work, wall_id):
     """Re-acquiring leaves the previous render in place, and it is no longer of this image."""
     work = ready_work()
     source = service.list_sources(work.id)[0]
@@ -257,8 +260,8 @@ def test_a_stale_render_is_refused_in_the_words_the_tip_uses(service, display, r
 
     # On the reason, not on "render": NO_RENDITION's message says "rendered" too,
     # so a noun match would pass on the wrong exclusion entirely.
-    excluded = _exclusion_for(display, work)
-    assert excluded.reason is ExclusionReason.STALE_RENDITION
+    excluded = _exclusion_for(library, work)
+    assert excluded.reason is UnplayableReason.STALE_RENDITION
 
     with pytest.raises(ServiceError) as refused:
         display.show_work_now(wall_id, work.id)
@@ -505,3 +508,14 @@ def test_every_facet_kind_the_collection_filters_by_is_a_parameter_of_the_listin
         assert published[str(kind)]["type"] == "array", f"{kind} is not published as a repeatable filter"
         assert published[str(kind)]["items"] == {"type": "string"}
     assert "q" in declared, "the listing offers facets and no free text"
+
+
+def test_an_id_the_catalogue_does_not_hold_is_refused_in_the_words_the_tip_uses(display, library, wall_id):
+    """The newest row's other half: the refusal is real, and it is the facade's sentence."""
+    excluded = library.playable(["nope"])["nope"]
+    assert excluded.reason is UnplayableReason.NOT_IN_CATALOGUE
+
+    with pytest.raises(ServiceError) as refused:
+        display.show_work_now(wall_id, "nope")
+
+    assert excluded.detail in str(refused.value)

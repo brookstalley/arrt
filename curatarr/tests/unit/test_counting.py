@@ -9,7 +9,7 @@ at, and the count a test at two would have passed throughout the defect's life.
 docstring names them because it once claimed to cover them itself, which is a
 worse gap than an uncovered sentence: a reader trusting it would believe the
 check was here. `mcp/bindings.py`'s notices are in `tests/unit/test_offered_works.py`;
-`services/runner.py`'s phase-2 basis in `tests/unit/test_resolve_run.py` and its
+`library/services/runner.py`'s phase-2 basis in `tests/unit/test_resolve_run.py` and its
 unreachable-provider log line in `tests/unit/test_phase_two_run.py`; and
 `screens/run.js`, `screens/conversation.js` and `core/badges.js` in the browser
 suite, which is the only thing that runs them.
@@ -31,8 +31,9 @@ from datetime import UTC, datetime
 import pytest
 
 from curatarr.counting import agree, agree_partitive, counted, noun
-from curatarr.manifest.builder import Exclusion, ExclusionReason, ManifestBuild, ManifestEntry
+from curatarr.library.facade import UnplayableReason
 from curatarr.persistence.records import Theme, Wall
+from curatarr.programming.manifest.builder import Exclusion, ManifestBuild, ManifestEntry
 
 
 @pytest.fixture
@@ -55,7 +56,7 @@ def one_work_build():
                 Exclusion(
                     work_id=f"out-{index}",
                     title=f"Excluded {index}",
-                    reason=ExclusionReason.NO_RENDITION,
+                    reason=UnplayableReason.NO_RENDITION,
                     detail="nothing has been rendered for the television yet",
                 )
                 for index in range(excluded)

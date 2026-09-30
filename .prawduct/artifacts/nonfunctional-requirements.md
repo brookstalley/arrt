@@ -973,7 +973,7 @@ work (issue #4 untracks its *backups*) must not delete the file itself.
 
 **The mechanical derivation did not land in the corpus's region, and measurement
 is how that was established (2026-08-10).** The dominant-colour fallback
-(`acquisition/mat.py`, Pillow median-cut darkened by `_FALLBACK_LIGHTNESS`) was
+(`library/acquisition/mat.py`, Pillow median-cut darkened by `_FALLBACK_LIGHTNESS`) was
 described during the 2026-08-05 walkthrough as landing where the corpus sits,
 which is what made it acceptable as a *default* rather than a fallback. Run over
 the operator's own masters and paired against the hand-tuned colour for the same
@@ -1072,7 +1072,7 @@ images come from each work's museum as a small IIIF derivative rather than from
 `ART_ROOT` — the very substitution that changes the derived colour visibly on 5 of
 25 works. It is a sheet for judging look; `tools/mat_masters.py` is the numeric
 comparison against the masters. Run the second after any change to
-`acquisition/mat.py` or `acquisition/color.py`.
+`library/acquisition/mat.py` or `library/acquisition/color.py`.
 
 **Two mat presets, and their values come from the corpus rather than from
 convention (decided 2026-08-10).** A curator's one-press neutrals are `#222222`
@@ -1141,7 +1141,7 @@ the numbers reproduce. Panel dimensions therefore join
 > reproduce.
 >
 > **The floor was the open problem this move created, and it is settled.** Today
-> the below-floor exclusion in automatic instance selection (`services/selection.py`)
+> the below-floor exclusion in automatic instance selection (`library/services/selection.py`)
 > reads the artwork box from server settings. After wave 4 the Library has no box
 > to read. Later on 2026-09-30 the floor became a **Library quality profile** in
 > pixels, independent of any device, with a minimum that selection and the review
@@ -1191,7 +1191,7 @@ failure is silent.
 > **Built 2026-08-02, and the mechanism is worth naming because "not
 > auto-selected" had three places it could have lived.** It is an exclusion in
 > the single function that decides which instance represents a work
-> (`services/selection.py`), not a filter at recording time and not a deduction
+> (`library/services/selection.py`), not a filter at recording time and not a deduction
 > in the score. Recording-time filtering would have hidden the instance, which
 > this section forbids outright. A score deduction would still select it whenever
 > nothing better existed — the exact case the floor is for.

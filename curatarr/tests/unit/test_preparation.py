@@ -17,12 +17,13 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from curatarr.acquisition.mat import MatChoice, MatEngine
-from curatarr.acquisition.preparation import (
+from curatarr.library.acquisition.mat import MatChoice, MatEngine
+from curatarr.library.acquisition.preparation import (
     PreparationOutcome,
     PreparationService,
     PreparationSettings,
 )
+from curatarr.library.services.display_fit import DisplayFit
 from curatarr.persistence.records import (
     AcquisitionMethod,
     FetchStatus,
@@ -31,7 +32,6 @@ from curatarr.persistence.records import (
     RightsStatus,
     SourceClass,
 )
-from curatarr.services.display_fit import DisplayFit
 from curatarr.services.errors import ServiceError
 
 
@@ -493,7 +493,7 @@ class TestWhatItCosts:
 
 
 class TestAnUndecodableOriginal:
-    """**The divergence `services/imaging.py` was written to prevent, reproduced.**
+    """**The divergence `library/services/imaging.py` was written to prevent, reproduced.**
     The mat engine translated Pillow's failures and the compositor did not, so an
     undecodable original raised a bare `UnidentifiedImageError` from whichever
     path reached it first — and the path that reaches it first is the common one,

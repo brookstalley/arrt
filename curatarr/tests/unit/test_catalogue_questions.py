@@ -11,6 +11,7 @@ that read the row directly would pass even if no caller could ever get the
 answer out.
 """
 
+from curatarr.library.services.display_fit import ArtworkBox, DisplayFit
 from curatarr.persistence.records import (
     AcquisitionMethod,
     FetchStatus,
@@ -19,7 +20,6 @@ from curatarr.persistence.records import (
     RightsStatus,
     SourceClass,
 )
-from curatarr.services.display_fit import ArtworkBox, DisplayFit
 
 
 def _make_showable(service, work):
@@ -71,7 +71,7 @@ def test_q1_which_works_belong_to_a_theme_so_the_display_plane_can_sync_them(ser
     display.add_to_theme(theme_id=theme.id, artwork_id=chop_suey.id, position=0)
     display.add_to_theme(theme_id=theme.id, artwork_id=automat.id)
 
-    ordered = display.theme_works(theme.id)
+    ordered = service.resolve_details(display.theme_work_ids(theme.id))
 
     assert [entry.artwork.title for entry in ordered] == ["Chop Suey", "Nighthawks", "Automat"]
     # Attribution comes with it, because deciding what goes on the wall turns on it.
@@ -86,10 +86,13 @@ def test_q1_a_work_can_be_moved_and_removed_without_touching_the_work_itself(ser
     display.add_to_theme(theme_id=theme.id, artwork_id=second.id, position=2)
 
     display.move_in_theme(theme_id=theme.id, artwork_id=second.id, position=0)
-    assert [entry.artwork.title for entry in display.theme_works(theme.id)] == ["Chop Suey", "Nighthawks"]
+    assert [entry.artwork.title for entry in service.resolve_details(display.theme_work_ids(theme.id))] == [
+        "Chop Suey",
+        "Nighthawks",
+    ]
 
     display.remove_from_theme(theme_id=theme.id, artwork_id=second.id)
-    assert [entry.artwork.title for entry in display.theme_works(theme.id)] == ["Nighthawks"]
+    assert [entry.artwork.title for entry in service.resolve_details(display.theme_work_ids(theme.id))] == ["Nighthawks"]
     # The work is still in the catalogue; only its membership went.
     assert service.get_artwork(second.id).artwork.title == "Chop Suey"
 
@@ -102,8 +105,8 @@ def _placed(service, display, *titles):
     return theme
 
 
-def _order(display, theme):
-    return [entry.artwork.title for entry in display.theme_works(theme.id)]
+def _order(service, display, theme):
+    return [entry.artwork.title for entry in service.resolve_details(display.theme_work_ids(theme.id))]
 
 
 def test_q1_a_position_is_an_index_into_the_order_rather_than_a_number_in_a_column(service, display):
@@ -122,17 +125,17 @@ def test_q1_a_position_is_an_index_into_the_order_rather_than_a_number_in_a_colu
 
     display.move_in_theme(
         theme_id=theme.id,
-        artwork_id=display.theme_works(theme.id)[0].artwork.id,
+        artwork_id=display.theme_work_ids(theme.id)[0],
         position=1,
     )
-    assert _order(display, theme) == ["Blue Poles", "Autumn Rhythm", "Convergence"]
+    assert _order(service, display, theme) == ["Blue Poles", "Autumn Rhythm", "Convergence"]
 
     display.move_in_theme(
         theme_id=theme.id,
-        artwork_id=display.theme_works(theme.id)[2].artwork.id,
+        artwork_id=display.theme_work_ids(theme.id)[2],
         position=0,
     )
-    assert _order(display, theme) == ["Convergence", "Blue Poles", "Autumn Rhythm"]
+    assert _order(service, display, theme) == ["Convergence", "Blue Poles", "Autumn Rhythm"]
 
 
 def test_q1_a_theme_built_the_way_a_curator_builds_one_reorders_downward(service, display):
@@ -153,17 +156,17 @@ def test_q1_a_theme_built_the_way_a_curator_builds_one_reorders_downward(service
 
     display.move_in_theme(
         theme_id=theme.id,
-        artwork_id=display.theme_works(theme.id)[0].artwork.id,
+        artwork_id=display.theme_work_ids(theme.id)[0],
         position=1,
     )
-    assert _order(display, theme) == ["Blue Poles", "Autumn Rhythm", "Convergence"]
+    assert _order(service, display, theme) == ["Blue Poles", "Autumn Rhythm", "Convergence"]
 
     display.move_in_theme(
         theme_id=theme.id,
-        artwork_id=display.theme_works(theme.id)[1].artwork.id,
+        artwork_id=display.theme_work_ids(theme.id)[1],
         position=2,
     )
-    assert _order(display, theme) == ["Blue Poles", "Convergence", "Autumn Rhythm"]
+    assert _order(service, display, theme) == ["Blue Poles", "Convergence", "Autumn Rhythm"]
 
 
 def test_q1_an_add_with_no_position_puts_the_work_last_and_places_it(service, display, store):
@@ -184,7 +187,7 @@ def test_q1_an_add_with_no_position_puts_the_work_last_and_places_it(service, di
     display.add_to_theme(theme_id=theme.id, artwork_id=first.id)
     display.add_to_theme(theme_id=theme.id, artwork_id=second.id)
 
-    assert _order(display, theme) == ["Autumn Rhythm", "Blue Poles"]
+    assert _order(service, display, theme) == ["Autumn Rhythm", "Blue Poles"]
     assert [membership.position for membership in store.list_memberships(theme.id)] == [0, 1]
 
 
@@ -199,7 +202,7 @@ def test_q1_an_add_at_a_position_makes_room_rather_than_writing_the_number(servi
 
     display.add_to_theme(theme_id=theme.id, artwork_id=service.add_artwork(title="Convergence").id, position=1)
 
-    assert _order(display, theme) == ["Autumn Rhythm", "Convergence", "Blue Poles"]
+    assert _order(service, display, theme) == ["Autumn Rhythm", "Convergence", "Blue Poles"]
     assert [membership.position for membership in store.list_memberships(theme.id)] == [0, 1, 2]
 
 
@@ -210,7 +213,7 @@ def test_q1_an_add_past_the_end_lands_at_the_end(service, display):
     added = display.add_to_theme(theme_id=theme.id, artwork_id=service.add_artwork(title="Blue Poles").id, position=99)
 
     assert added.position == 1
-    assert _order(display, theme) == ["Autumn Rhythm", "Blue Poles"]
+    assert _order(service, display, theme) == ["Autumn Rhythm", "Blue Poles"]
 
 
 def test_q1_the_order_is_renumbered_densely_so_the_index_sent_back_is_the_index_read(service, display, store):
@@ -225,12 +228,12 @@ def test_q1_the_order_is_renumbered_densely_so_the_index_sent_back_is_the_index_
 
     display.move_in_theme(
         theme_id=theme.id,
-        artwork_id=display.theme_works(theme.id)[0].artwork.id,
+        artwork_id=display.theme_work_ids(theme.id)[0],
         position=2,
     )
 
     assert [membership.position for membership in store.list_memberships(theme.id)] == [0, 1, 2]
-    assert _order(display, theme) == ["Blue Poles", "Convergence", "Autumn Rhythm"]
+    assert _order(service, display, theme) == ["Blue Poles", "Convergence", "Autumn Rhythm"]
 
 
 def test_q1_a_position_past_the_end_puts_the_work_last_rather_than_refusing(service, display):
@@ -244,12 +247,12 @@ def test_q1_a_position_past_the_end_puts_the_work_last_rather_than_refusing(serv
 
     moved = display.move_in_theme(
         theme_id=theme.id,
-        artwork_id=display.theme_works(theme.id)[0].artwork.id,
+        artwork_id=display.theme_work_ids(theme.id)[0],
         position=99,
     )
 
     assert moved.position == 1
-    assert _order(display, theme) == ["Blue Poles", "Autumn Rhythm"]
+    assert _order(service, display, theme) == ["Blue Poles", "Autumn Rhythm"]
 
 
 def test_q1_returning_a_work_to_unplaced_closes_the_gap_it_left(service, display, store):
@@ -263,11 +266,11 @@ def test_q1_returning_a_work_to_unplaced_closes_the_gap_it_left(service, display
 
     display.move_in_theme(
         theme_id=theme.id,
-        artwork_id=display.theme_works(theme.id)[0].artwork.id,
+        artwork_id=display.theme_work_ids(theme.id)[0],
         position=None,
     )
 
-    assert _order(display, theme) == ["Blue Poles", "Convergence", "Autumn Rhythm"]
+    assert _order(service, display, theme) == ["Blue Poles", "Convergence", "Autumn Rhythm"]
     assert [membership.position for membership in store.list_memberships(theme.id)] == [0, 1, None]
 
 
@@ -276,7 +279,7 @@ def test_q1_a_move_made_beside_an_unplaced_work_counts_it(service, display, stor
 
     An add places, so the only way a null position exists is a curator asking for
     one — and then the theme holds a placed prefix and an unplaced tail, which is
-    exactly the arrangement the reorder defect lived in. `theme_works` hands a
+    exactly the arrangement the reorder defect lived in. `theme_work_ids` hands a
     surface both as one list and a surface can only index against what it was
     handed, so a renumber that walked the placed ones alone would answer a
     request to put Convergence last by leaving it where it was.
@@ -285,18 +288,18 @@ def test_q1_a_move_made_beside_an_unplaced_work_counts_it(service, display, stor
     until the first has been made.
     """
     theme = _placed(service, display, "Autumn Rhythm", "Blue Poles", "Convergence")
-    autumn = display.theme_works(theme.id)[0].artwork.id
+    autumn = display.theme_work_ids(theme.id)[0]
 
     display.move_in_theme(theme_id=theme.id, artwork_id=autumn, position=None)
-    assert _order(display, theme) == ["Blue Poles", "Convergence", "Autumn Rhythm"]
+    assert _order(service, display, theme) == ["Blue Poles", "Convergence", "Autumn Rhythm"]
 
     display.move_in_theme(
         theme_id=theme.id,
-        artwork_id=display.theme_works(theme.id)[1].artwork.id,
+        artwork_id=display.theme_work_ids(theme.id)[1],
         position=2,
     )
 
-    assert _order(display, theme) == ["Blue Poles", "Autumn Rhythm", "Convergence"]
+    assert _order(service, display, theme) == ["Blue Poles", "Autumn Rhythm", "Convergence"]
     # And the work nobody had placed acquired the place it was already shown at,
     # which is what makes the next index sent back mean the same thing.
     assert [membership.position for membership in store.list_memberships(theme.id)] == [0, 1, 2]

@@ -15,6 +15,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from curatarr.library.facade import LibraryFacade
+from curatarr.library.services.catalogue import CatalogueService
 from curatarr.persistence.file import open_catalogue_file
 from curatarr.persistence.records import (
     AcquisitionMethod,
@@ -27,8 +29,7 @@ from curatarr.persistence.records import (
     Theme,
 )
 from curatarr.persistence.sqlite import SqliteCatalogue
-from curatarr.services.catalogue import CatalogueService
-from curatarr.services.display import DisplayService, DisplaySettings
+from curatarr.programming.display import DisplayService, DisplaySettings
 from curatarr.services.errors import ServiceError
 
 
@@ -69,7 +70,7 @@ def _display(store, tmp_path, *, catalogue=None):
     """A display service over an explicitly opened store, wired as the entry point wires one."""
     return DisplayService(
         store,
-        catalogue or CatalogueService(store),
+        LibraryFacade(catalogue or CatalogueService(store)),
         DisplaySettings(art_root=tmp_path, rotation_interval_seconds=180, shuffle=True),
     )
 
@@ -213,8 +214,30 @@ def test_an_archived_work_cannot_be_pinned(service, ready_work, display, wall_id
 
 
 def test_pinning_an_unknown_work_is_refused(display, wall_id):
-    with pytest.raises(ServiceError, match="No artwork with id 'nope'"):
+    """In the catalogue's words alone, not as a work that "cannot be shown on the wall".
+
+    An id that names nothing is a different mistake from a work that is not ready,
+    and a curator told the second goes looking for a missing render.
+    """
+    with pytest.raises(ServiceError) as refused:
         display.show_work_now(wall_id, "nope")
+
+    assert str(refused.value) == "No artwork with id 'nope' is in the catalogue."
+
+
+def test_adding_an_unknown_work_to_a_theme_is_refused_in_the_catalogues_words(display):
+    """Programming asks the Library whether the work exists, and says what the catalogue says.
+
+    Without the question, the add reaches the store and fails on its foreign key,
+    as a storage error nobody wrote for a curator.
+    """
+    theme = display.add_theme(name="Hopper")
+
+    with pytest.raises(ServiceError) as refused:
+        display.add_to_theme(theme_id=theme.id, artwork_id="nope")
+
+    assert str(refused.value) == "No artwork with id 'nope' is in the catalogue."
+    assert display.theme_work_ids(theme.id) == []
 
 
 def test_theme_activity_never_touches_the_sequence(service, display, wall_id):

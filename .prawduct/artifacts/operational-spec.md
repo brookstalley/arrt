@@ -213,7 +213,7 @@ it breaks.**
 > never declared: both landed 2026-08-03 needing none of the three, and
 > `curatarr/pyproject.toml` now records that as **a rejection rather than a
 > deferral** — the LAB conversion and CIEDE2000 distance are thirty lines of
-> fully-specified arithmetic in `acquisition/color.py`, and the dominant-colour
+> fully-specified arithmetic in `library/acquisition/color.py`, and the dominant-colour
 > fallback uses Pillow's median-cut quantiser where 2024 used OpenCV k-means.
 >
 > Worth noting how this survived: the same bundle that made the rejection wrote

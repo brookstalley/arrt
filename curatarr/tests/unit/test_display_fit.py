@@ -12,7 +12,7 @@ arithmetic has to face them.
 
 import pytest
 
-from curatarr.services.display_fit import ArtworkBox, DisplayFit, assess_display_fit
+from curatarr.library.services.display_fit import ArtworkBox, DisplayFit, assess_display_fit
 from curatarr.services.errors import ServiceError
 
 #: The reference 42" deployment.

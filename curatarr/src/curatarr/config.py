@@ -19,11 +19,12 @@ from typing import Final
 
 from dotenv import load_dotenv
 
-from curatarr.manifest.builder import MANIFEST_FILENAME_TEMPLATE, manifest_path_in
-from curatarr.manifest.heartbeat import heartbeat_path_in
+from curatarr.library.discovery.images import DEFAULT_PREVIEW_MAX_BYTES
+from curatarr.library.services.display_fit import ArtworkBox
+from curatarr.library.services.runner import DiscoverySettings
 from curatarr.persistence.migrations import DEFAULT_WALL_NAME
-from curatarr.services.display_fit import ArtworkBox
-from curatarr.services.runner import DiscoverySettings
+from curatarr.programming.manifest.builder import MANIFEST_FILENAME_TEMPLATE, manifest_path_in
+from curatarr.programming.manifest.heartbeat import heartbeat_path_in
 
 #: The catalogue's filename under `ART_ROOT`. Not configurable: both planes
 #: and the backup path need to agree on where the catalogue is, and a setting
@@ -96,28 +97,6 @@ DEFAULT_TILE_TIMEOUT_SECONDS: Final[int] = 1800
 #: streaming rather than trusted from a header, because the ceiling exists to
 #: protect the disk and a header is the source's claim about itself.
 DEFAULT_MAX_IMAGE_BYTES: Final[int] = 512 * 1024 * 1024
-
-#: The largest preview body a museum may serve before it is refused. Enforced
-#: while streaming, for the same reason `DEFAULT_MAX_IMAGE_BYTES` is: the ceiling
-#: exists to protect memory, and `Content-Length` is the source's claim about
-#: itself.
-#:
-#: **This one bounds RAM rather than the disk**, which is why it is three orders
-#: of magnitude smaller. A preview is read whole into memory before anything
-#: touches the filesystem, and the URL comes out of a museum's JSON with
-#: redirects followed, so the final host need not even be the one that was asked.
-#: `architecture.md` § Scaling Model ranks memory during acquisition as the one
-#: input that could exhaust the Pi; the unit's `MemoryMax` contains the blast to
-#: "curation dies" rather than "the wall goes dark", which is the cap working and
-#: not the absence of a problem — a run lost to a thumbnail is still the tail
-#: wagging the dog.
-#:
-#: Sized against measurement, not intuition: five Art Institute previews sampled
-#: 2026-08-05 ran 89-193 KiB, the service serves exactly one derivative width
-#: (843 px, every other request redirects to it), and this ceiling is some eighty
-#: times the largest of those. It is not a prediction of the biggest legitimate
-#: preview — it is the point past which a body has stopped being one.
-DEFAULT_PREVIEW_MAX_BYTES: Final[int] = 16 * 1024 * 1024
 
 #: Free space that must remain after an acquisition, below which one is refused.
 #:

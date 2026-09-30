@@ -84,7 +84,7 @@ def observe(path: Path, *, key: str, now: datetime | None = None) -> Observation
             problem="it does not hold a JSON object.",
         )
 
-    at = _instant(contents.get(key))
+    at = instant(contents.get(key))
     if at is None:
         return Observation(
             path=path,
@@ -105,7 +105,8 @@ def observe(path: Path, *, key: str, now: datetime | None = None) -> Observation
     )
 
 
-def _instant(value: object) -> datetime | None:
+def instant(value: object) -> datetime | None:
+    """The instant a document names, read exactly as `observe` reads it, or None."""
     if not isinstance(value, str):
         return None
     try:

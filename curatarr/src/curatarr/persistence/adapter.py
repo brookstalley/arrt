@@ -100,6 +100,14 @@ class TableAdapter:
         """
         return self._store.reading()
 
+    def after_commit(self, callback: Callable[[], None]) -> None:
+        """Run `callback` once the writes made so far are committed.
+
+        Delegated for the reason `transaction` is: the commit it waits for is
+        the file's, whichever adapter opened it.
+        """
+        self._store.after_commit(callback)
+
     def close(self) -> None:
         """Release the file. Every adapter over the same file is closed with it.
 

@@ -14,7 +14,7 @@ from decimal import Decimal
 
 import pytest
 
-from curatarr.discovery.dedup import work_dedup_key
+from curatarr.library.discovery.dedup import work_dedup_key
 from curatarr.persistence.discovery_records import InitiatedBy, RunKind, RunStatus, Verdict
 from curatarr.services.errors import ServiceError
 

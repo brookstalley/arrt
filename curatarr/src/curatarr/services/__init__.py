@@ -1,7 +1,7 @@
-"""The only home for operation logic.
+"""What both sides of the Library/Programming seam share, and what composes them.
 
-Both external surfaces are bindings over this package: the MCP tools and the
-HTTP handlers unpack arguments, call one method here, and format the result.
-Parity between an agent and a click is therefore structural rather than
-remembered.
+`errors.py`, `store.py` and `fields.py` are a shared kernel either side may
+import. `container.py` and `health.py` compose both sides and are imported by
+neither. The operation logic itself lives in `curatarr.library.services` and
+`curatarr.programming`, and the surfaces are bindings over those.
 """

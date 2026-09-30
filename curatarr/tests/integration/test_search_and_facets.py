@@ -22,8 +22,8 @@ import pytest
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
+from curatarr.library.services.catalogue import MAX_LIST_LIMIT
 from curatarr.persistence.records import FacetDerivation, VocabularyKind
-from curatarr.services.catalogue import MAX_LIST_LIMIT
 
 #: Filter states an option is added to. The empty one is the collection's first
 #: screen; the others are a curator part-way through narrowing, which is where a

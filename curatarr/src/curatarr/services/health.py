@@ -34,10 +34,10 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from curatarr.library.services.display_fit import ArtworkBox
 from curatarr.persistence import backup
 from curatarr.persistence.backup import BackupReading
-from curatarr.services.display import DisplayService, WallHeartbeat, describe_wall_status
-from curatarr.services.display_fit import ArtworkBox
+from curatarr.programming.display import DisplayService, WallHeartbeat, describe_wall_status
 
 
 @dataclass(frozen=True, slots=True)

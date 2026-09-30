@@ -12,12 +12,12 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 from curatarr.app import MCP_PATH, MCP_SESSION_IDLE_TIMEOUT_SECONDS, create_app
+from curatarr.library.services.catalogue import CatalogueService
+from curatarr.library.services.discovery import DiscoveryService
+from curatarr.library.services.sweep import SWEEP_THREAD_NAME, PreviewSweep
 from curatarr.persistence.discovery_records import InitiatedBy, RunStatus, Verdict
 from curatarr.persistence.records import Theme
-from curatarr.services.catalogue import CatalogueService
-from curatarr.services.discovery import DiscoveryService
-from curatarr.services.display import DisplayService
-from curatarr.services.sweep import SWEEP_THREAD_NAME, PreviewSweep
+from curatarr.programming.display import DisplayService
 
 _A_MOMENT = datetime(2026, 7, 20, 9, 30, tzinfo=UTC)
 

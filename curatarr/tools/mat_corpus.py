@@ -39,10 +39,10 @@ from PIL import Image, ImageDraw
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from curatarr.acquisition.color import hex_distance, parse_hex  # noqa: E402
-from curatarr.acquisition.mat import MatEngine  # noqa: E402
 from curatarr.config import DEFAULT_MAT_IMAGE_MAX_EDGE, DEFAULT_MAT_MAX_OUTPUT_TOKENS, DEFAULT_MAT_MODEL  # noqa: E402
-from curatarr.discovery.openrouter import OpenRouterClient  # noqa: E402
+from curatarr.library.acquisition.color import hex_distance, parse_hex  # noqa: E402
+from curatarr.library.acquisition.mat import MatEngine  # noqa: E402
+from curatarr.library.discovery.openrouter import OpenRouterClient  # noqa: E402
 from curatarr.seed.legacy import read_index  # noqa: E402
 
 #: ARTIC's own standard derivative width, so the IIIF server normally serves one

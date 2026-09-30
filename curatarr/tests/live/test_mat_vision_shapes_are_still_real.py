@@ -17,10 +17,10 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from curatarr.acquisition.color import parse_hex, rgb_to_lab
-from curatarr.acquisition.mat import MAT_PROMPT, MAT_SCHEMA, MatEngine
 from curatarr.config import DEFAULT_MAT_IMAGE_MAX_EDGE, DEFAULT_MAT_MAX_OUTPUT_TOKENS, DEFAULT_MAT_MODEL
-from curatarr.discovery.openrouter import ImageAttachment, OpenRouterClient
+from curatarr.library.acquisition.color import parse_hex, rgb_to_lab
+from curatarr.library.acquisition.mat import MAT_PROMPT, MAT_SCHEMA, MatEngine
+from curatarr.library.discovery.openrouter import ImageAttachment, OpenRouterClient
 from curatarr.persistence.records import MatMethod
 
 pytestmark = pytest.mark.live_api

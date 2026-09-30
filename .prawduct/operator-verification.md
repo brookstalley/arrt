@@ -10,6 +10,68 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Switch the Pi to HTTP mode, and let it soak — added 2026-09-30
+
+**Wave 2b Chunk 04.** Arrt can now pull its wall from Curatarr instead of
+reading the shared file. The file channel stays the default, and wave 3 retires
+it only after this has run on the real wall. After wave 2b reaches the Pi:
+
+1. On the Walls screen, issue a Player token for the wall (Player token panel).
+2. In the display plane's `.env`, set `MANIFEST_SOURCE=http`,
+   `SERVER_URL=http://127.0.0.1:<CURATION_PORT>`, `WALL_TOKEN=<the token>` and
+   `CACHE_DIR=` to a local directory the service account can write. Then
+   `sudo systemctl restart display.service`.
+3. **Watch the journal** (`journalctl -u display.service -f`): `pull.started`,
+   then `pull.adopted` with every entry cached. Press Next on the Walls screen:
+   the set should step within a couple of seconds.
+4. **Stop the server** (`sudo systemctl stop curation.service`): expect one
+   `pull.unreachable` line and nothing more, and the wall keeps rotating. Restart
+   `display.service` while the server is still down: the wall comes back from
+   the cache. Start `curation.service` again: expect one `pull.reachable`.
+5. **Rotate the token** on the Walls screen without updating `.env`: expect one
+   `pull.refused` line naming WALL_TOKEN, and one `pull.heartbeat_refused`, and
+   the wall keeps rotating. Put the new token in `.env` and restart.
+6. **The health panel** should keep showing the wall's heartbeat throughout. In
+   HTTP mode the Player writes its heartbeat into `CACHE_DIR`, and only the
+   server writes the one in `ART_ROOT` that the panel reads, so a panel showing a
+   fresh heartbeat is proof the POST works. During step 5 it should go stale.
+7. Let it run for a few days, then record here what the journal showed. To go
+   back, set `MANIFEST_SOURCE=file` and restart.
+
+### The Player token panel on the Walls screen — added 2026-09-30
+
+**Wave 2b Chunk 03.** Each wall's section on the Walls screen ends with a
+**Player token** panel. Run `cd curatarr && uv run python -m curatarr` and open
+the Walls.
+
+1. **A wall with no token** says so and offers "Issue a Player token for …".
+2. **Issuing** shows the token once, in a read-only field with focus on it, and
+   says it is the only time. Reload the page: the token is gone, and the panel
+   says when one was issued. Is "shown once, in place" clear enough that nobody
+   reloads before copying it?
+3. **Rotating** asks first, naming the wall and the consequence (the current
+   Player stops until it has the new token). Cancel keeps the old token working.
+4. The panel sits below the manifest's three panels on every wall. Does a token
+   belong on the home screen at all, or on a wall's own settings once one
+   exists? It's here because the Walls screen is where walls are managed today.
+
+### Next and show_now move the wall without a sync — added 2026-09-30
+
+**Wave 2b Chunk 02.** Until now, pressing **Next** on the Walls screen, or asking
+for `art_display(action='next')` or `show_now`, advanced the directive in the
+catalogue and never wrote it into the wall's manifest. The Player reads its
+directive only from the manifest, so the wall did not move until something else
+synced. After this reaches the Pi:
+
+1. Hang a theme on the wall, wait for it to settle, then press **Next** once.
+   The set should step to another work within about a second of the Player's
+   next poll, with no sync in between.
+2. Archive a work that is currently in the wall's rotation. It should come out
+   of the rotation without a sync. The journal says `took works the Library no
+   longer offers off the published manifest`.
+3. Restart `curation.service`. The journal should say `Reconciled … against the
+   Library at startup: nothing to change`.
+
 ### The Pi's units after the rename to curatarr/ and arrt/ — added 2026-09-30
 
 **Wave 2a.** The projects moved from `curation/` and `display/` to `curatarr/` and
@@ -1230,7 +1292,7 @@ one. So a corpus run is a sample of the engine's behaviour, not a fixed output,
 and a single bad pair is weaker evidence than a pattern across several.
 
 If the verdict is "worse than 2024", the cheapest levers in order: the prompt in
-`acquisition/mat.py` (`MAT_PROMPT` — its guidance is deliberately carried over
+`library/acquisition/mat.py` (`MAT_PROMPT` — its guidance is deliberately carried over
 from 2024's, so it is the least likely culprit), then `MAT_MODEL` in `.env`,
 which was chosen on cost among models that cleared the bar rather than on taste.
 `art_catalogue(action='set_mat_color', ...)` overrides any individual work

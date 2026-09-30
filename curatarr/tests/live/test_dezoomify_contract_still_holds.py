@@ -26,7 +26,7 @@ import shutil
 
 import pytest
 
-from curatarr.acquisition.dezoomify import TileOutcome, tile_fetch
+from curatarr.library.acquisition.dezoomify import TileOutcome, tile_fetch
 
 pytestmark = pytest.mark.live_binary
 
@@ -57,7 +57,7 @@ def _fetch(tmp_path, name="work.jpg", **kwargs):
 
 
 def test_a_real_tiled_fetch_produces_a_readable_image(tmp_path):
-    from curatarr.services.imaging import measure
+    from curatarr.library.services.imaging import measure
 
     result = _fetch(tmp_path)
 

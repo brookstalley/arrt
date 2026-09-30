@@ -1,4 +1,4 @@
-"""A `CatalogueStore` over a SQLite file.
+"""A `CatalogueStore`, and Programming's `ProgrammingStore`, over a SQLite file.
 
 SQLite was chosen because it has no dependency to resolve, no server to run, and
 a file that can be copied to a backup and back again — which is how this
@@ -165,9 +165,11 @@ CREATE TABLE IF NOT EXISTS themes (
 -- forbidden columns are listed on the `Wall` record; the rule is that this table
 -- must survive its television being replaced.
 CREATE TABLE IF NOT EXISTS walls (
-    id          TEXT PRIMARY KEY,
-    name        TEXT NOT NULL UNIQUE,
-    created_at  TEXT NOT NULL
+    id               TEXT PRIMARY KEY,
+    name             TEXT NOT NULL UNIQUE,
+    created_at       TEXT NOT NULL,
+    token_verifier   TEXT,
+    token_issued_at  TEXT
 );
 
 -- What is hanging on one wall. `wall_id` alone is the key, so "at most one theme
@@ -228,8 +230,14 @@ CREATE TABLE IF NOT EXISTS renditions (
     target_height        INTEGER NOT NULL,
     relative_path        TEXT NOT NULL,
     source_content_hash  TEXT NOT NULL,
-    generated_at         TEXT NOT NULL
+    generated_at         TEXT NOT NULL,
+    content_sha256       TEXT,
+    byte_size            INTEGER
 );
+
+-- Media is fetched by content hash, so the hash is how a render is found.
+CREATE INDEX IF NOT EXISTS renditions_by_content
+    ON renditions(content_sha256);
 
 -- One rendition per work per kind per geometry: a second row for the same
 -- target is two answers to "is this current", and only one of them is right.
@@ -599,6 +607,9 @@ class SqliteCatalogue(TableAdapter):
     def list_renditions(self, artwork_id: str) -> Sequence[Rendition]:
         return self._list("renditions", {"artwork_id": artwork_id}, _BY_GEOMETRY, _rendition)
 
+    def find_renditions_by_content(self, content_sha256: str) -> Sequence[Rendition]:
+        return self._list("renditions", {"content_sha256": content_sha256}, _BY_GEOMETRY, _rendition)
+
     # -- mat colours ----------------------------------------------------------
 
     def add_mat_color(self, mat_color: MatColor) -> None:
@@ -670,6 +681,9 @@ class SqliteCatalogue(TableAdapter):
 
     def list_walls(self) -> Sequence[Wall]:
         return self._list("walls", None, _BY_NAME, _wall)
+
+    def update_wall(self, wall: Wall) -> None:
+        self._update("walls", BY_ID, _wall_row(wall), subject=f"wall {wall.name!r}")
 
     # -- what is hanging ------------------------------------------------------
 
@@ -801,6 +815,8 @@ def _rendition_row(rendition: Rendition) -> dict[str, Any]:
         "relative_path": rendition.relative_path,
         "source_content_hash": rendition.source_content_hash,
         "generated_at": to_iso(rendition.generated_at),
+        "content_sha256": rendition.content_sha256,
+        "byte_size": rendition.byte_size,
     }
 
 
@@ -844,7 +860,13 @@ def _membership_row(membership: ThemeMembership) -> dict[str, Any]:
 
 
 def _wall_row(wall: Wall) -> dict[str, Any]:
-    return {"id": wall.id, "name": wall.name, "created_at": to_iso(wall.created_at)}
+    return {
+        "id": wall.id,
+        "name": wall.name,
+        "created_at": to_iso(wall.created_at),
+        "token_verifier": wall.token_verifier,
+        "token_issued_at": to_iso(wall.token_issued_at),
+    }
 
 
 def _assignment_row(assignment: ThemeAssignment) -> dict[str, Any]:
@@ -954,6 +976,8 @@ def _rendition(row: Mapping[str, Any]) -> Rendition:
         relative_path=row["relative_path"],
         source_content_hash=row["source_content_hash"],
         generated_at=require_datetime(row["generated_at"], "generated_at"),
+        content_sha256=row["content_sha256"],
+        byte_size=row["byte_size"],
     )
 
 
@@ -985,7 +1009,13 @@ def _theme(row: Mapping[str, Any]) -> Theme:
 
 
 def _wall(row: Mapping[str, Any]) -> Wall:
-    return Wall(id=row["id"], name=row["name"], created_at=require_datetime(row["created_at"], "created_at"))
+    return Wall(
+        id=row["id"],
+        name=row["name"],
+        created_at=require_datetime(row["created_at"], "created_at"),
+        token_verifier=row["token_verifier"],
+        token_issued_at=from_iso(row["token_issued_at"]),
+    )
 
 
 def _assignment(row: Mapping[str, Any]) -> ThemeAssignment:

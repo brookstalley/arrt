@@ -15,11 +15,11 @@ import json
 import httpx
 import pytest
 
-from curatarr.discovery.artic import PROVIDER, ArticImageSearch
-from curatarr.discovery.images import ImageQuery, ImageSearchFailure
-from curatarr.discovery.phase_two import PhaseTwoEngine
+from curatarr.library.discovery.artic import PROVIDER, ArticImageSearch
+from curatarr.library.discovery.images import ImageQuery, ImageSearchFailure
+from curatarr.library.discovery.phase_two import PhaseTwoEngine
+from curatarr.library.services.display_fit import ArtworkBox
 from curatarr.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
-from curatarr.services.display_fit import ArtworkBox
 
 USER_AGENT = "curatarr (test@example.org)"
 

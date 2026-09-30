@@ -18,10 +18,10 @@ from decimal import Decimal
 import pytest
 from fakes import a_work, a_work_list, spent, works
 
-from curatarr.discovery.engine import BudgetExhausted, EngineFailure, ProposedWork, WorkList, unavailable_engine
+from curatarr.library.discovery.engine import BudgetExhausted, EngineFailure, ProposedWork, WorkList, unavailable_engine
+from curatarr.library.services.runner import DiscoveryRunner
 from curatarr.persistence.discovery_records import InitiatedBy, RunStatus, SpendCategory, Verdict
 from curatarr.services.errors import ServiceError
-from curatarr.services.runner import DiscoveryRunner
 
 
 def start(runner: DiscoveryRunner, intent: str = "Surrealist paintings with strong blues"):

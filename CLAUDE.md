@@ -39,8 +39,8 @@ meanwhile:
 - **Several norms are `in-transition`**, each with an interim rule. Read
   `architecture.md` § Direction before touching the manifest, the display
   plane's I/O, or the theme, wall and directive tables.
-  `tests/preferences/test_plane_isolation.py` keeps its assertions on purpose
-  until wave 2b narrows it.
+  `tests/preferences/test_plane_isolation.py` allows an HTTP client in
+  `arrt/src/arrt/pull.py` only, since wave 2b; everything else it holds is unchanged.
 - **Each wave has its own plan, which names its branch.** What comes next is
   `re-architecture.md` § Order of work, and the plan whose `branch:` you are on
   is the one in force. Branch from `develop`. The parked round-2 UI plan lives
@@ -155,8 +155,8 @@ a second and is left serial.
 **The root suite is not only the 2024 modules**, and believing that costs a
 developer their first hour on the leg most likely to go red under them. It also
 carries `tests/preferences/`, where this repo's artifact-versus-code contracts
-live — plane isolation, the heartbeat, the norm index, the label corpus, and the
-screen tables. Those span two projects by design: `test_screen_tables.py` reads
+live — plane isolation, the Library/Programming seam, the heartbeat, the norm
+index, the label corpus, and the screen tables. Those span two projects by design: `test_screen_tables.py` reads
 the *curation* plane's `http/static/app.js` against
 `.prawduct/artifacts/information-architecture.md`, and neither plane's own suite
 can see both. So a change made entirely inside `curatarr/` — routing a screen,

@@ -15,7 +15,7 @@ from decimal import Decimal
 import httpx
 import pytest
 
-from curatarr.discovery.openrouter import (
+from curatarr.library.discovery.openrouter import (
     BASE_URL,
     COMPLETION_TIMEOUT_SECONDS,
     KEY_TIMEOUT_SECONDS,

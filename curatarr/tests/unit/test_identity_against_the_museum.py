@@ -20,10 +20,10 @@ from pathlib import Path
 
 import pytest
 
-from curatarr.discovery.images import FoundImage, ImageQuery
-from curatarr.discovery.phase_two import PhaseTwoEngine
+from curatarr.library.discovery.images import FoundImage, ImageQuery
+from curatarr.library.discovery.phase_two import PhaseTwoEngine
+from curatarr.library.services.display_fit import ArtworkBox
 from curatarr.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
-from curatarr.services.display_fit import ArtworkBox
 
 CORPUS = Path(__file__).resolve().parents[1] / "fixtures" / "identity_pairs.json"
 

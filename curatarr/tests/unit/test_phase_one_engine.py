@@ -12,9 +12,9 @@ from decimal import Decimal
 import httpx
 import pytest
 
-from curatarr.discovery.engine import BudgetExhausted, EngineFailure, WorkListRequest
-from curatarr.discovery.openrouter import OpenRouterClient
-from curatarr.discovery.phase_one import OpenRouterEngine
+from curatarr.library.discovery.engine import BudgetExhausted, EngineFailure, WorkListRequest
+from curatarr.library.discovery.openrouter import OpenRouterClient
+from curatarr.library.discovery.phase_one import OpenRouterEngine
 from curatarr.persistence.discovery_records import SpendCategory
 
 ANSWER = {

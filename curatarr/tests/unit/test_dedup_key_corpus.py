@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from curatarr.discovery.dedup import work_dedup_key
+from curatarr.library.discovery.dedup import work_dedup_key
 
 CORPUS = json.loads((Path(__file__).parent.parent / "fixtures" / "phase_one_proposals.json").read_text())
 ROWS = CORPUS["rows"]

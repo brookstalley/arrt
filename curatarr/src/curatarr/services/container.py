@@ -16,17 +16,11 @@ facts about the product rather than conveniences of one call site, which is why
 they are settled in one place instead of per constructor.
 """
 
+import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-
-from curatarr.acquisition.direct import StreamOpener
-from curatarr.acquisition.mat import MatEngine
-from curatarr.acquisition.preparation import PreparationService, PreparationSettings
-from curatarr.acquisition.service import AcquisitionService, AcquisitionSettings
-from curatarr.acquisition.tiles import TileTargetResolver
-from curatarr.acquisition.transport import no_transport
-from curatarr.acquisition.urls import Resolver
+from typing import Protocol
 
 # Module scope, and the three `_default_*` helpers below used to import this at
 # function scope instead, explained as breaking a cycle: "config reads this
@@ -50,28 +44,49 @@ from curatarr.config import (
     READY_DIRNAME,
     TILE_CACHE_DIRNAME,
 )
-from curatarr.discovery.browse import CollectionBrowse
-from curatarr.discovery.conversation import NO_CONVERSATION_KEY, ConversationEngine, UnavailableConversation
-from curatarr.discovery.engine import DiscoveryEngine
-from curatarr.discovery.images import ImageSearch
-from curatarr.discovery.phase_two import PhaseTwoEngine
+from curatarr.library.acquisition.direct import StreamOpener
+from curatarr.library.acquisition.mat import MatEngine
+from curatarr.library.acquisition.preparation import PreparationService, PreparationSettings
+from curatarr.library.acquisition.service import AcquisitionService, AcquisitionSettings
+from curatarr.library.acquisition.tiles import TileTargetResolver
+from curatarr.library.acquisition.transport import no_transport
+from curatarr.library.acquisition.urls import Resolver
+from curatarr.library.discovery.browse import CollectionBrowse
+from curatarr.library.discovery.conversation import NO_CONVERSATION_KEY, ConversationEngine, UnavailableConversation
+from curatarr.library.discovery.engine import DiscoveryEngine
+from curatarr.library.discovery.images import ImageSearch
+from curatarr.library.discovery.phase_two import PhaseTwoEngine
+from curatarr.library.facade import LibraryFacade
+from curatarr.library.services.catalogue import CatalogueService
+from curatarr.library.services.conversation import ConversationService
+from curatarr.library.services.discovery import DiscoveryService
+from curatarr.library.services.display_fit import ArtworkBox
+from curatarr.library.services.previews import PreviewCache, PreviewSettings
+from curatarr.library.services.review import ReviewService
+from curatarr.library.services.runner import DiscoveryRunner, DiscoverySettings
+from curatarr.library.services.survey import SurveyService
+from curatarr.library.services.sweep import PreviewSweep
+from curatarr.library.services.taste import TasteService
+from curatarr.library.services.thumbnails import ThumbnailService, ThumbnailSettings
 from curatarr.persistence.backup import BACKUP_RECEIPT_FILENAME
 from curatarr.persistence.catalogue import CatalogueStore
 from curatarr.persistence.discovery import DiscoveryStore
-from curatarr.services.catalogue import CatalogueService
-from curatarr.services.conversation import ConversationService
-from curatarr.services.discovery import DiscoveryService
-from curatarr.services.display import DisplayService, DisplaySettings
-from curatarr.services.display_fit import ArtworkBox
+from curatarr.programming.access import PlayerAccess
+from curatarr.programming.display import DisplayService, DisplaySettings
+from curatarr.programming.store import ProgrammingStore
 from curatarr.services.errors import ServiceError
 from curatarr.services.health import HealthService
-from curatarr.services.previews import PreviewCache, PreviewSettings
-from curatarr.services.review import ReviewService
-from curatarr.services.runner import DiscoveryRunner, DiscoverySettings
-from curatarr.services.survey import SurveyService
-from curatarr.services.sweep import PreviewSweep
-from curatarr.services.taste import TasteService
-from curatarr.services.thumbnails import ThumbnailService, ThumbnailSettings
+
+log = logging.getLogger(__name__)
+
+
+class OneCatalogueFile(CatalogueStore, ProgrammingStore, Protocol):
+    """The one open file, which answers the Library's protocol and Programming's.
+
+    Named here, where both sides are composed, because nowhere else may know
+    that one object serves both. When Programming's tables move to a file of
+    their own, `bind` takes two stores and this type goes.
+    """
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,6 +94,12 @@ class Services:
     """Every service the curation plane offers, assembled over one open file."""
 
     catalogue: CatalogueService
+    #: The Library as Programming reaches it. Held here so that a test or a
+    #: binding asking "can this work go on a wall" gets the answer the manifest
+    #: build gets, from the same object.
+    library: LibraryFacade
+    #: Which Player may read which wall, by the wall's token.
+    access: PlayerAccess
     discovery: DiscoveryService
     display: DisplayService
     thumbnails: ThumbnailService
@@ -141,7 +162,7 @@ class Services:
     def bind(
         cls,
         *,
-        catalogue: CatalogueStore,
+        catalogue: OneCatalogueFile,
         discovery: DiscoveryStore,
         display_settings: DisplaySettings,
         thumbnails: ThumbnailSettings,
@@ -182,8 +203,15 @@ class Services:
         plane runs phase 1 and stops, which is a coherent deployment — and the
         one every test that has no business reaching a museum uses.
         """
-        catalogue_service = CatalogueService(catalogue)
-        display_service = DisplayService(catalogue, catalogue_service, display_settings)
+        catalogue_service = CatalogueService(catalogue, art_root=thumbnails.art_root)
+        library = LibraryFacade(catalogue_service)
+        # The same open file passed as Programming's store: one object serves
+        # both protocols until Programming's tables get a file of their own.
+        display_service = DisplayService(catalogue, library, display_settings)
+        # Programming hears the Library's changes here, where both are composed,
+        # rather than subscribing itself: the subscription is wiring, and a
+        # service that wired itself could not be built for a test without it.
+        library.subscribe(display_service.on_work_changed)
         thumbnail_service = ThumbnailService(catalogue_service, thumbnails)
         # The artwork box reaches discovery for one reason: automatic selection
         # must withhold an instance that would render below the floor, and the
@@ -214,10 +242,12 @@ class Services:
         )
         return cls(
             catalogue=catalogue_service,
+            library=library,
+            access=PlayerAccess(catalogue),
             discovery=discovery_service,
             display=display_service,
             thumbnails=thumbnail_service,
-            survey=SurveyService(catalogue_service, display_service, thumbnail_service, artwork_box),
+            survey=SurveyService(catalogue_service, thumbnail_service, artwork_box),
             # `art_root` is read off the thumbnail settings rather than taken as
             # an argument of its own. It is the same deployment value — every
             # catalogue path is relative to it — and it is already required and
@@ -302,15 +332,26 @@ class Services:
         the one call a process start has to remember, so a service gaining a
         repair does not mean an entry point gaining a line.
 
-        **The display service had the other one until 2026-08-12**, and it was
-        dropped rather than made per-wall: it promoted the oldest theme when none
-        was active, which with more than one wall would hang the same theme in
-        every room unbidden. What the file may predate about hanging is a *shape*
-        rather than a rule now — the single-wall columns — and a shape is moved by
-        `persistence/migrations.py` when the file is opened, before any service
-        can read it.
+        **The display service reconciles too, and for a different reason**: not
+        a rule the file predates, but an announcement it may have missed. The
+        Library tells Programming when a work changes, after the change commits,
+        and a crash between the two loses the announcement. So every start takes
+        any work the Library now refuses off every published manifest and pin,
+        and a lost announcement delays that until the next start rather than
+        leaving it undone.
         """
         self.discovery.reconcile()
+        try:
+            self.display.reconcile()
+        except OSError:
+            # A manifest that cannot be rewritten (a full disk, a directory gone
+            # read-only) must not keep the curation interface down: the wall
+            # goes on showing its last manifest, which is where it would be with
+            # this plane stopped, and the interface is where a curator finds out
+            # why. Nothing is half-applied, because the reconciliation runs in
+            # one transaction that the failure rolled back, and the next start
+            # tries again.
+            log.exception("Could not reconcile the walls' manifests against the Library at startup; serving anyway.")
 
 
 def _default_acquisition(art_root: Path) -> AcquisitionSettings:

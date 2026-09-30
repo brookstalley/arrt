@@ -69,11 +69,11 @@ def test_only_the_durable_store_imports_the_storage_driver():
 _MAY_REACH_THE_NETWORK = {
     # The OpenRouter client — the far side of the engine seam, which is exactly
     # where a transport belongs.
-    "curatarr.discovery.openrouter",
+    "curatarr.library.discovery.openrouter",
     # The Art Institute client — the far side of the *image* seam, the same
     # arrangement one phase down. `urllib.parse` comes with it, for percent-
     # encoding a search term into a query string; no request is made through it.
-    "curatarr.discovery.artic",
+    "curatarr.library.discovery.artic",
     # `urllib.parse` only, for reading identifiers out of legacy filenames. No
     # request is made; the module is listed because the guard matches on the
     # top-level name rather than pretending to know which submodule is inert.
@@ -82,19 +82,19 @@ _MAY_REACH_THE_NETWORK = {
     # arrangement as the two clients above. `direct.py` holds the ceilings, the
     # staging and the zero-byte guard and takes its stream opener as an argument,
     # which is what keeps the part worth testing exhaustively testable offline.
-    "curatarr.acquisition.transport",
+    "curatarr.library.acquisition.transport",
     # The fetch policy. It resolves names on purpose — deciding whether a host is
     # publicly routable is not answerable without asking what it resolves to —
     # and `urllib.parse` splits the URL. It sends no request, and its resolver is
     # an argument so the rules can be exercised against stated answers.
-    "curatarr.acquisition.urls",
+    "curatarr.library.acquisition.urls",
     # `urllib.parse` only, to read the host out of a citation's own URL. A
     # cited hostname and a title's last word are the same shape — `tate.org.uk`
     # and `No.5` are both dot-joined word characters — so the only thing that
     # tells them apart is whether the URL beside it names that host, and getting
     # *that* wrong merges two works under one identity. Standard parsing rather
     # than a hand-rolled split for exactly that reason. No request is made.
-    "curatarr.discovery.dedup",
+    "curatarr.library.discovery.dedup",
 }
 
 _REACHES_THE_NETWORK = {"httpx", "requests", "urllib", "urllib3", "http", "socket", "aiohttp", "openai", "anthropic"}

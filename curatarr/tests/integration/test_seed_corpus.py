@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from curatarr.manifest.builder import ExclusionReason
+from curatarr.library.facade import UnplayableReason
 from curatarr.seed.ingest import SeedNote, seed_catalogue
 from curatarr.seed.legacy import read_index
 
@@ -188,5 +188,5 @@ class TestPuttingThemOnTheWall:
 
         assert built.considered == WORKS
         assert [(exclusion.title, exclusion.reason) for exclusion in built.exclusions] == [
-            (records[0].title, ExclusionReason.NO_RENDITION)
+            (records[0].title, UnplayableReason.NO_RENDITION)
         ]

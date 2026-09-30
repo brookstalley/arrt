@@ -69,6 +69,7 @@ from curatarr.http.models import (
     MatColorOut,
     MoveWork,
     OriginalOut,
+    PlayerTokenOut,
     RenameTheme,
     RenditionOut,
     RunListOut,
@@ -102,8 +103,14 @@ from curatarr.http.models import (
     WorkOut,
     WorkPageOut,
 )
-from curatarr.manifest.builder import ManifestBuild
-from curatarr.manifest.heartbeat import HeartbeatReading
+from curatarr.library.services.catalogue import FacetGroup, RenditionView
+from curatarr.library.services.conversation import ConversationDeletion, ConversationView, TurnView
+from curatarr.library.services.discovery import VerdictOutcome
+from curatarr.library.services.display_fit import ArtworkBox
+from curatarr.library.services.review import CandidatePage, CandidateView, InstanceListing, InstanceView
+from curatarr.library.services.runner import Estimate, RunView, SpendReport
+from curatarr.library.services.survey import WorkDossier, WorkSurvey
+from curatarr.library.services.taste import AffinityView
 from curatarr.persistence.backup import BackupReading
 from curatarr.persistence.discovery_records import (
     CandidateImage,
@@ -113,17 +120,11 @@ from curatarr.persistence.discovery_records import (
     InitiatedBy,
 )
 from curatarr.persistence.records import Artist, Directive, MatColor, Original, Source, Theme, WorkFacet
-from curatarr.services.catalogue import FacetGroup, RenditionView
+from curatarr.programming.display import ThemePlacement, WallView
+from curatarr.programming.manifest.builder import ManifestBuild
+from curatarr.programming.manifest.heartbeat import HeartbeatReading
 from curatarr.services.container import Services
-from curatarr.services.conversation import ConversationDeletion, ConversationView, TurnView
-from curatarr.services.discovery import VerdictOutcome
-from curatarr.services.display import ThemePlacement, WallView
-from curatarr.services.display_fit import ArtworkBox
 from curatarr.services.health import HealthReading
-from curatarr.services.review import CandidatePage, CandidateView, InstanceListing, InstanceView
-from curatarr.services.runner import Estimate, RunView, SpendReport
-from curatarr.services.survey import WorkDossier, WorkSurvey
-from curatarr.services.taste import AffinityView
 
 log = logging.getLogger(__name__)
 
@@ -376,6 +377,18 @@ def create_wall(request: Request, body: CreateWall) -> WallOut:
     """
     services = _services(request)
     return _wall(services.display.get_wall_view(services.display.add_wall(name=body.name).id))
+
+
+@router.post("/walls/{wall_id}/token")
+def issue_token(request: Request, wall_id: str) -> PlayerTokenOut:
+    """Issue the wall's Player token, replacing any it had. It is shown here once.
+
+    The Walls screen's "Issue token" and "Rotate token", and
+    `art_display(action='issue_token')`. Nothing can read it back afterwards,
+    because only a verifier is kept.
+    """
+    issued = _services(request).access.issue(wall_id)
+    return PlayerTokenOut(wall_id=issued.wall_id, token=issued.token, token_issued_at=issued.issued_at.isoformat())
 
 
 @router.delete("/walls/{wall_id}/theme")
@@ -734,7 +747,9 @@ def _theme_detail(services: Services, theme_id: str) -> ThemeDetailOut:
     """A theme with its works, in curated order."""
     return ThemeDetailOut(
         theme=_theme(services.display.get_theme(theme_id)),
-        works=[_work(entry) for entry in services.survey.theme_works(theme_id)],
+        # Two calls composed, as the MCP binding composes them: Programming's
+        # order, and the Library's account of each work.
+        works=[_work(entry) for entry in services.survey.survey_works(services.display.theme_work_ids(theme_id))],
     )
 
 
@@ -888,6 +903,7 @@ def _wall(view: WallView) -> WallOut:
         theme=None if view.hanging is None else _theme(view.hanging),
         directive_sequence=view.directive.sequence,
         pinned_work_id=view.directive.pinned_work_id,
+        token_issued_at=None if view.wall.token_issued_at is None else view.wall.token_issued_at.isoformat(),
     )
 
 

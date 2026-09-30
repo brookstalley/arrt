@@ -113,17 +113,22 @@
     catalogue, and neither is depended on by it") is already the one the seam
     requires.
   - The plan turns it from a convention into a boundary. Programming imports
-    only a small Library **facade** (`playable(work_ids)` and a facet query),
-    which is coarse-grained, id-based and returns plain data. Import direction
+    only a small Library **facade** (`playable(work_ids)`), which is
+    coarse-grained, id-based and returns plain data. Import direction
     is guarded statically, as `test_plane_isolation.py` guards the planes.
     Library changes reach Programming as in-process events (`work.accepted`,
     `work.archived`, `work.image_changed`, `work.mat_changed`).
-  - Manifest readiness (`manifest/builder.py` `assess`) moves behind the facade.
+  - Manifest readiness (`assess`) sits behind the facade, in
+    `library/readiness.py`.
   - The UI and MCP bindings stay the only code allowed to call both sides. A
     composition of two services' calls is still dispatch, not logic, so the
     thin-binding norm holds.
-  - Not built. The packages, the facade and the events are wave 2, ahead of the
-    HTTP manifest endpoint. The store split is wave 3.
+  - **Built 2026-09-30 (wave 2b Chunk 01): the packages and the facade.**
+    `curatarr.library` and `curatarr.programming`, with `library/facade.py` the
+    one Library module Programming imports, held by
+    `tests/preferences/test_seam_imports.py`. **The events were built the same
+    day (Chunk 02)**: published after commit, heard through the facade, and
+    backed by startup reconciliation. The store split is wave 3.
 
 ### curation ↔ display contract
 

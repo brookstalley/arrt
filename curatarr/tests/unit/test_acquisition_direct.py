@@ -5,7 +5,7 @@ from contextlib import contextmanager
 
 import pytest
 
-from curatarr.acquisition.direct import direct_fetch
+from curatarr.library.acquisition.direct import direct_fetch
 
 
 def _serves(*chunks: bytes, raises: Exception | None = None):

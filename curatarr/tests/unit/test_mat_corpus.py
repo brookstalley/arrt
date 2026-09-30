@@ -26,8 +26,8 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from curatarr.acquisition.color import format_hex, hex_distance, parse_hex, rgb_to_lab, scale_lightness
-from curatarr.acquisition.compose import compose
+from curatarr.library.acquisition.color import format_hex, hex_distance, parse_hex, rgb_to_lab, scale_lightness
+from curatarr.library.acquisition.compose import compose
 
 # `_DERIVED_LIGHTNESS_CEILING` is private to the engine and is imported anyway,
 # deliberately: the whole point of the test below is that the clamp's number and
@@ -36,7 +36,7 @@ from curatarr.acquisition.compose import compose
 # `CORPUS_MAX_LIGHTNESS` is public and is imported for the opposite reason — the
 # requirement's bar belongs to the product, and a copy declared here would be a bar
 # this file guards and the operator's tool does not.
-from curatarr.acquisition.mat import (
+from curatarr.library.acquisition.mat import (
     _DERIVED_LIGHTNESS_CEILING,
     _FALLBACK_LIGHTNESS,
     CORPUS_MAX_LIGHTNESS,
@@ -45,9 +45,9 @@ from curatarr.acquisition.mat import (
     _under_the_corpus_bar,
     dominant_color,
 )
+from curatarr.library.services.display_fit import ArtworkBox
 from curatarr.persistence.records import MatMethod
 from curatarr.seed.legacy import read_index
-from curatarr.services.display_fit import ArtworkBox
 
 #: The 2024 index, two levels up from this file: `curatarr/tests/unit` → the
 #: repository root. Located by walking rather than by a fixed number of parents,
@@ -277,7 +277,7 @@ class TestTheMechanicalProducerAgainstTheBar:
         source = tmp_path / "vivid.jpg"
         Image.new("RGB", (400, 300), (0, 255, 0)).save(source, format="JPEG", quality=95)
 
-        with caplog.at_level(logging.INFO, logger="curatarr.acquisition.mat"):
+        with caplog.at_level(logging.INFO, logger="curatarr.library.acquisition.mat"):
             choice = MatEngine(None, image_max_edge=256).choose(source)
 
         assert "held at the corpus ceiling" in caplog.text
@@ -292,7 +292,7 @@ class TestTheMechanicalProducerAgainstTheBar:
         source = tmp_path / "deep-blue.jpg"
         Image.new("RGB", (400, 300), (30, 60, 120)).save(source, format="JPEG", quality=95)
 
-        with caplog.at_level(logging.INFO, logger="curatarr.acquisition.mat"):
+        with caplog.at_level(logging.INFO, logger="curatarr.library.acquisition.mat"):
             MatEngine(None, image_max_edge=256).choose(source)
 
         assert "held at the corpus ceiling" not in caplog.text

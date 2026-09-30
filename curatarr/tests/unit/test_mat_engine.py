@@ -23,9 +23,9 @@ import httpx
 import pytest
 from PIL import Image
 
-from curatarr.acquisition.color import parse_hex, rgb_to_lab
-from curatarr.acquisition.mat import MAT_PROMPT, MatEngine, dominant_color
-from curatarr.discovery.openrouter import OpenRouterClient
+from curatarr.library.acquisition.color import parse_hex, rgb_to_lab
+from curatarr.library.acquisition.mat import MAT_PROMPT, MatEngine, dominant_color
+from curatarr.library.discovery.openrouter import OpenRouterClient
 from curatarr.persistence.records import MatMethod
 from curatarr.services.errors import ServiceError
 

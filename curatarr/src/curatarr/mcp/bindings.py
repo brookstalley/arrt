@@ -23,13 +23,19 @@ from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime
 from typing import Any, Final
 
-from curatarr.acquisition.dezoomify import DezoomifyUnavailable
-from curatarr.acquisition.preparation import PreparationResult
-from curatarr.acquisition.service import AcquisitionOutcome, AcquisitionResult
-from curatarr.acquisition.space import NotEnoughSpace
-from curatarr.acquisition.tiles import TileTargetUnavailable
 from curatarr.counting import agree, agree_partitive, counted
-from curatarr.manifest.builder import ManifestBuild
+from curatarr.library.acquisition.dezoomify import DezoomifyUnavailable
+from curatarr.library.acquisition.preparation import PreparationResult
+from curatarr.library.acquisition.service import AcquisitionOutcome, AcquisitionResult
+from curatarr.library.acquisition.space import NotEnoughSpace
+from curatarr.library.acquisition.tiles import TileTargetUnavailable
+from curatarr.library.services.catalogue import MAX_LIST_LIMIT, ArtworkDetail, ArtworkListing, FacetGroup
+from curatarr.library.services.discovery import VerdictOutcome
+from curatarr.library.services.display_fit import DisplayFit
+from curatarr.library.services.previews import InlinePreview
+from curatarr.library.services.review import MAX_REVIEW_LIMIT, CandidatePage, CandidateView, InstanceListing, InstanceView
+from curatarr.library.services.runner import RunListing, RunView
+from curatarr.library.services.taste import AffinityView
 from curatarr.mcp.envelope import ImageBlock, ok, with_images
 from curatarr.mcp.registry import HELP_ACTION, RegistryError
 from curatarr.mcp.tools import TOOLS
@@ -42,16 +48,10 @@ from curatarr.persistence.discovery_records import (
     RunStatus,
 )
 from curatarr.persistence.records import Artist, Artwork, Directive, Source, Theme, VocabularyKind, Wall
-from curatarr.services.catalogue import MAX_LIST_LIMIT, ArtworkDetail, ArtworkListing, FacetGroup
+from curatarr.programming.display import UNSET, ThemePlacement, WallView, describe_wall_status
+from curatarr.programming.manifest.builder import ManifestBuild
 from curatarr.services.container import Services
-from curatarr.services.discovery import VerdictOutcome
-from curatarr.services.display import UNSET, ThemePlacement, WallView, describe_wall_status
-from curatarr.services.display_fit import DisplayFit
 from curatarr.services.errors import ServiceError
-from curatarr.services.previews import InlinePreview
-from curatarr.services.review import MAX_REVIEW_LIMIT, CandidatePage, CandidateView, InstanceListing, InstanceView
-from curatarr.services.runner import RunListing, RunView
-from curatarr.services.taste import AffinityView
 
 #: A bound action: validated arguments in, a result payload out. Every binding
 #: takes the whole container rather than the one service it happens to need, so
@@ -369,7 +369,9 @@ def _get_theme(services: Services, arguments: Mapping[str, Any]) -> dict[str, An
     theme_id = arguments["theme_id"]
     return ok(
         theme=_theme_fields(services.display.get_theme(theme_id)),
-        works=[_summary(entry) for entry in services.display.theme_works(theme_id)],
+        # Two calls composed: Programming says which works and in what order, and
+        # the Library says what each work is.
+        works=[_summary(entry) for entry in services.catalogue.resolve_details(services.display.theme_work_ids(theme_id))],
     )
 
 
@@ -836,6 +838,11 @@ def _next(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     return ok(**_directive_fields(services.display.step_display(arguments["wall_id"])))
 
 
+def _issue_token(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    issued = services.access.issue(arguments["wall_id"])
+    return ok(wall_id=issued.wall_id, token=issued.token, token_issued_at=_moment(issued.issued_at))
+
+
 #: Every built action, keyed by tool and action name. A tool absent from here
 #: answers `help` and nothing else, which is what its registry record says.
 BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
@@ -878,6 +885,7 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_display", "sync"): _sync,
     ("art_display", "show_now"): _show_now,
     ("art_display", "next"): _next,
+    ("art_display", "issue_token"): _issue_token,
     ("art_taste", "list"): _list_taste,
     ("art_taste", "set"): _set_taste,
     ("art_taste", "delete"): _delete_taste,
@@ -1040,7 +1048,14 @@ def _theme_fields(theme: Theme) -> dict[str, Any]:
 
 def _wall_fields(wall: Wall) -> dict[str, Any]:
     """One wall as a caller sees it: a place and a name, never a device."""
-    return {"wall_id": wall.id, "name": wall.name, "created_at": _moment(wall.created_at)}
+    return {
+        "wall_id": wall.id,
+        "name": wall.name,
+        "created_at": _moment(wall.created_at),
+        # When the Player token was issued, or None while the wall has none. The
+        # token itself is never read back: it exists only in the issuing answer.
+        "token_issued_at": None if wall.token_issued_at is None else _moment(wall.token_issued_at),
+    }
 
 
 def _wall_view_fields(view: WallView) -> dict[str, Any]:

@@ -13,14 +13,16 @@ plane's reader accepts, and the one the contract names for a misspelled instant
 must be one it refuses.
 """
 
+import hashlib
 import json
+import logging
 import shutil
 from pathlib import Path
 
 import pytest
 from jsonschema import Draft202012Validator
 
-from curatarr.manifest import heartbeat
+from curatarr.programming.manifest import heartbeat
 
 CONTRACT = Path(__file__).resolve().parents[3] / "contract"
 
@@ -30,8 +32,8 @@ def _validator(name: str) -> Draft202012Validator:
     return Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER)
 
 
-def _errors(document: dict, schema_name: str = "manifest.v1.schema.json") -> list[str]:
-    return [error.message for error in _validator(schema_name).iter_errors(document)]
+def _errors(document: dict) -> list[str]:
+    return [error.message for error in _validator("manifest.v1.schema.json").iter_errors(document)]
 
 
 @pytest.fixture
@@ -93,6 +95,49 @@ def test_a_published_manifest_carrying_a_pin_conforms(display, ready_work, theme
 
     assert document["directive"]["pinned_work_id"] == work.id
     assert _errors(document) == []
+
+
+def test_a_published_manifest_carrying_media_conforms(service, ready_work, theme_of, published, wall_settings):
+    """Minor 2, as the builder writes it, beside the contract's own minor 2 fixture and never instead of it.
+
+    The render's file is written here, because media is the hash of real bytes:
+    a render with no file has no media, and a document without the key would
+    pass this schema without testing the key at all.
+    """
+    work = ready_work()
+    render = next(view.rendition for view in service.list_renditions(work.id))
+    data = b"\xff\xd8\xff\xe0 a render's bytes"
+    (wall_settings.art_root / render.relative_path).parent.mkdir(parents=True, exist_ok=True)
+    (wall_settings.art_root / render.relative_path).write_bytes(data)
+
+    document = published(theme_of(work))
+
+    assert document["schema"] == {"major": 1, "minor": 2}
+    media = document["entries"][0]["media"]
+    assert media == {
+        "url": f"/media/sha256-{hashlib.sha256(data).hexdigest()}",
+        "sha256": hashlib.sha256(data).hexdigest(),
+        "bytes": len(data),
+        "content_type": "image/jpeg",
+    }
+    assert _errors(document) == []
+
+
+def test_a_render_with_no_file_is_published_without_media_and_says_so(ready_work, theme_of, published, caplog):
+    """It still plays on the file channel, which reads `render_path`; there is no hash to offer.
+
+    Said in the journal, because a Player on HTTP skips the work, and a wall one
+    work short with nothing on the server naming it is the silence this product
+    refuses.
+    """
+    work = ready_work()
+
+    with caplog.at_level(logging.WARNING, logger="curatarr.library.facade"):
+        document = published(theme_of(work))
+
+    assert "media" not in document["entries"][0]
+    assert _errors(document) == []
+    assert [record.getMessage() for record in caplog.records if work.id in record.getMessage()], "nothing named the work"
 
 
 def _heartbeat_fixtures(validity: str) -> list[Path]:

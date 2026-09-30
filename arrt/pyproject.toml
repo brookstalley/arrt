@@ -52,6 +52,13 @@ dependencies = [
     # driver failure into a raised one are exercised by the default suite instead
     # of only on a Pi with a panel screwed to it.
     "pillow",
+    # The HTTP mode's one client, in `src/arrt/pull.py` and nowhere else
+    # (`tests/preferences/test_plane_isolation.py` holds that). Already installed
+    # through the fork above, at the version the lockfile resolves; declared
+    # because an indirect copy disappears the day that package changes its own
+    # dependencies. asyncio, like the daemon, and its test server is the stub the
+    # pull's tests run against.
+    "aiohttp>=3.14",
 ]
 
 # Deliberately absent, and each for a reason worth stating rather than
@@ -77,9 +84,11 @@ dependencies = [
 #     above records what changed and why it is now a core dependency rather than
 #     a panel-only one.
 #
-#   Any HTTP client. This is not an omission — it is the norm: the theme manifest
-#     file is the only channel from curation to display. The television websocket
-#     is the exemption, because talking to the television is this plane's whole
+#   Any HTTP client but the one above, used by one module. This is not an
+#     omission — it is the norm: the per-wall manifest and its media, from the
+#     shared file or pulled into this Player's cache by `src/arrt/pull.py`, are
+#     the only channel from curation to display. The television websocket is the
+#     other exemption, because talking to the television is this plane's whole
 #     job.
 #
 #     **Enforced mechanically since 2026-08-06** by

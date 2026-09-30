@@ -74,7 +74,7 @@ dependencies = [
 #     "acquisition and the mat engine". Both landed 2026-08-03 and neither needed
 #     any of the three, so this is a rejection now rather than a deferral. The
 #     mat engine's CIE LAB conversion and CIEDE2000 distance are thirty lines of
-#     fully-specified arithmetic in `acquisition/color.py`, verified against the
+#     fully-specified arithmetic in `library/acquisition/color.py`, verified against the
 #     published Sharma reference set; the dominant-colour fallback uses Pillow's
 #     median-cut quantiser where 2024 used OpenCV k-means. Three packages on a
 #     memory-capped Pi, to do that, could not be argued for. Reinstate only with

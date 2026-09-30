@@ -21,9 +21,9 @@ from pathlib import Path
 import pytest
 
 from curatarr.http.pages import STATIC_DIR
+from curatarr.library.services.display_fit import DisplayFit
 from curatarr.persistence.discovery_records import ResolutionStatus, Verdict, WorkProvenance
 from curatarr.persistence.records import ArtworkStatus
-from curatarr.services.display_fit import DisplayFit
 
 #: Normal text. Nothing on this surface is large enough to claim the 3:1 relief
 #: AA gives text at 18.66px bold or 24px regular, so every pair is held to 4.5.

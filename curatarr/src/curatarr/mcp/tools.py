@@ -26,11 +26,11 @@ service method answers it, and the service method does the work.
 
 from typing import Final
 
+from curatarr.library.services.catalogue import MAX_LIST_LIMIT
+from curatarr.library.services.review import MAX_REVIEW_LIMIT
 from curatarr.mcp.registry import Action, Param, ToolRecord
 from curatarr.persistence.discovery_records import AffinityDerivation, AffinitySentiment, RunKind, RunStatus
 from curatarr.persistence.records import ArtworkStatus, VocabularyKind
-from curatarr.services.catalogue import MAX_LIST_LIMIT
-from curatarr.services.review import MAX_REVIEW_LIMIT
 
 _STATUS = Param(
     name="status",
@@ -869,8 +869,9 @@ ART_DISPLAY: Final = ToolRecord(
             params=(_WALL_ID, Param(name="artwork_id", type="string", description="The work to jump to.", required=True)),
             tips=(
                 "Any work that could not reach the wall is refused rather than pinned — archived, "
-                "missing its master image, mat colour or television render, or carrying a render "
-                "made from an earlier acquisition. The refusal names which, in the same words "
+                "missing its master image, mat colour or television render, carrying a render "
+                "made from an earlier acquisition, or naming no work the catalogue holds. The "
+                "refusal names which, in the same words "
                 "art_display(action='sync') uses for an excluded work.",
                 "This writes the directive; it does not confirm the television changed.",
             ),
@@ -884,6 +885,19 @@ ART_DISPLAY: Final = ToolRecord(
                 "It steps that wall and no other: each wall carries its own counter, so a step in the living "
                 "room leaves the study where it was.",
                 "Repeated calls inside one poll interval coalesce into a single step — latest wins.",
+            ),
+        ),
+        Action(
+            name="issue_token",
+            description="Issue a new token for the Player that serves a named wall, replacing any it had.",
+            example="art_display(action='issue_token', wall_id='<a wall_id>')",
+            params=(_WALL_ID,),
+            tips=(
+                "The token is returned once and never again: only a verifier is kept. It belongs in the "
+                "Player's environment file as WALL_TOKEN, and nowhere a transcript is kept for longer.",
+                "Issuing again is how a token is rotated: the old one stops working at once, so the Player "
+                "holding it is refused until it is given the new one.",
+                "Every Player request for this wall's manifest, its heartbeat and any render needs it.",
             ),
         ),
     ),

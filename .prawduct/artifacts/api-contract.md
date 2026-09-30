@@ -267,8 +267,17 @@ display plane a command; it writes desired state, and display converges on it.**
 |---|---|---|
 | `status` | Reads the display plane's heartbeat file | Nothing — it wrote the heartbeat already |
 | `sync` | Rebuilds and rewrites **that wall's** manifest from the theme hanging on it — `theme-manifest-{wall_id}.json` | Picks up the new manifest on its next poll and reconciles. Each display plane reads the one file its `WALL_ID` names, so syncing one wall cannot disturb another |
-| `show_now(wall_id, artwork_id)` | Increments **that wall's** directive `sequence` and sets its `pinned_work_id` | Jumps to that work, then continues rotating from there |
-| `next(wall_id)` | Increments **that wall's** directive `sequence` with no pin | Steps to the next work in the list |
+| `show_now(wall_id, artwork_id)` | Increments **that wall's** directive `sequence` and sets its `pinned_work_id`, and writes that directive into the wall's published manifest | Jumps to that work, then continues rotating from there |
+| `next(wall_id)` | Increments **that wall's** directive `sequence` with no pin, and writes that directive into the wall's published manifest | Steps to the next work in the list |
+
+> **Built 2026-09-30 (wave 2b Chunk 02): the directive reaches the manifest.**
+> Until then `show_now` and `next` advanced the stored directive and nothing
+> wrote it into the manifest, so neither reached the wall until something else
+> synced. The write patches the published document's `directive` block and
+> nothing else. It is not a sync, so a step publishes no work added to the theme
+> since the last one. A wall with nothing published yet carries the directive
+> out with its first sync. A write that fails refuses the step, so a directive
+> is never recorded as issued when it never reached the wall.
 
 **Every action but `status` takes a required `wall_id`**, built 2026-08-12. The
 directive is a row per wall rather than a singleton, so a `next` in the living
@@ -1805,9 +1814,24 @@ omit them and MCP assumes `destructiveHint: true` and `openWorldHint: true`, whi
 costs the operator a confirmation prompt on every call. Each tool declares `title`
 plus honest `readOnlyHint` / `destructiveHint`.
 
-## The Server↔Player surface — PLANNED 2026-09-30, not built
+## The Server↔Player surface — PLANNED 2026-09-30, BUILT 2026-09-30
 
-**Nothing in this section exists in code.** It records the target that
+> **Built (wave 2b Chunk 03): the server's three routes, and wall tokens.**
+> `curatarr/src/curatarr/http/player.py` mounts them at the root beside `/api`,
+> spelled exactly as `contract/routes.json` spells them, and a test holds the
+> router to that file. The manifest route serves the published file's bytes with
+> their SHA-256 as the `ETag`, and answers `404` for a wall with nothing
+> published. The media route hashes the bytes it is about to send and refuses
+> (`404`) if they no longer match. The heartbeat POST accepts exactly what the
+> health panel can read and answers `400` otherwise, in the error shape `/api`
+> already uses. Tokens are issued from `POST /api/walls/{wall_id}/token` (the
+> Walls screen's Player token panel) and `art_display(action='issue_token')`.
+> Both return the token once, and the wall's `token_issued_at` is on both
+> surfaces' wall shapes. The Player's side is `arrt/src/arrt/pull.py` (Chunk 04):
+> `MANIFEST_SOURCE=http` pulls into `CACHE_DIR` and renders only from there. What follows is the design as recorded before the build, and where it
+> disagrees with the code or with `player-contract.md`, those win.
+
+**Before 2026-09-30 nothing in this section existed in code.** It records the target that
 `re-architecture.md` § Seam 2 sets. **The contract artifact now exists:
 `player-contract.md`, with its schemas and fixtures under `contract/`.** Where
 this section and that file disagree, that file wins.

@@ -133,6 +133,7 @@ name = "arrt"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "aiohttp" },
     { name = "astral" },
     { name = "pillow" },
     { name = "python-dotenv" },
@@ -159,6 +160,7 @@ raster = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiohttp", specifier = ">=3.14" },
     { name = "astral" },
     { name = "pillow" },
     { name = "python-dotenv" },

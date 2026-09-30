@@ -25,11 +25,11 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Final
 
+from curatarr.library.services.catalogue import MAX_LIST_LIMIT, CatalogueService
 from curatarr.persistence.records import MatMethod, RenditionKind, RightsStatus
 from curatarr.seed.images import read_image_facts
 from curatarr.seed.legacy import LegacyRecord, ParsedArtist
 from curatarr.seed.names import display_nationality_for, parts_for
-from curatarr.services.catalogue import MAX_LIST_LIMIT, CatalogueService
 
 log = logging.getLogger(__name__)
 

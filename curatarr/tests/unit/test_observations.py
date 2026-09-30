@@ -17,8 +17,8 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from curatarr import observations
-from curatarr.manifest import heartbeat
 from curatarr.persistence import backup
+from curatarr.programming.manifest import heartbeat
 
 
 @pytest.mark.parametrize(
