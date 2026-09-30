@@ -41,18 +41,19 @@ becoming **two products**:
 1. **Curatarr, the server,** in the manner of Radarr/Sonarr. It finds,
    acquires, maintains, upgrades and enhances artwork, and decides what hangs on
    which wall.
-2. **Displayarr, the player,** in the manner of a Plex client. It reads what the server
+2. **Arrt, the player,** in the manner of a Plex client. It reads what the server
    publishes and shows it on whatever screen it owns: a Samsung Frame, a plain
    LCD, a monitor on a Mac. An optional e-ink label is supported, and a caption
    drawn in the mat is the alternative.
 
 The server runs on the household NAS, next to the operator's existing *arr stack.
-Players run at the walls. Most of the code already exists: `curation/` is most of
-the server and `display/` is most of the player. The change is mainly about
+Players run at the walls. Most of the code already exists: `curatarr/` is most of
+the server and `arrt/` is most of the player. The change is mainly about
 **where the seams are drawn**, not a rewrite.
 
 **The names were given by the operator on 2026-09-30:** "The library/performance
 controller will be Curatarr, the device side playback will be Displayarr." The
+same day the operator renamed the player **Arrt**. The
 Samsung name no longer fits a product that drives any screen. This file keeps
 saying "server" and "player" where the role matters more than the product.
 
@@ -221,7 +222,7 @@ heartbeat file does today.
 
 **Each wall has a token.** The operator ruled on 2026-09-30: "each wall gets a
 token". Curatarr issues one per wall from the UI, shows it once and keeps only a
-verifier. Displayarr holds it as local configuration next to `WALL_ID` and sends
+verifier. Arrt holds it as local configuration next to `WALL_ID` and sends
 it on every request. Curatarr checks it on every `/walls/{wall_id}/...` route,
 the manifest GET as well as the heartbeat POST, and a token only opens its own
 wall. `/media/{hash}` accepts any valid wall token. Rotation is: issue a new
@@ -360,7 +361,7 @@ caption drawn in the mat, which needs the mat *sized for the caption*.
   Library stores only panel-independent facts (width, height), exactly as
   `data-model.md` already requires.
 - **The resolution floor becomes a Library quality profile.** Automatic instance
-  selection (`curation/src/curation/services/selection.py`) excludes
+  selection (`curatarr/src/curatarr/services/selection.py`) excludes
   below-floor instances using the artwork box computed from the server's
   `TV_PANEL_*` / `MAT_*` settings, and review cards show a fit verdict from the
   same source. When geometry leaves the server, both would lose their input, and
@@ -563,8 +564,8 @@ plan: each wave gets its own `build-plan-<scope>.md` when it starts, per
 | **1: plan** *(closed 2026-09-30)* | Amend the artifacts (this change started that). Write the Player contract artifact with a JSON Schema and fixtures. Write the wave-2 build plan. | Planned as doc-only; it shipped code as well. The contract's schemas and fixtures are tested from all three suites, which each declare `jsonschema` in their `dev` group. The amendments were drafted 2026-09-30; see § Artifacts touched. Wave 2 is two plans: `build-plan-wave-2a-rename.md`, then `build-plan-wave-2b-seams-and-http.md`. |
 | **2: seams and the HTTP channel, alongside the file** | Split curation into Library and Programming packages with one-way imports and the `playable()` facade. Move the manifest's readiness logic behind the facade. Add the events, and Programming's reconciliation at startup (§ Seam 1). Then serve manifest, media and heartbeat over HTTP, with Programming's manifest endpoint as the facade's first consumer. Display gains a pull-to-local-cache mode behind configuration. Schema minor bump. | The package split comes first because the manifest endpoint is built on exactly the readiness logic rule 2 moves; building it before the split means building it twice. The static import guard for rule 1 lands here. The wall never goes dark: the file channel keeps working until wave 3 retires it. `tests/preferences/test_plane_isolation.py` forbids any HTTP client in display today. Narrow it in the same chunk that adds the pull (one manifest-client module, three endpoints), not before and not after. **The per-wall tokens land with the routes** (§ Seam 2), because the server on the Pi is already reachable on the LAN. The cache claim gets a test that stops the server while the wall runs. |
 | **3: server to the NAS** | First, split the store: Programming's tables move to their own SQLite file, and the two cross-seam foreign keys become opaque references (rule 3), so the data moves once. Then containerize the server, deploy it on the NAS, point the Pi at HTTP and retire the file channel. Move the backup and restore exercise to NAS storage, with `VACUUM INTO` and the two catalogue files backed up as a pair. | The deployment side lives in the operator's homelab repo. The image needs what the Pi's install has today: a uv-managed Python 3.14, the `dezoomify-rs` binary, and a memory limit in place of `MemoryMax`. It does not need Pango unless the server ever typesets. The schema test for rule 3 lands here. |
-| **4: schema major 2** | Add the presentation master and the quality profile. Remove the `tv_display` rendition and `TV_PANEL_*` from the server, and turn `MAT_*` into per-wall settings. Display composes, with the wall's mat proportions. The manifest becomes the schedule, with scenes, staging and wall settings. The heartbeat reports capabilities, and Programming judges per-wall adequacy from them. | The largest built-code change, and the only breaking one. Mat-colour regression corpus: `curation/tools/mat_masters.py`. Blocked on a compositing budget measured on a Pi 4 (§ Compositing moves to the Player). Rotation logic moves from the display plane to Programming, along with the wake/sleep window from the v1 plan's Chunk 26. |
-| **5: split the repos** | `git filter-repo --subdirectory-filter display` into a new player repo. `/prawduct:onboard` there. Carry the player's artifacts. Pin `contract/` together with `player-contract.md` and the major 2 semantic validator (today in `tests/preferences/test_player_contract.py`), because the schemas alone do not carry the rules a schema cannot state. The new repo is **Displayarr**, and this repo is renamed **Curatarr**. Remove the 2024 root modules as this repo becomes Curatarr. | GitHub keeps redirects on rename. |
+| **4: schema major 2** | Add the presentation master and the quality profile. Remove the `tv_display` rendition and `TV_PANEL_*` from the server, and turn `MAT_*` into per-wall settings. Display composes, with the wall's mat proportions. The manifest becomes the schedule, with scenes, staging and wall settings. The heartbeat reports capabilities, and Programming judges per-wall adequacy from them. | The largest built-code change, and the only breaking one. Mat-colour regression corpus: `curatarr/tools/mat_masters.py`. Blocked on a compositing budget measured on a Pi 4 (§ Compositing moves to the Player). Rotation logic moves from the display plane to Programming, along with the wake/sleep window from the v1 plan's Chunk 26. |
+| **5: split the repos** | `git filter-repo --path display/ --path arrt/ --path-rename display/: --path-rename arrt/:` into a new player repo. Both paths, because the player lived at `display/` until wave 2a renamed it `arrt/`, and filter-repo does not follow renames: filtering on `arrt/` alone keeps no history from before the rename. `/prawduct:onboard` there. Carry the player's artifacts. Pin `contract/` together with `player-contract.md` and the major 2 semantic validator (today in `tests/preferences/test_player_contract.py`), because the schemas alone do not carry the rules a schema cannot state. The new repo is **Arrt**, and this repo is renamed **Curatarr**. Remove the 2024 root modules as this repo becomes Curatarr. | GitHub keeps redirects on rename. |
 | **6+: in parallel** | Server: Watches, the scheduler and upgrades to the quality profile's cutoff; **facet population**, then Programming tags and smart playlists. Player: a framebuffer backend, caption in the mat, and **power control** (the television's power read, the guardrails, and acting on the schedule's dark hours). | Independent streams after the split. Watches carry the security and observability re-derivations above. Facet population needs its own requirements cycle (§ Two layers of tags), and smart playlists wait for it. |
 
 ### Where the v1 open chunks' requirements went
@@ -574,10 +575,10 @@ rebuilt in this program:
 
 | v1 chunk | The requirement it served | Rebuilt in |
 |---|---|---|
-| 13A, 13B | The label on the panel, and the wall surviving a television power-cycle unattended | Displayarr. The label code is built and is carried as it stands. The unattended power-cycle check becomes an acceptance check on the Player once it pulls over HTTP (wave 3). |
-| 24 | Measure what the set's power keys do, before any code presses them | Displayarr power control (wave 6+). `display/tools/power_probe.py` already exists and is the instrument. |
-| 25, 27 | A three-way power reading, a channel that can press, and a heartbeat that says why | Displayarr power control (wave 6+). The heartbeat's reason travels in the HTTP heartbeat. |
-| 26 | When the wall may wake and must go dark, and the guardrails against fighting the household | Split: the dark hours are gaps in Programming's schedule (wave 4); the guardrails are Displayarr power control (wave 6+). |
+| 13A, 13B | The label on the panel, and the wall surviving a television power-cycle unattended | Arrt. The label code is built and is carried as it stands. The unattended power-cycle check becomes an acceptance check on the Player once it pulls over HTTP (wave 3). |
+| 24 | Measure what the set's power keys do, before any code presses them | Arrt power control (wave 6+). `arrt/tools/power_probe.py` already exists and is the instrument. |
+| 25, 27 | A three-way power reading, a channel that can press, and a heartbeat that says why | Arrt power control (wave 6+). The heartbeat's reason travels in the HTTP heartbeat. |
+| 26 | When the wall may wake and must go dark, and the guardrails against fighting the household | Split: the dark hours are gaps in Programming's schedule (wave 4); the guardrails are Arrt power control (wave 6+). |
 | 20 | Backup and restore, and retiring legacy | Backup and restore: wave 3, on NAS storage. Legacy retirement: wave 5. |
 
 `nonfunctional-requirements.md`'s power norm (§ The television belongs to
@@ -671,7 +672,7 @@ moved the open questions into `project-state.yaml` and brought the Seam 1 norms'
 schedule in `architecture.md` into line with the new wave table.
 
 **Settled by the operator later the same day:** the names (Curatarr and
-Displayarr), Player authentication (a token per wall, § Seam 2), and the v1 open
+Arrt), Player authentication (a token per wall, § Seam 2), and the v1 open
 chunks (abandoned; § Where the v1 open chunks' requirements went).
 
 **Settled by the second pass:** who owns the wake/sleep window (Programming, as

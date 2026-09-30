@@ -56,6 +56,39 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-09-30: Curatarr and Arrt, in the code (wave 2a)
+
+<!-- prawduct: scope=wave-2a-rename -->
+
+**Why:** the products have names, and wave 2b is about to move modules across new
+packages. Renaming first means no file is touched twice.
+
+**What changed:** `curation/` and the `curation` package are now `curatarr`;
+`display/` and the `display` package are now `arrt`. The operator named the
+player Arrt on 2026-09-30, the same day, replacing Displayarr, and the direction
+artifacts, the contract schemas' descriptions and the READMEs now say so. The
+dated quotes that gave the first names are kept as they were said. Imports,
+module paths inside strings, `python -m`, the units' `WorkingDirectory`, CI job
+ids, `test_commands`, the root tool excludes and the learnings' path scopes all
+follow. The MCP server now advertises itself as `curatarr`, and the acquisition
+User-Agent names the curatarr repository. Logger names follow the packages, so
+journal lines are prefixed `curatarr.` and `arrt.` rather than `curation.` and
+`display.`; nothing in the repo filters on them. Otherwise no behaviour changes,
+and both lockfiles resolve the same package versions as before.
+
+**What deliberately did not change:** the unit files' names and their
+`SyslogIdentifier`s (until wave 3), the Pi's checkout path, the environment
+variables' names (`CURATION_PORT` and the rest are the operator's configuration),
+the "curation plane" / "display plane" role names in prose, and the 2024 root
+module `display.py`, which `tvart.py` still imports.
+
+**Carried in:** `CLAUDE.md`'s browser and live-suite sections moved to
+`docs/testing.md` with a pointer left behind (wave 1 review R-4), and its "Next
+up" now points at `re-architecture.md` § Order of work instead of naming a wave
+(O-3). `test_tool_config.py` now pins that the real `display.py` stays under the
+root tools, because the name collision that motivated its trailing-slash guard
+no longer exists by name.
+
 ## 2026-09-30: The learnings compacted into one-line rules
 
 <!-- prawduct: scope=learnings-compact -->

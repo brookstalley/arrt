@@ -1,0 +1,1210 @@
+"""The label and the heartbeat, driven by the real loop rather than called directly.
+
+**These exist because everything they exercise was, briefly, unreachable.** The
+panel package, the heartbeat writer and the selection fan-out each had a full
+suite of their own and no production caller — which is the shape of a green suite
+over a feature that does nothing. What is asserted here is only what the daemon
+itself does with them.
+
+The governing rule throughout: **nothing about a label or a heartbeat may stop
+the wall.** The television is the product; both of these annotate it.
+"""
+
+import asyncio
+import io
+import json
+import logging
+import threading
+import time
+from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+import pytest
+from conftest import WALL_ID
+from fakes import FOREIGN_IMAGE, FakeSurface
+
+from arrt import daemon as daemon_module
+from arrt import logs
+from arrt.daemon import Daemon
+from arrt.heartbeat import INTERVAL_SECONDS, path_in
+from arrt.manifest import Watcher
+from arrt.panel import TypeScale
+
+
+async def _comes_back(flag: threading.Event, *, within_seconds: float = 5.0) -> bool:
+    """Wait on a worker thread's flag without blocking the loop waiting for it."""
+    deadline = time.monotonic() + within_seconds
+    while time.monotonic() < deadline:
+        if flag.is_set():
+            return True
+        await asyncio.sleep(0.005)
+    return False
+
+
+@pytest.fixture
+def surface() -> Iterator[FakeSurface]:
+    made = FakeSurface()
+    yield made
+    # A draw runs on a worker thread now, and one armed to hang would otherwise
+    # still be sitting in the panel when the session tries to exit.
+    made.release.set()
+
+
+def _daemon_with(surface: FakeSurface, settings, tv, state, clock) -> Daemon:
+    """A daemon wired to one particular label surface.
+
+    Factored out because more than one surface is worth driving the real loop
+    against — a panel of the provisioned size, and one too small to hold a whole
+    label — and the wiring is what these tests exist to exercise.
+    """
+    watcher = Watcher(
+        settings.manifest_path,
+        rotation_interval_fallback=settings.rotation_interval_fallback_seconds,
+        shuffle_fallback=settings.rotation_shuffle_fallback,
+    )
+    return Daemon(
+        settings=settings,
+        tv=tv,
+        state=state,
+        watcher=watcher,
+        clock=clock.as_clock(),
+        surface=surface,
+    )
+
+
+@pytest.fixture
+def labelled(settings, tv, state, clock, surface: FakeSurface) -> Daemon:
+    """A daemon with a label surface attached — the shape the Pi is provisioned to."""
+    return _daemon_with(surface, settings, tv, state, clock)
+
+
+class TestTheLabelFollowsTheWall:
+    @pytest.mark.asyncio
+    async def test_a_confirmed_selection_puts_a_label_on_the_surface(self, labelled, surface, publish):
+        publish(
+            ["work-a"],
+            labels={
+                "work-a": {
+                    "title": "Cat Litter",
+                    "artist": "Ed Ruscha",
+                    "artist_family_name": "Ruscha",
+                    "artist_given_name": "Ed",
+                }
+            },
+        )
+
+        await labelled.tick()
+
+        assert surface.shown, "the wall changed and no label was drawn"
+        # The artist leads and the work follows it — the panel's ordering, not a
+        # museum wall's, because the family name is the token read from across a
+        # room and a long title is what drove the tombstone off the bottom.
+        assert surface.last_text[:2] == ["Ruscha, Ed", "Cat Litter"]
+
+    @pytest.mark.asyncio
+    async def test_the_label_is_set_at_the_surface_s_own_type_scale(self, settings, tv, state, clock, publish):
+        """**The seam between the device and the type, pinned on the drawn output.**
+
+        How large the label's type has to be is a fact about this panel's
+        resolution and how far away it is read, so the device supplies it and the
+        daemon must set the label at what it was given. A draw path that reached
+        for sizes of its own would be asserting that every surface is read from
+        the same place — which is how this product came to render body type at
+        half the height a letter must reach to be resolvable, undetected.
+
+        **The fake is given a scale no derivation would produce**, because a fixture
+        carrying the reference wall's own numbers cannot tell "used the surface's
+        scale" apart from "hardcoded the reference wall's" — both routes would
+        arrive at the same pixels and the test would pass either way.
+        """
+        absurd = TypeScale(primary_px=7, floor_px=3)
+        surface = FakeSurface(type_scale=absurd)
+        daemon = Daemon(
+            settings=settings,
+            tv=tv,
+            state=state,
+            watcher=Watcher(
+                settings.manifest_path,
+                rotation_interval_fallback=settings.rotation_interval_fallback_seconds,
+                shuffle_fallback=settings.rotation_shuffle_fallback,
+            ),
+            clock=clock.as_clock(),
+            surface=surface,
+        )
+        publish(["work-a"], labels={"work-a": {"title": "Cat Litter", "artist": "Ed Ruscha"}})
+
+        await daemon.tick()
+
+        surface.release.set()
+        sizes = {block.size_px for block in surface.shown[-1].blocks}
+        assert sizes <= {absurd.primary_px, absurd.floor_px}, f"the label was set at sizes the surface never gave it: {sizes}"
+        assert absurd.primary_px in sizes, "the leading line did not get the surface's primary tier"
+
+    @pytest.mark.asyncio
+    async def test_nothing_is_captioned_when_the_wall_did_not_change(self, labelled, surface, tv, publish):
+        """The label must never name a picture the set accepted and never displayed.
+
+        A wrong label is worse than a stale one: a stale label is visibly old, and
+        a wrong one is indistinguishable from a right one.
+        """
+        tv.displays_nothing_selected = True
+        publish(["work-a"], labels={"work-a": {"title": "Cat Litter"}})
+
+        await labelled.tick()
+
+        assert surface.shown == []
+
+    @pytest.mark.asyncio
+    async def test_the_label_changes_with_the_wall(self, labelled, surface, publish, clock):
+        publish(
+            ["work-a", "work-b"],
+            shuffle=False,
+            labels={"work-a": {"title": "Cat Litter"}, "work-b": {"title": "Silver Sun"}},
+        )
+
+        await labelled.tick()
+        clock.advance(10_000)
+        await labelled.tick()
+
+        assert [layout.blocks[0].text for layout in surface.shown] == ["Cat Litter", "Silver Sun"]
+
+    @pytest.mark.asyncio
+    async def test_a_work_with_no_label_text_still_shows(self, labelled, surface, publish):
+        """A work whose institution published nothing is not an error."""
+        publish(["work-a"], labels={"work-a": {}})
+
+        await labelled.tick()
+
+        assert surface.shown, "an empty label stopped the wall"
+        assert surface.last_text == []
+
+
+class TestAPanelFailureNeverStopsTheWall:
+    @pytest.mark.asyncio
+    async def test_a_failure_that_is_not_the_declared_one_still_leaves_the_wall_rotating(self, labelled, surface, tv, publish):
+        """**The half a declared exception type cannot cover.**
+
+        `show` converts its own failures, but the caller reads `geometry` and
+        `measure` outside it — and `measure` on the real surface reaches Pango
+        through C bindings, which raise GLib errors related to nothing this
+        codebase can name. A catch listing only the exceptions somebody thought of
+        would let one of those past, and the promise that nothing about a label
+        may stop the wall would be false in exactly the case nobody rehearsed: a
+        Pi with a font cache it cannot build.
+        """
+        surface.measurement_explodes = True
+        publish(["work-a"], labels={"work-a": {"title": "Cat Litter"}})
+
+        await labelled.tick()
+
+        assert tv.displaying is not None, "a text stack that could not measure took the wall down with it"
+        assert surface.shown == []
+
+    @pytest.mark.asyncio
+    async def test_that_failure_is_reported_rather_than_swallowed(self, labelled, surface, publish, caplog):
+        """Caught broadly is not the same as caught silently: this is a real fault
+        and the journal is where this plane says so."""
+        surface.measurement_explodes = True
+        publish(["work-a"], labels={"work-a": {"title": "Cat Litter"}})
+
+        with caplog.at_level("WARNING"):
+            await labelled.tick()
+
+        assert [r for r in caplog.records if getattr(r, "event", None) == "label.failed"]
+
+    @pytest.mark.asyncio
+    async def test_a_refusing_surface_leaves_the_picture_selected(self, labelled, surface, tv, publish):
+        surface.refuses = True
+        publish(["work-a"], labels={"work-a": {"title": "Cat Litter"}})
+
+        await labelled.tick()
+
+        assert tv.displaying is not None
+        assert len(tv.selected) == 1, "the wall did not change because the label failed"
+
+    @pytest.mark.asyncio
+    async def test_rotation_carries_on_across_repeated_panel_failures(self, labelled, surface, tv, publish, clock):
+        surface.refuses = True
+        publish(["work-a", "work-b"], shuffle=False, labels={"work-a": {}, "work-b": {}})
+
+        await labelled.tick()
+        clock.advance(10_000)
+        await labelled.tick()
+
+        assert len(tv.selected) == 2
+
+    @pytest.mark.asyncio
+    async def test_the_failure_is_reported_once_not_once_a_rotation(self, labelled, surface, publish, clock, caplog):
+        """A panel with a loose ribbon fails every rotation, all night."""
+        surface.refuses = True
+        publish(["work-a", "work-b"], shuffle=False, labels={"work-a": {}, "work-b": {}})
+
+        with caplog.at_level("WARNING"):
+            await labelled.tick()
+            clock.advance(10_000)
+            await labelled.tick()
+
+        failures = [r for r in caplog.records if getattr(r, "event", None) == "label.failed"]
+        assert len(failures) == 1
+
+    @pytest.mark.asyncio
+    async def test_a_refusing_surface_is_not_re_asked_on_every_poll(self, labelled, surface, publish):
+        """The poll is a second and a real draw is seconds. That ratio is the fault.
+
+        The label follows what the set says is on the wall, and a refusing panel
+        leaves that unreconciled — so a rule that re-drew until it succeeded would
+        put a fresh two-second frame into the panel every second, for as long as
+        the ribbon stays loose. A panel gets its next chance when the wall next
+        changes, which is also the first moment its label would be wrong.
+        """
+        surface.refuses = True
+        publish(["work-a"], labels={"work-a": {"title": "Cat Litter"}})
+
+        await labelled.tick()
+        await labelled.tick()
+        await labelled.tick()
+
+        assert surface.draws_begun == 1
+
+    @pytest.mark.asyncio
+    async def test_a_recovered_surface_says_so(self, labelled, surface, publish, clock, caplog):
+        surface.refuses = True
+        publish(["work-a", "work-b"], shuffle=False, labels={"work-a": {}, "work-b": {}})
+        await labelled.tick()
+
+        surface.refuses = False
+        clock.advance(10_000)
+        with caplog.at_level("INFO"):
+            await labelled.tick()
+
+        assert [r for r in caplog.records if getattr(r, "event", None) == "label.recovered"]
+
+    @pytest.mark.asyncio
+    async def test_a_panel_that_fails_after_working_is_reported_as_failing(
+        self, labelled, surface, tv, publish, clock, caplog, art_root: Path
+    ):
+        """**The third failure point, and the only one with an edge in it.**
+
+        A panel that is broken from the outset never has to change its mind. This
+        one draws, and then stops — a ribbon that works cold and fails warm, which
+        is the failure an e-paper panel on a wall actually has. Everything the
+        other tests here assert is a latch away from being wrong: a `ReportOnce`
+        that stayed ended after a good draw would say nothing, and a
+        `label_surface_working` that stayed True would tell curation the panel is
+        fine while nobody in the room can read a label.
+        """
+        publish(["work-a", "work-b"], shuffle=False, labels={"work-a": {}, "work-b": {}})
+        await labelled.tick()
+        assert surface.shown, "the panel never worked, so this is not the mid-run case"
+        first = json.loads(path_in(art_root, WALL_ID).read_text())
+        assert first["label_surface_working"] is True
+
+        surface.refuses = True
+        clock.advance(10_000)
+        with caplog.at_level("WARNING"):
+            await labelled.tick()
+
+        assert len(tv.selected) == 2, "the wall stopped when the panel did"
+        assert len([r for r in caplog.records if getattr(r, "event", None) == "label.failed"]) == 1
+        document = json.loads(path_in(art_root, WALL_ID).read_text())
+        assert document["label_surface_working"] is False
+
+
+class TestTheDrawIsNotOnTheEventLoop:
+    """A full frame is seconds, and the television client's reader shares this loop.
+
+    Moving the draw off the library's callback did not move it off the loop they
+    both run on: a coroutine that rasterises and clocks bytes out over SPI delays
+    every message on that socket — including the selection confirmations the
+    rotation is waiting on — exactly as much as doing it in the callback would.
+    """
+
+    @pytest.mark.asyncio
+    async def test_the_loop_keeps_running_while_the_panel_draws(self, labelled, surface, publish):
+        surface.draw_takes_seconds = 0.2
+        publish(["work-a"], labels={"work-a": {"title": "Cat Litter"}})
+
+        ticking = asyncio.create_task(labelled.tick())
+        turns_taken_mid_draw = 0
+        while not ticking.done():
+            if surface.entered.is_set() and not surface.left.is_set():
+                turns_taken_mid_draw += 1
+            await asyncio.sleep(0.001)
+        await ticking
+
+        assert surface.shown, "the label never drew, so this proves nothing"
+        # A draw on the loop enters and leaves inside one uninterrupted stretch,
+        # so this counter cannot come off zero however long the panel takes.
+        assert turns_taken_mid_draw > 0, "nothing else on the loop got a turn while the panel drew"
+
+    @pytest.mark.asyncio
+    async def test_a_panel_that_never_comes_back_does_not_take_the_wall_with_it(
+        self, labelled, surface, tv, publish, clock, caplog, monkeypatch
+    ):
+        """**The one way a panel can stop the wall that no `except` clause reaches.**
+
+        A driver wedged in a bad SPI transaction does not raise; it simply never
+        returns. Off the loop that is a parked thread, which is survivable. Waited
+        on without a bound it is the rotation, the poll timer and the SIGTERM path
+        all stopped behind an annotation of the wall.
+        """
+        monkeypatch.setattr(daemon_module, "LABEL_DRAW_BUDGET_SECONDS", 0.05)
+        surface.blocks = True
+        publish(["work-a", "work-b"], shuffle=False, labels={"work-a": {}, "work-b": {}})
+
+        try:
+            with caplog.at_level("WARNING"):
+                await asyncio.wait_for(labelled.tick(), timeout=10)
+                clock.advance(10_000)
+                await asyncio.wait_for(labelled.tick(), timeout=10)
+
+            assert len(tv.selected) == 2, "a panel that never answered stopped the rotation"
+            assert [r for r in caplog.records if getattr(r, "event", None) == "label.failed"]
+            # **The second rotation dispatched nothing, and that gate is not
+            # decoration.** The executor a draw goes to is the one the television
+            # client's own blocking calls use, so a hung draw left behind per
+            # rotation would end with the *set* waiting behind the panel — a panel
+            # stopping the wall by the back door, after being moved off it by the
+            # front.
+            assert surface.draws_begun == 1
+        finally:
+            # In a `finally` because the loop joins its executor on the way out and
+            # waits five minutes to do it — so a thread this test failed before
+            # releasing would cost every run after it, not just this one.
+            surface.release.set()
+            assert await _comes_back(surface.left), "the draw thread never came back"
+
+    @pytest.mark.asyncio
+    async def test_a_draw_that_never_got_a_thread_does_not_close_the_gate_for_ever(
+        self, labelled, surface, publish, clock, monkeypatch
+    ):
+        """**The budget can expire before the work starts, not only while it runs.**
+
+        A draw is handed to a shared pool, and the television's own blocking calls
+        use that pool too — so a draw can still be sitting in the queue when its
+        budget runs out, never having touched the panel. Anything that releases the
+        gate from *inside* the draw is then never reached, and every label after it
+        is turned away by a gate guarding work that never happened: a device with a
+        working panel goes blank until the process restarts, reporting itself
+        broken the whole time. The pool is squeezed to one worker here and that
+        worker is occupied, which is that queue with the timing made certain.
+        """
+        monkeypatch.setattr(daemon_module, "LABEL_DRAW_BUDGET_SECONDS", 0.05)
+        publish(["work-a", "work-b"], shuffle=False, labels={"work-a": {}, "work-b": {}})
+        occupied, let_go = threading.Event(), threading.Event()
+
+        with ThreadPoolExecutor(max_workers=1) as only_one_thread:
+            asyncio.get_running_loop().set_default_executor(only_one_thread)
+            only_one_thread.submit(lambda: (occupied.set(), let_go.wait(30)))
+            assert await _comes_back(occupied), "the pool's one worker was never taken"
+
+            await asyncio.wait_for(labelled.tick(), timeout=10)
+            assert surface.draws_begun == 0, "the draw ran, so this is not the queued case"
+
+            # **The loop is let settle before the worker is freed**, because the
+            # two are unrelated in life: what occupies that pool is a television
+            # call taking seconds, and it finishes when it finishes. Freeing the
+            # worker in the same event-loop step that gave up waiting models a
+            # coincidence, and it hides anything the loop would have done to the
+            # queued draw in between — a cancellation, say, which is the one thing
+            # that must not happen to it.
+            await asyncio.sleep(0.05)
+            let_go.set()
+            assert await _comes_back(surface.left), "the queued draw never ran once a thread was free"
+
+            clock.advance(10_000)
+            await asyncio.wait_for(labelled.tick(), timeout=10)
+
+        assert surface.draws_begun == 2, "the panel was never drawn to again"
+
+    @pytest.mark.asyncio
+    async def test_a_panel_that_comes_back_is_drawn_to_again(self, labelled, surface, publish, clock, monkeypatch):
+        """**The gate has to open again, and only its own draw can open it.**
+
+        Whatever holds this closed is released by a draw nobody is waiting for any
+        more — so it cannot be a flag the waiting side clears, and it cannot be a
+        cancellation, which would mark the work finished while the panel was still
+        being written to. A gate that stayed shut would leave a working panel
+        permanently blank and reported broken, which is the failure this whole
+        subsystem is arranged to make impossible.
+        """
+        monkeypatch.setattr(daemon_module, "LABEL_DRAW_BUDGET_SECONDS", 0.05)
+        surface.blocks = True
+        publish(["work-a", "work-b"], shuffle=False, labels={"work-a": {}, "work-b": {}})
+        await asyncio.wait_for(labelled.tick(), timeout=10)
+
+        surface.release.set()
+        assert await _comes_back(surface.left), "the draw thread never came back"
+        surface.blocks = False
+        clock.advance(10_000)
+        await asyncio.wait_for(labelled.tick(), timeout=10)
+
+        assert surface.shown, "the panel recovered and was never drawn to again"
+
+
+class TestTheRemoteIsACuratorToo:
+    """A selection this plane did not make still changes what the wall is showing.
+
+    Somebody picks a different work with the remote in art mode. Nothing in the
+    rotation path runs, so a label driven only from that path goes on naming the
+    previous picture for the rest of the interval — up to three minutes of a
+    confident, wrong label on the one surface the person in the room can read.
+    """
+
+    @pytest.mark.asyncio
+    async def test_a_work_chosen_from_the_remote_gets_its_own_label(self, labelled, surface, tv, state, publish):
+        publish(
+            ["work-a", "work-b"],
+            shuffle=False,
+            labels={"work-a": {"title": "Cat Litter"}, "work-b": {"title": "Silver Sun"}},
+        )
+        await labelled.tick()
+        assert surface.last_text[:1] == ["Cat Litter"]
+
+        binding = state.binding_for("work-b")
+        assert binding is not None and binding.tv_content_id, "work-b never reached the set to be chosen"
+        tv.announce(binding.tv_content_id, is_shown=True)
+        await labelled.tick()
+
+        assert surface.last_text[:1] == ["Silver Sun"]
+
+    @pytest.mark.asyncio
+    async def test_a_picture_this_device_cannot_name_gets_an_empty_label(self, labelled, surface, tv, publish):
+        """Choosing one of the set's own art-store images is a supported thing to do.
+
+        No label text for it exists anywhere on this device. Blank says "nothing is
+        known about what you are looking at"; leaving the last work's label up says
+        something false, and nobody standing in front of it can tell which.
+        """
+        publish(["work-a"], labels={"work-a": {"title": "Cat Litter"}})
+        await labelled.tick()
+
+        tv.announce("SAM-F0222", is_shown=True)
+        await labelled.tick()
+
+        assert surface.last_text == []
+
+    @pytest.mark.asyncio
+    async def test_this_planes_own_selection_is_not_drawn_twice(self, labelled, surface, publish):
+        """The set announces our own selections too — that is how they are confirmed.
+
+        A redraw rule that read the announcement without knowing what it had
+        already drawn would put every rotation on the panel twice, at seconds a
+        frame.
+        """
+        publish(["work-a"], labels={"work-a": {"title": "Cat Litter"}})
+
+        await labelled.tick()
+
+        assert len(surface.shown) == 1
+
+
+class TestTheJournalSaysWhatThePanelCaptioned:
+    """**The panel is a second device, and the journal is the only way to ask it.**
+
+    Until these events existed every label line was an *exception* — a failure, a
+    truncation, a recovery — so a panel captioning correctly all day emitted
+    nothing whatsoever, and in the journal that is indistinguishable from one that
+    stopped captioning at boot. On a wall nobody stands in front of, that is the
+    difference between a working product and a silently wrong one.
+
+    **Read through `logs.configure()` rather than through `caplog`.** The work id
+    is stamped by a filter on the handler `configure` installs, so a test reading
+    caplog's records would find no correlation on lines that carry it in
+    production — and would find none on lines that *should* carry it either, which
+    makes the assertion unable to fail for the right reason. Parsing the JSON is
+    also exactly what an operator does with `journalctl | jq`.
+    """
+
+    @pytest.fixture
+    def journal(self):
+        """The lines this plane would actually write, parsed.
+
+        **Installed by `logs.configure()`, then pointed at a buffer of our own.**
+        The formatter and the work-id filter are what these assertions are about
+        and they arrive by the real installation path; only the destination is
+        swapped, because `capsys` buffers each test phase separately and a handler
+        bound to `sys.stderr` during fixture setup writes somewhere the call phase
+        can no longer read.
+
+        Restores whatever logging configuration was in place, so a handler writing
+        JSON cannot follow this test into the rest of the session.
+        """
+        root = logging.getLogger()
+        handlers, level = list(root.handlers), root.level
+        logs.configure()
+        installed = [handler for handler in root.handlers if handler not in handlers]
+        assert len(installed) == 1, "configure() no longer installs exactly one handler"
+        written = io.StringIO()
+        installed[0].setStream(written)
+
+        def lines() -> list[dict]:
+            return [json.loads(line) for line in written.getvalue().splitlines() if line.startswith("{")]
+
+        yield lines
+        root.handlers[:] = handlers
+        root.setLevel(level)
+
+    @staticmethod
+    def _events(lines: list[dict], event: str) -> list[dict]:
+        """Keyed on the event name, never on position — the journal carries every
+        other line this daemon emits, and their order is not this test's subject."""
+        return [line for line in lines if line.get("event") == event]
+
+    @pytest.mark.asyncio
+    async def test_a_panel_that_drew_says_which_work_it_captioned(self, labelled, publish, journal):
+        publish(["work-a"], labels={"work-a": {"title": "Cat Litter"}})
+
+        await labelled.tick()
+
+        assert [line["work_id"] for line in self._events(journal(), "label.drawn")] == ["work-a"]
+
+    @pytest.mark.asyncio
+    async def test_a_panel_captioning_correctly_is_not_silent_across_rotations(self, labelled, publish, clock, journal):
+        """**The defect itself.** One success line proves the event exists; two
+        prove the panel is still being heard from, which is the question an
+        unattended Pi is actually asked.
+
+        **The works carry label text, and until 2026-08-13 they did not.** An
+        empty label block laid out to nothing and this event fired anyway, so the
+        test passed against a panel that had drawn no ink — which was the defect
+        `label.absent` was added for, asserted here as the success case.
+        """
+        publish(
+            ["work-a", "work-b"],
+            shuffle=False,
+            labels={"work-a": {"title": "Cat Litter"}, "work-b": {"title": "PH-129"}},
+        )
+
+        await labelled.tick()
+        clock.advance(10_000)
+        await labelled.tick()
+
+        assert [line["work_id"] for line in self._events(journal(), "label.drawn")] == ["work-a", "work-b"]
+
+    @pytest.mark.asyncio
+    async def test_a_work_with_no_label_text_is_not_reported_as_captioned(self, labelled, publish, journal):
+        """**A blank frame is the right answer here, and saying it was captioned
+        is not.** A work whose institution published no label text lays out to
+        nothing — `metadata.py` is explicit that the panel is left blank rather
+        than apologising — but until 2026-08-13 that fell through to the success
+        line, so the journal claimed the panel was captioning a work whose label
+        had no ink in it. Nothing could have checked that against the wall.
+
+        The distinction matters beyond the wording: the success line also ends the
+        `label.unusable` episode, on the reasoning that a label actually placed
+        proves the surface has usable area again. A label with nothing in it
+        proves no such thing, and ending the episode there would silence the
+        warning for every later work until the geometry changed.
+        """
+        publish(["work-a"], labels={"work-a": {}})
+
+        await labelled.tick()
+
+        assert [line["work_id"] for line in self._events(journal(), "label.drawn")] == []
+        assert [line["work_id"] for line in self._events(journal(), "label.absent")] == ["work-a"]
+
+    @pytest.mark.asyncio
+    async def test_a_label_the_remote_asked_for_carries_the_work_too(self, labelled, tv, state, publish, journal):
+        """**The rotation path correlated by inheritance and this one did not.**
+
+        `_show` runs inside a `work_context`, so a label drawn on the way through
+        it picked up the work id without anything asking for it. Nothing bound one
+        when the set announces a change this plane did not make — and that is the
+        path that exists precisely because somebody is in the room with a remote,
+        which is when a wrong label is seen soonest.
+        """
+        publish(
+            ["work-a", "work-b"],
+            shuffle=False,
+            labels={"work-a": {"title": "Cat Litter"}, "work-b": {"title": "PH-129"}},
+        )
+        await labelled.tick()
+        binding = state.binding_for("work-b")
+        assert binding is not None and binding.tv_content_id, "work-b never reached the set to be chosen"
+
+        tv.announce(binding.tv_content_id, is_shown=True)
+        await labelled.tick()
+
+        drawn = self._events(journal(), "label.drawn")
+        assert [line["work_id"] for line in drawn] == ["work-a", "work-b"]
+        assert drawn[-1]["tv_content_id"] == binding.tv_content_id
+
+    @pytest.mark.asyncio
+    async def test_a_picture_this_device_cannot_name_is_a_deliberate_blank_not_a_failure(self, labelled, tv, publish, journal):
+        """ "Captioned nothing, on purpose" is a third outcome, and it needs a name.
+
+        A success event here would answer *why is the label empty* with the name of
+        a work that is not on the wall; a failure would report a panel doing
+        exactly the right thing as broken.
+        """
+        publish(["work-a"], labels={"work-a": {"title": "Cat Litter"}})
+        await labelled.tick()
+
+        tv.announce(FOREIGN_IMAGE, is_shown=True)
+        await labelled.tick()
+
+        lines = journal()
+        blanked = self._events(lines, "label.blanked")
+        assert [line["tv_content_id"] for line in blanked] == [FOREIGN_IMAGE]
+        assert "work_id" not in blanked[0], "there is no work here; naming a stale one is the failure this avoids"
+        assert not self._events(lines, "label.failed"), "a blank panel is working as designed"
+        assert [line["work_id"] for line in self._events(lines, "label.drawn")] == ["work-a"]
+
+    @pytest.mark.asyncio
+    async def test_a_wall_left_on_a_picture_it_cannot_name_says_so_once(self, labelled, tv, publish, journal):
+        """A poll is a second. An INFO line per poll is a journal nobody can read,
+        and journald rate-limits by dropping the ERRORs this plane's only failure
+        channel carries."""
+        publish(["work-a"], labels={"work-a": {"title": "Cat Litter"}})
+        await labelled.tick()
+        tv.announce(FOREIGN_IMAGE, is_shown=True)
+
+        await labelled.tick()
+        await labelled.tick()
+        await labelled.tick()
+
+        assert len(self._events(journal(), "label.blanked")) == 1
+
+    @pytest.mark.asyncio
+    async def test_a_label_that_failed_for_the_remote_still_names_the_work(self, labelled, surface, tv, state, publish, journal):
+        """The failure the rotation path already correlated, on the path that did not."""
+        publish(["work-a", "work-b"], shuffle=False, labels={"work-a": {}, "work-b": {}})
+        await labelled.tick()
+        binding = state.binding_for("work-b")
+        assert binding is not None and binding.tv_content_id
+
+        surface.refuses = True
+        tv.announce(binding.tv_content_id, is_shown=True)
+        await labelled.tick()
+
+        failed = self._events(journal(), "label.failed")
+        assert [line["work_id"] for line in failed] == ["work-b"]
+        assert failed[0]["tv_content_id"] == binding.tv_content_id
+
+    @pytest.mark.asyncio
+    async def test_a_failure_with_no_work_to_name_still_says_what_was_on_the_wall(self, labelled, surface, tv, publish, journal):
+        """**Why the content id is carried as well as the work id.** The panel
+        failing while the wall shows something the manifest cannot name is the case
+        with no `work_id` by construction, and it is also the hardest to diagnose —
+        so the line has to be tied to something."""
+        publish(["work-a"], labels={"work-a": {"title": "Cat Litter"}})
+        await labelled.tick()
+
+        surface.refuses = True
+        tv.announce(FOREIGN_IMAGE, is_shown=True)
+        await labelled.tick()
+
+        failed = self._events(journal(), "label.failed")
+        assert [line["tv_content_id"] for line in failed] == [FOREIGN_IMAGE]
+        assert "work_id" not in failed[0]
+
+    @pytest.mark.asyncio
+    async def test_a_truncated_label_names_the_work_whose_lines_came_off(self, settings, tv, state, clock, publish, journal):
+        """`label.truncated` is the only signal that a device's surface is too small
+        for the corpus, and it could not say which work provoked it.
+
+        **The facts that come off have to be optional ones**, which they are here:
+        a title and an artist are what the label may not drop, so a record of only
+        those would shrink and never truncate — a distinction this test did not
+        have to make until the two tiers existed.
+        """
+        cramped = FakeSurface(width_px=200, height_px=60, margin_px=5)
+        daemon = _daemon_with(cramped, settings, tv, state, clock)
+        label = {"title": "Cat Litter", "artist": "Ed Ruscha", "medium": "Oil on canvas", "dimensions": "50 × 50 cm"}
+        publish(["work-a"], labels={"work-a": label})
+
+        try:
+            await daemon.tick()
+        finally:
+            cramped.release.set()
+
+        truncated = self._events(journal(), "label.truncated")
+        assert [line["work_id"] for line in truncated] == ["work-a"]
+        assert set(truncated[0]["dropped"]) == {"Oil on canvas", "50 × 50 cm"}
+
+    @pytest.mark.asyncio
+    async def test_a_label_set_below_the_floor_says_so_and_names_the_floor(self, settings, tv, state, clock, publish, journal):
+        """**The condition the type floor's one exception rests on.**
+
+        The rule that nothing shrinks exists because illegible type fails
+        invisibly; letting the facts that identify the work shrink rather than
+        vanish re-opens that hole unless something says so. A panel setting names
+        below the floor is a misconfigured device — too small, or read from too
+        far — and nobody discovers that by eye at 7 feet.
+
+        **A warning rather than an info line, unlike a drop.** A dropped medium is
+        the engine working as designed; type below the floor is a deployment that
+        cannot show this corpus legibly, and the operator is the only one who can
+        fix it.
+        """
+        cramped = FakeSurface(width_px=200, height_px=60, margin_px=5)
+        daemon = _daemon_with(cramped, settings, tv, state, clock)
+        publish(["work-a"], labels={"work-a": {"title": "Cat Litter", "artist": "Ed Ruscha"}})
+
+        try:
+            await daemon.tick()
+        finally:
+            cramped.release.set()
+
+        shrunk = self._events(journal(), "label.shrunk")
+        assert [line["work_id"] for line in shrunk] == ["work-a"]
+        assert shrunk[0]["level"] == "WARNING"
+        assert set(shrunk[0]["shrunk"]) == {"Ed Ruscha", "Cat Litter"}
+        assert shrunk[0]["smallest_px"] < shrunk[0]["floor_px"]
+
+    @pytest.mark.asyncio
+    async def test_a_name_the_line_breaker_split_is_reported_and_names_the_line(
+        self, settings, tv, state, clock, publish, journal
+    ):
+        """**The channel that would have caught the fault a person found by
+        standing in front of the panel**, and until now the only label warning
+        with no test between the layout that raises it and the journal.
+
+        `label.shrunk` above and this one are the plane's two legibility
+        warnings, and they answer different questions: type too small to read at
+        all, against a name broken where nobody chose to break it. The ladder
+        exists to prevent the second and normally does, so reaching here says no
+        arrangement of the name fitted — a fact about the device.
+        """
+        narrow = FakeSurface(width_px=260, height_px=900, margin_px=10)
+        daemon = _daemon_with(narrow, settings, tv, state, clock)
+        publish(
+            ["work-a"],
+            labels={"work-a": {"title": "Cat Litter", "artist": "Toulouse-Lautrec", "artist_family_name": "Toulouse-Lautrec"}},
+        )
+
+        try:
+            await daemon.tick()
+        finally:
+            narrow.release.set()
+
+        broken = self._events(journal(), "label.name_wrapped")
+        assert [line["level"] for line in broken] == ["WARNING"]
+        assert broken[0]["work_id"] == "work-a"
+        assert broken[0]["wrapped"] == ["Toulouse-Lautrec"], "the line reported is not the one that broke"
+        assert broken[0]["rows"] > 1
+
+    @pytest.mark.asyncio
+    async def test_a_work_with_no_maker_does_not_report_its_title_as_a_broken_name(
+        self, settings, tv, state, clock, publish, journal
+    ):
+        """**The same surface, and the record that made this warning dilute
+        itself.** A work whose museum recorded no maker leads with its own title,
+        which the label may not drop — so a report gated on undroppability fired
+        here and called an ordinary wrapping title a name too long to set.
+
+        It matters because the warning above is load-bearing beyond its own
+        report: `legibility.MARGIN_TO_PRIMARY_RATIO` cites the ladder's wrap
+        trigger to declare itself freely movable, and a channel that cries on
+        ordinary labels is one nobody reads when it is right.
+        """
+        narrow = FakeSurface(width_px=260, height_px=900, margin_px=10)
+        daemon = _daemon_with(narrow, settings, tv, state, clock)
+        publish(["work-a"], labels={"work-a": {"title": "Stirrup Spout Vessel of Considerable Length"}})
+
+        try:
+            await daemon.tick()
+        finally:
+            narrow.release.set()
+
+        lines = journal()
+        drawn = self._events(lines, "label.drawn")
+        assert [line["work_id"] for line in drawn] == ["work-a"], "the label never reached the panel to be judged"
+        assert not self._events(lines, "label.name_wrapped"), "a title was reported as a name the surface could not hold"
+
+    @pytest.mark.asyncio
+    async def test_a_surface_with_no_usable_area_is_the_loudest_outcome_not_the_quietest(
+        self, settings, tv, state, clock, publish, journal
+    ):
+        """**The total failure of the accessibility surface, reported as one.**
+
+        A device whose margins consume its own panel places nothing at all, and
+        the frame that reaches it is blank. Claiming "the panel is captioning
+        *Cat Litter*" there would name a work whose label is not there — and would
+        report the complete failure one level quieter than a label set a few
+        percent too small, on a daemon whose recorded failure mode is silence.
+
+        Reachable rather than theoretical: the margin derives from the primary
+        tier, which grows with viewing distance, so a device configured to be read
+        from far enough away borders its own label out of existence.
+        """
+        swallowed = FakeSurface(width_px=100, height_px=100, margin_px=60)
+        daemon = _daemon_with(swallowed, settings, tv, state, clock)
+        publish(["work-a"], labels={"work-a": {"title": "Cat Litter", "artist": "Ed Ruscha"}})
+
+        try:
+            await daemon.tick()
+        finally:
+            swallowed.release.set()
+
+        lines = journal()
+        unusable = self._events(lines, "label.unusable")
+        assert [line["level"] for line in unusable] == ["WARNING"]
+        assert unusable[0]["tv_content_id"], "the line names nothing that was on the wall"
+        assert not self._events(lines, "label.drawn"), "it claimed a caption that is not on the panel"
+
+    @pytest.mark.asyncio
+    async def test_an_unusable_surface_reaches_the_heartbeat_and_not_only_the_journal(
+        self, settings, tv, state, clock, publish, journal, art_root
+    ):
+        """**The journal is not the alerting surface; the health panel is.**
+
+        `observability-strategy.md` names it as the only place a running
+        deployment surfaces failure, and a headless Pi's journal is read once
+        somebody already suspects something. This condition is episode-gated —
+        correctly, it is a setting rather than an event — so the single WARNING it
+        emits can be hours old and scrolled away while the panel has been blank
+        the whole time.
+
+        **`label_surface_working` stays true on purpose.** The driver took the
+        frame; what failed is the geometry, and saying the driver is broken would
+        send somebody to the panel wiring for a margin they can fix in a config
+        file. `last_error` is the field that carries the difference.
+        """
+        swallowed = FakeSurface(width_px=100, height_px=100, margin_px=60)
+        daemon = _daemon_with(swallowed, settings, tv, state, clock)
+        publish(["work-a"], labels={"work-a": {"title": "Cat Litter", "artist": "Ed Ruscha"}})
+
+        try:
+            await daemon.tick()
+        finally:
+            swallowed.release.set()
+
+        document = json.loads(path_in(art_root, WALL_ID).read_text())
+        assert document["label_surface_working"] is True, "the driver took the frame; the geometry is what failed"
+        assert document["last_error"], "a bordered-out label described itself as healthy on the only alerting surface"
+        assert "no usable area" in document["last_error"]
+
+    @pytest.mark.asyncio
+    async def test_the_unusable_surface_is_reported_once_and_not_every_rotation(
+        self, settings, tv, state, clock, publish, journal
+    ):
+        """**A geometry that borders the label out of existence holds until
+        somebody changes a setting**, so this condition is lived through rather
+        than met — and the response to a persistent condition here is the same
+        everywhere: say it at the edge, keep rotating. Ungated it is the same
+        WARNING roughly five hundred times a day at the default rotation, in the
+        only channel this plane reports failure through, which is how a real
+        fault becomes something nobody reads.
+
+        **The contrast that decides it is `label.shrunk`, which is deliberately
+        not gated.** A shrunk set belongs to one work and a gate would swallow
+        the next work's; an unusable surface belongs to the device and says the
+        same thing whatever the wall happens to be showing.
+
+        Three rotations rather than two, because a gate that reports on the first
+        and the third is a gate that resets, and two would not tell them apart.
+
+        **The clock has to move between them or there is only one draw**, and a
+        test that ticked three times without it passed against an ungated warning
+        — which the mutation sweep is what caught. Two works for the same reason:
+        the condition is about the device, so it has to survive the label changing
+        underneath it.
+        """
+        swallowed = FakeSurface(width_px=100, height_px=100, margin_px=60)
+        daemon = _daemon_with(swallowed, settings, tv, state, clock)
+        publish(
+            ["work-a", "work-b"],
+            shuffle=False,
+            labels={
+                "work-a": {"title": "Cat Litter", "artist": "Ed Ruscha"},
+                "work-b": {"title": "Another Work", "artist": "Someone Else"},
+            },
+        )
+
+        try:
+            for _ in range(3):
+                await daemon.tick()
+                clock.advance(10_000)
+        finally:
+            swallowed.release.set()
+
+        unusable = self._events(journal(), "label.unusable")
+        assert len(unusable) == 1, f"the persistent fault repeated per rotation: {len(unusable)} lines"
+
+    @pytest.mark.asyncio
+    async def test_a_surface_given_its_area_back_can_report_the_fault_again(self, settings, tv, state, clock, publish, journal):
+        """**The other half of a gate, and the half that fails silently.**
+
+        A gate that never re-arms is indistinguishable from a working one for as
+        long as the fault persists, and wrong the moment it clears: the geometry
+        is a setting, so an operator who widens the margin, sees the panel
+        caption, then narrows it again has a device whose accessibility surface
+        has failed and a journal that says nothing at all. That is a worse
+        outcome than the repetition the gate was added to stop, because the first
+        is noisy and this one is silent.
+
+        `label.drawn` is the edge that ends the episode — a label actually placed
+        is the proof the surface has usable area — so there is no recovery event
+        of its own to look for here.
+        """
+        swallowed = FakeSurface(width_px=100, height_px=100, margin_px=60)
+        daemon = _daemon_with(swallowed, settings, tv, state, clock)
+        publish(["work-a", "work-b"], shuffle=False, labels={"work-a": {"title": "Cat Litter"}, "work-b": {"title": "Another"}})
+
+        try:
+            await daemon.tick()
+            clock.advance(10_000)
+            # The operator widens the panel's usable area, and the label lands.
+            swallowed.resize(width_px=1448, height_px=1072, margin_px=40)
+            await daemon.tick()
+            clock.advance(10_000)
+            swallowed.resize(width_px=100, height_px=100, margin_px=60)
+            await daemon.tick()
+        finally:
+            swallowed.release.set()
+
+        lines = journal()
+        assert self._events(lines, "label.drawn"), "the widened surface never captioned, so nothing recovered"
+        unusable = self._events(lines, "label.unusable")
+        assert len(unusable) == 2, f"the episode never re-armed, so the returning fault was silent: {len(unusable)}"
+
+    @pytest.mark.asyncio
+    async def test_a_work_whose_institution_published_nothing_is_not_a_fault(self, labelled, publish, journal):
+        """The other way a label lays out to nothing, and it is a fact about the
+        record rather than about the device — so it must not reach the warning
+        above. `metadata.py` is explicit that a blank surface is right here."""
+        publish(["work-a"], labels={"work-a": {}})
+
+        await labelled.tick()
+
+        assert not self._events(journal(), "label.unusable")
+
+    @pytest.mark.asyncio
+    async def test_a_label_that_fits_says_nothing_about_shrinking(self, labelled, publish, journal):
+        """The event is an exception, like every other label event but one — a
+        panel that reports a shrink on every rotation is one nobody reads."""
+        publish(["work-a"], labels={"work-a": {"title": "Cat Litter"}})
+
+        await labelled.tick()
+
+        assert not self._events(journal(), "label.shrunk")
+
+    @pytest.mark.asyncio
+    async def test_a_device_with_no_panel_claims_nothing_about_a_label(self, daemon, publish, journal):
+        """A deployment with no surface must not emit a success event — it would
+        report a label on a device that has nowhere to put one."""
+        publish(["work-a"], labels={"work-a": {"title": "Cat Litter"}})
+
+        await daemon.tick()
+
+        lines = journal()
+        assert not self._events(lines, "label.drawn")
+        assert not self._events(lines, "label.blanked")
+
+
+class TestADeviceWithNoLabelSurface:
+    """A supported deployment, not a degraded one."""
+
+    @pytest.mark.asyncio
+    async def test_the_wall_rotates_normally(self, daemon, tv, publish):
+        publish(["work-a"], labels={"work-a": {"title": "Cat Litter"}})
+
+        await daemon.tick()
+
+        assert tv.displaying is not None
+
+    @pytest.mark.asyncio
+    async def test_its_absence_is_never_reported_as_a_fault(self, daemon, publish, caplog):
+        publish(["work-a"], labels={"work-a": {"title": "Cat Litter"}})
+
+        with caplog.at_level("WARNING"):
+            await daemon.tick()
+
+        assert not [r for r in caplog.records if getattr(r, "event", None) == "label.failed"]
+
+    @pytest.mark.asyncio
+    async def test_the_heartbeat_says_null_rather_than_false(self, daemon, publish, art_root: Path):
+        """`false` would read as a broken panel on a device that has none."""
+        publish(["work-a"])
+
+        await daemon.tick()
+
+        document = json.loads(path_in(art_root, WALL_ID).read_text())
+        assert document["label_surface_working"] is None
+        assert document["has_label_surface"] is False
+
+    @pytest.mark.asyncio
+    async def test_it_is_told_apart_from_a_panel_that_has_not_drawn_yet(self, labelled, publish, art_root: Path):
+        """Two different deployments that once reported identically.
+
+        `label_surface_working` is null both on a device with no panel and on one
+        whose panel is fine but has not been asked to draw. Read alone it made a
+        freshly started plane look like a device with no panel at all.
+        """
+        await labelled.tick()  # no manifest yet, so nothing has been captioned
+
+        document = json.loads(path_in(art_root, WALL_ID).read_text())
+        assert document["has_label_surface"] is True
+        assert document["label_surface_working"] is None
+
+
+class TestADeviceWhosePanelWouldNotOpen:
+    """The third deployment, and the one that used to be invisible.
+
+    A panel configured in `.env` that will not open leaves the daemon holding no
+    surface — which, reported as `has_label_surface: false`, is exactly what a
+    device with no panel reports. So curation's health surface showed a supported
+    deployment where there was a broken one, and the only account of it was a
+    warning in a journal on a Pi nobody was reading.
+    """
+
+    @pytest.fixture
+    def broken(self, settings, tv, state, clock) -> Daemon:
+        watcher = Watcher(settings.manifest_path, rotation_interval_fallback=180, shuffle_fallback=False)
+        return Daemon(
+            settings=settings,
+            tv=tv,
+            state=state,
+            watcher=watcher,
+            clock=clock.as_clock(),
+            surface=None,
+            surface_error="could not open the e-paper device 'waveshare_epd.it8951' (no SPI device)",
+        )
+
+    @pytest.mark.asyncio
+    async def test_the_heartbeat_says_this_device_has_a_panel_and_it_is_not_working(self, broken, publish, art_root: Path):
+        publish(["work-a"])
+
+        await broken.tick()
+
+        document = json.loads(path_in(art_root, WALL_ID).read_text())
+        assert document["has_label_surface"] is True, "a broken panel reported as a device that has none"
+        assert document["label_surface_working"] is False, "a panel that never opened reported as one that has not been asked yet"
+
+    @pytest.mark.asyncio
+    async def test_curation_is_told_why(self, broken, publish, art_root: Path):
+        """The journal is on the Pi; the heartbeat is what crosses to curation."""
+        publish(["work-a"])
+
+        await broken.tick()
+
+        document = json.loads(path_in(art_root, WALL_ID).read_text())
+        assert "no SPI device" in (document["last_error"] or "")
+
+    @pytest.mark.asyncio
+    async def test_the_wall_rotates_anyway(self, broken, tv, publish):
+        """The whole posture in one assertion: a panel is never a precondition."""
+        publish(["work-a"], labels={"work-a": {"title": "Cat Litter"}})
+
+        await broken.tick()
+
+        assert tv.displaying is not None
+
+
+class TestShuttingDown:
+    @pytest.mark.asyncio
+    async def test_the_label_surface_is_released(self, labelled, surface):
+        """On e-paper `close()` is the power-down, not bookkeeping."""
+        stop = asyncio.Event()
+        stop.set()
+
+        await labelled.run(stop)
+
+        assert surface.closed == 1
+
+    @pytest.mark.asyncio
+    async def test_a_device_with_no_surface_shuts_down_cleanly(self, daemon, tv):
+        stop = asyncio.Event()
+        stop.set()
+
+        await daemon.run(stop)
+
+        assert tv.closed == 1
+
+
+class TestTheHeartbeat:
+    @pytest.mark.asyncio
+    async def test_a_running_plane_writes_one(self, daemon, publish, art_root: Path):
+        publish(["work-a"])
+
+        await daemon.tick()
+
+        assert path_in(art_root, WALL_ID).is_file()
+
+    @pytest.mark.asyncio
+    async def test_it_carries_what_the_wall_is_showing(self, daemon, publish, art_root: Path):
+        publish(["work-a"])
+
+        await daemon.tick()
+
+        document = json.loads(path_in(art_root, WALL_ID).read_text())
+        assert document["current_work_id"] == "work-a"
+        assert document["television_reachable"] is True
+        assert document["television_showing_art"] is True
+
+    @pytest.mark.asyncio
+    async def test_it_carries_the_sets_own_announcement_not_only_our_belief(self, daemon, tv, publish, art_root: Path, clock):
+        """Somebody used the remote. The heartbeat should say what is actually up."""
+        publish(["work-a"])
+        await daemon.tick()
+
+        tv.announce("SAM-F0222", is_shown=True)
+        clock.advance(INTERVAL_SECONDS * 1.5)
+        await daemon.tick()
+
+        document = json.loads(path_in(art_root, WALL_ID).read_text())
+        assert document["announced_content_id"] == "SAM-F0222"
+
+    @pytest.mark.asyncio
+    async def test_it_is_written_while_the_television_is_unreachable(self, daemon, tv, publish, art_root: Path):
+        """The condition an operator most wants reported.
+
+        A plane that only beat on good passes would fall silent exactly when it
+        had something to say, and curation would report a healthy process as one
+        that has never spoken.
+        """
+        publish(["work-a"])
+        tv.unavailable = True
+
+        await daemon.tick()
+
+        document = json.loads(path_in(art_root, WALL_ID).read_text())
+        assert document["television_reachable"] is False
+        assert document["last_error"]
+
+    @pytest.mark.asyncio
+    async def test_it_is_written_before_any_manifest_exists(self, daemon, art_root: Path):
+        """The state a fresh install sits in, and when 'is it alive' is asked most."""
+        await daemon.tick()
+
+        document = json.loads(path_in(art_root, WALL_ID).read_text())
+        assert document["manifest_schema"] is None
+
+    @pytest.mark.asyncio
+    async def test_it_is_not_rewritten_on_every_pass(self, daemon, publish, art_root: Path, clock):
+        """At the one-second poll this would be ~86,400 writes a day, forever."""
+        publish(["work-a"])
+        await daemon.tick()
+        first = path_in(art_root, WALL_ID).read_text()
+
+        clock.advance(INTERVAL_SECONDS / 4)
+        await daemon.tick()
+
+        assert path_in(art_root, WALL_ID).read_text() == first
+
+    @pytest.mark.asyncio
+    async def test_it_is_rewritten_once_the_interval_has_run(self, daemon, publish, art_root: Path, clock):
+        publish(["work-a"])
+        await daemon.tick()
+        first = json.loads(path_in(art_root, WALL_ID).read_text())
+
+        # Deliberately not a whole multiple of the interval: a clock stepped by
+        # exactly the wait cannot tell `>=` from `>`.
+        clock.advance(INTERVAL_SECONDS * 1.5)
+        await daemon.tick()
+
+        second = json.loads(path_in(art_root, WALL_ID).read_text())
+        assert second["reported_at"] != first["reported_at"]
+
+    @pytest.mark.asyncio
+    async def test_an_unwritable_heartbeat_does_not_stop_the_wall(self, daemon, tv, publish, art_root: Path):
+        """The disk is full or read-only. The television is unaffected."""
+        path_in(art_root, WALL_ID).mkdir()
+        publish(["work-a"])
+
+        await daemon.tick()
+
+        assert tv.displaying is not None

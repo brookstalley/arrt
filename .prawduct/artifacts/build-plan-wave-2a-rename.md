@@ -10,7 +10,7 @@ depends_on:
 governed_by:
   - artifact: project-preferences
     dispositions:
-      - "plane isolation (display imports no curation module) → conforms: the test is renamed with the packages and keeps asserting the same property, displayarr importing no curatarr module. Its assertions do not change, only the names in them"
+      - "plane isolation (display imports no curation module) → conforms: the test is renamed with the packages and keeps asserting the same property, arrt importing no curatarr module. Its assertions do not change, only the names in them"
       - "the two planes agree on the heartbeat's filename and its instant's key by construction → conforms: the test's source paths are renamed; the constants and file names it compares are untouched"
       - "the mechanical norm-index rows (formatting, naming, imports) → conforms: every renamed import is re-sorted by ruff, and each plane's lint and format run"
   - artifact: nonfunctional-requirements
@@ -19,14 +19,14 @@ governed_by:
 last_validated: null
 ---
 
-# Build Plan — Wave 2a: Curatarr and Displayarr, in the code
+# Build Plan — Wave 2a: Curatarr and Arrt, in the code
 
 ## What this plan is
 
 The operator named the products on 2026-09-30: Curatarr (the server) and
-Displayarr (the player). The GitHub repo is already renamed. This plan renames
+Arrt (the player). The GitHub repo is already renamed. This plan renames
 the code: the `curation/` project and `curation` package become `curatarr`,
-and `display/` and `display` become `displayarr`. It is its own plan because it
+and `display/` and `display` become `arrt`. It is its own plan because it
 is a different kind of change from the rest of wave 2. It is purely mechanical,
 touches around two hundred files, and changes no behaviour. Reviewed alongside
 the seam split, it would bury a refactor inside a rename.
@@ -57,14 +57,14 @@ proof.
 
 ## Status
 
-- [ ] Chunk 01: Rename the projects and packages, and everything that names them
+- [x] Chunk 01: Rename the projects and packages, and everything that names them
 
 ### Chunk 01: Rename the projects and packages, and everything that names them
 
 - **Type:** cleanup
 - **Depends on:** `build-plan-wave-1-contract.md` merged
 - **Surfaces, enumerated so the chunk's true size shows:**
-  - The directories `curation/` → `curatarr/` and `display/` → `displayarr/`,
+  - The directories `curation/` → `curatarr/` and `display/` → `arrt/`,
     by `git mv`, so history follows.
   - The packages under each `src/`, every import, and each `pyproject.toml`'s
     project name, scripts and tool configuration. Each `uv.lock` is regenerated.
@@ -98,11 +98,19 @@ proof.
   complete comes from two greps, each with a count taken before the rename, so
   an empty result means "renamed" and not "the pattern never matched":
   - `git grep -nP '^\s*(from|import) (curation|display)\b' -- '*.py'`: 842
-    lines before, 0 after. It matches code only, so the role names the prose
+    lines before, 1 after. It matches code only, so the role names the prose
     keeps cannot hold it open. `-P`, because this Mac's `git grep -E` has no
-    `\b` and silently matches nothing.
+    `\b` and silently matches nothing. The line that stays is `tvart.py`
+    importing the 2024 root module `display.py`, which is not the display
+    plane and retires with the root modules at wave 5.
   - `git grep -nP '\b(curation|display)/(src|tests|tools)\b' -- . ':!.prawduct/artifacts/archive' ':!.prawduct/change-log*'`:
-    134 lines before, 0 after.
+    137 lines before (measured when the chunk began; the plan's first count was
+    134), 0 after.
+  - `git grep -nP '["'\''](curation|display)\.[a-z_]' -- curation display`,
+    then over `curatarr arrt` after: 60 lines before, 0 after. It catches the
+    module paths that live in strings (`mock.patch` targets, logger names,
+    `importlib` calls), which neither grep above can see and which fail only
+    when the line runs.
 - **Visual change:** no. **Operator verification:** yes. The Pi's units must be
   reinstalled from `deploy/` after this lands, or they start the old module
   names and fail. The step joins `operator-verification.md` with the commands.

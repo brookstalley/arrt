@@ -32,13 +32,13 @@ last_validated: null
 ## What this plan is
 
 Wave 1 of `re-architecture.md` § Order of work: write the contract between
-Curatarr (the server) and Displayarr (the player) **before** wave 2 builds
+Curatarr (the server) and Arrt (the player) **before** wave 2 builds
 either side of the HTTP channel. The contract is a JSON Schema per document,
 example documents (fixtures), and one artifact that states the semantics a schema
 cannot: when a Player refuses, what it keeps, what a time means.
 
 **Why a schema and fixtures, not prose alone.** The contract outlives this repo.
-At wave 5 Displayarr moves to its own repository and pins these fixtures, and from
+At wave 5 Arrt moves to its own repository and pins these fixtures, and from
 then on a field that changes on one side and not the other is found by a test in
 one repo, not by a wall that goes dark. Tests land here too, now, so the
 contract is proved against the code that exists before anything is built against
@@ -105,9 +105,9 @@ disagreements between majors.
 - **Depends on:** none
 - **Artifacts consumed:** `re-architecture.md` § Seam 2; `api-contract.md`
   § How `art_display` reaches the display plane and § The Server↔Player surface;
-  `data-model.md` § Directive; `curation/src/curation/manifest/builder.py`;
-  `display/src/display/manifest.py`; `display/src/display/heartbeat.py`;
-  `curation/src/curation/manifest/heartbeat.py`
+  `data-model.md` § Directive; `curatarr/src/curatarr/manifest/builder.py`;
+  `arrt/src/arrt/manifest.py`; `arrt/src/arrt/heartbeat.py`;
+  `curatarr/src/curatarr/manifest/heartbeat.py`
 - **Deliverables:**
   - `.prawduct/artifacts/player-contract.md`: the home of the contract. It
     covers the documents, versioning (major refused, minor ignored), the
@@ -179,7 +179,7 @@ disagreements between majors.
 - **Depends on:** Chunks 01 and 02
 - **Deliverables:** `build-plan-wave-2-seams-and-http.md`, the chunks of
   `re-architecture.md`'s wave 2 row in build order. The order is the package
-  rename to `curatarr` and `displayarr`, then the Library/Programming package
+  rename to `curatarr` and `arrt`, then the Library/Programming package
   split with the facade, events and reconciliation, then the HTTP routes with
   tokens, then the Player's pull-to-cache. Each chunk has its dispositions and
   tests. Each wave 2 plan declares its own `branch:`, so no `active_build_plan`

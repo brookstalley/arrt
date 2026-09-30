@@ -33,7 +33,7 @@
 
 ### MCP tool surface
 
-- **Exists:** **yes**, as of 2026-07-27 — `curation/src/curation/mcp/`. All five
+- **Exists:** **yes**, as of 2026-07-27 — `curatarr/src/curatarr/mcp/`. All five
   tool names are registered and served over streamable HTTP at `/mcp`. **Four of
   the five now carry real actions**; only `art_review` still answers `help` alone
   and returns a teaching error for anything else. **Read this as a live external
@@ -57,7 +57,7 @@
 - **Generated, not hand-maintained.** Definitions derive from one registry record
   per action. A change to a record propagates to the wire schema, validation, `help`
   output, and error messages together; editing any of those by hand is the
-  violation. Records live in `curation/src/curation/mcp/tools.py`; the generators
+  violation. Records live in `curatarr/src/curatarr/mcp/tools.py`; the generators
   in `registry.py`. `tests/contract/test_mcp_surface.py` pins the five names,
   the 2 KB description budget, the annotations, and that every action in a
   schema's enum also appears in the prose — the drift check.
@@ -69,7 +69,7 @@
   row silently disarms the consumer-impact investigation this file exists to
   arm, and the discovery half of the browser surface extends exactly this one
   rather than standing up a second.
-- **Producer:** the FastAPI app on the curation plane — `curation/src/curation/http/api.py`,
+- **Producer:** the FastAPI app on the curation plane — `curatarr/src/curatarr/http/api.py`,
   with typed responses in `http/models.py`.
 - **Consumer:** the curation UI, and nothing else — `http/static/app.js`, which
   binds concrete field names (`work.status`, `s.rights_status`,
@@ -89,7 +89,7 @@
 
 ### Service layer
 
-- **Exists:** **yes**, as of 2026-07-27 — `curation/src/curation/services/`, split
+- **Exists:** **yes**, as of 2026-07-27 — `curatarr/src/curatarr/services/`, split
   by concern into `CatalogueService` (works already accepted), `DiscoveryService`
   (everything before acceptance) and, since 2026-07-31, `DisplayService` (themes,
   the standing directive, and the manifest built from them), bound by a `Services`
@@ -233,7 +233,7 @@
 
 - **Exists:** **yes**, as of 2026-07-27 — sixteen tables as of 2026-08-12, on
   stdlib `sqlite3` in one file, behind two Protocols in
-  `curation/src/curation/persistence/`: the `CatalogueStore` over Artwork,
+  `curatarr/src/curatarr/persistence/`: the `CatalogueStore` over Artwork,
   Artist, Theme, Wall, ThemeAssignment, Source, Original, Rendition, MatColor,
   ThemeMembership and a Directive **per wall**, and the `DiscoveryStore`
   over DiscoveryRun, CandidateWork, CandidateImage, SpendRecord and the
@@ -427,7 +427,7 @@
 
 ### display ↔ television
 
-- **Exists:** **yes**, as of 2026-08-06 — `display/src/display/tv/client.py` is the
+- **Exists:** **yes**, as of 2026-08-06 — `arrt/src/arrt/tv/client.py` is the
   interface and `samsung.py` the one implementation.
 - **Producer:** the television (a foreign device running Tizen). **Consumer:**
   display plane. **Crosses a machine boundary**, over two websockets and a REST
@@ -451,7 +451,7 @@
   uploads and removals read the set's list back, and selections read what it says
   it is displaying. `samsung-tv-state-findings.md` is the state-by-state map, and
   it is the artifact to read before adding a verb.
-- **Tested at the seam and only at the seam** — `display/tests/test_samsung_client.py`
+- **Tested at the seam and only at the seam** — `arrt/tests/test_samsung_client.py`
   stubs the library, because the daemon suite runs against `FakeTv` and proves
   nothing about this file. A mutation sweep once deleted the close-on-failure here
   with no test objecting, for exactly that reason.
@@ -470,7 +470,7 @@
 
 ### display ↔ its label typesetter (`Measure` / `Block`)
 
-- **Exists:** **yes**, as of 2026-08-11 — `display/src/display/panel/layout.py`
+- **Exists:** **yes**, as of 2026-08-11 — `arrt/src/arrt/panel/layout.py`
   declares `Measure` and returns `Block`s; the daemon hands a surface's own
   measurer in and never supplies one of its own.
 - **Producer:** `layout.py`. **Consumers:** every surface that can be drawn to or
@@ -549,20 +549,20 @@ Every level below exists on the curation plane except end-to-end; the `Exists`
 column is the authority, and it is per-row so that adding a level does not strand
 a count in this sentence. Two
 suites run: `uv run pytest tests` at the repo root for the 2024 modules, and
-`cd curation && uv run pytest` for the plane. *(Corrected 2026-08-03: the root
+`cd curatarr && uv run pytest` for the plane. *(Corrected 2026-08-03: the root
 command was written without `uv run`. Both planes need the prefix — the dev tools
 are in a uv-only dependency group — and `CLAUDE.md` is the authority.)*
 
 | Level | Exists | When to Run | Location |
 |-------|--------|-------------|----------|
-| Unit | **yes** (curation) | Every change | `curation/tests/unit/`, mirroring module layout |
-| Integration | **yes** (curation) | Changes crossing the service-layer boundary | `curation/tests/integration/` |
-| Contract | **yes** (curation) | **Any MCP tool-surface change**, including a description edit | `curation/tests/contract/` |
-| Evaluation | **yes** (curation), opt-in | Any tool-surface change, before shipping it — **not** on every run | `curation/tests/eval/`, marker `llm_eval` |
-| Live API — paid | **yes** (curation), opt-in | Any change to the OpenRouter client, and when a recorded price or response shape is in doubt | `curation/tests/live/`, marker `live_api` |
-| Live API — free | **yes** (curation), opt-in | Any change to a museum client, and when a recorded response shape is in doubt | `curation/tests/live/`, marker **`live_museum`** |
-| Live binary — free | **yes** (curation), opt-in | Any change to the dezoomify-rs wrapper, and when a recorded CLI behaviour is in doubt | `curation/tests/live/`, marker **`live_binary`** |
-| Browser | **yes** (curation), opt-in | Any change to `app.js` | `curation/tests/browser/`, marker **`browser`** |
+| Unit | **yes** (curation) | Every change | `curatarr/tests/unit/`, mirroring module layout |
+| Integration | **yes** (curation) | Changes crossing the service-layer boundary | `curatarr/tests/integration/` |
+| Contract | **yes** (curation) | **Any MCP tool-surface change**, including a description edit | `curatarr/tests/contract/` |
+| Evaluation | **yes** (curation), opt-in | Any tool-surface change, before shipping it — **not** on every run | `curatarr/tests/eval/`, marker `llm_eval` |
+| Live API — paid | **yes** (curation), opt-in | Any change to the OpenRouter client, and when a recorded price or response shape is in doubt | `curatarr/tests/live/`, marker `live_api` |
+| Live API — free | **yes** (curation), opt-in | Any change to a museum client, and when a recorded response shape is in doubt | `curatarr/tests/live/`, marker **`live_museum`** |
+| Live binary — free | **yes** (curation), opt-in | Any change to the dezoomify-rs wrapper, and when a recorded CLI behaviour is in doubt | `curatarr/tests/live/`, marker **`live_binary`** |
+| Browser | **yes** (curation), opt-in | Any change to `app.js` | `curatarr/tests/browser/`, marker **`browser`** |
 | End-to-end | no | Before release | — |
 
 **The evaluation level is the only one that does not gate, and that is the
@@ -593,7 +593,7 @@ paragraph explaining it is not.** Anything added that talks to a free API goes o
 `live_museum`.
 
 Every opt-in level is off by default, and **the marker expression that does it
-lives in `curation/pyproject.toml`'s `addopts` — read it there.** A copy used to
+lives in `curatarr/pyproject.toml`'s `addopts` — read it there.** A copy used to
 sit here reading `-m 'not llm_eval and not live_api and not live_museum'`, and it
 was already wrong twice over: `live_binary` and `browser` had both been added to
 the real one. A quoted config value is a second place for that config to be

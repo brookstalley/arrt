@@ -31,8 +31,8 @@ does, the stylesheet wins; where it states a rule, the rule binds.
 <!-- Ratified by the owner 2026-08-11. Enforcement row in project-preferences.md. -->
 
 **The stylesheet is the source of truth for token values, and this artifact is the
-source of truth for the rules about them.** `curation/src/curation/http/static/app.css`
-holds the values; `curation/tests/unit/test_design_tokens.py` reads that file,
+source of truth for the rules about them.** `curatarr/src/curatarr/http/static/app.css`
+holds the values; `curatarr/tests/unit/test_design_tokens.py` reads that file,
 computes every text and control pair in both colour schemes, and **refuses any
 colour written outside the token blocks**.
 

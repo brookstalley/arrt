@@ -35,13 +35,13 @@ NORM_INDEX = REPOSITORY_ROOT / ".prawduct" / "artifacts" / "project-preferences.
 
 
 #: Every directory in this repository that holds a test tree, as the prefix a
-#: reference to one is written with — `""` for the root plane, `curation/`,
-#: `display/`.
+#: reference to one is written with — `""` for the root plane, `curatarr/`,
+#: `arrt/`.
 #:
-#: **Derived rather than listed, and that is a repair.** This was written as a
-#: literal `(?:curation/)?`, correct on the day it was typed and wrong from
-#: 2026-08-06, when the display plane landed with its own suite. The regex is
-#: unanchored, so `display/tests/test_epaper.py` did not fail to match — it
+#: **Derived rather than listed.** A literal alternation of plane prefixes goes
+#: wrong the day a plane gains a suite and nobody adds it. The regex is
+#: unanchored, so a missing `arrt/` would not make `arrt/tests/test_epaper.py`
+#: fail to match — it
 #: matched the *tail*, `tests/test_epaper.py`, and resolved against the root
 #: plane where no such file exists. A row naming a real, passing display-plane
 #: guard therefore failed this file, and the diagnostic pointed at the row rather

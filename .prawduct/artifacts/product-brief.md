@@ -68,7 +68,7 @@ reason to continue this project rather than adopt an existing one.
 > label typography rules (`accessibility-spec.md`), not an overlay on the work.
 
 **Names, from 2026-09-30:** **Curatarr** is the server (the Library and
-Programming), and **Displayarr** is the player at each wall. Both names are the
+Programming), and **Arrt** is the player at each wall. Both names are the
 operator's. "Samsung Frame Art Loader" describes the product as built, and
 retires as the waves land. The *arr suffix is deliberate: the model is Radarr and
 Sonarr (`re-architecture.md`). No branding reaches a wall, so the names appear
@@ -475,7 +475,7 @@ API consumers. Three consequences that are easy to miss:
   working correctly, and that is not hypothetical: it is what two runs did on
   2026-08-04 while both suites were green. The floor is therefore a measurement
   over a fixed corpus — the recorded phase-1 proposals in
-  `curation/tests/fixtures/phase_one_proposals.json` — and the authority for the
+  `curatarr/tests/fixtures/phase_one_proposals.json` — and the authority for the
   current figure is the test that asserts it, never this sentence. It stood at 4 of
   51 when the corpus was first measured against the live provider on 2026-08-04,
   before any of the work aimed at raising it. Any change claiming to improve
@@ -483,7 +483,7 @@ API consumers. Three consequences that are easy to miss:
   move it says so. Lowering the floor takes the ratification that raising it does.
 
   > **The asserting test is
-  > `curation/tests/live/test_the_resolution_floor_still_holds.py`**, written the
+  > `curatarr/tests/live/test_the_resolution_floor_still_holds.py`**, written the
   > same day this criterion was and deselected by default under `live_museum`,
   > because it needs the network. It was recorded here as *owed* for the few hours
   > before it existed rather than described as live — a criterion whose mechanism
