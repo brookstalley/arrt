@@ -70,12 +70,11 @@ inside an existing section, not a section of its own.
 > **Status:** in-transition. `build-plan-arr-navigation.md` is the migration and
 > tracks it, and is meant to land in the same PR as this amendment. The sidebar
 > is built. Interim rule: until the plan's remaining chunks land, a new screen
-> goes where § The *arr layout places it, and nothing is added to Add New that
-> Activity is due to take.
+> goes where § The *arr layout places it.
 >
-> **Retroactivity:** migrate: `build-plan-arr-navigation.md`. The sidebar and
-> the home page conform since Chunk 02. Activity, the two-scope search and the
-> toolbar do not yet exist, so runs still sit on Add New. If the
+> **Retroactivity:** migrate: `build-plan-arr-navigation.md`. The sidebar, the
+> home page and Activity conform. The two-scope search and the toolbar do not yet
+> exist. If the
 > plan merges as one PR, the norm is steady-state at merge with no residual sites.
 
 **A working prototype of everything below is committed beside this file:**
@@ -121,9 +120,11 @@ Priority is **core** (on a stated core flow) or **supporting**.
 | **Walls** | What is hanging right now on each display, the theme it is drawn from, and what is next. | The sidebar; after activating a theme | core (flow 6) |
 | **Artworks** | Everything acquired. Find, sort, filter, group, organise into themes, archive. The product's home. *(Collection until 2026-09-30.)* | Launch; the sidebar; search from anywhere; from a theme; after a run's accepted works land | core (flows 3, 5) |
 | **Work** | One work at full size, with its sources, renditions, mat history and theme membership. | A tile in Collection; a tile on a Wall; a row in Review | core (flows 4, 5) |
-| **Add New** | Conversation, the runs it seeds, and the review of what they return — one continuous place. *(Discover until 2026-09-30.)* | The sidebar, under Artworks; "find something new" on the Walls and on an empty Artworks | core (flows 1, 2, 3) |
-| **Run** | One discovery run while it works and after it stops: what it proposed, what it found images for, the gate where phase 2 is approved, and its work table. | Add New; a re-search started on the review grid; its own address | core (flow 2) |
-| **Review** | Judging one run's candidates: accept, reject, choose a scan, ask for a better one. | A completed run in Add New; the run's own notification | core (flow 3) |
+| **Add New** | Asking for something new: the direct intent box and the conversations, with a run's progress shown in the thread that started it. *(Discover until 2026-09-30, when it also listed every run.)* | The sidebar, under Artworks; "find something new" on the Walls and on an empty Artworks | core (flows 1, 2) |
+| **Queue** *(new)* | The searches that have not ended: working, or stopped at the approval gate. | The sidebar, under Activity | core (flow 2) |
+| **History** *(new)* | The searches that have ended, with how each ended. | The sidebar, under Activity | supporting |
+| **Run** | One discovery run while it works and after it stops: what it proposed, what it found images for, the gate where phase 2 is approved, and its work table. | Queue or History; Add New, as it starts; a re-search started on the review grid; its own address | core (flow 2) |
+| **Review** | Judging one run's candidates: accept, reject, choose a scan, ask for a better one. | A finished run, from History or its own page; the run's own notification | core (flow 3) |
 | **Themes** | The themes there are, and — at its own address — one of them: its members in curated order, its name, and the act of hanging it. | The sidebar, under Artworks; Artworks' theme rail; a wall's theme control; its own address | core (flows 5, 6) |
 | **Status** | The three observations the panel states, and the spend record. *(Health until 2026-09-30.)* | The sidebar, under System; the top bar's status indicator; a failure's own link | supporting |
 | **Conversation** *(new)* | One intent-forming thread, its samples, and what it committed to. | Add New; the conversation list; an affinity's provenance | core (flow 1) |
@@ -184,10 +185,17 @@ It becomes a rail inside Collection — a filter that is also editable — plus 
 ## The *arr layout (target, amended 2026-09-30)
 
 This is the layout § Direction now requires. **The sidebar, the top bar, the
-badge and the drawer are built. Activity, the two-scope search and the toolbar
-are not yet**, and `build-plan-arr-navigation.md` builds them in Chunks 03–05.
-Until then, runs are listed on Add New and the search box searches Artworks
-only. The owner chose the name, the home page and the scope on 2026-09-30. The
+badge, the drawer and Activity are built. The two-scope search and the toolbar
+are not yet**, and `build-plan-arr-navigation.md` builds them in Chunks 04–05.
+Until then, the search box searches Artworks only.
+
+> **A gap in Activity, recorded 2026-09-30 while building it.** Radarr's Queue
+> also holds what finished but needs the user, such as a manual import. Curatarr's
+> equivalent is a run that finished with candidates nobody has judged, and it
+> belongs in Queue. The run listing carries no signal for it, so today it sits in
+> History with its state. Adding one is an API change: a count of unjudged
+> candidates per run, on `GET /api/runs` and its MCP twin. It is owed, and not
+> part of this plan. The owner chose the name, the home page and the scope on 2026-09-30. The
 placement of each page is the builder's reading of Radarr, and each placement is
 listed below so it can be disputed.
 
@@ -215,7 +223,7 @@ listed below so it can be disputed.
 | Artworks › **Add New** | Discover's intent box and its conversations | Radarr's Add New: search a source for something to add |
 | Artworks › **Themes** | Theme, index and one theme | Radarr's Collections: a named grouping of items in the library |
 | **Walls** | The Walls | No *arr page. It sits second, in Calendar's slot, because the wave-4 schedule (`re-architecture.md` § The manifest is a schedule) is the nearest *arr idea to "what is showing when" |
-| Activity › **Queue** | Discover's run list: runs working or waiting for review | Radarr's Queue: work in flight. Run and Review open from here |
+| Activity › **Queue** | Discover's run list: runs that have not ended | Radarr's Queue: work in flight. Run opens from here |
 | Activity › **History** | Discover's run list: finished runs | Radarr's History |
 | Settings › **Taste** | Taste | Radarr's Profiles: the preferences that rank what it finds |
 | System › **Status** | Health, with the spend record | Radarr's System › Status, with health checks at the top |
@@ -617,7 +625,9 @@ who did not edit this table.
 | Walls | Each wall's hanging work, large | Title, artist, theme, which wall | Change theme, next, open work, issue or rotate the wall's Player token *(added 2026-09-30: the token is shown once, in place, and rotating asks first)* | Panel + TV health, quietly |
 | Artworks | The grid of images | Counts, active filters | Search, filter, select, add to theme, archive | Total, and what is filtered out |
 | Work | The image at full size | Artist, facets, mat colour, rendition size | Theme membership, re-mat, archive | Fit verdict, image state |
-| Add New | The conversation, or the run list | Samples inline | Type, react, commit, start direct | Run progress, spend |
+| Add New | The intent box and the conversations | Samples inline | Type, react, commit, start direct | Run progress, spend |
+| Queue | The searches in flight | What each asked for, and when | Open a search | Which state each is in |
+| History | The searches that ended | What each asked for, and when | Open a search | How each ended |
 | Run | The run's own sentence, and its work table | The tally behind the sentence, and the gate's price broken down | Approve, decline, cancel, open a work, go to the review | Which state the run is in, and whether the watch is still live |
 | Conversation | The thread, newest exchange last | Each turn's suggestions, with their samples | Type, react to a sample, commit a direction, delete the thread | Whether a turn is in flight, and what the exchange cost |
 | Taste | The judgments, grouped by kind | Sentiment, openness, and how the claim was derived | React, correct, forget, follow a claim back to its turn | Which claims the product inferred rather than was told |
@@ -732,6 +742,8 @@ almost no considered empty states.
 | Walls | Nothing hanging on a wall: name the reason (no active theme / empty theme / display plane silent) and offer the fix for that reason specifically | The frame, then the image | Cannot reach the display plane — say which of the two planes answered |
 | Artworks | **Three different empties.** No works at all → an invitation into Add New. No works *matching the filter* → the filter, and how to clear it. **Filtered to one artist and holding none of them** → say so as a normal state and offer the search (see flow 1). Conflating the first two tells a curator with 3,000 works that they own nothing; conflating the third with the second reports the expected result of following a suggestion as a failed query | Skeleton tiles at the grid's real geometry, so nothing reflows | Partial page: show what arrived and say what did not |
 | Work | n/a | Image placeholder at the work's own aspect ratio | Named per missing part — a work with no rendition is not a failed page |
+| Queue | Nothing in flight → say so, say what would appear here, and offer Add New | The heading, then the table | The request's refusal, in the page's error banner |
+| History | No search has finished → say so | The heading, then the table | The request's refusal, in the page's error banner |
 | Add New | No conversations and no runs → the intent box, prominent, with two or three worked examples | Per-turn, in the thread | A failed turn stays in the thread and is retryable; it never silently vanishes |
 | Run | n/a — a run always has a status, and "no works yet" is a populated run in `resolving_works` | The sentence first, then the work table filling in beneath it without moving it | **The watch says whether it is still watching.** A blip is reported and retried; after five consecutive failures it says it has given up and to reload, because a page that stopped polling silently is indistinguishable from a live one |
 | Conversation | A thread with no turns → the intent box, with the same worked examples Add New offers | Per-turn, in the thread, with the turn in flight named as such | A failed turn stays in the thread and is retryable; it never silently vanishes |

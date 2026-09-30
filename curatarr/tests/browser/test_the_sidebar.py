@@ -33,14 +33,15 @@ pytest.importorskip(
 
 #: The sidebar's sections, in order: § The *arr layout's table. Artworks first
 #: because every *arr app puts its library first; Walls second, in Calendar's
-#: slot. Activity joins when it has pages to hold.
-SECTIONS = ["Artworks", "Walls", "Settings", "System"]
+#: slot; then Activity, Settings and System in Sonarr's order.
+SECTIONS = ["Artworks", "Walls", "Activity", "Settings", "System"]
 
 #: The pages each section lists beneath its own name, when it is the current one.
 #: A page named like its section *is* the section's link and is not repeated.
 PAGES = {
     "Artworks": ["Add New", "Themes"],
     "Walls": [],
+    "Activity": ["Queue", "History"],
     "Settings": ["Taste"],
     "System": ["Status"],
 }
@@ -51,6 +52,8 @@ SIDEBAR_PAGES = [
     ("discover", "Add New"),
     ("theme", "Themes"),
     ("walls", "Walls"),
+    ("queue", "Queue"),
+    ("history", "History"),
     ("taste", "What this product thinks you like"),
     ("health", "Status"),
 ]

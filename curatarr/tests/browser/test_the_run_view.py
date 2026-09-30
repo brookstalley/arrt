@@ -501,11 +501,13 @@ def test_a_truncated_search_list_says_how_much_history_it_is_not_showing(ui):
     """
     ui.serve("**/api/runs*", _a_run_list(count=50, total=407))
 
-    ui.open("#discover")
-    ui.page.wait_for_selector("h3:has-text('Searches')")
+    # Queue since the *arr navigation, which moved the listing off Add New; the
+    # note is the same claim about the same capped listing.
+    ui.open("#queue")
+    ui.page.wait_for_selector("h3:has-text('In flight')")
 
     text = ui.text()
-    assert "50 of 407" in text
+    assert "50 most recent of 407" in text
     assert "does not page" in text, "a note implying paging sends a curator to an affordance that does not exist"
 
 
@@ -513,11 +515,11 @@ def test_a_complete_search_list_says_nothing_about_truncation(ui):
     """Saying nothing is the honest answer when nothing was left behind."""
     ui.serve("**/api/runs*", _a_run_list(count=4, total=4))
 
-    ui.open("#discover")
-    ui.page.wait_for_selector("h3:has-text('Searches')")
+    ui.open("#queue")
+    ui.page.wait_for_selector("h3:has-text('In flight')")
 
     text = ui.text()
-    assert "Searches (4)" in text
+    assert "In flight (4)" in text
     assert "of 4" not in text, "a complete list must not be dressed as a partial one"
     assert "does not page" not in text
 

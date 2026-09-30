@@ -89,6 +89,7 @@ filled in Radarr's answer where it has one:
 - `[ASSUMPTION: sub-pages show only under the current section, as Sonarr and Radarr show them | LOW impact | user can correct]`
 - `[DECISION: Add New fills in a search term handed to it and does not start the run | Sonarr's lookup is free and instant, while a Curatarr search is a discovery run that takes minutes and spends money. Nothing may spend on a keystroke | user can veto/override]`
 - `[DECISION: Enter in the top-bar search opens Artworks filtered to the query, not the first match as Sonarr does | an artist or movement matches many works where a series title matches one, so the first match is arbitrary. This departs from the *arr norm. **Ruled by the owner 2026-09-30: "yes to filtered to the query"** | settled]`
+- `[DECISION, taken while building Chunk 03: Queue is the runs that have not ended, not "working or waiting for review" | the run listing carries no signal for a finished run with unjudged candidates, and adding one is an API change on GET /api/runs and its MCP twin, outside this plan. Nothing is lost against today's single list, and the gap is recorded in information-architecture.md § The *arr layout as owed | user can veto/override]`
 - `[DECISION: keep the top-bar status indicator beside the *arr System badge | accessibility-spec.md requires glyph + word + colour, and a count-only badge has no word; the familiarity norm governs placement and naming, not legibility of state | user can veto/override]`
 
 **What would raise it:** the owner reading the placement table in

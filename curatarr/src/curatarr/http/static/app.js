@@ -26,6 +26,7 @@ import { install, go, refresh } from "./core/router.js";
 import { installSearch, paintSearch } from "./core/search.js";
 import { installStatus, paintStatus } from "./core/status.js";
 import { state } from "./core/state.js";
+import { viewHistory, viewQueue } from "./screens/activity.js";
 import { viewCollection } from "./screens/collection.js";
 import { viewConversation } from "./screens/conversation.js";
 import { viewDiscover } from "./screens/discover.js";
@@ -44,11 +45,12 @@ import { viewWork } from "./screens/work.js";
  * **A new section needs an *arr precedent or an owner ruling** — § Direction's
  * last sentence, and the one clause of the old navigation norm that survived
  * its amendment. A subsystem that gains a UI gets a page in an existing section.
- * Wanted and Activity are the precedents waiting: Activity when runs leave Add
- * New, Wanted when there is a quality cutoff or a Watch to be unmet. */
+ * Wanted is the precedent waiting: it appears when there is a quality cutoff or
+ * a Watch to be unmet. */
 const SECTIONS = [
   { key: "artworks", label: "Artworks", glyph: "▣" },
   { key: "walls", label: "Walls", glyph: "▢" },
+  { key: "activity", label: "Activity", glyph: "↻" },
   { key: "settings", label: "Settings", glyph: "⚙" },
   // `status` marks the section whose link carries the health badge.
   { key: "system", label: "System", glyph: "♥", status: true },
@@ -85,18 +87,25 @@ const ROUTES = {
   // Radarr's Collections: a named grouping of what the library holds.
   theme: { render: viewTheme, detail: OPTIONAL_ID, section: "artworks", page: "Themes" },
   walls: { render: viewWalls, section: "walls", page: "Walls" },
+  // Radarr's Activity: the searches in flight, and the ones that ended.
+  queue: { render: viewQueue, section: "activity", page: "Queue" },
+  history: { render: viewHistory, section: "activity", page: "History" },
   // Radarr's Profiles: the preferences that rank what it finds.
   taste: { render: viewTaste, section: "settings", page: "Taste" },
   health: { render: viewHealth, section: "system", page: "Status" },
   work: { render: viewWork, detail: true, opensFrom: "collection" },
-  run: { render: viewRun, detail: true, opensFrom: "discover" },
+  // A search is listed under Activity, so a bookmark to one returns to Queue.
+  // Run and Review share that default because they are one search's two pages:
+  // each opens the other, and with different defaults every hop between them
+  // would record an opener the curator never chose.
+  run: { render: viewRun, detail: true, opensFrom: "queue" },
   // Contextual rather than a page: a conversation is something a curator does
   // *within* Add New, and returns there.
   conversation: { render: viewConversation, detail: true, opensFrom: "discover" },
   // Keyed by the run whose works are being judged, not by a work: a curator
   // reviews a run's output as a set, and a per-work address would make the grid
   // unreachable by URL.
-  review: { render: viewReview, detail: true, opensFrom: "discover" },
+  review: { render: viewReview, detail: true, opensFrom: "queue" },
 };
 
 installStatus();

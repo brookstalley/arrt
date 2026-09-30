@@ -25,8 +25,13 @@ curatarr`) and open it in a browser.
 3. **Stop a wall's heartbeat or remove the backup receipt:** the System link
    should show a count, and the top-bar indicator should name the problem.
 4. **Narrow the window below 40rem** (or open it on a phone): the sidebar
-   should be gone behind a Menu button, which opens it as a drawer. Escape
-   closes it.
+   should be gone behind a Menu button, which opens it as a drawer. Escape, or
+   a tap beside it, closes it.
+5. **Activity › Queue and History** (Chunk 03): start a search in Add New. It
+   should appear in Queue while it works and while it waits at the approval
+   gate, then move to History when it ends. Is a finished search with works to
+   review easy enough to find in History, or does it need to stay in Queue
+   (the recorded gap)?
 
 ### Switch the Pi to HTTP mode, and let it soak — added 2026-09-30
 

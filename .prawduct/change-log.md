@@ -58,7 +58,7 @@
 
 ## 2026-09-30: The *arr navigation: the norm amended, and the sidebar built
 
-<!-- prawduct: chunks=01,02 | scope=arr-navigation -->
+<!-- prawduct: chunks=01,02,03 | scope=arr-navigation -->
 
 **Why:** the owner ruled that Curatarr's browser surface should be laid out like
 the *arr apps: *"More important to be familiar than to have our own thing."*
@@ -87,6 +87,14 @@ the *arr apps: *"More important to be familiar than to have our own thing."*
 - **The skip link had sent keyboard users to the home page.** The hash router
   read `#view` as an address. It now moves focus instead, with a test that
   fails without the fix.
+- **Activity › Queue and History (Chunk 03).** The run list left Add New. Queue
+  holds the searches that have not ended and History the ones that have, split
+  on the server's `is_terminal` flag. A run and its review now return to Queue
+  by default. They share it because each opens the other, and separate defaults
+  put an opener in the address on every hop between them. `/queue` and `/history` are served as reloadable paths.
+  A finished run with unjudged candidates belongs in Queue as Radarr's "manual
+  import" does, but the listing has no signal for it. That gap is recorded in
+  `information-architecture.md` and not built here.
 - `test_the_three_destinations.py` became `test_the_sidebar.py`. Its docstring
   records which tests were kept, which rewritten to the amended norm, and which
   retired: *no entry names a pipeline stage* and *the navigation is flat*, both

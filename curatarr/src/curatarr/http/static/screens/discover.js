@@ -1,9 +1,10 @@
-/* Add New — asking for something new, and every search that has been asked.
+/* Add New — asking for something new.
  *
  * Radarr's Add New, under Artworks (`information-architecture.md` § The *arr
  * layout), at the address `#discover` it had before the rename. It holds the
- * direct intent box, the conversations, and the run list, which moves to
- * Activity when that section is built.
+ * direct intent box and the conversations. The searches they start are listed
+ * under Activity — Queue while they work, History once they end — as Radarr
+ * lists its downloads there rather than on Add New.
  */
 
 import { api } from "../core/api.js";
@@ -15,11 +16,7 @@ export async function viewDiscover(generation) {
   // Both in one round trip: the estimate exists to inform the decision being
   // made in the field beside it, so a screen that fetched it afterwards would
   // be showing a receipt.
-  const [estimate, runs, conversations] = await Promise.all([
-    api("/api/estimate"),
-    api("/api/runs"),
-    api("/api/conversations"),
-  ]);
+  const [estimate, conversations] = await Promise.all([api("/api/estimate"), api("/api/conversations")]);
 
   const intent = el("textarea", { id: "intent", rows: 3, required: true });
   const start = el("button", {
@@ -53,10 +50,9 @@ export async function viewDiscover(generation) {
 
   /* The way into what the product has come to believe about the curator.
    *
-   * Here rather than in the navigation: Taste is a contextual screen, and its
-   * entry points are Add New and a suggestion's provenance. It sits beside the
-   * two ways of asking for something because it is the thing that shapes what
-   * comes back — a curator wondering why they keep being offered pale grids
+   * Taste's page is under Settings, and this is a second way in: it sits beside
+   * the two ways of asking for something because it is the thing that shapes
+   * what comes back — a curator wondering why they keep being offered pale grids
    * looks for the answer where they do the asking. */
   const taste = el("button", {
     class: "action quiet",
@@ -111,48 +107,5 @@ export async function viewDiscover(generation) {
     );
   }
 
-  if (!runs.runs.length) {
-    panels.push(el("p", { class: "muted", text: "No searches yet. Ask for something above." }));
-  } else {
-    panels.push(
-      el("div", { class: "panel" }, [
-        // Both figures whenever they differ. The server caps this listing, and a
-        // heading reading "Searches (50)" over a history of four hundred is a
-        // silently short list — indistinguishable from a complete one, which is
-        // how a curator concludes their older searches are gone. The count alone
-        // was what this rendered for one commit, immediately after the cap was
-        // added on the server and before anything here read `total`.
-        el("h3", { text: runs.truncated ? `Searches (${runs.count} of ${runs.total})` : `Searches (${runs.count})` }),
-        runs.truncated
-          ? el("p", {
-              class: "note",
-              // No paging on this listing, so the note must not imply one. What
-              // reaches an older run is opening it directly: the run view takes
-              // an id in the fragment and is reachable from anywhere.
-              text:
-                `Showing the ${runs.count} most recent of ${runs.total} searches. ` +
-                "Older ones are still here and still open at their own address; this list does not page.",
-            })
-          : null,
-        table(
-          "Every search, newest first. A re-search is a run too, and is listed here with its parent.",
-          ["Asked for", "Kind", "State", "Started", "Open"],
-          runs.runs.map((run) => [
-            run.intent || "—",
-            run.kind === "resolve" ? "re-search" : "search",
-            run.status,
-            run.started_at,
-            el("button", {
-              class: "action quiet",
-              type: "button",
-              text: "Open",
-              "aria-label": `Open the search for ${run.intent || run.run_id}`,
-              onclick: () => go("run", run.run_id),
-            }),
-          ]),
-        ),
-      ]),
-    );
-  }
   render(generation, ...panels);
 }
