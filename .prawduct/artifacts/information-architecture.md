@@ -259,8 +259,8 @@ listed below so it can be disputed.
     works, so the first match is an arbitrary one. Opening the filtered library
     keeps today's behaviour, where search is the main way to find things at
     thousands of works. The matches in the dropdown are still one arrow key
-    away. *(Builder's proposal, which departs from Sonarr. It needs the owner's
-    ruling, since the norm says to follow Sonarr.)*
+    away. *(Ruled by the owner 2026-09-30: "yes to filtered to the query". This is
+    a recorded departure from the *arr precedent, for the reason above.)*
 - **The toolbar** on list pages puts actions on the left and View, Sort and
   Filter on the right. On Artworks, View offers Posters, Overview and Table.
   Posters and Overview replace today's contact sheet and catalogue, and Table is

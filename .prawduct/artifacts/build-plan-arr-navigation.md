@@ -88,7 +88,7 @@ filled in Radarr's answer where it has one:
 - `[ASSUMPTION: canonical fragments are #artworks, #artwork/<id>, #add, #themes, #themes/<id>, #walls, #queue, #history, #taste, #status, and every older fragment is an alias for its successor | LOW impact | user can correct]`
 - `[ASSUMPTION: sub-pages show only under the current section, as Sonarr and Radarr show them | LOW impact | user can correct]`
 - `[DECISION: Add New fills in a search term handed to it and does not start the run | Sonarr's lookup is free and instant, while a Curatarr search is a discovery run that takes minutes and spends money. Nothing may spend on a keystroke | user can veto/override]`
-- `[DECISION: Enter in the top-bar search opens Artworks filtered to the query, not the first match as Sonarr does | an artist or movement matches many works where a series title matches one, so the first match is arbitrary. This departs from the *arr norm and NEEDS THE OWNER'S RULING before Chunk 04 builds it | user can veto/override]`
+- `[DECISION: Enter in the top-bar search opens Artworks filtered to the query, not the first match as Sonarr does | an artist or movement matches many works where a series title matches one, so the first match is arbitrary. This departs from the *arr norm. **Ruled by the owner 2026-09-30: "yes to filtered to the query"** | settled]`
 - `[DECISION: keep the top-bar status indicator beside the *arr System badge | accessibility-spec.md requires glyph + word + colour, and a count-only badge has no word; the familiarity norm governs placement and naming, not legibility of state | user can veto/override]`
 
 **What would raise it:** the owner reading the placement table in
@@ -221,8 +221,8 @@ work for this plan.
    arrow keys, Escape) whose two groups are announced by name.
 3. Following *Search museums* never starts a run. A test asserts that no run
    exists after landing on `#add?term=…`, and that the box holds the term.
-4. Enter does what the owner ruled, tested both with library matches and with
-   none.
+4. Enter opens Artworks filtered to the query, as the owner ruled. It is tested
+   with several library matches, where it must not open the first one, and with none.
 5. *Already in your library* is tested with a candidate that is an accepted work
    and one that is not. The second case is there so the mark cannot pass by
    appearing on everything.
@@ -252,7 +252,6 @@ Queue and History get the toolbar with actions only. Table view comes last.
 
 ## Governance checkpoints
 
-- **Before Chunk 04**, the owner rules on Enter (Requirements Confidence).
 - **After Chunk 02**, read the built sidebar against § The *arr layout's
   placement table before building on it. Chunks 03 and 04 assume its shape.
 - **Before the PR**, the cumulative review in Chunk 05, then turn § Direction's
