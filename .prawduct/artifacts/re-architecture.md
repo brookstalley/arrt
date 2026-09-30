@@ -390,7 +390,7 @@ plan: each wave gets its own `build-plan-<scope>.md` when it starts, per
 
 | Wave | Scope | Notes |
 |---|---|---|
-| **0: clear the decks** | Park round 2. Retire the 2024 root modules. Reconcile v1 `build-plan.md`'s open chunks. | Round 2 is **parked, not abandoned**, on branch `curation-ui/rulings-and-plan` (three commits, local only as of 2026-09-30). It is curation-UI work that remains valid for the server; revisit after wave 2. The v1 plan's open chunks (13A, 13B, 24–27) wait on hardware; decide which survive the new direction. |
+| **0: clear the decks** | Park round 2. Retire the 2024 root modules. Reconcile the open chunks of the v1 plan (archived 2026-09-30 as `archive/build-plan.md`). | Round 2 is **parked, not abandoned**, on branch `curation-ui/rulings-and-plan` (three commits, local only as of 2026-09-30). It is curation-UI work that remains valid for the server; revisit after wave 2. The v1 plan's open chunks (13A, 13B, 24–27) wait on hardware; decide which survive the new direction. |
 | **1: plan** | Amend the artifacts (this change started that). Write the Player contract artifact with a JSON Schema and fixtures. Write the wave-2 build plan. | Doc-only. The amendments were drafted 2026-09-30; see § Artifacts touched. |
 | **2: HTTP channel, alongside the file** | The server serves manifest, media and heartbeat over HTTP. Display gains a pull-to-local-cache mode behind configuration. Schema minor bump. | The wall never goes dark. The file channel keeps working until wave 3 retires it. `tests/preferences/test_plane_isolation.py` forbids any HTTP client in display today. Narrow it in the same chunk that adds the pull (one manifest-client module, three endpoints), not before and not after. |
 | **3: server to the NAS** | Containerize curation. Deploy on the NAS. Point the Pi at HTTP. Retire the file channel. | The deployment side lives in the operator's homelab repo. |
@@ -431,7 +431,7 @@ the other way round.
 - **What a review card shows about size before any wall hangs the work.** This
   follows from the resolution-floor question in § Compositing moves to the
   Player.
-- **The fate of v1 `build-plan.md`'s open chunks.** They are hardware checks
+- **The fate of the v1 plan's open chunks** (`archive/build-plan.md`, proposed dispositions under its header). They are hardware checks
   on the Frame and the panel. Most remain meaningful for the Player.
 - **Filing the program as backlog items.** The live backlog is public GitHub
   Issues (`backlog_service_repo`). Filing them is the operator's call and has not

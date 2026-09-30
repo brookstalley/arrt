@@ -681,8 +681,9 @@ used to say no build plan referenced this artifact, and that the work waited on
 Chunk 13A resolving. **The operator lifted that gate on 2026-08-12** and directed
 that the plan be independent of the display-plane chunks. It is: 13A and 13B are
 blocked on a television and a panel, this work is blocked on neither, and queuing
-it behind hardware bought nothing but delay. `build-plan.md` stays the
-`active_build_plan` pointer until its own remaining chunks close.
+it behind hardware bought nothing but delay. `build-plan.md` stayed the
+`active_build_plan` pointer until 2026-09-30, when it was archived as superseded
+by `re-architecture.md` (`archive/build-plan.md`).
 
 | What | Owed to | State |
 |---|---|---|

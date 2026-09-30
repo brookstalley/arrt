@@ -3014,7 +3014,7 @@ artifact_manifest:
     # decision it rests on unreachable by a dependency walk — precisely the
     # blind spot recorded under `findings` below.
     - name: build-plan
-      file_path: .prawduct/artifacts/build-plan.md
+      file_path: .prawduct/artifacts/archive/build-plan.md
       version: 1
       depends_on: [product-brief, data-model, architecture, api-contract,
                    nonfunctional-requirements, security-model, operational-spec,
@@ -3085,7 +3085,13 @@ build_state:
 # longer something governance can resolve a chunk against, and v1 is the live
 # work again — `build-plan.md` is unfinished on 13A, 13B and 24–27, every one of
 # them waiting on a television or a panel.
-active_build_plan: artifacts/build-plan.md
+#
+# Unset 2026-09-30: the v1 plan is archived as superseded by
+# `artifacts/re-architecture.md` (`artifacts/archive/build-plan.md`). Its open
+# chunks were not finished. 13A, 13B and 24–27 are proposed to survive as Player
+# work, and 20 to be re-scoped; the table under the plan's header records each.
+# Confirming those dispositions is wave 0, and the chunks that survive move into
+# the next wave's build-plan-<scope>.md. Point this at that plan when it is written.
 
 # =============================================================================
 # DERIVED VIEWS — RETIRED, and deliberately absent
