@@ -556,7 +556,7 @@ def test_membership_is_edited_from_the_grid_without_leaving_it(ui, display, a_th
     assert ui.page.url.endswith("#collection")
     assert ui.page.locator("ul.grid li.card").count() == 3
     # And the server really holds it, rather than the page having said so.
-    assert len(display.theme_works(theme.id)) == 3
+    assert len(display.theme_work_ids(theme.id)) == 3
 
 
 def test_editing_membership_does_not_drop_the_keyboard_to_the_top_of_the_page(ui, display, a_theme_holding_one_work):
@@ -593,7 +593,7 @@ def test_removing_from_a_theme_takes_the_tiles_out_and_says_what_is_left(ui, dis
     ui.page.wait_for_function("() => document.querySelectorAll('ul.grid li.card').length === 1")
 
     assert ui.page.inner_text("h2") == "1 work in “Baroque”"
-    assert len(display.theme_works(theme.id)) == 1
+    assert len(display.theme_work_ids(theme.id)) == 1
 
 
 def test_a_collection_with_no_themes_draws_no_tick_it_cannot_act_on(ui, seeded_service):
@@ -644,7 +644,7 @@ def test_adding_a_work_the_theme_already_holds_is_not_an_error(ui, display, a_th
     ui.page.wait_for_selector(".selection-status:has-text('Added 1 work to Baroque. 1 was already in it.')")
 
     assert ui.page.locator("#error").is_hidden(), "a duplicate in the selection was reported as a failure"
-    assert len(display.theme_works(theme.id)) == 2
+    assert len(display.theme_work_ids(theme.id)) == 2
 
 
 def test_a_refusal_partway_through_leaves_exactly_the_works_that_did_not_go(ui, display, a_theme_holding_one_work):
@@ -707,7 +707,7 @@ def test_a_refusal_partway_through_leaves_exactly_the_works_that_did_not_go(ui, 
     assert ui.page.locator("input.tile-select:checked").count() == 1
     assert ui.page.locator(f"li.card[data-artwork='{works[2].id}'] input.tile-select").is_checked()
     assert writes == [works[1].id, works[2].id]
-    assert {held.artwork.id for held in display.theme_works(theme.id)} == {works[0].id, works[1].id}
+    assert set(display.theme_work_ids(theme.id)) == {works[0].id, works[1].id}
 
     # The retry is pressing the same button, so it has to still be pressable.
     assert ui.page.is_enabled("button:has-text('Add to theme')")
@@ -722,7 +722,7 @@ def test_a_refusal_partway_through_leaves_exactly_the_works_that_did_not_go(ui, 
     assert writes == [works[1].id, works[2].id, works[2].id]
     assert ui.page.inner_text(".selection-status") == "Added 1 work to Baroque."
     assert ui.page.locator("input.tile-select:checked").count() == 0
-    assert {held.artwork.id for held in display.theme_works(theme.id)} == {work.id for work in works}
+    assert set(display.theme_work_ids(theme.id)) == {work.id for work in works}
 
 
 def test_removing_a_theme_s_last_member_leaves_a_sentence_not_a_blank(ui, a_theme_holding_one_work):

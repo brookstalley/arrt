@@ -47,9 +47,14 @@ from urllib.parse import quote
 
 import httpx
 
-from curatarr.config import DEFAULT_PREVIEW_MAX_BYTES
 from curatarr.library.discovery.browse import BrowseQuery, CollectionBrowse, CollectionBrowseFailure, OfferedGroup
-from curatarr.library.discovery.images import FoundImage, ImageQuery, ImageSearch, ImageSearchFailure
+from curatarr.library.discovery.images import (
+    DEFAULT_PREVIEW_MAX_BYTES,
+    FoundImage,
+    ImageQuery,
+    ImageSearch,
+    ImageSearchFailure,
+)
 from curatarr.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
 
 log = logging.getLogger(__name__)

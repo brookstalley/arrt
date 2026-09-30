@@ -13,14 +13,17 @@ from dataclasses import replace
 
 import pytest
 
+from curatarr.library import readiness
+from curatarr.library.facade import UnplayableReason
+from curatarr.library.readiness import not_in_catalogue
 from curatarr.persistence.records import (
     FetchStatus,
     RenditionKind,
 )
+from curatarr.programming.display import DisplayService
 from curatarr.programming.manifest import builder
 from curatarr.programming.manifest.builder import (
     SCHEMA_MAJOR,
-    ExclusionReason,
     write_atomically,
 )
 from curatarr.services.errors import ServiceError
@@ -61,9 +64,9 @@ def test_an_archived_work_leaves_the_manifest_but_stays_in_the_theme(service, di
     build = display.build_manifest(wall_id, theme.id)
 
     assert build.entries == []
-    assert [exclusion.reason for exclusion in build.exclusions] == [ExclusionReason.ARCHIVED]
+    assert [exclusion.reason for exclusion in build.exclusions] == [UnplayableReason.ARCHIVED]
     # Still a member — the curator said it belongs here and nothing has unsaid it.
-    assert [detail.artwork.id for detail in display.theme_works(theme.id)] == [work.id]
+    assert list(display.theme_work_ids(theme.id)) == [work.id]
 
 
 def test_a_work_with_no_acquired_original_is_excluded_and_named(display, ready_work, theme_of, wall_id):
@@ -72,8 +75,49 @@ def test_a_work_with_no_acquired_original_is_excluded_and_named(display, ready_w
     build = display.build_manifest(wall_id, theme.id)
 
     assert build.entries == []
-    assert [exclusion.reason for exclusion in build.exclusions] == [ExclusionReason.NO_ORIGINAL]
+    assert [exclusion.reason for exclusion in build.exclusions] == [UnplayableReason.NO_ORIGINAL]
     assert "acquired" in build.exclusions[0].detail
+
+
+class _ForgetsOneWork:
+    """The real facade, except that one work has gone from the catalogue.
+
+    Foreign keys stop that happening today, and they go when Programming's
+    tables move to a file of their own. The facade is the only thing Programming
+    asks, so standing in for it is the whole of the arrangement.
+    """
+
+    def __init__(self, library, forgotten: str) -> None:
+        self._library = library
+        self._forgotten = forgotten
+
+    def playable(self, work_ids):
+        ids = list(work_ids)
+        answers = self._library.playable(id_ for id_ in ids if id_ != self._forgotten)
+        return {id_: not_in_catalogue(id_) if id_ == self._forgotten else answers[id_] for id_ in ids}
+
+
+def test_a_work_the_catalogue_no_longer_holds_is_excluded_and_named_by_its_id(
+    store, library, wall_settings, ready_work, theme_of, wall_id
+):
+    """A dangling reference costs the wall one work, not the whole theme.
+
+    Named by its id, because there is no title to give and every row of the
+    exclusion report is read by a curator looking for which one.
+    """
+    kept = ready_work(title="Nighthawks")
+    gone = ready_work(title="Automat")
+    theme = theme_of(kept, gone)
+    display = DisplayService(store, _ForgetsOneWork(library, gone.id), wall_settings)
+
+    build = display.build_manifest(wall_id, theme.id)
+
+    assert [entry.work_id for entry in build.entries] == [kept.id]
+    assert [(exclusion.work_id, exclusion.title, exclusion.reason) for exclusion in build.exclusions] == [
+        (gone.id, gone.id, UnplayableReason.NOT_IN_CATALOGUE)
+    ]
+    assert build.exclusions[0].detail == f"No artwork with id {gone.id!r} is in the catalogue."
+    assert build.summarise().startswith("1 of 2 works")
 
 
 def test_a_work_that_has_not_been_rendered_is_excluded_and_named(display, ready_work, theme_of, wall_id):
@@ -81,7 +125,7 @@ def test_a_work_that_has_not_been_rendered_is_excluded_and_named(display, ready_
 
     build = display.build_manifest(wall_id, theme.id)
 
-    assert [exclusion.reason for exclusion in build.exclusions] == [ExclusionReason.NO_RENDITION]
+    assert [exclusion.reason for exclusion in build.exclusions] == [UnplayableReason.NO_RENDITION]
 
 
 def test_a_work_with_no_current_mat_colour_is_excluded_and_named(display, ready_work, theme_of, wall_id):
@@ -89,7 +133,7 @@ def test_a_work_with_no_current_mat_colour_is_excluded_and_named(display, ready_
 
     build = display.build_manifest(wall_id, theme.id)
 
-    assert [exclusion.reason for exclusion in build.exclusions] == [ExclusionReason.NO_MAT_COLOR]
+    assert [exclusion.reason for exclusion in build.exclusions] == [UnplayableReason.NO_MAT_COLOR]
 
 
 def test_a_render_made_from_an_earlier_acquisition_is_excluded_as_stale(service, display, ready_work, theme_of, wall_id):
@@ -111,7 +155,7 @@ def test_a_render_made_from_an_earlier_acquisition_is_excluded_as_stale(service,
     build = display.build_manifest(wall_id, theme.id)
 
     assert build.entries == []
-    assert [exclusion.reason for exclusion in build.exclusions] == [ExclusionReason.STALE_RENDITION]
+    assert [exclusion.reason for exclusion in build.exclusions] == [UnplayableReason.STALE_RENDITION]
 
 
 def test_regenerating_the_render_returns_the_work_to_the_wall(service, display, ready_work, theme_of, wall_id):
@@ -158,7 +202,7 @@ def test_a_thumbnail_is_not_a_television_render(service, display, ready_work, th
 
     build = display.build_manifest(wall_id, theme.id)
 
-    assert [exclusion.reason for exclusion in build.exclusions] == [ExclusionReason.NO_RENDITION]
+    assert [exclusion.reason for exclusion in build.exclusions] == [UnplayableReason.NO_RENDITION]
 
 
 def test_every_member_is_accounted_for_as_an_entry_or_an_exclusion(display, ready_work, theme_of, wall_id):
@@ -482,10 +526,10 @@ def test_an_unrendered_work_cannot_be_made_into_an_entry(service):
     file later.
     """
     work = service.add_artwork(title="Nighthawks")
-    inputs = builder.WorkInputs(artwork=work, artist=None, original=None, tv_rendition=None, mat_color=None)
+    inputs = readiness.WorkInputs(artwork=work, artist=None, original=None, tv_rendition=None, mat_color=None)
 
     with pytest.raises(ValueError, match="no television render"):
-        builder.entry_for(inputs)
+        readiness.playable_from(inputs)
 
 
 def test_building_for_a_wall_with_nothing_hanging_is_refused_rather_than_writing_an_empty_manifest(display, wall_id):
@@ -641,4 +685,4 @@ class TestOneManifestPerWall:
 
 
 def theme_works(display, theme_id) -> list[str]:
-    return [detail.artwork.id for detail in display.theme_works(theme_id)]
+    return list(display.theme_work_ids(theme_id))

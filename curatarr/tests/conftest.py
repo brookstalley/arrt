@@ -57,6 +57,7 @@ from curatarr.config import (
     Settings,
 )
 from curatarr.library.acquisition.preparation import PreparationSettings
+from curatarr.library.facade import LibraryFacade
 from curatarr.library.services.catalogue import CatalogueService
 from curatarr.library.services.conversation import ConversationService
 from curatarr.library.services.discovery import DiscoveryService
@@ -304,6 +305,11 @@ def conversation(services: Services) -> ConversationService:
 @pytest.fixture
 def display(services: Services) -> DisplayService:
     return services.display
+
+
+@pytest.fixture
+def library(services: Services) -> LibraryFacade:
+    return services.library
 
 
 @pytest.fixture

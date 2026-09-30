@@ -48,6 +48,7 @@ from curatarr.config import (
     Settings,
 )
 from curatarr.library.discovery.phase_one import OpenRouterEngine
+from curatarr.library.facade import LibraryFacade
 from curatarr.library.services.catalogue import CatalogueService
 from curatarr.persistence.file import open_catalogue_file
 from curatarr.persistence.migrations import DEFAULT_WALL_NAME
@@ -173,7 +174,7 @@ def test_the_plane_moves_the_catalogue_onto_walls_before_it_serves(tmp_path, mon
         try:
             display = DisplayService(
                 observer,
-                CatalogueService(observer),
+                LibraryFacade(CatalogueService(observer)),
                 DisplaySettings(art_root=art_root, rotation_interval_seconds=180, shuffle=True),
             )
             wall = observer.list_walls()[0]

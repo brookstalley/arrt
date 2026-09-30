@@ -22,7 +22,6 @@ from curatarr.library.services.catalogue import ArtworkDetail, CatalogueService,
 from curatarr.library.services.display_fit import ArtworkBox, FitAssessment
 from curatarr.library.services.thumbnails import ThumbnailService, ThumbnailUnavailable
 from curatarr.persistence.records import MatColor, Original, Source, WorkFacet
-from curatarr.programming.display import DisplayService
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,12 +85,10 @@ class SurveyService:
     def __init__(
         self,
         catalogue: CatalogueService,
-        display: DisplayService,
         thumbnails: ThumbnailService,
         box: ArtworkBox,
     ) -> None:
         self._catalogue = catalogue
-        self._display = display
         self._thumbnails = thumbnails
         self._box = box
 
@@ -127,14 +124,16 @@ class SurveyService:
             facets=listing.facets,
         )
 
-    def theme_works(self, theme_id: str) -> Sequence[WorkSurvey]:
-        """A theme's works in curated order, each judged the way a grid card needs.
+    def survey_works(self, artwork_ids: Sequence[str]) -> Sequence[WorkSurvey]:
+        """These works in the order given, each judged the way a grid card needs.
 
-        The order is the theme's, so this reads through the display service
-        rather than re-deriving it: a second implementation of "which works, in
-        what order" is exactly the divergence a surface must not introduce.
+        **The order is the caller's.** A theme's order is Programming's to decide,
+        and the Library never reads it: the surface asks Programming for the ids
+        and hands them here, rather than this service re-deriving "which works, in
+        what order", which is exactly the divergence a surface must not
+        introduce.
         """
-        return [self._survey(detail) for detail in self._display.theme_works(theme_id)]
+        return [self._survey(detail) for detail in self._catalogue.resolve_details(artwork_ids)]
 
     def get_work(self, artwork_id: str) -> WorkDossier:
         """One work with everything a detail view shows."""

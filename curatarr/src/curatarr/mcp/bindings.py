@@ -369,7 +369,9 @@ def _get_theme(services: Services, arguments: Mapping[str, Any]) -> dict[str, An
     theme_id = arguments["theme_id"]
     return ok(
         theme=_theme_fields(services.display.get_theme(theme_id)),
-        works=[_summary(entry) for entry in services.display.theme_works(theme_id)],
+        # Two calls composed: Programming says which works and in what order, and
+        # the Library says what each work is.
+        works=[_summary(entry) for entry in services.catalogue.resolve_details(services.display.theme_work_ids(theme_id))],
     )
 
 

@@ -155,8 +155,8 @@ a second and is left serial.
 **The root suite is not only the 2024 modules**, and believing that costs a
 developer their first hour on the leg most likely to go red under them. It also
 carries `tests/preferences/`, where this repo's artifact-versus-code contracts
-live — plane isolation, the heartbeat, the norm index, the label corpus, and the
-screen tables. Those span two projects by design: `test_screen_tables.py` reads
+live — plane isolation, the Library/Programming seam, the heartbeat, the norm
+index, the label corpus, and the screen tables. Those span two projects by design: `test_screen_tables.py` reads
 the *curation* plane's `http/static/app.js` against
 `.prawduct/artifacts/information-architecture.md`, and neither plane's own suite
 can see both. So a change made entirely inside `curatarr/` — routing a screen,

@@ -5,11 +5,13 @@ what order, and what should it do next". They are separated because they change
 for different reasons: a work's metadata changes when a curator corrects it, and
 a theme changes when a curator changes their mind about an evening.
 
-**This service depends on the catalogue and never the reverse.** A theme is a
-grouping of works, so building one requires reading them; nothing about a work
-requires knowing which themes hold it. The one place that direction looks
-violated is `CatalogueService.archive_artwork`, which nulls a pin naming the work
-it archives. That is deliberate, and the split it respects is *integrity* versus
+**This service depends on the Library and never the reverse**, and only through
+`curatarr.library.facade`. A theme is a grouping of works, so building one
+requires asking about them; nothing about a work requires knowing which themes
+hold it. Works are held here as ids, and the facade says whether each can go on a
+wall. The one place that direction looks violated is
+`CatalogueService.archive_artwork`, which nulls a pin naming the work it
+archives. That is deliberate, and the split it respects is *integrity* versus
 *semantics*: a pin naming an archived work is an unsatisfiable reference, cleared
 in the same transaction that creates it exactly as any other dangling reference
 would be, and it never advances the sequence. Every rule about what an advance
@@ -28,21 +30,19 @@ from pathlib import Path
 from typing import Final
 
 from curatarr import observations
-from curatarr.library.services.catalogue import ArtworkDetail, CatalogueService
-from curatarr.persistence.catalogue import CatalogueStore
+from curatarr.library.facade import LibraryFacade, PlayableWork, Unplayable, UnplayableReason
 from curatarr.persistence.records import Directive, Theme, ThemeAssignment, ThemeMembership, Wall
 from curatarr.programming.manifest import heartbeat
 from curatarr.programming.manifest.builder import (
+    Exclusion,
     ManifestBuild,
-    WorkInputs,
+    ManifestEntry,
     as_document,
-    assess,
-    entry_for,
     manifest_path_in,
-    tv_rendition_of,
     write_atomically,
 )
 from curatarr.programming.manifest.heartbeat import HeartbeatReading, heartbeat_path_in
+from curatarr.programming.store import ProgrammingStore
 from curatarr.services.errors import ServiceError
 from curatarr.services.fields import require_text
 from curatarr.services.store import store_write
@@ -187,9 +187,9 @@ class ThemePlacement:
 class DisplayService:
     """Read and write the themes, memberships, and directives the walls run on."""
 
-    def __init__(self, store: CatalogueStore, catalogue: CatalogueService, settings: DisplaySettings) -> None:
+    def __init__(self, store: ProgrammingStore, library: LibraryFacade, settings: DisplaySettings) -> None:
         self._store = store
-        self._catalogue = catalogue
+        self._library = library
         self._settings = settings
 
     # -- reads: themes --------------------------------------------------------
@@ -305,17 +305,17 @@ class DisplayService:
         theme_id = hanging.get(wall.id)
         return WallView(wall=wall, hanging=None if theme_id is None else themes[theme_id], directive=directive)
 
-    def theme_works(self, theme_id: str) -> Sequence[ArtworkDetail]:
-        """The theme's works in curated order, each with its artist resolved.
+    def theme_work_ids(self, theme_id: str) -> Sequence[str]:
+        """The ids of the theme's works, in curated order.
 
         Ordered because the entries carry a curator's placement; the ones nobody
-        placed follow the ones somebody did. Artists come along because a theme
-        listing is read to decide what goes on the wall, and attribution is the
-        first thing that decision turns on.
+        placed follow the ones somebody did. **Ids and not works**, because what a
+        work *is* is the Library's to say: a surface listing a theme resolves
+        these through the Library, which is the composition the bindings are
+        allowed to do and this service is not.
         """
         self.get_theme(theme_id)
-        memberships = self._store.list_memberships(theme_id)
-        return self._catalogue.resolve_details([membership.artwork_id for membership in memberships])
+        return [membership.artwork_id for membership in self._store.list_memberships(theme_id)]
 
     # -- reads: the display directive -----------------------------------------
 
@@ -469,7 +469,7 @@ class DisplayService:
         a move could.
         """
         self.get_theme(theme_id)
-        self._catalogue.get_artwork(artwork_id)
+        self._require_held(artwork_id)
         target = self._require_position(position)
         membership = ThemeMembership(
             theme_id=theme_id,
@@ -503,7 +503,7 @@ class DisplayService:
         curator is looking at is the one they are moving within, and there is no
         wrong answer to "put this last" worth a refusal.
 
-        **The whole list is renumbered, not the placed part of it.** `theme_works`
+        **The whole list is renumbered, not the placed part of it.** `theme_work_ids`
         hands a surface the placed works and then the unplaced ones as one list,
         and a surface can only index against what it was handed — so renumbering
         the placed subset alone made the index mean something the sender never
@@ -512,7 +512,7 @@ class DisplayService:
 
         **Unplaced is still a real destination**, and it is not the same as last.
         `None` means the curator has said nothing about where this work goes;
-        `theme_works` puts those after the placed ones, and returning a work to
+        `theme_work_ids` puts those after the placed ones, and returning a work to
         it renumbers what is left rather than leaving a hole in the sequence.
 
         One transaction, and the read of the order is inside it: a partial
@@ -687,9 +687,9 @@ class DisplayService:
         on rotating, by the same posture as a missing render file. What this
         closes is the case a curator can be told about now.
         """
-        excluded = assess(self._gather(artwork_id))
-        if excluded is not None:
-            raise ServiceError(f"Artwork {artwork_id!r} cannot be shown on the wall: {excluded.detail}")
+        answer = self._require_held(artwork_id)
+        if not isinstance(answer, PlayableWork):
+            raise ServiceError(f"Artwork {artwork_id!r} cannot be shown on the wall: {answer.detail}")
         return self._advance(wall_id, pinned_work_id=artwork_id)
 
     # -- the manifest ---------------------------------------------------------
@@ -713,13 +713,14 @@ class DisplayService:
 
         entries = []
         exclusions = []
-        for membership in self._store.list_memberships(theme.id):
-            inputs = self._gather(membership.artwork_id)
-            excluded = assess(inputs)
-            if excluded is None:
-                entries.append(entry_for(inputs))
+        # One question for the whole theme rather than one per work: the facade
+        # is written as if it were remote, and so is this call.
+        answers = self._library.playable(membership.artwork_id for membership in self._store.list_memberships(theme.id))
+        for answer in answers.values():
+            if isinstance(answer, PlayableWork):
+                entries.append(ManifestEntry.of(answer))
             else:
-                exclusions.append(excluded)
+                exclusions.append(Exclusion.of(answer))
 
         return ManifestBuild(
             wall=wall,
@@ -806,24 +807,16 @@ class DisplayService:
             )
         return self.get_theme(assignment.theme_id)
 
-    def _gather(self, artwork_id: str) -> WorkInputs:
-        """Collect everything the readiness rule judges one work on."""
-        detail = self._catalogue.get_artwork(artwork_id)
-        # Everything here comes through the catalogue service, because it owns
-        # what each of these means. Renditions reached straight past it into the
-        # store until 2026-08-05, and the hazard was the one the mat colour was
-        # already routed around: a second path to the same fact decides manifest
-        # membership while the first decides everything else, and only one of
-        # them is updated when the rule changes. The readiness rule judges the
-        # record rather than the view, so the view is unwrapped here — the rule
-        # it would have read is now a shared predicate `assess` calls directly.
-        return WorkInputs(
-            artwork=detail.artwork,
-            artist=detail.artist,
-            original=self._catalogue.get_original(artwork_id),
-            tv_rendition=tv_rendition_of([view.rendition for view in self._catalogue.list_renditions(artwork_id)]),
-            mat_color=self._catalogue.current_mat_color(artwork_id),
-        )
+    def _require_held(self, artwork_id: str) -> PlayableWork | Unplayable:
+        """The Library's answer about one work, refusing an id it does not hold.
+
+        Refused in the catalogue's own words, so a curator adding an unknown id to
+        a theme hears what they would have heard before the facade existed.
+        """
+        answer = self._library.playable([artwork_id])[artwork_id]
+        if not isinstance(answer, PlayableWork) and answer.reason is UnplayableReason.NOT_IN_CATALOGUE:
+            raise ServiceError(answer.detail)
+        return answer
 
     @staticmethod
     def _require_position(position: int | None) -> int | None:

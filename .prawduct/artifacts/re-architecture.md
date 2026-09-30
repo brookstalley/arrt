@@ -130,9 +130,9 @@ a ruling under the existing thin-binding norm, not a norm of its own.
 2. **The facade is written as if it were already remote.** It is coarse-grained,
    takes and returns ids and plain data (no ORM rows, no lazy loads), and is
    idempotent. The central call is roughly
-   `playable(work_ids) -> {id: PlayableWork | Unplayable(reason)}`. Today's
-   manifest readiness logic (`programming/manifest/builder.py` `assess` / `entry_for`) moves
-   behind it, because whether a work has an original and a current mat colour,
+   `playable(work_ids) -> {id: PlayableWork | Unplayable(reason)}`. The
+   manifest readiness logic (`assess` and what was `entry_for`) moved behind it
+   into `library/readiness.py` in wave 2b, because whether a work has an original and a current mat colour,
    and is not archived, is the Library's question. If splitting later would force
    a redesign of this interface, it was drawn wrong.
 3. **Two SQLite files, no foreign keys across the seam.** This is the rule most

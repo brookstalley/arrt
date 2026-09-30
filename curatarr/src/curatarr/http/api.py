@@ -734,7 +734,9 @@ def _theme_detail(services: Services, theme_id: str) -> ThemeDetailOut:
     """A theme with its works, in curated order."""
     return ThemeDetailOut(
         theme=_theme(services.display.get_theme(theme_id)),
-        works=[_work(entry) for entry in services.survey.theme_works(theme_id)],
+        # Two calls composed, as the MCP binding composes them: Programming's
+        # order, and the Library's account of each work.
+        works=[_work(entry) for entry in services.survey.survey_works(services.display.theme_work_ids(theme_id))],
     )
 
 

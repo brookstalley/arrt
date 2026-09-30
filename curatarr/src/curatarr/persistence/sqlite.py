@@ -1,4 +1,4 @@
-"""A `CatalogueStore` over a SQLite file.
+"""A `CatalogueStore`, and Programming's `ProgrammingStore`, over a SQLite file.
 
 SQLite was chosen because it has no dependency to resolve, no server to run, and
 a file that can be copied to a backup and back again — which is how this

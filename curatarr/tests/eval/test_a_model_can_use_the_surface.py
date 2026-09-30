@@ -108,7 +108,7 @@ async def test_a_model_puts_a_named_work_on_the_wall(server_url, ready_work, dis
     # got harder on 2026-08-12 and is worth measuring rather than assuming.
     assert display.walls_hanging(theme.id), f"the theme was created but hung on no wall. {outcome}"
 
-    held = [entry.artwork.id for entry in display.theme_works(theme.id)]
+    held = list(display.theme_work_ids(theme.id))
     assert held == [work.id], f"the theme does not hold exactly that work. {outcome}"
 
 

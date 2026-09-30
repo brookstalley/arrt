@@ -31,8 +31,9 @@ from datetime import UTC, datetime
 import pytest
 
 from curatarr.counting import agree, agree_partitive, counted, noun
+from curatarr.library.facade import UnplayableReason
 from curatarr.persistence.records import Theme, Wall
-from curatarr.programming.manifest.builder import Exclusion, ExclusionReason, ManifestBuild, ManifestEntry
+from curatarr.programming.manifest.builder import Exclusion, ManifestBuild, ManifestEntry
 
 
 @pytest.fixture
@@ -55,7 +56,7 @@ def one_work_build():
                 Exclusion(
                     work_id=f"out-{index}",
                     title=f"Excluded {index}",
-                    reason=ExclusionReason.NO_RENDITION,
+                    reason=UnplayableReason.NO_RENDITION,
                     detail="nothing has been rendered for the television yet",
                 )
                 for index in range(excluded)

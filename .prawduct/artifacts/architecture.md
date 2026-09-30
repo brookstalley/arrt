@@ -213,6 +213,22 @@ convenience would otherwise make that split a migration.
 > directly. Rules 1, 2 and 4 migrate in wave 2, ahead of the HTTP manifest
 > endpoint, which is the facade's first consumer. Rule 3, the store split,
 > migrates at the start of wave 3, so the data moves to the NAS once.
+>
+> **Rules 1 and 2 migrated 2026-09-30** (wave 2b Chunk 01). The packages are
+> `curatarr.library` and `curatarr.programming`. Programming reads the Library
+> only through `library/facade.py`, whose `playable(work_ids)` answers every id
+> with a frozen `PlayableWork` or `Unplayable`, and the readiness rule lives
+> behind it in `library/readiness.py`. Programming's tables are reached through
+> `programming/store.py`'s protocol, which one object implements beside the
+> Library's until rule 3. `tests/preferences/test_seam_imports.py` holds rule 1
+> and `curatarr/tests/unit/test_library_facade.py` holds the answer shape of rule
+> 2. **What rule 1 does not yet cover:** `persistence/records.py` holds both
+> sides' record types in a shared module, so the guard cannot see Programming
+> naming a Library record type. Programming's store hands it only its own
+> tables, which is what prevents that in practice until rule 3 moves the records.
+> **Still in the inventory:** the two foreign keys (rule 3), and
+> `archive_artwork` withdrawing pins by writing Programming's directives, which
+> Chunk 02 moves to Programming's handler for `work.archived` (rule 4).
 > *(Re-scheduled 2026-09-30 from wave 6, after review: building the endpoint on
 > the unsplit code would mean building it twice.)*
 >
@@ -1007,7 +1023,12 @@ is an incomplete implementation of this design.
 **The five exclusion causes, as built (2026-07-31).** `archived`, `no_original`,
 `no_mat_color`, `no_rendition`, `stale_rendition`. Each is a distinct thing a
 curator would do something different about, which is the test for whether a cause
-earns its own name.
+earns its own name. **A sixth, `not_in_catalogue`, arrived with the Library's
+facade (2026-09-30)** for an id that names no work. Foreign keys make it
+unreachable today. It exists because the facade answers every id it is asked
+about, and the foreign keys go at wave 3's store split. The rule itself moved
+from the manifest builder to `library/readiness.py`, and the build asks it
+through the facade.
 
 > **"The fetch succeeded" is deliberately not a sixth check** *(settled at build;
 > the four-signal sentence above reads as though it were).* Holding an original is

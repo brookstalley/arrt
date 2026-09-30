@@ -175,13 +175,16 @@ Each is lock-in, so the questions come before the fields.
   norm's row in `project-preferences.md` moves rule 1 from Critic to Test.
 - **How it is built (decided at the chunk's start, 2026-09-30):**
   - **The full move, by the operator's choice** over a lighter "move Programming
-    only" shape the builder offered. Under `curatarr/src/curatarr/`:
-    `library/services/` takes catalogue, discovery, runner, conversation,
-    review, taste, survey, thumbnails, previews, imaging, attribution,
-    selection, sweep and display_fit; `library/discovery/` and
-    `library/acquisition/` are the old packages whole; `library/facade.py` and
-    `library/readiness.py` are new. `programming/` takes `display.py` and
-    `manifest/` (builder, heartbeat), and gains `store.py`.
+    only" shape the builder offered. `curatarr/src/curatarr/library/services/`
+    takes catalogue, discovery, runner, conversation, review, taste, survey,
+    thumbnails, previews, imaging, attribution, selection, sweep and
+    display_fit; `curatarr/src/curatarr/library/discovery/` and
+    `curatarr/src/curatarr/library/acquisition/` are the old packages whole;
+    `curatarr/src/curatarr/library/facade.py` and
+    `curatarr/src/curatarr/library/readiness.py` are new.
+    `curatarr/src/curatarr/programming/` takes `display.py` and `manifest/`
+    (builder, heartbeat), and gains
+    `curatarr/src/curatarr/programming/store.py`.
   - **Shared kernel**, importable from either side: `services/errors.py`,
     `services/store.py`, `services/fields.py`, `persistence/`, `counting`,
     `observations`, `logs`, `art_root`. **Composition**, which may import both

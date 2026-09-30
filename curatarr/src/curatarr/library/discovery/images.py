@@ -32,9 +32,36 @@ arrives rather than scaffolding for one that has not.
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Protocol, runtime_checkable
+from typing import Final, Protocol, runtime_checkable
 
 from curatarr.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
+
+#: The largest preview body a museum may serve before it is refused. Enforced
+#: while streaming, for the same reason `config.DEFAULT_MAX_IMAGE_BYTES` is: the ceiling
+#: exists to protect memory, and `Content-Length` is the source's claim about
+#: itself.
+#:
+#: **This one bounds RAM rather than the disk**, which is why it is three orders
+#: of magnitude smaller. A preview is read whole into memory before anything
+#: touches the filesystem, and the URL comes out of a museum's JSON with
+#: redirects followed, so the final host need not even be the one that was asked.
+#: `architecture.md` § Scaling Model ranks memory during acquisition as the one
+#: input that could exhaust the Pi; the unit's `MemoryMax` contains the blast to
+#: "curation dies" rather than "the wall goes dark", which is the cap working and
+#: not the absence of a problem — a run lost to a thumbnail is still the tail
+#: wagging the dog.
+#:
+#: Sized against measurement, not intuition: five Art Institute previews sampled
+#: 2026-08-05 ran 89-193 KiB, the service serves exactly one derivative width
+#: (843 px, every other request redirects to it), and this ceiling is some eighty
+#: times the largest of those. It is not a prediction of the biggest legitimate
+#: preview — it is the point past which a body has stopped being one.
+#:
+#: **It lives here rather than in `config.py`**, which only reads the environment
+#: override. The museum client that enforces it is Library code, and `config.py`
+#: imports Programming's manifest, so a Library module reading its own default
+#: through the configuration module would cross the seam one hop away.
+DEFAULT_PREVIEW_MAX_BYTES: Final[int] = 16 * 1024 * 1024
 
 
 @dataclass(frozen=True, slots=True)

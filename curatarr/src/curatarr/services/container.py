@@ -19,6 +19,7 @@ they are settled in one place instead of per constructor.
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
 
 # Module scope, and the three `_default_*` helpers below used to import this at
 # function scope instead, explained as breaking a cycle: "config reads this
@@ -54,6 +55,7 @@ from curatarr.library.discovery.conversation import NO_CONVERSATION_KEY, Convers
 from curatarr.library.discovery.engine import DiscoveryEngine
 from curatarr.library.discovery.images import ImageSearch
 from curatarr.library.discovery.phase_two import PhaseTwoEngine
+from curatarr.library.facade import LibraryFacade
 from curatarr.library.services.catalogue import CatalogueService
 from curatarr.library.services.conversation import ConversationService
 from curatarr.library.services.discovery import DiscoveryService
@@ -69,8 +71,18 @@ from curatarr.persistence.backup import BACKUP_RECEIPT_FILENAME
 from curatarr.persistence.catalogue import CatalogueStore
 from curatarr.persistence.discovery import DiscoveryStore
 from curatarr.programming.display import DisplayService, DisplaySettings
+from curatarr.programming.store import ProgrammingStore
 from curatarr.services.errors import ServiceError
 from curatarr.services.health import HealthService
+
+
+class OneCatalogueFile(CatalogueStore, ProgrammingStore, Protocol):
+    """The one open file, which answers the Library's protocol and Programming's.
+
+    Named here, where both sides are composed, because nowhere else may know
+    that one object serves both. When Programming's tables move to a file of
+    their own, `bind` takes two stores and this type goes.
+    """
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,6 +90,10 @@ class Services:
     """Every service the curation plane offers, assembled over one open file."""
 
     catalogue: CatalogueService
+    #: The Library as Programming reaches it. Held here so that a test or a
+    #: binding asking "can this work go on a wall" gets the answer the manifest
+    #: build gets, from the same object.
+    library: LibraryFacade
     discovery: DiscoveryService
     display: DisplayService
     thumbnails: ThumbnailService
@@ -140,7 +156,7 @@ class Services:
     def bind(
         cls,
         *,
-        catalogue: CatalogueStore,
+        catalogue: OneCatalogueFile,
         discovery: DiscoveryStore,
         display_settings: DisplaySettings,
         thumbnails: ThumbnailSettings,
@@ -182,7 +198,10 @@ class Services:
         one every test that has no business reaching a museum uses.
         """
         catalogue_service = CatalogueService(catalogue)
-        display_service = DisplayService(catalogue, catalogue_service, display_settings)
+        library = LibraryFacade(catalogue_service)
+        # The same open file passed as Programming's store: one object serves
+        # both protocols until Programming's tables get a file of their own.
+        display_service = DisplayService(catalogue, library, display_settings)
         thumbnail_service = ThumbnailService(catalogue_service, thumbnails)
         # The artwork box reaches discovery for one reason: automatic selection
         # must withhold an instance that would render below the floor, and the
@@ -213,10 +232,11 @@ class Services:
         )
         return cls(
             catalogue=catalogue_service,
+            library=library,
             discovery=discovery_service,
             display=display_service,
             thumbnails=thumbnail_service,
-            survey=SurveyService(catalogue_service, display_service, thumbnail_service, artwork_box),
+            survey=SurveyService(catalogue_service, thumbnail_service, artwork_box),
             # `art_root` is read off the thumbnail settings rather than taken as
             # an argument of its own. It is the same deployment value — every
             # catalogue path is relative to it — and it is already required and

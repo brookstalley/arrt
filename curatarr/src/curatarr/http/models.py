@@ -354,8 +354,10 @@ class ExclusionOut(BaseModel):
 
     artwork_id: str
     title: str
-    #: `archived`, `no_original`, `no_rendition`, `stale_rendition` or
-    #: `no_mat_color` — each a distinct thing a curator would act on differently.
+    #: One of `UnplayableReason`'s values (`library/readiness.py`), each a
+    #: distinct thing a curator would act on differently. Named there rather
+    #: than listed here, so a reason added to the rule cannot be missing from
+    #: this description.
     reason: str
     #: A sentence to act on, not a restatement of the reason.
     detail: str

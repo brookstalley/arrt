@@ -869,8 +869,9 @@ ART_DISPLAY: Final = ToolRecord(
             params=(_WALL_ID, Param(name="artwork_id", type="string", description="The work to jump to.", required=True)),
             tips=(
                 "Any work that could not reach the wall is refused rather than pinned — archived, "
-                "missing its master image, mat colour or television render, or carrying a render "
-                "made from an earlier acquisition. The refusal names which, in the same words "
+                "missing its master image, mat colour or television render, carrying a render "
+                "made from an earlier acquisition, or naming no work the catalogue holds. The "
+                "refusal names which, in the same words "
                 "art_display(action='sync') uses for an excluded work.",
                 "This writes the directive; it does not confirm the television changed.",
             ),

@@ -317,6 +317,19 @@ class CatalogueService:
         artwork = self._require_artwork(artwork_id)
         return ArtworkDetail(artwork=artwork, artist=self._resolve_artist(artwork.artist_id, {}))
 
+    def find_artwork(self, artwork_id: str) -> ArtworkDetail | None:
+        """`get_artwork` for a caller to whom an unknown id is an answer, not a mistake.
+
+        The Library's facade is that caller: it answers for ids Programming holds
+        as references that may no longer resolve. A separate method rather than
+        a caught refusal, so that a refusal `get_artwork` gains later for some
+        other reason cannot be misread as "not held".
+        """
+        artwork = self._store.get_artwork(artwork_id)
+        if artwork is None:
+            return None
+        return ArtworkDetail(artwork=artwork, artist=self._resolve_artist(artwork.artist_id, {}))
+
     # -- reads: how a work can be re-acquired ---------------------------------
 
     def list_sources(self, artwork_id: str) -> Sequence[Source]:
