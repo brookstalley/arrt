@@ -2,7 +2,7 @@
 
 `architecture.md` § Direction, the Library/Programming seam, rule 1. The reason is
 the one the plane-isolation guard gives for its own rule: **a crossing looks
-exactly like success.** Curatarr runs both halves in one process, so a
+exactly like success.** Arrt runs both halves in one process, so a
 Programming module that imports a catalogue service works perfectly, in
 development and in every test, and the cost arrives only on the day Programming
 is deployed on its own and has to be rewritten. A green suite is what the
@@ -15,7 +15,7 @@ byte cap, and the configuration module imported the manifest. Neither import
 looked like a crossing on its own line.
 
 **The facade is where the walk stops, and only the facade.** Programming may
-import `curatarr.library.facade`, and what the facade imports is the Library's own
+import `arrt.library.facade`, and what the facade imports is the Library's own
 business. The Library's package `__init__` is walked rather than exempted, because
 importing the facade runs it: an import added there would reach Programming's
 process without appearing in any Programming file.
@@ -35,11 +35,11 @@ import pytest
 from import_graph import imported_names, package_of, resolve
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
-SOURCE_ROOT = REPOSITORY_ROOT / "curatarr" / "src"
+SOURCE_ROOT = REPOSITORY_ROOT / "arrt" / "src"
 
-LIBRARY = "curatarr.library"
-PROGRAMMING = "curatarr.programming"
-FACADE = "curatarr.library.facade"
+LIBRARY = "arrt.library"
+PROGRAMMING = "arrt.programming"
+FACADE = "arrt.library.facade"
 
 
 def test_both_sides_have_modules_to_check():
@@ -52,7 +52,7 @@ def test_both_sides_have_modules_to_check():
 def test_programming_reaches_the_facade_through_the_walk():
     """The walk has to see the one crossing that is allowed, or it proves nothing about the others.
 
-    A resolver that failed to follow `from curatarr.library.facade import …` would
+    A resolver that failed to follow `from arrt.library.facade import …` would
     report Programming clean for the wrong reason, exactly as it would if the
     subject had moved.
     """
@@ -77,26 +77,26 @@ class TestTheGuardCanFail:
     """Planted crossings, one per way a crossing actually arrives."""
 
     def test_it_catches_programming_importing_a_library_service(self, tmp_path: pathlib.Path):
-        root = _tree(tmp_path, {"programming/walls.py": "from curatarr.library.catalogue import Service\n"})
+        root = _tree(tmp_path, {"programming/walls.py": "from arrt.library.catalogue import Service\n"})
 
-        assert _crossings(_programming_offences(root)) == ["curatarr.library.catalogue"]
+        assert _crossings(_programming_offences(root)) == ["arrt.library.catalogue"]
 
     def test_it_catches_programming_reaching_the_library_one_helper_away(self, tmp_path: pathlib.Path):
         root = _tree(
             tmp_path,
             {
-                "shared.py": "from curatarr.library.catalogue import Service\n",
-                "programming/walls.py": "from curatarr import shared\n",
+                "shared.py": "from arrt.library.catalogue import Service\n",
+                "programming/walls.py": "from arrt import shared\n",
             },
         )
 
         offences = _programming_offences(root)
 
-        assert _crossings(offences) == ["curatarr.library.catalogue"]
+        assert _crossings(offences) == ["arrt.library.catalogue"]
         assert "shared.py" in offences[0], "the offence did not name the file that actually crosses"
 
     def test_it_does_not_object_to_what_the_facade_imports(self, tmp_path: pathlib.Path):
-        root = _tree(tmp_path, {"programming/walls.py": "from curatarr.library.facade import playable\n"})
+        root = _tree(tmp_path, {"programming/walls.py": "from arrt.library.facade import playable\n"})
 
         assert _programming_offences(root) == []
 
@@ -105,40 +105,40 @@ class TestTheGuardCanFail:
         root = _tree(
             tmp_path,
             {
-                "library/__init__.py": "from curatarr.library import catalogue\n",
-                "programming/walls.py": "from curatarr.library.facade import playable\n",
+                "library/__init__.py": "from arrt.library import catalogue\n",
+                "programming/walls.py": "from arrt.library.facade import playable\n",
             },
         )
 
-        assert _crossings(_programming_offences(root)) == ["curatarr.library.catalogue"]
+        assert _crossings(_programming_offences(root)) == ["arrt.library.catalogue"]
 
     def test_it_catches_a_relative_crossing(self, tmp_path: pathlib.Path):
         root = _tree(tmp_path, {"programming/walls.py": "from ..library import catalogue\n"})
 
-        assert _crossings(_programming_offences(root)) == ["curatarr.library.catalogue"]
+        assert _crossings(_programming_offences(root)) == ["arrt.library.catalogue"]
 
     def test_it_catches_the_library_importing_programming(self, tmp_path: pathlib.Path):
-        root = _tree(tmp_path, {"library/catalogue.py": "from curatarr.programming.display import DisplayService\n"})
+        root = _tree(tmp_path, {"library/catalogue.py": "from arrt.programming.display import DisplayService\n"})
 
-        assert _crossings(_library_offences(root)) == ["curatarr.programming.display"]
+        assert _crossings(_library_offences(root)) == ["arrt.programming.display"]
 
     def test_it_catches_the_library_reaching_programming_through_a_shared_module(self, tmp_path: pathlib.Path):
         """The shape of the crossing this guard found on its first run."""
         root = _tree(
             tmp_path,
             {
-                "config.py": "from curatarr.programming.manifest import TEMPLATE\n",
-                "library/artic.py": "from curatarr.config import CAP\n",
+                "config.py": "from arrt.programming.manifest import TEMPLATE\n",
+                "library/artic.py": "from arrt.config import CAP\n",
             },
         )
 
-        assert _crossings(_library_offences(root)) == ["curatarr.programming.manifest"]
+        assert _crossings(_library_offences(root)) == ["arrt.programming.manifest"]
 
     def test_the_facade_itself_may_not_reach_programming(self, tmp_path: pathlib.Path):
         """The walk stops at the facade for Programming, not for the Library's own check."""
-        root = _tree(tmp_path, {"library/facade.py": "from curatarr.programming import display\n"})
+        root = _tree(tmp_path, {"library/facade.py": "from arrt.programming import display\n"})
 
-        assert _crossings(_library_offences(root)) == ["curatarr.programming.display"]
+        assert _crossings(_library_offences(root)) == ["arrt.programming.display"]
 
 
 # -- the audit ------------------------------------------------------------
@@ -268,16 +268,16 @@ def _crossings(offences: list[str]) -> list[str]:
 
 
 def _tree(tmp_path: pathlib.Path, files: dict[str, str]) -> pathlib.Path:
-    """A miniature `curatarr` package: every directory a package, every named file planted.
+    """A miniature `arrt` package: every directory a package, every named file planted.
 
     The facade and both package roots always exist, so each case plants only the
     crossing it is about.
     """
-    package = tmp_path / "curatarr"
+    package = tmp_path / "arrt"
     defaults = {
         "__init__.py": "",
         "library/__init__.py": "",
-        "library/facade.py": "from curatarr.library import catalogue\n",
+        "library/facade.py": "from arrt.library import catalogue\n",
         "library/catalogue.py": "",
         "programming/__init__.py": "",
         "programming/display.py": "",
@@ -293,4 +293,4 @@ def _tree(tmp_path: pathlib.Path, files: dict[str, str]) -> pathlib.Path:
 @pytest.fixture(autouse=True)
 def _guard_is_pointed_at_something_real():
     """Fails the whole module if the packages move, rather than passing over nothing."""
-    assert (SOURCE_ROOT / "curatarr").is_dir(), f"{SOURCE_ROOT} has no curatarr package; this guard has lost its subject"
+    assert (SOURCE_ROOT / "arrt").is_dir(), f"{SOURCE_ROOT} has no arrt package; this guard has lost its subject"

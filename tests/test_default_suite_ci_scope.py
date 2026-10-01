@@ -29,7 +29,7 @@ import pytest
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 WORKFLOW = REPO / ".github" / "workflows" / "suites.yml"
-CURATION_TESTS = REPO / "curatarr" / "tests"
+CURATION_TESTS = REPO / "arrt" / "tests"
 
 
 def _directories_that_import_or_skip(tests_root: pathlib.Path) -> set[str]:
@@ -134,9 +134,9 @@ def test_the_curation_leg_ignores_exactly_the_directories_that_cannot_import():
     running in CI, silently and indefinitely.
     """
     needed = _directories_that_import_or_skip(CURATION_TESTS)
-    assert needed, "no module under curatarr/tests uses importorskip — the CI leg should carry no --ignore at all"
+    assert needed, "no module under arrt/tests uses importorskip — the CI leg should carry no --ignore at all"
 
-    check_ignores(_ignored_by("curatarr"), needed)
+    check_ignores(_ignored_by("arrt"), needed)
 
 
 def test_a_missing_ignore_is_rejected():
@@ -167,10 +167,10 @@ def test_tests_live_is_collected_rather_than_ignored():
     accident of whoever last edited the line.
     """
     assert "live" not in _directories_that_import_or_skip(CURATION_TESTS), (
-        "a module under curatarr/tests/live now uses importorskip, so it can no longer be collected "
+        "a module under arrt/tests/live now uses importorskip, so it can no longer be collected "
         "in CI — add --ignore=tests/live to the curation leg in suites.yml"
     )
-    assert "live" not in _ignored_by("curatarr")
+    assert "live" not in _ignored_by("arrt")
 
 
 def test_the_root_leg_needs_no_ignores():
@@ -200,10 +200,10 @@ def test_the_display_leg_ignores_exactly_the_directories_that_cannot_import():
     CI**, which is what the job asserted below exists to prevent — a directory
     ignored by one leg and run by no other is coverage that has silently gone.
     """
-    needed = _directories_that_import_or_skip(REPO / "arrt" / "tests")
-    assert needed, "no module under arrt/tests uses importorskip — the display CI leg should carry no --ignore at all"
+    needed = _directories_that_import_or_skip(REPO / "postarr" / "tests")
+    assert needed, "no module under postarr/tests uses importorskip — the display CI leg should carry no --ignore at all"
 
-    check_ignores(_ignored_by("arrt"), needed)
+    check_ignores(_ignored_by("postarr"), needed)
 
 
 def test_every_directory_the_display_leg_ignores_is_run_by_another_job():
@@ -221,14 +221,14 @@ def test_every_directory_the_display_leg_ignores_is_run_by_another_job():
     elsewhere = {
         path
         for job, invocations in _pytest_invocations_by_job().items()
-        if job != "arrt"
+        if job != "postarr"
         for invocation in invocations
         # The `--ignore=` arguments come out first: a directory another job also
         # excludes is not a directory another job runs, and counting it would let
         # two legs cover for each other while neither collected a line of it.
         for path in re.findall(r"(?<![=\w/])tests/\S+", re.sub(r"--ignore=\S+", "", invocation))
     }
-    unrun = {f"tests/{name}" for name in _ignored_by("arrt")} - elsewhere
+    unrun = {f"tests/{name}" for name in _ignored_by("postarr")} - elsewhere
     assert not unrun, (
         f"the display leg ignores {sorted(unrun)} and no other job in suites.yml runs it, so those "
         "tests do not execute in CI at all — which is indistinguishable from their passing"

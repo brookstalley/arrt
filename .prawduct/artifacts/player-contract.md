@@ -12,7 +12,7 @@ status: major 1 describes the running system plus wave 2's additive changes; maj
 
 # The Player Contract
 
-**What Curatarr publishes for a wall, what Arrt reports back, and how both
+**What Arrt publishes for a wall, what Postarr reports back, and how both
 travel.** This file is the contract's home. `api-contract.md` § The Server↔Player
 surface points here. `re-architecture.md` § Seam 2 is where the decisions behind
 it were made.
@@ -32,12 +32,12 @@ half an answer alone:
 
 **Who tests what.** The root suite (`tests/preferences/test_player_contract.py`)
 checks that the fixtures and schemas agree. Every invalid fixture must break
-exactly one rule, the one its filename names. Curatarr's suite validates
+exactly one rule, the one its filename names. Arrt's suite validates
 manifests its real builder writes, and runs its heartbeat reader over the
-heartbeat fixtures. Arrt's suite runs its manifest reader over the manifest
-fixtures and validates the heartbeat it writes. When Arrt moves to its own
+heartbeat fixtures. Postarr's suite runs its manifest reader over the manifest
+fixtures and validates the heartbeat it writes. When Postarr moves to its own
 repository (wave 5), it pins a copy of `contract/` and runs the same tests
-against it. Curatarr owns the contract, and a Player that needs a field asks
+against it. Arrt owns the contract, and a Player that needs a field asks
 for it here.
 
 ## Versioning
@@ -69,7 +69,7 @@ installed. A timestamp without an offset would then pass silently.
 admits `1.0`, and the Player's reader refuses it where a count matters (the
 directive sequence) or falls back to its default (the rotation interval). The
 schema is the looser of the two, so the writer's obligation is stated here:
-Curatarr writes `1`, never `1.0`, as Python's `json` does.
+Arrt writes `1`, never `1.0`, as Python's `json` does.
 
 ## Major 1
 
@@ -105,7 +105,7 @@ written it since wave 2b Chunk 03, omitting `media` for a render whose file it c
 `contract/schemas/heartbeat.v1.schema.json`. It holds facts, not a verdict: no
 "healthy", no threshold. The reader decides what the facts mean.
 
-- **`reported_at` is the one key the server depends on.** Curatarr treats a
+- **`reported_at` is the one key the server depends on.** Arrt treats a
   heartbeat without it as unreadable, which reports the Player as broken. The
   spelling is fixed for that reason, and `tests/preferences/test_heartbeat_contract.py`
   checks both planes spell it the same.
@@ -127,7 +127,7 @@ The file channel keeps working until wave 3 retires it. Over HTTP:
 | `POST /walls/{wall_id}/heartbeat` | the heartbeat | `204` |
 
 - **Every request carries the wall's token** as `Authorization: Bearer <token>`.
-  Curatarr issues one per wall from its UI, shows it once and keeps only a
+  Arrt issues one per wall from its UI, shows it once and keeps only a
   verifier. A missing or wrong token is `401`, and a token for another wall is
   `403`. `/media/...` accepts any wall's valid token.
 - **Media is identified by the SHA-256 of its bytes and located by its `url`.**
@@ -199,7 +199,7 @@ is the reference statement, and each rule has an invalid fixture.
   is how the server can: a heartbeat stamped far from the server's own time is a
   clock fault.
 - **A time no slot covers is dark.** The dark hours are gaps, not a flag. Until
-  Arrt power control exists (wave 6+), a Player that reaches a gap keeps
+  Postarr power control exists (wave 6+), a Player that reaches a gap keeps
   showing the last slot's work, because it cannot yet send the set to sleep. The
   gap still means dark; the Player just cannot act on it.
 - **When the horizon ends with no fresh manifest,** the Player replays the slots
@@ -264,7 +264,7 @@ The heartbeat does not need a new major: capabilities are additive. Minor 2 adds
 ### The cutover
 
 A major 1 Player refuses a major 2 manifest as an unsupported version and keeps
-its wall. Arrt's suite pins that refusal for every major 2 fixture. So
+its wall. Postarr's suite pins that refusal for every major 2 fixture. So
 wave 4 upgrades Players first and switches the server second, and a Player
 missed in the upgrade is visible, because its heartbeat's `manifest_majors`
 lacks 2. The server publishes one major for all walls. Serving each Player the

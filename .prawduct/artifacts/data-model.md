@@ -276,7 +276,7 @@ re-parsing a blob, and so two works by the same artist agree.
 > and Western order ("Katsushika Hokusai"), and one of them is a culture rather
 > than a person. Both are nullable and the two ways of being null are the same
 > fact downstream — the label falls back to `name`, unstyled. Supplied for the
-> seeded corpus by a written table (`curatarr/src/curatarr/seed/names.py`), never by a
+> seeded corpus by a written table (`arrt/src/arrt/seed/names.py`), never by a
 > heuristic; `library/discovery/artic.py` documents its own surname guess as unreliable.
 > Nothing derives one part from the other, and nothing derives `name` from them.
 >
@@ -766,7 +766,7 @@ Answers Q15. Added 2026-08-10 with the collection's retrieval surface
 > silently breaks the join that makes taste useful.
 
 > **`derivation` is load-bearing, not bookkeeping, and a measurement says so.**
-> `curatarr/src/curatarr/library/discovery/browse.py` records that for the Art Institute
+> `arrt/src/arrt/library/discovery/browse.py` records that for the Art Institute
 > **"style, classification and period were measured missing on ordinary
 > spellings"** — which is why widening its browse facet past artist was gated. The
 > field inventory in `artic-api-findings.md` bears this out: there is
@@ -1234,7 +1234,7 @@ artworks.
 > already written under the provisional rule must be recomputed, or suppression
 > silently splits into two regimes and the same work gets proposed twice.
 >
-> **Shipped 2026-08-02 at one site: `curatarr/src/curatarr/library/discovery/dedup.py`.**
+> **Shipped 2026-08-02 at one site: `arrt/src/arrt/library/discovery/dedup.py`.**
 > Normalised artist and title — casefolded, accents stripped, punctuation
 > dropped, whitespace collapsed — joined by a separator normalisation guarantees
 > cannot appear inside either half. A work with no artist is keyed under
@@ -1501,7 +1501,7 @@ with it.
 (recorded because "settled with `work_dedup_key`" used to stand here and is too
 strong).** Artist matching is the third call site the derivation is meant to
 serve, alongside cross-run suppression and within-run dedup. The first two are
-live and share `curatarr/src/curatarr/library/discovery/dedup.py`; **this one must derive
+live and share `arrt/src/arrt/library/discovery/dedup.py`; **this one must derive
 its identity from that module rather than reimplement normalisation**, which is
 the whole point of settling it once.
 

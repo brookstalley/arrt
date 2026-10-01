@@ -5,16 +5,16 @@ the two opt-in tiers, and its commands are the authority for them.
 
 ## The browser suite
 
-The client under `curatarr/src/curatarr/http/static/` is the product's only
+The client under `arrt/src/arrt/http/static/` is the product's only
 human interface, and neither Python suite executes a line of it. **It is a tree
 of ES modules, not one file**: `app.js` is the boot and the route table,
 `core/*.js` is what every screen shares, and `screens/*.js` is one module per
 screen. `-m browser` runs it, in a real Chromium against a real booted server:
 
 ```sh
-cd curatarr && uv sync --group browser        # once
-cd curatarr && uv run playwright install chromium   # once, ~200MB
-cd curatarr && uv run pytest -m browser -n0
+cd arrt && uv sync --group browser        # once
+cd arrt && uv run playwright install chromium   # once, ~200MB
+cd arrt && uv run pytest -m browser -n0
 ```
 
 **Deselected by default for the browser download, not for anything about the
@@ -35,7 +35,7 @@ Python file: delete the branch and watch a test go red.
 **Sweeping this suite needs the marker passed through:**
 
 ```sh
-cd curatarr && uv run python tools/mutation_sweep.py m.json tests/browser/test_x.py -- -m browser
+cd arrt && uv run python tools/mutation_sweep.py m.json tests/browser/test_x.py -- -m browser
 ```
 
 Without it pytest collects nothing and exits 5. The tool refuses to sweep unless
@@ -56,9 +56,9 @@ concurrent requests at a public museum API — which comes back as a rate limit 
 is indistinguishable from the contract change you were looking for.
 
 ```sh
-cd curatarr && uv run pytest -m live_museum -n0     # free, needs the network
-cd curatarr && uv run pytest -m live_binary -n0     # free, needs dezoomify-rs
-cd curatarr && uv run pytest -m live_api -n0        # SPENDS REAL MONEY
+cd arrt && uv run pytest -m live_museum -n0     # free, needs the network
+cd arrt && uv run pytest -m live_binary -n0     # free, needs dezoomify-rs
+cd arrt && uv run pytest -m live_api -n0        # SPENDS REAL MONEY
 ```
 
 **Locally the marker alone is enough; in CI it is not.** These commands collect
@@ -86,7 +86,7 @@ identical to a passing one. `.github/scripts/assert_tests_ran.py` is what closes
 that: it fails the job on any skip and names which dependency was absent.
 
 **Touching `library/acquisition/mat.py` or `library/acquisition/color.py`? Run the masters by
-hand** — `cd curatarr && uv run python tools/mat_masters.py ../all.json`. The
+hand** — `cd arrt && uv run python tools/mat_masters.py ../all.json`. The
 corpus's colours are in the repo but the paintings are the operator's masters, so
 every test here uses synthetic flats, which have no cluster competition and no
 pale regions; a near-white mat over a Mondrian shipped green for exactly that.
@@ -94,7 +94,7 @@ Needs `ART_ROOT`, spends nothing, writes nothing.
 
 **A green suite says nothing about a branch no test reaches.** Before believing
 new branches are covered, break them on purpose:
-`cd curatarr && uv run python tools/mutation_sweep.py <mutations.json> <test paths>`.
+`cd arrt && uv run python tools/mutation_sweep.py <mutations.json> <test paths>`.
 Its docstring has the format. It has found something on every change it has been
 run on, and it is the check that a diff review does not substitute for — the
 undefended branches all looked right when read.

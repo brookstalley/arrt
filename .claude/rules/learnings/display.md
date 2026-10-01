@@ -1,6 +1,6 @@
 ---
 paths:
-  - "arrt/**"
+  - "postarr/**"
 ---
 # Learnings — display
 

@@ -39,6 +39,12 @@ last_validated: null
 
 # Build Plan — The *arr Navigation
 
+> **Names, 2026-10-01.** This is history and keeps the names of its day. Until
+> 2026-10-01 **Curatarr** named the server and **Arrt** named the player. Since then
+> the server is **Arrt** and the player is **Postarr**
+> (`build-plan-rename-arrt-postarr.md`). Paths and package names here are the
+> old ones.
+
 ## What this plan is
 
 On 2026-09-30 the owner ruled that Curatarr's browser surface should be laid out

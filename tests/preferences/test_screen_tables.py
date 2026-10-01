@@ -40,7 +40,7 @@ import sys
 import pytest
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
-ROUTE_TABLE = REPOSITORY_ROOT / "curatarr" / "src" / "curatarr" / "http" / "static" / "app.js"
+ROUTE_TABLE = REPOSITORY_ROOT / "arrt" / "src" / "arrt" / "http" / "static" / "app.js"
 ARTIFACT = REPOSITORY_ROOT / ".prawduct" / "artifacts" / "information-architecture.md"
 
 #: The three tables, by the section heading each lives under. Every one of them

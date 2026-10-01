@@ -1,441 +1,396 @@
-"""A television that behaves like the real one without being one.
+"""A discovery engine the suite drives, standing where a paid one will stand.
 
-**Subclasses `TvClient` rather than duck-typing it**, which is the whole reason
-the interface is an abstract base: a verb added to the boundary fails this class
-at import instead of quietly leaving the fake behind while every test stays green.
+**Not scaffolding.** This is the provider every test of the run lifecycle runs
+against, and it stays that way once a real engine exists: the lifecycle's
+interesting cases are a run that breaks, a run the provider refuses to fund, and
+a run that overruns its search allowance, and none of those can be provoked
+reliably — or cheaply — against a live API.
 
-It models the set's *observable* behaviour, not its protocol: images live in one
-flat category under ids the set invents, selecting one that is not there is an
-error, and each failure the real client can produce can be armed on demand. What
-it deliberately does **not** model is the library's misreporting — an upload that
-lands while returning None is corrected inside `SamsungTv`, below this seam, and a
-fake that reproduced it here would be testing the correction twice and the
-daemon's behaviour not at all.
+It lives under `tests/` rather than in the package on purpose. A convincing
+stand-in reachable from a deployment is one somebody eventually wires up, and the
+result would be invented works written into a real catalogue with nothing to
+distinguish them from found ones. What the package ships instead is an engine
+that refuses.
 """
 
-import math
+from __future__ import annotations
+
 import threading
-import time
 from collections.abc import Sequence
-from pathlib import Path
-from typing import Final
+from dataclasses import dataclass, field
+from decimal import Decimal
 
-from arrt.panel import (
-    Extent,
-    Geometry,
-    LabelSurface,
-    Layout,
-    Line,
-    Measure,
-    SurfaceUnavailable,
-    TypeScale,
-    set_text,
-    type_scale_for,
+from arrt.library.discovery.browse import BrowseQuery, CollectionBrowseFailure, OfferedGroup
+from arrt.library.discovery.conversation import (
+    ConversationFailure,
+    ConversationReply,
+    Suggestion,
+    ThreadTurn,
 )
-from arrt.tv import (
-    RemovalOutcome,
-    SelectionAnnouncement,
-    SelectionObserver,
-    TvClient,
-    TvRemovalUnconfirmed,
-    TvUnavailable,
-    TvUploadFailed,
+from arrt.library.discovery.engine import (
+    EngineFailure,
+    EngineSpend,
+    ProposedWork,
+    WorkList,
+    WorkListRequest,
+)
+from arrt.library.discovery.images import FoundImage, ImageQuery, ImageSearchFailure
+from arrt.persistence.discovery_records import SpendCategory
+from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
+
+#: Titles that are actually distinct works by one artist, so a run built from
+#: them exercises the dedup key doing nothing rather than the key collapsing a
+#: list into one row and the test passing for the wrong reason.
+_TITLES = (
+    "The Persistence of Memory",
+    "The Elephants",
+    "Swans Reflecting Elephants",
+    "The Temptation of St. Anthony",
+    "Galatea of the Spheres",
 )
 
-#: A picture the set holds that this product did not put there — an art-store
-#: image, in the category the daemon neither uploads to nor removes from. The set
-#: is displaying one of these before the daemon has shown anything.
-FOREIGN_IMAGE: Final[str] = "SAM-F0000"
 
-#: How long an armed-to-hang draw waits before giving up on being released. Long
-#: enough that no passing test reaches it, short enough that a failing one does
-#: not take the session with it.
-RELEASE_TIMEOUT_SECONDS: Final[float] = 30.0
+def a_work(title: str, *, artist: str | None = "Salvador Dalí") -> ProposedWork:
+    return ProposedWork(title=title, artist=artist, rationale=f"{title} is a central example of what was asked for.")
 
 
-class FakeTv(TvClient):
-    """One television's worth of observable state, plus arming for each failure."""
+def works(count: int, *, artist: str | None = "Salvador Dalí") -> tuple[ProposedWork, ...]:
+    """`count` distinct works, generated past the end of the named list.
 
-    def __init__(self) -> None:
-        #: content id -> the file that was uploaded under it.
-        self.holding: dict[str, Path] = {}
-        self.selected: list[str] = []
-        self.brightness: list[int] = []
-        self.removed: list[tuple[str, ...]] = []
-        self.connects = 0
-        #: How many times the connection was let go. The art channel being closed
-        #: on the way out is load-bearing: the set holds an abandoned client's slot
-        #: for minutes, so a daemon that skipped it could not reconnect after a crash.
-        self.closed = 0
-        self.slideshow_disabled = 0
-        self._next_id = 0
-        self._connected = False
-
-        #: Everyone listening for what this set says about its wall, and every
-        #: announcement it has made. **Both survive `close()`**, matching the real
-        #: client, where observers belong to the object and the library callback
-        #: is re-registered per connection — a fake that dropped them on
-        #: reconnection would hide a subscriber lost to an overnight outage.
-        self.selection_observers: list[SelectionObserver] = []
-        #: How many observers raised while being told. Counted rather than
-        #: swallowed silently, so a test can assert the isolation happened rather
-        #: than merely that nothing exploded.
-        self.observer_failures = 0
-        self.announced: list[SelectionAnnouncement] = []
-
-        #: Armed failures. Each is the real client's behaviour, named for what a
-        #: test is trying to reproduce rather than for the exception it raises.
-        self.unavailable = False
-        self.refuse_uploads = False
-        self.removal_unconfirmable = False
-        #: Ids the set will not part with, so "removal reported, image survived"
-        #: is reachable without making the whole call fail.
-        self.unremovable: set[str] = set()
-        #: Ids the set lists and still refuses to select. A real one has been
-        #: observed refusing calls it should accept, and the daemon has to tell
-        #: that apart from an id the set has simply forgotten — the two arrive as
-        #: the same exception and want opposite responses.
-        self.refuse_selection_of: set[str] = set()
-
-        #: The set takes every selection and displays none of them. **Observed on
-        #: a real television on 2026-08-07**, with its panel dark: `select_image`
-        #: returned, raised nothing and emitted no event, while what the set
-        #: displayed did not change over twelve seconds and repeated attempts.
-        #: Armed here because the failure is invisible from the call — a fake that
-        #: could not reproduce it let the daemon report rotations that never
-        #: happened, and every test passed.
-        self.displays_nothing_selected = False
-        #: What the set is displaying. It starts on a picture of the set's own
-        #: rather than on nothing, because **a Frame is never displaying nothing**
-        #: — the one observed refusing selections went on showing an art-store
-        #: image throughout. That is what makes the failure detectable: the
-        #: observable is that the wall did not *change*, not that it is blank.
-        self.displaying: str | None = FOREIGN_IMAGE
-        #: Ids the set announces as selected while reporting `is_shown: "No"`. A
-        #: distinct arming from `displays_nothing_selected`, which is silence: the
-        #: set answering "I took it and I am not showing it" is a different wire
-        #: behaviour from it never answering, and both mean the wall did not move.
-        self.admits_not_showing: set[str] = set()
-        #: The set's own art-mode flag, as it would report it. `"on"` by default
-        #: because art mode is the deployment's normal condition; set it to
-        #: `"off"` to model a television somebody is watching or a dark panel,
-        #: **both of which the wall must not touch** — selecting on a set showing
-        #: a programme switches it into art mode and takes the screen.
-        self.art_mode: str | None = "on"
-        #: Whether the set has announced an art-mode change nobody has collected
-        #: yet. Armed by a test to model the set saying "I am in art mode now".
-        self.art_mode_announced = False
-        #: How many times the set has been asked whether it is showing art.
-        self.art_mode_reads = 0
-
-    async def connect(self) -> None:
-        """Cheap once connected, exactly as the real client is.
-
-        **This is load-bearing and was got wrong first.** `SamsungTv.connect`
-        returns immediately when it already holds a client, so in production a set
-        that goes away *after* a connection is established is discovered by the
-        next real call — `select_image`, `upload` — and not by `connect`. A fake
-        that re-checked reachability every pass made the outage arrive at the top
-        of the tick instead, so the whole of the directive path was unreachable
-        while the set was away: two tests asserting that a directive is not
-        consumed during an outage passed because the code under test never ran. A
-        mutation sweep found it by swapping two statements neither test executed.
-        """
-        if self._connected:
-            return
-        self._check_reachable()
-        self.connects += 1
-        self._connected = True
-
-    async def close(self) -> None:
-        self.closed += 1
-        self._connected = False
-
-    async def disable_native_slideshow(self) -> None:
-        self._check_usable()
-        self.slideshow_disabled += 1
-
-    async def listed_content_ids(self) -> frozenset[str]:
-        self._check_usable()
-        return frozenset(self.holding)
-
-    async def upload(self, path: Path) -> str:
-        self._check_usable()
-        if self.refuse_uploads:
-            raise TvUploadFailed(f"{path.name} is not on the television after an upload attempt")
-        self._next_id += 1
-        content_id = f"MY-F{self._next_id:04d}"
-        self.holding[content_id] = path
-        return content_id
-
-    async def show(self, content_id: str) -> bool:
-        self._check_usable()
-        if content_id not in self.holding:
-            # The real set answers an unknown id with an error rather than a
-            # blank wall, and a fake that accepted anything would let a daemon
-            # bug — selecting an orphaned binding — pass every test.
-            raise self._dropping(TvUnavailable(f"the television does not hold {content_id}"))
-        if content_id in self.refuse_selection_of:
-            raise self._dropping(TvUnavailable(f"the television refused {content_id}"))
-        self.selected.append(content_id)
-        if self.displays_nothing_selected:
-            # Silence: the set took the request, emitted nothing, and the wall did
-            # not move. No announcement, because the real one made none.
-            return False
-        if content_id in self.admits_not_showing:
-            # The set answers "I took it and I am not showing it" — an
-            # announcement, unlike the silence above, so observers hear it.
-            self.announce(content_id, is_shown=False)
-            return False
-        self.displaying = content_id
-        self.announce(content_id, is_shown=True)
-        return True
-
-    def announce(self, content_id: str, *, is_shown: bool) -> None:
-        """Emit what the real set emits, to everyone listening.
-
-        Public so a test can model the announcement this plane did **not** cause:
-        somebody picking up the remote makes the set announce a selection nobody
-        here asked for, and that is the case an observer exists to hear.
-        """
-        announcement = SelectionAnnouncement(content_id=content_id, is_shown=is_shown)
-        self.announced.append(announcement)
-        for observer in self.selection_observers:
-            try:
-                observer(announcement)
-            except Exception:  # prawduct:allow prawduct/broad-except -- mirrors the real client; see below
-                # **Isolated because the real client isolates**, and a fake that
-                # did not would be stricter than the thing it stands in for — the
-                # direction that hurts. `SamsungTv._tell_observers` catches per
-                # observer, on the grounds that observers are strangers to each
-                # other and this runs on the socket's reader task. A fake that let
-                # one raise through would fail a test describing behaviour the
-                # product actually has, and the fix would have been to weaken the
-                # test.
-                self.observer_failures += 1
-
-    def _dropping(self, exc: TvUnavailable) -> TvUnavailable:
-        """Mark the connection gone, the way the real client does on any failure.
-
-        **This is not decoration, and a fake without it hides a whole dead
-        branch.** `SamsungTv._call` abandons and closes its client on every
-        failure — it holds a websocket whose state after an error is not knowable
-        — so the caller's *next* request raises "not connected" rather than
-        reaching the set. A fake that kept answering after raising let the
-        daemon's rebind path look reachable when against the real client it could
-        never run: the listing it depends on would have raised first.
-        """
-        self._connected = False
-        return exc
-
-    async def showing_art(self) -> bool:
-        self._check_usable()
-        # Counted because this costs a request against the real set, and the poll
-        # interval is one second: "the gate is affordable" is a claim about how
-        # often it is asked, and nothing else here can express it.
-        self.art_mode_reads += 1
-        return self.art_mode == "on"
-
-    def observe_selections(self, observer: SelectionObserver) -> None:
-        # Idempotent, as the real client is: subscribing twice must not mean being
-        # told twice, or a double that tolerated it would let a caller ship a
-        # duplicate registration this suite could never see.
-        if observer not in self.selection_observers:
-            self.selection_observers.append(observer)
-
-    def art_mode_announcement_pending(self) -> bool:
-        announced, self.art_mode_announced = self.art_mode_announced, False
-        return announced
-
-    async def reported_art_mode(self) -> str | None:
-        return self.art_mode
-
-    async def remove(self, content_ids: Sequence[str]) -> RemovalOutcome:
-        self._check_usable()
-        if self.removal_unconfirmable:
-            raise TvRemovalUnconfirmed("the removal request was refused; what the set holds is unknown")
-        requested = tuple(content_ids)
-        self.removed.append(requested)
-        for content_id in requested:
-            if content_id not in self.unremovable:
-                self.holding.pop(content_id, None)
-        return RemovalOutcome(requested=requested, surviving=tuple(c for c in requested if c in self.holding))
-
-    async def set_brightness(self, value: int) -> None:
-        self._check_usable()
-        self.brightness.append(value)
-
-    def _check_usable(self) -> None:
-        """What every call except `connect` must pass, and both halves matter.
-
-        **A dropped connection refuses work until somebody reconnects.** The real
-        client raises "not connected to the television" whenever it is holding no
-        handle, and it lets go of that handle on *any* failure. A fake that went
-        on answering after raising made a whole branch of the daemon look
-        reachable that could never run against the shipped client — the rebind
-        path, whose first act is to ask the set a question the real client would
-        have refused.
-        """
-        self._check_reachable()
-        if not self._connected:
-            raise TvUnavailable("not connected to the television")
-
-    def _check_reachable(self) -> None:
-        if self.unavailable:
-            # The real client drops its handle on any failed call, so the next
-            # attempt reconnects rather than retrying on a websocket whose state
-            # nobody can know. A fake that stayed "connected" through a failure
-            # would let a daemon skip the reconnect and still pass.
-            self._connected = False
-            raise TvUnavailable("the television is asleep")
-
-    # -- what a test asserts against ---------------------------------------
-
-    @property
-    def on_the_wall(self) -> Path | None:
-        """The file the wall is *displaying*, or None if it is displaying none.
-
-        Read from what the set displays rather than from the last id requested,
-        so that a test asserting a picture reached the wall cannot be satisfied by
-        a request the set ignored. Those were the same thing until a television
-        was found accepting selections and displaying nothing.
-        """
-        return self.holding.get(self.displaying) if self.displaying else None
+    Numbered beyond the handful of real titles rather than repeating them: a
+    twenty-six-work run testing the approval gate needs twenty-six *distinct*
+    works, and recycling titles would have the dedup key silently reduce it to
+    five.
+    """
+    named = [a_work(title, artist=artist) for title in _TITLES[:count]]
+    extra = [a_work(f"Untitled Study No. {index}", artist=artist) for index in range(len(named), count)]
+    return tuple(named + extra)
 
 
-class FakeSurface(LabelSurface):
-    """A label surface that records what it was given, and can fail like a real one.
+def spent(*, tokens_usd: str = "0.08", searches: int = 1, search_usd: str = "0.005") -> tuple[EngineSpend, ...]:
+    """What a run of this size costs, in the two categories phase 1 can incur.
 
-    **Its failure is a raise, not a falsy return**, because that is what the
-    driver seam guarantees: `omni-epd`'s `display()` returns None whether it
-    worked or not, so the real surface must convert that into an exception or the
-    panel's failure becomes a label silently months out of date. A fake that
-    reported failure by returning would let a caller pass every test against a
-    real one that cannot.
+    Web search is its own category because it bills per call rather than per
+    token, and its `units` is where the search count lives — the same record that
+    prices the searches is the one the cap is read from, so the two cannot
+    disagree.
+
+    The token counts are the ones a **real run measured** — 3,453 in and 1,608
+    out. They were 490,000 / 30,000, which was the shipped estimate basis before
+    it was re-based against that measurement; a fake echoing a figure the code no
+    longer holds reads as corroborating it.
+    """
+    return (
+        EngineSpend(
+            category=SpendCategory.DISCOVERY_TOKENS,
+            cost_usd=Decimal(tokens_usd),
+            model_id="fake/deterministic-v1",
+            input_tokens=3_453,
+            output_tokens=1_608,
+        ),
+        EngineSpend(category=SpendCategory.WEB_SEARCH, cost_usd=Decimal(search_usd) * searches, units=searches),
+    )
+
+
+def a_work_list(count: int = 3, *, searches: int = 1, artist: str | None = "Salvador Dalí") -> WorkList:
+    return WorkList(works=works(count, artist=artist), spend=spent(searches=searches))
+
+
+@dataclass
+class FakeEngine:
+    """Answers with whatever it was built to answer, and records what it was asked.
+
+    `gate` is what makes a run observably in-flight: a test that needs to see a
+    run *while* it is working — to cancel it, to watch a status call hold, to
+    leave it for startup reconciliation to find — has to be able to stop phase 1
+    in the middle, and an engine that always returns instantly cannot be caught
+    there.
     """
 
-    def __init__(
-        self,
-        *,
-        width_px: int = 1448,
-        height_px: int = 1072,
-        margin_px: int = 40,
-        type_scale: TypeScale | None = None,
-    ) -> None:
-        self._geometry = Geometry(width_px=width_px, height_px=height_px, margin_px=margin_px)
-        #: **The reference wall's, derived rather than invented**, so a caller who
-        #: does not care about type still gets sizes a real panel would produce —
-        #: a fake carrying made-up numbers here would let a caller pass against
-        #: proportions no device has.
-        self._type_scale = type_scale or type_scale_for(
-            width_px=1448, height_px=1072, diagonal_inches=6.0, viewing_distance_inches=84.0
+    result: WorkList = field(default_factory=a_work_list)
+    error: EngineFailure | None = None
+    reason: str | None = None
+    gate: threading.Event | None = None
+    requests: list[WorkListRequest] = field(default_factory=list)
+
+    @property
+    def unavailable_reason(self) -> str | None:
+        return self.reason
+
+    def enumerate_works(self, request: WorkListRequest) -> WorkList:
+        self.requests.append(request)
+        if self.gate is not None:
+            # Bounded so a test that forgets to release the gate fails as a test
+            # rather than hanging the suite.
+            assert self.gate.wait(timeout=20), "the fake engine was never released"
+        if self.error is not None:
+            raise self.error
+        return self.result
+
+    @property
+    def searched(self) -> Sequence[int]:
+        """The allowance every call was given, for asserting the cap travelled."""
+        return [request.search_allowance for request in self.requests]
+
+
+#: A museum's response to a work it holds, at a size that clears the floor on the
+#: shipped 42" geometry. Dimensions are the master's, as the real API reports
+#: them on `thumbnail` — see `.prawduct/artifacts/artic-api-findings.md`.
+def an_image(
+    title: str,
+    *,
+    artist: str | None = "Salvador Dalí",
+    width: int = 6949,
+    height: int = 8400,
+    provider: str = "artic",
+    rights: RightsStatus | None = RightsStatus.PUBLIC_DOMAIN,
+    url: str | None = None,
+) -> FoundImage:
+    """One instance a provider offers. Its URL is derived unless a test names one.
+
+    A test about *which* instance a work ended up with has to be able to say
+    which URL it expects, and a derived one it cannot write down forces the
+    assertion to go through some other field instead. The derivation stays the
+    default because most tests do not care, and two calls with the same title
+    and size standing for the same instance is what makes "the provider offered
+    it again" expressible at all.
+    """
+    return FoundImage(
+        url=url or f"https://api.artic.edu/api/v1/artworks/{abs(hash((title, width))) % 100000}",
+        provider=provider,
+        source_class=SourceClass.INSTITUTIONAL,
+        acquisition_method=AcquisitionMethod.DEZOOMIFY,
+        title=title,
+        artist=artist,
+        preview_url=f"https://www.artic.edu/iiif/2/{abs(hash(title)) % 100000}/full/843,/0/default.jpg",
+        estimated_width=width,
+        estimated_height=height,
+        rights_status=rights,
+    )
+
+
+@dataclass
+class FakeImageSearch:
+    """A museum that holds whatever it was built to hold.
+
+    Keyed by the title asked for rather than answering one fixed list, because
+    the interesting phase-2 runs are the mixed ones — some works resolved, one
+    below floor, one the collection does not hold — and a provider that answered
+    identically for every work could not produce them.
+
+    Anything not in `holdings` comes back as the real API does for a work it does
+    not have: plausible results for *other* works, which is what the judgement
+    above the seam has to reject.
+    """
+
+    holdings: dict[str, Sequence[FoundImage]] = field(default_factory=dict)
+    unreachable: bool = False
+    fails_for: set[str] = field(default_factory=set)
+    asked: list[str] = field(default_factory=list)
+    fetched: list[str] = field(default_factory=list)
+    resolved: list[str] = field(default_factory=list)
+    preview_bytes: bytes | None = b"\xff\xd8\xff\xe0 jpeg"
+
+    @property
+    def provider(self) -> str:
+        return "artic"
+
+    def tile_url(self, url: str) -> str:
+        """The image service for an object, as the real client derives one.
+
+        Mirrors the real shape rather than echoing the argument: the whole point
+        of this seam is that the URL a source records and the URL the tiles come
+        from are *different strings*, and a stand-in that returned its input
+        would make a caller that skipped the resolution step pass.
+        """
+        self.resolved.append(url)
+        if self.unreachable:
+            raise ImageSearchFailure(f"could not reach the collection to resolve {url!r}")
+        return f"https://www.artic.edu/iiif/2/{abs(hash(url)) % 100000}"
+
+    def find_images(self, query: ImageQuery) -> Sequence[FoundImage]:
+        self.asked.append(query.title)
+        if self.unreachable or query.title in self.fails_for:
+            raise ImageSearchFailure(f"could not reach the collection for {query.title!r}")
+        if query.title in self.holdings:
+            return self.holdings[query.title]
+        # A near-match rather than an empty list, which is what the live API
+        # really returns: the collection at a comfortable score, none of it the
+        # work asked for.
+        return (an_image("Ann-In Memory", artist="Joseph Cornell"),)
+
+    def fetch_preview(self, url: str) -> bytes | None:
+        self.fetched.append(url)
+        return self.preview_bytes
+
+
+def a_decodable_jpeg(width: int = 1200, height: int = 900) -> bytes:
+    """Preview bytes a museum could really have served, and that Pillow can open.
+
+    `FakeImageSearch.preview_bytes` defaults to a stub that is *not* decodable,
+    which is right for tests about caching bytes and wrong for every test about
+    showing them: a preview that will not decode produces no image block, so a
+    review surface would look broken for a reason that is the fixture's.
+    """
+    from io import BytesIO
+
+    from PIL import Image
+
+    buffer = BytesIO()
+    Image.new("RGB", (width, height), (84, 66, 132)).save(buffer, format="JPEG", quality=90)
+    return buffer.getvalue()
+
+
+def a_museum_holding(
+    *titles: str,
+    sizes: dict[str, tuple[int, int]] | None = None,
+    held_as: dict[str, str] | None = None,
+) -> FakeImageSearch:
+    """A provider holding one instance of each named work, with showable previews.
+
+    Sizes default to a gallery-grade scan, because most tests want a work that
+    clears the resolution floor and only a few care about the one that does not.
+    Pass `sizes` to make a particular work small.
+
+    **`held_as` separates the title asked for from the title the collection files
+    the work under**, which the query-keyed shape alone cannot express. Real
+    collections do this constantly — a work catalogued under its full descriptive
+    title, or in another language — and the identity comparison above the seam
+    exists precisely to judge the difference. Without this, every fixture agreed
+    with its query by construction and no test could reach the disagreement.
+    """
+    measured = sizes or {}
+    spelled = held_as or {}
+    holdings = {}
+    for title in titles:
+        width, height = measured.get(title, (6000, 4500))
+        slug = title.lower().replace(" ", "-")
+        holdings[title] = (an_image(spelled.get(title, title), url=f"https://artic.edu/{slug}", width=width, height=height),)
+    found = FakeImageSearch(holdings=holdings)
+    found.preview_bytes = a_decodable_jpeg()
+    return found
+
+
+@dataclass
+class FakeCollectionBrowse:
+    """A collection that holds whatever it was built to hold, keyed by artist.
+
+    Keyed by the artist asked about, because the interesting supplement cases are
+    the uneven ones — one artist with fifty works, one with two, one the
+    collection has never heard of — and a browse that answered identically for
+    every facet could not produce the spread the round-robin exists to make.
+
+    `matched` is tracked apart from the works returned so a test can express "the
+    collection holds four hundred and you are seeing three", which is the figure
+    every offered work's rationale has to quote.
+    """
+
+    holdings: dict[str, Sequence[FoundImage]] = field(default_factory=dict)
+    matched: dict[str, int] = field(default_factory=dict)
+    unreachable: bool = False
+    asked: list[list[str]] = field(default_factory=list)
+
+    @property
+    def provider(self) -> str:
+        return "artic"
+
+    def browse(self, queries: Sequence[BrowseQuery], *, per_query: int) -> Sequence[OfferedGroup]:
+        self.asked.append([query.artist for query in queries])
+        if self.unreachable:
+            raise CollectionBrowseFailure("could not reach the collection to browse it")
+        groups = []
+        for query in queries:
+            works = tuple(self.holdings.get(query.artist, ()))[:per_query]
+            groups.append(
+                OfferedGroup(
+                    query=query,
+                    matched=self.matched.get(query.artist, len(self.holdings.get(query.artist, ()))),
+                    works=works,
+                )
+            )
+        return tuple(groups)
+
+
+def a_collection_holding(**by_artist: Sequence[str]) -> FakeCollectionBrowse:
+    """A collection holding the named works for each artist, ready to be offered.
+
+    Sized to clear the display floor, because a supplement's whole job is to put
+    something showable in front of a curator and a fixture that quietly fell
+    below the floor would test the exclusion rather than the offer.
+    """
+    holdings = {
+        artist: tuple(
+            an_image(title, artist=artist, url=f"https://artic.edu/{title.lower().replace(' ', '-')}", width=6000, height=4500)
+            for title in titles
         )
-        #: Every layout this surface was asked to draw, in order.
-        self.shown: list[Layout] = []
-        self.closed = 0
-        #: Armed failure: the panel refuses whatever it is handed.
-        self.refuses = False
-        #: Armed failure of a different kind: **measuring** blows up, with
-        #: something that is not `SurfaceUnavailable`. That is not a hypothetical
-        #: shape — the real surface's `measure` reaches Pango through C bindings,
-        #: which raise GLib errors related to nothing this codebase can name, and
-        #: it is read by the caller *outside* the `show` that converts failures.
-        self.measurement_explodes = False
-        #: How long a draw takes, in real seconds. **The real one is not
-        #: instantaneous and no amount of arranging makes it so**: a full 16-level
-        #: frame was measured at 1.5–1.9 s with no partial refresh, so a fake that
-        #: returned immediately would let a caller drawing on the event loop pass
-        #: every test a caller drawing off it passes.
-        self.draw_takes_seconds = 0.0
-        #: Armed failure of the kind that raises nothing: the panel goes into a
-        #: transaction and does not come out. It waits for `release`, which the
-        #: fixture always sets — a thread parked in here outlives the test.
-        self.blocks = False
-        self.release = threading.Event()
-        #: Where a draw currently is, for a test that needs to look at the world
-        #: *during* one rather than after it.
-        self.entered = threading.Event()
-        self.left = threading.Event()
-        #: How many draws have been started — as against `shown`, which counts the
-        #: ones that finished. The two differ exactly when a draw is in flight or
-        #: was abandoned, which is the whole subject of the caller's one-at-a-time
-        #: gate.
-        self.draws_begun = 0
+        for artist, titles in by_artist.items()
+    }
+    return FakeCollectionBrowse(holdings=holdings)
+
+
+@dataclass
+class FakeConversationEngine:
+    """Answers whatever it was built to answer, and records the thread it was given.
+
+    Here for the same reason `FakeEngine` is: the interesting cases are a turn
+    that fails after being billed, a turn that fails before being billed, and a
+    deployment with no key at all — none of which can be provoked reliably or
+    cheaply against a live API, and two of which cost money to provoke at all.
+
+    `threads` is what makes the multi-turn claim testable at this level: an
+    engine that saw only the last question would answer identically, and the
+    whole point of a conversation is that it does not.
+    """
+
+    reply: str = "Rothko's colour fields would suit a calm wall."
+    suggested: Sequence[Suggestion] = ()
+    #: What a turn costs. A real measured figure rather than a round number: this
+    #: is what the `conversation_tokens` row is asserted against, and a fixture
+    #: priced at $1 would let an arithmetic error look right.
+    cost_usd: Decimal = Decimal("0.00001896")
+    error: ConversationFailure | None = None
+    reason: str | None = None
+    threads: list[Sequence[ThreadTurn]] = field(default_factory=list)
 
     @property
-    def geometry(self) -> Geometry:
-        return self._geometry
+    def unavailable_reason(self) -> str | None:
+        return self.reason
 
-    def resize(self, *, width_px: int, height_px: int, margin_px: int) -> None:
-        """Change the usable area under a running daemon.
+    def answer(self, thread: Sequence[ThreadTurn]) -> ConversationReply:
+        self.threads.append(tuple(thread))
+        if self.error is not None:
+            raise self.error
+        return ConversationReply(
+            text=self.reply,
+            spend=(
+                EngineSpend(
+                    category=SpendCategory.CONVERSATION_TOKENS,
+                    cost_usd=self.cost_usd,
+                    model_id="fake/deterministic-v1",
+                    input_tokens=528,
+                    output_tokens=24,
+                ),
+            ),
+            suggested=tuple(self.suggested),
+            model_id="fake/deterministic-v1",
+        )
 
-        **A geometry is a setting, so it can change while the process lives** —
-        an operator edits the margin or the viewing distance and restarts
-        nothing. That makes "the surface has no usable area" a condition that
-        clears, and a fake fixed at construction cannot express the clearing.
-        """
-        self._geometry = Geometry(width_px=width_px, height_px=height_px, margin_px=margin_px)
 
-    @property
-    def type_scale(self) -> TypeScale:
-        return self._type_scale
+def a_billed_failure(message: str = "The model returned no usable answer.") -> ConversationFailure:
+    """A turn that reached the provider, was billed, and could not be read.
 
-    @property
-    def measure(self) -> Measure:
-        return self._measure
-
-    def _measure(self, line: Line, size_px: int, wrap_px: int) -> Extent:
-        """Predictable metrics — a stand-in for a rasterizer, not a font.
-
-        **Measures `set_text`, and a version of this that did not was latent for
-        one commit.** A line is runs now, so `len()` over the argument counts a
-        handful of `Run` objects rather than a line of characters: every label
-        then measures one row tall however long the name is, and the drop rule
-        can never fire through this surface. Nothing went red, because no test
-        driving `FakeSurface` asserts a drop — which is exactly why the guard is
-        the conversion here rather than a test somewhere noticing.
-        """
-        if self.measurement_explodes:
-            raise RuntimeError("the text stack could not build a font map")
-        text = set_text(line)
-        glyph = max(1, size_px // 2)
-        per_row = max(1, wrap_px // glyph)
-        rows = max(1, math.ceil(len(text) / per_row))
-        return Extent(width_px=min(len(text) * glyph, wrap_px), height_px=rows * size_px, rows=rows)
-
-    def show(self, layout: Layout) -> None:
-        self.draws_begun += 1
-        self.left.clear()
-        self.entered.set()
-        try:
-            if self.refuses:
-                raise SurfaceUnavailable("the panel is not responding")
-            if self.blocks:
-                # **Bounded, though a real wedged panel is not.** A test that
-                # arranges a hang and then fails its own assertion would otherwise
-                # leave this thread parked for the rest of the session — and if the
-                # caller under test ever draws on the event loop, the thread parked
-                # here is the one that would have to set the flag releasing it.
-                self.release.wait(timeout=RELEASE_TIMEOUT_SECONDS)
-                raise SurfaceUnavailable("released without drawing")
-            if self.draw_takes_seconds:
-                time.sleep(self.draw_takes_seconds)
-            self.shown.append(layout)
-        finally:
-            self.left.set()
-
-    def close(self) -> None:
-        self.closed += 1
-
-    @property
-    def last_text(self) -> list[str]:
-        """The lines of the most recent label, for a test to read at a glance.
-
-        **What each line says, not how it is set** — the family name arrives here
-        as recorded rather than in the capitals a panel would draw. That is right
-        for what these tests ask, which is whether the correct work got captioned;
-        a wiring test that had to spell `RUSCHA` would be asserting typography it
-        is not about. The styling is pinned in `test_label_metadata.py` and, on
-        real type, in `tests/raster/test_pango.py`.
-        """
-        return [block.text for block in self.shown[-1].blocks] if self.shown else []
+    The case the ledger exists for: the month total must include what a failure
+    cost, or it under-reports by exactly the amount the failures cost.
+    """
+    return ConversationFailure(
+        message,
+        spend=(
+            EngineSpend(
+                category=SpendCategory.CONVERSATION_TOKENS,
+                cost_usd=Decimal("0.00011843"),
+                model_id="fake/deterministic-v1",
+                input_tokens=39,
+                output_tokens=902,
+            ),
+        ),
+    )

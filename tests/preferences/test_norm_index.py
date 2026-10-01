@@ -35,12 +35,12 @@ NORM_INDEX = REPOSITORY_ROOT / ".prawduct" / "artifacts" / "project-preferences.
 
 
 #: Every directory in this repository that holds a test tree, as the prefix a
-#: reference to one is written with — `""` for the root plane, `curatarr/`,
-#: `arrt/`.
+#: reference to one is written with — `""` for the root plane, `arrt/`,
+#: `postarr/`.
 #:
 #: **Derived rather than listed.** A literal alternation of plane prefixes goes
 #: wrong the day a plane gains a suite and nobody adds it. The regex is
-#: unanchored, so a missing `arrt/` would not make `arrt/tests/test_epaper.py`
+#: unanchored, so a missing `postarr/` would not make `postarr/tests/test_epaper.py`
 #: fail to match — it
 #: matched the *tail*, `tests/test_epaper.py`, and resolved against the root
 #: plane where no such file exists. A row naming a real, passing display-plane

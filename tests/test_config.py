@@ -210,7 +210,7 @@ def test_no_source_file_carries_a_deployment_value(monkeypatch):
     # not hypothetical: `label_preview.py` acquired exactly those paths and this
     # guard did not walk the directory it acquired them in.
     modules = sorted(repository_root.glob("*.py"))
-    for plane in ("curatarr/src", "arrt/src", "curatarr/tools", "arrt/tools"):
+    for plane in ("arrt/src", "postarr/src", "arrt/tools", "postarr/tools"):
         modules.extend(sorted((repository_root / plane).rglob("*.py")))
     assert modules, f"expected the 2024 modules at {repository_root}; has the layout moved?"
     # **One canary per plane, because `rglob` over a missing directory is silent.**
@@ -218,7 +218,7 @@ def test_no_source_file_carries_a_deployment_value(monkeypatch):
     # on passing over the planes that remain — which is the same vacuous-green this
     # test's own comment says a plane it never walks would produce. Asserting only
     # curation left the display plane in exactly that position.
-    for plane in ("curatarr/src", "arrt/src", "curatarr/tools", "arrt/tools"):
+    for plane in ("arrt/src", "postarr/src", "arrt/tools", "postarr/tools"):
         assert any(
             plane in str(path) for path in modules
         ), f"expected a plane under {repository_root}/{plane}; has the layout moved?"

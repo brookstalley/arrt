@@ -15,8 +15,8 @@ each entry, which is the durable form.
 **`build-plan-arr-navigation.md` Chunk 02.** The three tabs are now a Sonarr-style
 sidebar: Artworks (home, with Add New and Themes beneath it), Walls, Settings ›
 Taste, and System › Status with a problem-count badge. The top bar keeps the
-search and the status indicator. Run it (`cd curatarr && uv run python -m
-curatarr`) and open it in a browser.
+search and the status indicator. Run it (`cd arrt && uv run python -m
+arrt`) and open it in a browser.
 
 1. **Does it feel like Sonarr?** The question the owner's ruling asks: would a
    Sonarr user find each page where they expect it? Click through every section.
@@ -42,7 +42,7 @@ curatarr`) and open it in a browser.
 
 ### Switch the Pi to HTTP mode, and let it soak — added 2026-09-30
 
-**Wave 2b Chunk 04.** Arrt can now pull its wall from Curatarr instead of
+**Wave 2b Chunk 04.** Postarr can now pull its wall from Arrt instead of
 reading the shared file. The file channel stays the default, and wave 3 retires
 it only after this has run on the real wall. After wave 2b reaches the Pi:
 
@@ -71,7 +71,7 @@ it only after this has run on the real wall. After wave 2b reaches the Pi:
 ### The Player token panel on the Walls screen — added 2026-09-30
 
 **Wave 2b Chunk 03.** Each wall's section on the Walls screen ends with a
-**Player token** panel. Run `cd curatarr && uv run python -m curatarr` and open
+**Player token** panel. Run `cd arrt && uv run python -m arrt` and open
 the Walls.
 
 1. **A wall with no token** says so and offers "Issue a Player token for …".
@@ -102,22 +102,31 @@ synced. After this reaches the Pi:
 3. Restart `curation.service`. The journal should say `Reconciled … against the
    Library at startup: nothing to change`.
 
-### The Pi's units after the rename to curatarr/ and arrt/ — added 2026-09-30
+### The Pi's units after the renames to arrt/ and postarr/ — added 2026-09-30, rewritten 2026-10-01
 
-**Wave 2a.** The projects moved from `curation/` and `display/` to `curatarr/` and
-`arrt/`, and the modules from `curation` and `display` to `curatarr` and `arrt`.
+**Wave 2a and the rename of 2026-10-01, in one step.** The projects moved from
+`curation/` and `display/` to `curatarr/` and `arrt/` (wave 2a), and then to
+`arrt/` (the server) and `postarr/` (the player). The modules moved the same way.
 The installed units still name the old directories and modules, so after pulling
 this they fail to start until they are replaced. The unit *files* keep their
 names until wave 3, so this replaces them rather than adding new ones.
 
+**`arrt/` changed meaning.** In a checkout that took wave 2a, `arrt/` is the
+player and holds its untracked `.venv`. After the pull the server's files land in
+the same directory, beside a virtualenv built for the player. So every project's
+`.venv` is removed before the pull, whichever names this checkout has.
+
     sudo systemctl stop display.service curation.service
-    cd /opt/samsung-frame-art-loader && sudo -u tvpi git pull
+    cd /opt/samsung-frame-art-loader
+    sudo -u tvpi git rev-parse HEAD    # write this down: "To go back" returns to it
+    sudo rm -rf curation/.venv display/.venv curatarr/.venv arrt/.venv
+    sudo -u tvpi git pull
     # git moves the tracked files; the old directories keep only what was untracked.
-    # Expect nothing but .venv and caches before removing them:
-    ls -A /opt/samsung-frame-art-loader/curation /opt/samsung-frame-art-loader/display
-    sudo rm -rf /opt/samsung-frame-art-loader/curation /opt/samsung-frame-art-loader/display
-    cd /opt/samsung-frame-art-loader/arrt && sudo -u tvpi /usr/local/bin/uv sync --group raster --group epaper
-    cd /opt/samsung-frame-art-loader/curatarr && sudo -u tvpi /usr/local/bin/uv sync
+    # Expect nothing but caches in whichever of these exist before removing them:
+    ls -A curation display curatarr 2>/dev/null
+    sudo rm -rf curation display curatarr
+    cd /opt/samsung-frame-art-loader/postarr && sudo -u tvpi /usr/local/bin/uv sync --group raster --group epaper
+    cd /opt/samsung-frame-art-loader/arrt && sudo -u tvpi /usr/local/bin/uv sync
     cd /opt/samsung-frame-art-loader
     sudo cp deploy/display.service deploy/curation.service /etc/systemd/system/
     sudo systemctl daemon-reload
@@ -126,14 +135,18 @@ names until wave 3, so this replaces them rather than adding new ones.
 Then run the four checks in `deploy/README.md` § How to tell your own install
 worked: both units active and enabled, the installed copies matching the
 checkout, the account reaching what it needs, and a fresh heartbeat. Logger
-names now start `curatarr.` and `arrt.`, so a saved journal filter on
-`curation.` or `display.` stops matching. The wall is dark between the stop and
-the start, so do it when nobody is looking at it.
+names now start `arrt.` (the server) and `postarr.` (the player), so a saved
+journal filter on `curation.` or `display.` stops matching, and one on `arrt.`
+from wave 2a now matches the server rather than the player. The wall is dark
+between the stop and the start, so do it when nobody is looking at it.
 
-**To go back**, check out the commit before this merge and run the same steps
-with the names swapped: stop both units, remove `curatarr/` and `arrt/` (only
-`.venv` and caches remain after the checkout), `uv sync` in `curation/` and
-`display/`, copy the units back in, reload and start.
+**To go back**, check out the commit `git rev-parse HEAD` printed before the
+pull, not "the commit before this merge": the step covers two merges, and the
+one before the last has the server in `curatarr/` and the player in `arrt/`.
+Then run the same steps with the names swapped: stop both units, remove every
+project's `.venv`, check out, remove `arrt/` and `postarr/` if the old commit
+has no such directory (only caches remain), `uv sync` in each project directory
+the old commit has, copy its units in, reload and start.
 
 ### ✅ The rebuilt identification block, at the panel — added 2026-08-13, VERIFIED 2026-08-14
 
@@ -208,7 +221,7 @@ Russia)` → `Russian`).
 
 ```sh
 sudo systemctl stop display.service
-cd /opt/samsung-frame-art-loader/arrt
+cd /opt/samsung-frame-art-loader/postarr
 draw() { sudo -u tvpi env HOME=/var/lib/tvpi /usr/local/bin/uv run \
     --group raster --group epaper python tools/label_preview.py --panel --record "$1"; }
 draw hokusai; draw okeeffe; draw wright; draw kandinsky; draw moche; draw nationality-only
@@ -259,8 +272,8 @@ stopped unit — the invocation with this deployment's paths is in
 `deploy/README.md` § The cutover.
 
 ```sh
-cd arrt && uv run --group raster python tools/label_preview.py /tmp/label.png
-cd arrt && uv run --group raster python tools/label_preview.py /tmp/short.png --record okeeffe
+cd postarr && uv run --group raster python tools/label_preview.py /tmp/label.png
+cd postarr && uv run --group raster python tools/label_preview.py /tmp/short.png --record okeeffe
 ```
 
 The report names the record first, then prints the type sizes in arcminutes,
@@ -318,7 +331,7 @@ point of the model.
    the backlog.
 
 **What it would take to change any of these:** the first two are single constants
-in `arrt/src/arrt/panel/layout.py`, not a redesign. Say what you see and the
+in `postarr/src/postarr/panel/layout.py`, not a redesign. Say what you see and the
 tuning is cheap. **The third is struck and its replacement finding is not cheap** —
 styling a culture like a maker needs the catalogue to record that it is one.
 
@@ -367,7 +380,7 @@ comma-separated parts. That was the whole argument for collapsing the tombstone
 onto one line, and it has never been looked at.
 
 ```sh
-cd arrt && uv run --group raster python tools/label_preview.py /tmp/label.png
+cd postarr && uv run --group raster python tools/label_preview.py /tmp/label.png
 ```
 
 The report now prints each line as the panel sets it and names the styled runs
@@ -406,7 +419,7 @@ is on a different line from the name.
 
 ### The Theme screen, and the reorder that had never worked — added 2026-08-12
 
-**Chunk 09.** Run `cd curatarr && uv run python -m curatarr` and open Themes.
+**Chunk 09.** Run `cd arrt && uv run python -m arrt` and open Themes.
 
 1. **The ↓ button now does something, and until this chunk it never had.** The
    service wrote the requested number into the position column and stopped;
@@ -441,7 +454,7 @@ is on a different line from the name.
 
 ### Taste, and the delete that detaches instead of cascading — added 2026-08-12
 
-**Chunk 11.** Run `cd curatarr && uv run python -m curatarr` and open Taste.
+**Chunk 11.** Run `cd arrt && uv run python -m arrt` and open Taste.
 
 1. **Reactions on a conversation sample are keyed on the artist, not the
    picture.** The three controls sit under each sample, but an affinity is one row
@@ -466,7 +479,7 @@ is on a different line from the name.
 ### The Walls screen, and the Work screen's archive — added 2026-08-12
 
 **Two screens rebuilt, and the first confirmation dialog the product has ever
-had.** Run `cd curatarr && uv run python -m curatarr` and open The Walls.
+had.** Run `cd arrt && uv run python -m arrt` and open The Walls.
 
 **Specific things worth an opinion, each a judgement call made while building:**
 
@@ -525,7 +538,7 @@ carrier. **What it cannot hold is whether the reshape reads as one product**, an
 that is the question.
 
 ```sh
-cd curatarr && uv run python -m curatarr
+cd arrt && uv run python -m arrt
 ```
 
 **Four things worth an opinion, each a judgement call the plan did not settle:**
@@ -574,7 +587,7 @@ Nothing was adjusted on the way in: every value is the prototype's.
 Look at both, since the browser's own setting picks and there is no in-app toggle:
 
 ```sh
-cd curatarr && uv run python -m curatarr
+cd arrt && uv run python -m arrt
 ```
 
 Open the prototype beside it — it is the reference for what this was supposed to
@@ -642,7 +655,7 @@ The seven, with what the derivation used to answer and what a human chose in 202
 Reproduce the measurement, which is free and touches nothing:
 
 ```sh
-cd curatarr && uv run python tools/mat_masters.py ../all.json
+cd arrt && uv run python tools/mat_masters.py ../all.json
 ```
 
 **The specific question, and it is a real one.** The clamp puts a breaching work
@@ -717,7 +730,7 @@ that 20/20 vision needs to resolve a letter at all — so the label was not mere
 small, it was below the threshold of legibility, and had passed a hardware probe,
 a review and a cutover in that state. Nothing could have caught it, because
 nothing anywhere converted a pixel into the angle a person sees. That conversion
-now exists, and `arrt/tests/test_type_floor.py` asserts in arcminutes.
+now exists, and `postarr/tests/test_type_floor.py` asserts in arcminutes.
 
 **What is still worth a look at the panel, and it is smaller than this entry
 was.** Whether 12.4′ is right in *bold* — the ladder was read in regular weight,
@@ -727,8 +740,8 @@ a size step down. Worth measuring before spending the panel's budget on size tha
 weight could have bought.
 
 ```sh
-cd arrt && uv sync --group raster            # once; the Pi, CI and this Mac all take it
-cd arrt && uv run --group raster python tools/label_preview.py /tmp/label.png --cap-arcmin 11
+cd postarr && uv sync --group raster            # once; the Pi, CI and this Mac all take it
+cd postarr && uv run --group raster python tools/label_preview.py /tmp/label.png --cap-arcmin 11
 ```
 
 The tool now prints arcminutes beside every pixel size, and says what the drop
@@ -747,7 +760,7 @@ looks different in three ways at once and it is worth separating them by eye
 rather than in a photograph of a rotating wall:
 
 ```sh
-cd arrt && uv run --group raster python tools/label_preview.py /tmp/label.png
+cd postarr && uv run --group raster python tools/label_preview.py /tmp/label.png
 ```
 
 1. **The artist now leads and the title follows it.** Deliberate — the family
@@ -846,7 +859,7 @@ numbers under the 2026-08-01 entry below. Rollback for the pins remains
 `deploy/pi-freeze-2024.txt`.
 
 ```sh
-cd arrt && uv run python -m arrt
+cd postarr && uv run python -m postarr
 ```
 
 **What to watch for, each being a behaviour chosen against a plausible
@@ -918,8 +931,8 @@ scan are all local — with one exception named on the screen itself: "Look agai
 for these" starts a re-search, which does spend.
 
 ```sh
-cd curatarr
-uv run python -m curatarr
+cd arrt
+uv run python -m arrt
 # then open the CURATION_PORT from .env — http://127.0.0.1:8770/ as shipped
 # → Discovery → open a finished run → "Review these works"
 ```
@@ -1186,8 +1199,8 @@ already in the catalogue. If you would rather not spend, the first two are still
 worth an opinion and the third can be read against a run from an earlier session.
 
 ```sh
-cd curatarr
-uv run python -m curatarr
+cd arrt
+uv run python -m arrt
 # then open the CURATION_PORT from .env — http://127.0.0.1:8770/ as shipped
 # → the Discovery tab
 ```
@@ -1245,7 +1258,7 @@ deployment does.
    client has no test runner … none of them is executed by a test", and invited
    reopening that trade if the surface kept growing logic of this kind. It did,
    and the trade was reopened and settled: the client is executed by a real
-   browser against a real server in `curatarr/tests/browser/` (marker `browser`).
+   browser against a real server in `arrt/tests/browser/` (marker `browser`).
    The focus check above, the supersession of an in-flight repaint, and the
    polling are each executed — by `test_a_poll_that_changes_nothing_leaves_the_focus_alone`,
    `test_a_paint_superseded_in_flight_never_reaches_the_page`,
@@ -1298,7 +1311,7 @@ A full run is already done and its numbers are worth having before you look:
 Regenerate the sheet and compare each pair by eye:
 
 ```
-cd curatarr
+cd arrt
 uv run python tools/mat_corpus.py ../all.json --out /tmp/mat-corpus
 open /tmp/mat-corpus/corpus.jpg          # 2024 on the left, the engine on the right
 ```
@@ -1598,9 +1611,9 @@ it is subjective by nature.
 # The masters, read-only behind a symlink, inside the ART_ROOT `.env` names.
 # One `rm ~/samsung-art/raw` undoes it; nothing is copied.
 ln -sfn ~/art/raw "$(grep '^ART_ROOT=' .env | cut -d= -f2-)/raw"
-cd curatarr
-uv run python -m curatarr.seed ../all.json   # re-runnable; fills in what was absent
-uv run python -m curatarr
+cd arrt
+uv run python -m arrt.seed ../all.json   # re-runnable; fills in what was absent
+uv run python -m arrt
 # then open the CURATION_PORT from .env — http://127.0.0.1:8770/ as shipped
 ```
 
