@@ -37,14 +37,20 @@ work is not the same as being able to hang it.
 | **Seeable** | What does it look like? | A museum's preview image, Commons | Free and instant from a museum API; today only reached inside a conversation or a run |
 | **Hangable** | Can I get an image good enough for the wall? | Open-access museum APIs and Commons, or tile reassembly from a museum's viewer | A discovery run: minutes and money |
 
-**Seeable and Hangable are grades of one supply, and rights are a separate
-axis.** Measured 2026-10-01 on a copyrighted Rothko at the Art Institute
-(*Untitled (Purple, White, and Red)*): its scan is 4,840 px wide, the public
-image service serves it at 843 px, and a request for 1,686 px is redirected to
-843 px. That is enough to see the work and to put it in a list, and far below a
-wall's resolution floor (`RESOLUTION_FLOOR_INCHES`). So a work can be Seeable
-without being Hangable, and for most work past the public-domain boundary that
-is the usual case. The library's own works show the other side:
+**Seeable is a separate layer because it is free, not because it is rarer.**
+A museum's API returns preview images with its search results, at no cost and in
+under a second, so "what does it look like?" never needs a run. Whether a work
+is also Hangable depends on the **route** to it, and rights are a separate axis.
+
+*Corrected 2026-10-01, the same day.* This paragraph first said a copyrighted
+Rothko at the Art Institute is Seeable and not Hangable, because the image
+service capped a whole-image request at 843 px (from a 4,840 px scan). The
+owner pointed out that Rothkos had been found before. The library holds two,
+both from the Art Institute by `dezoomify`: *Untitled (Purple, White, and Red)*
+at 2,370 × 2,250 and *Untitled (Painting)* at 5,092 × 4,533. The cap applies to
+asking for the whole image, and assembling it from zoom tiles gets past it.
+**How common Seeable-but-not-Hangable is, is not measured.** The library's own
+works show the route that matters:
 
 - *Blue Half Circle* (Calder, 1970) came from the Art Institute's site and
   *Cat Litter* (Gober, 1989) from Google Arts & Culture. Both were acquired by
@@ -166,22 +172,30 @@ Getting acquainted with an artist known only by name is its own scenario, now
 **S11**.
 
 **Supply, measured.** Wikidata: Rothko (`Q160149`) has 349 works, 69 with a
-holder, 0 with a free image. The Art Institute holds 8, each with an image and
-none in the public domain, served at 843 px (§ Four layers). He died in 1970, so
-his work is past the boundary. **The honest answer is that Rothko is Seeable and
-almost never Hangable**, and the list the curator asked for would be mostly
-*Preview only*.
+holder, 0 with a free image. The Art Institute holds 8 (agent `36467`), each
+with an image and none in the public domain. **The library already holds two of those 8**, both
+assembled from tiles at hangable size (§ Four layers). He died in 1970, so
+open-access supply has none of his work, and tile reassembly is the route that
+reaches it. How many of the other 6, or of other museums' Rothkos, would come
+through at hangable size is not measured.
 
-**Today.** Typing `rothko` finds nothing in the library, and the dropdown offers
-only *Search museums for "rothko"*, which goes to Add New and a paid run. A run
-is the only path that ends in a list with thumbnails, and it ends in candidates,
+**Today.** Typing `rothko` lists the library's two Rothkos, then *Search museums
+for "rothko"*, which goes to Add New and a paid run. A run is the only path that
+ends in a list with thumbnails of what can be had, and it ends in candidates,
 not in a picture of what exists. The conversation would show sample pictures
 (its samples come from the Art Institute, as the server's startup log says), but
-search does not route there. So the curator either pays to learn that little can
-be had, or knows to start a conversation instead.
+search does not route there. So a curator who knows nothing about Rothko sees two
+works they already hold, and then has to pay to see the rest.
 
 **What it changed:** the layer model gained *Seeable* (§ Four layers), and S11 is
-the case for a free lookup in search that shows previews with their grade.
+the case for a free lookup in search that shows the museums' previews, marks the
+two already held, and leaves the paid run for acquiring.
+
+*Corrected 2026-10-01, the same day.* The first version of this walkthrough said
+`rothko` finds nothing in the library, and that Rothko is "Seeable and almost
+never Hangable". Neither was measured: the first was assumed, and the second
+read the Art Institute's whole-image cap as a ceiling on the work. The owner
+caught it from memory of past runs.
 
 ### "A 16th-century theme for a day or two, then back to my normal taste."
 
@@ -212,15 +226,24 @@ the open questions for the owner to rule on rather than assumed.
 a commit card, a run. The reactions on each sample ("more like this", "not
 this") record taste as `stated`.
 
-**Supply, measured.** Wikidata: Robert Delaunay (`Q33978`, died 1941) has 225
-works, 187 with a free image; Sonia Delaunay (`Q232972`, died 1979) has 50, with
-4. The Art Institute holds 31 by Robert (20 public domain) and 37 by Sonia (19
-public domain). Its flag follows US law, under which work published 95 or more
-years ago is free whatever the artist's death date (in 2026, work published in
-1930 or earlier). So Sonia's early work is Hangable from there even though she
-died in 1979. **Whether a suggestion can be had depends on
-the work's date and the source's jurisdiction, not the artist's**, which argues
-for marking supply per work rather than per artist.
+**Supply, measured** by each source's own identifier for the artist. Wikidata:
+Robert Delaunay (`Q33978`, died 1941) has 225 works, 187 with a free image; Sonia
+Delaunay (`Q232972`, died 1979) has 50, with 4. The Art Institute, by agent ID:
+Robert has 5 works split across **two agent records** (`34225` and `54231`), 4
+with an image and 1 public domain; Sonia, recorded as Sonia Delaunay-Terk
+(`34226`), has 15, 13 with an image and none public domain. **The sources
+disagree about the same artist**: most of Robert's work is free on Commons, and
+almost none of it is marked free at the Art Institute. And one museum holds one
+artist under two records, which is the identity problem of § There is no ISRC
+for art inside a single source. So supply has to be asked per source and per
+work, not per artist.
+
+*Corrected 2026-10-01, the same day.* The first version gave the Art Institute
+31 works by Robert and 37 by Sonia, about half public domain, and argued from it
+that US law made Sonia's early work free there. Those counts came from a
+free-text search that matches almost the whole collection (133,118 hits),
+filtered on the surname alone, so they counted every Delaunay. The conclusion
+went with them.
 
 **Two gaps:**
 
@@ -239,10 +262,11 @@ for marking supply per work rather than per artist.
 1. Which scenarios are real, and how often does each happen? Add any that are
    missing.
 2. When you type an artist's name, which of S1–S4a do you usually mean?
-3. Should Arrt show what is *Seeable* but not *Hangable* (a Rothko at 843 px), or
-   only what it can hang? Showing it is honest about the supply horizon, and S11
-   needs it to answer "what does his work look like?". Hiding it keeps the screen
-   to things you can act on.
+3. Should search show works Arrt can see but may not be able to hang (only a
+   small image, or no image at all), or only what it can hang? S11 needs the
+   pictures to answer "what does his work look like?", and hangability is not
+   known until a run tries the route. How often a work is Seeable and not
+   Hangable is not measured.
 4. Should Arrt store a Wikidata QID on a work where one exists? That is
    `re-architecture.md`'s open "External identity" question, and S2 and S4a are
    the scenarios that would use it.
