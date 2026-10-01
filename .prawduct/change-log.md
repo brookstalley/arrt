@@ -56,9 +56,9 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
-## 2026-09-30: The *arr navigation: the norm amended, and the sidebar built
+## 2026-09-30: The *arr navigation: the sidebar, Activity, two-scope search and the page toolbar
 
-<!-- prawduct: chunks=01,02,03,04,05 | scope=arr-navigation -->
+<!-- prawduct: scope=arr-navigation -->
 
 **Why:** the owner ruled that Curatarr's browser surface should be laid out like
 the *arr apps: *"More important to be familiar than to have our own thing."*
