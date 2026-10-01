@@ -74,8 +74,8 @@ both through `requests`. Neither is named in a pyproject.
 **What:** `uv lock --upgrade-package` moved only those two: pyjwt 2.15.1 in
 `arrt/uv.lock`, urllib3 2.8.0 in `arrt/uv.lock` and `postarr/uv.lock`. Wave 5's
 recipe in `re-architecture.md` now names the server rename commit and its merge
-by id, and the pass-1 commit set by a form that does not depend on the rename's
-parent having one child.
+by id, and the pass-1 commit set across every ref, since filter-repo rewrites
+them all and a one-tip set misses an unmerged branch cut after the rename.
 
 **Not closed by this merge:** GitHub files the alerts against main's
 `curation/` and `display/` lockfiles, so they close when develop is released.
