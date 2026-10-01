@@ -112,6 +112,61 @@ sitelink count, image (`P18`) and collection (`P195`):
   the item carrying its identifier, and about a fifth of Rothko's top fifty
   have no English or `mul` label at all.
 
+## Searching for works, and similar artists (one-world search)
+
+Measured 2026-10-01 for `build-plan-one-world-search.md`, two runs of each
+query, same User-Agent.
+
+**Finding works by title.** Two search calls are reachable through the query
+service's `wikibase:mwapi`, and they answer different questions:
+
+| Query | `EntitySearch` (label prefix, as `people_named` uses) | `Search` with `haswbstatement:P170` (full text) |
+|---|---|---|
+| `persistence of memory` | J.C. Heywood's *Persistence of Memory* only; Dalí's is missed | Dalí's (48 sitelinks), then his *Disintegration of…*, then Heywood's |
+| `hunters in the snow` | Brueghel the Younger, Heymans, Courbet; the Elder's is missed | Brueghel the Elder's (39) first |
+| `starry night` | van Gogh (76), then *Over the Rhone* (38) | the same |
+| `starr` (a typed prefix) | van Gogh's two, then Munch | comics and TV ("Power Girl"); `starr*` gives van Gogh's two, then *Reign* and *Kojak* |
+| time per query | 0.3–0.9 s | 0.4–1.2 s |
+
+- **`EntitySearch` misses any title that starts with "The"** unless the curator
+  types the article, because it matches labels and aliases from their start. The
+  owner's own first test, *The Persistence of Memory*, is such a title.
+- **Full text finds them, and lets in anything with a creator.** `P170` sits on
+  TV series, comics and software (*Kojak*, *Power Girl*, Wikidata itself for
+  `mona`). Sorting by sitelinks puts those near the top, because they are
+  famous. So full text needs a filter for works of visual art, and the filter's
+  cost is unmeasured.
+- **Neither search folds a missing accent the way the library does.** That was not
+  measured here; `dali` finding Salvador Dalí through `wbsearchentities` is.
+
+**Similar artists, from shared movements (`P135`).** People sharing a movement,
+ranked by sitelinks, kept only if they made at least one work with an image:
+
+| Artist | Movements | Top of the list | Time |
+|---|---|---|---|
+| Renoir (Q39931) | Impressionism | Matisse, Octave Mirbeau, Monet, Gauguin, Degas, Manet, Cassatt, Pissarro | 0.8–1.3 s |
+| Rothko (Q160149) | abstract expressionism | Bourgeois, de Kooning, Appel, Gorky, Newman | 0.4–1.5 s |
+| Dalí (Q5577) | surrealism | Picasso, Kahlo, Miró, David Lynch, Klee, Buñuel, Duchamp, Ernst | 0.4 s |
+| van Gogh (Q5582) | Expressionism, Post-impressionism | four minor painters sharing both, then Picasso, Matisse, Cézanne, Gauguin, Munch | 0.9 s |
+
+- **Ranking by the number of shared movements promotes obscure people.** For van
+  Gogh, four painters with 5 to 25 sitelinks come first because they share both
+  movements. Fame first, then shared movements, reads better on every artist
+  measured.
+- **Movements admit people who are not painters.** Octave Mirbeau is a critic
+  and novelist, Buñuel and Lynch are filmmakers, and Captain Beefheart appears
+  for Rothko without the image filter. The image filter removes some of them but
+  not all. An occupation filter (visual artist, as `people_named` uses) is the
+  next thing to try.
+- **Influence links (`P737`) are sparse and one-sided.** Renoir has 7, all
+  *influenced*, all minor; Dalí has 12 (Picasso, Bosch and Nietzsche among
+  *influenced by*). They are too few to rank, and are useful as a second section
+  at most.
+
+A wrong figure that was caught: the first run used Q5432 for Dalí, typed from
+memory. It is another person, with Romanticism and Rococo as movements. Every
+QID above was read from a search result or from this document.
+
 ## Reproducing
 
 The probes were scratch scripts, not product code: a SPARQL helper with the
