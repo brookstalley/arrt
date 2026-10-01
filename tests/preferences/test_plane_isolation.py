@@ -64,7 +64,7 @@ PULL_MODULE = DISPLAY_PACKAGE / "pull.py"
 #: from a display module would actually get.
 #:
 #: That ordering cannot weaken the ban, and the reason is worth stating because
-#: it is not obvious: a `curation.*` name is rejected by `_forbidden` *before*
+#: it is not obvious: a curation-plane name (`arrt.*`) is rejected by `_forbidden` *before*
 #: resolution is ever attempted, so the guard never depends on finding the
 #: curation copy of anything. Resolution exists only to keep walking repo-local
 #: files, and following the display copy is the honest answer there.

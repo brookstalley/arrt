@@ -89,13 +89,21 @@ the player's history spans three paths: `display/` (until wave 2a), `arrt/`
 (from wave 2a until Chunk 01) and `postarr/` (from Chunk 01). From Chunk 02 on,
 `arrt/` is the server. Filtering on all three paths alone would carry the
 server's history into the player repo. The filter therefore has to be
-commit-aware. In Chunk 02's commit and every commit that descends from it,
-including the merge that lands this branch, every change under `arrt/` becomes
-a deletion. Chunk 02 records this recipe in `re-architecture.md` § Order of
-work, with its commit ids. Wave 5 must dry-run the recipe and check the result
-before trusting it. **The check:** the filtered repo has no `arrt/` at any
-commit that descends from Chunk 02's commit, and at Chunk 01's parent its
-`arrt/` tree matches the original repo's `arrt/` there.
+commit-aware, and it has to run in **two passes**. The first pass works on the
+original paths. In the server rename commit and every commit that descends from
+it, including the merge that lands this branch, every change under `arrt/`
+becomes a deletion. The second pass filters and renames the three paths. One
+pass does not work: filter-repo renames paths before its commit callback runs,
+so server and player files collide on the names they share (`uv.lock`,
+`pyproject.toml`, `tests/conftest.py`).
+
+**Measured 2026-10-01**, after the cumulative review (R-4) said the one-pass
+recipe first recorded here would fail. On a scratch clone with this branch
+merged `--no-ff` into develop, the one-pass form crashed fast-import on
+`uv.lock`. The two-pass form produced a tip tree byte-identical to the original
+`postarr/` and, at the player rename's parent, a tree identical to the original
+`arrt/`. Those two comparisons are the check to rerun on the real split.
+`re-architecture.md` § Order of work carries the recipe.
 
 ## Status
 
