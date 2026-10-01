@@ -1,14 +1,42 @@
-# samsung-frame-art-loader
+# Arrt
+
+*Formerly samsung-frame-art-loader, then Curatarr. The player half, Postarr, lives here
+until it moves to its own repo.*
 
 Curated art on a Samsung Frame TV, with a matching e-paper label beside it.
+
+## Where this is going (direction changed 2026-09-30)
+
+This repo is turning into **two products**:
+
+- **Arrt, the server,** in the manner of Radarr/Sonarr. It holds two roles: the
+  **Library** finds, acquires, maintains, upgrades and enhances artwork, including
+  standing "watch for new abstract expressionists" searches; **Programming**
+  decides which playlist hangs on which wall. It runs as a container on a home
+  NAS.
+- **Postarr, the player,** in the manner of a Plex client. It reads what the server
+  publishes and shows it on whatever screen it owns: a Samsung Frame, a plain
+  LCD, a monitor. It composes the mat for that screen. The e-ink label is
+  optional, and a caption in the mat is the alternative.
+
+Most of it already exists here: `arrt/` is most of the server and `postarr/`
+is most of the player. The work is moving the seams. The shared directory becomes
+an HTTP manifest that the player pulls into a local cache, and mat compositing
+moves from the server to the player. That happens in waves, and splitting this
+repo in two comes **last**, once the contract between them has settled. This
+repo then becomes Arrt, and Postarr moves to a repo of its own.
+
+**The record, the reasoning and the order of work:**
+`.prawduct/artifacts/re-architecture.md`. Everything below describes the product
+**as built and running today**, which stays true until each wave lands.
 
 The design is two independent planes on one Raspberry Pi, sharing a directory and
 exactly one file between them:
 
-- **curation** (`curation/`, Python 3.14) — the catalogue, discovery, image
+- **The curation plane** (`arrt/`, Python 3.14) — the catalogue, discovery, image
   preparation, an HTTP API and an MCP server. It writes the theme manifest.
   **Built.**
-- **display** (`display/`, Python 3.13 on the Pi; 3.12 declared floor) — polls that manifest, drives
+- **The display plane** (`postarr/`, Python 3.13 on the Pi; 3.12 declared floor) — polls that manifest, drives
   the TV and the e-paper panel, and keeps showing art whether or not curation is
   running. **Built.** It reads the manifest, rotates the active theme over the
   television, keeps its own record of what that set is holding, executes the
@@ -84,14 +112,15 @@ added or its device draws no label** — see `deploy/README.md`.
 | Running the tests, the linters, and the curation plane | `CLAUDE.md` |
 | Every environment variable, and which are required | `.env.example` |
 | The systemd units and their caveats | `deploy/README.md` |
+| Where it is going, and in what order | `.prawduct/artifacts/re-architecture.md` |
 | Why any of it is shaped this way | `.prawduct/artifacts/` |
 
 ## Quick start
 
 ```sh
 cp .env.example .env                       # then set ART_ROOT
-cd curation && uv run python -m curation --init   # once, to make ART_ROOT an art root
-cd curation && uv run python -m curation          # every run after that
+cd arrt && uv run python -m arrt --init   # once, to make ART_ROOT an art root
+cd arrt && uv run python -m arrt          # every run after that
 ```
 
 **`--init` is needed once per art root, and leaving it out is the point.** The
@@ -105,7 +134,7 @@ better evidence than a marker.
 `.env` supplies defaults and an exported variable beats it, so a run against a
 scratch tree needs no edit to the file — with the same one-time flag the first
 time, since a scratch tree is a new art root:
-`ART_ROOT=/tmp/scratch uv run python -m curation --init`.
+`ART_ROOT=/tmp/scratch uv run python -m arrt --init`.
 
 Then open `http://127.0.0.1:$CURATION_PORT/` — the browser interface serves the
 catalogue, discovery runs, themes, the wall manifest and a health view. MCP

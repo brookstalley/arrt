@@ -5,6 +5,14 @@ fake built against assumed shapes encodes the assumptions rather than testing
 them. Everything below is **measured**, not recalled or read from documentation,
 except where a line says otherwise.
 
+> **Direction changed 2026-09-30 — see `re-architecture.md` § Deployment
+> target.** § "The client is first-party, behind a seam" counts the install
+> landing on the Pi as one reason. From wave 3 the server, which holds this
+> client, runs as a container on the NAS. The decision stands on its other two
+> reasons: everything routes through one provider, and the eval harness's model
+> and the engine's model are unrelated roles. The Pi-install weight no longer
+> applies to it.
+
 **Two probe rounds, on different keys, and which one produced a finding matters
 when reading it.** The first used a **borrowed key** from another product on this
 machine (`limit` 10, not this product's ceiling): adequate for response shapes and
@@ -291,7 +299,7 @@ one of should look like. See `nonfunctional-requirements.md` § Cost Constraints
 
 **A direct HTTP client, written against the shapes above, behind a narrow
 interface** — not `threetears.models.create_chat_model`, which
-`curation/pyproject.toml` had anticipated ("it arrives with the discovery work
+`arrt/pyproject.toml` had anticipated ("it arrives with the discovery work
 that calls it"). That note is superseded here rather than left to contradict the
 code.
 
@@ -821,7 +829,7 @@ actually needs:
 httpx.Timeout(180.0, connect=5.0)
 ```
 
-`discovery/artic.py` already carries exactly this shape; the mitigation this
+`library/discovery/artic.py` already carries exactly this shape; the mitigation this
 codebase had already chosen was applied to one client and not the other.
 
 **One number to be careful with, because two readings of this got it wrong in
@@ -861,11 +869,11 @@ failed turn is visibly retryable, is outside what this probe can settle.
 
 Prices and endpoint shapes both move, so **this file is no longer the durable
 form of these findings — a test is.**
-`curation/tests/live/test_openrouter_shapes_are_still_real.py` asserts each fact
+`arrt/tests/live/test_openrouter_shapes_are_still_real.py` asserts each fact
 above that the client depends on, against the live API:
 
 ```
-cd curation && uv run pytest -m live_api
+cd arrt && uv run pytest -m live_api
 ```
 
 It is deselected by default because it spends real money, and each test names the

@@ -32,14 +32,14 @@ import pathlib
 import pytest
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
-WRITER = REPOSITORY_ROOT / "display" / "src" / "display" / "heartbeat.py"
-READER = REPOSITORY_ROOT / "curation" / "src" / "curation" / "manifest" / "heartbeat.py"
+WRITER = REPOSITORY_ROOT / "postarr" / "src" / "postarr" / "heartbeat.py"
+READER = REPOSITORY_ROOT / "arrt" / "src" / "arrt" / "programming" / "manifest" / "heartbeat.py"
 
 #: The manifest's two ends. It runs the other way — curation writes, display
 #: reads — so "writer" and "reader" are the heartbeat's roles, and these are
 #: named for the plane instead.
-MANIFEST_IN_DISPLAY = REPOSITORY_ROOT / "display" / "src" / "display" / "config.py"
-MANIFEST_IN_CURATION = REPOSITORY_ROOT / "curation" / "src" / "curation" / "manifest" / "builder.py"
+MANIFEST_IN_DISPLAY = REPOSITORY_ROOT / "postarr" / "src" / "postarr" / "config.py"
+MANIFEST_IN_CURATION = REPOSITORY_ROOT / "arrt" / "src" / "arrt" / "programming" / "manifest" / "builder.py"
 
 #: Every declaration both planes make separately and must spell identically, as
 #: `(constant, display's copy, curation's copy)`.

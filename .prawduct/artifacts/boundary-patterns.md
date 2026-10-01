@@ -12,11 +12,28 @@
 > consumer-impact check for every future chunk — which is exactly what happened
 > between 2026-07-19's two planning passes.
 
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** The product
+> becomes a **server** (Library + Programming, on the operator's NAS) and a
+> **player** per wall. In this file:
+> - **curation ↔ display** becomes a network contract (Server ↔ Player): an HTTP
+>   manifest, content-addressed media and a heartbeat POST, pulled into a
+>   Player-local cache. It crosses a **machine** boundary from wave 3, and after
+>   wave 5 it crosses a repository boundary too.
+> - **The service layer** gains a planned internal seam, Library ↔ Programming,
+>   through a network-ready facade.
+> - **The catalogue schema** is planned to become two SQLite files, with no
+>   foreign keys across that seam.
+> - **`ART_ROOT`** stops being read by the Player at all, and it gains the
+>   presentation master.
+> - **Configuration** loses `TV_PANEL_*` and `MAT_*` from the server in wave 4.
+>
+> Every "Exists" statement below still describes the code as built.
+
 ## Contract Surfaces
 
 ### MCP tool surface
 
-- **Exists:** **yes**, as of 2026-07-27 — `curation/src/curation/mcp/`. All five
+- **Exists:** **yes**, as of 2026-07-27 — `arrt/src/arrt/mcp/`. All five
   tool names are registered and served over streamable HTTP at `/mcp`. **Four of
   the five now carry real actions**; only `art_review` still answers `help` alone
   and returns a teaching error for anything else. **Read this as a live external
@@ -40,7 +57,7 @@
 - **Generated, not hand-maintained.** Definitions derive from one registry record
   per action. A change to a record propagates to the wire schema, validation, `help`
   output, and error messages together; editing any of those by hand is the
-  violation. Records live in `curation/src/curation/mcp/tools.py`; the generators
+  violation. Records live in `arrt/src/arrt/mcp/tools.py`; the generators
   in `registry.py`. `tests/contract/test_mcp_surface.py` pins the five names,
   the 2 KB description budget, the annotations, and that every action in a
   schema's enum also appears in the prose — the drift check.
@@ -52,7 +69,7 @@
   row silently disarms the consumer-impact investigation this file exists to
   arm, and the discovery half of the browser surface extends exactly this one
   rather than standing up a second.
-- **Producer:** the FastAPI app on the curation plane — `curation/src/curation/http/api.py`,
+- **Producer:** the FastAPI app on the curation plane — `arrt/src/arrt/http/api.py`,
   with typed responses in `http/models.py`.
 - **Consumer:** the curation UI, and nothing else — `http/static/app.js`, which
   binds concrete field names (`work.status`, `s.rights_status`,
@@ -72,7 +89,7 @@
 
 ### Service layer
 
-- **Exists:** **yes**, as of 2026-07-27 — `curation/src/curation/services/`, split
+- **Exists:** **yes**, as of 2026-07-27 — `arrt/src/arrt/services/`, split
   by concern into `CatalogueService` (works already accepted), `DiscoveryService`
   (everything before acceptance) and, since 2026-07-31, `DisplayService` (themes,
   the standing directive, and the manifest built from them), bound by a `Services`
@@ -87,6 +104,31 @@
   (`project-preferences.md`, Critic-enforced). A handler that validates, orders, or
   decides is the violation. A change here crosses to *two* surfaces at once, which
   is the whole point — parity is structural rather than remembered.
+- **Direction changed 2026-09-30 — a seam is planned inside this layer. See
+  `re-architecture.md` § Seam 1.**
+  - `DisplayService` is most of what becomes **Programming**: themes as
+    playlists, walls, hanging, directives and the manifest.
+  - `CatalogueService` and `DiscoveryService` are most of the **Library**.
+  - The dependency direction above ("discovery and display each depend on the
+    catalogue, and neither is depended on by it") is already the one the seam
+    requires.
+  - The plan turns it from a convention into a boundary. Programming imports
+    only a small Library **facade** (`playable(work_ids)`), which is
+    coarse-grained, id-based and returns plain data. Import direction
+    is guarded statically, as `test_plane_isolation.py` guards the planes.
+    Library changes reach Programming as in-process events (`work.accepted`,
+    `work.archived`, `work.image_changed`, `work.mat_changed`).
+  - Manifest readiness (`assess`) sits behind the facade, in
+    `library/readiness.py`.
+  - The UI and MCP bindings stay the only code allowed to call both sides. A
+    composition of two services' calls is still dispatch, not logic, so the
+    thin-binding norm holds.
+  - **Built 2026-09-30 (wave 2b Chunk 01): the packages and the facade.**
+    `arrt.library` and `arrt.programming`, with `library/facade.py` the
+    one Library module Programming imports, held by
+    `tests/preferences/test_seam_imports.py`. **The events were built the same
+    day (Chunk 02)**: published after commit, heard through the facade, and
+    backed by startup reconciliation. The store split is wave 3.
 
 ### curation ↔ display contract
 
@@ -151,12 +193,52 @@
   since 2026-08-12, so health can name *which* wall is silent. Sole writer is
   display; it never checks whether anyone read it, so it creates no dependency in
   the protected direction.
+- **Direction changed 2026-09-30 — this surface becomes the Server ↔ Player
+  contract. See `re-architecture.md` § Seam 2 and `api-contract.md` § The
+  Server↔Player surface (PLANNED).** What changes, by wave:
+  - **Wave 2 (schema minor):** the same document is also served at
+    `GET /walls/{wall_id}/manifest` with an ETag. Media is served at
+    `GET /media/{hash}`, and the heartbeat is accepted at
+    `POST /walls/{wall_id}/heartbeat`. Display gains a mode that pulls into a
+    local cache, behind configuration, and **renders only from that cache**.
+    The file channel keeps working alongside.
+  - **Wave 3:** the server moves to the NAS and the file channel is retired. The
+    bullet above that says "Crosses a process boundary — not a machine
+    boundary" stops being true. It crosses a machine boundary, over the LAN.
+  - **Wave 4 (schema major 2):** `render_path` to a composed 4K canvas is
+    replaced by a presentation-master reference plus the current mat colour. The
+    Player composes the mat for its own geometry.
+  - **Wave 5:** the Player moves to its own repository. From then on the
+    **JSON Schema and example manifests written in wave 1** are the only
+    thing both sides are tested against. That closes the "exercised end to end
+    by neither plane's suite" residual above, by making the shared fixture the
+    authority instead of each side's own reading.
+
+  What survives:
+  - The producer resolves content decisions, and `artist_nationality` stays
+    the producer's.
+  - Directives remain desired state, not commands.
+  - The wall's identity stays with the Player's configuration, now carried in
+    the URL instead of the filename.
+  - `TvBinding` references catalogue ids by id only.
+  - The heartbeat stays the Player *reporting*. It never makes the Player depend
+    on the server being up.
+
+  **The ratified norm that governs this boundary is amended, not bypassed.**
+  "The manifest file is the only channel" becomes "the per-wall manifest
+  document and immutable media, pulled into a Player-local cache, are the only
+  channel". The recorded decision is in `re-architecture.md` § Seam 2, and the
+  norm's own entry is in `architecture.md` § Direction.
+  `tests/preferences/test_plane_isolation.py` forbids an HTTP client in the
+  display plane today. **It must change in the wave-2 chunk that adds the pull**:
+  allow exactly the manifest, media and heartbeat client, and keep refusing
+  curation imports. Loosening the guard ahead of that chunk would disarm it.
 
 ### Catalogue schema
 
 - **Exists:** **yes**, as of 2026-07-27 — sixteen tables as of 2026-08-12, on
   stdlib `sqlite3` in one file, behind two Protocols in
-  `curation/src/curation/persistence/`: the `CatalogueStore` over Artwork,
+  `arrt/src/arrt/persistence/`: the `CatalogueStore` over Artwork,
   Artist, Theme, Wall, ThemeAssignment, Source, Original, Rendition, MatColor,
   ThemeMembership and a Directive **per wall**, and the `DiscoveryStore`
   over DiscoveryRun, CandidateWork, CandidateImage, SpendRecord and the
@@ -202,12 +284,49 @@
 - **A persisted format is a lock-in decision.** The questions the data must answer
   (Q1–Q12) are its requirements; adding a consumer query is a schema change, not a
   read.
+- **Direction changed 2026-09-30 — the one-file store is planned to become two.
+  See `re-architecture.md` § Seam 1, rule 3.**
+  - **Library** tables go in one SQLite file: artworks, artists, sources,
+    originals, renditions, mat colours, facets, and the discovery store's
+    tables.
+  - **Programming** tables go in another: themes, memberships, walls,
+    assignments, directives, and the planned programming tags and smart-playlist
+    rules.
+  - There are **no foreign keys across the seam**. Today two cross it:
+    `theme_memberships.artwork_id` and `directives.pinned_work_id`, both pointing
+    at `artworks`. After the split, Programming holds work ids as opaque
+    references and tolerates ones that no longer resolve, the way `TvBinding`
+    already does.
+  - The single generic durable store that "acceptance writes across the two
+    halves and has to commit once" needs is a Library-internal fact. It is not
+    affected, because acceptance is entirely Library-side.
+  - This is a data migration, and so a rollback-is-a-restore change in the sense
+    `architecture.md` § Deployment & Version Skew records. Not built. Wave 3,
+    first, so the catalogue moves to the NAS once.
 
 ### `ART_ROOT` filesystem contract
 
-- **Exists:** partially — the 2024 layout exists on the Pi; the split is recorded in
-  `learnings.md` § Data and cache contract.
+- **Exists:** partially — the 2024 layout exists on the Pi; the split is recorded here.
 - **Producer:** acquisition and rendering. **Consumer:** both planes.
+- **Direction changed 2026-09-30 — see `re-architecture.md`.** The contract's
+  consumers, and one of its classes, change.
+  - **From wave 3 the Player never reads `ART_ROOT`.** `ART_ROOT` lives on the
+    NAS and is reached only through the server's HTTP surface. The Player keeps
+    its own cache directory, which is Player state and not part of this contract.
+  - **Wave 4 retires `ready/`,** the composed `tv_display` canvases. It adds the
+    **presentation master**: derived from the Original, unmatted, capped, and
+    specific to no device. It is served to Players by content hash.
+  - That is a derived artifact which *is* transported, and this row's rule says
+    derived artifacts are "regenerated, never transported". **The rule's why is
+    device-specificity:** `data-model.md` scopes the norm to anything "rendered
+    for a specific output geometry". The presentation master is rendered for no
+    geometry, so it sits inside the norm. The composed canvas, which *is*
+    geometry-specific, is regenerated on the Player, as the norm requires.
+  - That reading is recorded as a ruling (2026-09-30) in `data-model.md`
+    § Direction, beneath the "derived artifacts are regenerated" norm, so
+    wave 4 does not re-argue it.
+  - **`tv-thumbs/`** was already television state. It goes with the Player, if
+    anywhere.
 - **Contract:** **upstream artifacts** (`raw/`) are
   expensive and device-independent and *are* transported; **derived artifacts**
   (`ready/`, `thumbs/`, `tv-thumbs/`) are cheap and are **regenerated, never
@@ -313,7 +432,7 @@
 
 ### display ↔ television
 
-- **Exists:** **yes**, as of 2026-08-06 — `display/src/display/tv/client.py` is the
+- **Exists:** **yes**, as of 2026-08-06 — `postarr/src/postarr/tv/client.py` is the
   interface and `samsung.py` the one implementation.
 - **Producer:** the television (a foreign device running Tizen). **Consumer:**
   display plane. **Crosses a machine boundary**, over two websockets and a REST
@@ -337,14 +456,26 @@
   uploads and removals read the set's list back, and selections read what it says
   it is displaying. `samsung-tv-state-findings.md` is the state-by-state map, and
   it is the artifact to read before adding a verb.
-- **Tested at the seam and only at the seam** — `display/tests/test_samsung_client.py`
+- **Tested at the seam and only at the seam** — `postarr/tests/test_samsung_client.py`
   stubs the library, because the daemon suite runs against `FakeTv` and proves
   nothing about this file. A mutation sweep once deleted the close-on-failure here
   with no test objecting, for exactly that reason.
+- **Direction changed 2026-09-30 — see `re-architecture.md` § Player outputs.**
+  This surface is unchanged and goes to the Player whole, moving with it to the
+  new repository in wave 5. `samsung-tv-state-findings.md` stays its authority.
+  - It becomes **one of two output families** behind a higher-level "show this
+    work" interface. The Frame is *push-to-appliance* (upload, select, confirm
+    by announcement). The other family is **framebuffer**: an HDMI LCD on a Pi,
+    or a monitor on a Mac, which composite and then draw.
+  - The framebuffer family is new and will need its own boundary entry when it
+    is built.
+  - A caption drawn in the mat reaches a Frame only **burned into the image
+    before upload**. That makes compositing, not this seam, the place the
+    caption is decided.
 
 ### display ↔ its label typesetter (`Measure` / `Block`)
 
-- **Exists:** **yes**, as of 2026-08-11 — `display/src/display/panel/layout.py`
+- **Exists:** **yes**, as of 2026-08-11 — `postarr/src/postarr/panel/layout.py`
   declares `Measure` and returns `Block`s; the daemon hands a surface's own
   measurer in and never supplies one of its own.
 - **Producer:** `layout.py`. **Consumers:** every surface that can be drawn to or
@@ -402,6 +533,20 @@
   value this product reads. Listing it as deployment config invited exactly the
   application-side enforcement the norm forbids. What the product *may* read is
   budget **remaining** (`GET /api/v1/key`), which is an observation, not a control.
+- **Direction changed 2026-09-30 — see `re-architecture.md`.** The values
+  change hands.
+  - **Wave 4 removes `TV_PANEL_*` and `MAT_*` from the server.** Screen
+    geometry and mat proportions become Player configuration, beside the
+    e-paper values and `TV_ADDRESS` the display plane already reads.
+  - **The Player gains** the server's base URL, its local cache directory, and
+    a label mode (e-paper, caption in the mat, or none).
+  - **`WALL_ID` stays Player configuration**, as ruled on 2026-08-12. It now
+    names a URL path instead of a filename.
+  - The **server** keeps `ART_ROOT`, now on NAS storage, and every spend
+    control.
+  - "Consumer: both planes" becomes "each deployable reads its own", which is
+    what it effectively was already. The no-hardcoded-deployment-values rule
+    binds both unchanged.
 
 ## Test Levels
 
@@ -409,20 +554,20 @@ Every level below exists on the curation plane except end-to-end; the `Exists`
 column is the authority, and it is per-row so that adding a level does not strand
 a count in this sentence. Two
 suites run: `uv run pytest tests` at the repo root for the 2024 modules, and
-`cd curation && uv run pytest` for the plane. *(Corrected 2026-08-03: the root
+`cd arrt && uv run pytest` for the plane. *(Corrected 2026-08-03: the root
 command was written without `uv run`. Both planes need the prefix — the dev tools
 are in a uv-only dependency group — and `CLAUDE.md` is the authority.)*
 
 | Level | Exists | When to Run | Location |
 |-------|--------|-------------|----------|
-| Unit | **yes** (curation) | Every change | `curation/tests/unit/`, mirroring module layout |
-| Integration | **yes** (curation) | Changes crossing the service-layer boundary | `curation/tests/integration/` |
-| Contract | **yes** (curation) | **Any MCP tool-surface change**, including a description edit | `curation/tests/contract/` |
-| Evaluation | **yes** (curation), opt-in | Any tool-surface change, before shipping it — **not** on every run | `curation/tests/eval/`, marker `llm_eval` |
-| Live API — paid | **yes** (curation), opt-in | Any change to the OpenRouter client, and when a recorded price or response shape is in doubt | `curation/tests/live/`, marker `live_api` |
-| Live API — free | **yes** (curation), opt-in | Any change to a museum client, and when a recorded response shape is in doubt | `curation/tests/live/`, marker **`live_museum`** |
-| Live binary — free | **yes** (curation), opt-in | Any change to the dezoomify-rs wrapper, and when a recorded CLI behaviour is in doubt | `curation/tests/live/`, marker **`live_binary`** |
-| Browser | **yes** (curation), opt-in | Any change to `app.js` | `curation/tests/browser/`, marker **`browser`** |
+| Unit | **yes** (curation) | Every change | `arrt/tests/unit/`, mirroring module layout |
+| Integration | **yes** (curation) | Changes crossing the service-layer boundary | `arrt/tests/integration/` |
+| Contract | **yes** (curation) | **Any MCP tool-surface change**, including a description edit | `arrt/tests/contract/` |
+| Evaluation | **yes** (curation), opt-in | Any tool-surface change, before shipping it — **not** on every run | `arrt/tests/eval/`, marker `llm_eval` |
+| Live API — paid | **yes** (curation), opt-in | Any change to the OpenRouter client, and when a recorded price or response shape is in doubt | `arrt/tests/live/`, marker `live_api` |
+| Live API — free | **yes** (curation), opt-in | Any change to a museum client, and when a recorded response shape is in doubt | `arrt/tests/live/`, marker **`live_museum`** |
+| Live binary — free | **yes** (curation), opt-in | Any change to the dezoomify-rs wrapper, and when a recorded CLI behaviour is in doubt | `arrt/tests/live/`, marker **`live_binary`** |
+| Browser | **yes** (curation), opt-in | Any change to `app.js` | `arrt/tests/browser/`, marker **`browser`** |
 | End-to-end | no | Before release | — |
 
 **The evaluation level is the only one that does not gate, and that is the
@@ -453,7 +598,7 @@ paragraph explaining it is not.** Anything added that talks to a free API goes o
 `live_museum`.
 
 Every opt-in level is off by default, and **the marker expression that does it
-lives in `curation/pyproject.toml`'s `addopts` — read it there.** A copy used to
+lives in `arrt/pyproject.toml`'s `addopts` — read it there.** A copy used to
 sit here reading `-m 'not llm_eval and not live_api and not live_museum'`, and it
 was already wrong twice over: `live_binary` and `browser` had both been added to
 the real one. A quoted config value is a second place for that config to be

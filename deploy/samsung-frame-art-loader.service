@@ -30,7 +30,7 @@ StartLimitIntervalSec=0
 # overwritten.
 #
 # NOTHING HERE CATCHES THAT YET, and a first version of this comment claimed
-# otherwise. It pointed at `curation.art_root`, which does refuse to start
+# otherwise. It pointed at the curation plane's art-root check, which does refuse to start
 # against a directory that is neither marked nor holding a catalogue — but this
 # unit's ExecStart is `tvart.py`, the 2024 plane, which reads ART_ROOT through
 # the root `config.py` and calls `os.makedirs` on what it finds. There is no

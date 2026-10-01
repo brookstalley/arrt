@@ -1,9 +1,16 @@
 # 3tears Integration Findings
 
 Recorded 2026-07-19 during discovery. Everything below was verified by reading
-`/Users/brookstalley/source/3tears` at the checkout present on this machine, not
-recalled. 3tears is **alpha (`0.x`)**; its README states the public API can shift
+a local checkout of `3tears` on the development machine, not recalled. 3tears is **alpha (`0.x`)**; its README states the public API can shift
 between minor versions, so re-verify these findings when the pinned version moves.
+
+> **Direction changed 2026-09-30 — see `re-architecture.md` § Deployment
+> target.** Several judgements below weigh an install that "lands on the Pi,
+> under a `MemoryMax`". From wave 3 the server runs as a container on the NAS,
+> with a container memory limit instead, so that premise weakens for the server.
+> The decisions stand: none rested on the Pi alone. Anyone reopening a
+> dependency choice from here should re-weigh the install cost against the
+> container, not the Pi.
 
 ## The question this answers
 
@@ -224,10 +231,12 @@ better covered than 3.14) and the workspace-wide `uv.lock`, which stays at
 
 Relaxing 3tears would remove the *forcing* reason for the two-plane split, but it
 does not follow that the planes should merge — **the display plane does not want
-3tears at all.** It needs an HTTP client, `samsungtvws`, PIL, and the e-paper
-driver. Three-tier entities are of no use to it, and the shared-catalogue use case
-that would justify them is precisely the multi-pod coherence problem the operator
-ruled out.
+3tears at all.** It needs `samsungtvws` and the e-paper driver. Three-tier
+entities are of no use to it, and the shared-catalogue use case that would justify
+them is precisely the multi-pod coherence problem the operator ruled out.
+(Corrected 2026-09-30: this said it also needs an HTTP client and PIL. It needs
+neither — `architecture.md` § Direction carries the plane-isolation rule that
+forbids the client, and wave 2's change to it.)
 
 So the split survives on its independent merits (the display plane's
 hardware-pinned interpreter, the upstream/derived data contract, availability
@@ -267,13 +276,13 @@ the display plane are separate processes on separate Python versions.
 > `3tears-models` is unaffected and still arrives with the discovery work; it
 > depends on `media-contracts` and `observe`, never on core. Recorded in
 > `architecture.md` § Decision Log, `project-state.yaml` →
-> `technical_decisions.technology`, and `curation/pyproject.toml`.
+> `technical_decisions.technology`, and `arrt/pyproject.toml`.
 >
 > > **That last sentence was overtaken on 2026-08-02 and is corrected here rather
 > > than edited away, because the reasoning above is still the record of what was
 > > believed when.** `3tears-models` did **not** arrive with the discovery work.
 > > Discovery reaches OpenRouter through a first-party client
-> > (`curation/src/curation/discovery/openrouter.py`) behind the engine seam, and
+> > (`arrt/src/arrt/library/discovery/openrouter.py`) behind the engine seam, and
 > > `3tears-models` stays confined to the opt-in `eval` group, where it plays the
 > > *curator* driving the MCP surface from outside rather than the discovery
 > > worker behind it. The deciding factor is the one this file already cares

@@ -1,0 +1,508 @@
+"""Deployment configuration for the display plane.
+
+Every value here differs between the dev Mac and the Pi, so none of them may be a
+literal in source. A fresh checkout runs by copying `.env.example` to `.env` and
+filling it in — never by editing a module. Both planes read that one file: the
+value they must agree on is `ART_ROOT`, and two files are precisely how two
+planes come to disagree about it.
+
+Resolution is a function rather than module-level constants, so importing this
+module does not require an environment — otherwise the test suite and every tool
+that merely wants to read a docstring would need one. Fail-fast is preserved by
+resolving at process start, which is where a missing value should stop things.
+
+**This plane knows nothing about the television's physical size.** The mat is
+already composed into the render it is handed, so the only panel geometry here is
+the e-paper label's, and a value for the TV's diagonal appearing in this file
+would be the cross-plane drift `operational-spec.md` § Configuration warns about.
+"""
+
+import os
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Final
+
+from dotenv import load_dotenv
+
+# The heartbeat's own module owns where it is written; this only reports it in
+# the startup line. It imports nothing from here, so there is no cycle, and
+# naming the file a second time in this module is exactly the duplication the
+# per-wall channel already has one copy of too many of.
+from postarr.heartbeat import path_in as heartbeat_path_in
+
+#: The manifest's filename under `ART_ROOT`, **one file per wall**. The name is
+#: **not configurable, deliberately**: this is the only channel between the
+#: planes, and a setting is just a way for the writer and the reader to stop
+#: agreeing about where it is. Which *wall* this process serves is configuration
+#: — see `WALL_ID` below — and that is a different thing from where a wall's file
+#: is.
+#:
+#: Written here as a literal rather than imported from the plane that writes it,
+#: because importing that plane is the thing the isolation norm forbids. The
+#: duplication is the price of the norm, and it is safe only because
+#: `tests/preferences/test_heartbeat_contract.py` compares the two copies —
+#: without it, a rename on one side is a display plane that waits for ever for a
+#: file that is already there under another name.
+MANIFEST_FILENAME_TEMPLATE: Final[str] = "theme-manifest-{wall_id}.json"
+
+#: This plane's own store, under `ART_ROOT` beside the manifest it reads. Display
+#: is its sole writer and nothing else ever opens it.
+STATE_FILENAME: Final[str] = "display-state.sqlite"
+
+#: The last good pulled manifest, under `CACHE_DIR` in HTTP mode.
+CACHED_MANIFEST_FILENAME: Final[str] = "manifest.json"
+
+#: The name this process pairs to the television under. **Changing it costs a
+#: pairing prompt somebody has to walk over and accept**: the set issues a token
+#: per client name, so a new name is a new client to it and the existing token in
+#: `TV_TOKEN_FILE` will not be honoured. It is `tvpi` because that is the name the
+#: 2024 loader paired under, and the cutover replacing that process should
+#: continue as the same client rather than arrive as a stranger.
+DEFAULT_TV_CLIENT_NAME: Final[str] = "tvpi"
+
+#: The e-paper label panel, in pixels. Defaults are the reference deployment's
+#: 1448×1072 IT8951; overridable because nothing may hardcode a panel's size —
+#: this product must run on any panel, and the 2024 plane's baked-in 648×480 is
+#: the anti-pattern being retired.
+DEFAULT_EPD_PANEL_WIDTH_PX: Final[int] = 1448
+DEFAULT_EPD_PANEL_HEIGHT_PX: Final[int] = 1072
+
+
+#: How far the rendered label is turned before it reaches the panel. 180 is what
+#: the reference wall runs today — that panel is mounted with its ribbon uppermost
+#: — and it is configuration because the next device's mounting is the next
+#: device's business. Only half turns are made; `panel/epaper.py` says why.
+DEFAULT_EPD_ROTATE_DEGREES: Final[int] = 180
+
+#: How often the manifest's mtime is read. **Set by `next`, not by theme
+#: switching** — a theme change tolerates seconds of latency happily, while a
+#: human pressing "next" and waiting three seconds thinks the product is broken.
+#: One `stat()` a second is free.
+DEFAULT_POLL_INTERVAL_SECONDS: Final[float] = 1.0
+
+#: Fallbacks for rotation, used only when a manifest carries no usable values.
+#: The manifest normally resolves them — curation writes the theme's settings or
+#: the deployment default into every one it publishes — so these are the answer
+#: to "the file said nothing", not a second place the pace is configured.
+DEFAULT_ROTATION_INTERVAL_SECONDS: Final[int] = 180
+DEFAULT_ROTATION_SHUFFLE: Final[bool] = True
+
+#: The television's brightness scale, which is neither 0-100 nor 0-10: this set
+#: takes -4 through 10, and the sun-position curve is mapped onto that range.
+#: Carried forward from the 2024 plane, which runs the wall on these numbers.
+DEFAULT_TV_MIN_BRIGHTNESS: Final[int] = -4
+DEFAULT_TV_MAX_BRIGHTNESS: Final[int] = 10
+
+#: How often the sun is re-consulted. The sun moves slowly and the scale above
+#: has fifteen steps, so anything under a minute would compute the same answer
+#: repeatedly; five minutes puts a step boundary within half a step of when it
+#: is due. The television is only written to when the computed value *changes*,
+#: so this interval costs a local calculation and no traffic.
+DEFAULT_BRIGHTNESS_INTERVAL_SECONDS: Final[float] = 300.0
+
+#: The wait for the set's `image_added` acknowledgement. **A correctness value,
+#: not a tuning knob**: the library's own default of 10 seconds was measured
+#: failing on this deployment's 4K composites while the image landed anyway, so a
+#: caller at the default is told an upload failed that succeeded, and a retry
+#: duplicates it on the wall. Sized well above the 8.4 s a real upload measured.
+DEFAULT_UPLOAD_TIMEOUT_SECONDS: Final[float] = 60.0
+
+#: The ceiling on opening the art channel. `start_listening()` has been observed
+#: **hanging** rather than raising, so a caller that does not impose its own bound
+#: never returns at all — which for an unattended daemon is a wedge, not an error.
+#: The trigger is not art mode being off, as this note once said: the channel
+#: opens against a dark panel, and the hang has been seen in art mode after many
+#: connections in quick succession.
+DEFAULT_TV_CONNECT_TIMEOUT_SECONDS: Final[float] = 30.0
+
+#: How long a work whose upload failed is left alone before it is tried again.
+#: **A television that is reachable and refuses one image is a different fault
+#: from one that is asleep**, and it does not back off with the connection: the
+#: pass would otherwise retry it every second, each attempt costing a round trip,
+#: a WARNING and a row rewritten. `observability-strategy.md` sizes writes on this
+#: medium deliberately, and an unbounded small-write source on an SD card is the
+#: thing it says not to build. Wall time rather than elapsed, so the wait survives
+#: a restart — a crash loop must not turn into a retry loop.
+DEFAULT_UPLOAD_RETRY_SECONDS: Final[float] = 300.0
+
+#: How long the set is given to announce that it is displaying an image it was
+#: asked for. **A selection is confirmed rather than assumed, and this is the
+#: window.** The announcement has been measured arriving 0.49 s and 1.04 s after
+#: the request, so this is sized well above that; the reason it exists at all is
+#: the failure it catches. A television whose panel is dark accepts
+#: `select_image`, returns no error, emits no event, and goes on displaying
+#: whatever it displayed before — indefinitely. A daemon that trusted the call's
+#: return would report a rotation it did not perform, once per interval, for as
+#: long as the set stayed dark.
+#:
+#: **It is a ceiling on the failing path only.** A set that is working answers
+#: inside a second and the wait ends there, so raising this does not slow
+#: rotation; it only lengthens how long a dark wall takes to be reported.
+DEFAULT_SELECT_CONFIRM_SECONDS: Final[float] = 8.0
+
+#: Reconnection backoff after the television goes away. An asleep set is the
+#: expected operating condition rather than an incident, so the ceiling is low
+#: enough that the wall resumes promptly when someone turns it on and high enough
+#: that a night of standby is not a night of connection attempts.
+DEFAULT_TV_RETRY_MIN_SECONDS: Final[float] = 5.0
+DEFAULT_TV_RETRY_MAX_SECONDS: Final[float] = 300.0
+
+
+class ConfigError(RuntimeError):
+    """A deployment value is missing or unusable, and starting would be worse."""
+
+
+@dataclass(frozen=True)
+class Settings:
+    """Everything this plane needs from its environment, resolved once."""
+
+    art_root: Path
+    #: **Which wall this process serves**, as the curation catalogue ids it. It
+    #: has no default for the reason `TV_ADDRESS` has none: there is no wall a
+    #: second device could be guessed onto, and a guess here is the failure this
+    #: whole per-wall channel was built to remove — a display showing another
+    #: room's pictures while every log line says it is working.
+    #:
+    #: A wall id is a UUID minted by the curation plane. `art_display(action=
+    #: 'walls')`, or the Walls screen, is where to read it off.
+    wall_id: str
+    tv_address: str
+    tv_port: int
+    tv_token_file: Path
+    tv_client_name: str
+
+    #: The **e-paper label** panel, never the television's. This plane is handed
+    #: a composed canvas and never needs the TV's size; holding one here is how
+    #: the two panels' geometry came to be confused in the first place.
+    epd_panel_width_px: int
+    epd_panel_height_px: int
+    epd_rotate_degrees: int
+
+    #: The two physical facts that decide how large the label's type has to be,
+    #: and **the only values in this class with no default**. Everything else
+    #: falls back to the reference wall's number; these two may not, because a
+    #: guessed viewing distance produces type that is silently illegible — the
+    #: failure that shipped here undetected through a hardware probe, a review and
+    #: a cutover, at half the size a letter must reach to be resolvable at all.
+    #:
+    #: Unset is `None` rather than an error: a device with a panel configured and
+    #: no stated viewing conditions loses its *label surface*, with a named
+    #: reason, while the television keeps rotating. Refusing to start would break
+    #: two rules this plane holds — nothing about the label may stop the wall, and
+    #: a device with no usable label surface is a configuration rather than a
+    #: fault. `panel/legibility.py` is where the arithmetic and the refusal live.
+    #:
+    #: Inches for both, so nobody has to remember which one is feet.
+    epd_panel_diagonal_inches: float | None
+    epd_viewing_distance_inches: float | None
+
+    #: The clear border, **when the deployment overrides the derived one**. It
+    #: normally derives from the type scale, because a border trades directly
+    #: against how many lines survive the drop rule and so cannot be picked
+    #: independently of the floor that decides how many lines there are. The
+    #: override exists for the surface whose border is a physical fact rather than
+    #: a typographic choice — a device drawing its label into the mat area around
+    #: an artwork does not get to choose where the picture ends.
+    epd_margin_px: int | None
+
+    #: omni-epd's identifier for this device's panel, or empty for a device that
+    #: has none. **Empty is a supported deployment, not a broken one**
+    #: (`architecture.md` § Direction): a wall whose device drives a television
+    #: and nothing else is exactly what most of them are, and it must not be
+    #: reported as a fault. `omni_epd.mock` drives the library's own no-op device
+    #: on a machine where the panel is absent but the driver is installed.
+    epd_device: str
+
+    latitude: float
+    longitude: float
+    location_name: str
+    location_region: str
+
+    tv_min_brightness: int
+    tv_max_brightness: int
+
+    poll_interval_seconds: float
+    brightness_interval_seconds: float
+    upload_timeout_seconds: float
+    upload_retry_seconds: float
+    select_confirm_seconds: float
+    tv_connect_timeout_seconds: float
+    tv_retry_min_seconds: float
+    tv_retry_max_seconds: float
+
+    rotation_interval_fallback_seconds: int
+    rotation_shuffle_fallback: bool
+
+    #: Where the manifest comes from: `file`, the shared `ART_ROOT` (the default
+    #: through wave 2), or `http`, pulled from Arrt into `cache_dir`. The file
+    #: channel stays the default until wave 3 retires it, once HTTP has soaked on
+    #: the real wall.
+    manifest_source: str = "file"
+    #: Arrt's base URL, in HTTP mode. Unset in file mode.
+    server_url: str | None = None
+    #: This wall's Player token, in HTTP mode. Kept out of `repr` and out of the
+    #: startup line, because both reach the journal.
+    wall_token: str | None = field(default=None, repr=False)
+    #: Where HTTP mode keeps the last good manifest and the renders it names, so a
+    #: Player that starts while the server is down still shows the wall.
+    cache_dir: Path | None = None
+
+    @property
+    def pulls_over_http(self) -> bool:
+        return self.manifest_source == "http"
+
+    @property
+    def render_root(self) -> Path:
+        """What an entry's `render_path` is relative to: the shared tree, or this Player's own cache."""
+        return self.cache_dir if self.pulls_over_http and self.cache_dir is not None else self.art_root
+
+    @property
+    def heartbeat_root(self) -> Path:
+        """Where this Player writes its heartbeat file: the shared tree, or its own cache.
+
+        **In HTTP mode, never the shared tree.** The server writes each heartbeat
+        it is POSTed into `ART_ROOT`, where its health panel reads it, and on a Pi
+        running both that is the same directory. A Player that wrote there too
+        would see the server's write as a new heartbeat, post it again, and loop
+        once a poll, wearing the card and able to overwrite a newer report with
+        an older one. In its own cache the file is the Player's alone, and the
+        pull forwards it.
+        """
+        return self.cache_dir if self.pulls_over_http and self.cache_dir is not None else self.art_root
+
+    @property
+    def manifest_path(self) -> Path:
+        """The one channel from curation, and the only file this plane waits on.
+
+        **One path, resolved once from the wall this process serves.** That is
+        the whole mechanism keeping a display out of a wall it does not serve:
+        there is no listing, no glob and no wall id read from a document — the
+        manifests for every other room are files this process never opens.
+        """
+        if self.pulls_over_http and self.cache_dir is not None:
+            # The cache's copy, written only once every render it names is cached
+            # and verified. The watcher reads it exactly as it reads the shared
+            # file, so rotation, directives and the label cannot tell the modes
+            # apart.
+            return self.cache_dir / CACHED_MANIFEST_FILENAME
+        return self.art_root / MANIFEST_FILENAME_TEMPLATE.format(wall_id=self.wall_id)
+
+    @property
+    def state_path(self) -> Path:
+        """This plane's own store. Display is its sole writer."""
+        return self.art_root / STATE_FILENAME
+
+    def _viewing_conditions(self) -> str:
+        """The panel's diagonal and its reading distance, or what their absence costs.
+
+        Says the consequence rather than the word "unset", because "unset" reads
+        as a value nobody needed: a reader who has not met this pair cannot tell
+        from that whether their label is missing on purpose.
+        """
+        if self.epd_panel_diagonal_inches is None or self.epd_viewing_distance_inches is None:
+            return "(not stated — no label can be sized, so this device draws none)"
+        return f'{self.epd_panel_diagonal_inches}" panel read from {self.epd_viewing_distance_inches}"'
+
+    def startup_lines(self) -> dict[str, object]:
+        """What goes in the startup log line, so a misconfiguration is one line away.
+
+        `ART_ROOT` and this plane's own panel geometry, per
+        `operational-spec.md` § Configuration — a wrong art root otherwise shows
+        up as a manifest that never arrives, and a wrong panel as a label that
+        renders off the edge of a display nobody is looking at closely.
+
+        No secret is resolvable from these, and none is added: this plane reaches
+        no paid API and holds no paid key. The pairing token is a **path** here,
+        never its contents, and in HTTP mode the wall's Player token is left out
+        altogether.
+        """
+        return {
+            "art_root": str(self.art_root),
+            # **The wall, first among the paths it decides.** A `WALL_ID` naming
+            # a wall the catalogue does not hold produces a manifest that never
+            # arrives, which is indistinguishable from a curation plane that has
+            # not published — and one naming the *wrong* wall produces a display
+            # that works perfectly and shows the wrong room. Neither is visible
+            # anywhere else, so both are one `journalctl` away from here.
+            "wall_id": self.wall_id,
+            "manifest_path": str(self.manifest_path),
+            "heartbeat_path": str(heartbeat_path_in(self.heartbeat_root, self.wall_id)),
+            "state_path": str(self.state_path),
+            "epd_panel_px": f"{self.epd_panel_width_px}x{self.epd_panel_height_px}",
+            # **The line that would have caught the defect this pair exists for.**
+            # A wrong viewing distance is invisible everywhere else: the daemon
+            # starts, the panel draws, every test passes, and the only symptom is
+            # type nobody can read from where they stand. Naming both facts in the
+            # startup line puts them one `journalctl` away from the person who
+            # typed them.
+            "epd_viewing": self._viewing_conditions(),
+            # Named even when empty, because "this device has no panel" and "this
+            # device's panel is broken" look identical in a journal otherwise, and
+            # only one of them is worth acting on.
+            "epd_device": self.epd_device or "(none — this device renders no label)",
+            "tv_address": f"{self.tv_address}:{self.tv_port}",
+            "tv_token_file": str(self.tv_token_file),
+            "tv_client_name": self.tv_client_name,
+            # The channel and where it points. Never the token: this line goes to
+            # the journal, and a journal is what gets pasted into an issue.
+            "manifest_source": self.manifest_source,
+            **({"server_url": self.server_url, "cache_dir": str(self.cache_dir)} if self.pulls_over_http else {}),
+        }
+
+
+def load(environ: dict[str, str] | None = None) -> Settings:
+    """Resolve the environment into `Settings`, or refuse to start.
+
+    `environ` is injectable so tests do not have to mutate the process's own — a
+    test that set `ART_ROOT` globally would leak it into every test after it.
+    """
+    load_dotenv()
+    env = dict(os.environ) if environ is None else environ
+
+    art_root = Path(_require(env, "ART_ROOT")).expanduser()
+    if not art_root.is_dir():
+        # A typo is invisible in `.env` and obvious the moment something reads it
+        # back. Refusing here rather than at first use matters because the
+        # alternative failure is *silence*: a mistyped root means a manifest that
+        # never appears, which is indistinguishable from a curation plane that
+        # has not published one yet — the daemon would wait politely forever.
+        raise ConfigError(
+            f"ART_ROOT is {art_root}, which is not an existing directory. "
+            "Fix ART_ROOT in .env; a typo here shows up as a manifest that never arrives, "
+            "which looks exactly like a curation plane that has not published one yet."
+        )
+
+    token_file = env.get("TV_TOKEN_FILE") or ""
+    return Settings(
+        art_root=art_root,
+        # Required, like `TV_ADDRESS` and for the same class of reason: this
+        # process serves one named room, and nothing may guess which.
+        wall_id=_require_wall(env),
+        tv_address=_require(env, "TV_ADDRESS"),
+        tv_port=_int(env, "TV_PORT", 8002),
+        tv_token_file=Path(token_file).expanduser() if token_file else art_root / "token_file",
+        tv_client_name=env.get("TV_CLIENT_NAME") or DEFAULT_TV_CLIENT_NAME,
+        epd_panel_width_px=_int(env, "EPD_PANEL_WIDTH_PX", DEFAULT_EPD_PANEL_WIDTH_PX),
+        epd_panel_height_px=_int(env, "EPD_PANEL_HEIGHT_PX", DEFAULT_EPD_PANEL_HEIGHT_PX),
+        epd_panel_diagonal_inches=_optional_float(env, "EPD_PANEL_DIAGONAL_INCHES"),
+        epd_viewing_distance_inches=_optional_float(env, "EPD_VIEWING_DISTANCE_INCHES"),
+        epd_margin_px=_optional_int(env, "EPD_MARGIN_PX"),
+        epd_rotate_degrees=_int(env, "EPD_ROTATE_DEGREES", DEFAULT_EPD_ROTATE_DEGREES),
+        epd_device=(env.get("EPD_DEVICE") or "").strip(),
+        latitude=_float(env, "LATITUDE", None),
+        longitude=_float(env, "LONGITUDE", None),
+        location_name=_require(env, "LOCATION_NAME"),
+        location_region=env.get("LOCATION_REGION") or "",
+        tv_min_brightness=_int(env, "TV_MIN_BRIGHTNESS", DEFAULT_TV_MIN_BRIGHTNESS),
+        tv_max_brightness=_int(env, "TV_MAX_BRIGHTNESS", DEFAULT_TV_MAX_BRIGHTNESS),
+        poll_interval_seconds=_float(env, "MANIFEST_POLL_SECONDS", DEFAULT_POLL_INTERVAL_SECONDS),
+        brightness_interval_seconds=_float(env, "BRIGHTNESS_INTERVAL_SECONDS", DEFAULT_BRIGHTNESS_INTERVAL_SECONDS),
+        upload_timeout_seconds=_float(env, "TV_UPLOAD_TIMEOUT_SECONDS", DEFAULT_UPLOAD_TIMEOUT_SECONDS),
+        upload_retry_seconds=_float(env, "TV_UPLOAD_RETRY_SECONDS", DEFAULT_UPLOAD_RETRY_SECONDS),
+        select_confirm_seconds=_float(env, "TV_SELECT_CONFIRM_SECONDS", DEFAULT_SELECT_CONFIRM_SECONDS),
+        tv_connect_timeout_seconds=_float(env, "TV_CONNECT_TIMEOUT_SECONDS", DEFAULT_TV_CONNECT_TIMEOUT_SECONDS),
+        tv_retry_min_seconds=_float(env, "TV_RETRY_MIN_SECONDS", DEFAULT_TV_RETRY_MIN_SECONDS),
+        tv_retry_max_seconds=_float(env, "TV_RETRY_MAX_SECONDS", DEFAULT_TV_RETRY_MAX_SECONDS),
+        rotation_interval_fallback_seconds=_int(env, "ROTATION_INTERVAL_SECONDS", DEFAULT_ROTATION_INTERVAL_SECONDS),
+        rotation_shuffle_fallback=_bool(env, "ROTATION_SHUFFLE", DEFAULT_ROTATION_SHUFFLE),
+        **_manifest_source(env),
+    )
+
+
+def _manifest_source(env: dict[str, str]) -> dict[str, object]:
+    """File mode, or HTTP mode with everything it needs, refused rather than half-set.
+
+    HTTP mode with no token or no cache would start, poll, and show nothing, which
+    reads as a server that has not published. So every one of its settings is
+    required once the mode is asked for, and a mode that is neither is refused
+    rather than read as the default.
+    """
+    source = (env.get("MANIFEST_SOURCE") or "file").strip().lower()
+    if source == "file":
+        return {"manifest_source": "file"}
+    if source != "http":
+        raise ConfigError(f"MANIFEST_SOURCE is {source!r}; it is either 'file' (the default) or 'http'.")
+    cache_dir = Path(_require(env, "CACHE_DIR")).expanduser()
+    return {
+        "manifest_source": "http",
+        "server_url": _require(env, "SERVER_URL").rstrip("/"),
+        "wall_token": _require(env, "WALL_TOKEN"),
+        "cache_dir": cache_dir,
+    }
+
+
+def _require_wall(env: dict[str, str]) -> str:
+    """The wall this process serves, refused rather than guessed.
+
+    Its own message rather than `_require`'s, because a wall id is the one
+    required value a fresh installer cannot invent or look up in a manual: it is
+    a UUID minted by the other plane, and being told to "fill it in" without
+    being told where it comes from is where an installer starts guessing. The
+    consequence of a guess is the failure this whole per-wall channel removed —
+    a display showing the wrong room's pictures while every log line reads fine.
+    """
+    value = env.get("WALL_ID")
+    if not value:
+        raise ConfigError(
+            "WALL_ID is not set, and there is no wall this display could be guessed onto. It is the id of "
+            "the wall in the curation catalogue that this device serves — read it from the Walls screen or "
+            "from art_display(action='walls'), and put it in .env. Each wall has its own manifest, so a "
+            "display with the wrong id shows another room's pictures without anything reporting a fault."
+        )
+    return value
+
+
+def _require(env: dict[str, str], name: str) -> str:
+    value = env.get(name)
+    if not value:
+        raise ConfigError(f"{name} is not set. Copy .env.example to .env and fill it in.")
+    return value
+
+
+def _int(env: dict[str, str], name: str, default: int | None) -> int:
+    raw = env.get(name)
+    if not raw:
+        if default is None:
+            raise ConfigError(f"{name} is not set. Copy .env.example to .env and fill it in.")
+        return default
+    try:
+        return int(raw)
+    except ValueError as exc:
+        # Refused rather than defaulted: a value somebody typed and got wrong is
+        # a different thing from one they never typed, and quietly substituting
+        # the default hides the typo behind behaviour that looks deliberate.
+        raise ConfigError(f"{name} is {raw!r}, which is not a whole number.") from exc
+
+
+def _optional_int(env: dict[str, str], name: str) -> int | None:
+    """A whole number the deployment may simply not have. Still refused if mistyped.
+
+    Absent and wrong stay different things here: not saying a value is a choice
+    with a defined meaning downstream, while typing one badly is a mistake that
+    must not be smoothed into `None`.
+    """
+    return None if not env.get(name) else _int(env, name, None)
+
+
+def _optional_float(env: dict[str, str], name: str) -> float | None:
+    """A measurement the deployment may not have taken. See `_optional_int`."""
+    return None if not env.get(name) else _float(env, name, None)
+
+
+def _float(env: dict[str, str], name: str, default: float | None) -> float:
+    raw = env.get(name)
+    if not raw:
+        if default is None:
+            raise ConfigError(f"{name} is not set. Copy .env.example to .env and fill it in.")
+        return default
+    try:
+        return float(raw)
+    except ValueError as exc:
+        raise ConfigError(f"{name} is {raw!r}, which is not a number.") from exc
+
+
+def _bool(env: dict[str, str], name: str, default: bool) -> bool:
+    raw = env.get(name)
+    if not raw:
+        return default
+    return raw.strip().lower() not in {"false", "0", "no", "off"}

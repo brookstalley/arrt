@@ -21,6 +21,23 @@ The distinction that defines the product: **this is discovery, not search.** A
 system that filters a known collection is a different, easier product. The
 requirement is to find works the curator has not seen and could not have named.
 
+> **Vision amended 2026-09-30 by the owner. Full record in `re-architecture.md`.**
+> "A curated art appliance for a Samsung Frame TV" is what was built. The
+> product being built toward is **two products**:
+> - **A server, in the manner of Radarr/Sonarr,** that finds, acquires, maintains,
+>   upgrades and enhances artwork (the *Library*) and decides what hangs on which
+>   wall (*Programming*).
+> - **A player, in the manner of a Plex client,** that "reads that library and
+>   displays it, either on a Samsung tv or dumb LCD display or anything else". In
+>   the owner's words: "the artwork cards on e-ink displays will be supported and
+>   optional, with on-screen captions as an alternative."
+>
+> The defining distinction above, **discovery, not search**, is unchanged, and so
+> is the curator's promise of never managing files, URLs or geometry. What changes
+> is that the wall is no longer assumed to be one Samsung Frame. The Library gains
+> **Watches** (standing searches that keep acquiring against an intent) and
+> upgrade monitoring, the *arr half of the analogy.
+
 ## Landscape
 
 The closest existing thing is [NickWaterton/gallery](https://github.com/NickWaterton/gallery),
@@ -43,6 +60,20 @@ That third item is the hardest-won logic in the existing codebase and the cleare
 reason to continue this project rather than adopt an existing one.
 
 ## Identity
+
+> **Amended 2026-09-30.** "No chrome, no overlay" (below) stays the rule for the
+> artwork itself. A **caption in the mat** is now a supported, per-wall label mode,
+> as the 2026-08-07 ruling (`architecture.md` § Direction) already anticipated for
+> a monitor with no e-ink. It is a label the Player sets in the mat area under the
+> label typography rules (`accessibility-spec.md`), not an overlay on the work.
+
+**Names, from 2026-10-01:** **Arrt** is the server (the Library and
+Programming), and **Postarr** is the player at each wall. Both names are the
+operator's, given under a hard requirement. They replace the names of
+2026-09-30, Curatarr for the server and Arrt for the player. "Samsung Frame Art
+Loader" describes the product as built, and retires as the waves land. The *arr suffix is deliberate: the model is Radarr and
+Sonarr (`re-architecture.md`). No branding reaches a wall, so the names appear
+only on the curator's and operator's surfaces.
 
 **Museum, not gadget.**
 
@@ -335,6 +366,18 @@ This is the human-in-the-loop gate. It bounds three things, in ascending order o
 how well the argument holds: spend (weakest — the ceiling is $20), taste, and
 **content appropriateness** (strongest — see flow 8).
 
+> **Flows 4–6 after 2026-09-30 (`re-architecture.md`).**
+> - **Flow 4:** "prepare" splits. The Library prepares a device-independent
+>   presentation master, and each Player composes its own mat.
+> - **Flow 5:** themes become Programming's **playlists**, optionally smart
+>   (rules over facts and household tags).
+> - **Flow 6:** "keep the accepted library uploaded to the TV" becomes each
+>   Player making its own screen match its wall's manifest, whatever the screen
+>   is.
+> - **New, under flows 1–2:** a **Watch** repeats flow 2 on a schedule against
+>   a standing intent, with a spend cap, and queues matches for flow 3's review by
+>   default.
+
 **4. Acquire and prepare.** Fetch at gallery resolution (tiled where the source
 requires it), extract and normalise metadata across providers, select a mat
 colour, and render the 4K TV image. Largely exists today in `art.py` and
@@ -433,7 +476,7 @@ API consumers. Three consequences that are easy to miss:
   working correctly, and that is not hypothetical: it is what two runs did on
   2026-08-04 while both suites were green. The floor is therefore a measurement
   over a fixed corpus — the recorded phase-1 proposals in
-  `curation/tests/fixtures/phase_one_proposals.json` — and the authority for the
+  `arrt/tests/fixtures/phase_one_proposals.json` — and the authority for the
   current figure is the test that asserts it, never this sentence. It stood at 4 of
   51 when the corpus was first measured against the live provider on 2026-08-04,
   before any of the work aimed at raising it. Any change claiming to improve
@@ -441,7 +484,7 @@ API consumers. Three consequences that are easy to miss:
   move it says so. Lowering the floor takes the ratification that raising it does.
 
   > **The asserting test is
-  > `curation/tests/live/test_the_resolution_floor_still_holds.py`**, written the
+  > `arrt/tests/live/test_the_resolution_floor_still_holds.py`**, written the
   > same day this criterion was and deselected by default under `live_museum`,
   > because it needs the network. It was recorded here as *owed* for the few hours
   > before it existed rather than described as live — a criterion whose mechanism
@@ -507,6 +550,11 @@ API consumers. Three consequences that are easy to miss:
 - Multiple TVs / multiple display planes
 - Swapping the e-paper panel or driver without touching curation
 
+> **Amended 2026-09-30.** "Multiple TVs / multiple display planes" and "swapping
+> the panel without touching curation" move from *accommodate* to **target**, as
+> multiple walls with one Player each and any screen type (`re-architecture.md`).
+> Multiple household accounts stays in *accommodate*.
+
 ### Later
 
 - ~~Re-enabling automatic art-mode on/off scheduling (commented out in
@@ -525,10 +573,24 @@ API consumers. Three consequences that are easy to miss:
 |---|---|
 | Kubernetes, NATS, multi-pod deployment | Stated directly by the operator. One household, one TV, one curation process — the coherence problems that infrastructure solves do not exist here. |
 | 3tears agent memory | Depends on `pgvector`, which forces Postgres. Operator confirmed agents may be stateless across sessions, so this is dropped rather than deferred — and dropping it is what keeps the curation plane infrastructure-free. |
-| Migrating the existing `all.json` schema | Decided to start over through curation. The 41 records have known defects (identity keyed on source URL, per-device TV state embedded, semi-structured `artist_details`) and every work is re-fetchable from its source URL. |
+| Migrating the existing `all.json` schema | Decided to start over through curation. The 41 records have known defects (identity keyed on source URL, per-device TV state embedded, semi-structured `artist_details`, and `raw/` filenames in three mutually inconsistent conventions) and every work is re-fetchable from its source URL. |
 | Public or third-party API consumers | The HTTP surface exists only to back this product's own UI and its display plane. |
 
+> **Amended 2026-09-30.** The server↔Player contract becomes a published,
+> versioned contract, because the Player is meant to be an independent product
+> that could read any library emitting the manifest format. Its consumers are
+> still this product's own Players, and it stays LAN-only. Kubernetes and NATS
+> remain out of scope. The server is a single container on the operator's NAS,
+> which is the "no heavy infrastructure" constraint honoured.
+
 ## Platform
+
+> **Direction changed 2026-09-30.** What follows is the **current** platform,
+> still live. Target: the server (curation plus Programming) runs as one
+> container on the operator's NAS (x86_64), and Players run at the walls:
+> Raspberry Pis for the Frame and e-ink, and possibly a Mac or a Pi with HDMI for
+> an LCD. See `re-architecture.md` § Deployment target and `architecture.md` §
+> Overview & Topology.
 
 Two processes, **one machine**.
 
@@ -560,13 +622,16 @@ source sites**, with no third-party dependency imposing a floor above 3.10 — s
 the constraint is removable.
 
 That does not merge the planes, because **the display plane does not want 3tears
-at all.** It needs an HTTP client, `samsungtvws`, PIL, and the e-paper driver.
+at all.** It needs `samsungtvws` and the e-paper driver.
 Three-tier entities are of no use to it, and the shared-catalogue case that would
 justify them is exactly the multi-pod coherence problem ruled out of scope.
+(Corrected 2026-09-30: this said it also needs an HTTP client and PIL. It needs
+neither — `architecture.md` § Direction carries the plane-isolation rule that
+forbids the client, and wave 2's change to it.)
 
 The separation therefore stands on its own merits:
 
-- It matches the data contract already recorded in `learnings.md` — upstream
+- It matches the data contract recorded in `boundary-patterns.md` § `ART_ROOT` filesystem contract — upstream
   artifacts (`raw/`) are expensive and device-independent; derived artifacts
   (`ready/`, `thumbs/`, `tv-thumbs/`) are cheap and device-specific and must
   never be transported. (`label/` belonged to this list in the 2024 layout; it is

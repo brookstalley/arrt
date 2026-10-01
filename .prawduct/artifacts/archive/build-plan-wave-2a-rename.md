@@ -1,0 +1,130 @@
+---
+artifact: build-plan
+version: 1
+scope: wave-2a-rename
+branch: feature/wave-2a-rename
+partition: serial — one mechanical chunk, and a rename split across agents would collide on every import line
+depends_on:
+  - artifact: re-architecture
+  - artifact: operational-spec
+governed_by:
+  - artifact: project-preferences
+    dispositions:
+      - "plane isolation (display imports no curation module) → conforms: the test is renamed with the packages and keeps asserting the same property, arrt importing no curatarr module. Its assertions do not change, only the names in them"
+      - "the two planes agree on the heartbeat's filename and its instant's key by construction → conforms: the test's source paths are renamed; the constants and file names it compares are untouched"
+      - "the mechanical norm-index rows (formatting, naming, imports) → conforms: every renamed import is re-sorted by ruff, and each plane's lint and format run"
+  - artifact: nonfunctional-requirements
+    dispositions:
+      - "the display plane never requires the curation plane to be reachable → inapplicable because: nothing about either process's behaviour changes; only the names do"
+last_validated: null
+lifecycle: completed
+archived: 2026-10-01
+released_in: v0.1.0
+maintained: false
+---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
+
+# Build Plan — Wave 2a: Curatarr and Arrt, in the code
+
+> **Names, 2026-10-01.** This is history and keeps the names of its day. Until
+> 2026-10-01 **Curatarr** named the server and **Arrt** named the player. Since then
+> the server is **Arrt** and the player is **Postarr**
+> (`build-plan-rename-arrt-postarr.md`). Paths and package names here are the
+> old ones.
+
+## What this plan is
+
+The operator named the products on 2026-09-30: Curatarr (the server) and
+Displayarr (the player), and renamed the player Arrt later the same day. The GitHub repo is already renamed. This plan renames
+the code: the `curation/` project and `curation` package become `curatarr`,
+and `display/` and `display` become `arrt`. It is its own plan because it
+is a different kind of change from the rest of wave 2. It is purely mechanical,
+touches around two hundred files, and changes no behaviour. Reviewed alongside
+the seam split, it would bury a refactor inside a rename.
+
+**It goes first in wave 2** because the Library/Programming split
+(`build-plan-wave-2b-seams-and-http.md`) creates new packages and moves modules
+across them. Doing that under the old names and renaming afterwards would touch
+every moved file twice.
+
+**Prose keeps its role names.** "The curation plane" and "the display plane" in
+the artifacts describe roles in the as-built system, and they retire as the
+waves replace those roles. Only paths, package names, commands and identifiers
+change.
+
+## Requirements Confidence
+
+**High.** It is a rename with a green suite on each side, and the suites are the
+proof.
+
+- `[ASSUMPTION: the MCP server's advertised name becomes "curatarr" and the
+  museum User-Agent names the curatarr repo URL; neither is an interface any
+  client keys on, since tool names are frozen and unchanged | LOW impact | user
+  can correct]`
+- `[ASSUMPTION: the Pi keeps its checkout at /opt/samsung-frame-art-loader until
+  wave 3 retires the Pi as the server, so the units change their project
+  directories and module names but not the checkout path | MED impact | user can
+  correct]`
+
+## Status
+
+- [x] Chunk 01: Rename the projects and packages, and everything that names them
+
+### Chunk 01: Rename the projects and packages, and everything that names them
+
+- **Type:** cleanup
+- **Depends on:** `build-plan-wave-1-contract.md` merged
+- **Surfaces, enumerated so the chunk's true size shows:**
+  - The directories `curation/` → `curatarr/` and `display/` → `arrt/`,
+    by `git mv`, so history follows.
+  - The packages under each `src/`, every import, and each `pyproject.toml`'s
+    project name, scripts and tool configuration. Each `uv.lock` is regenerated.
+  - `python -m curation` / `python -m display` in `deploy/curation.service` and
+    `deploy/display.service`, and each unit's `WorkingDirectory`. The unit files
+    keep their names until wave 3, so the Pi's installed units are replaced
+    rather than added beside.
+  - `.github/workflows/*.yml`: working directories, paths and job names.
+  - `tests/preferences/*.py`: the source paths they read across both projects.
+    `test_plane_isolation.py` keeps its assertions and changes only names.
+  - `contract/`-reading tests in both projects, which compute the repo root
+    from their own depth.
+  - `CLAUDE.md`'s dev-command table and every command in it, `README.md`,
+    `deploy/README.md`, and `.env.example` where it names a module.
+  - Path references in `.prawduct/artifacts/` (about a hundred lines) and
+    `project-state.yaml`'s `test_commands`. The archive and the change-log
+    archive are left alone, because they are history.
+  - `SERVER_NAME` in the MCP server, and its contract test. The User-Agent in
+    `config.py` and the live test.
+- **Carried into this chunk's commit**, because it rewrites `CLAUDE.md`'s
+  commands anyway:
+  - Wave 1 cumulative review R-4 (`rev-20260930T151634Z-9a02d6ac`): `CLAUDE.md`
+    carries about 240 project lines against a budget of about 150. Move "The
+    browser suite" and "The live suites" into a testing doc under `docs/` and
+    leave a one-line pointer to each. The renamed commands land in the moved
+    text, not in a copy.
+  - Wave 1 review observation O-3: the Change-of-direction section's "Next up"
+    points at `re-architecture.md` § Order of work instead of naming a wave, so
+    it doesn't go stale at each wave.
+- **Tests:** all three suites pass with no test weakened. Proof the rename is
+  complete comes from three greps, each with a count taken before the rename, so
+  an empty result means "renamed" and not "the pattern never matched":
+  - `git grep -nP '^\s*(from|import) (curation|display)\b' -- '*.py'`: 842
+    lines before, 1 after. It matches code only, so the role names the prose
+    keeps cannot hold it open. `-P`, because this Mac's `git grep -E` has no
+    `\b` and silently matches nothing. The line that stays is `tvart.py`
+    importing the 2024 root module `display.py`, which is not the display
+    plane and retires with the root modules at wave 5.
+  - `git grep -nP '\b(curation|display)/(src|tests|tools)\b' -- . ':!.prawduct/artifacts/archive' ':!.prawduct/change-log*'`:
+    137 lines before (measured when the chunk began; the plan's first count was
+    134), 0 after.
+  - `git grep -nP '["'\''](curation|display)\.[a-z_]' -- curation display`,
+    then over `curatarr arrt` after: 60 lines before, 0 after. It catches the
+    module paths that live in strings (`mock.patch` targets, logger names,
+    `importlib` calls), which neither grep above can see and which fail only
+    when the line runs.
+- **Visual change:** no. **Operator verification:** yes. The Pi's units must be
+  reinstalled from `deploy/` after this lands, or they start the old module
+  names and fail. The step joins `operator-verification.md` with the commands.
+- **Done when:** the three suites and their lint pass under the new names; the
+  greps above are empty against their recorded "before" counts; CI passes on the branch; the queue entry exists.

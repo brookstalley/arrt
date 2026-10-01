@@ -16,6 +16,19 @@ of what is owed; every requirement here is either **practised** (with the mechan
 named), **owed** (with what would close it), or **open** (with what could settle
 it, and by whom).
 
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** The product is
+> becoming a server (library plus programming) and a player that drives any
+> screen, not only a Samsung Frame. For this artifact that means **the label gains
+> a second surface**: besides the e-paper panel, a wall may set the label as a
+> caption in the mat, on a framebuffer screen or burned into the image before a
+> Frame upload. The label mode is chosen per wall: panel, caption, or none. What
+> stays is everything this artifact derives: the type floor from geometry and
+> reading distance, the two content tiers, and the fill rule. They apply to a
+> caption exactly as they apply to the panel, because they were written against
+> a reader at a distance and not against a panel. Norm 1 below carries the
+> amendment; § The television carries the one decision it reverses. Nothing about
+> the panel as built changes. The caption mode is Player work in wave 6+.
+
 ## Direction
 
 The two norms this artifact carries, stated where the convention says a norm
@@ -32,6 +45,25 @@ decision to record rather than something to sync the prose to.
    which tier and what follows from it — this sentence is the rule, that section
    is its detail. `open_questions` closed on the same date; the clause could not
    be ratified before the floor it refers to existed, and by then it existed.)*
+
+   **Amendment, 2026-09-30: the norm's subject becomes "the label", on whichever
+   surface a wall uses.** The e-paper panel remains one surface. A caption set
+   in the mat is the other, and the same floor, tiers and fill rule bind it.
+   The 16-grey-level clause is specific to the panel and stays scoped to it.
+
+   `[DECISION: norm 1 extends from the e-paper label to the label on any surface a
+   wall uses, the panel or a caption in the mat, with the floor and the tiers
+   unchanged | the owner ruled on 2026-09-30 that e-ink cards are "supported and
+   optional, with on-screen captions as an alternative" (re-architecture.md).
+   The norm's why is a household reader at standing distance with no affordance
+   to adapt what they read. That reader is the same person whichever surface
+   carries the words, so a caption exempt from the floor would reopen exactly the
+   hole the norm closes | user can veto/override]`
+
+   **Status:** in-transition. The panel conforms as built. No caption surface
+   exists yet, and the norm binds the Player chunk that builds one. **Tracking
+   ref:** `re-architecture.md` § Player outputs (wave 6+). **Retroactivity:**
+   none needed: the only built surface already conforms.
 2. **WCAG 2.1 AA on the curation browser, and colour is never the sole carrier of
    state.** Ratified; the decision it implements is
    `design_decisions.accessibility_approach`.
@@ -54,6 +86,12 @@ requirement is written, and it is the opposite of the obvious answer:
 | **The e-paper label** | Household members and guests, at standing distance, in whatever light the room has | **Legibility.** There is no interface to navigate — type size, contrast on a non-emissive panel, and line length *are* the whole story |
 | **The curation browser** | One advanced operator, on a LAN | WCAG 2.1 AA — keyboard, focus, labels, contrast |
 | **The television** | The same household members and guests | Nothing, deliberately. It is artwork on a wall |
+
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** The third row
+> becomes "the screen", which may be a Frame, an LCD or a monitor. On a wall
+> configured for captions, the screen also carries the label, set in the mat
+> under norm 1. The ordering argument below is unchanged: the label still
+> outranks the browser, whichever surface it is drawn on.
 
 > **The label outranks the browser, and this artifact is ordered to say so.** A
 > specification that opened with WCAG and treated the panel as a footnote would be
@@ -83,7 +121,7 @@ requirement below is about the drawn result rather than about a mechanism.
 
 ### The panel must be driven at 16 grey levels, and the mode must be read back
 
-**Practised** — `display/src/display/panel/epaper.py` sets `mode = "gray16"` and
+**Practised** — `postarr/src/postarr/panel/epaper.py` sets `mode = "gray16"` and
 asserts what the driver took.
 
 This is an accessibility requirement rather than a driver detail, and the reason it
@@ -101,7 +139,7 @@ success from every direction except standing in front of it.
 
 ### Type never shrinks to fit, except for the facts that identify the work
 
-**Practised** — `display/src/display/panel/layout.py`. The optional tier's drop
+**Practised** — `postarr/src/postarr/panel/layout.py`. The optional tier's drop
 rule was built first; **the mandatory tier landed 2026-08-13 with the fill
 model**, and with it the journal event the tier is conditional on
 (`label.shrunk`, a warning rather than an info line — a dropped medium is the
@@ -109,9 +147,9 @@ engine working, and type below the floor is a deployment that cannot show this
 corpus legibly).
 
 Which tier a fact belongs to is carried on the fact itself
-(`display/src/display/panel/content.py`), so nothing downstream infers it from a
-position. Guarded by `display/tests/test_label_layout.py` for what the rules are
-and by `display/tests/test_label_properties.py` for the claim that they always
+(`postarr/src/postarr/panel/content.py`), so nothing downstream infers it from a
+position. Guarded by `postarr/tests/test_label_layout.py` for what the rules are
+and by `postarr/tests/test_label_properties.py` for the claim that they always
 hold — ten independently optional fields is 1024 content shapes, and both defects
 this replaced were about *which* fields a record happened to have rather than
 about any one line.
@@ -182,7 +220,7 @@ Four properties of the rule, all of them load-bearing:
 
 ### The type floor is derived from viewing distance, not chosen for a panel
 
-**Practised** — `display/src/display/panel/legibility.py`, built 2026-08-11 as
+**Practised** — `postarr/src/postarr/panel/legibility.py`, built 2026-08-11 as
 13B-1. It replaces the settlement below rather than answering it. Settled
 2026-08-11 with the operator, at the panel, once the two physical facts were
 known: the reference panel is **6 inches diagonal at 1448×1072**, which is
@@ -390,12 +428,12 @@ because it is a set of decisions and not a layout tweak.**
 
 **Practised.** 13B-3 built the *content model* — the ordering, the one-line
 identification block, the stored name parts and the commentary field, all in
-`display/src/display/panel/metadata.py` and carried there by the manifest.
+`postarr/src/postarr/panel/metadata.py` and carried there by the manifest.
 **13B-2 built the typography on 2026-08-13**: a line is a tuple of styled runs
-(`display/src/display/panel/styling.py`), the family name is set bold and
+(`postarr/src/postarr/panel/styling.py`), the family name is set bold and
 capitalised, titles are set in italic, and the renderer applies Pango attributes
 over byte ranges. **13B-4 built the fill model and the name ladder the same
-day** — `display/src/display/panel/content.py` for what a fact is and
+day** — `postarr/src/postarr/panel/content.py` for what a fact is and
 `layout.py` for what survives.
 
 **The styling cost room, the ladder gave it back, and both figures are from the
@@ -434,7 +472,7 @@ of composing two rules this section states separately:
   same name twice.
 
 **Built 2026-08-11 as 13B-3**, with the tests in
-`display/tests/test_label_metadata.py` § TestWhoMadeIt.
+`postarr/tests/test_label_metadata.py` § TestWhoMadeIt.
 
 **The artist outranks the work.** The 2024-era ordering led with the title, and on
 a 6-inch panel that is what wastes it: measured on the panel, "Under the Well of
@@ -663,7 +701,7 @@ how an arrangement that measured correctly everywhere it was checked reached the
 panel wrong. Every figure in this amendment is from the panel's own machine.
 
 - **This needs a real field, not a heuristic. Built 2026-08-11.** `Artist`
-  carries `name` as one string; the surname heuristic in `discovery/artic.py` is
+  carries `name` as one string; the surname heuristic in `library/discovery/artic.py` is
   documented there as unreliable, and it is wrong for "Titian (Tiziano
   Vecellio)", for "van Gogh", and for every name whose family part is not the
   last word. The catalogue gained `family_name` and `given_name`; the manifest
@@ -672,7 +710,7 @@ panel wrong. Every figure in this amendment is from the panel's own machine.
   reason to guess at one.
 
   **Where the split for the seeded corpus comes from: a written table, not a
-  rule** (`curation/src/curation/seed/names.py`). Thirty-one names, each with its
+  rule** (`arrt/src/arrt/seed/names.py`). Thirty-one names, each with its
   parts spelled out, because this corpus alone defeats every heuristic in a
   different way — "Frank Lloyd Wright" defeats last-word, "Georgia O'Keeffe"
   defeats first-word, "Katsushika Hokusai" inverts the Western order it appears
@@ -723,9 +761,9 @@ panel wrong. Every figure in this amendment is from the panel's own machine.
   character count is invisible on `O'Keeffe` and wrong on everything else — an en
   dash spends three bytes, so every life date on this wall already contains one.
   What a character offset produces is a run of the wrong length set in the wrong
-  weight, with nothing raising. Guarded by `display/tests/test_label_styling.py`
+  weight, with nothing raising. Guarded by `postarr/tests/test_label_styling.py`
   (the offsets, including a capital that changes byte length) and by
-  `display/tests/raster/test_pango.py` § TestTheStylingReachesTheType, which
+  `postarr/tests/raster/test_pango.py` § TestTheStylingReachesTheType, which
   checks a style over non-ASCII text against a reference that uses no indices at
   all.
 
@@ -913,8 +951,8 @@ rather than being added after the fill rule was tuned without it.
 **Closed 2026-08-11 by 13B-1. Kept as a record of how they failed**, because the
 way they failed is the reason the sections above are written the way they are.
 
-`display/src/display/panel/layout.py` carried `TITLE_SIZE_PX = 40`,
-`ARTIST_SIZE_PX = 32` and `BODY_SIZE_PX = 26`; `display/src/display/config.py`
+`postarr/src/postarr/panel/layout.py` carried `TITLE_SIZE_PX = 40`,
+`ARTIST_SIZE_PX = 32` and `BODY_SIZE_PX = 26`; `postarr/src/postarr/config.py`
 carried `DEFAULT_EPD_MARGIN_PX = 40`. **None of the four exists any more**, and
 none of them was ever a measurement. The operator's 2026-08-04 look at the real
 panel killed the 2024 `"Sans 18"` and narrowed the live range to roughly the
@@ -952,7 +990,7 @@ rather than deleted.
 
 ### Line length has a bound, and this panel will stop reaching it
 
-**Practised** — `MEASURE_EM` in `display/src/display/panel/layout.py`, added
+**Practised** — `MEASURE_EM` in `postarr/src/postarr/panel/layout.py`, added
 2026-08-11. `design_decisions.accessibility_approach` names three things that
 carry legibility — type size at reading distance, contrast on a non-emissive
 panel, and **line length** — and the third had no mechanism at all. Layout wrapped
@@ -988,15 +1026,23 @@ label, and the label travels as metadata"* (`architecture.md` § Direction, rati
 
 Its accessibility content is easy to miss: several devices may carry panels of
 different sizes, and the 2024 plane's baked-in 648×480 is the anti-pattern being
-retired. Geometry arrives as a parameter; `display/src/display/config.py` defaults to the reference
+retired. Geometry arrives as a parameter; `postarr/src/postarr/config.py` defaults to the reference
 1448×1072 and every value is overridable. **A device with no label surface at all
 is a configuration, not a fault** — which matters here because a household adding a
 display without a panel must not read as a broken one.
 
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** This rule is about
+> to reach further than the label. The television's own geometry leaves the
+> catalogue in wave 4: the mat is composed on the Player for its own screen, and
+> the `tv_display` rendition and `TV_PANEL_*` leave curation. A caption in the mat
+> makes that necessary for accessibility too, because the mat has to be sized
+> for the caption's type, and only the device that knows the reading distance
+> and the screen can size it.
+
 ### The panel has no brightness control, and that is why the rest of this matters
 
 The label surface is non-emissive: there is no backlight to raise and no ambient
-adaptation available to it. `display/src/display/brightness.py` follows the sun,
+adaptation available to it. `postarr/src/postarr/brightness.py` follows the sun,
 but it maps onto **the television's** scale — the panel is not in that loop. So the
 panel's legibility in a dim room is entirely a function of the 16 levels, the type
 size and the measure. There is no runtime lever that compensates for getting them
@@ -1013,7 +1059,7 @@ colour, so chrome must never sit at a contrast that competes with the artwork.
 
 ### Contrast is computed, not claimed
 
-**Practised, and mechanically enforced** — `curation/tests/unit/test_design_tokens.py`.
+**Practised, and mechanically enforced** — `arrt/tests/unit/test_design_tokens.py`.
 
 The test reads the real token values out of the served stylesheet and computes the
 ratios, in **both** colour schemes, against WCAG 2.1's own luminance definition. A
@@ -1052,12 +1098,12 @@ caught or would catch:
 **Practised, and only half of it is mechanical.** This is the split to respect
 rather than paper over.
 
-The mechanism covers the part a machine can see. `curation/tests/unit/test_design_tokens.py` derives
+The mechanism covers the part a machine can see. `arrt/tests/unit/test_design_tokens.py` derives
 every state a badge can carry **from the enums rather than from a written-out
 list**, and asserts that each has a CSS block of its own and that no two states of
 one axis are pixel-identical — a block copy-pasted for a new verdict with only the
 selector changed would otherwise make a rejection look like an acceptance in
-greyscale. `curation/tests/unit/test_client_vocabulary.py` asserts that every enum value the server can
+greyscale. `arrt/tests/unit/test_client_vocabulary.py` asserts that every enum value the server can
 send has a sentence in the client, so no raw token leaks onto a screen.
 
 **What no test can see is whether the glyph actually distinguishes anything.** That
@@ -1079,7 +1125,18 @@ convenient".
 **Practised:**
 
 - A skip link to `#view` is the first focusable element, and `#view` carries
-  `tabindex="-1"` so it can receive the jump.
+  `tabindex="-1"` so it can receive the jump. **The link moves focus in script
+  and leaves the address alone**, because the hash router reads `#view` as a
+  page called "view" and a plain link sent the reader to the home page instead
+  (`core/router.js`, found and fixed 2026-09-30).
+- **The sidebar is a `nav` landmark labelled "Sections"**, and exactly one of its
+  links carries `aria-current="page"`: the page's own link, never its section's
+  as well. Below 40rem it is a drawer behind a menu button with
+  `aria-expanded`. Opening the drawer moves focus into it, Escape closes it, and
+  focus returns to the button.
+- **The System badge is a number, so the System link's name carries the words**:
+  *"System: 2 problems"*, or *"System: all well"* when there is no badge. The
+  top-bar indicator keeps its visible word beside it (glyph + word + colour).
 - `:focus-visible` draws a 2px outline at 2px offset, in a `--focus` token whose
   contrast against the surfaces it appears on is one of the pairs the token test
   computes. Focus visibility is therefore not a matter of care.
@@ -1203,7 +1260,7 @@ descriptions of it.
 
 **Owed, with the same status as the revised palettes.** `design-direction.md`
 requires control heights of 2.75rem (44px) under `@media (pointer: coarse)`, with a
-2.25rem default that clears WCAG 2.2 AA's 24px floor. **`curation/src/curation/http/static/app.css` contains no
+2.25rem default that clears WCAG 2.2 AA's 24px floor. **`arrt/src/arrt/http/static/app.css` contains no
 `pointer: coarse` block and no control height**, verified 2026-08-11 — so the rule
 is a proposal today and is recorded as one here rather than as a practice.
 
@@ -1252,21 +1309,45 @@ not the picture.
 Stated here so the absence reads as a decision rather than as an oversight, which
 is the same reason `information-architecture.md` § Boundaries lists it.
 
+> **Amended 2026-09-30 — see `re-architecture.md`.** "No caption" is reversed for
+> walls configured for one. What survives is the substance of the paragraph
+> above: no overlay on the artwork, no status, no chrome. A caption is set **in
+> the mat**, never over the picture, and only where a wall's label mode asks for
+> it. A wall with an e-paper panel, or with its label mode set to none, still
+> shows the artwork and nothing else. On a Samsung Frame the caption can only
+> exist burned into the image before upload, which is one of the reasons
+> compositing moves to the Player.
+>
+> `[DECISION: a caption in the mat is permitted on a screen when the wall's label
+> mode selects it, while overlays, status and chrome stay forbidden | the owner
+> ruled on 2026-09-30 for "on-screen captions as an alternative" to e-ink cards.
+> The why of the original rule was that the picture has no chrome and that the
+> identifying facts have a home that is not the picture. The mat is not the
+> picture: the product already treats it as a deliberate framing choice, and a
+> museum's own convention puts the label beside the work, not on it | user can
+> veto/override]`
+
 ---
 
 ## Verification
 
 | Requirement | How it is checked | Where |
 |---|---|---|
-| Contrast, both schemes, both floors | Test — computed from the served stylesheet | `curation/tests/unit/test_design_tokens.py` |
+| Contrast, both schemes, both floors | Test — computed from the served stylesheet | `arrt/tests/unit/test_design_tokens.py` |
 | No colour outside the token blocks | Test, with an asserted scan scope | same file |
 | Every badge state has a distinct block | Test, derived from the enums | same file |
-| Every server enum has a client sentence | Test, reads the served `app.js` | `curation/tests/unit/test_client_vocabulary.py` |
-| The panel runs at 16 levels | Test — the mode is set, and a panel that quietly stays in one bit is refused | `display/tests/test_epaper.py` |
-| Content drops rather than shrinking | Test, against an injected measurer so it runs without a font | `display/tests/test_label_layout.py` |
+| Every server enum has a client sentence | Test, reads the served `app.js` | `arrt/tests/unit/test_client_vocabulary.py` |
+| The panel runs at 16 levels | Test — the mode is set, and a panel that quietly stays in one bit is refused | `postarr/tests/test_epaper.py` |
+| Content drops rather than shrinking | Test, against an injected measurer so it runs without a font | `postarr/tests/test_label_layout.py` |
 | Glyph actually distinguishes state | **Critic judgment.** No test can see this | `/prawduct:critic` |
-| Focus lands where it should, and a poll does not steal it | **Browser suite**, `-m browser` — a real Chromium against a booted server | `curation/tests/browser/` |
+| Focus lands where it should, and a poll does not steal it | **Browser suite**, `-m browser` — a real Chromium against a booted server | `arrt/tests/browser/` |
 | Type size, margin and measure at reading distance | **The operator, at the panel.** Nothing else can | Chunk 13B, `Visual change: yes` |
 
 **The last row is the one to watch.** It is the only requirement in this artifact
 that no machine can close, on the surface this artifact says matters most.
+
+> **Owed from 2026-09-30 — see `re-architecture.md`.** The caption surface needs
+> its own rows in this table when it is built: the floor holding in caption
+> mode, the mat sized for the caption, and an operator sitting at reading
+> distance, as Chunk 13B did for the panel. None exist yet, because no caption
+> surface exists.

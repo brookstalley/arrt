@@ -96,7 +96,7 @@ jobs:
         with:
           enable-cache: true
       - name: Run the museum probes
-        working-directory: curation
+        working-directory: arrt
         # -n0 is REQUIRED, not tidiness. `-n auto` is in addopts for the default
         # suite, and a `-m` on the command line overrides the marker expression
         # while leaving the parallelism in place — so without this we would fire
@@ -105,7 +105,7 @@ jobs:
         run: uv run pytest tests/live -m live_museum -n0 -v --junitxml=results.xml
       - name: Fail if nothing actually ran
         if: always()
-        run: python3 .github/scripts/assert_tests_ran.py curation/results.xml
+        run: python3 .github/scripts/assert_tests_ran.py arrt/results.xml
       - name: Say so where a human will see it
         # Scheduled runs only. A hand-dispatched run already has somebody
         # watching its output — that is what dispatching it means — and filing an
@@ -146,11 +146,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
       - name: Run the binary probes
-        working-directory: curation
+        working-directory: arrt
         run: uv run pytest tests/live -m live_binary -n0 -v --junitxml=results.xml
       - name: Fail if nothing actually ran
         if: always()
-        run: python3 .github/scripts/assert_tests_ran.py curation/results.xml
+        run: python3 .github/scripts/assert_tests_ran.py arrt/results.xml
       - name: Say so where a human will see it
         if: failure() && github.event_name == 'schedule'
         env:
@@ -175,7 +175,7 @@ jobs:
         with:
           enable-cache: true
       - name: Run the OpenRouter probes
-        working-directory: curation
+        working-directory: arrt
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: uv run pytest tests/live -m live_api -n0 -v --junitxml=results.xml
@@ -186,7 +186,7 @@ jobs:
         # precisely the green-suite-that-means-nothing this repo refuses. A skip
         # in CI is a provisioning failure, not a legitimate absence.
         if: always()
-        run: python3 .github/scripts/assert_tests_ran.py curation/results.xml
+        run: python3 .github/scripts/assert_tests_ran.py arrt/results.xml
       - name: Say so where a human will see it
         if: failure() && github.event_name == 'schedule'
         env:

@@ -206,7 +206,7 @@ the fetch path reports it as such rather than composing a base with nothing afte
 it.
 
 Guarded by `live_museum` tests in
-`curation/tests/live/test_artic_shapes_are_still_real.py`, including one that
+`arrt/tests/live/test_artic_shapes_are_still_real.py`, including one that
 fetches `info.json` under the resolved base rather than trusting the URL's shape.
 
 ## Failure and edge shapes
@@ -303,7 +303,7 @@ This is also why the live suite is deselected by default: it is free, but it is 
 the mercy of whatever the local network is doing.
 
 ```
-cd curation && uv run pytest -m live_museum
+cd arrt && uv run pytest -m live_museum
 ```
 
 **`live_museum`, not `live_api`** — the two are separate markers precisely so that

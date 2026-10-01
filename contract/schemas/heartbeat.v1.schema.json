@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/brookstalley/arrt/contract/schemas/heartbeat.v1.schema.json",
+  "title": "Player heartbeat, major 1",
+  "description": "What Postarr reports about one wall, as facts rather than a verdict. The document Postarr writes today has no schema key, and a heartbeat without one is 1.0. Wave 2 adds the schema key (1.1) when the heartbeat moves to an HTTP POST. The server reads reported_at and keeps the rest as it came; additive keys are allowed. Semantics are in .prawduct/artifacts/player-contract.md. Minor 2 (wave 4) adds the optional capabilities block and scene_id, which Programming needs once it chooses label modes, judges adequacy per wall and shows whether a scene reached each wall.",
+  "type": "object",
+  "required": [
+    "reported_at",
+    "manifest_schema",
+    "theme_id",
+    "current_work_id",
+    "announced_content_id",
+    "television_reachable",
+    "television_showing_art",
+    "has_label_surface",
+    "label_surface_working",
+    "last_error"
+  ],
+  "properties": {
+    "schema": {
+      "description": "Minor 1 (wave 2). Absent means 1.0.",
+      "type": "object",
+      "required": [
+        "major",
+        "minor"
+      ],
+      "properties": {
+        "major": {
+          "const": 1
+        },
+        "minor": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "reported_at": {
+      "description": "The instant of the report, RFC 3339 with an offset. The server treats any other spelling of this key as an unreadable heartbeat. The pattern is what enforces the offset; 'format' alone is not checked by every validator.",
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
+    },
+    "manifest_schema": {
+      "description": "The major.minor of the manifest the Player has loaded, or null before it has adopted one.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]+\\.[0-9]+$"
+    },
+    "theme_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "current_work_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "announced_content_id": {
+      "description": "What the television last announced it is showing, in the set's own words.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "television_reachable": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "television_showing_art": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "has_label_surface": {
+      "type": "boolean"
+    },
+    "label_surface_working": {
+      "description": "Null until the surface has been given a label, including on a Player with no surface.",
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "last_error": {
+      "description": "The last thing that went wrong, in the words the journal got. Not cleared by a good pass.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "capabilities": {
+      "description": "Minor 2 (wave 4). What this Player can do, observed rather than configured. Programming chooses the wall's label mode from label_modes and judges a work's adequacy against screen.",
+      "type": "object",
+      "required": [
+        "screen",
+        "backend",
+        "label_modes",
+        "manifest_majors"
+      ],
+      "properties": {
+        "screen": {
+          "type": "object",
+          "required": [
+            "width_px",
+            "height_px"
+          ],
+          "properties": {
+            "width_px": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "height_px": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "backend": {
+          "description": "frame: push to a Samsung Frame's own art store. framebuffer: composite and draw to a screen this process owns.",
+          "enum": [
+            "frame",
+            "framebuffer"
+          ]
+        },
+        "label_modes": {
+          "description": "The label modes this Player can do now. panel needs e-ink hardware; caption needs a Player version that sets captions.",
+          "type": "array",
+          "items": {
+            "enum": [
+              "panel",
+              "caption",
+              "none"
+            ]
+          },
+          "uniqueItems": true,
+          "minItems": 1
+        },
+        "manifest_majors": {
+          "description": "The manifest majors this Player reads, so the server can say which Players a major 2 cutover would leave on yesterday's wall.",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "uniqueItems": true,
+          "minItems": 1
+        }
+      }
+    },
+    "scene_id": {
+      "description": "Minor 2 (wave 4). The scene the wall is showing, or null when it follows the schedule, so the UI can show which walls a scene has reached.",
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

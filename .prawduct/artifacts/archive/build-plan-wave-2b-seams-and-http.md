@@ -1,0 +1,459 @@
+---
+artifact: build-plan
+version: 1
+scope: wave-2b-seams-and-http
+branch: feature/wave-2b-seams-and-http
+partition: serial — Chunk 02 builds on Chunk 01's packages, 03 serves what 01 and 02 publish, and 04 pulls what 03 serves
+depends_on:
+  - artifact: re-architecture
+  - artifact: player-contract
+  - artifact: architecture
+  - artifact: data-model
+  - artifact: security-model
+  - artifact: api-contract
+  - artifact: observability-strategy
+governed_by:
+  - artifact: architecture
+    dispositions:
+      - "the Library/Programming seam norms 1, 2 and 4 (in-transition; migrate in wave 2) → this plan IS their migration. Chunk 01 does rules 1 and 2 and adds the import guard; Chunk 02 does rule 4 with its reconciliation duty. Rule 3, the store split, stays wave 3 by the recorded schedule"
+      - "operation logic lives only in the service layer; HTTP handlers are thin bindings → conforms: Chunk 03's routes unpack, call one Programming service method and format. Token checking is a dependency the router applies, not logic in a handler"
+      - "the theme manifest file is the only channel (in-transition; target: per-wall manifest and immutable media pulled into a Player-local cache) → conforms to the interim rule: the file channel keeps working throughout, and Chunk 04's HTTP mode renders only from the local cache, never from a live request"
+      - "a display device renders its own label → conforms: no chunk moves label rendering. Media in waves 2 and 3 is the composed render the file channel already carries"
+  - artifact: nonfunctional-requirements
+    dispositions:
+      - "the display plane never requires the curation plane to be reachable (in-transition) → conforms: Chunk 04's pull is additive and cache-first, a server outage keeps the last good manifest and media, and a restarted Player starts from its cache. A test stops the server while the wall runs"
+      - "spend ceilings are provider-enforced → inapplicable because: no chunk adds a paid path"
+  - artifact: security-model
+    dispositions:
+      - "the repository is public and no credential is committed → conforms: tokens are generated at runtime, shown once, stored only as a verifier, never logged, and read by the Player from its environment file"
+      - "Player authentication on the LAN (decided: a token per wall) → Chunk 03 builds it, before the heartbeat POST ships, as the recorded deadline requires"
+  - artifact: project-preferences
+    dispositions:
+      - "plane isolation (display imports no curation module, opens no HTTP client) → amendment scheduled by the norm's own row: Chunk 04 narrows the no-HTTP clause to one manifest-client module and three endpoints, in the same chunk that adds the pull, and keeps the no-curatarr-import clause whole"
+      - "the two planes agree on the heartbeat by construction → conforms, and extended: the POST writes the same document to the same place the file reader looks"
+      - "the mechanical norm-index rows → conforms: every chunk runs each touched project's lint, format and tests"
+last_validated: null
+lifecycle: completed
+archived: 2026-10-01
+released_in: v0.1.0
+maintained: false
+---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
+
+# Build Plan — Wave 2b: The Seams, and the HTTP Channel Beside the File
+
+> **Names, 2026-10-01.** This is history and keeps the names of its day. Until
+> 2026-10-01 **Curatarr** named the server and **Arrt** named the player. Since then
+> the server is **Arrt** and the player is **Postarr**
+> (`build-plan-rename-arrt-postarr.md`). Paths and package names here are the
+> old ones.
+
+## What this plan is
+
+The rest of `re-architecture.md`'s wave 2, after the rename (`build-plan-wave-2a-rename.md`).
+Curatarr splits into Library and Programming packages, with a facade and events
+between them. It then serves each wall's manifest, media and heartbeat over HTTP
+under a token per wall, and Arrt gains a mode that pulls them into a local
+cache. **The file channel keeps working throughout.** The Pi can run either mode,
+and wave 3 retires the file only once HTTP has run on the real wall.
+
+Paths below use the names 2a gives them (`curatarr/`, `arrt/`).
+
+| Chunk | What it is |
+|---|---|
+| 01 | Library and Programming packages, the `playable()` facade, and the import guard |
+| 02 | Library events, and Programming's reconciliation at startup |
+| 03 | Curatarr's HTTP surface: manifest, media by content hash, heartbeat, and wall tokens |
+| 04 | Arrt's HTTP mode: pull into a cache, render only from it, and survive the server |
+
+## What I would do differently
+
+The plan follows the agreed order, with one scope question and one cut I'd
+defend.
+
+- **Should a Library change republish walls on its own?** Today it doesn't.
+  Archiving a work withdraws its pins, but the published manifest keeps
+  listing the work until somebody syncs, so a wall can go on showing an
+  archived work. Events make automatic republishing easy. I recommend it for
+  changes that **remove** readiness (archiving, an image change that makes a
+  render stale), because a wall should never show what the curator withdrew.
+  I recommend against it for changes that add, because deciding when new work
+  reaches the wall is what `sync` is for. That changes behaviour, so it was
+  the operator's call. **The operator confirmed it on 2026-09-30: removals
+  republish, additions wait for sync.** Chunk 02 builds it.
+- **The cut: no Player-side "HTTP by default" in wave 2.** Chunk 04 builds the
+  mode, and the Pi switches to it by configuration after a soak. Making it the
+  default is wave 3's retirement of the file, not this plan's.
+
+## Requirements Confidence
+
+**Medium.** The shape is settled by `re-architecture.md` and `player-contract.md`.
+These are unconfirmed:
+
+- **Confirmed by the operator 2026-09-30, no longer an assumption:** a Library
+  change that removes a work's readiness (archive, a stale render) republishes
+  every wall whose published manifest carries the work; a change that adds
+  readiness waits for sync.
+- `[ASSUMPTION: the published manifest stays a file in ART_ROOT through wave 2,
+  written by sync as today, and GET /walls/{id}/manifest serves that file's
+  bytes with an ETag of their SHA-256; the snapshot semantics of sync are
+  unchanged | MED impact | user can correct]`
+- `[ASSUMPTION: a POSTed heartbeat is written atomically to the same
+  display-heartbeat-{wall}.json the file channel uses, so every existing reader,
+  the health panel included, sees it with no change | MED impact | user can
+  correct]`
+- `[ASSUMPTION: wall tokens are 32 random bytes, stored as their SHA-256 (a
+  high-entropy token needs no slow hash), issued and rotated from the Walls
+  screen and by an art_display action, and shown once | MED impact | user can
+  correct]`
+- `[ASSUMPTION: a render's SHA-256 and size are recorded when the render is
+  written; renders that predate the column are hashed on first need and
+  recorded then | MED impact | user can correct]`
+
+**What would raise it:** the one HIGH-impact question, automatic republishing,
+is answered. What remains is MED, and each is checked by its chunk's tests.
+
+## Persisted formats, and the questions each must answer
+
+Each is lock-in, so the questions come before the fields.
+
+- **`renditions.content_sha256`, `renditions.byte_size`** (Chunk 03). The
+  questions: which file does `GET /media/sha256-<hex>` serve (by hash, indexed),
+  and what goes in a manifest entry's `media`. Written at render time;
+  backfilled on first need.
+- **`walls.token_verifier`, `walls.token_issued_at`** (Chunk 03). The
+  questions: does this bearer token open this wall (hash and compare in
+  constant time); does a wall have a token at all (the UI shows "no token yet");
+  when was it issued (the UI shows it, so a curator knows which Player is on
+  the old one after a rotation). Programming's table, so it moves with Programming
+  at the wave 3 store split.
+- **The Player's cache directory** (Chunk 04). The questions: what was the last
+  good manifest, and its ETag (it survives a restart, so a Player that boots
+  while the server is down still shows the wall); do I have media X; what may I
+  evict (anything no entry of the last good manifest names, once a newer
+  manifest is adopted). Layout: `manifest.json`, `manifest.etag`,
+  `media/sha256-<hex>`.
+
+## New surfaces and the cross-cutting concerns
+
+- **Curatarr's `/walls` and `/media` routes** (Chunk 03).
+  - *Auth:* the wall token, a new credential kind, gets its row in
+    `security-model.md` § Inventory.
+  - *Errors:* the contract's model.
+  - *Observability:* one journal line per refused token, rate-limited per wall,
+    and the heartbeat's age is already on the health panel.
+  - *Versioning:* the contract's, recorded in `player-contract.md`.
+- **Arrt's pull client and cache** (Chunk 04).
+  - *Errors:* keep the cache; back off.
+  - *Observability:* report-once journal lines for "server unreachable",
+    "token refused" and "hash mismatch", in the style the manifest watcher
+    already uses.
+  - *Storage:* bounded by eviction.
+  - *Auth:* the token is read from the environment file, never logged.
+
+## Status
+
+- [x] Chunk 01: Library and Programming packages, the `playable()` facade, and the import guard
+- [x] Chunk 02: Library events, and Programming's reconciliation at startup
+- [x] Chunk 03: Curatarr's HTTP surface — manifest, media by content hash, heartbeat, and wall tokens
+- [x] Chunk 04: Arrt's HTTP mode — pull into a cache, render only from it, and survive the server
+
+### Chunk 01: Library and Programming packages, the `playable()` facade, and the import guard
+
+- **Type:** code (a refactor: behaviour is preserved, so no existing test's
+  assertions change)
+- **Depends on:** `build-plan-wave-2a-rename.md` merged
+- **Description:** `curatarr.library` takes the catalogue, discovery,
+  acquisition, preparation, conversation, taste and spend services.
+  `curatarr.programming` takes themes, walls, hanging, directives and the
+  manifest builder. The MCP and HTTP bindings stay above both, the only code
+  that may call both. Programming reaches the Library only through
+  `curatarr.library.facade`, whose central call is
+  `playable(work_ids) -> {id: PlayableWork | Unplayable(reason)}`. It returns
+  plain frozen data, never a store record. The manifest's readiness rule
+  (`assess`, `entry_for`'s inputs) moves behind it. Persistence stays one
+  SQLite file in this wave. Programming gets its own store protocol over
+  Programming's tables, so wave 3's split changes an implementation and no
+  caller.
+- **Tests:** the existing suites, unchanged in their assertions. The facade gets
+  unit tests for every `Unplayable` reason, carried over from the readiness
+  tests. A static import guard (`tests/preferences/test_seam_imports.py`, in
+  the style of the plane-isolation test, following imports transitively) fails
+  if Programming imports any Library module other than the facade, or the
+  Library imports Programming. A mutation proves the guard: one deliberate
+  cross-seam import turns it red.
+- **Done when:** the suites and lint pass; the guard is green and proved; the
+  norm's row in `project-preferences.md` moves rule 1 from Critic to Test.
+- **How it is built (decided at the chunk's start, 2026-09-30):**
+  - **The full move, by the operator's choice** over a lighter "move Programming
+    only" shape the builder offered. `curatarr/src/curatarr/library/services/`
+    takes catalogue, discovery, runner, conversation, review, taste, survey,
+    thumbnails, previews, imaging, attribution, selection, sweep and
+    display_fit; `curatarr/src/curatarr/library/discovery/` and
+    `curatarr/src/curatarr/library/acquisition/` are the old packages whole;
+    `curatarr/src/curatarr/library/facade.py` and
+    `curatarr/src/curatarr/library/readiness.py` are new.
+    `curatarr/src/curatarr/programming/` takes `display.py` and `manifest/`
+    (builder, heartbeat), and gains
+    `curatarr/src/curatarr/programming/store.py`.
+  - **Shared kernel**, importable from either side (module names under
+    `curatarr.`): `services.errors`, `services.store`, `services.fields`,
+    `persistence`, `counting`, `observations`, `logs`, `art_root`.
+    **Composition**, which may import both and which neither side may import:
+    `services.container`, `services.health`, `config`, `app`, `__main__`,
+    `http`, `mcp`, `seed`.
+  - **Cracks found before the move, which the guard must show and the chunk
+    must close:** `library.discovery.artic` imports `config` for a preview byte
+    cap, and `config` imports the manifest; `survey` imports the display service;
+    the display service reads `CatalogueService` directly.
+  - **The facade answers every id it is asked about.** An id that does not
+    resolve is `Unplayable` with reason `not_in_catalogue`. It cannot happen
+    while the two foreign keys hold, and it has to exist before wave 3 drops them,
+    or the interface changes then. The existence checks in `add_to_theme` and
+    `show_work_now` go through it and keep today's "No artwork with id … is in
+    the catalogue." wording.
+  - **`theme_works` splits along the seam.** Programming returns the theme's
+    work ids in order, and each surface resolves them through the Library (rule
+    6). Tests that called it change their call, not what they assert.
+  - **Records stay in `curatarr.persistence.records` for now**, in the shared kernel,
+    and `CatalogueStore` keeps `list_directives`/`set_directive` until Chunk 02
+    moves the pin withdrawal out of `archive_artwork`. Programming's records
+    move with rule 3 in wave 3.
+
+### Chunk 02: Library events, and Programming's reconciliation at startup
+
+- **Depends on:** Chunk 01
+- **Description:** The Library announces `work.accepted`, `work.archived`,
+  `work.image_changed` and `work.mat_changed` through an in-process publisher
+  it owns. Programming subscribes. The pin withdrawal that
+  `archive_artwork` performs today by writing Programming's directives moves to
+  Programming's `work.archived` handler, so the Library stops writing a
+  Programming table. That behaviour is preserved and its tests move with it. Readiness-removing
+  events (`work.archived`, and `work.image_changed` when it leaves a render
+  stale) also republish every wall whose published manifest carries the work.
+  Events that add readiness do not, and wait for sync (the operator's ruling,
+  2026-09-30). At startup,
+  Programming reconciles each published manifest and each pin against
+  `playable()`, so an event lost to a crash delays a correction until the next
+  start and never leaves it undone.
+- **Tests:** each event reaches its handler. Archiving withdraws pins on every
+  wall, as today. Archiving a work republishes exactly the walls whose manifest
+  carries it, and no other wall's manifest changes. Accepting a work republishes
+  nothing. The Library no longer imports or writes any Programming
+  table (the import guard plus a store-level assertion). Reconciliation repairs
+  a manifest and a pin that a dropped event left stale: simulated by writing
+  the Library change with the publisher disconnected, then starting. A
+  multi-hop test covers two starts in a row: the second finds nothing to do and
+  says so.
+- **Related open item:** backlog #35. `activate_theme` commits before it
+  publishes, so a failed manifest write leaves the catalogue naming a theme the
+  wall is not showing. This chunk reworks that publish path, so fix #35 here or
+  say in the chunk's review why not.
+- **Done when:** the suites and lint pass; the norm's rule 4 is marked migrated
+  in `architecture.md`.
+- **How it is built (decided at the chunk's start, 2026-09-30):**
+  - **Events fire after the commit, never inside it.** The durable store gains
+    `after_commit(callback)`. It runs the callback once the outermost
+    transaction commits and drops it on rollback. Acceptance calls `add_artwork`
+    inside discovery's transaction, so an event published inside it would reach
+    Programming for a work that might never exist. A handler that raises is
+    logged at ERROR and does not fail the Library's operation, which has already
+    committed. Startup reconciliation repairs what the handler left undone.
+  - **Programming subscribes through the facade** (`LibraryFacade.subscribe`),
+    so it still imports only the facade. After a split the subscription is a
+    webhook registration.
+  - **One rule serves the handler and startup reconciliation.** Ask `playable()`
+    about the works in question. For each wall whose published manifest carries
+    a work the Library now refuses, rewrite that manifest with those entries
+    removed and nothing else changed. Withdraw any pin naming a refused work
+    without advancing the sequence. The published document is patched rather
+    than rebuilt from the theme, because a rebuild would also put works on the
+    wall that were added since the last sync, and additions wait for sync (the
+    operator's ruling). The handler asks about one work; startup asks about
+    every work any manifest or pin names.
+  - **Pins are withdrawn for any refused work, not only an archived one.** The
+    plan's reconciliation checks pins against `playable()`, so the running
+    server follows the same rule or a restart would disagree with it.
+    Archiving is the case today's tests pin; a stale render is the case this
+    adds.
+  - **Events emitted:** `work.accepted` by `add_artwork` and `restore_artwork`,
+    `work.archived` by `archive_artwork`, `work.image_changed` by
+    `record_original` and `record_rendition`, and `work.mat_changed` by
+    `record_mat_color`. Programming's rule reads readiness rather than the
+    event's kind, so the kinds matter for logs and for a future webhook
+    consumer, not for correctness.
+  - **A defect found while reading this path, fixed here:** `next` and
+    `show_now` advance the stored directive and never rewrite the manifest. The
+    Player reads its directive only from the manifest, so neither reaches the
+    wall until something syncs. That contradicts `api-contract.md` § How
+    `art_display` reaches the display plane. The fix patches the published
+    document's `directive` block the same way reconciliation patches its
+    entries. It is not a sync, so a step publishes no new works. A wall with no
+    published manifest carries the directive out with its first sync, as it
+    does today.
+  - **Backlog #35:** `activate_theme` records the hang and writes the manifest
+    inside one store transaction, so a failed write rolls the hang back.
+
+### Chunk 03: Curatarr's HTTP surface — manifest, media by content hash, heartbeat, and wall tokens
+
+- **Exposed API:** the Player surface, versioned and error-modelled by
+  `player-contract.md`
+- **Depends on:** Chunk 02
+- **Description:** Three routes, as `player-contract.md` § Transport states them:
+  - `GET /walls/{id}/manifest` serves the published manifest with an `ETag` and
+    `304`. It now carries minor 2's `media` per entry.
+  - `GET /media/sha256-{hex}` serves a render by content hash, immutable.
+  - `POST /walls/{id}/heartbeat` validates the document and writes it where the
+    file reader looks.
+
+  Every route requires the wall's bearer token: `401` without a valid one, `403`
+  for another wall's. Tokens are issued and rotated from the Walls screen (shown
+  once, with its issue date after) and by an `art_display` action for MCP
+  parity. The three route templates go into a new `contract/routes.json`, which
+  the server's route tests assert against here and the Player's client tests
+  assert against in Chunk 04. That is what keeps the route's spelling agreed
+  across the repo split, as the heartbeat filename is agreed today. Media `url` is
+  `format: uri-reference` in the schemas, which no installed validator checks, so
+  this chunk either adds a pattern beside the format or states the obligation in
+  prose, and adds a fixture with an absolute URL, when it first writes one. Renders gain `content_sha256` and `byte_size`, with the backfill the
+  assumption above describes. `SCHEMA_MINOR` becomes 2.
+- **Tests:** against a real booted server, as the suite's surface tests already
+  run:
+  - the contract's major 1 schema validates a served manifest;
+  - an unchanged manifest answers `304`;
+  - media bytes hash to their name;
+  - a POSTed heartbeat is read back by the existing health surface;
+  - each auth case (no token, wrong token, another wall's token, a rotated-out
+    token);
+  - a token is never logged: the test captures the journal while a request
+    fails.
+
+  The browser suite covers issuing and rotating a token. The curatarr contract
+  test also validates a builder-written manifest that carries `media`, **beside**
+  the contract's `minor-2-with-media` fixture, never in place of it. That fixture
+  is the only valid major 1 manifest carrying `media`, and the Player's suite,
+  Chunk 04's stub server and Arrt after the repo split all read it.
+- **Carried from wave 1's cumulative review** (`rev-20260930T151634Z-9a02d6ac`),
+  because this chunk already edits the contract's fixtures and its tests:
+  - R-2: an invalid major 2 fixture for each of the two unreached branches of
+    `semantic_errors` in `tests/preferences/test_player_contract.py`: a slot that
+    starts before the horizon, and a horizon of zero or negative length. Delete
+    each branch once and watch its fixture go red.
+  - R-5/R-9: one root assertion that each fixture's `valid/` or `invalid/`
+    directory agrees with its `valid` flag in `index.json`.
+  - R-6: drop `_errors`' unused `schema_name` parameter in curatarr's contract
+    test.
+  - R-10: correct the root test docstring that says a row missing
+    `player_must_refuse` is skipped by the display suite. It errors at
+    collection.
+- **Visual change:** yes. The token panel on the Walls screen goes on the
+  operator-verification queue.
+- **Done when:** the suites, the browser suite and lint pass; the `security-model.md`
+  inventory row exists; the queue entry exists.
+- **How it is built (decided at the chunk's start, 2026-09-30):**
+  - **The Library serves media and names its URL** (rule 4's second half). The
+    facade's `PlayableWork` gains `media`: sha256, byte count, content type and
+    `url`, where the URL template is the Library's. The builder copies it into
+    the entry. A render with no recorded hash is hashed from its file on first
+    need and recorded. A render whose file cannot be read gets no `media`: that
+    entry still works on the file channel and is logged, and whether a missing
+    file should make a work unplayable is left to wave 3, when the file channel
+    goes.
+  - **`GET /media/sha256-{hex}` hashes the bytes it is about to send** and
+    refuses (`404`) if they no longer match. A re-render overwrites a file at
+    the same path before its row is updated, and "a hash never serves
+    different bytes" has to hold through that window. A render is about 2.5 MB,
+    and Players fetch each one once.
+  - **The heartbeat POST accepts exactly what the health panel can read**, using
+    the same parse (a JSON object with a readable `reported_at`, and a `schema`
+    major of 1 when present). It answers `400` otherwise, in the error shape `/api`
+    already uses (a body that is not a JSON object is FastAPI's `422`, before the
+    token is checked), and writes atomically to the file the reader already reads. No runtime JSON Schema dependency is
+    added. The contract test checks the POST against the heartbeat fixtures.
+  - **Tokens:** `secrets.token_urlsafe(32)`, stored as its SHA-256 hex digest on
+    the wall, compared with `hmac.compare_digest`. A wall route checks the named
+    wall first, then all walls, to tell `403` (another wall's token) from `401`.
+    `/media` accepts any wall's token. Issuing a token replaces the old one, so
+    rotating is issuing again. Refusals are logged once per wall per
+    ten minutes, naming the wall and the status and never the token. They are
+    keyed by a wall this plane holds, never by the id in the URL, which is the
+    caller's choice: every unknown id shares one key and none reaches the journal.
+  - **A re-render follows into the published manifest** (the builder's call, prompted by the chunk review): the
+    Library announces `work.image_changed`, and reconciliation replaces a kept
+    entry's `media` when its hash no longer matches, changing nothing else, so a
+    Player on HTTP does not lose the work until the next sync. A render that
+    cannot be hashed is logged by the facade, naming the work.
+  - **The routes live in `curatarr/http/player.py`**, at the root beside `/api`,
+    not under it: they are the Player's surface, not the curator's. The client
+    already owns `/walls` exactly, and these are sub-paths, so nothing collides.
+    `contract/routes.json` holds the three templates, and a test asserts the
+    mounted routes against it.
+  - **The manifest route serves the published file's bytes**, with the ETag being
+    the SHA-256 of those bytes. A wall with nothing published answers `404`,
+    which the contract already classes as a configuration error.
+
+### Chunk 04: Arrt's HTTP mode — pull into a cache, render only from it, and survive the server
+
+- **Depends on:** Chunk 03 (built against the contract, not against Chunk 03's
+  code, so it could start once the contract fixtures exist)
+- **Description:**
+  - **The mode.** `MANIFEST_SOURCE=http` with `SERVER_URL`, `WALL_TOKEN` and
+    `CACHE_DIR` switches Arrt from reading the manifest file to pulling it.
+    The file mode stays the default.
+  - **The pull client.** One module polls `GET /walls/{id}/manifest` with
+    `If-None-Match` about once a second. On a new manifest it fetches each
+    entry's media it lacks and verifies the hash. Only once every entry is in
+    the cache does it write `manifest.json` into the cache atomically. The
+    existing watcher reads the cache file exactly as it reads the shared one
+    today, so rotation, directives and the label are untouched.
+  - **Rendering.** Render paths resolve to cached media.
+  - **The heartbeat** is POSTed as well as written.
+  - **The isolation test.** `test_plane_isolation.py`'s no-HTTP clause narrows to
+    that one module and those three endpoints, in this chunk and not before.
+- **Tests:** against a local stub server serving the contract's fixtures:
+  - a new manifest is adopted only after its media is cached and verified;
+  - a hash mismatch is discarded and reported once;
+  - `401` and `403` are reported once and the cache is kept;
+  - **the server is stopped while the wall runs, and rotation continues from
+    the cache;**
+  - a restarted Player with the server down starts from its cached manifest;
+  - eviction removes only unreferenced media;
+  - the token never reaches the journal.
+- **Carried from wave 1's cumulative review** (R-1): display's contract test
+  asserts the whole adopted manifest (pin, rotation, shuffle, theme,
+  `render_path`, label), not only work ids and directives, with fallback values
+  no fixture carries. This chunk already rewrites how that manifest is adopted.
+- **Visual change:** no. **Operator verification:** yes. Switch the Pi to HTTP
+  mode against the Pi's own Curatarr and let it soak before wave 3 retires the
+  file. The entry names what to watch in the journal and on the health panel.
+- **Done when:** all three suites and lint pass; the isolation test is narrowed
+  and still fails on a second HTTP client module (proved by mutation); the queue
+  entry exists.
+- **How it is built (decided at the chunk's start, 2026-09-30):**
+  - **All HTTP is in `arrt/src/arrt/pull.py`, including the heartbeat.** The daemon
+    goes on writing its heartbeat file, into `CACHE_DIR` in HTTP mode, and the
+    pull POSTs each new report. So the watcher, rotation, directives and the
+    label are untouched, the daemon changes only where it resolves renders and
+    writes its heartbeat (`render_root`, `heartbeat_root`), and the isolation
+    test's exemption is one file.
+  - **`aiohttp`, declared.** It is already in the lockfile at 3.14.3 through
+    `samsungtvws`, it is asyncio like the daemon, and its test server is the
+    stub. Declared rather than inherited, because an indirect copy disappears
+    when the package that brings it changes.
+  - **The cache holds only what the Player can render.** The pull rewrites each
+    cached entry's `render_path` to `media/sha256-<hex>`, relative to
+    `CACHE_DIR`, and the daemon resolves renders against `render_root`, which is
+    `CACHE_DIR` in HTTP mode and `ART_ROOT` otherwise. An entry with no `media`,
+    a media `404`, or bytes that do not match their hash is left out of the
+    cached manifest (the contract's "skip that work and keep rotating"). A
+    transport failure on media adopts nothing and tries again next poll.
+  - **The manifest is checked with Arrt's own parser before it is cached**, so a
+    refused major never becomes the "last good manifest" a restart would read.
+  - **The token goes only to the server's own origin.** A `media.url` on another
+    host is fetched without it.
+  - `ART_ROOT` keeps the Player's state file in HTTP mode. The heartbeat file
+    moves to `CACHE_DIR` (found at review): on a Pi running both planes the
+    server writes each POSTed heartbeat into `ART_ROOT`, and a Player watching
+    that same file posted every echo again. A Player without `ART_ROOT` at all is
+    wave 3.

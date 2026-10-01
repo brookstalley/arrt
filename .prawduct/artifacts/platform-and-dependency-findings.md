@@ -5,6 +5,20 @@ card. The project had been cold since 2024-08-19 (last boot) and its last commit
 was 2024-08-02. Everything below was verified against the card or against
 upstream repositories on 2026-07-19 — it is not recalled from the original work.
 
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** The product splits
+> into a **server** (today's curation plane, plus programming) and a **player**
+> (today's display plane). The server leaves the Pi for a container on the
+> household NAS (TrueNAS SCALE, **x86_64**) in wave 3. How to read this file
+> from now on:
+> - **Everything about the Pi, the e-paper stack, Python 3.13, PyGObject/pycairo
+>   and the Samsung set** stays the authority for the **player**, and moves
+>   with it at the repo split (wave 5).
+> - **The curation-plane platform claims that were aarch64-specific** stop being
+>   load-bearing for the server: the 3.14 aarch64 wheel check, SD-card storage,
+>   and the RAM ceiling of a Pi 4. The server's platform needs its own findings
+>   when it is containerized. That section does not exist yet, and nothing here
+>   should be cited as verifying the NAS.
+
 ## Target hardware
 
 - **Raspberry Pi 4 Model B.** Confirmed by the user.
@@ -12,6 +26,11 @@ upstream repositories on 2026-07-19 — it is not recalled from the original wor
   greyscale. Note this is *not* the display the existing index was rendered for:
   `label_file` entries in `all.json` carry `_w648_h480`, a smaller panel.
 - Samsung Frame TV, reached over the LAN.
+
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** This list is now
+> the **player's** reference hardware, and one of several. A player may also
+> drive a plain HDMI LCD from a Pi, or a monitor on a Mac, with the e-ink panel
+> optional. The server's hardware is the NAS, which is not recorded here.
 
 ## Python target: 3.13 — superseded as a product-wide decision
 
@@ -229,7 +248,7 @@ path.
 **Corrected 2026-08-10 — this section was titled "needs no distro packages" and
 that is not what was measured.** What the Pi run shows is that no distro *Python*
 package is needed; it says nothing about C headers, and the difference cost a red
-CI job the first time the typesetting leg ever executed. `display/uv.lock` is the
+CI job the first time the typesetting leg ever executed. `postarr/uv.lock` is the
 authority and it is unambiguous: **pycairo 1.29.1 publishes Windows wheels only
 (`win32`, `win_amd64` and `win_arm64`, across cp312–cp315), and PyGObject 3.56.3
 publishes no wheel at all** — sdist only. The load-bearing half is that **no Linux
@@ -237,6 +256,14 @@ wheel exists for either**, on any architecture.
 Every Linux install therefore compiles both from source and needs cairo's and
 girepository's development headers present. The GitHub runner had neither and
 failed at `Run-time dependency cairo found: NO (tried pkg-config and cmake)`.
+
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** The text stack
+> becomes more central to the player, not less. A **caption set in the mat** on a
+> framebuffer screen is typeset by the same Pango path as the panel label. So a
+> player on any new host (a Pi driving an LCD, or a Mac) needs this build story
+> re-verified there. The Mac half was reported working on 2026-08-13 in
+> `CLAUDE.md`, but has no measured entry here. The server never needs this
+> stack, which the 2026-07-20 label-rendering decision already arranged.
 
 Why the Pi got PyGObject prebuilt when PyPI carries no such wheel is **not settled
 here** — a Pi-local wheel index is the obvious candidate and was not checked. What
@@ -255,7 +282,7 @@ tested by CI rather than only by whoever last had a Pi in front of them.**
 
 **PyGObject DOES work on this project's development Mac — corrected 2026-08-13.**
 It resolves as a uv wheel (PyGObject 3.56.3 against Pango 1.57.1) and imports,
-renders through PangoCairo and passes `display/tests/raster` there. What this
+renders through PangoCairo and passes `postarr/tests/raster` there. What this
 paragraph said before, and said for months, was that it "does not work at all"
 and that no time should be spent on it: it built under Homebrew and then failed
 at import inside `gi/overrides/__init__.py`, and reinstalling
@@ -294,7 +321,7 @@ at all. The low end of the live range was half the resolvable size, and the high
 end barely reached it.
 
 The numbers are no longer judged. They derive from the two physical facts above
-against a calibrated cap height — `display/src/display/panel/legibility.py`, with
+against a calibrated cap height — `postarr/src/postarr/panel/legibility.py`, with
 the reasoning in `accessibility-spec.md` § The type floor is derived from viewing
 distance. On this panel that is a 130 px primary tier over a 92 px floor.
 
@@ -624,7 +651,15 @@ lost as files. The television still holds its uploaded copies, which is what the
 adoption path in the build plan's Chunk 12 is for; everything else re-renders
 from the masters.
 
-**The lesson generalises past this card and is in `learnings.md`:** a claim about
+**The lesson generalises past this card and is in `.claude/rules/learnings/core.md`:** a claim about
 a live machine's current state decays silently. `deploy/README.md`, the unit file
 and the recovery findings above all still *read* correctly — the machine moved
 out from under them without touching a line of the text that describes it.
+
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** The paths above
+> describe the co-located deployment as it stands. In wave 3 the catalogue and
+> the art tree move to NAS storage with the server, and the Pi keeps the player
+> plus a **local media cache** it fills over HTTP. The masters' off-Pi copy
+> described above stops being the only one. The lesson this paragraph draws
+> applies at that move: re-measure the Pi's paths after it rather than trusting
+> this section.

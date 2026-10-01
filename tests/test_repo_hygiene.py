@@ -2,7 +2,7 @@
 
 This exists because of a real near-miss: the stock Python `.gitignore` carries an
 unanchored `MANIFEST` rule for the setuptools artifact, and on a case-insensitive
-filesystem (macOS) that also matched `curation/src/curation/manifest/` — the
+filesystem (macOS) that also matched `arrt/src/arrt/programming/manifest/` — the
 theme-manifest builder, which is the only channel between the two planes. The
 package existed on disk, imports succeeded, and tests passed; it was simply never
 committed. A fresh clone, or the Pi, would have had a missing module.
@@ -16,11 +16,13 @@ import subprocess
 
 import pytest
 
-#: Every tree whose absence from a fresh clone would matter. `curation/tests`
+#: Every tree whose absence from a fresh clone would matter. `arrt/tests`
 #: carries almost all of the curation plane's coverage, and a tree the guard does
 #: not walk is exactly the tree this guard was built for: the suite stays green
-#: locally while the clone and the Pi quietly lose it.
-SOURCE_TREES = ("curation/src", "curation/tests", "display/src", "tests")
+#: locally while the clone and the Pi quietly lose it. The `tools/` trees are
+#: here because the operator runs them by hand on the Pi — `postarr/tools` holds the
+#: only code that presses power on the television.
+SOURCE_TREES = ("arrt/src", "arrt/tests", "arrt/tools", "postarr/src", "postarr/tests", "postarr/tools", "tests")
 
 
 def _ignored(paths: list[pathlib.Path]) -> list[str]:
@@ -42,6 +44,16 @@ def _ignored(paths: list[pathlib.Path]) -> list[str]:
     # Exit 0 = some paths ignored, 1 = none ignored. Anything else is a real error.
     assert result.returncode in (0, 1), f"git check-ignore failed: {result.stderr}"
     return [line for line in result.stdout.splitlines() if line]
+
+
+@pytest.mark.parametrize("tree", SOURCE_TREES)
+def test_every_tree_the_scan_names_exists(tree):
+    """Each tree on its own, because the scans below skip a missing one.
+
+    Their own check is that *something* was found, which a single misspelled or
+    moved tree cannot fail while the others still hold files.
+    """
+    assert pathlib.Path(tree).is_dir(), f"{tree} is not a directory, so the scans below pass over nothing there"
 
 
 def test_no_python_source_is_gitignored():

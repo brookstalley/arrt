@@ -62,7 +62,7 @@ jobs:
         if: always()
         run: python3 .github/scripts/assert_tests_ran.py results.xml
 
-  curation:
+  arrt:
     name: "The curation plane"
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -72,7 +72,7 @@ jobs:
         with:
           enable-cache: true
       - name: Run the curation suite
-        working-directory: curation
+        working-directory: arrt
         # THE TWO `--ignore`s ARE LOAD-BEARING, and they are what a plain
         # `uv run pytest` cannot do here. The default `addopts` *deselects* the
         # opt-in markers, but deselection happens after collection, and the
@@ -93,9 +93,9 @@ jobs:
         run: uv run pytest tests --ignore=tests/browser --ignore=tests/eval -v --junitxml=results.xml
       - name: Fail if nothing actually ran
         if: always()
-        run: python3 .github/scripts/assert_tests_ran.py curation/results.xml
+        run: python3 .github/scripts/assert_tests_ran.py arrt/results.xml
 
-  display:
+  postarr:
     name: "The display plane"
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -105,7 +105,7 @@ jobs:
         with:
           enable-cache: true
       - name: Run the display suite
-        working-directory: display
+        working-directory: postarr
         # `--ignore=tests/raster` for the same reason the curation leg carries
         # two: that directory `importorskip`s the `raster` group, a default
         # `uv sync` does not install it, and the resulting collection skip is
@@ -121,7 +121,7 @@ jobs:
         run: uv run pytest tests --ignore=tests/raster -v --junitxml=results.xml
       - name: Fail if nothing actually ran
         if: always()
-        run: python3 .github/scripts/assert_tests_ran.py display/results.xml
+        run: python3 .github/scripts/assert_tests_ran.py postarr/results.xml
 
   typesetting:
     name: "The display plane's typesetting"
@@ -148,7 +148,7 @@ jobs:
         # this code for the machine it ran on.
         #
         # **The build half.** PyPI carries no PyGObject wheel at all, and only
-        # Windows wheels for pycairo — `display/uv.lock` is the record — so on
+        # Windows wheels for pycairo — `postarr/uv.lock` is the record — so on
         # this runner both compile from source and want cairo's and
         # girepository's headers. The Pi measurement recorded in
         # `platform-and-dependency-findings.md` saw PyGObject arrive prebuilt and
@@ -177,14 +177,14 @@ jobs:
             pkg-config \
             fonts-dejavu-core
       - name: Run the typesetting tests
-        working-directory: display
+        working-directory: postarr
         run: uv run --group raster pytest tests/raster -v --junitxml=results.xml
       - name: Fail if nothing actually ran
         # The guard matters more here than on any other leg. These tests skip
         # themselves when the group is absent, so a mis-provisioned job reports a
         # green run that executed no line of the typesetter.
         if: always()
-        run: python3 .github/scripts/assert_tests_ran.py display/results.xml
+        run: python3 .github/scripts/assert_tests_ran.py postarr/results.xml
 
   lint:
     name: "Lint and format, all three planes"
@@ -200,12 +200,12 @@ jobs:
           uv run ruff check .
           uv run black --check .
       - name: The curation plane
-        working-directory: curation
+        working-directory: arrt
         run: |
           uv run ruff check .
           uv run black --check .
       - name: The display plane
-        working-directory: display
+        working-directory: postarr
         run: |
           uv run ruff check .
           uv run black --check .

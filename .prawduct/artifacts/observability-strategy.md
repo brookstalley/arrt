@@ -21,6 +21,21 @@ surface, and no backends.** No metrics store, no tracing collector, no dashboard
 Naming what is deliberately absent matters as much as what is present — a future
 reader should not conclude these were forgotten.
 
+> **Direction changed 2026-09-30. See `re-architecture.md`.** The defining
+> constraint is unchanged, and so is the single panel in the curation UI. What
+> moves:
+> - **The heartbeat becomes an HTTP POST** from each Player to the server (waves
+>   2–3). It stops being a file in a shared directory.
+> - **Logs live on two machines.** The server's are in the NAS container's log,
+>   and each Player's are in its Pi's journal.
+> - **The server gains scheduled work** (Watches and upgrade re-searches, wave
+>   6). Its failures happen with no curator in the session, which fires the
+>   push-notification revisit trigger recorded under § Accepted detection
+>   latency.
+>
+> The dated notes below mark each place. As-built content is unchanged, because
+> it describes the running Pi.
+
 ## Signals
 
 | Signal | Present? | Where |
@@ -29,7 +44,7 @@ reader should not conclude these were forgotten.
 | Health/heartbeat state | **Yes** | Display writes it; the curation UI reads and displays it |
 | Spend | **Per run, yes; as a live balance, never** | Recorded spend is on the run and reported by the discovery surface. **`limit_remaining` is not surfaced, and the operator settled that it will not be** — see the note below the table |
 | Metrics (time series) | No | No store, no query surface, nobody to read them. Revisit only if a real question needs a trend |
-| Distributed tracing | No | Two processes with no request/response between them. There is no distributed call to trace |
+| Distributed tracing | No | Two processes with no request/response between them. There is no distributed call to trace. *(2026-09-30: after wave 2 there is one: the Player's manifest poll and media pull, and its heartbeat POST. Each is a single hop with no fan-out, so `work_id` and the wall id remain enough correlation, and this row still holds. See `re-architecture.md`.)* |
 | Uptime monitoring (external) | No | Follows from the operator's alerting decision below |
 
 > **On `limit_remaining`, and why this row shrank (2026-08-02).** The Spend row
@@ -68,7 +83,7 @@ reader should not conclude these were forgotten.
 > available on the curation plane and carries structured logging plus
 > OpenTelemetry at no infrastructure cost — take the structured logging". The
 > 2026-07-27 technology amendment withdrew every 3tears dependency, and nothing
-> replaced this claim: `curation/pyproject.toml` does not declare the package, its
+> replaced this claim: `arrt/pyproject.toml` does not declare the package, its
 > explicit "deliberately not pinned yet" list does not mention it, and the plane
 > ships stdlib logging. So the artifact naming structured logs as the primary
 > signal rested on a package no manifest carries. The withdrawal was swept through
@@ -76,7 +91,7 @@ reader should not conclude these were forgotten.
 > obligation — retiring a claim is a repo-wide grep, not a local edit.
 
 **Curation's shape is one JSON object per line, and the run id is bound rather
-than passed** (built 2026-08-02, `curation/src/curation/logs.py`). This discharges
+than passed** (built 2026-08-02, `arrt/src/arrt/logs.py`). This discharges
 the debt this section recorded: the plane previously emitted
 `"%(asctime)s %(levelname)s %(name)s %(message)s"`, which was enough for startup,
 refusals and reconciliation and not enough for the per-run correlation below.
@@ -286,6 +301,33 @@ there is no budget signal to log and none is invented.
 
 ## The Health Surface
 
+> **Direction changed 2026-09-30. See `re-architecture.md` § Seam 2.** The
+> heartbeat's *transport* changes and its *contract* does not. In wave 2 each
+> Player sends the same document as `POST /walls/{wall_id}/heartbeat`, and the
+> file channel retires in wave 3. The one named key, `reported_at`, stays the
+> contract for the same reason it is one today. The wall id moves from the
+> filename into the path. Both copies of the name are still checked against each
+> other, because the Player and server must agree on the route exactly as they
+> agree on the filename today. Wave 1's contract pins the key: both planes are
+> tested against `contract/schemas/heartbeat.v1.schema.json`. The route's
+> spelling is pinned when wave 2 builds it, by a `contract/routes.json` that the
+> server's route tests and the Player's client tests both assert against. After
+> the repo split, `contract/` is the only thing both repos share.
+>
+> What changes with the transport:
+> - **The 60-second interval stops being a wear budget.** It remains bounded by
+>   the rotation interval, and it no longer writes the card.
+> - **A POST can fail in a way a file write cannot.** The server may be
+>   unreachable while the wall is fine, because the Player renders from its
+>   cache. A Player that cannot deliver its heartbeat must not stop, retry
+>   unboundedly or treat it as a wall failure. It logs, and the panel shows the
+>   last heartbeat's age, as today.
+> - **The Player may add its screen geometry** as an observation, so the panel
+>   can say a work is below the floor *on that wall*. The Library never reads it.
+> - **The Player's cache state becomes worth reporting**: how many of the
+>   playlist's media it holds, and whether any are missing. That is the new way
+>   "down looks like up": a newly hung playlist whose media never arrived.
+
 **Display writes a heartbeat; curation reads and displays it.**
 
 The display plane writes a small status document to the shared directory on a
@@ -295,7 +337,7 @@ loaded, the work currently displayed, TV connectivity state, e-paper state, and
 the last error if any.
 
 **Two names in it are a contract, not a suggestion, because the reader is already
-built** (`curation/src/curation/manifest/heartbeat.py`): the file is named by the
+built** (`arrt/src/arrt/programming/manifest/heartbeat.py`): the file is named by the
 template **`display-heartbeat-{wall_id}.json`** under `ART_ROOT`, and the timestamp
 key is **`reported_at`**, an ISO-8601 instant.
 The reader treats any other spelling as an unreadable heartbeat and says so — so a
@@ -450,6 +492,21 @@ trigger: if undetected staleness turns out to be annoying in practice, or if
 unattended/scheduled discovery is ever added — the latter removes the curator from
 the session, which is what makes self-announcing failures self-announcing.
 
+> **2026-09-30: the second revisit trigger is scheduled to fire.**
+> `re-architecture.md` § Procurement adds **Watches**, standing searches that
+> re-run on a schedule and may auto-accept, plus scheduled upgrade re-searches
+> (wave 6). That is exactly "unattended/scheduled discovery", so the
+> panel-only decision must be revisited in the wave-6 plan, before Watches ship.
+> Three conditions no longer announce themselves at the next session:
+> - a Watch whose job silently stopped firing. This has the preview sweep's
+>   shape, so it needs a positive signal on every run, including empty ones.
+> - a Watch that hit its per-period spending cap;
+> - a Watch that auto-accepted something.
+>
+> Revisiting is not deciding to add push notifications. The operator has
+> declined notifications for now. The decision is the operator's, made with this
+> trigger in view.
+
 ### The one surface the panel does not cover: CI
 
 **Scope correction, 2026-08-06.** The decision above says "the curation UI health
@@ -536,8 +593,18 @@ rather than retry.
 
 **No secret may ever reach a log line.** This has unusual force here because the
 repository is **public** and log excerpts are exactly what gets pasted into a
-GitHub issue. Concretely: no OpenRouter API key, no TV pairing token, no full
-`Authorization` header, no `.env` dump on startup.
+GitHub issue. Concretely: no OpenRouter API key, no TV pairing token, no wall
+Player token, no full `Authorization` header, no `.env` dump on startup. A refused
+Player request is logged by wall and by status (`Refused a Player request for …`),
+once per wall per ten minutes, and never with the token it presented;
+`arrt/tests/contract/test_player_surface.py` holds that.
+
+**Programming's reconciliation says what it changed** (from 2026-09-30): `Wall
+…: took works the Library no longer offers off the published manifest (…)` and
+`withdrew the standing pin` at INFO, naming only the works that wall lost, and at
+startup, when there is nothing to do, `Reconciled N walls against the Library at
+startup: nothing to change`. A start that cannot rewrite a manifest logs the
+failure at ERROR and serves anyway.
 
 Beyond credentials there is very little to filter — no accounts and no user
 records. Prompts and model responses may be logged freely; they contain artwork
@@ -585,7 +652,9 @@ signal exists:
 | Backup silently stopped succeeding | **`backup-status.json` stops advancing; the panel shows its age.** The receipt is written only on success, so a failing job goes stale rather than reporting fresh. Nothing has ever written one is itself an observation the panel states plainly |
 | Manifest references a missing file | WARNING per work, and the work is skipped — the run continues |
 | **The TV takes selections and displays none of them** | `rotation.wall_unchanged` at WARNING **once**, carrying the id that was accepted and the set's own `art_mode` — then `rotation.wall_recovered` at INFO when the wall starts changing again. **The pairing is the design**, because the condition lasts as long as somebody leaves the panel off: a line per rotation would be a hundred a night saying the one thing that has not changed, and journald rate-limits by dropping the ERRORs this plane's only failure channel carries. The art-mode flag is read on this path for the operator's sake — it is the answer to *why is the wall not changing*, and it costs one call on a rotation that has already failed. It is read **separately, before every selection**, for a different purpose: the plane may not touch a television somebody is watching, and that gate asks whether it may act at all rather than why it did not. **The absence of `rotation.selected` is not itself the signal**: nothing distinguishes a wall that stopped changing from a daemon that stopped running, which is what this line exists to say |
-| Manifest major version unrecognised | ERROR, previous manifest retained |
+| Manifest major version unrecognised | ERROR, previous manifest retained. *(2026-09-30: the same over HTTP, from wave 2. Wave 4's major-2 bump, when compositing moves to the Player, is the planned occasion for it, so the ERROR is how an un-upgraded Player announces itself. See `re-architecture.md`.)* |
+| *Planned, 2026-09-30:* the server is unreachable from a Player | The Player keeps rendering from its cache (`nonfunctional-requirements.md` § Direction, amended). It logs the failed poll once per episode rather than per poll, the same pairing `rotation.wall_unchanged` uses. The panel shows the heartbeat's age, which grows only if the POST also fails. It becomes a real fault when the manifest names media the cache does not hold, and the heartbeat's cache report exists to say that. Built in wave 2 |
+| *Planned, 2026-09-30:* a scheduled Library job (Watch, upgrade re-search) stopped running | A positive line on every pass, including empty ones, as with the preview sweep. Absence over an interval is the fault. Whether it also reaches a push channel is the revisit above. Built with Watches in wave 6 |
 | Budget exhausted | `halted_by_budget` outcome on the run, and the refusal text names the cause. *(Corrected 2026-08-02: this also promised "`limit_remaining` at zero in the UI" — a figure no surface exposes, and one that lags badly enough to read non-zero while calls are already being refused. See the note under the signals table.)* |
 | Preview sweep stopped running | **The only signal is a positive one, which is why it logs on empty passes**: `preview.swept` at INFO every interval, so what says the job died is its *absence* over one. A pass that hangs rather than stops reads differently — `preview.sweep_started` with no `preview.swept`, then `preview.sweep_wedged` at shutdown — and matters more, because that pass holds the store lock |
 | Disk nearly full | Guarded *before* acquisition starts, not discovered as an exception during it |

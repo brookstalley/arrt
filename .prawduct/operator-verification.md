@@ -10,6 +10,144 @@ each entry, which is the durable form.
 
 ## Pending
 
+### The *arr sidebar, at desktop width and on a phone — added 2026-09-30
+
+**`build-plan-arr-navigation.md` Chunk 02.** The three tabs are now a Sonarr-style
+sidebar: Artworks (home, with Add New and Themes beneath it), Walls, Settings ›
+Taste, and System › Status with a problem-count badge. The top bar keeps the
+search and the status indicator. Run it (`cd arrt && uv run python -m
+arrt`) and open it in a browser.
+
+1. **Does it feel like Sonarr?** The question the owner's ruling asks: would a
+   Sonarr user find each page where they expect it? Click through every section.
+2. **Does the sidebar crowd the Walls page?** It takes 14rem on every page,
+   including the one whose content is the artwork.
+3. **Stop a wall's heartbeat or remove the backup receipt:** the System link
+   should show a count, and the top-bar indicator should name the problem.
+4. **Narrow the window below 40rem** (or open it on a phone): the sidebar
+   should be gone behind a Menu button, which opens it as a drawer. Escape, or
+   a tap beside it, closes it.
+5. **Activity › Queue and History** (Chunk 03): start a search in Add New. It
+   should appear in Queue while it works and while it waits at the approval
+   gate, then move to History when it ends. Is a finished search with works to
+   review easy enough to find in History, or does it need to stay in Queue
+   (the recorded gap)?
+6. **Search in two scopes** (Chunk 04): type an artist in the top bar. The
+   dropdown should list your matches, then *Search museums for "…"*, which
+   opens Add New with the words filled in and nothing started. Enter with
+   nothing highlighted opens Artworks filtered.
+7. **The toolbar** (Chunk 05): on Artworks, try View › Table, Sort › Artist,
+   and Filter to put the rails away. Does the Table earn its place, and does
+   hiding the rails give the grid enough back to be worth a button?
+
+### Switch the Pi to HTTP mode, and let it soak — added 2026-09-30
+
+**Wave 2b Chunk 04.** Postarr can now pull its wall from Arrt instead of
+reading the shared file. The file channel stays the default, and wave 3 retires
+it only after this has run on the real wall. After wave 2b reaches the Pi:
+
+1. On the Walls screen, issue a Player token for the wall (Player token panel).
+2. In the display plane's `.env`, set `MANIFEST_SOURCE=http`,
+   `SERVER_URL=http://127.0.0.1:<CURATION_PORT>`, `WALL_TOKEN=<the token>` and
+   `CACHE_DIR=` to a local directory the service account can write. Then
+   `sudo systemctl restart display.service`.
+3. **Watch the journal** (`journalctl -u display.service -f`): `pull.started`,
+   then `pull.adopted` with every entry cached. Press Next on the Walls screen:
+   the set should step within a couple of seconds.
+4. **Stop the server** (`sudo systemctl stop curation.service`): expect one
+   `pull.unreachable` line and nothing more, and the wall keeps rotating. Restart
+   `display.service` while the server is still down: the wall comes back from
+   the cache. Start `curation.service` again: expect one `pull.reachable`.
+5. **Rotate the token** on the Walls screen without updating `.env`: expect one
+   `pull.refused` line naming WALL_TOKEN, and one `pull.heartbeat_refused`, and
+   the wall keeps rotating. Put the new token in `.env` and restart.
+6. **The health panel** should keep showing the wall's heartbeat throughout. In
+   HTTP mode the Player writes its heartbeat into `CACHE_DIR`, and only the
+   server writes the one in `ART_ROOT` that the panel reads, so a panel showing a
+   fresh heartbeat is proof the POST works. During step 5 it should go stale.
+7. Let it run for a few days, then record here what the journal showed. To go
+   back, set `MANIFEST_SOURCE=file` and restart.
+
+### The Player token panel on the Walls screen — added 2026-09-30
+
+**Wave 2b Chunk 03.** Each wall's section on the Walls screen ends with a
+**Player token** panel. Run `cd arrt && uv run python -m arrt` and open
+the Walls.
+
+1. **A wall with no token** says so and offers "Issue a Player token for …".
+2. **Issuing** shows the token once, in a read-only field with focus on it, and
+   says it is the only time. Reload the page: the token is gone, and the panel
+   says when one was issued. Is "shown once, in place" clear enough that nobody
+   reloads before copying it?
+3. **Rotating** asks first, naming the wall and the consequence (the current
+   Player stops until it has the new token). Cancel keeps the old token working.
+4. The panel sits below the manifest's three panels on every wall. Does a token
+   belong on the home screen at all, or on a wall's own settings once one
+   exists? It's here because the Walls screen is where walls are managed today.
+
+### Next and show_now move the wall without a sync — added 2026-09-30
+
+**Wave 2b Chunk 02.** Until now, pressing **Next** on the Walls screen, or asking
+for `art_display(action='next')` or `show_now`, advanced the directive in the
+catalogue and never wrote it into the wall's manifest. The Player reads its
+directive only from the manifest, so the wall did not move until something else
+synced. After this reaches the Pi:
+
+1. Hang a theme on the wall, wait for it to settle, then press **Next** once.
+   The set should step to another work within about a second of the Player's
+   next poll, with no sync in between.
+2. Archive a work that is currently in the wall's rotation. It should come out
+   of the rotation without a sync. The journal says `took works the Library no
+   longer offers off the published manifest`.
+3. Restart `curation.service`. The journal should say `Reconciled … against the
+   Library at startup: nothing to change`.
+
+### The Pi's units after the renames to arrt/ and postarr/ — added 2026-09-30, rewritten 2026-10-01
+
+**Wave 2a and the rename of 2026-10-01, in one step.** The projects moved from
+`curation/` and `display/` to `curatarr/` and `arrt/` (wave 2a), and then to
+`arrt/` (the server) and `postarr/` (the player). The modules moved the same way.
+The installed units still name the old directories and modules, so after pulling
+this they fail to start until they are replaced. The unit *files* keep their
+names until wave 3, so this replaces them rather than adding new ones.
+
+**`arrt/` changed meaning.** In a checkout that took wave 2a, `arrt/` is the
+player and holds its untracked `.venv`. After the pull the server's files land in
+the same directory, beside a virtualenv built for the player. So every project's
+`.venv` is removed before the pull, whichever names this checkout has.
+
+    sudo systemctl stop display.service curation.service
+    cd /opt/samsung-frame-art-loader
+    sudo -u tvpi git rev-parse HEAD    # write this down: "To go back" returns to it
+    sudo rm -rf curation/.venv display/.venv curatarr/.venv arrt/.venv
+    sudo -u tvpi git pull
+    # git moves the tracked files; the old directories keep only what was untracked.
+    # Expect nothing but caches in whichever of these exist before removing them:
+    ls -A curation display curatarr 2>/dev/null
+    sudo rm -rf curation display curatarr
+    cd /opt/samsung-frame-art-loader/postarr && sudo -u tvpi /usr/local/bin/uv sync --group raster --group epaper
+    cd /opt/samsung-frame-art-loader/arrt && sudo -u tvpi /usr/local/bin/uv sync
+    cd /opt/samsung-frame-art-loader
+    sudo cp deploy/display.service deploy/curation.service /etc/systemd/system/
+    sudo systemctl daemon-reload
+    sudo systemctl start curation.service display.service
+
+Then run the four checks in `deploy/README.md` § How to tell your own install
+worked: both units active and enabled, the installed copies matching the
+checkout, the account reaching what it needs, and a fresh heartbeat. Logger
+names now start `arrt.` (the server) and `postarr.` (the player), so a saved
+journal filter on `curation.` or `display.` stops matching, and one on `arrt.`
+from wave 2a now matches the server rather than the player. The wall is dark
+between the stop and the start, so do it when nobody is looking at it.
+
+**To go back**, check out the commit `git rev-parse HEAD` printed before the
+pull, not "the commit before this merge": the step covers two merges, and the
+one before the last has the server in `curatarr/` and the player in `arrt/`.
+Then run the same steps with the names swapped: stop both units, remove every
+project's `.venv`, check out, remove `arrt/` and `postarr/` if the old commit
+has no such directory (only caches remain), `uv sync` in each project directory
+the old commit has, copy its units in, reload and start.
+
 ### ✅ The rebuilt identification block, at the panel — added 2026-08-13, VERIFIED 2026-08-14
 
 **Verified at the panel on 2026-08-14**, together with the entry below it — one
@@ -83,7 +221,7 @@ Russia)` → `Russian`).
 
 ```sh
 sudo systemctl stop display.service
-cd /opt/samsung-frame-art-loader/display
+cd /opt/samsung-frame-art-loader/postarr
 draw() { sudo -u tvpi env HOME=/var/lib/tvpi /usr/local/bin/uv run \
     --group raster --group epaper python tools/label_preview.py --panel --record "$1"; }
 draw hokusai; draw okeeffe; draw wright; draw kandinsky; draw moche; draw nationality-only
@@ -134,8 +272,8 @@ stopped unit — the invocation with this deployment's paths is in
 `deploy/README.md` § The cutover.
 
 ```sh
-cd display && uv run --group raster python tools/label_preview.py /tmp/label.png
-cd display && uv run --group raster python tools/label_preview.py /tmp/short.png --record okeeffe
+cd postarr && uv run --group raster python tools/label_preview.py /tmp/label.png
+cd postarr && uv run --group raster python tools/label_preview.py /tmp/short.png --record okeeffe
 ```
 
 The report names the record first, then prints the type sizes in arcminutes,
@@ -193,7 +331,7 @@ point of the model.
    the backlog.
 
 **What it would take to change any of these:** the first two are single constants
-in `display/src/display/panel/layout.py`, not a redesign. Say what you see and the
+in `postarr/src/postarr/panel/layout.py`, not a redesign. Say what you see and the
 tuning is cheap. **The third is struck and its replacement finding is not cheap** —
 styling a culture like a maker needs the catalogue to record that it is one.
 
@@ -242,7 +380,7 @@ comma-separated parts. That was the whole argument for collapsing the tombstone
 onto one line, and it has never been looked at.
 
 ```sh
-cd display && uv run --group raster python tools/label_preview.py /tmp/label.png
+cd postarr && uv run --group raster python tools/label_preview.py /tmp/label.png
 ```
 
 The report now prints each line as the panel sets it and names the styled runs
@@ -281,7 +419,7 @@ is on a different line from the name.
 
 ### The Theme screen, and the reorder that had never worked — added 2026-08-12
 
-**Chunk 09.** Run `cd curation && uv run python -m curation` and open Themes.
+**Chunk 09.** Run `cd arrt && uv run python -m arrt` and open Themes.
 
 1. **The ↓ button now does something, and until this chunk it never had.** The
    service wrote the requested number into the position column and stopped;
@@ -316,7 +454,7 @@ is on a different line from the name.
 
 ### Taste, and the delete that detaches instead of cascading — added 2026-08-12
 
-**Chunk 11.** Run `cd curation && uv run python -m curation` and open Taste.
+**Chunk 11.** Run `cd arrt && uv run python -m arrt` and open Taste.
 
 1. **Reactions on a conversation sample are keyed on the artist, not the
    picture.** The three controls sit under each sample, but an affinity is one row
@@ -341,7 +479,7 @@ is on a different line from the name.
 ### The Walls screen, and the Work screen's archive — added 2026-08-12
 
 **Two screens rebuilt, and the first confirmation dialog the product has ever
-had.** Run `cd curation && uv run python -m curation` and open The Walls.
+had.** Run `cd arrt && uv run python -m arrt` and open The Walls.
 
 **Specific things worth an opinion, each a judgement call made while building:**
 
@@ -400,7 +538,7 @@ carrier. **What it cannot hold is whether the reshape reads as one product**, an
 that is the question.
 
 ```sh
-cd curation && uv run python -m curation
+cd arrt && uv run python -m arrt
 ```
 
 **Four things worth an opinion, each a judgement call the plan did not settle:**
@@ -449,7 +587,7 @@ Nothing was adjusted on the way in: every value is the prototype's.
 Look at both, since the browser's own setting picks and there is no in-app toggle:
 
 ```sh
-cd curation && uv run python -m curation
+cd arrt && uv run python -m arrt
 ```
 
 Open the prototype beside it — it is the reference for what this was supposed to
@@ -517,7 +655,7 @@ The seven, with what the derivation used to answer and what a human chose in 202
 Reproduce the measurement, which is free and touches nothing:
 
 ```sh
-cd curation && uv run python tools/mat_masters.py ../all.json
+cd arrt && uv run python tools/mat_masters.py ../all.json
 ```
 
 **The specific question, and it is a real one.** The clamp puts a breaching work
@@ -592,7 +730,7 @@ that 20/20 vision needs to resolve a letter at all — so the label was not mere
 small, it was below the threshold of legibility, and had passed a hardware probe,
 a review and a cutover in that state. Nothing could have caught it, because
 nothing anywhere converted a pixel into the angle a person sees. That conversion
-now exists, and `display/tests/test_type_floor.py` asserts in arcminutes.
+now exists, and `postarr/tests/test_type_floor.py` asserts in arcminutes.
 
 **What is still worth a look at the panel, and it is smaller than this entry
 was.** Whether 12.4′ is right in *bold* — the ladder was read in regular weight,
@@ -602,8 +740,8 @@ a size step down. Worth measuring before spending the panel's budget on size tha
 weight could have bought.
 
 ```sh
-cd display && uv sync --group raster            # once; the Pi, CI and this Mac all take it
-cd display && uv run --group raster python tools/label_preview.py /tmp/label.png --cap-arcmin 11
+cd postarr && uv sync --group raster            # once; the Pi, CI and this Mac all take it
+cd postarr && uv run --group raster python tools/label_preview.py /tmp/label.png --cap-arcmin 11
 ```
 
 The tool now prints arcminutes beside every pixel size, and says what the drop
@@ -622,7 +760,7 @@ looks different in three ways at once and it is worth separating them by eye
 rather than in a photograph of a rotating wall:
 
 ```sh
-cd display && uv run --group raster python tools/label_preview.py /tmp/label.png
+cd postarr && uv run --group raster python tools/label_preview.py /tmp/label.png
 ```
 
 1. **The artist now leads and the title follows it.** Deliberate — the family
@@ -721,7 +859,7 @@ numbers under the 2026-08-01 entry below. Rollback for the pins remains
 `deploy/pi-freeze-2024.txt`.
 
 ```sh
-cd display && uv run python -m display
+cd postarr && uv run python -m postarr
 ```
 
 **What to watch for, each being a behaviour chosen against a plausible
@@ -793,8 +931,8 @@ scan are all local — with one exception named on the screen itself: "Look agai
 for these" starts a re-search, which does spend.
 
 ```sh
-cd curation
-uv run python -m curation
+cd arrt
+uv run python -m arrt
 # then open the CURATION_PORT from .env — http://127.0.0.1:8770/ as shipped
 # → Discovery → open a finished run → "Review these works"
 ```
@@ -1061,8 +1199,8 @@ already in the catalogue. If you would rather not spend, the first two are still
 worth an opinion and the third can be read against a run from an earlier session.
 
 ```sh
-cd curation
-uv run python -m curation
+cd arrt
+uv run python -m arrt
 # then open the CURATION_PORT from .env — http://127.0.0.1:8770/ as shipped
 # → the Discovery tab
 ```
@@ -1120,7 +1258,7 @@ deployment does.
    client has no test runner … none of them is executed by a test", and invited
    reopening that trade if the surface kept growing logic of this kind. It did,
    and the trade was reopened and settled: the client is executed by a real
-   browser against a real server in `curation/tests/browser/` (marker `browser`).
+   browser against a real server in `arrt/tests/browser/` (marker `browser`).
    The focus check above, the supersession of an in-flight repaint, and the
    polling are each executed — by `test_a_poll_that_changes_nothing_leaves_the_focus_alone`,
    `test_a_paint_superseded_in_flight_never_reaches_the_page`,
@@ -1173,7 +1311,7 @@ A full run is already done and its numbers are worth having before you look:
 Regenerate the sheet and compare each pair by eye:
 
 ```
-cd curation
+cd arrt
 uv run python tools/mat_corpus.py ../all.json --out /tmp/mat-corpus
 open /tmp/mat-corpus/corpus.jpg          # 2024 on the left, the engine on the right
 ```
@@ -1197,7 +1335,7 @@ one. So a corpus run is a sample of the engine's behaviour, not a fixed output,
 and a single bad pair is weaker evidence than a pattern across several.
 
 If the verdict is "worse than 2024", the cheapest levers in order: the prompt in
-`acquisition/mat.py` (`MAT_PROMPT` — its guidance is deliberately carried over
+`library/acquisition/mat.py` (`MAT_PROMPT` — its guidance is deliberately carried over
 from 2024's, so it is the least likely culprit), then `MAT_MODEL` in `.env`,
 which was chosen on cost among models that cleared the bar rather than on taste.
 `art_catalogue(action='set_mat_color', ...)` overrides any individual work
@@ -1473,9 +1611,9 @@ it is subjective by nature.
 # The masters, read-only behind a symlink, inside the ART_ROOT `.env` names.
 # One `rm ~/samsung-art/raw` undoes it; nothing is copied.
 ln -sfn ~/art/raw "$(grep '^ART_ROOT=' .env | cut -d= -f2-)/raw"
-cd curation
-uv run python -m curation.seed ../all.json   # re-runnable; fills in what was absent
-uv run python -m curation
+cd arrt
+uv run python -m arrt.seed ../all.json   # re-runnable; fills in what was absent
+uv run python -m arrt
 # then open the CURATION_PORT from .env — http://127.0.0.1:8770/ as shipped
 ```
 

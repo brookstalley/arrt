@@ -8,6 +8,24 @@ last_validated: null
 
 # Data Model
 
+> **Direction changed 2026-09-30. Read `re-architecture.md`.** The entities below
+> are as built. The target assigns each to one of three roles:
+> - **Library:** Artwork, Artist, Source, Original, MatColor, WorkFacet, Affinity,
+>   Conversation and ConversationTurn, DiscoveryRun, CandidateWork,
+>   CandidateImage, SpendRecord and ResolveRunWork.
+> - **Programming:** Theme (now a playlist), ThemeMembership, Wall,
+>   ThemeAssignment and Directive.
+> - **Player:** TvBinding (already display-only).
+>
+> Library and Programming share one server process but get **separate stores
+> with no cross-seam foreign keys** (`architecture.md` § Direction, the
+> Library/Programming seam norms). Three changes are planned and not built:
+> - The `tv_display` Rendition leaves the catalogue. Compositing moves to the
+>   Player (wave 4), and a device-independent presentation master takes its place.
+> - The entities in § Planned entities are added.
+> - The two foreign keys that cross the seam today are dropped:
+>   `theme_memberships.artwork_id` and `directives.pinned_work_id`.
+
 ## Direction
 
 **Identity is never a source URL.** Every artwork carries a stable internal
@@ -103,12 +121,22 @@ synced between machines.
 > pass finds and finishes — rather than bytes nothing references, which nothing
 > would ever reclaim.
 
-> **Why:** Recorded in `learnings.md` § Data and cache contract. Derived files
+> **Why:** Recorded in `boundary-patterns.md` § `ART_ROOT` filesystem contract. Derived files
 > are rendered for whichever display was targeted; copying them between machines
 > produces either wrong output or a cache that cannot be trusted. Regenerating on
 > the target is cheap and correct.
 >
 > **Status:** steady-state.
+>
+> **RULING 2026-09-30: a presentation master is not a derived artifact in this
+> norm's sense, and caching it on a Player conforms.** The norm covers
+> "anything rendered for a specific output geometry". The presentation master
+> (`re-architecture.md` § Seam 2) is rendered for **no** geometry: no mat, and a
+> size cap that exists only to bound transfer and decode cost. It is content-
+> addressed, so a Player's cached copy cannot silently go stale, because a
+> changed master has a different hash. What *is* geometry-specific, the composed
+> and matted canvas, is regenerated on the Player that owns the screen, which is
+> this norm applied more strictly than the built code applies it.
 
 ## What this data must answer
 
@@ -248,8 +276,8 @@ re-parsing a blob, and so two works by the same artist agree.
 > and Western order ("Katsushika Hokusai"), and one of them is a culture rather
 > than a person. Both are nullable and the two ways of being null are the same
 > fact downstream — the label falls back to `name`, unstyled. Supplied for the
-> seeded corpus by a written table (`curation/src/curation/seed/names.py`), never by a
-> heuristic; `discovery/artic.py` documents its own surname guess as unreliable.
+> seeded corpus by a written table (`arrt/src/arrt/seed/names.py`), never by a
+> heuristic; `library/discovery/artic.py` documents its own surname guess as unreliable.
 > Nothing derives one part from the other, and nothing derives `name` from them.
 >
 > **`display_nationality` is the same decision one field over, added 2026-08-13.**
@@ -390,6 +418,16 @@ the art tree that rsync carries and git does not.
 > with no producer is the same defect the re-search review flagged, so the value is
 > removed rather than reserved.
 
+> **Direction changed 2026-09-30.** The derived `display_fit` verdict above is
+> computed from panel geometry that the server will no longer hold after wave 4.
+> Target (settled later on 2026-09-30): the Player reports its geometry in its
+> heartbeat as a capability, and **Programming** judges adequacy per wall by
+> comparing it with the work's pixel dimensions ("this work is too small for the
+> living room"). The Player composes and does not judge. Selection and the review
+> card judge against the Library's quality profile, which is stated in pixels
+> and names no device. The Library keeps only `width` and `height`, as this
+> section already requires.
+
 ### Rendition
 
 A derived, device-specific output. **Regenerated, never transported.**
@@ -404,6 +442,8 @@ A derived, device-specific output. **Regenerated, never transported.**
 | `relative_path` | string | required | Relative to `ART_ROOT`. |
 | `source_content_hash` | string | required | The `Original.content_hash` this was rendered from. Mismatch ⇒ stale ⇒ regenerate. Note it is the *Original's* hash on every row, including a `thumbnail` actually drawn from a `tv_display` canvas — see invariant 4. |
 | `generated_at` | datetime | auto | Refreshed on upsert, so a recomposed canvas is newer than it was. Load-bearing rather than bookkeeping: it is the only column that moves when a canvas is redrawn at the same path from the same Original, which is what makes a stale `thumbnail` of it detectable (invariant 4). |
+| `content_sha256` | string | optional, indexed | *(Added 2026-09-30, wave 2b.)* The SHA-256 of the file's bytes: the render's identity once it is served, at `/media/sha256-<hex>`. The catalogue service hashes the file itself when the rendition is recorded, never taking it from the caller, for the reason `source_content_hash` is read rather than accepted. Null for a render recorded before the column existed, or whose file was not there to read, and filled in the first time the Library is asked to offer it as media. |
+| `byte_size` | integer | optional | *(Added 2026-09-30.)* The file's size, recorded with the hash so a manifest can state it. |
 
 > **Q8.** Geometry is *columns*, not a filename suffix. The 2024 design encoded
 > it as `_w648_h480` in the filename, which is why the recovered catalogue points
@@ -427,6 +467,17 @@ A derived, device-specific output. **Regenerated, never transported.**
 > What remains here is correct: `tv_display` at 3840×2160 is a property of the
 > *artwork's presentation*, not of a device — any 4K display shows it, and the mat
 > is composed against that canvas. `thumbnail` is device-independent by definition.
+>
+> **Reversed 2026-09-30 (effective at wave 4; `re-architecture.md` § Compositing
+> moves to the Player).** The paragraph above held only while there was one
+> screen. A 1920×1200 LCD, a portrait monitor, or a caption set in the mat (which
+> needs the mat sized for the caption) each need a different canvas. So
+> `tv_display` is device-specific after all, and this is the `label` removal above
+> repeated one level down. Target: `kind` gains `presentation_master`, which is
+> device-independent, capped, unmatted, and served by hash to Players.
+> `tv_display` is removed, and its producers (`library/acquisition/compose.py`, the
+> `TV_PANEL_*` and `MAT_*` settings on the server) move to or are rebuilt on the
+> Player. `thumbnail` is unchanged.
 
 ### MatColor
 
@@ -461,6 +512,8 @@ regenerating it costs money.
 
 ### Theme
 
+> **Programming-owned from 2026-09-30** (`re-architecture.md`). A theme becomes a **playlist**, and can become a **smart playlist**: a rule over Library facets and Programming tags, plus manual additions and exclusions (see § Planned entities). Its store moves to Programming's own file.
+
 The curator's unit of intention. What "per-user preferences" resolved to — a
 naming and grouping concept, not an accounts concept.
 
@@ -486,6 +539,8 @@ naming and grouping concept, not an accounts concept.
 > took the column away.
 
 ### ThemeMembership
+
+> **Programming-owned from 2026-09-30** (`re-architecture.md`). `artwork_id` is a foreign key across the seam today. The target holds it as an opaque work id that may fail to resolve, and the Library's `work.archived` event, not a join, is what removes a work from rotation.
 
 Join entity. Explicit rather than implicit so ordering can be curated.
 
@@ -519,6 +574,8 @@ Join entity. Explicit rather than implicit so ordering can be curated.
 
 ### Wall
 
+> **Programming-owned from 2026-09-30** (`re-architecture.md`). The forbidden list below holds harder in the target. A Player may report its geometry as a heartbeat *observation*, held by Programming. The Library never sees it, and a Wall row still never stores it.
+
 A place where art hangs. One display serves one wall. *(Added 2026-08-12, on the
 operator's ruling that themes are created globally and assigned per wall.)*
 
@@ -527,9 +584,13 @@ operator's ruling that themes are created globally and assigned per wall.)*
 | `id` | UUID | PK | Stable identity, referenced across the plane boundary **by id only**, exactly as `TvBinding` already references an Artwork. |
 | `name` | string | required, unique | "Living room". The curator's own word, and the noun every confirmation names — "Hang Winter in the living room". |
 | `created_at` | datetime | auto | |
+| `token_verifier` | string | optional | *(Added 2026-09-30, wave 2b.)* The SHA-256 hex digest of the wall's Player token, never the token. Null until one is issued. `security-model.md` § Inventory has the credential. |
+| `token_issued_at` | datetime | optional | *(Added 2026-09-30.)* When the current token was issued, shown on the Walls screen so a curator can tell which Player is still on an old one after a rotation. |
 
-**Three fields, and the shortness is the design.** A Wall is an identity and a
-name; it is not a device.
+**Few fields, and the shortness is the design.** A Wall is an identity, a name,
+and the verifier of the one credential that lets a Player serve it; it is not a
+device. The token belongs to the wall and not to a device: replace the television
+and the token stays, rotate it and every device holding the old one is refused.
 
 > **This entity sits inside the catalogue, and that is a ruling against the third
 > Direction norm rather than an oversight.** "Per-device runtime state never lives
@@ -560,6 +621,8 @@ name; it is not a device.
 > Direction norm draws | user can veto/override]`
 
 ### ThemeAssignment
+
+> **Programming-owned from 2026-09-30** (`re-architecture.md`). Unchanged in meaning. It moves to Programming's store with Wall and Theme.
 
 What is hanging on one wall. The act `information-architecture.md` flow 6 calls
 *hanging*, and the replacement for `Theme.is_active`.
@@ -607,6 +670,8 @@ What is hanging on one wall. The act `information-architecture.md` flow 6 calls
 > existing wall so no deployment loses its picture | MED impact | user can veto/override]`
 
 ### Directive
+
+> **Programming-owned from 2026-09-30** (`re-architecture.md`). `pinned_work_id` is a foreign key across the seam today. Its target is an opaque id, and pin withdrawal on archive is driven by the Library's `work.archived` event.
 
 The standing instruction to the display plane. **One row per Wall**, seeded when
 the wall is created so that no caller ever has to make it.
@@ -667,6 +732,13 @@ the wall is created so that no caller ever has to make it.
 
 ### WorkFacet
 
+> **This is the Library's fact layer (2026-09-30, `re-architecture.md` § Two
+> layers of tags).** Facets are what a museum cataloguer would say is true of the
+> work, whoever's wall it hangs on: subject "snake, cup, biblical", movement,
+> palette. Household-use labels ("funny", "party", "morning") are **Programming
+> tags**, which are a separate entity in Programming's store. Programming never
+> writes a facet.
+
 What a work *is*, in the same typed vocabulary the curator's taste is expressed in.
 Answers Q15. Added 2026-08-10 with the collection's retrieval surface
 (`information-architecture.md` § Retrieval).
@@ -694,7 +766,7 @@ Answers Q15. Added 2026-08-10 with the collection's retrieval surface
 > silently breaks the join that makes taste useful.
 
 > **`derivation` is load-bearing, not bookkeeping, and a measurement says so.**
-> `curation/src/curation/discovery/browse.py` records that for the Art Institute
+> `arrt/src/arrt/library/discovery/browse.py` records that for the Art Institute
 > **"style, classification and period were measured missing on ordinary
 > spellings"** — which is why widening its browse facet past artist was gated. The
 > field inventory in `artic-api-findings.md` bears this out: there is
@@ -815,13 +887,13 @@ to arbitrate between. The history that matters is the turns, which are retained.
 > an artist they explicitly asked to keep hearing about — the same shape as
 > Q3-versus-Q11, where rejecting an image must not suppress the work.
 
-> **Built 2026-08-12**, as the `affinities` table, `services/taste.py`, the Taste
+> **Built 2026-08-12**, as the `affinities` table, `library/services/taste.py`, the Taste
 > screen, and the `art_taste` tool. Every field above is as designed. Three things
 > the build decided that the design did not state:
 >
 > **What makes one provenance "weaker" than another was undefined, and `set`
 > refuses to overwrite with a weaker one.** The ranking built is `stated` >
-> `observed` > `inferred`, at `_PROVENANCE_RANK` in `services/taste.py`: what the
+> `observed` > `inferred`, at `_PROVENANCE_RANK` in `library/services/taste.py`: what the
 > curator said outranks what their behaviour showed, which outranks what a model
 > read into their words. Equal ranks are permitted, so a re-inference can correct
 > an earlier inference and a second statement can correct a first. *This is the
@@ -1162,7 +1234,7 @@ artworks.
 > already written under the provisional rule must be recomputed, or suppression
 > silently splits into two regimes and the same work gets proposed twice.
 >
-> **Shipped 2026-08-02 at one site: `curation/src/curation/discovery/dedup.py`.**
+> **Shipped 2026-08-02 at one site: `arrt/src/arrt/library/discovery/dedup.py`.**
 > Normalised artist and title — casefolded, accents stripped, punctuation
 > dropped, whitespace collapsed — joined by a separator normalisation guarantees
 > cannot appear inside either half. A work with no artist is keyed under
@@ -1429,7 +1501,7 @@ with it.
 (recorded because "settled with `work_dedup_key`" used to stand here and is too
 strong).** Artist matching is the third call site the derivation is meant to
 serve, alongside cross-run suppression and within-run dedup. The first two are
-live and share `curation/src/curation/discovery/dedup.py`; **this one must derive
+live and share `arrt/src/arrt/library/discovery/dedup.py`; **this one must derive
 its identity from that module rather than reimplement normalisation**, which is
 the whole point of settling it once.
 
@@ -2223,6 +2295,94 @@ single interaction the product exists to make easy.
 > `architecture.md` § Readiness). `TvBinding` is device state and lives in the
 > display plane's own store, not in the catalogue — per this artifact's own third
 > Direction norm.
+
+## Planned entities (re-architecture, 2026-09-30, not built)
+
+Proposals from `re-architecture.md`, to be settled in the wave that builds each.
+Field lists are starting points, not contracts. Each is a persisted format, so
+its wave's plan enumerates the questions it must answer before the fields are
+fixed (`methodology/planning.md`).
+
+### ProgrammingTag *(Programming)*
+
+| Field | Type | Description |
+|---|---|---|
+| `work_id` | string | An opaque Library work id. **Not a foreign key.** |
+| `tag` | string | Open vocabulary, normalized (case, whitespace), offered through autocomplete. "funny", "party", "morning". |
+| `derivation` | enum | `curator` \| `suggested` (a model read the work's facts; paid, so recorded in `SpendRecord`). |
+| `created_at` | datetime | |
+
+Unique on (`work_id`, `tag`). The vocabulary is open, unlike `VocabularyKind`,
+because it is household language rather than a taxonomy that taste has to join
+against.
+
+### Smart playlist rule *(Programming; fields on Theme)*
+
+A theme gains an optional **rule**: boolean AND/OR/NOT over Library facets
+(`kind: value`), Programming tags, and perhaps a date range. Explicit
+memberships act as manual additions, and an exclusion list removes works. The
+rule is evaluated in Programming: the Library facade returns the ids matching the
+facet terms, and Programming applies its tags. How rich the rule language gets is
+an open question.
+
+### Watch *(Library)*
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | UUID | |
+| `intent` | text | In words, as a conversation would state it. |
+| `facet_filter` | json | Optional (`kind`, `value`) constraints. |
+| `sources` | list | Which providers to check. |
+| `cadence` | interval | How often it re-runs (it polls; museum APIs have no feeds). |
+| `on_match` | enum | `notify` \| `queue_for_review` (default) \| `auto_accept`. |
+| `spend_cap_usd` | decimal | Per period. Every run records `SpendRecord`s against it. |
+| `last_run_at`, `enabled` | | |
+
+The memory of what a Watch has already seen is the existing dedup and
+rejected-candidate records, not a new table. Upgrade monitoring (re-searching
+works whose verdict is `awaiting_better_image`) runs on the same scheduler.
+
+### Player observation *(Programming)*
+
+From wave 4, a heartbeat carries the Player's **capabilities**: output geometry,
+backend (Frame, LCD, monitor) and label hardware present. It also carries cache
+state. Programming keeps the latest per wall for the health view and the
+per-wall adequacy verdict, which Programming computes; the Player sends no
+verdicts. This is device information held by Programming as an **observation**,
+never as configuration, and never in the Library.
+
+### Wall settings *(Programming; fields on Wall)*
+
+Set centrally and sent down in the manifest, so the operator never configures a
+Player to change them: label mode (chosen from the capabilities the wall's Player
+reports), which facts the label shows, and viewing distance. Viewing distance is
+a fact about the room, and the Player uses it with its own geometry to size
+label type. Wave 4.
+
+### Schedule entry *(Programming)*
+
+A work for one wall over a time span (from, until), computed for all walls
+together over a horizon of about a day, so rules such as "no work on two walls
+at once" are central calculations. Dark hours are gaps. The Player follows the
+clock from its cache. Wave 4, with schema major 2.
+
+### Scene *(Programming)*
+
+A live override spanning walls: a pin per wall, and a lifetime of *preview*
+(expires back to the schedule), *hold* (until released) or *keep* (becomes
+ordinary Programming state). It takes over the pin's temporary, multi-wall
+uses; `show_now` and `next` themselves become republishes of the schedule, and
+the directive's sequence retires with major 1 (`player-contract.md` § Major 2).
+The manifest also lists works under
+**staging**, so Players fetch and compose a scene's works while it is being
+assembled. Wave 4.
+
+### Quality profile *(Library)*
+
+A resolution floor and an upgrade cutoff, in pixels, naming no device. Instance
+selection and the review card judge against the minimum. The upgrade job stops
+at the cutoff. It replaces the artwork box derived from `TV_PANEL_*` / `MAT_*`
+in wave 4.
 
 ## Deliberately not modelled
 

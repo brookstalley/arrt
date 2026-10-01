@@ -15,6 +15,19 @@ boring, and this document exists mostly to make sure the two things that are *no
 boring — getting Python 3.14 onto a Pi, and having a restore path that actually
 works — are decided rather than discovered.
 
+> **Direction changed 2026-09-30. See `re-architecture.md`.** This specification
+> describes the deployment that is **live today** and stays correct for it until
+> wave 3. At that point the **server** (curation, with its catalogue and art
+> tree) moves to the operator's NAS (TrueNAS SCALE) as a container, and the Pi
+> keeps only the **Player** (today's display plane) with a local media cache.
+> The NAS deployment is recorded in the operator's homelab repository, not here.
+>
+> This file will then describe the Player's host, plus whatever the server image
+> needs that is product-side: the container build, its configuration contract
+> and its backup. Sections below carry dated notes where their target moves.
+> Nothing written here about the running Pi should be removed before wave 3
+> lands.
+
 ## Deployment Target
 
 | | |
@@ -24,6 +37,21 @@ works — are decided rather than discovered.
 | Boot media | SD card — see Risks |
 | Processes | `curation` (Python 3.14, uv-managed standalone) and `display` (Python 3.13, system interpreter), both under systemd |
 | Shared state | `ART_ROOT` on local disk |
+
+> **Target after wave 3 (2026-09-30, `re-architecture.md` § Deployment target):**
+>
+> | | Server | Player |
+> |---|---|---|
+> | Host | The operator's NAS (TrueNAS SCALE, x86_64), as a custom app | The Pi at the wall (today's Raspberry Pi 4), one Player per wall |
+> | Packaging | A container image in the operator's LAN registry | systemd unit, as today |
+> | State | Catalogue and art tree on NAS storage | A local media cache plus `display-state.sqlite` |
+> | Reached as | A LAN hostname through the operator's reverse proxy | Makes outbound HTTP to the server, nothing inbound |
+>
+> **There is no shared state in the target.** `ART_ROOT` stops being a directory
+> two processes share and becomes the server's private data root. The Player
+> gets its own cache root. Choosing that cache root, and deciding whether it lives
+> on the card, is a wave-2 decision. Its writes are bounded by playlist churn,
+> which is the additive profile § Risks already reasons about.
 
 ## The Service Account — decided
 
@@ -112,6 +140,14 @@ things that carry the other two, and they are version-controlled.
 
 ## The Curation Interpreter — decided
 
+> **Direction changed 2026-09-30. See `re-architecture.md`.** This section solves
+> "3.14 on a Pi", a problem that ends in wave 3, when curation runs from a
+> container image on the NAS. There the interpreter is whatever the image's base
+> provides, and uv-in-the-image is the natural carry-over. It stays authoritative
+> for the running Pi until then. The Player keeps the Pi's system 3.13 for the
+> e-paper driver's reasons (`architecture.md` § Overview & Topology), so the
+> two-interpreter split survives, now across two machines instead of within one.
+
 **Raspberry Pi OS Trixie ships Python 3.13. The curation plane gets its 3.14 from
 a uv-managed standalone build: `uv python install 3.14`.**
 
@@ -175,9 +211,9 @@ it breaks.**
 > than weaker.** This sentence named *opencv, scikit-image and numpy* as part of
 > curation's stack. They were forecast for "acquisition and the mat engine" and
 > never declared: both landed 2026-08-03 needing none of the three, and
-> `curation/pyproject.toml` now records that as **a rejection rather than a
+> `arrt/pyproject.toml` now records that as **a rejection rather than a
 > deferral** — the LAB conversion and CIEDE2000 distance are thirty lines of
-> fully-specified arithmetic in `acquisition/color.py`, and the dominant-colour
+> fully-specified arithmetic in `library/acquisition/color.py`, and the dominant-colour
 > fallback uses Pillow's median-cut quantiser where 2024 used OpenCV k-means.
 >
 > Worth noting how this survived: the same bundle that made the rejection wrote
@@ -201,6 +237,13 @@ acquisition (a genuine gigapixel scan is 20–40× the measured corpus maximum) 
 not be able to invoke the OOM killer against the display plane. Capping curation
 converts a shared-fate failure into a contained one, which is most of what the
 process split is for on a single box.
+
+> **Direction changed 2026-09-30.** The `curation` unit and its `MemoryMax`
+> exist because of co-location, and both retire in wave 3, when the server leaves
+> the Pi. Memory containment for a gigapixel acquisition is still needed on the
+> NAS, and becomes the container's memory limit, so a runaway fetch cannot
+> starve the operator's other apps. `display` keeps everything said here and
+> below. The rate-limit rule applies to any unit the Player ships with.
 
 **No unit may rely on systemd's stock start rate limit** (settled 2026-08-02).
 The default is five starts in ten seconds, and `Restart=always` with a fault that
@@ -255,7 +298,7 @@ quoting and inline comments — and a mis-parsed value is live rather than
 overwritten.
 
 **Which plane is exposed, stated precisely, because a first version of this
-correction was not.** `curation.art_root` refuses to start against a directory
+correction was not.** `arrt.art_root` refuses to start against a directory
 that is neither marked nor holding a catalogue, so a mis-parsed `ART_ROOT`
 reports an error rather than quietly creating an empty second collection — for
 the *curation* plane. The unit in `deploy/` starts `tvart.py`, the 2024 plane,
@@ -271,7 +314,7 @@ retired and the curation unit lands beside it.
 
 *(Settled 2026-08-01: this said "a `.env` file per plane", and what exists is one
 shared root file — `.env.example` carries both planes' values, and
-`curation/config.py`'s bare `load_dotenv()` resolves it by walking up from the
+`arrt/config.py`'s bare `load_dotenv()` resolves it by walking up from the
 module rather than from the working directory. One file is also the right answer
 rather than merely the built one: the two values that **must** agree across planes
 are `ART_ROOT` and the panel geometry, and two files are precisely how they come
@@ -368,6 +411,25 @@ Panel geometry was briefly listed as a second shared value; it is not, because
   reason: a wrong size gives a label that looks wrong, a refusal gives no label at
   all, and the label may never be a reason the wall stops.)*
 
+> **Direction changed 2026-09-30. See `re-architecture.md` § Compositing moves
+> to the Player.** In wave 4 the **TV panel geometry and the mat settings**
+> (`TV_PANEL_*`, `MAT_WIDTH_INCHES`, `MAT_BOTTOM_WEIGHT`) leave curation's
+> configuration, and they split along "settings flow down, capabilities flow up"
+> (`re-architecture.md` § What is showing, and how it is shown). `TV_PANEL_*`
+> is a physical fact about the device, so it becomes Player configuration next to
+> the `EPD_*` values, and the Player reports it in its heartbeat. `MAT_*` is how
+> the operator wants a wall presented, so it becomes a **wall setting** in
+> Programming, sent in the manifest. The server then holds no screen geometry.
+> The **label mode** (e-ink panel, caption in the mat, or none) is a wall setting
+> too, chosen from what the Player reports. Caption mode arrives in wave 6+. A
+> Player running it is exactly the "device drawing its label into the mat area"
+> the `EPD_MARGIN_PX` note above anticipated.
+>
+> In wave 2 the shared `.env` stops being shared. The Player gains the server's
+> base URL and a cache directory, and keeps the `WALL_ID` it already has. The server keeps its own configuration, delivered as
+> container environment on the NAS. The single root `.env` read by both planes is
+> a property of co-location and retires with it.
+
 Because neither is shared, neither can drift between planes. A wrong TV size is
 still a real defect — the mat comes out the wrong width and the review grid's
 warnings are computed against a TV that isn't there — but it is a single-plane
@@ -441,6 +503,24 @@ The system self-heals **visibly**. Verifying a restore therefore does not requir
 staging gigabytes of imagery — which is exactly what makes the exercise something
 that will actually get run rather than skipped.
 
+> **Direction changed 2026-09-30. See `re-architecture.md`.** The rule is the
+> same: back up the curatorial layer, not the images. Its setting changes:
+> - **The source moves to the NAS in wave 3.** The backup then runs on the NAS,
+>   beside the server's storage, and "the destination is awake" stops being the
+>   limitation it is from a Pi.
+> - **Wave 3 splits the catalogue**, before it moves, into a Library file and a Programming file,
+>   with no foreign keys between them. Both are curatorial and both are backed up,
+>   using the same SQLite backup API, taken together. The restore exercise has to
+>   cover the pair, including what a restored Programming file does with a work
+>   id the restored Library does not hold. It is designed to tolerate such
+>   references (`re-architecture.md` § Seam 1), and the restore is where that
+>   claim gets tested.
+> - **The Player backs up nothing.** Its media cache re-pulls, and its TV bindings
+>   are rebuilt by reconciliation against the set, as today.
+> - **The self-healing walk-through above changes shape in wave 4.** "No current
+>   render" becomes "no presentation master", and a Player whose cache is empty
+>   re-pulls once the server has regenerated the masters.
+
 ## Routine Operations
 
 | Operation | Procedure |
@@ -449,12 +529,21 @@ that will actually get run rather than skipped.
 | Rollback | **No longer `git checkout` plus two restarts, since 2026-08-12** — this row said that for the whole life of the product and stopped being true the first time the schema *dropped* something. The wall migration removes `themes.is_active`, and the previous release reopening that file refuses to start rather than running against a column it requires and cannot find. **That refusal is the good outcome**: it is loud, immediate, and it happens before anything is served, where the alternative — a release silently reading a catalogue it does not understand — is the failure this product exists to refuse. But it means a rollback across a migration is a **restore**, not a checkout: `git checkout` the previous commit, then restore `catalogue.sqlite` from the backup taken before the deploy, then restart both. **The backup is the rollback plan**; without one, rolling back across this migration is not possible. A rollback that crosses no migration is still the old two-step |
 | Restart one plane | Safe at any time, in either order. The other is unaffected by design |
 | Add disk headroom | **`tile-cache/` reclaims itself since 2026-08-03** and is no longer an operator chore: tiles are cached under the id of the source being fetched, and that directory is removed the moment the work holds a complete image. What survives a pass is exactly the tiles of a **partial** fetch, which is the one case they are worth their disk — they are what lets `art_catalogue(action='retry_acquisition')` finish the image without re-downloading what already arrived. So a `tile-cache/` that is large is a report that works are sitting partially fetched, and the remedy is to retry them rather than to delete the directory; deleting it is safe and costs those retries their head start. `temp/` belongs to the 2024 modules and is still pruned by hand until they are retired. **`api-cache/` needs no rule: the curation plane never creates one** — phase 2 asks museums over HTTP with no on-disk cache, and the directory exists only in the 2024 `config.py`. **`previews/` reclaims itself since 2026-08-03**: the plane sweeps it hourly (`PREVIEW_SWEEP_INTERVAL_SECONDS`, 0 to disable), deleting the cached thumbnails of candidate works the curator has accepted or rejected, and logging `preview.swept` every pass whether or not it took anything — a plane that has stopped sweeping is therefore visible in the journal rather than only in the free-space figure. **Two things it does not reclaim, and the second is why deleting the directory by hand is still a listed remedy.** The previews of works nobody has judged yet — those are the ones review still needs, so a backlog of undecided candidates is a state in which this directory legitimately grows, and deciding them is the remedy. And **files no row names**: the sweep derives every path it considers from `CandidateImage.preview_path`, so bytes written by a phase-2 run that died between writing the file and recording the row are invisible to it permanently. That is not hypothetical — it is the case an on-verdict hook could never have covered, which is part of why the sweep exists — and it is unbuilt, filed rather than glossed. Until it is built, **`rm -rf` on `previews/` is the only thing that reclaims an orphan**, and it costs more than the word "disposable" suggests: **nothing re-fetches a preview.** `PreviewCache.store` is called once, by phase 2 when an instance is first recorded, and a re-search does not restore the file either — `record_image` returns the instance a work already holds for that URL without rewriting `preview_path`. So deleting the directory permanently costs the inline picture of every candidate **still under review**, whose cards fall back to reporting a source URL a curator would have to open by hand; works already decided lose nothing, since their previews were the sweep's to take anyway. Safe on a full card, and not free — prefer deciding the outstanding candidates first, which lets the sweep reclaim them properly. It matters here because § Risks opens with the SD card as the top operational risk |
-| **Verify the spend ceiling** | In the OpenRouter console, confirm the key in `OPENROUTER_API_KEY` still carries a **USD 20 credit limit with a monthly reset**. **This setting is the entire cap** — nothing in this repository enforces one, by ratified decision, because an application-side meter that fails open is indistinguishable from one that works. A key whose limit was cleared, or a key swapped for an uncapped one, looks identical on every surface the product exposes right up to the bill. `cd curation && uv run pytest -m live_api` asserts it mechanically (`test_the_key_reports_a_monthly_ceiling`) and costs a few cents to run |
+| **Verify the spend ceiling** | In the OpenRouter console, confirm the key in `OPENROUTER_API_KEY` still carries a **USD 20 credit limit with a monthly reset**. **This setting is the entire cap** — nothing in this repository enforces one, by ratified decision, because an application-side meter that fails open is indistinguishable from one that works. A key whose limit was cleared, or a key swapped for an uncapped one, looks identical on every surface the product exposes right up to the bill. `cd arrt && uv run pytest -m live_api` asserts it mechanically (`test_the_key_reports_a_monthly_ceiling`) and costs a few cents to run |
 | Bound the journal | Install `deploy/journald.conf.d/10-bound-the-journal.conf` and restart `systemd-journald`. **`SystemMaxUse=` alone is not enough** — Raspberry Pi OS ships `Storage=volatile`, so the journal is in RAM and `RuntimeMaxUse=` is the directive that binds; the drop-in sets both. Verify with journald's own `Journal ... max` startup line, not `systemd-analyze cat-config`, which only proves the file parses — see § Risks |
 | **Decide on a TV firmware update** | Auto-update is **off** (2026-08-04) and the set is held at 1310 with 1400 offered. Nothing arrives on its own, so this recurs whenever there is a reason to update. Default answer is stay: the update is one-way and every measured fact about this set is firmware-scoped. If one is ever taken, re-run `python tv_api_check.py --image <a 4K composite>` — it is what says which behaviours moved |
 | **Diagnosis after a reboot** | There is none from the journal: `Storage=volatile` means it does not survive one. If the wall froze and the Pi restarted, `journalctl` holds nothing about the run that failed. **Do not reach for `Storage=persistent` here** — it was declined on 2026-08-04 and switching it reverses a recorded decision and puts logging on the card, which is the top operational risk. Diagnose from the health surface's heartbeat age or the catalogue instead; see § Risks |
 | Patch curation's CPython | `uv python upgrade 3.14`, then rebuild the venv and restart. **`apt upgrade` does not do this** — it patches the display plane's 3.13 only |
 | Re-pair the TV | Rotates the pairing token. Nothing to untrack first — `token_file` was untracked 2026-07-27 and the token now resolves under `ART_ROOT`, outside the checkout, so a `git pull` no longer deletes it and re-pairing needs no repo work at all. Just re-pair at the hardware. *(Updated 2026-08-01: this row still ordered an untracking step that is done, and carried a `git pull` hazard `security-model.md` withdrew on 2026-07-27.)* See `security-model.md` |
+
+> **Direction changed 2026-09-30.** After wave 3, "Deploy" and "Rollback" split
+> in two. The server deploys as a new container image on the NAS, following the
+> operator's homelab procedure. The Player deploys as today, with `git pull` and a
+> restart, until the wave-5 repo split gives it its own repo. "No migration spans
+> the planes" stays true, because the manifest document is still regenerated,
+> never migrated. The HTTP contract adds a new skew case: a Player older than the
+> server's manifest major. It is handled the way the file channel handles it
+> today: refuse the unknown major and keep the last manifest.
 
 ## Failure Recovery
 
@@ -526,6 +615,23 @@ put the wall's uptime behind a second machine, since the display plane polls the
 manifest and reads the image tree continuously, and it would rest the manifest and
 heartbeat channels' atomic write-and-rename on semantics a network filesystem
 decides rather than the kernel.
+
+> **Direction changed 2026-09-30. See `re-architecture.md`. Read this against
+> the rejection above, which it does not overturn.** In wave 3 the catalogue
+> moves to the NAS, but not onto a network filesystem. The server process
+> moves with it and opens SQLite on storage **local to its own host**, so
+> locking and WAL behave exactly as they do on the Pi today. What was rejected on
+> 2026-08-04 was the Pi reaching its catalogue over the network, and that stays
+> rejected. The second objection (the wall's uptime behind a second machine)
+> is answered by the Player's local cache, not ignored: the Player renders only
+> from what it has already pulled (`nonfunctional-requirements.md` § Direction,
+> amended 2026-09-30).
+>
+> After wave 3 the card carries no irreplaceable asset. It holds the Player's
+> cache and device state, both rebuildable, and its continuous-write path is still
+> the heartbeat, which becomes an HTTP POST and stops writing to the card at all.
+> The SD card stops being the top operational risk. The backup gap (issue #14)
+> moves with the catalogue to the NAS and remains open until it is built.
 
 *The trade-off, stated plainly.* Card death costs a rebuild plus whatever curation
 happened since the last backup, at an accepted frequency of once every few years.

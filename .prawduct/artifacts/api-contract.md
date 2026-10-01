@@ -9,6 +9,21 @@ last_validated: null
 
 # API Contract
 
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** The product is
+> becoming a **server** (Library + Programming, on the operator's NAS) and a
+> **player** (one per wall). In this file, that affects:
+> - the **curation↔display contract**, which becomes a network surface: an HTTP
+>   manifest per wall, immutable media and a heartbeat POST;
+> - the review surface's **fit verdict**, which becomes an observation the
+>   player reports;
+> - the **transport and trust paragraphs**, because the server moves off the Pi.
+>
+> The MCP tool surface, the HTTP API for the curation UI, the error model and
+> the versioning rules for tools are **unchanged**. The server keeps all three.
+> The planned surface is specified in § The Server↔Player surface, below. It is
+> PLANNED and not built. Everything else here still describes the code as it
+> stands.
+
 > **Status: operations decided 2026-07-19.** This artifact was deliberately
 > incomplete on first authoring — the operations table was left empty because a tool
 > surface is a contract external clients bind to, and guessing one into existence is
@@ -45,6 +60,18 @@ Three surfaces, and they are not the same kind of thing:
 > loop blanking the wall; with one, it is a logged refusal and yesterday's theme
 > still on the wall.
 
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** The third row's
+> *kind* changes: "a versioned JSON document on a shared filesystem" becomes a
+> versioned JSON document served over HTTP per wall, plus content-addressed media
+> and a heartbeat POST. The Player pulls both into a local cache.
+> - **The stability obligation carries over unchanged**, and it gets heavier
+>   rather than lighter. Once the player repo splits off (wave 5), "deployed
+>   together" stops being true even in practice, and the major-refusal rule is
+>   all that stands between a new server and an old player.
+> - The row's consumer is renamed the **Player**. The two build steps each have
+>   a schema bump: the channel change is a minor bump and moving compositing is
+>   major 2. See § The Server↔Player surface.
+
 ### Transport: streamable HTTP, not stdio
 
 **Decided, and effectively forced.** Claude Code runs on the operator's laptop
@@ -61,6 +88,16 @@ own path to the catalogue and would reintroduce exactly the divergence the norm
 exists to prevent. The cost accepted: the MCP surface goes down when the UI process
 does. That is tolerable because both live on the curation plane, whose downtime is
 already defined as invisible to the household (`product-brief.md` → Platform).
+
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** "The curation
+> host" becomes the operator's NAS, running the server as a container (wave 3).
+> The reasoning above holds as it stands: stdio still cannot cross the boundary,
+> and the MCP surface still mounts in the same application as the HTTP API.
+> From wave 3 that one application also serves the Player surface.
+>
+> Its downtime is invisible to the household for the same reason: the Player
+> plays from its local cache, not from the server. That is now a property of
+> the Player's design rather than of two processes sharing a disk.
 
 ### The in-UI agent is an MCP client
 
@@ -164,6 +201,20 @@ computed by the service layer rather than stored (`data-model.md` → Original):
   review grid, which is exactly why the review gate ("a human saw the artwork")
   does not by itself protect against hanging a postage stamp.
 
+> **Direction changed 2026-09-30 — see `re-architecture.md` § Compositing moves
+> to the Player.** "The configured panel geometry and mat width" are server
+> settings today (`TV_PANEL_*`, `MAT_*`), and wave 4 removes them from the
+> server. After that there is no single panel, because every Player has its own.
+> - The fit verdict and the rendered size become something **Programming works
+>   out from the geometry each Player reports in its heartbeat**, one answer per
+>   wall ("too small for the living room"). The Library stores only
+>   panel-independent width and height, as `data-model.md` already requires.
+> - The requirement survives unchanged: a curator must be able to see that an
+>   image is too small before it hangs. The open design question for wave 4 is
+>   what a review card shows before any wall has hung the work.
+>
+> Until then, these two fields describe the code as built.
+
 A `below_floor` image is **shown, labelled, and selectable** — never auto-selected
 by phase 2, and never hidden. The curator may take it anyway; that judgement is the
 product.
@@ -179,6 +230,17 @@ not confuse are then still distinct — "this is what you would accept" versus "
 is all there is, and nothing chose it" — and the only row that carries no picture
 is one whose instances are all rejected or absent, where there is genuinely
 nothing to show.
+
+**A work the library already holds says so (2026-09-30).** A run refuses only a
+work the curator rejected, so it can propose one an earlier run acquired.
+`list_works` and `get_work` (and the browser's candidate listing) carry
+`held_artwork_id`: the catalogue artwork an earlier proposal of the same
+`work_dedup_key` became, or null. It is additive, and a caller that ignores it
+behaves as before. The browser shows *Already in your library*, makes opening
+that artwork the card's first control and keeps a quieter *Accept anyway*,
+following Sonarr's Add New
+(`information-architecture.md` § The *arr layout). The identity is the dedup
+key, with that key's limits: two works sharing a title and an artist read as one.
 
 **`rights_status` is returned alongside**, as a provenance and source-quality
 signal. It gates nothing (`data-model.md` constraint 13).
@@ -197,12 +259,36 @@ names are frozen, so it was cheap to settle now and expensive later.
 Every action resolves against the manifest. **The curation plane never sends the
 display plane a command; it writes desired state, and display converges on it.**
 
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** The mechanism
+> changes and the principle does not.
+> - `sync` stops writing `theme-manifest-{wall_id}.json` and instead republishes
+>   the document `GET /walls/{wall_id}/manifest` serves. Its ETag changes, and
+>   the Player notices on its next poll.
+> - `status` stops reading `display-heartbeat-{wall_id}.json` and instead reads
+>   the last heartbeat each wall POSTed.
+> - `show_now` and `next` are unchanged: they still advance a sequence in a
+>   document the Player polls.
+>
+> "Desired state, never a command" is exactly what makes the network hop safe.
+> A directive issued while a Player is unreachable is still just state, waiting
+> to be read. After the internal split, these actions belong to **Programming**.
+> The tool names are frozen and stay as they are.
+
 | Action | What curation does | What display does |
 |---|---|---|
 | `status` | Reads the display plane's heartbeat file | Nothing — it wrote the heartbeat already |
 | `sync` | Rebuilds and rewrites **that wall's** manifest from the theme hanging on it — `theme-manifest-{wall_id}.json` | Picks up the new manifest on its next poll and reconciles. Each display plane reads the one file its `WALL_ID` names, so syncing one wall cannot disturb another |
-| `show_now(wall_id, artwork_id)` | Increments **that wall's** directive `sequence` and sets its `pinned_work_id` | Jumps to that work, then continues rotating from there |
-| `next(wall_id)` | Increments **that wall's** directive `sequence` with no pin | Steps to the next work in the list |
+| `show_now(wall_id, artwork_id)` | Increments **that wall's** directive `sequence` and sets its `pinned_work_id`, and writes that directive into the wall's published manifest | Jumps to that work, then continues rotating from there |
+| `next(wall_id)` | Increments **that wall's** directive `sequence` with no pin, and writes that directive into the wall's published manifest | Steps to the next work in the list |
+
+> **Built 2026-09-30 (wave 2b Chunk 02): the directive reaches the manifest.**
+> Until then `show_now` and `next` advanced the stored directive and nothing
+> wrote it into the manifest, so neither reached the wall until something else
+> synced. The write patches the published document's `directive` block and
+> nothing else. It is not a sync, so a step publishes no work added to the theme
+> since the last one. A wall with nothing published yet carries the directive
+> out with its first sync. A write that fails refuses the step, so a directive
+> is never recorded as issued when it never reached the wall.
 
 **Every action but `status` takes a required `wall_id`**, built 2026-08-12. The
 directive is a row per wall rather than a singleton, so a `next` in the living
@@ -1094,9 +1180,20 @@ keeps the manifest it has. *(Corrected 2026-07-20 — this sentence previously s
 both internal surfaces "ship with their only consumers", which is the retired
 exemption's reasoning and must not be cited for the manifest contract.)*
 
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** The manifest
+> contract keeps its one rule, and gains **a written schema as its authority**.
+> A JSON Schema plus example manifests, owned by the server, is written in wave 1
+> before the HTTP channel is built. After the repo split the Player's tests pin a
+> copy.
+>
+> That closes the residual `boundary-patterns.md` records: today each plane is
+> tested against its own reading of the contract, and nothing checks the two
+> readings agree. Once the two sides live in different repositories, a shared
+> fixture is the only thing that can.
+
 | Element | Tier | Meaning |
 |---|---|---|
-| Tool names (every row of § The surface) | **Frozen** | Never renamed or removed. **Pinned by test from the day the tool is declared, and frozen by decision until then** — `FROZEN_TOOL_NAMES` in `curation/tests/contract/test_mcp_surface.py` asserts set-equality against the live server, so it can only ever cover tools that exist. `art_taste` was Frozen from 2026-08-11 and, for one day, was the one name nothing pinned; it shipped on 2026-08-12 and its entry joined that set with it. *(The row said only "Pinned by test" until 2026-08-11 — Critic R-16 — while widening itself to cover exactly the name the pin cannot reach.)* |
+| Tool names (every row of § The surface) | **Frozen** | Never renamed or removed. **Pinned by test from the day the tool is declared, and frozen by decision until then** — `FROZEN_TOOL_NAMES` in `arrt/tests/contract/test_mcp_surface.py` asserts set-equality against the live server, so it can only ever cover tools that exist. `art_taste` was Frozen from 2026-08-11 and, for one day, was the one name nothing pinned; it shipped on 2026-08-12 and its entry joined that set with it. *(The row said only "Pinned by test" until 2026-08-11 — Critic R-16 — while widening itself to cover exactly the name the pin cannot reach.)* |
 | `action` values | **Stable** | Additive; retirement is announced and annotated. |
 | Required parameters | **Stable** | New ones must be optional with a default. |
 | Optional parameters | **Additive** | May be added freely. |
@@ -1107,15 +1204,15 @@ exemption's reasoning and must not be cited for the manifest contract.)*
 
 Recorded so "carries no obligation" is not read as "is undocumented". These
 routes exist and are exercised end to end against a booted server by
-`curation/tests/integration/test_browser_surface.py`; nothing outside this
+`arrt/tests/integration/test_browser_surface.py`; nothing outside this
 repository may bind to them, and they may be reshaped in any commit that reshapes
 the client with them.
 
 | Route | What it is |
 |---|---|
-| `GET /`, `/works`, `/discovery`, `/themes`, `/manifest`, `/health` | The client shell. Listed rather than globbed, so a mistyped `/api/...` 404s instead of returning HTML a client parses as JSON. |
+| `GET /` and every page path in `UI_PATHS` (`arrt/src/arrt/http/pages.py`) | The client shell. Listed rather than globbed, so a mistyped `/api/...` 404s instead of returning HTML a client parses as JSON. `UI_PATHS` is the list, rather than a copy here, because it grew with every sidebar page and a copy was six paths behind it. |
 | `GET /static/app.css`, `/static/app.js` | The client. One stylesheet, one script, no build step. |
-| `GET /api/works` | A page of works, each with its fit verdict and image state. |
+| `GET /api/works` | A page of works, each with its fit verdict and image state. `sort` is `title` (the default), `artist` (unattributed last) or `newest`, and orders the page only: the total and the facet counts describe the same set whatever the order. An unknown value is refused by name. |
 | `GET /api/works/{id}` | One work with sources, renditions and mat history. |
 | `GET /api/works/{id}/thumbnail` | A downscaled copy, generated on first ask and revalidated thereafter. |
 | `GET /api/themes`, `GET /api/themes/{id}` | Themes, and one theme's works in curated order. |
@@ -1126,19 +1223,19 @@ the client with them.
 | `GET /api/health` | Every observation the panel states: **one heartbeat per wall** with the document that wall's display reported, the backup's age, and this deployment's resolved artwork box. **Three observations and no fourth** — there is deliberately no budget balance, settled 2026-08-04. Shape below. |
 
 Added 2026-08-05 with the run half of the browser surface, and exercised by
-`curation/tests/integration/test_browser_discovery.py`:
+`arrt/tests/integration/test_browser_discovery.py`:
 
 | Route | What it is |
 |---|---|
 | `GET /api/estimate` | What asking would cost, before anything is committed. Optional `run_id` asks the phase-2 question instead. Spends nothing. |
 | `POST /api/runs` | Begin a run. Returns a handle at once; phase 1 proceeds on a worker behind it. Records `initiated_by: web_ui`. |
-| `GET /api/runs` | Every run, newest first. Optional `status` and `kind` narrow it — they are filters, not limits. **Uncapped, and the bound is editorial rather than mechanical:** one household searching in leisure sessions is hundreds of rows a year, not millions. It is the only collection route here with no page. Issue #54 owns the cap for this and its MCP twin together. |
+| `GET /api/runs` | The newest runs, newest first, capped at `MAX_RUNS_LISTED` in the service so this route and its MCP twin report the same history (#54). `total` and `truncated` say what the cap left out, and there is no paging: optional `status` and `kind` filters are how a caller reaches older runs. Activity's Queue and History split this one capped listing on `is_terminal`, and each says when the cap left runs out. |
 | `GET /api/runs/{id}` | The run, its works, its tallies and its search usage. |
 | `POST /api/runs/{id}/approve`, `/decline`, `/cancel` | The approval gate and the stop. Each returns the whole resulting view, as the MCP surface does, so the client repaints from the response. |
 | `GET /api/runs/{id}/spend` | What the run actually cost, including every re-search descended from it. Read by the run view's costs panel once the run is terminal — it is the only place the **family total** appears, since the run record carries only the run's own direct spend. |
 
 Added 2026-08-05 with the review half, and exercised by
-`curation/tests/integration/test_browser_review.py`:
+`arrt/tests/integration/test_browser_review.py`:
 
 | Route | What it is |
 |---|---|
@@ -1263,7 +1360,7 @@ takes the same six arrays and `q`, and returns the same groups.
 
 > **Measured 2026-08-12 on the 4,000-work corpus, and the FTS5 question is
 > settled: `LIKE`, and no full-text index.** Run
-> `cd curation && uv run python tools/search_latency.py` to reproduce; figures are
+> `cd arrt && uv run python tools/search_latency.py` to reproduce; figures are
 > medians of 50 runs on an Apple-silicon laptop, and the tool prints p95 and worst
 > beside them.
 >
@@ -1728,6 +1825,94 @@ omit them and MCP assumes `destructiveHint: true` and `openWorldHint: true`, whi
 costs the operator a confirmation prompt on every call. Each tool declares `title`
 plus honest `readOnlyHint` / `destructiveHint`.
 
+## The Server↔Player surface — PLANNED 2026-09-30, BUILT 2026-09-30
+
+> **Built (wave 2b Chunk 03): the server's three routes, and wall tokens.**
+> `arrt/src/arrt/http/player.py` mounts them at the root beside `/api`,
+> spelled exactly as `contract/routes.json` spells them, and a test holds the
+> router to that file. The manifest route serves the published file's bytes with
+> their SHA-256 as the `ETag`, and answers `404` for a wall with nothing
+> published. The media route hashes the bytes it is about to send and refuses
+> (`404`) if they no longer match. The heartbeat POST accepts exactly what the
+> health panel can read and answers `400` otherwise, in the error shape `/api`
+> already uses. Tokens are issued from `POST /api/walls/{wall_id}/token` (the
+> Walls screen's Player token panel) and `art_display(action='issue_token')`.
+> Both return the token once, and the wall's `token_issued_at` is on both
+> surfaces' wall shapes. The Player's side is `postarr/src/postarr/pull.py` (Chunk 04):
+> `MANIFEST_SOURCE=http` pulls into `CACHE_DIR` and renders only from there. What follows is the design as recorded before the build, and where it
+> disagrees with the code or with `player-contract.md`, those win.
+
+**Before 2026-09-30 nothing in this section existed in code.** It records the target that
+`re-architecture.md` § Seam 2 sets. **The contract artifact now exists:
+`player-contract.md`, with its schemas and fixtures under `contract/`.** Where
+this section and that file disagree, that file wins.
+
+**Why it replaces the file channel.** Once the server moves to the NAS, the
+shared `ART_ROOT` would have to become a network mount on every Pi. Network
+mounts hang the processes that read them when the NAS reboots, which is the exact
+failure the availability norm exists to prevent. A pull into a Player-local cache
+keeps the norm true across the hop: the cache is the only path the Player ever
+renders from, so it is exercised on every rotation rather than being a fallback
+that is tested only on the night it matters. The norm amendment itself is
+recorded in `architecture.md` § Direction.
+
+| Route | Direction | Shape | Obligation |
+|---|---|---|---|
+| `GET /walls/{wall_id}/manifest` | Player → server, polled at about 1 s | Today's manifest document with `ETag`, answered `304` when unchanged. Carries the playlist entries, rotation settings, the directive block (`sequence`, `pinned_work_id`), the label text and, per entry, a **content-addressed media URL and hash**. From major 2 it also carries the current mat colour, and the playlist, rotation and directive become the **schedule**, any active **scene**, a **staging** list and the **wall settings** (`re-architecture.md` § What is showing, and how it is shown). | **Bounded.** The same major/minor rule as the file channel, described below. |
+| `GET /media/{hash}` | Player → server | From wave 4, the **presentation master**: device-independent, unmatted, long edge capped (starting proposal about 8K, to be measured). In waves 2 and 3, before any master exists, today's composed `tv_display` rendition. Immutable. `Cache-Control: immutable` and a long max-age, because the name *is* the content. | **Frozen per hash.** A hash never serves different bytes. |
+| `POST /walls/{wall_id}/heartbeat` | Player → server | Today's heartbeat document (`reported_at` and the rest; see `observability-strategy.md`). From wave 4 it also carries the Player's **capabilities** (geometry, backend, label hardware) **as observations**. | **Bounded**, like the manifest. Programming reads the capabilities and judges per-wall adequacy from them; the Library never sees them. |
+
+**Every route carries the wall's token** (decided 2026-09-30,
+`re-architecture.md` § Seam 2) as a bearer credential. A missing or wrong token
+is `401`, and a token for another wall is `403`. The Player treats either as a
+configuration error, stated once in the journal, and keeps its cache, like a
+`404` on its wall.
+
+**Versioning carries over rather than being re-decided.** `SCHEMA_MAJOR` and
+`SCHEMA_MINOR` keep their meanings: additive changes are free, and a breaking
+change bumps the major, which the Player refuses while keeping the manifest it
+has.
+- **The HTTP channel is a minor bump (wave 2).** It is built *alongside* the
+  file channel, and the document itself does not change shape. Only its
+  transport and its media references are new.
+- **Major 2 (wave 4) carries every breaking change at once.** `render_path` to a
+  composed 4K canvas is replaced by a presentation-master reference plus the mat
+  colour, and the playlist and directive become the schedule and scenes. A
+  major-1 Player cannot draw a wall from either. The refusal rule is
+  what makes the cutover safe: an un-upgraded Player keeps showing yesterday's
+  wall instead of misreading today's.
+
+**The error model follows the manifest's existing posture, not the MCP
+envelope.** The consumer is a daemon, not a model, so errors do not need to
+teach. They need to be classifiable.
+- **Transport failures, 5xx responses and timeouts** are "server unreachable":
+  keep the cache and back off, the same ladder an unreachable television gets.
+- **404 on a wall** is a configuration error, stated once in the journal.
+- **404 on a media hash** is a work that cannot be shown: skip it and keep
+  rotating, as with a missing render file today.
+- **An unrecognised major** is refused, and the last good manifest is kept.
+
+The wall going black stays worse than the wall being incomplete. That is the rule
+this whole surface is judged by.
+
+**Open, each settled before the wave named in `re-architecture.md` § Open questions:**
+- **Authentication** is settled: a bearer token per wall, on every route
+  (`player-contract.md` § Transport).
+- **ETag polling or server-sent events** for directive latency. Polling matches
+  today's roughly 1 s behaviour and is the default.
+- **The presentation master's encoding and cap.**
+
+**The Library facade is a second, internal interface, drawn now to be
+network-ready later.** `re-architecture.md` § Seam 1 has Programming calling the
+Library only through a small facade, centred on
+`playable(work_ids) -> {id: PlayableWork | Unplayable(reason)}`. It is
+coarse-grained, id-based, returns plain data and is idempotent. It is **not an
+exposed API** today and carries no versioning obligation, because both sides ship
+in one process. It is recorded here because it is written *as if* it were
+remote. If the Library and Programming ever split, this facade becomes a network
+surface and inherits the bounded obligation above. Nothing about its shape should
+need to change when that happens.
+
 ## Conventions
 
 **One binding norm already governs this artifact** — `architecture.md` § Direction,
@@ -1771,6 +1956,20 @@ single-principal household tool, and recorded as a decision in
 authority. Agent-initiated runs queue candidates for the same reason UI-initiated
 runs do — the review gate is universal, not a restriction on agents. Branching
 authority on the caller would reintroduce the parity split MCP exists to prevent.
+
+> **Direction changed 2026-09-30 — see `re-architecture.md`.** The server moves
+> to the operator's NAS and gains a **LAN listener for Players**, whose clients
+> are devices, not the curator. "Anyone on the network is the curator" was
+> sound when every inbound caller was a person. It needs restating once a Pi at
+> a wall holds a write route: the heartbeat POST can make a wall's health read
+> green or red.
+>
+> Whether the Player surface authenticates is open, and `security-model.md`
+> § Trust Boundary owns the answer. Two more things apply:
+> - **Watches** are standing, scheduled searches, and can auto-accept. They fire
+>   the "unattended discovery" trigger that `security-model.md` § Prompt Injection
+>   names. That section must be re-derived before Watches are built.
+> - **`initiated_by`** will need a value for a Watch.
 
 **The real exposure is prompt injection, and it is bounded — but less tightly than
 this artifact previously claimed.**
@@ -1906,6 +2105,15 @@ is self-contained:
   resources. Anthropic's own guidance says a tool is right when the result depends
   on parameters the model chooses, which covers every read here. A stable browsable
   artifact (the active theme, display state) may still earn a resource later.
+- **Opened 2026-09-30, and owned by `re-architecture.md` § Open questions:**
+  - authentication on the Server↔Player surface;
+  - ETag polling versus server-sent events;
+  - the presentation master's cap and encoding;
+  - how a review card shows fit once no single panel exists.
+
+  New MCP actions will be needed for Watches, programming tags and smart
+  playlists. Each is an additive action on an existing tool, or a new tool
+  name, and each is decided when its wave is planned, not here.
 
 ## Validation
 
@@ -1929,14 +2137,14 @@ the distinction above is exactly what produced it.)* Asserting a model can use t
 surface needs a model, and a model is not deterministic: it may reach the same goal
 by a different route on the next run. So the harness is:
 
-- **A scenario runner** (`curation/tests/contract/`), deterministic and in the
+- **A scenario runner** (`arrt/tests/contract/`), deterministic and in the
   default suite, driving real product flows as a real MCP client. Each step passes
   an id the *previous* step's envelope returned, which is what fails when two tools
   disagree about the name of the thing they hand each other — a defect neither
   tool's own tests can see. It also checks two envelope invariants on every call:
   that `isError` agrees with the payload's `success`, and that the JSON text and
   `structuredContent` bodies match.
-- **A model-driven evaluation** (`curation/tests/eval/`), behind the `llm_eval`
+- **A model-driven evaluation** (`arrt/tests/eval/`), behind the `llm_eval`
   marker and deselected by default, running verifiable operator prompts and
   measuring accuracy, call count and error rate against the scripted route as its
   yardstick. It asserts the **end state, not the route** — a model that takes six

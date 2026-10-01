@@ -1,0 +1,20 @@
+{
+  "schema": {
+    "major": 1,
+    "minor": 1
+  },
+  "generated_at": "2026-09-30T14:00:00+00:00",
+  "theme": {
+    "id": "th-surrealism",
+    "name": "Surrealism"
+  },
+  "rotation": {
+    "interval_seconds": 180,
+    "shuffle": false
+  },
+  "directive": {
+    "sequence": 4,
+    "pinned_work_id": null
+  },
+  "entries": {}
+}

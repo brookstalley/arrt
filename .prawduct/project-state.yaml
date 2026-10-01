@@ -54,6 +54,11 @@ classification:
       #   * MCP tool surface — external consumers (Claude Code, the in-UI agent)
       #   * HTTP API backing the curation UI's direct controls — internal
       #   * curation↔display plane contract — internal
+      #   * PLANNED 2026-09-30: the server↔Player HTTP contract (manifest by
+      #     ETag, media by hash, heartbeat POST). Internal consumers on the LAN,
+      #     but published and versioned, because the Player is meant to be an
+      #     independent product. See artifacts/re-architecture.md § Seam 2 and
+      #     api-contract.md.
       # Consumes six foreign surfaces; see foreign_apis below.
       #
       # Consequences re-derived on the flip (methodology/discovery.md, "A
@@ -90,6 +95,20 @@ classification:
     # Multiple processes or services communicating at runtime. topology: monolith-with-workers|client-server|microservices|pipeline
     multi_process_distributed:
       topology: shared-filesystem-pipeline
+      # FLIP RECORDED 2026-09-30 by the owner, effective at re-architecture wave 2.
+      # AMENDED later on 2026-09-30 by the advisor, in review, to wave 3: wave 2
+      # puts HTTP between two processes still on one Pi, and the processes first
+      # run on separate machines in wave 3. Vetoable.
+      # The value above stays as long as it describes the running system. The
+      # target is `client-server`: one server (Library plus Programming) as a
+      # container on the operator's NAS, and one Player per wall pulling an HTTP
+      # manifest and content-addressed media into a local cache. Wave 2 puts an
+      # HTTP protocol between the processes while both still run on the Pi. From
+      # wave 3 they run on separate machines, and it is distributed, so the resilience story in
+      # architecture.md grows the network rows it was able to omit. Re-derivation
+      # and the assumption audit are owed per docs/norms.md § Ambient norms. They
+      # were begun 2026-09-30 as forward notes across the artifacts, and are
+      # completed by each wave's plan. Record: artifacts/re-architecture.md.
       # AMENDED 2026-07-20. Previously `client-server`, described as "two planes on
       # two machines, forced by an irreconcilable Python version constraint". Every
       # part of that is now wrong:
@@ -183,7 +202,7 @@ classification:
           requirement is removable in 16 mechanical sites), and the 2026-07-20
           co-location decision means there is no second machine — both planes run on
           the one Pi. This is the third site where the "forced" phrasing outlived its
-          amendment; see learnings.md on retiring a claim being a repo-wide grep.
+          amendment; see .claude/rules/learnings/core.md on retiring a claim being a repo-wide grep.
 
           The seam is now a single versioned JSON file on a shared local filesystem,
           written atomically and read one-way, with no network between the planes and
@@ -581,7 +600,13 @@ product_definition:
 
   # Product identity.
   product_identity:
-    name: "Samsung Frame Art Loader"
+    # Renamed 2026-09-30 by the operator: "The library/performance controller
+    # will be Curatarr, the device side playback will be Displayarr." The same
+    # day the operator renamed the player Arrt. On 2026-10-01, under a hard
+    # requirement, the operator renamed both: the server Arrt and the player
+    # Postarr. This repo
+    # holds both until the wave 5 split, when it becomes Arrt alone.
+    name: "Arrt and Postarr"
     personality: >
       Museum, not gadget. The curator-facing surface should feel like a private
       collection management tool — calm, typographic, image-forward — and the
@@ -708,6 +733,56 @@ product_definition:
 
 technical_decisions:
   architecture:
+    - decision: "Three roles (Library, Programming, Player) in two deployables: a server on the NAS and a Player per wall."
+      date: 2026-09-30
+      alternatives_considered:
+        - "Three processes now (Library, Programming and Player each separate). Rejected by the owner as 'a lot of complexity and two servers for a moderately simple app'."
+        - "NFS or SMB mounts of the art tree on each Pi. Rejected because a network mount hangs on a NAS reboot, the failure the availability norm exists to prevent."
+        - "Two fresh repos rebuilt by agents from this one. Rejected: it loses the artifacts, history and learnings. This repo becomes the server, and postarr/ is extracted with its history in wave 5."
+        - "Keep compositing upstream at 3840x2160. Rejected: plural screens and caption-in-mat make the canvas device-specific."
+      rationale: >
+        Owner's direction, 2026-09-30. It supersedes the target (not the
+        as-built description) of the curation/display split below and of the
+        2026-07-20 co-location decision. The Library procures, maintains,
+        upgrades and enhances artwork. Programming assigns playlists to walls.
+        The Player renders to any screen (Samsung Frame, LCD, monitor), with an
+        optional e-ink label or a caption in the mat. Library and Programming
+        are "collapsed" into one server "with seams to allow future separation"
+        (owner's words): separate packages and stores, a remote-shaped facade,
+        and events. The channel becomes an HTTP pull into a Player-local cache.
+        Compositing moves to the Player. The repos split last, after the
+        contract settles. Full record, rulings, waves and open questions:
+        artifacts/re-architecture.md.
+    - decision: "What is showing is coordinated centrally, and how it is shown is local to each device. Walls exist only in Programming, as logical targets. Settings flow down in the manifest, and capabilities flow up in the heartbeat. From schema major 2 the manifest is a time-anchored schedule, with scenes as a live override layer and a staging hint."
+      date: 2026-09-30
+      alternatives_considered:
+        - "The server renders each wall's image from reported geometry, as a Plex server transcodes for its clients. Proposed by the advisor in review and withdrawn: it puts how a work is shown on the server, against the operator's split."
+        - "Each Player shuffles its own playlist, as today. Rejected: walls cannot be coordinated (no duplicates across walls, changing together) without a central calculation."
+        - "A true push channel for live control. Rejected: it puts a network listener, and so authentication, on every Player. A 1 s ETag poll delivers a scene in about a second, and the real latency is rendering, which staging addresses."
+      rationale: >
+        The operator's framing: the server "should not even have the concept of
+        walls, and should only have media management", but walls' "rotations and
+        displays should be coordinated and not require me to go change settings
+        on each player individually". The Library has no walls. Programming holds
+        walls as logical targets, with the schedule, scenes and wall settings
+        (label mode, mat proportions, viewing distance). The Player holds only
+        what reaches its hardware and the server, and reports its capabilities.
+        Scenes answer the operator's requirement to try a combination (three
+        Dalis in the living room) without writing a schedule: a preview expires
+        back to the schedule on its own, so a test cannot strand a wall. Full
+        text: artifacts/re-architecture.md § What is showing, and how it is shown.
+        Advisor's proposal, accepted as "This makes sense"; vetoable.
+    - decision: "The resolution floor is a Library quality profile in pixels, with a minimum and an upgrade cutoff. Per-wall adequacy is Programming's comparison against the geometry each Player reports."
+      date: 2026-09-30
+      alternatives_considered:
+        - "A reference geometry derived from the largest screen any Player reports. Rejected: it puts device geometry in the Library."
+        - "Judge adequacy only at hang time. Rejected: review would accept scans no wall could use."
+      rationale: >
+        When TV_PANEL_* and MAT_* leave the server in wave 4, instance selection
+        and the review card lose their input, and below-floor scans would be
+        auto-selected silently. A pixel profile names no device, and its cutoff
+        is what the wave 6+ upgrade job needs anyway (Radarr's quality profile).
+        Advisor's recommendation, 2026-09-30; vetoable.
     - decision: "Split into a curation plane and a display plane, communicating over a defined contract."
       rationale: >
         AMENDED 2026-07-19, same day, after auditing the constraint that originally
@@ -723,11 +798,12 @@ technical_decisions:
         "forced" is no longer an honest rationale.
 
         The split is retained on its independent merits: the display plane does not
-        want 3tears at all (it needs an HTTP client, samsungtvws, PIL, and the
-        e-paper driver — three-tier entities are useless to it, and the
+        want 3tears at all (it needs samsungtvws and the e-paper driver, and
+        not PIL; an HTTP client stays forbidden until wave 2 narrows the
+        plane-isolation rule, per architecture.md § Direction — three-tier entities are useless to it, and the
         shared-catalogue case that would justify them is the multi-pod coherence
         problem the operator ruled out); it matches the upstream/derived data
-        contract in learnings.md; it makes "e-paper behind an interface" a process
+        contract in boundary-patterns.md § ART_ROOT filesystem contract; it makes "e-paper behind an interface" a process
         boundary; and it is what lets the display plane keep working when curation
         is down.
 
@@ -778,6 +854,7 @@ technical_decisions:
         - "TV favourites (MY-C0004) as the active set — the library author states favourites cannot be applied to user uploads on 2022+ sets (unconfirmed on real hardware), and it would support only ONE active subset, not named themes."
       date: 2026-07-19
     - decision: "The theme manifest file is the ONLY channel from curation to display."
+      amended: "2026-09-30, wave 2b: the per-wall manifest and its media, read from the shared file or pulled over HTTP into a Player-local cache by postarr/src/postarr/pull.py, are the only channel. architecture.md § Direction holds the current statement."
       rationale: >
         Decided 2026-07-20 once both planes landed on one host. A JSON document in
         the shared ART_ROOT, written atomically by curation (temp file + os.replace,
@@ -936,12 +1013,12 @@ technical_decisions:
 
         The costs are named rather than discovered: ~200MB of downloaded browsers
         on a dev machine, a slower CI leg, and a second language's package
-        manifest inside `curation/`. Accepted against a product whose only human
+        manifest inside `arrt/`. Accepted against a product whose only human
         interface is this client.
 
         AMENDED AT BUILD, 2026-08-05, operator's call: the third cost is not paid.
         Playwright publishes first-party Python bindings, so the harness is
-        `pytest-playwright` in `curation/tests/browser/` behind a `browser` marker
+        `pytest-playwright` in `arrt/tests/browser/` behind a `browser` marker
         — one language, one suite, one command, and no second package manifest.
         This paragraph had assumed Node without the alternative having been put;
         it was verified to install and import on this repo's 3.14 before the
@@ -1544,7 +1621,7 @@ technical_decisions:
         - "Leave all.json as-is — carries all three defects into the new design."
       date: 2026-07-19
     - decision: "Per-device runtime state never lives in the catalogue."
-      rationale: "tv_content_id, tv_content_thumb_md5, and geometry-stamped label filenames are facts about one specific television and one specific panel, not about the artwork. Keeping them out is what lets the catalogue be plane-independent and lets derived artifacts regenerate per-device (learnings.md, Data and cache contract)."
+      rationale: "tv_content_id, tv_content_thumb_md5, and geometry-stamped label filenames are facts about one specific television and one specific panel, not about the artwork. Keeping them out is what lets the catalogue be plane-independent and lets derived artifacts regenerate per-device (boundary-patterns.md, ART_ROOT filesystem contract)."
       alternatives_considered: ["Keep them in the record as today — the defect being corrected."]
       date: 2026-07-19
     - decision: "A WORK is distinct from an IMAGE of it, at every stage. Discovery is two-phase: intent resolves to works, then each work is searched for image instances and one is selected as canonical."
@@ -1796,7 +1873,7 @@ technical_decisions:
         with "error: Found conflicting Python requirements". The DECISION'S
         SUBSTANCE IS UNCHANGED and was always the per-plane interpreter and
         per-plane lock; only the mechanism changes, to two independent sibling uv
-        projects (curation/ and display/), each locking itself. This is what the
+        projects (arrt/ and postarr/), each locking itself. This is what the
         build plan already hedged toward, now settled with evidence instead.
 
         NAMED VERIFICATION ITEM: IT8951 compiles Cython from 2023-era .pyx sources,
@@ -2013,7 +2090,7 @@ technical_decisions:
         - "Backup only, restore documented but never exercised — the default outcome, and the reason untested backups are a recurring class of incident."
       date: 2026-07-20
     - decision: "TAKEN 2026-08-07: pin the IT8951 driver to 9f13613 on both install paths, and pin the Cython that builds it. Do not vendor."
-      rationale: "omni-epd declares IT8951[rpi] as a git dependency with no revision, so installing the parent resolves ~1,500 lines of Cython the label panel depends on completely to whatever that repository's master is on the day. Reproducible today only because it has not moved since 2023 — a fact about upstream inactivity, not a property of this project. A vendor buys exactly one thing a pin does not, survival if the repository disappears, and costs 1,500 lines of Cython nobody here can maintain plus the ability to take any upstream fix; vendoring stays available as the escape hatch, with pi-freeze-2024.txt recording what to vendor. APPLIED ON BOTH PATHS because they resolve independently: requirements.txt (the 2024 plane) carries an explicit pinned line beside omni_epd, and display/pyproject.toml uses [tool.uv] override-dependencies, which is the only mechanism reaching a requirement written inside another package's metadata. VERIFIED on the Pi 2026-08-07 — uv lock lands it8951 on 9f13613 from the override rather than from upstream's master still happening to be that commit, which is what the previous status could not distinguish. THE SECOND AXIS IS ALSO CLOSED for the display plane: IT8951 compiles 2023-era .pyx sources and its own build-requires names Cython with no bound, so [tool.uv] build-constraint-dependencies holds it at >=3.0,<4. requirements.txt has no equivalent mechanism and stays exposed to a Cython 4, which is one more reason that install path is retired at Chunk 20 rather than maintained."
+      rationale: "omni-epd declares IT8951[rpi] as a git dependency with no revision, so installing the parent resolves ~1,500 lines of Cython the label panel depends on completely to whatever that repository's master is on the day. Reproducible today only because it has not moved since 2023 — a fact about upstream inactivity, not a property of this project. A vendor buys exactly one thing a pin does not, survival if the repository disappears, and costs 1,500 lines of Cython nobody here can maintain plus the ability to take any upstream fix; vendoring stays available as the escape hatch, with pi-freeze-2024.txt recording what to vendor. APPLIED ON BOTH PATHS because they resolve independently: requirements.txt (the 2024 plane) carries an explicit pinned line beside omni_epd, and postarr/pyproject.toml uses [tool.uv] override-dependencies, which is the only mechanism reaching a requirement written inside another package's metadata. VERIFIED on the Pi 2026-08-07 — uv lock lands it8951 on 9f13613 from the override rather than from upstream's master still happening to be that commit, which is what the previous status could not distinguish. THE SECOND AXIS IS ALSO CLOSED for the display plane: IT8951 compiles 2023-era .pyx sources and its own build-requires names Cython with no bound, so [tool.uv] build-constraint-dependencies holds it at >=3.0,<4. requirements.txt has no equivalent mechanism and stays exposed to a Cython 4, which is one more reason that install path is retired at Chunk 20 rather than maintained."
       alternatives_considered:
         - "Vendor ~1,500 lines of Cython into the repo — total control, no upstream fixes, and a maintenance burden nobody here can carry. Kept as the escape hatch if upstream disappears."
         - "Leave unpinned — a silent reproducibility failure waiting on an upstream commit."
@@ -2073,7 +2150,7 @@ design_decisions:
 
         Checkable against the code rather than taken on trust: the five names
         are the keys of `VIEWS` and the three are the keys of `DETAIL_VIEWS` in
-        `curation/src/curation/http/static/app.js`, with `tab` holding which
+        `arrt/src/arrt/http/static/app.js`, with `tab` holding which
         section stays lit.
       date: 2026-08-05
   interaction_patterns:
@@ -2250,7 +2327,7 @@ design_decisions:
     threshold of legibility and every check the product had passed while it was.
 
     What settles it instead is a DERIVATION, built as 13B-1
-    (display/src/display/panel/legibility.py): the deployment states its panel
+    (postarr/src/postarr/panel/legibility.py): the deployment states its panel
     diagonal and its viewing distance, and the type sizes follow from a cap height
     in arcminutes calibrated once by eye. The reference wall reads a 6-inch
     1448x1072 panel from 7 feet, which gives a 130 px primary tier and a 92 px
@@ -2449,7 +2526,7 @@ design_decisions:
     ENFORCED, not asserted: every text pair clears WCAG AA 4.5:1 and every
     control boundary clears 3:1, in both schemes, checked by a test that reads
     the real token values out of the stylesheet
-    (curation/tests/unit/test_design_tokens.py). The same test refuses any colour
+    (arrt/tests/unit/test_design_tokens.py). The same test refuses any colour
     written outside the token blocks, since a literal in a component rule is a
     colour nothing can check. A decorative rule between a card and the page is
     deliberately NOT held to the 3:1 control floor — WCAG 1.4.11 does not govern
@@ -2467,6 +2544,19 @@ design_decisions:
 #   priority: high | medium | low
 
 open_questions:
+  # OPENED 2026-09-30 with the re-architecture (artifacts/re-architecture.md §
+  # Open questions). Kept as one entry so they travel together until the plan
+  # of the wave each blocks splits it out; wave 1 settled none of them. Re-sorted later on 2026-09-30, after review: two
+  # questions settled (the wake/sleep window goes to Programming as gaps in the
+  # schedule; the resolution floor becomes a Library quality profile, which also
+  # answers what a review card shows about size), and the deferrals the forward
+  # notes carried were added. Three more closed the same day by the operator:
+  # the names (then Curatarr and Arrt; since 2026-10-01 Arrt and Postarr),
+  # Player auth (a token per wall), and the v1 open chunks (abandoned; their requirements are rebuilt in later waves).
+  - question: "Re-architecture open questions (artifacts/re-architecture.md § Open questions is the full text): the Player cache's location (wave 2); the server image's provenance (before wave 3); the schedule horizon and a scene's default preview lifetime (before wave 4; the fields exist in the major 2 draft); the compositing budget on a Pi 4 (before wave 4); the quality profile's numbers (wave 4); the presentation master's size cap and encoding; directive latency (ETag poll or server-sent events); the smart-playlist rule language; mat colour per aspect ratio; facet editing in the UI; the Watch questions (prompt-injection re-derivation, whether auto-accept is offered, initiated_by, push alerts); filing the program as backlog issues."
+    blocking: "Waves 1–4 of re-architecture.md. The compositing budget blocks planning wave 4."
+    waiting_on: operator
+    priority: high
   # RESOLVED 2026-08-11 by the operator: RATIFIED, with an amendment that is
   # larger than the question asked. The answer was not yes or no — it was that
   # the clause is right for the wrong half of the content, so the norm now has
@@ -2824,7 +2914,7 @@ user_expertise:
   evidence:
     - dimension: technical_depth
       signal: "Authors 3tears, a three-tier caching and agent framework with NATS KV, asyncpg, protocol-based backend seams, and RBAC-gated MCP."
-      inferred_from: "/Users/brookstalley/source/3tears"
+      inferred_from: "a local checkout of 3tears"
     - dimension: technical_depth
       signal: "Asked precisely the right question about the framework — 'is there really no way to avoid pulling in docker/postgres/nats' — rather than accepting the stack as given."
       inferred_from: "discovery, 2026-07-19"
@@ -2963,12 +3053,20 @@ artifact_manifest:
       file_path: .prawduct/artifacts/accessibility-spec.md
       version: 1
       depends_on: [design-direction, information-architecture, nonfunctional-requirements]
+    - name: re-architecture
+      file_path: .prawduct/artifacts/re-architecture.md
+      version: 1
+      depends_on: [product-brief, architecture, data-model]
+    - name: player-contract
+      file_path: .prawduct/artifacts/player-contract.md
+      version: 1
+      depends_on: [re-architecture, api-contract, data-model, security-model]
     # Edges mirror build-plan.md's own `depends_on:` front matter. The plan is
     # the most decision-dense artifact here: leaving it unedged would make every
     # decision it rests on unreachable by a dependency walk — precisely the
     # blind spot recorded under `findings` below.
     - name: build-plan
-      file_path: .prawduct/artifacts/build-plan.md
+      file_path: .prawduct/artifacts/archive/build-plan.md
       version: 1
       depends_on: [product-brief, data-model, architecture, api-contract,
                    nonfunctional-requirements, security-model, operational-spec,
@@ -3039,7 +3137,16 @@ build_state:
 # longer something governance can resolve a chunk against, and v1 is the live
 # work again — `build-plan.md` is unfinished on 13A, 13B and 24–27, every one of
 # them waiting on a television or a panel.
-active_build_plan: artifacts/build-plan.md
+#
+# Unset 2026-09-30: the v1 plan is archived as superseded by
+# `artifacts/re-architecture.md` (`artifacts/archive/build-plan.md`). Its open
+# chunks were not finished. 13A, 13B and 24–27 are proposed to survive as Player
+# work, and 20 to be re-scoped; the table under the plan's header records each.
+# The operator abandoned them later that day (wave 0 closed); the requirements
+# they served are placed in later waves by re-architecture.md.
+#
+# Left unset from wave 1 on: each wave's plan declares its own `branch:`, which
+# governance resolves ahead of this line and which two branches cannot conflict on.
 
 # =============================================================================
 # DERIVED VIEWS — RETIRED, and deliberately absent
@@ -3126,7 +3233,7 @@ coverage_required: false
 # same reason, as the plane-isolation test.
 test_commands:
   - uv run pytest tests --junit-xml={junit_xml} -q
-  - uv run --directory curation pytest --junit-xml={junit_xml} -q
+  - uv run --directory arrt pytest --junit-xml={junit_xml} -q
   # `--group raster` because the typesetter is the plane's most important
   # accessibility surface and the group is what makes it runnable. Without the
   # flag `tests/raster` importorskips and the recorded evidence covers every tier
@@ -3134,9 +3241,9 @@ test_commands:
   # executed no line of Pango. The group installs on any modern Linux and, since
   # 2026-08-13, on this project's development Mac; where it genuinely cannot, CI's
   # separate `typesetting` job is what holds the claim.
-  - uv run --directory display --group raster pytest --junit-xml={junit_xml} -q
+  - uv run --directory postarr --group raster pytest --junit-xml={junit_xml} -q
 
-tests_dirs: tests curation/tests display/tests
+tests_dirs: tests arrt/tests postarr/tests
 
 # =============================================================================
 # OPERATOR VERIFICATION (opt-in, v1.4+)
@@ -3229,7 +3336,15 @@ backlog_last_groomed_at: 2026-08-10
 #
 # Rollback is total and cheap: unset this key. backlog.md is unmodified in git.
 
-backlog_service_repo: brookstalley/samsung-frame-art-loader
+# Renamed 2026-09-30 from brookstalley/samsung-frame-art-loader. GitHub redirects
+# the old name, and issue numbers are unchanged.
+backlog_service_repo: brookstalley/arrt
+
+# Set 2026-09-30, when wave 1 was the first feature PR'd into develop rather than
+# main. The re-architecture integrates on develop and releases develop→main, but
+# the remote default is still main, so the resolver can't infer it. Unset this if
+# the repo goes back to trunk.
+base_branch: develop
 
 # =============================================================================
 # NORM HEALTH
