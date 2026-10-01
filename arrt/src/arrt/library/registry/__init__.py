@@ -2,17 +2,23 @@
 
 Wikidata is the only one today (`wikidata-findings.md`). What the Library asks a
 registry is small and stated as data: which items carry this museum identifier,
-who created these items, and which people go by this name. Judging whether an
-answer identifies a held work or artist is the identity service's job
-(`library/services/identity.py`), so a second registry would answer the same
-three questions and inherit the same judgement.
+who created these items, which people go by this name, and what is known about
+one artist. Judging whether an answer identifies a held work or artist is the
+identity service's job (`library/services/identity.py`), so a second registry
+would answer the same questions and inherit the same judgement.
 """
 
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Final, Protocol
 
 from arrt.library.registry.identifiers import IdentifierScheme
+
+#: A Wikidata item id, as the service writes it and as the library stores it. One
+#: definition, because the client relies on it to keep an id from closing a query
+#: and the identity service to refuse a URL pasted where an id belongs.
+QID: Final[re.Pattern[str]] = re.compile(r"^Q[1-9][0-9]*$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,7 +83,7 @@ class RegistryUnavailable(Exception):
 
 
 class Registry(Protocol):
-    """The three questions the Library asks a registry."""
+    """The questions the Library asks a registry."""
 
     def works_by_identifier(self, scheme: IdentifierScheme, values: Sequence[str]) -> Mapping[str, frozenset[str]]:
         """Every item carrying each museum identifier, keyed by the identifier. An unknown one is absent."""

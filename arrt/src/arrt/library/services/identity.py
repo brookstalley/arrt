@@ -18,13 +18,12 @@ none, so every rule above leans towards storing nothing.
 """
 
 import logging
-import re
 from collections import defaultdict
 from collections.abc import Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field, fields, replace
 from typing import Final
 
-from arrt.library.registry import Registry, RegistryPerson
+from arrt.library.registry import QID, Registry, RegistryPerson
 from arrt.library.registry.identifiers import IdentifierScheme, museum_identifier
 from arrt.persistence.catalogue import CatalogueStore, WorkQuery
 from arrt.persistence.records import Artist, Artwork, IdentitySetBy
@@ -33,8 +32,6 @@ from arrt.services.store import store_write
 
 log = logging.getLogger(__name__)
 
-#: A Wikidata item id.
-_QID: Final[re.Pattern[str]] = re.compile(r"^Q[1-9][0-9]*$")
 
 #: How far a registry's year may sit from the library's and still agree. One,
 #: because a death recorded in early January by one source is the previous year
@@ -103,7 +100,12 @@ class IdentityService:
         work_report = self._match_works(registry, [work for work in self._all_works() if _open(work)])
         # Read again, so the artists see the works this pass just identified.
         artist_report = self._match_artists(registry, self._all_works())
-        report = replace(artist_report, **{name: getattr(work_report, name) for name in _WORK_FIELDS})
+        # Each half fills only its own fields, so every field the works half set
+        # (its name begins `works_`) is taken from it, whatever fields are added.
+        report = replace(
+            artist_report,
+            **{spec.name: getattr(work_report, spec.name) for spec in fields(IdentityReport) if spec.name.startswith("works_")},
+        )
         log.info(
             "Matched %d work(s) and %d artist(s) to Wikidata; %d work(s) and %d artist(s) ambiguous.",
             report.works_matched,
@@ -201,9 +203,6 @@ class IdentityService:
                 return works
 
 
-_WORK_FIELDS: Final[tuple[str, ...]] = ("works_matched", "works_ambiguous", "works_unknown", "works_without_identifier")
-
-
 def _open(record: Artwork | Artist) -> bool:
     """Whether the matcher may fill this identity: none known, and the curator has not spoken."""
     return record.wikidata_qid is None and record.wikidata_qid_set_by is not IdentitySetBy.CURATOR
@@ -219,6 +218,6 @@ def _require_qid(qid: str | None) -> str | None:
     if qid is None:
         return None
     stripped = qid.strip().upper()
-    if not _QID.match(stripped):
+    if not QID.match(stripped):
         raise ServiceError(f"{qid!r} is not a Wikidata item id. An item id is Q followed by digits, as in Q160149.")
     return stripped

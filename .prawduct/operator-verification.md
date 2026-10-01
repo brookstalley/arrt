@@ -12,7 +12,10 @@ each entry, which is the durable form.
 
 ### The Artist page, against your own catalogue — added 2026-10-01
 
-**`build-plan-ia-foundations.md` Chunks 03 and 04.** Set `WIKIDATA_USER_AGENT` in
+**`build-plan-ia-foundations.md` Chunks 03 and 04.** First, copy `catalogue.sqlite`
+somewhere safe: this branch's first start migrates it (new columns, a new table,
+*All works* marked the default), and a rollback across a migration is a restore
+from that copy. Set `WIKIDATA_USER_AGENT` in
 `.env` (`.env.example` says what Wikimedia asks for), stop the server, run
 `cd arrt && uv run python -m arrt.identify` once, then start the server again.
 On a copy of the catalogue this matched 22 of 40 works and 24 of 31 artists.

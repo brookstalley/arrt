@@ -163,18 +163,18 @@ function installSuggestions(field) {
     let works = [];
     let artists = [];
     let failed = false;
-    try {
-      const [page, people] = await Promise.all([
-        api(`/api/works?q=${encodeURIComponent(query)}&limit=${SUGGESTIONS}`),
-        api(`/api/artists?q=${encodeURIComponent(query)}`),
-      ]);
-      works = page.works;
-      artists = people.artists;
-    } catch (failure) {
-      // The dropdown is a shortcut; the search itself still works on Enter. So a
-      // failed lookup costs the matches, says so, and keeps the other row.
-      failed = true;
-    }
+    // Settled separately: the artist lookup is an extra, and its failure must
+    // not cost the work matches. Only the works lookup failing says the library
+    // could not be searched, because that one guards a paid search below it.
+    const [page, people] = await Promise.allSettled([
+      api(`/api/works?q=${encodeURIComponent(query)}&limit=${SUGGESTIONS}`),
+      api(`/api/artists?q=${encodeURIComponent(query)}`),
+    ]);
+    if (people.status === "fulfilled") artists = people.value.artists;
+    // The dropdown is a shortcut; the search itself still works on Enter. So a
+    // failed lookup costs the matches, says so, and keeps the other row.
+    if (page.status === "fulfilled") works = page.value.works;
+    else failed = true;
     // A slower answer to an earlier keystroke must not replace a later one.
     if (ticket !== asked || document.activeElement !== field) return;
     paint(query, works, artists, failed);

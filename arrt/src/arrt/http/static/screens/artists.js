@@ -17,17 +17,12 @@
  * through `el`'s `text` and never as markup; image sources are Commons file URLs
  * the server has already checked, and nothing else is offered as one. */
 
-import { api } from "../core/api.js";
+import { api, fetchAllWorks } from "../core/api.js";
 import { absentImage, facts } from "../core/badges.js";
 import { addedSentence, addWorksToTheme, stoppedSentence } from "../core/membership.js";
 import { el, guard, render } from "../core/render.js";
 import { backLink, backRow, go } from "../core/router.js";
 import { recordReaction } from "../core/taste.js";
-
-/* How many held works one artist page lists: the most `GET /api/works` serves
- * in one page (`MAX_LIST_LIMIT`), which is an artist's whole holding at the
- * owner's scale. A larger holding says how many more there are. */
-const HELD_SHOWN = 100;
 
 export async function viewArtists(artistId, generation) {
   if (artistId) {
@@ -67,6 +62,10 @@ async function oneArtist(artistId, generation) {
   try {
     page = await api(`/api/artists/${encodeURIComponent(artistId)}`);
   } catch (failure) {
+    // Only the refusal says nobody is here; a fault is the error banner's, and
+    // telling a curator an artist is gone because the server stumbled would
+    // send them looking for something that was never lost.
+    if (failure.status !== 400) throw failure;
     render(
       generation,
       el("p", {}, [backLink()]),
@@ -77,8 +76,10 @@ async function oneArtist(artistId, generation) {
     return;
   }
   const artist = page.artist;
+  // Paged by the shared loop, which sends no limit of its own: the server's
+  // default and cap govern, and the client holds no copy of either (`core/api.js`).
   const [works, themes] = await Promise.all([
-    api(`/api/works?artist_id=${encodeURIComponent(artistId)}&status=accepted&limit=${HELD_SHOWN}`),
+    fetchAllWorks("", null, null, null, { artistId, status: "accepted" }),
     api("/api/themes"),
   ]);
 
@@ -153,9 +154,14 @@ function heldSection(works, themes) {
   const picker = el("select", { id: "artist-add-to-theme", "aria-label": "Theme to add the selected works to" });
   for (const placement of themes) picker.append(el("option", { value: placement.theme.theme_id, text: placement.theme.name }));
   const add = el("button", { class: "action", type: "button", text: "Add to theme", disabled: true });
+  // Not rewritten unchanged, as on Artworks: a live region reassigned the same
+  // sentence announces it again, which trains a listener to tune the region out.
+  const say = (words) => {
+    if (announcement.textContent !== words) announcement.textContent = words;
+  };
   const settle = () => {
     add.disabled = chosen.size === 0 || !themes.length;
-    announcement.textContent = chosen.size === 0 ? "No works selected." : `${chosen.size} selected.`;
+    say(chosen.size === 0 ? "No works selected." : `${chosen.size} selected.`);
   };
   const grid = el("ul", { class: "grid" }, works.works.map((work) => heldCard(work, chosen, settle)));
   add.addEventListener("click", () =>
@@ -171,13 +177,13 @@ function heldSection(works, themes) {
         outcome = await addWorksToTheme(picker.value, [...chosen], { onAdded: untick });
       } catch (failure) {
         settle();
-        if (failure.progress) announcement.textContent = stoppedSentence(failure.progress, name);
+        if (failure.progress) say(stoppedSentence(failure.progress, name));
         announcement.focus();
         throw failure;
       }
       for (const artworkId of [...chosen]) untick(artworkId);
       settle();
-      announcement.textContent = addedSentence(outcome, name);
+      say(addedSentence(outcome, name));
       announcement.focus();
     }),
   );
@@ -262,10 +268,14 @@ function named(label, qid) {
 
 /* Glyph, word and the badge colour, the order every badge here uses. */
 function workState(work) {
-  if (work.held_artwork_id) {
-    return el("button", { class: "badge badge-held", type: "button", onclick: () => go("work", work.held_artwork_id) }, [
+  const held = work.held_artwork_ids;
+  if (held.length) {
+    // Two held works naming one item is a duplicate the curator should see,
+    // not a mark that quietly picks one; it opens the first.
+    const words = held.length === 1 ? "Held" : `Held ×${held.length}`;
+    return el("button", { class: "badge badge-held", type: "button", onclick: () => go("work", held[0]) }, [
       el("span", { class: "glyph", text: "●", "aria-hidden": true }),
-      el("span", { text: "Held" }),
+      el("span", { text: words }),
     ]);
   }
   if (work.image) {

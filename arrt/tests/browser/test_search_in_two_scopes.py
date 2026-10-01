@@ -107,6 +107,18 @@ def test_choosing_a_library_match_opens_that_work(ui, seeded_service):
     assert ui.page.evaluate("() => window.location.hash").startswith("#work/")
 
 
+def test_a_failed_artist_lookup_keeps_the_work_matches(ui, seeded_service):
+    """The artist group is an extra; its failure must not cost the library's matches."""
+    ui.page.route("**/api/artists?q=*", lambda route: route.fulfill(status=500, content_type="application/json", body="{}"))
+    ui.open("#walls")
+    ui.page.wait_for_selector("#view h2")
+
+    type_into_search(ui, "dali")
+
+    assert options(ui) == ["The Persistence of Memory — Salvador Dalí", "Search museums for “dali”"]
+    assert ui.page.locator(".search-suggestions-note").count() == 0
+
+
 def test_choosing_an_artist_opens_their_page(ui, seeded_service):
     ui.open("#walls")
     ui.page.wait_for_selector("#view h2")
@@ -182,7 +194,9 @@ def test_a_failed_library_lookup_still_offers_the_search_of_everything(ui, seede
 
     type_into_search(ui, "Dalí")
 
-    assert options(ui) == ["Search museums for “Dalí”"]
+    # The artist lookup is a separate request and answered, so the artist is still
+    # offered; only the works could not be searched, and the dropdown says so.
+    assert options(ui) == ["Salvador Dalí — artist", "Search museums for “Dalí”"]
     assert "could not be searched" in ui.page.inner_text(LISTBOX)
 
 

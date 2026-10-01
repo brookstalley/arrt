@@ -94,12 +94,30 @@ class TestTheIndex:
 
 
 class TestTheArtistPage:
-    def test_the_held_works_are_shown(self, ui, rothko):
+    def test_the_held_works_are_shown_and_only_theirs_in_circulation(self, ui, service, rothko):
+        """An archived Rothko and another painter's work are both in the catalogue; neither belongs here."""
         artist, work = rothko
+        gone = service.add_artwork(title="Rothko, archived", artist_id=artist.id)
+        service.archive_artwork(gone.id)
+        other = service.add_artist(name="Someone Else")
+        service.add_artwork(title="Not a Rothko", artist_id=other.id)
         _page(ui, artist)
 
         assert ui.page.locator("#in-your-library").inner_text() == "In your library (1)"
         assert ui.page.locator("section[aria-labelledby='in-your-library'] .card-title").all_inner_texts() == [work.title]
+
+    def test_two_held_works_naming_one_item_are_shown_as_a_duplicate(self, ui, services, service, rothko):
+        """The duplicate a curator should see, rather than one mark that quietly picks one."""
+        artist, work = rothko
+        twin = service.add_artwork(title="Untitled (Purple, White, and Red), again", artist_id=artist.id)
+        services.identity.set_work_identity(twin.id, "Q20270685")
+        _page(ui, artist)
+        _registry_answered(ui)
+
+        badge = ui.page.locator("section[aria-labelledby='their-work'] .badge-held")
+        assert badge.inner_text().strip().endswith("Held ×2")
+        badge.click()
+        ui.page.wait_for_selector(f"#view h2:has-text('{work.title}')")
 
     def test_their_work_marks_the_held_one_held_and_the_others_not(self, ui, rothko):
         artist, work = rothko
@@ -182,6 +200,19 @@ class TestTheArtistPage:
 
         theme = next(t for t in services.display.list_themes() if t.name == "Colour fields")
         assert list(services.display.theme_work_ids(theme.id)) == [work.id]
+
+    def test_a_server_fault_is_an_error_not_an_absent_artist(self, ui, rothko):
+        """Only the catalogue's refusal means nobody is here; a 500 is the error banner's."""
+        artist, _work = rothko
+        ui.page.route(
+            f"**/api/artists/{artist.id}",
+            lambda route: route.fulfill(status=500, content_type="application/json", body="{}"),
+        )
+        ui.open(f"#artist/{artist.id}")
+
+        ui.page.wait_for_selector("#error:not([hidden])")
+        assert "500" in ui.page.inner_text("#error")
+        assert ui.page.locator("#view h2:has-text('That artist is not here')").count() == 0
 
     def test_an_address_naming_nobody_says_so(self, ui):
         ui.open("#artist/nobody")

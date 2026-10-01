@@ -841,13 +841,16 @@ is no network between planes.
 | 6 | E-paper | SPI | display → panel | sync | Foreign API |
 | 7 | Model + search | HTTPS | curation → OpenRouter | sync | Foreign API |
 | 8 | Sources | HTTPS | curation → museum APIs, GA&C | sync | Foreign API |
+| 9 | **Registry** *(2026-10-01)* | HTTPS POST to one constant endpoint, no redirects followed | curation → Wikidata's query service | sync | `wikidata-findings.md`; `library/registry/` |
 
 **Trust boundaries.** Channels 3 and 4 are the only inbound ones, and both are
 reached over an overlay network (Tailscale/VPN) rather than public exposure — the
 network layer carries the trust boundary, which is what keeps
 `security-model.md` short. Channel 5 crosses onto the LAN. Channels 7 and 8 reach
 the open internet and are where prompt-injection content enters; bounds are in
-`security-model.md`.
+`security-model.md`. Channel 9 reaches it too, and what comes back is
+anyone-editable text shown in the curator's browser rather than read by a
+model: `security-model.md` § Registry text records what bounds it.
 
 **Channels 1 and 2 are not trust boundaries** — same host, same user, same
 filesystem. They are *coordination* boundaries.

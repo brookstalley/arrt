@@ -247,6 +247,11 @@ def list_artists(request: Request, q: Annotated[str | None, Query()] = None) -> 
 
     `q` narrows to names containing it, ignoring case and accents, which is what
     the top-bar search asks when it offers artists.
+
+    **Not capped, and what bounds it is the catalogue**: one row per artist with a
+    work in circulation, so never more rows than works, and an artist's row is a
+    name and a count. At the NFR's thousands of works that is a few hundred rows.
+    If it is ever paged, the typeahead's `q` lookup is the caller that needs it.
     """
     return ArtistListOut(artists=[_held_artist(entry) for entry in _services(request).artists.index(q)])
 
@@ -283,7 +288,7 @@ def get_artist_registry(request: Request, artist_id: str) -> ArtistRegistryOut:
                     year=entry.year,
                     sitelinks=entry.sitelinks,
                     image=entry.image,
-                    held_artwork_id=view.held.get(entry.qid),
+                    held_artwork_ids=list(view.held.get(entry.qid, ())),
                 )
                 for entry in known.works
             ]

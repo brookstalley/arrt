@@ -204,8 +204,8 @@ class CatalogueStore(Protocol):
         """Every artist with at least one work in circulation, and how many, by name."""
         ...
 
-    def artwork_ids_by_qid(self) -> Mapping[str, str]:
-        """Every work that carries a Wikidata QID, keyed by it."""
+    def circulating_ids_by_qid(self) -> Mapping[str, Sequence[str]]:
+        """Every work in circulation that carries a Wikidata QID, keyed by it; several where works share one."""
         ...
 
     def accepted_artwork_ids(self) -> Sequence[str]:

@@ -104,8 +104,9 @@ class RegistryWorkOut(BaseModel):
     #: A Commons file URL, and only ever one: anything else the registry
     #: offered was dropped before it got here.
     image: str | None
-    #: The library's work, where the library holds this one (matched by QID).
-    held_artwork_id: str | None
+    #: The library's works in circulation that are this one (matched by QID).
+    #: Empty when not held; more than one is a duplicate for the curator to see.
+    held_artwork_ids: list[str]
 
 
 class RegistryHoldingOut(BaseModel):

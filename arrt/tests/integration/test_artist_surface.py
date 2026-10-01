@@ -96,11 +96,35 @@ class TestOneArtist:
         assert view["note"] is None
         assert view["movements"] == ["abstract expressionism"]
         assert view["works_total"] == 1276
-        assert {work["title"]: work["held_artwork_id"] for work in view["works"]} == {
-            "Rothko Chapel": None,
-            "Untitled (Purple, White, and Red)": kept.id,
+        assert {work["title"]: work["held_artwork_ids"] for work in view["works"]} == {
+            "Rothko Chapel": [],
+            "Untitled (Purple, White, and Red)": [kept.id],
         }
         assert view["holdings"] == [{"qid": "Q214867", "name": "National Gallery of Art", "works": 1128}]
+
+    def test_an_archived_work_is_not_held_here_either(self, http, services, service, held):
+        """*In your library* leaves archived works out, so *Their work* does too."""
+        rothko, kept = held
+        # Named by an item among the most renowned, so it is listed whatever the
+        # library asks to include, and only the held lookup can mark it.
+        services.identity.set_work_identity(kept.id, "Q2956755")
+        service.archive_artwork(kept.id)
+
+        view = http.get(f"/api/artists/{rothko.id}/registry").raise_for_status().json()
+
+        chapel = next(work for work in view["works"] if work["qid"] == "Q2956755")
+        assert chapel["held_artwork_ids"] == []
+
+    def test_two_held_works_naming_one_item_are_both_reported(self, http, services, service, held):
+        """A duplicate for the curator to see (`data-model.md`), not one silently dropped."""
+        rothko, kept = held
+        twin = service.add_artwork(title="Untitled (Purple, White, and Red), again", artist_id=rothko.id)
+        services.identity.set_work_identity(twin.id, "Q20270685")
+
+        view = http.get(f"/api/artists/{rothko.id}/registry").raise_for_status().json()
+
+        marked = next(work for work in view["works"] if work["qid"] == "Q20270685")
+        assert marked["held_artwork_ids"] == [kept.id, twin.id]
 
     def test_the_registry_is_asked_once_per_artist(self, http, held, registry):
         rothko, _kept = held

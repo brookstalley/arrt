@@ -69,7 +69,12 @@ wave: the pieces that stand on their own or that everything after needs.
 
 1. **One-world search, and the rest of the hub.** Typeahead and results show
    library and registry matches with their states (ruling 2). A Work page exists
-   for works not held. The Artist page gains *Similar artists*.
+   for works not held. The Artist page gains *Similar artists*. The Artist and
+   Work pages gain a control to set or clear a Wikidata QID by hand: the routes
+   exist (`POST /api/works|artists/{id}/wikidata`), and until then the only way
+   to correct a *Held* mark is `art_catalogue(action='set_work_qid')`. A norm for
+   showing external text in the browser is owed first (`security-model.md` §
+   Open).
 2. **Get and Ask.** Add New is dissolved (ruling 3): *Get* acts on any selection
    and seeds a run with the chosen works. The conversation becomes *Ask*, under
    Library. Activity gains *To review*, which needs the unjudged-candidate count
@@ -289,7 +294,7 @@ the library holds, with counts. An **Artist** page has:
   *(Corrected while building, 2026-10-01: Library › Works offers Add to theme
   on a selection and nothing hangs a selection anywhere; ruling 6 defers
   hanging a selection to wave 4. So the page offers Add to theme, sharing
-  Works' logic through `core/membership.js`. Not a descope: there was no Hang
+  Works' logic through `arrt/src/arrt/http/static/core/membership.js`. Not a descope: there was no Hang
   to match.)*
 - **Their work:** works Wikidata lists for the artist, sorted by renown (sitelink
   count), each marked *Held* (by QID) or with *Image found* where Wikidata has a

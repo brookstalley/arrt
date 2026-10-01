@@ -28,7 +28,7 @@ from typing import Final
 from arrt.library.registry import Registry, RegistryArtist, RegistryUnavailable
 from arrt.persistence.catalogue import CatalogueStore, WorkQuery
 from arrt.persistence.folding import search_fold
-from arrt.persistence.records import Artist
+from arrt.persistence.records import Artist, ArtworkStatus
 from arrt.services.errors import ServiceError
 
 log = logging.getLogger(__name__)
@@ -78,8 +78,10 @@ class RegistryView:
     #: A sentence for the curator when the state is not `KNOWN`.
     note: str | None = None
     known: RegistryArtist | None = None
-    #: The library's work for each registry work it holds, by QID.
-    held: Mapping[str, str] = field(default_factory=dict)
+    #: The library's works in circulation for each registry work it holds, by
+    #: QID. Usually one; several when held works share a QID, which is a
+    #: duplicate the page shows rather than hides (`data-model.md` § Artwork).
+    held: Mapping[str, Sequence[str]] = field(default_factory=dict)
 
 
 class ArtistService:
@@ -120,8 +122,12 @@ class ArtistService:
                 state=RegistryState.NOT_CONFIGURED,
                 note="Wikidata is not configured on this server (WIKIDATA_USER_AGENT is unset).",
             )
-        holdings = self._store.artwork_ids_by_qid()
-        theirs = self._store.list_artworks(WorkQuery(artist_id=artist.id), limit=_THEIRS, offset=0).artworks
+        # "Held" means in circulation, as *In your library* above it does, so an
+        # archived work is neither listed there nor marked here.
+        holdings = self._store.circulating_ids_by_qid()
+        theirs = self._store.list_artworks(
+            WorkQuery(status=ArtworkStatus.ACCEPTED, artist_id=artist.id), limit=_THEIRS, offset=0
+        ).artworks
         mine = sorted({work.wikidata_qid for work in theirs if work.wikidata_qid})
         try:
             known = self._known(artist.wikidata_qid, mine, self._registry)

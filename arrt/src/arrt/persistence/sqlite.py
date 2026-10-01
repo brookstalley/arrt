@@ -573,11 +573,16 @@ class SqliteCatalogue(TableAdapter):
         )
         return [(_artist(row), int(row["held"])) for row in rows]
 
-    def artwork_ids_by_qid(self) -> Mapping[str, str]:
+    def circulating_ids_by_qid(self) -> Mapping[str, Sequence[str]]:
         rows = self._store.select_rows(
-            'SELECT a."wikidata_qid" AS qid, a."id" AS id FROM artworks a WHERE a."wikidata_qid" IS NOT NULL'
+            'SELECT a."wikidata_qid" AS qid, a."id" AS id FROM artworks a '
+            'WHERE a."wikidata_qid" IS NOT NULL AND a."status" = ? ORDER BY a."created_at", a.rowid',
+            (str(ArtworkStatus.ACCEPTED),),
         )
-        return {row["qid"]: row["id"] for row in rows}
+        found: dict[str, list[str]] = {}
+        for row in rows:
+            found.setdefault(row["qid"], []).append(row["id"])
+        return found
 
     def accepted_artwork_ids(self) -> Sequence[str]:
         # Oldest first, `rowid` breaking a tie within one clock tick, so a catch-up

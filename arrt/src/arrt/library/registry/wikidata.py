@@ -1,4 +1,4 @@
-"""Wikidata's query service, asked the three questions a `Registry` answers.
+"""Wikidata's query service, asked the questions a `Registry` answers.
 
 Every shape here was measured before this module existed; the measurements are
 `wikidata-findings.md`. Three of them decide how it is written:
@@ -26,7 +26,7 @@ from typing import Any, Final
 
 import httpx
 
-from arrt.library.registry import RegistryArtist, RegistryHolding, RegistryPerson, RegistryUnavailable, RegistryWorkEntry
+from arrt.library.registry import QID, RegistryArtist, RegistryHolding, RegistryPerson, RegistryUnavailable, RegistryWorkEntry
 from arrt.library.registry.identifiers import IdentifierScheme
 
 log = logging.getLogger(__name__)
@@ -43,9 +43,6 @@ BATCH: Final[int] = 200
 #: about to time out itself (its limit is 60 s).
 TIMEOUT_SECONDS: Final[float] = 60.0
 
-#: A QID as the service writes it, which is also what keeps one from closing a
-#: query when it is placed into one.
-_QID: Final[re.Pattern[str]] = re.compile(r"^Q[1-9][0-9]*$")
 
 #: Visual artist (`Q3391743`): the occupation painters, sculptors and
 #: photographers sit under.
@@ -202,7 +199,7 @@ def _literal(text: str) -> str:
 
 
 def _require_qid(qid: str) -> str:
-    if not _QID.match(qid):
+    if not QID.match(qid):
         raise ValueError(f"{qid!r} is not a Wikidata item id.")
     return qid
 
@@ -219,7 +216,7 @@ def _qid(row: Mapping[str, Any], name: str, *, required: bool = True) -> str | N
     if not required and name not in row:
         return None
     candidate = _value(row, name).rsplit("/", 1)[-1]
-    if _QID.match(candidate):
+    if QID.match(candidate):
         return candidate
     if required:
         raise RegistryUnavailable(f"A Wikidata result's {name!r} was not an item: {candidate!r}.")
