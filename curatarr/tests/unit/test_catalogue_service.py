@@ -185,21 +185,21 @@ def test_the_default_order_is_by_title(service, three_to_order):
 
 
 def test_by_artist_puts_unattributed_works_last(service, three_to_order):
-    assert titles(service.list_artworks(order="artist")) == ["Zenith", "Mid", "Apex"]
+    assert titles(service.list_artworks(sort="artist")) == ["Zenith", "Mid", "Apex"]
 
 
 def test_newest_first_is_by_when_the_work_was_added(service, three_to_order):
-    assert titles(service.list_artworks(order="newest")) == ["Apex", "Zenith", "Mid"]
+    assert titles(service.list_artworks(sort="newest")) == ["Apex", "Zenith", "Mid"]
 
 
 def test_the_order_changes_the_page_and_not_the_set(service, three_to_order):
     by_title = service.list_artworks(limit=2)
-    by_artist = service.list_artworks(limit=2, order="artist")
+    by_artist = service.list_artworks(limit=2, sort="artist")
 
     assert by_title.total == by_artist.total == 3
     assert titles(by_title) != titles(by_artist)
 
 
 def test_an_order_nobody_offers_is_refused_by_name(service, three_to_order):
-    with pytest.raises(ServiceError, match="order"):
-        service.list_artworks(order="colour")
+    with pytest.raises(ServiceError, match="sort"):
+        service.list_artworks(sort="colour")

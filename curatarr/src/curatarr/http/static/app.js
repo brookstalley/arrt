@@ -77,8 +77,8 @@ const SECTIONS = [
 const ROUTES = {
   collection: { render: viewCollection, section: "artworks", page: "Artworks" },
   // Radarr's Add New: where a curator goes to bring in something the library
-  // does not hold. The intent box, the conversations and — until Activity
-  // exists — the list of searches they started.
+  // does not hold. The intent box and the conversations; the searches they
+  // start are listed under Activity.
   discover: { render: viewDiscover, section: "artworks", page: "Add New" },
   // An index *and* an addressable detail, which is what the optional id buys:
   // `#theme` is every theme, `#theme/<id>` is one. § Navigation Structure
@@ -105,7 +105,9 @@ const ROUTES = {
   // Keyed by the run whose works are being judged, not by a work: a curator
   // reviews a run's output as a set, and a per-work address would make the grid
   // unreachable by URL.
-  review: { render: viewReview, detail: true, opensFrom: "queue" },
+  // `returnLabel` makes Review a place to come back to: a Work opened from a
+  // review card returns to that review, not to the page the review sits under.
+  review: { render: viewReview, detail: true, opensFrom: "queue", returnLabel: "The review", returnFor: ["work"] },
 };
 
 installStatus();

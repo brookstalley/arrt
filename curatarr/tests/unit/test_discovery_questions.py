@@ -74,6 +74,18 @@ def test_an_accepted_work_is_not_marked_held_by_itself(discovery, resolved_work)
     assert discovery.held_artwork_id(discovery.get_candidate_work(work.id)) is None
 
 
+def test_an_accepted_work_is_not_marked_held_by_a_later_acceptance_of_the_same_key(discovery, resolved_work):
+    """ "Accept anyway" mints a second artwork; the first card is the original
+    acquisition, not a duplicate of the second."""
+    first = resolved_work("Untitled", dedup_key="martin::untitled")
+    discovery.set_verdict(first.id, Verdict.ACCEPTED)
+    second = resolved_work("Untitled", dedup_key="martin::untitled")
+    discovery.set_verdict(second.id, Verdict.ACCEPTED)
+
+    assert discovery.held_artwork_id(discovery.get_candidate_work(first.id)) is None
+    assert discovery.held_artwork_id(discovery.get_candidate_work(second.id)) is None
+
+
 def test_a_different_work_is_not_held(discovery, resolved_work):
     first = resolved_work("Nighthawks", dedup_key="hopper::nighthawks")
     discovery.set_verdict(first.id, Verdict.ACCEPTED)

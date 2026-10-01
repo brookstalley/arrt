@@ -113,6 +113,16 @@ the *arr apps: *"More important to be familiar than to have our own thing."*
   orders the page and never moves the total or the facet counts. View, Sort and
   Filter are all in the address and survive a reload, and "Show everything"
   keeps them.
+- **The cumulative review's fixes.** The search dropdown had taken the
+  `.suggestions` class a conversation turn already used, so on a thread with
+  several suggesting turns every block stacked in one place. It is now
+  `.search-suggestions`, with a two-turn test that failed first. `art_catalogue
+  list` takes `sort` as the browser does, and a bad value is refused under the
+  name the caller sent. Hidden rails that still narrow the works say so. A Work
+  opened from a review returns to that review, which the IA had always required.
+  A failed library lookup in the dropdown says so rather than looking like no
+  matches. A stale `?sort=` falls back to the default, and after "Accept anyway"
+  the original card no longer points at the duplicate.
 - `test_the_three_destinations.py` became `test_the_sidebar.py`. Its docstring
   records which tests were kept, which rewritten to the amended norm, and which
   retired: *no entry names a pipeline stage* and *the navigation is flat*, both

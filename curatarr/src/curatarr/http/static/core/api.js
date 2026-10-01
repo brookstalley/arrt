@@ -55,7 +55,9 @@ export async function api(path, options) {
  *
  * `PAGE_CEILING` is a runaway guard, not a policy. If it is ever hit the caller
  * reports how many were left out, because a cap nobody mentions is the silent
- * omission this product exists to refuse. */
+ * omission this product exists to refuse. **Since Artworks gained a Sort, the
+ * order also decides which works fall past it**: by title the last letters go
+ * missing, by newest the oldest acquisitions. */
 export const PAGE_CEILING = 50;
 
 /* The chosen facet values, as `GET /api/works` spells them.

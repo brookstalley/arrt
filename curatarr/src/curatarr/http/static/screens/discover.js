@@ -84,8 +84,7 @@ export async function viewDiscover(generation) {
 
   const panels = [el("h2", { text: "Add New" }), entry];
 
-  // The conversations, above the searches they seed rather than below them: a
-  // thread is where a search comes from, and the list reads in that order.
+  // The conversations, where the searches listed under Activity come from.
   // Every row opens the thread it names — there is no summary line yet, because
   // nothing writes one, and a column that was always empty would read as every
   // conversation having got nowhere.

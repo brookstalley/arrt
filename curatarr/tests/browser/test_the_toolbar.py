@@ -170,3 +170,56 @@ def test_the_table_carries_the_tick_only_when_there_is_a_theme_to_add_to(ui, ser
     ui.page.reload()
     ui.page.wait_for_selector("table.work-table input.tile-select")
     assert ui.page.locator("table.work-table input.tile-select").count() == 3
+
+
+def test_hidden_rails_say_so_when_they_are_still_narrowing(ui, services, seeded_service):
+    """A theme narrowing the grid with its rail put away would read as the whole
+    collection. The paired case below, with nothing narrowing, says nothing."""
+    theme = services.display.add_theme(name="Late night")
+    ui.open(f"#collection?theme={theme.id}&filters=hidden")
+    ui.page.wait_for_selector(".filters-hidden-note")
+
+    ui.page.click(".filters-hidden-note button:has-text('Show the filters')")
+    ui.page.wait_for_selector("aside.rails")
+    assert "filters=" not in ui.page.evaluate("() => window.location.hash")
+
+
+def test_hidden_rails_with_nothing_narrowing_say_nothing(ui, seeded_service):
+    ui.open("#collection?filters=hidden")
+    ui.page.wait_for_selector("ul.grid")
+
+    assert ui.page.locator(".filters-hidden-note").count() == 0
+
+
+def test_view_sort_and_filter_are_undone_by_browser_back(ui, seeded_service):
+    """Promised as addressable state, so the browser's own back undoes each."""
+    ui.open("#collection?density=table")
+    ui.page.wait_for_selector("table.work-table")
+
+    choose(ui, "Sort", "Artist")
+    wait_for_table(ui, BY_ARTIST)
+    ui.page.go_back()
+    wait_for_table(ui, BY_TITLE)
+    assert "sort=" not in ui.page.evaluate("() => window.location.hash")
+
+
+def test_a_sort_this_client_does_not_offer_falls_back_rather_than_failing(ui, seeded_service):
+    """A bookmark from a later or earlier version must not break the home page;
+    an unknown density already falls back the same way."""
+    ui.open("#collection?density=table&sort=colour")
+    ui.page.wait_for_selector("table.work-table")
+
+    assert table_titles(ui) == BY_TITLE
+    assert ui.page.locator("#error:not([hidden])").count() == 0
+
+
+def test_hidden_rails_say_so_when_a_facet_is_still_narrowing(ui, service, seeded_service):
+    """The case the note exists for: a chosen facet, which unlike a theme the
+    heading does not name, so with the rails away nothing else would say it."""
+    work = service.list_artworks(q="Nighthawks").entries[0].artwork
+    service.record_facet(artwork_id=work.id, kind="movement", value="Realism", derivation="sourced")
+    ui.open("#collection?movement=Realism&filters=hidden")
+    ui.page.wait_for_selector("ul.grid")
+
+    assert ui.page.locator("ul.grid li.card").count() == 1, "the facet must actually narrow, or this tests nothing"
+    assert ui.page.locator(".filters-hidden-note").count() == 1

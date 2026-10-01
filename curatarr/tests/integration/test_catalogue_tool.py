@@ -767,3 +767,24 @@ async def test_an_unchanged_regenerate_reports_a_cost_too(server_url, services, 
 
     assert payload["outcome"] == "unchanged"
     assert payload["cost_usd"] == "0"
+
+
+async def test_the_list_can_be_sorted_as_the_browser_sorts_it(server_url):
+    """The browser's Sort reached the HTTP route; an agent asking the same question
+    must get the same answer. A non-default order, so a binding that dropped the
+    argument fails here rather than passing on the default it fell back to."""
+    payload, error = await call(server_url, "art_catalogue", action="list", sort="artist")
+
+    assert not error
+    assert [work["title"] for work in payload["artworks"]] == [
+        "I Saw the Figure 5 in Gold",
+        "The Persistence of Memory",
+        "Nighthawks",
+    ], "by artist, with the unattributed work last"
+
+
+async def test_an_order_nobody_offers_is_refused_under_the_name_the_caller_sent(server_url):
+    payload, error = await call(server_url, "art_catalogue", action="list", sort="colour")
+
+    assert error or payload.get("ok") is False
+    assert "sort" in json.dumps(payload)

@@ -92,8 +92,8 @@ export async function viewWalls(generation) {
 
 /* The one heading on this surface set at `--text-3xl`, and the token's only use.
  * `design-direction.md` adds it "for the Walls screen's single large heading",
- * which is this one: the product's home saying so, at a size nothing else on the
- * client reaches. */
+ * which is this one: the page about what the product exists to produce saying
+ * so, at a size nothing else on the client reaches. */
 function heading() {
   return el("h2", { class: "walls-heading", text: "Walls" });
 }

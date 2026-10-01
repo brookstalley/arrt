@@ -10,9 +10,10 @@
  * Four things here are decisions rather than layout, and each is written down at
  * the place it takes effect:
  *
- *   - **Density is a control, not a decision.** Contact sheet and catalogue, with
- *     the default chosen from how much there is and the choice held in the
- *     address so a reload and a shared link both land on it.
+ *   - **Density is a control, not a decision.** Posters, Overview and Table, in
+ *     the toolbar's View menu, with the default chosen from how much there is
+ *     and the choice held in the address so a reload and a shared link both
+ *     land on it.
  *   - **A control never offers a dead end.** Every facet option carries the count
  *     it would select, and an option that would select nothing is disabled rather
  *     than removed — a vocabulary that shrinks as filters are applied reads as
@@ -33,7 +34,7 @@
 import { api, fetchAllWorks } from "../core/api.js";
 import { absentImage, fitBadge, shortfallNote, sourceBadge, statusBadge } from "../core/badges.js";
 import { el, guard, render } from "../core/render.js";
-import { go } from "../core/router.js";
+import { go, goWithParams } from "../core/router.js";
 import { clearSearchLink } from "../core/search.js";
 import { state } from "../core/state.js";
 import { menuButton, toggleButton, toolbar } from "../core/toolbar.js";
@@ -520,6 +521,14 @@ function viewing() {
   return { density: state.params.density, sort: state.params.sort, filters: state.params.filters };
 }
 
+/* The sort in the address, if it is one this client offers. A bookmark naming
+ * one it does not — from another version, or typed — falls back to the default
+ * order rather than taking the home page down with a refusal, as an unknown
+ * density falls back to the default view. */
+function offeredSort() {
+  return SORTS.some((option) => option.value === state.params.sort) ? state.params.sort : null;
+}
+
 /* Whether the curator has put the rails away. Addressable, like the density:
  * `?filters=hidden`, absent by default, because the rails' counts are how a
  * curator finds things at thousands of works (the owner's ruling on Chunk 05). */
@@ -538,20 +547,20 @@ function pageToolbar(density, selection, showingTheme) {
       label: "View",
       options: VIEWS,
       current: density,
-      onChoose: (value) => go("collection", null, { ...state.params, density: value }),
+      onChoose: (value) => goWithParams({ density: value }),
     }),
     showingTheme
       ? null
       : menuButton({
           label: "Sort",
           options: SORTS,
-          current: state.params.sort || "title",
-          onChoose: (value) => go("collection", null, { ...state.params, sort: value === "title" ? "" : value }),
+          current: offeredSort() || "title",
+          onChoose: (value) => goWithParams({ sort: value === "title" ? "" : value }),
         }),
     toggleButton({
       label: "Filter",
       pressed: !railsHidden(),
-      onToggle: (show) => go("collection", null, { ...state.params, filters: show ? "" : "hidden" }),
+      onToggle: (show) => goWithParams({ filters: show ? "" : "hidden" }),
     }),
   ];
   return toolbar({ actions: selection ? [selection.node] : [], controls });
@@ -856,7 +865,7 @@ export async function viewCollection(generation) {
             // stand in for are already on their way.
             if (first.truncated) render(generation, ...skeletonScreen(resolveDensity(first.total)));
           },
-          state.params.sort,
+          offeredSort(),
         ),
   ]);
 
@@ -926,8 +935,23 @@ function collectionLayout(themes, page, chosen, showingTheme, density, selection
     );
   }
   const shown = !railsHidden();
+  // With the rails away, a facet or a theme still narrowing the works would be
+  // invisible: the grid would read as the whole collection. So it says so, and
+  // offers the rails back, where the narrowing can be seen and undone.
+  const narrowedOutOfSight =
+    !shown && (showingTheme || anyFacetChosen(chosen))
+      ? el("p", { class: "note filters-hidden-note" }, [
+          el("span", { text: "Filters are narrowing these works, and the filter rails are put away. " }),
+          el("button", {
+            class: "action quiet",
+            type: "button",
+            text: "Show the filters",
+            onclick: () => goWithParams({ filters: "" }),
+          }),
+        ])
+      : null;
   return el("div", { class: shown ? "collection" : "collection rails-hidden" }, [
     shown ? el("aside", { class: "rails", "aria-label": "Filters" }, rails) : null,
-    el("div", { class: "collection-main" }, [pageToolbar(density, selection, showingTheme), ...main]),
+    el("div", { class: "collection-main" }, [pageToolbar(density, selection, showingTheme), narrowedOutOfSight, ...main]),
   ]);
 }

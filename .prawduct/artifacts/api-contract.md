@@ -1210,7 +1210,7 @@ the client with them.
 
 | Route | What it is |
 |---|---|
-| `GET /`, `/works`, `/discovery`, `/themes`, `/manifest`, `/health` | The client shell. Listed rather than globbed, so a mistyped `/api/...` 404s instead of returning HTML a client parses as JSON. |
+| `GET /` and every page path in `UI_PATHS` (`curatarr/src/curatarr/http/pages.py`) | The client shell. Listed rather than globbed, so a mistyped `/api/...` 404s instead of returning HTML a client parses as JSON. `UI_PATHS` is the list, rather than a copy here, because it grew with every sidebar page and a copy was six paths behind it. |
 | `GET /static/app.css`, `/static/app.js` | The client. One stylesheet, one script, no build step. |
 | `GET /api/works` | A page of works, each with its fit verdict and image state. `sort` is `title` (the default), `artist` (unattributed last) or `newest`, and orders the page only: the total and the facet counts describe the same set whatever the order. An unknown value is refused by name. |
 | `GET /api/works/{id}` | One work with sources, renditions and mat history. |
@@ -1229,7 +1229,7 @@ Added 2026-08-05 with the run half of the browser surface, and exercised by
 |---|---|
 | `GET /api/estimate` | What asking would cost, before anything is committed. Optional `run_id` asks the phase-2 question instead. Spends nothing. |
 | `POST /api/runs` | Begin a run. Returns a handle at once; phase 1 proceeds on a worker behind it. Records `initiated_by: web_ui`. |
-| `GET /api/runs` | Every run, newest first. Optional `status` and `kind` narrow it — they are filters, not limits. **Uncapped, and the bound is editorial rather than mechanical:** one household searching in leisure sessions is hundreds of rows a year, not millions. It is the only collection route here with no page. Issue #54 owns the cap for this and its MCP twin together. |
+| `GET /api/runs` | The newest runs, newest first, capped at `MAX_RUNS_LISTED` in the service so this route and its MCP twin report the same history (#54). `total` and `truncated` say what the cap left out, and there is no paging: optional `status` and `kind` filters are how a caller reaches older runs. Activity's Queue and History split this one capped listing on `is_terminal`, and each says when the cap left runs out. |
 | `GET /api/runs/{id}` | The run, its works, its tallies and its search usage. |
 | `POST /api/runs/{id}/approve`, `/decline`, `/cancel` | The approval gate and the stop. Each returns the whole resulting view, as the MCP surface does, so the client repaints from the response. |
 | `GET /api/runs/{id}/spend` | What the run actually cost, including every re-search descended from it. Read by the run view's costs panel once the run is terminal — it is the only place the **family total** appears, since the run record carries only the run's own direct spend. |

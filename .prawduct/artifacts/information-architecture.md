@@ -283,9 +283,11 @@ listed below so it can be disputed.
   added, and is not offered while a theme is showing, since a theme comes in
   its curated order. **Filter shows and hides the rails rather than replacing
   them with a dropdown**, so the facet counts stay in view while browsing
-  (ruled by the owner 2026-09-30, departing from Radarr's Filter menu). Other
-  list pages have no toolbar yet, because they have no actions or views to put
-  in one.
+  (ruled by the owner 2026-09-30, departing from Radarr's Filter menu). With
+  the rails away, a facet or a theme still narrowing the works says so above
+  them and offers the rails back, since the grid would otherwise read as the
+  whole collection. Other list pages have no toolbar yet, because they have no
+  actions or views to put in one.
 - **Wanted is not shown yet.** It is where *Cutoff Unmet* (works below the
   quality profile's cutoff, `re-architecture.md` wave 4) and *Missing* (a Watch's
   unmet wants, wave 6) land, and it appears when the first of those exists.
@@ -314,7 +316,10 @@ rules that apply to all of them.
 
 **Back/escape.** Every contextual screen returns to the page it was opened from,
 not to a fixed parent — a Work opened from Review returns to Review, the same Work
-opened from Artworks returns to Artworks with scroll position intact. Browser back
+opened from Artworks returns to Artworks with scroll position intact. A sidebar
+page is named in `?from=` by itself; Review, a screen about one run, is named
+with its run (`?from=review/<id>`), and only for the Work it opens, so the hops
+between a run and its review record nothing (`core/router.js`, `returnFor`). Browser back
 does this natively if each is a real URL, which is the reason they are. A sidebar
 page has no back link: the sidebar is its way out.
 

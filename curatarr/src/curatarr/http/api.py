@@ -202,7 +202,7 @@ def list_works(
         facets={kind: values for kind, values in chosen.items() if values},
         limit=limit,
         offset=offset,
-        order=sort,
+        sort=sort,
     )
     return WorkPageOut(
         works=[_work(entry) for entry in page.entries],

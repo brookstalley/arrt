@@ -588,6 +588,10 @@ class DiscoveryService:
         # `artwork_id` alone, not also the verdict: only acceptance writes one, and
         # a work holding one under any other verdict is a state this model cannot
         # produce (`ResolutionOutcome`), so a verdict check here could never decide.
+        # A work that is itself an artwork is the acquisition, not a duplicate of
+        # one: after "Accept anyway", the first card must not point at the second.
+        if work.artwork_id is not None:
+            return None
         for other in self._store.list_candidate_works_by_dedup_key(work.work_dedup_key):
             if other.id != work.id and other.artwork_id is not None:
                 return other.artwork_id

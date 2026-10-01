@@ -52,7 +52,7 @@ def test_with_no_library_match_only_the_search_of_everything_is_offered(ui, seed
     type_into_search(ui, "Vermeer")
 
     assert options(ui) == ["Search museums for “Vermeer”"]
-    assert ui.page.locator(f"{LISTBOX} .suggestions-label", has_text="library").count() == 0
+    assert ui.page.locator(f"{LISTBOX} .search-suggestions-label", has_text="library").count() == 0
 
 
 def test_the_field_is_a_combobox_the_keyboard_can_drive(ui, seeded_service):
@@ -139,7 +139,11 @@ def test_enter_with_no_match_opens_artworks_saying_so(ui, seeded_service):
 
 
 def test_a_failed_library_lookup_still_offers_the_search_of_everything(ui, seeded_service):
-    """The dropdown is a shortcut, so a failed lookup costs the matches and nothing else."""
+    """The dropdown is a shortcut, so a failed lookup costs the matches and says so.
+
+    Silence would read as "nothing in your library", and the row left is a paid
+    museum search for a work the curator may already own.
+    """
     ui.page.route("**/api/works?q=*", lambda route: route.fulfill(status=503, body="{}"))
     ui.open("#walls")
     ui.page.wait_for_selector("#view h2")
@@ -147,6 +151,16 @@ def test_a_failed_library_lookup_still_offers_the_search_of_everything(ui, seede
     type_into_search(ui, "Dalí")
 
     assert options(ui) == ["Search museums for “Dalí”"]
+    assert "could not be searched" in ui.page.inner_text(LISTBOX)
+
+
+def test_a_lookup_that_found_nothing_does_not_claim_it_failed(ui, seeded_service):
+    ui.open("#walls")
+    ui.page.wait_for_selector("#view h2")
+
+    type_into_search(ui, "Vermeer")
+
+    assert "could not be searched" not in ui.page.inner_text(LISTBOX)
 
 
 def test_a_slow_answer_to_an_earlier_keystroke_does_not_replace_a_later_one(ui, seeded_service):

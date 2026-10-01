@@ -1266,3 +1266,26 @@ def test_accept_anyway_records_an_acceptance(ui):
         ui.page.click("button:has-text('Accept anyway')")
 
     assert sent[0]["verdict"] == "accepted"
+
+
+def test_a_work_opened_from_a_review_card_returns_to_that_review(ui, service):
+    """`information-architecture.md`: a Work opened from Review returns to Review.
+
+    Opening the held work is a review card's first control, so returning to the
+    page the review sits under instead would lose the curator their place in the
+    grid on the main path.
+    """
+    artwork = service.list_artworks(limit=1).entries[0].artwork
+    held = a_card(a_candidate(work_id="work-held", title=artwork.title), held_artwork_id=artwork.id)
+    ui.serve_image("**/api/candidate-images/*/preview")
+    ui.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([held]))
+    ui.open(f"#review/{RUN_ID}")
+    ui.page.wait_for_selector("li.card")
+
+    ui.page.click("button:has-text('Open it in Artworks')")
+    ui.page.wait_for_selector("#view button:has-text('← The review')")
+    assert ui.page.evaluate("() => window.location.hash") == f"#work/{artwork.id}?from=review%2F{RUN_ID}"
+
+    ui.page.click("#view button:has-text('← The review')")
+    ui.page.wait_for_selector("li.card")
+    assert ui.page.evaluate("() => window.location.hash") == f"#review/{RUN_ID}"

@@ -105,7 +105,7 @@ class SurveyService:
         facets: Mapping[str, Sequence[str]] | None = None,
         limit: int | None = None,
         offset: int = 0,
-        order: str | None = None,
+        sort: str | None = None,
     ) -> WorkSurveyPage:
         """A page of works, each with its fit verdict and its image state.
 
@@ -115,7 +115,7 @@ class SurveyService:
         would be the second implementation of "list the catalogue" that the shared
         service layer exists to prevent.
         """
-        listing = self._catalogue.list_artworks(status=status, q=q, facets=facets, limit=limit, offset=offset, order=order)
+        listing = self._catalogue.list_artworks(status=status, q=q, facets=facets, limit=limit, offset=offset, sort=sort)
         return WorkSurveyPage(
             entries=[self._survey(entry) for entry in listing.entries],
             total=listing.total,

@@ -343,3 +343,28 @@ def test_discover_offers_the_way_in_and_lists_the_threads(ui):
 
     assert "Ask for something" in ui.text()
     assert "Conversations (1)" in ui.text()
+
+
+def test_two_answers_each_keep_their_suggestions_in_their_own_place(ui):
+    """The top-bar search's dropdown once shared this block's class, and its
+    absolute positioning pulled every turn's suggestions out of the flow onto one
+    spot, the later covering the earlier. One answer cannot show that; two can."""
+    second = an_answer(
+        turn_id="turn-4",
+        ordinal=3,
+        suggested=[a_suggestion("Vija Celmins", samples=[a_sample("Night Sky #2")])],
+    )
+    ui.serve("**/api/estimate*", an_estimate())
+    ui.serve("**/api/conversations", a_conversation_list())
+    ui.serve(
+        f"**/api/conversations/{CONVERSATION}",
+        a_thread([a_question(), an_answer(), a_turn("Something darker.", turn_id="turn-3", ordinal=2), second]),
+    )
+    ui.serve_image("**/iiif/**")
+    open_thread(ui)
+
+    blocks = ui.page.locator("#view .suggestions")
+    assert blocks.count() == 2
+    assert blocks.evaluate_all("(nodes) => nodes.map((n) => getComputedStyle(n).position)") == ["static", "static"]
+    first_box, second_box = (blocks.nth(index).bounding_box() for index in range(2))
+    assert second_box["y"] >= first_box["y"] + first_box["height"], "the later turn's suggestions sit on the earlier's"

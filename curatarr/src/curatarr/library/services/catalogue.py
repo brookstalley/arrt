@@ -224,7 +224,7 @@ class CatalogueService:
         facets: Mapping[str, Sequence[str]] | None = None,
         limit: int | None = None,
         offset: int = 0,
-        order: str | None = None,
+        sort: str | None = None,
     ) -> ArtworkListing:
         """Page through the catalogue, narrowed by text and by facet.
 
@@ -234,7 +234,7 @@ class CatalogueService:
         `q` is free text, split on whitespace; every word must appear somewhere in
         the work's own text or its artist's name. `facets` maps a facet kind to
         the values chosen for it — several values within a kind mean *either*,
-        several kinds mean *both*. `order` is a `WorkOrder` value (`title`, the
+        several kinds mean *both*. `sort` is a `WorkOrder` value (`title`, the
         default; `artist`; `newest`) and changes only how the page is ordered,
         never which works the total and the facet counts describe.
 
@@ -247,7 +247,7 @@ class CatalogueService:
         `api-contract.md` records the measurement and the trigger for revisiting.
         """
         resolved_status = self._parse_status(status)
-        resolved_order = WorkOrder.TITLE if order is None else require_member(order, enum=WorkOrder, field="order")
+        resolved_order = WorkOrder.TITLE if sort is None else require_member(sort, enum=WorkOrder, field="sort")
         resolved_limit = DEFAULT_LIST_LIMIT if limit is None else limit
         if not 1 <= resolved_limit <= MAX_LIST_LIMIT:
             raise ServiceError(f"limit must be between 1 and {MAX_LIST_LIMIT}, got {resolved_limit}.")

@@ -228,7 +228,7 @@ header.topbar {
    the words to Add New. `aria-selected` marks the highlighted option, and is
    what the styling follows, so the highlight a sighted reader sees is the one a
    screen reader announces. */
-.suggestions {
+.search-suggestions {
   position: absolute;
   top: calc(100% + var(--space-1));
   left: 0;
@@ -245,13 +245,13 @@ header.topbar {
   box-shadow: var(--shadow-2);
 }
 
-.suggestions ul {
+.search-suggestions ul {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-.suggestions-label {
+.search-suggestions-label {
   padding: var(--space-2) var(--space-3) var(--space-1);
   color: var(--text-muted);
   font: 600 var(--text-xs) / 1.4 var(--font-ui);
@@ -259,15 +259,21 @@ header.topbar {
   letter-spacing: 0.04em;
 }
 
-.suggestions [role="option"] {
+.search-suggestions-note {
+  padding: var(--space-2) var(--space-3);
+  color: var(--text-muted);
+  font: var(--text-sm) / 1.4 var(--font-ui);
+}
+
+.search-suggestions [role="option"] {
   padding: var(--space-2) var(--space-3);
   color: var(--text);
   font: var(--text-sm) / 1.4 var(--font-ui);
   cursor: pointer;
 }
 
-.suggestions [role="option"]:hover,
-.suggestions [role="option"][aria-selected="true"] {
+.search-suggestions [role="option"]:hover,
+.search-suggestions [role="option"][aria-selected="true"] {
   background: var(--surface-1);
   color: var(--text-strong);
   box-shadow: inset 3px 0 0 var(--accent);

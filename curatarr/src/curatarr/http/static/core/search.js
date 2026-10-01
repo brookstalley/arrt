@@ -54,7 +54,9 @@ const PAUSE_MS = 200;
  * `aria-activedescendant` through the options, Escape closes the list, and the
  * two groups are named so a screen reader says which one an option is in. */
 function installSuggestions(field) {
-  const list = el("ul", { id: "search-suggestions", class: "suggestions", role: "listbox", "aria-label": "Suggestions" });
+  // Its own class name: `.suggestions` is a conversation turn's block, and a
+  // shared name gave every turn the dropdown's absolute positioning.
+  const list = el("ul", { id: "search-suggestions", class: "search-suggestions", role: "listbox", "aria-label": "Suggestions" });
   list.hidden = true;
   field.after(list);
   field.setAttribute("role", "combobox");
@@ -102,12 +104,12 @@ function installSuggestions(field) {
   const group = (id, label, entries) =>
     el("li", { role: "presentation" }, [
       el("ul", { role: "group", "aria-labelledby": id }, [
-        el("li", { id, role: "presentation", class: "suggestions-label", text: label }),
+        el("li", { id, role: "presentation", class: "search-suggestions-label", text: label }),
         ...entries.map((entry) => entry.node),
       ]),
     ]);
 
-  const paint = (query, works) => {
+  const paint = (query, works, failed) => {
     const held = works.map((work, at) =>
       option(`suggestion-work-${at}`, work.artist ? `${work.title} — ${work.artist.name}` : work.title, () =>
         go("work", work.artwork_id),
@@ -117,7 +119,19 @@ function installSuggestions(field) {
       go("discover", null, { term: query }),
     );
     options = [...held, museums];
+    // A lookup that failed is not a library with no matches, and must not read as
+    // one: the row below it spends money, on a work the curator may already own.
+    const unsearched = failed
+      ? [
+          el("li", {
+            role: "presentation",
+            class: "search-suggestions-note",
+            text: "Your library could not be searched just now.",
+          }),
+        ]
+      : [];
     list.replaceChildren(
+      ...unsearched,
       ...(held.length ? [group("suggestions-held", "In your library", held)] : []),
       // Named for the page the row opens, as Sonarr names its group "Add New
       // Series": the *arr precedent decides what things are called here.
@@ -136,17 +150,18 @@ function installSuggestions(field) {
       return;
     }
     let works = [];
+    let failed = false;
     try {
       const page = await api(`/api/works?q=${encodeURIComponent(query)}&limit=${SUGGESTIONS}`);
       works = page.works;
     } catch (failure) {
-      // The dropdown is a shortcut; the search itself still works on Enter, so
-      // a failed suggestion shows only the row that needs no answer.
-      works = [];
+      // The dropdown is a shortcut; the search itself still works on Enter. So a
+      // failed lookup costs the matches, says so, and keeps the other row.
+      failed = true;
     }
     // A slower answer to an earlier keystroke must not replace a later one.
     if (ticket !== asked || document.activeElement !== field) return;
-    paint(query, works);
+    paint(query, works, failed);
   };
 
   field.addEventListener("input", () => {

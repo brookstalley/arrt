@@ -36,8 +36,8 @@ pytestmark = pytest.mark.skipif(
     reason="node is not installed; this check is opportunistic",
 )
 
-#: A route table with the shape the client's own has: three destinations, two
-#: screens that address one thing, two contextual screens that do not.
+#: A route table with the shape the client's own has: pages that address
+#: nothing, screens that address one thing, and one that is both.
 #:
 #: Written here rather than read out of `app.js`, and the duplication is
 #: deliberate: what is under test is how the parser treats a table, not what this

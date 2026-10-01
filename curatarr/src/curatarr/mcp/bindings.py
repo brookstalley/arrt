@@ -98,6 +98,7 @@ def _list_artworks(services: Services, arguments: Mapping[str, Any]) -> dict[str
         facets={kind: arguments[kind] for kind in _FACET_KINDS if arguments.get(kind)},
         limit=arguments.get("limit"),
         offset=arguments.get("offset", 0),
+        sort=arguments.get("sort"),
     )
     return ok(
         artworks=[_summary(entry) for entry in listing.entries],

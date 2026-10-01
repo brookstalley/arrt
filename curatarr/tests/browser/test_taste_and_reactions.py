@@ -11,9 +11,9 @@ reads JSON:
   rather than as a failed query. That empty state is Collection's own and is
   covered in `test_the_collection.py`; what is covered here is the route into
   it, which is the thing that makes it common;
-- **Taste is not a fourth destination.** The navigation is derived from the
-  route table, so registering the screen without a `destination` is what keeps
-  the three destinations three — and only a browser can see the buttons.
+- **Taste is a page under Settings.** The sidebar is derived from the route
+  table, so registering the screen in the `settings` section is what puts it
+  there rather than in a section of its own — and only a browser can see that.
 """
 
 import json

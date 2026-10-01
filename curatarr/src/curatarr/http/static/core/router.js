@@ -67,7 +67,28 @@ export function pageFor(view = state.view, params = state.params, detailId = sta
   if (entry.page && !detailId) return view;
   const from = params && params.from;
   if (from && table[from] && table[from].page) return from;
+  // Opened from a screen that is itself a place to return to: the sidebar lights
+  // whatever that screen belongs to.
+  const opener = returnTarget(from);
+  if (opener) return pageFor(opener.view, {}, opener.id);
   return entry.page ? view : entry.opensFrom || null;
+}
+
+/* A contextual screen a curator can be returned to, named in `?from=` with its id.
+ *
+ * `information-architecture.md` § Navigation Structure: "a Work opened from
+ * Review returns to Review". A sidebar page is returned to by its name alone; a
+ * screen about one thing needs the thing too, so `from` carries `view/id`. Only a
+ * screen whose table entry declares `returnLabel` is one, which keeps the
+ * address from recording an opener for every hop between contextual screens —
+ * and only for the screens its `returnFor` names, because Review also opens Run,
+ * and Run has its own way back. */
+function returnTarget(from) {
+  if (!from || !from.includes("/")) return null;
+  const slash = from.indexOf("/");
+  const view = from.slice(0, slash);
+  const id = from.slice(slash + 1);
+  return table[view] && table[view].returnLabel && id ? { view, id } : null;
 }
 
 /* Where a screen returns to when nothing says otherwise. */
@@ -86,6 +107,15 @@ function defaultReturn(view) {
  * way out is the sidebar. The exception is a page showing one of its things,
  * `#theme/<id>`, whose way back is its own index. */
 export function backLink() {
+  const opener = returnTarget(state.params && state.params.from);
+  if (opener) {
+    return el("button", {
+      class: "action quiet",
+      type: "button",
+      text: `← ${table[opener.view].returnLabel}`,
+      onclick: () => go(opener.view, opener.id),
+    });
+  }
   const page = pageFor();
   if (!page) return null;
   if (page === state.view && !state.detailId) return null;
@@ -120,6 +150,10 @@ export function backRow() {
 function inherited(view, detailId) {
   const entry = table[view];
   if (!entry || (entry.page && !detailId)) return {};
+  const here = table[state.view];
+  if (here && here.returnLabel && state.detailId && (here.returnFor || []).includes(view)) {
+    return { from: `${state.view}/${state.detailId}` };
+  }
   const from = pageFor();
   return from && from !== defaultReturn(view) ? { from } : {};
 }
@@ -152,13 +186,16 @@ export function go(view, detailId = null, params = null) {
   refresh(true);
 }
 
-/* A `goWithParams(changes)` helper stood here and was called by nothing — a
- * mutation sweep survived gutting it, which is what an exported convenience with
- * no caller looks like from the outside. Changing one piece of the addressable
- * state is `go(state.view, state.detailId, { ...state.params, ...changes })`,
- * and the one caller that does it — the top-bar search — writes it out, where
- * the rule about which state survives a search is written beside it. The helper
- * belongs to whichever chunk builds the second caller. */
+/* Change some of the addressable state of the screen that is showing.
+ *
+ * `go(state.view, state.detailId, { ...state.params, ...changes })`, named
+ * because the Artworks toolbar has four callers of it — View, Sort, Filter, and
+ * the note that brings hidden filters back. An empty value removes a key, as
+ * `formatRoute` omits it. The top-bar search still writes its own, because the
+ * rule about which state survives a search belongs beside it. */
+export function goWithParams(changes) {
+  go(state.view, state.detailId, { ...state.params, ...changes });
+}
 
 export function refresh(moveFocus = false) {
   const entry = table[state.view];
