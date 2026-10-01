@@ -35,7 +35,10 @@
 
      Recognized keys:
        chunks   - comma-separated chunk IDs (zero-padded, must match
-                  build-plan.md ## Status headers exactly: `Chunk 00:`)
+                  build-plan.md ## Status headers exactly: `Chunk 00:`).
+                  Informational: nothing regenerates from it and release
+                  readiness ignores it, but it ties an entry to the chunk it
+                  shipped, which a reader and the Critic's record check use.
        release  - version string (used by the release-notes view)
        status   - shipped | merged (legacy). Write a new entry with NO
                   status= on the feature branch: a statusless tagged entry
@@ -90,6 +93,11 @@ holds no facet rows to filter by. `search_fold` moved to
 
 Also carried: Chunk 03's review observations. A test where two creators narrow
 the name search, and the `set_*_qid` tips no longer overstate what `none` does.
+And the cumulative review's record work: Wikidata is channel 9 in
+`architecture.md`; `security-model.md` § Registry text says what bounds
+registry text in the browser and lists the norm owed before one-world search;
+and every findings file, the five older ones included, is in the artifact
+manifest (backlog #147).
 
 ## 2026-10-01: Works and artists carry a Wikidata QID where one is certain
 
