@@ -172,6 +172,8 @@ is what makes the spend ceiling feel like a guardrail rather than a surprise; fl
 > are kept too, so the affinities can be rebuilt if their derivation changes.
 > `data-model.md` owns both, and its "agent conversation history is deliberately not
 > modelled" exclusion is amended there rather than contradicted here.
+> *(2026-10-01: not built. Affinities are recorded, but no conversation or
+> discovery code reads them. `user-scenarios.md` § Tested, the Delaunay request.)*
 >
 > **The known design risk is the seam.** A commitment that visibly ejects the
 > curator from a conversation into a progress bar makes the conversation a wizard

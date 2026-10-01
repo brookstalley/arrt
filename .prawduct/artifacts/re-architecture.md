@@ -645,7 +645,7 @@ the other way round.
   public-domain boundary are in no registry too. Measured for Dalí, Wikidata
   records 1,072 works and 358 holders but only 5 free images: existence is
   registered past the boundary, and images are what stop there.
-  `user-scenarios.md` § Three layers.)* Wikidata's coverage of these fields for
+  `user-scenarios.md` § Four layers.)* Wikidata's coverage of these fields for
   the corpus is otherwise **not measured**. That measurement
   is the cheapest first step, and belongs with the facet-population
   requirements cycle (§ Two layers of tags).

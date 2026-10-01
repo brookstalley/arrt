@@ -23,21 +23,28 @@ and not *what the curator means by "dali"*. The brief's one real scenario, "I lo
 Dalí and Delaunay — who else should I look at?", was added on 2026-08-10, after
 it was found that nothing served it.
 
-## Three layers, not two
+## Four layers, not two
 
-"Do I have it?" has a third answer between *yes* and *go get it*. Whether a work
+"Do I have it?" has more answers than *yes* and *go get it*. Whether a work
 **exists** is a different question from whether it **can be downloaded**, and the
-two have different sources and costs.
+two have different sources and costs. Downloadable then splits again: seeing a
+work is not the same as being able to hang it.
 
 | Layer | The curator's question | Source | Cost |
 |---|---|---|---|
 | **Held** | Is it in my library? | Arrt's catalogue | Free, instant |
 | **Exists** | What did Dalí make, and who holds it? | Wikidata, Getty ULAN for the artist, catalogues raisonnés, the holding museum's accession number. Today Arrt asks a model instead (below) | Free and instant from a registry; under a cent from a model |
-| **Downloadable** | Can I get an image good enough for the wall? | Open-access museum APIs and Commons, or tile reassembly from a museum's viewer | A discovery run: minutes and money |
+| **Seeable** | What does it look like? | A museum's preview image, Commons | Free and instant from a museum API; today only reached inside a conversation or a run |
+| **Hangable** | Can I get an image good enough for the wall? | Open-access museum APIs and Commons, or tile reassembly from a museum's viewer | A discovery run: minutes and money |
 
-**Downloadable has grades, not a yes or no**: no image, a small image, or a
-full-resolution image. Rights are a separate axis. The library's own works show
-both:
+**Seeable and Hangable are grades of one supply, and rights are a separate
+axis.** Measured 2026-10-01 on a copyrighted Rothko at the Art Institute
+(*Untitled (Purple, White, and Red)*): its scan is 4,840 px wide, the public
+image service serves it at 843 px, and a request for 1,686 px is redirected to
+843 px. That is enough to see the work and to put it in a list, and far below a
+wall's resolution floor (`RESOLUTION_FLOOR_INCHES`). So a work can be Seeable
+without being Hangable, and for most work past the public-domain boundary that
+is the usual case. The library's own works show the other side:
 
 - *Blue Half Circle* (Calder, 1970) came from the Art Institute's site and
   *Cat Litter* (Gober, 1989) from Google Arts & Culture. Both were acquired by
@@ -96,15 +103,17 @@ Frequency is the builder's guess in every row:
 |---|---|---|---|---|---|
 | S1 | Put a work they own on the wall now ("the Dalí, tonight") | Search, or Artworks | Held | Weekly | It is showing on the chosen wall |
 | S2 | Check whether they already have a work, before adding it | Search | Held | Each time they add | They know yes or no, and a yes opens it |
-| S3 | Get more by an artist than they have ("more Dalí") | Search, or a work's artist | Exists → Downloadable | Monthly | New works by the artist are waiting for review |
-| S4a | Find a specific work they have heard of: does it exist, who holds it? | Search | Exists | Occasionally | They see the work, its holder, and whether it can be got |
-| S4b | Get a copy of that work | S4a's result | Downloadable | Occasionally | It is waiting for review, or they are told plainly why not |
-| S5 | Find artists they could not have named ("who's like Dalí?") | Add New, conversation | Exists → Downloadable | Monthly | A direction is committed as a run |
+| S3 | Get more by an artist than they have ("more Dalí") | Search, or a work's artist | Exists → Hangable | Monthly | New works by the artist are waiting for review |
+| S4a | Find a specific work they have heard of: does it exist, who holds it? | Search | Exists, Seeable | Occasionally | They see the work, its holder, and whether it can be got |
+| S4b | Get a copy of that work | S4a's result | Hangable | Occasionally | It is waiting for review, or they are told plainly why not |
+| S5 | Find artists they could not have named ("who's like Dalí?") | Add New, conversation | Exists, Seeable → Hangable | Monthly | A direction is committed as a run |
 | S6 | Learn what is on the wall right now | Walls | Held | Weekly | They see the work and its label facts |
 | S7 | Make a theme ("winter") and switch a wall to it | Artworks, Themes | Held | Seasonal | The wall is drawing from the theme |
 | S8 | Take a work they are tired of out of rotation | The wall, or the work | Held | Monthly | It no longer comes up, and nothing else changed |
 | S9 | Clean up: bad crops, low resolution, candidates never judged | Artworks, Activity | Held | Monthly | The library holds only what they would hang |
 | S10 | Check everything is working | The status indicator, System | Held | Rarely, or when warned | They know whether anything needs them |
+| S11 | Get acquainted with an artist they know only by name: what the work looks like, and which works could be had | Search | Exists, Seeable → Hangable | Monthly | They have seen the work, and have a list with thumbnails marking what can be hung (§ Tested: Rothko) |
+| S12 | Go on an excursion: a theme outside their taste, on every wall for a day or two, then back to normal with nothing left behind | Add New, then Themes | Exists → Hangable → Held | A few times a year | The walls are back on what they showed before, and their taste and everyday library are as they were (§ Tested: the 16th century) |
 
 ### What the search box can mean
 
@@ -136,19 +145,110 @@ Two things follow for the IA, and both are for the owner to rule on:
   lookup against a registry, neither says who holds a work, and neither is
   reachable from the search box. A registry lookup could answer S4a in the
   dropdown or on Add New at no cost, marking each result *In your library*,
-  *Can be downloaded* or *Exists, no image available*.
+  *Can be hung*, *Preview only* or *No image available*.
 - **Which meaning does Enter take?** Today Enter opens Artworks filtered to the
   query (ruled 2026-09-30), which serves S1 and S2. If S3 or S4a is the common
   case, that ruling should be revisited with this table in hand.
+
+## Tested against three requests (2026-10-01)
+
+The owner put three requests to this document. Each is traced through the
+scenario table and through what is built, against the running server and the
+code. What each one changed is listed with it.
+
+### "I heard about Rothko and know nothing. I just type it in."
+
+The curator wants to see what the work looks like, then a list with thumbnails
+of the works that can be had.
+
+**The table did not hold it.** S4a is one known work, and S5 starts from taste.
+Getting acquainted with an artist known only by name is its own scenario, now
+**S11**.
+
+**Supply, measured.** Wikidata: Rothko (`Q160149`) has 349 works, 69 with a
+holder, 0 with a free image. The Art Institute holds 8, each with an image and
+none in the public domain, served at 843 px (§ Four layers). He died in 1970, so
+his work is past the boundary. **The honest answer is that Rothko is Seeable and
+almost never Hangable**, and the list the curator asked for would be mostly
+*Preview only*.
+
+**Today.** Typing `rothko` finds nothing in the library, and the dropdown offers
+only *Search museums for "rothko"*, which goes to Add New and a paid run. A run
+is the only path that ends in a list with thumbnails, and it ends in candidates,
+not in a picture of what exists. The conversation would show sample pictures
+(its samples come from the Art Institute, as the server's startup log says), but
+search does not route there. So the curator either pays to learn that little can
+be had, or knows to start a conversation instead.
+
+**What it changed:** the layer model gained *Seeable* (§ Four layers), and S11 is
+the case for a free lookup in search that shows previews with their grade.
+
+### "A 16th-century theme for a day or two, then back to my normal taste."
+
+The curator knows nothing about the period, wants a theme and representative
+works on every wall, and above all wants to return to their usual, more modern
+taste in a few days with nothing left behind.
+
+**The table half held it.** S5 covers learning about the period, and S7 covers
+making a theme and hanging it. Neither has an end. A time-boxed excursion is its
+own scenario, now **S12**. "Nothing left behind" names three places an excursion
+leaves traces, and the code was read for each:
+
+| Trace | What is built today | Gap |
+|---|---|---|
+| **The walls** | Hanging is one act per wall: a *Hang on <wall>* button per wall on the Theme screen, and `POST /api/themes/{id}/activate` takes one `wall_id`. Nothing is timed. Taking a theme down leaves the wall showing it until another is hung. A wall holds one assignment row keyed by the wall, and hanging overwrites it, so what hung before is not remembered (`programming/store.py`, `set_assignment`). | No hang on every wall in one act, no end time, no return to what was hanging before. `re-architecture.md` § The manifest is a schedule (wave 4) is where a timed hanging would live. |
+| **The library** | The works stay accepted, and show in Artworks and in any theme drawn from the whole library. Archiving takes a work out of circulation and Restore puts it back, but it is one work at a time, from the work's own page. | No archive for a selection or a theme. Archiving rather than deleting is right here: the run was paid for, and the next excursion can restore it. |
+| **Taste** | Nothing is contaminated today, and only because taste is not read. Review writes no affinity: `observed` is in the enum and refused on every write path but review's, and review does not write it. No conversation or discovery code reads affinities; they are only listed (`GET /api/affinities`, its MCP twin) and detached when a conversation is deleted. | **When observed taste is built, an excursion will teach Arrt that the curator likes the 16th century.** Accepting thirty works is the strongest signal review can give. An excursion needs a way to say its acquisitions are not taste. |
+
+Supply is no obstacle here: 16th-century work is long out of copyright and is the
+easy case for Hangable.
+
+**What it changed:** S12, and three requirements an excursion makes, listed in
+the open questions for the owner to rule on rather than assumed.
+
+### "I like Robert and Sonia Delaunay. Who's similar?"
+
+**The table held it.** This is S5, and its path is built: Add New, conversation,
+a commit card, a run. The reactions on each sample ("more like this", "not
+this") record taste as `stated`.
+
+**Supply, measured.** Wikidata: Robert Delaunay (`Q33978`, died 1941) has 225
+works, 187 with a free image; Sonia Delaunay (`Q232972`, died 1979) has 50, with
+4. The Art Institute holds 31 by Robert (20 public domain) and 37 by Sonia (19
+public domain). Its flag follows US law, under which work published 95 or more
+years ago is free whatever the artist's death date (in 2026, work published in
+1930 or earlier). So Sonia's early work is Hangable from there even though she
+died in 1979. **Whether a suggestion can be had depends on
+the work's date and the source's jurisdiction, not the artist's**, which argues
+for marking supply per work rather than per artist.
+
+**Two gaps:**
+
+- **Suggestions do not show supply.** A conversation can recommend an artist
+  whose work cannot be hung, and the curator learns that only after paying for a
+  run. Marking each suggestion with how much of the work is Hangable answers it
+  at the point of choice.
+- **The brief's promise is not built.** `product-brief.md` flow 1 says a later
+  conversation "opens knowing that Kandinsky landed and Magritte did not", and
+  `data-model.md` Q13 says the same. Nothing reads affinities (above), so a
+  conversation about the Delaunays starts from nothing the curator has said
+  before. No artifact recorded this as unbuilt until now.
 
 ## Open questions for the owner
 
 1. Which scenarios are real, and how often does each happen? Add any that are
    missing.
 2. When you type an artist's name, which of S1–S4a do you usually mean?
-3. Should Arrt show what *exists* but cannot be downloaded, or only what it can
-   get? Showing it is honest about the supply horizon. Hiding it keeps the screen
+3. Should Arrt show what is *Seeable* but not *Hangable* (a Rothko at 843 px), or
+   only what it can hang? Showing it is honest about the supply horizon, and S11
+   needs it to answer "what does his work look like?". Hiding it keeps the screen
    to things you can act on.
 4. Should Arrt store a Wikidata QID on a work where one exists? That is
    `re-architecture.md`'s open "External identity" question, and S2 and S4a are
    the scenarios that would use it.
+5. For S12, which of these does an excursion need? Hang a theme on every wall in
+   one act. Give a hanging an end, after which each wall returns to what it
+   showed before. Archive and restore a whole theme's works. Keep an excursion's
+   acceptances out of taste.
+6. Should a conversation's suggestions show how much of each artist's work can
+   be hung, before the curator commits to a run?

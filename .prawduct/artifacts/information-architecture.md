@@ -239,8 +239,8 @@ listed below so it can be disputed.
   are and what they are called, not whether a state can be read. The owner can
   overrule it.)*
 - **One search box, two scopes, as in Sonarr.** *(2026-10-01: `user-scenarios.md`
-  questions this from the scenarios side. A query can mean held, exists or
-  downloadable, and today an unaccented `dali` finds no held Dalí.)* Read from Sonarr's source on
+  questions this from the scenarios side. A query can mean held, exists,
+  seeable or hangable, and today an unaccented `dali` finds no held Dalí.)* Read from Sonarr's source on
   2026-09-30 (`frontend/src/Components/Page/Header/SeriesSearchInput.js` and
   `AddSeries/AddNewSeries/AddNewSeriesSearchResult.js`; Radarr shares the code):
   - The top-bar box searches **the library** as you type. Its dropdown has two
