@@ -190,10 +190,10 @@ merged `--no-ff` into develop, the one-pass form crashed fast-import on
   - The "Chunk 05" comment in `arrt/src/arrt/http/static/screens/collection.js`.
 - **Tests:** all three suites pass, the browser suite included (static files
   are touched). `git grep -niP 'curatarr'`, excluding the history files and
-  this plan: before 1162 lines in 241 files. After: 11 lines, each one a
-  record of the naming history (the operator's 2026-09-30 quote, the wave 5
-  filter, the repo's former names, and the Pi step's old directory names),
-  and nothing else. Rename roster: 263 tracked files under the old server directory, 263
+  this plan: before 1162 lines in 241 files. After: 13 lines at the PR, each
+  one a record of the naming history (the operator's 2026-09-30 quote and the
+  names settled that day, the wave 5 filter, the repo's former names, and the
+  Pi step's old directory names and rollback), and nothing else. Rename roster: 263 tracked files under the old server directory, 263
   renamed into `arrt/`, and `arrt/` holds exactly those 263. The isolation
   test failed on a planted `import arrt.config` in `postarr/src/postarr/config.py`,
   naming it as the curation plane, and passed once it was removed.

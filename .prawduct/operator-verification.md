@@ -118,7 +118,7 @@ the same directory, beside a virtualenv built for the player. So every project's
 
     sudo systemctl stop display.service curation.service
     cd /opt/samsung-frame-art-loader
-    git rev-parse HEAD    # write this down: it is where "To go back" returns to
+    sudo -u tvpi git rev-parse HEAD    # write this down: "To go back" returns to it
     sudo rm -rf curation/.venv display/.venv curatarr/.venv arrt/.venv
     sudo -u tvpi git pull
     # git moves the tracked files; the old directories keep only what was untracked.
