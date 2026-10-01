@@ -63,6 +63,23 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-01: pyjwt and urllib3 bumped for the open Dependabot alerts
+
+<!-- prawduct: scope=deps-security-2026-10 -->
+
+**Why:** 18 open Dependabot alerts. pyjwt 2.13.0 (12 alerts, one critical)
+reaches the server through `mcp[crypto]`; urllib3 2.7.0 (3 per plane) reaches
+both through `requests`. Neither is named in a pyproject.
+
+**What:** `uv lock --upgrade-package` moved only those two: pyjwt 2.15.1 in
+`arrt/uv.lock`, urllib3 2.8.0 in `arrt/uv.lock` and `postarr/uv.lock`. Wave 5's
+recipe in `re-architecture.md` now names the server rename commit and its merge
+by id, and the pass-1 commit set by a form that does not depend on the rename's
+parent having one child.
+
+**Not closed by this merge:** GitHub files the alerts against main's
+`curation/` and `display/` lockfiles, so they close when develop is released.
+
 ## 2026-10-01: Arrt and Postarr — the products renamed again
 
 <!-- prawduct: scope=rename-arrt-postarr -->
