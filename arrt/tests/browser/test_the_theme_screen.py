@@ -631,3 +631,76 @@ class TestOneThemeHasItsOwnAddress:
 
         assert ui.page.locator("h2", has_text="Winter").count() == 1
         assert _titles(ui) == list(POLLOCKS)
+
+
+class TestTheDefaultTheme:
+    """The theme new works join: marked in glyph, word and colour, and movable from here."""
+
+    @pytest.fixture
+    def all_works(self, services, winter):
+        theme = services.display.add_theme(name="All works")
+        services.display.make_default(theme.id)
+        return theme
+
+    @staticmethod
+    def _panel(ui, name):
+        return ui.page.locator(".panel", has=ui.page.locator(f"h3 > span:text-is('{name}')"))
+
+    def test_the_default_says_so_in_words_and_the_others_offer_to_become_it(self, ui, all_works, winter):
+        ui.open("#theme")
+        _painted(ui)
+
+        badge = self._panel(ui, "All works").locator(".badge-default")
+        assert badge.inner_text().strip().endswith("default")
+        # The star is decoration beside the word, not a second announcement of it.
+        assert badge.locator(".glyph").get_attribute("aria-hidden") == "true"
+        assert self._panel(ui, "Winter").locator(".badge-default").count() == 0
+        assert _labels(ui, "button:has-text('Make default')") == ["Make default: Winter"]
+
+    def test_making_another_the_default_moves_the_mark(self, ui, services, all_works, winter):
+        ui.open("#theme")
+        _painted(ui)
+
+        ui.page.click("button[aria-label='Make default: Winter']")
+        ui.page.wait_for_selector("button[aria-label='Make default: All works']")
+
+        assert self._panel(ui, "Winter").locator(".badge-default").count() == 1
+        assert self._panel(ui, "All works").locator(".badge-default").count() == 0
+        assert services.display.default_theme().id == winter.id
+
+    def test_with_no_default_the_screen_says_where_acceptances_go(self, ui, winter):
+        ui.open("#theme")
+        _painted(ui)
+
+        assert ui.page.locator("p.note", has_text="No theme is the default").count() == 1
+
+    def test_one_themes_own_page_says_it_too(self, ui, winter):
+        """The note is about where acceptances go, not about the index, so both paths carry it."""
+        ui.open(f"#theme/{winter.id}")
+        _painted(ui)
+
+        assert ui.page.locator("p.note", has_text="No theme is the default").count() == 1
+
+    def test_only_the_default_says_what_joins_it(self, ui, all_works, winter):
+        ui.open("#theme")
+        _painted(ui)
+
+        joins = "Works you accept join this theme"
+        assert self._panel(ui, "All works").locator("p.muted", has_text=joins).count() == 1
+        assert self._panel(ui, "Winter").locator("p.muted", has_text=joins).count() == 0
+
+    def test_the_note_is_absent_once_a_theme_is_the_default(self, ui, all_works):
+        ui.open("#theme")
+        _painted(ui)
+
+        assert ui.page.locator("p.note", has_text="No theme is the default").count() == 0
+
+    def test_deleting_the_default_shows_the_servers_reason(self, ui, all_works):
+        ui.open("#theme")
+        _painted(ui)
+
+        ui.page.click("button[aria-label='Delete All works']")
+        _confirm(ui, "Delete")
+
+        ui.page.wait_for_selector("#error:not([hidden])")
+        assert "Make another theme the default first" in ui.page.inner_text("#error")

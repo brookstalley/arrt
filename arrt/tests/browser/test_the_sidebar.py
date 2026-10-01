@@ -39,7 +39,7 @@ SECTIONS = ["Artworks", "Walls", "Activity", "Settings", "System"]
 #: The pages each section lists beneath its own name, when it is the current one.
 #: A page named like its section *is* the section's link and is not repeated.
 PAGES = {
-    "Artworks": ["Add New", "Themes"],
+    "Artworks": ["Add New", "Themes", "Artists"],
     "Walls": [],
     "Activity": ["Queue", "History"],
     "Settings": ["Taste"],
@@ -51,6 +51,7 @@ SIDEBAR_PAGES = [
     ("collection", "works"),
     ("discover", "Add New"),
     ("theme", "Themes"),
+    ("artist", "Artists"),
     ("walls", "Walls"),
     ("queue", "Queue"),
     ("history", "History"),

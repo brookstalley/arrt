@@ -58,6 +58,7 @@ from arrt.config import (
 )
 from arrt.library.acquisition.preparation import PreparationSettings
 from arrt.library.facade import LibraryFacade
+from arrt.library.registry import Registry
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.conversation import ConversationService
 from arrt.library.services.discovery import DiscoveryService
@@ -231,6 +232,7 @@ def services(
     settings: Settings,
     engine: FakeEngine,
     conversation_engine: FakeConversationEngine,
+    registry: Registry | None,
 ) -> Services:
     """Every service, wired the way the entry point wires them."""
     bound = Services.bind(
@@ -278,8 +280,19 @@ def services(
         # refuses every turn, which is the keyless deployment and is right for
         # it — and would make every conversation test assert against a refusal.
         conversation_engine=conversation_engine,
+        registry=registry,
     )
     return bound
+
+
+@pytest.fixture
+def registry() -> Registry | None:
+    """No registry: the deployment that has not set WIKIDATA_USER_AGENT.
+
+    A module that tests what the registry answers overrides this with a
+    `FakeRegistry`, so no test reaches Wikidata through the container.
+    """
+    return None
 
 
 @pytest.fixture

@@ -297,6 +297,108 @@ class TestTheHttpSurface:
         assert (chosen["selected"], chosen["count"], chosen["disabled"]) == (True, 0, False)
 
 
+class TestSearchIgnoresAccentsAndCase:
+    """`dali` finds Dalí, through the route every library search goes through.
+
+    The words a curator types and the words a museum stored are folded to one
+    form on both sides, so neither spelling has to match the other's marks. The
+    fixture carries more than one kind of mark, because a fold that only strips
+    Latin acute accents is the easy half: a German ß, a letter with no
+    decomposition (ø), a ligature (œ), a non-Latin script with its own accents
+    and case, and a name stored decomposed, which looks the same on screen and is
+    a different string.
+    """
+
+    @pytest.fixture
+    def folded_http(self, server_url, seeded_service):
+        works = (
+            ("Joan Miró", "The Farm"),
+            ("René Magritte", "The Treachery of Images"),
+            ("Ernst Ludwig Kirchner", "Berliner Straßenszene"),
+            ("Vilhelm Hammershøi", "Interior in Strandgade"),
+            ("Gustave Moreau", "Œdipe et le Sphinx"),
+            ("Θεόφιλος Χατζημιχαήλ", "Ο Μέγας Αλέξανδρος"),
+            # Decomposed: an e followed by a combining acute, as some sources store it.
+            ("Jean-Le\u0301on Ge\u0301ro\u0302me", "Pollice Verso"),
+        )
+        for name, title in works:
+            artist = seeded_service.add_artist(name=name)
+            seeded_service.add_artwork(title=title, artist_id=artist.id)
+        entries = seeded_service.list_artworks().entries
+        dali = next(entry.artwork for entry in entries if entry.artwork.title == "The Persistence of Memory")
+        seeded_service.record_facet(
+            artwork_id=dali.id, kind=VocabularyKind.MOVEMENT, value="Surrealism", derivation=FacetDerivation.INFERRED
+        )
+        with httpx.Client(base_url=server_url, timeout=30.0) as client:
+            yield client
+
+    @staticmethod
+    def titles(client: httpx.Client, q: str) -> list[str]:
+        return [work["title"] for work in client.get("/api/works", params={"q": q}).raise_for_status().json()["works"]]
+
+    @pytest.mark.parametrize(
+        ("q", "title"),
+        [
+            ("dali", "The Persistence of Memory"),
+            ("Dalí", "The Persistence of Memory"),
+            ("DALI", "The Persistence of Memory"),
+            ("miro", "The Farm"),
+            ("Miró", "The Farm"),
+            ("rene magritte", "The Treachery of Images"),
+            ("René", "The Treachery of Images"),
+            ("strassenszene", "Berliner Straßenszene"),
+            ("straßenszene", "Berliner Straßenszene"),
+            ("hammershoi", "Interior in Strandgade"),
+            ("Hammershøi", "Interior in Strandgade"),
+            ("oedipe", "Œdipe et le Sphinx"),
+            ("θεοφιλος", "Ο Μέγας Αλέξανδρος"),
+            ("ΜΕΓΑΣ", "Ο Μέγας Αλέξανδρος"),
+            ("gerome", "Pollice Verso"),
+            ("Jean-Léon", "Pollice Verso"),
+        ],
+    )
+    def test_either_spelling_finds_the_work(self, folded_http, q, title):
+        assert self.titles(folded_http, q) == [title]
+
+    def test_a_name_not_there_still_finds_nothing(self, folded_http):
+        assert self.titles(folded_http, "vermeer") == []
+
+    def test_the_facet_counts_are_about_the_folded_result(self, folded_http):
+        """One clause renders the page, its total and the counts, so the fold has to reach all three."""
+        payload = folded_http.get("/api/works", params={"q": "dali"}).raise_for_status().json()
+
+        assert payload["total"] == 1
+        movement = next(group for group in payload["facets"] if group["kind"] == "movement")
+        assert {option["value"]: option["count"] for option in movement["options"]} == {"Surrealism": 1}
+
+        narrowed = folded_http.get("/api/works", params={"q": "dali", "movement": "Surrealism"}).raise_for_status().json()
+        assert [work["title"] for work in narrowed["works"]] == ["The Persistence of Memory"]
+
+    def test_a_word_cannot_run_from_one_field_into_the_next(self, folded_http):
+        """The searched fields are folded as one string, joined by a separator a
+        term cannot hold. Without it the title's last word and the medium's first
+        would read as one: the Demuth is titled "…in Gold" and its medium begins "Oil"."""
+        assert self.titles(folded_http, "gold oil") == ["I Saw the Figure 5 in Gold"]
+        assert self.titles(folded_http, "goldoil") == []
+
+    def test_one_artists_works_by_their_catalogue_id_with_counts_to_match(self, folded_http, seeded_service):
+        """The Artist page's *In your library*: by the work's own link to its artist, not by the facet."""
+        entries = seeded_service.list_artworks().entries
+        dali = next(entry.artwork for entry in entries if entry.artwork.title == "The Persistence of Memory")
+
+        payload = folded_http.get("/api/works", params={"artist_id": dali.artist_id}).raise_for_status().json()
+
+        assert [work["title"] for work in payload["works"]] == ["The Persistence of Memory"]
+        assert payload["total"] == 1
+        movement = next(group for group in payload["facets"] if group["kind"] == "movement")
+        assert {option["value"]: option["count"] for option in movement["options"]} == {"Surrealism": 1}
+
+    def test_a_wildcard_typed_is_still_a_literal(self, folded_http):
+        """The fold runs before the wildcards are escaped, and must not undo the escaping."""
+        assert self.titles(folded_http, "%") == []
+        assert self.titles(folded_http, "_") == []
+
+
 class TestTheToolSurface:
     """`art_catalogue(action='list')` takes the same filters and answers with the same counts."""
 
@@ -322,6 +424,21 @@ class TestTheToolSurface:
 
         assert errored is False
         assert [work["title"] for work in payload["artworks"]] == ["The Persistence of Memory"]
+
+    async def test_a_model_searching_without_the_accent_finds_the_work(self, faceted_server):
+        payload, errored = await self.call(faceted_server, action="list", q="dali")
+
+        assert errored is False
+        assert [work["title"] for work in payload["artworks"]] == ["The Persistence of Memory"]
+
+    async def test_a_model_can_list_one_artists_works(self, faceted_server, seeded_service):
+        entries = seeded_service.list_artworks().entries
+        demuth = next(entry.artwork for entry in entries if entry.artwork.title.startswith("I Saw"))
+
+        payload, errored = await self.call(faceted_server, action="list", artist_id=demuth.artist_id)
+
+        assert errored is False
+        assert [work["title"] for work in payload["artworks"]] == ["I Saw the Figure 5 in Gold"]
 
     async def test_a_model_can_filter_by_facet_and_reads_the_counts_back(self, faceted_server):
         payload, errored = await self.call(faceted_server, action="list", movement=["Realism"])

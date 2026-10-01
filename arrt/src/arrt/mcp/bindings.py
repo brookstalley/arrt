@@ -99,6 +99,7 @@ def _list_artworks(services: Services, arguments: Mapping[str, Any]) -> dict[str
         limit=arguments.get("limit"),
         offset=arguments.get("offset", 0),
         sort=arguments.get("sort"),
+        artist_id=arguments.get("artist_id"),
     )
     return ok(
         artworks=[_summary(entry) for entry in listing.entries],
@@ -145,6 +146,21 @@ def _list_sources(services: Services, arguments: Mapping[str, Any]) -> dict[str,
         count=len(sources),
         notice=_sources_notice(sources),
     )
+
+
+def _set_work_qid(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    artwork = services.identity.set_work_identity(arguments["artwork_id"], _stated_qid(arguments["qid"]))
+    return ok(artwork=_artwork_fields(artwork))
+
+
+def _set_artist_qid(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    artist = services.identity.set_artist_identity(arguments["artist_id"], _stated_qid(arguments["qid"]))
+    return ok(artist=_artist_fields(artist))
+
+
+def _stated_qid(value: str) -> str | None:
+    """`none`, in any case, is the curator saying there is no item; anything else is checked as a QID."""
+    return None if value.strip().lower() == "none" else value
 
 
 def _archive_artwork(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -392,6 +408,10 @@ def _update_theme(services: Services, arguments: Mapping[str, Any]) -> dict[str,
         shuffle=arguments.get("shuffle", UNSET),
     )
     return ok(theme=_theme_fields(theme))
+
+
+def _make_default_theme(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    return ok(theme=_theme_fields(services.display.make_default(arguments["theme_id"])))
 
 
 def _delete_theme(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -869,12 +889,15 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_catalogue", "restore"): _restore_artwork,
     ("art_catalogue", "retry_acquisition"): _retry_acquisition,
     ("art_catalogue", "set_mat_color"): _set_mat_color,
+    ("art_catalogue", "set_work_qid"): _set_work_qid,
+    ("art_catalogue", "set_artist_qid"): _set_artist_qid,
     ("art_catalogue", "regenerate"): _regenerate,
     ("art_theme", "list"): _list_themes,
     ("art_theme", "get"): _get_theme,
     ("art_theme", "create"): _create_theme,
     ("art_theme", "update"): _update_theme,
     ("art_theme", "delete"): _delete_theme,
+    ("art_theme", "make_default"): _make_default_theme,
     ("art_theme", "add"): _add_to_theme,
     ("art_theme", "remove"): _remove_from_theme,
     ("art_theme", "reorder"): _reorder_in_theme,
@@ -1005,6 +1028,10 @@ def _artwork_fields(artwork: Artwork) -> dict[str, Any]:
         "status": str(artwork.status),
         "accepted_at": _moment(artwork.accepted_at),
         "created_at": _moment(artwork.created_at),
+        # The Wikidata item, as the bare QID, and who set it: `matched` (by the
+        # holding museum's identifier, never a title) or `curator`.
+        "wikidata_qid": artwork.wikidata_qid,
+        "wikidata_qid_set_by": None if artwork.wikidata_qid_set_by is None else str(artwork.wikidata_qid_set_by),
     }
 
 
@@ -1026,6 +1053,8 @@ def _artist_fields(artist: Artist) -> dict[str, Any]:
         # rather than a demonym. Null means `nationality` is what reaches the
         # panel, which is the ordinary case.
         "display_nationality": artist.display_nationality,
+        "wikidata_qid": artist.wikidata_qid,
+        "wikidata_qid_set_by": None if artist.wikidata_qid_set_by is None else str(artist.wikidata_qid_set_by),
     }
 
 
@@ -1044,6 +1073,7 @@ def _theme_fields(theme: Theme) -> dict[str, Any]:
         "rotation_interval_seconds": theme.rotation_interval_seconds,
         "shuffle": theme.shuffle,
         "created_at": _moment(theme.created_at),
+        "is_default": theme.is_default,
     }
 
 

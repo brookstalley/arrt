@@ -35,7 +35,10 @@
 
      Recognized keys:
        chunks   - comma-separated chunk IDs (zero-padded, must match
-                  build-plan.md ## Status headers exactly: `Chunk 00:`)
+                  build-plan.md ## Status headers exactly: `Chunk 00:`).
+                  Informational: nothing regenerates from it and release
+                  readiness ignores it, but it ties an entry to the chunk it
+                  shipped, which a reader and the Critic's record check use.
        release  - version string (used by the release-notes view)
        status   - shipped | merged (legacy). Write a new entry with NO
                   status= on the feature branch: a statusless tagged entry
@@ -62,6 +65,112 @@
 
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
+
+## 2026-10-01: Library › Artists, and the Artist page
+
+<!-- prawduct: chunks=04 | scope=ia-foundations -->
+
+**Why:** the owner's ruling 4: the artist is the hub. A curator getting to know
+an artist (S11) wants to see who they are, what the library holds of theirs,
+what else they made, and where it hangs.
+
+**What:** Library › Artists (`#artist`), every artist with a work in
+circulation, and the Artist page (`#artist/<id>`): life dates and nationality;
+Wikidata's description and movements; *More like this* and *Not this* writing
+an artist affinity; *In your library* with *Add to theme* on a selection, sharing
+Works' logic through the new `core/membership.js`; *Their work*, the 50 most
+renowned works Wikidata lists plus every work the library holds, each marked
+*Held* (by QID) or *Image found* (a Commons file); and *Holdings*. The registry
+half is its own request (`GET /api/artists/{id}/registry`), remembered per
+artist, with four states each said in a sentence, so a slow or absent Wikidata
+holds nothing up. Registry text is rendered as text only, and an image is only
+ever a Commons file URL. Artist names on work cards, table rows and the Work
+page open the page; the top-bar search offers matching artists first (two
+typeahead tests changed their expected lists for that). `GET /api/works` and
+`art_catalogue(action='list')` gain `artist_id`, because the owner's catalogue
+holds no facet rows to filter by. `search_fold` moved to
+`persistence/folding.py`, which both the adapter and the artist index use.
+
+Also carried: Chunk 03's review observations. A test where two creators narrow
+the name search, and the `set_*_qid` tips no longer overstate what `none` does.
+And the cumulative review's record work: Wikidata is channel 9 in
+`architecture.md`; `security-model.md` § Registry text says what bounds
+registry text in the browser and lists the norm owed before one-world search;
+and every findings file, the five older ones included, is in the artifact
+manifest (backlog #147).
+
+## 2026-10-01: Works and artists carry a Wikidata QID where one is certain
+
+<!-- prawduct: chunks=03 | scope=ia-foundations -->
+
+**Why:** the owner's ruling 7, so the Artist page (and later, search) can tell
+which registry works the library holds without matching titles.
+
+**What:** `wikidata_qid` and `wikidata_qid_set_by` (`matched` | `curator`) on
+artworks and artists. A probe of the owner's catalogue (`wikidata-findings.md`)
+settled the rules: a work matches only through the holding museum's identifier
+on Wikidata (Art Institute `P4610`, Google Arts & Culture `P4701`), never its
+title; an artist matches as their matched works' one creator, else by a name
+search narrowed by agreeing life dates, never by name alone (which matched the
+culture *Moche* to a 1633 painter). The matcher fills only identities nobody has
+set, so it is idempotent and a curator's QID or "there is none" stands. It runs
+by hand, `python -m arrt.identify`, with `WIKIDATA_USER_AGENT` set (no
+default, per the museum norm); on a copy of the owner's catalogue it matched 22
+of 40 works and 24 of 31 artists with nothing ambiguous, and a second run
+changed nothing. The curator sets or clears a QID with `POST
+/api/works|artists/{id}/wikidata` or `art_catalogue(action='set_work_qid' |
+'set_artist_qid')`. The client sends to one constant endpoint and follows no
+redirect. A `live_museum` test pins the shapes the client relies on.
+
+Also carried: Chunk 02's review observations. The *Make default* button's
+accessible name now contains its visible words, a constraint test shows the
+store refusing a second default, the Theme screen's two conditional lines are
+asserted present and absent, and `architecture.md`'s rule-3 inventory names the
+migration that reads across the seam.
+
+## 2026-10-01: All works is the default theme, and acceptances join it
+
+<!-- prawduct: chunks=02 | scope=ia-foundations -->
+
+**Why:** the owner's ruling 8, "There should be a default 'all works' theme."
+Nothing added a work to a theme automatically, so an accepted work landed nowhere
+it could be hung.
+
+**What:** `themes.is_default`, at most one under a partial unique index, written
+only by `make_default` (`POST /api/themes/{id}/default`, `art_theme(action=
+'make_default')`). Programming subscribes to the Library's `work.accepted` and
+adds the work at the end of the default theme. A new `default_theme_offers`
+table records each work offered, joined or not, so each is offered once: a work
+taken out by hand stays out through a restore (which the Library announces as an
+acceptance) and through the startup catch-up of lost announcements. A one-time
+migration marks *All works* (ignoring case) and records every held work as
+offered, archived ones included; run twice on a copy of the owner's catalogue it
+marked *All works* and recorded 40 of 40. Deleting the default is refused with
+the reason; renaming keeps it. The Theme screen shows ★ *default* in the accent
+colour, offers *Make default*, and says when no theme is the default. A restored
+work not rejoining is an ASSUMPTION in the plan, recommended to the owner.
+
+## 2026-10-01: Library search ignores case, accents and ligatures
+
+<!-- prawduct: chunks=01 | scope=ia-foundations -->
+
+**Why:** `dali`, `miro` and `rene` found nothing in a library holding Dalí, Miró
+and Magritte, and the typeahead offered only a paid museum search
+(`user-scenarios.md` § What the search box can mean). SQLite's `LIKE` ignores
+case for ASCII only and never ignores accents.
+
+**What:** both sides of the search clause pass through `search_fold`
+(casefold, NFKD with the marks dropped, and a short table for letters Unicode
+does not decompose, such as ø and œ). The catalogue adapter defines it on its
+own connection, via a new `SqliteDurableStore.define_function`. The searched
+columns are folded as one separator-joined string per work, and the fold
+remembers what it folded, so that a request's repeated evaluations stay cheap.
+A search response at 4,000 works went from 26–35 ms to 44–66 ms
+(`tools/search_latency.py`, which now times the folded clause too). The HTTP
+route, the MCP `list` action and the typeahead are tested with an unaccented
+query, as are a German ß, Greek, a ligature, and a name stored decomposed.
+Watched failing against the unfolded code first: 13 route tests and the
+typeahead test, every unaccented or non-ASCII spelling among them.
 
 ## 2026-10-01: pyjwt and urllib3 bumped for the open Dependabot alerts
 

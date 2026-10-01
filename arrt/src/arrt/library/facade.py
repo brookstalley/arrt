@@ -14,7 +14,7 @@ reaches nothing in Programming.
 """
 
 import logging
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import replace
 
 from arrt.library.events import WorkChange, WorkChanged, WorkChangedHandler
@@ -65,6 +65,14 @@ class LibraryFacade:
         dangling reference unbuildable. An id asked twice is answered once.
         """
         return {work_id: self._answer(work_id) for work_id in dict.fromkeys(work_ids)}
+
+    def accepted_work_ids(self) -> Sequence[str]:
+        """Every work in circulation, oldest first.
+
+        For a startup catch-up of an announcement a crash lost: Programming asks
+        which works exist, here, rather than reading the Library's tables.
+        """
+        return self._catalogue.accepted_work_ids()
 
     def subscribe(self, handler: WorkChangedHandler) -> None:
         """Be told which work changed, after each change commits.

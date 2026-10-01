@@ -47,6 +47,10 @@ class ArtistOut(BaseModel):
     #: recorded value being overwritten, because what an institution printed
     #: about a person is not this product's to edit.
     display_nationality: str | None
+    #: The Wikidata item for this person, as the bare QID, or null when none is
+    #: known; and who set it: `matched`, `curator`, or null when never set.
+    wikidata_qid: str | None
+    wikidata_qid_set_by: str | None
 
 
 class FitOut(BaseModel):
@@ -76,6 +80,61 @@ class ImageOut(BaseModel):
     note: str | None
 
 
+class HeldArtistOut(BaseModel):
+    """An artist the library holds, and how many of their works are in circulation."""
+
+    artist: ArtistOut
+    held: int
+
+
+class ArtistListOut(BaseModel):
+    """Library › Artists: every artist with a work in circulation, by name."""
+
+    artists: list[HeldArtistOut]
+
+
+class RegistryWorkOut(BaseModel):
+    """One work the registry lists for an artist. `title` is registry text: show it as text."""
+
+    qid: str
+    title: str
+    year: int | None
+    #: How many Wikipedias cover it, which is what the list is sorted by.
+    sitelinks: int
+    #: A Commons file URL, and only ever one: anything else the registry
+    #: offered was dropped before it got here.
+    image: str | None
+    #: The library's works in circulation that are this one (matched by QID).
+    #: Empty when not held; more than one is a duplicate for the curator to see.
+    held_artwork_ids: list[str]
+
+
+class RegistryHoldingOut(BaseModel):
+    qid: str
+    name: str
+    works: int
+
+
+class ArtistRegistryOut(BaseModel):
+    """What Wikidata knows about an artist, or why there is nothing to show.
+
+    `state` is `known`, `no_identity` (the artist has no QID), `not_configured`
+    (no registry on this server) or `unavailable` (it could not be asked), and
+    `note` says which in a sentence whenever it is not `known`. Every string from
+    the registry is untrusted text.
+    """
+
+    state: str
+    note: str | None
+    qid: str | None
+    description: str | None
+    movements: list[str]
+    works: list[RegistryWorkOut]
+    #: How many works the registry lists in all; `works` is the most renowned of them.
+    works_total: int
+    holdings: list[RegistryHoldingOut]
+
+
 class WorkOut(BaseModel):
     """One work as a grid card shows it."""
 
@@ -92,6 +151,10 @@ class WorkOut(BaseModel):
     commentary: str | None
     rights: str | None
     status: str
+    #: The Wikidata item for this work, as the bare QID, and who set it. Matched
+    #: only through the holding museum's own identifier, never a title.
+    wikidata_qid: str | None
+    wikidata_qid_set_by: str | None
     fit: FitOut | None
     #: Present exactly when `fit` is null, saying why there is no verdict. A card
     #: with no size must not read like a card whose work is small.
@@ -249,6 +312,8 @@ class ThemeOut(BaseModel):
     rotation_interval_seconds: int | None
     shuffle: bool | None
     created_at: str
+    #: Whether works the curator accepts join this theme. At most one is.
+    is_default: bool
 
 
 class WallRefOut(BaseModel):
@@ -915,6 +980,16 @@ class StepDisplay(BaseModel):
     """
 
     wall_id: str
+
+
+class SetIdentity(BaseModel):
+    """The curator's word on which Wikidata item this is.
+
+    A QID (`Q160149`) sets it; null says there is none, which the matcher then
+    leaves alone. Either way the curator's word outlasts every matching pass.
+    """
+
+    qid: str | None
 
 
 class AddWork(BaseModel):

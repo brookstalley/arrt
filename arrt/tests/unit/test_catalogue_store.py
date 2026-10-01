@@ -57,6 +57,9 @@ _EXPECTED_SCHEMA = {
         "family_name",
         "given_name",
         "display_nationality",
+        # Widened 2026-10-01 with the registry identity (ruling 7).
+        "wikidata_qid",
+        "wikidata_qid_set_by",
     },
     # `commentary` is the line written for a wall label, which is not
     # `description` — that is the holding institution's paragraph.
@@ -73,6 +76,8 @@ _EXPECTED_SCHEMA = {
         "accepted_at",
         "created_at",
         "commentary",
+        "wikidata_qid",
+        "wikidata_qid_set_by",
     },
     # Widened 2026-07-31 with the per-theme rotation settings. This was the first
     # change to a table files already on disk carried, so it is also what the
@@ -80,8 +85,11 @@ _EXPECTED_SCHEMA = {
     # `is_active` was here until 2026-08-12, when hanging became an act against a
     # named wall. It is the first column this schema has *removed*, which the
     # widening step cannot do — `migrations.py` does, and the test below watches
-    # a legacy file lose it.
-    "themes": {"id", "name", "description", "created_at", "rotation_interval_seconds", "shuffle"},
+    # a legacy file lose it. Widened 2026-10-01 with `is_default`, the theme new
+    # works join, under the partial index that allows at most one.
+    "themes": {"id", "name", "description", "created_at", "rotation_interval_seconds", "shuffle", "is_default"},
+    # Which works the default theme has been offered, so each is offered once.
+    "default_theme_offers": {"artwork_id", "offered_at"},
     "walls": {"id", "name", "created_at", "token_verifier", "token_issued_at"},
     "theme_assignments": {"wall_id", "theme_id", "assigned_at"},
     "directives": {"wall_id", "sequence", "pinned_work_id"},

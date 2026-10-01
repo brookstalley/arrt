@@ -27,6 +27,7 @@ from arrt.library.discovery.engine import DiscoveryEngine, unavailable_engine
 from arrt.library.discovery.images import ImageSearch
 from arrt.library.discovery.openrouter import OpenRouterClient
 from arrt.library.discovery.phase_one import build_engine
+from arrt.library.registry.wikidata import WikidataRegistry
 from arrt.library.services.previews import PreviewSettings
 from arrt.library.services.thumbnails import ThumbnailSettings
 from arrt.persistence.file import open_catalogue_file
@@ -131,6 +132,13 @@ def _collection(settings: Settings) -> CollectionBrowse | None:
     if not settings.artic_user_agent:
         return None
     return build_collection_browse(user_agent=settings.artic_user_agent)
+
+
+def _registry(settings: Settings) -> WikidataRegistry | None:
+    """Wikidata, or nothing while this deployment has not named itself to it."""
+    if not settings.wikidata_user_agent:
+        return None
+    return WikidataRegistry(user_agent=settings.wikidata_user_agent)
 
 
 def main(argv: Sequence[str] = ()) -> None:
@@ -278,6 +286,10 @@ def main(argv: Sequence[str] = ()) -> None:
         # the museum gets names without pictures, and says so here.
         "artic" if settings.artic_user_agent else "none (ARTIC_USER_AGENT unset; names carry no pictures)",
     )
+    log.info(
+        "registry=%s",
+        "wikidata" if settings.wikidata_user_agent else "none (WIKIDATA_USER_AGENT unset; works and artists are not matched)",
+    )
 
     # Before anything is created, and before the catalogue is opened. The two
     # steps this replaces were individually reasonable and silent together: a
@@ -335,6 +347,7 @@ def main(argv: Sequence[str] = ()) -> None:
             ),
             mat_engine=_mat_engine(settings),
             conversation_engine=_conversation_engine(settings),
+            registry=_registry(settings),
         )
         # The catalogue file outlives any single version of this code, so rules
         # added since it was written are brought to it here rather than assumed

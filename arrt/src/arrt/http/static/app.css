@@ -578,6 +578,22 @@ h2 {
   text-decoration: underline;
 }
 
+/* A name that leads to its own page: an artist's, wherever a work names one.
+   Underlined, because unlike a card's title nothing else on its line says it
+   can be pressed. */
+button.link {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+}
+
 .card-artist,
 .card-meta {
   font-size: var(--text-sm);
@@ -1003,6 +1019,29 @@ h2 {
   }
 }
 
+/* The Artist page's list of what Wikidata holds. It scrolls sideways rather
+   than run past its panel, and on a phone the state badges wrap and drop their
+   thumbnail: the glyph and the word carry the state, as on every badge. */
+.artist-works {
+  overflow-x: auto;
+}
+
+/* Registry titles include single words longer than a phone is wide
+   (Dalí's *Galacidalacidesoxyribonucleicacid*). */
+.artist-works td:first-child {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 40rem) {
+  .artist-works .badge {
+    white-space: normal;
+  }
+
+  .artist-works .badge-thumb {
+    display: none;
+  }
+}
+
 /* -- state indicators ------------------------------------------------------
    Every badge carries a glyph AND a word. The colour is the third signal, never
    the first. */
@@ -1023,6 +1062,35 @@ h2 {
 .badge .glyph {
   font-size: var(--text-sm);
   line-height: 1;
+}
+
+/* A registry work the library holds, and one Wikidata has a free image of. The
+   held one is a button to the work, so it reads as the stronger mark; both lead
+   with glyph and word, as every badge here does. */
+.badge-held {
+  background: var(--good-quiet);
+  border-color: var(--good);
+  color: var(--text-strong);
+  cursor: pointer;
+}
+
+.badge-image-found {
+  border-style: dashed;
+}
+
+.badge-thumb {
+  width: 2rem;
+  height: 2rem;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+}
+
+/* The theme new works join. Solid accent, because it is a standing role rather
+   than a state a curator is warned about; the star and the word carry it first. */
+.badge-default {
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: var(--accent);
 }
 
 .badge-native {

@@ -80,9 +80,9 @@ MAX_FACET_VALUES: Final[int] = 50
 
 #: How many words one search may carry. Terms narrow rather than widen, so
 #: dropping the surplus would silently *broaden* the result — the refusal names
-#: the cap instead. The bound exists because each term adds a `LIKE` against every
-#: searched column, and a pasted paragraph would compose a statement in the
-#: hundreds of clauses against a request nobody meant to make.
+#: the cap instead. The bound exists because each term adds a clause that folds
+#: and scans every work's searched text, and a pasted paragraph would compose a
+#: statement of dozens of them against a request nobody meant to make.
 MAX_SEARCH_TERMS: Final[int] = 8
 
 
@@ -225,6 +225,7 @@ class CatalogueService:
         limit: int | None = None,
         offset: int = 0,
         sort: str | None = None,
+        artist_id: str | None = None,
     ) -> ArtworkListing:
         """Page through the catalogue, narrowed by text and by facet.
 
@@ -254,7 +255,9 @@ class CatalogueService:
         if offset < 0:
             raise ServiceError(f"offset cannot be negative, got {offset}.")
 
-        query = WorkQuery(status=resolved_status, terms=self._parse_terms(q), facets=self._parse_facets(facets))
+        query = WorkQuery(
+            status=resolved_status, terms=self._parse_terms(q), facets=self._parse_facets(facets), artist_id=artist_id
+        )
         # **One read scope over the page, the total and every facet count.**
         # These are four statements or more, and the response asserts they agree:
         # the counts are offered as what the grid *would* hold, so a write
@@ -340,6 +343,10 @@ class CatalogueService:
         """Return one work in full, with its artist resolved."""
         artwork = self._require_artwork(artwork_id)
         return ArtworkDetail(artwork=artwork, artist=self._resolve_artist(artwork.artist_id, {}))
+
+    def accepted_work_ids(self) -> Sequence[str]:
+        """Every work in circulation, by id, oldest first: what Programming reconciles against."""
+        return self._store.accepted_artwork_ids()
 
     def find_artwork(self, artwork_id: str) -> ArtworkDetail | None:
         """`get_artwork` for a caller to whom an unknown id is an answer, not a mistake.

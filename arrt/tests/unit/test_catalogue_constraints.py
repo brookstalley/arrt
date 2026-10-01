@@ -57,6 +57,30 @@ def _original(service, artwork_id, source_id, *, content_hash="sha256:aaa", byte
     )
 
 
+# -- At most one theme is the default -----------------------------------------
+#
+# Enforced by the store, not by convention: the partial unique index
+# `themes_one_default`. `mark_default_theme` clears before it sets, so nothing
+# the service does ever meets the index; this writes a second mark around it,
+# which is the case the index exists for.
+
+
+def test_the_store_refuses_a_second_default_written_around_the_service(display, catalogue_file):
+    first = display.add_theme(name="All works")
+    second = display.add_theme(name="Winter")
+    display.make_default(first.id)
+
+    with pytest.raises(StorageError):
+        catalogue_file.upsert(
+            "themes",
+            {"id": second.id, "name": second.name, "created_at": second.created_at.isoformat(), "is_default": 1},
+            pk=("id",),
+            on_conflict="update",
+        )
+
+    assert display.default_theme().id == first.id
+
+
 # -- 1. At most one theme hangs on a wall -------------------------------------
 #
 # Enforced by `ThemeAssignment.wall_id` being the whole primary key: a second

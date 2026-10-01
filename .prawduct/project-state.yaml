@@ -3088,6 +3088,21 @@ artifact_manifest:
       depends_on: [operational-spec, architecture, project-preferences]
     - file_path: .prawduct/artifacts/3tears-integration-findings.md
       depends_on: [architecture, operational-spec, project-preferences]
+    # The five below were unregistered until 2026-10-01 (backlog #147), and the
+    # sixth arrived that day; an unregistered findings file is invisible to a
+    # dependency walk.
+    - file_path: .prawduct/artifacts/artic-api-findings.md
+      depends_on: [architecture, data-model]
+    - file_path: .prawduct/artifacts/dezoomify-cli-findings.md
+      depends_on: [architecture, operational-spec]
+    - file_path: .prawduct/artifacts/museum-label-findings.md
+      depends_on: [data-model, accessibility-spec]
+    - file_path: .prawduct/artifacts/openrouter-api-findings.md
+      depends_on: [architecture, nonfunctional-requirements]
+    - file_path: .prawduct/artifacts/samsung-tv-state-findings.md
+      depends_on: [architecture, operational-spec]
+    - file_path: .prawduct/artifacts/wikidata-findings.md
+      depends_on: [data-model, architecture, security-model, observability-strategy]
   # Strategy-class artifacts still owed: test-specifications.md. The build plan
   # (Phase D) was authored 2026-07-20 and is registered above. The
   # structural-coverage advisory's named set was cleared 2026-07-20.

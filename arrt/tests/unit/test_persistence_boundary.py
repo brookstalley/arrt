@@ -74,6 +74,11 @@ _MAY_REACH_THE_NETWORK = {
     # arrangement one phase down. `urllib.parse` comes with it, for percent-
     # encoding a search term into a query string; no request is made through it.
     "arrt.library.discovery.artic",
+    # The Wikidata client — the far side of the registry seam
+    # (`library/registry/__init__.py`), the same arrangement as the museum
+    # clients. The identity service above it takes a `Registry`, so the matching
+    # rules are exercised against stated answers and never against the service.
+    "arrt.library.registry.wikidata",
     # `urllib.parse` only, for reading identifiers out of legacy filenames. No
     # request is made; the module is listed because the guard matches on the
     # top-level name rather than pretending to know which submodule is inert.

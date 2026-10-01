@@ -37,7 +37,7 @@ governed_by:
       - "the stylesheet holds token values, and `arrt/tests/unit/test_design_tokens.py` refuses a colour outside the token blocks → binds Chunks 02 and 04: any new colour is a token covered by that test in the same commit"
   - artifact: security-model
     dispositions:
-      - "outbound fetches go to publicly routable addresses only, checked on each redirect hop, and hosts are deliberately not allowlisted → binds Chunk 03: the Wikidata client uses the same guarded fetch the museum clients use"
+      - "outbound fetches go to publicly routable addresses only, checked on each redirect hop, and hosts are deliberately not allowlisted → binds Chunk 03: the Wikidata client uses the same guarded fetch the museum clients use. (Corrected while building, 2026-10-01: that guard is for source URLs, which are attacker-influenceable; the museum API clients talk to fixed hosts and do not use it. The Wikidata client's endpoint is a constant, so there is nothing to check, and it follows no redirect at all, which is the stricter half of the norm. Tested in `tests/unit/test_wikidata_client.py`.)"
       - "no norm covers rendering untrusted external text in the browser → gap, recorded rather than assumed: Chunk 04 renders registry text as text (never as HTML), and the Critic reviews it. A norm for it is owed to `security-model.md` and is not written by this plan"
   - artifact: observability-strategy
     dispositions:
@@ -69,7 +69,12 @@ wave: the pieces that stand on their own or that everything after needs.
 
 1. **One-world search, and the rest of the hub.** Typeahead and results show
    library and registry matches with their states (ruling 2). A Work page exists
-   for works not held. The Artist page gains *Similar artists*.
+   for works not held. The Artist page gains *Similar artists*. The Artist and
+   Work pages gain a control to set or clear a Wikidata QID by hand: the routes
+   exist (`POST /api/works|artists/{id}/wikidata`), and until then the only way
+   to correct a *Held* mark is `art_catalogue(action='set_work_qid')`. A norm for
+   showing external text in the browser is owed first (`security-model.md` §
+   Open).
 2. **Get and Ask.** Add New is dissolved (ruling 3): *Get* acts on any selection
    and seeds a run with the chosen works. The conversation becomes *Ask*, under
    Library. Activity gains *To review*, which needs the unjudged-candidate count
@@ -115,10 +120,10 @@ assumptions above.
 
 ## Status
 
-- [ ] Chunk 01: Library search ignores accents
-- [ ] Chunk 02: All works is the default theme
-- [ ] Chunk 03: Works and artists carry a Wikidata QID
-- [ ] Chunk 04: The Artist page and Library › Artists
+- [x] Chunk 01: Library search ignores accents
+- [x] Chunk 02: All works is the default theme
+- [x] Chunk 03: Works and artists carry a Wikidata QID
+- [x] Chunk 04: The Artist page and Library › Artists
 
 ### Chunk 01: Library search ignores accents
 
@@ -143,6 +148,12 @@ its MCP twin, and the top-bar typeahead, which calls the route.
    so the fold is tested on more than one kind of mark.
 3. The facet counts and the theme filter agree with the folded search (the same
    query, narrowed), tested through the route, not the store.
+   *(Built: the facet half. The theme half does not apply: a theme and a search
+   cannot both narrow Library › Works, because a theme's works come from
+   `GET /api/themes/{id}` and neither route can express the other's narrowing, so
+   the screen lets the search win and says so (`themeIsShowing` in
+   `arrt/src/arrt/http/static/screens/collection.js`). Found while building,
+   2026-10-01.)*
 4. The curation, browser and root suites pass.
 
 ### Chunk 02: All works is the default theme
@@ -169,6 +180,14 @@ commits, with a failed subscriber caught up by reconciliation at the next start.
 - **Restore may publish the same event.** Read what `restore` publishes. Whether
   a restored work rejoins the default theme is a question for the owner, raised
   in the chunk rather than decided silently.
+  *(Read 2026-10-01: `restore_artwork` publishes `work.accepted`, the same event
+  as a new work, and every `add_artwork` publishes it, seed ingest and manual
+  adds included. Archiving leaves theme memberships alone.)*
+  `[ASSUMPTION: a work is offered to the default theme once, the first time the
+  Library announces it, and never again: a restored work does not rejoin, so a
+  removal by hand stands. Every way in counts as an acceptance, not only a Get |
+  MED impact | recommended to the owner 2026-10-01, who said "keep going"
+  without ruling; user can correct]`
 
 **A persisted designation**, so the questions it must answer come first:
 
@@ -200,6 +219,9 @@ Library › Themes mark the default theme with glyph, word and colour.
    keeps it the default.
 4. The migration designates *All works* on a copy of the owner's catalogue shape
    and is idempotent across two runs with different theme sets.
+   *(Built, and also run twice on an actual copy of the owner's catalogue on
+   2026-10-01: All works marked, 40 of 40 works recorded as offered, its 40
+   members untouched.)*
 5. The seam guard and the curation, browser and root suites pass.
 6. An operator-verification entry covers the default mark on the Theme screen.
 
@@ -242,6 +264,19 @@ are amended, the latter under its versioning rule for an added field.
    relies on, deselected by default, run by hand with `-n0`.
 5. The curation and root suites pass.
 
+*(Built 2026-10-01. The measurement changed the design: works match **only by the
+holding museum's identifier** (Art Institute `P4610`, Google Arts & Culture
+`P4701`), never by title, because every title match agreed with an identifier
+match and added none, while generic titles were ambiguous. Artists match by
+their matched works' creator, else by name plus agreeing life dates; a name
+alone matched the culture *Moche* to a 17th-century painter. Run on a copy of
+the owner's catalogue: 22 of 40 works, 24 of 31 artists, nothing ambiguous;
+`wikidata-findings.md` has the rest. Done-when 2's "ambiguous Untitled" is
+tested as two Untitled works each matched by their own identifier, and one with
+no identifier storing nothing. Matching is a hand-run command,
+`python -m arrt.identify`, which needs `WIKIDATA_USER_AGENT`; a work
+accepted later has no QID until it is run again.)*
+
 ### Chunk 04: The Artist page and Library › Artists
 
 **Type:** cumulative-final
@@ -256,6 +291,11 @@ the library holds, with counts. An **Artist** page has:
   taste service.
 - **In your library:** the held works, with Hang and Add to theme on a
   selection, as Library › Works does.
+  *(Corrected while building, 2026-10-01: Library › Works offers Add to theme
+  on a selection and nothing hangs a selection anywhere; ruling 6 defers
+  hanging a selection to wave 4. So the page offers Add to theme, sharing
+  Works' logic through `arrt/src/arrt/http/static/core/membership.js`. Not a descope: there was no Hang
+  to match.)*
 - **Their work:** works Wikidata lists for the artist, sorted by renown (sitelink
   count), each marked *Held* (by QID) or with *Image found* where Wikidata has a
   free image. Read-only in this plan: *Get* arrives with plan 2.
@@ -280,10 +320,33 @@ untrusted text and is rendered as text. A registry failure leaves the header and
    entry.
 4. All three suites and the browser suite pass, then the cumulative review.
 
+*(Built 2026-10-01. Running it on a copy of the owner's catalogue changed one
+thing the tests had passed: none of the owner's held works is among its
+artist's 50 most renowned, so *Held* marked nothing. The page now asks for the
+held works by QID too, and the fixtures were changed to put the held work
+outside the top list, so the test can fail. Also found there: registry items
+with no readable title, now shown as *No English title (Q…)*, and a table too
+wide for a phone. The typeahead gained an Artists group, which changed the
+option lists two earlier tests pinned. Registry text is rendered as text, and a
+browser test feeds the page markup to prove it. Similar artists is the next
+plan's, per the DECISION above.)*
+
 ## Governance checkpoints
 
 - **After Chunk 03**, read its match rate against Chunk 04's design before
   building the page.
+  *(Read 2026-10-01. The design stands, with three consequences for Chunk 04.
+  **Held** works: 22 of 40 works carry a QID, including both Rothkos and the
+  Dalí, so the two pages the operator checks mark their held works. **Image
+  found** is almost empty for in-copyright artists (Rothko 1 of 1,276, Dalí 13
+  of 1,178), because a Wikidata image is a Commons file; the page must not
+  promise pictures for them, and *what does it look like?* for those artists
+  stays with the museum previews later plans bring. **Their work** runs to
+  thousands of items and 1 to 6 seconds a query, so it is capped by sitelinks,
+  says how many more there are, is fetched by its own request after the page
+  paints, and is remembered per artist for the life of the process. An artist
+  with no QID (7 of 31) shows header and *In your library* only, and says the
+  registry knows nothing for them yet.)*
 - **Before the PR**, the cumulative review in Chunk 04.
 
 ## Verification strategy

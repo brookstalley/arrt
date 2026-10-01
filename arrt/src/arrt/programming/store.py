@@ -15,6 +15,7 @@ the service, which is the only caller.
 
 from collections.abc import Sequence
 from contextlib import AbstractContextManager
+from datetime import datetime
 from typing import Protocol
 
 from arrt.persistence.records import Directive, Theme, ThemeAssignment, ThemeMembership, Wall
@@ -79,6 +80,24 @@ class ProgrammingStore(Protocol):
 
     def list_memberships(self, theme_id: str) -> Sequence[ThemeMembership]:
         """Return a theme's entries in curated order, unordered entries last."""
+        ...
+
+    # -- the default theme ----------------------------------------------------
+
+    def get_default_theme(self) -> Theme | None:
+        """Return the theme new works join, or None while no theme is marked."""
+        ...
+
+    def mark_default_theme(self, theme_id: str) -> None:
+        """Make this theme the default, taking the mark off any other. Raises if it is absent."""
+        ...
+
+    def record_offer(self, artwork_id: str, offered_at: datetime) -> None:
+        """Record that this work has been offered to the default theme. Raises if it already has."""
+        ...
+
+    def offered_work_ids(self) -> set[str]:
+        """Every work the default theme has been offered, whether or not it joined."""
         ...
 
     # -- walls ----------------------------------------------------------------

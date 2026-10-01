@@ -206,7 +206,7 @@ and once for "Leonardeschi".
 **As you type** (free and instant): matches grouped by object, with Artists
 first, then Works, Topics and Themes. Each row carries its state. Library matches
 come first, then registry matches. Matching ignores case and accents, so `dali`
-finds Dalí (`user-scenarios.md` measured that it does not today).
+finds Dalí (`user-scenarios.md` measured that it did not; built 2026-10-01).
 
 **On Enter:** the results page, with *All*, *In your library* and *Not held*
 views. If the query names one artist, that artist is the top result and is one

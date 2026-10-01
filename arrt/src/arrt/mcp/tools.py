@@ -109,6 +109,13 @@ _ARTWORK_ID = Param(
     required=True,
 )
 
+_QID = Param(
+    name="qid",
+    type="string",
+    description="A Wikidata item id such as Q160149, or 'none' to record that there is no item.",
+    required=True,
+)
+
 _SOURCE_ID = Param(
     name="source_id",
     type="string",
@@ -159,7 +166,19 @@ ART_CATALOGUE: Final = ToolRecord(
             name="list",
             description="Search and filter catalogued works, with the counts each further filter would select.",
             example="art_catalogue(action='list', q='harbour', movement=['Impressionism'], limit=20)",
-            params=(_STATUS, _QUERY, *_FACET_PARAMS, _SORT, _LIMIT, _OFFSET),
+            params=(
+                _STATUS,
+                _QUERY,
+                *_FACET_PARAMS,
+                Param(
+                    name="artist_id",
+                    type="string",
+                    description="Only this artist's works, by the catalogue id a work's artist carries.",
+                ),
+                _SORT,
+                _LIMIT,
+                _OFFSET,
+            ),
             tips=(
                 "A truncated result says so and reports the total, so a short list is never mistaken for a complete one.",
                 "Listings carry the fields needed to choose; use action='get' for the whole record.",
@@ -229,6 +248,36 @@ ART_CATALOGUE: Final = ToolRecord(
                 "The work is re-rendered in the new colour immediately — there is no separate regenerate to remember.",
                 "A colour recorded as method='dominant_color_fallback' was derived mechanically because the model "
                 "could not be asked or could not be read, not chosen for this work.",
+            ),
+        ),
+        Action(
+            name="set_work_qid",
+            description="Say which Wikidata item a work is, or that there is none.",
+            example="art_catalogue(action='set_work_qid', artwork_id='<an artwork_id>', qid='Q20270685')",
+            params=(_ARTWORK_ID, _QID),
+            tips=(
+                "A work's wikidata_qid is otherwise matched only through its museum's own identifier, never its "
+                "title, so a work with a generic title or an unfamiliar source may have none until you set it.",
+                "What you set is never overwritten by matching, and qid='none' stops matching from filling it; "
+                "a later set_work_qid replaces either.",
+            ),
+        ),
+        Action(
+            name="set_artist_qid",
+            description="Say which Wikidata item an artist is, or that there is none.",
+            example="art_catalogue(action='set_artist_qid', artist_id='<an artist_id from a work>', qid='Q160149')",
+            params=(
+                Param(
+                    name="artist_id",
+                    type="string",
+                    description="The artist's catalogue id, as a work's artist carries it.",
+                    required=True,
+                ),
+                _QID,
+            ),
+            tips=(
+                "What you set is never overwritten by matching, and qid='none' stops matching from filling it; "
+                "a later set_artist_qid replaces either.",
             ),
         ),
         Action(
@@ -743,6 +792,18 @@ ART_THEME: Final = ToolRecord(
                 "A theme hanging on any wall is refused, and the refusal names those walls. Hang something else "
                 "there with action='activate', or take it down with action='unhang', and then delete. This holds "
                 "even when it is the only theme: a wall losing its picture has to be a choice.",
+            ),
+        ),
+        Action(
+            name="make_default",
+            description="Make this the theme that newly accepted works join, taking the mark off whichever had it.",
+            example="art_theme(action='make_default', theme_id='<a theme_id>')",
+            params=(_THEME_ID,),
+            tips=(
+                "At most one theme is the default; action='list' shows which, as is_default. Each work joins it "
+                "once, when it is accepted, at the end of the order. Works already in the catalogue are not added "
+                "by this, and a work taken out of the default by hand is not put back.",
+                "The default cannot be deleted. Make another theme the default first.",
             ),
         ),
         Action(

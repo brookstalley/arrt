@@ -17,7 +17,11 @@ export async function api(path, options) {
       body && body.error
         ? body.error
         : `The server answered ${response.status} for ${path}.`;
-    throw new Error(message);
+    const failure = new Error(message);
+    // Carried so a screen can tell a refusal it expects (an address naming
+    // nothing) from a fault, which belongs in the error banner.
+    failure.status = response.status;
+    throw failure;
   }
   return body;
 }
@@ -83,7 +87,7 @@ function facetQuery(chosen) {
  * depends on how much there is, which nothing knows until this page lands, and a
  * placeholder painted before it can only guess. Optional, and the two other
  * callers pass nothing. */
-export async function fetchAllWorks(query = "", chosen = null, onFirstPage = null, sort = null) {
+export async function fetchAllWorks(query = "", chosen = null, onFirstPage = null, sort = null, { artistId = null, status = null } = {}) {
   const works = [];
   let total = 0;
   let truncated = false;
@@ -105,8 +109,12 @@ export async function fetchAllWorks(query = "", chosen = null, onFirstPage = nul
   // The order is the server's to apply, for the reason the search is: paging a
   // set the client sorted would sort only what had arrived.
   const order = sort ? `&sort=${encodeURIComponent(sort)}` : "";
+  // One artist's works, and only those in circulation: the Artist page's
+  // *In your library*. Both narrow on the server for the reason the search does.
+  const scope =
+    (artistId ? `&artist_id=${encodeURIComponent(artistId)}` : "") + (status ? `&status=${encodeURIComponent(status)}` : "");
   for (let page = 0; page < PAGE_CEILING; page += 1) {
-    const body = await api(`/api/works?offset=${works.length}${search}${narrowing}${order}`);
+    const body = await api(`/api/works?offset=${works.length}${search}${narrowing}${order}${scope}`);
     total = body.total;
     if (page === 0) {
       facets = body.facets || [];

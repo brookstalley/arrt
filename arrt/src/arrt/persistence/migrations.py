@@ -172,3 +172,48 @@ def _require_drop_column() -> None:
             f"{'.'.join(str(part) for part in _DROP_COLUMN_SINCE)} or newer to drop a column; "
             f"this interpreter is linked against {sqlite3.sqlite_version}."
         )
+
+
+#: The theme the owner's catalogue already holds every work in, and so the one
+#: made the default when the default arrived. Matched ignoring case.
+DEFAULT_THEME_NAME: Final[str] = "All works"
+
+
+def mark_the_default_theme(connection: sqlite3.Connection) -> None:
+    """Bring a file written before the default theme onto it, once.
+
+    Two things, guarded together by what the file holds: **works present and no
+    offers recorded**, which is a file this code has never opened, because from
+    then on every work is offered as it arrives. On such a file:
+
+    - the theme named *All works* becomes the default, unless some theme already
+      is; a catalogue with no theme of that name gets no default until the curator
+      makes one;
+    - every work already held is recorded as offered, because the curator placed
+      those works by hand before the default existed, and startup would otherwise
+      offer all of them at once.
+
+    An empty file is left alone, because nothing on it predates the default. Run
+    a second time, the guard is false whatever themes exist by then, so a theme
+    the curator later names *All works* is not marked behind their back.
+
+    This crosses the Library/Programming seam, reading `artworks` to write
+    Programming's offers. It is allowed here as a migration over the one file
+    both still share; when Programming's tables get a file of their own, the
+    back-fill becomes a one-off against the facade.
+    """
+    if connection.execute("SELECT 1 FROM default_theme_offers LIMIT 1").fetchone() is not None:
+        return
+    if connection.execute("SELECT 1 FROM artworks LIMIT 1").fetchone() is None:
+        return
+    if connection.execute("SELECT 1 FROM themes WHERE is_default = 1").fetchone() is None:
+        named = connection.execute(
+            "SELECT id FROM themes WHERE name = ? COLLATE NOCASE ORDER BY created_at LIMIT 1", (DEFAULT_THEME_NAME,)
+        ).fetchone()
+        if named is not None:
+            connection.execute("UPDATE themes SET is_default = 1 WHERE id = ?", (named[0],))
+            log.info("Made the theme %r the default: works accepted from now on join it.", DEFAULT_THEME_NAME)
+    connection.execute(
+        "INSERT INTO default_theme_offers (artwork_id, offered_at) SELECT id, ? FROM artworks",
+        (datetime.now(UTC).isoformat(),),
+    )

@@ -27,12 +27,14 @@ statement of the same rule.
 import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Final
 
 from arrt.persistence.adapter import BY_ID, TableAdapter, from_iso, require_datetime, to_iso
 from arrt.persistence.catalogue import WorkOrder, WorkQuery
-from arrt.persistence.durable import OrderBy
+from arrt.persistence.durable import OrderBy, SqliteDurableStore
 from arrt.persistence.errors import StorageError
+from arrt.persistence.folding import search_fold
 from arrt.persistence.records import (
     AcquisitionMethod,
     Artist,
@@ -42,6 +44,7 @@ from arrt.persistence.records import (
     Directive,
     FacetDerivation,
     FetchStatus,
+    IdentitySetBy,
     MatColor,
     MatMethod,
     Original,
@@ -82,7 +85,9 @@ CREATE TABLE IF NOT EXISTS artists (
     biography      TEXT,
     family_name    TEXT,
     given_name     TEXT,
-    display_nationality TEXT
+    display_nationality TEXT,
+    wikidata_qid   TEXT,
+    wikidata_qid_set_by TEXT
 );
 
 CREATE TABLE IF NOT EXISTS artworks (
@@ -97,7 +102,9 @@ CREATE TABLE IF NOT EXISTS artworks (
     status        TEXT NOT NULL,
     accepted_at   TEXT,
     created_at    TEXT NOT NULL,
-    commentary    TEXT
+    commentary    TEXT,
+    wikidata_qid  TEXT,
+    wikidata_qid_set_by TEXT
 );
 
 CREATE INDEX IF NOT EXISTS artworks_by_status ON artworks(status);
@@ -158,8 +165,14 @@ CREATE TABLE IF NOT EXISTS themes (
     description               TEXT,
     created_at                TEXT NOT NULL,
     rotation_interval_seconds INTEGER,
-    shuffle                   INTEGER
+    shuffle                   INTEGER,
+    is_default                INTEGER NOT NULL DEFAULT 0
 );
+
+-- New works join the default theme, and there is at most one. "At most", not
+-- "exactly": a catalogue with no theme marked is ordinary, and acceptance then
+-- joins nothing.
+CREATE UNIQUE INDEX IF NOT EXISTS themes_one_default ON themes(is_default) WHERE is_default = 1;
 
 -- A place where art hangs, and nothing about the device that serves it. The
 -- forbidden columns are listed on the `Wall` record; the rule is that this table
@@ -273,6 +286,16 @@ CREATE TABLE IF NOT EXISTS theme_memberships (
 
 CREATE INDEX IF NOT EXISTS theme_memberships_by_artwork ON theme_memberships(artwork_id);
 
+-- Every work the default theme has been offered, joined or not, so that a work
+-- is offered once: neither a restore, which the Library announces as an
+-- acceptance, nor startup reconciliation puts back a work the curator took out.
+-- `artwork_id` is deliberately not a foreign key: it is Programming's reference
+-- to a Library work, which the seam keeps opaque.
+CREATE TABLE IF NOT EXISTS default_theme_offers (
+    artwork_id  TEXT PRIMARY KEY,
+    offered_at  TEXT NOT NULL
+);
+
 -- One row per wall, seeded when the wall is created so no caller ever has to
 -- make one. The standing directive is a property of the *wall* rather than of
 -- any theme, because the sequence has to survive every manifest rebuild and
@@ -372,6 +395,15 @@ _SEARCHED: Final[tuple[str, ...]] = (
     "ar.name",
 )
 
+#: What SQL calls `search_fold` by, on both sides of every searched `LIKE`.
+_FOLD: Final[str] = "search_fold"
+
+#: The searched columns as one string, so the fold is one call and one
+#: remembered entry per work rather than six (see `_FOLDS_REMEMBERED` in `folding.py`). They are
+#: joined by the unit separator, which `str.split` treats as whitespace, so no
+#: term can contain it and no match can run from one column into the next.
+_SEARCHED_TEXT: Final[str] = " || char(31) || ".join(f"coalesce({column}, '')" for column in _SEARCHED)
+
 #: `LIKE`'s own wildcards, which have to survive a curator typing one. Escaped
 #: with a backslash declared per-clause as `ESCAPE '\'`; SQLite has no default
 #: escape character, so without the clause a searched `%` would match everything.
@@ -451,13 +483,20 @@ def _matching(query: WorkQuery) -> _Restriction:
         clauses.append('a."status" = ?')
         values.append(str(query.status))
 
+    if query.artist_id is not None:
+        clauses.append('a."artist_id" = ?')
+        values.append(query.artist_id)
+
     # ANDed across terms, ORed across columns: "blue harbour" means both words
     # appear somewhere about the work, which is what a person typing two words
     # means. ORing the terms instead would make every extra word widen the
     # result, so a search would get less useful the more precisely it was asked.
+    #
+    # Folded on both sides by `search_fold`, and the term before its wildcards
+    # are escaped, so the escaping is the last thing done to it.
     for term in query.terms:
-        clauses.append("(" + " OR ".join(f"{column} LIKE ? ESCAPE '\\'" for column in _SEARCHED) + ")")
-        values.extend([_like_pattern(term)] * len(_SEARCHED))
+        clauses.append(f"{_FOLD}({_SEARCHED_TEXT}) LIKE ? ESCAPE '\\'")
+        values.append(_like_pattern(search_fold(term)))
 
     # ORed within a kind, ANDed across kinds — see `WorkQuery.facets`. A kind
     # present with nothing chosen narrows nothing, rather than selecting nothing:
@@ -479,6 +518,12 @@ def _matching(query: WorkQuery) -> _Restriction:
 
 class SqliteCatalogue(TableAdapter):
     """The catalogue's own tables, mapped to its records."""
+
+    def __init__(self, store: SqliteDurableStore) -> None:
+        super().__init__(store)
+        # Defined by the adapter whose search calls it rather than where the file
+        # is opened, so every way of reaching this adapter can search.
+        store.define_function(_FOLD, search_fold)
 
     # -- artists --------------------------------------------------------------
 
@@ -519,6 +564,34 @@ class SqliteCatalogue(TableAdapter):
             (*selects.values, limit, offset),
         )
         return ArtworkPage(artworks=[_artwork(row) for row in rows], total=total)
+
+    def held_artists(self) -> Sequence[tuple[Artist, int]]:
+        rows = self._store.select_rows(
+            'SELECT ar.*, COUNT(a."id") AS held FROM artists ar JOIN artworks a ON a."artist_id" = ar."id" '
+            'WHERE a."status" = ? GROUP BY ar."id" ORDER BY ar."name" COLLATE NOCASE, ar."id"',
+            (str(ArtworkStatus.ACCEPTED),),
+        )
+        return [(_artist(row), int(row["held"])) for row in rows]
+
+    def circulating_ids_by_qid(self) -> Mapping[str, Sequence[str]]:
+        rows = self._store.select_rows(
+            'SELECT a."wikidata_qid" AS qid, a."id" AS id FROM artworks a '
+            'WHERE a."wikidata_qid" IS NOT NULL AND a."status" = ? ORDER BY a."created_at", a.rowid',
+            (str(ArtworkStatus.ACCEPTED),),
+        )
+        found: dict[str, list[str]] = {}
+        for row in rows:
+            found.setdefault(row["qid"], []).append(row["id"])
+        return found
+
+    def accepted_artwork_ids(self) -> Sequence[str]:
+        # Oldest first, `rowid` breaking a tie within one clock tick, so a catch-up
+        # joins works to a theme in the order they arrived.
+        rows = self._store.select_rows(
+            'SELECT a."id" AS id FROM artworks a WHERE a."status" = ? ORDER BY a."created_at", a.rowid',
+            (str(ArtworkStatus.ACCEPTED),),
+        )
+        return [row["id"] for row in rows]
 
     # -- what a work is, and what a filter would select -----------------------
 
@@ -680,6 +753,37 @@ class SqliteCatalogue(TableAdapter):
     def list_memberships(self, theme_id: str) -> Sequence[ThemeMembership]:
         return self._list("theme_memberships", {"theme_id": theme_id}, _BY_POSITION, _membership)
 
+    # -- the default theme ----------------------------------------------------
+
+    def get_default_theme(self) -> Theme | None:
+        marked = self._list("themes", {"is_default": 1}, _BY_NAME, _theme)
+        return marked[0] if marked else None
+
+    def mark_default_theme(self, theme_id: str) -> None:
+        # Cleared before set, in one transaction: the partial unique index
+        # refuses a second mark, so setting first would be refused, and a clear
+        # without its set would leave no default that anybody chose.
+        with self._store.transaction():
+            for theme in self._list("themes", {"is_default": 1}, _BY_NAME, _theme):
+                if theme.id != theme_id:
+                    self._update("themes", BY_ID, {**_theme_row(theme), "is_default": 0}, subject=f"theme {theme.id!r}")
+            theme = self.get_theme(theme_id)
+            if theme is None:
+                reason = "it is not stored."
+                raise StorageError(f"Could not mark theme {theme_id!r} the default: {reason}", reason=reason)
+            self._update("themes", BY_ID, {**_theme_row(theme), "is_default": 1}, subject=f"theme {theme_id!r}")
+
+    def record_offer(self, artwork_id: str, offered_at: datetime) -> None:
+        self._add(
+            "default_theme_offers",
+            {"artwork_id": artwork_id, "offered_at": to_iso(offered_at)},
+            subject=f"the default theme's offer of artwork {artwork_id!r}",
+            key=("artwork_id",),
+        )
+
+    def offered_work_ids(self) -> set[str]:
+        return {row["artwork_id"] for row in self._store.scan("default_theme_offers")}
+
     # -- walls ----------------------------------------------------------------
 
     def add_wall(self, wall: Wall) -> None:
@@ -757,6 +861,8 @@ def _artist_row(artist: Artist) -> dict[str, Any]:
         "family_name": artist.family_name,
         "given_name": artist.given_name,
         "display_nationality": artist.display_nationality,
+        "wikidata_qid": artist.wikidata_qid,
+        "wikidata_qid_set_by": None if artist.wikidata_qid_set_by is None else str(artist.wikidata_qid_set_by),
     }
 
 
@@ -774,6 +880,8 @@ def _artwork_row(artwork: Artwork) -> dict[str, Any]:
         "accepted_at": to_iso(artwork.accepted_at),
         "created_at": to_iso(artwork.created_at),
         "commentary": artwork.commentary,
+        "wikidata_qid": artwork.wikidata_qid,
+        "wikidata_qid_set_by": None if artwork.wikidata_qid_set_by is None else str(artwork.wikidata_qid_set_by),
     }
 
 
@@ -862,6 +970,8 @@ def _theme_row(theme: Theme) -> dict[str, Any]:
         # would raise and bool(None) would silently write a decision the curator
         # never made.
         "shuffle": None if theme.shuffle is None else int(theme.shuffle),
+        # `is_default` is not written from the record: only `mark_default_theme`
+        # writes it, so saving a theme leaves the mark where it is.
     }
 
 
@@ -915,6 +1025,8 @@ def _artist(row: Mapping[str, Any]) -> Artist:
         family_name=row["family_name"],
         given_name=row["given_name"],
         display_nationality=row["display_nationality"],
+        wikidata_qid=row["wikidata_qid"],
+        wikidata_qid_set_by=_set_by(row["wikidata_qid_set_by"]),
     )
 
 
@@ -932,7 +1044,13 @@ def _artwork(row: Mapping[str, Any]) -> Artwork:
         rights=row["rights"],
         accepted_at=from_iso(row["accepted_at"]),
         commentary=row["commentary"],
+        wikidata_qid=row["wikidata_qid"],
+        wikidata_qid_set_by=_set_by(row["wikidata_qid_set_by"]),
     )
+
+
+def _set_by(value: str | None) -> IdentitySetBy | None:
+    return None if value is None else IdentitySetBy(value)
 
 
 def _facet(row: Mapping[str, Any]) -> WorkFacet:
@@ -1020,6 +1138,7 @@ def _theme(row: Mapping[str, Any]) -> Theme:
         description=row["description"],
         rotation_interval_seconds=row["rotation_interval_seconds"],
         shuffle=None if row["shuffle"] is None else bool(row["shuffle"]),
+        is_default=bool(row["is_default"]),
     )
 
 

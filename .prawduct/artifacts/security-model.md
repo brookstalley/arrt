@@ -509,6 +509,35 @@ chosen. No dependency pinning or provenance policy has been decided — for a
 single-principal LAN appliance that is a defensible position, but it is a position,
 not an oversight.
 
+## Registry text *(2026-10-01)*
+
+**The exposure.** The Artist page shows what Wikidata says about an artist:
+descriptions, movement and work titles, collection names, and image URLs.
+Anyone can edit Wikidata, so every one of those is attacker-influenceable text
+arriving in the curator's browser, by a channel (`architecture.md` channel 9)
+that no model reads, so the prompt-injection bounds above do not cover it.
+
+**What bounds it, as built** (`build-plan-ia-foundations.md` Chunk 04):
+
+- **Text is rendered as text, never as markup.** Every registry string reaches
+  the page through `el`'s `text`, which sets `textContent`; a browser test feeds
+  the page a description carrying an `<img onerror>` and asserts it arrives as
+  words and runs nothing (`tests/browser/test_the_artist_page.py`).
+- **An image URL is a Commons file or nothing.** The client keeps only
+  `https://commons.wikimedia.org/wiki/Special:FilePath/…` and drops anything
+  else the registry offers as an image, before it reaches an `img` source
+  (`tests/unit/test_wikidata_client.py`); the page loads it with no referrer.
+- **Links out are built from a checked QID**, never from a URL the registry
+  supplied.
+- **The server asks one constant endpoint and follows no redirect**, so nothing
+  the registry says can steer a request at the operator's network.
+
+**What is not yet a norm.** These are properties of one page, enforced by its
+tests, not a rule binding the next surface that shows registry text (one-world
+search will be the next). A norm, "external text is shown as text, and an
+external URL is used only when its host is a stated one", is owed here and is
+listed under Open below.
+
 ## Open
 
 - **Licence and rights enforcement — no longer open; this entry had gone stale.**
@@ -525,6 +554,11 @@ not an oversight.
   fact about this television is firmware-scoped. Reasoning, consequences and the
   re-verification path live in `operational-spec.md` § Risks — not restated here,
   because the version numbers will move and one home for them is enough.
+- **Opened 2026-10-01: a norm for showing external text in the browser.** The
+  Artist page is bounded by its own tests (§ Registry text); the next surface
+  showing registry or museum text should be bound by a rule, not by remembering
+  this one. Owed before plan 1 of `build-plan-ia-foundations.md` § What comes
+  after (one-world search) ships.
 - **Opened 2026-09-30:**
   - **Player authentication on the LAN.** Closed 2026-09-30: a per-wall token
     (§ Trust Boundary, the note on the re-architecture).

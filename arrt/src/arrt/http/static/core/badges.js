@@ -82,7 +82,8 @@ export function facts(pairs) {
   const list = el("dl", { class: "facts" });
   for (const [term, value] of pairs) {
     if (value === null || value === undefined || value === "") continue;
-    list.append(el("dt", { text: term }), el("dd", { text: String(value) }));
+    // A node is placed as it is, so a value can be a link; anything else is text.
+    list.append(el("dt", { text: term }), value instanceof Node ? el("dd", {}, [value]) : el("dd", { text: String(value) }));
   }
   return list;
 }

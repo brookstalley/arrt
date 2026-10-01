@@ -38,7 +38,9 @@ from arrt.http.models import (
     AddWork,
     AffinityListOut,
     AffinityOut,
+    ArtistListOut,
     ArtistOut,
+    ArtistRegistryOut,
     ArtworkBoxOut,
     BackupOut,
     CandidateCardOut,
@@ -61,6 +63,7 @@ from arrt.http.models import (
     HangTheme,
     HealthOut,
     HeartbeatOut,
+    HeldArtistOut,
     ImageOut,
     InstanceListingOut,
     InstanceOut,
@@ -70,6 +73,8 @@ from arrt.http.models import (
     MoveWork,
     OriginalOut,
     PlayerTokenOut,
+    RegistryHoldingOut,
+    RegistryWorkOut,
     RenameTheme,
     RenditionOut,
     RunListOut,
@@ -81,6 +86,7 @@ from arrt.http.models import (
     SelectedImageOut,
     SelectImage,
     SetAffinity,
+    SetIdentity,
     SetVerdict,
     SourceOut,
     Speak,
@@ -103,6 +109,7 @@ from arrt.http.models import (
     WorkOut,
     WorkPageOut,
 )
+from arrt.library.services.artists import HeldArtist
 from arrt.library.services.catalogue import FacetGroup, RenditionView
 from arrt.library.services.conversation import ConversationDeletion, ConversationView, TurnView
 from arrt.library.services.discovery import VerdictOutcome
@@ -119,7 +126,7 @@ from arrt.persistence.discovery_records import (
     DiscoveryRun,
     InitiatedBy,
 )
-from arrt.persistence.records import Artist, Directive, MatColor, Original, Source, Theme, WorkFacet
+from arrt.persistence.records import Artist, Directive, IdentitySetBy, MatColor, Original, Source, Theme, WorkFacet
 from arrt.programming.display import ThemePlacement, WallView
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.programming.manifest.heartbeat import HeartbeatReading
@@ -180,6 +187,7 @@ def list_works(
     limit: Annotated[int | None, Query()] = None,
     offset: Annotated[int, Query()] = 0,
     sort: Annotated[str | None, Query()] = None,
+    artist_id: Annotated[str | None, Query()] = None,
 ) -> WorkPageOut:
     """A page of works with the facet controls for exactly this filter.
 
@@ -203,6 +211,7 @@ def list_works(
         limit=limit,
         offset=offset,
         sort=sort,
+        artist_id=artist_id,
     )
     return WorkPageOut(
         works=[_work(entry) for entry in page.entries],
@@ -218,6 +227,81 @@ def list_works(
 def get_work(request: Request, artwork_id: str) -> WorkDetailOut:
     """One work in full — metadata, artist, sources, renditions and mats."""
     return _dossier(_services(request).survey.get_work(artwork_id))
+
+
+@router.post("/works/{artwork_id}/wikidata")
+def set_work_identity(request: Request, artwork_id: str, body: SetIdentity) -> WorkDetailOut:
+    """Say which Wikidata item this work is, or that there is none.
+
+    Answers with the dossier, the shape every act on the Work screen repaints
+    from. The matcher never overwrites what is set here (`identity.py`).
+    """
+    services = _services(request)
+    services.identity.set_work_identity(artwork_id, body.qid)
+    return _dossier(services.survey.get_work(artwork_id))
+
+
+@router.get("/artists")
+def list_artists(request: Request, q: Annotated[str | None, Query()] = None) -> ArtistListOut:
+    """Library › Artists: every artist with a work in circulation, by name.
+
+    `q` narrows to names containing it, ignoring case and accents, which is what
+    the top-bar search asks when it offers artists.
+
+    **Not capped, and what bounds it is the catalogue**: one row per artist with a
+    work in circulation, so never more rows than works, and an artist's row is a
+    name and a count. At the NFR's thousands of works that is a few hundred rows.
+    If it is ever paged, the typeahead's `q` lookup is the caller that needs it.
+    """
+    return ArtistListOut(artists=[_held_artist(entry) for entry in _services(request).artists.index(q)])
+
+
+@router.get("/artists/{artist_id}")
+def get_artist(request: Request, artist_id: str) -> HeldArtistOut:
+    """One artist, from the library alone: answerable whatever the registry is doing."""
+    return _held_artist(_services(request).artists.get(artist_id))
+
+
+@router.get("/artists/{artist_id}/registry")
+def get_artist_registry(request: Request, artist_id: str) -> ArtistRegistryOut:
+    """What Wikidata knows about this artist, asked separately so a slow or absent registry delays nothing else.
+
+    Always a 200 for an artist the catalogue holds: a registry that is not
+    configured, cannot be asked, or has nothing for this artist is a state the
+    page shows, named in `state` and said in `note`.
+    """
+    view = _services(request).artists.registry_view(artist_id)
+    known = view.known
+    return ArtistRegistryOut(
+        state=str(view.state),
+        note=view.note,
+        qid=None if known is None else known.qid,
+        description=None if known is None else known.description,
+        movements=[] if known is None else list(known.movements),
+        works=(
+            []
+            if known is None
+            else [
+                RegistryWorkOut(
+                    qid=entry.qid,
+                    title=entry.title,
+                    year=entry.year,
+                    sitelinks=entry.sitelinks,
+                    image=entry.image,
+                    held_artwork_ids=list(view.held.get(entry.qid, ())),
+                )
+                for entry in known.works
+            ]
+        ),
+        works_total=0 if known is None else known.works_total,
+        holdings=([] if known is None else [RegistryHoldingOut(qid=h.qid, name=h.name, works=h.works) for h in known.holdings]),
+    )
+
+
+@router.post("/artists/{artist_id}/wikidata")
+def set_artist_identity(request: Request, artist_id: str, body: SetIdentity) -> ArtistOut:
+    """Say which Wikidata item this artist is, or that there is none."""
+    return _artist(_services(request).identity.set_artist_identity(artist_id, body.qid))
 
 
 @router.post("/works/{artwork_id}/archive")
@@ -313,6 +397,18 @@ def delete_theme(request: Request, theme_id: str) -> ThemeListOut:
     """
     services = _services(request)
     services.display.delete_theme(theme_id)
+    return ThemeListOut(themes=[_placement(placement) for placement in services.display.survey_themes()])
+
+
+@router.post("/themes/{theme_id}/default")
+def make_default_theme(request: Request, theme_id: str) -> ThemeListOut:
+    """Make this the theme new works join, taking the mark off whichever had it.
+
+    Answers with every theme, because the act changes two of them: the one
+    marked and the one that stopped being.
+    """
+    services = _services(request)
+    services.display.make_default(theme_id)
     return ThemeListOut(themes=[_placement(placement) for placement in services.display.survey_themes()])
 
 
@@ -768,6 +864,8 @@ def _work(survey: WorkSurvey) -> WorkOut:
         commentary=artwork.commentary,
         rights=artwork.rights,
         status=str(artwork.status),
+        wikidata_qid=artwork.wikidata_qid,
+        wikidata_qid_set_by=_set_by(artwork.wikidata_qid_set_by),
         fit=(
             None
             if survey.fit is None
@@ -835,7 +933,17 @@ def _artist(artist: Artist) -> ArtistOut:
         family_name=artist.family_name,
         given_name=artist.given_name,
         display_nationality=artist.display_nationality,
+        wikidata_qid=artist.wikidata_qid,
+        wikidata_qid_set_by=_set_by(artist.wikidata_qid_set_by),
     )
+
+
+def _held_artist(entry: HeldArtist) -> HeldArtistOut:
+    return HeldArtistOut(artist=_artist(entry.artist), held=entry.held)
+
+
+def _set_by(value: IdentitySetBy | None) -> str | None:
+    return None if value is None else str(value)
 
 
 def _original(original: Original) -> OriginalOut:
@@ -894,6 +1002,7 @@ def _theme(theme: Theme) -> ThemeOut:
         rotation_interval_seconds=theme.rotation_interval_seconds,
         shuffle=theme.shuffle,
         created_at=theme.created_at.isoformat(),
+        is_default=theme.is_default,
     )
 
 

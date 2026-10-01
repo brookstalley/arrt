@@ -33,6 +33,7 @@
 
 import { api, fetchAllWorks } from "../core/api.js";
 import { absentImage, fitBadge, shortfallNote, sourceBadge, statusBadge } from "../core/badges.js";
+import { addedSentence, addWorksToTheme, stoppedSentence } from "../core/membership.js";
 import { el, guard, render } from "../core/render.js";
 import { go, goWithParams } from "../core/router.js";
 import { clearSearchLink } from "../core/search.js";
@@ -267,7 +268,7 @@ function workCard(work, selection) {
       el("h3", { class: "card-title" }, [
         el("button", { type: "button", text: work.title, onclick: () => go("work", work.artwork_id) }),
       ]),
-      el("p", { class: "card-artist", text: work.artist ? work.artist.name : "Artist unrecorded" }),
+      el("p", { class: "card-artist" }, [artistName(work)]),
       el("p", {
         class: "card-meta",
         text: [work.date_created, work.medium].filter(Boolean).join(" · ") || " ",
@@ -275,6 +276,12 @@ function workCard(work, selection) {
       el("div", { class: "card-footer" }, [statusBadge(work), fitBadge(work), sourceBadge(work)]),
     ]),
   ]);
+}
+
+/* The artist's name, as the way to their page; plain words when unrecorded. */
+function artistName(work) {
+  if (!work.artist) return el("span", { text: "Artist unrecorded" });
+  return el("button", { class: "link", type: "button", text: work.artist.name, onclick: () => go("artist", work.artist.artist_id) });
 }
 
 /* The contact-sheet tile: the picture, and the words behind hover and focus.
@@ -309,7 +316,7 @@ function workRow(work, selection) {
   return el("tr", { "data-artwork": work.artwork_id }, [
     selection ? el("td", { class: "row-select" }, [selectBox(work, selection.settle)]) : null,
     el("td", {}, [el("button", { class: "row-title", type: "button", text: work.title, onclick: () => go("work", work.artwork_id) })]),
-    el("td", { text: work.artist ? work.artist.name : "Artist unrecorded" }),
+    el("td", {}, [artistName(work)]),
     el("td", { text: work.date_created || "—" }),
     el("td", { text: work.medium || "—" }),
     el("td", {}, [statusBadge(work) || "—"]),
@@ -639,28 +646,17 @@ function membershipControls({ themes, showingTheme, grid, heading, recount, when
       guard(async () => {
         const themeId = picker.value;
         const name = picker.options[picker.selectedIndex].text;
-        const asked = selected.size;
-        // Read before writing. The store refuses a work the theme already holds,
-        // and a loop that discovered that halfway through would have applied half
-        // the edit and reported a refusal.
-        const detail = await api(`/api/themes/${encodeURIComponent(themeId)}`);
-        const held = new Set(detail.works.map((work) => work.artwork_id));
-        const wanted = [...selected].filter((artworkId) => !held.has(artworkId));
-        const already = asked - wanted.length;
-        let added = 0;
+        let outcome;
         try {
-          for (const artworkId of wanted) {
-            await api(`/api/themes/${encodeURIComponent(themeId)}/works`, {
-              method: "POST",
-              body: JSON.stringify({ artwork_id: artworkId }),
-            });
-            added += 1;
-            selected.delete(artworkId);
-            uncheck(grid, artworkId);
-          }
+          outcome = await addWorksToTheme(themeId, [...selected], {
+            onAdded: (artworkId) => {
+              selected.delete(artworkId);
+              uncheck(grid, artworkId);
+            },
+          });
         } catch (failure) {
           settle();
-          say(`Added ${added} of ${wanted.length} to ${name}. The rest are still selected, so pressing Add again retries only those.`);
+          if (failure.progress) say(stoppedSentence(failure.progress, name));
           announcement.focus();
           // Rethrown so `guard` shows the server's own words for the refusal.
           // The sentence above says how far it got; only the server can say why
@@ -669,11 +665,7 @@ function membershipControls({ themes, showingTheme, grid, heading, recount, when
         }
         clearSelection(grid);
         settle();
-        if (!wanted.length) say(`All ${already} ${already === 1 ? "was" : "were"} already in ${name}.`);
-        else {
-          const carried = already ? ` ${already} ${already === 1 ? "was" : "were"} already in it.` : "";
-          say(`Added ${added} ${added === 1 ? "work" : "works"} to ${name}.${carried}`);
-        }
+        say(addedSentence(outcome, name));
         announcement.focus();
       }),
     );

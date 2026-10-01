@@ -139,7 +139,8 @@ Priority is **core** (on a stated core flow) or **supporting**.
 | **History** *(new)* | The searches that have ended, with how each ended. | The sidebar, under Activity | supporting |
 | **Run** | One discovery run while it works and after it stops: what it proposed, what it found images for, the gate where phase 2 is approved, and its work table. | Queue or History; Add New, as it starts; a re-search started on the review grid; its own address | core (flow 2) |
 | **Review** | Judging one run's candidates: accept, reject, choose a scan, ask for a better one. | A finished run, from History or its own page; the run's own notification | core (flow 3) |
-| **Themes** | The themes there are, and — at its own address — one of them: its members in curated order, its name, and the act of hanging it. | The sidebar, under Artworks; Artworks' theme rail; a wall's theme control; its own address | core (flows 5, 6) |
+| **Artists** | The artists the library holds, with how many works of theirs are in circulation; and at its own address one artist as the hub: who they are, what the library holds of theirs, what Wikidata lists with the held ones marked, and which collections hold their work. *(Built 2026-10-01, ruling 4; Similar artists waits for the next plan.)* | The sidebar, under Artworks; an artist's name on a work card, a table row or the Work page; the top-bar search's Artists group; its own address | core (S2, S3, S11) |
+| **Themes** | The themes there are, and — at its own address — one of them: its members in curated order, its name, the act of hanging it, and which theme is the default that accepted works join. | The sidebar, under Artworks; Artworks' theme rail; a wall's theme control; its own address | core (flows 5, 6) |
 | **Status** | The three observations the panel states, and the spend record. *(Health until 2026-09-30.)* | The sidebar, under System; the top bar's status indicator; a failure's own link | supporting |
 | **Conversation** *(new)* | One intent-forming thread, its samples, and what it committed to. | Add New; the conversation list; an affinity's provenance | core (flow 1) |
 | **Taste** *(new)* | The affinities the product has accumulated, with their derivation, correctable. | The sidebar, under Settings; a suggestion's "why am I seeing this?" | supporting |
@@ -236,6 +237,7 @@ listed below so it can be disputed.
 | **Artworks** (home) | Collection, with Work as its detail page | Radarr's Movies index and movie page. Named with the plural noun of the item, as every *arr app names this section |
 | Artworks › **Add New** | Discover's intent box and its conversations | Radarr's Add New: search a source for something to add |
 | Artworks › **Themes** | Theme, index and one theme | Radarr's Collections: a named grouping of items in the library |
+| Artworks › **Artists** | New 2026-10-01 | Lidarr's artist index and artist page, which are that app's library: the artist is the unit, and their page lists what is held and what is missing |
 | **Walls** | The Walls | No *arr page. It sits second, in Calendar's slot, because the wave-4 schedule (`re-architecture.md` § The manifest is a schedule) is the nearest *arr idea to "what is showing when" |
 | Activity › **Queue** | Discover's run list: runs that have not ended | Radarr's Queue: work in flight. Run opens from here |
 | Activity › **History** | Discover's run list: finished runs | Radarr's History |
@@ -257,7 +259,7 @@ listed below so it can be disputed.
   overrule it.)*
 - **One search box, two scopes, as in Sonarr.** *(2026-10-01: `user-scenarios.md`
   questions this from the scenarios side. A query can mean held, exists,
-  seeable or hangable, and today an unaccented `dali` finds no held Dalí.)* Read from Sonarr's source on
+  seeable or hangable. An unaccented `dali` found no held Dalí until 2026-10-01, when search began ignoring accents.)* Read from Sonarr's source on
   2026-09-30 (`frontend/src/Components/Page/Header/SeriesSearchInput.js` and
   `AddSeries/AddNewSeries/AddNewSeriesSearchResult.js`; Radarr shares the code):
   - The top-bar box searches **the library** as you type. Its dropdown has two
@@ -615,6 +617,16 @@ organised.** The theme rail filters the grid to a theme's members; membership is
 edited from the grid, in place, with multi-select. Reordering — which is genuinely
 about the theme rather than about the works — happens on the Theme screen.
 
+**One theme is the default, and acceptance fills it** *(the owner's ruling 8,
+built 2026-10-01)*. A work accepted from any route joins the default theme at the
+end of its order, once: taken out by hand, it stays out through a restart and a
+restore. The Theme screen marks the default with a star, the word *default* and
+the accent colour, offers *Make default* on every other theme, and says so when
+no theme is the default. The default cannot be deleted until another theme is
+made the default. *(The 2026-08-12 "whether it is the active theme" status this
+screen once carried was retired with `is_active`; the hierarchy row now reads
+"which walls it hangs on".)*
+
 ### Flow 6 — Display and sync
 
 `The Walls → a wall's theme control → activate` *(or)* `Theme → hang this`
@@ -667,7 +679,8 @@ who did not edit this table.
 | Conversation | The thread, newest exchange last | Each turn's suggestions, with their samples | Type, react to a sample, commit a direction, delete the thread | Whether a turn is in flight, and what the exchange cost |
 | Taste | The judgments, grouped by kind | Sentiment, openness, and how the claim was derived | React, correct, forget, follow a claim back to its turn | Which claims the product inferred rather than was told |
 | Review | The candidate picture | Title, artist, size on this wall | Accept, reject, choose scan, ask better | Verdict, provenance, resolution |
-| Themes | Members in wall order | Name, count | Reorder, rename, hang, delete | Whether it is the active theme |
+| Themes | Members in wall order | Name, count | Reorder, rename, hang, make default, delete | Which walls it hangs on; whether it is the default (★ default) |
+| Artists | The artist: on the index, every held artist by name; on one artist's page, their held works, then what Wikidata lists | Life dates, nationality, Wikidata's description and movements; each listed work's year; the collections holding their work | Open an artist; select held works and add them to a theme; react (*More like this*, *Not this*); open a held work from its *Held* mark | Each listed work marked *Held* (●) or *Image found* (◐) or neither; whether Wikidata answered |
 | Status | The three observations | Spend history | — | The whole screen is status |
 
 **"Remove" is the wrong word for a *work*, and that control must not use it.**
@@ -789,6 +802,7 @@ almost no considered empty states.
 | Conversation | A thread with no turns → the intent box, with the same worked examples Add New offers | Per-turn, in the thread, with the turn in flight named as such | A failed turn stays in the thread and is retryable; it never silently vanishes |
 | Review | No candidates: which of the four kinds of nothing (Q12) | Per-card | Per-card, so one bad candidate does not blank the grid |
 | Themes | A theme with no members → how to add from Artworks | Skeleton rows | Inline |
+| Artists | No artists → say that accepted works bring them, and offer Add New. On one artist's page: no work in circulation → say so; **Wikidata's half has four states** (answered; the artist is not matched; no registry configured; Wikidata could not be asked), each said in a sentence in that section | The library half first; the registry section says *Asking Wikidata…* until it answers, and nothing above it waits | The library half's refusal in the page's error banner; the registry's failure only in its own section, the library half left working. An address naming no artist → "That artist is not here", and a way to all artists |
 | Taste | No affinities yet → what would create some | — | Inline |
 | Status | n/a — every observation has a value, and "never reported" is one of them | Per observation, so a slow plane does not hold the other two | **A plane that cannot be reached is an observation, not a failed page.** This screen's subject is failure, so rendering an error over it would hide the thing it was opened to show |
 
