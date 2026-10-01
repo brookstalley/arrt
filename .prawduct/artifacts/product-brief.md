@@ -120,6 +120,9 @@ curate.
 
 ## Core Flows
 
+> **2026-10-01:** these flows are pipeline stages. What the curator comes to do,
+> and how often, is `user-scenarios.md`.
+
 Framed as a pipeline with a human gate in the middle, because the product both
 `runs_unattended` (display) and `has_human_interface` (curation).
 

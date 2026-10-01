@@ -639,10 +639,14 @@ the other way round.
   They would give *Already in your library* and a Watch's "monitored" a stable
   identity, and they might give facet population sourced values in place of
   inferred ones. **The line to hold:** Arrt uses registries and keeps a
-  private catalogue. It never becomes a registry. Works past the public-domain
-  boundary, and the contemporary web art `project-state.yaml` commits to, are in
-  no registry, and there the catalogue's own identity stands. Wikidata's
-  coverage of these fields for the corpus is **not measured**. That measurement
+  private catalogue. It never becomes a registry. The contemporary web art
+  `project-state.yaml` commits to is in no registry, and there the catalogue's
+  own identity stands. *(Corrected 2026-10-01: this said works past the
+  public-domain boundary are in no registry too. Measured for Dalí, Wikidata
+  records 1,072 works and 358 holders but only 5 free images: existence is
+  registered past the boundary, and images are what stop there.
+  `user-scenarios.md` § Three layers.)* Wikidata's coverage of these fields for
+  the corpus is otherwise **not measured**. That measurement
   is the cheapest first step, and belongs with the facet-population
   requirements cycle (§ Two layers of tags).
 - **Filing the program as backlog items.** The live backlog is public GitHub
