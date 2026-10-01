@@ -29,6 +29,7 @@ from typing import Final
 from curatarr.library.services.catalogue import MAX_LIST_LIMIT
 from curatarr.library.services.review import MAX_REVIEW_LIMIT
 from curatarr.mcp.registry import Action, Param, ToolRecord
+from curatarr.persistence.catalogue import WorkOrder
 from curatarr.persistence.discovery_records import AffinityDerivation, AffinitySentiment, RunKind, RunStatus
 from curatarr.persistence.records import ArtworkStatus, VocabularyKind
 
@@ -52,6 +53,16 @@ _OFFSET = Param(
     type="integer",
     description="How many works to skip, for paging through a large result.",
     minimum=0,
+)
+
+_SORT = Param(
+    name="sort",
+    type="string",
+    description=(
+        "The order the works come back in: title (the default), artist (unattributed works last) or newest (most "
+        "recently added first). Orders the page only; the total and the facet counts are the same whatever it is."
+    ),
+    choices=tuple(member.value for member in WorkOrder),
 )
 
 _QUERY = Param(
@@ -148,7 +159,7 @@ ART_CATALOGUE: Final = ToolRecord(
             name="list",
             description="Search and filter catalogued works, with the counts each further filter would select.",
             example="art_catalogue(action='list', q='harbour', movement=['Impressionism'], limit=20)",
-            params=(_STATUS, _QUERY, *_FACET_PARAMS, _LIMIT, _OFFSET),
+            params=(_STATUS, _QUERY, *_FACET_PARAMS, _SORT, _LIMIT, _OFFSET),
             tips=(
                 "A truncated result says so and reports the total, so a short list is never mistaken for a complete one.",
                 "Listings carry the fields needed to choose; use action='get' for the whole record.",

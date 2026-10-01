@@ -1,8 +1,8 @@
 /* Work — one work at full size, what it is said to be, and the two acts that
  * take it out of circulation and put it back.
  *
- * Contextual: reached from a tile in Collection, a tile on a Wall, or a row in
- * Review, and it **returns to the destination it was opened from**. That is the
+ * Contextual: reached from a tile in Artworks, a tile on a Wall, or a row in
+ * Review, and it **returns to the page it was opened from**. That is the
  * requirement `information-architecture.md` states under Back/escape, and the
  * back control here reads it off the address rather than naming a fixed parent —
  * this screen's route out used to be "← All works" whatever route in had been

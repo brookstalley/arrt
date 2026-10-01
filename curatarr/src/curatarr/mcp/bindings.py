@@ -98,6 +98,7 @@ def _list_artworks(services: Services, arguments: Mapping[str, Any]) -> dict[str
         facets={kind: arguments[kind] for kind in _FACET_KINDS if arguments.get(kind)},
         limit=arguments.get("limit"),
         offset=arguments.get("offset", 0),
+        sort=arguments.get("sort"),
     )
     return ok(
         artworks=[_summary(entry) for entry in listing.entries],
@@ -1440,6 +1441,9 @@ def _candidate_summary(view: CandidateView, pictures: _Pictures) -> dict[str, An
     return {
         **_work_summary(view.work),
         "instances_held": view.instances_held,
+        # A choosing fact, so the listing carries it: accepting a work already
+        # held acquires a duplicate. Null on almost every row, so it costs little.
+        "held_artwork_id": view.held_artwork_id,
         "shown_image": None if view.shown is None else _shown_fields(view.shown, pictures),
     }
 
@@ -1461,6 +1465,9 @@ def _candidate_detail(view: CandidateView, pictures: _Pictures) -> dict[str, Any
         **_work_summary(view.work),
         "instances_held": view.instances_held,
         "instances_surviving": view.instances_surviving,
+        # The same answer the review card gives: this work is already an artwork
+        # in the catalogue, so accepting it again would acquire a duplicate.
+        "held_artwork_id": view.held_artwork_id,
         "shown_image": None if view.shown is None else _instance_fields(view.shown, pictures),
         # The engine's account of why this work answers the intent. A curator
         # judges a work against the reading of their request rather than against

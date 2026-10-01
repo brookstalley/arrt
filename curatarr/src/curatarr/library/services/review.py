@@ -222,6 +222,11 @@ class CandidateView:
     shown: InstanceView | None
     instances_held: int
     instances_surviving: int
+    #: The catalogue artwork this work already became through an earlier
+    #: proposal, when it did (`DiscoveryService.held_artwork_id`). A card showing
+    #: one says *Already in your library* and leads with opening it; acquiring it
+    #: again is still possible, quietly, since title and artist can collide.
+    held_artwork_id: str | None = None
 
     @property
     def shown_is_on_offer(self) -> bool:
@@ -462,6 +467,7 @@ class ReviewService:
             shown=None if chosen is None else self._instance(chosen, work, pictures=pictures),
             instances_held=len(images),
             instances_surviving=sum(1 for image in images if image.rejected_at is None),
+            held_artwork_id=self._discovery.held_artwork_id(work),
         )
 
     def _instance(self, image: CandidateImage, work: CandidateWork, *, pictures: bool) -> InstanceView:

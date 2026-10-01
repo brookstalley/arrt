@@ -222,8 +222,8 @@ def test_navigating_moves_focus_into_the_view(ui, seeded_service):
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid")
 
-    ui.page.click("nav.destinations button[data-view='walls']")
-    ui.page.wait_for_selector("h2:has-text('The Walls')")
+    ui.page.click("nav.sidebar a[data-view='walls']")
+    ui.page.wait_for_selector("h2:has-text('Walls')")
 
     assert ui.focused() == "view"
 
@@ -260,13 +260,13 @@ def test_a_slow_view_does_not_paint_over_the_one_navigated_to(ui):
     ui.page.route("**/api/works?*", lambda route: held.append(route))
 
     ui.open("#health")
-    ui.page.wait_for_selector("h2:has-text('Health')")
+    ui.page.wait_for_selector("h2:has-text('Status')")
 
     # The collection grid starts loading, and is left before its request answers.
     ui.page.evaluate("() => go('collection')")
     ui.page.wait_for_timeout(300)
     ui.page.evaluate("() => go('health')")
-    ui.page.wait_for_selector("h2:has-text('Health')")
+    ui.page.wait_for_selector("h2:has-text('Status')")
 
     # Now let the abandoned request finish. Its paint must not land.
     for route in held:
@@ -277,7 +277,7 @@ def test_a_slow_view_does_not_paint_over_the_one_navigated_to(ui):
         )
     ui.page.wait_for_timeout(500)
 
-    assert "Health" in ui.text()
+    assert "Status" in ui.text()
     assert "A work still arriving" not in ui.text()
 
 

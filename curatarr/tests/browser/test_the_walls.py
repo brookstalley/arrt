@@ -207,7 +207,7 @@ def test_the_empty_themes_control_lands_on_that_theme_rather_than_the_list(ui, s
     # link would send a curator to the grid from a screen they reached by asking
     # about a wall.
     assert ui.page.evaluate("() => window.location.hash") == f"#theme/{a_theme.id}?from=walls"
-    assert ui.page.locator("button:has-text('← The Walls')").count() == 1
+    assert ui.page.locator("button:has-text('← Walls')").count() == 1
     assert ui.page.locator("text=Winter").count() == 0
 
 

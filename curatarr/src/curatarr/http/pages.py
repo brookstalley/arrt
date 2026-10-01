@@ -25,21 +25,21 @@ STATIC_DIR: Final[Path] = Path(__file__).parent / "static"
 #: Every path the client renders a view for. Adding a view means adding it here;
 #: a view reachable only by clicking is a view nobody can bookmark.
 #:
-#: The first four are the three destinations and the root. The rest are screens
-#: reached from one of them — contextual in the navigation, and no less
-#: addressable for it: `information-architecture.md` requires every screen and
-#: every consequential state to have a URL, and Health in particular is
-#: *reachable and not navigable-to*, which is a statement about the navigation
-#: rather than about the address.
+#: The root, then every sidebar page: `information-architecture.md` requires
+#: every screen and every consequential state to have a URL. The paths keep the
+#: spellings they had before the *arr labels (`/collection` is Artworks,
+#: `/discover` is Add New, `/health` is Status), because a bookmark is an address.
 #:
 #: `/works`, `/discovery`, `/themes` and `/manifest` are the spellings the
-#: surface answered to before the three destinations existed. They are kept
+#: surface answered to before its first reshape. They are kept
 #: because they have been real, bookmarkable paths since the client was built;
 #: `core/route.js` maps each onto the screen that took over its job, and rewrites
 #: the address bar to the new spelling on arrival. Nothing here generates one.
 UI_PATHS: Final[tuple[str, ...]] = (
     "/",
     "/walls",
+    "/queue",
+    "/history",
     "/collection",
     "/discover",
     "/theme",

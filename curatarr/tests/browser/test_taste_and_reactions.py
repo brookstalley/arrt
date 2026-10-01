@@ -11,9 +11,9 @@ reads JSON:
   rather than as a failed query. That empty state is Collection's own and is
   covered in `test_the_collection.py`; what is covered here is the route into
   it, which is the thing that makes it common;
-- **Taste is not a fourth destination.** The navigation is derived from the
-  route table, so registering the screen without a `destination` is what keeps
-  the three destinations three — and only a browser can see the buttons.
+- **Taste is a page under Settings.** The sidebar is derived from the route
+  table, so registering the screen in the `settings` section is what puts it
+  there rather than in a section of its own — and only a browser can see that.
 """
 
 import json
@@ -168,26 +168,26 @@ def test_going_to_an_artists_work_lands_on_the_normal_empty_state(talking):
 
     assert "artist=Agnes" in talking.page.url
     assert "That is the normal answer, not a failed search" in talking.text()
-    assert talking.page.locator("button:has-text('Look for some in Discover')").count() == 1
+    assert talking.page.locator("button:has-text('Look for some in Add New')").count() == 1
 
 
 # -- the Taste screen ---------------------------------------------------------
 
 
-def test_taste_is_reachable_and_is_not_a_fourth_destination(ui):
-    """Chunk 04's acceptance criterion, still true after a screen was added.
-
-    The navigation is *derived* from the route table — the router filters on
-    `destination` — so this is what says the new entry was registered without
-    one. A comment claiming it would not have failed.
+def test_taste_is_a_page_under_settings(ui):
+    """Rewritten from *Taste is not a fourth destination*: the amended navigation
+    norm places it under Settings, where Radarr keeps the profiles that rank what
+    it finds. The sidebar is derived from the route table, so this is what says
+    the entry was registered in that section rather than as a section of its own.
     """
     ui.serve("**/api/affinities*", a_taste([an_affinity()]))
     ui.open("#taste")
     ui.page.wait_for_selector(".affinity")
 
-    labels = ui.page.locator("nav.destinations button").all_text_contents()
-    assert labels == ["The Walls", "Collection", "Discover"]
-    assert "Taste" not in labels
+    settings = ui.page.locator("nav.sidebar li.section[data-section='settings']")
+    assert settings.locator("ul.pages a[aria-current='page']").inner_text() == "Taste"
+    sections = ui.page.locator("nav.sidebar a.section-link .label").all_text_contents()
+    assert "Taste" not in sections
 
 
 def test_every_judgment_shows_where_it_came_from(ui):
@@ -375,7 +375,7 @@ def test_a_taste_nobody_has_expressed_says_what_would_create_one(ui):
     ui.page.wait_for_selector(".empty")
 
     assert "Nothing is known about your taste yet." in ui.text()
-    assert ui.page.locator("button:has-text('Start a conversation in Discover')").count() == 1
+    assert ui.page.locator("button:has-text('Start a conversation in Add New')").count() == 1
 
 
 def test_discover_offers_the_way_into_taste(ui):

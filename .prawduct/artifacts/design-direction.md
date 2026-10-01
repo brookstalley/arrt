@@ -48,7 +48,10 @@ colour written outside the token blocks**.
 > colour wearing a token's name.
 >
 > **Status:** steady-state. Ratified by the owner 2026-08-11, together with the
-> navigation norm in `information-architecture.md`.
+> navigation norm in `information-architecture.md`. *(That navigation norm was
+> amended to the *arr layout on 2026-09-30. This token norm is unchanged, and the
+> amendment keeps the current palette: the *arr apps' look was offered and not
+> chosen.)*
 >
 > **Retroactivity:** the revised palettes are **not** in `app.css`, so the norm's
 > own subject does not conform on the day it was ratified. That is deliberate and
@@ -204,14 +207,14 @@ added for the Walls screen's single large heading.
 |---|---|
 | ≥ 60rem | Full layout. Theme rail vertical and sticky |
 | 40–60rem | Rail becomes a horizontal scroller of pill filters; work detail stacks |
-| < 40rem | Destinations move to a bottom bar; masthead keeps search and status only; grid at two columns |
+| < 40rem | The sidebar becomes a drawer behind a menu button, as in the *arr apps (`information-architecture.md` § The *arr layout); the top bar keeps the menu button, search and status; grid at two columns. *(Until 2026-09-30 this row said destinations moved to a bottom bar. That was never built.)* |
 
-**Every element in the masthead after the destinations must be allowed to
-compress** (`flex: 0 1 auto; min-width: 0`), and long labels ellipsize. This is
-stated as a rule because its absence is a defect the built surface already has —
-five non-wrapping tabs overflow a 375px viewport — and the prototype reproduced the
-same failure at *tablet* width the moment the status label grew. A masthead whose
-items cannot shrink will overflow again the next time a word gets longer.
+**Every element in the top bar after the brand must be allowed to compress**
+(`flex: 0 1 auto; min-width: 0`), and long labels ellipsize. This is stated as a
+rule because its absence was a defect the built surface had — five non-wrapping
+tabs overflowed a 375px viewport — and the prototype reproduced the same failure
+at *tablet* width the moment the status label grew. A top bar whose items cannot
+shrink will overflow again the next time a word gets longer.
 
 **Touch targets are keyed on the pointer, not the viewport.** `@media (pointer:
 coarse)` raises control heights to 2.75rem (44px). The 2.25rem default clears WCAG
@@ -226,7 +229,7 @@ window on a desktop still has a mouse — so viewport width is the wrong signal.
 - **Badges** — glyph + word + colour, never fewer than all three.
 - **Cards** — paper, not UI: 1px border, `--shadow-1`, 4px radius. The elevation is
   barely there on purpose.
-- **Tiles** — two densities (contact sheet, catalogue) per `information-architecture.md`
+- **Tiles** — two densities (Posters, Overview; a Table view beside them) per `information-architecture.md`
   § Information Hierarchy. **Uniform row height in both**, which is a layout
   decision made for a behavioural reason: a grid of art that reflows as images
   arrive is the opposite of the identity, and the built client has already shipped

@@ -56,6 +56,80 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-09-30: The *arr navigation: the sidebar, Activity, two-scope search and the page toolbar
+
+<!-- prawduct: scope=arr-navigation -->
+
+**Why:** the owner ruled that Curatarr's browser surface should be laid out like
+the *arr apps: *"More important to be familiar than to have our own thing."*
+
+**What changed:**
+- `information-architecture.md` § Direction is amended, and states what the old
+  norm (three destinations, organised around what a curator does) gave up.
+  § The *arr layout (new) places each page by its Radarr precedent, and records
+  Sonarr's two-scope search from its source.
+- `project-preferences.md`'s enforcement row and `design-direction.md`'s token
+  norm note the amendment.
+- `re-architecture.md` § Open questions gains external identity (Wikidata, ULAN)
+  before Watches: use registries, never become one.
+- `build-plan-arr-navigation.md` plans the build in five chunks.
+- **The sidebar (Chunk 02).** The three tabs became Sonarr's sidebar. Artworks
+  (was Collection) is home, with Add New (was Discover) and Themes beneath it,
+  followed by Walls, Settings › Taste, and System › Status (was Health). System
+  shows a problem-count badge whose words are the link's name. The top-bar
+  indicator stays beside it, because a badge is a number and a state needs a
+  word. Below 40rem the sidebar is a drawer behind a Menu button. Fragments keep
+  their spellings (`#collection`, `#discover`, `#health`), so no bookmark or
+  agent link breaks.
+- **One theme (`#theme/<id>`) returns to Themes by default**, since Themes is a
+  sidebar page. Opened from Artworks or a wall, it records `?from=` and returns
+  there, as other contextual screens do.
+- **The skip link had sent keyboard users to the home page.** The hash router
+  read `#view` as an address. It now moves focus instead, with a test that
+  fails without the fix.
+- **Activity › Queue and History (Chunk 03).** The run list left Add New. Queue
+  holds the searches that have not ended and History the ones that have, split
+  on the server's `is_terminal` flag. A run and its review now return to Queue
+  by default. They share it because each opens the other, and separate defaults
+  put an opener in the address on every hop between them. `/queue` and `/history` are served as reloadable paths.
+  A finished run with unjudged candidates belongs in Queue as Radarr's "manual
+  import" does, but the listing has no signal for it. That gap is recorded in
+  `information-architecture.md` and not built here.
+- **Search in two scopes (Chunk 04).** The top-bar search is Sonarr's: typing
+  shows *In your library* matches and a *Search museums for "…"* row, which
+  hands the words to Add New without starting a run (runs cost money). Enter
+  with nothing highlighted opens Artworks filtered to the query, as the owner
+  ruled. Review cards for a work the library already holds say *Already in your
+  library*, with opening that artwork as the first control and a quieter
+  *Accept anyway* for works that only share a title and artist. A run could always
+  re-propose an accepted work, which would have acquired a duplicate.
+  `held_artwork_id` is new, additive, on the HTTP card and both `art_review`
+  shapes.
+- **The page toolbar (Chunk 05).** Artworks gets the *arr toolbar: the
+  selection's actions on the left, and View (Posters, Overview, Table), Sort
+  (Title, Artist, Recently added) and Filter on the right. Filter shows and
+  hides the facet and theme rails, which stay beside the grid as the owner
+  ruled. Sort is new on the server: `GET /api/works?sort=`, a `WorkOrder` that
+  orders the page and never moves the total or the facet counts. View, Sort and
+  Filter are all in the address and survive a reload, and "Show everything"
+  keeps them.
+- **The cumulative review's fixes.** The search dropdown had taken the
+  `.suggestions` class a conversation turn already used, so on a thread with
+  several suggesting turns every block stacked in one place. It is now
+  `.search-suggestions`, with a two-turn test that failed first. `art_catalogue
+  list` takes `sort` as the browser does, and a bad value is refused under the
+  name the caller sent. Hidden rails that still narrow the works say so. A Work
+  opened from a review returns to that review, which the IA had always required.
+  A failed library lookup in the dropdown says so rather than looking like no
+  matches. A stale `?sort=` falls back to the default, and after "Accept anyway"
+  the original card no longer points at the duplicate.
+- `test_the_three_destinations.py` became `test_the_sidebar.py`. Its docstring
+  records which tests were kept, which rewritten to the amended norm, and which
+  retired: *no entry names a pipeline stage* and *the navigation is flat*, both
+  of which the ruling deliberately gave up. Six re-breaks (skip link, badge,
+  pages shown under every section, Escape, a second `aria-current`, the home
+  page) each turned their tests red.
+
 ## 2026-09-30: The Library/Programming seam, and the Player pulls over HTTP (wave 2b)
 
 <!-- prawduct: scope=wave-2b-seams-and-http -->

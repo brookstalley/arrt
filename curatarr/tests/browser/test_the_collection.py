@@ -63,7 +63,7 @@ def test_a_collection_holding_nothing_at_all_invites_the_curator_into_discover(u
     assert "Nothing by" not in ui.text()
     # The invitation, not merely the statement: an empty state that names no next
     # move is a dead end with better wording.
-    assert ui.page.locator("button:has-text('Go to Discover')").count() == 1
+    assert ui.page.locator("button:has-text('Go to Add New')").count() == 1
 
 
 def test_a_filter_matching_nothing_names_the_filter_and_offers_a_way_out(ui):
@@ -97,7 +97,7 @@ def test_filtering_to_one_artist_and_holding_none_says_so_as_a_normal_state(ui):
     # Named as normal rather than broken, and the offer is the search that would
     # actually find some — the collection holds none, so searching the collection
     # is not it.
-    assert ui.page.locator("button:has-text('Look for some in Discover')").count() == 1
+    assert ui.page.locator("button:has-text('Look for some in Add New')").count() == 1
 
 
 def test_an_artist_filter_with_a_search_beside_it_is_the_filter_empty(ui):
@@ -172,12 +172,17 @@ def test_a_density_in_the_address_survives_a_reload_and_a_link(ui):
     assert ui.page.locator("li.card").count() == 0
 
 
-def test_choosing_a_density_writes_it_into_the_address(ui):
-    """A control whose state is not in the URL is a control no link carries."""
+def test_choosing_a_view_writes_it_into_the_address(ui):
+    """A control whose state is not in the URL is a control no link carries.
+
+    The density buttons became the toolbar's View menu with the *arr navigation;
+    Posters is what was the contact sheet, and the address keeps its spelling.
+    """
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid")
 
-    ui.page.click("button:has-text('Contact sheet')")
+    ui.page.click("button.menu-button-trigger:has-text('View')")
+    ui.page.click("[role='menuitemradio']:has-text('Posters')")
     ui.page.wait_for_selector("ul.grid.contact-sheet")
 
     assert "density=contact" in ui.page.url
@@ -533,7 +538,11 @@ def test_the_rails_opener_goes_to_the_theme_rather_than_filtering_the_grid(ui, a
     ui.page.click("button[aria-label='Open Baroque']")
     ui.page.wait_for_selector("h2:has-text('Baroque')")
 
-    assert ui.page.evaluate("() => window.location.hash") == f"#theme/{theme.id}"
+    # With the opener, since the *arr navigation: a theme's own default return is
+    # the Themes page, so a theme opened from Artworks records that it came from
+    # there, and its back link returns there.
+    assert ui.page.evaluate("() => window.location.hash") == f"#theme/{theme.id}?from=collection"
+    assert ui.page.locator("#view button", has_text="←").first.inner_text() == "← Artworks"
     assert ui.page.locator("ul.grid").count() == 0, "opening a theme left the grid rather than filtering it"
 
 
@@ -751,7 +760,7 @@ def test_a_repaint_that_is_not_a_navigation_does_not_move_focus(ui):
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid")
 
-    ui.page.focus("button.density-option[aria-pressed='false']")
+    ui.page.focus("button.menu-button-trigger")
     ui.page.evaluate("() => refresh()")
     ui.page.wait_for_selector("ul.grid")
 

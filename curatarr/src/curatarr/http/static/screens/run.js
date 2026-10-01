@@ -1,7 +1,8 @@
 /* One discovery run, watched while it works.
  *
- * Contextual: opened from Discover — or from a re-search started on the review
- * grid — and it returns to the destination it was opened from.
+ * Contextual: opened from Activity's Queue or History, from Add New as it
+ * starts, or from a re-search started on the review grid — and it returns to
+ * the page it was opened from.
  */
 
 import { api } from "../core/api.js";

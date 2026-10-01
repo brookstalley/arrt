@@ -624,6 +624,26 @@ the other way round.
   auto-accept is offered at all, the `initiated_by` value for a Watch
   (`api-contract.md`), and whether scheduled jobs revisit the no-push-alerts
   decision (`observability-strategy.md`).
+- **External identity for works and artists, before Watches.** *(Raised
+  2026-09-30, while planning the *arr navigation.)* Sonarr and Radarr rest on an
+  external ID (TVDB, TMDB) that they use and do not maintain. Curatarr's work
+  identity is its own: `work_dedup_key` is a normalised title and artist
+  (`curatarr/src/curatarr/library/discovery/dedup.py`). Series titles
+  ("Composition", "Untitled", "Haystacks") are where two works would share a
+  key, which has not been tested. For public-domain works, registries already
+  exist: Wikidata QIDs for artworks, which carry creator, inception, movement,
+  genre and depicts; Getty ULAN for artists; Getty AAT for movements,
+  techniques and materials; and each museum's own object ID. The question is
+  whether to store those IDs where they exist, the way Radarr stores a TMDB ID.
+  They would give *Already in your library* and a Watch's "monitored" a stable
+  identity, and they might give facet population sourced values in place of
+  inferred ones. **The line to hold:** Curatarr uses registries and keeps a
+  private catalogue. It never becomes a registry. Works past the public-domain
+  boundary, and the contemporary web art `project-state.yaml` commits to, are in
+  no registry, and there the catalogue's own identity stands. Wikidata's
+  coverage of these fields for the corpus is **not measured**. That measurement
+  is the cheapest first step, and belongs with the facet-population
+  requirements cycle (§ Two layers of tags).
 - **Filing the program as backlog items.** The live backlog is public GitHub
   Issues (`backlog_service_repo`). Filing them is the operator's call and has not
   been done. Until then this file is the tracking reference for the

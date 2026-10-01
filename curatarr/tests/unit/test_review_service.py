@@ -13,7 +13,7 @@ from PIL import Image
 
 from curatarr.library.services.previews import INLINE_MAX_EDGE_PX, inline_preview
 from curatarr.library.services.review import MAX_REVIEW_LIMIT
-from curatarr.persistence.discovery_records import RunKind
+from curatarr.persistence.discovery_records import RunKind, Verdict
 from curatarr.services.errors import ServiceError
 
 
@@ -240,6 +240,20 @@ def test_a_rejected_instance_stays_on_the_card_labelled(services, discovery, pro
     assert by_url["https://museum.example/first"].rejected is True
     assert by_url["https://museum.example/second"].rejected is False
     assert services.review.get_work(work.id).instances_surviving == 1
+
+
+def test_a_card_for_a_work_already_acquired_names_the_artwork_it_became(services, discovery, resolved_work):
+    """The card, not only the lookup: a later proposal of an accepted work says
+    which artwork it already is, and a fresh proposal on the same page says nothing."""
+    first = resolved_work("Nighthawks", dedup_key="hopper::nighthawks")
+    discovery.set_verdict(first.id, Verdict.ACCEPTED)
+    artwork_id = discovery.get_candidate_work(first.id).artwork_id
+
+    again = resolved_work("Nighthawks", dedup_key="hopper::nighthawks")
+    fresh = resolved_work("Automat", dedup_key="hopper::automat")
+
+    assert services.review.get_work(again.id).held_artwork_id == artwork_id
+    assert services.review.get_work(fresh.id).held_artwork_id is None
 
 
 # -- paging, and the bound on the pictures --------------------------------------

@@ -16,7 +16,7 @@
  * run, a conversation) is addressable". The query half was added when the
  * fragment could carry a view and an id and nothing else, so a search and a
  * filter set had nowhere to live and a contextual screen had no way to record
- * which destination it was opened from.
+ * which page it was opened from.
  */
 
 /* A route's `detail` says what it addresses, and there are three answers.
@@ -39,7 +39,7 @@
  * like a routing bug three files away from the typo. */
 export const OPTIONAL_ID = "optional";
 
-/* The fragments the surface answered to before the three destinations existed.
+/* The fragments the surface answered to before its navigation was reshaped.
  *
  * Kept rather than dropped, and the reason is not nostalgia: `pages.py` has been
  * serving `/works`, `/discovery`, `/themes` and `/manifest` as real paths since
@@ -48,7 +48,7 @@ export const OPTIONAL_ID = "optional";
  * screen that took over its job, so an old address arrives at the new screen
  * rather than at the default one.
  *
- * They are aliases, never destinations: `formatRoute` never writes one, so
+ * They are aliases, never routes of their own: `formatRoute` never writes one, so
  * following an old link rewrites the address bar to the new spelling. */
 export const FRAGMENT_ALIASES = {
   works: "collection",
@@ -132,7 +132,8 @@ function entersWithoutAnId(entry) {
  *   2. otherwise the path, so the deep links `pages.py` serves open the screen
  *      they name — without this every one of them fell through to the default
  *      view, which is worse than a 404 because it looks like it worked;
- *   3. otherwise `fallback`, the product's home.
+ *   3. otherwise `fallback`, the product's home, which the router passes in
+ *      because the route table is where the home is decided (`core/router.js`).
  *
  * An id is taken only for a route that says it takes one, and a route that
  * *requires* one is not entered without it: `#work` with no id would otherwise
@@ -140,7 +141,7 @@ function entersWithoutAnId(entry) {
  * entered either way and gets `id: null` when the tail is absent — that is the
  * whole of the difference, and it is why the second line below asks about the
  * value rather than only about truthiness. */
-export function parseRoute(fragment, routes, { path = "", fallback = "walls" } = {}) {
+export function parseRoute(fragment, routes, { path = "", fallback } = {}) {
   const raw = String(fragment || "").replace(/^#/, "");
   const mark = raw.indexOf("?");
   const locator = mark === -1 ? raw : raw.slice(0, mark);

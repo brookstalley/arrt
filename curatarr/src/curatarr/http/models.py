@@ -765,6 +765,9 @@ class CandidateCardOut(BaseModel):
     shown_is_on_offer: bool
     instances_held: int
     instances_surviving: int
+    #: The catalogue artwork this work already became through an earlier run,
+    #: or null. Additive: a client that ignores it offers Accept as before.
+    held_artwork_id: str | None = None
 
 
 class CandidatePageOut(BaseModel):

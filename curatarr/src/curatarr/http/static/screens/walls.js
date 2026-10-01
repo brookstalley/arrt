@@ -1,11 +1,9 @@
-/* The Walls — what is hanging right now, on each wall.
+/* Walls — what is hanging right now, on each wall.
  *
- * The product's home, and the first of the three destinations.
- * `information-architecture.md` argues the case and records the counter-argument:
- * most sessions begin with an intention, so opening on a screen of pictures puts
- * a click in front of them. The answer is that this screen carries the live entry
- * points rather than being a dead end, and that the product's identity claim is
- * that it is a collection rather than a tool.
+ * Second in the sidebar, in the slot Sonarr gives its Calendar: the nearest *arr
+ * idea to "what is showing when" (`information-architecture.md` § The *arr
+ * layout). It was the home page until the library took that place, as it has in
+ * every *arr app.
  *
  * **One wall is the degenerate case of many, never a special case.** There is one
  * section per wall and no single-wall layout for a second display to replace: with
@@ -94,10 +92,10 @@ export async function viewWalls(generation) {
 
 /* The one heading on this surface set at `--text-3xl`, and the token's only use.
  * `design-direction.md` adds it "for the Walls screen's single large heading",
- * which is this one: the product's home saying so, at a size nothing else on the
- * client reaches. */
+ * which is this one: the page about what the product exists to produce saying
+ * so, at a size nothing else on the client reaches. */
 function heading() {
-  return el("h2", { class: "walls-heading", text: "The Walls" });
+  return el("h2", { class: "walls-heading", text: "Walls" });
 }
 
 /* The fact the MCP surface already states after an unhang, said here too: taking

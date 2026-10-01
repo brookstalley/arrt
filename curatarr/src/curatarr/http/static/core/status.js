@@ -1,12 +1,17 @@
-/* The masthead status indicator — always present, and never silent.
+/* The top bar's status indicator, and the System badge beside it in the sidebar.
  *
- * **This is the contract that makes demoting Health safe.**
- * `information-architecture.md` § Navigation Structure takes Health out of the
- * navigation, on the stated grounds that an appliance-status panel must not sit
- * at the same rank as the art — and it says in as many words that the demotion
- * is safe "only because the indicator is always present and speaks up". A silent
- * indicator is worse than the tab it replaced: the tab at least admitted you had
- * to go and look.
+ * **The indicator is always present and never silent.** It reads "Well" or names
+ * what is wrong, on every page and at every width, and opens System › Status.
+ * `information-architecture.md` § The *arr layout keeps it beside Sonarr's
+ * badge rather than replacing it with one: the badge is a number, and a state
+ * shown by a number alone has no word, which `accessibility-spec.md` counts as a
+ * bug at every viewport. The drawer also hides the badge on a phone, where the
+ * indicator is the only status on screen.
+ *
+ * **The badge is Sonarr's**: a count of the problems on the System link, shown
+ * only when there is one, with the link's name saying the count in words — or
+ * "all well", so that the badge's absence is a statement and not a gap. Both
+ * are painted from one reading, so they cannot disagree.
  *
  * **It states no verdict of its own, and compares no age to a threshold.**
  * `services/health.py` is emphatic about why: six days is alarming for a nightly
@@ -49,7 +54,7 @@ import { go } from "./router.js";
 
 export function statusReading(health) {
   if (!health) {
-    return { well: false, words: "The health reading could not be fetched" };
+    return { well: false, count: 1, words: "The health reading could not be fetched" };
   }
   const troubles = [];
 
@@ -79,8 +84,8 @@ export function statusReading(health) {
   else if (backup.problem) troubles.push("The backup record cannot be read");
   else if (backup.absent) troubles.push("The catalogue has never been backed up");
 
-  if (!troubles.length) return { well: true, words: "Well" };
-  return { well: false, words: troubles.join(" · ") };
+  if (!troubles.length) return { well: true, count: 0, words: "Well" };
+  return { well: false, count: troubles.length, words: troubles.join(" · ") };
 }
 
 /* Glyph as well as colour, and the word as well as the glyph — the same rule
@@ -94,6 +99,19 @@ function paint(reading) {
     el("span", { class: "glyph", text: reading.well ? "●" : "▲", "aria-hidden": true }),
     el("span", { text: reading.words }),
   );
+  paintBadge(reading);
+}
+
+function paintBadge(reading) {
+  const slot = document.querySelector("[data-status-slot]");
+  if (!slot) return;
+  const count = reading.count;
+  const link = slot.closest("a");
+  // The section's own label, read rather than written again here, so the name
+  // keeps containing the visible word if the section is ever renamed.
+  const label = link.querySelector(".label").textContent;
+  link.setAttribute("aria-label", count ? `${label}: ${count} ${count === 1 ? "problem" : "problems"}` : `${label}: all well`);
+  slot.replaceChildren(count ? el("span", { class: "status-count", text: String(count), "aria-hidden": true }) : "");
 }
 
 /* Read the panel and say what it said.
@@ -107,7 +125,7 @@ export async function paintStatus() {
   try {
     health = await api("/api/health");
   } catch (failure) {
-    paint({ well: false, words: `The health reading could not be fetched: ${failure.message}` });
+    paint({ well: false, count: 1, words: `The health reading could not be fetched: ${failure.message}` });
     return;
   }
   paint(statusReading(health));

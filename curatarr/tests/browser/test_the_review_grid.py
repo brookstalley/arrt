@@ -11,6 +11,8 @@ never load are as broken as alternates loaded thirty at a time, and a card that
 repaints the whole grid loses the curator their scroll position on every verdict.
 """
 
+import json
+
 import pytest
 from payloads import (
     a_candidate,
@@ -1212,3 +1214,78 @@ def test_the_group_heading_rule_does_not_reach_the_cards_inside_the_group(grid):
     assert set(margins["inside"]) == set(
         margins["outside"]
     ), f"a card title is styled differently for sitting inside an offer group: {margins}"
+
+
+# -- a work the library already holds ------------------------------------------
+
+
+def test_a_work_already_in_the_library_says_so_and_leads_with_opening_it(ui):
+    """Sonarr's *Already in your library*, on a review card.
+
+    A run can propose a work an earlier run acquired. Two cards, one held and
+    one not, so a mark shown on every card, or on none, fails here.
+    """
+    held = a_card(a_candidate(work_id="work-held", title="Nighthawks"), held_artwork_id="artwork-held")
+    fresh = a_card(a_candidate(work_id="work-fresh", title="Automat"))
+    ui.serve_image("**/api/candidate-images/*/preview")
+    ui.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([held, fresh]))
+    ui.open(f"#review/{RUN_ID}")
+    ui.page.wait_for_selector("li.card")
+
+    held_card = ui.page.locator("li.card", has_text="Nighthawks")
+    fresh_card = ui.page.locator("li.card", has_text="Automat")
+    assert "Already in your library" in held_card.inner_text()
+    # Open is the primary act and plain Accept is gone; Accept survives only as
+    # the quiet "anyway", because title and artist can collide ("Untitled").
+    assert held_card.locator("button[aria-label='Accept Nighthawks']").count() == 0
+    assert held_card.locator("button.quiet[aria-label='Accept Nighthawks anyway, as a second artwork']").count() == 1
+    assert "Already in your library" not in fresh_card.inner_text()
+    assert fresh_card.locator("button[aria-label='Accept Automat']").count() == 1
+    assert fresh_card.locator("button:has-text('Accept anyway')").count() == 0
+
+    held_card.locator("button:has-text('Open it in Artworks')").click()
+    ui.page.wait_for_function("() => window.location.hash.startsWith('#work/artwork-held')")
+
+
+def test_accept_anyway_records_an_acceptance(ui):
+    """The quiet control is a real Accept, for a work that only shares a title and artist."""
+    held = a_card(a_candidate(work_id="work-held", title="Untitled"), held_artwork_id="artwork-held")
+    sent = []
+
+    def verdict(route):
+        sent.append(route.request.post_data_json)
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(a_verdict()))
+
+    ui.serve_image("**/api/candidate-images/*/preview")
+    ui.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([held]))
+    ui.page.route("**/api/candidates/work-held/verdict", verdict)
+    ui.open(f"#review/{RUN_ID}")
+    ui.page.wait_for_selector("li.card")
+
+    with ui.page.expect_request("**/api/candidates/work-held/verdict"):
+        ui.page.click("button:has-text('Accept anyway')")
+
+    assert sent[0]["verdict"] == "accepted"
+
+
+def test_a_work_opened_from_a_review_card_returns_to_that_review(ui, service):
+    """`information-architecture.md`: a Work opened from Review returns to Review.
+
+    Opening the held work is a review card's first control, so returning to the
+    page the review sits under instead would lose the curator their place in the
+    grid on the main path.
+    """
+    artwork = service.list_artworks(limit=1).entries[0].artwork
+    held = a_card(a_candidate(work_id="work-held", title=artwork.title), held_artwork_id=artwork.id)
+    ui.serve_image("**/api/candidate-images/*/preview")
+    ui.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([held]))
+    ui.open(f"#review/{RUN_ID}")
+    ui.page.wait_for_selector("li.card")
+
+    ui.page.click("button:has-text('Open it in Artworks')")
+    ui.page.wait_for_selector("#view button:has-text('← The review')")
+    assert ui.page.evaluate("() => window.location.hash") == f"#work/{artwork.id}?from=review%2F{RUN_ID}"
+
+    ui.page.click("#view button:has-text('← The review')")
+    ui.page.wait_for_selector("li.card")
+    assert ui.page.evaluate("() => window.location.hash") == f"#review/{RUN_ID}"

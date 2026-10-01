@@ -1,11 +1,10 @@
 /* Theme — a saved selection over the collection, and the acts that are its own.
  *
- * **Contextual, not a destination.** `information-architecture.md` records the
- * change and the reason: a theme is a saved selection over the collection, not a
- * parallel noun, and promoting it to a peer of the collection is what forces a
- * curator to hold the mapping between the two in their head. What belongs here
- * is what is genuinely about the theme rather than about a work — its name, the
- * order its works reach the wall in, where it hangs, and whether it exists.
+ * **Themes, under Artworks**, as Radarr keeps its Collections under Movies
+ * (`information-architecture.md` § The *arr layout): a theme is a saved
+ * selection over the library, not a parallel noun. What belongs here is what is
+ * genuinely about the theme rather than about a work — its name, the order its
+ * works reach the wall in, where it hangs, and whether it exists.
  *
  * **An index and an addressable detail, from one module.** `#theme` is every
  * theme; `#theme/<id>` is one, which is what a wall's theme control points at
@@ -37,7 +36,7 @@ import { fitBadge, shortfallNote, table } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
 import { hangTheme } from "../core/hanging.js";
 import { el, guard, render } from "../core/render.js";
-import { backLink, go, refresh } from "../core/router.js";
+import { backLink, backRow, go, refresh } from "../core/router.js";
 
 export async function viewTheme(themeId, generation) {
   // The walls come along because hanging is an act against a named wall: a
@@ -81,7 +80,7 @@ export async function viewTheme(themeId, generation) {
     ]),
   ]);
 
-  const panels = [el("p", {}, [backLink()]), el("h2", { text: "Themes" }), create, ...notes];
+  const panels = [backRow(), el("h2", { text: "Themes" }), create, ...notes];
 
   /* The themes, in their own container so a delete can repaint them from the
    * answer it was given rather than reloading the screen. Nothing else on this

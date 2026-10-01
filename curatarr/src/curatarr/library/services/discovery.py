@@ -567,6 +567,36 @@ class DiscoveryService:
             for work in self._store.list_candidate_works_by_dedup_key(require_text(work_dedup_key, field="work_dedup_key"))
         )
 
+    def held_artwork_id(self, work: CandidateWork) -> str | None:
+        """The catalogue artwork this work already became, through an earlier proposal.
+
+        **A run can propose a work the library already holds**: `propose_work`
+        refuses only a suppressed work, one the curator rejected, and nothing
+        excludes one they accepted. The review card says so and leads with opening
+        the held artwork, since accepting again would mint a second artwork for
+        the same painting. Sonarr's *Already in your library* on an Add New
+        result is the model; Curatarr keeps a quieter *Accept anyway* beside it,
+        for the key collisions described below.
+
+        Found by the same identity `is_work_suppressed` uses, `work_dedup_key`,
+        normalised title and artist, and it inherits that key's limits: two works
+        sharing a title and an artist ("Composition", "Untitled") read as one.
+        `re-architecture.md` § Open questions records external identity as the
+        way past that. An archived artwork still counts, since archiving is
+        reversible and the painting is still catalogued.
+        """
+        # `artwork_id` alone, not also the verdict: only acceptance writes one, and
+        # a work holding one under any other verdict is a state this model cannot
+        # produce (`ResolutionOutcome`), so a verdict check here could never decide.
+        # A work that is itself an artwork is the acquisition, not a duplicate of
+        # one: after "Accept anyway", the first card must not point at the second.
+        if work.artwork_id is not None:
+            return None
+        for other in self._store.list_candidate_works_by_dedup_key(work.work_dedup_key):
+            if other.id != work.id and other.artwork_id is not None:
+                return other.artwork_id
+        return None
+
     # -- writes: proposed works -----------------------------------------------
 
     def propose_work(

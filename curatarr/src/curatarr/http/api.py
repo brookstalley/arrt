@@ -179,6 +179,7 @@ def list_works(
     palette: Annotated[list[str] | None, Query()] = None,
     limit: Annotated[int | None, Query()] = None,
     offset: Annotated[int, Query()] = 0,
+    sort: Annotated[str | None, Query()] = None,
 ) -> WorkPageOut:
     """A page of works with the facet controls for exactly this filter.
 
@@ -201,6 +202,7 @@ def list_works(
         facets={kind: values for kind, values in chosen.items() if values},
         limit=limit,
         offset=offset,
+        sort=sort,
     )
     return WorkPageOut(
         works=[_work(entry) for entry in page.entries],
@@ -1041,6 +1043,7 @@ def _candidate_card(view: CandidateView) -> CandidateCardOut:
         shown_is_on_offer=view.shown_is_on_offer,
         instances_held=view.instances_held,
         instances_surviving=view.instances_surviving,
+        held_artwork_id=view.held_artwork_id,
     )
 
 
