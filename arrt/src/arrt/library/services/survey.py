@@ -106,6 +106,7 @@ class SurveyService:
         limit: int | None = None,
         offset: int = 0,
         sort: str | None = None,
+        artist_id: str | None = None,
     ) -> WorkSurveyPage:
         """A page of works, each with its fit verdict and its image state.
 
@@ -115,7 +116,9 @@ class SurveyService:
         would be the second implementation of "list the catalogue" that the shared
         service layer exists to prevent.
         """
-        listing = self._catalogue.list_artworks(status=status, q=q, facets=facets, limit=limit, offset=offset, sort=sort)
+        listing = self._catalogue.list_artworks(
+            status=status, q=q, facets=facets, limit=limit, offset=offset, sort=sort, artist_id=artist_id
+        )
         return WorkSurveyPage(
             entries=[self._survey(entry) for entry in listing.entries],
             total=listing.total,

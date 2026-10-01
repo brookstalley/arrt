@@ -166,7 +166,19 @@ ART_CATALOGUE: Final = ToolRecord(
             name="list",
             description="Search and filter catalogued works, with the counts each further filter would select.",
             example="art_catalogue(action='list', q='harbour', movement=['Impressionism'], limit=20)",
-            params=(_STATUS, _QUERY, *_FACET_PARAMS, _SORT, _LIMIT, _OFFSET),
+            params=(
+                _STATUS,
+                _QUERY,
+                *_FACET_PARAMS,
+                Param(
+                    name="artist_id",
+                    type="string",
+                    description="Only this artist's works, by the catalogue id a work's artist carries.",
+                ),
+                _SORT,
+                _LIMIT,
+                _OFFSET,
+            ),
             tips=(
                 "A truncated result says so and reports the total, so a short list is never mistaken for a complete one.",
                 "Listings carry the fields needed to choose; use action='get' for the whole record.",
@@ -246,7 +258,8 @@ ART_CATALOGUE: Final = ToolRecord(
             tips=(
                 "A work's wikidata_qid is otherwise matched only through its museum's own identifier, never its "
                 "title, so a work with a generic title or an unfamiliar source may have none until you set it.",
-                "What you set is never overwritten by matching, and qid='none' keeps it empty for good.",
+                "What you set is never overwritten by matching, and qid='none' stops matching from filling it; "
+                "a later set_work_qid replaces either.",
             ),
         ),
         Action(
@@ -262,7 +275,10 @@ ART_CATALOGUE: Final = ToolRecord(
                 ),
                 _QID,
             ),
-            tips=("What you set is never overwritten by matching, and qid='none' keeps it empty for good.",),
+            tips=(
+                "What you set is never overwritten by matching, and qid='none' stops matching from filling it; "
+                "a later set_artist_qid replaces either.",
+            ),
         ),
         Action(
             name="regenerate",

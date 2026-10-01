@@ -225,6 +225,7 @@ class CatalogueService:
         limit: int | None = None,
         offset: int = 0,
         sort: str | None = None,
+        artist_id: str | None = None,
     ) -> ArtworkListing:
         """Page through the catalogue, narrowed by text and by facet.
 
@@ -254,7 +255,9 @@ class CatalogueService:
         if offset < 0:
             raise ServiceError(f"offset cannot be negative, got {offset}.")
 
-        query = WorkQuery(status=resolved_status, terms=self._parse_terms(q), facets=self._parse_facets(facets))
+        query = WorkQuery(
+            status=resolved_status, terms=self._parse_terms(q), facets=self._parse_facets(facets), artist_id=artist_id
+        )
         # **One read scope over the page, the total and every facet count.**
         # These are four statements or more, and the response asserts they agree:
         # the counts are offered as what the grid *would* hold, so a write

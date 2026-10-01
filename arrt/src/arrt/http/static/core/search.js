@@ -33,6 +33,11 @@ export function paintSearch() {
  * meant; more is what Enter, which opens every match in Artworks, is for. */
 const SUGGESTIONS = 6;
 
+/* How many artists the dropdown offers, above the works. Few, because a name
+ * typed in full matches one, and a fragment that matches many is better served
+ * by Library › Artists than by a long list here. */
+const ARTISTS_SHOWN = 3;
+
 /* Wait this long after the last keystroke before asking, so typing a word asks
  * once rather than once a letter. */
 const PAUSE_MS = 200;
@@ -109,7 +114,12 @@ function installSuggestions(field) {
       ]),
     ]);
 
-  const paint = (query, works, failed) => {
+  const paint = (query, works, artists, failed) => {
+    // Artists first, as the IA ranks objects: an artist's name is most often
+    // what is typed, and their page is where the rest of the library is.
+    const people = artists.slice(0, ARTISTS_SHOWN).map((entry, at) =>
+      option(`suggestion-artist-${at}`, `${entry.artist.name} — artist`, () => go("artist", entry.artist.artist_id)),
+    );
     const held = works.map((work, at) =>
       option(`suggestion-work-${at}`, work.artist ? `${work.title} — ${work.artist.name}` : work.title, () =>
         go("work", work.artwork_id),
@@ -118,7 +128,7 @@ function installSuggestions(field) {
     const museums = option("suggestion-museums", `Search museums for “${query}”`, () =>
       go("discover", null, { term: query }),
     );
-    options = [...held, museums];
+    options = [...people, ...held, museums];
     // A lookup that failed is not a library with no matches, and must not read as
     // one: the row below it spends money, on a work the curator may already own.
     const unsearched = failed
@@ -132,6 +142,7 @@ function installSuggestions(field) {
       : [];
     list.replaceChildren(
       ...unsearched,
+      ...(people.length ? [group("suggestions-artists", "Artists", people)] : []),
       ...(held.length ? [group("suggestions-held", "In your library", held)] : []),
       // Named for the page the row opens, as Sonarr names its group "Add New
       // Series": the *arr precedent decides what things are called here.
@@ -150,10 +161,15 @@ function installSuggestions(field) {
       return;
     }
     let works = [];
+    let artists = [];
     let failed = false;
     try {
-      const page = await api(`/api/works?q=${encodeURIComponent(query)}&limit=${SUGGESTIONS}`);
+      const [page, people] = await Promise.all([
+        api(`/api/works?q=${encodeURIComponent(query)}&limit=${SUGGESTIONS}`),
+        api(`/api/artists?q=${encodeURIComponent(query)}`),
+      ]);
       works = page.works;
+      artists = people.artists;
     } catch (failure) {
       // The dropdown is a shortcut; the search itself still works on Enter. So a
       // failed lookup costs the matches, says so, and keeps the other row.
@@ -161,7 +177,7 @@ function installSuggestions(field) {
     }
     // A slower answer to an earlier keystroke must not replace a later one.
     if (ticket !== asked || document.activeElement !== field) return;
-    paint(query, works, failed);
+    paint(query, works, artists, failed);
   };
 
   field.addEventListener("input", () => {

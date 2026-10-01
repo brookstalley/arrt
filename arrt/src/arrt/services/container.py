@@ -58,6 +58,7 @@ from arrt.library.discovery.images import ImageSearch
 from arrt.library.discovery.phase_two import PhaseTwoEngine
 from arrt.library.facade import LibraryFacade
 from arrt.library.registry import Registry
+from arrt.library.services.artists import ArtistService
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.conversation import ConversationService
 from arrt.library.services.discovery import DiscoveryService
@@ -163,6 +164,9 @@ class Services:
     #: curator's corrections work without a registry; matching needs one, and
     #: says so when it is absent rather than matching nothing quietly.
     identity: IdentityService
+    #: The artists the library holds, and what the registry knows about each,
+    #: for the Artist page. Over the same registry as `identity`.
+    artists: ArtistService
 
     @classmethod
     def bind(
@@ -332,6 +336,7 @@ class Services:
             # does not.
             taste=TasteService(discovery),
             identity=IdentityService(catalogue, registry),
+            artists=ArtistService(catalogue, registry),
         )
 
     def reconcile(self) -> None:

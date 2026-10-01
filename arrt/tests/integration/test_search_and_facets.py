@@ -381,6 +381,18 @@ class TestSearchIgnoresAccentsAndCase:
         assert self.titles(folded_http, "gold oil") == ["I Saw the Figure 5 in Gold"]
         assert self.titles(folded_http, "goldoil") == []
 
+    def test_one_artists_works_by_their_catalogue_id_with_counts_to_match(self, folded_http, seeded_service):
+        """The Artist page's *In your library*: by the work's own link to its artist, not by the facet."""
+        entries = seeded_service.list_artworks().entries
+        dali = next(entry.artwork for entry in entries if entry.artwork.title == "The Persistence of Memory")
+
+        payload = folded_http.get("/api/works", params={"artist_id": dali.artist_id}).raise_for_status().json()
+
+        assert [work["title"] for work in payload["works"]] == ["The Persistence of Memory"]
+        assert payload["total"] == 1
+        movement = next(group for group in payload["facets"] if group["kind"] == "movement")
+        assert {option["value"]: option["count"] for option in movement["options"]} == {"Surrealism": 1}
+
     def test_a_wildcard_typed_is_still_a_literal(self, folded_http):
         """The fold runs before the wildcards are escaped, and must not undo the escaping."""
         assert self.titles(folded_http, "%") == []
@@ -418,6 +430,15 @@ class TestTheToolSurface:
 
         assert errored is False
         assert [work["title"] for work in payload["artworks"]] == ["The Persistence of Memory"]
+
+    async def test_a_model_can_list_one_artists_works(self, faceted_server, seeded_service):
+        entries = seeded_service.list_artworks().entries
+        demuth = next(entry.artwork for entry in entries if entry.artwork.title.startswith("I Saw"))
+
+        payload, errored = await self.call(faceted_server, action="list", artist_id=demuth.artist_id)
+
+        assert errored is False
+        assert [work["title"] for work in payload["artworks"]] == ["I Saw the Figure 5 in Gold"]
 
     async def test_a_model_can_filter_by_facet_and_reads_the_counts_back(self, faceted_server):
         payload, errored = await self.call(faceted_server, action="list", movement=["Realism"])

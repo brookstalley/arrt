@@ -10,6 +10,33 @@ each entry, which is the durable form.
 
 ## Pending
 
+### The Artist page, against your own catalogue — added 2026-10-01
+
+**`build-plan-ia-foundations.md` Chunks 03 and 04.** Set `WIKIDATA_USER_AGENT` in
+`.env` (`.env.example` says what Wikimedia asks for), stop the server, run
+`cd arrt && uv run python -m arrt.identify` once, then start the server again.
+On a copy of the catalogue this matched 22 of 40 works and 24 of 31 artists.
+
+Checked by the builder on 2026-10-01, on a copy, with Playwright at 1280 px and
+375 px: Library › Artists listed all 31; Rothko's page showed both held works,
+*Held* on both in *Their work* (listed after the 50 most renowned, which neither
+is among), *Image found* on the Rothko Chapel, and his holdings; Dalí's showed
+his one work and four *Image found*; typing `dali` offered *Salvador Dalí —
+artist* first; no page errors at either width. Screenshots are not committed;
+the command above regenerates the state they show. For you:
+
+1. **Rothko and Dalí, at desktop width and on a phone.** Do *In your library*,
+   *Their work* and *Holdings* answer "what is their work, and what do I have
+   of it?" The scenario is S11 (`user-scenarios.md`).
+2. **Pictures.** *Image found* is almost empty for both, because Wikidata
+   images are Commons files and both are in copyright. Is the page still worth
+   its place for them, or should *Their work* lead with what can be seen?
+3. **The titles Wikidata gives.** Your *Untitled (Desert Landscape)* is
+   "Atmospheric Chair" on Wikidata, and about a fifth of Rothko's top fifty
+   have no English title at all (shown as *No English title (Q…)*).
+4. **An unmatched artist** (Clyfford Still, Josef Albers): the page should say
+   Wikidata knows nothing for them yet, and the rest should work.
+
 ### The default theme, and search without accents — added 2026-10-01
 
 **`build-plan-ia-foundations.md` Chunks 01 and 02.** Run it against your own

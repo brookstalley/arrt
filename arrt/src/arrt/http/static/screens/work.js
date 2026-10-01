@@ -26,7 +26,7 @@ import { api } from "../core/api.js";
 import { facts, fitBadge, sourceBadge, statusBadge, table } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
 import { el, guard, render } from "../core/render.js";
-import { backLink } from "../core/router.js";
+import { backLink, go } from "../core/router.js";
 
 /* The typed vocabulary a work is filed under, in the words a label uses.
  *
@@ -123,7 +123,7 @@ function paint(detail, generation, focusAction = false) {
     el("div", { class: "panel" }, [
       el("h2", { text: work.title }),
       facts([
-        ["Artist", work.artist ? work.artist.name : null],
+        ["Artist", work.artist ? artistLink(work.artist) : null],
         ["Nationality", work.artist ? work.artist.nationality : null],
         ["Lifespan", work.artist ? work.artist.lifespan_text : null],
         ["Date", work.date_created],
@@ -377,4 +377,9 @@ function wallConsequence(names) {
   const showing = names.length === 1 ? "is showing" : "are showing";
   const losing = names.length === 1 ? "loses" : "lose";
   return `${walls} ${showing} this work, and ${losing} it at the next manifest build. Re-hanging a wall's current theme builds one. It stays in the theme, and Restore brings it back.`;
+}
+
+/* The artist's name as the way to their page, `#artist/<id>`. */
+function artistLink(artist) {
+  return el("button", { class: "link", type: "button", text: artist.name, onclick: () => go("artist", artist.artist_id) });
 }

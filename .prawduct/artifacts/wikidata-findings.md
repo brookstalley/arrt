@@ -99,7 +99,18 @@ sitelink count, image (`P18`) and collection (`P195`):
   Rothko's 1,276 are drawings at the National Gallery of Art. Sorting by sitelinks
   is what puts the paintings a curator has heard of first, and the list needs a
   cap: the whole of it is thousands of rows and seconds of query.
-- **Holdings come for free** from `P195` on the same rows.
+- **Holdings come for free** from `P195` on the same rows. Some collections now
+  carry only a language-neutral (`mul`) label, so the label service is asked
+  for `en,mul`; without it the National Gallery of Art came back as `Q214867`.
+- **The library's own works are rarely among the most renowned.** None of the
+  owner's two Rothkos or their Dalí is in its artist's top fifty by sitelinks
+  (each has none), so the page asks for the held works by QID as well, or it
+  would mark nothing *Held*. Measured by running the page on a copy of the
+  catalogue, 2026-10-01.
+- **Registry titles can differ from the museum's.** The Art Institute's
+  *Untitled (Desert Landscape)* (Dalí, 1934) is labelled "Atmospheric Chair" on
+  the item carrying its identifier, and about a fifth of Rothko's top fifty
+  have no English or `mul` label at all.
 
 ## Reproducing
 

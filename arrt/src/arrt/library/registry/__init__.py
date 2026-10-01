@@ -27,6 +27,47 @@ class RegistryPerson:
     died: int | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class RegistryWorkEntry:
+    """One work a registry lists for an artist, as the Artist page shows it."""
+
+    qid: str
+    title: str
+    #: How many Wikipedias cover the work: renown, as the page sorts by it.
+    sitelinks: int
+    year: int | None = None
+    #: A free image of it, as an `https://commons.wikimedia.org/wiki/Special:FilePath/…`
+    #: URL and nothing else: anything else the registry returns is dropped, because
+    #: it becomes an `img` source in the curator's browser.
+    image: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RegistryHolding:
+    """A collection holding the artist's work, and how many."""
+
+    qid: str
+    name: str
+    works: int
+
+
+@dataclass(frozen=True, slots=True)
+class RegistryArtist:
+    """What a registry knows about one artist, for the Artist page.
+
+    Every string here is registry text: written by anyone, rendered as text and
+    never as markup.
+    """
+
+    qid: str
+    description: str | None = None
+    movements: tuple[str, ...] = ()
+    #: The most renowned first, capped; `works_total` is how many there are.
+    works: tuple[RegistryWorkEntry, ...] = ()
+    works_total: int = 0
+    holdings: tuple[RegistryHolding, ...] = ()
+
+
 class RegistryUnavailable(Exception):
     """The registry could not be asked, or did not answer in the shape it promises.
 
@@ -48,4 +89,12 @@ class Registry(Protocol):
 
     def people_named(self, name: str) -> Sequence[RegistryPerson]:
         """People the registry's own search finds for this name who made something or work in the visual arts."""
+        ...
+
+    def artist(self, qid: str, *, works: int, holdings: int, include: Sequence[str] = ()) -> RegistryArtist:
+        """What the registry knows about this person: the `works` most renowned, the `holdings` largest collections.
+
+        `include` names works to list whatever their renown (the ones the library
+        holds), after the most renowned and in the same shape.
+        """
         ...

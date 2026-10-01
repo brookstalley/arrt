@@ -53,7 +53,7 @@ from conftest import _open_seeded_catalogue  # noqa: E402
 
 from arrt.library.services.catalogue import CatalogueService  # noqa: E402
 from arrt.persistence.durable import SqliteDurableStore  # noqa: E402
-from arrt.persistence.sqlite import search_fold  # noqa: E402
+from arrt.persistence.folding import search_fold  # noqa: E402
 
 #: Terms chosen to span selectivity, which is the whole axis the two strategies
 #: differ on: a full scan pays the same for every question, an index pays in

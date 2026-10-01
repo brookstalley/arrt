@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import threading
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import Decimal
 
 from arrt.library.discovery.browse import BrowseQuery, CollectionBrowseFailure, OfferedGroup
@@ -35,6 +35,7 @@ from arrt.library.discovery.engine import (
     WorkListRequest,
 )
 from arrt.library.discovery.images import FoundImage, ImageQuery, ImageSearchFailure
+from arrt.library.registry import RegistryArtist, RegistryUnavailable
 from arrt.persistence.discovery_records import SpendCategory
 from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
 
@@ -394,3 +395,50 @@ def a_billed_failure(message: str = "The model returned no usable answer.") -> C
             ),
         ),
     )
+
+
+class FakeRegistry:
+    """A `Registry` answering from tables, which remembers what it was asked.
+
+    `artists` maps a QID to the `RegistryArtist` `artist()` returns; `failing`
+    makes every question raise `RegistryUnavailable`, which is how an outage
+    reaches the page.
+    """
+
+    def __init__(self, *, items=None, creators=None, people=None, artists=None, extra_works=None, failing=False):
+        self.items = items or {}
+        self.creators = creators or {}
+        self.people = people or {}
+        self.artists = artists or {}
+        #: Works `artist()` lists only when asked to include them by QID: the
+        #: held ones beyond the most renowned.
+        self.extra_works = extra_works or {}
+        self.failing = failing
+        self.searched: list[str] = []
+        self.asked_about: list[str] = []
+
+    def _check(self):
+        if self.failing:
+            raise RegistryUnavailable("Wikidata answered HTTP 503.")
+
+    def works_by_identifier(self, scheme, values):
+        self._check()
+        return {value: frozenset(self.items[(scheme, value)]) for value in values if (scheme, value) in self.items}
+
+    def creators_of(self, work_qids):
+        self._check()
+        return {qid: frozenset(self.creators[qid]) for qid in work_qids if qid in self.creators}
+
+    def people_named(self, name):
+        self._check()
+        self.searched.append(name)
+        return self.people.get(name, [])
+
+    def artist(self, qid, *, works, holdings, include=()):
+        """The configured artist, with any `extra_works` the caller asked to include appended."""
+        self._check()
+        self.asked_about.append(qid)
+        known = self.artists.get(qid, RegistryArtist(qid=qid))
+        listed = {entry.qid for entry in known.works}
+        added = tuple(self.extra_works[extra] for extra in include if extra in self.extra_works and extra not in listed)
+        return replace(known, works=known.works + added)

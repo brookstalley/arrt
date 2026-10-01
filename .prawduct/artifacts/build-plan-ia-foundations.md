@@ -286,6 +286,11 @@ the library holds, with counts. An **Artist** page has:
   taste service.
 - **In your library:** the held works, with Hang and Add to theme on a
   selection, as Library › Works does.
+  *(Corrected while building, 2026-10-01: Library › Works offers Add to theme
+  on a selection and nothing hangs a selection anywhere; ruling 6 defers
+  hanging a selection to wave 4. So the page offers Add to theme, sharing
+  Works' logic through `core/membership.js`. Not a descope: there was no Hang
+  to match.)*
 - **Their work:** works Wikidata lists for the artist, sorted by renown (sitelink
   count), each marked *Held* (by QID) or with *Image found* where Wikidata has a
   free image. Read-only in this plan: *Get* arrives with plan 2.
@@ -309,6 +314,17 @@ untrusted text and is rendered as text. A registry failure leaves the header and
    with screenshots at desktop width and 375px in an operator-verification
    entry.
 4. All three suites and the browser suite pass, then the cumulative review.
+
+*(Built 2026-10-01. Running it on a copy of the owner's catalogue changed one
+thing the tests had passed: none of the owner's held works is among its
+artist's 50 most renowned, so *Held* marked nothing. The page now asks for the
+held works by QID too, and the fixtures were changed to put the held work
+outside the top list, so the test can fail. Also found there: registry items
+with no readable title, now shown as *No English title (Q…)*, and a table too
+wide for a phone. The typeahead gained an Artists group, which changed the
+option lists two earlier tests pinned. Registry text is rendered as text, and a
+browser test feeds the page markup to prove it. Similar artists is the next
+plan's, per the DECISION above.)*
 
 ## Governance checkpoints
 

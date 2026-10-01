@@ -99,6 +99,7 @@ def _list_artworks(services: Services, arguments: Mapping[str, Any]) -> dict[str
         limit=arguments.get("limit"),
         offset=arguments.get("offset", 0),
         sort=arguments.get("sort"),
+        artist_id=arguments.get("artist_id"),
     )
     return ok(
         artworks=[_summary(entry) for entry in listing.entries],

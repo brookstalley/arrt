@@ -80,6 +80,60 @@ class ImageOut(BaseModel):
     note: str | None
 
 
+class HeldArtistOut(BaseModel):
+    """An artist the library holds, and how many of their works are in circulation."""
+
+    artist: ArtistOut
+    held: int
+
+
+class ArtistListOut(BaseModel):
+    """Library › Artists: every artist with a work in circulation, by name."""
+
+    artists: list[HeldArtistOut]
+
+
+class RegistryWorkOut(BaseModel):
+    """One work the registry lists for an artist. `title` is registry text: show it as text."""
+
+    qid: str
+    title: str
+    year: int | None
+    #: How many Wikipedias cover it, which is what the list is sorted by.
+    sitelinks: int
+    #: A Commons file URL, and only ever one: anything else the registry
+    #: offered was dropped before it got here.
+    image: str | None
+    #: The library's work, where the library holds this one (matched by QID).
+    held_artwork_id: str | None
+
+
+class RegistryHoldingOut(BaseModel):
+    qid: str
+    name: str
+    works: int
+
+
+class ArtistRegistryOut(BaseModel):
+    """What Wikidata knows about an artist, or why there is nothing to show.
+
+    `state` is `known`, `no_identity` (the artist has no QID), `not_configured`
+    (no registry on this server) or `unavailable` (it could not be asked), and
+    `note` says which in a sentence whenever it is not `known`. Every string from
+    the registry is untrusted text.
+    """
+
+    state: str
+    note: str | None
+    qid: str | None
+    description: str | None
+    movements: list[str]
+    works: list[RegistryWorkOut]
+    #: How many works the registry lists in all; `works` is the most renowned of them.
+    works_total: int
+    holdings: list[RegistryHoldingOut]
+
+
 class WorkOut(BaseModel):
     """One work as a grid card shows it."""
 

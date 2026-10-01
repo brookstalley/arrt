@@ -27,6 +27,7 @@ import { installSearch, paintSearch } from "./core/search.js";
 import { installStatus, paintStatus } from "./core/status.js";
 import { state } from "./core/state.js";
 import { viewHistory, viewQueue } from "./screens/activity.js";
+import { viewArtists } from "./screens/artists.js";
 import { viewCollection } from "./screens/collection.js";
 import { viewConversation } from "./screens/conversation.js";
 import { viewDiscover } from "./screens/discover.js";
@@ -86,6 +87,9 @@ const ROUTES = {
   // it is what a wall's theme control points at and what a curator bookmarks.
   // Radarr's Collections: a named grouping of what the library holds.
   theme: { render: viewTheme, detail: OPTIONAL_ID, section: "artworks", page: "Themes" },
+  // Lidarr's artist index, which is that app's library: every held artist, and
+  // at `#artist/<id>` one of them as the hub (ruling 4).
+  artist: { render: viewArtists, detail: OPTIONAL_ID, section: "artworks", page: "Artists" },
   walls: { render: viewWalls, section: "walls", page: "Walls" },
   // Radarr's Activity: the searches in flight, and the ones that ended.
   queue: { render: viewQueue, section: "activity", page: "Queue" },

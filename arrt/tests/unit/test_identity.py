@@ -7,32 +7,13 @@ painters sharing a name, and a culture whose name a search turns into a person.
 """
 
 import pytest
+from fakes import FakeRegistry
 
 from arrt.library.registry import RegistryPerson
 from arrt.library.registry.identifiers import IdentifierScheme
 from arrt.library.services.identity import IdentityService
 from arrt.persistence.records import AcquisitionMethod, IdentitySetBy, RightsStatus, SourceClass
 from arrt.services.errors import ServiceError
-
-
-class FakeRegistry:
-    """Answers from tables, and remembers what it was asked."""
-
-    def __init__(self, *, items=None, creators=None, people=None):
-        self.items = items or {}  # (scheme, value) -> set of QIDs
-        self.creators = creators or {}  # work QID -> set of creator QIDs
-        self.people = people or {}  # name -> [RegistryPerson]
-        self.searched: list[str] = []
-
-    def works_by_identifier(self, scheme, values):
-        return {value: frozenset(self.items[(scheme, value)]) for value in values if (scheme, value) in self.items}
-
-    def creators_of(self, work_qids):
-        return {qid: frozenset(self.creators[qid]) for qid in work_qids if qid in self.creators}
-
-    def people_named(self, name):
-        self.searched.append(name)
-        return self.people.get(name, [])
 
 
 def artic(number: int) -> str:
@@ -139,6 +120,22 @@ class TestArtists:
 
         assert store.get_artist(kline.id).wikidata_qid == "Q374492"
         assert registry.searched == []
+
+    def test_when_their_works_name_two_creators_only_those_two_are_candidates(self, store, service, add_work):
+        """A collaboration, or a workshop piece: the name search may not reach outside it."""
+        artist = service.add_artist(name="Robert Delaunay", born=1885, died=1941)
+        add_work("Rhythm", artist=artist, urls=[artic(1)])
+        add_work("Windows", artist=artist, urls=[artic(2)])
+        registry = FakeRegistry(
+            items={(IdentifierScheme.ARTIC, "1"): {"Q1"}, (IdentifierScheme.ARTIC, "2"): {"Q2"}},
+            creators={"Q1": {"QA"}, "Q2": {"QB"}},
+            people={"Robert Delaunay": [RegistryPerson(qid="QC", label="Robert Delaunay", born=1885, died=1941)]},
+        )
+
+        report = identity(store, registry).match()
+
+        assert store.get_artist(artist.id).wikidata_qid is None
+        assert report.artists_unknown == ("Robert Delaunay",)
 
     def test_a_namesake_is_told_apart_by_life_dates(self, store, service):
         miro = service.add_artist(name="Joan Miró", born=1893, died=1983)

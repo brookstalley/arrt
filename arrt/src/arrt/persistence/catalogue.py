@@ -83,6 +83,10 @@ class WorkQuery:
     #: person expects, and it is stated here because it is invisible at the call
     #: site.
     facets: Mapping[VocabularyKind, Sequence[str]] = field(default_factory=dict)
+    #: One artist's works, by the catalogue's own link rather than by the artist
+    #: facet: the facet is a derived claim a catalogue may not carry at all (the
+    #: owner's holds none), while every attributed work names its artist.
+    artist_id: str | None = None
 
     def without(self, kind: VocabularyKind) -> WorkQuery:
         """The same query with one facet kind's own selection dropped.
@@ -194,6 +198,14 @@ class CatalogueStore(Protocol):
 
     def list_artworks(self, query: WorkQuery, *, limit: int, offset: int, order: WorkOrder = WorkOrder.TITLE) -> ArtworkPage:
         """Return a page of works matching `query` in `order`, stable across pages, with the unpaged total."""
+        ...
+
+    def held_artists(self) -> Sequence[tuple[Artist, int]]:
+        """Every artist with at least one work in circulation, and how many, by name."""
+        ...
+
+    def artwork_ids_by_qid(self) -> Mapping[str, str]:
+        """Every work that carries a Wikidata QID, keyed by it."""
         ...
 
     def accepted_artwork_ids(self) -> Sequence[str]:

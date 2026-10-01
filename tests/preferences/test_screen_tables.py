@@ -70,6 +70,7 @@ SCREEN_NAMES = {
     "conversation": "Conversation",
     "review": "Review",
     "theme": "Themes",
+    "artist": "Artists",
     "taste": "Taste",
     "health": "Status",
 }
@@ -207,7 +208,7 @@ def test_the_route_table_parses():
         f"{_relative(ROUTE_TABLE)} parsed as {sorted(found)}, which is missing a page — " "the parser is reading the wrong thing"
     )
     pages = [key for key, body in found.items() if "page:" in body]
-    assert pages == ["collection", "discover", "theme", "walls", "queue", "history", "taste", "health"], (
+    assert pages == ["collection", "discover", "theme", "artist", "walls", "queue", "history", "taste", "health"], (
         f"the sidebar's pages are {pages}. § The *arr layout places each by its *arr precedent, "
         "and the first is the home, which every *arr app makes its library"
     )

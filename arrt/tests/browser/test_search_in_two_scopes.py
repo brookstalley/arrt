@@ -34,11 +34,18 @@ def test_typing_offers_library_matches_then_a_search_of_everything(ui, seeded_se
 
     type_into_search(ui, "Dalí")
 
-    assert options(ui) == ["The Persistence of Memory — Salvador Dalí", "Search museums for “Dalí”"]
+    # The artist first (ruling 4's hub, the IA's Artists-first ranking), then
+    # the library's works, then the search of everything.
+    assert options(ui) == [
+        "Salvador Dalí — artist",
+        "The Persistence of Memory — Salvador Dalí",
+        "Search museums for “Dalí”",
+    ]
     # The groups are named through `aria-labelledby`, so a screen reader says
     # which scope an option is in: asserted by role and accessible name, which
     # visible text alone cannot prove.
     listbox = ui.page.get_by_role("listbox", name="Suggestions")
+    assert listbox.get_by_role("group", name="Artists").get_by_role("option").all_inner_texts() == ["Salvador Dalí — artist"]
     assert listbox.get_by_role("group", name="In your library").get_by_role("option").count() == 1
     assert listbox.get_by_role("group", name="Add New").get_by_role("option").all_inner_texts() == ["Search museums for “Dalí”"]
 
@@ -51,7 +58,7 @@ def test_typing_without_the_accent_still_offers_the_library_match(ui, seeded_ser
 
     type_into_search(ui, "dali")
 
-    assert options(ui) == ["The Persistence of Memory — Salvador Dalí", "Search museums for “dali”"]
+    assert options(ui) == ["Salvador Dalí — artist", "The Persistence of Memory — Salvador Dalí", "Search museums for “dali”"]
 
 
 def test_with_no_library_match_only_the_search_of_everything_is_offered(ui, seeded_service):
@@ -91,11 +98,25 @@ def test_choosing_a_library_match_opens_that_work(ui, seeded_service):
     ui.page.wait_for_selector("#view h2")
 
     type_into_search(ui, "Dalí")
+    # Past the artist to the work.
+    ui.page.keyboard.press("ArrowDown")
     ui.page.keyboard.press("ArrowDown")
     ui.page.keyboard.press("Enter")
 
     ui.page.wait_for_selector("#view h2:has-text('The Persistence of Memory')")
     assert ui.page.evaluate("() => window.location.hash").startswith("#work/")
+
+
+def test_choosing_an_artist_opens_their_page(ui, seeded_service):
+    ui.open("#walls")
+    ui.page.wait_for_selector("#view h2")
+
+    type_into_search(ui, "dali")
+    ui.page.keyboard.press("ArrowDown")
+    ui.page.keyboard.press("Enter")
+
+    ui.page.wait_for_selector("#view h2:has-text('Salvador Dalí')")
+    assert ui.page.evaluate("() => window.location.hash").startswith("#artist/")
 
 
 def test_searching_museums_hands_the_words_to_add_new_and_spends_nothing(ui, service, seeded_service):

@@ -63,6 +63,34 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-01: Library › Artists, and the Artist page
+
+<!-- prawduct: chunks=04 | scope=ia-foundations -->
+
+**Why:** the owner's ruling 4: the artist is the hub. A curator getting to know
+an artist (S11) wants to see who they are, what the library holds of theirs,
+what else they made, and where it hangs.
+
+**What:** Library › Artists (`#artist`), every artist with a work in
+circulation, and the Artist page (`#artist/<id>`): life dates and nationality;
+Wikidata's description and movements; *More like this* and *Not this* writing
+an artist affinity; *In your library* with *Add to theme* on a selection, sharing
+Works' logic through the new `core/membership.js`; *Their work*, the 50 most
+renowned works Wikidata lists plus every work the library holds, each marked
+*Held* (by QID) or *Image found* (a Commons file); and *Holdings*. The registry
+half is its own request (`GET /api/artists/{id}/registry`), remembered per
+artist, with four states each said in a sentence, so a slow or absent Wikidata
+holds nothing up. Registry text is rendered as text only, and an image is only
+ever a Commons file URL. Artist names on work cards, table rows and the Work
+page open the page; the top-bar search offers matching artists first (two
+typeahead tests changed their expected lists for that). `GET /api/works` and
+`art_catalogue(action='list')` gain `artist_id`, because the owner's catalogue
+holds no facet rows to filter by. `search_fold` moved to
+`persistence/folding.py`, which both the adapter and the artist index use.
+
+Also carried: Chunk 03's review observations. A test where two creators narrow
+the name search, and the `set_*_qid` tips no longer overstate what `none` does.
+
 ## 2026-10-01: Works and artists carry a Wikidata QID where one is certain
 
 <!-- prawduct: chunks=03 | scope=ia-foundations -->

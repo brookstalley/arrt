@@ -24,10 +24,7 @@ if they could disagree — they cannot, because the index is strictly the weaker
 statement of the same rule.
 """
 
-import functools
 import logging
-import re
-import unicodedata
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -37,6 +34,7 @@ from arrt.persistence.adapter import BY_ID, TableAdapter, from_iso, require_date
 from arrt.persistence.catalogue import WorkOrder, WorkQuery
 from arrt.persistence.durable import OrderBy, SqliteDurableStore
 from arrt.persistence.errors import StorageError
+from arrt.persistence.folding import search_fold
 from arrt.persistence.records import (
     AcquisitionMethod,
     Artist,
@@ -401,67 +399,10 @@ _SEARCHED: Final[tuple[str, ...]] = (
 _FOLD: Final[str] = "search_fold"
 
 #: The searched columns as one string, so the fold is one call and one
-#: remembered entry per work rather than six (see `_FOLDS_REMEMBERED`). They are
+#: remembered entry per work rather than six (see `_FOLDS_REMEMBERED` in `folding.py`). They are
 #: joined by the unit separator, which `str.split` treats as whitespace, so no
 #: term can contain it and no match can run from one column into the next.
 _SEARCHED_TEXT: Final[str] = " || char(31) || ".join(f"coalesce({column}, '')" for column in _SEARCHED)
-
-#: Letters a curator types without their mark that Unicode does not decompose,
-#: so dropping combining marks leaves them as they were: `hammershoi` has to
-#: find Hammershøi, and `oedipe` Œdipe. Lowercase only, because the fold
-#: casefolds first.
-_UNDECOMPOSED: Final[dict[int, str]] = str.maketrans(
-    {"ø": "o", "æ": "ae", "œ": "oe", "ł": "l", "đ": "d", "ð": "d", "þ": "th", "ı": "i"}
-)
-
-
-_NON_ASCII: Final[re.Pattern[str]] = re.compile(r"[^\x00-\x7f]+")
-
-#: How many folded texts are remembered: one per work, plus the terms typed.
-#: A request evaluates the search clause once for the page, once for its total
-#: and once per facet count, over the same works, and the next keystroke does it
-#: again, so after the first evaluation the fold is a lookup. Measured over
-#: 4,000 works whose text is shaped like the owner's (about 650 characters, a
-#: few curly quotes and accents each), eight evaluations took about 470 ms
-#: unremembered and 36 ms remembered. **It has to exceed the catalogue**: every
-#: search walks the works in the same order, and a least-recently-used cache
-#: smaller than that walk evicts each entry just before it is asked for again,
-#: so it would never hit. The NFR's target is thousands of works; this is room
-#: for several times that, at about a kilobyte and a half an entry.
-_FOLDS_REMEMBERED: Final[int] = 32_768
-
-
-@functools.lru_cache(maxsize=_FOLDS_REMEMBERED)
-def search_fold(text: str) -> str:
-    """`text` as search compares it: without case, accents or ligatures.
-
-    Applied to the stored column and to the typed term alike, so `dali` and
-    `Dalí` meet in the middle whichever of them carries the mark, and a name a
-    source stored decomposed matches the composed one a keyboard sends.
-    Casefolded first, because that is what turns ß into ss; then decomposed
-    with NFKD, which splits an accented letter from its accent and spells out a
-    compatibility ligature, and the accents dropped. Punctuation and spacing are
-    kept, unlike the dedup key's fold: a search is a contains-match on what the
-    curator typed, and dropping characters from one side only would stop it
-    finding what it shows.
-
-    It over-matches where an accent makes a different letter rather than
-    decorating one (Russian й and и fold together). In a contains-search that
-    costs an extra result, never a missing one.
-    """
-    folded = text.casefold()
-    # Only non-ASCII characters carry anything to drop, and NFKD decomposes one
-    # character at a time, so folding each non-ASCII run alone gives the answer
-    # folding the whole string would. It is cheaper by the length of the ASCII
-    # around it: this runs once per work for every search, and a description is
-    # mostly ASCII.
-    return folded if folded.isascii() else _NON_ASCII.sub(_fold_run, folded)
-
-
-def _fold_run(run: re.Match[str]) -> str:
-    decomposed = unicodedata.normalize("NFKD", run.group())
-    return "".join(character for character in decomposed if not unicodedata.combining(character)).translate(_UNDECOMPOSED)
-
 
 #: `LIKE`'s own wildcards, which have to survive a curator typing one. Escaped
 #: with a backslash declared per-clause as `ESCAPE '\'`; SQLite has no default
@@ -542,6 +483,10 @@ def _matching(query: WorkQuery) -> _Restriction:
         clauses.append('a."status" = ?')
         values.append(str(query.status))
 
+    if query.artist_id is not None:
+        clauses.append('a."artist_id" = ?')
+        values.append(query.artist_id)
+
     # ANDed across terms, ORed across columns: "blue harbour" means both words
     # appear somewhere about the work, which is what a person typing two words
     # means. ORing the terms instead would make every extra word widen the
@@ -619,6 +564,20 @@ class SqliteCatalogue(TableAdapter):
             (*selects.values, limit, offset),
         )
         return ArtworkPage(artworks=[_artwork(row) for row in rows], total=total)
+
+    def held_artists(self) -> Sequence[tuple[Artist, int]]:
+        rows = self._store.select_rows(
+            'SELECT ar.*, COUNT(a."id") AS held FROM artists ar JOIN artworks a ON a."artist_id" = ar."id" '
+            'WHERE a."status" = ? GROUP BY ar."id" ORDER BY ar."name" COLLATE NOCASE, ar."id"',
+            (str(ArtworkStatus.ACCEPTED),),
+        )
+        return [(_artist(row), int(row["held"])) for row in rows]
+
+    def artwork_ids_by_qid(self) -> Mapping[str, str]:
+        rows = self._store.select_rows(
+            'SELECT a."wikidata_qid" AS qid, a."id" AS id FROM artworks a WHERE a."wikidata_qid" IS NOT NULL'
+        )
+        return {row["qid"]: row["id"] for row in rows}
 
     def accepted_artwork_ids(self) -> Sequence[str]:
         # Oldest first, `rowid` breaking a tie within one clock tick, so a catch-up

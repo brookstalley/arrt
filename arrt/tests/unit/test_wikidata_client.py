@@ -136,3 +136,77 @@ def test_large_lists_are_asked_in_batches():
     _registry(handler).works_by_identifier(IdentifierScheme.ARTIC, [str(n) for n in range(450)])
 
     assert len(asked) == 3
+
+
+def test_only_a_commons_file_survives_as_an_image():
+    """An image URL becomes an `img` source in the curator's browser, so nothing else gets through."""
+
+    def handler(request):
+        query = _sent_query(request)
+        if "wikibase:sitelinks" in query:
+            return _results(
+                {
+                    "work": _uri("Q1"),
+                    "workLabel": {"value": "Kept"},
+                    "links": {"value": "9"},
+                    "img": {"value": "http://commons.wikimedia.org/wiki/Special:FilePath/A%20b.jpg"},
+                },
+                {
+                    "work": _uri("Q2"),
+                    "workLabel": {"value": "Dropped"},
+                    "links": {"value": "3"},
+                    "img": {"value": "javascript:alert(1)"},
+                },
+                {
+                    "work": _uri("Q3"),
+                    "workLabel": {"value": "Elsewhere"},
+                    "links": {"value": "1"},
+                    "img": {"value": "https://evil.example/wiki/Special:FilePath/x.jpg"},
+                },
+            )
+        return _results()
+
+    known = _registry(handler).artist("Q160149", works=3, holdings=1)
+
+    assert [(work.title, work.image) for work in known.works] == [
+        ("Kept", "https://commons.wikimedia.org/wiki/Special:FilePath/A%20b.jpg"),
+        ("Dropped", None),
+        ("Elsewhere", None),
+    ]
+
+
+def test_an_artist_qid_is_checked_before_it_reaches_a_query():
+    with pytest.raises(ValueError, match="not a Wikidata item id"):
+        _registry(lambda request: _results()).artist("Q1 } UNION {", works=1, holdings=1)
+
+
+def test_held_works_beyond_the_most_renowned_are_asked_for_by_id():
+    """Only the ones the first list missed: a held work already among the most renowned is not fetched twice."""
+    asked = []
+
+    def handler(request):
+        query = _sent_query(request)
+        asked.append(query)
+        if "VALUES ?work" in query:
+            return _results({"work": _uri("Q2"), "workLabel": {"value": "Held, obscure"}, "links": {"value": "1"}})
+        if "wikibase:sitelinks" in query:
+            return _results({"work": _uri("Q1"), "workLabel": {"value": "Famous"}, "links": {"value": "40"}})
+        return _results()
+
+    known = _registry(handler).artist("Q160149", works=1, holdings=1, include=["Q1", "Q2"])
+
+    assert [work.title for work in known.works] == ["Famous", "Held, obscure"]
+    by_id = next(query for query in asked if "VALUES ?work" in query)
+    assert "wd:Q2" in by_id and "wd:Q1 " not in by_id
+
+
+def test_no_held_works_means_no_extra_question():
+    asked = []
+
+    def handler(request):
+        asked.append(_sent_query(request))
+        return _results()
+
+    _registry(handler).artist("Q160149", works=1, holdings=1)
+
+    assert not any("VALUES ?work" in query for query in asked)

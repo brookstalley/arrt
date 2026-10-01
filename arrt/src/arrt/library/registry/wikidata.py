@@ -26,7 +26,7 @@ from typing import Any, Final
 
 import httpx
 
-from arrt.library.registry import RegistryPerson, RegistryUnavailable
+from arrt.library.registry import RegistryArtist, RegistryHolding, RegistryPerson, RegistryUnavailable, RegistryWorkEntry
 from arrt.library.registry.identifiers import IdentifierScheme
 
 log = logging.getLogger(__name__)
@@ -50,6 +50,17 @@ _QID: Final[re.Pattern[str]] = re.compile(r"^Q[1-9][0-9]*$")
 #: Visual artist (`Q3391743`): the occupation painters, sculptors and
 #: photographers sit under.
 _VISUAL_ARTIST: Final[str] = "Q3391743"
+
+#: Label languages, in order. `mul` is Wikidata's language-neutral label, which
+#: some items (the National Gallery of Art among them) now carry instead of an
+#: English one; without it their QID comes back as the name.
+_LABELS: Final[str] = "en,mul"
+
+#: Joins an artist's movements in one result. A character no movement's name holds.
+_SEPARATOR: Final[str] = "\u241e"
+
+#: The only image URLs passed on: a Commons file, by name.
+_COMMONS_FILE: Final[re.Pattern[str]] = re.compile(r"^https?://commons\.wikimedia\.org/wiki/Special:FilePath/([^?#\s]+)$")
 
 
 class WikidataRegistry:
@@ -96,11 +107,67 @@ class WikidataRegistry:
             RegistryPerson(
                 qid=_qid(row, "item"),
                 label=_value(row, "itemLabel"),
-                born=_year(row, "bornYear"),
-                died=_year(row, "diedYear"),
+                born=_integer(row, "bornYear"),
+                died=_integer(row, "diedYear"),
             )
             for row in rows
         ]
+
+    def artist(self, qid: str, *, works: int, holdings: int, include: Sequence[str] = ()) -> RegistryArtist:
+        item = _require_qid(qid)
+        profile = self._select(
+            f"""SELECT ?description (GROUP_CONCAT(DISTINCT ?movementLabel; separator="{_SEPARATOR}") AS ?movements) WHERE {{
+              OPTIONAL {{ wd:{item} schema:description ?description FILTER(LANG(?description) = "en") }}
+              OPTIONAL {{ wd:{item} wdt:P135 ?movement . ?movement rdfs:label ?movementLabel
+                         FILTER(LANG(?movementLabel) = "en") }}
+            }} GROUP BY ?description"""
+        )
+        listed = self._select(
+            f"""SELECT ?work ?workLabel ?links (MIN(YEAR(?inception)) AS ?year) (SAMPLE(?image) AS ?img) WHERE {{
+              ?work wdt:P170 wd:{item} ; wikibase:sitelinks ?links .
+              OPTIONAL {{ ?work wdt:P571 ?inception }}
+              OPTIONAL {{ ?work wdt:P18 ?image }}
+              SERVICE wikibase:label {{ bd:serviceParam wikibase:language "{_LABELS}". }}
+            }} GROUP BY ?work ?workLabel ?links ORDER BY DESC(?links) ?workLabel LIMIT {int(works)}"""
+        )
+        listed_qids = {_qid(row, "work") for row in listed}
+        wanted = sorted({_require_qid(extra) for extra in include} - listed_qids)
+        if wanted:
+            listed = listed + self._select(
+                f"""SELECT ?work ?workLabel ?links (MIN(YEAR(?inception)) AS ?year) (SAMPLE(?image) AS ?img) WHERE {{
+                  VALUES ?work {{ {" ".join(f"wd:{extra}" for extra in wanted)} }}
+                  ?work wikibase:sitelinks ?links .
+                  OPTIONAL {{ ?work wdt:P571 ?inception }}
+                  OPTIONAL {{ ?work wdt:P18 ?image }}
+                  SERVICE wikibase:label {{ bd:serviceParam wikibase:language "{_LABELS}". }}
+                }} GROUP BY ?work ?workLabel ?links ORDER BY DESC(?links) ?workLabel"""
+            )
+        total = self._select(f"SELECT (COUNT(DISTINCT ?work) AS ?n) WHERE {{ ?work wdt:P170 wd:{item} . }}")
+        held_by = self._select(f"""SELECT ?collection ?collectionLabel (COUNT(DISTINCT ?work) AS ?n) WHERE {{
+              ?work wdt:P170 wd:{item} ; wdt:P195 ?collection .
+              SERVICE wikibase:label {{ bd:serviceParam wikibase:language "{_LABELS}". }}
+            }} GROUP BY ?collection ?collectionLabel ORDER BY DESC(?n) LIMIT {int(holdings)}""")
+        first = profile[0] if profile else {}
+        return RegistryArtist(
+            qid=item,
+            description=first["description"]["value"] if "description" in first else None,
+            movements=tuple(name for name in first.get("movements", {}).get("value", "").split(_SEPARATOR) if name),
+            works=tuple(
+                RegistryWorkEntry(
+                    qid=_qid(row, "work"),
+                    title=_value(row, "workLabel"),
+                    sitelinks=_integer(row, "links") or 0,
+                    year=_integer(row, "year"),
+                    image=_commons_file(row.get("img", {}).get("value")),
+                )
+                for row in listed
+            ),
+            works_total=(_integer(total[0], "n") or 0) if total else 0,
+            holdings=tuple(
+                RegistryHolding(qid=_qid(row, "collection"), name=_value(row, "collectionLabel"), works=_integer(row, "n") or 0)
+                for row in held_by
+            ),
+        )
 
     def close(self) -> None:
         self._http.close()
@@ -159,7 +226,13 @@ def _qid(row: Mapping[str, Any], name: str, *, required: bool = True) -> str | N
     return None
 
 
-def _year(row: Mapping[str, Any], name: str) -> int | None:
+def _commons_file(url: str | None) -> str | None:
+    """A Commons file URL, made `https`, or None for anything else the registry offered as an image."""
+    found = _COMMONS_FILE.match(url or "")
+    return None if found is None else f"https://commons.wikimedia.org/wiki/Special:FilePath/{found.group(1)}"
+
+
+def _integer(row: Mapping[str, Any], name: str) -> int | None:
     if name not in row:
         return None
     try:

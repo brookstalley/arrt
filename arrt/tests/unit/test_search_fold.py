@@ -10,7 +10,7 @@ import unicodedata
 
 import pytest
 
-from arrt.persistence.sqlite import search_fold
+from arrt.persistence.folding import search_fold
 
 
 def folded_whole(text: str) -> str:
