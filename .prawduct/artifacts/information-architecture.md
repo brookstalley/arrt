@@ -139,7 +139,7 @@ Priority is **core** (on a stated core flow) or **supporting**.
 | **History** *(new)* | The searches that have ended, with how each ended. | The sidebar, under Activity | supporting |
 | **Run** | One discovery run while it works and after it stops: what it proposed, what it found images for, the gate where phase 2 is approved, and its work table. | Queue or History; Add New, as it starts; a re-search started on the review grid; its own address | core (flow 2) |
 | **Review** | Judging one run's candidates: accept, reject, choose a scan, ask for a better one. | A finished run, from History or its own page; the run's own notification | core (flow 3) |
-| **Themes** | The themes there are, and — at its own address — one of them: its members in curated order, its name, and the act of hanging it. | The sidebar, under Artworks; Artworks' theme rail; a wall's theme control; its own address | core (flows 5, 6) |
+| **Themes** | The themes there are, and — at its own address — one of them: its members in curated order, its name, the act of hanging it, and which theme is the default that accepted works join. | The sidebar, under Artworks; Artworks' theme rail; a wall's theme control; its own address | core (flows 5, 6) |
 | **Status** | The three observations the panel states, and the spend record. *(Health until 2026-09-30.)* | The sidebar, under System; the top bar's status indicator; a failure's own link | supporting |
 | **Conversation** *(new)* | One intent-forming thread, its samples, and what it committed to. | Add New; the conversation list; an affinity's provenance | core (flow 1) |
 | **Taste** *(new)* | The affinities the product has accumulated, with their derivation, correctable. | The sidebar, under Settings; a suggestion's "why am I seeing this?" | supporting |
@@ -615,6 +615,16 @@ organised.** The theme rail filters the grid to a theme's members; membership is
 edited from the grid, in place, with multi-select. Reordering — which is genuinely
 about the theme rather than about the works — happens on the Theme screen.
 
+**One theme is the default, and acceptance fills it** *(the owner's ruling 8,
+built 2026-10-01)*. A work accepted from any route joins the default theme at the
+end of its order, once: taken out by hand, it stays out through a restart and a
+restore. The Theme screen marks the default with a star, the word *default* and
+the accent colour, offers *Make default* on every other theme, and says so when
+no theme is the default. The default cannot be deleted until another theme is
+made the default. *(The 2026-08-12 "whether it is the active theme" status this
+screen once carried was retired with `is_active`; the hierarchy row now reads
+"which walls it hangs on".)*
+
 ### Flow 6 — Display and sync
 
 `The Walls → a wall's theme control → activate` *(or)* `Theme → hang this`
@@ -667,7 +677,7 @@ who did not edit this table.
 | Conversation | The thread, newest exchange last | Each turn's suggestions, with their samples | Type, react to a sample, commit a direction, delete the thread | Whether a turn is in flight, and what the exchange cost |
 | Taste | The judgments, grouped by kind | Sentiment, openness, and how the claim was derived | React, correct, forget, follow a claim back to its turn | Which claims the product inferred rather than was told |
 | Review | The candidate picture | Title, artist, size on this wall | Accept, reject, choose scan, ask better | Verdict, provenance, resolution |
-| Themes | Members in wall order | Name, count | Reorder, rename, hang, delete | Whether it is the active theme |
+| Themes | Members in wall order | Name, count | Reorder, rename, hang, make default, delete | Which walls it hangs on; whether it is the default (★ default) |
 | Status | The three observations | Spend history | — | The whole screen is status |
 
 **"Remove" is the wrong word for a *work*, and that control must not use it.**

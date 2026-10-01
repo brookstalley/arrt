@@ -337,10 +337,14 @@ class Services:
         Library tells Programming when a work changes, after the change commits,
         and a crash between the two loses the announcement. So every start takes
         any work the Library now refuses off every published manifest and pin,
-        and a lost announcement delays that until the next start rather than
-        leaving it undone.
+        and offers the default theme any accepted work never offered it, so a
+        lost announcement delays either until the next start rather than leaving
+        it undone.
         """
         self.discovery.reconcile()
+        # Before the walls, and outside their `OSError` guard: it writes no
+        # manifest, only the catalogue, and a failure here is one to see.
+        self.display.catch_up_the_default()
         try:
             self.display.reconcile()
         except OSError:

@@ -63,6 +63,28 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-01: All works is the default theme, and acceptances join it
+
+<!-- prawduct: chunks=02 | scope=ia-foundations -->
+
+**Why:** the owner's ruling 8, "There should be a default 'all works' theme."
+Nothing added a work to a theme automatically, so an accepted work landed nowhere
+it could be hung.
+
+**What:** `themes.is_default`, at most one under a partial unique index, written
+only by `make_default` (`POST /api/themes/{id}/default`, `art_theme(action=
+'make_default')`). Programming subscribes to the Library's `work.accepted` and
+adds the work at the end of the default theme. A new `default_theme_offers`
+table records each work offered, joined or not, so each is offered once: a work
+taken out by hand stays out through a restore (which the Library announces as an
+acceptance) and through the startup catch-up of lost announcements. A one-time
+migration marks *All works* (ignoring case) and records every held work as
+offered, archived ones included; run twice on a copy of the owner's catalogue it
+marked *All works* and recorded 40 of 40. Deleting the default is refused with
+the reason; renaming keeps it. The Theme screen shows ★ *default* in the accent
+colour, offers *Make default*, and says when no theme is the default. A restored
+work not rejoining is an ASSUMPTION in the plan, recommended to the owner.
+
 ## 2026-10-01: Library search ignores case, accents and ligatures
 
 <!-- prawduct: chunks=01 | scope=ia-foundations -->

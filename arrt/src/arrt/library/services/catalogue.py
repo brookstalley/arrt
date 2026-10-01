@@ -341,6 +341,10 @@ class CatalogueService:
         artwork = self._require_artwork(artwork_id)
         return ArtworkDetail(artwork=artwork, artist=self._resolve_artist(artwork.artist_id, {}))
 
+    def accepted_work_ids(self) -> Sequence[str]:
+        """Every work in circulation, by id, oldest first: what Programming reconciles against."""
+        return self._store.accepted_artwork_ids()
+
     def find_artwork(self, artwork_id: str) -> ArtworkDetail | None:
         """`get_artwork` for a caller to whom an unknown id is an answer, not a mistake.
 

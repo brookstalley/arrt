@@ -30,6 +30,7 @@ import re
 import unicodedata
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Final
 
 from arrt.persistence.adapter import BY_ID, TableAdapter, from_iso, require_datetime, to_iso
@@ -161,8 +162,14 @@ CREATE TABLE IF NOT EXISTS themes (
     description               TEXT,
     created_at                TEXT NOT NULL,
     rotation_interval_seconds INTEGER,
-    shuffle                   INTEGER
+    shuffle                   INTEGER,
+    is_default                INTEGER NOT NULL DEFAULT 0
 );
+
+-- New works join the default theme, and there is at most one. "At most", not
+-- "exactly": a catalogue with no theme marked is ordinary, and acceptance then
+-- joins nothing.
+CREATE UNIQUE INDEX IF NOT EXISTS themes_one_default ON themes(is_default) WHERE is_default = 1;
 
 -- A place where art hangs, and nothing about the device that serves it. The
 -- forbidden columns are listed on the `Wall` record; the rule is that this table
@@ -275,6 +282,16 @@ CREATE TABLE IF NOT EXISTS theme_memberships (
 );
 
 CREATE INDEX IF NOT EXISTS theme_memberships_by_artwork ON theme_memberships(artwork_id);
+
+-- Every work the default theme has been offered, joined or not, so that a work
+-- is offered once: neither a restore, which the Library announces as an
+-- acceptance, nor startup reconciliation puts back a work the curator took out.
+-- `artwork_id` is deliberately not a foreign key: it is Programming's reference
+-- to a Library work, which the seam keeps opaque.
+CREATE TABLE IF NOT EXISTS default_theme_offers (
+    artwork_id  TEXT PRIMARY KEY,
+    offered_at  TEXT NOT NULL
+);
 
 -- One row per wall, seeded when the wall is created so no caller ever has to
 -- make one. The standing directive is a property of the *wall* rather than of
@@ -598,6 +615,15 @@ class SqliteCatalogue(TableAdapter):
         )
         return ArtworkPage(artworks=[_artwork(row) for row in rows], total=total)
 
+    def accepted_artwork_ids(self) -> Sequence[str]:
+        # Oldest first, `rowid` breaking a tie within one clock tick, so a catch-up
+        # joins works to a theme in the order they arrived.
+        rows = self._store.select_rows(
+            'SELECT a."id" AS id FROM artworks a WHERE a."status" = ? ORDER BY a."created_at", a.rowid',
+            (str(ArtworkStatus.ACCEPTED),),
+        )
+        return [row["id"] for row in rows]
+
     # -- what a work is, and what a filter would select -----------------------
 
     def add_facet(self, facet: WorkFacet) -> None:
@@ -757,6 +783,37 @@ class SqliteCatalogue(TableAdapter):
 
     def list_memberships(self, theme_id: str) -> Sequence[ThemeMembership]:
         return self._list("theme_memberships", {"theme_id": theme_id}, _BY_POSITION, _membership)
+
+    # -- the default theme ----------------------------------------------------
+
+    def get_default_theme(self) -> Theme | None:
+        marked = self._list("themes", {"is_default": 1}, _BY_NAME, _theme)
+        return marked[0] if marked else None
+
+    def mark_default_theme(self, theme_id: str) -> None:
+        # Cleared before set, in one transaction: the partial unique index
+        # refuses a second mark, so setting first would be refused, and a clear
+        # without its set would leave no default that anybody chose.
+        with self._store.transaction():
+            for theme in self._list("themes", {"is_default": 1}, _BY_NAME, _theme):
+                if theme.id != theme_id:
+                    self._update("themes", BY_ID, {**_theme_row(theme), "is_default": 0}, subject=f"theme {theme.id!r}")
+            theme = self.get_theme(theme_id)
+            if theme is None:
+                reason = "it is not stored."
+                raise StorageError(f"Could not mark theme {theme_id!r} the default: {reason}", reason=reason)
+            self._update("themes", BY_ID, {**_theme_row(theme), "is_default": 1}, subject=f"theme {theme_id!r}")
+
+    def record_offer(self, artwork_id: str, offered_at: datetime) -> None:
+        self._add(
+            "default_theme_offers",
+            {"artwork_id": artwork_id, "offered_at": to_iso(offered_at)},
+            subject=f"the default theme's offer of artwork {artwork_id!r}",
+            key=("artwork_id",),
+        )
+
+    def offered_work_ids(self) -> set[str]:
+        return {row["artwork_id"] for row in self._store.scan("default_theme_offers")}
 
     # -- walls ----------------------------------------------------------------
 
@@ -940,6 +997,8 @@ def _theme_row(theme: Theme) -> dict[str, Any]:
         # would raise and bool(None) would silently write a decision the curator
         # never made.
         "shuffle": None if theme.shuffle is None else int(theme.shuffle),
+        # `is_default` is not written from the record: only `mark_default_theme`
+        # writes it, so saving a theme leaves the mark where it is.
     }
 
 
@@ -1098,6 +1157,7 @@ def _theme(row: Mapping[str, Any]) -> Theme:
         description=row["description"],
         rotation_interval_seconds=row["rotation_interval_seconds"],
         shuffle=None if row["shuffle"] is None else bool(row["shuffle"]),
+        is_default=bool(row["is_default"]),
     )
 
 

@@ -476,6 +476,11 @@ class Theme:
     description: str | None = None
     rotation_interval_seconds: int | None = None
     shuffle: bool | None = None
+    #: Whether works the Library accepts join this theme. At most one theme
+    #: carries it. Read from the store and written only by marking a theme the
+    #: default, never by saving a theme, so a rename built from a stale copy
+    #: cannot move or clear it.
+    is_default: bool = False
 
 
 @dataclass(frozen=True, slots=True)

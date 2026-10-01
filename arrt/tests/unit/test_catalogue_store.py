@@ -80,8 +80,11 @@ _EXPECTED_SCHEMA = {
     # `is_active` was here until 2026-08-12, when hanging became an act against a
     # named wall. It is the first column this schema has *removed*, which the
     # widening step cannot do — `migrations.py` does, and the test below watches
-    # a legacy file lose it.
-    "themes": {"id", "name", "description", "created_at", "rotation_interval_seconds", "shuffle"},
+    # a legacy file lose it. Widened 2026-10-01 with `is_default`, the theme new
+    # works join, under the partial index that allows at most one.
+    "themes": {"id", "name", "description", "created_at", "rotation_interval_seconds", "shuffle", "is_default"},
+    # Which works the default theme has been offered, so each is offered once.
+    "default_theme_offers": {"artwork_id", "offered_at"},
     "walls": {"id", "name", "created_at", "token_verifier", "token_issued_at"},
     "theme_assignments": {"wall_id", "theme_id", "assigned_at"},
     "directives": {"wall_id", "sequence", "pinned_work_id"},

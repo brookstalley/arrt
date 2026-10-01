@@ -394,6 +394,10 @@ def _update_theme(services: Services, arguments: Mapping[str, Any]) -> dict[str,
     return ok(theme=_theme_fields(theme))
 
 
+def _make_default_theme(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    return ok(theme=_theme_fields(services.display.make_default(arguments["theme_id"])))
+
+
 def _delete_theme(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     services.display.delete_theme(arguments["theme_id"])
     return ok(deleted=arguments["theme_id"])
@@ -875,6 +879,7 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_theme", "create"): _create_theme,
     ("art_theme", "update"): _update_theme,
     ("art_theme", "delete"): _delete_theme,
+    ("art_theme", "make_default"): _make_default_theme,
     ("art_theme", "add"): _add_to_theme,
     ("art_theme", "remove"): _remove_from_theme,
     ("art_theme", "reorder"): _reorder_in_theme,
@@ -1044,6 +1049,7 @@ def _theme_fields(theme: Theme) -> dict[str, Any]:
         "rotation_interval_seconds": theme.rotation_interval_seconds,
         "shuffle": theme.shuffle,
         "created_at": _moment(theme.created_at),
+        "is_default": theme.is_default,
     }
 
 

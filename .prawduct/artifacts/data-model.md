@@ -161,6 +161,8 @@ to serve, elicited from the Product Brief's core flows:
 | Q13 | What has the curator reacted warmly or coolly to — by artist, movement, era or subject — so a later conversation opens knowing it and discovery can weight what it proposes? | 1, 2 |
 | Q14 | How was each of those judgments arrived at, so it can be revisited, corrected, or rebuilt if the way we derive them changes? | 1 |
 | Q15 | What is this work — its movement, period and subject — so a catalogue of thousands can be filtered down to the handful worth looking at, and so taste can be matched against it? | 5 |
+| Q16 | Which theme do new works join, if any, so that what the curator accepts lands somewhere it can be hung? At most one, enforced by the store. | Ruling 8 |
+| Q17 | Has this work already been offered to the default theme, so that neither a restart nor a restore puts back a work the curator took out? | Ruling 8 |
 
 **Q15 is what makes the collection navigable at the amended scale**
 (`nonfunctional-requirements.md`, thousands of works). At 41 works a curator
@@ -523,6 +525,16 @@ naming and grouping concept, not an accounts concept.
 | `name` | string | required, unique | e.g. "American Modernists". |
 | `description` | text | nullable | |
 | `created_at` | datetime | auto | |
+| `is_default` | boolean | not null, default false; at most one true (partial unique index `themes_one_default`) | Whether new works join this theme (Q16). Written only by *make default*, which moves the mark in one transaction, so a rename or any other update cannot clear it. A theme carrying it cannot be deleted; renaming it keeps it. *Built 2026-10-01.* |
+
+> **The default theme** *(the owner's ruling 8, 2026-10-01: "There should be a
+> default 'all works' theme")*. Every work the Library announces as accepted joins
+> it, at the end of its order, once (see **DefaultThemeOffer**). With no theme
+> marked, an acceptance joins nothing and still succeeds. The owner's existing
+> *All works* is marked by migration: on a file holding works but no offers (one
+> written before this field), the theme named *All works*, ignoring case, is
+> marked if no theme already is. A catalogue without one gets no default until
+> the curator makes one, from the Theme screen or `art_theme(action='make_default')`.
 
 > **A theme is global, and hanging it is a separate act** *(ruled by the operator
 > 2026-08-12)*. This entity carried `is_active` until that ruling — a boolean that
@@ -571,6 +583,33 @@ Join entity. Explicit rather than implicit so ordering can be curated.
 > same list; a null position survives as something a curator can ask for on a move
 > and as something no add produces. Reasoning is in `api-contract.md` § the theme
 > routes.
+
+### DefaultThemeOffer
+
+> **Programming-owned.** `artwork_id` is an opaque work id with no foreign key,
+> the shape `architecture.md` seam rule 3 asks of every new reference across the
+> seam.
+
+One row per work the default theme has been offered, whether or not one existed
+to join (Q17). It is what makes the join happen once: the `work.accepted` event
+is published for a restored work as well as a new one, and startup
+reconciliation offers every accepted work that has no row, so without this record
+a work the curator took out of the default theme would be put back by the next
+restore or restart.
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `artwork_id` | UUID | PK; not a foreign key | The work offered. |
+| `offered_at` | datetime | auto | When. |
+
+> **Recorded even when no theme is the default**, so that marking one later does
+> not sweep in every work accepted before it. The theme a work was offered to is
+> not recorded: nothing asks it, and membership already says where the work is.
+>
+> **Back-filled once.** The migration that marks *All works* also records an offer
+> for every work already in the catalogue, because those works predate the
+> default and were placed by hand. The guard is what the file holds, as for every
+> migration here: works present and no offers at all.
 
 ### Wall
 

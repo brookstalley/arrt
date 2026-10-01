@@ -196,6 +196,10 @@ class CatalogueStore(Protocol):
         """Return a page of works matching `query` in `order`, stable across pages, with the unpaged total."""
         ...
 
+    def accepted_artwork_ids(self) -> Sequence[str]:
+        """Every work in circulation, by id, oldest first."""
+        ...
+
     # -- what a work is, and what a filter would select -----------------------
 
     def add_facet(self, facet: WorkFacet) -> None:

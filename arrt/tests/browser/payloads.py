@@ -326,6 +326,7 @@ def a_theme(**overrides) -> ThemeOut:
         "rotation_interval_seconds": None,
         "shuffle": None,
         "created_at": "2026-08-12T09:00:00+00:00",
+        "is_default": False,
     }
     return ThemeOut(**(fields | overrides))
 

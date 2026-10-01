@@ -116,7 +116,7 @@ assumptions above.
 ## Status
 
 - [x] Chunk 01: Library search ignores accents
-- [ ] Chunk 02: All works is the default theme
+- [x] Chunk 02: All works is the default theme
 - [ ] Chunk 03: Works and artists carry a Wikidata QID
 - [ ] Chunk 04: The Artist page and Library › Artists
 
@@ -175,6 +175,14 @@ commits, with a failed subscriber caught up by reconciliation at the next start.
 - **Restore may publish the same event.** Read what `restore` publishes. Whether
   a restored work rejoins the default theme is a question for the owner, raised
   in the chunk rather than decided silently.
+  *(Read 2026-10-01: `restore_artwork` publishes `work.accepted`, the same event
+  as a new work, and every `add_artwork` publishes it, seed ingest and manual
+  adds included. Archiving leaves theme memberships alone.)*
+  `[ASSUMPTION: a work is offered to the default theme once, the first time the
+  Library announces it, and never again: a restored work does not rejoin, so a
+  removal by hand stands. Every way in counts as an acceptance, not only a Get |
+  MED impact | recommended to the owner 2026-10-01, who said "keep going"
+  without ruling; user can correct]`
 
 **A persisted designation**, so the questions it must answer come first:
 
@@ -206,6 +214,9 @@ Library › Themes mark the default theme with glyph, word and colour.
    keeps it the default.
 4. The migration designates *All works* on a copy of the owner's catalogue shape
    and is idempotent across two runs with different theme sets.
+   *(Built, and also run twice on an actual copy of the owner's catalogue on
+   2026-10-01: All works marked, 40 of 40 works recorded as offered, its 40
+   members untouched.)*
 5. The seam guard and the curation, browser and root suites pass.
 6. An operator-verification entry covers the default mark on the Theme screen.
 

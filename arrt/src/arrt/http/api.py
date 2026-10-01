@@ -316,6 +316,18 @@ def delete_theme(request: Request, theme_id: str) -> ThemeListOut:
     return ThemeListOut(themes=[_placement(placement) for placement in services.display.survey_themes()])
 
 
+@router.post("/themes/{theme_id}/default")
+def make_default_theme(request: Request, theme_id: str) -> ThemeListOut:
+    """Make this the theme new works join, taking the mark off whichever had it.
+
+    Answers with every theme, because the act changes two of them: the one
+    marked and the one that stopped being.
+    """
+    services = _services(request)
+    services.display.make_default(theme_id)
+    return ThemeListOut(themes=[_placement(placement) for placement in services.display.survey_themes()])
+
+
 @router.post("/themes/{theme_id}/works")
 def add_to_theme(request: Request, theme_id: str, body: AddWork) -> ThemeDetailOut:
     """Place a work in a theme, and return the order that results.
@@ -894,6 +906,7 @@ def _theme(theme: Theme) -> ThemeOut:
         rotation_interval_seconds=theme.rotation_interval_seconds,
         shuffle=theme.shuffle,
         created_at=theme.created_at.isoformat(),
+        is_default=theme.is_default,
     )
 
 

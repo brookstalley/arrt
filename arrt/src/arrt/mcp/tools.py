@@ -746,6 +746,18 @@ ART_THEME: Final = ToolRecord(
             ),
         ),
         Action(
+            name="make_default",
+            description="Make this the theme that newly accepted works join, taking the mark off whichever had it.",
+            example="art_theme(action='make_default', theme_id='<a theme_id>')",
+            params=(_THEME_ID,),
+            tips=(
+                "At most one theme is the default; action='list' shows which, as is_default. Each work joins it "
+                "once, when it is accepted, at the end of the order. Works already in the catalogue are not added "
+                "by this, and a work taken out of the default by hand is not put back.",
+                "The default cannot be deleted. Make another theme the default first.",
+            ),
+        ),
+        Action(
             name="add",
             description="Put a work into a theme.",
             example="art_theme(action='add', theme_id='<a theme_id>', artwork_id='<an artwork_id>', position=0)",

@@ -249,6 +249,8 @@ class ThemeOut(BaseModel):
     rotation_interval_seconds: int | None
     shuffle: bool | None
     created_at: str
+    #: Whether works the curator accepts join this theme. At most one is.
+    is_default: bool
 
 
 class WallRefOut(BaseModel):

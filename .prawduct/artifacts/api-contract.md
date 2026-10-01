@@ -163,7 +163,7 @@ lesson from a different count, which is why this one is stated as a shape.*
 | `art_discovery` | `estimate`, `start`, `status`, `approve`, `decline`, `cancel`, `resolve_images`, `list_runs`, `spend`, `help` | **The only tool that spends money in amounts worth authorising** — see the correction below. |
 | `art_review` | `list_works`, `get_work`, `list_images`, `set_canonical`, `set_verdict`, `reject_image`, `help` | Returns thumbnails; see Inputs & Outputs. Never spends. |
 | `art_catalogue` | `list`, `get`, `sources`, `archive`, `restore`, `retry_acquisition`, `set_mat_color`, `regenerate`, `help` | `sources` is the provenance read; see below. |
-| `art_theme` | `list`, `get`, `create`, `update`, `delete`, `add`, `remove`, `reorder`, `activate`, `unhang`, `help` | `activate` changes the wall immediately; `unhang` leaves the wall showing what it was showing. |
+| `art_theme` | `list`, `get`, `create`, `update`, `delete`, `make_default`, `add`, `remove`, `reorder`, `activate`, `unhang`, `help` | `activate` changes the wall immediately; `unhang` leaves the wall showing what it was showing. `make_default` (added 2026-10-01) moves the mark new works join, and changes no wall. |
 | `art_display` | `walls`, `add_wall`, `status`, `sync`, `show_now`, `next`, `help` | Every action goes through the theme manifest — see below. `walls` is where every other action's `wall_id` comes from. |
 | `art_taste` | `list`, `set`, `delete`, `help` | The curator's standing judgments about artists, movements and subjects. Never spends. Added 2026-08-11 by operator decision — see below, and § The routes the interface design requires. |
 
@@ -1321,6 +1321,7 @@ spellings for "change this" costs more than the orthodoxy is worth here.
 | `GET /api/works` — facet counts in the same response | The counts the IA's disabled-not-hidden rule needs. **Not a second route** — see below. **Built 2026-08-12**, with the latency measured. | `WorkFacet`, built | as above |
 | `POST /api/works/{id}/archive`, `/restore` | Take a work out of circulation, and put it back. **Not a delete** — see below. **Built 2026-08-12**; both read back the full `WorkDetailOut` dossier, because the screen that archives is the screen that shows the work and a slimmer body would only send it straight back for the rest. | `Artwork.status`, built | `art_catalogue(action='archive'\|'restore')`, already designed |
 | `POST /api/themes/{id}` | Rename. **Built 2026-08-12**; answers with `ThemeOut`, so the screen repaints the name the service *normalised* rather than the one it typed. Its body carries a name and **nothing else** — see below. | `Theme`, built | `art_theme(action='update')`, already designed |
+| `POST /api/themes/{id}/default` | Make this the theme newly accepted works join, taking the mark off whichever had it (`data-model.md` § Theme, `is_default`). Answers with `ThemeListOut`, because the act changes two themes. `ThemeOut` gains `is_default`, an added field. **Built 2026-10-01.** | `Theme.is_default`, `DefaultThemeOffer` | `art_theme(action='make_default')`, a new action; `is_default` added to every theme the tool returns |
 | `DELETE /api/themes/{id}` | Delete. **The refusal it must reuse is already built** — see below. **Built 2026-08-12**; answers with `ThemeListOut`, the themes that remain, so the list repaints from the response like every other membership act. | `Theme`, built, and `DisplayService.delete_theme`'s guard with it | `art_theme(action='delete')`, built and wired to that guard |
 | `GET`/`POST /api/conversations` | The thread list, ordered by `last_turn_at`; and starting one. **Built 2026-08-12.** | `Conversation`, built | none proposed — see below |
 | `GET /api/conversations/{id}` | One thread with its turns. **Built 2026-08-12.** | `ConversationTurn`, built | none proposed |
@@ -1550,6 +1551,11 @@ any wall" on 2026-08-12, when a theme stopped being active and started hanging s
 behaviour**, and the HTTP route now shares it: `DELETE /api/themes/{id}` calls that
 method and writes no guard of its own, which is what keeps one refusal sentence
 reaching a curator and an agent alike.
+
+**Deleting the default theme refuses too** *(built 2026-10-01)*, in the same method
+and so on both surfaces: the refusal names the theme as the default and says to
+make another theme the default first. Renaming it keeps the mark, because the mark
+is written only by `make_default`, never by saving a theme.
 
 **The rename body carries a name and nothing else, and that is a decision.**
 `update_theme` distinguishes "leave this alone" from "clear this" with a sentinel, so

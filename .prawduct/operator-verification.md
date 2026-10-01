@@ -10,6 +10,25 @@ each entry, which is the durable form.
 
 ## Pending
 
+### The default theme, and search without accents — added 2026-10-01
+
+**`build-plan-ia-foundations.md` Chunks 01 and 02.** Run it against your own
+catalogue (`cd arrt && uv run python -m arrt`). The first start marks your *All
+works* theme the default and records your 40 works as already placed, so nothing
+moves on its own.
+
+1. **Themes:** *All works* should carry ★ *default* in the accent colour, and
+   every other theme a *Make default* button. Make another the default and back:
+   the mark should move each time. Does the badge read as a role rather than a
+   warning?
+2. **Delete *All works*:** it should be refused, saying to make another theme
+   the default first.
+3. **Accept a work from a search:** it should appear at the end of *All works*.
+   Take it out of *All works*, restart the server, and archive and restore it:
+   it should stay out.
+4. **Search without accents:** type `dali` in the top bar. Your Dalí should be
+   offered before *Search museums*.
+
 ### The *arr sidebar, at desktop width and on a phone — added 2026-09-30
 
 **`build-plan-arr-navigation.md` Chunk 02.** The three tabs are now a Sonarr-style

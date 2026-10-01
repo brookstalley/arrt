@@ -1025,6 +1025,14 @@ h2 {
   line-height: 1;
 }
 
+/* The theme new works join. Solid accent, because it is a standing role rather
+   than a state a curator is warned about; the star and the word carry it first. */
+.badge-default {
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: var(--accent);
+}
+
 .badge-native {
   border-style: solid;
 }

@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Any, Final
 
 from arrt import observations
-from arrt.library.facade import LibraryFacade, PlayableWork, Unplayable, UnplayableReason, WorkChanged
+from arrt.library.facade import LibraryFacade, PlayableWork, Unplayable, UnplayableReason, WorkChange, WorkChanged
 from arrt.persistence.records import Directive, Theme, ThemeAssignment, ThemeMembership, Wall
 from arrt.programming.manifest import heartbeat
 from arrt.programming.manifest.builder import (
@@ -223,6 +223,10 @@ class DisplayService:
             raise ServiceError(f"No theme with id {theme_id!r} is in the catalogue.")
         return theme
 
+    def default_theme(self) -> Theme | None:
+        """The theme new works join, or None while the curator has marked none."""
+        return self._store.get_default_theme()
+
     # -- reads: walls and what hangs on them -----------------------------------
 
     def get_wall(self, wall_id: str) -> Wall:
@@ -392,6 +396,61 @@ class DisplayService:
         )
         store_write(self._store.add_theme, theme)
         return theme
+
+    def make_default(self, theme_id: str) -> Theme:
+        """Make this the theme new works join, taking the mark off whichever had it.
+
+        **Only works accepted from now on join it.** Every work already in the
+        catalogue has been offered to the default once, whatever was the default
+        then, and marking a theme is not a request to fill it with everything
+        accepted before; a curator who wants that adds them from Library › Works.
+        """
+        self.get_theme(theme_id)
+        store_write(self._store.mark_default_theme, theme_id)
+        return self.get_theme(theme_id)
+
+    def offer_to_default(self, work_ids: Iterable[str]) -> Sequence[str]:
+        """Offer each work the default theme once, and return the ones that joined.
+
+        The owner's ruling 8: what is accepted lands in the default theme, at the
+        end of its order. **Once per work, ever**, and that is what the offer
+        record is for: the Library announces a restored work as accepted, exactly
+        as it announces a new one, and startup offers every accepted work with no
+        offer recorded. Without the record either would put back a work the
+        curator took out of the default theme by hand. A work offered while no
+        theme was the default is recorded too, so marking one later does not sweep
+        in everything accepted before it.
+
+        A work already in the default theme, placed there by hand before its
+        announcement arrived, is recorded and left where the curator put it.
+        Offer and membership commit together, so a work is never recorded as
+        offered without having joined, or joined without the record that stops a
+        second join.
+        """
+        joined: list[str] = []
+        with self._store.transaction():
+            default = self._store.get_default_theme()
+            offered = self._store.offered_work_ids()
+            for work_id in dict.fromkeys(work_ids):
+                if work_id in offered:
+                    continue
+                if default is not None and self._store.get_membership(default.id, work_id) is None:
+                    self.add_to_theme(theme_id=default.id, artwork_id=work_id)
+                    joined.append(work_id)
+                store_write(self._store.record_offer, work_id, datetime.now(UTC))
+        if default is not None and joined:
+            log.info("Added %d newly accepted work(s) to the default theme %r.", len(joined), default.name)
+        return joined
+
+    def catch_up_the_default(self) -> Sequence[str]:
+        """Offer the default theme every accepted work that was never offered it. Run at start.
+
+        For an announcement lost between the Library's commit and this plane's
+        handler. Every work the catalogue held before the default existed was
+        recorded as offered when the file was migrated, so this finds only what a
+        crash dropped.
+        """
+        return self.offer_to_default(self._library.accepted_work_ids())
 
     def activate_theme(self, theme_id: str, *, wall_id: str) -> ManifestBuild:
         """Hang this theme on this wall, and publish what follows.
@@ -644,6 +703,11 @@ class DisplayService:
         a side effect of tidying up the catalogue.
         """
         theme = self.get_theme(theme_id)
+        if theme.is_default:
+            raise ServiceError(
+                f"Theme {theme.name!r} is the default, which new works join, so it cannot be deleted. "
+                "Make another theme the default first, and then delete this one."
+            )
         hanging = self.walls_hanging(theme_id)
         if hanging:
             where = ", ".join(repr(wall.name) for wall in hanging)
@@ -841,13 +905,16 @@ class DisplayService:
     # -- keeping published manifests true to the Library ---------------------
 
     def on_work_changed(self, event: WorkChanged) -> None:
-        """The Library changed a work: take it off any wall it can no longer go on.
+        """The Library changed a work: take it off any wall it can no longer go on, and offer a new one the default theme.
 
-        Subscribed to the Library's announcements. The rule is the one startup
-        reconciliation applies, narrowed to the one work, so the running server
-        and a restarted one cannot disagree.
+        Subscribed to the Library's announcements. Both rules are the ones startup
+        applies, narrowed to the one work, so the running server and a restarted
+        one cannot disagree. The offer is made once per work, so an acceptance
+        announced for a restore offers nothing (`offer_to_default`).
         """
         self.reconcile([event.work_id], cause=event.change.value)
+        if event.change is WorkChange.ACCEPTED:
+            self.offer_to_default([event.work_id])
 
     def reconcile(self, work_ids: Iterable[str] | None = None, *, cause: str = "startup") -> Reconciliation:
         """Make every published manifest and pin agree with what the Library will still show.
