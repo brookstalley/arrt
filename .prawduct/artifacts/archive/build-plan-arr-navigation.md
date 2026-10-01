@@ -35,7 +35,13 @@ governed_by:
       - "the mechanical rows (formatting, naming, imports, specific exceptions, no hardcoded deployment values) → conforms: every chunk runs the curation plane's three commands, and the root suite whenever it touches `tests/` or `information-architecture.md`"
       - "the browser suite runs whenever anything under `static/` changes → binds Chunks 02-04"
 last_validated: null
+lifecycle: completed
+archived: 2026-10-01
+released_in: v0.1.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — The *arr Navigation
 

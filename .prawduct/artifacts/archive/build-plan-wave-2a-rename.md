@@ -17,7 +17,13 @@ governed_by:
     dispositions:
       - "the display plane never requires the curation plane to be reachable → inapplicable because: nothing about either process's behaviour changes; only the names do"
 last_validated: null
+lifecycle: completed
+archived: 2026-10-01
+released_in: v0.1.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — Wave 2a: Curatarr and Arrt, in the code
 

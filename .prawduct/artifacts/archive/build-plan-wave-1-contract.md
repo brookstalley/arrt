@@ -25,7 +25,13 @@ governed_by:
       - "plane isolation (display imports no curation module) → conforms: display's contract tests read JSON files under contract/, never curation's code"
       - "the mechanical norm-index rows (formatting, naming, imports, logging-not-print, type annotations, specific exceptions) → conforms: every chunk runs each touched plane's lint, format and tests"
 last_validated: null
+lifecycle: completed
+archived: 2026-10-01
+released_in: v0.1.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — Wave 1: The Player Contract
 

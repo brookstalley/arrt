@@ -65,7 +65,7 @@
 
 ## 2026-10-01: pyjwt and urllib3 bumped for the open Dependabot alerts
 
-<!-- prawduct: scope=deps-security-2026-10 -->
+<!-- prawduct: scope=deps-security-2026-10 | release=v0.1.0 -->
 
 **Why:** 18 open Dependabot alerts. pyjwt 2.13.0 (12 alerts, one critical)
 reaches the server through `mcp[crypto]`; urllib3 2.7.0 (3 per plane) reaches
@@ -82,7 +82,7 @@ them all and a one-tip set misses an unmerged branch cut after the rename.
 
 ## 2026-10-01: Arrt and Postarr — the products renamed again
 
-<!-- prawduct: scope=rename-arrt-postarr -->
+<!-- prawduct: scope=rename-arrt-postarr | release=v0.1.0 -->
 
 **Why:** the operator renamed both products under a hard requirement: the
 server is now **Arrt** and the player **Postarr**. Until today they were
@@ -123,7 +123,7 @@ be built as a feature, so there is no indirection; it is a plain rename.
 
 ## 2026-09-30: The *arr navigation: the sidebar, Activity, two-scope search and the page toolbar
 
-<!-- prawduct: scope=arr-navigation -->
+<!-- prawduct: scope=arr-navigation | release=v0.1.0 -->
 
 **Why:** the owner ruled that Curatarr's browser surface should be laid out like
 the *arr apps: *"More important to be familiar than to have our own thing."*
@@ -197,7 +197,7 @@ the *arr apps: *"More important to be familiar than to have our own thing."*
 
 ## 2026-09-30: The Library/Programming seam, and the Player pulls over HTTP (wave 2b)
 
-<!-- prawduct: scope=wave-2b-seams-and-http -->
+<!-- prawduct: scope=wave-2b-seams-and-http | release=v0.1.0 -->
 
 **Why:** wave 2 of `re-architecture.md`. Programming has to stop reaching into
 the Library before the store can be split (wave 3). And the Player needs a
@@ -247,7 +247,7 @@ the queue, but from wave 2a.)
 
 ## 2026-09-30: Curatarr and Arrt, in the code (wave 2a)
 
-<!-- prawduct: scope=wave-2a-rename -->
+<!-- prawduct: scope=wave-2a-rename | release=v0.1.0 -->
 
 **Why:** the products have names, and wave 2b is about to move modules across new
 packages. Renaming first means no file is touched twice.
@@ -285,7 +285,7 @@ before this rename.
 
 ## 2026-09-30: The learnings compacted into one-line rules
 
-<!-- prawduct: scope=learnings-compact -->
+<!-- prawduct: scope=learnings-compact | release=v0.1.0 -->
 
 **Why:** `core.md` had grown to 78KB of narrative against a 12KB cap and was
 frozen until compacted. It is now 9.3KB of one-line rules, with `display.md`,
@@ -306,7 +306,7 @@ plane-isolation rule.
 
 ## 2026-09-30: The Player contract (wave 1)
 
-<!-- prawduct: scope=wave-1-contract -->
+<!-- prawduct: scope=wave-1-contract | release=v0.1.0 -->
 
 **Why:** Wave 2 builds both ends of the HTTP channel between Curatarr and
 Displayarr. The contract between them has to exist first, and be tested against
@@ -379,7 +379,7 @@ guess.
 
 ## 2026-09-30: Curatarr and Displayarr; a token per wall; wave 0 closed
 
-<!-- prawduct: scope=re-architecture -->
+<!-- prawduct: scope=re-architecture | release=v0.1.0 -->
 
 **Why:** The operator made three rulings: "wave 0 -- abandon. We'll rebuild with
 this new plan"; "each wall gets a token"; and "The library/performance
@@ -403,7 +403,7 @@ controller will be Curatarr, the device side playback will be Displayarr."
 
 ## 2026-09-30: Wave 1 begins: what is showing versus how, the schedule, scenes, and the waves re-cut
 
-<!-- prawduct: scope=re-architecture -->
+<!-- prawduct: scope=re-architecture | release=v0.1.0 -->
 
 **Why:** A review of the morning's re-architecture found internal contradictions
 in the forward notes and four structural gaps. Separately, the operator framed
@@ -436,7 +436,7 @@ artifacts.
 
 ## 2026-09-30: Direction change — a Library/Programming server and a Player, documented before any code
 
-<!-- prawduct: scope=re-architecture -->
+<!-- prawduct: scope=re-architecture | release=v0.1.0 -->
 
 **Why:** The operator decided to split the product into an *arr-style server,
 holding the Library (procure, maintain, upgrade, enhance) and Programming (walls,

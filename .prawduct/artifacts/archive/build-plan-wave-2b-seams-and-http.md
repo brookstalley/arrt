@@ -33,7 +33,13 @@ governed_by:
       - "the two planes agree on the heartbeat by construction → conforms, and extended: the POST writes the same document to the same place the file reader looks"
       - "the mechanical norm-index rows → conforms: every chunk runs each touched project's lint, format and tests"
 last_validated: null
+lifecycle: completed
+archived: 2026-10-01
+released_in: v0.1.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — Wave 2b: The Seams, and the HTTP Channel Beside the File
 
