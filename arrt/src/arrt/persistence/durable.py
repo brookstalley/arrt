@@ -445,6 +445,19 @@ class SqliteDurableStore:
             rows = self._connection.execute(statement, tuple(values)).fetchall()
         return [dict(row) for row in rows]
 
+    def define_function(self, name: str, function: Callable[[Any], Any]) -> None:
+        """Make a one-argument Python function callable from SQL on this file.
+
+        For the adapter whose statements call it, under the same reasoning as
+        `select_rows`: the name and the SQL that uses it are written in one module,
+        so this store needs to know neither. Declared deterministic, which is the
+        promise that the same argument always gives the same answer, and it is the
+        caller's to keep. Defining a name twice replaces it, so two adapters over
+        one file may each define what they call.
+        """
+        with self._lock:
+            self._connection.create_function(name, 1, function, deterministic=True)
+
     def close(self) -> None:
         """Release the underlying resources."""
         with self._lock:

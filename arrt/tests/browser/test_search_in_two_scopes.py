@@ -43,6 +43,17 @@ def test_typing_offers_library_matches_then_a_search_of_everything(ui, seeded_se
     assert listbox.get_by_role("group", name="Add New").get_by_role("option").all_inner_texts() == ["Search museums for “Dalí”"]
 
 
+def test_typing_without_the_accent_still_offers_the_library_match(ui, seeded_service):
+    """The typeahead asks the same route as the grid, so the fold reaches it; this
+    holds that it asks with the words as typed rather than reaching nothing."""
+    ui.open("#walls")
+    ui.page.wait_for_selector("#view h2")
+
+    type_into_search(ui, "dali")
+
+    assert options(ui) == ["The Persistence of Memory — Salvador Dalí", "Search museums for “dali”"]
+
+
 def test_with_no_library_match_only_the_search_of_everything_is_offered(ui, seeded_service):
     """Sonarr leaves out the library group when nothing matches, rather than
     heading an empty list."""

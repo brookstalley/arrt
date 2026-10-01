@@ -141,6 +141,9 @@ keyboards produce it is told they hold no Dalí, and the only offer is a paid
 discovery run. That fails S1 and S2 outright, and it turns S2's "do I already have
 it?" into a wrong answer. It is a defect against the built search, separate from
 the IA question, and it is recorded here because this is where it was found.
+*(Fixed 2026-10-01 by `build-plan-ia-foundations.md` Chunk 01: search now ignores
+case, accents and ligatures on both sides, so each unaccented row in the table
+above finds its work. The table stays as the measurement that found it.)*
 
 Two things follow for the IA, and both are for the owner to rule on:
 

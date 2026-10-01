@@ -63,6 +63,28 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-01: Library search ignores case, accents and ligatures
+
+<!-- prawduct: chunks=01 | scope=ia-foundations -->
+
+**Why:** `dali`, `miro` and `rene` found nothing in a library holding Dalí, Miró
+and Magritte, and the typeahead offered only a paid museum search
+(`user-scenarios.md` § What the search box can mean). SQLite's `LIKE` ignores
+case for ASCII only and never ignores accents.
+
+**What:** both sides of the search clause pass through `search_fold`
+(casefold, NFKD with the marks dropped, and a short table for letters Unicode
+does not decompose, such as ø and œ). The catalogue adapter defines it on its
+own connection, via a new `SqliteDurableStore.define_function`. The searched
+columns are folded as one separator-joined string per work, and the fold
+remembers what it folded, so that a request's repeated evaluations stay cheap.
+A search response at 4,000 works went from 26–35 ms to 44–66 ms
+(`tools/search_latency.py`, which now times the folded clause too). The HTTP
+route, the MCP `list` action and the typeahead are tested with an unaccented
+query, as are a German ß, Greek, a ligature, and a name stored decomposed.
+Watched failing against the unfolded code first: 13 route tests and the
+typeahead test, every unaccented or non-ASCII spelling among them.
+
 ## 2026-10-01: pyjwt and urllib3 bumped for the open Dependabot alerts
 
 <!-- prawduct: scope=deps-security-2026-10 | release=v0.1.0 -->

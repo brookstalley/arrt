@@ -80,9 +80,9 @@ MAX_FACET_VALUES: Final[int] = 50
 
 #: How many words one search may carry. Terms narrow rather than widen, so
 #: dropping the surplus would silently *broaden* the result — the refusal names
-#: the cap instead. The bound exists because each term adds a `LIKE` against every
-#: searched column, and a pasted paragraph would compose a statement in the
-#: hundreds of clauses against a request nobody meant to make.
+#: the cap instead. The bound exists because each term adds a clause that folds
+#: and scans every work's searched text, and a pasted paragraph would compose a
+#: statement of dozens of them against a request nobody meant to make.
 MAX_SEARCH_TERMS: Final[int] = 8
 
 

@@ -115,7 +115,7 @@ assumptions above.
 
 ## Status
 
-- [ ] Chunk 01: Library search ignores accents
+- [x] Chunk 01: Library search ignores accents
 - [ ] Chunk 02: All works is the default theme
 - [ ] Chunk 03: Works and artists carry a Wikidata QID
 - [ ] Chunk 04: The Artist page and Library › Artists
@@ -143,6 +143,12 @@ its MCP twin, and the top-bar typeahead, which calls the route.
    so the fold is tested on more than one kind of mark.
 3. The facet counts and the theme filter agree with the folded search (the same
    query, narrowed), tested through the route, not the store.
+   *(Built: the facet half. The theme half does not apply: a theme and a search
+   cannot both narrow Library › Works, because a theme's works come from
+   `GET /api/themes/{id}` and neither route can express the other's narrowing, so
+   the screen lets the search win and says so (`themeIsShowing` in
+   `arrt/src/arrt/http/static/screens/collection.js`). Found while building,
+   2026-10-01.)*
 4. The curation, browser and root suites pass.
 
 ### Chunk 02: All works is the default theme

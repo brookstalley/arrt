@@ -1344,7 +1344,10 @@ up in the collection's response time on the real thousands-scale corpus.
 **How the filters are carried, and what comes back.** `q` is free text, split on
 whitespace, and every word must appear somewhere in the work's title, description,
 commentary, medium or date, or in its artist's name; a second word narrows rather
-than widens, and at most eight are accepted (more is refused, because dropping the
+than widens. **Case, accents and ligatures are ignored on both sides**, so `dali`
+finds Dalí, `strasse` finds Straße, `hammershoi` finds Hammershøi, and a name a
+source stored decomposed matches the one a keyboard types (`search_fold` in
+`arrt/src/arrt/persistence/sqlite.py`; built 2026-10-01). At most eight words are accepted (more is refused, because dropping the
 surplus would silently *broaden* the answer). Each facet kind is its own repeatable
 parameter named for the kind — `?movement=Baroque&movement=Rococo&era=17th+c.` —
 repeated rather than comma-joined, because a facet value may contain a comma and a
@@ -1394,6 +1397,20 @@ takes the same six arrays and `q`, and returns the same groups.
 > the same query for every kind that has none. **Counts still ride on the works
 > response.** The trigger now reads: revisit if the recompute shows up again on the
 > real corpus, measured with the tool above rather than estimated.
+>
+> **Re-measured 2026-10-01 when search began ignoring accents**, same tool, same
+> laptop. Folding runs in Python, once per work per evaluation of the clause, and
+> remembers what it folded. A search response went from **26–35 ms** to
+> **44–66 ms** median; the clause alone from **0.9–1.6 ms** to **5.3–6.0 ms**
+> (the tool's *LIKE, folded* rows). **These time the fast path only**: the
+> synthetic corpus's text is all ASCII (0 of 4,000 works otherwise), and half the
+> owner's 40 works are not. Text shaped like theirs was measured separately, in
+> `_FOLDS_REMEMBERED`'s comment. Unfiltered and facet-only responses are
+> unchanged, since they run no text clause. The FTS5 answer stands on its first
+> reason, which the fold does not touch: a contains-match is not a token match.
+> Note for whoever next revisits it: FTS5's `unicode61` tokenizer removes
+> diacritics itself, so an index would fold for free; the cost is still the
+> prefix-only match.
 
 **Three built routes gain a wall, and this is the only change in this section to
 something that already ships.** The operator ruled on 2026-08-12 that themes are
