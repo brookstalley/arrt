@@ -788,7 +788,7 @@ than a silent truncation of results.
 > re-deriving them every time a vendor's rate moves would make the bound follow
 > the market instead of the household. A cap has to sit at the ceiling of the
 > recorded range rather than at its middle, or it stops runs the analysis says are
-> ordinary. `curatarr/tests/unit/test_config.py` recomputes both
+> ordinary. `arrt/tests/unit/test_config.py` recomputes both
 > figures from the shipped settings, so the derivation is checked rather than
 > asserted, and a settings change that walks away from this analysis fails.
 >
@@ -842,7 +842,7 @@ the MCP tool surface.
 
 > **"CLI" struck 2026-08-02.** This sentence listed a third surface the product
 > does not have and has never planned: no CLI appears in `api-contract.md`'s
-> surface inventory or `product-brief.md`'s flows, and `curatarr/__main__.py` only
+> surface inventory or `product-brief.md`'s flows, and `arrt/__main__.py` only
 > starts the server. Left standing it would read as an unbuilt requirement — a
 > surface silently owed by whichever chunk noticed — when in fact nothing was ever
 > dropped. Struck rather than deleted quietly, so a reader of an earlier revision
@@ -1169,7 +1169,7 @@ artwork box  =  canvas − mat(panel geometry, mat inches)
 bottom weighting produces: 1723 implies a bottom margin 1.97x the top while the
 42" row implies 1.15x, so at most one of the two could ever have been right. Both
 rows above are now computed by `Settings.tv_artwork_box` and asserted against
-these exact figures in `curatarr/tests/unit/test_config.py`, so this table has a
+these exact figures in `arrt/tests/unit/test_config.py`, so this table has a
 mechanism behind it rather than being arithmetic done once by hand.)*
 
 **The floor is a minimum rendered size on the wall, in inches** — the same units as

@@ -275,7 +275,7 @@ def test_every_ci_pytest_invocation_scopes_a_path():
     prefix and would be reported". It would not: an unmatched line never enters
     the list, so it is skipped in silence. That is a coverage hole, not a loss of
     precision, and it sat exactly where `CLAUDE.md` and `docs/testing.md` point —
-    every command they document is written `cd curatarr && uv run pytest …`, which the prefixes
+    every command they document is written `cd arrt && uv run pytest …`, which the prefixes
     missed, as would any invocation inside a `run: |` block. A guard against a
     thrice-recurring defect, blind to the form the documentation teaches.
 

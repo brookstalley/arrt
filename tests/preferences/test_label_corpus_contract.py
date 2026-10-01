@@ -33,7 +33,7 @@ import pytest
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 CORPUS = REPOSITORY_ROOT / "postarr" / "src" / "postarr" / "panel" / "corpus.py"
-SEED_TABLE = REPOSITORY_ROOT / "curatarr" / "src" / "curatarr" / "seed" / "names.py"
+SEED_TABLE = REPOSITORY_ROOT / "arrt" / "src" / "arrt" / "seed" / "names.py"
 
 #: The name of curation's lookup, so a rename is a failure here rather than a
 #: silently empty comparison.

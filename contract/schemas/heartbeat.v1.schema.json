@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/brookstalley/curatarr/contract/schemas/heartbeat.v1.schema.json",
+  "$id": "https://github.com/brookstalley/arrt/contract/schemas/heartbeat.v1.schema.json",
   "title": "Player heartbeat, major 1",
   "description": "What Postarr reports about one wall, as facts rather than a verdict. The document Postarr writes today has no schema key, and a heartbeat without one is 1.0. Wave 2 adds the schema key (1.1) when the heartbeat moves to an HTTP POST. The server reads reported_at and keeps the rest as it came; additive keys are allowed. Semantics are in .prawduct/artifacts/player-contract.md. Minor 2 (wave 4) adds the optional capabilities block and scene_id, which Programming needs once it chooses label modes, judges adequacy per wall and shows whether a scene reached each wall.",
   "type": "object",

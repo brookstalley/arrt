@@ -129,61 +129,6 @@ wheels = [
 ]
 
 [[package]]
-name = "postarr"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "aiohttp" },
-    { name = "astral" },
-    { name = "pillow" },
-    { name = "python-dotenv" },
-    { name = "samsungtvws" },
-    { name = "websockets" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "black" },
-    { name = "hypothesis" },
-    { name = "jsonschema" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "ruff" },
-]
-epaper = [
-    { name = "omni-epd" },
-]
-raster = [
-    { name = "pycairo" },
-    { name = "pygobject" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiohttp", specifier = ">=3.14" },
-    { name = "astral" },
-    { name = "pillow" },
-    { name = "python-dotenv" },
-    { name = "samsungtvws", git = "https://github.com/NickWaterton/samsung-tv-ws-api.git?rev=fe95ef1d784cd32f49bf9a07ec479576574eea07" },
-    { name = "websockets", specifier = ">=13" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "black", specifier = ">=24" },
-    { name = "hypothesis", specifier = ">=6" },
-    { name = "jsonschema", specifier = ">=4.23" },
-    { name = "pytest", specifier = ">=8" },
-    { name = "pytest-asyncio", specifier = ">=0.24" },
-    { name = "ruff", specifier = ">=0.6" },
-]
-epaper = [{ name = "omni-epd", git = "https://github.com/robweber/omni-epd.git?rev=1a3acf59522c1a01f64585798af8d98226de8822" }]
-raster = [
-    { name = "pycairo", specifier = ">=1.26" },
-    { name = "pygobject", specifier = ">=3.50" },
-]
-
-[[package]]
 name = "astral"
 version = "3.2"
 source = { registry = "https://pypi.org/simple" }
@@ -869,6 +814,61 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f9/e2/3e91f31a7d2b083fe6ef3fa267035b518369d9511ffab804f839851d2779/pluggy-1.6.0.tar.gz", hash = "sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3", size = 69412, upload-time = "2025-05-15T12:30:07.975Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl", hash = "sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746", size = 20538, upload-time = "2025-05-15T12:30:06.134Z" },
+]
+
+[[package]]
+name = "postarr"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "astral" },
+    { name = "pillow" },
+    { name = "python-dotenv" },
+    { name = "samsungtvws" },
+    { name = "websockets" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "black" },
+    { name = "hypothesis" },
+    { name = "jsonschema" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "ruff" },
+]
+epaper = [
+    { name = "omni-epd" },
+]
+raster = [
+    { name = "pycairo" },
+    { name = "pygobject" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiohttp", specifier = ">=3.14" },
+    { name = "astral" },
+    { name = "pillow" },
+    { name = "python-dotenv" },
+    { name = "samsungtvws", git = "https://github.com/NickWaterton/samsung-tv-ws-api.git?rev=fe95ef1d784cd32f49bf9a07ec479576574eea07" },
+    { name = "websockets", specifier = ">=13" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "black", specifier = ">=24" },
+    { name = "hypothesis", specifier = ">=6" },
+    { name = "jsonschema", specifier = ">=4.23" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-asyncio", specifier = ">=0.24" },
+    { name = "ruff", specifier = ">=0.6" },
+]
+epaper = [{ name = "omni-epd", git = "https://github.com/robweber/omni-epd.git?rev=1a3acf59522c1a01f64585798af8d98226de8822" }]
+raster = [
+    { name = "pycairo", specifier = ">=1.26" },
+    { name = "pygobject", specifier = ">=3.50" },
 ]
 
 [[package]]

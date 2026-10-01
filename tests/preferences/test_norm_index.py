@@ -35,7 +35,7 @@ NORM_INDEX = REPOSITORY_ROOT / ".prawduct" / "artifacts" / "project-preferences.
 
 
 #: Every directory in this repository that holds a test tree, as the prefix a
-#: reference to one is written with — `""` for the root plane, `curatarr/`,
+#: reference to one is written with — `""` for the root plane, `arrt/`,
 #: `postarr/`.
 #:
 #: **Derived rather than listed.** A literal alternation of plane prefixes goes

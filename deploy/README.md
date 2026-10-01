@@ -96,7 +96,7 @@ of what was run, in order, and it is the procedure for doing it again.
 
     # dependencies, as the account that will run them
     cd /opt/samsung-frame-art-loader/postarr && sudo -u tvpi /usr/local/bin/uv sync --group raster --group epaper
-    cd /opt/samsung-frame-art-loader/curatarr && sudo -u tvpi /usr/local/bin/uv sync
+    cd /opt/samsung-frame-art-loader/arrt && sudo -u tvpi /usr/local/bin/uv sync
 
     # the environment file: 0640, owned by tvpi, because it carries API keys
     sudo install -m 0640 -o tvpi -g tvpi <your .env> /opt/samsung-frame-art-loader/.env
@@ -130,7 +130,7 @@ correctly do nothing, which looks like a fault and is not one. Seeding is a
 separate hand-run step and it neither spends nor renders — it carries the mat
 colour from the 2024 index and adopts the renders already in the tree:
 
-    cd /opt/samsung-frame-art-loader/curatarr && sudo -u tvpi /usr/local/bin/uv run python -m curatarr.seed <path to all.json>
+    cd /opt/samsung-frame-art-loader/arrt && sudo -u tvpi /usr/local/bin/uv run python -m arrt.seed <path to all.json>
 
 Then create a theme and activate it, over the JSON API or the browser interface —
 **activation is what publishes the manifest**, and until one is published the
@@ -142,7 +142,7 @@ carry across what an earlier run could not, and it is the only step that does.
 The catalogue *file* upgrades itself — the store adds nullable columns on open —
 but a column is not the same as a value, and the two arrive by different roads:
 
-    cd /opt/samsung-frame-art-loader/curatarr && sudo -u tvpi /usr/local/bin/uv run python -m curatarr.seed <path to all.json>
+    cd /opt/samsung-frame-art-loader/arrt && sudo -u tvpi /usr/local/bin/uv run python -m arrt.seed <path to all.json>
     # Re-activate the live theme — this, and nothing else, republishes the manifest:
     curl -s localhost:"$CURATION_PORT"/api/walls                       # read WALL_ID and the active theme
     curl -sX POST localhost:"$CURATION_PORT"/api/themes/"$THEME_ID"/activate \

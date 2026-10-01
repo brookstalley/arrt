@@ -10,7 +10,7 @@ still giving a health surface something real to read.
 **Two names in this document are a contract rather than a preference, because the
 reader was built first.** The file is `display-heartbeat-<wall id>.json` under
 `ART_ROOT` — one per wall, so a health surface can name which wall is silent —
-and the instant is spelled `reported_at`. `curatarr/src/curatarr/programming/manifest/heartbeat.py` treats
+and the instant is spelled `reported_at`. `arrt/src/arrt/programming/manifest/heartbeat.py` treats
 any other spelling as an unreadable heartbeat and says so — so a writer that
 called the field `timestamp` would produce a plane that looks *down* to curation
 while running perfectly. That is this product's defining failure mode

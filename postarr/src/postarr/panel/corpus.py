@@ -2,7 +2,7 @@
 
 **Not a sample of the corpus — a sample of its failure modes.** The artists here
 are real, with the name split the seed table actually stores
-(`curatarr/src/curatarr/seed/names.py`), because the label's hardest decisions are
+(`arrt/src/arrt/seed/names.py`), because the label's hardest decisions are
 all decided by particular words: how long the family name is, whether the
 nationality is a demonym, whether there is a title at all. Invented records get
 those wrong in the polite direction and a label engine tested only against them

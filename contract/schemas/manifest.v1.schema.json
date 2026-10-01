@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/brookstalley/curatarr/contract/schemas/manifest.v1.schema.json",
+  "$id": "https://github.com/brookstalley/arrt/contract/schemas/manifest.v1.schema.json",
   "title": "Wall manifest, major 1",
-  "description": "What Curatarr publishes for one wall and Postarr converges on. Major 1 is the document the curation plane writes today (minor 1) plus wave 2's optional media reference (minor 2). The wall is named by the file name or the URL, never inside the document. Semantics the schema cannot carry are in .prawduct/artifacts/player-contract.md.",
+  "description": "What Arrt publishes for one wall and Postarr converges on. Major 1 is the document the curation plane writes today (minor 1) plus wave 2's optional media reference (minor 2). The wall is named by the file name or the URL, never inside the document. Semantics the schema cannot carry are in .prawduct/artifacts/player-contract.md.",
   "type": "object",
   "required": [
     "schema",

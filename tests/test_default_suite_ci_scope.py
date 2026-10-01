@@ -29,7 +29,7 @@ import pytest
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 WORKFLOW = REPO / ".github" / "workflows" / "suites.yml"
-CURATION_TESTS = REPO / "curatarr" / "tests"
+CURATION_TESTS = REPO / "arrt" / "tests"
 
 
 def _directories_that_import_or_skip(tests_root: pathlib.Path) -> set[str]:
@@ -134,9 +134,9 @@ def test_the_curation_leg_ignores_exactly_the_directories_that_cannot_import():
     running in CI, silently and indefinitely.
     """
     needed = _directories_that_import_or_skip(CURATION_TESTS)
-    assert needed, "no module under curatarr/tests uses importorskip — the CI leg should carry no --ignore at all"
+    assert needed, "no module under arrt/tests uses importorskip — the CI leg should carry no --ignore at all"
 
-    check_ignores(_ignored_by("curatarr"), needed)
+    check_ignores(_ignored_by("arrt"), needed)
 
 
 def test_a_missing_ignore_is_rejected():
@@ -167,10 +167,10 @@ def test_tests_live_is_collected_rather_than_ignored():
     accident of whoever last edited the line.
     """
     assert "live" not in _directories_that_import_or_skip(CURATION_TESTS), (
-        "a module under curatarr/tests/live now uses importorskip, so it can no longer be collected "
+        "a module under arrt/tests/live now uses importorskip, so it can no longer be collected "
         "in CI — add --ignore=tests/live to the curation leg in suites.yml"
     )
-    assert "live" not in _ignored_by("curatarr")
+    assert "live" not in _ignored_by("arrt")
 
 
 def test_the_root_leg_needs_no_ignores():

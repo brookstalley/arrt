@@ -83,7 +83,7 @@ reader should not conclude these were forgotten.
 > available on the curation plane and carries structured logging plus
 > OpenTelemetry at no infrastructure cost — take the structured logging". The
 > 2026-07-27 technology amendment withdrew every 3tears dependency, and nothing
-> replaced this claim: `curatarr/pyproject.toml` does not declare the package, its
+> replaced this claim: `arrt/pyproject.toml` does not declare the package, its
 > explicit "deliberately not pinned yet" list does not mention it, and the plane
 > ships stdlib logging. So the artifact naming structured logs as the primary
 > signal rested on a package no manifest carries. The withdrawal was swept through
@@ -91,7 +91,7 @@ reader should not conclude these were forgotten.
 > obligation — retiring a claim is a repo-wide grep, not a local edit.
 
 **Curation's shape is one JSON object per line, and the run id is bound rather
-than passed** (built 2026-08-02, `curatarr/src/curatarr/logs.py`). This discharges
+than passed** (built 2026-08-02, `arrt/src/arrt/logs.py`). This discharges
 the debt this section recorded: the plane previously emitted
 `"%(asctime)s %(levelname)s %(name)s %(message)s"`, which was enough for startup,
 refusals and reconciliation and not enough for the per-run correlation below.
@@ -337,7 +337,7 @@ loaded, the work currently displayed, TV connectivity state, e-paper state, and
 the last error if any.
 
 **Two names in it are a contract, not a suggestion, because the reader is already
-built** (`curatarr/src/curatarr/programming/manifest/heartbeat.py`): the file is named by the
+built** (`arrt/src/arrt/programming/manifest/heartbeat.py`): the file is named by the
 template **`display-heartbeat-{wall_id}.json`** under `ART_ROOT`, and the timestamp
 key is **`reported_at`**, an ISO-8601 instant.
 The reader treats any other spelling as an unreadable heartbeat and says so — so a
@@ -597,7 +597,7 @@ GitHub issue. Concretely: no OpenRouter API key, no TV pairing token, no wall
 Player token, no full `Authorization` header, no `.env` dump on startup. A refused
 Player request is logged by wall and by status (`Refused a Player request for …`),
 once per wall per ten minutes, and never with the token it presented;
-`curatarr/tests/contract/test_player_surface.py` holds that.
+`arrt/tests/contract/test_player_surface.py` holds that.
 
 **Programming's reconciliation says what it changed** (from 2026-09-30): `Wall
 …: took works the Library no longer offers off the published manifest (…)` and

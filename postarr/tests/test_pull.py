@@ -2,7 +2,7 @@
 
 Against a local stub server that serves the contract's own documents on the
 contract's own routes (`contract/routes.json`), so these tests pin the client to
-the contract rather than to Curatarr's code, which a Player in another repository
+the contract rather than to Arrt's code, which a Player in another repository
 will not have. `player-contract.md` § Transport is the specification.
 
 **The test this chunk exists for is the one that stops the server while the wall
@@ -35,7 +35,7 @@ TOKEN = "this-walls-token"
 
 
 class Stub:
-    """Curatarr's Player surface, as the contract describes it, and nothing more."""
+    """Arrt's Player surface, as the contract describes it, and nothing more."""
 
     def __init__(self) -> None:
         self.manifest: dict | None = None
@@ -93,7 +93,7 @@ class Stub:
         body = await request.read()
         self.heartbeats.append(body)
         if self.echo_heartbeats_to is not None:
-            # What Curatarr does with a POSTed heartbeat on a host it shares.
+            # What Arrt does with a POSTed heartbeat on a host it shares.
             self.echo_heartbeats_to.write_bytes(body)
         return web.Response(status=204)
 

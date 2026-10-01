@@ -35,12 +35,12 @@ line-length = 130
 # targets happen to produce identical output for this code today, which is
 # exactly why nobody would notice the plane split had stopped holding for
 # formatting while it still held for lint.
-extend-exclude = "^/(curatarr|postarr)/"
+extend-exclude = "^/(arrt|postarr)/"
 
 [tool.ruff]
 line-length = 130
 target-version = "py312"
-extend-exclude = ["curatarr", "postarr"]
+extend-exclude = ["arrt", "postarr"]
 
 [tool.ruff.lint]
 # Mechanical rows from the project-preferences norm index, migrated from the
@@ -78,7 +78,7 @@ ignore = [
 # the build. F841 (assigned-but-never-used) is waived below: it is pervasive in
 # these modules and is a tidiness rule, not a correctness one.
 # `config.py` is excluded from this list: it was rewritten and is held to the
-# strict set, as is everything under `curatarr/` and `tests/`.
+# strict set, as is everything under `arrt/` and `tests/`.
 "ai.py" = ["T20", "E501", "F841", "TRY002", "TRY201", "TRY300", "B007"]
 "art.py" = ["T20", "E501", "F841", "TRY002", "TRY201", "TRY300", "B007", "E402"]
 "display.py" = ["T20", "E501", "F841", "TRY002", "TRY201", "TRY300", "B007", "E402"]

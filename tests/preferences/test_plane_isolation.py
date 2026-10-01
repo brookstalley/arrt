@@ -12,7 +12,7 @@ package the entry point has already loaded. That is evasion rather than the
 convenience this guard is for, and it is stated here as the guard's limit. Every other module is held exactly as before: a
 second client anywhere else is the "just fetch it live" shortcut this guard
 exists for. The no-curation-import clause is whole, and stays whole: the Player
-reads documents, never Curatarr's code.
+reads documents, never Arrt's code.
 
 **This is the one norm whose violation looks exactly like success.** The ratified
 rule is that the theme manifest file is the only channel from curation to
@@ -70,12 +70,12 @@ PULL_MODULE = DISPLAY_PACKAGE / "pull.py"
 #: files, and following the display copy is the honest answer there.
 SEARCH_ROOTS: tuple[pathlib.Path, ...] = (
     REPOSITORY_ROOT / "postarr" / "src",
-    REPOSITORY_ROOT / "curatarr" / "src",
+    REPOSITORY_ROOT / "arrt" / "src",
     REPOSITORY_ROOT,
 )
 
 #: The forbidden side of the channel. Anything under this package is curation's.
-CURATION_PACKAGE = "curatarr"
+CURATION_PACKAGE = "arrt"
 
 #: HTTP clients, by the name a module would import them under. **`websockets` and
 #: `samsungtvws` are deliberately absent**: the television is reached over a
@@ -189,7 +189,7 @@ class TestTheGuardCanFail:
         assert [offence.chain[-1].name for offence in offences] == ["second.py"]
 
     def test_it_catches_a_curation_import(self, tmp_path: pathlib.Path):
-        module = _plant(tmp_path, "shortcut.py", "from curatarr.library.services.catalogue import CatalogueService\n")
+        module = _plant(tmp_path, "shortcut.py", "from arrt.library.services.catalogue import CatalogueService\n")
 
         offences = _audit([module], roots=(tmp_path,))
 
@@ -208,7 +208,7 @@ class TestTheGuardCanFail:
         A direct-only check reads `shortcut.py`, sees an innocent local import,
         and passes — while the helper next to it does the forbidden thing.
         """
-        _plant(tmp_path, "helper.py", "from curatarr.config import load\n")
+        _plant(tmp_path, "helper.py", "from arrt.config import load\n")
         module = _plant(tmp_path, "shortcut.py", "import helper\n")
 
         offences = _audit([module], roots=(tmp_path,))
@@ -300,8 +300,8 @@ def _audit(entry_points: list[pathlib.Path], roots: tuple[pathlib.Path, ...] = S
     """
     offences: list[Offence] = []
     seen: set[pathlib.Path] = set()
-    # One offence per (kind, package, file). `from curatarr.x import Y` yields
-    # both `curatarr.x` and `curatarr.x.Y` — the resolver needs both readings,
+    # One offence per (kind, package, file). `from arrt.x import Y` yields
+    # both `arrt.x` and `arrt.x.Y` — the resolver needs both readings,
     # since only the filesystem knows whether the tail is a submodule — but a
     # reader wants one line per place that does the forbidden thing, not one per
     # spelling of it.

@@ -38,7 +38,7 @@ both passes.
 The product was **a curated-art appliance for a Samsung Frame TV**. It is
 becoming **two products**:
 
-1. **Curatarr, the server,** in the manner of Radarr/Sonarr. It finds,
+1. **Arrt, the server,** in the manner of Radarr/Sonarr. It finds,
    acquires, maintains, upgrades and enhances artwork, and decides what hangs on
    which wall.
 2. **Postarr, the player,** in the manner of a Plex client. It reads what the server
@@ -47,15 +47,15 @@ becoming **two products**:
    drawn in the mat is the alternative.
 
 The server runs on the household NAS, next to the operator's existing *arr stack.
-Players run at the walls. Most of the code already exists: `curatarr/` is most of
+Players run at the walls. Most of the code already exists: `arrt/` is most of
 the server and `postarr/` is most of the player. The change is mainly about
 **where the seams are drawn**, not a rewrite.
 
 **The names were given by the operator on 2026-09-30:** "The library/performance
 controller will be Curatarr, the device side playback will be Displayarr." The
-same day the operator renamed the player **Arrt**, and on 2026-10-01 renamed it
-**Postarr**, under a hard requirement. The
-Samsung name no longer fits a product that drives any screen. This file keeps
+same day the operator renamed the player **Arrt**. On 2026-10-01, under a hard
+requirement, the operator renamed both: the server is now **Arrt** and the
+player **Postarr**. The Samsung name no longer fits a product that drives any screen. This file keeps
 saying "server" and "player" where the role matters more than the product.
 
 ## The owner's rulings (2026-09-30)
@@ -222,9 +222,9 @@ anything the server owns; the heartbeat is the Player *reporting*, exactly as th
 heartbeat file does today.
 
 **Each wall has a token.** The operator ruled on 2026-09-30: "each wall gets a
-token". Curatarr issues one per wall from the UI, shows it once and keeps only a
+token". Arrt issues one per wall from the UI, shows it once and keeps only a
 verifier. Postarr holds it as local configuration next to `WALL_ID` and sends
-it on every request. Curatarr checks it on every `/walls/{wall_id}/...` route,
+it on every request. Arrt checks it on every `/walls/{wall_id}/...` route,
 the manifest GET as well as the heartbeat POST, and a token only opens its own
 wall. `/media/{hash}` accepts any valid wall token. Rotation is: issue a new
 token in the UI, then update the Player. A leaked token lets someone read one
@@ -362,7 +362,7 @@ caption drawn in the mat, which needs the mat *sized for the caption*.
   Library stores only panel-independent facts (width, height), exactly as
   `data-model.md` already requires.
 - **The resolution floor becomes a Library quality profile.** Automatic instance
-  selection (`curatarr/src/curatarr/library/services/selection.py`) excludes
+  selection (`arrt/src/arrt/library/services/selection.py`) excludes
   below-floor instances using the artwork box computed from the server's
   `TV_PANEL_*` / `MAT_*` settings, and review cards show a fit verdict from the
   same source. When geometry leaves the server, both would lose their input, and
@@ -561,12 +561,12 @@ plan: each wave gets its own `build-plan-<scope>.md` when it starts, per
 
 | Wave | Scope | Notes |
 |---|---|---|
-| **0: clear the decks** *(closed 2026-09-30)* | Park round 2. ~~Reconcile the v1 plan's open chunks.~~ | Round 2 is **parked, not abandoned**, on branch `curation-ui/rulings-and-plan`. It is curation-UI work that remains valid for the server; revisit after wave 2. **The operator closed the rest of this wave: "wave 0 -- abandon. We'll rebuild with this new plan."** The v1 plan's open chunks (13A, 13B, 20, 24–27) are abandoned, not carried; § Where the v1 open chunks' requirements went records what each one served and where it is rebuilt. Retiring the 2024 root modules moves to wave 5, when this repo becomes Curatarr. |
+| **0: clear the decks** *(closed 2026-09-30)* | Park round 2. ~~Reconcile the v1 plan's open chunks.~~ | Round 2 is **parked, not abandoned**, on branch `curation-ui/rulings-and-plan`. It is curation-UI work that remains valid for the server; revisit after wave 2. **The operator closed the rest of this wave: "wave 0 -- abandon. We'll rebuild with this new plan."** The v1 plan's open chunks (13A, 13B, 20, 24–27) are abandoned, not carried; § Where the v1 open chunks' requirements went records what each one served and where it is rebuilt. Retiring the 2024 root modules moves to wave 5, when this repo becomes Arrt. |
 | **1: plan** *(closed 2026-09-30)* | Amend the artifacts (this change started that). Write the Player contract artifact with a JSON Schema and fixtures. Write the wave-2 build plan. | Planned as doc-only; it shipped code as well. The contract's schemas and fixtures are tested from all three suites, which each declare `jsonschema` in their `dev` group. The amendments were drafted 2026-09-30; see § Artifacts touched. Wave 2 is two plans: `build-plan-wave-2a-rename.md`, then `build-plan-wave-2b-seams-and-http.md`. |
 | **2: seams and the HTTP channel, alongside the file** *(closed 2026-09-30)* | Split curation into Library and Programming packages with one-way imports and the `playable()` facade. Move the manifest's readiness logic behind the facade. Add the events, and Programming's reconciliation at startup (§ Seam 1). Then serve manifest, media and heartbeat over HTTP, with Programming's manifest endpoint as the facade's first consumer. Display gains a pull-to-local-cache mode behind configuration. Schema minor bump. | The package split comes first because the manifest endpoint is built on exactly the readiness logic rule 2 moves; building it before the split means building it twice. The static import guard for rule 1 lands here. The wall never goes dark: the file channel keeps working until wave 3 retires it. `tests/preferences/test_plane_isolation.py` forbade any HTTP client in display. It was narrowed in the chunk that added the pull, and now allows one only in `postarr/src/postarr/pull.py`, whose routes must be ones `contract/routes.json` names. **The per-wall tokens land with the routes** (§ Seam 2), because the server on the Pi is already reachable on the LAN. The cache claim gets a test that stops the server while the wall runs. |
 | **3: server to the NAS** | First, split the store: Programming's tables move to their own SQLite file, and the two cross-seam foreign keys become opaque references (rule 3), so the data moves once. Then containerize the server, deploy it on the NAS, point the Pi at HTTP and retire the file channel. Move the backup and restore exercise to NAS storage, with `VACUUM INTO` and the two catalogue files backed up as a pair. | The deployment side lives in the operator's homelab repo. The image needs what the Pi's install has today: a uv-managed Python 3.14, the `dezoomify-rs` binary, and a memory limit in place of `MemoryMax`. It does not need Pango unless the server ever typesets. The schema test for rule 3 lands here. |
-| **4: schema major 2** | Add the presentation master and the quality profile. Remove the `tv_display` rendition and `TV_PANEL_*` from the server, and turn `MAT_*` into per-wall settings. Display composes, with the wall's mat proportions. The manifest becomes the schedule, with scenes, staging and wall settings. The heartbeat reports capabilities, and Programming judges per-wall adequacy from them. | The largest built-code change, and the only breaking one. Mat-colour regression corpus: `curatarr/tools/mat_masters.py`. Blocked on a compositing budget measured on a Pi 4 (§ Compositing moves to the Player). Rotation logic moves from the display plane to Programming, along with the wake/sleep window from the v1 plan's Chunk 26. |
-| **5: split the repos** | `git filter-repo --path display/ --path arrt/ --path postarr/ --path-rename display/: --path-rename arrt/: --path-rename postarr/:` into a new player repo. Three paths, because the player lived at `display/` until wave 2a, at `arrt/` until the rename of 2026-10-01, and at `postarr/` since, and filter-repo does not follow renames: filtering on `postarr/` alone keeps no history from before the last rename. `/prawduct:onboard` there. Carry the player's artifacts. Pin `contract/` together with `player-contract.md` and the major 2 semantic validator (today in `tests/preferences/test_player_contract.py`), because the schemas alone do not carry the rules a schema cannot state. The new repo is **Postarr**, and this repo is renamed **Curatarr**. Remove the 2024 root modules as this repo becomes Curatarr. | GitHub keeps redirects on rename. |
+| **4: schema major 2** | Add the presentation master and the quality profile. Remove the `tv_display` rendition and `TV_PANEL_*` from the server, and turn `MAT_*` into per-wall settings. Display composes, with the wall's mat proportions. The manifest becomes the schedule, with scenes, staging and wall settings. The heartbeat reports capabilities, and Programming judges per-wall adequacy from them. | The largest built-code change, and the only breaking one. Mat-colour regression corpus: `arrt/tools/mat_masters.py`. Blocked on a compositing budget measured on a Pi 4 (§ Compositing moves to the Player). Rotation logic moves from the display plane to Programming, along with the wake/sleep window from the v1 plan's Chunk 26. |
+| **5: split the repos** | `git filter-repo --path display/ --path arrt/ --path postarr/ --path-rename display/: --path-rename arrt/: --path-rename postarr/:` into a new player repo. Three paths, because the player lived at `display/` until wave 2a, at `arrt/` until the rename of 2026-10-01, and at `postarr/` since, and filter-repo does not follow renames: filtering on `postarr/` alone keeps no history from before the last rename. **`arrt/` is reused, so the filter is commit-aware.** From the commit that renamed the server Curatarr to Arrt (`git log --grep 'Rename the server Curatarr to Arrt'`), `arrt/` holds the server. In that commit and every commit descending from it, the merge that landed it included, a commit callback turns every change under `arrt/` into a deletion. Dry-run it first. Check that no commit descending from the server's rename has an `arrt/` tree, and that the filtered tree at the player's rename commit's parent matches the original `arrt/` there. `build-plan-rename-arrt-postarr.md` § What the path reuse costs wave 5 has the reasoning. `/prawduct:onboard` there. Carry the player's artifacts. Pin `contract/` together with `player-contract.md` and the major 2 semantic validator (today in `tests/preferences/test_player_contract.py`), because the schemas alone do not carry the rules a schema cannot state. The new repo is **Postarr**, and this repo is renamed **Arrt**. Remove the 2024 root modules as this repo becomes Arrt. | GitHub keeps redirects on rename. |
 | **6+: in parallel** | Server: Watches, the scheduler and upgrades to the quality profile's cutoff; **facet population**, then Programming tags and smart playlists. Player: a framebuffer backend, caption in the mat, and **power control** (the television's power read, the guardrails, and acting on the schedule's dark hours). | Independent streams after the split. Watches carry the security and observability re-derivations above. Facet population needs its own requirements cycle (§ Two layers of tags), and smart playlists wait for it. |
 
 ### Where the v1 open chunks' requirements went
@@ -627,9 +627,9 @@ the other way round.
   decision (`observability-strategy.md`).
 - **External identity for works and artists, before Watches.** *(Raised
   2026-09-30, while planning the *arr navigation.)* Sonarr and Radarr rest on an
-  external ID (TVDB, TMDB) that they use and do not maintain. Curatarr's work
+  external ID (TVDB, TMDB) that they use and do not maintain. Arrt's work
   identity is its own: `work_dedup_key` is a normalised title and artist
-  (`curatarr/src/curatarr/library/discovery/dedup.py`). Series titles
+  (`arrt/src/arrt/library/discovery/dedup.py`). Series titles
   ("Composition", "Untitled", "Haystacks") are where two works would share a
   key, which has not been tested. For public-domain works, registries already
   exist: Wikidata QIDs for artworks, which carry creator, inception, movement,
@@ -638,7 +638,7 @@ the other way round.
   whether to store those IDs where they exist, the way Radarr stores a TMDB ID.
   They would give *Already in your library* and a Watch's "monitored" a stable
   identity, and they might give facet population sourced values in place of
-  inferred ones. **The line to hold:** Curatarr uses registries and keeps a
+  inferred ones. **The line to hold:** Arrt uses registries and keeps a
   private catalogue. It never becomes a registry. Works past the public-domain
   boundary, and the contemporary web art `project-state.yaml` commits to, are in
   no registry, and there the catalogue's own identity stands. Wikidata's
@@ -692,8 +692,8 @@ index, `3tears-integration-findings.md` and `openrouter-api-findings.md`. It
 moved the open questions into `project-state.yaml` and brought the Seam 1 norms'
 schedule in `architecture.md` into line with the new wave table.
 
-**Settled by the operator later the same day:** the names (Curatarr and
-Postarr), Player authentication (a token per wall, § Seam 2), and the v1 open
+**Settled by the operator later the same day:** the names (then Curatarr and
+Arrt; since 2026-10-01 Arrt and Postarr), Player authentication (a token per wall, § Seam 2), and the v1 open
 chunks (abandoned; § Where the v1 open chunks' requirements went).
 
 **Settled by the second pass:** who owns the wake/sleep window (Programming, as

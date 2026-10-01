@@ -84,7 +84,7 @@ database. Adding a second channel is a departure requiring a recorded decision.
 > one-directional corollary survives: the Player writes nothing the server owns,
 > and the heartbeat is a report, as the heartbeat file is today.
 >
-> **Wave 2 landed 2026-09-30 (wave 2b Chunks 03 and 04).** Curatarr serves the
+> **Wave 2 landed 2026-09-30 (wave 2b Chunks 03 and 04).** Arrt serves the
 > three routes behind a per-wall token, and Postarr's `MANIFEST_SOURCE=http` pulls
 > into `CACHE_DIR` through `postarr/src/postarr/pull.py`, the one module the isolation test now
 > lets open an HTTP client, and only to routes `contract/routes.json` names. The
@@ -223,13 +223,13 @@ convenience would otherwise make that split a migration.
 > migrates at the start of wave 3, so the data moves to the NAS once.
 >
 > **Rules 1 and 2 migrated 2026-09-30** (wave 2b Chunk 01). The packages are
-> `curatarr.library` and `curatarr.programming`. Programming reads the Library
+> `arrt.library` and `arrt.programming`. Programming reads the Library
 > only through `library/facade.py`, whose `playable(work_ids)` answers every id
 > with a frozen `PlayableWork` or `Unplayable`, and the readiness rule lives
 > behind it in `library/readiness.py`. Programming's tables are reached through
 > `programming/store.py`'s protocol, which one object implements beside the
 > Library's until rule 3. `tests/preferences/test_seam_imports.py` holds rule 1
-> and `curatarr/tests/unit/test_library_facade.py` holds the answer shape of rule
+> and `arrt/tests/unit/test_library_facade.py` holds the answer shape of rule
 > 2. **What rule 1 does not yet cover:** `persistence/records.py` holds both
 > sides' record types in a shared module, so the guard cannot see Programming
 > naming a Library record type. Programming's store hands it only its own
@@ -242,8 +242,8 @@ convenience would otherwise make that split a migration.
 > now refuses comes off every published manifest carrying it, and any pin naming
 > it is withdrawn. The published document is patched, never rebuilt, so
 > additions still wait for sync. `archive_artwork` writes no Programming table.
-> `curatarr/tests/unit/test_library_events.py` and
-> `curatarr/tests/unit/test_reconciliation.py` hold it. **Still in the
+> `arrt/tests/unit/test_library_events.py` and
+> `arrt/tests/unit/test_reconciliation.py` hold it. **Still in the
 > inventory:** the two foreign keys (rule 3). Media URLs in manifests (the rest
 > of rule 4) arrived with Chunk 03: the Library names each render's URL by the
 > hash of its bytes (`library/readiness.py` `MEDIA_PATH_TEMPLATE`) and serves it.
@@ -378,7 +378,7 @@ is no network between planes.
   the divergence the shared service layer exists to prevent, reappearing one
   layer up. No framework and no build step: a Node toolchain on the Pi buys
   nothing a single operator on a private network can see.)*
-- **A fourth binding is not a surface:** `curatarr/seed/` is a hand-run command
+- **A fourth binding is not a surface:** `arrt/seed/` is a hand-run command
   that reads the 2024 index and mints its works through `CatalogueService`. It is
   bound by the same rule for the same reason — it enforces no catalogue
   constraint of its own, so a work that arrived from the old index obeys exactly
@@ -404,7 +404,7 @@ is no network between planes.
 
   A screen needing something another screen has is the signal that the thing is
   shared, and the move is to `core/` — not an import across the boundary.
-  `curatarr/tests/unit/test_client_module_boundaries.py` enforces it, which it
+  `arrt/tests/unit/test_client_module_boundaries.py` enforces it, which it
   can because — unlike the Direction norm the same work implements — this
   violation is exactly an import and therefore greppable.
 - **Internal layering, inside that plane** (established 2026-07-27; `acquisition/`
@@ -731,7 +731,7 @@ is no network between planes.
     lacks; that is the only change SQLite applies in place without losing data,
     so a column that goes *away*, a table replaced by a differently-keyed one, or
     rows carried between the two is written by hand in
-    `curatarr/src/curatarr/persistence/migrations.py`. The facts a later schema
+    `arrt/src/arrt/persistence/migrations.py`. The facts a later schema
     change needs and cannot infer from reading one migration:
     - Migrations are **handed to the store at construction** —
       `SqliteDurableStore(path, schema, migrations=...)` — never reached for from
@@ -970,7 +970,7 @@ failure this whole arrangement removes: a television showing another room's
 pictures while every log line reads fine. The value is the id the curation
 catalogue minted, read off the Walls screen or `art_display(action='walls')`.
 
-**Built 2026-08-12** (`curatarr/src/curatarr/programming/manifest/builder.py`,
+**Built 2026-08-12** (`arrt/src/arrt/programming/manifest/builder.py`,
 `postarr/src/postarr/config.py`). The one-wall installation is the degenerate
 case: one wall, one manifest, one heartbeat, and behaviour identical to the
 single-file form apart from the filename. Neither filename may be imported across
@@ -1404,7 +1404,7 @@ They stay independently formatted rather than merged: the MCP side returns plain
 dicts and the HTTP side pydantic models whose field docstrings are documentation,
 so a shared formatter would cost one of those. What changed is that divergence is
 now a test failure at the moment of the edit —
-`curatarr/tests/unit/test_surface_parity.py`, which also asserts the artwork pair
+`arrt/tests/unit/test_surface_parity.py`, which also asserts the artwork pair
 still differs, since that divergence is this entry's only evidence.
 
 **2026-07-20 — Readiness is manifest membership, not a stored flag.** Resolves the

@@ -1,6 +1,6 @@
 """Postarr's side of the Player contract: what it reads, and what it writes.
 
-The manifest fixtures under `contract/` are the documents Curatarr may publish.
+The manifest fixtures under `contract/` are the documents Arrt may publish.
 Every one the contract calls valid must be one this reader adopts. Every invalid
 one that the contract's index marks `player_must_refuse` must be one it refuses.
 Those are the rules the reader enforces rather than trusts. The other invalid

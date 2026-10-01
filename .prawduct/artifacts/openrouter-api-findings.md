@@ -299,7 +299,7 @@ one of should look like. See `nonfunctional-requirements.md` § Cost Constraints
 
 **A direct HTTP client, written against the shapes above, behind a narrow
 interface** — not `threetears.models.create_chat_model`, which
-`curatarr/pyproject.toml` had anticipated ("it arrives with the discovery work
+`arrt/pyproject.toml` had anticipated ("it arrives with the discovery work
 that calls it"). That note is superseded here rather than left to contradict the
 code.
 
@@ -869,11 +869,11 @@ failed turn is visibly retryable, is outside what this probe can settle.
 
 Prices and endpoint shapes both move, so **this file is no longer the durable
 form of these findings — a test is.**
-`curatarr/tests/live/test_openrouter_shapes_are_still_real.py` asserts each fact
+`arrt/tests/live/test_openrouter_shapes_are_still_real.py` asserts each fact
 above that the client depends on, against the live API:
 
 ```
-cd curatarr && uv run pytest -m live_api
+cd arrt && uv run pytest -m live_api
 ```
 
 It is deselected by default because it spends real money, and each test names the

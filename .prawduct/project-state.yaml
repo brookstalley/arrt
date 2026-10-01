@@ -602,10 +602,11 @@ product_definition:
   product_identity:
     # Renamed 2026-09-30 by the operator: "The library/performance controller
     # will be Curatarr, the device side playback will be Displayarr." The same
-    # day the operator renamed the player Arrt, and on 2026-10-01 renamed it
-    # Postarr, under a hard requirement. This repo
-    # holds both until the wave 5 split, when it becomes Curatarr alone.
-    name: "Curatarr and Postarr"
+    # day the operator renamed the player Arrt. On 2026-10-01, under a hard
+    # requirement, the operator renamed both: the server Arrt and the player
+    # Postarr. This repo
+    # holds both until the wave 5 split, when it becomes Arrt alone.
+    name: "Arrt and Postarr"
     personality: >
       Museum, not gadget. The curator-facing surface should feel like a private
       collection management tool — calm, typographic, image-forward — and the
@@ -1012,12 +1013,12 @@ technical_decisions:
 
         The costs are named rather than discovered: ~200MB of downloaded browsers
         on a dev machine, a slower CI leg, and a second language's package
-        manifest inside `curatarr/`. Accepted against a product whose only human
+        manifest inside `arrt/`. Accepted against a product whose only human
         interface is this client.
 
         AMENDED AT BUILD, 2026-08-05, operator's call: the third cost is not paid.
         Playwright publishes first-party Python bindings, so the harness is
-        `pytest-playwright` in `curatarr/tests/browser/` behind a `browser` marker
+        `pytest-playwright` in `arrt/tests/browser/` behind a `browser` marker
         — one language, one suite, one command, and no second package manifest.
         This paragraph had assumed Node without the alternative having been put;
         it was verified to install and import on this repo's 3.14 before the
@@ -1872,7 +1873,7 @@ technical_decisions:
         with "error: Found conflicting Python requirements". The DECISION'S
         SUBSTANCE IS UNCHANGED and was always the per-plane interpreter and
         per-plane lock; only the mechanism changes, to two independent sibling uv
-        projects (curatarr/ and postarr/), each locking itself. This is what the
+        projects (arrt/ and postarr/), each locking itself. This is what the
         build plan already hedged toward, now settled with evidence instead.
 
         NAMED VERIFICATION ITEM: IT8951 compiles Cython from 2023-era .pyx sources,
@@ -2149,7 +2150,7 @@ design_decisions:
 
         Checkable against the code rather than taken on trust: the five names
         are the keys of `VIEWS` and the three are the keys of `DETAIL_VIEWS` in
-        `curatarr/src/curatarr/http/static/app.js`, with `tab` holding which
+        `arrt/src/arrt/http/static/app.js`, with `tab` holding which
         section stays lit.
       date: 2026-08-05
   interaction_patterns:
@@ -2525,7 +2526,7 @@ design_decisions:
     ENFORCED, not asserted: every text pair clears WCAG AA 4.5:1 and every
     control boundary clears 3:1, in both schemes, checked by a test that reads
     the real token values out of the stylesheet
-    (curatarr/tests/unit/test_design_tokens.py). The same test refuses any colour
+    (arrt/tests/unit/test_design_tokens.py). The same test refuses any colour
     written outside the token blocks, since a literal in a component rule is a
     colour nothing can check. A decorative rule between a card and the page is
     deliberately NOT held to the 3:1 control floor — WCAG 1.4.11 does not govern
@@ -2550,7 +2551,7 @@ open_questions:
   # schedule; the resolution floor becomes a Library quality profile, which also
   # answers what a review card shows about size), and the deferrals the forward
   # notes carried were added. Three more closed the same day by the operator:
-  # the names (Curatarr, Postarr), Player auth (a token per wall), and the v1
+  # the names (Arrt, Postarr), Player auth (a token per wall), and the v1
   # open chunks (abandoned; their requirements are rebuilt in later waves).
   - question: "Re-architecture open questions (artifacts/re-architecture.md § Open questions is the full text): the Player cache's location (wave 2); the server image's provenance (before wave 3); the schedule horizon and a scene's default preview lifetime (before wave 4; the fields exist in the major 2 draft); the compositing budget on a Pi 4 (before wave 4); the quality profile's numbers (wave 4); the presentation master's size cap and encoding; directive latency (ETag poll or server-sent events); the smart-playlist rule language; mat colour per aspect ratio; facet editing in the UI; the Watch questions (prompt-injection re-derivation, whether auto-accept is offered, initiated_by, push alerts); filing the program as backlog issues."
     blocking: "Waves 1–4 of re-architecture.md. The compositing budget blocks planning wave 4."
@@ -3232,7 +3233,7 @@ coverage_required: false
 # same reason, as the plane-isolation test.
 test_commands:
   - uv run pytest tests --junit-xml={junit_xml} -q
-  - uv run --directory curatarr pytest --junit-xml={junit_xml} -q
+  - uv run --directory arrt pytest --junit-xml={junit_xml} -q
   # `--group raster` because the typesetter is the plane's most important
   # accessibility surface and the group is what makes it runnable. Without the
   # flag `tests/raster` importorskips and the recorded evidence covers every tier
@@ -3242,7 +3243,7 @@ test_commands:
   # separate `typesetting` job is what holds the claim.
   - uv run --directory postarr --group raster pytest --junit-xml={junit_xml} -q
 
-tests_dirs: tests curatarr/tests postarr/tests
+tests_dirs: tests arrt/tests postarr/tests
 
 # =============================================================================
 # OPERATOR VERIFICATION (opt-in, v1.4+)
@@ -3337,7 +3338,7 @@ backlog_last_groomed_at: 2026-08-10
 
 # Renamed 2026-09-30 from brookstalley/samsung-frame-art-loader. GitHub redirects
 # the old name, and issue numbers are unchanged.
-backlog_service_repo: brookstalley/curatarr
+backlog_service_repo: brookstalley/arrt
 
 # Set 2026-09-30, when wave 1 was the first feature PR'd into develop rather than
 # main. The re-architecture integrates on develop and releases develop→main, but

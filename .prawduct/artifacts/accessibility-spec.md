@@ -710,7 +710,7 @@ panel wrong. Every figure in this amendment is from the panel's own machine.
   reason to guess at one.
 
   **Where the split for the seeded corpus comes from: a written table, not a
-  rule** (`curatarr/src/curatarr/seed/names.py`). Thirty-one names, each with its
+  rule** (`arrt/src/arrt/seed/names.py`). Thirty-one names, each with its
   parts spelled out, because this corpus alone defeats every heuristic in a
   different way — "Frank Lloyd Wright" defeats last-word, "Georgia O'Keeffe"
   defeats first-word, "Katsushika Hokusai" inverts the Western order it appears
@@ -1059,7 +1059,7 @@ colour, so chrome must never sit at a contrast that competes with the artwork.
 
 ### Contrast is computed, not claimed
 
-**Practised, and mechanically enforced** — `curatarr/tests/unit/test_design_tokens.py`.
+**Practised, and mechanically enforced** — `arrt/tests/unit/test_design_tokens.py`.
 
 The test reads the real token values out of the served stylesheet and computes the
 ratios, in **both** colour schemes, against WCAG 2.1's own luminance definition. A
@@ -1098,12 +1098,12 @@ caught or would catch:
 **Practised, and only half of it is mechanical.** This is the split to respect
 rather than paper over.
 
-The mechanism covers the part a machine can see. `curatarr/tests/unit/test_design_tokens.py` derives
+The mechanism covers the part a machine can see. `arrt/tests/unit/test_design_tokens.py` derives
 every state a badge can carry **from the enums rather than from a written-out
 list**, and asserts that each has a CSS block of its own and that no two states of
 one axis are pixel-identical — a block copy-pasted for a new verdict with only the
 selector changed would otherwise make a rejection look like an acceptance in
-greyscale. `curatarr/tests/unit/test_client_vocabulary.py` asserts that every enum value the server can
+greyscale. `arrt/tests/unit/test_client_vocabulary.py` asserts that every enum value the server can
 send has a sentence in the client, so no raw token leaks onto a screen.
 
 **What no test can see is whether the glyph actually distinguishes anything.** That
@@ -1260,7 +1260,7 @@ descriptions of it.
 
 **Owed, with the same status as the revised palettes.** `design-direction.md`
 requires control heights of 2.75rem (44px) under `@media (pointer: coarse)`, with a
-2.25rem default that clears WCAG 2.2 AA's 24px floor. **`curatarr/src/curatarr/http/static/app.css` contains no
+2.25rem default that clears WCAG 2.2 AA's 24px floor. **`arrt/src/arrt/http/static/app.css` contains no
 `pointer: coarse` block and no control height**, verified 2026-08-11 — so the rule
 is a proposal today and is recorded as one here rather than as a practice.
 
@@ -1333,14 +1333,14 @@ is the same reason `information-architecture.md` § Boundaries lists it.
 
 | Requirement | How it is checked | Where |
 |---|---|---|
-| Contrast, both schemes, both floors | Test — computed from the served stylesheet | `curatarr/tests/unit/test_design_tokens.py` |
+| Contrast, both schemes, both floors | Test — computed from the served stylesheet | `arrt/tests/unit/test_design_tokens.py` |
 | No colour outside the token blocks | Test, with an asserted scan scope | same file |
 | Every badge state has a distinct block | Test, derived from the enums | same file |
-| Every server enum has a client sentence | Test, reads the served `app.js` | `curatarr/tests/unit/test_client_vocabulary.py` |
+| Every server enum has a client sentence | Test, reads the served `app.js` | `arrt/tests/unit/test_client_vocabulary.py` |
 | The panel runs at 16 levels | Test — the mode is set, and a panel that quietly stays in one bit is refused | `postarr/tests/test_epaper.py` |
 | Content drops rather than shrinking | Test, against an injected measurer so it runs without a font | `postarr/tests/test_label_layout.py` |
 | Glyph actually distinguishes state | **Critic judgment.** No test can see this | `/prawduct:critic` |
-| Focus lands where it should, and a poll does not steal it | **Browser suite**, `-m browser` — a real Chromium against a booted server | `curatarr/tests/browser/` |
+| Focus lands where it should, and a poll does not steal it | **Browser suite**, `-m browser` — a real Chromium against a booted server | `arrt/tests/browser/` |
 | Type size, margin and measure at reading distance | **The operator, at the panel.** Nothing else can | Chunk 13B, `Visual change: yes` |
 
 **The last row is the one to watch.** It is the only requirement in this artifact

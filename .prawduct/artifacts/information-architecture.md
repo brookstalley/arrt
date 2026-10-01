@@ -36,18 +36,18 @@ those differ is marked **CHANGE** with the reasoning.
 
 **The curation surface is laid out like the *arr apps.** It has a sidebar of
 sections, each with its pages listed beneath it, a top bar that carries search,
-a toolbar on list pages, and the library as the home page. If Curatarr has a
+a toolbar on list pages, and the library as the home page. If Arrt has a
 page that an *arr app also has, it goes where the *arr app puts it and uses the
-*arr app's name. If Curatarr has a page no *arr app has, it goes in the section
+*arr app's name. If Arrt has a page no *arr app has, it goes in the section
 whose *arr meaning is closest. A new top-level section needs an *arr precedent
 (Wanted, Calendar) or an owner ruling. A subsystem that gains a UI gets a page
 inside an existing section, not a section of its own.
 
 > **Why:** the owner ruled on 2026-09-30: *"More important to be familiar than to
-> have our own thing."* Curatarr runs on the NAS beside Sonarr, Radarr and
+> have our own thing."* Arrt runs on the NAS beside Sonarr, Radarr and
 > tacularr (`re-architecture.md` § Deployment target), and its operator moves
 > between them. A page placed where every sibling app places it takes no effort to
-> find. A page placed where only Curatarr would place it has to be learned, and
+> find. A page placed where only Arrt would place it has to be learned, and
 > relearned by anyone else who opens it.
 >
 > **What the amendment replaced, and what it costs.** The 2026-08-11 statement
@@ -79,7 +79,7 @@ inside an existing section, not a section of its own.
 opened directly in a browser. It carries a synthetic 2,000-work corpus because
 every scale claim here is unfalsifiable against the real 41. It is a **design
 deliverable, not a component**: it shares the product's tokens deliberately, but
-nothing in `curatarr/` imports from it and it ships to no one.
+nothing in `arrt/` imports from it and it ships to no one.
 
 > **What the prototype does not demonstrate, so it is not mistaken for complete.**
 > It has no archived works, so the **Restore** half of the archive rule below has
@@ -116,7 +116,7 @@ Priority is **core** (on a stated core flow) or **supporting**.
 |---|---|---|---|
 | **Walls** | What is hanging right now on each display, the theme it is drawn from, and what is next. | The sidebar; after activating a theme | core (flow 6) |
 | **Artworks** | Everything acquired. Find, sort, filter, group, organise into themes, archive. The product's home. *(Collection until 2026-09-30.)* | Launch; the sidebar; search from anywhere; from a theme; after a run's accepted works land | core (flows 3, 5) |
-| **Work** | One work at full size, with its sources, renditions, mat history and theme membership. | A tile in Collection; a tile on a Wall; a row in Review | core (flows 4, 5) |
+| **Work** | One work at full size, with its sources, renditions, mat history and theme membership. | A tile in Artworks; a tile on a Wall; a row in Review | core (flows 4, 5) |
 | **Add New** | Asking for something new: the direct intent box and the conversations, with a run's progress shown in the thread that started it. *(Discover until 2026-09-30, when it also listed every run.)* | The sidebar, under Artworks; "find something new" on the Walls and on an empty Artworks | core (flows 1, 2) |
 | **Queue** *(new)* | The searches that have not ended: working, or stopped at the approval gate. | The sidebar, under Activity | core (flow 2) |
 | **History** *(new)* | The searches that have ended, with how each ended. | The sidebar, under Activity | supporting |
@@ -185,7 +185,7 @@ This is the layout § Direction now requires, and everything below is built
 (`build-plan-arr-navigation.md`).
 
 > **A gap in Activity, recorded 2026-09-30 while building it.** Radarr's Queue
-> also holds what finished but needs the user, such as a manual import. Curatarr's
+> also holds what finished but needs the user, such as a manual import. Arrt's
 > equivalent is a run that finished with candidates nobody has judged, and it
 > belongs in Queue. The run listing carries no signal for it, so today it sits in
 > History with its state. Adding one is an API change: a count of unjudged
@@ -198,7 +198,7 @@ listed below so it can be disputed.
 
 ```
 ┌──────────────┬──────────────────────────────────────────────┐
-│ Curatarr     │ [ Search artworks…                        ]  │
+│ Arrt     │ [ Search artworks…                        ]  │
 ├──────────────┼──────────────────────────────────────────────┤
 │ ▣ Artworks   │  actions …                View ▾ Sort ▾ Filter ▾
 │   Add New    │                                              │
@@ -251,14 +251,14 @@ listed below so it can be disputed.
     marked *"Already in your library"*, and clicking it opens the library entry
     instead of the add dialog.
 
-  Curatarr follows that shape. The groups are *In your library* and *Add New*,
+  Arrt follows that shape. The groups are *In your library* and *Add New*,
   named as Sonarr names its second group for the page it opens, and the Add
   New row reads *Search museums for "{query}"*. Picking it goes to
   `#discover?term={query}`. A candidate that is already an accepted work is
   marked *Already in your library*, and its first control opens that work.
   **Three departures, each forced by a fact Sonarr does not face:**
   - **Add New fills in the term and does not start the search.** Sonarr's lookup
-    is free and instant. Curatarr's is a discovery run, which takes minutes and
+    is free and instant. Arrt's is a discovery run, which takes minutes and
     spends money, so Add New shows the free estimate beside the filled-in box
     and the curator presses Search. *(Builder's ruling: nothing may spend on a
     keystroke.)*
@@ -271,7 +271,7 @@ listed below so it can be disputed.
     a recorded departure from the *arr precedent, for the reason above.)*
   - **A held work keeps a quieter *Accept anyway*.** Sonarr's card for a series
     already in the library offers no add at all, because a TVDB id makes
-    "already held" certain. Curatarr's is found by title and artist, which two
+    "already held" certain. Arrt's is found by title and artist, which two
     different works can share ("Untitled"), so removing Accept would block
     acquiring a painting the library does not hold. Opening the held work is
     the card's first control. *(Builder's ruling, 2026-09-30, recorded as a
@@ -358,8 +358,8 @@ Three consequences, all cheap to honour now and expensive to retrofit:
   becomes "Hang Winter in the living room". A confirmation that reads correctly
   today only because there is one possible target is a sentence that silently
   becomes wrong.
-- **Health is per-device and already nearly is.** The masthead indicator
-  aggregates — "well", or "the study panel has not reported since 09:14" — so it
+- **Health is per-device and already nearly is.** The top bar's status
+  indicator aggregates — "well", or "the study panel has not reported since 09:14" — so it
   gains a device dimension rather than a new design.
 - **A theme is not owned by a wall.** Themes stay collection-scoped; *hanging* is
   the per-wall act. Two walls may hang the same theme, and that must not require
@@ -490,7 +490,7 @@ the curator's taste be matched against it in one set of terms.
 Two consequences the interface must show rather than hide:
 
 - **Most facets are `inferred`, and the marking is therefore inverted.**
-  `curatarr/src/curatarr/library/discovery/browse.py` records that for the wired collection
+  `arrt/src/arrt/library/discovery/browse.py` records that for the wired collection
   "style, classification and period were measured missing on ordinary spellings",
   and the recorded field inventory has no style field at all. The operator's
   direction is to lean on model inference rather than accept that coverage — so
@@ -527,7 +527,7 @@ be traced means the inventory is wrong.
    `Affinity` with `derivation='stated'` rather than making the model infer one.
    A fourth control, **"go to <artist>'s work"**, is kept visually apart from those
    three because it is a different kind of act: the reactions record taste and stay
-   in the thread; this one leaves it, filtering Collection to that artist.
+   in the thread; this one leaves it, filtering Artworks to that artist.
 
    > **Where it lands is the interesting part, and it is usually nowhere.** The
    > artists a conversation surfaces are by definition ones the curator could not
@@ -535,7 +535,7 @@ be traced means the inventory is wrong.
    > nothing by them. Reporting that as "nothing matches these filters" would be
    > true and useless. The artist-filtered empty state therefore says so plainly —
    > *"Nothing by Wassily Kandinsky yet"* — states that this is normal rather than
-   > broken, and offers the search. **This is a third empty state for Collection,
+   > broken, and offers the search. **This is a third empty state for Artworks,
    > not a variant of the other two**, and it is the one the conversation makes
    > common.
 3. When a direction firms up, the system offers it as a **commit card** in the
@@ -589,7 +589,7 @@ and neither is fully reversible, which drives two rules:
 
 ### Flow 5 — Organise into themes
 
-`Collection → select → add to theme` *(and)* `Collection → theme rail → Theme → reorder`
+`Artworks → select → add to theme` *(and)* `Artworks → theme rail → Theme → reorder`
 
 **CHANGE — organising happens in the collection, against the works being
 organised.** The theme rail filters the grid to a theme's members; membership is
@@ -765,7 +765,7 @@ almost no considered empty states.
 | Work | n/a | Image placeholder at the work's own aspect ratio | Named per missing part — a work with no rendition is not a failed page |
 | Queue | Nothing in flight → say so, say what would appear here, and offer Add New. Over a truncated listing it says what it checked, since an older search may still be at the gate | Nothing until the listing arrives, then the heading and the table together | The request's refusal, in the page's error banner |
 | History | No search has finished → say so | Nothing until the listing arrives, then the heading and the table together | The request's refusal, in the page's error banner |
-| Add New | No conversations and no runs → the intent box, prominent, with two or three worked examples | Per-turn, in the thread | A failed turn stays in the thread and is retryable; it never silently vanishes |
+| Add New | No conversations → the intent box, prominent, with two or three worked examples | Per-turn, in the thread | A failed turn stays in the thread and is retryable; it never silently vanishes |
 | Run | n/a — a run always has a status, and "no works yet" is a populated run in `resolving_works` | The sentence first, then the work table filling in beneath it without moving it | **The watch says whether it is still watching.** A blip is reported and retried; after five consecutive failures it says it has given up and to reload, because a page that stopped polling silently is indistinguishable from a live one |
 | Conversation | A thread with no turns → the intent box, with the same worked examples Add New offers | Per-turn, in the thread, with the turn in flight named as such | A failed turn stays in the thread and is retryable; it never silently vanishes |
 | Review | No candidates: which of the four kinds of nothing (Q12) | Per-card | Per-card, so one bad candidate does not blank the grid |
@@ -848,7 +848,7 @@ by `re-architecture.md` (`archive/build-plan.md`).
   obvious from the outcome: `SpendRecord.conversation_turn_id` is the same
   question asked about money, where the reason to orphan is not "the judgment is
   worth keeping" but "a ledger must not change retroactively".
-- **The threshold at which Collection defaults to contact sheet** is written above
+- **The threshold at which Artworks defaults to contact sheet** is written above
   as "a few hundred" and is a guess. It should be set from the first real
   thousands-scale corpus, not now.
 - **Whether Review needs its own density control.** Judging wants maximum picture;
@@ -856,16 +856,16 @@ by `re-architecture.md` (`archive/build-plan.md`).
 
 - **Where the re-architecture's new objects live on the surface** *(added
   2026-09-30; see `re-architecture.md`)*. Each needs a home that satisfies the
-  navigation norm, meaning a thing a curator sets out to do rather than a
-  subsystem that acquired a tab:
+  navigation norm: where its *arr precedent puts it, as a page inside an
+  existing section rather than a section of its own:
   - **Watches** follow Radarr's Lists under Settings, and what they still want
     appears under Wanted › Missing. *(Changed 2026-09-30 with the *arr
     amendment. The earlier answer was under Discover, as the standing form of a
     run.)*
-  - **Programming tags** belong on Collection and Work, beside the facets they
+  - **Programming tags** belong on Artworks and Work, beside the facets they
     are deliberately distinct from.
   - **Smart-playlist rules** belong on the Theme screen.
-  - **Watch spend** belongs on the health indicator.
+  - **Watch spend** belongs on the status indicator.
 
   None is designed. The screen tables above will need rows only if one of them
   turns out to be a screen rather than a panel on an existing one, and

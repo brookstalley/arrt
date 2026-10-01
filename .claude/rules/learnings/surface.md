@@ -1,10 +1,10 @@
 ---
 paths:
-  - "curatarr/src/curatarr/http/**"
-  - "curatarr/src/curatarr/mcp/**"
-  - "curatarr/src/curatarr/services/**"
-  - "curatarr/src/curatarr/library/services/**"
-  - "curatarr/src/curatarr/programming/**"
+  - "arrt/src/arrt/http/**"
+  - "arrt/src/arrt/mcp/**"
+  - "arrt/src/arrt/services/**"
+  - "arrt/src/arrt/library/services/**"
+  - "arrt/src/arrt/programming/**"
 ---
 # Learnings — surface
 

@@ -100,13 +100,13 @@ commit that descends from Chunk 02's commit, and at Chunk 01's parent its
 ## Status
 
 - [x] Chunk 01: Arrt → Postarr (the player)
-- [ ] Chunk 02: Curatarr → Arrt (the server), and the PR #156 debt
+- [x] Chunk 02: Curatarr → Arrt (the server), and the PR #156 debt
 
 ### Chunk 01: Arrt → Postarr (the player)
 
 - **Type:** cleanup
 - **Surfaces:**
-  - `git mv arrt postarr`, then `postarr/src/arrt` → `postarr/src/postarr`.
+  - `git mv arrt postarr`, then the package beneath it, giving `postarr/src/postarr`.
     Every import, `pyproject.toml`'s project name, scripts and tool
     configuration. `uv.lock` regenerated.
   - `deploy/display.service` (`WorkingDirectory`, `python -m`), `deploy/README.md`.
@@ -148,7 +148,7 @@ commit that descends from Chunk 02's commit, and at Chunk 01's parent its
 - **Type:** cleanup
 - **Depends on:** Chunk 01 committed. The order is the point of the plan.
 - **Surfaces:**
-  - `git mv curatarr arrt`, then `arrt/src/curatarr` → `arrt/src/arrt`. Every
+  - `git mv curatarr arrt`, then the package beneath it, giving `arrt/src/arrt`. Every
     import, `pyproject.toml`, `uv.lock`, the `curatarr` CI job, and the
     `.claude/rules/learnings/*.md` path globs.
   - `deploy/curation.service`, `deploy/README.md`. The unit files keep their
@@ -168,21 +168,40 @@ commit that descends from Chunk 02's commit, and at Chunk 01's parent its
   - The harness's auto-memory, where it names Curatarr.
 - **Carried into this chunk's commit** (accepted from the PR #156 review, and
   every file is touched here anyway):
-  - `build-plan-arr-navigation.md` is left alone as history (see above); its
-    stale Chunk 05 text is dropped from the debt for that reason.
+  - `build-plan-arr-navigation.md`'s stale Chunk 05 text is **dropped from the
+    debt, deliberately**: that plan is complete and is history (see above), and
+    rewriting a ticked chunk's text to match later decisions would misrecord
+    what was planned.
   - `information-architecture.md` and `project-preferences.md`: the open
     questions test new pages against the replaced three-destination norm; the
     Add New empty state still mentions runs; "Collection" and "masthead" still
     appear as current names; a pointer still names the deleted
-    `test_the_three_destinations.py` (now `test_the_sidebar.py`).
-  - The "Chunk 05" comment in `screens/collection.js`.
+    `test_the_three_destinations.py` (now `test_the_sidebar.py`). Only
+    current text was changed; CHANGE and RULING blocks and dated history keep
+    "Collection", as they recorded it.
+  - The "Chunk 05" comment in `arrt/src/arrt/http/static/screens/collection.js`.
 - **Tests:** all three suites pass, the browser suite included (static files
-  are touched). `git grep -niP 'curatarr'`, excluding the history files:
-  before 1208 lines in 245 files; after 0. The same rename-roster check as
-  Chunk 01, for `curatarr/` → `arrt/`.
-- **Visual change:** no. **Operator verification:** yes. The Pi's units must be
+  are touched). `git grep -niP 'curatarr'`, excluding the history files and
+  this plan: before 1162 lines in 241 files. After: 11 lines, each one a
+  record of the naming history (the operator's 2026-09-30 quote, the wave 5
+  filter, the repo's former names, and the Pi step's old directory names),
+  and nothing else. Rename roster: 263 tracked files under the old server directory, 263
+  renamed into `arrt/`, and `arrt/` holds exactly those 263. The isolation
+  test failed on a planted `import arrt.config` in `postarr/src/postarr/config.py`,
+  naming it as the curation plane, and passed once it was removed.
+- **Visual change:** yes, the browser's `<title>` and brand heading read Arrt.
+  `arrt/tests/integration/test_browser_surface.py` asserts both in the served
+  shell; the brand assertion was added here and watched failing against the
+  old name. **Operator verification:** yes. The Pi's units must be
   reinstalled from `deploy/` after this lands, or they start module names that
   no longer exist. The step joins `operator-verification.md` with the commands.
+- **The commit's subject contains `Rename the server Curatarr to Arrt`**, and no
+  other commit's does, because wave 5's filter finds the commit by that phrase.
+  The branch lands as a merge commit (the project's default), so the commit
+  survives. Once merged, its id goes into the recipe in `re-architecture.md`.
 - **Done when:** the three suites, lint, format and the browser suite pass;
   both greps are empty; CI passes on the branch; the queue entry exists; the
-  Critic has reviewed the branch.
+  Critic has reviewed the branch; and **the operator has renamed the GitHub
+  repo to brookstalley/arrt**, which is a precondition of the merge, because
+  the User-Agent, the schemas' `$id`, `backlog_service_repo` and
+  `security-model.md` already name it.

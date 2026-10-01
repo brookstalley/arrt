@@ -27,7 +27,7 @@ stays version-free.
 
 ## Change of direction — 2026-09-30 (read before anything else)
 
-**The product is becoming two: Curatarr, a server holding the Library and
+**The product is becoming two: Arrt, a server holding the Library and
 Programming, and Postarr, a Player at each wall.** The target, the waves and
 the open questions are in `.prawduct/artifacts/re-architecture.md`. The contract
 between the two is `player-contract.md` and `contract/`. Rules for working here
@@ -54,9 +54,9 @@ Three independent projects, three interpreters, three suites.
 
 | | 2024 modules (repo root) | curation plane | display plane |
 |---|---|---|---|
-| Test | `uv run pytest tests` | `cd curatarr && uv run pytest` | `cd postarr && uv run --group raster pytest` |
-| Lint | `uv run ruff check .` | `cd curatarr && uv run ruff check .` | `cd postarr && uv run ruff check .` |
-| Format | `uv run black .` | `cd curatarr && uv run black .` | `cd postarr && uv run black .` |
+| Test | `uv run pytest tests` | `cd arrt && uv run pytest` | `cd postarr && uv run --group raster pytest` |
+| Lint | `uv run ruff check .` | `cd arrt && uv run ruff check .` | `cd postarr && uv run ruff check .` |
+| Format | `uv run black .` | `cd arrt && uv run black .` | `cd postarr && uv run black .` |
 
 **All three must pass.** The display plane got its suite, its `test_commands`
 entry and its CI leg on 2026-08-06, with its first modules — until then its
@@ -108,7 +108,7 @@ nothing in either suite needs it, because the driver is passed into
 
 **A plain `uv sync` uninstalls the optional groups.** uv treats anything outside
 the default groups as extraneous and removes it, so after a bare `uv sync` in
-`curatarr/` the browser suite skips itself, and in `postarr/` the typesetter
+`arrt/` the browser suite skips itself, and in `postarr/` the typesetter
 does. The suites stay green and quietly shrink. Sync with the groups the run
 needs: `uv sync --group browser` in curation, `uv sync --group raster` in display.
 
@@ -119,7 +119,7 @@ pytest that resolves different dependencies and reports a green suite that means
 nothing. This table is the authority README.md points at for running the tests, so
 a wrong command here costs a fresh clone its first hour.
 
-Run the curation plane: `cd curatarr && uv run python -m curatarr`. It needs
+Run the curation plane: `cd arrt && uv run python -m arrt`. It needs
 `ART_ROOT` (copy `.env.example` to `.env`); the browser interface serves on
 `CURATION_PORT`, its JSON API under `/api`, and MCP clients connect to `/mcp` on
 the same port.
@@ -134,7 +134,7 @@ is not in art mode, so it will not interrupt somebody watching television.
 **The mutation sweep runs per plane, and the display plane needs `--project`:**
 
 ```sh
-cd postarr && uv run python ../curatarr/tools/mutation_sweep.py --project . m.json tests/
+cd postarr && uv run python ../arrt/tools/mutation_sweep.py --project . m.json tests/
 ```
 
 Without it the tool sweeps the curation project with the display plane's paths and
@@ -159,12 +159,12 @@ live — plane isolation, the Library/Programming seam, the heartbeat, the norm
 index, the label corpus, and the screen tables. Those span two projects by design: `test_screen_tables.py` reads
 the *curation* plane's `http/static/app.js` against
 `.prawduct/artifacts/information-architecture.md`, and neither plane's own suite
-can see both. So a change made entirely inside `curatarr/` — routing a screen,
+can see both. So a change made entirely inside `arrt/` — routing a screen,
 editing those IA tables — is guarded by a leg in the repo root.
 
 ## The browser suite and the live suites
 
-The client under `curatarr/src/curatarr/http/static/` is the product's only human
+The client under `arrt/src/arrt/http/static/` is the product's only human
 interface, and neither Python suite runs it: `-m browser` does, and you run it
 whenever you touch anything under `static/`. The four live markers (`live_museum`,
 `live_binary`, `live_api`, `llm_eval`) check foreign APIs and are deselected by
