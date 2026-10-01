@@ -36,6 +36,9 @@ curatarr`) and open it in a browser.
    dropdown should list your matches, then *Search museums for "…"*, which
    opens Add New with the words filled in and nothing started. Enter with
    nothing highlighted opens Artworks filtered.
+7. **The toolbar** (Chunk 05): on Artworks, try View › Table, Sort › Artist,
+   and Filter to put the rails away. Does the Table earn its place, and does
+   hiding the rails give the grid enough back to be worth a button?
 
 ### Switch the Pi to HTTP mode, and let it soak — added 2026-09-30
 

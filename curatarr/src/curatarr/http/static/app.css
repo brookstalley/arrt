@@ -638,8 +638,7 @@ h2 {
 }
 
 .facet-option,
-.theme-chip,
-.density-option {
+.theme-chip {
   appearance: none;
   font: var(--text-sm) / 1.3 var(--font-ui);
   color: var(--text);
@@ -656,8 +655,7 @@ h2 {
 }
 
 .facet-option:hover:enabled,
-.theme-chip:hover:enabled,
-.density-option:hover:enabled {
+.theme-chip:hover:enabled {
   background: var(--surface-2);
   color: var(--text-strong);
 }
@@ -666,8 +664,7 @@ h2 {
    `aria-pressed` — so the rail reads in greyscale and to a screen reader, not
    only to someone who can see the ground change. */
 .facet-option[aria-pressed="true"],
-.theme-chip[aria-pressed="true"],
-.density-option[aria-pressed="true"] {
+.theme-chip[aria-pressed="true"] {
   border-color: var(--border-strong);
   background: var(--surface-2);
   color: var(--text-strong);
@@ -713,7 +710,9 @@ h2 {
   color: var(--text-muted);
 }
 
-.toolbar {
+/* The *arr page toolbar (`core/toolbar.js`): actions left, View, Sort and
+   Filter right. It wraps rather than overflowing, actions first. */
+.page-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -722,12 +721,100 @@ h2 {
   margin-bottom: var(--space-4);
 }
 
-.density {
-  display: inline-flex;
-  gap: var(--space-1);
-  border: 1px solid var(--border);
+.page-toolbar-actions,
+.page-toolbar-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.page-toolbar-controls {
+  margin-left: auto;
+}
+
+.page-toolbar button[aria-pressed="true"] {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+.toolbar-menu-wrap {
+  position: relative;
+}
+
+/* A View or Sort menu. The checked item is marked by weight and a rule as well
+   as by `aria-checked`, so the choice reads without colour. */
+.toolbar-menu {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  z-index: 25;
+  min-width: 12rem;
+  margin: 0;
+  padding: var(--space-1) 0;
+  list-style: none;
+  background: var(--surface-0);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
-  padding: var(--space-1);
+  box-shadow: var(--shadow-2);
+}
+
+.toolbar-menu [role="menuitemradio"] {
+  padding: var(--space-2) var(--space-3);
+  font: var(--text-sm) / 1.4 var(--font-ui);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.toolbar-menu [role="menuitemradio"]:hover,
+.toolbar-menu [role="menuitemradio"]:focus {
+  background: var(--surface-1);
+  color: var(--text-strong);
+}
+
+.toolbar-menu [role="menuitemradio"][aria-checked="true"] {
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* The rails put away: the works take the whole width. */
+.collection.rails-hidden {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* The Table view. */
+.work-table {
+  width: 100%;
+  border-collapse: collapse;
+  font: var(--text-sm) / 1.4 var(--font-ui);
+}
+
+.work-table th,
+.work-table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.work-table th {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.work-table .row-title {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--text-strong);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .selection {

@@ -34,7 +34,7 @@ from typing import Final
 
 from curatarr.library.events import LibraryEvents, WorkChange, WorkChanged, WorkChangedHandler
 from curatarr.library.services.display_fit import ArtworkBox, FitAssessment, assess_display_fit
-from curatarr.persistence.catalogue import CatalogueStore, WorkQuery
+from curatarr.persistence.catalogue import CatalogueStore, WorkOrder, WorkQuery
 from curatarr.persistence.records import (
     AcquisitionMethod,
     Artist,
@@ -224,6 +224,7 @@ class CatalogueService:
         facets: Mapping[str, Sequence[str]] | None = None,
         limit: int | None = None,
         offset: int = 0,
+        order: str | None = None,
     ) -> ArtworkListing:
         """Page through the catalogue, narrowed by text and by facet.
 
@@ -233,7 +234,9 @@ class CatalogueService:
         `q` is free text, split on whitespace; every word must appear somewhere in
         the work's own text or its artist's name. `facets` maps a facet kind to
         the values chosen for it — several values within a kind mean *either*,
-        several kinds mean *both*.
+        several kinds mean *both*. `order` is a `WorkOrder` value (`title`, the
+        default; `artist`; `newest`) and changes only how the page is ordered,
+        never which works the total and the facet counts describe.
 
         **The facet counts come back with the page rather than from a second
         route**, because they answer the same question the grid answers — what
@@ -244,6 +247,7 @@ class CatalogueService:
         `api-contract.md` records the measurement and the trigger for revisiting.
         """
         resolved_status = self._parse_status(status)
+        resolved_order = WorkOrder.TITLE if order is None else require_member(order, enum=WorkOrder, field="order")
         resolved_limit = DEFAULT_LIST_LIMIT if limit is None else limit
         if not 1 <= resolved_limit <= MAX_LIST_LIMIT:
             raise ServiceError(f"limit must be between 1 and {MAX_LIST_LIMIT}, got {resolved_limit}.")
@@ -261,7 +265,7 @@ class CatalogueService:
         # reason the counts can be in this response at all rather than behind a
         # second route, so it has to be true and not merely intended.
         with self._store.reading():
-            page = self._store.list_artworks(query, limit=resolved_limit, offset=offset)
+            page = self._store.list_artworks(query, limit=resolved_limit, offset=offset, order=resolved_order)
             groups = self._facet_groups(query)
             # Attribution is the first thing anyone judges a work by, so a
             # listing that returned a bare artist id would send every caller

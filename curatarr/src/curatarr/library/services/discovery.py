@@ -574,8 +574,9 @@ class DiscoveryService:
         refuses only a suppressed work, one the curator rejected, and nothing
         excludes one they accepted. The review card says so and leads with opening
         the held artwork, since accepting again would mint a second artwork for
-        the same painting — Sonarr's
-        *Already in your library* on an Add New result, and the same answer here.
+        the same painting. Sonarr's *Already in your library* on an Add New
+        result is the model; Curatarr keeps a quieter *Accept anyway* beside it,
+        for the key collisions described below.
 
         Found by the same identity `is_work_suppressed` uses, `work_dedup_key`,
         normalised title and artist, and it inherits that key's limits: two works

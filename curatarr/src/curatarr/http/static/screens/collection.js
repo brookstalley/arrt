@@ -36,6 +36,7 @@ import { el, guard, render } from "../core/render.js";
 import { go } from "../core/router.js";
 import { clearSearchLink } from "../core/search.js";
 import { state } from "../core/state.js";
+import { menuButton, toggleButton, toolbar } from "../core/toolbar.js";
 
 /* The typed vocabulary, in vocabulary order, and the words the rail puts on it.
  *
@@ -55,6 +56,26 @@ const FACET_LABELS = {
 
 const CONTACT = "contact";
 const CATALOGUE = "catalogue";
+/* A table of works, one row each: the *arr Table view, for scanning by title,
+ * artist and date when the pictures are not what you are looking for. */
+const TABLE = "table";
+
+/* The toolbar's View menu, in the *arr apps' words. The values keep the
+ * spellings the address had before the labels changed — `?density=contact` is
+ * Posters — so a bookmark is never broken over a word. */
+const VIEWS = [
+  { value: CONTACT, label: "Posters" },
+  { value: CATALOGUE, label: "Overview" },
+  { value: TABLE, label: "Table" },
+];
+
+/* The toolbar's Sort menu: `WorkOrder` on the server, which applies it. Title is
+ * the default and is left out of the address, as every default is. */
+const SORTS = [
+  { value: "title", label: "Title" },
+  { value: "artist", label: "Artist" },
+  { value: "newest", label: "Recently added" },
+];
 
 /* Above this many works the grid opens as a contact sheet.
  *
@@ -177,7 +198,7 @@ function themeIsShowing(query, chosen) {
  * matters — every other consequential state on this surface is in the fragment. */
 function resolveDensity(total) {
   const named = state.params.density;
-  if (named === CONTACT || named === CATALOGUE) return named;
+  if (named === CONTACT || named === CATALOGUE || named === TABLE) return named;
   return total > CATALOGUE_CEILING ? CONTACT : CATALOGUE;
 }
 
@@ -278,6 +299,36 @@ function contactTile(work, selection) {
   ]);
 }
 
+/* The Table view's row: the same work, the same tick, the same way in.
+ *
+ * `data-artwork` sits on the row for the reason it sits on a tile: the
+ * selection finds and removes a work by it, and counts what is left by the rows
+ * in the body it is handed. */
+function workRow(work, selection) {
+  return el("tr", { "data-artwork": work.artwork_id }, [
+    selection ? el("td", { class: "row-select" }, [selectBox(work, selection.settle)]) : null,
+    el("td", {}, [el("button", { class: "row-title", type: "button", text: work.title, onclick: () => go("work", work.artwork_id) })]),
+    el("td", { text: work.artist ? work.artist.name : "Artist unrecorded" }),
+    el("td", { text: work.date_created || "—" }),
+    el("td", { text: work.medium || "—" }),
+    el("td", {}, [statusBadge(work) || "—"]),
+  ]);
+}
+
+/* The table around a body of rows, with the tick column only when there is a
+ * selection to tick. */
+function tableAround(body, selection) {
+  const head = [
+    selection ? el("th", { scope: "col" }, [el("span", { class: "visually-hidden", text: "Select" })]) : null,
+    ...["Title", "Artist", "Date", "Medium", "Status"].map((name) => el("th", { scope: "col", text: name })),
+  ];
+  return el("table", { class: "work-table" }, [
+    el("caption", { class: "visually-hidden", text: "The works, one row each." }),
+    el("thead", {}, [el("tr", {}, head)]),
+    body,
+  ]);
+}
+
 /* -- the loading state ------------------------------------------------------ */
 
 /* Tiles at the geometry the real ones will have — which means this is painted
@@ -330,13 +381,16 @@ function skeletonGrid(density) {
  * thing that *is* known here, and a control that works while the pictures load is
  * better than a grey rectangle the same size. */
 function skeletonScreen(density) {
+  const railsShown = !railsHidden();
   return [
     el("h2", { text: "Loading the collection…" }),
-    el("div", { class: "collection" }, [
-      el("aside", { class: "rails", "aria-hidden": true }),
+    el("div", { class: railsShown ? "collection" : "collection rails-hidden" }, [
+      railsShown ? el("aside", { class: "rails", "aria-hidden": true }) : null,
       el("div", { class: "collection-main" }, [
-        el("div", { class: "toolbar" }, [densityControl(density)]),
-        skeletonGrid(density),
+        pageToolbar(density, null, false),
+        // A table's rows have no picture whose geometry could jump, and a stand-in
+        // drawn at the wrong row height would be the reflow it exists to prevent.
+        density === TABLE ? null : skeletonGrid(density),
       ]),
     ]),
   ];
@@ -424,8 +478,8 @@ function themeChip(placement, activeId) {
           // facet, and a chip that appeared to do nothing because a search was
           // still in the address would be the worst of both.
           isShowing
-            ? { density: state.params.density }
-            : { density: state.params.density, theme: placement.theme.theme_id },
+            ? viewing()
+            : { ...viewing(), theme: placement.theme.theme_id },
         ),
     }),
     el("button", {
@@ -459,19 +513,48 @@ function themeRail(themes, showingTheme) {
 
 /* -- the toolbar: density, and editing membership in place ------------------- */
 
-function densityControl(density) {
-  const button = (value, label) =>
-    el("button", {
-      class: "density-option",
-      type: "button",
-      "aria-pressed": density === value ? "true" : "false",
-      text: label,
-      onclick: () => go("collection", null, { ...state.params, density: value }),
-    });
-  return el("div", { class: "density", role: "group", "aria-label": "Grid density" }, [
-    button(CONTACT, "Contact sheet"),
-    button(CATALOGUE, "Catalogue"),
-  ]);
+/* How the page is being shown, without anything it is narrowed by: the state a
+ * reset of the narrowing keeps. "Show everything" means every work, not every
+ * work in a different view, sort and layout from the one the curator chose. */
+function viewing() {
+  return { density: state.params.density, sort: state.params.sort, filters: state.params.filters };
+}
+
+/* Whether the curator has put the rails away. Addressable, like the density:
+ * `?filters=hidden`, absent by default, because the rails' counts are how a
+ * curator finds things at thousands of works (the owner's ruling on Chunk 05). */
+function railsHidden() {
+  return state.params.filters === "hidden";
+}
+
+/* The *arr toolbar over the works: the selection's actions on the left; View,
+ * Sort and Filter on the right (`core/toolbar.js`).
+ *
+ * **Sort is not offered while a theme is showing**, because a theme comes in
+ * its curated order, which is the theme's whole point — a sort would undo it. */
+function pageToolbar(density, selection, showingTheme) {
+  const controls = [
+    menuButton({
+      label: "View",
+      options: VIEWS,
+      current: density,
+      onChoose: (value) => go("collection", null, { ...state.params, density: value }),
+    }),
+    showingTheme
+      ? null
+      : menuButton({
+          label: "Sort",
+          options: SORTS,
+          current: state.params.sort || "title",
+          onChoose: (value) => go("collection", null, { ...state.params, sort: value === "title" ? "" : value }),
+        }),
+    toggleButton({
+      label: "Filter",
+      pressed: !railsHidden(),
+      onToggle: (show) => go("collection", null, { ...state.params, filters: show ? "" : "hidden" }),
+    }),
+  ];
+  return toolbar({ actions: selection ? [selection.node] : [], controls });
 }
 
 function uncheck(grid, artworkId) {
@@ -657,7 +740,7 @@ function emptyState(query, chosen, showingTheme, themeName) {
           class: "action quiet",
           type: "button",
           text: "Show everything",
-          onclick: () => go("collection", null, { density: state.params.density }),
+          onclick: () => go("collection", null, viewing()),
         }),
       ]),
     ]);
@@ -691,7 +774,7 @@ function emptyState(query, chosen, showingTheme, themeName) {
         class: "action",
         type: "button",
         text: "Show everything",
-        onclick: () => go("collection", null, { density: state.params.density }),
+        onclick: () => go("collection", null, viewing()),
       }),
       query ? clearSearchLink("Clear only the search") : null,
     ]),
@@ -764,12 +847,17 @@ export async function viewCollection(generation) {
     // screen's first page.
     showingTheme
       ? themePage(state.params.theme)
-      : fetchAllWorks(query, chosen, (first) => {
-          // Only when there is more to come. A collection that arrives whole in
-          // one round trip has nothing to wait through, and the tiles it would
-          // stand in for are already on their way.
-          if (first.truncated) render(generation, ...skeletonScreen(resolveDensity(first.total)));
-        }),
+      : fetchAllWorks(
+          query,
+          chosen,
+          (first) => {
+            // Only when there is more to come. A collection that arrives whole in
+            // one round trip has nothing to wait through, and the tiles it would
+            // stand in for are already on their way.
+            if (first.truncated) render(generation, ...skeletonScreen(resolveDensity(first.total)));
+          },
+          state.params.sort,
+        ),
   ]);
 
   // `ThemeListOut` wraps its list; the rail wants the placements themselves.
@@ -790,22 +878,24 @@ export async function viewCollection(generation) {
     return;
   }
 
-  const grid = el("ul", { class: density === CONTACT ? "grid contact-sheet" : "grid" });
+  // The selection works on whatever holds one element per work: the grid's list,
+  // or the table's body. Its counts and removals read that container directly.
+  const grid = density === TABLE ? el("tbody") : el("ul", { class: density === CONTACT ? "grid contact-sheet" : "grid" });
   const selection = membershipControls({
     themes,
     showingTheme,
     grid,
     heading,
     recount,
-    whenEmpty: () => grid.replaceWith(emptyState(query, chosen, showingTheme, themeName)),
+    whenEmpty: () => (grid.closest("table") || grid).replaceWith(emptyState(query, chosen, showingTheme, themeName)),
   });
-  for (const work of page.works) {
-    grid.append(density === CONTACT ? contactTile(work, selection) : workCard(work, selection));
-  }
+  const tile = density === TABLE ? workRow : density === CONTACT ? contactTile : workCard;
+  for (const work of page.works) grid.append(tile(work, selection));
+  const shown = density === TABLE ? tableAround(grid, selection) : grid;
   render(
     generation,
     heading,
-    collectionLayout(themes, page, chosen, showingTheme, density, selection, [shortfallNote(page), grid]),
+    collectionLayout(themes, page, chosen, showingTheme, density, selection, [shortfallNote(page), shown]),
   );
 }
 
@@ -835,11 +925,9 @@ function collectionLayout(themes, page, chosen, showingTheme, density, selection
       }),
     );
   }
-  return el("div", { class: "collection" }, [
-    el("aside", { class: "rails", "aria-label": "Filters" }, rails),
-    el("div", { class: "collection-main" }, [
-      el("div", { class: "toolbar" }, [densityControl(density), selection ? selection.node : null]),
-      ...main,
-    ]),
+  const shown = !railsHidden();
+  return el("div", { class: shown ? "collection" : "collection rails-hidden" }, [
+    shown ? el("aside", { class: "rails", "aria-label": "Filters" }, rails) : null,
+    el("div", { class: "collection-main" }, [pageToolbar(density, selection, showingTheme), ...main]),
   ]);
 }

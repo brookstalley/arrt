@@ -1212,7 +1212,7 @@ the client with them.
 |---|---|
 | `GET /`, `/works`, `/discovery`, `/themes`, `/manifest`, `/health` | The client shell. Listed rather than globbed, so a mistyped `/api/...` 404s instead of returning HTML a client parses as JSON. |
 | `GET /static/app.css`, `/static/app.js` | The client. One stylesheet, one script, no build step. |
-| `GET /api/works` | A page of works, each with its fit verdict and image state. |
+| `GET /api/works` | A page of works, each with its fit verdict and image state. `sort` is `title` (the default), `artist` (unattributed last) or `newest`, and orders the page only: the total and the facet counts describe the same set whatever the order. An unknown value is refused by name. |
 | `GET /api/works/{id}` | One work with sources, renditions and mat history. |
 | `GET /api/works/{id}/thumbnail` | A downscaled copy, generated on first ask and revalidated thereafter. |
 | `GET /api/themes`, `GET /api/themes/{id}` | Themes, and one theme's works in curated order. |

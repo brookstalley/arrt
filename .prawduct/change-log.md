@@ -58,7 +58,7 @@
 
 ## 2026-09-30: The *arr navigation: the norm amended, and the sidebar built
 
-<!-- prawduct: chunks=01,02,03,04 | scope=arr-navigation -->
+<!-- prawduct: chunks=01,02,03,04,05 | scope=arr-navigation -->
 
 **Why:** the owner ruled that Curatarr's browser surface should be laid out like
 the *arr apps: *"More important to be familiar than to have our own thing."*
@@ -105,6 +105,14 @@ the *arr apps: *"More important to be familiar than to have our own thing."*
   re-propose an accepted work, which would have acquired a duplicate.
   `held_artwork_id` is new, additive, on the HTTP card and both `art_review`
   shapes.
+- **The page toolbar (Chunk 05).** Artworks gets the *arr toolbar: the
+  selection's actions on the left, and View (Posters, Overview, Table), Sort
+  (Title, Artist, Recently added) and Filter on the right. Filter shows and
+  hides the facet and theme rails, which stay beside the grid as the owner
+  ruled. Sort is new on the server: `GET /api/works?sort=`, a `WorkOrder` that
+  orders the page and never moves the total or the facet counts. View, Sort and
+  Filter are all in the address and survive a reload, and "Show everything"
+  keeps them.
 - `test_the_three_destinations.py` became `test_the_sidebar.py`. Its docstring
   records which tests were kept, which rewritten to the amended norm, and which
   retired: *no entry names a pipeline stage* and *the navigation is flat*, both

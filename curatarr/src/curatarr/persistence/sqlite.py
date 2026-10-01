@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from typing import Any, Final
 
 from curatarr.persistence.adapter import BY_ID, TableAdapter, from_iso, require_datetime, to_iso
-from curatarr.persistence.catalogue import WorkQuery
+from curatarr.persistence.catalogue import WorkOrder, WorkQuery
 from curatarr.persistence.durable import OrderBy
 from curatarr.persistence.errors import StorageError
 from curatarr.persistence.records import (
@@ -343,6 +343,21 @@ _JOIN_ARTISTS: Final[str] = " LEFT JOIN artists ar ON ar.id = a.artist_id"
 #: same decision `_BY_TITLE` carries, spelled for the joined statement.
 _WORKS_ORDER: Final[str] = 'a."title" COLLATE NOCASE, a."id"'
 
+#: The artist's name, read by a correlated lookup rather than through
+#: `_JOIN_ARTISTS`, which the statement carries only when a search needs it.
+_ARTIST_NAME: Final[str] = '(SELECT ar2."name" FROM artists ar2 WHERE ar2."id" = a."artist_id")'
+
+#: Every order the toolbar's Sort offers, each ending in a tie-break so a page
+#: boundary falls in the same place on every request.
+_WORKS_ORDERS: Final[dict[WorkOrder, str]] = {
+    WorkOrder.TITLE: _WORKS_ORDER,
+    # Unattributed last: `IS NULL` sorts false before true.
+    WorkOrder.ARTIST: f"{_ARTIST_NAME} IS NULL, {_ARTIST_NAME} COLLATE NOCASE, {_WORKS_ORDER}",
+    # `rowid` breaks a tie between works added within one clock tick, in the
+    # order they were inserted; the id, a random uuid, would not.
+    WorkOrder.NEWEST: 'a."created_at" DESC, a.rowid DESC',
+}
+
 #: What free text is searched across, and it is the work's own words plus its
 #: artist's name. **Facet values are deliberately not among them**: a facet is
 #: chosen from a control that shows its count, and folding it into the text box
@@ -490,7 +505,7 @@ class SqliteCatalogue(TableAdapter):
     def update_artwork(self, artwork: Artwork) -> None:
         self._update("artworks", BY_ID, _artwork_row(artwork), subject=f"artwork {artwork.id!r}")
 
-    def list_artworks(self, query: WorkQuery, *, limit: int, offset: int) -> ArtworkPage:
+    def list_artworks(self, query: WorkQuery, *, limit: int, offset: int, order: WorkOrder = WorkOrder.TITLE) -> ArtworkPage:
         selects = _matching(query)
         # Counted first and from the same clause as the page, so "showing 20 of
         # 84" cannot describe a different 84 from the twenty beside it.
@@ -500,7 +515,7 @@ class SqliteCatalogue(TableAdapter):
             ]
         )
         rows = self._store.select_rows(
-            f"SELECT a.* {selects.source} WHERE {selects.where} ORDER BY {_WORKS_ORDER} LIMIT ? OFFSET ?",
+            f"SELECT a.* {selects.source} WHERE {selects.where} ORDER BY {_WORKS_ORDERS[order]} LIMIT ? OFFSET ?",
             (*selects.values, limit, offset),
         )
         return ArtworkPage(artworks=[_artwork(row) for row in rows], total=total)

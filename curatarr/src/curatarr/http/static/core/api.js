@@ -81,7 +81,7 @@ function facetQuery(chosen) {
  * depends on how much there is, which nothing knows until this page lands, and a
  * placeholder painted before it can only guess. Optional, and the two other
  * callers pass nothing. */
-export async function fetchAllWorks(query = "", chosen = null, onFirstPage = null) {
+export async function fetchAllWorks(query = "", chosen = null, onFirstPage = null, sort = null) {
   const works = [];
   let total = 0;
   let truncated = false;
@@ -100,8 +100,11 @@ export async function fetchAllWorks(query = "", chosen = null, onFirstPage = nul
   // different set of works.
   const search = query ? `&q=${encodeURIComponent(query)}` : "";
   const narrowing = facetQuery(chosen);
+  // The order is the server's to apply, for the reason the search is: paging a
+  // set the client sorted would sort only what had arrived.
+  const order = sort ? `&sort=${encodeURIComponent(sort)}` : "";
   for (let page = 0; page < PAGE_CEILING; page += 1) {
-    const body = await api(`/api/works?offset=${works.length}${search}${narrowing}`);
+    const body = await api(`/api/works?offset=${works.length}${search}${narrowing}${order}`);
     total = body.total;
     if (page === 0) {
       facets = body.facets || [];

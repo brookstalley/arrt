@@ -67,14 +67,12 @@ inside an existing section, not a section of its own.
 > found with a grep. The browser suite holds the sidebar's shape (its sections, their
 > pages, and the home page) from `build-plan-arr-navigation.md` Chunk 02 on.
 >
-> **Status:** in-transition. `build-plan-arr-navigation.md` is the migration and
-> tracks it, and is meant to land in the same PR as this amendment. The sidebar
-> is built. Interim rule: until the plan's remaining chunks land, a new screen
-> goes where § The *arr layout places it.
+> **Status:** steady-state. The migration, `build-plan-arr-navigation.md`, landed
+> on the same branch as this amendment.
 >
-> **Retroactivity:** migrate: `build-plan-arr-navigation.md`. Everything conforms
-> except the page toolbar, which does not yet exist. If the
-> plan merges as one PR, the norm is steady-state at merge with no residual sites.
+> **Retroactivity:** migrate, completed at birth: `build-plan-arr-navigation.md`
+> moved every page of the built surface into the sidebar, and there are no
+> residual sites.
 
 **A working prototype of everything below is committed beside this file:**
 `prototypes/curation-ia-prototype.html` — one self-contained page, no build step,
@@ -183,8 +181,8 @@ It becomes a rail inside Collection — a filter that is also editable — plus 
 
 ## The *arr layout (target, amended 2026-09-30)
 
-This is the layout § Direction now requires. **Everything below is built except
-the page toolbar**, which `build-plan-arr-navigation.md` builds in Chunk 05.
+This is the layout § Direction now requires, and everything below is built
+(`build-plan-arr-navigation.md`).
 
 > **A gap in Activity, recorded 2026-09-30 while building it.** Radarr's Queue
 > also holds what finished but needs the user, such as a manual import. Curatarr's
@@ -278,10 +276,16 @@ listed below so it can be disputed.
     acquiring a painting the library does not hold. Opening the held work is
     the card's first control. *(Builder's ruling, 2026-09-30, recorded as a
     DECISION in `build-plan-arr-navigation.md`. The owner can overrule it.)*
-- **The toolbar** on list pages puts actions on the left and View, Sort and
-  Filter on the right. On Artworks, View offers Posters, Overview and Table.
-  Posters and Overview replace today's contact sheet and catalogue, and Table is
-  new.
+- **The toolbar** on Artworks puts the selection's actions on the left and
+  View, Sort and Filter on the right. View offers Posters, Overview and Table
+  (Posters was the contact sheet and Overview the catalogue; `?density=` keeps
+  its spellings). Sort offers Title, Artist (unattributed last) and Recently
+  added, and is not offered while a theme is showing, since a theme comes in
+  its curated order. **Filter shows and hides the rails rather than replacing
+  them with a dropdown**, so the facet counts stay in view while browsing
+  (ruled by the owner 2026-09-30, departing from Radarr's Filter menu). Other
+  list pages have no toolbar yet, because they have no actions or views to put
+  in one.
 - **Wanted is not shown yet.** It is where *Cutoff Unmet* (works below the
   quality profile's cutoff, `re-architecture.md` wave 4) and *Missing* (a Watch's
   unmet wants, wave 6) land, and it appears when the first of those exists.
@@ -727,16 +731,21 @@ answers the second. Two consequences, decided 2026-08-10:
   invented, and it contradicted a recorded decision. Only the artwork rendition,
   which *is* a per-work artefact, remains.
 
-**Density is a control, not a decision, and this is what makes Collection work at
-thousands.** Two modes:
+**Density is a control, not a decision, and this is what makes Artworks work at
+thousands.** Three views, in the toolbar's View menu:
 
-- **Contact sheet** — image only, uniform tiles, metadata on hover and on focus.
-  The default above a few hundred works, because per-tile chrome that reads as
-  informative at 41 reads as noise at 4,000 and actively competes with the art.
-- **Catalogue** — the built card: image, title, artist, badges. The default below
-  that threshold, and always available above it.
+- **Posters** (was *Contact sheet*) — image only, uniform tiles, metadata on
+  hover and on focus. The default above a few hundred works, because per-tile
+  chrome that reads as informative at 41 reads as noise at 4,000 and actively
+  competes with the art.
+- **Overview** (was *Catalogue*) — the built card: image, title, artist, badges.
+  The default below that threshold, and always available above it.
+- **Table** — one row per work: title, artist, date, medium, status. Never a
+  default; for scanning by the words when the pictures are not what you are
+  looking for.
 
-The mode is remembered and is part of the addressable state.
+The view, the sort and whether the rails are shown are remembered and are part
+of the addressable state.
 
 ## Screen States
 

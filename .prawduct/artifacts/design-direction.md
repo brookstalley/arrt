@@ -229,7 +229,7 @@ window on a desktop still has a mouse — so viewport width is the wrong signal.
 - **Badges** — glyph + word + colour, never fewer than all three.
 - **Cards** — paper, not UI: 1px border, `--shadow-1`, 4px radius. The elevation is
   barely there on purpose.
-- **Tiles** — two densities (contact sheet, catalogue) per `information-architecture.md`
+- **Tiles** — two densities (Posters, Overview; a Table view beside them) per `information-architecture.md`
   § Information Hierarchy. **Uniform row height in both**, which is a layout
   decision made for a behavioural reason: a grid of art that reflows as images
   arrive is the opposite of the identity, and the built client has already shipped

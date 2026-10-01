@@ -179,6 +179,7 @@ def list_works(
     palette: Annotated[list[str] | None, Query()] = None,
     limit: Annotated[int | None, Query()] = None,
     offset: Annotated[int, Query()] = 0,
+    sort: Annotated[str | None, Query()] = None,
 ) -> WorkPageOut:
     """A page of works with the facet controls for exactly this filter.
 
@@ -201,6 +202,7 @@ def list_works(
         facets={kind: values for kind, values in chosen.items() if values},
         limit=limit,
         offset=offset,
+        order=sort,
     )
     return WorkPageOut(
         works=[_work(entry) for entry in page.entries],

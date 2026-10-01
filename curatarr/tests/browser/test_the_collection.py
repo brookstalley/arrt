@@ -172,12 +172,17 @@ def test_a_density_in_the_address_survives_a_reload_and_a_link(ui):
     assert ui.page.locator("li.card").count() == 0
 
 
-def test_choosing_a_density_writes_it_into_the_address(ui):
-    """A control whose state is not in the URL is a control no link carries."""
+def test_choosing_a_view_writes_it_into_the_address(ui):
+    """A control whose state is not in the URL is a control no link carries.
+
+    The density buttons became the toolbar's View menu with the *arr navigation;
+    Posters is what was the contact sheet, and the address keeps its spelling.
+    """
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid")
 
-    ui.page.click("button:has-text('Contact sheet')")
+    ui.page.click("button.menu-button-trigger:has-text('View')")
+    ui.page.click("[role='menuitemradio']:has-text('Posters')")
     ui.page.wait_for_selector("ul.grid.contact-sheet")
 
     assert "density=contact" in ui.page.url
@@ -755,7 +760,7 @@ def test_a_repaint_that_is_not_a_navigation_does_not_move_focus(ui):
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid")
 
-    ui.page.focus("button.density-option[aria-pressed='false']")
+    ui.page.focus("button.menu-button-trigger")
     ui.page.evaluate("() => refresh()")
     ui.page.wait_for_selector("ul.grid")
 
