@@ -11,7 +11,7 @@ found and how old it is, in absolute terms. A green dot is a verdict, and a
 verdict computed from a file that may simply be young is how a health surface
 starts lying: the reader is told the age and decides.
 
-The writer is the display plane's — `arrt/src/arrt/heartbeat.py`, which
+The writer is the display plane's — `postarr/src/postarr/heartbeat.py`, which
 declares the same two names and is held to them by
 `tests/preferences/test_heartbeat_contract.py`, since neither plane can import
 the other to check. A heartbeat that has never been written is still an ordinary

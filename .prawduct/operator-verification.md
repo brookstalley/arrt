@@ -42,7 +42,7 @@ curatarr`) and open it in a browser.
 
 ### Switch the Pi to HTTP mode, and let it soak — added 2026-09-30
 
-**Wave 2b Chunk 04.** Arrt can now pull its wall from Curatarr instead of
+**Wave 2b Chunk 04.** Postarr can now pull its wall from Curatarr instead of
 reading the shared file. The file channel stays the default, and wave 3 retires
 it only after this has run on the real wall. After wave 2b reaches the Pi:
 
@@ -102,10 +102,10 @@ synced. After this reaches the Pi:
 3. Restart `curation.service`. The journal should say `Reconciled … against the
    Library at startup: nothing to change`.
 
-### The Pi's units after the rename to curatarr/ and arrt/ — added 2026-09-30
+### The Pi's units after the rename to curatarr/ and postarr/ — added 2026-09-30
 
 **Wave 2a.** The projects moved from `curation/` and `display/` to `curatarr/` and
-`arrt/`, and the modules from `curation` and `display` to `curatarr` and `arrt`.
+`postarr/`, and the modules from `curation` and `display` to `curatarr` and `postarr`.
 The installed units still name the old directories and modules, so after pulling
 this they fail to start until they are replaced. The unit *files* keep their
 names until wave 3, so this replaces them rather than adding new ones.
@@ -116,7 +116,7 @@ names until wave 3, so this replaces them rather than adding new ones.
     # Expect nothing but .venv and caches before removing them:
     ls -A /opt/samsung-frame-art-loader/curation /opt/samsung-frame-art-loader/display
     sudo rm -rf /opt/samsung-frame-art-loader/curation /opt/samsung-frame-art-loader/display
-    cd /opt/samsung-frame-art-loader/arrt && sudo -u tvpi /usr/local/bin/uv sync --group raster --group epaper
+    cd /opt/samsung-frame-art-loader/postarr && sudo -u tvpi /usr/local/bin/uv sync --group raster --group epaper
     cd /opt/samsung-frame-art-loader/curatarr && sudo -u tvpi /usr/local/bin/uv sync
     cd /opt/samsung-frame-art-loader
     sudo cp deploy/display.service deploy/curation.service /etc/systemd/system/
@@ -126,12 +126,12 @@ names until wave 3, so this replaces them rather than adding new ones.
 Then run the four checks in `deploy/README.md` § How to tell your own install
 worked: both units active and enabled, the installed copies matching the
 checkout, the account reaching what it needs, and a fresh heartbeat. Logger
-names now start `curatarr.` and `arrt.`, so a saved journal filter on
+names now start `curatarr.` and `postarr.`, so a saved journal filter on
 `curation.` or `display.` stops matching. The wall is dark between the stop and
 the start, so do it when nobody is looking at it.
 
 **To go back**, check out the commit before this merge and run the same steps
-with the names swapped: stop both units, remove `curatarr/` and `arrt/` (only
+with the names swapped: stop both units, remove `curatarr/` and `postarr/` (only
 `.venv` and caches remain after the checkout), `uv sync` in `curation/` and
 `display/`, copy the units back in, reload and start.
 
@@ -208,7 +208,7 @@ Russia)` → `Russian`).
 
 ```sh
 sudo systemctl stop display.service
-cd /opt/samsung-frame-art-loader/arrt
+cd /opt/samsung-frame-art-loader/postarr
 draw() { sudo -u tvpi env HOME=/var/lib/tvpi /usr/local/bin/uv run \
     --group raster --group epaper python tools/label_preview.py --panel --record "$1"; }
 draw hokusai; draw okeeffe; draw wright; draw kandinsky; draw moche; draw nationality-only
@@ -259,8 +259,8 @@ stopped unit — the invocation with this deployment's paths is in
 `deploy/README.md` § The cutover.
 
 ```sh
-cd arrt && uv run --group raster python tools/label_preview.py /tmp/label.png
-cd arrt && uv run --group raster python tools/label_preview.py /tmp/short.png --record okeeffe
+cd postarr && uv run --group raster python tools/label_preview.py /tmp/label.png
+cd postarr && uv run --group raster python tools/label_preview.py /tmp/short.png --record okeeffe
 ```
 
 The report names the record first, then prints the type sizes in arcminutes,
@@ -318,7 +318,7 @@ point of the model.
    the backlog.
 
 **What it would take to change any of these:** the first two are single constants
-in `arrt/src/arrt/panel/layout.py`, not a redesign. Say what you see and the
+in `postarr/src/postarr/panel/layout.py`, not a redesign. Say what you see and the
 tuning is cheap. **The third is struck and its replacement finding is not cheap** —
 styling a culture like a maker needs the catalogue to record that it is one.
 
@@ -367,7 +367,7 @@ comma-separated parts. That was the whole argument for collapsing the tombstone
 onto one line, and it has never been looked at.
 
 ```sh
-cd arrt && uv run --group raster python tools/label_preview.py /tmp/label.png
+cd postarr && uv run --group raster python tools/label_preview.py /tmp/label.png
 ```
 
 The report now prints each line as the panel sets it and names the styled runs
@@ -717,7 +717,7 @@ that 20/20 vision needs to resolve a letter at all — so the label was not mere
 small, it was below the threshold of legibility, and had passed a hardware probe,
 a review and a cutover in that state. Nothing could have caught it, because
 nothing anywhere converted a pixel into the angle a person sees. That conversion
-now exists, and `arrt/tests/test_type_floor.py` asserts in arcminutes.
+now exists, and `postarr/tests/test_type_floor.py` asserts in arcminutes.
 
 **What is still worth a look at the panel, and it is smaller than this entry
 was.** Whether 12.4′ is right in *bold* — the ladder was read in regular weight,
@@ -727,8 +727,8 @@ a size step down. Worth measuring before spending the panel's budget on size tha
 weight could have bought.
 
 ```sh
-cd arrt && uv sync --group raster            # once; the Pi, CI and this Mac all take it
-cd arrt && uv run --group raster python tools/label_preview.py /tmp/label.png --cap-arcmin 11
+cd postarr && uv sync --group raster            # once; the Pi, CI and this Mac all take it
+cd postarr && uv run --group raster python tools/label_preview.py /tmp/label.png --cap-arcmin 11
 ```
 
 The tool now prints arcminutes beside every pixel size, and says what the drop
@@ -747,7 +747,7 @@ looks different in three ways at once and it is worth separating them by eye
 rather than in a photograph of a rotating wall:
 
 ```sh
-cd arrt && uv run --group raster python tools/label_preview.py /tmp/label.png
+cd postarr && uv run --group raster python tools/label_preview.py /tmp/label.png
 ```
 
 1. **The artist now leads and the title follows it.** Deliberate — the family
@@ -846,7 +846,7 @@ numbers under the 2026-08-01 entry below. Rollback for the pins remains
 `deploy/pi-freeze-2024.txt`.
 
 ```sh
-cd arrt && uv run python -m arrt
+cd postarr && uv run python -m postarr
 ```
 
 **What to watch for, each being a behaviour chosen against a plausible

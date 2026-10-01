@@ -1838,7 +1838,7 @@ plus honest `readOnlyHint` / `destructiveHint`.
 > already uses. Tokens are issued from `POST /api/walls/{wall_id}/token` (the
 > Walls screen's Player token panel) and `art_display(action='issue_token')`.
 > Both return the token once, and the wall's `token_issued_at` is on both
-> surfaces' wall shapes. The Player's side is `arrt/src/arrt/pull.py` (Chunk 04):
+> surfaces' wall shapes. The Player's side is `postarr/src/postarr/pull.py` (Chunk 04):
 > `MANIFEST_SOURCE=http` pulls into `CACHE_DIR` and renders only from there. What follows is the design as recorded before the build, and where it
 > disagrees with the code or with `player-contract.md`, those win.
 

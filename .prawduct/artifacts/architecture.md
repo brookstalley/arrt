@@ -85,8 +85,8 @@ database. Adding a second channel is a departure requiring a recorded decision.
 > and the heartbeat is a report, as the heartbeat file is today.
 >
 > **Wave 2 landed 2026-09-30 (wave 2b Chunks 03 and 04).** Curatarr serves the
-> three routes behind a per-wall token, and Arrt's `MANIFEST_SOURCE=http` pulls
-> into `CACHE_DIR` through `arrt/src/arrt/pull.py`, the one module the isolation test now
+> three routes behind a per-wall token, and Postarr's `MANIFEST_SOURCE=http` pulls
+> into `CACHE_DIR` through `postarr/src/postarr/pull.py`, the one module the isolation test now
 > lets open an HTTP client, and only to routes `contract/routes.json` names. The
 > file channel is still the default and still works, so today both channels are
 > in force, and a Pi switches by configuration after a soak. Wave 3 retires the
@@ -971,7 +971,7 @@ pictures while every log line reads fine. The value is the id the curation
 catalogue minted, read off the Walls screen or `art_display(action='walls')`.
 
 **Built 2026-08-12** (`curatarr/src/curatarr/programming/manifest/builder.py`,
-`arrt/src/arrt/config.py`). The one-wall installation is the degenerate
+`postarr/src/postarr/config.py`). The one-wall installation is the degenerate
 case: one wall, one manifest, one heartbeat, and behaviour identical to the
 single-file form apart from the filename. Neither filename may be imported across
 the planes — the isolation norm forbids it — so both are declared twice and held

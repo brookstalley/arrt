@@ -37,6 +37,12 @@ last_validated: null
 
 # Build Plan — Wave 2b: The Seams, and the HTTP Channel Beside the File
 
+> **Names, 2026-10-01.** This is history and keeps the names of its day. Until
+> 2026-10-01 **Curatarr** named the server and **Arrt** named the player. Since then
+> the server is **Arrt** and the player is **Postarr**
+> (`build-plan-rename-arrt-postarr.md`). Paths and package names here are the
+> old ones.
+
 ## What this plan is
 
 The rest of `re-architecture.md`'s wave 2, after the rename (`build-plan-wave-2a-rename.md`).

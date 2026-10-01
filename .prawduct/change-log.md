@@ -54,6 +54,13 @@
                   the whole vocabulary.
        scope    - rollup identifier (e.g., v1.4) -->
 
+> **Names, 2026-10-01.** Entries are history and keep the names of their day. Until
+> 2026-10-01 **Curatarr** named the server and **Arrt** named the player. Since then
+> the server is **Arrt** and the player is **Postarr**
+> (`build-plan-rename-arrt-postarr.md`). Paths and package names here are the
+> old ones.
+
+
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
 ## 2026-09-30: The *arr navigation: the sidebar, Activity, two-scope search and the page toolbar

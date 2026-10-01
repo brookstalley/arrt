@@ -68,7 +68,7 @@ reason to continue this project rather than adopt an existing one.
 > label typography rules (`accessibility-spec.md`), not an overlay on the work.
 
 **Names, from 2026-09-30:** **Curatarr** is the server (the Library and
-Programming), and **Arrt** is the player at each wall. Both names are the
+Programming), and **Postarr** is the player at each wall. Both names are the
 operator's. "Samsung Frame Art Loader" describes the product as built, and
 retires as the waves land. The *arr suffix is deliberate: the model is Radarr and
 Sonarr (`re-architecture.md`). No branding reaches a wall, so the names appear

@@ -18,7 +18,7 @@
 #
 # **`aiohttp` is imported by nothing in this repo.** It is the `samsungtvws`
 # fork's transport, which is why it is pinned here at all, and the reason the
-# jump from 3.9.5 was safe to make is that `arrt/uv.lock` already resolves
+# jump from 3.9.5 was safe to make is that `postarr/uv.lock` already resolves
 # the *same* fork commit against 3.14.3.
 aiohttp==3.14.3
 async_timeout==4.0.3

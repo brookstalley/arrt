@@ -16,7 +16,7 @@
 >   restart or a NAS reboot then never blanks the wall, and the Pi needs no
 >   `ART_ROOT` shared with anything, only a cache directory of its own.
 > - **After the wave-5 repo split**, the Player's deployment docs move to the
->   player repository along with `arrt/`.
+>   player repository along with `postarr/`.
 >
 > Do not remove anything below before the wave that retires it has landed. The
 > cutover record, the power-key measurements and the e-paper pin are hardware
@@ -95,7 +95,7 @@ of what was run, in order, and it is the procedure for doing it again.
     sudo chown -R tvpi:tvpi /srv/art
 
     # dependencies, as the account that will run them
-    cd /opt/samsung-frame-art-loader/arrt && sudo -u tvpi /usr/local/bin/uv sync --group raster --group epaper
+    cd /opt/samsung-frame-art-loader/postarr && sudo -u tvpi /usr/local/bin/uv sync --group raster --group epaper
     cd /opt/samsung-frame-art-loader/curatarr && sudo -u tvpi /usr/local/bin/uv sync
 
     # the environment file: 0640, owned by tvpi, because it carries API keys
@@ -227,14 +227,14 @@ at it as though it were the activation. The activation is the `POST` in
 
 ### Looking at the label without the daemon
 
-`arrt/tools/label_preview.py` renders the chain the daemon runs — metadata,
+`postarr/tools/label_preview.py` renders the chain the daemon runs — metadata,
 layout, Pango — so the type can be judged against real ink rather than imagined.
 Its own docstring points here for this machine's paths, because a checkout, a
 service account and its home are facts about a deployment and do not belong in a
 source file:
 
     sudo systemctl stop display.service
-    cd /opt/samsung-frame-art-loader/arrt && sudo -u tvpi env HOME=/var/lib/tvpi \
+    cd /opt/samsung-frame-art-loader/postarr && sudo -u tvpi env HOME=/var/lib/tvpi \
         /usr/local/bin/uv run --group raster --group epaper \
         python tools/label_preview.py --panel --record hokusai
     sudo systemctl start display.service
@@ -271,14 +271,14 @@ does things.)
 
 ### Measuring what the power keys do
 
-`arrt/tools/power_probe.py` is the only thing in this repo that presses power on
+`postarr/tools/power_probe.py` is the only thing in this repo that presses power on
 the television. It exists because the transitions were never measured — the
 documents describing them call themselves a sketch — and Chunks 25–27 are built on
 what it records. This machine's paths, in the same shape as the label instrument
 above:
 
     sudo systemctl stop display.service
-    cd /opt/samsung-frame-art-loader/arrt && sudo -u tvpi env HOME=/var/lib/tvpi \
+    cd /opt/samsung-frame-art-loader/postarr && sudo -u tvpi env HOME=/var/lib/tvpi \
         /usr/local/bin/uv run python tools/power_probe.py
     # then, with somebody watching the set:
     ... python tools/power_probe.py --click --i-am-at-the-set
@@ -390,7 +390,7 @@ or wheel on any modern Linux), and `epaper` is the panel driver (`omni_epd`, whi
 compiles Cython against the Broadcom SPI and GPIO libraries and installs on a
 Raspberry Pi and nowhere else). On the Pi:
 
-    cd arrt && uv sync --group raster --group epaper
+    cd postarr && uv sync --group raster --group epaper
 
 **A device with a television and no panel installs neither, and that is a
 supported deployment** — leave `EPD_DEVICE` empty in `.env` and the wall rotates
@@ -651,7 +651,7 @@ The pin is applied on both install paths, because they resolve independently:
 
 - `requirements.txt` (the 2024 plane) carries an explicit `IT8951[rpi] @ …@9f13613`
   line beside `omni_epd`.
-- `arrt/pyproject.toml` (the display plane) uses `[tool.uv] override-dependencies`,
+- `postarr/pyproject.toml` (the display plane) uses `[tool.uv] override-dependencies`,
   which is the only mechanism that reaches a requirement written inside another
   package's metadata. **Verified resolving on the Pi 2026-08-07** — `uv lock`
   lands `it8951` on `9f13613` from the override rather than from upstream's
