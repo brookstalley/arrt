@@ -123,7 +123,7 @@ assumptions above.
 - [x] Chunk 01: Library search ignores accents
 - [x] Chunk 02: All works is the default theme
 - [x] Chunk 03: Works and artists carry a Wikidata QID
-- [ ] Chunk 04: The Artist page and Library › Artists
+- [x] Chunk 04: The Artist page and Library › Artists
 
 ### Chunk 01: Library search ignores accents
 
