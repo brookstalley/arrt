@@ -18,7 +18,7 @@ governed_by:
   - artifact: information-architecture
     dispositions:
       - "the curation surface is laid out like the *arr apps (§ Direction) → conforms: no new section; the results page is a contextual page, as Sonarr's search results are"
-      - "Enter opens Artworks filtered to the query (owner, 2026-09-30) against the proposal's results page (§ Search, the target since 2026-10-01) → ruling needed before Chunk 04; see the open question below"
+      - "Enter opens Artworks filtered to the query (owner, 2026-09-30) against the proposal's results page (§ Search, the target since 2026-10-01) → ruled by the owner 2026-10-01: Enter stays on Artworks; the results page is reached from the dropdown's last row (Chunk 04)"
       - "one row per screen in the three tables, held by `tests/preferences/test_screen_tables.py` → binds Chunks 02 and 04"
   - artifact: accessibility-spec
     dispositions:
@@ -65,7 +65,7 @@ After this plan it has a page here.
 
 ## What I would do differently
 
-- **Settle Enter before Chunk 04, or cut Chunk 04.** The typeahead (Chunk 03)
+- **Settle Enter before Chunk 04, or cut Chunk 04.** *(Settled 2026-10-01, below.)* The typeahead (Chunk 03)
   already gives one world. A results page is what Enter opens, and the owner has
   ruled Enter twice in effect, in two directions (the open question below).
   If the answer is "keep Enter on Artworks", Chunk 04 shrinks to one dropdown
@@ -83,11 +83,11 @@ After this plan it has a page here.
 
 ## Requirements Confidence
 
-**Medium.** The rulings settle what to build. One question needs the owner, and
+**Medium.** The rulings and the owner's two answers of 2026-10-01 settle what to build;
 the registry's behaviour is measured for three queries, not proven.
 
-- **Open, needs the owner before Chunk 04:** what Enter does. On 2026-09-30 the owner ruled *"yes to filtered to the query"*: Enter opens Artworks filtered, departing from Sonarr. The proposal the owner ruled on 2026-10-01 says Enter opens a results page with *All*, *In your library* and *Not held*. Ruling 2 ("one world") ruled the scope, not the key. Built today: Enter opens `#collection?q=` (`arrt/src/arrt/http/static/core/search.js`, `installSearch`). Recommended: **keep Enter as ruled, and add *All results for "{query}"* as the dropdown's last row**, opening the results page.
-- `[PROPOSED NORM, for the owner to ratify in Chunk 01: "Text from outside Arrt (a registry, a museum, a model) reaches the page as text and is never parsed as markup. An image or link from outside is used only when its host is one this repository names, or is built here from a checked identifier." | HIGH impact | user can amend or reject]`
+- **Ruled by the owner 2026-10-01: Enter stays on Artworks**, and the dropdown's last row, *All results for "{query}"*, opens the results page. The question as put: what Enter does. On 2026-09-30 the owner ruled *"yes to filtered to the query"*: Enter opens Artworks filtered, departing from Sonarr. The proposal the owner ruled on 2026-10-01 says Enter opens a results page with *All*, *In your library* and *Not held*. Ruling 2 ("one world") ruled the scope, not the key. Built today: Enter opens `#collection?q=` (`arrt/src/arrt/http/static/core/search.js`, `installSearch`). Recommended: **keep Enter as ruled, and add *All results for "{query}"* as the dropdown's last row**, opening the results page.
+- `[NORM, ratified by the owner as written 2026-10-01, written into `security-model.md` by Chunk 01: "Text from outside Arrt (a registry, a museum, a model) reaches the page as text and is never parsed as markup. An image or link from outside is used only when its host is one this repository names, or is built here from a checked identifier." | HIGH impact | user can amend or reject]`
 - `[DECISION: an unheld work's page offers *Search museums for this work*, which opens the existing Add New with the work's title and artist filled in and spends nothing until the curator presses Search | ruling 3 dissolves Add New into Get, which is plan 2. Showing no action until then would make the page a dead end, and the seeded search is the one way to acquire a work that exists today. Plan 2 replaces it | user can veto/override]`
 - `[ASSUMPTION: registry rows in the typeahead come after the library's, start at three typed characters, wait 300 ms after the last keystroke, show at most 3 artists and 5 works, and are remembered per folded query for the life of the process | MED impact | user can correct]`
 - `[ASSUMPTION: an Artist page for an artist the library does not hold shows what the registry knows (header, Their work, Holdings, Similar artists) and says that nothing of theirs is held. The address is `#artist/Q…`; a held artist keeps `#artist/{id}` | LOW impact | user can correct]`
@@ -95,8 +95,7 @@ the registry's behaviour is measured for three queries, not proven.
 - `[ASSUMPTION: the QID control offers Set (a QID, checked against Wikidata before it is stored, so a typo cannot mark the wrong work *Held*) and *There is none* (stops the matcher, as the routes already do). Handing an item back to the matcher has no route and is not added | MED impact | user can correct]`
 - `[ASSUMPTION: the typeahead gains a Themes group (library-only, matched by name), because § Search lists it and it costs no query | LOW impact | user can correct]`
 
-**What would raise it:** the owner's answer on Enter and on the norm, and
-Chunk 03's measurement of the filtered full-text search.
+**What would raise it:** Chunk 03's measurement of the filtered full-text search.
 
 ## Status
 
@@ -114,19 +113,31 @@ Chunks 02-05 and every page after them are bound by a rule, not by someone
 remembering one page.
 
 - The norm above goes into `security-model.md` as a `## Direction` section, with
-  its *why*. It is the owner's to ratify, and it is not written as ratified
-  until they do.
+  its *why*. The owner ratified it as written on 2026-10-01.
 - A row for it in `project-preferences.md` § Enforcement, naming its mechanism.
 - **The mechanism**, a test in `tests/preferences/` that reads every script
-  under new `arrt/src/arrt/http/static/` and refuses the sinks that parse
+  under `arrt/src/arrt/http/static/` and refuses the sinks that parse
   markup: `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `document.write`,
   `eval` and `new Function`. Today the client uses none of them (all six
-  searched for under `static/` on 2026-10-01), so the test passes now and turns red on the first one added.
+  searched for under `arrt/src/arrt/http/static/` on 2026-10-01), so the test passes now and turns red on the first one added.
 - **The URL half:** a unit test drives every URL field the registry API
   returns through the client's host check (`_commons_file` today) with a
   hostile URL, so a new URL field that skips the check fails. What a test cannot
   see (a link built from a string the registry supplied) is left to the Critic
   and says so in the row.
+
+*(Built 2026-10-01. The sink list grew to twelve: `parseFromString`,
+`createContextualFragment`, `setHTMLUnsafe`, `parseHTMLUnsafe` and `srcdoc` parse
+markup too, and a timer handed a string compiles it; pages are also checked for
+inline script. The URL half is built on types
+rather than on field names: every string on the registry seam, in its types and in
+each question's answer, is now `ItemId`, `RegistryText`, `MuseumIdentifier` or
+`CommonsFile`; a test refuses a plain `str`, and a second test answers every
+`Registry` method with a stranger's URL in every column and checks
+that none reaches a `CommonsFile`, an `ItemId` or a key. `works_by_identifier`
+now keeps only identifiers it was asked about. Both derive what they check
+from the seam, so Chunks 02-05's new fields and questions fail by name until
+they choose a kind and state a call.)*
 
 **Done when:**
 1. The sink test is watched failing against a one-line `innerHTML` added to a
@@ -153,6 +164,10 @@ remembering one page.
   redirects to `#artist/{id}`.
 - **Registry rows lead here.** *Their work* titles open `#work/Q…` instead of
   linking out to wikidata.org; the wikidata.org link moves to the page itself.
+- **`people_named` asks for `mul` labels too.** Live, it names Mark Rothko
+  `Q160149`, because his name is no longer an `en` label (`wikidata-findings.md`
+  § One work by QID). Nothing shows that label yet; Chunk 03's typeahead would.
+  The live test pins Rothko's name, and a unit test pins the label languages.
 - **The accepted gap from the last plan closes here:** the *Held ×2* browser
   test asserts which duplicate the badge opens
   (`arrt/tests/browser/test_the_artist_page.py`; accepted on the record at the
@@ -212,16 +227,15 @@ remembering one page.
 
 ### Chunk 04: The search results page
 
-Depends on the owner's answer to the open question. As proposed: a contextual
-page, `#search?q=`, with *All*, *In your library* and *Not held* views. Artists
+A contextual page, `#search?q=`, with *All*, *In your library* and *Not held* views. Artists
 first, then works, each with its state. If the query names one artist, that
 artist is the top result. Nothing on the page spends. When the registry has
 nothing, the page says so and offers *Search museums* (Ask replaces it in plan
-2). Reached by Enter, or by the dropdown's last row, per the answer.
+2). Reached by the dropdown's last row, *All results for "{query}"*. Enter still opens Artworks filtered to the query (ruled 2026-09-30, kept 2026-10-01).
 
 **Done when:**
-1. The owner's answer is recorded in `information-architecture.md`, as a
-   ruling, where the Enter departure is.
+1. The 2026-10-01 answer is recorded in `information-architecture.md`, as a
+   ruling, beside the Enter departure.
 2. The page has its `SCREEN_NAMES` entry, its rows in the three tables, and its
    place in the Contextual sentence (`tests/preferences/test_screen_tables.py`).
 3. Browser tests, watched failing first: each view filters; a single-artist
@@ -260,7 +274,6 @@ nothing, the page says so and offers *Search museums* (Ask replaces it in plan
 
 - **After Chunk 02**, check that the QID-addressed pages hold up on the owner's
   catalogue before the typeahead starts sending people to them.
-- **Before Chunk 04**, the owner's answer on Enter.
 - **Before the PR**, the cumulative review in Chunk 05.
 
 ## Verification strategy

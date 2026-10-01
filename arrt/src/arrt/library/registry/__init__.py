@@ -11,7 +11,7 @@ would answer the same questions and inherit the same judgement.
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Final, Protocol
+from typing import Final, NewType, Protocol
 
 from arrt.library.registry.identifiers import IdentifierScheme
 
@@ -20,13 +20,33 @@ from arrt.library.registry.identifiers import IdentifierScheme
 #: and the identity service to refuse a URL pasted where an id belongs.
 QID: Final[re.Pattern[str]] = re.compile(r"^Q[1-9][0-9]*$")
 
+# What each string a registry hands over is, so that none is a plain `str`
+# (`security-model.md` § Direction, held by `tests/unit/test_registry_strings.py`).
+# A new field has to pick one, and only a Commons file may become a URL.
+
+#: An item id, matching `QID`.
+ItemId = NewType("ItemId", str)
+
+#: Words a registry wrote: a name, a title, a description. Anyone can edit a
+#: registry, so these reach the page as text and never as markup.
+RegistryText = NewType("RegistryText", str)
+
+#: A museum's identifier for a work, and always one the caller asked about: the
+#: registry's answer names it, so the client keeps only the values it was given.
+MuseumIdentifier = NewType("MuseumIdentifier", str)
+
+#: A free image, as an `https://commons.wikimedia.org/wiki/Special:FilePath/…` URL
+#: and nothing else. It becomes an `img` source in the curator's browser, so the
+#: client drops anything else the registry offers as an image.
+CommonsFile = NewType("CommonsFile", str)
+
 
 @dataclass(frozen=True, slots=True)
 class RegistryPerson:
     """A person a registry knows by a name, with what can tell two of them apart."""
 
-    qid: str
-    label: str
+    qid: ItemId
+    label: RegistryText
     #: Birth and death years, where the registry records them. A year rather than
     #: a date, because the library's own records hold years.
     born: int | None = None
@@ -37,23 +57,21 @@ class RegistryPerson:
 class RegistryWorkEntry:
     """One work a registry lists for an artist, as the Artist page shows it."""
 
-    qid: str
-    title: str
+    qid: ItemId
+    title: RegistryText
     #: How many Wikipedias cover the work: renown, as the page sorts by it.
     sitelinks: int
     year: int | None = None
-    #: A free image of it, as an `https://commons.wikimedia.org/wiki/Special:FilePath/…`
-    #: URL and nothing else: anything else the registry returns is dropped, because
-    #: it becomes an `img` source in the curator's browser.
-    image: str | None = None
+    #: A free image of it, where the registry has one.
+    image: CommonsFile | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class RegistryHolding:
     """A collection holding the artist's work, and how many."""
 
-    qid: str
-    name: str
+    qid: ItemId
+    name: RegistryText
     works: int
 
 
@@ -65,9 +83,9 @@ class RegistryArtist:
     never as markup.
     """
 
-    qid: str
-    description: str | None = None
-    movements: tuple[str, ...] = ()
+    qid: ItemId
+    description: RegistryText | None = None
+    movements: tuple[RegistryText, ...] = ()
     #: The most renowned first, capped; `works_total` is how many there are.
     works: tuple[RegistryWorkEntry, ...] = ()
     works_total: int = 0
@@ -85,11 +103,13 @@ class RegistryUnavailable(Exception):
 class Registry(Protocol):
     """The questions the Library asks a registry."""
 
-    def works_by_identifier(self, scheme: IdentifierScheme, values: Sequence[str]) -> Mapping[str, frozenset[str]]:
+    def works_by_identifier(
+        self, scheme: IdentifierScheme, values: Sequence[str]
+    ) -> Mapping[MuseumIdentifier, frozenset[ItemId]]:
         """Every item carrying each museum identifier, keyed by the identifier. An unknown one is absent."""
         ...
 
-    def creators_of(self, work_qids: Sequence[str]) -> Mapping[str, frozenset[str]]:
+    def creators_of(self, work_qids: Sequence[str]) -> Mapping[ItemId, frozenset[ItemId]]:
         """Each item's recorded creators, keyed by the item. An item with none is absent."""
         ...
 

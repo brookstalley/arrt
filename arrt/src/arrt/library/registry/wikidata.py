@@ -26,7 +26,17 @@ from typing import Any, Final
 
 import httpx
 
-from arrt.library.registry import QID, RegistryArtist, RegistryHolding, RegistryPerson, RegistryUnavailable, RegistryWorkEntry
+from arrt.library.registry import (
+    QID,
+    CommonsFile,
+    ItemId,
+    MuseumIdentifier,
+    RegistryArtist,
+    RegistryHolding,
+    RegistryPerson,
+    RegistryUnavailable,
+    RegistryWorkEntry,
+)
 from arrt.library.registry.identifiers import IdentifierScheme
 
 log = logging.getLogger(__name__)
@@ -67,17 +77,24 @@ class WikidataRegistry:
         self._headers = {"User-Agent": user_agent, "Accept": "application/sparql-results+json"}
         self._http = client or httpx.Client(timeout=httpx.Timeout(TIMEOUT_SECONDS, connect=10.0), follow_redirects=False)
 
-    def works_by_identifier(self, scheme: IdentifierScheme, values: Sequence[str]) -> Mapping[str, frozenset[str]]:
-        found: dict[str, set[str]] = {}
+    def works_by_identifier(
+        self, scheme: IdentifierScheme, values: Sequence[str]
+    ) -> Mapping[MuseumIdentifier, frozenset[ItemId]]:
+        found: dict[MuseumIdentifier, set[ItemId]] = {}
         for batch in _batches(sorted(set(values))):
+            asked = set(batch)
             listed = " ".join(_literal(value) for value in batch)
             rows = self._select(f"SELECT ?id ?item WHERE {{ VALUES ?id {{ {listed} }} ?item wdt:{scheme.value} ?id . }}")
             for row in rows:
-                found.setdefault(_value(row, "id"), set()).add(_qid(row, "item"))
+                # The answer names the identifier it matched; one that was not asked
+                # about is the service's mistake, or someone else's text, and not a key.
+                value = _value(row, "id")
+                if value in asked:
+                    found.setdefault(MuseumIdentifier(value), set()).add(_qid(row, "item"))
         return {value: frozenset(items) for value, items in found.items()}
 
-    def creators_of(self, work_qids: Sequence[str]) -> Mapping[str, frozenset[str]]:
-        found: dict[str, set[str]] = {}
+    def creators_of(self, work_qids: Sequence[str]) -> Mapping[ItemId, frozenset[ItemId]]:
+        found: dict[ItemId, set[ItemId]] = {}
         for batch in _batches(sorted({_require_qid(qid) for qid in work_qids})):
             listed = " ".join(f"wd:{qid}" for qid in batch)
             rows = self._select(f"SELECT ?item ?creator WHERE {{ VALUES ?item {{ {listed} }} ?item wdt:P170 ?creator . }}")
@@ -211,22 +228,22 @@ def _value(row: Mapping[str, Any], name: str) -> str:
         raise RegistryUnavailable(f"A Wikidata result had no {name!r}.") from exc
 
 
-def _qid(row: Mapping[str, Any], name: str, *, required: bool = True) -> str | None:
+def _qid(row: Mapping[str, Any], name: str, *, required: bool = True) -> ItemId | None:
     """The QID at the end of an entity URI, or None for a value that is not an item (an unknown creator)."""
     if not required and name not in row:
         return None
     candidate = _value(row, name).rsplit("/", 1)[-1]
     if QID.match(candidate):
-        return candidate
+        return ItemId(candidate)
     if required:
         raise RegistryUnavailable(f"A Wikidata result's {name!r} was not an item: {candidate!r}.")
     return None
 
 
-def _commons_file(url: str | None) -> str | None:
+def _commons_file(url: str | None) -> CommonsFile | None:
     """A Commons file URL, made `https`, or None for anything else the registry offered as an image."""
     found = _COMMONS_FILE.match(url or "")
-    return None if found is None else f"https://commons.wikimedia.org/wiki/Special:FilePath/{found.group(1)}"
+    return None if found is None else CommonsFile(f"https://commons.wikimedia.org/wiki/Special:FilePath/{found.group(1)}")
 
 
 def _integer(row: Mapping[str, Any], name: str) -> int | None:

@@ -163,6 +163,37 @@ ranked by sitelinks, kept only if they made at least one work with an image:
   *influenced by*). They are too few to rank, and are useful as a second section
   at most.
 
+**One work by QID** (for the Work page of a work not held), measured on three
+works: the owner's held Rothko *Untitled (Purple, White, and Red)* (Q20270685,
+the live test's ARTIC 100472), *The Hunters in the Snow* (Q500985, from
+`wbsearchentities`), and Rothko's most-linked work with no English or `mul`
+label (Q16682090, from a query). One query each, 0.24–0.49 s:
+
+| Work | Title | Year | Image | Medium (`P186`) | Collection (`P195`) | Inventory (`P217`) |
+|---|---|---|---|---|---|---|
+| Q20270685 | *Untitled (Purple, White, and Red)* | 1953 | none | oil paint, canvas | Art Institute of Chicago | 1983.509 |
+| Q500985 | *The Hunters in the Snow* | 1565 | a Commons file | panel, oil paint | Kunsthistorisches Museum | GG_1838 |
+| Q16682090 | the QID itself | 1964 | none | oil paint, canvas | Musée National d'Art Moderne (twice) | AM 2007-126 |
+
+- **Names need `mul` as well as `en`.** Mark Rothko (Q160149) has a `mul` and an
+  `en-gb` label and no `en` one, so a creator label filtered to `en` came back
+  empty for both Rothkos. Every label the work query asks for goes through
+  `en,mul`, as `_LABELS` already says.
+- **The shipped `people_named` has this defect.** It asks the label service for
+  `"en"` alone, and live it returns `Q160149` as Mark Rothko's label (Dalí and
+  Renoir come back named). The matcher reads only the QID and the years, so
+  nothing shown today is wrong. The typeahead would show it, so it is fixed
+  before registry artists are listed there (`build-plan-one-world-search.md`
+  Chunk 02).
+- **An inventory number belongs to a collection.** `P217` carries the collection
+  as a `P195` qualifier (GG_1838 at the Kunsthistorisches Museum; 1983.509 at the
+  Art Institute). A work held in two places has two numbers, so the pair is read
+  together and not as two lists.
+- **Collections repeat**, as Q16682090's does, when a work has two `P195`
+  statements naming one collection. The page de-duplicates by QID.
+- **A work with no readable title** shows its QID as the label, as on the Artist
+  page, and is shown there as *No English title (Q…)*.
+
 A wrong figure that was caught: the first run used Q5432 for Dalí, typed from
 memory. It is another person, with Romanticism and Rococo as movements. Every
 QID above was read from a search result or from this document.

@@ -36,6 +36,46 @@ genuinely live:
 > The four live concerns listed above do not change. The notes below sit at each
 > affected section. None of them is built yet.
 
+## Direction
+
+<!-- Ratified by the owner 2026-10-01, as written. Enforcement row in project-preferences.md. -->
+
+**Text from outside Arrt (a registry, a museum, a model) reaches the page as
+text and is never parsed as markup. An image or link from outside is used only
+when its host is one this repository names, or is built here from a checked
+identifier.**
+
+> **Why:** anyone can edit Wikidata, a museum's catalogue text is the museum's,
+> and a model repeats what it read. Every one of them arrives in the curator's
+> browser by a channel no model reads (`architecture.md` channel 9), so the
+> prompt-injection bounds below do not cover it. A title carrying `<img
+> onerror>` is the whole of the text attack, and an `img` source or link the
+> registry chose is the whole of the URL one: it tells a stranger's server
+> that the curator is looking, and it can send the curator anywhere. One page
+> was bounded by its own tests (§ Registry text). A norm is what binds the next
+> page, and one-world search is that page.
+
+**What holds it:**
+- **Markup is never parsed in the client.** No script under
+  `arrt/src/arrt/http/static/` uses a sink that parses markup or compiles a
+  string (`innerHTML`, `document.write`, `srcdoc`, `eval`, a timer handed a
+  string, and the rest the test lists), and no page there carries script of its
+  own. Nodes are built with `el` (`core/render.js`), which sets text through
+  `textContent`.
+- **A registry's strings say what they are.** Every string a registry hands the
+  Library, in a type or in a question's answer, is typed as registry text, an
+  item id, a museum identifier the caller asked about, or a Commons file. A plain
+  string fails a test, so a new field or question has to choose. A Commons file is the only
+  kind that may become a URL, and the client keeps one only when its host is
+  `commons.wikimedia.org`.
+- **Links out are built from an item id**, never from a URL the registry
+  supplied. No test sees this half, which is the Critic's.
+
+**Retroactive:** yes. Every page the client has today already conforms, which
+the sink test confirms on the day it lands. The museum clients' text (titles,
+descriptions, provider names) reached the page under `core/render.js`'s rule
+before this norm, and this norm is that rule made binding.
+
 ## Trust Boundary
 
 **The network layer carries the entire trust boundary.** Both surfaces — the MCP
@@ -532,11 +572,9 @@ that no model reads, so the prompt-injection bounds above do not cover it.
 - **The server asks one constant endpoint and follows no redirect**, so nothing
   the registry says can steer a request at the operator's network.
 
-**What is not yet a norm.** These are properties of one page, enforced by its
-tests, not a rule binding the next surface that shows registry text (one-world
-search will be the next). A norm, "external text is shown as text, and an
-external URL is used only when its host is a stated one", is owed here and is
-listed under Open below.
+**Now a norm.** These were properties of one page, enforced by its tests. Since
+2026-10-01 they are § Direction, which binds every page that shows outside text,
+one-world search first.
 
 ## Open
 
@@ -554,11 +592,10 @@ listed under Open below.
   fact about this television is firmware-scoped. Reasoning, consequences and the
   re-verification path live in `operational-spec.md` § Risks — not restated here,
   because the version numbers will move and one home for them is enough.
-- **Opened 2026-10-01: a norm for showing external text in the browser.** The
-  Artist page is bounded by its own tests (§ Registry text); the next surface
-  showing registry or museum text should be bound by a rule, not by remembering
-  this one. Owed before plan 1 of `build-plan-ia-foundations.md` § What comes
-  after (one-world search) ships.
+- ~~**Opened 2026-10-01: a norm for showing external text in the browser.**~~
+  **Closed 2026-10-01: ratified by the owner, and written as § Direction.** It was
+  owed before one-world search (`build-plan-one-world-search.md`) ships, and is
+  that plan's Chunk 01.
 - **Opened 2026-09-30:**
   - **Player authentication on the LAN.** Closed 2026-09-30: a per-wall token
     (§ Trust Boundary, the note on the re-architecture).

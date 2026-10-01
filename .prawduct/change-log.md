@@ -66,6 +66,36 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-01: Outside text reaches the page as text, by norm
+
+<!-- prawduct: chunks=01 | scope=one-world-search -->
+
+**Why:** one-world search puts Wikidata's words into the typeahead, the second
+page to show registry text. The first, the Artist page, was bounded only by its
+own tests. The owner ratified the norm as written, so every page after is bound
+by a rule, not by someone remembering one page.
+
+**What:** `security-model.md` gains a § Direction: text from a registry, a
+museum or a model is never parsed as markup, and an outside image or link is
+used only from a named host or built from a checked id. Its row in the norm
+index names three tests. `tests/preferences/test_external_text.py` reads every
+script under `arrt/src/arrt/http/static/`, comments removed, and refuses twelve
+sinks that parse markup or compile a string; the client uses none today. It also
+refuses inline script in a page there. On the registry seam every string, in a
+type or in a question's answer, is now typed `ItemId`, `RegistryText`,
+`MuseumIdentifier` or `CommonsFile`, and
+`arrt/tests/unit/test_registry_strings.py` refuses a plain `str` there. It then
+answers every `Registry` question with a stranger's URL in every column, and
+checks that none reaches an image, an id or a key. `works_by_identifier` now
+keeps only identifiers it was asked about, where it had keyed by whatever the
+answer named. Each test was watched failing first: an `innerHTML`, a `srcdoc`, a
+string timer and an `onerror` attribute planted in the client; the Commons check
+bypassed; a whole URI kept as an id; unasked keys kept; and a plain `str` field,
+return and question. Links built from registry-supplied
+strings are the Critic's to check, and the row says so. `security-model.md` §
+Open's entry is closed in place. Also: the plan for this scope, and
+`wikidata-findings.md` § Searching for works, and similar artists.
+
 ## 2026-10-01: Library › Artists, and the Artist page
 
 <!-- prawduct: chunks=04 | scope=ia-foundations -->
