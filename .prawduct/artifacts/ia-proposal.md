@@ -3,10 +3,9 @@
 **Written 2026-10-01, at the owner's request: "Without preconceptions from what
 we've already built, build a strong IA story for the app."** It is derived from
 `user-scenarios.md` and from measurements, and it looks at the built screens only
-in § Against what is built. **It is a proposal, not ratified.** Nothing in
-`information-architecture.md` changes until the owner rules on § Decisions for the
-owner. The scenario frequencies it weighs are still the builder's assumptions
-(`user-scenarios.md` § Scenarios).
+in § Against what is built. **The owner ruled on all seven of its decisions on
+2026-10-01** (§ Rulings), and the body below is revised to match.
+`information-architecture.md` is not yet amended; that is the next step.
 
 ## The story
 
@@ -19,9 +18,9 @@ owner. The scenario frequencies it weighs are still the builder's assumptions
   in, not a different part of the app.
 - **There is one door that costs money: *Get*.** It is always explicit and always
   priced before you press it.
-- **Walls are rooms you hang to**, the way a music app plays to a room: one wall
-  or all of them, until changed or until a date, after which each wall goes back
-  to what it showed before.
+- **Walls are rooms you hang to**, the way a music app plays to a room. Hanging
+  for a duration, after which each wall goes back to what it showed before, waits
+  for wave 4's schedule (ruling 6).
 
 The *arr precedent is **Lidarr, not Radarr**. A film has no creator page that
 organises a body of work, so Radarr is built around single items. Lidarr's
@@ -56,16 +55,17 @@ looking never spend.
 
 **P4. Walls are rooms.** Hanging works like playing music to a room. It takes any
 set: a theme, an artist, a selection or one work. You choose which walls (one,
-some or all) and for how long (until changed, or until a date, after which each
-wall returns to what it showed before). That is S1, S7 and S12 with one control.
-A wall keeps a history, which answers S6's "what was that?" and lets an
-excursion end cleanly.
+some or all). **The duration half waits for wave 4** (ruling 6): until then a
+hanging lasts until changed, and ending an excursion is hanging the default theme
+again, one wall at a time. A wall keeps a history, which answers S6's "what was
+that?".
 
 **P5. Taste is what the curator says, and excursions do not count.** Reactions
 ("more like this", "not for me") can be given on any artist or work and are
 recorded as taste. Accepting works from a Get marked as an **excursion** writes
-no taste and keeps those works out of the everyday library view (S12). This
-principle matters only once something reads taste; today nothing does
+no taste, while a reaction given during it still counts (ruling 5b). The
+excursion's works form a theme and **do not join the default theme** (ruling
+5a). This principle matters only once something reads taste; today nothing does
 (`user-scenarios.md` § Tested, the Delaunay request).
 
 **P6. A thing has one page in every state.** An artist, work or topic has one
@@ -113,11 +113,11 @@ candidates carry real sizes.
 ┌──────────────────┬───────────────────────────────────────────────┐
 │ Arrt             │ [ Search artists, works, topics…            ] │
 ├──────────────────┼───────────────────────────────────────────────┤
-│ ▶ Now Showing    │                                               │
-│ ▣ Library        │                                               │
+│ ▣ Library (home) │                                               │
 │     Artists      │                                               │
 │     Works        │                                               │
 │     Themes       │                                               │
+│ ▶ Now Showing    │                                               │
 │ ◇ Explore        │                                               │
 │     Topics       │                                               │
 │     Ask          │                                               │
@@ -135,17 +135,15 @@ Sub-pages show only under the current section, as in the *arr apps. Activity's
 badge counts works waiting for review, the one queue that needs the curator.
 Wanted appears once something is in it.
 
-**Home is Now Showing.** Under the assumed frequencies, the most common reasons
-to open the app are about the walls: putting something up (S1, weekly), asking
-what is up (S6, weekly), taking something down (S8, monthly), and ending an
-excursion (S12). A music app's home is what is playing and what to play next, and
-this is the same idea. **The alternative is Library as home**, the *arr default.
-That is the right choice if the owner mostly opens Arrt to browse and acquire,
-which is exactly what the frequency question in `user-scenarios.md` asks.
+**Home is Library** (ruling 1). The owner chose it over Now Showing, the
+builder's recommendation, which was argued from assumed weekly frequencies for
+S1 and S6. The choice is evidence that browsing and acquiring is what Arrt is
+opened for most, and that the walls scenarios are rarer than
+`user-scenarios.md` assumed. Now Showing remains, second in the sidebar.
 
 ## Pages
 
-### Now Showing (home)
+### Now Showing
 
 One card per wall. Each card shows the work on the wall now, large, with its
 label facts. Below it: what it is drawn from (a theme, an artist or a selection);
@@ -155,7 +153,8 @@ and the next three works.
 The controls on each card are **Skip**, **Not this one again**, and **Change**.
 *Not this one again* asks one question, *from this theme* or *from every wall*,
 because S8 says "nothing else changed" and those are two different changes.
-**Hang everywhere…** applies to all walls at once.
+*Hang everywhere…*, one act for all walls, waits for wave 4 with the rest of
+hanging for a duration (ruling 6).
 
 ### Artist (the hub)
 
@@ -217,10 +216,26 @@ direction it settles on becomes a **Get**, in place (the seam ruling in
 
 ### Theme
 
-A playlist: held works in an order. **Hang…** takes walls and a duration. A theme
-made from an excursion Get is marked as one, and the theme offers **End
-excursion**. That ends its hangings, so each wall goes back to what it showed
-before, and archives the works or keeps them as the owner chooses (§ Decisions).
+A playlist: held works in an order. **Hang…** takes walls (and, from wave 4, a
+duration).
+
+**The default theme is the everyday rotation, and it is an ordinary theme.** An
+excursion's works form their own theme and are not in the default one (ruling
+5a). Nothing else marks an excursion: when it is over, the curator hangs the
+default theme again, and the excursion's works stay held, in their theme, out of
+the rotation. *"I'm not sure
+there's anything needed beyond marking them as a theme, and not being in the
+default theme? Let's not overcomplicate."* (the owner, 2026-10-01).
+
+**This already holds today, with no change.** Measured 2026-10-01: the owner's
+*All works* is an ordinary theme with recorded membership (40 members, the 40
+accepted works), and it is what their wall is hanging. Nothing adds a work to a
+theme automatically: the only callers of `add_to_theme` are the HTTP route and
+its MCP twin. So an excursion's works stay out of *All works* simply by not
+being added. The converse is the open question: an ordinary acceptance joins no
+theme either, so every new everyday work has to be added to *All works* by hand.
+Whether acceptance should join a designated default theme is not ruled, and is
+listed below rather than assumed.
 
 ### Wall
 
@@ -252,7 +267,7 @@ future Watch would land, like Lidarr's Wanted › Missing.
 | S9 Clean-up | Library › Works filtered by low resolution or never hung; Activity › To review | No |
 | S10 Is it working? | The status indicator in the top bar → Settings › System | No |
 | S11 Rothko, knowing nothing | Search `rothko` → Artist: 2 held, then their work with previews and states → select → **Get** | At Get |
-| S12 16th century for two days | Explore › Topics → 16th century → representative works → **Get as excursion** → theme → **Hang… on all walls until Sunday** → Sunday: walls return, and the theme offers **End excursion** | At Get |
+| S12 16th century for two days | Explore › Topics → 16th century → representative works → **Get as excursion** → its theme → **Hang…** on each wall → when done, hang the default theme again. The works stay in their theme, out of the rotation. From wave 4: **Hang… on all walls until Sunday**, and the walls return by themselves | At Get |
 | Delaunays | Search → Robert Delaunay → Similar artists (each with how much has an image) → *More like this* records taste → Ask for more | No, until Get |
 
 S11 and S12, the two scenarios the built IA failed in `user-scenarios.md`
@@ -262,14 +277,15 @@ S11 and S12, the two scenarios the built IA failed in `user-scenarios.md`
 
 | Built (as of 2026-10-01) | Proposal | Change |
 |---|---|---|
-| Artworks is home | Now Showing is home | **Changed**, pending the frequency answer |
+| Artworks is home | Library › Works is home | **Kept** (ruling 1) |
 | Library has Artworks and Themes | Library has Artists, Works, Themes | **New:** Artist page and index |
 | Add New is a place: an intent box and conversations | Gone as a place. Get is an action on any selection; Ask is the conversation | **Removed** as a place |
 | Two-scope search: library, then *Search museums* → a paid run | One world: library and registry matches with states, free | **Changed** |
 | Search misses `dali` | Folds accents | **Fix**, independent of everything else |
-| Hang on one wall per click; no end; no history | Hang… on walls for a duration; walls keep history and revert | **New** in programming (wave 4's schedule) |
+| Hang on one wall per click; no end; no history | Walls keep a history now; hanging on several walls, for a duration, with revert comes with wave 4's schedule | **New**, mostly deferred (ruling 6) |
+| *All works* is an ordinary theme, kept by hand | The same; excursion works are simply not added | **Kept** (ruling 5a). Whether acceptance should join a default theme is open |
 | Archive one work at a time | Archive a selection; *Not this one again* from Now Showing | **Changed** |
-| Taste recorded, unread | Taste read by Ask and by similar artists; excursions write none | **New** |
+| Taste recorded, unread | Taste read by Ask and by similar artists; excursion acceptances write none, reactions during one do | **New** |
 | Activity: Queue, History | Activity: To review, Getting, History, Wanted | **Renamed** and **added** |
 | Walls as a top-level page | Now Showing for using walls, Settings › Walls for configuring them | **Split** |
 
@@ -282,7 +298,7 @@ bar search and toolbar.
 
 - **Identity (P6) is a prerequisite.** Pages for works not held need a stable ID.
   Storing a Wikidata QID where one exists is `user-scenarios.md` open question 4,
-  and this proposal answers it *yes*. Without it, the artist page's "Their work"
+  and the owner ruled *yes* (ruling 7). Without it, the artist page's "Their work"
   can still be built from live lookups, but *Held* cannot be matched to the
   registry reliably. Matching by title and artist is the current dedup key, which
   "Untitled" breaks (`re-architecture.md`).
@@ -304,19 +320,30 @@ bar search and toolbar.
   of work.
 - **Departing from the built IA costs re-work** in `static/` and its browser
   suite (16 test files). The accent fix and the Artist page stand on their
-  own and could ship first. Everything else waits on the decisions below.
+  own and could ship first. The rest follows the rulings below.
 
-## Decisions for the owner
+## Rulings (2026-10-01)
 
-1. **Home:** Now Showing (recommended, if S1 and S6 really are weekly), or
-   Library.
-2. **One world (P1):** registry matches shown beside library matches with their
-   states, or keep the *Search museums* split.
-3. **Add New dissolves** into Get (on any selection) and Ask. Or keep it as a
-   place as well, since every *arr app has one.
-4. **The Artist page as hub (P2)**, on the Lidarr model.
-5. **Excursions:** when one ends, archive its works or keep them? Should its
-   acceptances be kept out of taste (P5)?
-6. **Hang for a duration, with the wall reverting** (P4): build it now, or wait
-   for wave 4's schedule?
-7. **Store registry IDs** (P6, open question 4).
+The owner ruled on each decision in turn. The wording of each option is the
+builder's; the choice is the owner's.
+
+| # | Decision | Ruling |
+|---|---|---|
+| 1 | Home | **Library.** The builder recommended Now Showing. |
+| 2 | Search scope | **One world**: library and registry matches together, each with its state. |
+| 3 | Add New | **Dissolved.** Get is an action on any selection; Ask is the conversation, under Explore. |
+| 4 | Artist page | **The full hub**: held works, their work, similar artists, holdings, taste. |
+| 5a | When an excursion ends | **Nothing beyond a theme**: its works form a theme and are not in the default theme. The builder's options (archive, keep, ask, delete) were all declined as overcomplicated. |
+| 5b | Excursions and taste | **Acceptances do not count; explicit reactions during one do.** |
+| 6 | Hanging for a duration | **Wait for wave 4's schedule.** Neither the end time nor the one-act "all walls" control is built before it. |
+| 7 | Registry IDs | **Store them** where one exists (Wikidata QIDs for works and artists), and keep the catalogue's own identity where none does. |
+
+**Open, raised by ruling 5a:** should accepting a work from an ordinary Get add
+it to a designated default theme, so the everyday rotation stays current without
+adding each work by hand? Today nothing does, and *All works* is complete only
+because every work was added explicitly.
+
+**What follows, in order.** Amend `information-architecture.md` from this
+proposal. Then a build plan, whose first pieces stand on their own: the accent
+fix, storing registry IDs (ruling 7), and the Artist hub (4), which needs the
+IDs.
