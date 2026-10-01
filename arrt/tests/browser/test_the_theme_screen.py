@@ -655,14 +655,14 @@ class TestTheDefaultTheme:
         # The star is decoration beside the word, not a second announcement of it.
         assert badge.locator(".glyph").get_attribute("aria-hidden") == "true"
         assert self._panel(ui, "Winter").locator(".badge-default").count() == 0
-        assert _labels(ui, "button:has-text('Make default')") == ["Make Winter the default"]
+        assert _labels(ui, "button:has-text('Make default')") == ["Make default: Winter"]
 
     def test_making_another_the_default_moves_the_mark(self, ui, services, all_works, winter):
         ui.open("#theme")
         _painted(ui)
 
-        ui.page.click("button[aria-label='Make Winter the default']")
-        ui.page.wait_for_selector("button[aria-label='Make All works the default']")
+        ui.page.click("button[aria-label='Make default: Winter']")
+        ui.page.wait_for_selector("button[aria-label='Make default: All works']")
 
         assert self._panel(ui, "Winter").locator(".badge-default").count() == 1
         assert self._panel(ui, "All works").locator(".badge-default").count() == 0
@@ -673,6 +673,21 @@ class TestTheDefaultTheme:
         _painted(ui)
 
         assert ui.page.locator("p.note", has_text="No theme is the default").count() == 1
+
+    def test_one_themes_own_page_says_it_too(self, ui, winter):
+        """The note is about where acceptances go, not about the index, so both paths carry it."""
+        ui.open(f"#theme/{winter.id}")
+        _painted(ui)
+
+        assert ui.page.locator("p.note", has_text="No theme is the default").count() == 1
+
+    def test_only_the_default_says_what_joins_it(self, ui, all_works, winter):
+        ui.open("#theme")
+        _painted(ui)
+
+        joins = "Works you accept join this theme"
+        assert self._panel(ui, "All works").locator("p.muted", has_text=joins).count() == 1
+        assert self._panel(ui, "Winter").locator("p.muted", has_text=joins).count() == 0
 
     def test_the_note_is_absent_once_a_theme_is_the_default(self, ui, all_works):
         ui.open("#theme")

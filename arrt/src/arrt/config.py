@@ -435,6 +435,11 @@ class Settings:
     #: it to a third party. So there is no default, and a deployment that has not
     #: set one resolves no images rather than resolving them anonymously.
     artic_user_agent: str | None = None
+    #: How this deployment identifies itself to Wikidata's query service, which
+    #: refuses or blocks callers without a descriptive agent and contact details
+    #: (`wikidata-findings.md`). **No default, for `artic_user_agent`'s reason**:
+    #: unset switches matching off, and the registry features say so.
+    wikidata_user_agent: str | None = None
 
     @property
     def discovery_settings(self) -> DiscoverySettings:
@@ -669,6 +674,7 @@ class Settings:
             ),
             openrouter_api_key=os.environ.get("OPENROUTER_API_KEY") or None,
             artic_user_agent=os.environ.get("ARTIC_USER_AGENT") or None,
+            wikidata_user_agent=os.environ.get("WIKIDATA_USER_AGENT") or None,
         )
 
     def redacted(self) -> dict[str, object]:

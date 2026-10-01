@@ -68,6 +68,8 @@ def a_catalogue_work(**overrides) -> WorkOut:
         "dimensions": None,
         "description": None,
         "commentary": None,
+        "wikidata_qid": None,
+        "wikidata_qid_set_by": None,
         "rights": None,
         "status": ArtworkStatus.ACCEPTED.value,
         "fit": None,
@@ -314,6 +316,8 @@ def an_artist(**overrides) -> ArtistOut:
         # omits one rather than inventing a null. That is what caught this
         # fixture when the field landed.
         "display_nationality": None,
+        "wikidata_qid": None,
+        "wikidata_qid_set_by": None,
     }
     return ArtistOut(**(fields | overrides))
 

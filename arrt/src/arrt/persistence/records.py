@@ -31,6 +31,17 @@ class ArtworkStatus(StrEnum):
     ARCHIVED = "archived"
 
 
+class IdentitySetBy(StrEnum):
+    """Who set a registry identity (`wikidata_qid`), and so whether a matcher may fill it.
+
+    `CURATOR` with no QID is the curator saying there is none, which is why the
+    matcher reads this rather than the QID's absence to decide what it may fill.
+    """
+
+    MATCHED = "matched"
+    CURATOR = "curator"
+
+
 class SourceClass(StrEnum):
     """Which kind of place a work was obtained from.
 
@@ -201,6 +212,10 @@ class Artist:
     #: recorded string is the provenance and stays whatever the institution
     #: printed.
     display_nationality: str | None = None
+    #: The Wikidata item for this person, as the bare QID (`Q160149`), and who set
+    #: it (`data-model.md` § Artwork, Registry identity).
+    wikidata_qid: str | None = None
+    wikidata_qid_set_by: IdentitySetBy | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -235,6 +250,11 @@ class Artwork:
     rights: str | None = None
     accepted_at: datetime | None = None
     commentary: str | None = None
+    #: The Wikidata item for this work, as the bare QID, and who set it. Matched
+    #: only through the holding museum's own identifier, never a title
+    #: (`data-model.md` § Artwork, Registry identity).
+    wikidata_qid: str | None = None
+    wikidata_qid_set_by: IdentitySetBy | None = None
 
 
 @dataclass(frozen=True, slots=True)

@@ -37,7 +37,7 @@ governed_by:
       - "the stylesheet holds token values, and `arrt/tests/unit/test_design_tokens.py` refuses a colour outside the token blocks → binds Chunks 02 and 04: any new colour is a token covered by that test in the same commit"
   - artifact: security-model
     dispositions:
-      - "outbound fetches go to publicly routable addresses only, checked on each redirect hop, and hosts are deliberately not allowlisted → binds Chunk 03: the Wikidata client uses the same guarded fetch the museum clients use"
+      - "outbound fetches go to publicly routable addresses only, checked on each redirect hop, and hosts are deliberately not allowlisted → binds Chunk 03: the Wikidata client uses the same guarded fetch the museum clients use. (Corrected while building, 2026-10-01: that guard is for source URLs, which are attacker-influenceable; the museum API clients talk to fixed hosts and do not use it. The Wikidata client's endpoint is a constant, so there is nothing to check, and it follows no redirect at all, which is the stricter half of the norm. Tested in `tests/unit/test_wikidata_client.py`.)"
       - "no norm covers rendering untrusted external text in the browser → gap, recorded rather than assumed: Chunk 04 renders registry text as text (never as HTML), and the Critic reviews it. A norm for it is owed to `security-model.md` and is not written by this plan"
   - artifact: observability-strategy
     dispositions:
@@ -117,7 +117,7 @@ assumptions above.
 
 - [x] Chunk 01: Library search ignores accents
 - [x] Chunk 02: All works is the default theme
-- [ ] Chunk 03: Works and artists carry a Wikidata QID
+- [x] Chunk 03: Works and artists carry a Wikidata QID
 - [ ] Chunk 04: The Artist page and Library › Artists
 
 ### Chunk 01: Library search ignores accents
@@ -259,6 +259,19 @@ are amended, the latter under its versioning rule for an added field.
    relies on, deselected by default, run by hand with `-n0`.
 5. The curation and root suites pass.
 
+*(Built 2026-10-01. The measurement changed the design: works match **only by the
+holding museum's identifier** (Art Institute `P4610`, Google Arts & Culture
+`P4701`), never by title, because every title match agreed with an identifier
+match and added none, while generic titles were ambiguous. Artists match by
+their matched works' creator, else by name plus agreeing life dates; a name
+alone matched the culture *Moche* to a 17th-century painter. Run on a copy of
+the owner's catalogue: 22 of 40 works, 24 of 31 artists, nothing ambiguous;
+`wikidata-findings.md` has the rest. Done-when 2's "ambiguous Untitled" is
+tested as two Untitled works each matched by their own identifier, and one with
+no identifier storing nothing. Matching is a hand-run command,
+`python -m arrt.identify`, which needs `WIKIDATA_USER_AGENT`; a work
+accepted later has no QID until it is run again.)*
+
 ### Chunk 04: The Artist page and Library › Artists
 
 **Type:** cumulative-final
@@ -301,6 +314,18 @@ untrusted text and is rendered as text. A registry failure leaves the header and
 
 - **After Chunk 03**, read its match rate against Chunk 04's design before
   building the page.
+  *(Read 2026-10-01. The design stands, with three consequences for Chunk 04.
+  **Held** works: 22 of 40 works carry a QID, including both Rothkos and the
+  Dalí, so the two pages the operator checks mark their held works. **Image
+  found** is almost empty for in-copyright artists (Rothko 1 of 1,276, Dalí 13
+  of 1,178), because a Wikidata image is a Commons file; the page must not
+  promise pictures for them, and *what does it look like?* for those artists
+  stays with the museum previews later plans bring. **Their work** runs to
+  thousands of items and 1 to 6 seconds a query, so it is capped by sitelinks,
+  says how many more there are, is fetched by its own request after the page
+  paints, and is remembered per artist for the life of the process. An artist
+  with no QID (7 of 31) shows header and *In your library* only, and says the
+  registry knows nothing for them yet.)*
 - **Before the PR**, the cumulative review in Chunk 04.
 
 ## Verification strategy

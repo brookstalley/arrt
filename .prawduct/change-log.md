@@ -63,6 +63,35 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-01: Works and artists carry a Wikidata QID where one is certain
+
+<!-- prawduct: chunks=03 | scope=ia-foundations -->
+
+**Why:** the owner's ruling 7, so the Artist page (and later, search) can tell
+which registry works the library holds without matching titles.
+
+**What:** `wikidata_qid` and `wikidata_qid_set_by` (`matched` | `curator`) on
+artworks and artists. A probe of the owner's catalogue (`wikidata-findings.md`)
+settled the rules: a work matches only through the holding museum's identifier
+on Wikidata (Art Institute `P4610`, Google Arts & Culture `P4701`), never its
+title; an artist matches as their matched works' one creator, else by a name
+search narrowed by agreeing life dates, never by name alone (which matched the
+culture *Moche* to a 1633 painter). The matcher fills only identities nobody has
+set, so it is idempotent and a curator's QID or "there is none" stands. It runs
+by hand, `python -m arrt.identify`, with `WIKIDATA_USER_AGENT` set (no
+default, per the museum norm); on a copy of the owner's catalogue it matched 22
+of 40 works and 24 of 31 artists with nothing ambiguous, and a second run
+changed nothing. The curator sets or clears a QID with `POST
+/api/works|artists/{id}/wikidata` or `art_catalogue(action='set_work_qid' |
+'set_artist_qid')`. The client sends to one constant endpoint and follows no
+redirect. A `live_museum` test pins the shapes the client relies on.
+
+Also carried: Chunk 02's review observations. The *Make default* button's
+accessible name now contains its visible words, a constraint test shows the
+store refusing a second default, the Theme screen's two conditional lines are
+asserted present and absent, and `architecture.md`'s rule-3 inventory names the
+migration that reads across the seam.
+
 ## 2026-10-01: All works is the default theme, and acceptances join it
 
 <!-- prawduct: chunks=02 | scope=ia-foundations -->

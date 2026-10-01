@@ -109,6 +109,13 @@ _ARTWORK_ID = Param(
     required=True,
 )
 
+_QID = Param(
+    name="qid",
+    type="string",
+    description="A Wikidata item id such as Q160149, or 'none' to record that there is no item.",
+    required=True,
+)
+
 _SOURCE_ID = Param(
     name="source_id",
     type="string",
@@ -230,6 +237,32 @@ ART_CATALOGUE: Final = ToolRecord(
                 "A colour recorded as method='dominant_color_fallback' was derived mechanically because the model "
                 "could not be asked or could not be read, not chosen for this work.",
             ),
+        ),
+        Action(
+            name="set_work_qid",
+            description="Say which Wikidata item a work is, or that there is none.",
+            example="art_catalogue(action='set_work_qid', artwork_id='<an artwork_id>', qid='Q20270685')",
+            params=(_ARTWORK_ID, _QID),
+            tips=(
+                "A work's wikidata_qid is otherwise matched only through its museum's own identifier, never its "
+                "title, so a work with a generic title or an unfamiliar source may have none until you set it.",
+                "What you set is never overwritten by matching, and qid='none' keeps it empty for good.",
+            ),
+        ),
+        Action(
+            name="set_artist_qid",
+            description="Say which Wikidata item an artist is, or that there is none.",
+            example="art_catalogue(action='set_artist_qid', artist_id='<an artist_id from a work>', qid='Q160149')",
+            params=(
+                Param(
+                    name="artist_id",
+                    type="string",
+                    description="The artist's catalogue id, as a work's artist carries it.",
+                    required=True,
+                ),
+                _QID,
+            ),
+            tips=("What you set is never overwritten by matching, and qid='none' keeps it empty for good.",),
         ),
         Action(
             name="regenerate",

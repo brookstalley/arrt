@@ -240,7 +240,7 @@ function themePanel(placement, walls, allWorks, repaintThemes, { heading: headin
         class: "action quiet",
         type: "button",
         text: "Make default",
-        "aria-label": `Make ${currentName} the default`,
+        "aria-label": `Make default: ${currentName}`,
         onclick: () =>
           guard(async () => {
             await api(`/api/themes/${encodeURIComponent(theme.theme_id)}/default`, { method: "POST" });
@@ -261,7 +261,7 @@ function themePanel(placement, walls, allWorks, repaintThemes, { heading: headin
     rename.setAttribute("aria-label", `Name of ${currentName}`);
     renameButton.setAttribute("aria-label", `Rename ${currentName}`);
     deleteButton.setAttribute("aria-label", `Delete ${currentName}`);
-    defaultButton?.setAttribute("aria-label", `Make ${currentName} the default`);
+    defaultButton?.setAttribute("aria-label", `Make default: ${currentName}`);
   };
   const renameRow = el("div", { class: "row" }, [
     el("div", { class: "field" }, [

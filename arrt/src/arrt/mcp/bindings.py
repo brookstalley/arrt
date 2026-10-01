@@ -147,6 +147,21 @@ def _list_sources(services: Services, arguments: Mapping[str, Any]) -> dict[str,
     )
 
 
+def _set_work_qid(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    artwork = services.identity.set_work_identity(arguments["artwork_id"], _stated_qid(arguments["qid"]))
+    return ok(artwork=_artwork_fields(artwork))
+
+
+def _set_artist_qid(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    artist = services.identity.set_artist_identity(arguments["artist_id"], _stated_qid(arguments["qid"]))
+    return ok(artist=_artist_fields(artist))
+
+
+def _stated_qid(value: str) -> str | None:
+    """`none`, in any case, is the curator saying there is no item; anything else is checked as a QID."""
+    return None if value.strip().lower() == "none" else value
+
+
 def _archive_artwork(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     artwork = services.catalogue.archive_artwork(arguments["artwork_id"])
     return ok(
@@ -873,6 +888,8 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_catalogue", "restore"): _restore_artwork,
     ("art_catalogue", "retry_acquisition"): _retry_acquisition,
     ("art_catalogue", "set_mat_color"): _set_mat_color,
+    ("art_catalogue", "set_work_qid"): _set_work_qid,
+    ("art_catalogue", "set_artist_qid"): _set_artist_qid,
     ("art_catalogue", "regenerate"): _regenerate,
     ("art_theme", "list"): _list_themes,
     ("art_theme", "get"): _get_theme,
@@ -1010,6 +1027,10 @@ def _artwork_fields(artwork: Artwork) -> dict[str, Any]:
         "status": str(artwork.status),
         "accepted_at": _moment(artwork.accepted_at),
         "created_at": _moment(artwork.created_at),
+        # The Wikidata item, as the bare QID, and who set it: `matched` (by the
+        # holding museum's identifier, never a title) or `curator`.
+        "wikidata_qid": artwork.wikidata_qid,
+        "wikidata_qid_set_by": None if artwork.wikidata_qid_set_by is None else str(artwork.wikidata_qid_set_by),
     }
 
 
@@ -1031,6 +1052,8 @@ def _artist_fields(artist: Artist) -> dict[str, Any]:
         # rather than a demonym. Null means `nationality` is what reaches the
         # panel, which is the ordinary case.
         "display_nationality": artist.display_nationality,
+        "wikidata_qid": artist.wikidata_qid,
+        "wikidata_qid_set_by": None if artist.wikidata_qid_set_by is None else str(artist.wikidata_qid_set_by),
     }
 
 

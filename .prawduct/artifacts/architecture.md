@@ -243,8 +243,16 @@ convenience would otherwise make that split a migration.
 > it is withdrawn. The published document is patched, never rebuilt, so
 > additions still wait for sync. `archive_artwork` writes no Programming table.
 > `arrt/tests/unit/test_library_events.py` and
-> `arrt/tests/unit/test_reconciliation.py` hold it. **Still in the
-> inventory:** the two foreign keys (rule 3). Media URLs in manifests (the rest
+> `arrt/tests/unit/test_reconciliation.py` hold it. *(2026-10-01: the same
+> subscriber and startup catch-up offer a newly accepted work to the default
+> theme, once, through `LibraryFacade.accepted_work_ids`; `arrt/tests/integration/test_default_theme.py`
+> holds it.)* **Still in the
+> inventory:** the two foreign keys (rule 3), and one migration:
+> `mark_the_default_theme` (`persistence/migrations.py`) reads the Library's
+> `artworks` to back-fill Programming's `default_theme_offers` on a file that
+> predates them. On the shared file that is one statement; after the split it
+> becomes a one-off read through the facade, and a fresh Programming file must
+> not run it as written (there is no `artworks` table to read). Media URLs in manifests (the rest
 > of rule 4) arrived with Chunk 03: the Library names each render's URL by the
 > hash of its bytes (`library/readiness.py` `MEDIA_PATH_TEMPLATE`) and serves it.
 > *(Re-scheduled 2026-09-30 from wave 6, after review: building the endpoint on

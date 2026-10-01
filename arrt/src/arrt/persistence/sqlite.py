@@ -46,6 +46,7 @@ from arrt.persistence.records import (
     Directive,
     FacetDerivation,
     FetchStatus,
+    IdentitySetBy,
     MatColor,
     MatMethod,
     Original,
@@ -86,7 +87,9 @@ CREATE TABLE IF NOT EXISTS artists (
     biography      TEXT,
     family_name    TEXT,
     given_name     TEXT,
-    display_nationality TEXT
+    display_nationality TEXT,
+    wikidata_qid   TEXT,
+    wikidata_qid_set_by TEXT
 );
 
 CREATE TABLE IF NOT EXISTS artworks (
@@ -101,7 +104,9 @@ CREATE TABLE IF NOT EXISTS artworks (
     status        TEXT NOT NULL,
     accepted_at   TEXT,
     created_at    TEXT NOT NULL,
-    commentary    TEXT
+    commentary    TEXT,
+    wikidata_qid  TEXT,
+    wikidata_qid_set_by TEXT
 );
 
 CREATE INDEX IF NOT EXISTS artworks_by_status ON artworks(status);
@@ -892,6 +897,8 @@ def _artist_row(artist: Artist) -> dict[str, Any]:
         "family_name": artist.family_name,
         "given_name": artist.given_name,
         "display_nationality": artist.display_nationality,
+        "wikidata_qid": artist.wikidata_qid,
+        "wikidata_qid_set_by": None if artist.wikidata_qid_set_by is None else str(artist.wikidata_qid_set_by),
     }
 
 
@@ -909,6 +916,8 @@ def _artwork_row(artwork: Artwork) -> dict[str, Any]:
         "accepted_at": to_iso(artwork.accepted_at),
         "created_at": to_iso(artwork.created_at),
         "commentary": artwork.commentary,
+        "wikidata_qid": artwork.wikidata_qid,
+        "wikidata_qid_set_by": None if artwork.wikidata_qid_set_by is None else str(artwork.wikidata_qid_set_by),
     }
 
 
@@ -1052,6 +1061,8 @@ def _artist(row: Mapping[str, Any]) -> Artist:
         family_name=row["family_name"],
         given_name=row["given_name"],
         display_nationality=row["display_nationality"],
+        wikidata_qid=row["wikidata_qid"],
+        wikidata_qid_set_by=_set_by(row["wikidata_qid_set_by"]),
     )
 
 
@@ -1069,7 +1080,13 @@ def _artwork(row: Mapping[str, Any]) -> Artwork:
         rights=row["rights"],
         accepted_at=from_iso(row["accepted_at"]),
         commentary=row["commentary"],
+        wikidata_qid=row["wikidata_qid"],
+        wikidata_qid_set_by=_set_by(row["wikidata_qid_set_by"]),
     )
+
+
+def _set_by(value: str | None) -> IdentitySetBy | None:
+    return None if value is None else IdentitySetBy(value)
 
 
 def _facet(row: Mapping[str, Any]) -> WorkFacet:

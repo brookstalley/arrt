@@ -47,6 +47,10 @@ class ArtistOut(BaseModel):
     #: recorded value being overwritten, because what an institution printed
     #: about a person is not this product's to edit.
     display_nationality: str | None
+    #: The Wikidata item for this person, as the bare QID, or null when none is
+    #: known; and who set it: `matched`, `curator`, or null when never set.
+    wikidata_qid: str | None
+    wikidata_qid_set_by: str | None
 
 
 class FitOut(BaseModel):
@@ -92,6 +96,10 @@ class WorkOut(BaseModel):
     commentary: str | None
     rights: str | None
     status: str
+    #: The Wikidata item for this work, as the bare QID, and who set it. Matched
+    #: only through the holding museum's own identifier, never a title.
+    wikidata_qid: str | None
+    wikidata_qid_set_by: str | None
     fit: FitOut | None
     #: Present exactly when `fit` is null, saying why there is no verdict. A card
     #: with no size must not read like a card whose work is small.
@@ -917,6 +925,16 @@ class StepDisplay(BaseModel):
     """
 
     wall_id: str
+
+
+class SetIdentity(BaseModel):
+    """The curator's word on which Wikidata item this is.
+
+    A QID (`Q160149`) sets it; null says there is none, which the matcher then
+    leaves alone. Either way the curator's word outlasts every matching pass.
+    """
+
+    qid: str | None
 
 
 class AddWork(BaseModel):

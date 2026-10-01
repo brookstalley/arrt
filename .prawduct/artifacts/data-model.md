@@ -163,6 +163,10 @@ to serve, elicited from the Product Brief's core flows:
 | Q15 | What is this work — its movement, period and subject — so a catalogue of thousands can be filtered down to the handful worth looking at, and so taste can be matched against it? | 5 |
 | Q16 | Which theme do new works join, if any, so that what the curator accepts lands somewhere it can be hung? At most one, enforced by the store. | Ruling 8 |
 | Q17 | Has this work already been offered to the default theme, so that neither a restart nor a restore puts back a work the curator took out? | Ruling 8 |
+| Q18 | Is this registry result a work the library holds, so a list of an artist's works can mark the ones held without matching on titles? | Ruling 7 |
+| Q19 | Which registry artist is this library artist, so the Artist page can show what the registry knows? | Ruling 7 |
+| Q20 | Which held works and artists have no registry identity yet, so a later matching pass knows what to try? | Ruling 7 |
+| Q21 | How was each identity set, and can it be trusted: matched automatically and unambiguously, or set by the curator, including set to *none*, so a correction survives the next pass? | Ruling 7 |
 
 **Q15 is what makes the collection navigable at the amended scale**
 (`nonfunctional-requirements.md`, thousands of works). At 41 works a curator
@@ -247,6 +251,25 @@ only entity the curator thinks of as "a piece of art".
 > `rejected` on one and `accepted` on the other is unresolvable, and nothing would
 > flag it. Pre-acceptance state lives on `CandidateWork`; the catalogue holds only
 > works that made it.
+
+> **Registry identity** *(the owner's ruling 7, built 2026-10-01; `wikidata-findings.md`)*.
+> Two fields, on Artwork and on Artist alike:
+>
+> | Field | Type | Constraints | Description |
+> |---|---|---|---|
+> | `wikidata_qid` | string | nullable; `Q` followed by digits | The Wikidata item, stored as the QID itself (`Q160149`), never as a URL (identity is never a source URL). Null ⇒ none known (Q20). |
+> | `wikidata_qid_set_by` | enum `matched` \| `curator` | nullable | Null ⇒ never set. `matched`: the matcher found exactly one candidate. `curator`: set by hand, **including set to none** (a null QID with `curator` is the curator saying "there is none", and the matcher never fills it) (Q21). |
+>
+> **A work's QID is matched only by the holding museum's identifier** on
+> Wikidata (the Art Institute's `P4610`, Google Arts & Culture's `P4701`), read
+> from the work's source URLs, never by title: a generic title cannot be told
+> from another work with the same name. Two sources naming different items is
+> ambiguous and stores nothing. **An artist's QID** is the creator (`P170`) of
+> their matched works when that is one item; otherwise a name search whose
+> candidates are narrowed by agreeing birth and death years, accepted only when
+> exactly one remains. **The matcher fills only empty, never-curated identities**,
+> so it is idempotent and a correction stands. No uniqueness is enforced: two held
+> works naming one item is a duplicate for the curator to see, not a write to refuse.
 
 ### Artist
 

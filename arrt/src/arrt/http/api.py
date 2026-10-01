@@ -81,6 +81,7 @@ from arrt.http.models import (
     SelectedImageOut,
     SelectImage,
     SetAffinity,
+    SetIdentity,
     SetVerdict,
     SourceOut,
     Speak,
@@ -119,7 +120,7 @@ from arrt.persistence.discovery_records import (
     DiscoveryRun,
     InitiatedBy,
 )
-from arrt.persistence.records import Artist, Directive, MatColor, Original, Source, Theme, WorkFacet
+from arrt.persistence.records import Artist, Directive, IdentitySetBy, MatColor, Original, Source, Theme, WorkFacet
 from arrt.programming.display import ThemePlacement, WallView
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.programming.manifest.heartbeat import HeartbeatReading
@@ -218,6 +219,24 @@ def list_works(
 def get_work(request: Request, artwork_id: str) -> WorkDetailOut:
     """One work in full — metadata, artist, sources, renditions and mats."""
     return _dossier(_services(request).survey.get_work(artwork_id))
+
+
+@router.post("/works/{artwork_id}/wikidata")
+def set_work_identity(request: Request, artwork_id: str, body: SetIdentity) -> WorkDetailOut:
+    """Say which Wikidata item this work is, or that there is none.
+
+    Answers with the dossier, the shape every act on the Work screen repaints
+    from. The matcher never overwrites what is set here (`identity.py`).
+    """
+    services = _services(request)
+    services.identity.set_work_identity(artwork_id, body.qid)
+    return _dossier(services.survey.get_work(artwork_id))
+
+
+@router.post("/artists/{artist_id}/wikidata")
+def set_artist_identity(request: Request, artist_id: str, body: SetIdentity) -> ArtistOut:
+    """Say which Wikidata item this artist is, or that there is none."""
+    return _artist(_services(request).identity.set_artist_identity(artist_id, body.qid))
 
 
 @router.post("/works/{artwork_id}/archive")
@@ -780,6 +799,8 @@ def _work(survey: WorkSurvey) -> WorkOut:
         commentary=artwork.commentary,
         rights=artwork.rights,
         status=str(artwork.status),
+        wikidata_qid=artwork.wikidata_qid,
+        wikidata_qid_set_by=_set_by(artwork.wikidata_qid_set_by),
         fit=(
             None
             if survey.fit is None
@@ -847,7 +868,13 @@ def _artist(artist: Artist) -> ArtistOut:
         family_name=artist.family_name,
         given_name=artist.given_name,
         display_nationality=artist.display_nationality,
+        wikidata_qid=artist.wikidata_qid,
+        wikidata_qid_set_by=_set_by(artist.wikidata_qid_set_by),
     )
+
+
+def _set_by(value: IdentitySetBy | None) -> str | None:
+    return None if value is None else str(value)
 
 
 def _original(original: Original) -> OriginalOut:

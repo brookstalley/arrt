@@ -57,6 +57,9 @@ _EXPECTED_SCHEMA = {
         "family_name",
         "given_name",
         "display_nationality",
+        # Widened 2026-10-01 with the registry identity (ruling 7).
+        "wikidata_qid",
+        "wikidata_qid_set_by",
     },
     # `commentary` is the line written for a wall label, which is not
     # `description` — that is the holding institution's paragraph.
@@ -73,6 +76,8 @@ _EXPECTED_SCHEMA = {
         "accepted_at",
         "created_at",
         "commentary",
+        "wikidata_qid",
+        "wikidata_qid_set_by",
     },
     # Widened 2026-07-31 with the per-theme rotation settings. This was the first
     # change to a table files already on disk carried, so it is also what the

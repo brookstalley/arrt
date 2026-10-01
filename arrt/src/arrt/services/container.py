@@ -57,10 +57,12 @@ from arrt.library.discovery.engine import DiscoveryEngine
 from arrt.library.discovery.images import ImageSearch
 from arrt.library.discovery.phase_two import PhaseTwoEngine
 from arrt.library.facade import LibraryFacade
+from arrt.library.registry import Registry
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.conversation import ConversationService
 from arrt.library.services.discovery import DiscoveryService
 from arrt.library.services.display_fit import ArtworkBox
+from arrt.library.services.identity import IdentityService
 from arrt.library.services.previews import PreviewCache, PreviewSettings
 from arrt.library.services.review import ReviewService
 from arrt.library.services.runner import DiscoveryRunner, DiscoverySettings
@@ -157,6 +159,10 @@ class Services:
     #: product's memory of its operator to the lifetime of a transcript, which is
     #: precisely what deleting one must not do.
     taste: TasteService
+    #: Which registry item each held work and artist is (ruling 7). The
+    #: curator's corrections work without a registry; matching needs one, and
+    #: says so when it is absent rather than matching nothing quietly.
+    identity: IdentityService
 
     @classmethod
     def bind(
@@ -190,6 +196,10 @@ class Services:
         #: the curator's evidence that the product works would be the product
         #: fabricating it.
         conversation_engine: ConversationEngine | None = None,
+        #: Wikidata, or None while `WIKIDATA_USER_AGENT` is unset. Never a default
+        #: client, for the reason `image_search` has none: a test suite must not
+        #: be able to reach a foreign API through a wiring default.
+        registry: Registry | None = None,
     ) -> Services:
         """Assemble the services over an already-open file.
 
@@ -321,6 +331,7 @@ class Services:
             # transaction — the delete's whole correctness is that it commits or
             # does not.
             taste=TasteService(discovery),
+            identity=IdentityService(catalogue, registry),
         )
 
     def reconcile(self) -> None:
