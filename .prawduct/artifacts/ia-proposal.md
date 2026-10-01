@@ -3,7 +3,7 @@
 **Written 2026-10-01, at the owner's request: "Without preconceptions from what
 we've already built, build a strong IA story for the app."** It is derived from
 `user-scenarios.md` and from measurements, and it looks at the built screens only
-in § Against what is built. **The owner ruled on all seven of its decisions on
+in § Against what is built. **The owner ruled on all of its decisions on
 2026-10-01** (§ Rulings), and the body below is revised to match.
 `information-architecture.md` is not yet amended; that is the next step.
 
@@ -117,17 +117,18 @@ candidates carry real sizes.
 │     Artists      │                                               │
 │     Works        │                                               │
 │     Themes       │                                               │
-│ ▶ Now Showing    │                                               │
-│ ◇ Explore        │                                               │
 │     Topics       │                                               │
 │     Ask          │                                               │
+│ ▢ Walls          │                                               │
 │ ↻ Activity    ③  │                                               │
 │     To review    │                                               │
-│     Getting      │                                               │
+│     Queue        │                                               │
 │     History      │                                               │
 │     Wanted       │                                               │
 │ ⚙ Settings       │                                               │
-│     Walls · Taste · Sources · Spending · System                  │
+│     Taste        │                                               │
+│ ♥ System         │                                               │
+│     Status       │                                               │
 └──────────────────┴───────────────────────────────────────────────┘
 ```
 
@@ -135,17 +136,25 @@ Sub-pages show only under the current section, as in the *arr apps. Activity's
 badge counts works waiting for review, the one queue that needs the curator.
 Wanted appears once something is in it.
 
+**The sidebar keeps the ratified *arr-layout norm** (`information-architecture.md`
+§ Direction; ruling 9): no new top-level section. Topics and Ask sit under
+Library, where every *arr app puts Add New. Walls keeps its slot. Pages an *arr
+app has keep the *arr name, so the page this proposal first called *Getting* is
+**Queue**. Two pages of the first draft are dropped: *Spending*, because the spend
+record already lives in System › Status, and *Sources*, because no scenario needs
+it. *(Builder's call, 2026-10-01; the owner can overrule it.)*
+
 **Home is Library** (ruling 1). The owner chose it over Now Showing, the
 builder's recommendation, which was argued from assumed weekly frequencies for
 S1 and S6. The choice is evidence that browsing and acquiring is what Arrt is
 opened for most, and that the walls scenarios are rarer than
-`user-scenarios.md` assumed. Now Showing remains, second in the sidebar.
+`user-scenarios.md` assumed. What is on each wall now is shown on Walls.
 
 ## Pages
 
-### Now Showing
+### Walls
 
-One card per wall. Each card shows the work on the wall now, large, with its
+What hangs on each wall, and how each wall is set up. One card per wall. Each card shows the work on the wall now, large, with its
 label facts. Below it: what it is drawn from (a theme, an artist or a selection);
 how long that lasts ("until changed" or "until Friday, then back to *Modern*");
 and the next three works.
@@ -154,7 +163,8 @@ The controls on each card are **Skip**, **Not this one again**, and **Change**.
 *Not this one again* asks one question, *from this theme* or *from every wall*,
 because S8 says "nothing else changed" and those are two different changes.
 *Hang everywhere…*, one act for all walls, waits for wave 4 with the rest of
-hanging for a duration (ruling 6).
+hanging for a duration (ruling 6). Each wall's history (what hung when, and
+from what) and its configuration open from its card.
 
 ### Artist (the hub)
 
@@ -232,21 +242,15 @@ default theme? Let's not overcomplicate."* (the owner, 2026-10-01).
 accepted works), and it is what their wall is hanging. Nothing adds a work to a
 theme automatically: the only callers of `add_to_theme` are the HTTP route and
 its MCP twin. So an excursion's works stay out of *All works* simply by not
-being added. The converse is the open question: an ordinary acceptance joins no
-theme either, so every new everyday work has to be added to *All works* by hand.
-Whether acceptance should join a designated default theme is not ruled, and is
-listed below rather than assumed.
-
-### Wall
-
-Under Settings, since walls are configured rarely. It shows the wall's
-configuration and its full history: what hung when, and from what. Now Showing
-is where the walls are *used*.
+being added. But an ordinary acceptance joins no theme either, so every new
+everyday work had to be added to *All works* by hand. **Ruling 8 makes *All
+works* the default theme**: ordinary acceptances join it automatically, and
+excursion acceptances still do not.
 
 ### Activity
 
 **To review** is the inbox: candidates from Gets, grouped by Get, judged with
-explicit controls (the no-gesture ruling stands). **Getting** shows Gets in
+explicit controls (the no-gesture ruling stands). **Queue** shows Gets in
 progress, with spend so far. **History** lists finished Gets. **Wanted** holds
 works marked Want (no image known, or a Get that found nothing). It is where a
 future Watch would land, like Lidarr's Wanted › Missing.
@@ -261,13 +265,13 @@ future Watch would land, like Lidarr's Wanted › Missing.
 | S4a Does this work exist? | Search → Work page: holder, accession, state | No |
 | S4b Get a copy | Work → **Get** | At Get |
 | S5 Who's like…? | Artist → Similar artists; or Ask | No, until Get |
-| S6 What's on the wall? | Home | No |
+| S6 What's on the wall? | Walls | No |
 | S7 Make a theme and hang it | Library › Works → select → add to theme → Theme → **Hang…** | No |
-| S8 Tired of this one | Home → card → **Not this one again** → this theme or every wall | No |
+| S8 Tired of this one | Walls → card → **Not this one again** → this theme or every wall | No |
 | S9 Clean-up | Library › Works filtered by low resolution or never hung; Activity › To review | No |
-| S10 Is it working? | The status indicator in the top bar → Settings › System | No |
+| S10 Is it working? | The status indicator in the top bar → System › Status | No |
 | S11 Rothko, knowing nothing | Search `rothko` → Artist: 2 held, then their work with previews and states → select → **Get** | At Get |
-| S12 16th century for two days | Explore › Topics → 16th century → representative works → **Get as excursion** → its theme → **Hang…** on each wall → when done, hang the default theme again. The works stay in their theme, out of the rotation. From wave 4: **Hang… on all walls until Sunday**, and the walls return by themselves | At Get |
+| S12 16th century for two days | Library › Topics → 16th century → representative works → **Get as excursion** → its theme → **Hang…** on each wall → when done, hang the default theme again. The works stay in their theme, out of the rotation. From wave 4: **Hang… on all walls until Sunday**, and the walls return by themselves | At Get |
 | Delaunays | Search → Robert Delaunay → Similar artists (each with how much has an image) → *More like this* records taste → Ask for more | No, until Get |
 
 S11 and S12, the two scenarios the built IA failed in `user-scenarios.md`
@@ -278,16 +282,16 @@ S11 and S12, the two scenarios the built IA failed in `user-scenarios.md`
 | Built (as of 2026-10-01) | Proposal | Change |
 |---|---|---|
 | Artworks is home | Library › Works is home | **Kept** (ruling 1) |
-| Library has Artworks and Themes | Library has Artists, Works, Themes | **New:** Artist page and index |
-| Add New is a place: an intent box and conversations | Gone as a place. Get is an action on any selection; Ask is the conversation | **Removed** as a place |
+| Library has Artworks and Themes | Library has Artists, Works, Themes, Topics, Ask | **New:** Artist page and index, Topic pages |
+| Add New is a place: an intent box and conversations | Gone as a place. Get is an action on any selection; Ask is the conversation, under Library | **Removed** as a place: an owner-ruled departure from the *arr norm (ruling 3) |
 | Two-scope search: library, then *Search museums* → a paid run | One world: library and registry matches with states, free | **Changed** |
 | Search misses `dali` | Folds accents | **Fix**, independent of everything else |
 | Hang on one wall per click; no end; no history | Walls keep a history now; hanging on several walls, for a duration, with revert comes with wave 4's schedule | **New**, mostly deferred (ruling 6) |
-| *All works* is an ordinary theme, kept by hand | The same; excursion works are simply not added | **Kept** (ruling 5a). Whether acceptance should join a default theme is open |
-| Archive one work at a time | Archive a selection; *Not this one again* from Now Showing | **Changed** |
+| *All works* is an ordinary theme, kept by hand | The designated default theme: ordinary acceptances join it automatically, excursion acceptances do not | **Changed** (rulings 5a and 8) |
+| Archive one work at a time | Archive a selection; *Not this one again* from Walls | **Changed** |
 | Taste recorded, unread | Taste read by Ask and by similar artists; excursion acceptances write none, reactions during one do | **New** |
-| Activity: Queue, History | Activity: To review, Getting, History, Wanted | **Renamed** and **added** |
-| Walls as a top-level page | Now Showing for using walls, Settings › Walls for configuring them | **Split** |
+| Activity: Queue, History | Activity: To review, Queue, History, Wanted | **Added**: To review and Wanted |
+| Walls as a top-level page | The same slot, now leading with what each wall shows | **Kept** (ruling 9) |
 
 **Kept as they are:** the theme as an ordered set; review with explicit verdicts;
 the conversation's in-place transformation into a run; facets with counts and no
@@ -324,26 +328,29 @@ bar search and toolbar.
 
 ## Rulings (2026-10-01)
 
-The owner ruled on each decision in turn. The wording of each option is the
+The owner ruled on each decision in turn, then on two the rulings raised. The wording of each option is the
 builder's; the choice is the owner's.
 
 | # | Decision | Ruling |
 |---|---|---|
 | 1 | Home | **Library.** The builder recommended Now Showing. |
 | 2 | Search scope | **One world**: library and registry matches together, each with its state. |
-| 3 | Add New | **Dissolved.** Get is an action on any selection; Ask is the conversation, under Explore. |
+| 3 | Add New | **Dissolved.** Get is an action on any selection; Ask is the conversation. Every *arr app has an Add New, so this is a ruled departure from the *arr-layout norm. |
 | 4 | Artist page | **The full hub**: held works, their work, similar artists, holdings, taste. |
 | 5a | When an excursion ends | **Nothing beyond a theme**: its works form a theme and are not in the default theme. The builder's options (archive, keep, ask, delete) were all declined as overcomplicated. |
 | 5b | Excursions and taste | **Acceptances do not count; explicit reactions during one do.** |
 | 6 | Hanging for a duration | **Wait for wave 4's schedule.** Neither the end time nor the one-act "all walls" control is built before it. |
 | 7 | Registry IDs | **Store them** where one exists (Wikidata QIDs for works and artists), and keep the catalogue's own identity where none does. |
+| 8 | A default theme | **Yes: "There should be a default 'all works' theme."** A work accepted from an ordinary Get joins it; one accepted from an excursion Get does not. Raised by ruling 5a, ruled the same day. |
+| 9 | The sidebar | **Fit the norm**: no new top-level sections. Topics and Ask under Library, Walls in its slot. The builder's map had added Explore and Now Showing, which the norm allows only by an *arr precedent or an owner ruling; offered both, the owner chose the norm. |
 
-**Open, raised by ruling 5a:** should accepting a work from an ordinary Get add
-it to a designated default theme, so the everyday rotation stays current without
-adding each work by hand? Today nothing does, and *All works* is complete only
-because every work was added explicitly.
+**Ruling 8 changes one built thing.** Today nothing adds a work to a theme
+automatically, so acceptance has to start doing so. The owner's existing *All
+works* (40 members, all 40 accepted works) is the natural theme to designate,
+and needs no backfill. How it is designated, and whether it can be renamed or
+deleted, is not ruled; the build plan proposes it.
 
 **What follows, in order.** Amend `information-architecture.md` from this
 proposal. Then a build plan, whose first pieces stand on their own: the accent
-fix, storing registry IDs (ruling 7), and the Artist hub (4), which needs the
-IDs.
+fix, the default theme (ruling 8), storing registry IDs (ruling 7), and the
+Artist hub (4), which needs the IDs.
