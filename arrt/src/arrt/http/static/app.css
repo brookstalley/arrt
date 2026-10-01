@@ -1267,6 +1267,10 @@ table {
   font-size: var(--text-sm);
 }
 
+.table-scroll {
+  overflow-x: auto;
+}
+
 caption {
   text-align: left;
   color: var(--text-muted);

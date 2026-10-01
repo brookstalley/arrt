@@ -65,6 +65,7 @@ from arrt.library.services.discovery import DiscoveryService
 from arrt.library.services.display_fit import ArtworkBox
 from arrt.library.services.identity import IdentityService
 from arrt.library.services.previews import PreviewCache, PreviewSettings
+from arrt.library.services.registry_works import RegistryWorkService
 from arrt.library.services.review import ReviewService
 from arrt.library.services.runner import DiscoveryRunner, DiscoverySettings
 from arrt.library.services.survey import SurveyService
@@ -167,6 +168,9 @@ class Services:
     #: The artists the library holds, and what the registry knows about each,
     #: for the Artist page. Over the same registry as `identity`.
     artists: ArtistService
+    #: One registry work, for the page of a work the library may not hold, and
+    #: which held works are it. Over the same registry as `artists`.
+    registry_works: RegistryWorkService
 
     @classmethod
     def bind(
@@ -337,6 +341,7 @@ class Services:
             taste=TasteService(discovery),
             identity=IdentityService(catalogue, registry),
             artists=ArtistService(catalogue, registry),
+            registry_works=RegistryWorkService(catalogue, registry),
         )
 
     def reconcile(self) -> None:

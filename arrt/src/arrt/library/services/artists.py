@@ -11,6 +11,11 @@ for the most renowned, says how many more there are, and the answer is kept per
 artist for the life of the process. A failure is not kept, so the next visit asks
 again.
 
+**An artist the library does not hold has a page too**, addressed by QID: the
+registry half alone, with every listed work still marked *Held* where the
+library holds it. A QID that names an artist the library does hold answers with
+that artist's id, so the page can send the curator to the full one.
+
 **The works the library holds are always listed**, after the most renowned, so
 they can be marked *Held*. Run against the owner's catalogue the first version
 listed only the top fifty by renown, and none of the owner's Rothkos or their
@@ -25,7 +30,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Final
 
-from arrt.library.registry import Registry, RegistryArtist, RegistryUnavailable
+from arrt.library.registry import QID, Registry, RegistryArtist, RegistryUnavailable
 from arrt.persistence.catalogue import CatalogueStore, WorkQuery
 from arrt.persistence.folding import search_fold
 from arrt.persistence.records import Artist, ArtworkStatus
@@ -117,26 +122,38 @@ class ArtistService:
                 state=RegistryState.NO_IDENTITY,
                 note="This artist is not matched to Wikidata, so there is nothing more to show about them yet.",
             )
+        theirs = self._store.list_artworks(
+            WorkQuery(status=ArtworkStatus.ACCEPTED, artist_id=artist.id), limit=_THEIRS, offset=0
+        ).artworks
+        mine = sorted({work.wikidata_qid for work in theirs if work.wikidata_qid})
+        return self._view(
+            artist.wikidata_qid,
+            mine,
+            unavailable="Wikidata could not be asked just now. What the library holds is above; try again later.",
+        )
+
+    def registry_view_by_qid(self, qid: str) -> RegistryView:
+        """What the registry knows about an artist the curator reached by QID, whether or not the library holds them."""
+        return self._view(_checked(qid), (), unavailable="Wikidata could not be asked just now. Try again later.")
+
+    def held_artist_id(self, qid: str) -> str | None:
+        """The library's artist carrying this QID, if one does: the page to send a curator to instead."""
+        return artist_ids_by_qid(self._store).get(_checked(qid))
+
+    def _view(self, qid: str, mine: Sequence[str], *, unavailable: str) -> RegistryView:
         if self._registry is None:
             return RegistryView(
                 state=RegistryState.NOT_CONFIGURED,
                 note="Wikidata is not configured on this server (WIKIDATA_USER_AGENT is unset).",
             )
-        # "Held" means in circulation, as *In your library* above it does, so an
-        # archived work is neither listed there nor marked here.
+        # "Held" means in circulation, as *In your library* does, so an archived
+        # work is neither listed there nor marked here.
         holdings = self._store.circulating_ids_by_qid()
-        theirs = self._store.list_artworks(
-            WorkQuery(status=ArtworkStatus.ACCEPTED, artist_id=artist.id), limit=_THEIRS, offset=0
-        ).artworks
-        mine = sorted({work.wikidata_qid for work in theirs if work.wikidata_qid})
         try:
-            known = self._known(artist.wikidata_qid, mine, self._registry)
+            known = self._known(qid, mine, self._registry)
         except RegistryUnavailable as exc:
-            log.warning("Could not ask Wikidata about %s (%s): %s", artist.name, artist.wikidata_qid, exc)
-            return RegistryView(
-                state=RegistryState.UNAVAILABLE,
-                note="Wikidata could not be asked just now. What the library holds is above; try again later.",
-            )
+            log.warning("Could not ask Wikidata about %s: %s", qid, exc)
+            return RegistryView(state=RegistryState.UNAVAILABLE, note=unavailable)
         return RegistryView(
             state=RegistryState.KNOWN,
             known=known,
@@ -159,3 +176,15 @@ class ArtistService:
             while len(self._remembered) > _REMEMBERED:
                 self._remembered.popitem(last=False)
         return known
+
+
+def artist_ids_by_qid(store: CatalogueStore) -> dict[str, str]:
+    """Every catalogue artist carrying a QID, by it. Read whole: a few hundred rows at the library's scale."""
+    return {artist.wikidata_qid: artist.id for artist in store.list_artists() if artist.wikidata_qid}
+
+
+def _checked(qid: str) -> str:
+    """A QID as an address carries it, refused as the curator's mistake when it is not one."""
+    if not QID.match(qid):
+        raise ServiceError(f"{qid!r} is not a Wikidata item id (Q followed by digits).")
+    return qid

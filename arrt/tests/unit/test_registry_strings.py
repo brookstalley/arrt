@@ -30,11 +30,13 @@ from arrt.library.registry import QID, CommonsFile, ItemId, MuseumIdentifier, Re
 from arrt.library.registry.identifiers import IdentifierScheme
 from arrt.library.registry.wikidata import WikidataRegistry
 
-#: The named kinds a registry string may be.
-KINDS = {ItemId, RegistryText, CommonsFile, MuseumIdentifier}
+#: The named kinds a registry string may be: every `NewType` the seam defines, so
+#: a new kind is one the checks below name, rather than one they skip.
+KINDS = {member for member in vars(seam).values() if isinstance(member, typing.NewType)}
 
-#: A URL the registry might return where an image or a link belongs.
-STRANGER = "https://evil.example/entity/Q1"
+#: A URL the registry might return where an image or a link belongs. It ends in an
+#: item nobody asked about, so a question that keeps unasked items shows it.
+STRANGER = "https://evil.example/entity/Q666"
 
 #: The one host an image may come from.
 COMMONS = "https://commons.wikimedia.org/wiki/Special:FilePath/"
@@ -48,6 +50,7 @@ CALLS = {
     "creators_of": lambda registry: registry.creators_of(["Q1"]),
     "people_named": lambda registry: registry.people_named("anyone"),
     "artist": lambda registry: registry.artist("Q1", works=5, holdings=5, include=["Q2"]),
+    "work": lambda registry: registry.work("Q1"),
 }
 
 
@@ -78,6 +81,7 @@ def _answer_type(question: str) -> object:
 
 def test_the_seam_has_types_and_questions_to_check():
     """A rename that emptied either list would leave the tests below passing on nothing."""
+    assert KINDS == {ItemId, RegistryText, CommonsFile, MuseumIdentifier}
     assert {kind.__name__ for kind in _seam_types()} >= {"RegistryArtist", "RegistryWorkEntry"}
     assert "artist" in _questions()
 
@@ -187,3 +191,13 @@ def test_the_walk_reaches_an_image_field():
 
 def test_an_identifier_the_registry_was_not_asked_about_is_not_a_key():
     assert {value for kind, value in _answer("works_by_identifier") if kind is MuseumIdentifier} == {ASKED}
+
+
+def test_an_item_the_registry_was_not_asked_about_is_not_a_key():
+    answer = CALLS["creators_of"](
+        WikidataRegistry(
+            user_agent="arrt test (+https://example.org)",
+            client=httpx.Client(transport=httpx.MockTransport(_hostile), follow_redirects=False),
+        )
+    )
+    assert set(answer) == {"Q1"}

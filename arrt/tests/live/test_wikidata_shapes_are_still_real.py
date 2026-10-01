@@ -65,3 +65,18 @@ def test_a_cultures_name_finds_a_person_only_dates_keep_out(registry):
     found = registry.people_named("Moche")
 
     assert found, "the search no longer turns 'Moche' into a person; the undated rule is now belt and braces"
+
+
+def test_a_name_with_only_a_language_neutral_label_is_still_a_name(registry):
+    """Mark Rothko's name is a `mul` label, with no `en` one (measured 2026-10-01)."""
+    found = {person.qid: person.label for person in registry.people_named("Mark Rothko")}
+
+    assert found.get("Q160149") == "Mark Rothko"
+
+
+def test_one_work_pairs_its_number_with_its_holder(registry):
+    """The owner's held Rothko, ARTIC 100472 above, as its own page reads it."""
+    work = registry.work("Q20270685")
+
+    assert work is not None and [c.name for c in work.creators] == ["Mark Rothko"]
+    assert [(h.name, h.inventory) for h in work.holders] == [("Art Institute of Chicago", "1983.509")]

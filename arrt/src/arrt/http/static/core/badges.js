@@ -88,13 +88,16 @@ export function facts(pairs) {
   return list;
 }
 
+/* A table that scrolls sideways inside its panel rather than widening the page.
+ * Its cells hold file paths and museum URLs with no break in them, which on a
+ * phone made the whole Work page wider than the screen. */
 export function table(caption, headers, rows) {
-  return el("table", {}, [
+  return el("div", { class: "table-scroll" }, [el("table", {}, [
     el("caption", { text: caption }),
     el("thead", {}, [el("tr", {}, headers.map((h) => el("th", { scope: "col", text: h })))]),
     el("tbody", {}, rows.map((cells) => el("tr", {}, cells.map((c) => (c instanceof Node ? el("td", {}, [c]) : el("td", { text: c === null || c === undefined ? "—" : String(c) }))))),
     ),
-  ]);
+  ])]);
 }
 
 /* Only ever shown when the runaway guard actually bit. Named rather than

@@ -186,6 +186,21 @@ export function go(view, detailId = null, params = null) {
   refresh(true);
 }
 
+/* Replace the screen being drawn with another, in place: the address is
+ * rewritten rather than added to, so Back skips the one that only forwarded.
+ *
+ * For a page that learns, once it has asked, that it is the wrong page: a work
+ * reached by its Wikidata id that the library holds belongs on the library's own
+ * Work page. `go` would leave the forwarding address in the history, and Back
+ * would land on it and be sent forward again. The opener (`?from=`) is kept, so
+ * the page that replaces it returns where this one would have. */
+export function redirect(view, detailId) {
+  const entry = table[view];
+  window.history.replaceState(null, "", formatRoute(view, entry && entry.detail ? detailId : null, state.params));
+  readHash();
+  return refresh(true);
+}
+
 /* Change some of the addressable state of the screen that is showing.
  *
  * `go(state.view, state.detailId, { ...state.params, ...changes })`, named

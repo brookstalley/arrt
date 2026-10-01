@@ -400,12 +400,12 @@ def a_billed_failure(message: str = "The model returned no usable answer.") -> C
 class FakeRegistry:
     """A `Registry` answering from tables, which remembers what it was asked.
 
-    `artists` maps a QID to the `RegistryArtist` `artist()` returns; `failing`
-    makes every question raise `RegistryUnavailable`, which is how an outage
-    reaches the page.
+    `artists` maps a QID to the `RegistryArtist` `artist()` returns, and `works` a
+    QID to the `RegistryWork` `work()` returns; `failing` makes every question
+    raise `RegistryUnavailable`, which is how an outage reaches the page.
     """
 
-    def __init__(self, *, items=None, creators=None, people=None, artists=None, extra_works=None, failing=False):
+    def __init__(self, *, items=None, creators=None, people=None, artists=None, extra_works=None, works=None, failing=False):
         self.items = items or {}
         self.creators = creators or {}
         self.people = people or {}
@@ -413,9 +413,13 @@ class FakeRegistry:
         #: Works `artist()` lists only when asked to include them by QID: the
         #: held ones beyond the most renowned.
         self.extra_works = extra_works or {}
+        #: QID → `RegistryWork`, what `work()` answers; an absent QID is an item
+        #: the registry does not have.
+        self.works = works or {}
         self.failing = failing
         self.searched: list[str] = []
         self.asked_about: list[str] = []
+        self.works_asked: list[str] = []
 
     def _check(self):
         if self.failing:
@@ -442,3 +446,8 @@ class FakeRegistry:
         listed = {entry.qid for entry in known.works}
         added = tuple(self.extra_works[extra] for extra in include if extra in self.extra_works and extra not in listed)
         return replace(known, works=known.works + added)
+
+    def work(self, qid):
+        self._check()
+        self.works_asked.append(qid)
+        return self.works.get(qid)

@@ -210,3 +210,91 @@ def test_no_held_works_means_no_extra_question():
     _registry(handler).artist("Q160149", works=1, holdings=1)
 
     assert not any("VALUES ?work" in query for query in asked)
+
+
+def test_names_are_asked_for_in_the_language_neutral_label_too():
+    """Mark Rothko has a `mul` label and no `en` one: asked for English alone, the registry named him Q160149."""
+    asked = []
+
+    def handler(request):
+        asked.append(_sent_query(request))
+        return _results()
+
+    registry = _registry(handler)
+    registry.people_named("Mark Rothko")
+    registry.artist("Q160149", works=1, holdings=1)
+    registry.work("Q20270685")
+
+    labelled = [query for query in asked if "wikibase:label" in query]
+    assert labelled and all('wikibase:language "en,mul"' in query for query in labelled)
+
+
+def test_an_artist_comes_back_named_and_dated():
+    def handler(request):
+        if "?itemLabel" in _sent_query(request):
+            return _results({"itemLabel": {"value": "Mark Rothko"}, "bornYear": {"value": "1903"}, "diedYear": {"value": "1970"}})
+        return _results()
+
+    known = _registry(handler).artist("Q160149", works=1, holdings=1)
+
+    assert (known.name, known.born, known.died) == ("Mark Rothko", 1903, 1970)
+
+
+def _row(**values):
+    return {
+        name: (_uri(value) if name in {"creator", "collection", "inventoryAt"} else {"value": value})
+        for name, value in values.items()
+    }
+
+
+def test_one_work_is_read_back_from_its_combinations():
+    """Two collections each with its own number, two media and one creator arrive as eight rows; they are one work."""
+    rows = [
+        _row(
+            workLabel="Held twice",
+            links="12",
+            year="1890",
+            creator="Q7",
+            creatorLabel="A Painter",
+            mediumLabel=medium,
+            collection=collection,
+            collectionLabel=name,
+            inventory=number,
+            inventoryAt=at,
+        )
+        for medium in ("oil paint", "canvas")
+        for collection, name in (("Q100", "Zeta Museum"), ("Q200", "Alpha Gallery"))
+        for number, at in (("Z-1", "Q100"), ("A-9", "Q200"))
+    ]
+
+    work = _registry(lambda request: _results(*rows)).work("Q42")
+
+    assert (work.qid, work.title, work.sitelinks, work.year) == ("Q42", "Held twice", 12, 1890)
+    assert [(c.qid, c.name) for c in work.creators] == [("Q7", "A Painter")]
+    assert work.media == ("canvas", "oil paint")
+    assert [(h.name, h.inventory) for h in work.holders] == [("Alpha Gallery", "A-9"), ("Zeta Museum", "Z-1")]
+
+
+def test_an_unqualified_number_belongs_only_to_a_sole_collection():
+    """Which of two collections an unqualified number belongs to is unknowable, so neither gets it."""
+    sole = _registry(
+        lambda r: _results(_row(workLabel="W", links="0", collection="Q100", collectionLabel="Only", inventory="N-1"))
+    ).work("Q1")
+    shared = _registry(
+        lambda r: _results(
+            _row(workLabel="W", links="0", collection="Q100", collectionLabel="One", inventory="N-1"),
+            _row(workLabel="W", links="0", collection="Q200", collectionLabel="Two", inventory="N-1"),
+        )
+    ).work("Q1")
+
+    assert [h.inventory for h in sole.holders] == ["N-1"]
+    assert [h.inventory for h in shared.holders] == [None, None]
+
+
+def test_an_item_the_registry_does_not_have_is_none():
+    assert _registry(lambda request: _results()).work("Q999999999999") is None
+
+
+def test_a_work_qid_is_checked_before_it_reaches_a_query():
+    with pytest.raises(ValueError):
+        _registry(lambda request: _results()).work("Q1 } UNION {")

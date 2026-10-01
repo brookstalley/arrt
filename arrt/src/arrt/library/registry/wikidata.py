@@ -32,9 +32,13 @@ from arrt.library.registry import (
     ItemId,
     MuseumIdentifier,
     RegistryArtist,
+    RegistryCreator,
+    RegistryHolder,
     RegistryHolding,
     RegistryPerson,
+    RegistryText,
     RegistryUnavailable,
+    RegistryWork,
     RegistryWorkEntry,
 )
 from arrt.library.registry.identifiers import IdentifierScheme
@@ -57,6 +61,12 @@ TIMEOUT_SECONDS: Final[float] = 60.0
 #: Visual artist (`Q3391743`): the occupation painters, sculptors and
 #: photographers sit under.
 _VISUAL_ARTIST: Final[str] = "Q3391743"
+
+#: Rows one work's query may return: every combination of its creators, media,
+#: collections and inventory numbers. A few dozen for a work held in two places;
+#: the cap is there so an item vandalised with hundreds of statements cannot
+#: make one page read thousands of rows.
+_WORK_ROWS: Final[int] = 2000
 
 #: Label languages, in order. `mul` is Wikidata's language-neutral label, which
 #: some items (the National Gallery of Art among them) now carry instead of an
@@ -96,12 +106,15 @@ class WikidataRegistry:
     def creators_of(self, work_qids: Sequence[str]) -> Mapping[ItemId, frozenset[ItemId]]:
         found: dict[ItemId, set[ItemId]] = {}
         for batch in _batches(sorted({_require_qid(qid) for qid in work_qids})):
+            asked = set(batch)
             listed = " ".join(f"wd:{qid}" for qid in batch)
             rows = self._select(f"SELECT ?item ?creator WHERE {{ VALUES ?item {{ {listed} }} ?item wdt:P170 ?creator . }}")
             for row in rows:
                 creator = _qid(row, "creator", required=False)
-                if creator is not None:
-                    found.setdefault(_qid(row, "item"), set()).add(creator)
+                item = _qid(row, "item")
+                # As in `works_by_identifier`: an item not asked about is not a key.
+                if creator is not None and item in asked:
+                    found.setdefault(item, set()).add(creator)
         return {item: frozenset(creators) for item, creators in found.items()}
 
     def people_named(self, name: str) -> Sequence[RegistryPerson]:
@@ -115,7 +128,7 @@ class WikidataRegistry:
               FILTER EXISTS {{ {{ ?item wdt:P106/wdt:P279* wd:{_VISUAL_ARTIST} }} UNION {{ ?made wdt:P170 ?item }} }}
               OPTIONAL {{ ?item wdt:P569 ?born }}
               OPTIONAL {{ ?item wdt:P570 ?died }}
-              SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en". }}
+              SERVICE wikibase:label {{ bd:serviceParam wikibase:language "{_LABELS}". }}
             }} GROUP BY ?item ?itemLabel""")
         return [
             RegistryPerson(
@@ -136,6 +149,12 @@ class WikidataRegistry:
                          FILTER(LANG(?movementLabel) = "en") }}
             }} GROUP BY ?description"""
         )
+        named = self._select(f"""SELECT ?itemLabel (MIN(YEAR(?born)) AS ?bornYear) (MIN(YEAR(?died)) AS ?diedYear) WHERE {{
+              VALUES ?item {{ wd:{item} }}
+              OPTIONAL {{ ?item wdt:P569 ?born }}
+              OPTIONAL {{ ?item wdt:P570 ?died }}
+              SERVICE wikibase:label {{ bd:serviceParam wikibase:language "{_LABELS}". }}
+            }} GROUP BY ?itemLabel""")
         listed = self._select(
             f"""SELECT ?work ?workLabel ?links (MIN(YEAR(?inception)) AS ?year) (SAMPLE(?image) AS ?img) WHERE {{
               ?work wdt:P170 wd:{item} ; wikibase:sitelinks ?links .
@@ -162,8 +181,12 @@ class WikidataRegistry:
               SERVICE wikibase:label {{ bd:serviceParam wikibase:language "{_LABELS}". }}
             }} GROUP BY ?collection ?collectionLabel ORDER BY DESC(?n) LIMIT {int(holdings)}""")
         first = profile[0] if profile else {}
+        person = named[0] if named else {}
         return RegistryArtist(
             qid=item,
+            name=person["itemLabel"]["value"] if "itemLabel" in person else None,
+            born=_integer(person, "bornYear"),
+            died=_integer(person, "diedYear"),
             description=first["description"]["value"] if "description" in first else None,
             movements=tuple(name for name in first.get("movements", {}).get("value", "").split(_SEPARATOR) if name),
             works=tuple(
@@ -180,6 +203,64 @@ class WikidataRegistry:
             holdings=tuple(
                 RegistryHolding(qid=_qid(row, "collection"), name=_value(row, "collectionLabel"), works=_integer(row, "n") or 0)
                 for row in held_by
+            ),
+        )
+
+    def work(self, qid: str) -> RegistryWork | None:
+        item = _require_qid(qid)
+        # One query whose rows are every combination of the work's creators,
+        # media, collections and inventory numbers: a single work has few of each,
+        # and one round trip beats four. Read back into sets below.
+        rows = self._select(f"""SELECT ?workLabel ?links ?year ?img ?creator ?creatorLabel ?mediumLabel
+                   ?collection ?collectionLabel ?inventory ?inventoryAt WHERE {{
+              VALUES ?work {{ wd:{item} }}
+              ?work wikibase:sitelinks ?links .
+              OPTIONAL {{ ?work wdt:P571 ?inception . BIND(YEAR(?inception) AS ?year) }}
+              OPTIONAL {{ ?work wdt:P18 ?img }}
+              OPTIONAL {{ ?work wdt:P170 ?creator }}
+              OPTIONAL {{ ?work wdt:P186 ?medium }}
+              OPTIONAL {{ ?work wdt:P195 ?collection }}
+              OPTIONAL {{ ?work p:P217 ?numbered . ?numbered ps:P217 ?inventory .
+                         OPTIONAL {{ ?numbered pq:P195 ?inventoryAt }} }}
+              SERVICE wikibase:label {{ bd:serviceParam wikibase:language "{_LABELS}". }}
+            }} LIMIT {_WORK_ROWS}""")
+        if not rows:
+            return None
+        creators: dict[ItemId, RegistryText] = {}
+        collections: dict[ItemId, RegistryText] = {}
+        numbers: set[tuple[str, ItemId | None]] = set()
+        media: set[RegistryText] = set()
+        years: set[int] = set()
+        images: set[CommonsFile] = set()
+        for row in rows:
+            creator = _qid(row, "creator", required=False)
+            if creator is not None:
+                creators.setdefault(creator, RegistryText(_value(row, "creatorLabel")))
+            collection = _qid(row, "collection", required=False)
+            if collection is not None:
+                collections.setdefault(collection, RegistryText(_value(row, "collectionLabel")))
+            if "inventory" in row:
+                numbers.add((_value(row, "inventory"), _qid(row, "inventoryAt", required=False)))
+            if "mediumLabel" in row:
+                media.add(RegistryText(_value(row, "mediumLabel")))
+            year = _integer(row, "year")
+            if year is not None:
+                years.add(year)
+            image = _commons_file(row.get("img", {}).get("value"))
+            if image is not None:
+                images.add(image)
+        first = rows[0]
+        return RegistryWork(
+            qid=item,
+            title=RegistryText(_value(first, "workLabel")),
+            sitelinks=_integer(first, "links") or 0,
+            year=min(years) if years else None,
+            image=min(images) if images else None,
+            creators=tuple(RegistryCreator(qid=qid, name=name) for qid, name in sorted(creators.items())),
+            media=tuple(sorted(media)),
+            holders=tuple(
+                RegistryHolder(qid=qid, name=name, inventory=_inventory(qid, numbers, single=len(collections) == 1))
+                for qid, name in sorted(collections.items(), key=lambda pair: pair[1])
             ),
         )
 
@@ -202,6 +283,14 @@ class WikidataRegistry:
         if not isinstance(bindings, list):
             raise RegistryUnavailable("Wikidata's answer carried no list of results.")
         return bindings
+
+
+def _inventory(collection: ItemId, numbers: set[tuple[str, ItemId | None]], *, single: bool) -> RegistryText | None:
+    """The number this collection gives the work: the one qualified with it, or an unqualified one if it is the only holder."""
+    for number, at in sorted(numbers, key=lambda pair: pair[0]):
+        if at == collection or (at is None and single):
+            return RegistryText(number)
+    return None
 
 
 def _batches(values: Sequence[str]) -> Iterator[Sequence[str]]:

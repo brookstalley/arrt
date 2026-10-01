@@ -73,8 +73,11 @@ from arrt.http.models import (
     MoveWork,
     OriginalOut,
     PlayerTokenOut,
+    RegistryCreatorOut,
+    RegistryHolderOut,
     RegistryHoldingOut,
     RegistryWorkOut,
+    RegistryWorkPageOut,
     RenameTheme,
     RenditionOut,
     RunListOut,
@@ -109,7 +112,7 @@ from arrt.http.models import (
     WorkOut,
     WorkPageOut,
 )
-from arrt.library.services.artists import HeldArtist
+from arrt.library.services.artists import HeldArtist, RegistryView
 from arrt.library.services.catalogue import FacetGroup, RenditionView
 from arrt.library.services.conversation import ConversationDeletion, ConversationView, TurnView
 from arrt.library.services.discovery import VerdictOutcome
@@ -270,12 +273,62 @@ def get_artist_registry(request: Request, artist_id: str) -> ArtistRegistryOut:
     configured, cannot be asked, or has nothing for this artist is a state the
     page shows, named in `state` and said in `note`.
     """
-    view = _services(request).artists.registry_view(artist_id)
+    return _artist_registry(_services(request).artists.registry_view(artist_id))
+
+
+@router.get("/registry/artists/{qid}")
+def get_registry_artist(request: Request, qid: str) -> ArtistRegistryOut:
+    """What Wikidata knows about an artist reached by QID, whether or not the library holds them.
+
+    The same shape and states as an artist's `/registry`, but `no_identity` cannot
+    occur. `artist_id` names the library's artist with this QID when there is one,
+    and the page goes there instead. A malformed QID is a 400.
+    """
+    artists = _services(request).artists
+    held = artists.held_artist_id(qid)
+    return _artist_registry(artists.registry_view_by_qid(qid), artist_id=held)
+
+
+@router.get("/registry/works/{qid}")
+def get_registry_work(request: Request, qid: str) -> RegistryWorkPageOut:
+    """One work as Wikidata knows it, and the library's works that are it, for the Work page by QID.
+
+    Always a 200 for a well-formed QID: `state` says what the registry did, and
+    `held_artwork_ids` is filled whatever it did. A malformed QID is a 400.
+    """
+    view = _services(request).registry_works.view(qid)
+    known = view.known
+    return RegistryWorkPageOut(
+        state=str(view.state),
+        note=view.note,
+        qid=qid,
+        title=None if known is None else known.title,
+        year=None if known is None else known.year,
+        sitelinks=None if known is None else known.sitelinks,
+        image=None if known is None else known.image,
+        creators=(
+            []
+            if known is None
+            else [RegistryCreatorOut(qid=c.qid, name=c.name, artist_id=view.artists.get(c.qid)) for c in known.creators]
+        ),
+        media=[] if known is None else list(known.media),
+        holders=(
+            [] if known is None else [RegistryHolderOut(qid=h.qid, name=h.name, inventory=h.inventory) for h in known.holders]
+        ),
+        held_artwork_ids=list(view.held),
+    )
+
+
+def _artist_registry(view: RegistryView, *, artist_id: str | None = None) -> ArtistRegistryOut:
     known = view.known
     return ArtistRegistryOut(
         state=str(view.state),
         note=view.note,
         qid=None if known is None else known.qid,
+        name=None if known is None else known.name,
+        born=None if known is None else known.born,
+        died=None if known is None else known.died,
+        artist_id=artist_id,
         description=None if known is None else known.description,
         movements=[] if known is None else list(known.movements),
         works=(

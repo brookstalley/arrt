@@ -10,6 +10,30 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Pages for works and artists you do not hold — added 2026-10-01
+
+**`build-plan-one-world-search.md` Chunk 02.** Needs `WIKIDATA_USER_AGENT` set, as
+the Artist page entry below does. Nothing here migrates the catalogue.
+
+Checked by the builder on 2026-10-01, on a copy of your catalogue with Playwright
+at 1280 px and 375 px, with no page errors and nothing wider than the screen:
+`#work/Q500985` (*The Hunters in the Snow*) showed its picture, Bruegel, 1565, oil
+on panel, the Kunsthistorisches Museum with its number GG_1838, *Search museums
+for this work*, and 49 more of Bruegel's works below; `#artist/Q43270` showed
+Bruegel's dates and what Wikidata lists; your Rothko's QID (`#work/Q20270685`)
+and Rothko's (`#artist/Q160149`) were replaced by the library's own pages, and
+Back skipped them; *Rothko Chapel*, from Rothko's *Their work*, opened as a
+work you do not hold. Your held Rothko's own Work page was 333 px wider than a
+phone before this chunk (a source URL in a table); it now scrolls the table
+instead. For you:
+
+1. **From an artist you hold, open a work you don't** (Rothko › *Their work* ›
+   *Rothko Chapel*), then its artist, then back. Does it read as one world?
+2. **The page of a work you don't hold.** Is *Search museums for this work* the
+   right offer until *Get* exists (plan 2), and is *Not held · Image found* clear?
+3. **An artist you don't hold** (`#artist/Q43270`, Bruegel). It says nothing of
+   theirs is in your library; is that the first thing you want to know?
+
 ### The Artist page, against your own catalogue — added 2026-10-01
 
 **`build-plan-ia-foundations.md` Chunks 03 and 04.** First, copy `catalogue.sqlite`

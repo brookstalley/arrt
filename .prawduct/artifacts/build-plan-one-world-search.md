@@ -99,7 +99,7 @@ the registry's behaviour is measured for three queries, not proven.
 
 ## Status
 
-- [ ] Chunk 01: External text is shown as text
+- [x] Chunk 01: External text is shown as text
 - [ ] Chunk 02: Pages for works and artists the library does not hold
 - [ ] Chunk 03: The typeahead shows one world
 - [ ] Chunk 04: The search results page
@@ -168,10 +168,25 @@ they choose a kind and state a call.)*
   `Q160149`, because his name is no longer an `en` label (`wikidata-findings.md`
   § One work by QID). Nothing shows that label yet; Chunk 03's typeahead would.
   The live test pins Rothko's name, and a unit test pins the label languages.
+- **Two observations from Chunk 01's review ride here:** `test_registry_strings.py`
+  derives its set of kinds from the `NewType`s the seam module defines, so a new
+  kind is named by the quick check; and `creators_of` keeps only the items it was
+  asked about, as `works_by_identifier` does.
 - **The accepted gap from the last plan closes here:** the *Held ×2* browser
   test asserts which duplicate the badge opens
   (`arrt/tests/browser/test_the_artist_page.py`; accepted on the record at the
   last plan's release review, to be fixed by the next commit touching that test).
+
+*(Built 2026-10-01. The probe found `people_named` naming Rothko by his QID and
+fixed it before the typeahead could show it; the matcher's result on a copy of
+the catalogue was unchanged at 22 works and 24 artists. Pages addressed by QID
+branch on the id's shape, which a library id (a uuid) never has, and the
+library's page replaces a held one through a new `redirect` in the router, so
+Back skips it. The shared registry helpers moved to `core/registry.js`. Running it
+on the copy at 375 px found the library Work page 333 px wider than the screen,
+from a source URL in a table, a defect older than this plan: the shared table
+helper now scrolls inside its panel, with a browser test. Also seen there, not
+fixed: a museum description's `<i>` shows as literal text, filed to the backlog.)*
 
 **Done when:**
 0. verify-api: `work(qid)` is probed live for three works (one held by the owner,

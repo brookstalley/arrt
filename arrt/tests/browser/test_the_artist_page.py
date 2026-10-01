@@ -117,7 +117,10 @@ class TestTheArtistPage:
         badge = ui.page.locator("section[aria-labelledby='their-work'] .badge-held")
         assert badge.inner_text().strip().endswith("Held ×2")
         badge.click()
-        ui.page.wait_for_selector(f"#view h2:has-text('{work.title}')")
+        # By address, not by heading: the twin's title contains the first's, so a
+        # heading match passes whichever of the two opened.
+        ui.page.wait_for_function("(id) => window.location.hash.startsWith(`#work/${id}`)", arg=work.id)
+        ui.page.wait_for_selector(f"#view h2:text-is('{work.title}')")
 
     def test_their_work_marks_the_held_one_held_and_the_others_not(self, ui, rothko):
         artist, work = rothko

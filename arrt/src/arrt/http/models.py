@@ -127,12 +127,58 @@ class ArtistRegistryOut(BaseModel):
     state: str
     note: str | None
     qid: str | None
+    #: The registry's name for them, and their years: what heads the page of an
+    #: artist the library does not hold.
+    name: str | None = None
+    born: int | None = None
+    died: int | None = None
+    #: The library's artist with this QID, when one is asked for by QID: the page
+    #: to send the curator to instead. Always null on the library artist's own route.
+    artist_id: str | None = None
     description: str | None
     movements: list[str]
     works: list[RegistryWorkOut]
     #: How many works the registry lists in all; `works` is the most renowned of them.
     works_total: int
     holdings: list[RegistryHoldingOut]
+
+
+class RegistryCreatorOut(BaseModel):
+    qid: str
+    name: str
+    #: The library's artist with this QID, where it holds one.
+    artist_id: str | None
+
+
+class RegistryHolderOut(BaseModel):
+    qid: str
+    name: str
+    #: The collection's own number for the work, where the registry pairs one with it.
+    inventory: str | None
+
+
+class RegistryWorkPageOut(BaseModel):
+    """One work as Wikidata knows it, for the page of a work the library may not hold.
+
+    `state` is `known`, `not_found` (Wikidata has no such item), `not_configured`
+    or `unavailable`, and `note` says which in a sentence whenever it is not
+    `known`. `held_artwork_ids` is the library's answer and is filled whatever the
+    registry did: a non-empty one sends the page to the library's own work. Every
+    string from the registry is untrusted text.
+    """
+
+    state: str
+    note: str | None
+    qid: str
+    title: str | None
+    year: int | None
+    sitelinks: int | None
+    #: A Commons file URL, and only ever one.
+    image: str | None
+    creators: list[RegistryCreatorOut]
+    media: list[str]
+    holders: list[RegistryHolderOut]
+    held_artwork_ids: list[str]
 
 
 class WorkOut(BaseModel):

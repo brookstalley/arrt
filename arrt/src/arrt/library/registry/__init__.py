@@ -84,12 +84,51 @@ class RegistryArtist:
     """
 
     qid: ItemId
+    #: The registry's name for them, or the QID itself where it has no English or
+    #: language-neutral one (the label service's answer, kept as given).
+    name: RegistryText | None = None
+    born: int | None = None
+    died: int | None = None
     description: RegistryText | None = None
     movements: tuple[RegistryText, ...] = ()
     #: The most renowned first, capped; `works_total` is how many there are.
     works: tuple[RegistryWorkEntry, ...] = ()
     works_total: int = 0
     holdings: tuple[RegistryHolding, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class RegistryCreator:
+    """Someone a registry records as having made a work."""
+
+    qid: ItemId
+    name: RegistryText
+
+
+@dataclass(frozen=True, slots=True)
+class RegistryHolder:
+    """A collection a registry says holds a work, and its number for it there."""
+
+    qid: ItemId
+    name: RegistryText
+    #: The collection's inventory or accession number, where the registry pairs
+    #: one with this collection. A work held in two places has two.
+    inventory: RegistryText | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RegistryWork:
+    """What a registry knows about one work, for the page of a work the library may not hold."""
+
+    qid: ItemId
+    #: The label service's answer: the QID itself where there is no readable title.
+    title: RegistryText
+    sitelinks: int
+    year: int | None = None
+    image: CommonsFile | None = None
+    creators: tuple[RegistryCreator, ...] = ()
+    media: tuple[RegistryText, ...] = ()
+    holders: tuple[RegistryHolder, ...] = ()
 
 
 class RegistryUnavailable(Exception):
@@ -123,4 +162,8 @@ class Registry(Protocol):
         `include` names works to list whatever their renown (the ones the library
         holds), after the most renowned and in the same shape.
         """
+        ...
+
+    def work(self, qid: str) -> RegistryWork | None:
+        """What the registry knows about this work, or None when it has no such item."""
         ...

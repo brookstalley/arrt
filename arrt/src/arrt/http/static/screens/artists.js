@@ -3,7 +3,9 @@
  * **Library › Artists, as Lidarr's artist index is its library** (ruling 4,
  * `ia-proposal.md` § Artist). `#artist` is every held artist with a count;
  * `#artist/<id>` is one: who they are, what the library holds of theirs, what
- * Wikidata lists, and which collections hold their work.
+ * Wikidata lists, and which collections hold their work. `#artist/Q…` is an
+ * artist reached through the registry (ruling 2): the registry half alone, or
+ * the library's page in its place when the library holds them.
  *
  * **Two halves, asked separately, and the order is the design.** The library
  * half (`/api/artists/<id>` and the artist's works) always answers and is drawn
@@ -21,10 +23,15 @@ import { api, fetchAllWorks } from "../core/api.js";
 import { absentImage, facts } from "../core/badges.js";
 import { addedSentence, addWorksToTheme, stoppedSentence } from "../core/membership.js";
 import { el, guard, render } from "../core/render.js";
-import { backLink, backRow, go } from "../core/router.js";
+import { isQid, lifeDates, named, wikidataLink, workLink, workState } from "../core/registry.js";
+import { backLink, backRow, go, redirect } from "../core/router.js";
 import { recordReaction } from "../core/taste.js";
 
 export async function viewArtists(artistId, generation) {
+  if (isQid(artistId)) {
+    await registryArtist(artistId, generation);
+    return;
+  }
   if (artistId) {
     await oneArtist(artistId, generation);
     return;
@@ -118,15 +125,37 @@ async function oneArtist(artistId, generation) {
   paintRegistry(registrySection, about, view);
 }
 
-function lifeDates(artist) {
-  if (artist.born || artist.died) return `${artist.born || "?"}–${artist.died || ""}`;
-  return artist.lifespan_text || null;
-}
-
-/* A link out to Wikidata. The QID is the server's, checked against `Q` and
- * digits, so the address cannot be bent into anything else. */
-function wikidataLink(qid, text) {
-  return el("a", { href: `https://www.wikidata.org/wiki/${encodeURIComponent(qid)}`, rel: "noopener noreferrer", target: "_blank", text });
+/* An artist addressed by QID. The library's page replaces it when the library
+ * holds them, in place, so Back does not return to an address that only
+ * forwards. Otherwise the registry is all there is to say, and the page says
+ * that nothing of theirs is held. */
+async function registryArtist(qid, generation) {
+  let view;
+  try {
+    view = await api(`/api/registry/artists/${encodeURIComponent(qid)}`);
+  } catch (failure) {
+    if (failure.status !== 400) throw failure;
+    view = { state: "unavailable", note: "That is not a Wikidata address.", works: [], holdings: [], movements: [] };
+  }
+  if (view.artist_id) {
+    redirect("artist", view.artist_id);
+    return;
+  }
+  const registrySection = el("section", { class: "panel", "aria-labelledby": "their-work" }, [el("h3", { id: "their-work", text: "Their work" })]);
+  const about = el("div", { class: "stack" });
+  render(
+    generation,
+    el("p", {}, [backLink()]),
+    el("div", { class: "panel" }, [
+      el("h2", { text: view.name ? named(view.name, qid) : `Wikidata ${qid}` }),
+      facts([["Life", lifeDates(view)]]),
+      el("p", { class: "muted" }, [wikidataLink(qid, `Wikidata ${qid}`)]),
+      about,
+      el("p", { class: "note", text: "Nothing of theirs is in your library." }),
+    ]),
+    registrySection,
+  );
+  paintRegistry(registrySection, about, view);
 }
 
 /* *More like this* and *Not this*, the same two of the three reactions a
@@ -236,7 +265,7 @@ function paintRegistry(section, about, view) {
   );
   const rows = view.works.map((work) =>
     el("tr", {}, [
-      el("td", {}, [wikidataLink(work.qid, named(work.title, work.qid))]),
+      el("td", {}, [workLink(work)]),
       el("td", { text: work.year ? String(work.year) : "—" }),
       el("td", {}, [workState(work)]),
     ]),
@@ -256,34 +285,4 @@ function paintRegistry(section, about, view) {
     el("h3", { id: "holdings", text: "Holdings" }),
     holdings.length ? el("ul", { "aria-labelledby": "holdings" }, holdings) : el("p", { class: "muted", text: "Wikidata names no collection holding their work." }),
   );
-}
-
-/* A registry name, or what to say when it has none we can read. Wikidata's
- * label service answers with the bare QID for an item with no English or
- * language-neutral label (measured on 2026-10-01: a fifth of Rothko's fifty), and
- * an identifier printed where a title belongs reads as a title. */
-function named(label, qid) {
-  return label && label !== qid ? label : `No English title (${qid})`;
-}
-
-/* Glyph, word and the badge colour, the order every badge here uses. */
-function workState(work) {
-  const held = work.held_artwork_ids;
-  if (held.length) {
-    // Two held works naming one item is a duplicate the curator should see,
-    // not a mark that quietly picks one; it opens the first.
-    const words = held.length === 1 ? "Held" : `Held ×${held.length}`;
-    return el("button", { class: "badge badge-held", type: "button", onclick: () => go("work", held[0]) }, [
-      el("span", { class: "glyph", text: "●", "aria-hidden": true }),
-      el("span", { text: words }),
-    ]);
-  }
-  if (work.image) {
-    return el("span", { class: "badge badge-image-found" }, [
-      el("img", { src: `${work.image}?width=96`, alt: "", loading: "lazy", referrerpolicy: "no-referrer", class: "badge-thumb" }),
-      el("span", { class: "glyph", text: "◐", "aria-hidden": true }),
-      el("span", { text: "Image found" }),
-    ]);
-  }
-  return el("span", { class: "muted", text: "—" });
 }

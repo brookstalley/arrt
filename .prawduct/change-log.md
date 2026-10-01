@@ -66,6 +66,34 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-01: Pages for works and artists the library does not hold
+
+<!-- prawduct: chunks=02 | scope=one-world-search -->
+
+**Why:** ruling 2 puts the library and the registry in one world. Until now a
+work Wikidata lists was only a link out to wikidata.org, and an artist the
+library does not hold had no page at all.
+
+**What:** `#work/Q…` and `#artist/Q…`, read through two new routes,
+`GET /api/registry/works/{qid}` and `GET /api/registry/artists/{qid}`. A work
+not held shows its picture or none, its creators, date, media, and each holder
+with its own number there. It offers *Search museums for this work* (Add New,
+filled in and not started) until *Get* exists, and lists the rest of its
+artist's work. An artist not held shows Wikidata's half and says nothing of
+theirs is held. A QID the library holds is replaced by the library's own page
+through a new router `redirect`, so Back skips it. Titles in *Their work* now
+open these pages instead of wikidata.org. The registry gains `work(qid)` (one
+query, its rows read back into sets, inventory numbers paired with their
+collection) and the artist's name and dates. Each answer is remembered per QID.
+`people_named` asks for language-neutral labels too, which fixes Mark Rothko
+coming back as `Q160149`. `creators_of` keeps only items it was asked about.
+The registry-string test now derives its kinds from the seam. The *Held ×2*
+browser test asserts which work opened, as the last plan's review asked. Found
+on a phone against a copy of the catalogue and fixed: the shared table helper
+scrolls inside its panel, because a source URL made the whole Work page 333 px
+wider than the screen. Integration and browser tests were each watched failing
+under mutations of the code they cover.
+
 ## 2026-10-01: Outside text reaches the page as text, by norm
 
 <!-- prawduct: chunks=01 | scope=one-world-search -->
