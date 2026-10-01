@@ -30,6 +30,16 @@ those differ is marked **CHANGE** with the reasoning.
 > where each is expected to land. No table in this artifact changed, because no
 > screen was added or removed.
 
+> **Direction changed 2026-10-01 — see `ia-proposal.md` § Rulings.** The owner
+> ruled nine decisions on an IA derived from `user-scenarios.md`: one-world search
+> (held and unheld works together, each with its state), an Artist page as hub,
+> Topic pages, Add New dissolved into a *Get* action and *Ask*, a default *All
+> works* theme that ordinary acceptances join, registry IDs stored, and hanging
+> for a duration left to wave 4. **This artifact still describes what runs**, and
+> its tables are guarded against the built client. Where the two differ,
+> `ia-proposal.md` wins for the target and this text wins for today, until the
+> build plan that lands each piece amends it.
+
 ## Direction
 
 <!-- Ratified by the owner 2026-08-11. Amended by the owner 2026-09-30. Enforcement row in project-preferences.md. -->
@@ -73,6 +83,13 @@ inside an existing section, not a section of its own.
 > **Retroactivity:** migrate, completed at birth: `build-plan-arr-navigation.md`
 > moved every page of the built surface into the sidebar, and there are no
 > residual sites.
+>
+> **Ruled departure, 2026-10-01: Add New is dissolved.** Every *arr app has an
+> Add New page, so the norm would keep one. The owner ruled it away
+> (`ia-proposal.md` ruling 3): acquiring becomes a *Get* action on any selection,
+> and the conversation becomes *Ask*, under Library where Add New stood. The rest
+> of the target sidebar keeps the norm (ruling 9): no new top-level section, and
+> *arr names where an *arr page exists (Queue, History, Wanted).
 
 **A working prototype of everything below is committed beside this file:**
 `prototypes/curation-ia-prototype.html` — one self-contained page, no build step,
@@ -238,7 +255,9 @@ listed below so it can be disputed.
   familiarity where they meet, because the familiarity norm governs where things
   are and what they are called, not whether a state can be read. The owner can
   overrule it.)*
-- **One search box, two scopes, as in Sonarr.** Read from Sonarr's source on
+- **One search box, two scopes, as in Sonarr.** *(2026-10-01: `user-scenarios.md`
+  questions this from the scenarios side. A query can mean held, exists,
+  seeable or hangable, and today an unaccented `dali` finds no held Dalí.)* Read from Sonarr's source on
   2026-09-30 (`frontend/src/Components/Page/Header/SeriesSearchInput.js` and
   `AddSeries/AddNewSeries/AddNewSeriesSearchResult.js`; Radarr shares the code):
   - The top-bar box searches **the library** as you type. Its dropdown has two
