@@ -19,7 +19,9 @@ pytest.importorskip(
 
 
 def a_listing(*runs) -> dict:
-    return RunListOut(runs=list(runs), count=len(runs), total=len(runs), truncated=False).model_dump(mode="json")
+    return RunListOut(
+        runs=list(runs), count=len(runs), total=len(runs), truncated=False, awaiting_works=0, awaiting={}
+    ).model_dump(mode="json")
 
 
 #: One run in each state the split has to tell apart. Waiting at the gate is in
@@ -83,8 +85,8 @@ def test_an_empty_queue_says_so_and_offers_add_new(ui):
     ui.page.wait_for_selector("#view .empty")
 
     assert "Nothing is in flight" in ui.text()
-    ui.page.click("#view button:has-text('Go to Add New')")
-    ui.page.wait_for_selector("#view h2:has-text('Add New')")
+    ui.page.click("#view button:has-text('Go to Ask')")
+    ui.page.wait_for_selector("#view h2:text-is('Ask')")
 
 
 def test_an_empty_history_says_so(ui):
@@ -96,10 +98,10 @@ def test_an_empty_history_says_so(ui):
 
 
 def test_add_new_no_longer_lists_the_searches(ui):
-    """They moved to Activity; a second copy on Add New would be two lists of one thing."""
+    """They moved to Activity; a second copy on Ask would be two lists of one thing."""
     ui.serve("**/api/runs", EVERY_KIND)
     ui.open("#discover")
-    ui.page.wait_for_selector("#view h2:has-text('Add New')")
+    ui.page.wait_for_selector("#view h2:text-is('Ask')")
 
     assert "Working on it" not in ui.text()
     assert "All done" not in ui.text()
@@ -137,7 +139,7 @@ def test_an_empty_queue_over_a_truncated_listing_does_not_claim_nothing_is_in_fl
     """
     ui.serve(
         "**/api/runs",
-        RunListOut(runs=[DONE], count=1, total=60, truncated=True).model_dump(mode="json"),
+        RunListOut(runs=[DONE], count=1, total=60, truncated=True, awaiting_works=0, awaiting={}).model_dump(mode="json"),
     )
     ui.open("#queue")
     ui.page.wait_for_selector("#view .empty")

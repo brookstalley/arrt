@@ -28,7 +28,7 @@ STATIC_DIR: Final[Path] = Path(__file__).parent / "static"
 #: The root, then every sidebar page: `information-architecture.md` requires
 #: every screen and every consequential state to have a URL. The paths keep the
 #: spellings they had before the *arr labels (`/collection` is Artworks,
-#: `/discover` is Add New, `/health` is Status), because a bookmark is an address.
+#: `/discover` is Ask, `/health` is Status), because a bookmark is an address.
 #:
 #: `/works`, `/discovery`, `/themes` and `/manifest` are the spellings the
 #: surface answered to before its first reshape. They are kept
@@ -38,6 +38,7 @@ STATIC_DIR: Final[Path] = Path(__file__).parent / "static"
 UI_PATHS: Final[tuple[str, ...]] = (
     "/",
     "/walls",
+    "/to_review",
     "/queue",
     "/history",
     "/collection",

@@ -17,7 +17,7 @@ they are settled in one place instead of per constructor.
 """
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -56,6 +56,7 @@ from arrt.library.discovery.conversation import NO_CONVERSATION_KEY, Conversatio
 from arrt.library.discovery.engine import DiscoveryEngine
 from arrt.library.discovery.images import ImageSearch
 from arrt.library.discovery.phase_two import PhaseTwoEngine
+from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.facade import LibraryFacade
 from arrt.library.registry import Registry
 from arrt.library.services.artists import ArtistService
@@ -63,6 +64,7 @@ from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.conversation import ConversationService
 from arrt.library.services.discovery import DiscoveryService
 from arrt.library.services.display_fit import ArtworkBox
+from arrt.library.services.get import GetService
 from arrt.library.services.identity import IdentityService
 from arrt.library.services.previews import PreviewCache, PreviewSettings
 from arrt.library.services.registry_search import RegistrySearchService
@@ -175,6 +177,9 @@ class Services:
     #: The registry's half of one-world search: artists and works found for a
     #: few typed words, each marked where the library holds it.
     registry_search: RegistrySearchService
+    #: A Get: works chosen by their Wikidata items, turned into one run over the
+    #: image sources. Over the same registry and runner as the services above.
+    get: GetService
 
     @classmethod
     def bind(
@@ -187,7 +192,7 @@ class Services:
         artwork_box: ArtworkBox,
         engine: DiscoveryEngine,
         discovery_settings: DiscoverySettings,
-        image_search: ImageSearch | None = None,
+        image_sources: Sequence[ImageSearch] = (),
         collection: CollectionBrowse | None = None,
         previews: PreviewSettings | None = None,
         acquisition: AcquisitionSettings | None = None,
@@ -209,7 +214,7 @@ class Services:
         #: fabricating it.
         conversation_engine: ConversationEngine | None = None,
         #: Wikidata, or None while `WIKIDATA_USER_AGENT` is unset. Never a default
-        #: client, for the reason `image_search` has none: a test suite must not
+        #: client, for the reason `image_sources` has none: a test suite must not
         #: be able to reach a foreign API through a wiring default.
         registry: Registry | None = None,
     ) -> Services:
@@ -221,7 +226,7 @@ class Services:
         foreign API" impossible to arrange, and that is the arrangement most of
         this product's tests need.
 
-        `image_search` and `previews` are optional together. Without them the
+        `image_sources` and `previews` are optional together. Without them the
         plane runs phase 1 and stops, which is a coherent deployment — and the
         one every test that has no business reaching a museum uses.
         """
@@ -240,23 +245,26 @@ class Services:
         # floor is a size on the wall rather than a pixel count — so the rule
         # cannot be evaluated without the panel geometry that converts one to the
         # other.
-        discovery_service = DiscoveryService(discovery, catalogue_service, artwork_box)
-        if (image_search is None) != (previews is None):
+        pool = ImageSourcePool(image_sources) if image_sources else None
+        discovery_service = DiscoveryService(
+            discovery, catalogue_service, artwork_box, precedence=None if pool is None else pool.precedence
+        )
+        if (pool is None) != (previews is None):
             # Refused here rather than defaulted, because either half alone is a
             # misconfiguration that would otherwise disable phase 2 silently —
             # and a deployment that meant to enable it would see runs stop at
             # `resolving_images` with nothing saying why.
             raise ServiceError(
-                "Phase 2 needs both an image provider and a preview directory, or neither. A deployment "
-                "selects both with ARTIC_USER_AGENT — the preview directory is derived from ART_ROOT, so "
+                "Phase 2 needs both an image source and a preview directory, or neither. A deployment "
+                "selects both by configuring a source — the preview directory is derived from ART_ROOT, so "
                 "passing one of these without the other is a wiring mistake rather than a configuration one."
             )
         runner_service = DiscoveryRunner(
             discovery_service,
             engine,
             discovery_settings,
-            images=None if image_search is None else PhaseTwoEngine(image_search, box=artwork_box),
-            previews=None if image_search is None or previews is None else PreviewCache(previews, image_search.fetch_preview),
+            images=None if pool is None else PhaseTwoEngine(pool, box=artwork_box),
+            previews=None if pool is None or previews is None else PreviewCache(previews, pool.fetch_preview),
             # Independent of the phase-2 pair: a deployment may resolve images
             # without supplementing, and a run with no collection simply offers
             # nothing.
@@ -300,21 +308,17 @@ class Services:
                 # test suite instead of failing where it was made.
                 open_stream=open_stream or no_transport,
                 # Only a provider whose recorded URL is an identity needs one, and
-                # the museum client is the thing that can answer — so by default
-                # this is exactly the configured image provider. A deployment with
+                # the source's own client is the thing that can answer — so by
+                # default these are the configured image sources. A deployment with
                 # none configured therefore has no resolver either, and an artic
                 # fetch refuses by name rather than handing the tile fetcher a URL
                 # it cannot read: without credentials to ask the collection for an
                 # object's image service, there is genuinely no way to reach it.
                 #
                 # Overridable because resolving one object and searching a whole
-                # collection are separate capabilities that today's one provider
+                # collection are separate capabilities that each source today
                 # happens to serve both of.
-                tile_targets=(
-                    tile_targets
-                    if tile_targets is not None
-                    else ({} if image_search is None else {image_search.provider: image_search.tile_url})
-                ),
+                tile_targets=(tile_targets if tile_targets is not None else ({} if pool is None else pool.tile_targets())),
                 **({} if resolve is None else {"resolve": resolve}),
             ),
             preparation=PreparationService(
@@ -347,6 +351,7 @@ class Services:
             artists=ArtistService(catalogue, registry),
             registry_works=RegistryWorkService(catalogue, registry),
             registry_search=RegistrySearchService(catalogue, registry),
+            get=GetService(store=catalogue, discovery=discovery_service, runner=runner_service, registry=registry),
         )
 
     def reconcile(self) -> None:

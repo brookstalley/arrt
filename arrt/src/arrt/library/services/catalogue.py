@@ -42,6 +42,7 @@ from arrt.persistence.records import (
     ArtworkStatus,
     FacetDerivation,
     FetchStatus,
+    IdentitySetBy,
     MatColor,
     MatMethod,
     Original,
@@ -525,8 +526,12 @@ class CatalogueService:
         description: str | None = None,
         rights: str | None = None,
         commentary: str | None = None,
+        wikidata_qid: str | None = None,
     ) -> Artwork:
         """Record a work in the catalogue and return it.
+
+        `wikidata_qid` is the item the curator chose the work by, when they did,
+        and is recorded as theirs so the matcher never replaces it.
 
         A work enters the catalogue already accepted — there is no other way
         in. Everything before acceptance is a candidate, which is a separate
@@ -555,6 +560,8 @@ class CatalogueService:
             # written for a wall label rather than fetched from anywhere, so
             # there is no markup to take out of it.
             commentary=commentary,
+            wikidata_qid=wikidata_qid,
+            wikidata_qid_set_by=None if wikidata_qid is None else IdentitySetBy.CURATOR,
         )
         store_write(self._store.add_artwork, artwork)
         self._announce(WorkChange.ACCEPTED, artwork.id)

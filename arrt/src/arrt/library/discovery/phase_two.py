@@ -37,10 +37,10 @@ API and is `institutional` — so a switch on it would have one reachable branch
 one branch no deployment could exercise. What stands in its place is stronger
 where it matters: confidence is not a weight but a gate, so an instance that is
 not the requested work is refused rather than ranked lower, which for a work with
-a single candidate image is the whole of the `contemporary_web` concern. The
-unbuilt half is canonicity among many institutional copies, and it becomes real
-when a second provider can offer copies of one work. `data-model.md` carries the
-deferral and the trigger to reopen it.
+a single candidate image is the whole of the `contemporary_web` concern. Among
+several institutional copies of one work, from more than one source, resolution
+and rights still decide, and the order the sources are listed in breaks a level
+tie; `data-model.md` records why no source is preferred outright.
 
 **Below the floor is not a rejection.** Such an instance is recorded, offered,
 and labelled with the size it would appear at — it is simply not selected without
@@ -55,7 +55,8 @@ from dataclasses import dataclass
 from typing import Final
 
 from arrt.library.discovery.dedup import artist_key, title_key
-from arrt.library.discovery.images import FoundImage, ImageQuery, ImageSearch
+from arrt.library.discovery.images import FoundImage, ImageQuery, ImageSearchFailure
+from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.services.display_fit import ArtworkBox, DisplayFit, FitAssessment, assess_display_fit
 from arrt.persistence.discovery_records import UnresolvedReason
 from arrt.persistence.records import RightsStatus
@@ -158,8 +159,8 @@ class Resolution:
 class PhaseTwoEngine:
     """Turn one work into the instances that are credibly it, best first."""
 
-    def __init__(self, search: ImageSearch, *, box: ArtworkBox) -> None:
-        self._search = search
+    def __init__(self, sources: ImageSourcePool, *, box: ArtworkBox) -> None:
+        self._sources = sources
         self._box = box
 
     def resolve(self, query: ImageQuery) -> Resolution:
@@ -175,16 +176,36 @@ class PhaseTwoEngine:
         A provider that returns nothing at all refuses nothing, and the empty
         refusal set is read downstream as `NOT_HELD`: no record came back whose
         title matched, which is exactly what happened, vacuously.
+
+        **When a source could not be asked, only an instance that clears the
+        floor settles the work.** Without one, the source that was down may hold
+        the image the others lack, so the work is reported unreachable, as it is
+        when no source answers, and is searched again later. Calling it
+        unresolved would record a fact about the work that nobody observed.
         """
+        answer = self._sources.find_images(query)
         judged: list[JudgedImage] = []
         refusals: set[UnresolvedReason] = set()
-        for found in self._search.find_images(query):
+        for found in answer.images:
             outcome = self._judge(query, found)
             if isinstance(outcome, UnresolvedReason):
                 refusals.add(outcome)
             else:
                 judged.append(outcome)
-        judged.sort(key=lambda entry: (entry.below_floor, -entry.confidence, -entry.quality_score, entry.found.url))
+        judged.sort(
+            key=lambda entry: (
+                entry.below_floor,
+                -entry.confidence,
+                -entry.quality_score,
+                self._sources.precedence(entry.found.provider),
+                entry.found.url,
+            )
+        )
+        if answer.unreachable and all(entry.below_floor for entry in judged):
+            raise ImageSearchFailure(
+                f"{', '.join(answer.unreachable)} could not be asked, and no other source has an image of "
+                f"{query.title!r} that clears the floor."
+            )
         log.info(
             "judged a work's instances",
             extra={
@@ -193,13 +214,14 @@ class PhaseTwoEngine:
                 "instances_credible": len(judged),
                 "instances_below_floor": sum(1 for entry in judged if entry.below_floor),
                 "refused_at": sorted(str(reason) for reason in refusals),
+                "unreachable": list(answer.unreachable),
             },
         )
         return Resolution(instances=judged, refusals=frozenset(refusals))
 
-    def fetch_preview(self, url: str) -> bytes | None:
+    def fetch_preview(self, provider: str, url: str) -> bytes | None:
         """The preview bytes for an instance, or `None` when they could not be got."""
-        return self._search.fetch_preview(url)
+        return self._sources.fetch_preview(provider, url)
 
     def _judge(self, query: ImageQuery, found: FoundImage) -> JudgedImage | UnresolvedReason:
         """Score one instance, or name the gate that refused it.

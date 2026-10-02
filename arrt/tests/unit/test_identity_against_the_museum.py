@@ -22,6 +22,7 @@ import pytest
 
 from arrt.library.discovery.images import FoundImage, ImageQuery
 from arrt.library.discovery.phase_two import PhaseTwoEngine
+from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.services.display_fit import ArtworkBox
 from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
 
@@ -71,7 +72,7 @@ class OneRecord:
 
 def resolves(pair) -> bool:
     """Whether the pipeline would accept this museum record as the work asked for."""
-    engine = PhaseTwoEngine(OneRecord(pair["found_title"], pair["found_artist"]), box=BOX)
+    engine = PhaseTwoEngine(ImageSourcePool([OneRecord(pair["found_title"], pair["found_artist"])]), box=BOX)
     resolution = engine.resolve(ImageQuery(title=pair["asked_title"], artist=pair["asked_artist"]))
     return bool(resolution.instances)
 

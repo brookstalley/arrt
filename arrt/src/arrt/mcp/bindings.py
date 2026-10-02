@@ -519,10 +519,35 @@ def _resolve_images(services: Services, arguments: Mapping[str, Any]) -> dict[st
     )
 
 
+def _start_get(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    outcome = services.get.start(arguments["qids"], initiated_by=InitiatedBy.MCP_CLIENT)
+    skipped = [{"qid": entry.qid, "reason": str(entry.reason)} for entry in outcome.skipped]
+    if outcome.run is None:
+        return ok(
+            run_id=None,
+            skipped=skipped,
+            notice="Every item was skipped, so no Get started; `skipped` says why for each.",
+        )
+    return ok(
+        **_run_fields(outcome.run),
+        skipped=skipped,
+        notice=(
+            "The Get is under way; this is a handle, not a result. Call "
+            f"art_discovery(action='status', run_id='{outcome.run.id}'), which holds until something changes."
+        ),
+    )
+
+
 def _list_runs(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    listing = services.runner.list_runs(status=arguments.get("status"), kind=arguments.get("kind"))
+    listing = services.runner.list_runs(
+        status=arguments.get("status"), kind=arguments.get("kind"), awaiting=bool(arguments.get("awaiting"))
+    )
     return ok(
         runs=[_run_summary(run) for run in listing.runs],
+        # What is left to review: works with an image and no verdict, in all and
+        # by listed run, as the HTTP listing carries them.
+        awaiting_works=listing.awaiting_works,
+        awaiting={run.id: listing.awaiting[run.id] for run in listing.runs if run.id in listing.awaiting},
         count=len(listing.runs),
         total=listing.total,
         truncated=listing.truncated,
@@ -874,6 +899,7 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_discovery", "decline"): _decline_run,
     ("art_discovery", "cancel"): _cancel_run,
     ("art_discovery", "resolve_images"): _resolve_images,
+    ("art_discovery", "get"): _start_get,
     ("art_discovery", "list_runs"): _list_runs,
     ("art_discovery", "spend"): _spend,
     ("art_review", "list_works"): _list_candidate_works,
@@ -1269,6 +1295,8 @@ def _work_summary(work: CandidateWork) -> dict[str, Any]:
         # prose was carrying, which is most of why they are facts now.
         "offered_for_artist": work.offered_for_artist,
         "offered_artist_matched": work.offered_artist_matched,
+        # The item a chosen work was asked for by; null on proposed and offered works.
+        "wikidata_qid": work.wikidata_qid,
         "verdict": str(work.verdict),
         "resolution_status": str(work.resolution_status),
         "unresolved_reason": _reason(work),
@@ -1589,6 +1617,8 @@ def _run_view(view: RunView) -> dict[str, Any]:
             # achieved (`product-brief.md` flow 2).
             "proposed": view.proposed_count,
             "offered": view.offered_count,
+            # A Get's works: the curator chose each, so neither count above holds them.
+            "chosen": view.chosen_count,
             "resolved": view.resolved,
             # The numerator any resolution rate is stated over, and it is here
             # because the notice beside it already quotes this figure. Without
@@ -1671,8 +1701,11 @@ def _run_notice(view: RunView) -> str:
             # supplement, so the two are the same number today — and two adjacent
             # lines counting differently read as a disagreement whichever one a
             # later change follows.
+            # A discovery run's works to find are the ones it proposed; a re-search's
+            # and a Get's are every work they hold.
+            waiting = view.proposed_count if view.run.kind is RunKind.DISCOVERY else view.work_count
             return (
-                f"There {agree(view.proposed_count, 'is', 'are')} {counted(view.proposed_count, 'work')} to find images for, "
+                f"There {agree(waiting, 'is', 'are')} {counted(waiting, 'work')} to find images for, "
                 "but no image provider is configured "
                 "in this deployment, so the run will stay here; cancel it when you are done reading it."
             )
@@ -1682,6 +1715,11 @@ def _run_notice(view: RunView) -> str:
         if view.run.kind is RunKind.RESOLVE:
             return (
                 f"This re-search is looking again for images of the {counted(view.work_count, 'work')} it covers. "
+                "Call status again to keep watching."
+            )
+        if view.run.kind is RunKind.GET:
+            return (
+                f"This Get is looking for images of the {counted(view.chosen_count, 'work')} you chose. "
                 "Call status again to keep watching."
             )
         return (
@@ -1707,6 +1745,11 @@ def _run_notice(view: RunView) -> str:
             settled = (
                 f"This re-search finished: {view.resolved} of the {counted(view.work_count, 'work')} "
                 f"it covers {agree_partitive(view.resolved, view.work_count, 'has', 'have')} an image."
+            )
+        elif view.run.kind is RunKind.GET:
+            settled = (
+                f"This Get finished: {view.resolved} of the {counted(view.chosen_count, 'work')} "
+                f"you chose {agree_partitive(view.resolved, view.chosen_count, 'has', 'have')} an image."
             )
         else:
             # Rated against what the model proposed, never against the total: the
@@ -1757,6 +1800,11 @@ def _run_notice(view: RunView) -> str:
         return (
             "The provider refused further spend, so this run stopped where it was. This is not a transient "
             "error: retrying will fail the same way until the credit limit resets or is raised."
+        )
+    if status is RunStatus.INTERRUPTED and view.run.kind is RunKind.GET:
+        return (
+            "The process working on this Get stopped underneath it — a restart or a crash, not a fault in the "
+            "Get. Get the same items again; there is nothing to investigate."
         )
     if status is RunStatus.INTERRUPTED:
         return (

@@ -61,10 +61,11 @@ TABLE_SECTIONS = ("Screen Inventory", "Information Hierarchy", "Screen States")
 #: says so when you have not.
 SCREEN_NAMES = {
     "walls": "Walls",
+    "to_review": "To review",
     "queue": "Queue",
     "history": "History",
     "collection": "Artworks",
-    "discover": "Add New",
+    "discover": "Ask",
     "work": "Work",
     "search": "Search results",
     "run": "Run",
@@ -209,7 +210,7 @@ def test_the_route_table_parses():
         f"{_relative(ROUTE_TABLE)} parsed as {sorted(found)}, which is missing a page — " "the parser is reading the wrong thing"
     )
     pages = [key for key, body in found.items() if "page:" in body]
-    assert pages == ["collection", "discover", "theme", "artist", "walls", "queue", "history", "taste", "health"], (
+    assert pages == ["collection", "discover", "theme", "artist", "walls", "to_review", "queue", "history", "taste", "health"], (
         f"the sidebar's pages are {pages}. § The *arr layout places each by its *arr precedent, "
         "and the first is the home, which every *arr app makes its library"
     )
@@ -224,6 +225,22 @@ def test_every_route_has_a_name():
     )
     unrouted = sorted(set(SCREEN_NAMES) - set(routes()))
     assert not unrouted, f"SCREEN_NAMES carries {unrouted}, which {_relative(ROUTE_TABLE)} does not route"
+
+
+def test_every_page_is_named_as_the_sidebar_labels_it():
+    """A sidebar page's name here is the label the route table gives it.
+
+    `SCREEN_NAMES` is written by hand, because contextual screens carry no label,
+    so a page renamed in the route table kept its old name here and in the tables:
+    Add New became Ask with every check in this file green. For a page, the label
+    is the source of truth, so this reads it.
+    """
+    labelled = {
+        key: match.group(1) for key, body in routes().items() if (match := re.search(r'page:\s*"([^"]+)"', body)) is not None
+    }
+    assert labelled, f"no page labels parsed from {_relative(ROUTE_TABLE)}; this check would pass vacuously"
+    stale = {key: (SCREEN_NAMES.get(key), label) for key, label in labelled.items() if SCREEN_NAMES.get(key) != label}
+    assert not stale, f"SCREEN_NAMES disagrees with the sidebar's labels (name here, label there): {stale}"
 
 
 @pytest.mark.parametrize("heading", TABLE_SECTIONS)

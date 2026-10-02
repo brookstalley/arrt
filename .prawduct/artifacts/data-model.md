@@ -1050,7 +1050,7 @@ candidates provenance.
 | Field | Type | Constraints | Description |
 |---|---|---|---|
 | `id` | UUID | PK | |
-| `kind` | enum | required | `discovery` \| `resolve`. A `resolve` run is phase 2 only — the re-search behind `resolve_images`. See below. |
+| `kind` | enum | required | `discovery` \| `resolve` \| `get`. A `resolve` run is phase 2 only — the re-search behind `resolve_images`. A `get` run is phase 2 only over works the curator chose by their Wikidata items (`build-plan-get-and-ask.md` Chunk 03); it has no parent and no intent, is priced at nothing, and is never supplemented. See below. |
 | `parent_run_id` | UUID | nullable, FK → DiscoveryRun | Set on `resolve` runs: the run that originally proposed these works. Null on `discovery` runs. |
 | `intent_text` | text | required for `kind='discovery'`, else nullable | The curator's natural-language intent, verbatim. A `resolve` run has no intent of its own — it inherits the parent's. |
 | `strategy` | text | nullable | The interpreted plan, for explaining results. **Written by the phase-1 engine when the work list settles (2026-08-02)** — it is the model's own account of how the intent was read, so it cannot exist before the intent has been read, and a run still in `resolving_works` honestly has none. Deliberately not composed from configuration, which would describe the deployment rather than the reading. |
@@ -1142,7 +1142,8 @@ artworks.
 | `offered_for_artist` | string | nullable | The browse query that produced an offered work — the **run's** spelling of the artist, which is what `proposed_artist` carries on the works the run named, so the two halves of a group can be counted against each other. Null on a proposed work, which no query produced. **Null does not mean proposed**: an offered row written before this column carries null too, and `provenance` remains the only thing that says which a work is. |
 | `offered_artist_matched` | integer | nullable | How many works that query matched in the collection. **The collection's holdings, never capped by `offered_works_per_run`** — the per-run bound is what a reader reconciles it against, so capping it here would collapse the comparison `product-brief.md` requires (telling one-of-four-hundred from one-of-one). Null under the same conditions as `offered_for_artist`. |
 | `work_dedup_key` | string | required, indexed | Normalised work identity for cross-run suppression. **Q3.** |
-| `provenance` | enum | required, defaults `proposed` | `proposed` \| `offered`. Who put this work in front of the curator: the model named it, or a wired collection volunteered it. Nullable *on disk* only so the column can be added to files written before collections were browsable — a null reads as `proposed`, that being the only thing which could have written a row then. |
+| `wikidata_qid` | string | nullable | The Wikidata item a `chosen` work was asked for by; null on proposed and offered works. Handed to the image sources, so a source that looks a work up by item (Commons) can, and stored on the artwork at acceptance, set by the curator. Nullable so widening adds it to older files. |
+| `provenance` | enum | required, defaults `proposed` | `proposed` \| `offered` \| `chosen`. Who put this work in front of the curator: the model named it, a wired collection volunteered it, or the curator chose it from Wikidata for a Get. Nullable *on disk* only so the column can be added to files written before collections were browsable — a null reads as `proposed`, that being the only thing which could have written a row then. |
 | `resolution_status` | enum | required | `pending` \| `resolved` \| `unresolved`. Reflects the **latest** resolution attempt, whether that was the original phase 2 or a later re-search. `unresolved` ⇒ that attempt found no credible instance the curator has not already rejected. **Q12.** |
 | `unresolved_reason` | enum | nullable | Which kind of nothing: `not_held` \| `identity_refused` \| `size_unknown` \| `below_floor` \| `all_rejected`. Set whenever `resolution_status = unresolved`, null otherwise — **with one honest exception: a row whose attempt predates the column reads null beside `unresolved`.** The column was added nullable and existing files are widened without backfill, so the two runs that motivated it are themselves in that state. A null beside `unresolved` therefore means "this attempt happened before the reason was recorded", never "no reason applies". **Q12.** |
 | `verdict` | enum | required | `pending` \| `accepted` \| `rejected` \| `awaiting_better_image`. See State Machines. |
@@ -1452,6 +1453,20 @@ selected. Produced by phase 2.
 > institution itself and is not one once a second provider offers copies of the
 > same work. **The chunk that adds a non-museum provider owns this**, and should
 > reopen this paragraph rather than inherit it.
+>
+> **Reopened 2026-10-02, when Commons became a source** (`build-plan-get-and-ask.md`
+> Chunk 02). The owner ruled that no source is special-cased: every source is
+> asked at once, and *"Commons then Chicago"* is an order of preference. So
+> canonicity is still decided by resolution and rights, and the order sources are
+> listed in breaks a tie between instances that rank level. A Commons copy that
+> is larger than the holding museum's own scan wins; a museum scan that is larger
+> wins. Commons instances are recorded `institutional`, because they arrive
+> with structured metadata, stated rights and published limits, and are reached
+> through the work's own Wikidata item rather than a title search. Their
+> identity is therefore at least as strong as a museum's title match, and the
+> `contemporary_web` risk of a wrong image does not arise the same way. What
+> remains unbuilt is a preference for the holding institution's own file over an
+> equally sized copy, which nothing has yet asked for.
 > **How both scores are derived (settled 2026-08-02, when phase 2 was built).**
 > The two fields existed with their meanings recorded and their *derivations*
 > open. Both are now decided, and the first one was decided by measurement rather
@@ -1957,7 +1972,9 @@ coverage — which is what makes the works re-searchable again.
 
 A `resolve` run enters at `resolving_images` and can never reach `resolving_works`,
 `awaiting_approval`, or `declined` — phase 1 already happened on the parent, so
-there is no work list to approve or decline. Every other state behaves identically,
+there is no work list to approve or decline. A `get` run enters the same way and
+for the same reason: the curator named every work, by its item, so there is no
+list to draw up. Every other state behaves identically,
 which is the point of reusing the entity: `status`, `cancel`, `halted_by_budget`,
 and spend attribution all work on a re-search without a line of new machinery.
 

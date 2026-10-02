@@ -429,6 +429,28 @@ ART_DISCOVERY: Final = ToolRecord(
             ),
         ),
         Action(
+            name="get",
+            description="Get works chosen by their Wikidata items, as one run that looks for their images. Returns at once.",
+            example="art_discovery(action='get', qids=['Q45585'])",
+            params=(
+                Param(
+                    name="qids",
+                    type="array",
+                    items="string",
+                    description="The Wikidata items of the works to get, such as Q45585.",
+                    required=True,
+                ),
+            ),
+            tips=(
+                "This spends nothing: a Get has no phase 1, and the image sources it asks are free.",
+                "An item the library already holds, one a Get under way is already looking for, and one "
+                "Wikidata has no work for are skipped and listed under `skipped`, not refused. When every "
+                "item is skipped no run starts and `run_id` is null.",
+                "The run is like any other: action='status' and action='cancel' take its run_id, and its works "
+                "are judged with art_review. Accepting one records the item on the new work.",
+            ),
+        ),
+        Action(
             name="list_runs",
             description="List discovery runs, newest first, optionally narrowed to one state or kind.",
             example="art_discovery(action='list_runs', status='awaiting_approval')",
@@ -442,8 +464,13 @@ ART_DISCOVERY: Final = ToolRecord(
                 Param(
                     name="kind",
                     type="string",
-                    description="Restrict to first-time discovery runs or to re-searches. Omit for both.",
+                    description="Restrict to first-time discovery runs, re-searches or Gets. Omit for all.",
                     choices=tuple(member.value for member in RunKind),
+                ),
+                Param(
+                    name="awaiting",
+                    type="boolean",
+                    description="Only runs holding works that found an image and await a verdict: what is left to review.",
                 ),
             ),
             tips=("Listings carry the fields needed to choose; use action='status' for one run in full.",),

@@ -461,7 +461,7 @@ class ReviewService:
         # be a scan already turned down. The two answers coincide wherever a
         # selection exists and are different questions everywhere else.
         if chosen is None:
-            chosen = next(iter(selection.surviving(images)), None)
+            chosen = next(iter(selection.surviving(images, precedence=self._discovery.precedence)), None)
         return CandidateView(
             work=work,
             shown=None if chosen is None else self._instance(chosen, work, pictures=pictures),

@@ -26,17 +26,22 @@ from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClas
 
 
 class RunKind(StrEnum):
-    """Which of the two phases a run performs.
+    """Which phases a run performs, and where its works came from.
 
     A `RESOLVE` run is the re-search behind `resolve_images` — phase 2 on its
     own, over works some earlier run proposed. It is the same entity rather than
     a weaker handle beside it, which is what gives a paid, minutes-long operation
     a status to poll, a cancel, a cost of its own, and a guard against the same
     work being submitted to two of them at once.
+
+    A `GET` run is phase 2 over works the curator chose from the registry, each
+    by its Wikidata item. It has no phase 1 and spends nothing, and it is a run
+    for the same reasons a re-search is.
     """
 
     DISCOVERY = "discovery"
     RESOLVE = "resolve"
+    GET = "get"
 
 
 class InitiatedBy(StrEnum):
@@ -149,6 +154,9 @@ class WorkProvenance(StrEnum):
 
     PROPOSED = "proposed"
     OFFERED = "offered"
+    #: The curator chose this work from the registry, by its Wikidata item. Its
+    #: title and maker are the registry's, and nothing proposed or offered it.
+    CHOSEN = "chosen"
 
 
 class UnresolvedReason(StrEnum):
@@ -350,6 +358,10 @@ class CandidateWork:
     #: requirement exists for.
     offered_for_artist: str | None = None
     offered_artist_matched: int | None = None
+    #: The Wikidata item the curator chose this work by. Set only on a `CHOSEN`
+    #: work. Phase 2 hands it to the image sources, and acceptance stores it on
+    #: the artwork, so the work is *Held* wherever the registry shows it.
+    wikidata_qid: str | None = None
     #: Which kind of nothing, when `resolution_status` is `UNRESOLVED`; `None`
     #: otherwise. The two travel together on every write, so a work can never
     #: report that it found nothing without saying what kind of nothing it was.

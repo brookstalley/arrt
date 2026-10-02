@@ -21,24 +21,27 @@
 
 import { api } from "../core/api.js";
 import { table } from "../core/badges.js";
+import { counted } from "../core/counting.js";
 import { el, render } from "../core/render.js";
 import { go } from "../core/router.js";
+import { KIND_WORDS } from "../core/runs.js";
 
-/* The runs as rows. A re-search is a run too, and is listed with its parent. */
+/* The runs as rows. A re-search and a Get are runs too. A Get has no intent of
+ * its own: the curator chose its works, which is what its row says. */
 function runTable(caption, runs) {
   return table(
     caption,
     ["Asked for", "Kind", "State", "Started", "Open"],
     runs.map((run) => [
-      run.intent || "—",
-      run.kind === "resolve" ? "re-search" : "search",
+      run.intent || (run.kind === "get" ? "Works you chose" : "—"),
+      KIND_WORDS[run.kind] || run.kind,
       run.status,
       run.started_at,
       el("button", {
         class: "action quiet",
         type: "button",
         text: "Open",
-        "aria-label": `Open the search for ${run.intent || run.run_id}`,
+        "aria-label": `Open the ${KIND_WORDS[run.kind] || "run"} for ${run.intent || (run.kind === "get" ? "the works you chose" : run.run_id)}`,
         onclick: () => go("run", run.run_id),
       }),
     ]),
@@ -62,6 +65,48 @@ function truncation(runs, which) {
   });
 }
 
+/* *To review*: every run holding works that found an image and wait for a
+ * verdict, newest first, each opening Review. The one queue under Activity that
+ * needs the curator rather than the machine. */
+export async function viewToReview(generation) {
+  const runs = await api("/api/runs?awaiting=true");
+  const panels = [el("h2", { text: "To review" })];
+  if (!runs.runs.length) {
+    panels.push(
+      el("div", { class: "panel empty" }, [
+        el("p", {
+          text: "Nothing waits for you. When a search or a Get finds images, its works wait here until you accept or reject them.",
+        }),
+      ]),
+    );
+  } else {
+    panels.push(
+      el("div", { class: "panel" }, [
+        el("h3", { text: `${counted(runs.awaiting_works, "work")} to review` }),
+        table(
+          "Every run with works waiting for your verdict, newest first.",
+          ["Asked for", "Kind", "To review", "Started", "Open"],
+          runs.runs.map((run) => [
+            run.intent || (run.kind === "get" ? "Works you chose" : "—"),
+            KIND_WORDS[run.kind] || run.kind,
+            String(runs.awaiting[run.run_id] || 0),
+            run.started_at,
+            el("button", {
+              class: "action quiet",
+              type: "button",
+              text: "Review",
+              "aria-label": `Review the ${KIND_WORDS[run.kind] || "run"} for ${run.intent || (run.kind === "get" ? "the works you chose" : run.run_id)}`,
+              onclick: () => go("review", run.run_id),
+            }),
+          ]),
+        ),
+      ]),
+    );
+  }
+  panels.push(truncation(runs, "Checked"));
+  render(generation, ...panels);
+}
+
 export async function viewQueue(generation) {
   const runs = await api("/api/runs");
   const active = runs.runs.filter((run) => !run.is_terminal);
@@ -77,10 +122,10 @@ export async function viewQueue(generation) {
       el("div", { class: "panel empty" }, [
         el("p", {
           text:
-            `${nothing} A search you start in Add New shows here while it works, ` +
+            `${nothing} A search you start in Ask, or a Get, shows here while it works, ` +
             "and while it waits for you to approve its price.",
         }),
-        el("button", { class: "action", type: "button", text: "Go to Add New", onclick: () => go("discover") }),
+        el("button", { class: "action", type: "button", text: "Go to Ask", onclick: () => go("discover") }),
       ]),
     );
   } else {

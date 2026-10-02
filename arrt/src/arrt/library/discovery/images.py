@@ -34,6 +34,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Final, Protocol, runtime_checkable
 
+from arrt.library.registry import ItemId
 from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
 
 #: The largest preview body a museum may serve before it is refused. Enforced
@@ -76,6 +77,10 @@ class ImageQuery:
 
     title: str
     artist: str | None = None
+    #: The Wikidata item the work was asked for by, when the curator chose it
+    #: from the registry. A source that can look a work up by item uses it; one
+    #: that cannot ignores it and searches by title as before.
+    qid: ItemId | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,6 +121,17 @@ class ImageSearchFailure(Exception):
     """
 
 
+class ImageQueryUnanswerable(Exception):
+    """This source cannot look this kind of work up at all.
+
+    A third answer, apart from finding nothing and from not being reachable:
+    Commons looks a work up by its Wikidata item, so a work named only by title
+    is not a question it can answer. An empty list would say the source looked
+    and holds nothing, which nobody observed; a failure would say it was down,
+    which it was not.
+    """
+
+
 @runtime_checkable
 class ImageSearch(Protocol):
     """Phase 2's providers, as everything above them sees them.
@@ -143,7 +159,9 @@ class ImageSearch(Protocol):
     def find_images(self, query: ImageQuery) -> Sequence[FoundImage]:
         """Every instance this provider holds for the work, unjudged and unranked.
 
-        Raises `ImageSearchFailure` when the provider could not be asked.
+        Raises `ImageSearchFailure` when the provider could not be asked, and
+        `ImageQueryUnanswerable` when it cannot look a work like this one up.
+        An empty answer means it looked and holds nothing, and only that.
         """
 
     def fetch_preview(self, url: str) -> bytes | None:

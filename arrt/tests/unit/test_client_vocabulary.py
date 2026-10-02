@@ -21,11 +21,13 @@ import pytest
 
 from arrt.http.pages import STATIC_DIR
 from arrt.library.discovery.conversation import SUGGESTION_KINDS
+from arrt.library.services.get import SkipReason
 from arrt.mcp.bindings import RESTORE_NOTICE
 from arrt.persistence.discovery_records import (
     AffinityDerivation,
     AffinitySentiment,
     ResolutionStatus,
+    RunKind,
     RunStatus,
     TurnRole,
     UnresolvedReason,
@@ -265,15 +267,17 @@ def test_every_decided_verdict_has_words_and_a_glyph(name):
     assert _object_keys(name) == {str(verdict) for verdict in Verdict if verdict is not Verdict.PENDING}
 
 
-def test_provenance_is_still_the_two_values_the_client_renders_as_a_pair():
-    """The client draws provenance as offered-or-not, which only two values allow.
+@pytest.mark.parametrize("name", ["PROVENANCE_WORDS", "PROVENANCE_GLYPHS"])
+def test_every_provenance_has_words_and_a_glyph(name):
+    """Every provenance is drawn as itself, never as another one.
 
-    A third member would be rendered as "asked for" — silently, and wrongly, on
-    the one distinction the supplement exists to keep visible. This fails at the
-    moment the member is added rather than at the moment a curator accepts an
-    offered work believing they asked for it.
+    The client once drew provenance as offered-or-not, and a third member would
+    have been rendered as "asked for" — silently, and wrongly, on the one
+    distinction the supplement exists to keep visible. `chosen` was that third
+    member. Keyed on the enum, so a fourth fails here by name rather than at the
+    moment a curator accepts a work believing it was something else.
     """
-    assert {str(provenance) for provenance in WorkProvenance} == {"proposed", "offered"}
+    assert _object_keys(name) == {str(provenance) for provenance in WorkProvenance}
 
 
 def test_every_facet_kind_has_a_word_the_work_screen_can_label_it_with():
@@ -396,3 +400,37 @@ def test_the_three_reactions_are_the_pairs_of_fields_taste_is_held_in():
     assert body.count("sentiment:") == body.count("open_to_more:") == 3
     # And the pair that the whole design exists for: cool, and still open.
     assert '"tell me more": { sentiment: "cool", open_to_more: true }' in body
+
+
+def test_every_reason_a_get_skips_an_item_has_words():
+    """A Get reports what it left out; a new reason would otherwise go unsaid.
+
+    `getSentence` counts the skips it has words for, so a reason missing here is
+    not shown as its raw token but dropped from the sentence entirely, and the
+    curator would read that every ticked work is being got.
+    """
+    assert _object_keys("SKIP_WORDS") == {str(reason) for reason in SkipReason}
+
+
+def test_no_screen_replaces_children_except_through_fill():
+    """`replaceChildren` writes a null argument as the word "null".
+
+    `render` filtered for it, and twenty-one other calls did not, so an Artist page
+    with no description printed "null" above its works. Every call goes through
+    `fill` in `core/render.js`, which drops what a condition left empty; this
+    refuses a direct call anywhere else, comments excluded.
+    """
+    direct = []
+    for path in CLIENT_PATHS:
+        if path.name == "render.js" and path.parent.name == "core":
+            continue
+        code = re.sub(r"/\*.*?\*/|//[^\n]*", "", path.read_text(encoding="utf-8"), flags=re.DOTALL)
+        if ".replaceChildren(" in code:
+            direct.append(str(path.relative_to(STATIC_DIR)))
+    assert CLIENT_PATHS, "no client scripts were read; this guard would pass vacuously"
+    assert direct == [], f"call fill() from core/render.js instead of replaceChildren in: {direct}"
+
+
+def test_every_run_kind_has_a_word():
+    """Queue names a run by its kind; a new kind would otherwise be listed as its raw token."""
+    assert _object_keys("KIND_WORDS") == {str(kind) for kind in RunKind}

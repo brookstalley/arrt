@@ -62,6 +62,137 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-02: The cumulative review of Get and Ask, resolved
+
+<!-- prawduct: scope=get-and-ask -->
+
+**Why:** the cumulative review found two defects behind green suites. With
+Commons the only source, a search's works were recorded `not_held`, because
+Commons answered "nothing" for a work it cannot look up by title. And a level tie
+between sources was stored on a random id, because the stored selection
+re-ranked without the pool's order.
+
+**What:** a source now has a third answer, `ImageQueryUnanswerable`; Commons
+gives it for a work with no Wikidata item, the pool treats no answer as no answer
+(`NoSourceCanAnswer`, logged `phase_two.unanswerable`), and the work waits.
+`selection.py` ranks by the pool's precedence before the id, and a row from a
+source no longer wired ranks last rather than raising. Also: the pool's threads
+keep the run id in their logs; turning a scan down re-reads the To review count;
+a failed count read is said in the console; `get.asked` names the run it
+started; and `architecture.md`, `api-contract.md`, `observability-strategy.md`
+and `.env.example` describe the pool, the listing's counts, the new events and a
+Commons-only deployment.
+
+## 2026-10-02: Activity › To review, with what waits counted in the sidebar
+
+<!-- prawduct: scope=get-and-ask -->
+
+**Why:** a run that finished with works nobody judged sat in History looking
+done (`information-architecture.md` § The *arr layout recorded the gap on
+2026-09-30), and Get makes such runs ordinary.
+
+**What:** `GET /api/runs` and `art_discovery(action='list_runs')` carry
+`awaiting` (works that found an image and have no verdict, by run) and
+`awaiting_works` (in all), and narrow to such runs with `awaiting`, before the
+cap. *To review* is Activity's first page, listing those runs with their counts,
+each opening Review; the count shows on its link and as *N to review* on
+Activity's, and is read again after every navigation and as soon as a verdict is
+recorded. The sidebar test now checks every section's pages, which it had listed
+and never read.
+
+## 2026-10-02: Ask, where Add New was
+
+<!-- prawduct: scope=get-and-ask -->
+
+**Why:** ruling 3 dissolves Add New. Acquiring is *Get* on a selection, and the
+page that held the intent box and the conversations becomes *Ask*.
+
+**What:** the sidebar's Artworks › Add New is Artworks › Ask, at the same address
+`#discover`. The search box's group and row read *Ask* and *Ask about "…"*, as does
+the results page's empty state, and every button that opened Add New names Ask.
+`information-architecture.md` describes Ask in its screen tables, flows and the
+*arr-layout table. `tests/preferences/test_screen_tables.py` now holds each sidebar
+page's name to its route-table label, which a hand-written name had let drift.
+Carried from the last review: the run screen's no-provider sentence is tested
+over a discovery run holding an offered work.
+
+## 2026-10-02: Get in the client, and no more "null" on the page
+
+<!-- prawduct: scope=get-and-ask -->
+
+**Why:** ruling 3 makes Get an action on any selection. The server half shipped
+with Chunk 03; this is where a curator does it.
+
+**What:** *Their work* on the Artist page and the results page's Wikidata works
+gain a tick box on every work the library does not hold, and a *Get N works*
+control (`core/getting.js`) that posts the ticked items and says what started,
+what was left out, and links the run. A work's own page offers *Get this work* in
+place of *Search museums for this work*; that page's test is replaced, not
+weakened (`test_it_offers_get_rather_than_a_museum_search`). Queue and History
+list a Get as *Get* with *Works you chose*, the run screen words it as one, and
+Review heads it *Get*, goes back to *← The Get*, and links each chosen work's
+item. `replaceChildren` wrote a `null` argument as the word "null", which the
+Artist page printed above an artist with no description: every screen now goes
+through `fill` in `core/render.js`, and `test_client_vocabulary.py` refuses a
+direct call. Two Artist-page tests now read the work from the second column.
+
+## 2026-10-02: Get: works chosen by their Wikidata items, over HTTP and MCP
+
+<!-- prawduct: scope=get-and-ask -->
+
+**Why:** ruling 3 dissolves Add New into *Get*, an action on a selection. A
+curator who has found works in Wikidata needs to acquire those works, not to
+describe them to a model and hope it names them.
+
+**What:** a run of the new kind `get` holds one `chosen` candidate per item, each
+carrying its `wikidata_qid`, and starts at phase 2: no phase 1, no approval, no
+spend, and no supplement. The item reaches the image sources, so Commons answers
+it. `POST /api/gets {qids}` and `art_discovery(action='get')` start one through
+`GetService`, which skips items the library holds, items a Get under way is
+looking for, and items Wikidata does not have, and reports each skip. Accepting a
+chosen work stores its item on the artwork, set by the curator. The review grid
+labels a chosen work *◇ you chose*, and the provenance guard now holds a word and
+a glyph per provenance. `data-model.md` and `api-contract.md` carry the kind, the
+provenance, the column and the route.
+
+## 2026-10-02: Commons is an image source, reached from a work's Wikidata item
+
+<!-- prawduct: scope=get-and-ask -->
+
+**Why:** the owner ruled Commons first and the Art Institute second in the
+image-source pool. A work chosen from Wikidata usually has an image there, and
+the Art Institute holds only its own collection.
+
+**What:** `library/discovery/commons.py` answers a query that names a Wikidata
+item: it reads the item's image through the registry, asks Commons for the file's
+size, type and rights, and offers the original when it is no wider than 3840 px
+and Commons' 3840 px rendering otherwise, at the size that will arrive. It is
+wired, first in the pool, whenever `WIKIDATA_USER_AGENT` is set. Measured first
+over the catalogue's artists (`wikidata-findings.md` § Commons): coverage follows
+copyright. `data-model.md`'s deferred canonicity paragraph is reopened. The
+startup line's image sources are now tested, and a live test keeps the 3840
+limit checked.
+
+## 2026-10-02: Phase 2 asks a pool of image sources at once
+
+<!-- prawduct: scope=get-and-ask -->
+
+**Why:** the owner asked for a pool of image sources, with none special-cased,
+searched in parallel and open to more. Until now phase 2 was wired to one
+museum, so a second source would have been a change to the runner, the preview
+cache and the tile wiring.
+
+**What:** `library/discovery/pool.py` asks every wired source at once and keeps
+a source that could not be asked apart from one that holds nothing. Phase 2
+settles a work only on an instance that clears the floor while any source was
+down; otherwise the work stays pending, as when no source answers. Rank ties go
+to the source listed first. Previews and tiles are routed back to the source an
+instance was recorded under, so `PreviewCache` now takes the source's name with
+the URL. `ImageQuery` carries an optional Wikidata item for sources that can use
+one. The container takes `image_sources`, a list, and the startup line names the
+sources wired (`phase2 image_sources=`). The Art Institute is the only source
+for now.
+
 ## 2026-10-02: The cumulative review of one-world search, resolved
 
 <!-- prawduct: scope=one-world-search -->

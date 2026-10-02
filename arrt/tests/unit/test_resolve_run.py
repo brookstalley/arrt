@@ -21,6 +21,7 @@ from fakes import FakeImageSearch, a_work, an_image
 
 from arrt.library.discovery.engine import WorkList
 from arrt.library.discovery.phase_two import PhaseTwoEngine
+from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.services.previews import PreviewCache, PreviewSettings
 from arrt.library.services.runner import MAX_RUNS_LISTED, DiscoveryRunner
 from arrt.persistence.discovery_records import (
@@ -42,7 +43,9 @@ def museum() -> FakeImageSearch:
 
 @pytest.fixture
 def previews(settings, museum) -> PreviewCache:
-    return PreviewCache(PreviewSettings(art_root=settings.art_root, directory=settings.previews_path), museum.fetch_preview)
+    return PreviewCache(
+        PreviewSettings(art_root=settings.art_root, directory=settings.previews_path), ImageSourcePool([museum]).fetch_preview
+    )
 
 
 @pytest.fixture
@@ -51,7 +54,7 @@ def runner(services, engine, settings, museum, previews) -> DiscoveryRunner:
         services.discovery,
         engine,
         settings.discovery_settings,
-        images=PhaseTwoEngine(museum, box=settings.tv_artwork_box),
+        images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
         previews=previews,
         spawn=lambda work: work(),
     )
@@ -500,7 +503,7 @@ def test_status_on_a_re_search_holds_while_the_work_is_actually_happening(servic
         services.discovery,
         engine,
         settings.discovery_settings,
-        images=PhaseTwoEngine(museum, box=settings.tv_artwork_box),
+        images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
         previews=previews,
     )
     run = threaded.start(intent_text="Surrealist paintings", initiated_by=InitiatedBy.MCP_CLIENT)

@@ -14,7 +14,7 @@
 
 import { api } from "./api.js";
 import { named, stateMark } from "./registry.js";
-import { el } from "./render.js";
+import { el, fill } from "./render.js";
 import { go, openedFrom } from "./router.js";
 import { state } from "./state.js";
 
@@ -61,9 +61,9 @@ export function fold(text) {
  *
  * `information-architecture.md` § The *arr layout records Sonarr's pattern from
  * its source: the box searches the library as you type, and the last row offers
- * the same words as a search of everything. Here that row goes to Add New with
- * the words filled in, and Add New does not start the search, because a
- * museum search is a paid run and nothing may spend on a keystroke.
+ * the same words as a search of everything. Here that row goes to Ask with
+ * the words filled in, and Ask does not start the search, because a search in
+ * words is a paid run and nothing may spend on a keystroke.
  *
  * **Enter with nothing highlighted opens Artworks filtered to the query**, as it
  * did before the dropdown existed. That departs from Sonarr, which opens the
@@ -177,14 +177,14 @@ function installSuggestions(field) {
           work.held_artwork_ids.length ? go("work", work.held_artwork_ids[0]) : go("work", work.qid),
         ),
       );
-    const museums = option("suggestion-museums", `Search museums for “${query}”`, () =>
-      go("discover", null, { term: query }),
-    );
+    // Ask, with the words filled in and nothing started: asking for something
+    // in words is a paid search, started only from its own page beside its price.
+    const ask = option("suggestion-ask", `Ask about “${query}”`, () => go("discover", null, { term: query }));
     // The dropdown's last row: every match on a page of its own. Enter keeps
     // opening Artworks filtered (the owner, 2026-10-01), so this is how the
     // results page is reached.
     const everything = option("suggestion-all-results", `All results for “${query}”`, () => go("search", null, { ...openedFrom("search"), q: query }));
-    options = [...people, ...held, ...matchedThemes, ...theirPeople, ...theirWorks, museums, everything];
+    options = [...people, ...held, ...matchedThemes, ...theirPeople, ...theirWorks, ask, everything];
     // A lookup that failed is not a library with no matches, and must not read as
     // one: the row below it spends money, on a work the curator may already own.
     const unsearched = failed
@@ -202,7 +202,7 @@ function installSuggestions(field) {
       registry && registry.note
         ? [el("li", { role: "presentation", class: "search-suggestions-registry-note", text: registry.note })]
         : [];
-    list.replaceChildren(
+    fill(list,
       ...unsearched,
       ...(people.length ? [group("suggestions-artists", "Artists", people)] : []),
       ...(held.length ? [group("suggestions-held", "In your library", held)] : []),
@@ -211,8 +211,8 @@ function installSuggestions(field) {
       ...(theirWorks.length ? [group("suggestions-registry-works", "Wikidata: works", theirWorks)] : []),
       ...registryNote,
       // Named for the page the row opens, as Sonarr names its group "Add New
-      // Series": the *arr precedent decides what things are called here.
-      group("suggestions-add-new", "Add New", [museums]),
+      // Series" for its page. Here that page is Ask (ruling 3).
+      group("suggestions-ask", "Ask", [ask]),
       group("suggestions-all-results", "Search", [everything]),
     );
     list.hidden = false;

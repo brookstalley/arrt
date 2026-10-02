@@ -39,9 +39,9 @@ SECTIONS = ["Artworks", "Walls", "Activity", "Settings", "System"]
 #: The pages each section lists beneath its own name, when it is the current one.
 #: A page named like its section *is* the section's link and is not repeated.
 PAGES = {
-    "Artworks": ["Add New", "Themes", "Artists"],
+    "Artworks": ["Ask", "Themes", "Artists"],
     "Walls": [],
-    "Activity": ["Queue", "History"],
+    "Activity": ["To review", "Queue", "History"],
     "Settings": ["Taste"],
     "System": ["Status"],
 }
@@ -49,10 +49,11 @@ PAGES = {
 #: Every sidebar page: its route, and a heading that proves it painted.
 SIDEBAR_PAGES = [
     ("collection", "works"),
-    ("discover", "Add New"),
+    ("discover", "Ask"),
     ("theme", "Themes"),
     ("artist", "Artists"),
     ("walls", "Walls"),
+    ("to_review", "To review"),
     ("queue", "Queue"),
     ("history", "History"),
     ("taste", "What this product thinks you like"),
@@ -74,7 +75,7 @@ def visible_pages(ui) -> dict[str, list[str]]:
           section.querySelector('a.section-link .label').textContent,
           [...section.querySelectorAll('ul.pages a')]
             .filter((a) => a.checkVisibility())
-            .map((a) => a.textContent),
+            .map((a) => (a.querySelector('.label') || a).textContent),
         ]))""")
 
 
@@ -93,6 +94,19 @@ def test_the_sidebar_is_the_arr_sections_and_nothing_else(ui, seeded_service):
     ui.page.wait_for_selector(SECTION_LINKS)
 
     assert ui.page.locator(f"{SECTION_LINKS} .label").all_inner_texts() == SECTIONS
+
+
+#: The page each section's own link opens: its first page in the route table.
+OPENS = {"Artworks": "collection", "Walls": "walls", "Activity": "to_review", "Settings": "taste", "System": "health"}
+
+
+@pytest.mark.parametrize("section", SECTIONS)
+def test_each_section_lists_exactly_its_pages(ui, seeded_service, section):
+    """Every section, so a page added to or dropped from any one of them fails by name."""
+    ui.open(f"#{OPENS[section]}")
+    ui.page.wait_for_selector(SECTION_LINKS)
+
+    assert visible_pages(ui)[section] == PAGES[section]
 
 
 def test_pages_show_only_under_the_current_section(ui, seeded_service):

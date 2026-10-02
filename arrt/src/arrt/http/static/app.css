@@ -225,7 +225,7 @@ header.topbar {
 }
 
 /* The dropdown under the search box: library matches, then the row that hands
-   the words to Add New. `aria-selected` marks the highlighted option, and is
+   the words to Ask. `aria-selected` marks the highlighted option, and is
    what the styling follows, so the highlight a sighted reader sees is the one a
    screen reader announces. */
 .search-suggestions {
@@ -421,6 +421,24 @@ nav.sidebar a[aria-current="page"] {
    sighted reader scans for. */
 .status-slot {
   margin-left: auto;
+}
+
+/* What waits for a verdict, beside Activity and To review. Neutral rather than the
+   warning colour System's badge uses: works to judge are the curator's next job,
+   not a fault. One line, so the words never wrap under the section's name. */
+.count-slot {
+  margin-left: auto;
+}
+
+.awaiting-count {
+  display: inline-block;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--text-strong);
+  font: 600 var(--text-xs) / 1.5 var(--font-ui);
+  white-space: nowrap;
 }
 
 .status-count {
@@ -1145,6 +1163,15 @@ button.link {
   background: var(--surface-0);
 }
 
+/* A work the curator chose from Wikidata for a Get. Not asked of a model and not
+   offered by a collection, so it paints like neither: a double border, by weight
+   rather than colour, for the same reason as the pair above. */
+.badge-chosen {
+  border-style: double;
+  border-width: 3px;
+  background: var(--surface-0);
+}
+
 /* Whether a work ended up with an image. Its own axis again: a work can be
    offered and unresolved, and the two badges sit side by side on one row. */
 .badge-resolved {
@@ -1503,6 +1530,13 @@ button.action:hover {
   flex-wrap: wrap;
   gap: var(--space-3);
   align-items: flex-end;
+}
+
+/* Get, and what it said, under a list of works: set apart from the heading that
+   follows, with the sentence beside the button rather than below its baseline. */
+.get-control {
+  align-items: center;
+  margin-block: var(--space-4);
 }
 
 .muted {

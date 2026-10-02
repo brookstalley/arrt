@@ -31,8 +31,9 @@
 import { api } from "../core/api.js";
 import { facts, fitBadge, sourceBadge, statusBadge, table } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
+import { getOne } from "../core/getting.js";
 import { identityControl } from "../core/identity.js";
-import { el, guard, render } from "../core/render.js";
+import { el, fill, guard, render } from "../core/render.js";
 import { isQid, named, personLink, stateMark, wikidataLink, workLink, workState } from "../core/registry.js";
 import { backLink, go, redirect } from "../core/router.js";
 
@@ -129,9 +130,6 @@ async function viewRegistryWork(qid, generation) {
       })
     : el("p", { class: "note", text: "No free image of this work is known." });
   const theirWork = el("section", { class: "panel", "aria-labelledby": "more-by" });
-  // Seeded with what a museum search needs to find it, and only filled in: Add
-  // New spends nothing until the curator presses Search there.
-  const term = [page.title === qid ? null : page.title, maker ? maker.name : null].filter(Boolean).join(" ");
   render(
     generation,
     el("p", {}, [backLink()]),
@@ -148,10 +146,8 @@ async function viewRegistryWork(qid, generation) {
         ["Held by", page.holders.length ? page.holders.map(holderLine).join("; ") : null],
       ]),
       el("p", { class: "muted" }, [wikidataLink(qid, `Wikidata ${qid}`)]),
-      el("div", { class: "row" }, [
-        el("button", { class: "action", type: "button", text: "Search museums for this work", onclick: () => go("discover", null, { term }) }),
-      ]),
-      el("p", { class: "muted", text: "Not in your library. The search is filled in and not started; nothing is spent until you press Search." }),
+      getOne(qid),
+      el("p", { class: "muted", text: "Not in your library. Getting it looks for an image of it, and spends nothing." }),
     ]),
     maker ? theirWork : null,
   );
@@ -166,7 +162,7 @@ function holderLine(holder) {
  * page lists, without this one, asked after the page is drawn. */
 async function paintTheirWork(section, maker, qid) {
   const heading = el("h3", { id: "more-by", text: `More by ${named(maker.name, maker.qid)}` });
-  section.replaceChildren(heading, el("p", { class: "muted", "aria-live": "polite", text: "Asking Wikidata…" }));
+  fill(section, heading, el("p", { class: "muted", "aria-live": "polite", text: "Asking Wikidata…" }));
   let view;
   try {
     view = await api(maker.artist_id ? `/api/artists/${encodeURIComponent(maker.artist_id)}/registry` : `/api/registry/artists/${encodeURIComponent(maker.qid)}`);
@@ -175,11 +171,11 @@ async function paintTheirWork(section, maker, qid) {
   }
   if (!section.isConnected) return;
   if (view.state !== "known") {
-    section.replaceChildren(heading, el("p", { class: "note", text: view.note }));
+    fill(section, heading, el("p", { class: "note", text: view.note }));
     return;
   }
   const others = view.works.filter((work) => work.qid !== qid);
-  section.replaceChildren(
+  fill(section,
     heading,
     others.length
       ? el("div", { class: "artist-works" }, [

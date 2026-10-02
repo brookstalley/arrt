@@ -110,6 +110,9 @@ CREATE TABLE IF NOT EXISTS candidate_works (
     -- comparison the requirement exists for.
     offered_for_artist     TEXT,
     offered_artist_matched INTEGER,
+    -- The Wikidata item a chosen work was asked for by. Null on proposed and
+    -- offered works, which no item named; nullable so widening reaches older files.
+    wikidata_qid           TEXT,
     resolution_status  TEXT NOT NULL,
     unresolved_reason  TEXT,
     verdict            TEXT NOT NULL,
@@ -338,6 +341,14 @@ class SqliteDiscovery(TableAdapter):
     def list_candidate_works(self, run_id: str) -> Sequence[CandidateWork]:
         return self._list("candidate_works", {"discovery_run_id": run_id}, _BY_TITLE, _candidate_work)
 
+    def list_works_awaiting_verdict(self) -> Sequence[CandidateWork]:
+        return self._list(
+            "candidate_works",
+            {"verdict": str(Verdict.PENDING), "resolution_status": str(ResolutionStatus.RESOLVED)},
+            _BY_TITLE,
+            _candidate_work,
+        )
+
     def list_candidate_works_by_dedup_key(self, work_dedup_key: str) -> Sequence[CandidateWork]:
         return self._list("candidate_works", {"work_dedup_key": work_dedup_key}, _BY_TITLE, _candidate_work)
 
@@ -528,6 +539,7 @@ def _candidate_work_row(work: CandidateWork) -> dict[str, Any]:
         "provenance": str(work.provenance),
         "offered_for_artist": work.offered_for_artist,
         "offered_artist_matched": work.offered_artist_matched,
+        "wikidata_qid": work.wikidata_qid,
         "resolution_status": str(work.resolution_status),
         "unresolved_reason": str(work.unresolved_reason) if work.unresolved_reason else None,
         "verdict": str(work.verdict),
@@ -655,6 +667,7 @@ def _candidate_work(row: Mapping[str, Any]) -> CandidateWork:
         # both cases — no query produced them — so no default is invented here.
         offered_for_artist=row["offered_for_artist"],
         offered_artist_matched=row["offered_artist_matched"],
+        wikidata_qid=row["wikidata_qid"],
         resolution_status=ResolutionStatus(row["resolution_status"]),
         unresolved_reason=UnresolvedReason(row["unresolved_reason"]) if row["unresolved_reason"] else None,
         verdict=Verdict(row["verdict"]),

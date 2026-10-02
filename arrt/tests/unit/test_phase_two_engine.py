@@ -15,6 +15,7 @@ import pytest
 
 from arrt.library.discovery.images import FoundImage, ImageQuery, ImageSearchFailure
 from arrt.library.discovery.phase_two import CONFIDENT, TITLE_ONLY, UNATTRIBUTED_RECORD, PhaseTwoEngine
+from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.services.display_fit import ArtworkBox, DisplayFit
 from arrt.persistence.discovery_records import UnresolvedReason
 from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
@@ -76,12 +77,20 @@ def resolve(*instances: FoundImage, title: str, artist: str | None = None):
     them separate means a test asserting on the surviving list cannot pass by
     accidentally reading a refusal set that happens to be empty.
     """
-    return PhaseTwoEngine(StubSearch(*instances), box=BOX).resolve(ImageQuery(title=title, artist=artist)).instances
+    return (
+        PhaseTwoEngine(ImageSourcePool([StubSearch(*instances)]), box=BOX)
+        .resolve(ImageQuery(title=title, artist=artist))
+        .instances
+    )
 
 
 def refusals(*instances: FoundImage, title: str, artist: str | None = None) -> frozenset[UnresolvedReason]:
     """Which gates turned results away for this work."""
-    return PhaseTwoEngine(StubSearch(*instances), box=BOX).resolve(ImageQuery(title=title, artist=artist)).refusals
+    return (
+        PhaseTwoEngine(ImageSourcePool([StubSearch(*instances)]), box=BOX)
+        .resolve(ImageQuery(title=title, artist=artist))
+        .refusals
+    )
 
 
 # -- the near-match, which is the whole point -----------------------------------
@@ -412,7 +421,7 @@ def test_rights_never_exclude_an_instance_and_never_beat_resolution():
 
 def test_a_provider_that_cannot_be_reached_raises_rather_than_answering_empty():
     """Empty means "your painting is not in this collection"; that is a different claim."""
-    engine = PhaseTwoEngine(StubSearch(fails=True), box=BOX)
+    engine = PhaseTwoEngine(ImageSourcePool([StubSearch(fails=True)]), box=BOX)
 
     with pytest.raises(ImageSearchFailure):
         engine.resolve(ImageQuery(title="Nighthawks"))

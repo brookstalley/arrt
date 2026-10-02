@@ -45,6 +45,16 @@ export function el(tag, attrs = {}, children = []) {
   return node;
 }
 
+/* Replace a node's children, leaving out the ones a condition left empty.
+ *
+ * `replaceChildren` writes a `null` argument as the word "null", so a page built
+ * with `condition ? node : null` printed it wherever the condition was false. Every
+ * screen goes through here instead, and `test_client_vocabulary.py` refuses a
+ * direct call anywhere else. */
+export function fill(node, ...children) {
+  node.replaceChildren(...children.filter((child) => child !== null && child !== undefined && child !== false));
+}
+
 /* Write a view's nodes to the page, unless the curator has moved on.
  *
  * `generation` is `state.nav` as it stood when this paint began, and passing it
@@ -70,10 +80,7 @@ export function render(generation, ...nodes) {
   }
   if (generation !== state.nav) return;
   const view = document.getElementById("view");
-  // Filtered, not passed straight through: `replaceChildren` coerces a null to
-  // the *string* "null" and puts it on the page, so an omitted optional panel
-  // renders as the word null rather than as nothing.
-  view.replaceChildren(...nodes.filter(Boolean));
+  fill(view, ...nodes);
 }
 
 /* Run something that talks to the server, and say so when it refuses.

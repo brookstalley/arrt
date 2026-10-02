@@ -11,13 +11,14 @@
  *
  * **The library half is drawn first and never waits** on the registry's, which
  * fills its own sections when it answers and says why when it cannot. Nothing on
- * this page spends: *Search museums* fills in Add New and does not start it.
+ * this page spends: *Ask about* fills in Ask and does not start it, and *Get* is free.
  *
  * Every string from the registry is untrusted text, shown as text. */
 
 import { api } from "../core/api.js";
+import { getSelection } from "../core/getting.js";
 import { lifeDates, named, stateMark } from "../core/registry.js";
-import { el, render } from "../core/render.js";
+import { el, fill, render } from "../core/render.js";
 import { backLink, go } from "../core/router.js";
 import { fold } from "../core/search.js";
 import { state } from "../core/state.js";
@@ -85,7 +86,7 @@ export async function viewSearch(generation) {
   if (registry.state === "known" && !registry.artists.length && !registry.works.length) {
     registryNote.after(
       el("div", { class: "row" }, [
-        el("button", { class: "action", type: "button", text: `Search museums for “${query}”`, onclick: () => go("discover", null, { term: query }) }),
+        el("button", { class: "action", type: "button", text: `Ask about “${query}”`, onclick: () => go("discover", null, { term: query }) }),
       ]),
     );
   }
@@ -144,7 +145,7 @@ function artistRows(view, library, registry) {
 
 function paintArtists(section, query, view, library, registry) {
   const rows = artistRows(view, library, registry);
-  section.replaceChildren(
+  fill(section,
     el("h3", { id: "results-artists", text: "Artists" }),
     rows.length
       ? el("ul", { class: "results-list" }, rows.map((row) =>
@@ -160,6 +161,7 @@ function paintArtists(section, query, view, library, registry) {
 
 /* The works: the library's first, then Wikidata's that are not among them. */
 function paintWorks(section, query, view, library, registry) {
+  const getting = getSelection();
   const shownIds = new Set(view === "not_held" ? [] : library.works.map((work) => work.artwork_id));
   const rows = [];
   if (view !== "not_held") {
@@ -177,21 +179,25 @@ function paintWorks(section, query, view, library, registry) {
         held,
         image: Boolean(work.image),
         open: () => (held ? go("work", work.held_artwork_ids[0]) : go("work", work.qid)),
+        // A work the library does not hold can be ticked and got from here.
+        box: held ? null : getting.box(work.qid, named(work.title, work.qid)),
       });
     }
   }
   const more = view !== "not_held" && library.total > library.works.length;
-  section.replaceChildren(
+  fill(section,
     el("h3", { id: "results-works", text: "Works" }),
     rows.length
       ? el("ul", { class: "results-list" }, rows.map((row) =>
           el("li", {}, [
+            row.box || null,
             el("button", { class: "row-title", type: "button", text: row.title, onclick: row.open }),
             row.by ? el("span", { class: "muted", text: ` — ${row.by}` }) : null,
             stateMark({ held: row.held, image: row.image }),
           ]),
         ))
       : el("p", { class: "muted", text: "No works." }),
+    rows.some((row) => row.box) ? getting.node : null,
     view !== "not_held" && library.works.length
       ? el("p", { class: "muted" }, [
           more ? `Your library has ${library.total} matching works; the first ${library.works.length} are here. ` : "",
@@ -208,11 +214,11 @@ function paintTop(section, query, view, library, registry) {
   const words = fold(query).split(/\s+/).filter(Boolean);
   const naming = artistRows(view, library, registry).filter((row) => words.every((word) => fold(row.name).includes(word)));
   if (naming.length !== 1) {
-    section.replaceChildren();
+    fill(section);
     return;
   }
   const [artist] = naming;
-  section.replaceChildren(
+  fill(section,
     el("section", { class: "panel", "aria-labelledby": "results-top" }, [
       el("h3", { id: "results-top", text: "Top result" }),
       el("p", {}, [

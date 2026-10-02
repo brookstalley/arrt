@@ -18,9 +18,11 @@ from fakes import FakeImageSearch, a_work, an_image
 
 from arrt.library.discovery.engine import WorkList
 from arrt.library.discovery.phase_two import PhaseTwoEngine
+from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.services.previews import PreviewCache, PreviewSettings
 from arrt.library.services.runner import DiscoveryRunner
 from arrt.persistence.discovery_records import InitiatedBy, ResolutionStatus, RunStatus, Verdict
+from arrt.persistence.records import AcquisitionMethod, SourceClass
 from arrt.services.container import Services
 from arrt.services.errors import ServiceError
 
@@ -38,7 +40,7 @@ def museum() -> FakeImageSearch:
 def previews(settings, museum) -> PreviewCache:
     return PreviewCache(
         PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
-        museum.fetch_preview,
+        ImageSourcePool([museum]).fetch_preview,
     )
 
 
@@ -49,7 +51,7 @@ def runner(services, engine, settings, museum, previews) -> DiscoveryRunner:
         services.discovery,
         engine,
         settings.discovery_settings,
-        images=PhaseTwoEngine(museum, box=settings.tv_artwork_box),
+        images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
         previews=previews,
         spawn=lambda work: work(),
     )
@@ -269,17 +271,17 @@ def test_the_floor_is_deployment_geometry_rather_than_a_pixel_count(
             artwork_box=geometry.tv_artwork_box,
             engine=engine,
             discovery_settings=geometry.discovery_settings,
-            image_search=museum,
+            image_sources=[museum],
             previews=PreviewSettings(art_root=geometry.art_root, directory=geometry.previews_path),
         )
         runner = DiscoveryRunner(
             plane.discovery,
             engine,
             geometry.discovery_settings,
-            images=PhaseTwoEngine(museum, box=geometry.tv_artwork_box),
+            images=PhaseTwoEngine(ImageSourcePool([museum]), box=geometry.tv_artwork_box),
             previews=PreviewCache(
                 PreviewSettings(art_root=geometry.art_root, directory=geometry.previews_path),
-                museum.fetch_preview,
+                ImageSourcePool([museum]).fetch_preview,
             ),
             spawn=lambda work: work(),
         )
@@ -443,7 +445,7 @@ def test_a_verdict_reached_while_phase_2_ran_is_not_overwritten(services, engine
             services.discovery,
             engine,
             settings.discovery_settings,
-            images=PhaseTwoEngine(museum, box=settings.tv_artwork_box),
+            images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
             previews=previews,
             spawn=lambda work: work(),
         )
@@ -466,7 +468,7 @@ def test_a_run_cancelled_mid_resolve_stops_where_it_was(services, engine, settin
         services.discovery,
         engine,
         settings.discovery_settings,
-        images=PhaseTwoEngine(museum, box=settings.tv_artwork_box),
+        images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
         previews=previews,
         spawn=lambda work: work(),
     )
@@ -518,5 +520,177 @@ def test_half_a_phase_two_wiring_is_refused_at_construction(services, engine, se
             services.discovery,
             engine,
             settings.discovery_settings,
-            images=PhaseTwoEngine(museum, box=settings.tv_artwork_box),
+            images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
         )
+
+
+# -- more than one source -------------------------------------------------------
+
+
+class SecondSource:
+    """A source beside the museum, with a name of its own and its own previews."""
+
+    def __init__(self, *instances) -> None:
+        self._instances = instances
+        self.fetched: list[str] = []
+
+    @property
+    def provider(self) -> str:
+        return "second"
+
+    def find_images(self, query):
+        return self._instances
+
+    def fetch_preview(self, url: str) -> bytes | None:
+        self.fetched.append(url)
+        return b"\xff\xd8\xff\xe0 second"
+
+    def tile_url(self, url: str) -> str:
+        return url
+
+
+def test_an_instance_from_a_second_source_is_selected_and_its_preview_fetched_from_it(services, engine, settings, museum):
+    """The runner hands each instance's own source name to the preview cache."""
+    second = SecondSource(
+        replace(
+            an_image("The Elephants", width=6949, height=8400, provider="second", url="https://second.example/1"),
+            preview_url="https://second.example/1/preview.jpg",
+        )
+    )
+    museum.holdings = {"The Elephants": (an_image("The Elephants", width=2000, height=1500),)}
+    pool = ImageSourcePool([museum, second])
+    runner = DiscoveryRunner(
+        services.discovery,
+        engine,
+        settings.discovery_settings,
+        images=PhaseTwoEngine(pool, box=settings.tv_artwork_box),
+        previews=PreviewCache(PreviewSettings(art_root=settings.art_root, directory=settings.previews_path), pool.fetch_preview),
+        spawn=lambda work: work(),
+    )
+    engine.result = a_list("The Elephants")
+
+    run_id = start(runner).id
+    work = services.discovery.list_candidate_works(run_id)[0]
+    images = services.discovery.list_candidate_images(work.id)
+
+    selected = next(image for image in images if image.is_selected)
+    assert (selected.provider, selected.preview_path is not None) == ("second", True)
+    assert len(second.fetched) == 1
+    assert len(museum.fetched) == 1, "the museum's own instance still has its preview fetched from the museum"
+
+
+def test_a_level_tie_between_sources_is_stored_for_the_source_listed_first(
+    store, discovery_store, wall_settings, thumbnail_settings, engine, settings, museum
+):
+    """The stored selection breaks a tie as phase 2 did, not on a random id.
+
+    Eight works, each found at the same size by both sources, so a ranking that
+    fell through to the id would pick the wrong source for at least one of them
+    all but once in 256 runs. Wired through the container, which is what hands the
+    pool's order to the discovery service.
+    """
+    titles = [f"Work {n}" for n in range(8)]
+
+    class EachTitle(SecondSource):
+        def find_images(self, query):
+            return tuple(image for image in self._instances if image.title == query.title)
+
+    second = EachTitle(
+        *(
+            replace(
+                an_image(title, width=6949, height=8400, provider="second", url=f"https://second.example/{n}"),
+                preview_url=f"https://second.example/{n}/preview.jpg",
+            )
+            for n, title in enumerate(titles)
+        )
+    )
+    museum.holdings = {title: (an_image(title, width=6949, height=8400),) for title in titles}
+    plane = Services.bind(
+        catalogue=store,
+        discovery=discovery_store,
+        display_settings=wall_settings,
+        thumbnails=thumbnail_settings,
+        artwork_box=settings.tv_artwork_box,
+        engine=engine,
+        discovery_settings=settings.discovery_settings,
+        image_sources=[second, museum],
+        previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
+    )
+    plane.runner._spawn = lambda work: work()  # noqa: SLF001 - phase 2 on this thread
+    engine.result = a_list(*titles)
+
+    run_id = start(plane.runner).id
+
+    for work in plane.discovery.list_candidate_works(run_id):
+        selected = [image.provider for image in plane.discovery.list_candidate_images(work.id) if image.is_selected]
+        assert selected == ["second"], (work.proposed_title, selected)
+
+
+def test_with_commons_the_only_source_a_work_named_by_title_is_not_called_unheld(
+    store, discovery_store, wall_settings, thumbnail_settings, engine, settings, caplog
+):
+    """Commons cannot look a title up, so a proposal waits rather than being recorded `not_held`."""
+    import httpx
+    from fakes import FakeRegistry
+
+    from arrt.library.discovery.commons import CommonsImageSearch
+
+    def no_request(request):
+        raise AssertionError(f"Commons was asked about a work it cannot look up: {request.url}")
+
+    commons = CommonsImageSearch(
+        registry=FakeRegistry(),
+        user_agent="arrt-tests/0",
+        client=httpx.Client(transport=httpx.MockTransport(no_request)),
+    )
+    plane = Services.bind(
+        catalogue=store,
+        discovery=discovery_store,
+        display_settings=wall_settings,
+        thumbnails=thumbnail_settings,
+        artwork_box=settings.tv_artwork_box,
+        engine=engine,
+        discovery_settings=settings.discovery_settings,
+        image_sources=[commons],
+        previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
+    )
+    plane.runner._spawn = lambda work: work()  # noqa: SLF001 - phase 2 on this thread
+    engine.result = a_list("The Elephants")
+
+    with caplog.at_level(logging.WARNING):
+        run_id = start(plane.runner).id
+
+    (work,) = plane.discovery.list_candidate_works(run_id)
+    assert (work.resolution_status, work.unresolved_reason) == (ResolutionStatus.PENDING, None)
+    events = {getattr(record, "event", None) for record in caplog.records}
+    assert "phase_two.unanswerable" in events and "phase_two.unreachable" not in events, events
+
+
+def test_a_row_from_a_source_no_longer_wired_ranks_after_the_wired_ones(services, engine, settings):
+    """A deployment that drops a source keeps its rows; ranking them must not raise.
+
+    The two instances rank level, the unwired source's first recorded and so first
+    selected. Resolving the work moves the selection to the wired source's row,
+    because a source the order no longer names ranks last.
+    """
+    plain = DiscoveryRunner(services.discovery, engine, settings.discovery_settings, spawn=lambda work: work())
+    engine.result = a_list("The Elephants")
+    run_id = start(plain).id
+    (work,) = services.discovery.list_candidate_works(run_id)
+    services.discovery.precedence = ImageSourcePool([SecondSource()]).precedence
+    for provider in ("artic", "second"):
+        services.discovery.record_image(
+            candidate_work_id=work.id,
+            url=f"https://{provider}.example/elephants",
+            provider=provider,
+            source_class=SourceClass.INSTITUTIONAL,
+            acquisition_method=AcquisitionMethod.DIRECT_HTTP,
+            confidence=0.95,
+            estimated_width=6949,
+            estimated_height=8400,
+            quality_score=0.9,
+        )
+
+    outcome = services.discovery.record_resolution(work.id)
+
+    assert outcome.selected is not None and outcome.selected.provider == "second"

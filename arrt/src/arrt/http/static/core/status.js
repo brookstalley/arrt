@@ -49,7 +49,7 @@
  */
 
 import { api } from "./api.js";
-import { el } from "./render.js";
+import { el, fill } from "./render.js";
 import { go } from "./router.js";
 
 export function statusReading(health) {
@@ -95,7 +95,7 @@ export function statusReading(health) {
 function paint(reading) {
   const indicator = document.getElementById("status");
   indicator.dataset.state = reading.well ? "well" : "unwell";
-  indicator.replaceChildren(
+  fill(indicator,
     el("span", { class: "glyph", text: reading.well ? "●" : "▲", "aria-hidden": true }),
     el("span", { text: reading.words }),
   );
@@ -111,7 +111,7 @@ function paintBadge(reading) {
   // keeps containing the visible word if the section is ever renamed.
   const label = link.querySelector(".label").textContent;
   link.setAttribute("aria-label", count ? `${label}: ${count} ${count === 1 ? "problem" : "problems"}` : `${label}: all well`);
-  slot.replaceChildren(count ? el("span", { class: "status-count", text: String(count), "aria-hidden": true }) : "");
+  fill(slot, count ? el("span", { class: "status-count", text: String(count), "aria-hidden": true }) : "");
 }
 
 /* Read the panel and say what it said.

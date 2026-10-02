@@ -23,7 +23,8 @@ import { api, fetchAllWorks } from "../core/api.js";
 import { absentImage, facts } from "../core/badges.js";
 import { identityControl } from "../core/identity.js";
 import { addedSentence, addWorksToTheme, stoppedSentence } from "../core/membership.js";
-import { el, guard, render } from "../core/render.js";
+import { getSelection } from "../core/getting.js";
+import { el, fill, guard, render } from "../core/render.js";
 import { isQid, lifeDates, named, stateMark, wikidataLink, workLink, workState } from "../core/registry.js";
 import { backLink, backRow, go, redirect, refresh } from "../core/router.js";
 import { recordReaction } from "../core/taste.js";
@@ -57,7 +58,7 @@ export async function viewArtists(artistId, generation) {
         ])
       : el("div", { class: "panel" }, [
           el("p", { class: "muted", text: "No artists yet. Works you accept bring their artists here." }),
-          el("button", { class: "action", type: "button", text: "Add New", onclick: () => go("discover") }),
+          el("button", { class: "action", type: "button", text: "Ask", onclick: () => go("discover") }),
         ]),
   );
 }
@@ -198,10 +199,10 @@ async function paintSimilar(section, qid) {
   if (!section.isConnected) return;
   const heading = section.querySelector("h3");
   if (view.state !== "known") {
-    section.replaceChildren(heading, el("p", { class: "note", text: view.note }));
+    fill(section, heading, el("p", { class: "note", text: view.note }));
     return;
   }
-  section.replaceChildren(
+  fill(section,
     heading,
     view.artists.length
       ? el("ul", { class: "results-list" }, view.artists.map((person) =>
@@ -310,36 +311,42 @@ function heldCard(work, chosen, settle) {
 
 /* The registry half, once it has answered: what Wikidata lists, most renowned
  * first, each marked *Held* where the library holds it (by QID, never by title)
- * or *Image found* where Wikidata has a free image; then the collections. */
+ * or *Image found* where Wikidata has a free image; then the collections.
+ *
+ * Every work the library does not hold can be ticked and got, image found or not:
+ * a museum may hold one Wikidata has no picture of. A held row has no tick box. */
 function paintRegistry(section, about, view) {
   const heading = section.querySelector("h3");
   if (view.state !== "known") {
-    section.replaceChildren(heading, el("p", { class: "note", text: view.note }));
+    fill(section, heading, el("p", { class: "note", text: view.note }));
     return;
   }
-  about.replaceChildren(
+  fill(about,
     view.description ? el("p", { text: view.description }) : null,
     view.movements.length ? el("p", { class: "muted", text: view.movements.join(", ") }) : null,
   );
+  const getting = getSelection();
   const rows = view.works.map((work) =>
     el("tr", {}, [
+      el("td", {}, [work.held_artwork_ids.length ? null : getting.box(work.qid, named(work.title, work.qid))]),
       el("td", {}, [workLink(work)]),
       el("td", { text: work.year ? String(work.year) : "—" }),
       el("td", {}, [workState(work)]),
     ]),
   );
   const holdings = view.holdings.map((holding) => el("li", { text: `${named(holding.name, holding.qid)}: ${holding.works}` }));
-  section.replaceChildren(
+  fill(section,
     heading,
     view.works.length
       ? el("div", { class: "artist-works" }, [el("table", {}, [
           el("caption", {
             text: `The most renowned of the ${view.works_total} works Wikidata lists, by how many Wikipedias cover them, and every one the library holds`,
           }),
-          el("thead", {}, [el("tr", {}, ["Work", "Year", "State"].map((h) => el("th", { scope: "col", text: h })))]),
+          el("thead", {}, [el("tr", {}, ["Get", "Work", "Year", "State"].map((h) => el("th", { scope: "col", text: h })))]),
           el("tbody", {}, rows),
         ])])
       : el("p", { class: "muted", text: "Wikidata lists no works for them." }),
+    view.works.some((work) => !work.held_artwork_ids.length) ? getting.node : null,
     el("h3", { id: "holdings", text: "Holdings" }),
     holdings.length ? el("ul", { "aria-labelledby": "holdings" }, holdings) : el("p", { class: "muted", text: "Wikidata names no collection holding their work." }),
   );

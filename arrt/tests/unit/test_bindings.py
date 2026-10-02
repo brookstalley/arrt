@@ -36,7 +36,15 @@ from arrt.mcp.bindings import (
     _runs_truncation_notice,
     _truncation_notice,
 )
-from arrt.persistence.discovery_records import CandidateWork, DiscoveryRun, InitiatedBy, ResolutionStatus, RunKind, RunStatus
+from arrt.persistence.discovery_records import (
+    CandidateWork,
+    DiscoveryRun,
+    InitiatedBy,
+    ResolutionStatus,
+    RunKind,
+    RunStatus,
+    WorkProvenance,
+)
 from arrt.services.errors import ServiceError
 
 
@@ -252,6 +260,33 @@ def test_a_re_search_is_not_told_its_work_list_has_settled():
     assert "work list" not in resolve_notice
     assert "re-search" in resolve_notice
     assert "2 works it covers" in resolve_notice
+
+
+def _a_get(status: RunStatus = RunStatus.RESOLVING_IMAGES) -> RunView:
+    view = _resolving(RunKind.GET)
+    chosen = tuple(replace(work, provenance=WorkProvenance.CHOSEN, wikidata_qid="Q1") for work in view.works)
+    return replace(view, run=replace(view.run, status=status), works=chosen)
+
+
+def test_a_get_is_told_it_is_finding_the_works_chosen():
+    """A Get proposed nothing, so neither the work-list sentence nor a proposed count fits it."""
+    notice = _run_notice(_a_get())
+
+    assert "work list" not in notice
+    assert "2 works you chose" in notice
+
+
+def test_a_get_with_no_provider_counts_the_works_it_holds():
+    notice = _run_notice(replace(_a_get(), image_resolution_available=False))
+
+    assert "are 2 works to find images for" in notice
+
+
+def test_an_interrupted_get_is_told_to_get_its_items_again_not_to_repeat_an_intent():
+    notice = _run_notice(_a_get(RunStatus.INTERRUPTED))
+
+    assert "Get the same items again" in notice
+    assert "intent" not in notice
 
 
 def test_a_deployment_with_no_provider_says_so_whichever_kind_of_run_is_asking():

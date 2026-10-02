@@ -105,14 +105,13 @@ class TestAWorkNotHeld:
         assert image.get_attribute("referrerpolicy") == "no-referrer"
         assert ui.page.locator(f"#view a[href='https://www.wikidata.org/wiki/{HUNTERS}']").count() == 1
 
-    def test_searching_museums_fills_in_add_new_and_starts_nothing(self, ui):
+    def test_it_offers_get_rather_than_a_museum_search(self, ui):
+        """Ruling 3 replaced the seeded museum search with Get; `test_getting.py` drives it."""
         ui.open(f"#work/{HUNTERS}")
-        ui.page.click("#view button:has-text('Search museums for this work')")
+        ui.page.wait_for_selector("#view button:text-is('Get this work')")
 
-        ui.page.wait_for_function("() => window.location.hash.startsWith('#discover')")
-        assert ui.page.input_value("#view textarea, #view input[type='search'], #view input[type='text']") == (
-            "The Hunters in the Snow Pieter Brueghel the Elder"
-        )
+        # Neither the old wording nor today's for a search in words: this page gets.
+        assert ui.page.locator("#view button:has-text('Search museums'), #view button:has-text('Ask about')").count() == 0
 
     def test_the_rest_of_their_work_follows_without_this_one(self, ui):
         ui.open(f"#work/{HUNTERS}")
@@ -189,7 +188,8 @@ class TestAnArtistNotHeld:
         assert "1525–1569" in ui.page.locator("#view dl.facts").inner_text()
         assert ui.page.locator("#view p.note:has-text('Nothing of theirs is in your library.')").count() == 1
         assert "Flemish painter" in ui.page.locator("#view").inner_text()
-        titles = ui.page.locator("section[aria-labelledby='their-work'] tbody td:first-child").all_inner_texts()
+        # The second column: the first is the Get tick box.
+        titles = ui.page.locator("section[aria-labelledby='their-work'] tbody td:nth-child(2)").all_inner_texts()
         assert titles == ["The Hunters in the Snow", "The Harvesters"]
 
     def test_it_says_where_held_work_is_filed_rather_than_that_none_is_held(self, ui, services, service):

@@ -131,7 +131,7 @@ function empty() {
         "tell me more — is what records a judgment here.",
     }),
     el("div", { class: "row" }, [
-      el("button", { class: "action", type: "button", text: "Start a conversation in Add New", onclick: () => go("discover") }),
+      el("button", { class: "action", type: "button", text: "Start a conversation in Ask", onclick: () => go("discover") }),
     ]),
   ]);
 }

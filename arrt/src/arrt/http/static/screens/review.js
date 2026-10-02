@@ -5,6 +5,7 @@
  */
 
 import { api, fetchAllCandidates } from "../core/api.js";
+import { paintAwaiting } from "../core/awaiting.js";
 import { agree, counted } from "../core/counting.js";
 import {
   absentImage,
@@ -15,8 +16,9 @@ import {
   resolutionBadge,
   shortfallNote,
 } from "../core/badges.js";
-import { el, guard, render } from "../core/render.js";
+import { el, fill, guard, render } from "../core/render.js";
 import { go } from "../core/router.js";
+import { runTitle } from "../core/runs.js";
 
 /* What the curator has decided about a work, in words.
  *
@@ -41,15 +43,24 @@ function verdictBadge(work) {
   ]);
 }
 
-/* The curator authorised a work list of a stated size, and a wired collection may
- * add to it. Labelled on every row rather than counted only in the summary: an
- * offered work is not what was asked for, and a grid that renders the two alike
- * invites accepting one as though it were. */
+/* Where a work came from, in words and as a glyph, one entry per provenance.
+ *
+ * The curator authorised a work list of a stated size, and a wired collection may
+ * add to it; a Get's works the curator chose by hand. Labelled on every row rather
+ * than counted only in the summary: an offered work is not what was asked for, and
+ * a grid that renders the two alike invites accepting one as though it were. A
+ * provenance missing here would be drawn as its raw token, so the vocabulary test
+ * holds these keys to the enum. */
+const PROVENANCE_GLYPHS = { proposed: "◆", offered: "◈", chosen: "◇" };
+
+const PROVENANCE_WORDS = { proposed: "asked for", offered: "offered", chosen: "you chose" };
+
 function provenanceBadge(work) {
-  const offered = work.provenance === "offered";
-  return el("span", { class: offered ? "badge badge-offered" : "badge" }, [
-    el("span", { class: "glyph", text: offered ? "◈" : "◆", "aria-hidden": true }),
-    el("span", { text: offered ? "offered" : "asked for" }),
+  // `proposed` is the ordinary case and keeps the base badge, as it always has.
+  const styled = work.provenance === "proposed" ? "badge" : `badge badge-${work.provenance}`;
+  return el("span", { class: styled }, [
+    el("span", { class: "glyph", text: PROVENANCE_GLYPHS[work.provenance] || "◆", "aria-hidden": true }),
+    el("span", { text: PROVENANCE_WORDS[work.provenance] || work.provenance }),
   ]);
 }
 
@@ -99,6 +110,9 @@ function instanceRow(instance, title, after) {
   const act = (path, body) =>
     guard(async () => {
       await api(path, { method: "POST", body: JSON.stringify(body || {}) });
+      // Turning a scan down can leave the work with no image to accept, which
+      // takes it off To review; choosing one can put it back.
+      paintAwaiting();
       await after();
     });
   return el("li", { class: "alternate" }, [
@@ -251,6 +265,9 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
         method: "POST",
         body: JSON.stringify({ verdict, reason: reason.value || null }),
       });
+      // A verdict is one fewer work to review: the sidebar's count is read again
+      // as soon as it is recorded, whatever happens to the card's repaint.
+      paintAwaiting();
       await repaint(outcome.notice);
     });
 
@@ -272,7 +289,7 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
   // would otherwise carry up to twelve instances each, and a curator opens the
   // alternates for the few works whose first answer they doubt.
   disclosure.addEventListener("toggle", () => {
-    if (disclosure.open) guard(async () => alternates.replaceChildren(await alternatesPanel(work.work_id, () => repaint(null))));
+    if (disclosure.open) guard(async () => fill(alternates, await alternatesPanel(work.work_id, () => repaint(null))));
   });
   // Opening it here fires `toggle`, which is what fetches the list — so a
   // carried-over disclosure loads rather than restoring the placeholder.
@@ -297,7 +314,14 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
         reasonBadge(work),
         card.shown ? fitBadge(card.shown, "size unrecorded") : null,
       ]),
-      el("p", { class: "card-meta", text: work.rationale }),
+      // A chosen work names the Wikidata item it was got by, which opens that
+      // item's page here: what the registry knows of the work, to judge it by.
+      work.wikidata_qid
+        ? el("p", { class: "card-meta" }, [
+            "You chose this from Wikidata: ",
+            el("button", { class: "link", type: "button", text: work.wikidata_qid, onclick: () => go("work", work.wikidata_qid) }),
+          ])
+        : el("p", { class: "card-meta", text: work.rationale }),
       // The picture is not the one a verdict would accept on, and saying so is
       // the difference between a curator understanding the refusal and being
       // surprised by it. Accepting really is refused in this state — the service
@@ -520,7 +544,7 @@ export async function viewReview(runId, generation) {
   const offer = el("div", { role: "status" });
   const paintOffer = () => {
     const panel = reSearchOffer(waiting);
-    offer.replaceChildren(...(panel ? [panel] : []));
+    fill(offer, ...(panel ? [panel] : []));
   };
   paintOffer();
 
@@ -558,9 +582,9 @@ export async function viewReview(runId, generation) {
     // particular search and the way out is that search, which is a screen and
     // not a place in the navigation.
     el("p", {}, [
-      el("button", { class: "action quiet", type: "button", text: "← The search", onclick: () => go("run", runId) }),
+      el("button", { class: "action quiet", type: "button", text: page.run.kind === "get" ? "← The Get" : "← The search", onclick: () => go("run", runId) }),
     ]),
-    el("h2", { text: page.run.intent || "Re-search" }),
+    el("h2", { text: runTitle(page.run) }),
     // The catalogue grid's own helper: `fetchAllCandidates` returns the
     // `{works, total}` shape it takes, and a second copy of the sentence is how
     // one grid comes to word truncation differently from the other.

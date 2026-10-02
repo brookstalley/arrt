@@ -25,8 +25,9 @@ import { OPTIONAL_ID } from "./core/route.js";
 import { install, go, refresh } from "./core/router.js";
 import { installSearch, paintSearch } from "./core/search.js";
 import { installStatus, paintStatus } from "./core/status.js";
+import { paintAwaiting } from "./core/awaiting.js";
 import { state } from "./core/state.js";
-import { viewHistory, viewQueue } from "./screens/activity.js";
+import { viewHistory, viewQueue, viewToReview } from "./screens/activity.js";
 import { viewArtists } from "./screens/artists.js";
 import { viewCollection } from "./screens/collection.js";
 import { viewConversation } from "./screens/conversation.js";
@@ -52,7 +53,8 @@ import { viewWork } from "./screens/work.js";
 const SECTIONS = [
   { key: "artworks", label: "Artworks", glyph: "▣" },
   { key: "walls", label: "Walls", glyph: "▢" },
-  { key: "activity", label: "Activity", glyph: "↻" },
+  // `badge` names the count `core/awaiting.js` writes beside the label.
+  { key: "activity", label: "Activity", glyph: "↻", badge: "awaiting" },
   { key: "settings", label: "Settings", glyph: "⚙" },
   // `status` marks the section whose link carries the health badge.
   { key: "system", label: "System", glyph: "♥", status: true },
@@ -67,7 +69,7 @@ const SECTIONS = [
  * app, so its order is not cosmetic for that one line.
  *
  * **The keys are addresses, and they keep the spellings they had before the
- * labels changed** — `#collection` is Artworks, `#discover` is Add New,
+ * labels changed** — `#collection` is Artworks, `#discover` is Ask,
  * `#health` is Status. A bookmark or an agent's link is an address, and every
  * one of them would otherwise break for a word the curator never sees.
  *
@@ -78,10 +80,10 @@ const SECTIONS = [
  */
 const ROUTES = {
   collection: { render: viewCollection, section: "artworks", page: "Artworks" },
-  // Radarr's Add New: where a curator goes to bring in something the library
-  // does not hold. The intent box and the conversations; the searches they
-  // start are listed under Activity.
-  discover: { render: viewDiscover, section: "artworks", page: "Add New" },
+  // Ask, in the slot Radarr's Add New holds (ruling 3 dissolved Add New into
+  // Get): the intent box and the conversations. Keyed `discover`, the address it
+  // has always had; the searches it starts are listed under Activity.
+  discover: { render: viewDiscover, section: "artworks", page: "Ask" },
   // An index *and* an addressable detail, which is what the optional id buys:
   // `#theme` is every theme, `#theme/<id>` is one. § Navigation Structure
   // requires every consequential state to be addressable and one theme is one —
@@ -92,6 +94,9 @@ const ROUTES = {
   // at `#artist/<id>` one of them as the hub (ruling 4).
   artist: { render: viewArtists, detail: OPTIONAL_ID, section: "artworks", page: "Artists" },
   walls: { render: viewWalls, section: "walls", page: "Walls" },
+  // What waits for the curator's verdict, first under Activity because it is
+  // the one queue that needs them (`ia-proposal.md` § The map), with its count.
+  to_review: { render: viewToReview, section: "activity", page: "To review", badge: "awaiting" },
   // Radarr's Activity: the searches in flight, and the ones that ended.
   queue: { render: viewQueue, section: "activity", page: "Queue" },
   history: { render: viewHistory, section: "activity", page: "History" },
@@ -110,7 +115,7 @@ const ROUTES = {
   // would record an opener the curator never chose.
   run: { render: viewRun, detail: true, opensFrom: "queue" },
   // Contextual rather than a page: a conversation is something a curator does
-  // *within* Add New, and returns there.
+  // *within* Ask, and returns there.
   conversation: { render: viewConversation, detail: true, opensFrom: "discover" },
   // Keyed by the run whose works are being judged, not by a work: a curator
   // reviews a run's output as a set, and a per-work address would make the grid
@@ -127,6 +132,7 @@ install(ROUTES, {
   onNavigate: () => {
     paintSearch();
     paintStatus();
+    paintAwaiting();
   },
 });
 

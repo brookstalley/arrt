@@ -691,8 +691,9 @@ class RunOut(BaseModel):
     """
 
     run_id: str
-    #: `discovery` or `resolve`. A re-search is a run, which is what lets one
-    #: screen follow either without knowing which it is looking at.
+    #: `discovery`, `resolve` or `get`. A re-search and a Get are runs, which
+    #: is what lets one screen follow any of them without knowing which it is
+    #: looking at.
     kind: str
     status: str
     #: Whether this run has ended. Carried rather than left for the client to
@@ -735,10 +736,13 @@ class CandidateWorkOut(BaseModel):
     #: Why the engine named this work. Shown because a curator judging a work
     #: list is judging the reasoning as much as the titles.
     rationale: str
-    #: `proposed` — the model named it — or `offered`, meaning a wired collection
-    #: volunteered it on top of the list. Never merged into one count: the
-    #: curator authorised a list of a stated size and the supplement adds to it.
+    #: `proposed` — the model named it — `offered`, meaning a wired collection
+    #: volunteered it on top of the list, or `chosen`, meaning the curator chose
+    #: it from Wikidata for a Get. Never merged into one count: the curator
+    #: authorised a list of a stated size and the supplement adds to it.
     provenance: str
+    #: The Wikidata item a chosen work was asked for by; null otherwise.
+    wikidata_qid: str | None
     #: For an offered work, the browse query that produced it and how many works
     #: that query matched in the collection; null on both for a proposed work.
     #:
@@ -772,6 +776,8 @@ class RunTallyOut(BaseModel):
     total: int
     proposed: int
     offered: int
+    #: A Get's works, which the curator chose; zero on every other kind of run.
+    chosen: int
     resolved: int
     #: How many of the model's own works ended up with an image — the numerator
     #: any resolution rate is stated over. Counted directly rather than derived
@@ -833,6 +839,13 @@ class RunListOut(BaseModel):
     count: int
     total: int
     truncated: bool
+    #: Works with an image and no verdict yet, across every run and not only the
+    #: listed ones: what *To review* counts.
+    awaiting_works: int
+    #: The same, by run id, for the listed runs that hold any; a run with none is
+    #: absent. Beside the runs rather than on each, because a run read on its own
+    #: has its works to say it.
+    awaiting: dict[str, int]
 
 
 class EstimateOut(BaseModel):
@@ -1011,6 +1024,26 @@ class StartResolve(BaseModel):
     """The works to look again for images of."""
 
     work_ids: list[str]
+
+
+class StartGet(BaseModel):
+    """The Wikidata items of the works to get."""
+
+    qids: list[str]
+
+
+class SkippedOut(BaseModel):
+    """An item a Get left out, and why: `held`, `being_got` or `not_found`."""
+
+    qid: str
+    reason: str
+
+
+class GetOut(BaseModel):
+    """The run a Get started, or null when every item was skipped, and what it skipped."""
+
+    run: RunOut | None
+    skipped: list[SkippedOut]
 
 
 class SetVerdict(BaseModel):

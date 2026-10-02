@@ -17,7 +17,7 @@
  * than importing it, so the two do not import each other.
  */
 
-import { el } from "./render.js";
+import { el, fill } from "./render.js";
 
 /* The page a section's own link opens, and which pages it lists beneath it.
  *
@@ -33,7 +33,9 @@ function layout(table, sections) {
     return {
       section,
       opens: own[0][0],
-      listed: own.filter(([, entry]) => entry.page !== section.label).map(([view, entry]) => ({ view, label: entry.page })),
+      listed: own
+        .filter(([, entry]) => entry.page !== section.label)
+        .map(([view, entry]) => ({ view, label: entry.page, badge: entry.badge })),
     };
   });
 }
@@ -67,7 +69,7 @@ let sections = [];
 export function paintSidebar(table, sectionList, pick) {
   const nav = document.getElementById("sidebar");
   sections = layout(table, sectionList);
-  nav.replaceChildren(
+  fill(nav,
     el(
       "ul",
       {},
@@ -82,6 +84,8 @@ export function paintSidebar(table, sectionList, pick) {
               // The slot `core/status.js` fills. Marked here rather than found by
               // label, so renaming the section cannot silently orphan the badge.
               section.status ? el("span", { class: "status-slot", "data-status-slot": true }) : null,
+              // A count `core/awaiting.js` fills, for the section whose queue needs the curator.
+              section.badge ? el("span", { class: "count-slot", "data-count-slot": section.badge }) : null,
             ],
             pick,
           ),
@@ -89,7 +93,19 @@ export function paintSidebar(table, sectionList, pick) {
             ? el(
                 "ul",
                 { class: "pages" },
-                listed.map(({ view, label }) => el("li", {}, [link(view, {}, [label], pick)])),
+                listed.map(({ view, label, badge }) =>
+                  el("li", {}, [
+                    link(
+                      view,
+                      {},
+                      [
+                        el("span", { class: "label", text: label }),
+                        badge ? el("span", { class: "count-slot", "data-count-slot": badge }) : null,
+                      ],
+                      pick,
+                    ),
+                  ]),
+                ),
               )
             : null,
         ]),

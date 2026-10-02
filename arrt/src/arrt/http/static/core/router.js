@@ -138,7 +138,7 @@ export function backRow() {
  *
  * Opening a contextual screen records the page it was opened from, and that is
  * the whole of the return path. Arriving at a page carries nothing over: a
- * search made in Artworks is not a search Add New is running, and inheriting it
+ * search made in Artworks is not a search Ask is running, and inheriting it
  * would put a filter on a screen that never offered one.
  *
  * **Omitted when it is the screen's own default**, which is the ordinary case:

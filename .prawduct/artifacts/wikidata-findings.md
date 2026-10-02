@@ -258,6 +258,73 @@ A wrong figure that was caught: the first run used Q5432 for Dalí, typed from
 memory. It is another person, with Romanticism and Rococo as movements. Every
 QID above was read from a search result or from this document.
 
+## Commons, as an image source (Get and Ask, 2026-10-02)
+
+Measured for `build-plan-get-and-ask.md` Chunk 02, over every artist in a copy of
+the owner's catalogue that carries a QID (24 of 31). For each, every item whose
+creator (`P170`) is that artist, whether it has an image (`P18`), and whether that
+image, at the size Commons reports for the original, clears the floor on the
+operator's panel (3840 x 2160, 50", 2.5" mat, bottom x1.15, 12" floor: a 3400 x
+1687 box).
+
+| Artist | Works on Wikidata | With an image (P18) | Image clears the floor |
+| --- | --- | --- | --- |
+| Alexander Calder | 162 | 27 | 19 |
+| Arthur Dove | 216 | 60 | 41 |
+| Charles Demuth | 86 | 49 | 45 |
+| Constantin Brancusi | 26 | 9 | 5 |
+| Ellsworth Kelly | 385 | 3 | 3 |
+| Frank Lloyd Wright | 14 | 2 | 2 |
+| Franz Kline | 180 | 0 | 0 |
+| Georgia O'Keeffe | 225 | 21 | 8 |
+| Harry Callahan | 180 | 0 | 0 |
+| Jasper Johns | 2012 | 1 | 0 |
+| Joan Miró | 580 | 25 | 23 |
+| John Steuart Curry | 47 | 13 | 11 |
+| Juan Gris | 241 | 215 | 181 |
+| Katsushika Hokusai | 387 | 339 | 297 |
+| Marilyn Minter | 6 | 0 | 0 |
+| Mark Rothko | 1276 | 1 | 0 |
+| Paul Klee | 670 | 525 | 478 |
+| Pierre Andrieu | 18 | 13 | 8 |
+| Pierre-Auguste Renoir | 2159 | 1987 | 1322 |
+| Piet Mondrian | 1466 | 586 | 115 |
+| Raoul Dufy | 435 | 93 | 66 |
+| René Magritte | 319 | 3 | 2 |
+| Salvador Dalí | 1178 | 13 | 12 |
+| Vasily Kandinsky | 526 | 454 | 321 |
+| **All** | 12794 | 4439 | 2959 |
+
+**What it says:** Commons follows copyright. An artist whose work is in the
+public domain is well covered (Renoir, Klee, Gris, Hokusai, Kandinsky). One still
+in copyright has almost nothing (Rothko 1, Dalí 13, Magritte 3, Kline 0), so for
+those the Art Institute stays the only source. Two thirds of the images that exist
+clear the floor.
+
+**Licences** of the 4,439 images: public domain 3,802, CC0 247, and the rest CC BY
+or CC BY-SA in their versions. Commons' own `Copyrighted` flag is what the source
+reads: `False` is recorded public domain, `True` in copyright.
+**Types:** JPEG 4,289, PNG 73, TIFF 58, GIF 12, WebP 5, SVG 1.
+
+**The originals can be too large to fetch.** The five largest: Renoir's *Dance at
+Le Moulin de la Galette* at 40,869 x 30,379 and 752,213,958 bytes, a 357 MB TIFF,
+and three of 164 to 244 MB. Starry Night's (`Q45585`) is 44,567 x 35,291 and
+696,195,208 bytes. The acquisition path refuses a body over 512 MiB.
+
+**Renderings come in fixed widths, up to 3840.** `imageinfo` with `iiurlwidth`
+returns a `thumburl` at the next fixed width (843 asked gives a 960 px file) while
+`thumbwidth` echoes the width asked, so only a fixed width yields a true size. A
+URL for 5000 or 7680 px is refused with HTTP 400, so 3840 is the widest. For a
+file narrower than the width asked, `thumburl` is the original and `thumbwidth`
+is still the width asked. Renderings are served from `thumb.wikimedia.org`,
+originals from `upload.wikimedia.org`; both answered 200 with no redirect.
+`Special:FilePath` redirects twice before reaching the file, which is why the
+source asks the API for the file's own URL instead. The API's URLs carry
+`utm_` tracking parameters, which are not part of the file's address.
+
+The recorded answers the source's tests run against are in
+`arrt/tests/fixtures/commons/`.
+
 ## Reproducing
 
 The probes were scratch scripts, not product code: a SPARQL helper with the
