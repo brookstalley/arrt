@@ -557,9 +557,10 @@ function clearSelection(grid) {
  *
  * **Nothing here repaints the screen**, and that is the rule rather than an
  * optimisation: a curator standing on "Add" who is handed a new page has lost
- * their place and their focus. The outcome is announced in a live region, the
- * tiles that left are taken out one at a time, and the rail's theme counts
- * move in place (`moveThemeCount`).
+ * their place and their focus. The outcome is announced in a live region and
+ * the tiles that left are taken out one at a time. After an add the rail's
+ * theme count moves in place (`moveThemeCount`); after a removal the rail
+ * alone is recounted and redrawn, since every facet count beside it moved.
  *
  * **There is no bulk route, so this is a loop, and a loop can stop halfway.**
  * `POST /api/themes/{id}/works` takes one work and the store refuses a work the
@@ -681,6 +682,17 @@ function membershipControls({ themes, shownTheme, grid, heading, recount, recoun
       guard(async () => {
         const going = [...selected];
         let removed = 0;
+        let refused = false;
+        // After a refusal, the refusal is the error the curator must see: a
+        // recount failing too would otherwise replace the server's reason for
+        // stopping with its own. With no refusal, a failed recount is the error.
+        const recountQuietlyIfRefused = async () => {
+          try {
+            await recountRail();
+          } catch (failure) {
+            if (!refused) throw failure;
+          }
+        };
         try {
           for (const artworkId of going) {
             await api(`/api/themes/${encodeURIComponent(shownTheme.theme_id)}/works/${encodeURIComponent(artworkId)}`, {
@@ -691,6 +703,9 @@ function membershipControls({ themes, shownTheme, grid, heading, recount, recoun
             const tile = grid.querySelector(`[data-artwork="${CSS.escape(artworkId)}"]`);
             if (tile) tile.remove();
           }
+        } catch (failure) {
+          refused = true;
+          throw failure;
         } finally {
           removedSoFar += removed;
           settle();
@@ -708,7 +723,7 @@ function membershipControls({ themes, shownTheme, grid, heading, recount, recoun
           // the rail forbids. Recounted after a partial removal too. Adding
           // cannot do that (the works stay on screen), so only a removal
           // recounts, and only the rail is redrawn.
-          if (removed) await recountRail();
+          if (removed) await recountQuietlyIfRefused();
         }
         say(`Removed ${removed} ${removed === 1 ? "work" : "works"} from ${shownTheme.name}.`);
         announcement.focus();

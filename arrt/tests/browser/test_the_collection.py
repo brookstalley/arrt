@@ -710,6 +710,42 @@ def test_removing_recounts_the_facets_so_none_leads_to_an_empty_grid(ui, display
     assert theme_option(ui, theme).inner_text() == "Baroque (1)"
 
 
+def test_a_refused_removal_keeps_its_own_reason_when_the_recount_fails_too(ui, display, a_theme_holding_one_work):
+    """The server's reason for stopping is what the curator needs; a recount failing after it must not replace it.
+
+    Only the two failures are stubbed: the first removal goes to the real route,
+    so there is something to recount.
+    """
+    theme, works = a_theme_holding_one_work
+    display.add_to_theme(theme_id=theme.id, artwork_id=works[1].id)
+    refusal = "The second work could not be taken out."
+    deletes = []
+
+    def refuse_the_second_delete(route):
+        deletes.append(route.request.url)
+        if len(deletes) == 2:
+            route.fulfill(status=400, content_type="application/json", body=json.dumps({"error": refusal}))
+        else:
+            route.continue_()
+
+    ui.open(f"#collection?theme={theme.id}")
+    ui.page.wait_for_selector("ul.grid li.card")
+    ui.page.route(f"**/api/themes/{theme.id}/works/*", refuse_the_second_delete)
+    ui.page.route(
+        "**/api/works?limit=1*",
+        lambda route: route.fulfill(
+            status=500, content_type="application/json", body=json.dumps({"error": "The recount failed."})
+        ),
+    )
+    enter_select_mode(ui)
+    ui.page.check(f"li.card[data-artwork='{works[0].id}'] input.tile-select")
+    ui.page.check(f"li.card[data-artwork='{works[1].id}'] input.tile-select")
+    ui.page.click("button.selection-remove")
+
+    ui.page.wait_for_selector(f'#error:has-text("{refusal}")')
+    assert "The recount failed." not in ui.page.inner_text("#error")
+
+
 def test_a_collection_with_no_themes_draws_no_tick_it_cannot_act_on(ui, seeded_service):
     """A control with nothing behind it is the dead end the facet rules forbid.
 
