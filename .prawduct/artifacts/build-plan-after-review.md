@@ -3,7 +3,7 @@ artifact: build-plan
 version: 1
 scope: after-review
 branch: feature/after-review
-partition: 01 ∥ 03 delegated, each in its own worktree and branch, because 01 touches only acquisition, the catalogue store and the container's wiring, and 03 touches only the discovery service, its store and records; both leave `mcp/` and `http/` to the chunks after them. Then 02, 04, 05 serial, because all three edit `mcp/tools.py`, `mcp/bindings.py`, `http/api.py`, `core/reviewing.js` or `screens/activity.js`. The coordinator merges each delegate, runs the three suites and the Critic per chunk
+partition: 01 ∥ 03 delegated, each in its own worktree and branch. 01 owns `library/acquisition/`, the catalogue store, `PreparationService`, the container's wiring, `app.py` and `__main__.py`; 03 owns the discovery service, its store, records and migration, and the verdict's vocabulary on HTTP, MCP and in `static/`. Neither touches the other's files; if 01 needs a way to record spend without a run, it adds one method at the end of `DiscoveryService`, the one shared file. Then 02, 04, 05 serial, because all three edit `mcp/tools.py`, `mcp/bindings.py`, `http/api.py`, `core/reviewing.js` or `screens/activity.js`. The coordinator merges each delegate, runs the three suites and the Critic per chunk
 depends_on:
   - artifact: build-plan-topics-and-destinations
   - artifact: information-architecture
