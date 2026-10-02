@@ -146,6 +146,15 @@ Open assumptions:
 **What would raise it:** Chunk 03's twenty-topic measurement of kind and
 coverage.
 
+**Chunk 03's measurement (2026-10-02, `wikidata-findings.md` § Topics):** the
+kind rule was wrong on 0 of 20, so it stands. It raised five questions for the
+owner, open as of this writing: period works are slow (7-26 s, some time out);
+a named period is matched by its dates only (Dutch Golden Age lists *Las
+Meninas*); the "start and end time" clause admits exhibitions and wars to
+search and makes Romanticism a period; ranking artists by sitelinks puts
+non-artists first (Franklin for woodcut); search offers non-visual movements
+(impressionism in music).
+
 ## Status
 
 - [x] Chunk 01: A Get's destination, from HTTP and MCP
@@ -269,7 +278,7 @@ Q-rows in `data-model.md` § What this data must answer):
 
 ### Chunk 04: Your works' topics, and the topic index
 
-**Exposed API:** `GET /api/topics`, `GET /api/topics/{qid}`, `art_catalogue(action='topics'|'topic')`
+**Exposed API:** `GET /api/topics`, `GET /api/topics/{qid}`, `GET /api/topics/{qid}/works`, `GET /api/topics/{qid}/artists`, `art_catalogue(action='topics'|'topic')`. The two section routes were added 2026-10-02 after Chunk 03 measured period works at 7-26 s and some periods timing out: the page route answers from the facet rows with no network, and the registry sections are served apart, as the Artist page's are.
 
 **The questions the facet rows answer** (a persisted format; Q-rows in
 `data-model.md`):
