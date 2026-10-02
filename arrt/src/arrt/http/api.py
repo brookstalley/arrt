@@ -35,6 +35,8 @@ from fastapi import APIRouter, Query, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 
 from arrt.http.models import (
+    AcquisitionQueueOut,
+    AcquisitionStateOut,
     AddWork,
     AffinityListOut,
     AffinityOut,
@@ -74,7 +76,10 @@ from arrt.http.models import (
     MatColorOut,
     MoveWork,
     OriginalOut,
+    PickItem,
     PlayerTokenOut,
+    QueuedWorkOut,
+    QueuePauseOut,
     RegistryCreatorOut,
     RegistryHolderOut,
     RegistryHoldingOut,
@@ -125,15 +130,21 @@ from arrt.http.models import (
     WallListOut,
     WallOut,
     WallRefOut,
+    WantedListingOut,
+    WantedWorkOut,
+    WantWork,
     WorkDetailOut,
     WorkFacetOut,
+    WorkMatchesOut,
+    WorkMatchOut,
     WorkOut,
     WorkPageOut,
 )
+from arrt.library.acquisition.queue import AcquisitionState, QueueListing, QueuePause
 from arrt.library.services.artists import HeldArtist, RegistryView
 from arrt.library.services.catalogue import FacetGroup, RenditionView
 from arrt.library.services.conversation import ConversationDeletion, ConversationView, TurnView
-from arrt.library.services.discovery import VerdictOutcome
+from arrt.library.services.discovery import VerdictOutcome, WantedWork
 from arrt.library.services.display_fit import ArtworkBox
 from arrt.library.services.review import CandidatePage, CandidateView, InstanceListing, InstanceView
 from arrt.library.services.runner import Estimate, RunView, SpendReport
@@ -249,6 +260,22 @@ def list_works(
 def get_work(request: Request, artwork_id: str) -> WorkDetailOut:
     """One work in full — metadata, artist, sources, renditions and mats."""
     return _dossier(_services(request).survey.get_work(artwork_id))
+
+
+@router.post("/works/{artwork_id}/acquisition/retry")
+def retry_acquisition(request: Request, artwork_id: str) -> AcquisitionStateOut:
+    """Forget the work's failures and put it at the front of the acquisition queue.
+
+    Fetches nothing in the request: a tiled fetch may take half an hour, and the
+    queue fetches one work at a time. Answers with where the work now stands.
+    """
+    return _acquisition(_services(request).acquisition_queue.retry(artwork_id))
+
+
+@router.get("/acquisitions")
+def list_acquisitions(request: Request) -> AcquisitionQueueOut:
+    """Every work the acquisition queue owes something, in the order it will try them, and its pause if any."""
+    return _acquisition_queue(_services(request).acquisition_queue.listing())
 
 
 @router.post("/works/{artwork_id}/wikidata")
@@ -415,7 +442,8 @@ def search_topics(request: Request, q: Annotated[str, Query()] = "") -> TopicSea
     """Topics Wikidata finds for a typed name: periods, movements, kinds of work, and subjects.
 
     Always a 200: `state` says whether the registry was asked and what it did.
-    Not remembered, as a typeahead asks with every word.
+    Kept for `REGISTRY_KEPT_FOR`, like every registry answer: a typeahead asks with
+    every word, and the same word asked again is answered from disk.
     """
     found = _services(request).topics.named(q)
     return TopicSearchOut(
@@ -1040,6 +1068,51 @@ def set_verdict(request: Request, work_id: str, body: SetVerdict) -> VerdictOut:
     return _verdict(_services(request).discovery.set_verdict(work_id, body.verdict, reason=body.reason))
 
 
+@router.post("/candidates/{work_id}/want")
+def want_candidate(request: Request, work_id: str, body: WantWork) -> CandidateWorkOut:
+    """Want this work, turning down the named scan on the way if there is one. The one way into `wanted`.
+
+    Nothing looks for a scan until a re-search is asked for, which is a separate call (free today:
+    `RunnerSettings.phase2_estimate_usd`).
+    """
+    return _candidate_work(_services(request).discovery.want(work_id, turning_down=body.turning_down))
+
+
+@router.get("/wanted")
+def list_wanted(request: Request) -> WantedListingOut:
+    """Every work the curator wants, across runs, newest run first."""
+    return WantedListingOut(works=[_wanted_work(entry) for entry in _services(request).discovery.list_wanted()])
+
+
+@router.get("/candidates/{work_id}/wikidata-matches")
+def wikidata_matches(request: Request, work_id: str) -> WorkMatchesOut:
+    """Wikidata's items matching a wanted work's title, the proposed artist's first. Stores nothing."""
+    found = _services(request).wikidata_match.matches(work_id)
+    return WorkMatchesOut(
+        work_id=found.work.id,
+        title=found.work.proposed_title,
+        state=str(found.state),
+        note=found.note,
+        matches=[
+            WorkMatchOut(
+                qid=str(entry.match.qid),
+                title=str(entry.match.title),
+                creator=None if entry.match.creator is None else str(entry.match.creator.name),
+                sitelinks=entry.match.sitelinks,
+                has_image=entry.match.image is not None,
+                by_proposed_artist=entry.by_proposed_artist,
+            )
+            for entry in found.matches
+        ],
+    )
+
+
+@router.put("/candidates/{work_id}/wikidata-item")
+def pick_wikidata_item(request: Request, work_id: str, body: PickItem) -> CandidateWorkOut:
+    """Record the item the curator picked; a re-search then asks Commons by it."""
+    return _candidate_work(_services(request).wikidata_match.pick(work_id, body.qid))
+
+
 @router.post("/candidate-images/{image_id}/select")
 def select_candidate_image(request: Request, image_id: str, body: SelectImage) -> SelectedImageOut:
     """Make this the scan the work stands on, over the one the pipeline chose."""
@@ -1050,10 +1123,10 @@ def select_candidate_image(request: Request, image_id: str, body: SelectImage) -
 def reject_candidate_image(request: Request, image_id: str) -> CandidateWorkOut:
     """Turn down a scan and keep the work. Nothing looks again until asked.
 
-    Returns the work rather than the instance, because the interesting change is
-    the work's: it moves to `awaiting_better_image`, which is the verdict an
-    accept/reject binary cannot express — "I want this painting; this scan is not
-    good enough". The card repaints from that.
+    Returns the work rather than the instance, because the work may be what
+    changed: turning down the scan on offer makes it `wanted` — "I want this
+    painting; this scan is not good enough" — while turning down an alternate
+    leaves its verdict where it was. The card repaints from whichever it is.
     """
     return _candidate_work(_services(request).discovery.reject_image(image_id))
 
@@ -1207,6 +1280,31 @@ def _dossier(dossier: WorkDossier) -> WorkDetailOut:
         renditions=[_rendition(view) for view in dossier.renditions],
         mat_colors=[_mat_color(mat) for mat in dossier.mat_colors],
         facets=[_facet(facet) for facet in dossier.facets],
+        acquisition=None if dossier.acquisition is None else _acquisition(dossier.acquisition),
+    )
+
+
+def _acquisition(state: AcquisitionState) -> AcquisitionStateOut:
+    return AcquisitionStateOut(
+        artwork_id=state.artwork_id,
+        phase=str(state.phase),
+        failures=state.failures,
+        detail=state.detail,
+        next_try_at=None if state.next_try_at is None else state.next_try_at.isoformat(),
+        since=None if state.since is None else state.since.isoformat(),
+        condition=state.condition,
+        remedy=state.remedy,
+    )
+
+
+def _queue_pause(pause: QueuePause) -> QueuePauseOut:
+    return QueuePauseOut(condition=pause.condition, detail=pause.detail, since=pause.since.isoformat(), remedy=pause.remedy)
+
+
+def _acquisition_queue(listing: QueueListing) -> AcquisitionQueueOut:
+    return AcquisitionQueueOut(
+        pause=None if listing.pause is None else _queue_pause(listing.pause),
+        works=[QueuedWorkOut(title=entry.title, acquisition=_acquisition(entry.state)) for entry in listing.entries],
     )
 
 
@@ -1436,6 +1534,7 @@ def _run_view(view: RunView) -> RunViewOut:
 def _candidate_work(work: CandidateWork) -> CandidateWorkOut:
     return CandidateWorkOut(
         work_id=work.id,
+        artwork_id=work.artwork_id,
         title=work.proposed_title,
         artist=work.proposed_artist,
         rationale=work.rationale,
@@ -1446,6 +1545,18 @@ def _candidate_work(work: CandidateWork) -> CandidateWorkOut:
         verdict=str(work.verdict),
         resolution_status=str(work.resolution_status),
         unresolved_reason=None if work.unresolved_reason is None else str(work.unresolved_reason),
+    )
+
+
+def _wanted_work(entry: WantedWork) -> WantedWorkOut:
+    work = entry.work
+    return WantedWorkOut(
+        work_id=work.id,
+        title=work.proposed_title,
+        artist=work.proposed_artist,
+        run_id=work.discovery_run_id,
+        wikidata_qid=work.wikidata_qid,
+        scans_turned_down=entry.scans_turned_down,
     )
 
 

@@ -502,8 +502,8 @@ def test_a_run_waiting_for_the_curator_cannot_break_or_be_halted(discovery, run,
 
     Both are things that happen to a run *while it works*. Leaving them reachable
     from `awaiting_approval` would put two edges in the machine that the model
-    does not draw — the state the artifact already had to correct once for
-    `awaiting_better_image`.
+    does not draw — the mistake the artifact already had to correct once for
+    the verdict machine's `wanted`.
     """
     propose()
     discovery.finish_work_list(run.id, approval_threshold=0)

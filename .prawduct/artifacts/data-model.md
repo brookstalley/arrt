@@ -176,6 +176,13 @@ to serve, elicited from the Product Brief's core flows:
 | Q28 | Which Topic page does this facet value open? | Owner 2026-10-02 (topics) |
 | Q29 | Do I already have this answer from a slow foreign source, and is it fresh enough to use? Asked by every page section that asks one (the registry's first). | Owner 2026-10-02 (kept answers) |
 | Q30 | How much is kept, and what can be thrown away first? Asked by the store itself on every write and at every open. | Owner 2026-10-02 (kept answers) |
+| Q31 | Which accepted works hold no master image, or owe the preparation after one, and are due an attempt now? Asked by the acquisition queue at start and on every wake. | Owner 2026-10-02 (#167) |
+| Q32 | How many times in a row has a work's fetch or preparation failed, and when may it next be tried? Asked by the queue's retry schedule: 1 hour, 1 day, 3 days. | Owner 2026-10-02 (#167) |
+| Q33 | Why did the last attempt fail, in words a curator can act on? Asked by the Work page and Activity › Queue. | Owner 2026-10-02 (#167) |
+| Q34 | Has the queue given up on this work? Asked by the Retry button. | Owner 2026-10-02 (#167) |
+| Q35 | Which source should the next attempt use, when someone named one? Asked by MCP's `retry_acquisition`. | Owner 2026-10-02 (#167) |
+| Q36 | Which works does the curator want and not yet hold a scan of, across every run? Asked by Activity › Wanted and `art_review(action='list_wanted')`. | Owner 2026-10-02 (#168) |
+| Q37 | Was this work wanted because a scan was turned down, or because none was found? | Owner 2026-10-02 (#168) |
 
 **Q22 to Q24 are answered by one column, `DiscoveryRun.destination_theme_id`**
 (`build-plan-topics-and-destinations.md` Chunk 01). A work reaches its run
@@ -204,6 +211,24 @@ each page section one more question of its source. That is why it is not part of
 the catalogue, why a backup skips it, and why its format changes by being
 replaced rather than migrated.
 
+**Q31 to Q35 are answered by `AcquisitionQueue`, one table in the catalogue
+file** (`build-plan-after-review.md` Chunk 01). Q31 is a join: accepted works with
+no `Original`, or with a queue row, whose row is absent, or has no
+`next_try_at`, or one that has passed, and whose `failures` is under the limit.
+Q32 is `failures` and `next_try_at`; Q33 is `detail`; Q35 is `source_id`. Q34 is
+`failures` reaching four (the first try and three retries), read rather than
+stored, so a "gave up" flag cannot disagree with the count. What is being fetched
+right now, and why the queue is paused, are not stored: both are facts about the
+running process, and a restart finds them out again by trying.
+
+**Q36 and Q37 are answered by `CandidateWork.verdict` and the work's instances,
+with nothing new stored** (`build-plan-after-review.md` Chunk 03). Q36 is every
+work whose verdict is `wanted`, across runs (`DiscoveryStore.list_wanted_works`);
+the service orders it newest run first, since the verdict carries no moment of its
+own. Q37 is whether a wanted work holds any instance with `rejected_at` set — a
+count read at the listing, so it cannot disagree with the rows it counts. Storing
+the reason beside the verdict would be a second truth about the same instances.
+
 **Q15 is what makes the collection navigable at the amended scale**
 (`nonfunctional-requirements.md`, thousands of works). At 41 works a curator
 scrolls; at 4,000 an unfiltered grid is a wall of pictures with no way in. It is
@@ -231,8 +256,8 @@ the product feels broken in a way no single component is responsible for.
 
 **Q11 is Q3's trap.** The two look like the same question and must not share a
 mechanism. Rejecting a *work* suppresses the work; rejecting an *image* must
-suppress only that image and explicitly leave the work eligible — otherwise asking
-for a better scan of a painting silently blacklists the painting. One suppression
+suppress only that image and explicitly leave the work eligible — otherwise turning
+down a scan of a painting the curator wants silently blacklists the painting. One suppression
 key for both is the bug, and it is invisible until a curator wonders why a work
 they asked to keep never came back.
 
@@ -488,6 +513,39 @@ the art tree that rsync carries and git does not.
 > card judge against the Library's quality profile, which is stated in pixels
 > and names no device. The Library keeps only `width` and `height`, as this
 > section already requires.
+
+### AcquisitionQueue
+
+> **Library-owned, in the catalogue file** (table `acquisition_queue`, added
+> 2026-10-02 for #167). A new table, so `CREATE TABLE IF NOT EXISTS` reaches a
+> file written before it and no migration was needed.
+
+The acquisition queue's memory of each accepted work it has started on and not
+finished (Q31 to Q35). A row is written when the queue first attempts a work, or
+when a curator asks for a Retry, and deleted when the work has been fetched and
+prepared. So the table holds only the works still owing something:
+
+- **No `Original` and no row**: the work has not had its first turn.
+- **No `Original` and a row**: it has been tried and failed, or the queue gave up.
+- **An `Original` and a row**: it was fetched and still owes its preparation
+  (which failed, or the process stopped between the two), or a Retry named a
+  source to fetch it again from. The next attempt prepares without fetching,
+  unless a source was named.
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `artwork_id` | UUID | PK, FK → Artwork | One row per work. |
+| `failures` | integer | required, default 0, ≥ 0 | Attempts that failed in a row since the last success or Retry. The retry schedule and "gave up" (four) are read from it (Q32, Q34). |
+| `next_try_at` | datetime | nullable | When the work may next be tried (Q32). Null means now, or never once the queue has given up; `failures` says which. |
+| `detail` | string | nullable | Why the last attempt failed, in the words acquisition or preparation gave (Q33). |
+| `source_id` | UUID | FK → Source, nullable | The source the next fetch must use, when a Retry named one (Q35). Cleared once a fetch from it has been made. |
+
+> **What counts as a failure.** A fetch that records one (`Source.last_fetch_status
+> = failed`), a refusal about the work itself (no source, or several and none
+> primary), or a preparation that refuses. A fetch that comes back with gaps
+> (`partial_tiles`) is an image and counts as acquired. A deployment fault (a
+> short disk, no dezoomify-rs, a provider with no resolver) is not a failure of
+> the work: the queue pauses and the row is unchanged.
 
 ### Rendition
 
@@ -1207,11 +1265,11 @@ artworks.
 | `offered_for_artist` | string | nullable | The browse query that produced an offered work — the **run's** spelling of the artist, which is what `proposed_artist` carries on the works the run named, so the two halves of a group can be counted against each other. Null on a proposed work, which no query produced. **Null does not mean proposed**: an offered row written before this column carries null too, and `provenance` remains the only thing that says which a work is. |
 | `offered_artist_matched` | integer | nullable | How many works that query matched in the collection. **The collection's holdings, never capped by `offered_works_per_run`** — the per-run bound is what a reader reconciles it against, so capping it here would collapse the comparison `product-brief.md` requires (telling one-of-four-hundred from one-of-one). Null under the same conditions as `offered_for_artist`. |
 | `work_dedup_key` | string | required, indexed | Normalised work identity for cross-run suppression. **Q3.** |
-| `wikidata_qid` | string | nullable | The Wikidata item a `chosen` work was asked for by; null on proposed and offered works. Handed to the image sources, so a source that looks a work up by item (Commons) can, and stored on the artwork at acceptance, set by the curator. Nullable so widening adds it to older files. |
+| `wikidata_qid` | string | nullable | The Wikidata item a `chosen` work was asked for by, or, on any undecided work, the item the curator picked from Wikidata's matches for its title (`DiscoveryService.set_wikidata_item`, since 2026-10-02, `build-plan-after-review.md` Chunk 04; never matched by title on its own, § Registry identity). Null otherwise. Handed to the image sources, so a source that looks a work up by item (Commons) can, and stored on the artwork at acceptance, set by the curator. Nullable so widening adds it to older files. |
 | `provenance` | enum | required, defaults `proposed` | `proposed` \| `offered` \| `chosen`. Who put this work in front of the curator: the model named it, a wired collection volunteered it, or the curator chose it from Wikidata for a Get. Nullable *on disk* only so the column can be added to files written before collections were browsable — a null reads as `proposed`, that being the only thing which could have written a row then. |
 | `resolution_status` | enum | required | `pending` \| `resolved` \| `unresolved`. Reflects the **latest** resolution attempt, whether that was the original phase 2 or a later re-search. `unresolved` ⇒ that attempt found no credible instance the curator has not already rejected. **Q12.** |
 | `unresolved_reason` | enum | nullable | Which kind of nothing: `not_held` \| `identity_refused` \| `size_unknown` \| `below_floor` \| `all_rejected`. Set whenever `resolution_status = unresolved`, null otherwise — **with one honest exception: a row whose attempt predates the column reads null beside `unresolved`.** The column was added nullable and existing files are widened without backfill, so the two runs that motivated it are themselves in that state. A null beside `unresolved` therefore means "this attempt happened before the reason was recorded", never "no reason applies". **Q12.** |
-| `verdict` | enum | required | `pending` \| `accepted` \| `rejected` \| `awaiting_better_image`. See State Machines. |
+| `verdict` | enum | required | `pending` \| `accepted` \| `rejected` \| `wanted`. See State Machines. `wanted` was `awaiting_better_image` until 2026-10-02 (`build-plan-after-review.md` Chunk 03); a migration on open rewrites stored rows, and nothing reads the old spelling. **Q36, Q37.** |
 | `rejected_reason` | text | nullable | Optional curator note. |
 | `decided_at` | datetime | nullable | |
 
@@ -1241,12 +1299,16 @@ artworks.
 > therefore before anything could have been offered — an offer exists only to
 > supplement what phase 2 failed to confirm.
 
-> **`awaiting_better_image` is the verdict an accept/reject binary cannot express**
-> — "I want this work; this instance is not good enough; find another." It is not
-> an edge case, and it is not terminal: the work returns to review once a new
-> instance is selected. Modelling it as a rejection would suppress the work via
-> `work_dedup_key` and silently lose a painting the curator explicitly asked to
-> keep (**Q11**).
+> **`wanted` is the verdict an accept/reject binary cannot express** — "I want this
+> work, and I hold no scan of it I would accept; find one." It covers a work whose
+> scan on offer the curator turned down and a work no scan was found for at all,
+> because those are one wish (the owner's #168, 2026-10-02: "'want a better scan'
+> is not that different from 'want any scan at all'"). Which it was is read from
+> the work's instances — a wanted work holding a turned-down instance was turned
+> down — and never stored (**Q37**). It is not an edge case, and it is not
+> terminal: the work returns to review once a new instance is selected. Modelling
+> it as a rejection would suppress the work via `work_dedup_key` and silently lose
+> a painting the curator explicitly asked to keep (**Q11**).
 >
 > **`resolution_status = unresolved` is a first-class outcome, not an absent row.**
 > Phase 2 failing to find any credible instance is one of the signals that phase 1
@@ -1272,7 +1334,7 @@ artworks.
 > > **`all_rejected` was added on 2026-08-04 after the list had been written at
 > > four, and the correction is kept rather than smoothed over** because the reason
 > > it was missed is reusable. It was ruled unreachable on the grounds that
-> > rejecting every instance sets the *verdict* to `awaiting_better_image` rather
+> > rejecting every instance sets the *verdict* to `awaiting_better_image` (now `wanted`) rather
 > > than the resolution status — true at the rejection, and irrelevant, because the
 > > write that matters happens later: the re-search that finds nothing then lands
 > > the same work at `unresolved`, which this document already said in as many
@@ -1321,7 +1383,7 @@ artworks.
 > meant "phase 2 found no credible instance" — an outcome of the original run only.
 > It now tracks the *latest* resolution attempt, which is what gives a failed
 > re-search a terminal representation without adding a verdict value for it. A work
-> in `awaiting_better_image` whose re-search comes back empty lands at
+> that is `wanted` and whose re-search comes back empty lands at
 > `unresolved`, and constraint 9 already forbids presenting it as accepted-able or
 > silently omitting it — so the dead end reports itself.
 >
@@ -1705,7 +1767,7 @@ path consults it before spending.
 | `discovery_run_id` | UUID | FK → DiscoveryRun, nullable | Null for non-discovery spend, e.g. mat colour. |
 | `artwork_id` | UUID | FK → Artwork, nullable | Set for per-artwork spend. |
 | `conversation_turn_id` | UUID | FK → ConversationTurn, nullable | Set for intent-forming spend. Added 2026-08-10 — see below. **Nulled, never cascaded, when the conversation is deleted** (2026-08-12): the money was spent whatever became of the thread, and a ledger whose totals fall when someone tidies a transcript is the failure the `conversation_tokens` rule below exists to prevent. |
-| `category` | enum | required | `discovery_tokens` \| `web_search` \| `image_research` \| `mat_color_vision` \| `conversation_tokens` — **`mat_color_vision` has a producer but writes no row today; see the deferral below.** |
+| `category` | enum | required | `discovery_tokens` \| `web_search` \| `image_research` \| `mat_color_vision` \| `conversation_tokens` — **`mat_color_vision` is written since 2026-10-02; see the note below.** |
 | `model_id` | string | nullable | |
 | `input_tokens`, `output_tokens` | integer | nullable | Null where the unit is not tokens. |
 | `units` | integer | nullable | e.g. number of web searches. |
@@ -1739,26 +1801,24 @@ path consults it before spending.
 > after-the-fact "what did this run cost", and monthly reporting. Those are real
 > needs and none of them is enforcement.
 >
-> **`mat_color_vision` is declared and unwritten, recorded here so the row does not
-> read as implemented (2026-08-04).** The category and its two nullable-key columns
-> predate any producer. Chunk 18B shipped the producer — a vision call per accepted
-> work through `MatEngine` — and it writes no SpendRecord: the cost is returned to
-> the caller on `cost_usd`, reported in the tool result, and then discarded. So the
-> monthly total from `art_discovery(action='spend')` omits every mat call. The
-> figures are small (about $0.000063 a call, one per accepted work) and the ceiling
-> is unaffected either way, because the ceiling is the provider's and this table
-> never enforced it — but a month total that silently excludes a whole paid path is
-> the wrong kind of small.
+> **`mat_color_vision` is written, with the work's `artwork_id`, since 2026-10-02**
+> (`build-plan-after-review.md` Chunk 01). It was declared and unwritten from
+> 2026-08-04: the producer (a vision call per work through `MatEngine`) returned its
+> cost on `cost_usd` and nothing kept it, so the month total omitted every mat call.
+> The acquisition queue prepares every accepted work unattended, which turns an
+> occasional cost into a routine one, so the row is now written by
+> `PreparationService` wherever it asks the model: a first preparation (from the
+> queue or MCP's `regenerate`) and `choose_mat`. A row is written when the model
+> answered, or billed for an answer it could not use; a call that never reached
+> the model costs nothing and writes nothing. `model_id` names the model asked even
+> when the colour fell back, since that is who billed.
 >
-> **It is deferred rather than merely missing, and the reason is where the writer
-> would have to live.** `record_spend` belongs to `DiscoveryService`, so recording
-> mat spend today means `PreparationService` taking a dependency on the discovery
-> service to reach an accounting concern that has nothing to do with discovery —
-> deepening precisely the coupling that is already filed for removal. Spend
-> accounting is separable on its own records and its own aggregation, and the mat
-> path is the second caller that proves it. The writer lands with that split, and
-> both are tracked in the backlog.
->
+> **The coupling the earlier deferral named is contained, not removed.**
+> `record_spend` still lives on `DiscoveryService`, and preparation reaches it
+> through a one-method protocol (`SpendLedger`), as the conversation service does.
+> Moving the ledger out of discovery, which the backlog tracks, changes the wiring
+> in the container and nothing in preparation.
+
 > **Q4.** `category` separates `web_search` because it is billed per search rather
 > than per token, so a token-only breakdown would misattribute cost. The earlier
 > claim that it "may dominate token spend entirely — an unresolved open question"
@@ -1774,9 +1834,11 @@ path consults it before spending.
 > because there was no other row to attribute it to. Still true, and unchanged: the
 > originating run never reopens, and its `status` stays `completed`.
 >
-> The paid re-search is `art_discovery(action='resolve_images')` — deliberately not
-> a side effect of `art_review(action='reject_image')`, so that exactly one tool
-> spends. See `api-contract.md`.
+> The re-search is `art_discovery(action='resolve_images')` — deliberately not
+> a side effect of `art_review(action='reject_image')`, so that searching stays out
+> of the review tool. It costs nothing today, so `image_research` rows are written by
+> nothing yet; they are where a paid image provider's cost would land (corrected
+> 2026-10-02, `build-plan-after-review.md` Chunk 05b). See `api-contract.md`.
 
 ### ResolveRunWork
 
@@ -2127,16 +2189,17 @@ of 40 works succeeded partially; it did not fail.
    ▼                                             │
 pending ──┬──▶ accepted  (mints an Artwork)      │
           ├──▶ rejected  (terminal; suppresses)  │
-          └──▶ awaiting_better_image ────────────┘
-               entered ONLY via art_review(reject_image)
+          └──▶ wanted ───────────────────────────┘
+               entered ONLY via want — directly, or
+               through reject_image on the scan on offer
                     │
                     ├──▶ accepted   via set_verdict
                     └──▶ rejected   via set_verdict
 ```
 
-`awaiting_better_image` is **not terminal**. It returns to `pending` once a
-resolution attempt selects a fresh instance, and it must not write
-`work_dedup_key` suppression — that is reserved for `rejected` (**Q11**).
+`wanted` is **not terminal**. It returns to `pending` once a resolution attempt
+selects a fresh instance, and it must not write `work_dedup_key` suppression —
+that is reserved for `rejected` (**Q11**).
 **The curator may also leave it directly** via `set_verdict` — accepting the best
 instance on offer, or giving up on the work — which is why the two edges above
 exist (added 2026-07-20; the diagram previously drew no exit but `set_verdict`
@@ -2145,7 +2208,7 @@ constrains only its *target* value, so the transition was reachable and unmodell
 **Terminal verdicts are never overwritten by a resolve run (decided 2026-07-20).**
 `verdict` has two writers — the curator through `art_review`, and a resolve run
 completing — and only the curator's is authoritative. A resolve run writes
-`pending` **only if the work is still `awaiting_better_image` when it finishes**;
+`pending` **only if the work is still undecided (`pending` or `wanted`) when it finishes**;
 if the curator has since accepted or rejected it, the run's result is **reported,
 not applied**, and the verdict stands. Without this rule a resolve completing after
 an accept writes `pending` over `accepted`, leaving a work with an `artwork_id` and
@@ -2163,13 +2226,13 @@ more enum values — it is to stop conflating curator *intent* with job *state*:
 
 | Situation | How it is known |
 |---|---|
-| Curator asked for better; nothing running | `awaiting_better_image`, and no `ResolveRunWork` row for it on a run in `resolving_images` |
+| Curator wants it; nothing running | `wanted`, and no `ResolveRunWork` row for it on a run in `resolving_images` |
 | Re-search in flight | A `ResolveRunWork` row for this work whose run is in `resolving_images` |
 | Re-search found nothing | `resolution_status = unresolved` — see above |
 
-`awaiting_better_image` therefore means exactly one thing: *the curator wants this
-work and the current instance is not good enough*. It is a statement of intent, and
-intent does not change when a job starts or finishes.
+`wanted` therefore means exactly one thing: *the curator wants this work and holds
+no scan of it they would accept*. It is a statement of intent, and intent does not
+change when a job starts or finishes.
 
 **This follows the readiness decision rather than re-litigating it.** Storing
 "re-search running" as a verdict value would create a second truth beside the run
@@ -2177,14 +2240,20 @@ row, and the two can disagree — a crashed resolve run would leave the work rea
 `resolving` forever with nothing to correct it. Derived state cannot drift from the
 thing it is derived from. See `architecture.md` § readiness.
 
-**Entry is single-path by construction (decided 2026-07-20).** `set_verdict` does
-**not** accept `awaiting_better_image`; `reject_image` is the only way in. Both
-previously reached it and only `reject_image` set `rejected_at`, so a re-search
+**Entry is single-path by construction (decided 2026-07-20, amended 2026-10-02).**
+`set_verdict` does **not** accept `wanted`; `want` is the only way in. On
+2026-07-20 the way in was `reject_image`, because two paths had reached the old
+`awaiting_better_image` and only `reject_image` set `rejected_at`, so a re-search
 could legitimately return the image the curator had just rejected — the exact
 suppression failure **Q11** exists to prevent, reappearing on the instance scope.
-Narrowing the entry makes that impossible rather than defended against, and it
-matches the scope boundary the tools already have: `awaiting_better_image` is a
-judgement about the *instance*, and `set_verdict` is work-scoped.
+On 2026-10-02 (#168) the verdict became `wanted` and its entry became `want`, which
+takes the scan being turned down as an optional argument and suppresses it in the
+same transaction as the verdict. The reason survives the move: **turning a scan
+down is still the only way to suppress one**, and a verdict reached by naming a
+scan always suppresses it. `want` naming no scan suppresses nothing, because a
+work found with no scan has nothing to turn down. `reject_image` makes a work
+`wanted` only when the scan was the one on offer; turning down an alternate
+suppresses it and leaves the verdict where it was.
 
 ## Constraints
 
@@ -2246,7 +2315,7 @@ judgement about the *instance*, and `set_verdict` is work-scoped.
       future proposals, unless the curator explicitly reconsiders it.
    b. A **CandidateImage** with `rejected_at` set is excluded from re-selection for
       its work, and this must leave the work itself eligible.
-   Enforcing (b) through (a) is the failure mode: asking for a better scan would
+   Enforcing (b) through (a) is the failure mode: turning down a scan would
    blacklist the painting. **Q11.**
    **(b) is scoped to the URL, not to the row that holds it** *(added 2026-08-03,
    when the re-search was first built and immediately defeated it)*. A work holds
@@ -2325,8 +2394,8 @@ judgement about the *instance*, and `set_verdict` is work-scoped.
     run-creation time by checking that table — `resolve_images` refuses any work id
     appearing in a `ResolveRunWork` row whose run is in a **non-terminal** status,
     and names the offending ids in the refusal rather than silently deduplicating.
-    Without this, double-submitting the same ids spends twice for one result on the
-    only tool that spends money at all.
+    Without this, double-submitting the same ids searches twice for one result,
+    and would spend twice if a paid image provider is ever added.
     **"Non-terminal" is safe to key on only because of startup reconciliation** (see
     State Machines). Every terminal state *except* `interrupted` is written by the
     run's own process — which is precisely why `interrupted` had to exist: without
@@ -2343,10 +2412,16 @@ judgement about the *instance*, and `set_verdict` is work-scoped.
     So the two halves of this artifact disagreed, and the dead half had reached
     `operational-spec.md` as a remedy telling an operator to approve a run that
     cannot exist. A live coverage-holding run is always `resolving_images`.
-15. **`awaiting_better_image` is reachable only through `art_review(reject_image)`.**
-    The path that sets `rejected_at` and the path that sets the verdict are the same
-    path, so instance suppression can never be skipped. `set_verdict` rejects the
-    value with an error naming `reject_image` — see `api-contract.md`.
+15. **`wanted` is reachable only through `want`** *(amended 2026-10-02; it read
+    "`awaiting_better_image` is reachable only through `art_review(reject_image)`")*.
+    When `want` names a scan being turned down, the path that sets `rejected_at` and
+    the path that sets the verdict are the same transaction, so instance suppression
+    can never be skipped; naming none suppresses nothing. `reject_image` reaches
+    `wanted` only through `want`, and only for the scan on offer. `set_verdict`
+    rejects the value with an error naming `want` — see `api-contract.md`
+    § `set_verdict` cannot set `wanted`. Enforced by the service (the store's
+    `verdict` column holds any string; nothing below the service refuses one), and
+    pinned by `arrt/tests/unit/test_discovery_constraints.py` § 15.
 16. **A re-fetch never lowers the quality of the image a work already holds: a
     `partial_tiles` result does not replace a held Original unless that Original is
     itself recorded as `partial_tiles`.** *(Added 2026-08-04.)* Re-acquisition is an
@@ -2529,7 +2604,7 @@ an open question.
 
 The memory of what a Watch has already seen is the existing dedup and
 rejected-candidate records, not a new table. Upgrade monitoring (re-searching
-works whose verdict is `awaiting_better_image`) runs on the same scheduler.
+works whose verdict is `wanted`) runs on the same scheduler.
 
 ### Player observation *(Programming)*
 

@@ -508,6 +508,48 @@ class TopicPageOut(BaseModel):
     works: list[WorkOut]
 
 
+class AcquisitionStateOut(BaseModel):
+    """Where one work stands in the acquisition queue.
+
+    `phase` is one of `queued`, `fetching`, `failed`, `gave_up` and `paused`,
+    each said in words by the client beside its glyph. `detail` is why the last
+    attempt failed, or why the queue is paused; `remedy` is what an operator
+    changes to end a pause, when the condition has one.
+    """
+
+    artwork_id: str
+    phase: str
+    failures: int
+    detail: str | None
+    next_try_at: str | None
+    since: str | None
+    condition: str | None
+    remedy: str | None
+
+
+class QueuePauseOut(BaseModel):
+    """Why the acquisition queue is paused: a condition that is the deployment's, not any work's."""
+
+    condition: str
+    detail: str
+    since: str
+    remedy: str | None
+
+
+class QueuedWorkOut(BaseModel):
+    """One work the acquisition queue owes something, named for a person."""
+
+    title: str
+    acquisition: AcquisitionStateOut
+
+
+class AcquisitionQueueOut(BaseModel):
+    """Activity › Queue's acquisitions: the pause, if any, then every work owed, in the order tried."""
+
+    pause: QueuePauseOut | None
+    works: list[QueuedWorkOut]
+
+
 class WorkDetailOut(BaseModel):
     """One work in full."""
 
@@ -520,6 +562,9 @@ class WorkDetailOut(BaseModel):
     #: detail rather than on `WorkOut`, because the grid shows the collection's
     #: counts and the Work screen shows one work's facts.
     facets: list[WorkFacetOut] = []
+    #: Where the work stands in the acquisition queue; null when the queue owes
+    #: it nothing (its image is held and prepared, or it is archived).
+    acquisition: AcquisitionStateOut | None = None
 
 
 class ThemeOut(BaseModel):
@@ -861,6 +906,9 @@ class CandidateWorkOut(BaseModel):
     """
 
     work_id: str
+    #: The catalogue work acceptance made of it; null until it is accepted. What
+    #: a review card follows to say how the work's image is coming along.
+    artwork_id: str | None = None
     title: str
     artist: str | None
     #: Why the engine named this work. Shown because a curator judging a work
@@ -1188,12 +1236,12 @@ class GetOut(BaseModel):
 
 
 class SetVerdict(BaseModel):
-    """A curator's decision about a proposed work.
+    """A curator's decision about a proposed work: `accepted` or `rejected`.
 
-    `awaiting_better_image` is deliberately not settable here: that verdict is
-    what rejecting an *image* means, and it is set by that call so the verdict and
-    the instance's suppression can never come apart. The service refuses it, and
-    the refusal says which call does set it.
+    `wanted` is deliberately not settable here: its one way in is
+    `POST /api/candidates/{id}/want`, which is also where a scan being turned
+    down on the way is suppressed, so the two can never come apart. The service
+    refuses it, and the refusal names `want`.
     """
 
     verdict: str
@@ -1201,6 +1249,80 @@ class SetVerdict(BaseModel):
     #: "rejected because it is a studio copy" are the same row to the pipeline and
     #: different evidence to whoever reads it later.
     reason: str | None = None
+
+
+class WantWork(BaseModel):
+    """That the curator wants a work, and which scan of it, if any, they are turning down.
+
+    `turning_down` is a scan of this work. Named, it is suppressed and the
+    selection falls through, as turning it down on its own row does; omitted,
+    nothing is suppressed, because wanting a work found with no scan is not a
+    judgement about any scan.
+    """
+
+    turning_down: str | None = None
+
+
+class WorkMatchOut(BaseModel):
+    """One Wikidata item matching a wanted work's title, for the curator to pick from.
+
+    Registry text, shown as text. `has_image` says whether Commons holds a file
+    for it, which is what a re-search by this item could find.
+    """
+
+    qid: str
+    title: str
+    creator: str | None
+    sitelinks: int
+    has_image: bool
+    #: Whether its creator is the artist the run proposed: what puts it first.
+    by_proposed_artist: bool
+
+
+class WorkMatchesOut(BaseModel):
+    """Wikidata's items for a wanted work, and why there are or are not any."""
+
+    work_id: str
+    title: str
+    #: `known`, `not_configured` (no `WIKIDATA_USER_AGENT`) or `unavailable`.
+    state: str
+    note: str | None
+    matches: list[WorkMatchOut]
+
+
+class PickItem(BaseModel):
+    """The Wikidata item the curator picked for a wanted work."""
+
+    qid: str
+
+
+class WantedWorkOut(BaseModel):
+    """A work the curator wants and holds no scan of they would accept.
+
+    Named as `art_review(action='list_wanted')` names the same facts.
+    """
+
+    work_id: str
+    title: str
+    artist: str | None
+    #: The run that proposed the work, which is where its card lives.
+    run_id: str
+    #: The Wikidata item the work is known by, or null when none is.
+    wikidata_qid: str | None
+    #: How many of its scans the curator turned down: zero for a work wanted
+    #: because nothing was found. Counted from its scans, not stored.
+    scans_turned_down: int
+
+
+class WantedListingOut(BaseModel):
+    """Every wanted work, newest run first.
+
+    Uncapped, and what bounds it is the curator: each row is a work somebody
+    wanted by name, one call per work, so the list grows no faster than works are
+    judged, and a row is a few short strings with no picture.
+    """
+
+    works: list[WantedWorkOut]
 
 
 class SelectImage(BaseModel):

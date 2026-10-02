@@ -30,6 +30,7 @@ from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from starlette.types import Receive, Scope, Send
 
 from arrt.http import api, pages, player
+from arrt.library.acquisition.queue import start_acquisition_queue
 from arrt.library.services.sweep import start_sweeping
 from arrt.library.services.topic_sweep import start_topic_sweep
 from arrt.mcp.server import build_server
@@ -58,7 +59,13 @@ MCP_SESSION_IDLE_TIMEOUT_SECONDS: Final[float] = 1800.0
 STATIC_PATH: Final[str] = "/static"
 
 
-def create_app(services: Services, *, preview_sweep_interval_seconds: int = 0, sweep_topics: bool = False) -> FastAPI:
+def create_app(
+    services: Services,
+    *,
+    preview_sweep_interval_seconds: int = 0,
+    sweep_topics: bool = False,
+    acquire_queue: bool = False,
+) -> FastAPI:
     """Build the application around already-constructed services.
 
     They are injected rather than assembled here so that a test can run the real
@@ -74,6 +81,10 @@ def create_app(services: Services, *, preview_sweep_interval_seconds: int = 0, s
     **The topic sweep is off unless asked for, for the same reason**: a suite
     reading facet rows must not race a thread writing them. Asked for with no
     registry configured, it starts nothing and says so once.
+
+    **The acquisition queue is off unless asked for, for the same reason and a
+    stronger one**: it writes originals, renditions and spend rows behind a test
+    that accepted a work, and with a live transport it would fetch from a museum.
     """
     mcp_server = build_server(services)
     session_manager = StreamableHTTPSessionManager(
@@ -97,6 +108,7 @@ def create_app(services: Services, *, preview_sweep_interval_seconds: int = 0, s
         else:
             log.info("sweeping candidate previews every %ds", preview_sweep_interval_seconds)
         halt_topics = start_topic_sweep(services.topic_sweep) if sweep_topics else None
+        halt_queue = start_acquisition_queue(services.acquisition_queue) if acquire_queue else None
         try:
             async with session_manager.run():
                 log.info("curation plane ready; MCP server mounted at %s", MCP_PATH)
@@ -106,6 +118,8 @@ def create_app(services: Services, *, preview_sweep_interval_seconds: int = 0, s
                 halt()
             if halt_topics is not None:
                 halt_topics()
+            if halt_queue is not None:
+                halt_queue()
 
     app = FastAPI(
         title="Curation",

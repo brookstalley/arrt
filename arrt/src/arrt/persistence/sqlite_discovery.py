@@ -359,6 +359,9 @@ class SqliteDiscovery(TableAdapter):
             _candidate_work,
         )
 
+    def list_wanted_works(self) -> Sequence[CandidateWork]:
+        return self._list("candidate_works", {"verdict": str(Verdict.WANTED)}, _BY_TITLE, _candidate_work)
+
     def list_candidate_works_by_dedup_key(self, work_dedup_key: str) -> Sequence[CandidateWork]:
         return self._list("candidate_works", {"work_dedup_key": work_dedup_key}, _BY_TITLE, _candidate_work)
 

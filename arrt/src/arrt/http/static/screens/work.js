@@ -28,6 +28,7 @@
  * registry text, shown as text.
  */
 
+import { acquisitionLine } from "../core/acquiring.js";
 import { api } from "../core/api.js";
 import { facts, fitBadge, sourceBadge, statusBadge, table } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
@@ -258,7 +259,17 @@ function paint(detail, generation, focusAction = false) {
             ["Size", `${(detail.original.byte_size / 1048576).toFixed(1)} MB`],
             ["Content hash", detail.original.content_hash],
           ])
-        : el("p", { class: "muted", text: "No master image has been acquired for this work yet." }),
+        : detail.acquisition
+          ? null
+          : el("p", { class: "muted", text: "No master image has been acquired for this work yet." }),
+      // Where the work stands in the acquisition queue, while it owes one: a
+      // work held with no image is queued, fetching, failed or paused, and a
+      // page that only said "not acquired yet" read the same in every case.
+      detail.acquisition
+        ? acquisitionLine(detail.acquisition, work.title, async () =>
+            paint(await api(`/api/works/${encodeURIComponent(work.artwork_id)}`), generation),
+          )
+        : null,
     ]),
   );
 

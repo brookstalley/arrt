@@ -17,8 +17,9 @@ Everything else in acquisition records a failure against the `Source` and lets t
 pass continue, because one bad URL says nothing about the next work. A full disk
 says the opposite: it is a fact about the machine, every work behind this one will
 hit it, and continuing means writing rows about failures that have one cause. So
-this stops, and the surface translates it into a refusal naming the remedy rather
-than letting it read as "the fetch failed unexpectedly".
+this stops: the acquisition queue pauses on it without counting it against any
+work, and every surface shows the pause with its remedy (`DEPLOYMENT_REMEDIES`)
+rather than letting it read as "the fetch failed unexpectedly".
 """
 
 import shutil

@@ -10,6 +10,59 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Want and Forget, Activity › Wanted, and the Wikidata picker — added 2026-10-02
+
+**`build-plan-after-review.md` Chunk 05.** Visual change: yes.
+
+Checked by the builder on 2026-10-02 at 1280 px and 390 px in the browser
+suite's own server, with two works wanted through the service and the picker's
+matches stubbed from the live answer for *Lobster Telephone*. Regenerate with
+`cd arrt && uv run pytest -m browser -n0 tests/browser/test_wanted.py` and a
+`page.screenshot` of your own.
+
+- **A review card whose search found nothing** shows **Want** and **Forget**
+  where Accept and Reject were. Want repaints the card `◑ wanted`, says "It
+  waits in Activity › Wanted…", and leaves only Forget.
+- **Activity › Wanted** appears in the sidebar, with its count, once a work is
+  wanted. The page: "*n* works wanted", a sentence that searching spends nothing
+  and why a work with no item is offered a pick, **Search all**, then a table of
+  Work — Artist, Why (*No scan found* or *1 scan turned down*), Wikidata (the
+  item, or *No item*), From (*The search*), and **Search again** / **Forget**.
+- **Search again on a work with no item** opens *Which is <title>?* above the
+  table: each match as **This one**, title, maker, item, and whether Wikidata
+  has a picture; then *None of these — search without an item*.
+- **To look at on your catalogue:** the seven no-scan works from the 16 August Dalí run. Want them, then
+  pick *Lobster Telephone*'s item (Q2990594) and search again; and whether the
+  picker's bulleted list reads well on a phone.
+
+
+### Where an accepted work's image stands: the Work page, Review, Activity › Queue — added 2026-10-02
+
+**`build-plan-after-review.md` Chunk 02.** Visual change: yes.
+
+Checked by the builder on 2026-10-02 at 1280 px and 390 px in the browser
+suite's own server (the seeded works plus two written into the queue's table),
+not on your catalogue, and with no worker running. Regenerate with
+`cd arrt && uv run pytest -m browser -n0 tests/browser/test_acquisition_states.py`
+and a `page.screenshot` of your own.
+
+- **Work page, *The master image*:** a work with no image says
+  `◌ queued` and "Waiting its turn to be fetched…", with no button; one the
+  queue gave up on says `✗ gave up`, "Gave up after 4 tries: <why>. Nothing tries
+  again until you retry.", and **Retry**, which repaints it to queued. A failed
+  try says "Try 1 of 4 failed: <why> It tries again at <date, time>." with
+  **Retry now**. On a phone the sentence wraps beside the badge and Retry sits
+  beneath.
+- **Activity › Queue:** below the searches, *Fetching images (n)* is a table of
+  Work, State, What happened, in the order the queue will try them. A paused
+  queue says "Every fetch is paused: <why> <remedy>" above the table.
+- **Review:** an accepted card says the same line under its badges.
+- **To look at on your catalogue:** whether the repeated "Waiting its turn…"
+  sentence on every queued row of the Queue reads as noise with a long backlog,
+  and how *fetching* reads while a real tiled fetch runs (no test drives a live
+  fetch).
+
+
 ### A Get reviewed on its own page, wide, with its scans readable — added 2026-10-02
 
 **`build-plan-topics-and-destinations.md` Chunk 07.** Visual change: yes.
@@ -1203,7 +1256,8 @@ pleasant or a chore.
 **Free to look at if a run already exists**, which it will if you looked at the
 run half. Nothing on this screen spends — accepting, rejecting and choosing a
 scan are all local — with one exception named on the screen itself: "Look again
-for these" starts a re-search, which does spend.
+for these" starts a re-search, which reaches the museums but costs nothing (corrected
+2026-10-02: the screen said "it spends" until `build-plan-after-review.md` Chunk 05b).
 
 ```sh
 cd arrt

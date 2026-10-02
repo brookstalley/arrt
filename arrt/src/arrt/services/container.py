@@ -47,6 +47,7 @@ from arrt.config import (
 from arrt.library.acquisition.direct import StreamOpener
 from arrt.library.acquisition.mat import MatEngine
 from arrt.library.acquisition.preparation import PreparationService, PreparationSettings
+from arrt.library.acquisition.queue import AcquisitionQueue
 from arrt.library.acquisition.service import AcquisitionService, AcquisitionSettings
 from arrt.library.acquisition.tiles import TileTargetResolver
 from arrt.library.acquisition.transport import no_transport
@@ -78,6 +79,7 @@ from arrt.library.services.taste import TasteService
 from arrt.library.services.thumbnails import ThumbnailService, ThumbnailSettings
 from arrt.library.services.topic_sweep import TopicSweep
 from arrt.library.services.topics import TopicService
+from arrt.library.services.wikidata_match import WikidataMatchService
 from arrt.persistence.backup import BACKUP_RECEIPT_FILENAME
 from arrt.persistence.catalogue import CatalogueStore
 from arrt.persistence.discovery import DiscoveryStore
@@ -155,6 +157,10 @@ class Services:
     #: goes stale — while it is acquired once. Folding the two together would make
     #: every re-render look like a re-fetch to whatever reads the journal.
     preparation: PreparationService
+    #: Fetching, then preparing, every accepted work that holds no image, in the
+    #: background and one at a time. Built whatever the deployment, like `sweep`;
+    #: it runs only when the application is asked to start it.
+    acquisition_queue: AcquisitionQueue
     #: Intent-forming, upstream of every run. Beside `runner` rather than inside
     #: it because a conversation is not a run and must never become one: it
     #: acquires nothing, has no status to poll and nothing to approve. What it has
@@ -191,6 +197,9 @@ class Services:
     #: registry, like `sweep`; without one it does nothing, and the application
     #: says so once when it would have started it.
     topic_sweep: TopicSweep
+    #: Wikidata's items for a wanted work, for the curator to pick from. Over the
+    #: same registry as `identity`; says it is off without one.
+    wikidata_match: WikidataMatchService
 
     @classmethod
     def bind(
@@ -282,6 +291,45 @@ class Services:
                 "selects both by configuring a source — the preview directory is derived from ART_ROOT, so "
                 "passing one of these without the other is a wiring mistake rather than a configuration one."
             )
+        acquisition_service = AcquisitionService(
+            catalogue_service,
+            acquisition or _default_acquisition(thumbnails.art_root),
+            # Defaults to a transport that refuses rather than to a live one.
+            # A plane assembled without wiring one has a wiring mistake, and
+            # a real client here would let that mistake reach a museum from a
+            # test suite instead of failing where it was made.
+            open_stream=open_stream or no_transport,
+            # Only a provider whose recorded URL is an identity needs one, and
+            # the source's own client is the thing that can answer — so by
+            # default these are the configured image sources. A deployment with
+            # none configured therefore has no resolver either, and an artic
+            # fetch refuses by name rather than handing the tile fetcher a URL
+            # it cannot read: without credentials to ask the collection for an
+            # object's image service, there is genuinely no way to reach it.
+            #
+            # Overridable because resolving one object and searching a whole
+            # collection are separate capabilities that each source today
+            # happens to serve both of.
+            tile_targets=(tile_targets if tile_targets is not None else ({} if pool is None else pool.tile_targets())),
+            **({} if resolve is None else {"resolve": resolve}),
+        )
+        preparation_service = PreparationService(
+            catalogue_service,
+            # Defaults to an engine with no client, which is not a stub: it is
+            # exactly the keyless deployment, and it produces recorded
+            # dominant-colour mats. A real client here would let a wiring
+            # mistake spend money from a test suite rather than failing where
+            # it was made — the same reason `open_stream` defaults to refusing.
+            mat_engine or _default_mat_engine(),
+            preparation or _default_preparation(thumbnails.art_root, artwork_box),
+            # The ledger is discovery's today, reached through its one method.
+            spend=discovery_service,
+        )
+        acquisition_queue = AcquisitionQueue(catalogue, catalogue_service, acquisition_service, preparation_service)
+        # Acceptance, and a restore, wake the queue, as they wake the topic
+        # sweep: the work is fetched now rather than at the next pass. A lost
+        # announcement delays the fetch until the next start, which catches up.
+        catalogue_service.subscribe(lambda event: acquisition_queue.nudge() if event.change is WorkChange.ACCEPTED else None)
         runner_service = DiscoveryRunner(
             discovery_service,
             engine,
@@ -300,7 +348,7 @@ class Services:
             discovery=discovery_service,
             display=display_service,
             thumbnails=thumbnail_service,
-            survey=SurveyService(catalogue_service, thumbnail_service, artwork_box),
+            survey=SurveyService(catalogue_service, thumbnail_service, artwork_box, acquisition=acquisition_queue),
             # `art_root` is read off the thumbnail settings rather than taken as
             # an argument of its own. It is the same deployment value — every
             # catalogue path is relative to it — and it is already required and
@@ -322,38 +370,9 @@ class Services:
             # takes it from there: it is one deployment value, already validated,
             # and a second copy is a second chance for the two to disagree.
             sweep=PreviewSweep(discovery_service, art_root=thumbnails.art_root),
-            acquisition=AcquisitionService(
-                catalogue_service,
-                acquisition or _default_acquisition(thumbnails.art_root),
-                # Defaults to a transport that refuses rather than to a live one.
-                # A plane assembled without wiring one has a wiring mistake, and
-                # a real client here would let that mistake reach a museum from a
-                # test suite instead of failing where it was made.
-                open_stream=open_stream or no_transport,
-                # Only a provider whose recorded URL is an identity needs one, and
-                # the source's own client is the thing that can answer — so by
-                # default these are the configured image sources. A deployment with
-                # none configured therefore has no resolver either, and an artic
-                # fetch refuses by name rather than handing the tile fetcher a URL
-                # it cannot read: without credentials to ask the collection for an
-                # object's image service, there is genuinely no way to reach it.
-                #
-                # Overridable because resolving one object and searching a whole
-                # collection are separate capabilities that each source today
-                # happens to serve both of.
-                tile_targets=(tile_targets if tile_targets is not None else ({} if pool is None else pool.tile_targets())),
-                **({} if resolve is None else {"resolve": resolve}),
-            ),
-            preparation=PreparationService(
-                catalogue_service,
-                # Defaults to an engine with no client, which is not a stub: it is
-                # exactly the keyless deployment, and it produces recorded
-                # dominant-colour mats. A real client here would let a wiring
-                # mistake spend money from a test suite rather than failing where
-                # it was made — the same reason `open_stream` defaults to refusing.
-                mat_engine or _default_mat_engine(),
-                preparation or _default_preparation(thumbnails.art_root, artwork_box),
-            ),
+            acquisition=acquisition_service,
+            preparation=preparation_service,
+            acquisition_queue=acquisition_queue,
             conversation=ConversationService(
                 discovery,
                 conversation_engine or _default_conversation_engine(),
@@ -377,6 +396,7 @@ class Services:
             get=GetService(store=catalogue, discovery=discovery_service, runner=runner_service, registry=registry),
             topics=TopicService(catalogue, registry, kept=kept),
             topic_sweep=topic_sweep,
+            wikidata_match=WikidataMatchService(discovery_service, registry),
         )
 
     def reconcile(self) -> None:

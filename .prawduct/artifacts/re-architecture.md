@@ -471,11 +471,13 @@ Both belong to the Library.
     standing search is exactly where an unmetered paid path would hide;
   - memory of what it has already seen, through the existing dedup and
     rejected-candidate records, so it never offers the same thing twice.
-- **Upgrades run on the same scheduler.** `awaiting_better_image` is already a
-  wanted-upgrade marker, and periodically re-searching those works for a
-  higher-resolution scan is Radarr's upgrade-until-cutoff. Nothing in this
-  codebase runs on a schedule today except the preview sweep, so a job scheduler
-  is new Library infrastructure.
+- **Upgrades run on the same scheduler.** The `wanted` verdict (named
+  `awaiting_better_image` until 2026-10-02) is already a wanted-upgrade marker,
+  and periodically re-searching those works for a higher-resolution scan is
+  Radarr's upgrade-until-cutoff. What runs in the background today is three
+  single-purpose workers, each woken by an event or an interval: the preview
+  sweep, the topic sweep and the acquisition queue. A job scheduler that Watches
+  and upgrades share is still new Library infrastructure.
 - **Watches fire two recorded revisit triggers, so they cannot ship as a
   feature alone.**
   - **Security:** `security-model.md` § Prompt Injection names *unattended

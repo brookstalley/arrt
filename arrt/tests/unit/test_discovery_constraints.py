@@ -23,8 +23,8 @@ from arrt.services.errors import ServiceError
 # -- 7. Suppression has two scopes and they never share a key ------------------
 #
 # Rejecting a *work* suppresses the work. Rejecting an *image* must suppress
-# only that image and leave the work eligible — otherwise asking for a better
-# scan of a painting silently blacklists the painting. Enforcing (b) through (a)
+# only that image and leave the work eligible — otherwise turning down a scan of
+# a painting the curator wants silently blacklists the painting. Enforcing (b) through (a)
 # is the failure mode, and it is invisible until a curator wonders why a work
 # they asked to keep never came back.
 
@@ -61,7 +61,7 @@ def test_a_work_still_under_review_does_not_suppress_itself(discovery, resolved_
 
 
 def test_rejecting_an_image_leaves_the_work_eligible(discovery, resolved_work):
-    """The trap the two scopes exist to avoid: asking for a better scan of a
+    """The trap the two scopes exist to avoid: turning down a scan of a
     painting must never blacklist the painting."""
     work = resolved_work("Nighthawks")
 
@@ -247,7 +247,7 @@ def test_the_refusal_does_not_blame_the_floor_for_a_scan_the_curator_rejected(di
     small one, so there is no selection and acceptance is still refused. But
     "every scan found for it is below the size this deployment will show" is
     *false* here — the big one was found, and rejecting it is what they just did.
-    Accepting from `awaiting_better_image` is deliberately permitted, so this is an
+    Accepting from `wanted` is deliberately permitted, so this is an
     ordinary path rather than a corner, and a message that contradicts the
     curator's own last action is worse than no message.
 
@@ -346,8 +346,8 @@ def test_spend_is_still_attributed_after_the_cap_fires(discovery, run):
 
 # -- 14. A work is covered by at most one live resolve run --------------------
 #
-# Double-submitting the same ids would spend twice for one result, on the only
-# operation that spends at all. The refusal names the ids rather than silently
+# Double-submitting the same ids would search twice for one result, and spend
+# twice if a paid image provider is ever added. The refusal names the ids rather than silently
 # deduplicating: a curator who double-submitted should find out.
 
 
@@ -425,29 +425,114 @@ def test_the_same_work_named_twice_in_one_request_is_covered_once(discovery, pro
     assert [covered.id for covered in discovery.covered_works(resolve.id)] == [work.id]
 
 
-# -- 15. `awaiting_better_image` is reachable only through rejecting an image --
+# -- 15. `wanted` has one way in, and turning a scan down always suppresses it --
 #
-# The path that sets the instance's suppression and the path that sets the
-# verdict are the same path, so the suppression can never be skipped. Both used
-# to reach that state and only one set `rejected_at`, so a re-search could
-# legitimately return the image the curator had just turned down.
+# `want` is the only path to `wanted`, and when it names a scan being turned down
+# the suppression is written in the same transaction as the verdict, so it can
+# never be skipped: a path that reached the verdict without it would let a
+# re-search legitimately return the image the curator had just turned down.
+# Wanting a work names no scan by default and then suppresses nothing: a work
+# nothing was found for is wanted too, and a scan nobody turned down must stay
+# offerable.
 
 
 def test_set_verdict_refuses_the_value_and_names_the_way_in(discovery, resolved_work):
     work = resolved_work()
 
-    with pytest.raises(ServiceError, match="reject_image"):
-        discovery.set_verdict(work.id, Verdict.AWAITING_BETTER_IMAGE)
+    with pytest.raises(ServiceError, match="set by want, not by set_verdict") as refused:
+        discovery.set_verdict(work.id, Verdict.WANTED)
+
+    assert "reject_image" not in str(refused.value), "the way in is want, not the old one"
+    assert discovery.get_candidate_work(work.id).verdict is Verdict.PENDING
 
 
-def test_the_one_path_in_always_suppresses_the_instance_it_turned_down(discovery, resolved_work):
+def test_wanting_a_work_while_turning_down_its_scan_suppresses_that_scan(discovery, resolved_work, add_image):
+    work = resolved_work()
+    image = discovery.list_candidate_images(work.id)[0]
+    fallback = add_image(work, url="https://other.example/fallback", confidence=0.4)
+
+    wanted = discovery.want(work.id, turning_down=image.id)
+
+    assert wanted.verdict is Verdict.WANTED
+    assert discovery.get_candidate_work(work.id).verdict is Verdict.WANTED
+    images = {held.id: held for held in discovery.list_candidate_images(work.id)}
+    assert images[image.id].rejected_at is not None
+    assert images[image.id].is_selected is False
+    assert images[fallback.id].is_selected is True, "the vacancy is filled from what survives"
+    assert discovery.is_work_suppressed(work.work_dedup_key) is False
+
+
+def test_wanting_a_work_without_naming_a_scan_suppresses_nothing(discovery, resolved_work):
+    """A wish about the work is not a judgement about its scan."""
     work = resolved_work()
     image = discovery.list_candidate_images(work.id)[0]
 
-    awaiting = discovery.reject_image(image.id)
+    wanted = discovery.want(work.id)
 
-    assert awaiting.verdict is Verdict.AWAITING_BETTER_IMAGE
-    assert discovery.list_candidate_images(work.id)[0].rejected_at is not None
+    assert wanted.verdict is Verdict.WANTED
+    held = discovery.list_candidate_images(work.id)[0]
+    assert (held.id, held.rejected_at, held.is_selected) == (image.id, None, True)
+
+
+def test_a_work_nothing_was_found_for_can_be_wanted(discovery, propose):
+    work = propose("A work no museum holds")
+    discovery.record_resolution(work.id)
+
+    discovery.want(work.id)
+
+    assert discovery.get_candidate_work(work.id).verdict is Verdict.WANTED
+    assert discovery.list_candidate_images(work.id) == []
+
+
+@pytest.mark.parametrize("decided", [Verdict.ACCEPTED, Verdict.REJECTED])
+def test_a_decided_work_cannot_be_wanted(discovery, resolved_work, decided):
+    work = resolved_work()
+    discovery.set_verdict(work.id, decided)
+
+    with pytest.raises(ServiceError, match="that is final"):
+        discovery.want(work.id)
+
+    assert discovery.get_candidate_work(work.id).verdict is decided
+
+
+def test_want_refuses_a_scan_found_for_another_work(discovery, resolved_work):
+    work = resolved_work("Nighthawks")
+    other = resolved_work("Automat")
+    theirs = discovery.list_candidate_images(other.id)[0]
+
+    with pytest.raises(ServiceError, match="different work"):
+        discovery.want(work.id, turning_down=theirs.id)
+
+    assert discovery.get_candidate_work(work.id).verdict is Verdict.PENDING
+    assert discovery.list_candidate_images(other.id)[0].rejected_at is None
+
+
+def test_turning_down_the_scan_on_offer_makes_the_work_wanted(discovery, resolved_work, add_image):
+    work = resolved_work()
+    on_offer = discovery.list_candidate_images(work.id)[0]
+    fallback = add_image(work, url="https://other.example/fallback", confidence=0.4)
+
+    after = discovery.reject_image(on_offer.id)
+
+    assert after.verdict is Verdict.WANTED
+    images = {held.id: held for held in discovery.list_candidate_images(work.id)}
+    assert images[on_offer.id].rejected_at is not None
+    assert images[fallback.id].is_selected is True
+
+
+def test_turning_down_an_alternate_leaves_the_verdict_and_the_choice_alone(discovery, resolved_work, add_image):
+    """A curator who turns down a poor alternate under a scan they like has not asked for a better one."""
+    work = resolved_work()
+    on_offer = discovery.list_candidate_images(work.id)[0]
+    alternate = add_image(work, url="https://other.example/poor", confidence=0.4)
+
+    after = discovery.reject_image(alternate.id)
+
+    assert after.verdict is Verdict.PENDING
+    assert discovery.get_candidate_work(work.id).verdict is Verdict.PENDING
+    images = {held.id: held for held in discovery.list_candidate_images(work.id)}
+    assert images[alternate.id].rejected_at is not None, "turned down all the same"
+    assert images[on_offer.id].is_selected is True
 
 
 def test_a_work_already_decided_has_no_images_left_under_review(discovery, resolved_work):

@@ -139,6 +139,10 @@ async def test_help_reports_exactly_the_actions_a_tool_actually_serves(server_ur
         "list_images",
         "set_canonical",
         "set_verdict",
+        "want",
+        "list_wanted",
+        "wikidata_matches",
+        "set_wikidata_item",
         "reject_image",
         "help",
     ]
@@ -366,35 +370,46 @@ async def test_archiving_an_archived_work_is_an_error_result_that_says_why(serve
     assert "already archived" in payload["error"]
 
 
-async def test_retry_acquisition_reaches_the_service_and_reports_its_outcome(server_url, services):
-    # This deployment wires no HTTP transport, so the fetch cannot succeed — and
-    # that is the point: the action is exercised end to end and its failure is a
-    # structured outcome rather than a crash, which is what the surface promises.
+async def test_retry_acquisition_queues_the_work_and_fetches_nothing_in_the_call(server_url, services):
+    """Retry goes through the acquisition queue: a tiled fetch may take half an hour, one at a time.
+
+    The suite's application runs no queue worker, so the work stays queued, and
+    the source is exactly as it was: nothing was fetched.
+    """
     work, _ = _a_work_with_sources(services)
     direct = next(s for s in services.catalogue.list_sources(work.id) if not s.is_primary)
+    before = direct.last_fetch_status
 
     payload, errored = await call(
         server_url, "art_catalogue", action="retry_acquisition", artwork_id=work.id, source_id=direct.id
     )
 
     assert errored is False
-    assert payload["success"] is True
-    assert payload["artwork_id"] == work.id
-    assert payload["source_id"] == direct.id
-    assert payload["outcome"] == "failed"
-    assert "replaces nothing" in payload["notice"]
+    assert payload["acquisition"]["artwork_id"] == work.id
+    assert payload["acquisition"]["phase"] == "queued"
+    assert "nothing was fetched in this call" in payload["notice"]
+    after = next(s for s in services.catalogue.list_sources(work.id) if s.id == direct.id)
+    assert after.last_fetch_status == before
 
 
-async def test_a_failed_retry_is_readable_afterwards_through_sources(server_url, services):
-    # The multi-hop half: the outcome of one action has to be visible to the read
-    # that a curator would use to decide what to do next.
+async def test_a_failed_retry_is_readable_afterwards_through_get_and_sources(server_url, services):
+    # The multi-hop half: the outcome of the queue's attempt has to be visible to
+    # the reads a curator would use to decide what to do next. This deployment
+    # wires no HTTP transport, so the fetch from the named source fails.
     work, _ = _a_work_with_sources(services)
     direct = next(s for s in services.catalogue.list_sources(work.id) if not s.is_primary)
     await call(server_url, "art_catalogue", action="retry_acquisition", artwork_id=work.id, source_id=direct.id)
 
-    payload, _ = await call(server_url, "art_catalogue", action="sources", artwork_id=work.id)
+    # The module shares one catalogue, so the pass may try other works too;
+    # what this test owns is this work's state afterwards.
+    services.acquisition_queue.run()
 
-    after = {source["source_id"]: source for source in payload["sources"]}[direct.id]
+    got, _ = await call(server_url, "art_catalogue", action="get", artwork_id=work.id)
+    assert got["acquisition"]["phase"] == "failed"
+    assert got["acquisition"]["failures"] == 1
+    assert got["acquisition"]["detail"]
+    sources, _ = await call(server_url, "art_catalogue", action="sources", artwork_id=work.id)
+    after = {source["source_id"]: source for source in sources["sources"]}[direct.id]
     assert after["last_fetch_status"] == "failed"
     assert after["last_fetched_at"] is not None
 
@@ -408,10 +423,19 @@ async def test_retry_acquisition_on_a_work_with_no_source_is_an_error_result(ser
     assert "no source" in payload["error"]
 
 
-async def test_a_missing_tile_binary_reaches_the_caller_with_its_remedy(server_url, services, monkeypatch):
-    # The two conditions acquisition raises for rather than records are the two no
-    # source is at fault in. A caller told only "failed unexpectedly" would go and
-    # look at the museum, so each names what actually fixes it.
+async def _paused_on(server_url, services, work, primary):
+    """Retry, run the queue's pass, and read the work back: what a curator sees of a deployment fault."""
+    await call(server_url, "art_catalogue", action="retry_acquisition", artwork_id=work.id, source_id=primary.id)
+    services.acquisition_queue.run()
+    got, errored = await call(server_url, "art_catalogue", action="get", artwork_id=work.id)
+    assert errored is False
+    return got["acquisition"]
+
+
+async def test_a_missing_tile_binary_pauses_the_queue_and_names_its_remedy(server_url, services, monkeypatch):
+    # The conditions acquisition raises for rather than records are the ones no
+    # source is at fault in. A reader told only "failed" would go and look at the
+    # museum, so each names what actually fixes it.
     from dataclasses import replace
 
     work, primary = _a_work_with_sources(services)
@@ -421,36 +445,32 @@ async def test_a_missing_tile_binary_reaches_the_caller_with_its_remedy(server_u
         replace(services.acquisition._settings, tile_binary="/nonexistent/dezoomify-rs"),
     )
 
-    payload, errored = await call(
-        server_url, "art_catalogue", action="retry_acquisition", artwork_id=work.id, source_id=primary.id
-    )
+    state = await _paused_on(server_url, services, work, primary)
 
-    assert errored is True
-    assert "deployment problem" in payload["error"]
-    assert "DEZOOMIFY_PATH" in payload["error"]
+    assert state["phase"] == "paused"
+    assert state["condition"] == "DezoomifyUnavailable"
+    assert "deployment problem" in state["remedy"]
+    assert "DEZOOMIFY_PATH" in state["remedy"]
+    assert state["failures"] == 0, "a deployment fault was counted against the work"
 
 
-async def test_an_unresolvable_provider_reaches_the_caller_with_its_remedy(server_url, services, monkeypatch):
+async def test_an_unresolvable_provider_pauses_the_queue_and_names_its_remedy(server_url, services, monkeypatch):
     """The third raise-rather-record condition, and the reachable one.
 
     A catalogue holding Art Institute works with no ARTIC_USER_AGENT configured
     is an ordinary deployment, not a contrived one — it is what every seeded
-    install starts as. Without this arm the refusal arrives through the generic
-    handler as "failed unexpectedly", which is the outcome its two siblings above
-    are translated to prevent, and the operational runbook promises a named one.
+    install starts as.
     """
     work, primary = _a_work_with_sources(services)
     # Exactly what the container builds when no image provider is configured.
     monkeypatch.setattr(services.acquisition, "_tile_targets", {})
 
-    payload, errored = await call(
-        server_url, "art_catalogue", action="retry_acquisition", artwork_id=work.id, source_id=primary.id
-    )
+    state = await _paused_on(server_url, services, work, primary)
 
-    assert errored is True
-    assert "ARTIC_USER_AGENT" in payload["error"]
+    assert state["phase"] == "paused"
+    assert "ARTIC_USER_AGENT" in state["remedy"]
     # The remedy has to say the sources are fine, or its reader goes to the museum.
-    assert "no source is at fault" in payload["error"]
+    assert "no source is at fault" in state["remedy"]
 
 
 async def test_an_unresolvable_provider_records_nothing_against_the_source(server_url, services, monkeypatch):
@@ -458,7 +478,7 @@ async def test_an_unresolvable_provider_records_nothing_against_the_source(serve
     work, primary = _a_work_with_sources(services)
     monkeypatch.setattr(services.acquisition, "_tile_targets", {})
 
-    await call(server_url, "art_catalogue", action="retry_acquisition", artwork_id=work.id, source_id=primary.id)
+    await _paused_on(server_url, services, work, primary)
 
     refreshed = next(s for s in services.catalogue.list_sources(work.id) if s.id == primary.id)
     # Pinned to the value the fixture recorded, not merely "not FAILED" — which
@@ -466,7 +486,7 @@ async def test_an_unresolvable_provider_records_nothing_against_the_source(serve
     assert refreshed.last_fetch_status is FetchStatus.PARTIAL_TILES
 
 
-async def test_a_full_disk_reaches_the_caller_with_its_remedy(server_url, services, monkeypatch):
+async def test_a_full_disk_pauses_the_queue_and_names_its_remedy(server_url, services, monkeypatch):
     from dataclasses import replace
 
     work, primary = _a_work_with_sources(services)
@@ -476,13 +496,11 @@ async def test_a_full_disk_reaches_the_caller_with_its_remedy(server_url, servic
         replace(services.acquisition._settings, min_free_bytes=2**62),
     )
 
-    payload, errored = await call(
-        server_url, "art_catalogue", action="retry_acquisition", artwork_id=work.id, source_id=primary.id
-    )
+    state = await _paused_on(server_url, services, work, primary)
 
-    assert errored is True
-    assert "did not start" in payload["error"]
-    assert "MIN_FREE_BYTES" in payload["error"]
+    assert state["phase"] == "paused"
+    assert state["condition"] == "NotEnoughSpace"
+    assert "MIN_FREE_BYTES" in state["remedy"]
 
 
 def _a_work_with_an_original(services, settings, *, width=2400, height=1800):

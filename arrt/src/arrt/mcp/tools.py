@@ -152,7 +152,7 @@ ART_CATALOGUE: Final = ToolRecord(
     title="Art catalogue",
     summary=(
         "Read and manage the works already accepted into the collection. Two actions reach outside the machine: "
-        "retry_acquisition fetches from a museum, and set_mat_color asks a vision model when given no colour."
+        "retry_acquisition queues a fetch from a museum, and set_mat_color asks a vision model when given no colour."
     ),
     read_only=False,
     destructive=False,
@@ -195,10 +195,15 @@ ART_CATALOGUE: Final = ToolRecord(
         ),
         Action(
             name="get",
-            description="Return one work in full, with its artist resolved.",
+            description="Return one work in full, with its artist resolved and where it stands in the acquisition queue.",
             example="art_catalogue(action='get', artwork_id='<an artwork_id from action=list>')",
             params=(_ARTWORK_ID,),
-            tips=("Ids are stable internal identities, never source URLs, so they survive a museum reorganising its site.",),
+            tips=(
+                "Ids are stable internal identities, never source URLs, so they survive a museum reorganising its site.",
+                "`acquisition` is null once the work's image is fetched and prepared; otherwise its phase is queued, "
+                "fetching, failed (with the next try), gave_up (waits for retry_acquisition) or paused (with the "
+                "remedy an operator applies).",
+            ),
         ),
         Action(
             name="sources",
@@ -230,12 +235,18 @@ ART_CATALOGUE: Final = ToolRecord(
         ),
         Action(
             name="retry_acquisition",
-            description="Fetch the work's master image again from one of its sources.",
+            # Changed 2026-10-02 from fetching in the call to queueing: a breaking
+            # description change by `api-contract.md` § Versioning, announced
+            # with the plan that made it (`build-plan-after-review.md` Chunk 02).
+            description="Queue the work's master image to be fetched again, first in line, and return at once.",
             example="art_catalogue(action='retry_acquisition', artwork_id='<an artwork_id from action=list>')",
             params=(_ARTWORK_ID, _SOURCE_ID),
             tips=(
-                "Use it after a failed or partial fetch; action='sources' shows which, and what went wrong last time.",
-                "Omitting source_id uses the work's primary source.",
+                "Nothing is fetched in the call: the acquisition queue fetches one work at a time, and a tiled fetch "
+                "can take half an hour. action='get' shows its progress under `acquisition`.",
+                "It forgets the work's failures, so a work the queue gave up on is tried again.",
+                "Omitting source_id finishes what the work is owed; naming one fetches from it even when the work "
+                "already holds an image, which is how to ask for a complete scan after a partial one.",
                 "Retrying cannot cost the work its image: an attempt that fails replaces nothing, and one that "
                 "comes back with missing tiles is refused outright when the work already holds a complete image.",
             ),
@@ -432,8 +443,10 @@ ART_DISCOVERY: Final = ToolRecord(
         ),
         Action(
             name="resolve_images",
-            description="Look again for images of works whose instances the curator turned down. Returns a handle at once.",
-            example="art_discovery(action='resolve_images', work_ids=['<a work_id awaiting a better image>'])",
+            # Changed 2026-10-02: wanted works include works with no scan at all,
+            # which `art_review(action='want')` sends here (`api-contract.md`).
+            description="Look again for images of wanted works, with or without a scan. Returns a handle at once.",
+            example="art_discovery(action='resolve_images', work_ids=['<a work_id from art_review action=list_wanted>'])",
             params=(
                 Param(
                     name="work_ids",
@@ -447,7 +460,7 @@ ART_DISCOVERY: Final = ToolRecord(
                 "This is a run like any other: it returns a run_id, and action='status', action='cancel' and "
                 "action='spend' all take it.",
                 "A work already being re-searched by a running re-search is refused, and the refusal names it — "
-                "submitting the same ids twice would pay twice for one result.",
+                "submitting the same ids twice would search twice for one result.",
                 "The works must all come from one discovery run, because a re-search hangs its cost on the "
                 "intent that proposed them. Start one re-search per originating run.",
                 "What this costs rolls up into the originating run's figure, so action='spend' on that run "
@@ -697,18 +710,16 @@ ART_REVIEW: Final = ToolRecord(
                     description="'accepted' puts the work in the catalogue; 'rejected' closes it. Both are final.",
                     required=True,
                     choices=("accepted", "rejected"),
-                    # `api-contract.md` § set_verdict cannot set
-                    # `awaiting_better_image` requires the refusal to name
-                    # `reject_image`, and it is the schema that refuses it — the
-                    # service's own teaching error is unreachable from here,
-                    # because validation runs first by design. A caller asking
-                    # for that verdict has not mistyped; they want the thing a
-                    # different action does, and an enumeration alone would send
-                    # them away without it.
+                    # `api-contract.md` § set_verdict cannot set `wanted` requires
+                    # the refusal to name `want`, and it is the schema that
+                    # refuses it — the service's own teaching error is unreachable
+                    # from here, because validation runs first by design. A caller
+                    # asking for that verdict has not mistyped; they want the
+                    # thing a different action does, and an enumeration alone
+                    # would send them away without it.
                     refused_hint=(
-                        "To ask for a better scan instead, use action='reject_image' with the image_id — that is "
-                        "the only way to awaiting_better_image, and it also suppresses the scan so a re-search "
-                        "cannot return it."
+                        "To want the work instead, use action='want' with the work_id, adding turning_down with "
+                        "the image_id of a scan you are turning down so a re-search cannot return it."
                     ),
                 ),
                 Param(
@@ -727,27 +738,80 @@ ART_REVIEW: Final = ToolRecord(
                 "minted_artist says a new artist row was created. Where it arrives with "
                 "possible_duplicate_artists, the catalogue may now hold the same painter twice under different "
                 "spellings — visible and mergeable, which a wrong merge would not be.",
-                "'awaiting_better_image' is not settable here. Turning down a scan is "
-                "action='reject_image', which is also what suppresses it.",
+                "'wanted' is not settable here: action='want' is its one way in.",
                 "Both verdicts are final: a work already accepted or rejected cannot be re-judged.",
             ),
         ),
+        # BREAKING, 2026-10-02 (`api-contract.md` § Versioning): the verdict
+        # `awaiting_better_image` is now `wanted`, and no old spelling is
+        # accepted; `want` is its one way in; and `reject_image` makes a work
+        # wanted only when the scan turned down was the one on offer. Turning
+        # down an alternate used to make the work wanted too, which asked for a
+        # better scan the curator had not asked for.
+        Action(
+            name="want",
+            description="Want a work you hold no acceptable scan of, turning down its scan on offer if named.",
+            example="art_review(action='want', work_id='<a work_id from action=list_works>')",
+            params=(
+                _WORK_ID,
+                Param(
+                    name="turning_down",
+                    type="string",
+                    description=(
+                        "A scan of this work being turned down on the way, as an image_id from "
+                        "action='list_images'. Omit when no scan was found."
+                    ),
+                ),
+            ),
+            tips=(
+                "The work's verdict becomes wanted. Nothing searches for a scan: "
+                "art_discovery(action='resolve_images') does, and it costs nothing today.",
+                "A named scan is suppressed so no re-search can return it. Naming none suppresses nothing.",
+                "Refused on a work already accepted or rejected. action='set_verdict' still works from wanted.",
+            ),
+        ),
+        Action(
+            name="list_wanted",
+            description="List every wanted work across runs, newest run first.",
+            example="art_review(action='list_wanted')",
+            tips=(
+                "scans_turned_down is 0 for a work wanted because nothing was found. wikidata_qid is null "
+                "when no item is known.",
+            ),
+        ),
+        Action(
+            name="wikidata_matches",
+            description="List Wikidata's items matching a work's title, the proposed artist's first, to pick from.",
+            example="art_review(action='wikidata_matches', work_id='<a work_id from action=list_wanted>')",
+            params=(_WORK_ID,),
+            tips=(
+                "Nothing is stored: a work is never matched by title alone. Pick one with action='set_wikidata_item'.",
+                "A re-search asks Commons only by item, so a wanted work with no item finds no Commons scan.",
+            ),
+        ),
+        Action(
+            name="set_wikidata_item",
+            description="Record the Wikidata item you picked for a work still under review.",
+            example="art_review(action='set_wikidata_item', work_id='<a work_id>', qid='Q2990594')",
+            params=(
+                _WORK_ID,
+                Param(name="qid", type="string", description="The item, as Q followed by digits.", required=True),
+            ),
+            tips=("It becomes the artwork's item, as yours, if the work is accepted.",),
+        ),
         Action(
             name="reject_image",
-            description="Turn down one scan and ask for a better one. The work stays wanted.",
+            description="Turn down one scan. Turning down the scan on offer makes the work wanted.",
             example="art_review(action='reject_image', image_id='<an image_id from action=list_images>')",
             params=(_IMAGE_ID,),
             tips=(
-                "This does not go looking for a replacement — art_discovery(action='resolve_images') does, and "
-                "it is the call that spends money. Reject the scans you want re-searched, then re-search them "
-                "in one batch.",
-                "The work moves to awaiting_better_image and the scan is suppressed, so a later search cannot "
-                "hand back the one just turned down. The suppression is the reason this is the only way into "
-                "that state.",
-                "Rejecting the scan on offer falls the selection through to the next survivor; rejecting an "
-                "alternate leaves the standing choice alone.",
-                "You are never blocked on a re-search: action='set_verdict' works from awaiting_better_image "
-                "too, so a curator can accept the best scan on offer or give up on the work at any point.",
+                "This does not go looking for a replacement — art_discovery(action='resolve_images') does, "
+                "at no cost today. Turn down the scans you want re-searched, then re-search them in one batch.",
+                "The scan is suppressed either way, so a later search cannot hand back the one just turned "
+                "down. The scan on offer moves the work to wanted and the selection to the next survivor; an "
+                "alternate leaves the verdict and the standing choice alone.",
+                "You are never blocked on a re-search: action='set_verdict' works from wanted too, so a "
+                "curator can accept the best scan on offer or give up on the work at any point.",
             ),
         ),
     ),

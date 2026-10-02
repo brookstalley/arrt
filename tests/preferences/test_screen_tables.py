@@ -64,6 +64,7 @@ SCREEN_NAMES = {
     "to_review": "To review",
     "queue": "Queue",
     "history": "History",
+    "wanted": "Wanted",
     "collection": "Artworks",
     "discover": "Ask",
     "work": "Work",
@@ -222,6 +223,7 @@ def test_the_route_table_parses():
         "to_review",
         "queue",
         "history",
+        "wanted",
         "taste",
         "health",
     ], (

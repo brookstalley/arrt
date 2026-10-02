@@ -39,7 +39,7 @@ def surviving(images: Iterable[CandidateImage], *, precedence: Precedence | None
     A rejected instance is excluded from re-selection for its work — and only
     from that. The work itself stays eligible, which is the whole point of
     keeping instance suppression on a different key from work suppression:
-    asking for a better scan must never blacklist the painting.
+    turning down a scan must never blacklist the painting.
 
     **Below-floor instances are included here.** They are the alternates a review
     card offers, labelled with the size they would appear at, and a curator may

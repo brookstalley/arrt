@@ -147,6 +147,10 @@ _EXPECTED_SCHEMA = {
         "chosen_at",
     },
     "theme_memberships": {"theme_id", "artwork_id", "position", "added_at"},
+    # The acquisition queue's memory of the works it owes a fetch or a
+    # preparation (2026-10-02). A new table, so it reaches an older file by
+    # `CREATE TABLE IF NOT EXISTS` and the legacy-file test below holds it to that.
+    "acquisition_queue": {"artwork_id", "failures", "next_try_at", "detail", "source_id"},
 }
 
 #: Columns no table may grow. `display_fit` was one once, computed at acquisition

@@ -9,8 +9,9 @@
  * screens, which `core/badges.js` states as the rule: two screens use it.
  */
 
+import { acquisitionLine } from "./acquiring.js";
 import { api } from "./api.js";
-import { paintAwaiting } from "./awaiting.js";
+import { paintAwaiting, paintWanted } from "./awaiting.js";
 import { agree, counted } from "./counting.js";
 import {
   absentImage,
@@ -31,13 +32,19 @@ import { go } from "./router.js";
  * shows no badge, the same way an accepted catalogue work shows no status badge.
  * A badge on every card would make the two decided states harder to pick out,
  * not easier. The vocabulary test knows about the omission. */
-const VERDICT_GLYPHS = { accepted: "✓", rejected: "✗", awaiting_better_image: "◑" };
+const VERDICT_GLYPHS = { accepted: "✓", rejected: "✗", wanted: "◑" };
 
 const VERDICT_WORDS = {
   accepted: "accepted",
   rejected: "rejected",
-  awaiting_better_image: "wants a better scan",
+  wanted: "wanted",
 };
+
+/* What a card says once a work becomes wanted, so a curator knows where it went
+ * and that nothing is looking for it yet. */
+const WANTED_NO_SCAN = "Wanted. It waits in Activity › Wanted, where Search again looks for a scan when you ask.";
+const WANTED_AFTER_TURNING_DOWN =
+  "Turned down, and the work is wanted: it waits in Activity › Wanted for a better scan, and nothing looks until you ask there.";
 
 function verdictBadge(work) {
   const glyph = VERDICT_GLYPHS[work.verdict];
@@ -168,13 +175,15 @@ function scanName(instance, work) {
 
 function instanceRows(instance, work, after) {
   const title = work.title;
-  const act = (path, body) =>
+  const act = (path, body, message = null) =>
     guard(async () => {
       await api(path, { method: "POST", body: JSON.stringify(body || {}) });
       // Turning a scan down can leave the work with no image to accept, which
-      // takes it off To review; choosing one can put it back.
+      // takes it off To review; choosing one can put it back. Turning down the
+      // scan on offer also makes the work wanted, which Wanted's count shows.
       paintAwaiting();
-      await after();
+      paintWanted();
+      await after(message);
     });
   const chosen = instanceStateBadges(instance).filter(Boolean);
   const detail = facts([
@@ -225,8 +234,17 @@ function instanceRows(instance, work, after) {
                 class: "action quiet",
                 type: "button",
                 text: "Turn it down",
-                "aria-label": `Turn down this scan for ${title}`,
-                onclick: () => act(`/api/candidate-images/${encodeURIComponent(instance.image_id)}/reject`),
+                // The scan on offer is the one whose turning down makes the work
+                // wanted, so its name says so; an alternate's only turns it down.
+                "aria-label": instance.is_selected
+                  ? `Turn down this scan for ${title}; the work will wait in Wanted for a better one`
+                  : `Turn down this scan for ${title}`,
+                onclick: () =>
+                  act(
+                    `/api/candidate-images/${encodeURIComponent(instance.image_id)}/reject`,
+                    null,
+                    instance.is_selected ? WANTED_AFTER_TURNING_DOWN : null,
+                  ),
               }),
         ]),
       ]),
@@ -372,6 +390,12 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
     node.replaceWith(candidateCard(fresh, message, disclosure.open, hooks.onVerdict));
   };
 
+  // An accepted work's image is fetched by the acquisition queue, not by the
+  // verdict, so the card says how that is coming along — the moment after
+  // Accept is when a curator wonders whether anything happened.
+  const acquisitionSlot = work.verdict === "accepted" && work.artwork_id ? el("div", { class: "acquisition-slot" }) : null;
+  if (acquisitionSlot) guard(() => paintAcquisition(acquisitionSlot, work));
+
   const reason = el("input", { type: "text", id: `reason-${work.work_id}` });
   const decide = (verdict) =>
     guard(async () => {
@@ -403,7 +427,7 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
   // would otherwise carry up to twelve instances each, and a curator opens the
   // alternates for the few works whose first answer they doubt.
   disclosure.addEventListener("toggle", () => {
-    if (disclosure.open) guard(async () => fill(alternates, await alternatesPanel(work.work_id, () => repaint(null))));
+    if (disclosure.open) guard(async () => fill(alternates, await alternatesPanel(work.work_id, (message) => repaint(message))));
   });
   // Opening it here fires `toggle`, which is what fetches the list — so a
   // carried-over disclosure loads rather than restoring the placeholder.
@@ -415,6 +439,54 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
   // test pass. Left in this order because it reads better, not because anything
   // depends on it.
   if (alternatesOpen) disclosure.open = true;
+
+  // A work its search finished without finding any scan for: nothing to
+  // accept, so Want or Forget. Not one whose search is still running, which has
+  // found nothing *yet* and may still.
+  const noScan = card.instances_held === 0 && work.resolution_status === "unresolved";
+  const acceptOrReject = () => [
+    card.held_artwork_id
+      ? el("button", {
+          class: "action",
+          type: "button",
+          text: "Open it in Artworks",
+          "aria-label": `Open ${work.title} in Artworks`,
+          onclick: () => go("work", card.held_artwork_id),
+        })
+      : el("button", { class: "action", type: "button", text: "Accept", "aria-label": `Accept ${work.title}`, onclick: () => decide("accepted") }),
+    card.held_artwork_id
+      ? el("button", {
+          class: "action quiet",
+          type: "button",
+          text: "Accept anyway",
+          "aria-label": `Accept ${work.title} anyway, as a second artwork`,
+          onclick: () => decide("accepted"),
+        })
+      : null,
+    el("button", { class: "action quiet", type: "button", text: "Reject", "aria-label": `Reject ${work.title}`, onclick: () => decide("rejected") }),
+  ];
+  const want = () =>
+    guard(async () => {
+      await api(`/api/candidates/${encodeURIComponent(work.work_id)}/want`, { method: "POST", body: JSON.stringify({}) });
+      paintAwaiting();
+      paintWanted();
+      await repaint(WANTED_NO_SCAN);
+    });
+  const wantOrForget = () => [
+    // Already wanted: Want would change nothing, so only Forget is offered.
+    work.verdict === "wanted"
+      ? null
+      : el("button", { class: "action", type: "button", text: "Want", "aria-label": `Want ${work.title}, and find a scan later`, onclick: want }),
+    // Reject by another name: it stops the work being proposed again, which
+    // is what a curator forgetting a painting means.
+    el("button", {
+      class: "action quiet",
+      type: "button",
+      text: "Forget",
+      "aria-label": `Forget ${work.title}: stop proposing it`,
+      onclick: () => decide("rejected"),
+    }),
+  ];
 
   node.append(
     card.shown
@@ -437,6 +509,7 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
         reasonBadge(work),
         card.shown ? fitBadge(card.shown, "size unrecorded") : null,
       ]),
+      acquisitionSlot,
       // A chosen work names the Wikidata item it was got by, which opens that
       // item's page here: what the registry knows of the work, to judge it by.
       work.wikidata_qid
@@ -476,25 +549,12 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
           el("label", { for: `reason-${work.work_id}`, text: "Why (optional)" }),
           reason,
         ]),
-        card.held_artwork_id
-          ? el("button", {
-              class: "action",
-              type: "button",
-              text: "Open it in Artworks",
-              "aria-label": `Open ${work.title} in Artworks`,
-              onclick: () => go("work", card.held_artwork_id),
-            })
-          : el("button", { class: "action", type: "button", text: "Accept", "aria-label": `Accept ${work.title}`, onclick: () => decide("accepted") }),
-        card.held_artwork_id
-          ? el("button", {
-              class: "action quiet",
-              type: "button",
-              text: "Accept anyway",
-              "aria-label": `Accept ${work.title} anyway, as a second artwork`,
-              onclick: () => decide("accepted"),
-            })
-          : null,
-        el("button", { class: "action quiet", type: "button", text: "Reject", "aria-label": `Reject ${work.title}`, onclick: () => decide("rejected") }),
+        // **A work nothing was ever found for offers Want and Forget**, not
+        // Accept and Reject: accepting it would mint a work with no image, and
+        // rejecting it is "forget it for good", which is said as such. Want is
+        // the one way to say "I want this painting; no scan exists yet", and it
+        // waits in Activity › Wanted (the owner's ruling on #168, 2026-10-02).
+        ...(noScan ? wantOrForget() : acceptOrReject()),
       ]),
     ]),
     // Beneath the picture and the facts both, the card's full width: the Scans
@@ -505,35 +565,51 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
   return node;
 }
 
-/* The offer to look again, over the works currently waiting for a better scan.
+/* Where an accepted work's image stands: the queue's line while it owes one,
+ * and a plain sentence once it does not. */
+async function paintAcquisition(slot, work) {
+  const detail = await api(`/api/works/${encodeURIComponent(work.artwork_id)}`);
+  fill(
+    slot,
+    detail.acquisition
+      ? acquisitionLine(detail.acquisition, work.title, () => paintAcquisition(slot, work))
+      : el("p", {
+          class: "muted",
+          text: detail.original ? "Its image is held and prepared for the wall." : "No image is being fetched for it.",
+        }),
+  );
+}
+
+/* The offer to look again, over the works currently wanted.
  *
- * `waiting` is a function rather than the list itself, so the button reads the
+ * `wanted` is a function rather than the list itself, so the button reads the
  * set again at the moment it is clicked rather than closing over the one this
  * paint was built from. **A mutation sweep survives replacing that call with the
  * captured list, and that is expected rather than a gap to close**: the map is
  * only ever written by the callback that repaints this panel in the same breath,
  * so the two are equal on every path that exists today and no test can tell them
  * apart. It is kept because the failures either side of it are not the same
- * size — a stale count misinforms a curator, a stale list *spends*, and
- * `/api/runs/resolve` bills for exactly the ids in this body. Reading at click
- * time is what keeps that spend correct without it resting on the panel's
+ * size — a stale count misinforms a curator, a stale list *acts*: it starts a
+ * run over exactly the ids in this body, which would re-search a work the
+ * curator has since accepted. Reading at click time is what keeps that list
+ * correct without it resting on the panel's
  * render bookkeeping being right, which is the coupling that produced the
  * defect this function was extracted to fix. */
-function reSearchOffer(waiting) {
-  const works = waiting();
-  // Offered only when there is something to re-search. A button that spends
-  // and would do nothing is worse than no button: it invites a curator to pay
-  // for a run over an empty list.
+function reSearchOffer(wanted) {
+  const works = wanted();
+  // Offered only when there is something to re-search. A button that starts a
+  // run over an empty list is worse than no button: it does nothing and says
+  // it did something.
   if (works.length === 0) return null;
   return el("div", { class: "panel" }, [
-    el("h3", { text: "Scans you turned down" }),
+    el("h3", { text: "Wanted" }),
     el("p", {
       class: "muted",
       // Says that nothing is looking, which is the fact a curator cannot
-      // see. Rejecting a scan records a judgement; it does not start a
-      // search, and a page that stayed silent would leave them waiting for
-      // one that is never coming.
-      text: `${works.length} ${works.length === 1 ? "work is" : "works are"} waiting for a better scan. Nothing is looking for one — a re-search is what looks, and it spends.`,
+      // see. Wanting a work records a wish; it does not start a search, and a
+      // page that stayed silent would leave them waiting for one that is
+      // never coming.
+      text: `${works.length} ${works.length === 1 ? "work is" : "works are"} wanted. Nothing is looking for a scan — a re-search is what looks, and it costs nothing.`,
     }),
     el("div", { class: "row" }, [
       el("button", {
@@ -544,7 +620,7 @@ function reSearchOffer(waiting) {
           guard(async () => {
             const run = await api("/api/runs/resolve", {
               method: "POST",
-              body: JSON.stringify({ work_ids: waiting() }),
+              body: JSON.stringify({ work_ids: wanted() }),
             });
             go("run", run.run_id);
           }),
@@ -648,7 +724,7 @@ function offeredGroupSentence(group, allCards) {
  * section this one replaces, when the screen is redrawing the same run: its
  * cards whose works have not changed are kept rather than rebuilt (`BUILT`). */
 export function reviewSection(page, { keptFrom = null } = {}) {
-  /* One answer to "which works are waiting for a better scan", held for as long
+  /* One answer to "which works are wanted", held for as long
    * as this section is on screen.
    *
    * The grid repaints a card in place and leaves its neighbours alone — see
@@ -656,15 +732,15 @@ export function reviewSection(page, { keptFrom = null } = {}) {
    * and nothing around it. Deriving the offer from `page.works` gave the screen
    * two answers to this question: the offer's, fixed at paint, and the grid's,
    * current. They diverge on a transition reachable from this very page, and the
-   * offer is the one that spends. */
+   * offer is the one that starts a run. */
   const verdicts = new Map(page.works.map((card) => [card.work.work_id, card.work.verdict]));
-  const isWaiting = (verdict) => verdict === "awaiting_better_image";
-  const waiting = () => [...verdicts].filter(([, verdict]) => isWaiting(verdict)).map(([workId]) => workId);
+  const isWanted = (verdict) => verdict === "wanted";
+  const wanted = () => [...verdicts].filter(([, verdict]) => isWanted(verdict)).map(([workId]) => workId);
 
   /* Always on the page, whether or not it holds anything.
    *
-   * Two things need that. A run can arrive with nothing waiting and reach a work
-   * waiting through the curator's own next click, so an offer built only when the
+   * Two things need that. A run can arrive with nothing wanted and reach a work
+   * wanted through the curator's own next click, so an offer built only when the
    * first paint found one could never appear. And a live region has to exist
    * *before* the content it announces is put into it — a `role="status"` element
    * created and filled in the same breath announces nothing, which is the usual
@@ -675,22 +751,22 @@ export function reviewSection(page, { keptFrom = null } = {}) {
    * news, not an emergency: polite waits for a pause instead of interrupting. */
   const offer = el("div", { role: "status" });
   const paintOffer = () => {
-    const panel = reSearchOffer(waiting);
+    const panel = reSearchOffer(wanted);
     fill(offer, ...(panel ? [panel] : []));
   };
   paintOffer();
 
   const noteVerdict = (workId, verdict) => {
-    const was = isWaiting(verdicts.get(workId));
+    const was = isWanted(verdicts.get(workId));
     verdicts.set(workId, verdict);
     // Repainted only when this work's *membership* moved — not merely when its
     // verdict did. The offer depends on nothing else, so accepting a work that
-    // was never waiting leaves it word for word identical, and rewriting a live
+    // was never wanted leaves it word for word identical, and rewriting a live
     // region re-announces it: a curator working by screen reader would hear the
     // whole offer read out again for a verdict that did not concern it.
     // Comparing verdicts instead of membership looks equivalent and is not; the
     // test that accepts an unrelated work is what says so.
-    if (was !== isWaiting(verdict)) paintOffer();
+    if (was !== isWanted(verdict)) paintOffer();
   };
 
   // One work to a row, not a grid of tiles: a card is judged by reading it, its

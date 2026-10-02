@@ -17,7 +17,9 @@ master must not look like a card whose work is small.
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import Protocol
 
+from arrt.library.acquisition.queue import AcquisitionState
 from arrt.library.services.catalogue import ArtworkDetail, CatalogueService, FacetGroup, RenditionView
 from arrt.library.services.display_fit import ArtworkBox, FitAssessment
 from arrt.library.services.thumbnails import ThumbnailService, ThumbnailUnavailable
@@ -77,6 +79,16 @@ class WorkDossier:
     #: collection's counts — one card carrying its own six kinds would be a read
     #: per work per page for something no card shows.
     facets: Sequence[WorkFacet] = ()
+    #: Where the work stands in the acquisition queue: queued, being fetched,
+    #: failed, given up on, or held back by a pause. None when the queue owes it
+    #: nothing — it holds its image and is prepared, or it is archived.
+    acquisition: AcquisitionState | None = None
+
+
+class AcquisitionStates(Protocol):
+    """The one question the survey asks the acquisition queue."""
+
+    def state_of(self, artwork_ids: Sequence[str]) -> Mapping[str, AcquisitionState]: ...
 
 
 class SurveyService:
@@ -87,10 +99,16 @@ class SurveyService:
         catalogue: CatalogueService,
         thumbnails: ThumbnailService,
         box: ArtworkBox,
+        *,
+        acquisition: AcquisitionStates,
     ) -> None:
         self._catalogue = catalogue
         self._thumbnails = thumbnails
         self._box = box
+        #: Required rather than defaulted: a dossier with no acquisition state
+        #: reads exactly like a work the queue owes nothing, which is the
+        #: silence the Work page exists to break.
+        self._acquisition = acquisition
 
     @property
     def artwork_box(self) -> ArtworkBox:
@@ -149,6 +167,7 @@ class SurveyService:
             renditions=self._catalogue.list_renditions(artwork_id),
             mat_colors=self._catalogue.mat_color_history(artwork_id),
             facets=self._catalogue.facets_for(artwork_id),
+            acquisition=self._acquisition.state_of([artwork_id]).get(artwork_id),
         )
 
     def _survey(self, detail: ArtworkDetail) -> WorkSurvey:

@@ -38,3 +38,32 @@ export async function paintAwaiting() {
     else link.removeAttribute("aria-label");
   }
 }
+
+/* How many works are wanted, on Wanted's own link — and the link only once one is.
+ *
+ * `ia-proposal.md` § The map: "Wanted appears once something is in it", as
+ * Lidarr's Wanted does when nothing is missing. So with none wanted the link is
+ * hidden rather than counting zero; its address still answers, and says it is
+ * empty. Not counted on Activity's link: that count is To review's, the queue
+ * that needs the curator now, and a wanted work waits until they ask. */
+export async function paintWanted() {
+  const slots = document.querySelectorAll("[data-count-slot='wanted']");
+  if (!slots.length) return;
+  let wanted = 0;
+  try {
+    wanted = (await api("/api/wanted")).works.length;
+  } catch (failure) {
+    // Shown rather than hidden on a failed read: hiding would say "nothing is
+    // wanted", which the client does not know. Wanted itself reports the failure.
+    console.warn(`The Wanted count could not be read: ${failure.message}`);
+    for (const slot of slots) slot.closest("li").hidden = false;
+    return;
+  }
+  for (const slot of slots) {
+    const link = slot.closest("a");
+    slot.closest("li").hidden = wanted === 0;
+    fill(slot, wanted ? el("span", { class: "awaiting-count", text: String(wanted) }) : null);
+    if (wanted) link.setAttribute("aria-label", `Wanted: ${counted(wanted, "work")} wanted`);
+    else link.removeAttribute("aria-label");
+  }
+}

@@ -734,6 +734,38 @@ Cézanne, Édouard Manet, Pablo Picasso, Gustav Klimt, John Singer Sargent.
 - **A period is still everything made in its years, anywhere.** The Edo period's
   ten are European (Goya, Rembrandt, Rubens), as they were under the count.
 
+## Matching a wanted work (After Review, 2026-10-02)
+
+Measured live on 2026-10-02 for `build-plan-after-review.md` Chunk 04, with
+`WikidataRegistry.works_matching` (the typeahead's search, `prefix=False`,
+limit 8), over the seven works the August "salvador dali" Ask run (`4ab5063d`)
+left with no scan. User-Agent as above. Every call answered in 0.2-0.8 s.
+
+| Stored title | Title alone: first match | With "Salvador Dalí" added |
+|---|---|---|
+| Illumined Pleasures (1929) | Q4380958, Dalí (the only match) | not asked |
+| Lobster Telephone (1938) | Q2990594, Dalí, 13 sitelinks, image; then Q63109663, Dalí, 0 | the same two |
+| Mae West Lips Sofa (1938) | Q17986845, Dalí, image (the only match) | not asked |
+| Metamorphosis of Narcissus (1937) | Q2464824, Dalí (the only match) | not asked |
+| Mountain Lake (1938) | **no Dalí item**: eight landscapes by others (Heade, Sonntag, Turner, unknown) | **Q28555476, Dalí** (the only match) |
+| Portrait of my Sister (1925) | Q3937747, Dalí; then Q12142565, Dalí; then Émile Bernard | not asked |
+| The Persistence of Memory (1931) | Q25729, Dalí, 48 sitelinks; then *The Disintegration of…*, Dalí | Q25729, then *The Disintegration…* |
+
+What it settles for the picker:
+
+- **The year in brackets does no harm.** Results were identical with and without
+  it (the search drops tokens that are not words); the service strips it anyway
+  so the narrower search is asked for the words that matter.
+- **Search with the artist's name first.** It found the one item the title alone
+  missed (*Mountain Lake*) and narrowed the rest. "dali" and "dalí" answered
+  the same. When it finds nothing, the title alone is asked.
+- **A picker, not a match.** Two titles have two Dalí items each (*Lobster
+  Telephone*, *Portrait of my Sister*), which no rule about the creator can
+  choose between, and `data-model.md` § Registry identity forbids matching by
+  title in any case. The owner chose the curator's pick (2026-10-02).
+- **Five of seven matches carry no image.** A pick is still worth making for
+  them: a re-search by item asks Commons, and the image may be added later.
+
 ## Reproducing
 
 The probes were scratch scripts, not product code: a SPARQL helper with the

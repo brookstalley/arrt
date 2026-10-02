@@ -19,11 +19,13 @@
  * another screen.
  */
 
+import { acquisitionBadge, acquisitionSentence, retryButton } from "../core/acquiring.js";
 import { api } from "../core/api.js";
+import { paintWanted } from "../core/awaiting.js";
 import { table } from "../core/badges.js";
 import { counted } from "../core/counting.js";
 import { destinationOf, destinationWords, readThemes } from "../core/destination.js";
-import { el, render } from "../core/render.js";
+import { el, fill, guard, render } from "../core/render.js";
 import { go } from "../core/router.js";
 import { KIND_WORDS } from "../core/runs.js";
 
@@ -111,17 +113,53 @@ export async function viewToReview(generation) {
   render(generation, ...panels);
 }
 
+/* The images being fetched: Radarr's Queue holds downloads, and this is ours.
+ *
+ * Every work the acquisition queue owes something, in the order it will try
+ * them, with the pause first when there is one, since a pause holds every row
+ * beneath it. Not counted on Activity's link: that count is To review's, the
+ * one queue that needs the curator, and a fetch needs only time. */
+function acquisitionPanel(listing, generation) {
+  const repaint = () => viewQueue(generation);
+  const rows = listing.works.map(({ title, acquisition }) => [
+    el("button", {
+      class: "link",
+      type: "button",
+      text: title,
+      onclick: () => go("work", acquisition.artwork_id),
+    }),
+    acquisitionBadge(acquisition),
+    el("div", { class: "stack-tight" }, [
+      el("span", { text: acquisitionSentence(acquisition) }),
+      retryButton(acquisition, title, repaint),
+    ]),
+  ]);
+  return el("div", { class: "panel acquisitions" }, [
+    el("h3", { text: `Fetching images (${listing.works.length})` }),
+    listing.pause
+      ? el("p", { class: "note acquisition-pause" }, [
+          el("span", { class: "glyph", text: "‖", "aria-hidden": true }),
+          ` Every fetch is paused: ${listing.pause.detail} ${listing.pause.remedy || "Nothing anticipated this error; the server's journal has it, as acquisition.queue_error."}`,
+        ])
+      : null,
+    listing.works.length
+      ? table("Every accepted work still owed its image or its preparation, in the order the queue will try them.", ["Work", "State", "What happened"], rows)
+      : el("p", { class: "muted", text: "Every accepted work holds its image. A work you accept is fetched here, one at a time, then prepared for the wall." }),
+  ]);
+}
+
 export async function viewQueue(generation) {
-  const [runs, themes] = await Promise.all([api("/api/runs"), readThemes()]);
+  const [runs, themes, acquisitions] = await Promise.all([api("/api/runs"), readThemes(), api("/api/acquisitions")]);
   const active = runs.runs.filter((run) => !run.is_terminal);
   const panels = [el("h2", { text: "Queue" })];
   if (!active.length) {
     // Only as sure as the listing: when the cap left older searches out, one of
     // them may still be at the approval gate, so the page says what it checked
-    // rather than that nothing is in flight.
+    // rather than that nothing is in flight. "No search", not "nothing": the
+    // fetches below may be.
     const nothing = runs.truncated
-      ? `Nothing is in flight among the ${runs.count} most recent searches.`
-      : "Nothing is in flight.";
+      ? `No search is in flight among the ${runs.count} most recent searches.`
+      : "No search is in flight.";
     panels.push(
       el("div", { class: "panel empty" }, [
         el("p", {
@@ -141,6 +179,7 @@ export async function viewQueue(generation) {
     );
   }
   panels.push(truncation(runs, "Checked"));
+  panels.push(acquisitionPanel(acquisitions, generation));
   render(generation, ...panels);
 }
 
@@ -161,3 +200,218 @@ export async function viewHistory(generation) {
   panels.push(truncation(runs, "The finished ones"));
   render(generation, ...panels);
 }
+
+/* *Wanted*: the works the curator wants and holds no acceptable scan of.
+ *
+ * Lidarr's Wanted › Missing, and `ia-proposal.md` § Activity: "Wanted holds works
+ * marked Want (no image known, or a Get that found nothing)". One state whether
+ * a work never had a scan or had its scan turned down (#168's convergence), so
+ * one list, each row saying which.
+ *
+ * **Searching is manual and free.** A re-search asks museum and Commons APIs,
+ * which cost nothing (`phase2_estimate_usd`); a scheduled re-search waits for
+ * Watches. Commons is asked only by Wikidata item, so Search again on a work with
+ * no item first offers Wikidata's matches to pick from — the curator's pick, never
+ * a match by title (`data-model.md` § Registry identity). Two calls the client
+ * makes, the pick then the search, rather than one route that branches. */
+export async function viewWanted(generation) {
+  const listing = await api("/api/wanted");
+  const works = listing.works;
+  const picker = el("div", { class: "wanted-picker" });
+  const panels = [el("h2", { text: "Wanted" }), picker];
+  if (!works.length) {
+    panels.push(
+      el("div", { class: "panel empty" }, [
+        el("p", {
+          text:
+            "Nothing is wanted. A work you Want on its review card, or whose scan on offer you turn down, waits here " +
+            "until you search for it again.",
+        }),
+      ]),
+    );
+    render(generation, ...panels);
+    return;
+  }
+  const runs = new Set(works.map((work) => work.run_id));
+  const repaint = () => viewWanted(generation);
+  panels.push(
+    el("div", { class: "panel wanted" }, [
+      el("h3", { text: `${counted(works.length, "work")} wanted` }),
+      el("p", {
+        class: "muted",
+        text:
+          "Searching again asks the museums and Commons, and spends nothing. Commons is asked only for a work's " +
+          "Wikidata item, so a work with none offers Wikidata's matches to pick from first.",
+      }),
+      el("div", { class: "row" }, [
+        el("button", {
+          class: "action",
+          type: "button",
+          text: "Search all",
+          "aria-label": `Search again for all ${counted(works.length, "wanted work")}`,
+          onclick: () => searchAll(works, picker),
+        }),
+        runs.size > 1
+          ? el("span", { class: "muted", text: `One re-search for each of the ${runs.size} searches these came from.` })
+          : null,
+      ]),
+      table(
+        "Every work you want, newest search first.",
+        ["Work", "Why", "Wikidata", "From", ""],
+        works.map((work) => [
+          el("span", {}, [el("strong", { text: work.title }), work.artist ? ` — ${work.artist}` : ""]),
+          work.scans_turned_down
+            ? `${counted(work.scans_turned_down, "scan")} turned down`
+            : "No scan found",
+          work.wikidata_qid
+            ? el("button", { class: "link", type: "button", text: work.wikidata_qid, onclick: () => go("work", work.wikidata_qid) })
+            : "No item",
+          el("button", { class: "link", type: "button", text: "The search", "aria-label": `Open the search ${work.title} came from`, onclick: () => go("run", work.run_id) }),
+          el("div", { class: "stack-tight" }, [
+            el("button", {
+              class: "action quiet",
+              type: "button",
+              text: "Search again",
+              "aria-label": `Search again for ${work.title}`,
+              onclick: () => (work.wikidata_qid ? searchFor([work.work_id]) : offerItems(picker, work)),
+            }),
+            el("button", {
+              class: "action quiet",
+              type: "button",
+              text: "Forget",
+              "aria-label": `Forget ${work.title}: stop proposing it`,
+              onclick: () =>
+                guard(async () => {
+                  await api(`/api/candidates/${encodeURIComponent(work.work_id)}/verdict`, {
+                    method: "POST",
+                    body: JSON.stringify({ verdict: "rejected", reason: null }),
+                  });
+                  paintWanted();
+                  await repaint();
+                }),
+            }),
+          ]),
+        ]),
+      ),
+    ]),
+  );
+  render(generation, ...panels);
+}
+
+/* One re-search over these works, all from one search, then its page. */
+function searchFor(workIds) {
+  return guard(async () => {
+    const run = await api("/api/runs/resolve", { method: "POST", body: JSON.stringify({ work_ids: workIds }) });
+    go("run", run.run_id);
+  });
+}
+
+/* A re-search per originating search, since one covers one search's works; then
+ * the run's own page when there is one, and Queue when there are several.
+ *
+ * **A refused search does not stop the rest.** The server refuses works already
+ * being re-searched, which is the ordinary state just after *Search again* on
+ * one row; stopping there would leave every search after it unstarted, and
+ * pressing again would fail the same way. So each is tried, and when any was
+ * refused the page stays and says which started and why the others did not. */
+function searchAll(works, slot) {
+  return guard(async () => {
+    const byRun = new Map();
+    for (const work of works) byRun.set(work.run_id, [...(byRun.get(work.run_id) || []), work.work_id]);
+    const started = [];
+    const refused = [];
+    for (const workIds of byRun.values()) {
+      try {
+        started.push(await api("/api/runs/resolve", { method: "POST", body: JSON.stringify({ work_ids: workIds }) }));
+      } catch (failure) {
+        // A refusal is the server's sentence for the curator; anything else
+        // (the network, a fault) is not ours to swallow.
+        if (failure.status !== 400) throw failure;
+        refused.push(failure.message);
+      }
+    }
+    if (!refused.length) {
+      if (started.length === 1) go("run", started[0].run_id);
+      else go("queue");
+      return;
+    }
+    fill(
+      slot,
+      el("div", { class: "panel note search-all-outcome", role: "status" }, [
+        el("p", {
+          text: started.length
+            ? `Started ${counted(started.length, "re-search", "re-searches")}. ${counted(refused.length, "other", "others")} could not start:`
+            : "No re-search could start:",
+        }),
+        el("ul", {}, refused.map((message) => el("li", { text: message }))),
+        started.length
+          ? el("button", { class: "action quiet", type: "button", text: "Open Queue", onclick: () => go("queue") })
+          : null,
+      ]),
+    );
+  });
+}
+
+/* Wikidata's items for a work with none, to pick from before searching. */
+function offerItems(picker, work) {
+  return guard(async () => {
+    const found = await api(`/api/candidates/${encodeURIComponent(work.work_id)}/wikidata-matches`);
+    const searchWithout = el("button", {
+      class: "action quiet",
+      type: "button",
+      text: found.matches.length ? "None of these — search without an item" : "Search without an item",
+      onclick: () => searchFor([work.work_id]),
+    });
+    fill(
+      picker,
+      el("div", { class: "panel picker", role: "region", "aria-label": `Wikidata's items for ${work.title}` }, [
+        // Focusable, and focused once drawn: the picker opens above the table,
+        // away from the button that opened it, and a screen reader would
+        // otherwise hear nothing happen.
+        el("h3", { class: "picker-heading", tabindex: "-1", text: `Which is ${work.title}?` }),
+        el("p", {
+          class: "muted",
+          text:
+            found.state === "known"
+              ? found.matches.length
+                ? "Wikidata's works with this title, by the same artist first. Pick the one you mean; it becomes the work's item, and Commons is asked by it."
+                : "Wikidata has no work with this title. Searching without an item still asks the museums."
+              : found.note,
+        }),
+        found.matches.length
+          ? el(
+              "ul",
+              { class: "picker-matches" },
+              found.matches.map((match) =>
+                el("li", {}, [
+                  el("button", {
+                    class: "action",
+                    type: "button",
+                    text: "This one",
+                    "aria-label": `Pick ${match.qid}, ${match.title}${match.creator ? ` by ${match.creator}` : ""}`,
+                    onclick: () =>
+                      guard(async () => {
+                        await api(`/api/candidates/${encodeURIComponent(work.work_id)}/wikidata-item`, {
+                          method: "PUT",
+                          body: JSON.stringify({ qid: match.qid }),
+                        });
+                        await searchFor([work.work_id]);
+                      }),
+                  }),
+                  " ",
+                  el("strong", { text: match.title }),
+                  match.creator ? ` — ${match.creator}` : " — maker unrecorded",
+                  " · ",
+                  el("button", { class: "link", type: "button", text: match.qid, onclick: () => go("work", match.qid) }),
+                  match.has_image ? " · has a picture" : " · no picture on Wikidata",
+                ]),
+              ),
+            )
+          : null,
+        el("div", { class: "row" }, [searchWithout]),
+      ]),
+    );
+    picker.querySelector(".picker-heading").focus();
+  });
+}
+

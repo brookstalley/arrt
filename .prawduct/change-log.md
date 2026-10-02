@@ -62,6 +62,201 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-02: The branch review's three bugs
+
+<!-- prawduct: scope=after-review -->
+
+**Why:** the cumulative review (`rev-20261002T212847Z-3ee44653`, 0 blocking)
+raised three faults worth a round; the rest were answered on the record.
+
+**What:**
+- **The acquisition queue's worker no longer dies silently** when waiting for its
+  next work fails: waiting reads the store, and an error there now pauses the
+  queue and is journalled (`acquisition.queue_error`), as an error during a pass
+  already was. Before, the thread ended with no log line and every accepted work
+  read *queued* until a restart.
+- **Search all tries every originating search**, and when the server refuses one
+  (its works are already being re-searched, as they are right after *Search
+  again*) the page stays and says which started and why the rest did not.
+- **The picker's artist match ignores an empty creator name**, which would have
+  counted every match as the proposed artist's.
+- Records: the `wanted` verdict row cites Q36-Q37; the verification entry says
+  "the seven no-scan works from the 16 August Dalí run".
+
+## 2026-10-02: The owner's review of the After Review screens
+
+<!-- prawduct: scope=after-review -->
+
+**Why:** the owner looked the screens over ("looking good! Some improvements to be
+had") and left the sequencing to the builder.
+
+**What:** a labelled field and its button now share a bottom edge on every form
+row (`.row > .field` drops the field's own bottom margin), held by a measured
+browser test watched failing without the rule. And `hidden` now hides whatever the
+element's class: the Artist and Work pages' Wikidata form was created hidden but
+shown by `.stack`'s flex display, so "Change…", "There is none" and an empty Q…
+field all showed at once (found by the backlog agent filing #174, confirmed in a
+browser). One `[hidden]` rule replaces the Get dialog's one-off patch; a test
+asserts the field is hidden until Change… is pressed, watched failing without it. The rest of the review (search
+and Topic page held/image-found states, the Artists index, the Artist page's
+Wikidata controls, Library › Topics' layout) is filed for one "Library screens"
+plan with #169, after this PR.
+
+## 2026-10-02: A re-search costs nothing, and now every surface says so
+
+<!-- prawduct: scope=after-review -->
+
+**Why:** building Wanted's Search all, the plan reached for "the estimate" and
+found it is zero: phase 2 asks open museum and Commons APIs and makes no model
+call (`RunnerSettings.phase2_estimate_usd`, measured 2026-08-02), and nothing
+writes an `image_research` spend row. The review page, MCP's tips and notices,
+the server's instructions, `api-contract.md` and `data-model.md` still called a
+re-search the paid call, which tells a curator or an agent to ration a free one.
+
+**What:** each present-tense claim rewritten to what the code does (free today;
+a paid image provider would bring the price back, in that one method): the
+review page's offer ("it costs nothing"), `want` and `reject_image` tips, the
+`want`, nothing-choosable and resolve notices, `want_candidate`'s docstring,
+`discovery.py`'s double-submit comments and its refusal ("would pay twice" became
+"would search twice", as did `resolve_images`' tip; the review's first sweep
+searched only "spend" and "paid", and the Critic found "pay"), `reviewing.js`
+comments, the server's
+instructions (`art_discovery` is the only tool spending money *in amounts worth
+authorising*, as its summary already said), `api-contract.md` § Rejecting an
+image does not re-search (heading kept for its citations) with a § Versioning
+entry, `data-model.md`'s guidance and constraint 14, and six test docstrings and
+names. One browser assertion moved from "it spends" to "it costs nothing", watched
+failing on the old wording. Dated decision records keep their words.
+
+## 2026-10-02: Want and Forget, and Activity › Wanted
+
+<!-- prawduct: scope=after-review -->
+
+**Why:** a work its search found no scan for offered Accept, which would mint a
+work with no image, and Reject, which forgets it for good (#168). The owner
+asked for Want and Forget on such a card, and for every wanted work, with or
+without a scan, to wait in Activity › Wanted with Search again, Forget and
+Search all.
+
+**What:**
+- **The review card:** a work whose search finished with no scan offers
+  **Want** and **Forget**; a wanted one offers Forget. Turning down the scan on
+  offer says, in its name and the note after it, that the work now waits in
+  Wanted; an alternate's does not.
+- **Activity › Wanted** (`#wanted`, served at `/wanted` so a reload lands on it, `screens/activity.js`): every wanted work,
+  why (no scan found, or *n* turned down), its Wikidata item, the search it came
+  from; **Search again** (re-search, or first the Wikidata picker when the work
+  has no item: the pick, then the search, two calls), **Forget**, and **Search
+  all** (one re-search per originating search). The page says searching spends
+  nothing. Its sidebar link, with a count, appears once something is wanted.
+- **Chunk 04's review notes:** the matcher splits titles into words with the
+  registry search's splitter (`search_words`), so a word touching punctuation is
+  still searched; and a test picks an item on a wanted work.
+- `information-architecture.md`: Wanted's rows in the three tables, the sidebar,
+  and "Wanted is not shown yet" amended. Thirteen browser tests, nine re-breaks
+  caught.
+
+## 2026-10-02: A wanted work's Wikidata item, picked by the curator
+
+<!-- prawduct: scope=after-review -->
+
+**Why:** a re-search asks Commons only by Wikidata item, and works an Ask run
+proposed carry none, so Search again could never find their Commons scans
+(#168 requirement 3). `data-model.md` § Registry identity forbids matching a work
+by title, so the owner chose a picker: the registry offers, the curator picks.
+
+**What:**
+- **Measured first** (`wikidata-findings.md` § Matching a wanted work): on the
+  seven Dalí works with no scan, the title alone put the right item first for
+  six; adding the artist's name found the seventh (*Mountain Lake*, Q28555476);
+  two titles have two Dalí items each.
+- **`WikidataMatchService`** (`library/services/wikidata_match.py`) searches the
+  title with the artist's name, then the title alone, lists the proposed
+  artist's matches first, and stores nothing. **`DiscoveryService.set_wikidata_item`**
+  records the curator's pick, refused on a decided work or a non-item; at
+  acceptance it becomes the artwork's QID, set by the curator.
+- **HTTP** `GET /api/candidates/{id}/wikidata-matches` and
+  `PUT /api/candidates/{id}/wikidata-item`; **MCP** `art_review` gains
+  `wikidata_matches` and `set_wikidata_item` (additive). The browser's picker is
+  Chunk 05's.
+- Tests: eleven unit tests over a fake registry built from the live answers, the
+  routes and MCP actions against a real server, a field-name parity check; six
+  re-breaks caught.
+
+## 2026-10-02: Where an accepted work's image stands, on every screen that shows the work
+
+<!-- prawduct: scope=after-review -->
+
+**Why:** Chunk 01's queue fetches and prepares accepted works in the background,
+and a background job that nobody can see reads exactly like one that never ran.
+The owner asked that the Work and Review pages say whether a work is queued,
+being fetched, or failed and why, and that a pause say why on Activity (#167).
+
+**What:**
+- **The Work page, a Review card for an accepted work, and Activity › Queue**
+  say where a work stands, in one set of words (`core/acquiring.js`): queued,
+  fetching, failed (which try, why, when next), gave up (with **Retry**), or
+  paused (why, and the remedy). Queue lists every work owed, in the order the
+  queue will try them, under the searches. Activity's count stays To review's.
+- **HTTP:** `GET /api/works/{id}` gains `acquisition`; new
+  `POST /api/works/{id}/acquisition/retry` and `GET /api/acquisitions`; every
+  candidate work gains `artwork_id`.
+- **MCP, breaking:** `retry_acquisition` queues the work and returns at once,
+  instead of fetching in the call beside the queue's own fetch; `get` carries
+  `acquisition`. Its per-outcome notice went with the synchronous fetch, and
+  `sources` still reports a partial fetch. `resolve_images`' text now says
+  *wanted works*. Recorded in `api-contract.md` § Versioning.
+- **The queue:** an unexpected error from one work's attempt now counts against
+  that work instead of pausing every fetch; a Retry on a work with no source is
+  refused. The deployment faults' remedies moved from MCP's binding to
+  `DEPLOYMENT_REMEDIES`, beside `DEPLOYMENT_FAULTS` (now public).
+- **Tests rewritten to the new contract, not weakened:** MCP's retry tests (it
+  queues; a pass then shows the failure or the pause through `get`); the
+  binding's notice and remedy tests (the remedy table, parametrised over
+  `DEPLOYMENT_FAULTS`); Chunk 01's pause-on-unexpected-error test, split into
+  the error from one work (counts against it, the next is still fetched) and the
+  error outside any work (still pauses). Queue's empty sentence now says "No
+  search is in flight", since the fetches beneath may be. Eight new tests watched
+  failing against eight re-breaks.
+
+## 2026-10-02: An accepted work fetches and prepares itself; one wanted state
+
+<!-- prawduct: scope=after-review -->
+
+**Why:** nothing fetched an accepted work's master image or prepared it, so
+every work accepted through Get or Ask stayed off every wall until an agent
+called `retry_acquisition` and `regenerate` by hand (#167). And a work with no
+scan offered only Accept or Reject, with no way to say "I want this, find it
+later" (#168). The owner asked that wanting any scan and wanting a better one
+converge.
+
+**What:**
+- **The acquisition queue** (`library/acquisition/queue.py`, Chunk 01): one
+  worker, woken by acceptance and catching up at start, fetches each accepted
+  work holding no image and then prepares it. Failures retry after 1 h, 1 day
+  and 3 days, then wait for Retry; a partial result counts as acquired; a
+  deployment fault (short disk, no dezoomify-rs, no tile resolver) pauses the
+  queue without counting against the work. Its state is one table,
+  `acquisition_queue` (Q31-Q35). Preparation now records the mat colour's model
+  spend as `mat_color_vision`. Built by a delegate in its own worktree; 30
+  re-breaks caught, re-run after a scratchpad collision with the other delegate.
+  Critic `rev-20261002T194630Z-9a001a93`: 1 blocking (two untested branches:
+  when the worker wakes for a retry, and no second fetch after a named source),
+  fixed with four tests watched failing, plus a Retry/attempt race closed;
+  `rev-20261002T195129Z-b2afcdfd` clean.
+- **One wanted state** (Chunk 03): `awaiting_better_image` is renamed `wanted`
+  by migration, with one way in, `DiscoveryService.want(work, turning_down=…)`.
+  Turning down the scan on offer wants a better one; turning down an alternate
+  only suppresses it. `set_verdict` still refuses the verdict. `POST
+  /api/candidates/{id}/want`, `GET /api/wanted`, and MCP `art_review` actions
+  `want` and `list_wanted`. The rename and the `reject_image` change are
+  breaking and recorded in `api-contract.md` (Q36-Q37). Built by a delegate;
+  integration found `art_review`'s pinned help listing missing the two new
+  actions, and added them.
+- Carried fixes: `app.css`'s scans and `.stack-tight` comments, `search_topics`'
+  docstring (topic search is kept a week), and `re-architecture.md`'s list of
+  what runs in the background.
+
 ## 2026-10-02: The owner's review of the screens: Add to, the typeahead, and Review on a Get's own page
 
 <!-- prawduct: scope=topics-and-destinations -->
@@ -88,7 +283,7 @@ browser CI leg then found the Scans table scrolling sideways inside a 1280 px
 card on the runner's wider fonts (it was already 24 px over on macOS, inside the
 edge check's padding slack): a scan's two actions now stack, and the test
 asserts the table's box does not scroll. Three browser tests that read the page
-before it settled under `-n auto` now wait for what they assert. Filed from the same review: #167 (accepting never acquires the
+before it settled under `-n auto` now wait for what they assert. Filed from the owner's review of the screens: #167 (accepting never acquires the
 master), #168 (Wanted), #169 (Artworks' theme filter vs add-to-theme, decided:
 follow Radarr).
 
@@ -545,20 +740,3 @@ route, the MCP `list` action and the typeahead are tested with an unaccented
 query, as are a German ß, Greek, a ligature, and a name stored decomposed.
 Watched failing against the unfolded code first: 13 route tests and the
 typeahead test, every unaccented or non-ASCII spelling among them.
-
-## 2026-10-01: pyjwt and urllib3 bumped for the open Dependabot alerts
-
-<!-- prawduct: scope=deps-security-2026-10 | release=v0.1.0 -->
-
-**Why:** 18 open Dependabot alerts. pyjwt 2.13.0 (12 alerts, one critical)
-reaches the server through `mcp[crypto]`; urllib3 2.7.0 (3 per plane) reaches
-both through `requests`. Neither is named in a pyproject.
-
-**What:** `uv lock --upgrade-package` moved only those two: pyjwt 2.15.1 in
-`arrt/uv.lock`, urllib3 2.8.0 in `arrt/uv.lock` and `postarr/uv.lock`. Wave 5's
-recipe in `re-architecture.md` now names the server rename commit and its merge
-by id, and the pass-1 commit set across every ref, since filter-repo rewrites
-them all and a one-tip set misses an unmerged branch cut after the rename.
-
-**Not closed by this merge:** GitHub files the alerts against main's
-`curation/` and `display/` lockfiles, so they close when develop is released.

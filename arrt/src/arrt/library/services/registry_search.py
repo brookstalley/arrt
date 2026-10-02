@@ -54,6 +54,16 @@ type _Found = tuple[tuple[RegistryPerson, ...], tuple[RegistryWorkMatch, ...]]
 _WORDS: Final[re.Pattern[str]] = re.compile(r"\w[\w'’-]*")
 
 
+def search_words(text: str) -> list[str]:
+    """The words a registry search is asked for: letters and digits, apostrophes and hyphens kept inside a word.
+
+    Whitespace alone is not enough, because the registry's adapter drops any
+    token that is not a plain word, so "Life," or "(Premonition" would vanish
+    from the search rather than be asked for.
+    """
+    return _WORDS.findall(text)
+
+
 class RegistrySearchState(StrEnum):
     """Why the registry's half of a search says what it says."""
 

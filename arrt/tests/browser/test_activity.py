@@ -84,7 +84,7 @@ def test_an_empty_queue_says_so_and_offers_add_new(ui):
     ui.open("#queue")
     ui.page.wait_for_selector("#view .empty")
 
-    assert "Nothing is in flight" in ui.text()
+    assert "No search is in flight" in ui.text()
     ui.page.click("#view button:has-text('Go to Ask')")
     ui.page.wait_for_selector("#view h2:text-is('Ask')")
 
@@ -144,7 +144,7 @@ def test_an_empty_queue_over_a_truncated_listing_does_not_claim_nothing_is_in_fl
     ui.open("#queue")
     ui.page.wait_for_selector("#view .empty")
 
-    assert "Nothing is in flight among the 1 most recent searches." in ui.text()
+    assert "No search is in flight among the 1 most recent searches." in ui.text()
 
 
 def test_a_complete_empty_queue_says_nothing_is_in_flight_plainly(ui):
@@ -152,7 +152,7 @@ def test_a_complete_empty_queue_says_nothing_is_in_flight_plainly(ui):
     ui.open("#queue")
     ui.page.wait_for_selector("#view .empty")
 
-    assert "Nothing is in flight. " in ui.text()
+    assert "No search is in flight. " in ui.text()
     assert "most recent" not in ui.text()
 
 
@@ -164,5 +164,5 @@ def test_a_listing_that_fails_is_announced_not_shown_as_empty(ui, where):
     ui.page.wait_for_selector("#error:not([hidden])")
 
     assert "unavailable" in ui.page.inner_text("#error")
-    assert "Nothing is in flight" not in ui.page.inner_text("body")
+    assert "No search is in flight" not in ui.page.inner_text("body")
     assert "No search has finished yet" not in ui.page.inner_text("body")

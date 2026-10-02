@@ -217,3 +217,24 @@ def mark_the_default_theme(connection: sqlite3.Connection) -> None:
         "INSERT INTO default_theme_offers (artwork_id, offered_at) SELECT id, ? FROM artworks",
         (datetime.now(UTC).isoformat(),),
     )
+
+
+def rename_awaiting_to_wanted(connection: sqlite3.Connection) -> None:
+    """Rewrite the verdict `awaiting_better_image` as `wanted`, wherever a row still holds it.
+
+    The verdict was renamed because its old name was false of a work that never
+    had a scan, and the curator now wants such works too. Nothing reads the old
+    spelling any more — `Verdict` has no member for it, so a row left holding it
+    would fail to load rather than be read as something else.
+
+    Guarded by the rows themselves: the statement touches only rows still holding
+    the old value, so a second open finds none and does nothing. It is one
+    statement, so an interrupted open leaves every row either rewritten or not,
+    and the next open finishes the rest.
+    """
+    rewritten = connection.execute(
+        "UPDATE candidate_works SET verdict = 'wanted' WHERE verdict = 'awaiting_better_image'"
+    ).rowcount
+    connection.commit()
+    if rewritten:
+        log.info("Rewrote %d candidate works from 'awaiting_better_image' to 'wanted'.", rewritten)
