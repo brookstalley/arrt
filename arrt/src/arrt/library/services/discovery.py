@@ -406,9 +406,9 @@ class DiscoveryService:
         parent, so there is no work list to approve or decline.
 
         **It refuses work ids already covered by a live resolve run, and names
-        them.** Double-submitting the same ids would spend twice for one result
-        on the only operation that spends at all, and a curator who did it by
-        accident should find out rather than be quietly corrected.
+        them.** Double-submitting the same ids would search twice for one result,
+        and spend twice if a paid image provider is ever added, and a curator who
+        did it by accident should find out rather than be quietly corrected.
 
         `price` is asked for the estimate rather than handed one, because the
         count it prices is the *deduplicated* one this method works out, and a
@@ -550,7 +550,7 @@ class DiscoveryService:
         of its other terminal states is written by the run's own process, which a
         crashed process by definition cannot do. Combined with the double-spend
         guard, a crash would leave the covered works permanently
-        un-re-searchable, silently, on the only operation that spends money.
+        un-re-searchable, silently.
 
         A run in a process-held state only advances while the curation process
         that owns it is alive, and there is exactly one such process. So if
@@ -1514,7 +1514,7 @@ class DiscoveryService:
             titles = ", ".join(f"{work.proposed_title!r} ({work.id})" for work in busy)
             raise ServiceError(
                 f"A re-search is already running for {titles}. Wait for it to finish, or cancel it — "
-                "re-submitting would pay twice for one result."
+                "re-submitting would search twice for one result."
             )
 
     def _live_coverage(self, candidate_work_id: str) -> str | None:

@@ -460,7 +460,7 @@ ART_DISCOVERY: Final = ToolRecord(
                 "This is a run like any other: it returns a run_id, and action='status', action='cancel' and "
                 "action='spend' all take it.",
                 "A work already being re-searched by a running re-search is refused, and the refusal names it — "
-                "submitting the same ids twice would pay twice for one result.",
+                "submitting the same ids twice would search twice for one result.",
                 "The works must all come from one discovery run, because a re-search hangs its cost on the "
                 "intent that proposed them. Start one re-search per originating run.",
                 "What this costs rolls up into the originating run's figure, so action='spend' on that run "
@@ -765,7 +765,7 @@ ART_REVIEW: Final = ToolRecord(
             ),
             tips=(
                 "The work's verdict becomes wanted. Nothing searches for a scan: "
-                "art_discovery(action='resolve_images') does, and it spends.",
+                "art_discovery(action='resolve_images') does, and it costs nothing today.",
                 "A named scan is suppressed so no re-search can return it. Naming none suppresses nothing.",
                 "Refused on a work already accepted or rejected. action='set_verdict' still works from wanted.",
             ),
@@ -805,9 +805,8 @@ ART_REVIEW: Final = ToolRecord(
             example="art_review(action='reject_image', image_id='<an image_id from action=list_images>')",
             params=(_IMAGE_ID,),
             tips=(
-                "This does not go looking for a replacement — art_discovery(action='resolve_images') does, and "
-                "it is the call that spends money. Turn down the scans you want re-searched, then re-search "
-                "them in one batch.",
+                "This does not go looking for a replacement — art_discovery(action='resolve_images') does, "
+                "at no cost today. Turn down the scans you want re-searched, then re-search them in one batch.",
                 "The scan is suppressed either way, so a later search cannot hand back the one just turned "
                 "down. The scan on offer moves the work to wanted and the selection to the next survivor; an "
                 "alternate leaves the verdict and the standing choice alone.",

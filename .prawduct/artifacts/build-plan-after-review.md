@@ -26,7 +26,7 @@ governed_by:
   - artifact: api-contract
     dispositions:
       - "§ Versioning, the rules: renaming a result enum value or changing an action's description is breaking; § Deprecation: announce, retire and annotate inline, no shims → binds Chunks 02 and 03: the verdict's rename and `retry_acquisition` no longer fetching in the call are both breaking, recorded in `api-contract.md`, annotated at the replacing site, and announced to the operator in the PR"
-      - "§ Rejecting an image does not re-search; the re-search is the separate, paid call → conforms: `want` searches nothing; Search again and Search all are `resolve_images`"
+      - "§ Rejecting an image does not re-search; the re-search is the separate call (called paid until Chunk 05b found it free) → conforms: `want` searches nothing; Search again and Search all are `resolve_images`"
       - "§ `set_verdict` cannot set `awaiting_better_image`, one entry point → amendment proposed (Chunk 03): the one entry point becomes `want`, and `set_verdict` still refuses the verdict. The section's reason, that a scan turned down is always suppressed, is kept: suppression stays on the turning-down path. A resolve run that finds a scan still returns a wanted work to `pending`, as it does today from `awaiting_better_image`"
       - "§ 'exactly one tool spends' → inapplicable because it already does not hold and this plan adds no tool: `art_catalogue`'s `regenerate` and `set_mat_color` ask the vision model today; the queue is not a surface, and its spend is recorded (Chunk 01)"
   - artifact: information-architecture
@@ -176,6 +176,7 @@ Open assumptions:
 - `[ASSUMPTION: Want without naming a scan is allowed on any undecided work, not only a no-scan one, and suppresses nothing; the card offers it only where the owner asked (no scan). Turning a scan down stays the only way to suppress one | MED impact | user can correct]`
 - `[ASSUMPTION: a curator's 'none of these' in the Wikidata picker is not stored: the work is searched without an item, and the picker is offered again next time | LOW impact | user can correct]`
 - `[ASSUMPTION: Search again and Search all use the existing re-search (`runner.resolve_images`), which spends the phase-two estimate per work; the button says so with the estimate, as the run review's re-search offer does, and asks no confirmation | MED impact | user can correct]`
+  **Found false while building Chunk 05:** the phase-two estimate is zero, so Wanted says searching spends nothing, and Chunk 05b corrects the rest.
 
 **What would raise it:** counting the accepted works with no image on a
 fresh copy of the owner's catalogue (one query, Chunk 06's first step; the

@@ -62,6 +62,32 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-02: A re-search costs nothing, and now every surface says so
+
+<!-- prawduct: scope=after-review -->
+
+**Why:** building Wanted's Search all, the plan reached for "the estimate" and
+found it is zero: phase 2 asks open museum and Commons APIs and makes no model
+call (`RunnerSettings.phase2_estimate_usd`, measured 2026-08-02), and nothing
+writes an `image_research` spend row. The review page, MCP's tips and notices,
+the server's instructions, `api-contract.md` and `data-model.md` still called a
+re-search the paid call, which tells a curator or an agent to ration a free one.
+
+**What:** each present-tense claim rewritten to what the code does (free today;
+a paid image provider would bring the price back, in that one method): the
+review page's offer ("it costs nothing"), `want` and `reject_image` tips, the
+`want`, nothing-choosable and resolve notices, `want_candidate`'s docstring,
+`discovery.py`'s double-submit comments and its refusal ("would pay twice" became
+"would search twice", as did `resolve_images`' tip; the review's first sweep
+searched only "spend" and "paid", and the Critic found "pay"), `reviewing.js`
+comments, the server's
+instructions (`art_discovery` is the only tool spending money *in amounts worth
+authorising*, as its summary already said), `api-contract.md` § Rejecting an
+image does not re-search (heading kept for its citations) with a § Versioning
+entry, `data-model.md`'s guidance and constraint 14, and six test docstrings and
+names. One browser assertion moved from "it spends" to "it costs nothing", watched
+failing on the old wording. Dated decision records keep their words.
+
 ## 2026-10-02: Want and Forget, and Activity › Wanted
 
 <!-- prawduct: scope=after-review -->

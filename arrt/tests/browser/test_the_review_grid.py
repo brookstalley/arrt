@@ -353,8 +353,8 @@ def test_a_work_standing_on_a_scan_says_nothing_of_the_kind(grid):
 # -- the re-search --------------------------------------------------------
 
 
-def test_nothing_offers_to_spend_when_no_scan_has_been_turned_down(grid):
-    """A button that spends and would do nothing is worse than no button."""
+def test_nothing_offers_a_re_search_when_no_work_is_wanted(grid):
+    """A button that starts a run over nothing is worse than no button."""
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
 
@@ -377,14 +377,16 @@ def test_a_wanted_work_is_offered_a_re_search(grid):
     shown = grid.text()
     assert "1 work is wanted." in shown
     assert "Nothing is looking for a scan" in shown
-    assert "it spends" in shown
+    # Says what it costs, which is nothing: phase 2 asks open museum and
+    # Commons APIs (`phase2_estimate_usd`). It said "it spends" until 2026-10-02.
+    assert "it costs nothing" in shown
 
 
 def test_the_re_search_asks_only_for_the_works_that_are_waiting(grid):
-    """A re-search over works nobody turned down spends on answers already held.
+    """A re-search over works nobody turned down searches again for answers already held.
 
-    The list is what the button sends, so a filter written wrongly is money —
-    and it is invisible in any assertion about what the page displays.
+    The list is what the button sends, so a filter written wrongly searches for
+    the wrong works — and it is invisible in any assertion about what the page displays.
     """
     grid.serve(
         f"**/api/runs/{RUN_ID}/candidates*",
@@ -449,11 +451,11 @@ def test_the_offer_to_re_search_appears_when_a_scan_is_turned_down(grid):
     assert "Look again for these" in shown
 
 
-def test_the_re_search_spends_on_a_work_turned_down_after_the_page_loaded(grid):
-    """The half of this that costs money rather than credibility.
+def test_the_re_search_covers_a_work_turned_down_after_the_page_loaded(grid):
+    """The half of this that acts rather than only displays.
 
     A stale panel under-*counts*, and the count is the visible symptom — but the
-    list the button posts is the same stale array, so the curator pays for a run
+    list the button posts is the same stale array, so the curator starts a run
     covering fewer works than they just marked and gets back a run that is not
     the one they asked for. No assertion about rendered text reaches it.
 
@@ -569,9 +571,9 @@ def test_the_offer_withdraws_when_the_last_waiting_work_is_settled(grid):
 
     A work leaves `wanted` through the card's own buttons, not
     through the alternates — so this covers the second caller of the repaint the
-    panel listens to. Leaving the offer standing would invite a curator to spend
-    on a work they had just settled, which is the same defect facing the other
-    way: a button that spends and would do nothing.
+    panel listens to. Leaving the offer standing would invite a curator to
+    re-search a work they had just settled, which is the same defect facing the
+    other way: a button that starts a run and would do nothing.
     """
     grid.serve(
         f"**/api/runs/{RUN_ID}/candidates*",

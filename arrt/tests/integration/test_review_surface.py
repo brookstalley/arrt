@@ -918,7 +918,7 @@ async def test_a_work_no_image_was_ever_found_for_says_what_to_do_about_it(serve
     # states have zero choosable scans, so the nothing-choosable notice would fire
     # here too without its empty-list guard — telling a curator every scan has
     # been turned down for a work no scan was ever found for, and pointing them at
-    # a paid re-search on the strength of it. Asserted as an absence because a
+    # a re-search on the strength of it. Asserted as an absence because a
     # present-only assertion passes under exactly that bug.
     assert "None of the 0 scans" not in payload["notice"]
     assert "resolve_images" in payload["notice"], "the remedy is named, and it is on the tool that owns it"

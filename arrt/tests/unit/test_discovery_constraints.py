@@ -346,8 +346,8 @@ def test_spend_is_still_attributed_after_the_cap_fires(discovery, run):
 
 # -- 14. A work is covered by at most one live resolve run --------------------
 #
-# Double-submitting the same ids would spend twice for one result, on the only
-# operation that spends at all. The refusal names the ids rather than silently
+# Double-submitting the same ids would search twice for one result, and spend
+# twice if a paid image provider is ever added. The refusal names the ids rather than silently
 # deduplicating: a curator who double-submitted should find out.
 
 

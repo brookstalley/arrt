@@ -582,7 +582,7 @@ def test_a_re_search_over_a_work_a_live_one_covers_is_refused_and_names_it(servi
 
     assert "The Elephants" in str(refusal.value)
     assert work.id in str(refusal.value)
-    assert "pay twice" in str(refusal.value)
+    assert "search twice" in str(refusal.value), "a re-search costs nothing; the refusal says what doubling does"
 
 
 def test_works_from_two_different_runs_cannot_share_one_re_search(services, runner, reviewed):

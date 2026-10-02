@@ -1072,7 +1072,8 @@ def set_verdict(request: Request, work_id: str, body: SetVerdict) -> VerdictOut:
 def want_candidate(request: Request, work_id: str, body: WantWork) -> CandidateWorkOut:
     """Want this work, turning down the named scan on the way if there is one. The one way into `wanted`.
 
-    Nothing looks for a scan until a re-search is asked for, which is the paid call.
+    Nothing looks for a scan until a re-search is asked for, which is a separate call (free today:
+    `RunnerSettings.phase2_estimate_usd`).
     """
     return _candidate_work(_services(request).discovery.want(work_id, turning_down=body.turning_down))
 

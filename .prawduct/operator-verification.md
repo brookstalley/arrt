@@ -1256,7 +1256,8 @@ pleasant or a chore.
 **Free to look at if a run already exists**, which it will if you looked at the
 run half. Nothing on this screen spends — accepting, rejecting and choosing a
 scan are all local — with one exception named on the screen itself: "Look again
-for these" starts a re-search, which does spend.
+for these" starts a re-search, which reaches the museums but costs nothing (corrected
+2026-10-02: the screen said "it spends" until `build-plan-after-review.md` Chunk 05b).
 
 ```sh
 cd arrt

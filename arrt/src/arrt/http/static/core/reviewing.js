@@ -589,16 +589,17 @@ async function paintAcquisition(slot, work) {
  * only ever written by the callback that repaints this panel in the same breath,
  * so the two are equal on every path that exists today and no test can tell them
  * apart. It is kept because the failures either side of it are not the same
- * size — a stale count misinforms a curator, a stale list *spends*, and
- * `/api/runs/resolve` bills for exactly the ids in this body. Reading at click
- * time is what keeps that spend correct without it resting on the panel's
+ * size — a stale count misinforms a curator, a stale list *acts*: it starts a
+ * run over exactly the ids in this body, which would re-search a work the
+ * curator has since accepted. Reading at click time is what keeps that list
+ * correct without it resting on the panel's
  * render bookkeeping being right, which is the coupling that produced the
  * defect this function was extracted to fix. */
 function reSearchOffer(wanted) {
   const works = wanted();
-  // Offered only when there is something to re-search. A button that spends
-  // and would do nothing is worse than no button: it invites a curator to pay
-  // for a run over an empty list.
+  // Offered only when there is something to re-search. A button that starts a
+  // run over an empty list is worse than no button: it does nothing and says
+  // it did something.
   if (works.length === 0) return null;
   return el("div", { class: "panel" }, [
     el("h3", { text: "Wanted" }),
@@ -608,7 +609,7 @@ function reSearchOffer(wanted) {
       // see. Wanting a work records a wish; it does not start a search, and a
       // page that stayed silent would leave them waiting for one that is
       // never coming.
-      text: `${works.length} ${works.length === 1 ? "work is" : "works are"} wanted. Nothing is looking for a scan — a re-search is what looks, and it spends.`,
+      text: `${works.length} ${works.length === 1 ? "work is" : "works are"} wanted. Nothing is looking for a scan — a re-search is what looks, and it costs nothing.`,
     }),
     el("div", { class: "row" }, [
       el("button", {
@@ -731,7 +732,7 @@ export function reviewSection(page, { keptFrom = null } = {}) {
    * and nothing around it. Deriving the offer from `page.works` gave the screen
    * two answers to this question: the offer's, fixed at paint, and the grid's,
    * current. They diverge on a transition reachable from this very page, and the
-   * offer is the one that spends. */
+   * offer is the one that starts a run. */
   const verdicts = new Map(page.works.map((card) => [card.work.work_id, card.work.verdict]));
   const isWanted = (verdict) => verdict === "wanted";
   const wanted = () => [...verdicts].filter(([, verdict]) => isWanted(verdict)).map(([workId]) => workId);

@@ -1834,9 +1834,11 @@ path consults it before spending.
 > because there was no other row to attribute it to. Still true, and unchanged: the
 > originating run never reopens, and its `status` stays `completed`.
 >
-> The paid re-search is `art_discovery(action='resolve_images')` — deliberately not
-> a side effect of `art_review(action='reject_image')`, so that exactly one tool
-> spends. See `api-contract.md`.
+> The re-search is `art_discovery(action='resolve_images')` — deliberately not
+> a side effect of `art_review(action='reject_image')`, so that searching stays out
+> of the review tool. It costs nothing today, so `image_research` rows are written by
+> nothing yet; they are where a paid image provider's cost would land (corrected
+> 2026-10-02, `build-plan-after-review.md` Chunk 05b). See `api-contract.md`.
 
 ### ResolveRunWork
 
@@ -2392,8 +2394,8 @@ suppresses it and leaves the verdict where it was.
     run-creation time by checking that table — `resolve_images` refuses any work id
     appearing in a `ResolveRunWork` row whose run is in a **non-terminal** status,
     and names the offending ids in the refusal rather than silently deduplicating.
-    Without this, double-submitting the same ids spends twice for one result on the
-    only tool that spends money at all.
+    Without this, double-submitting the same ids searches twice for one result,
+    and would spend twice if a paid image provider is ever added.
     **"Non-terminal" is safe to key on only because of startup reconciliation** (see
     State Machines). Every terminal state *except* `interrupted` is written by the
     run's own process — which is precisely why `interrupted` had to exist: without

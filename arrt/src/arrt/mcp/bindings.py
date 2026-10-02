@@ -503,7 +503,7 @@ def _resolve_images(services: Services, arguments: Mapping[str, Any]) -> dict[st
         notice=(
             "The re-search is under way; this is a handle, not a result. Call "
             f"art_discovery(action='status', run_id='{run.id}'), which holds until something changes. "
-            "What it spends is added to the run that first proposed these works."
+            "It costs nothing today; whatever a re-search spends is added to the run that first proposed these works."
         ),
     )
 
@@ -719,8 +719,8 @@ def _nothing_searching(work: CandidateWork) -> str:
     """
     return (
         "The work is wanted. Nothing is searching for a scan: art_discovery(action='resolve_images', "
-        f"work_ids=['{work.id}']) is what looks, and it spends. Gather every work you mean to re-search, "
-        "then ask once."
+        f"work_ids=['{work.id}']) is what looks, and it costs nothing today. Gather every work you mean to "
+        "re-search, then ask once."
     )
 
 
@@ -1527,8 +1527,8 @@ def _nothing_choosable_notice(listing: InstanceListing) -> str | None:
     return (
         f"None of the {counted(listing.held, 'scan')} found for this work "
         f"{agree_partitive(0, listing.held, 'is', 'are')} still open to you — every one has been "
-        "turned down. art_discovery(action='resolve_images') searches again for a better one; it spends, "
-        "and it is the only thing that changes this."
+        "turned down. art_discovery(action='resolve_images') searches again for a better one, at no cost "
+        "today, and it is the only thing that changes this."
     )
 
 

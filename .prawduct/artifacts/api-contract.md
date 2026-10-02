@@ -372,26 +372,30 @@ Two consequences worth stating because they surprise:
   holds the latest desired state; display converges whenever it comes back. There
   is no command to be lost, because there is no command — only state.
 
-### Rejecting an image does not re-search — that is a separate, paid call
+### Rejecting an image does not re-search — that is a separate call
 
 `art_review(action='reject_image')` marks the instance rejected and, when it was
 the scan on offer, moves the work to `wanted`; `art_review(action='want')` does the
 same for a work named directly. Neither goes looking for a replacement.
-`art_discovery(action='resolve_images', work_ids=[...])` does, and it is the paid
-operation.
+`art_discovery(action='resolve_images', work_ids=[...])` does. **It costs nothing
+today** (corrected 2026-10-02, `build-plan-after-review.md` Chunk 05b): phase 2
+asks open museum and Commons APIs and makes no model call, so
+`RunnerSettings.phase2_estimate_usd` is zero, measured on 2026-08-02. Until then
+this section, the review page and MCP's tips called it the paid operation. A paid
+image provider added later brings the price back, in that one method.
 
-**This split exists to keep the money boundary intact.** Letting `reject_image`
-trigger a search inline would put a cost inside `art_review` and break the premise
-the whole gating design rests on — that exactly one tool spends. It also means a
-curator can reject several images while reviewing and re-resolve them in one batch,
-rather than firing a search per click.
+**This split keeps searching out of the review tool.** Letting `reject_image`
+trigger a search inline would put minutes of museum requests, and any future
+provider's cost, inside `art_review`, the tool a curator clicks through. It also
+means a curator can reject several images while reviewing and re-resolve them in
+one batch, rather than firing a search per click.
 
 **`resolve_images` returns a run handle, exactly like `start` (decided 2026-07-20).**
 It creates a `DiscoveryRun` with `kind='resolve'` and `parent_run_id` set to the run
-that originally proposed the works, and returns immediately with its id. It is a
-paid operation that takes minutes; it previously created no row, which left the one
-tool that spends money without a handle to poll, a `cancel`, a cost of its own, or
-any guard against the same ids being submitted twice concurrently. `status`,
+that originally proposed the works, and returns immediately with its id. It takes
+minutes; it previously created no row, which left it without a handle to poll, a
+`cancel`, a cost of its own, or any guard against the same ids being submitted
+twice concurrently. `status`,
 `cancel`, and `spend` accept a resolve run id with no special-casing.
 
 **It refuses work ids already covered by an in-flight resolve run**, naming them in
@@ -1195,6 +1199,17 @@ value additively** — give it the companion first.
 > `DEPLOYMENT_REMEDIES` in `library/acquisition/service.py`, which the queue's
 > pause carries to every surface. Annotated at the action in `mcp/tools.py`, and
 > announced to the operator in the PR.
+
+> **Re-searching is said to cost nothing, 2026-10-02** (Chunk 05b). The tips of
+> `art_review`'s `want` and `reject_image` and of `art_discovery`'s
+> `resolve_images`, the notices `want`, `resolve_images` and the review's
+> nothing-choosable listing return, the double-submit refusal, and the server's
+> instructions said a re-search "spends", is "the call that spends money", or
+> "would pay twice"; they now say it costs nothing, or would search twice. It costs nothing today
+> (§ Rejecting an image does not re-search). By the table, a description change
+> is breaking; it is made because the old wording told an agent to ration a free
+> call. The server's instructions now say `art_discovery` is the only tool that
+> spends money in amounts worth authorising, as its own summary already did.
 
 > **`resolve_images` says *wanted works*, 2026-10-02** (Chunk 02, carried from
 > Chunk 03's review). Its description read "works whose instances the curator

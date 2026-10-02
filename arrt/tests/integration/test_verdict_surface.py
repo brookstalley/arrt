@@ -211,11 +211,12 @@ async def test_an_exact_match_reuses_the_artist_and_says_nothing(server_url, ser
 # -- rejecting a scan ----------------------------------------------------------
 
 
-async def test_rejecting_a_scan_moves_the_work_and_names_the_paid_call_that_replaces_it(server_url, services, reviewable):
+async def test_rejecting_a_scan_moves_the_work_and_names_the_call_that_replaces_it(server_url, services, reviewable):
     """`reject_image` does not search, and the payload is where that is said.
 
     A caller arrives at this action having decided the scan is not good enough,
-    and the thing that finds a better one is a different tool that spends money.
+    and the thing that finds a better one is a different tool, the one that runs
+    searches.
     A result that merely confirmed the rejection would leave a model waiting for
     a replacement nothing is looking for.
     """
@@ -427,8 +428,8 @@ async def test_an_unknown_work_is_refused_by_name(server_url):
 async def test_the_review_tool_still_reports_that_it_never_spends(server_url):
     """The write half arrived without a cost, and the summary still says so.
 
-    `art_discovery` is the one tool that spends, and the design rests on it:
-    a review action that reached a museum would put a cost inside the tool a
+    `art_discovery` is the tool that spends and searches, and the design rests on
+    it: a review action that reached a museum would put a search inside the tool a
     curator clicks through, which is the boundary `api-contract.md` § Rejecting
     an image does not re-search exists to hold.
     """
