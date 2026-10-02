@@ -253,6 +253,7 @@ class CatalogueService:
         offset: int = 0,
         sort: str | None = None,
         artist_id: str | None = None,
+        within: Sequence[str] | None = None,
     ) -> ArtworkListing:
         """Page through the catalogue, narrowed by text and by facet.
 
@@ -265,6 +266,11 @@ class CatalogueService:
         several kinds mean *both*. `sort` is a `WorkOrder` value (`title`, the
         default; `artist`; `newest`) and changes only how the page is ordered,
         never which works the total and the facet counts describe.
+
+        `within` restricts the listing to those work ids, and everything else
+        narrows within it, counts included: it is how a theme's slice is listed
+        without the Library knowing what a theme is. Empty selects nothing;
+        `None` restricts nothing.
 
         **The facet counts come back with the page rather than from a second
         route**, because they answer the same question the grid answers — what
@@ -283,7 +289,11 @@ class CatalogueService:
             raise ServiceError(f"offset cannot be negative, got {offset}.")
 
         query = WorkQuery(
-            status=resolved_status, terms=self._parse_terms(q), facets=self._parse_facets(facets), artist_id=artist_id
+            status=resolved_status,
+            terms=self._parse_terms(q),
+            facets=self._parse_facets(facets),
+            artist_id=artist_id,
+            within=None if within is None else frozenset(within),
         )
         # **One read scope over the page, the total and every facet count.**
         # These are four statements or more, and the response asserts they agree:

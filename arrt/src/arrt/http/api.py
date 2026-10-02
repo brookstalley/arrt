@@ -221,6 +221,7 @@ def list_works(
     offset: Annotated[int, Query()] = 0,
     sort: Annotated[str | None, Query()] = None,
     artist_id: Annotated[str | None, Query()] = None,
+    theme: Annotated[str | None, Query()] = None,
 ) -> WorkPageOut:
     """A page of works with the facet controls for exactly this filter.
 
@@ -235,9 +236,17 @@ def list_works(
     FastAPI generates this route's schema from the signature, so a named
     parameter is what makes the filter set discoverable and an unknown one a
     stated refusal instead of a silent no-op.
+
+    `theme` narrows to one theme's works, and every other filter and every facet
+    count narrows within it. Two calls composed, as `_theme_detail` composes
+    them: Programming names the theme's works, and the Library lists them. An
+    unknown theme is refused by name rather than ignored, because ignoring it
+    would answer with the whole catalogue labelled as the theme's.
     """
+    services = _services(request)
+    within = None if theme is None else services.display.theme_work_ids(theme)
     chosen = {"artist": artist, "movement": movement, "era": era, "subject": subject, "medium": medium, "palette": palette}
-    page = _services(request).survey.list_works(
+    page = services.survey.list_works(
         status=status,
         q=q,
         facets={kind: values for kind, values in chosen.items() if values},
@@ -245,6 +254,7 @@ def list_works(
         offset=offset,
         sort=sort,
         artist_id=artist_id,
+        within=within,
     )
     return WorkPageOut(
         works=[_work(entry) for entry in page.entries],

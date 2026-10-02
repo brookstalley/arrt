@@ -180,6 +180,13 @@ ART_CATALOGUE: Final = ToolRecord(
                     type="string",
                     description="Only this artist's works, by the catalogue id a work's artist carries.",
                 ),
+                Param(
+                    name="theme",
+                    type="string",
+                    description=(
+                        "Only this theme's works, by theme_id; every other filter and every facet count " "narrows within it."
+                    ),
+                ),
                 _SORT,
                 _LIMIT,
                 _OFFSET,

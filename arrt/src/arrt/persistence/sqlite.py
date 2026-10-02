@@ -24,6 +24,7 @@ if they could disagree — they cannot, because the index is strictly the weaker
 statement of the same rule.
 """
 
+import json
 import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -518,6 +519,12 @@ def _matching(query: WorkQuery) -> _Restriction:
     if query.artist_id is not None:
         clauses.append('a."artist_id" = ?')
         values.append(query.artist_id)
+
+    # One bound JSON array rather than a placeholder per id: a theme may hold
+    # more works than SQLite will bind variables to one statement.
+    if query.within is not None:
+        clauses.append('a."id" IN (SELECT value FROM json_each(?))')
+        values.append(json.dumps(sorted(query.within)))
 
     # ANDed across terms, ORed across columns: "blue harbour" means both words
     # appear somewhere about the work, which is what a person typing two words

@@ -90,6 +90,10 @@ log = logging.getLogger(__name__)
 
 
 def _list_artworks(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    # A theme's works are Programming's to name and the Library's to list: two
+    # calls composed, as `_get_theme` composes them.
+    theme = arguments.get("theme")
+    within = None if theme is None else services.display.theme_work_ids(theme)
     listing = services.catalogue.list_artworks(
         status=arguments.get("status"),
         q=arguments.get("q"),
@@ -98,6 +102,7 @@ def _list_artworks(services: Services, arguments: Mapping[str, Any]) -> dict[str
         offset=arguments.get("offset", 0),
         sort=arguments.get("sort"),
         artist_id=arguments.get("artist_id"),
+        within=within,
     )
     return ok(
         artworks=[_summary(entry) for entry in listing.entries],

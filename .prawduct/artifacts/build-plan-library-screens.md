@@ -18,13 +18,13 @@ governed_by:
   - artifact: architecture
     dispositions:
       - "operation logic lives only in the service layer → binds Chunk 01: the theme-composed listing is one service call; the HTTP handler passes its parameters through and branches on nothing"
-      - "seam rule 1, the Library never imports Programming → binds Chunk 01. [DECISION: the theme filter is composed in a service above both planes (`arrt/services/`), which asks Programming for the theme's member ids and passes them to the Library's survey as an opaque id restriction | the Library learns nothing about themes, so the split stays a deployment change; the alternative, the survey reading `theme_memberships`, is the cross-seam read rule 4 forbids | owner can veto]"
+      - "seam rule 1, the Library never imports Programming → binds Chunk 01. [DECISION: the theme filter is two calls composed in each binding, as `_theme_detail` (HTTP) and `_get_theme` (MCP) already compose them: Programming's `theme_work_ids`, then the Library's listing restricted to those ids as opaque references | the Library learns nothing about themes, so the split stays a deployment change; the alternative, the listing reading `theme_memberships`, is the cross-seam read rule 4 forbids. Chunk 01 first planned a composing service in `arrt/services/`; the existing precedent, which `theme_work_ids`' docstring names as the composition bindings are allowed, made it unnecessary | owner can veto]"
       - "seam rule 2, the facade takes and returns ids and plain data → conforms: the survey's new restriction is a set of work ids"
       - "seam rule 3, no new cross-seam foreign keys → conforms: no schema change in this plan"
   - artifact: api-contract
     dispositions:
       - "§ Versioning: adding a field to a response is additive → conforms: Chunk 03's wanted marker on registry works"
-      - "§ Versioning: adding an optional query parameter is additive, not breaking → conforms: `GET /api/works?theme=<id>` is new and optional; the route's other parameters keep their meaning. MCP has no faceted works listing (`survey.list_works` has one caller, `http/api.py`), so there is no MCP twin to keep in step"
+      - "§ Versioning: adding an optional query parameter is additive, not breaking → conforms: `GET /api/works?theme=<id>` is new and optional; the route's other parameters keep their meaning. and its MCP twin, `art_catalogue(action='list')`, takes the same `theme` (the facet filters landed on both surfaces together, and `test_search_and_facets.py` holds the two to the same answer)"
   - artifact: accessibility-spec
     dispositions:
       - "WCAG 2.1 AA; colour is never the sole carrier of state → binds Chunk 03: each state's image style is a second signal, never the only one; ● Held, ◑ Wanted, ◐ Not held · Image found and ○ Not held keep their glyph and word, and are tested with no picture at all"
@@ -111,10 +111,11 @@ Open assumptions:
 `GET /api/works` gains an optional `theme=<id>`. With it, the page and its
 facet counts are computed within the theme's members, and it composes with `q`,
 every facet and `sort` as they compose with each other. The Library's
-`SurveyService.list_works` gains an opaque work-id restriction; a service in
-`arrt/services/` asks Programming for the theme's member ids and passes them
-through (the seam decision above). An unknown theme id is a stated 404, not an
-empty page.
+listing (`CatalogueService.list_artworks`, and `SurveyService.list_works`
+over it) gains an opaque work-id restriction; each binding asks Programming
+for the theme's member ids and passes them through (the seam decision above).
+`art_catalogue(action='list')` takes the same `theme`. An unknown theme id is
+the surface's one refusal (400, naming it), not an empty page.
 
 Done when: service and HTTP tests for a theme alone, a theme with a facet, a
 theme with text, the facet counts within the theme's slice (with a fixture
@@ -131,6 +132,21 @@ api-contract entry for the parameter; and the `themeIsShowing` comment in
   group joins the *Filter* rail beside the facets, one theme at a time, and
   composes with them through Chunk 01. `themeIsShowing` and the exclusivity it
   enforced go with it.
+- **Each theme option carries the count it would select, and a theme that
+  would select nothing is disabled**, as every facet option is
+  (`information-architecture.md` § A control never offers a dead end; found
+  reading the rail while Chunk 01 was in review — a theme group without counts
+  would be the one rail group that can lead to an unexplained empty grid). The
+  count is computed with the theme's own selection ignored, as a facet's is.
+  Two calls, one per plane, composed in each binding: the Library answers the
+  ids the other filters select (a new unpaged `matching_ids`), and Programming
+  counts each theme's members among them (a new `theme_counts(work_ids)`), so
+  neither side learns the other's model. `GET /api/works` and
+  `art_catalogue(action='list')` both return the group; `api-contract.md`
+  records it.
+- **A theme filtered on Artworks is in the Sort menu's order**, not its
+  curated order, as any filter is; the curated order is the theme's own page's
+  (Library › Themes). "Sort is not offered while a theme is showing" goes.
 - The toolbar's always-on theme `<select>` goes. A *Select* toggle
   (`aria-pressed`) puts ticks on the tiles and shows an action bar: "Add 3
   works to…" with a visibly labelled theme choice, and, when a theme is in the
@@ -139,7 +155,9 @@ api-contract entry for the parameter; and the `themeIsShowing` comment in
 - The three rail tests named in #169 are retired or rewritten in this commit,
   each replaced by the contract the new design owes, with the reason recorded.
 
-Done when: browser tests for the Theme filter group composing with a facet,
+Done when: service and HTTP/MCP tests for the theme counts (one theme with a
+member the facet excludes, so its count differs from its size; a theme the
+filter empties, disabled); browser tests for the Theme filter group composing with a facet,
 Select mode's toggle and its action bar (Add disabled with nothing ticked;
 Remove offered only with a theme in the filter), and that no theme control
 shows outside Select mode; screenshots at desktop and phone width; an

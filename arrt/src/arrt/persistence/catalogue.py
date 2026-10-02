@@ -113,6 +113,13 @@ class WorkQuery:
     #: facet: the facet is a derived claim a catalogue may not carry at all (the
     #: owner's holds none), while every attributed work names its artist.
     artist_id: str | None = None
+    #: Only these works, by id. A theme's members arrive this way: themes are
+    #: Programming's, so the Library is handed their ids as opaque references and
+    #: learns nothing about themes. **Empty selects nothing; `None` restricts
+    #: nothing** — an empty theme is an empty grid, never the whole catalogue. An
+    #: id the catalogue does not hold is passed over, since Programming's
+    #: references may fail to resolve.
+    within: frozenset[str] | None = None
 
     def without(self, kind: VocabularyKind) -> WorkQuery:
         """The same query with one facet kind's own selection dropped.
