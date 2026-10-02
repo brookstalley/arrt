@@ -454,8 +454,8 @@ def get_topic(request: Request, qid: str) -> TopicPageOut:
 def get_topic_registry(request: Request, qid: str) -> TopicRegistryOut:
     """The topic as Wikidata knows it, the page's head, asked separately so it delays nothing.
 
-    Always a 200 for a well-formed QID; a malformed one is a 400. Remembered per
-    topic for the process's life; a missing item and a failure are not.
+    Always a 200 for a well-formed QID; a malformed one is a 400. Kept per topic
+    for a week, across restarts; a missing item and a failure are not.
     """
     view = _services(request).topics.topic(qid)
     known = view.known

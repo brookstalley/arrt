@@ -26,6 +26,7 @@ from arrt.library.services.topics import (
     TopicState,
     WorkState,
 )
+from arrt.persistence.kept import KeptAnswers
 from arrt.services.errors import ServiceError
 
 WINTER = RegistryTopic(qid=ItemId("Q1311"), label=RegistryText("winter"), kinds=(TopicKind.SUBJECT,))
@@ -97,7 +98,7 @@ class Store:
 
 
 def _service(registry, store=None):
-    return TopicService(store or Store(), registry)
+    return TopicService(store or Store(), registry, kept=KeptAnswers.in_memory())
 
 
 def test_a_topic_is_asked_once_and_remembered():
@@ -111,6 +112,33 @@ def test_a_topic_is_asked_once_and_remembered():
     service.artists("Q1311")
 
     assert registry.asked == [("topic", "Q1311"), ("topic_works", "Q1311"), ("topic_artists", "Q1311")]
+
+
+def test_a_topics_sections_answer_after_a_restart_with_the_registry_down(tmp_path):
+    """A century's works took up to twenty-six seconds to ask for; a deploy must not make the curator wait again."""
+    path = tmp_path / "kept-answers.sqlite"
+    first = KeptAnswers(path)
+    up = TopicRegistry(topics=[WINTER], works={"Q1311": [HUNTERS]}, artists={"Q1311": [MONET]})
+    service = TopicService(Store(), up, kept=first)
+    service.topic("Q1311")
+    service.works("Q1311")
+    service.artists("Q1311")
+    first.close()
+
+    second = KeptAnswers(path)
+    down = TopicRegistry(failing=True)
+    restarted = TopicService(Store(held={HUNTERS.qid: ["work-1"]}), down, kept=second)
+    try:
+        topic, works, artists = restarted.topic("Q1311"), restarted.works("Q1311"), restarted.artists("Q1311")
+    finally:
+        second.close()
+
+    assert topic.known == WINTER
+    assert [entry.work for entry in works.works] == [HUNTERS]
+    # Held is read fresh from the catalogue, never kept with the answer.
+    assert [(entry.state, tuple(entry.held)) for entry in works.works] == [(WorkState.HELD, ("work-1",))]
+    assert artists.state is TopicState.KNOWN
+    assert down.asked == []
 
 
 def test_a_failure_is_not_remembered_so_the_next_visit_asks_again():
@@ -174,7 +202,9 @@ def test_an_artist_the_library_holds_is_marked_with_its_id():
 
 @pytest.mark.parametrize("section", ["topic", "works", "artists", "named"])
 def test_with_no_user_agent_every_section_says_topics_need_one(section):
-    view = getattr(TopicService(Store(), None), section)("Q1311" if section != "named" else "winter")
+    view = getattr(TopicService(Store(), None, kept=KeptAnswers.in_memory()), section)(
+        "Q1311" if section != "named" else "winter"
+    )
 
     assert (view.state, view.note) == (TopicState.NOT_CONFIGURED, TOPICS_NOT_CONFIGURED_NOTE)
     assert "WIKIDATA_USER_AGENT" in view.note

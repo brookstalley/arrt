@@ -5,14 +5,15 @@ what the topic is, the works it is known for, and its artists. Each is its own
 call, as the Artist page's sections are, so a slow or failed one leaves the rest
 of the page standing and says which it was.
 
-**Remembered per topic for the life of the process**, as the Artist page's
-sections are: a century's works took seven to twenty-six seconds to ask for
-(`wikidata-findings.md` § Topics), and a curator going back and forth between a
-topic and a work in it should not wait again. A failure is not remembered, and
-neither is an item the registry does not have, so the next visit asks again.
+**Kept per topic for a week, across restarts** (`persistence/kept.py`), as the
+Artist page's sections are: a century's works took seven to twenty-six seconds
+to ask for and some periods timed out (`wikidata-findings.md` § Topics), so a
+topic asked once should not be slow again after a deploy. A failure is not
+kept, and neither is an item the registry does not have, so the next visit asks
+again.
 
 **Held is the library's to say, and is said fresh each time.** The registry's
-answer is remembered; which of its works the library holds in circulation is
+answer is kept; which of its works the library holds in circulation is
 read from the catalogue on every call, so a work accepted a minute ago is
 marked *Held* without forgetting the topic.
 
@@ -36,9 +37,10 @@ from arrt.library.registry import (
     RegistryUnavailable,
     TopicKind,
 )
-from arrt.library.services.artists import artist_ids_by_qid
-from arrt.library.services.remembered import Remembered, checked_qid
+from arrt.library.services.artists import REGISTRY_KEPT_FOR, artist_ids_by_qid
+from arrt.library.services.remembered import REMEMBERED, checked_qid
 from arrt.persistence.catalogue import CatalogueStore, TopicTally
+from arrt.persistence.kept import JsonCodec, Kept, KeptAnswers
 from arrt.persistence.records import ArtworkStatus, VocabularyKind
 
 log = logging.getLogger(__name__)
@@ -200,12 +202,24 @@ class TopicPage:
 class TopicService:
     """Ask the registry about a topic, and say what the library holds of it."""
 
-    def __init__(self, store: CatalogueStore, registry: Registry | None) -> None:
+    def __init__(self, store: CatalogueStore, registry: Registry | None, *, kept: KeptAnswers) -> None:
         self._store = store
         self._registry = registry
-        self._topics: Remembered[str, RegistryTopic] = Remembered()
-        self._works: Remembered[str, tuple[RegistryTopicWork, ...]] = Remembered()
-        self._artists: Remembered[str, tuple[RegistrySimilar, ...]] = Remembered()
+        self._topics: Kept[str, RegistryTopic] = kept.namespace(
+            "registry.topic", codec=JsonCodec(RegistryTopic), max_age=REGISTRY_KEPT_FOR, size=REMEMBERED
+        )
+        self._works: Kept[str, tuple[RegistryTopicWork, ...]] = kept.namespace(
+            "registry.topic_works",
+            codec=JsonCodec(tuple[RegistryTopicWork, ...]),
+            max_age=REGISTRY_KEPT_FOR,
+            size=REMEMBERED,
+        )
+        self._artists: Kept[str, tuple[RegistrySimilar, ...]] = kept.namespace(
+            "registry.topic_artists",
+            codec=JsonCodec(tuple[RegistrySimilar, ...]),
+            max_age=REGISTRY_KEPT_FOR,
+            size=REMEMBERED,
+        )
 
     def index(self) -> TopicIndex:
         """Every topic the library's works in circulation are in, by kind, each with how many. No network."""
@@ -318,7 +332,7 @@ class TopicService:
     def named(self, text: str) -> TopicSearchView:
         """Topics the registry finds for a typed name: periods, movements, media, and subjects something depicts.
 
-        Not remembered: a typeahead asks with every word, and few are asked twice.
+        Not kept: a typeahead asks with every word, and few are asked twice.
         """
         wanted = text.strip()
         if self._registry is None:
@@ -333,12 +347,12 @@ class TopicService:
         return TopicSearchView(state=TopicState.KNOWN, topics=found)
 
     def _known(self, qid: str, registry: Registry) -> RegistryTopic | None:
-        remembered = self._topics.get(qid)
-        if remembered is not None:
-            return remembered
+        kept = self._topics.get(qid)
+        if kept is not None:
+            return kept
         known = registry.topic(qid)
         if known is not None:
-            # A missing item is not remembered: it can be created, and a curator
+            # A missing item is not kept: it can be created, and a curator
             # who mistyped will try again with the right one.
             self._topics.put(qid, known)
         return known

@@ -17,8 +17,8 @@ without it. When it is opened, a file that is not a database, is damaged, or is
 of another format is replaced; one that cannot even be created stops the start,
 as a catalogue that cannot be opened does, because the root is unwritable.
 
-**What the callers keep, the callers decide.** The rules `Remembered` set carry
-over unchanged: a failure is never kept, because a caller only `put`s what
+**What the callers keep, the callers decide.** Two rules hold for every
+caller: a failure is never kept, because a caller only `put`s what
 answered, and the slow question is asked outside any lock, between `get` and
 `put`, so one page's query never holds another's lookup back.
 
@@ -424,6 +424,13 @@ def _to_json(shape: Any, value: Any) -> Any:  # noqa: ANN401 - JSON and type for
     raise TypeError(f"{shape!r} cannot be kept as JSON.")
 
 
+#: What a member's constructor raises for a value that is not one of it. A named
+#: tuple rather than `except TypeError, ValueError:` because the root suite's
+#: seam guards parse this plane's source on Python 3.12, which cannot read the
+#: unparenthesised form this plane's formatter writes.
+_NOT_ITS_VALUE: Final[tuple[type[Exception], ...]] = (TypeError, ValueError)
+
+
 def _from_json(shape: Any, data: Any) -> Any:  # noqa: ANN401 - JSON and type forms
     shape = _unaliased(shape)
     origin, args = _parts(shape)
@@ -431,7 +438,7 @@ def _from_json(shape: Any, data: Any) -> Any:  # noqa: ANN401 - JSON and type fo
         for arg in args:
             try:
                 return _from_json(arg, data)
-            except TypeError, ValueError:
+            except _NOT_ITS_VALUE:
                 continue
         raise TypeError(f"{data!r} is none of {shape!r}.")
     shape = _scalar_of(shape)

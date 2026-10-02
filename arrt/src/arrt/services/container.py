@@ -375,7 +375,7 @@ class Services:
             registry_works=RegistryWorkService(catalogue, registry, kept=kept),
             registry_search=RegistrySearchService(catalogue, registry, kept=kept),
             get=GetService(store=catalogue, discovery=discovery_service, runner=runner_service, registry=registry),
-            topics=TopicService(catalogue, registry),
+            topics=TopicService(catalogue, registry, kept=kept),
             topic_sweep=topic_sweep,
         )
 
