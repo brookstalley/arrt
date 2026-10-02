@@ -62,6 +62,20 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-02: The owner's review of the After Review screens
+
+<!-- prawduct: scope=after-review -->
+
+**Why:** the owner looked the screens over ("looking good! Some improvements to be
+had") and left the sequencing to the builder.
+
+**What:** a labelled field and its button now share a bottom edge on every form
+row (`.row > .field` drops the field's own bottom margin), held by a measured
+browser test watched failing without the rule. The rest of the review (search
+and Topic page held/image-found states, the Artists index, the Artist page's
+Wikidata controls, Library › Topics' layout) is filed for one "Library screens"
+plan with #169, after this PR.
+
 ## 2026-10-02: A re-search costs nothing, and now every surface says so
 
 <!-- prawduct: scope=after-review -->

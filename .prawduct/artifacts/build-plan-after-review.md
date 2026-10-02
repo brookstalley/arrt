@@ -430,6 +430,23 @@ the start.
 
 **Type:** cumulative-final
 
+**The owner's review, 2026-10-02** (on the review server and an older one; "looking
+good! Some improvements to be had"). The owner asked the builder to "use your
+judgment on sequence":
+- **Built here:** a labelled field and its button now share a bottom edge
+  everywhere (Create on Themes; Rename, Make default and Delete beside a theme's
+  name; Look up on the Artist page; Want or Accept beside *Why*). One rule
+  (`.row > .field` kept its bottom margin), one browser test.
+- **Filed for one "Library screens" plan after this PR, with #169** (the theme
+  rail and a Select mode): the typeahead's and Topic page's held / image-found
+  states (the owner: "Does image found mean held?" — no; and on a Topic page an
+  image-found work shows a thumbnail while a held one does not); the Artists
+  index (sort by surname, use the width: cards, grid or a view toggle); the
+  Artist page's Wikidata controls; Library › Topics' single long column.
+- **Still owed:** the count of accepted works with no image on the owner's real
+  deployment. The scratchpad copy holds none; the PR says the first catch-up's
+  length is unmeasured.
+
 First, count the accepted works with no image on a fresh copy of the owner's
 catalogue, and record it in Requirements Confidence. Then, on that copy: accept
 a work and watch it fetch, prepare and reach the

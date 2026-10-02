@@ -1674,6 +1674,14 @@ button.action:hover {
   align-items: flex-end;
 }
 
+/* A labelled field beside its button: the field's own bottom margin would hold
+   the input above the row's bottom edge while the button sat on it, so every
+   "Create", "Rename" or "Look up" landed a margin lower than the box it acts
+   on. Inside a row the row's gap spaces things, and the margin goes. */
+.row > .field {
+  margin-bottom: 0;
+}
+
 /* Get, and what it said, under a list of works: set apart from the heading that
    follows, with the sentence beside the button rather than below its baseline. */
 .get-control {
