@@ -614,6 +614,29 @@ def test_a_run_page_that_could_not_name_the_theme_tries_again_at_the_next_poll(u
 
     ui.page.wait_for_selector("#view .run-destination:text-is('Works you accept from this run join All works.')")
 
+
+def test_a_re_search_defers_to_the_run_it_re_searches(ui, winter, all_works):
+    """A re-search's works are its parent's candidates, so they go where the parent sends them.
+
+    Its own destination is always null, and reading that null as the default
+    would tell a curator re-searching a Get into Winter that its works join All works.
+    """
+    re_search = a_run(run_id="r-again", kind="resolve", intent=None, parent_run_id=GET_ID, destination_theme_id=None)
+    ui.serve("**/api/runs", {"runs": [re_search.model_dump(mode="json")], "count": 1, "total": 1, "truncated": False})
+    ui.serve("**/api/runs/r-again", a_run_view(re_search))
+    ui.open("#queue")
+    ui.page.wait_for_selector("#view table")
+    headings = ui.page.locator("#view thead th").all_text_contents()
+    cells = ui.page.locator("#view tbody tr").first.locator("td").all_text_contents()
+    assert cells[headings.index("Into")].strip() == "as the run it re-searches"
+
+    ui.open("#run/r-again")
+    ui.page.wait_for_selector("#view .run-destination")
+    assert ui.page.locator("#view .run-destination").inner_text() == (
+        "Works you accept from this re-search join the theme the run it re-searches sends its works to."
+    )
+
+
 def test_review_with_no_default_says_accepted_works_join_no_theme(ui, winter):
     ui.serve_image("**/api/candidate-images/*/preview")
     ui.serve(f"**/api/runs/{GET_ID}/candidates*", a_candidate_page([a_card()], run=a_get_into(None)))
