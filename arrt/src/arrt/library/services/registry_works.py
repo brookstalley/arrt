@@ -7,10 +7,10 @@ are it, so the page can send the curator to the library's own; one it does not
 is answered with what the registry says, and with the library's artist for any
 creator it holds, so the page can link there rather than out.
 
-**Remembered per work for the life of the process**, as the Artist page's half
-is: a work's facts change rarely and a curator going back and forth between a
-work and its artist should not wait on the network each time. A failure is not
-remembered, so the next visit asks again.
+**Kept per work for a week, across restarts**, as the Artist page's half is: a
+work's facts change rarely and a curator going back and forth between a work
+and its artist should not wait on the network each time. A failure is not
+kept, so the next visit asks again.
 """
 
 import logging
@@ -19,9 +19,10 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 
 from arrt.library.registry import Registry, RegistryUnavailable, RegistryWork
-from arrt.library.services.artists import artist_ids_by_qid
-from arrt.library.services.remembered import NOT_CONFIGURED_NOTE, Remembered, checked_qid
+from arrt.library.services.artists import REGISTRY_KEPT_FOR, artist_ids_by_qid
+from arrt.library.services.remembered import NOT_CONFIGURED_NOTE, REMEMBERED, checked_qid
 from arrt.persistence.catalogue import CatalogueStore
+from arrt.persistence.kept import JsonCodec, Kept, KeptAnswers
 
 log = logging.getLogger(__name__)
 
@@ -57,10 +58,12 @@ class RegistryWorkView:
 class RegistryWorkService:
     """Ask the registry about one work, and say what the library holds of it."""
 
-    def __init__(self, store: CatalogueStore, registry: Registry | None) -> None:
+    def __init__(self, store: CatalogueStore, registry: Registry | None, *, kept: KeptAnswers) -> None:
         self._store = store
         self._registry = registry
-        self._remembered: Remembered[str, RegistryWork] = Remembered()
+        self._kept: Kept[str, RegistryWork] = kept.namespace(
+            "registry.work", codec=JsonCodec(RegistryWork), max_age=REGISTRY_KEPT_FOR, size=REMEMBERED
+        )
 
     def view(self, qid: str) -> RegistryWorkView:
         checked_qid(qid)
@@ -95,15 +98,15 @@ class RegistryWorkService:
         )
 
     def _known(self, qid: str, registry: Registry) -> RegistryWork | None:
-        remembered = self._remembered.get(qid)
-        if remembered is not None:
-            return remembered
-        # Asked outside the lock, as the Artist page's half is: another page must
-        # not wait on this one's query.
+        kept = self._kept.get(qid)
+        if kept is not None:
+            return kept
+        # Asked between `get` and `put`, under no lock, as the Artist page's half
+        # is: another page must not wait on this one's query.
         known = registry.work(qid)
         if known is None:
-            # Not remembered either: an item can be created, and a curator who
+            # Not kept either: an item can be created, and a curator who
             # mistyped will try again with the right one.
             return None
-        self._remembered.put(qid, known)
+        self._kept.put(qid, known)
         return known

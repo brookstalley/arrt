@@ -6,6 +6,8 @@ through every state the registry can be in, with a fake registry installed where
 the entry point would build Wikidata's.
 """
 
+from types import SimpleNamespace
+
 import httpx
 import pytest
 from fakes import FakeRegistry
@@ -18,6 +20,10 @@ from arrt.library.registry import (
     RegistryWork,
     RegistryWorkEntry,
 )
+from arrt.library.services.artists import ArtistService, RegistryState
+from arrt.library.services.registry_search import RegistrySearchService, RegistrySearchState
+from arrt.library.services.registry_works import RegistryWorkService, RegistryWorkState
+from arrt.persistence.kept import KeptAnswers
 
 ROTHKO = "Q160149"
 BRUEGEL = "Q43270"
@@ -243,3 +249,68 @@ class TestSimilarArtists:
 
         assert refused.status_code == 400
         assert "bruegel" in refused.json()["error"]
+
+
+class TestAfterARestart:
+    """What the next process finds: the answers this one was given, and none of its failures.
+
+    The page is driven over HTTP; the restart is a second set of services over
+    the same catalogue and the same kept answers file, as the entry point builds
+    them, with a registry that is down.
+    """
+
+    @pytest.fixture
+    def restarted(self, store, settings):
+        """The services a restart builds for the registry pages, over a registry that is down."""
+        down = FakeRegistry(failing=True)
+        kept = KeptAnswers(settings.kept_answers_path)
+        yield SimpleNamespace(
+            registry=down,
+            artists=ArtistService(store, down, kept=kept),
+            registry_works=RegistryWorkService(store, down, kept=kept),
+            registry_search=RegistrySearchService(store, down, kept=kept),
+        )
+        kept.close()
+
+    def test_an_artist_page_section_answers_from_the_kept_answer_with_the_registry_down(self, http, held, registry, restarted):
+        rothko, kept_work = held
+        http.get(f"/api/registry/artists/{BRUEGEL}").raise_for_status()
+        http.get(f"/api/registry/artists/{BRUEGEL}/similar").raise_for_status()
+        http.get(f"/api/registry/works/{HUNTERS}").raise_for_status()
+        http.get("/api/registry/search", params={"q": "hunters"}).raise_for_status()
+
+        _, artist = restarted.artists.registry_view_by_qid(BRUEGEL)
+        similar = restarted.artists.similar(BRUEGEL)
+        work = restarted.registry_works.view(HUNTERS)
+        search = restarted.registry_search.search("hunters", prefix=False)
+
+        assert (artist.state, artist.known) == (RegistryState.KNOWN, registry.artists[BRUEGEL])
+        assert (similar.state, similar.people) == (RegistryState.KNOWN, tuple(registry.similar[BRUEGEL]))
+        # Held is the library's to say, read fresh, not kept with the answer.
+        assert similar.held == {ROTHKO: rothko.id}
+        assert (work.state, work.known) == (RegistryWorkState.KNOWN, registry.works[HUNTERS])
+        assert search.state is RegistrySearchState.KNOWN
+        assert (restarted.registry.asked_about, restarted.registry.similar_asked, restarted.registry.works_asked) == ([], [], [])
+
+    def test_a_held_mark_made_since_the_answer_was_kept_is_shown(self, http, held, service, services, restarted):
+        http.get(f"/api/registry/works/{HUNTERS}").raise_for_status()
+        rothko, _ = held
+        hunters = service.add_artwork(title="The Hunters in the Snow", artist_id=rothko.id)
+        services.identity.set_work_identity(hunters.id, HUNTERS)
+
+        assert restarted.registry_works.view(HUNTERS).held == (hunters.id,)
+
+    def test_a_failure_is_not_kept_for_the_next_process(self, http, registry, restarted):
+        registry.failing = True
+        for address in (
+            f"/api/registry/artists/{BRUEGEL}",
+            f"/api/registry/artists/{BRUEGEL}/similar",
+            f"/api/registry/works/{HUNTERS}",
+            "/api/registry/search?q=hunters",
+        ):
+            assert http.get(address).json()["state"] == "unavailable", address
+
+        assert restarted.artists.registry_view_by_qid(BRUEGEL)[1].state is RegistryState.UNAVAILABLE
+        assert restarted.artists.similar(BRUEGEL).state is RegistryState.UNAVAILABLE
+        assert restarted.registry_works.view(HUNTERS).state is RegistryWorkState.UNAVAILABLE
+        assert restarted.registry_search.search("hunters", prefix=False).state is RegistrySearchState.UNAVAILABLE

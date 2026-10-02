@@ -33,6 +33,7 @@ from arrt.library.registry.wikidata import INTERACTIVE_TIMEOUT_SECONDS, Wikidata
 from arrt.library.services.previews import PreviewSettings
 from arrt.library.services.thumbnails import ThumbnailSettings
 from arrt.persistence.file import open_catalogue_file
+from arrt.persistence.kept import KeptAnswers
 from arrt.persistence.sqlite import SqliteCatalogue
 from arrt.persistence.sqlite_discovery import SqliteDiscovery
 from arrt.programming.display import DisplaySettings
@@ -320,6 +321,8 @@ def main(argv: Sequence[str] = ()) -> None:
     # candidate's image instances into a work's sources, and that has to commit
     # once or not at all.
     catalogue_file = open_catalogue_file(settings.catalogue_path, wall_name=settings.wall_name)
+    # After `prepare`, so a mistyped root refuses before anything is written to it.
+    kept = KeptAnswers(settings.kept_answers_path)
     try:
         services = Services.bind(
             catalogue=SqliteCatalogue(catalogue_file),
@@ -368,6 +371,7 @@ def main(argv: Sequence[str] = ()) -> None:
             mat_engine=_mat_engine(settings),
             conversation_engine=_conversation_engine(settings),
             registry=registry,
+            kept=kept,
         )
         # The catalogue file outlives any single version of this code, so rules
         # added since it was written are brought to it here rather than assumed
@@ -390,6 +394,7 @@ def main(argv: Sequence[str] = ()) -> None:
             log_config=None,
         )
     finally:
+        kept.close()
         catalogue_file.close()
 
 

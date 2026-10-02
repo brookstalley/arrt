@@ -309,7 +309,7 @@ def search_registry(
     `prefix=true` reads the last word as the start of one, as the typeahead does
     mid-word; `wide=true` returns the results page's longer lists. Always a 200:
     `state` says whether anything was asked and what the registry did.
-    Remembered per query; a failure is not.
+    Kept per query for a week, across restarts; a failure is not.
     """
     found = _services(request).registry_search.search(q, prefix=prefix, wide=wide)
     held_artists, held_works = found.held_artists, found.held_works

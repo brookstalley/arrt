@@ -9,9 +9,9 @@ holds the library's matches back.
 about half a second (`wikidata-findings.md` § Searching for works), and a
 typeahead pays for every one in sequence.
 
-**Remembered per query for the life of the process.** Typing back over a word
-asks nothing, and the same words searched twice give the same answer. A failure
-is not remembered.
+**Kept per query for a week, across restarts.** Typing back over a word asks
+nothing, and the same words searched twice give the same answer. A failure is
+not kept.
 
 **Nothing a curator types reaches the registry as search syntax.** The query is
 cut into words, and the registry's client drops any word that is not one.
@@ -26,10 +26,11 @@ from enum import StrEnum
 from typing import Final
 
 from arrt.library.registry import Registry, RegistryPerson, RegistryUnavailable, RegistryWorkMatch
-from arrt.library.services.artists import artist_ids_by_qid
-from arrt.library.services.remembered import NOT_CONFIGURED_NOTE, Remembered
+from arrt.library.services.artists import REGISTRY_KEPT_FOR, artist_ids_by_qid
+from arrt.library.services.remembered import NOT_CONFIGURED_NOTE, REMEMBERED
 from arrt.persistence.catalogue import CatalogueStore
 from arrt.persistence.folding import search_fold
+from arrt.persistence.kept import JsonCodec, Kept, KeptAnswers
 
 log = logging.getLogger(__name__)
 
@@ -45,6 +46,9 @@ WORKS_FOUND: Final[int] = 5
 #: read down rather than a dropdown to pick from.
 ARTISTS_FOUND_WIDE: Final[int] = 10
 WORKS_FOUND_WIDE: Final[int] = 20
+
+#: What the registry found for one query: its artists, then its works.
+type _Found = tuple[tuple[RegistryPerson, ...], tuple[RegistryWorkMatch, ...]]
 
 #: A word as the search cuts a query into them, the characters names carry included.
 _WORDS: Final[re.Pattern[str]] = re.compile(r"\w[\w'’-]*")
@@ -81,11 +85,11 @@ class RegistrySearch:
 class RegistrySearchService:
     """Search the registry for artists and works, and mark what the library holds."""
 
-    def __init__(self, store: CatalogueStore, registry: Registry | None) -> None:
+    def __init__(self, store: CatalogueStore, registry: Registry | None, *, kept: KeptAnswers) -> None:
         self._store = store
         self._registry = registry
-        self._remembered: Remembered[tuple[str, bool, bool], tuple[Sequence[RegistryPerson], Sequence[RegistryWorkMatch]]] = (
-            Remembered()
+        self._kept: Kept[tuple[str, bool, bool], _Found] = kept.namespace(
+            "registry.search", codec=JsonCodec(_Found), max_age=REGISTRY_KEPT_FOR, size=REMEMBERED
         )
 
     def search(self, query: str, *, prefix: bool, wide: bool = False) -> RegistrySearch:
@@ -124,18 +128,16 @@ class RegistrySearchService:
             held_works={work.qid: holdings[work.qid] for work in works if work.qid in holdings},
         )
 
-    def _found(
-        self, words: Sequence[str], prefix: bool, wide: bool, registry: Registry
-    ) -> tuple[Sequence[RegistryPerson], Sequence[RegistryWorkMatch]]:
+    def _found(self, words: Sequence[str], prefix: bool, wide: bool, registry: Registry) -> _Found:
         key = (search_fold(" ".join(words)), prefix, wide)
         artists_found, works_found = (ARTISTS_FOUND_WIDE, WORKS_FOUND_WIDE) if wide else (ARTISTS_FOUND, WORKS_FOUND)
-        remembered = self._remembered.get(key)
-        if remembered is not None:
-            return remembered
-        # Asked outside the lock, and both at once: see the module's note.
+        kept = self._kept.get(key)
+        if kept is not None:
+            return kept
+        # Asked under no lock, and both at once: see the module's note.
         with ThreadPoolExecutor(max_workers=2) as pool:
             people = pool.submit(registry.people_named, " ".join(words))
             matching = pool.submit(registry.works_matching, words, prefix=prefix, limit=works_found)
             found = (tuple(people.result())[:artists_found], tuple(matching.result()))
-        self._remembered.put(key, found)
+        self._kept.put(key, found)
         return found

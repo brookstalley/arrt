@@ -67,6 +67,7 @@ from arrt.library.services.thumbnails import ThumbnailService, ThumbnailSettings
 from arrt.persistence.discovery_records import DiscoveryRun, InitiatedBy
 from arrt.persistence.durable import SqliteDurableStore
 from arrt.persistence.file import open_catalogue_file
+from arrt.persistence.kept import KeptAnswers
 from arrt.persistence.migrations import DEFAULT_WALL_NAME
 from arrt.persistence.records import (
     AcquisitionMethod,
@@ -224,6 +225,14 @@ def conversation_engine() -> FakeConversationEngine:
 
 
 @pytest.fixture
+def kept(settings: Settings) -> Iterator[KeptAnswers]:
+    """The kept answers file, where the entry point opens it: under this test's own art root."""
+    answers = KeptAnswers(settings.kept_answers_path)
+    yield answers
+    answers.close()
+
+
+@pytest.fixture
 def services(
     store: SqliteCatalogue,
     discovery_store: SqliteDiscovery,
@@ -233,6 +242,7 @@ def services(
     engine: FakeEngine,
     conversation_engine: FakeConversationEngine,
     registry: Registry | None,
+    kept: KeptAnswers,
 ) -> Services:
     """Every service, wired the way the entry point wires them."""
     bound = Services.bind(
@@ -281,6 +291,7 @@ def services(
         # it — and would make every conversation test assert against a refusal.
         conversation_engine=conversation_engine,
         registry=registry,
+        kept=kept,
     )
     return bound
 

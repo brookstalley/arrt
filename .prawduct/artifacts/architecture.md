@@ -294,6 +294,7 @@ recorded plan (curation on a desktop, NAS, or second Pi) — see Decision Log.
                     │  └───────────┬──────────────┘   │   raw/ ready/ thumbs/    │ │
                     │              │                  │   tv-thumbs/ tile-cache/ │ │
                     │              │                  │   previews/              │ │
+                    │              │                  │   kept-answers.sqlite    │ │
                     │              │ HTTPS            │                          │ │
                     │              ▼                  │   display-state.sqlite(D)│ │
                     │   OpenRouter, museum APIs,      └────────────┬─────────────┘ │
@@ -1015,6 +1016,7 @@ equal by `tests/preferences/test_heartbeat_contract.py`.
 | Store | Sole writer | Readers |
 |---|---|---|
 | `catalogue.sqlite` | curation | curation |
+| `kept-answers.sqlite` — answers from slow foreign sources, disposable (`persistence/kept.py`), since 2026-10-02 | curation | curation |
 | `theme-manifest-{wall_id}.json` — **one file per wall**, since 2026-08-12 | curation | display |
 | image tree (`raw/`, `ready/`, …) | curation | display |
 | `display-state.sqlite` | display | display |

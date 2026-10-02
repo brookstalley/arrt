@@ -290,6 +290,23 @@ between planes.
 > The counterpart on the operations side is `operational-spec.md` § Add disk
 > headroom, which now points at this event rather than at a manual prune.
 
+> **The kept answers file's events, added 2026-10-02** (`persistence/kept.py`).
+> The file is disposable and every way it fails is a miss, so a page never
+> shows the fault: it only asks its foreign source again, and is slow. The
+> journal is the one place the difference between "kept" and "asked every time"
+> is visible, so each quiet state has a line of its own.
+>
+> | Event | Level | Says |
+> |---|---|---|
+> | `kept.opened` | INFO | the file was opened at startup, with its path, how many answers it holds, and how many it threw away as expired |
+> | `kept.replaced` | WARNING | the file was not a database, was damaged, or was of another format, and was replaced by an empty one, with the reason. Every page asks again once. Once after an upgrade that changes the format is expected; at every start it is a disk that is failing |
+> | `kept.unreadable` | INFO | one answer could not be read back by its namespace's codec, naming the namespace and the error's type, and was dropped. A run of these after an upgrade is a changed answer shape costing one question each; one namespace logging them at every visit is a codec that cannot read what it writes |
+> | `kept.unwritable` | WARNING | a namespace's codec could not write an answer, so it is not kept. A bug in the caller's declared type, never a condition of the machine: the page has its answer, and every visit asks again |
+> | `kept.failed` | WARNING | a read or write of the file raised (a full disk, a read-only mount), naming the namespace and the operation. The answer is asked fresh or not kept |
+>
+> Hits and misses are not logged: a page section asks at human pace, and a
+> line per view would bury the four above.
+
 ## What the museum is told about us
 
 The Art Institute's API is open — no key, no account — but asks callers to
