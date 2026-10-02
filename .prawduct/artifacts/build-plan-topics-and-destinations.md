@@ -174,10 +174,10 @@ non-artists first (Franklin for woodcut); search offers non-visual movements
 
 - [x] Chunk 01: A Get's destination, from HTTP and MCP
 - [x] Chunk 02: The destination in the client, and in Review
-- [ ] Chunk 03: Topics in the registry
+- [x] Chunk 03: Topics in the registry
 - [ ] Chunk 03b: Topic rules, as the owner answered
 - [ ] Chunk 03c: Answers kept across restarts
-- [ ] Chunk 04: Your works' topics, and the topic index
+- [x] Chunk 04: Your works' topics, and the topic index
 - [ ] Chunk 05: Library › Topics and the Topic page
 
 ### Chunk 01: A Get's destination, from HTTP and MCP

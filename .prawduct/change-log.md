@@ -62,6 +62,26 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-02: Topics from Wikidata, and your works' topics as facets
+
+<!-- prawduct: scope=topics-and-destinations -->
+
+**Why:** a curator could browse by artist but not by period, movement, subject
+or medium, and the Artworks facet rail was empty because nothing wrote
+`work_facets`.
+
+**What:** the registry answers a topic, its works, its artists, topic search
+and a held work's topics (`wikidata.py`, `TopicService`); the kind rule was
+measured on twenty topics, 0 wrong (`wikidata-findings.md` § Topics). A topic
+sweep writes `sourced` facet rows with `value_qid` at start, after acceptance
+and after a QID change, never touching `inferred` rows. `GET /api/topics`,
+`/api/topics/{qid}` (no network), its `/registry`, `/works` and `/artists`
+sections, `/api/registry/topics`, and `art_catalogue(action='topics'|'topic')`.
+Driven on a catalogue copy: the sweep wrote 140 rows and the rail shows
+movement, era, subject and medium with counts, narrowing the grid when chosen.
+Critic `rev-20261002T145007Z-483be496` found the sweep's wiring untested; four
+tests now hold it (`rev-20261002T145426Z-32e27622`, resolved).
+
 ## 2026-10-02: A Get names where its works go, over HTTP, MCP and the client
 
 <!-- prawduct: scope=topics-and-destinations -->
