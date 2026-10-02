@@ -80,7 +80,10 @@ page is its review; cards are one work per row; Scans is a table after Radarr's
 interactive search; the scan's pixels show above the fold and no screen shows
 inches; clicking a picture enlarges it in place (`?size=large` previews). The
 scan payload gains `width` and `height`. Critic `rev-20261002T174121Z-200674d5`:
-0 blocking. Filed from the same review: #167 (accepting never acquires the
+0 blocking; its follow-ups keep a review card (its *Why*, open *Scans* and focus)
+across a running Get's redraw, tell a finished Get whose cards could not be read
+to reload, name an enlarged scan for the picture, and let fact lists wrap
+between words on phones (`rev-20261002T180820Z-3fd253b4`, clean). Filed from the same review: #167 (accepting never acquires the
 master), #168 (Wanted), #169 (Artworks' theme filter vs add-to-theme, decided:
 follow Radarr).
 
