@@ -90,13 +90,11 @@ def test_a_work_still_under_review_keeps_the_picture_review_shows(discovery, swe
     assert discovery.list_candidate_images(work.id)[0].preview_path == "previews/memory.jpg"
 
 
-def test_a_work_awaiting_a_better_image_is_not_decided_and_keeps_its_previews(
-    discovery, sweep, propose, add_image, preview, settings
-):
+def test_a_wanted_work_is_not_decided_and_keeps_its_previews(discovery, sweep, propose, add_image, preview, settings):
     """The verdict that reads like a conclusion and is not one.
 
-    `awaiting_better_image` is the state a curator reaches by turning a scan
-    down, and the work is still wanted — a re-search is what it is waiting for.
+    `wanted` is the state a curator reaches by turning the scan on offer down,
+    and the work is still under review — a re-search is what it is waiting for.
     Sweeping it would delete the previews of the alternates they are choosing
     between, which is the state in which the pictures matter most.
     """
@@ -104,7 +102,7 @@ def test_a_work_awaiting_a_better_image_is_not_decided_and_keeps_its_previews(
     first = add_image(work, url="https://museum.example/one", preview_path=preview("one.jpg"))
     add_image(work, url="https://museum.example/two", preview_path=preview("two.jpg"))
     discovery.reject_image(first.id)
-    assert discovery.get_candidate_work(work.id).verdict is Verdict.AWAITING_BETTER_IMAGE
+    assert discovery.get_candidate_work(work.id).verdict is Verdict.WANTED
 
     result = sweep.run()
 

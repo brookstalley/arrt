@@ -1216,7 +1216,7 @@ button.link {
   background: var(--surface-0);
 }
 
-.badge-awaiting_better_image {
+.badge-wanted {
   border-style: dashed;
   border-width: 2px;
   background: var(--surface-2);

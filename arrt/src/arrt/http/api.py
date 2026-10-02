@@ -125,6 +125,9 @@ from arrt.http.models import (
     WallListOut,
     WallOut,
     WallRefOut,
+    WantedListingOut,
+    WantedWorkOut,
+    WantWork,
     WorkDetailOut,
     WorkFacetOut,
     WorkOut,
@@ -133,7 +136,7 @@ from arrt.http.models import (
 from arrt.library.services.artists import HeldArtist, RegistryView
 from arrt.library.services.catalogue import FacetGroup, RenditionView
 from arrt.library.services.conversation import ConversationDeletion, ConversationView, TurnView
-from arrt.library.services.discovery import VerdictOutcome
+from arrt.library.services.discovery import VerdictOutcome, WantedWork
 from arrt.library.services.display_fit import ArtworkBox
 from arrt.library.services.review import CandidatePage, CandidateView, InstanceListing, InstanceView
 from arrt.library.services.runner import Estimate, RunView, SpendReport
@@ -1040,6 +1043,21 @@ def set_verdict(request: Request, work_id: str, body: SetVerdict) -> VerdictOut:
     return _verdict(_services(request).discovery.set_verdict(work_id, body.verdict, reason=body.reason))
 
 
+@router.post("/candidates/{work_id}/want")
+def want_candidate(request: Request, work_id: str, body: WantWork) -> CandidateWorkOut:
+    """Want this work, turning down the named scan on the way if there is one. The one way into `wanted`.
+
+    Nothing looks for a scan until a re-search is asked for, which is the paid call.
+    """
+    return _candidate_work(_services(request).discovery.want(work_id, turning_down=body.turning_down))
+
+
+@router.get("/wanted")
+def list_wanted(request: Request) -> WantedListingOut:
+    """Every work the curator wants, across runs, newest run first."""
+    return WantedListingOut(works=[_wanted_work(entry) for entry in _services(request).discovery.list_wanted()])
+
+
 @router.post("/candidate-images/{image_id}/select")
 def select_candidate_image(request: Request, image_id: str, body: SelectImage) -> SelectedImageOut:
     """Make this the scan the work stands on, over the one the pipeline chose."""
@@ -1050,10 +1068,10 @@ def select_candidate_image(request: Request, image_id: str, body: SelectImage) -
 def reject_candidate_image(request: Request, image_id: str) -> CandidateWorkOut:
     """Turn down a scan and keep the work. Nothing looks again until asked.
 
-    Returns the work rather than the instance, because the interesting change is
-    the work's: it moves to `awaiting_better_image`, which is the verdict an
-    accept/reject binary cannot express — "I want this painting; this scan is not
-    good enough". The card repaints from that.
+    Returns the work rather than the instance, because the work may be what
+    changed: turning down the scan on offer makes it `wanted` — "I want this
+    painting; this scan is not good enough" — while turning down an alternate
+    leaves its verdict where it was. The card repaints from whichever it is.
     """
     return _candidate_work(_services(request).discovery.reject_image(image_id))
 
@@ -1446,6 +1464,18 @@ def _candidate_work(work: CandidateWork) -> CandidateWorkOut:
         verdict=str(work.verdict),
         resolution_status=str(work.resolution_status),
         unresolved_reason=None if work.unresolved_reason is None else str(work.unresolved_reason),
+    )
+
+
+def _wanted_work(entry: WantedWork) -> WantedWorkOut:
+    work = entry.work
+    return WantedWorkOut(
+        work_id=work.id,
+        title=work.proposed_title,
+        artist=work.proposed_artist,
+        run_id=work.discovery_run_id,
+        wikidata_qid=work.wikidata_qid,
+        scans_turned_down=entry.scans_turned_down,
     )
 
 

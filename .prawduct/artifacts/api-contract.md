@@ -161,7 +161,7 @@ lesson from a different count, which is why this one is stated as a shape.*
 | Tool | Actions | Notes |
 |---|---|---|
 | `art_discovery` | `estimate`, `start`, `status`, `approve`, `decline`, `cancel`, `resolve_images`, `get`, `list_runs`, `spend`, `help` | **The only tool that spends money in amounts worth authorising** — see the correction below. |
-| `art_review` | `list_works`, `get_work`, `list_images`, `set_canonical`, `set_verdict`, `reject_image`, `help` | Returns thumbnails; see Inputs & Outputs. Never spends. |
+| `art_review` | `list_works`, `get_work`, `list_images`, `set_canonical`, `set_verdict`, `reject_image`, `want`, `list_wanted`, `help` | Returns thumbnails; see Inputs & Outputs. Never spends. `want` and `list_wanted` (added 2026-10-02, `build-plan-after-review.md` Chunk 03) are the one way into `wanted` and Activity › Wanted's listing; see § `set_verdict` cannot set `wanted`. |
 | `art_catalogue` | `list`, `get`, `sources`, `archive`, `restore`, `retry_acquisition`, `set_mat_color`, `set_work_qid`, `set_artist_qid`, `regenerate`, `topics`, `topic`, `help` | `sources` is the provenance read; see below. `set_work_qid` and `set_artist_qid` (added 2026-10-01) are the curator's word on a Wikidata identity; matching itself is the hand-run `python -m arrt.identify`, not a tool. `topics` and `topic` (added 2026-10-02) are `GET /api/topics` and `GET /api/topics/{qid}`, the library's half only. |
 | `art_theme` | `list`, `get`, `create`, `update`, `delete`, `make_default`, `add`, `remove`, `reorder`, `activate`, `unhang`, `help` | `activate` changes the wall immediately; `unhang` leaves the wall showing what it was showing. `make_default` (added 2026-10-01) moves the mark new works join, and changes no wall. |
 | `art_display` | `walls`, `add_wall`, `status`, `sync`, `show_now`, `next`, `help` | Every action goes through the theme manifest — see below. `walls` is where every other action's `wall_id` comes from. |
@@ -374,8 +374,9 @@ Two consequences worth stating because they surprise:
 
 ### Rejecting an image does not re-search — that is a separate, paid call
 
-`art_review(action='reject_image')` marks the instance rejected and moves the work
-to `awaiting_better_image`. It does **not** go looking for a replacement.
+`art_review(action='reject_image')` marks the instance rejected and, when it was
+the scan on offer, moves the work to `wanted`; `art_review(action='want')` does the
+same for a work named directly. Neither goes looking for a replacement.
 `art_discovery(action='resolve_images', work_ids=[...])` does, and it is the paid
 operation.
 
@@ -406,28 +407,62 @@ re-search spend attributed directly to the originating run** — that rule exist
 only because there was no other row to attribute it to. The originating run still
 never reopens: a `completed` run stays completed. See `data-model.md` → SpendRecord.
 
-### `set_verdict` cannot set `awaiting_better_image`
+### `set_verdict` cannot set `wanted`
 
-Rejecting an *instance* is `reject_image`'s job, and it is the only way into
-`awaiting_better_image`. `set_verdict` accepts `accepted` and `rejected` only, and
-returns an error naming `reject_image` when asked for `awaiting_better_image`.
+*Renamed and amended 2026-10-02 (`build-plan-after-review.md` Chunk 03, the owner's
+#168). This section was "`set_verdict` cannot set `awaiting_better_image`", and its
+one entry point was `reject_image`. Both changes below are **breaking** by
+§ Versioning — a result enum value renamed, and an action's description and
+behaviour changed — and are made with no shim, annotated inline at the replacing
+site (`mcp/tools.py`, above `want`), and announced to the operator in the PR.*
+
+**`want` is the one way into `wanted`.** `art_review(action='want', work_id,
+turning_down?)` and `POST /api/candidates/{work_id}/want` record that the curator
+wants a work and holds no scan of it they would accept. `wanted` covers both
+reasons a work is wanted — its scan on offer was turned down, or none was found —
+because they are one wish; which it was is read from the work's instances, never
+stored, and `list_wanted` reports it as `scans_turned_down`. `set_verdict` accepts
+`accepted` and `rejected` only, and its refusal of `wanted` names `want`.
+
+**Turning a scan down is still the only way to suppress one.** `want` with
+`turning_down` suppresses that scan and fills the vacancy in the same transaction
+as the verdict; `want` without it suppresses nothing, because wanting a work found
+with no scan is not a judgement about any scan, and a scan nobody turned down must
+stay offerable to the re-search that looks for one. `reject_image` turns a scan
+down: the scan on offer goes through `want`, so the work becomes `wanted`; an
+alternate is only suppressed, and the verdict stands — a curator who turns down a
+poor alternate under a scan they like has not asked for a better one.
+
+**`want` takes a `work_id` and, optionally, an `image_id`, and refuses a pair that
+disagrees.** § The arity of the three write actions declines a second id beside an
+`image_id` because the pair can disagree. `want` is work-scoped — a work found with
+no scan has no `image_id` to name — so its scan is the optional one, and a scan
+found for a different work is refused by name rather than resolved by a rule about
+which id wins.
+
+**The old spelling is not accepted anywhere.** `awaiting_better_image` is an
+unknown verdict on HTTP and on MCP, and the stored rows are rewritten by a
+migration on open (`persistence/migrations.py`). Both surfaces have one client
+each and ship with the server, which is what § Deprecation's no-shims rule rests
+on.
 
 **This constrains the target value only — never the source state** (clarified
 2026-07-20). `set_verdict` is available from any non-terminal state, including
-`awaiting_better_image`: the curator may accept the best instance on offer or give
-up on the work without waiting for a re-search, and must never be blocked on a
-background job. The corresponding guard therefore lives on the *other* writer — a
-resolve run completing writes `pending` only if the work is still
-`awaiting_better_image`, and otherwise reports its result without applying it. See
-`data-model.md` → CandidateWork, "Terminal verdicts are never overwritten".
+`wanted`: the curator may accept the best instance on offer or give up on the work
+without waiting for a re-search, and must never be blocked on a background job.
+`want` is refused on a work already accepted or rejected. The corresponding guard
+on the *other* writer: a resolve run completing returns a work to `pending` when it
+finds a scan, and never writes over a terminal verdict — it reports its result
+without applying it. See `data-model.md` → CandidateWork, "Terminal verdicts are
+never overwritten".
 
-**Both paths used to reach that state and only `reject_image` set `rejected_at`** —
-so a work sent there via `set_verdict` had no suppressed instance, and the re-search
-could legitimately hand back the image the curator had just turned down. That is the
-suppression failure **Q11** exists to prevent, reappearing on the instance scope
-instead of the work scope. One entry point makes it impossible rather than
-defended against, and it matches the boundary the tools already draw: `set_verdict`
-is work-scoped, and "this scan is not good enough" is a judgement about an instance.
+**A path to the verdict that skips the suppression is the failure this prevents.**
+When two paths reached the old `awaiting_better_image` and only `reject_image` set
+`rejected_at`, a work sent there via `set_verdict` had no suppressed instance, and
+the re-search could legitimately hand back the image the curator had just turned
+down — the suppression failure **Q11** exists to prevent, on the instance scope
+instead of the work scope. One entry point that suppresses exactly the scan it is
+told about makes it impossible rather than defended against.
 
 ### `art_taste`, and the derivation a caller may not claim
 
@@ -1252,10 +1287,12 @@ Added 2026-08-05 with the review half, and exercised by
 | `GET /api/runs/{id}/candidates` | A page of the works a run is responsible for, each as a card: the instance whose picture stands for it, its size on this wall, and whether that instance is the one a verdict would accept on. **Paged where the run view's own work list is not**, and the difference is the payload rather than an inconsistency — that list is text, this one is a card per work. |
 | `GET /api/candidates/{work_id}` | One card, which is what the grid repaints a single tile from after a verdict. |
 | `GET /api/candidates/{work_id}/images` | Every scan found for the work, in the order the card offers them, capped — with `held` and `shows_every_choosable_instance` beside the rows so a truncated card cannot read as a complete one. Each instance, here and as a card's `shown`, carries the scan's own `width` and `height` in pixels (added 2026-10-02; null where the provider reported none). MCP's `list_images` already carried them as `estimated_width` and `estimated_height`. |
-| `POST /api/candidates/{work_id}/verdict` | Accept or reject. Carries the minted artist and any held painter it may duplicate, which is the one part of a promotion a curator can neither see nor undo from the work. `awaiting_better_image` is refused here — rejecting an image is its only entry. |
-| `POST /api/candidate-images/{id}/select`, `/reject` | Choose a scan, or turn one down. Rejecting returns the *work*, because the interesting change is its move to `awaiting_better_image`. |
+| `POST /api/candidates/{work_id}/verdict` | Accept or reject. Carries the minted artist and any held painter it may duplicate, which is the one part of a promotion a curator can neither see nor undo from the work. `wanted` is refused here — `want` is its only entry. |
+| `POST /api/candidates/{work_id}/want` | Want the work, `{turning_down?}` (added 2026-10-02, `build-plan-after-review.md` Chunk 03). Returns the work. Naming a scan suppresses it; naming none suppresses nothing. Refused on a decided work. Twin: `art_review(action='want')`. |
+| `GET /api/wanted` | Every wanted work across runs, newest run first: `work_id`, `title`, `artist`, `run_id`, `wikidata_qid`, `scans_turned_down` (added 2026-10-02, Chunk 03). Uncapped, because each row is a work somebody wanted by name. Twin: `art_review(action='list_wanted')`. |
+| `POST /api/candidate-images/{id}/select`, `/reject` | Choose a scan, or turn one down. Rejecting returns the *work*, because turning down the scan on offer moves it to `wanted`; turning down an alternate leaves its verdict where it was. |
 | `GET /api/candidate-images/{id}/preview` | The picture, re-encoded to JPEG. **Not the cached file served directly:** a preview's name on disk is derived from a URL and falls back to `.jpg` for anything unrecognised, so the suffix is not evidence of what the bytes are. Held rather than revalidated — the bytes behind an image id are written once and only ever deleted. **`size=large`** (added 2026-10-02, Chunk 07) is the picture a card enlarges in place: the largest preview the server holds, at its own size (843 px wide from ARTIC, 960 from Commons), bounded at 2048 px for decode memory; the default `card` fits 480 px. Any other value is refused (422). |
-| `POST /api/runs/resolve` | Look again for images of works whose scans were turned down. A re-search is a run, so `GET /api/runs/{id}` follows it with nothing special to know. Records `initiated_by: web_ui`. |
+| `POST /api/runs/resolve` | Look again for images of wanted works. A re-search is a run, so `GET /api/runs/{id}` follows it with nothing special to know. Records `initiated_by: web_ui`. |
 | `POST /api/gets` | Get works chosen by their Wikidata items, `{qids}`: one run of kind `get`, phase 2 only, spending nothing. Returns `{run, skipped}`: items the library holds, items a Get under way is already looking for, and items Wikidata has no work for are skipped with their reason (`held`, `being_got`, `not_found`), never refused; when every item is skipped `run` is null. At most 50 items, because each is a Wikidata lookup inside the request. Refused with no registry or no image source. **Optional `theme_id`** (added 2026-10-02, `build-plan-topics-and-destinations.md` Chunk 01): the theme the accepted works join instead of the default. The binding asks Programming for the theme and then starts the Get, two calls with no branch, so an unknown id is the theme's not-found refusal and nothing starts; a new theme is the client's earlier `POST /api/themes`. The run carries it back as `destination_theme_id` (null for the default) on every run shape, here and in MCP. Twin: `art_discovery(action='get', qids=[...], theme_id=...)`. Records `initiated_by: web_ui`. |
 
 **The review listing does not inline its pictures, and the MCP twin does.** Both

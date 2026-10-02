@@ -176,6 +176,8 @@ to serve, elicited from the Product Brief's core flows:
 | Q28 | Which Topic page does this facet value open? | Owner 2026-10-02 (topics) |
 | Q29 | Do I already have this answer from a slow foreign source, and is it fresh enough to use? Asked by every page section that asks one (the registry's first). | Owner 2026-10-02 (kept answers) |
 | Q30 | How much is kept, and what can be thrown away first? Asked by the store itself on every write and at every open. | Owner 2026-10-02 (kept answers) |
+| Q31 | Which works does the curator want and not yet hold a scan of, across every run? Asked by Activity › Wanted and `art_review(action='list_wanted')`. | Owner 2026-10-02 (#168) |
+| Q32 | Was this work wanted because a scan was turned down, or because none was found? | Owner 2026-10-02 (#168) |
 
 **Q22 to Q24 are answered by one column, `DiscoveryRun.destination_theme_id`**
 (`build-plan-topics-and-destinations.md` Chunk 01). A work reaches its run
@@ -204,6 +206,14 @@ each page section one more question of its source. That is why it is not part of
 the catalogue, why a backup skips it, and why its format changes by being
 replaced rather than migrated.
 
+**Q31 and Q32 are answered by `CandidateWork.verdict` and the work's instances,
+with nothing new stored** (`build-plan-after-review.md` Chunk 03). Q31 is every
+work whose verdict is `wanted`, across runs (`DiscoveryStore.list_wanted_works`);
+the service orders it newest run first, since the verdict carries no moment of its
+own. Q32 is whether a wanted work holds any instance with `rejected_at` set — a
+count read at the listing, so it cannot disagree with the rows it counts. Storing
+the reason beside the verdict would be a second truth about the same instances.
+
 **Q15 is what makes the collection navigable at the amended scale**
 (`nonfunctional-requirements.md`, thousands of works). At 41 works a curator
 scrolls; at 4,000 an unfiltered grid is a wall of pictures with no way in. It is
@@ -231,8 +241,8 @@ the product feels broken in a way no single component is responsible for.
 
 **Q11 is Q3's trap.** The two look like the same question and must not share a
 mechanism. Rejecting a *work* suppresses the work; rejecting an *image* must
-suppress only that image and explicitly leave the work eligible — otherwise asking
-for a better scan of a painting silently blacklists the painting. One suppression
+suppress only that image and explicitly leave the work eligible — otherwise turning
+down a scan of a painting the curator wants silently blacklists the painting. One suppression
 key for both is the bug, and it is invisible until a curator wonders why a work
 they asked to keep never came back.
 
@@ -1211,7 +1221,7 @@ artworks.
 | `provenance` | enum | required, defaults `proposed` | `proposed` \| `offered` \| `chosen`. Who put this work in front of the curator: the model named it, a wired collection volunteered it, or the curator chose it from Wikidata for a Get. Nullable *on disk* only so the column can be added to files written before collections were browsable — a null reads as `proposed`, that being the only thing which could have written a row then. |
 | `resolution_status` | enum | required | `pending` \| `resolved` \| `unresolved`. Reflects the **latest** resolution attempt, whether that was the original phase 2 or a later re-search. `unresolved` ⇒ that attempt found no credible instance the curator has not already rejected. **Q12.** |
 | `unresolved_reason` | enum | nullable | Which kind of nothing: `not_held` \| `identity_refused` \| `size_unknown` \| `below_floor` \| `all_rejected`. Set whenever `resolution_status = unresolved`, null otherwise — **with one honest exception: a row whose attempt predates the column reads null beside `unresolved`.** The column was added nullable and existing files are widened without backfill, so the two runs that motivated it are themselves in that state. A null beside `unresolved` therefore means "this attempt happened before the reason was recorded", never "no reason applies". **Q12.** |
-| `verdict` | enum | required | `pending` \| `accepted` \| `rejected` \| `awaiting_better_image`. See State Machines. |
+| `verdict` | enum | required | `pending` \| `accepted` \| `rejected` \| `wanted`. See State Machines. `wanted` was `awaiting_better_image` until 2026-10-02 (`build-plan-after-review.md` Chunk 03); a migration on open rewrites stored rows, and nothing reads the old spelling. **Q31, Q32.** |
 | `rejected_reason` | text | nullable | Optional curator note. |
 | `decided_at` | datetime | nullable | |
 
@@ -1241,12 +1251,16 @@ artworks.
 > therefore before anything could have been offered — an offer exists only to
 > supplement what phase 2 failed to confirm.
 
-> **`awaiting_better_image` is the verdict an accept/reject binary cannot express**
-> — "I want this work; this instance is not good enough; find another." It is not
-> an edge case, and it is not terminal: the work returns to review once a new
-> instance is selected. Modelling it as a rejection would suppress the work via
-> `work_dedup_key` and silently lose a painting the curator explicitly asked to
-> keep (**Q11**).
+> **`wanted` is the verdict an accept/reject binary cannot express** — "I want this
+> work, and I hold no scan of it I would accept; find one." It covers a work whose
+> scan on offer the curator turned down and a work no scan was found for at all,
+> because those are one wish (the owner's #168, 2026-10-02: "'want a better scan'
+> is not that different from 'want any scan at all'"). Which it was is read from
+> the work's instances — a wanted work holding a turned-down instance was turned
+> down — and never stored (**Q32**). It is not an edge case, and it is not
+> terminal: the work returns to review once a new instance is selected. Modelling
+> it as a rejection would suppress the work via `work_dedup_key` and silently lose
+> a painting the curator explicitly asked to keep (**Q11**).
 >
 > **`resolution_status = unresolved` is a first-class outcome, not an absent row.**
 > Phase 2 failing to find any credible instance is one of the signals that phase 1
@@ -1272,7 +1286,7 @@ artworks.
 > > **`all_rejected` was added on 2026-08-04 after the list had been written at
 > > four, and the correction is kept rather than smoothed over** because the reason
 > > it was missed is reusable. It was ruled unreachable on the grounds that
-> > rejecting every instance sets the *verdict* to `awaiting_better_image` rather
+> > rejecting every instance sets the *verdict* to `awaiting_better_image` (now `wanted`) rather
 > > than the resolution status — true at the rejection, and irrelevant, because the
 > > write that matters happens later: the re-search that finds nothing then lands
 > > the same work at `unresolved`, which this document already said in as many
@@ -1321,7 +1335,7 @@ artworks.
 > meant "phase 2 found no credible instance" — an outcome of the original run only.
 > It now tracks the *latest* resolution attempt, which is what gives a failed
 > re-search a terminal representation without adding a verdict value for it. A work
-> in `awaiting_better_image` whose re-search comes back empty lands at
+> that is `wanted` and whose re-search comes back empty lands at
 > `unresolved`, and constraint 9 already forbids presenting it as accepted-able or
 > silently omitting it — so the dead end reports itself.
 >
@@ -2127,16 +2141,17 @@ of 40 works succeeded partially; it did not fail.
    ▼                                             │
 pending ──┬──▶ accepted  (mints an Artwork)      │
           ├──▶ rejected  (terminal; suppresses)  │
-          └──▶ awaiting_better_image ────────────┘
-               entered ONLY via art_review(reject_image)
+          └──▶ wanted ───────────────────────────┘
+               entered ONLY via want — directly, or
+               through reject_image on the scan on offer
                     │
                     ├──▶ accepted   via set_verdict
                     └──▶ rejected   via set_verdict
 ```
 
-`awaiting_better_image` is **not terminal**. It returns to `pending` once a
-resolution attempt selects a fresh instance, and it must not write
-`work_dedup_key` suppression — that is reserved for `rejected` (**Q11**).
+`wanted` is **not terminal**. It returns to `pending` once a resolution attempt
+selects a fresh instance, and it must not write `work_dedup_key` suppression —
+that is reserved for `rejected` (**Q11**).
 **The curator may also leave it directly** via `set_verdict` — accepting the best
 instance on offer, or giving up on the work — which is why the two edges above
 exist (added 2026-07-20; the diagram previously drew no exit but `set_verdict`
@@ -2145,7 +2160,7 @@ constrains only its *target* value, so the transition was reachable and unmodell
 **Terminal verdicts are never overwritten by a resolve run (decided 2026-07-20).**
 `verdict` has two writers — the curator through `art_review`, and a resolve run
 completing — and only the curator's is authoritative. A resolve run writes
-`pending` **only if the work is still `awaiting_better_image` when it finishes**;
+`pending` **only if the work is still undecided (`pending` or `wanted`) when it finishes**;
 if the curator has since accepted or rejected it, the run's result is **reported,
 not applied**, and the verdict stands. Without this rule a resolve completing after
 an accept writes `pending` over `accepted`, leaving a work with an `artwork_id` and
@@ -2163,13 +2178,13 @@ more enum values — it is to stop conflating curator *intent* with job *state*:
 
 | Situation | How it is known |
 |---|---|
-| Curator asked for better; nothing running | `awaiting_better_image`, and no `ResolveRunWork` row for it on a run in `resolving_images` |
+| Curator wants it; nothing running | `wanted`, and no `ResolveRunWork` row for it on a run in `resolving_images` |
 | Re-search in flight | A `ResolveRunWork` row for this work whose run is in `resolving_images` |
 | Re-search found nothing | `resolution_status = unresolved` — see above |
 
-`awaiting_better_image` therefore means exactly one thing: *the curator wants this
-work and the current instance is not good enough*. It is a statement of intent, and
-intent does not change when a job starts or finishes.
+`wanted` therefore means exactly one thing: *the curator wants this work and holds
+no scan of it they would accept*. It is a statement of intent, and intent does not
+change when a job starts or finishes.
 
 **This follows the readiness decision rather than re-litigating it.** Storing
 "re-search running" as a verdict value would create a second truth beside the run
@@ -2177,14 +2192,20 @@ row, and the two can disagree — a crashed resolve run would leave the work rea
 `resolving` forever with nothing to correct it. Derived state cannot drift from the
 thing it is derived from. See `architecture.md` § readiness.
 
-**Entry is single-path by construction (decided 2026-07-20).** `set_verdict` does
-**not** accept `awaiting_better_image`; `reject_image` is the only way in. Both
-previously reached it and only `reject_image` set `rejected_at`, so a re-search
+**Entry is single-path by construction (decided 2026-07-20, amended 2026-10-02).**
+`set_verdict` does **not** accept `wanted`; `want` is the only way in. On
+2026-07-20 the way in was `reject_image`, because two paths had reached the old
+`awaiting_better_image` and only `reject_image` set `rejected_at`, so a re-search
 could legitimately return the image the curator had just rejected — the exact
 suppression failure **Q11** exists to prevent, reappearing on the instance scope.
-Narrowing the entry makes that impossible rather than defended against, and it
-matches the scope boundary the tools already have: `awaiting_better_image` is a
-judgement about the *instance*, and `set_verdict` is work-scoped.
+On 2026-10-02 (#168) the verdict became `wanted` and its entry became `want`, which
+takes the scan being turned down as an optional argument and suppresses it in the
+same transaction as the verdict. The reason survives the move: **turning a scan
+down is still the only way to suppress one**, and a verdict reached by naming a
+scan always suppresses it. `want` naming no scan suppresses nothing, because a
+work found with no scan has nothing to turn down. `reject_image` makes a work
+`wanted` only when the scan was the one on offer; turning down an alternate
+suppresses it and leaves the verdict where it was.
 
 ## Constraints
 
@@ -2246,7 +2267,7 @@ judgement about the *instance*, and `set_verdict` is work-scoped.
       future proposals, unless the curator explicitly reconsiders it.
    b. A **CandidateImage** with `rejected_at` set is excluded from re-selection for
       its work, and this must leave the work itself eligible.
-   Enforcing (b) through (a) is the failure mode: asking for a better scan would
+   Enforcing (b) through (a) is the failure mode: turning down a scan would
    blacklist the painting. **Q11.**
    **(b) is scoped to the URL, not to the row that holds it** *(added 2026-08-03,
    when the re-search was first built and immediately defeated it)*. A work holds
@@ -2343,10 +2364,16 @@ judgement about the *instance*, and `set_verdict` is work-scoped.
     So the two halves of this artifact disagreed, and the dead half had reached
     `operational-spec.md` as a remedy telling an operator to approve a run that
     cannot exist. A live coverage-holding run is always `resolving_images`.
-15. **`awaiting_better_image` is reachable only through `art_review(reject_image)`.**
-    The path that sets `rejected_at` and the path that sets the verdict are the same
-    path, so instance suppression can never be skipped. `set_verdict` rejects the
-    value with an error naming `reject_image` — see `api-contract.md`.
+15. **`wanted` is reachable only through `want`** *(amended 2026-10-02; it read
+    "`awaiting_better_image` is reachable only through `art_review(reject_image)`")*.
+    When `want` names a scan being turned down, the path that sets `rejected_at` and
+    the path that sets the verdict are the same transaction, so instance suppression
+    can never be skipped; naming none suppresses nothing. `reject_image` reaches
+    `wanted` only through `want`, and only for the scan on offer. `set_verdict`
+    rejects the value with an error naming `want` — see `api-contract.md`
+    § `set_verdict` cannot set `wanted`. Enforced by the service (the store's
+    `verdict` column holds any string; nothing below the service refuses one), and
+    pinned by `arrt/tests/unit/test_discovery_constraints.py` § 15.
 16. **A re-fetch never lowers the quality of the image a work already holds: a
     `partial_tiles` result does not replace a held Original unless that Original is
     itself recorded as `partial_tiles`.** *(Added 2026-08-04.)* Re-acquisition is an
@@ -2529,7 +2556,7 @@ an open question.
 
 The memory of what a Watch has already seen is the existing dedup and
 rejected-candidate records, not a new table. Upgrade monitoring (re-searching
-works whose verdict is `awaiting_better_image`) runs on the same scheduler.
+works whose verdict is `wanted`) runs on the same scheduler.
 
 ### Player observation *(Programming)*
 

@@ -186,8 +186,8 @@ def test_rejecting_the_selected_instance_does_not_fall_through_to_a_below_floor_
     A curator who turns down the good scan is asking for a better one, not for
     the postage stamp underneath it — and being handed the postage stamp silently
     is the one outcome that would make rejecting an image worse than doing
-    nothing. The work goes to `awaiting_better_image` holding no selection, which
-    is what a re-search then acts on.
+    nothing. The work goes to `wanted` holding no selection, which is what a
+    re-search then acts on.
     """
     engine.result = a_list("The Elephants")
     museum.holdings = {
@@ -205,7 +205,7 @@ def test_rejecting_the_selected_instance_does_not_fall_through_to_a_below_floor_
     images = services.discovery.list_candidate_images(work.id)
     assert len(images) == 2, "the rejected instance and the small one are both retained"
     assert not any(image.is_selected for image in images), "nothing below the floor was promoted"
-    assert services.discovery.get_candidate_work(work.id).verdict is Verdict.AWAITING_BETTER_IMAGE
+    assert services.discovery.get_candidate_work(work.id).verdict is Verdict.WANTED
 
 
 def test_rejecting_the_selected_instance_does_fall_through_to_one_that_clears_the_floor(services, engine, runner, museum):

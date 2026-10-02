@@ -30,7 +30,7 @@ from arrt.library.acquisition.service import AcquisitionOutcome, AcquisitionResu
 from arrt.library.acquisition.space import NotEnoughSpace
 from arrt.library.acquisition.tiles import TileTargetUnavailable
 from arrt.library.services.catalogue import MAX_LIST_LIMIT, ArtworkDetail, ArtworkListing, FacetGroup
-from arrt.library.services.discovery import VerdictOutcome
+from arrt.library.services.discovery import VerdictOutcome, WantedWork
 from arrt.library.services.display_fit import DisplayFit
 from arrt.library.services.previews import InlinePreview
 from arrt.library.services.review import MAX_REVIEW_LIMIT, CandidatePage, CandidateView, InstanceListing, InstanceView
@@ -46,6 +46,7 @@ from arrt.persistence.discovery_records import (
     InitiatedBy,
     RunKind,
     RunStatus,
+    Verdict,
 )
 from arrt.persistence.records import Artist, Artwork, Directive, Source, Theme, VocabularyKind, Wall
 from arrt.programming.display import UNSET, ThemePlacement, WallView, describe_wall_status
@@ -722,23 +723,63 @@ def _set_verdict(services: Services, arguments: Mapping[str, Any]) -> dict[str, 
 
 def _reject_image(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     work = services.discovery.reject_image(arguments["image_id"])
+    # Which sentence follows depends on the work's verdict, which this call may or
+    # may not have changed: only the scan on offer makes a work wanted. Read from
+    # the work returned, so the notice cannot claim a wish the store does not hold.
+    then = (
+        _nothing_searching(work)
+        if work.verdict is Verdict.WANTED
+        else "It was an alternate, so the scan on offer stands and the work's verdict is unchanged."
+    )
     return ok(
         image_id=arguments["image_id"],
         work_id=work.id,
         title=work.proposed_title,
         verdict=str(work.verdict),
-        # The next move, in the payload rather than only in the tool's tips: a
-        # caller arrives here having decided the scan is not good enough, and
-        # the one thing that finds a better one is a different tool. Naming it
-        # at the moment of rejection is what keeps "reject" from reading as a
-        # request that something will act on.
-        notice=(
-            "The scan is turned down and cannot be offered for this work again. Nothing is searching for a "
-            "replacement: art_discovery(action='resolve_images', work_ids=['"
-            f"{work.id}']) is what looks, and it spends. Reject every scan you want re-searched first, then "
-            "ask once."
-        ),
+        notice=f"The scan is turned down and cannot be offered for this work again. {then}",
     )
+
+
+def _want(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    work = services.discovery.want(arguments["work_id"], turning_down=arguments.get("turning_down"))
+    return ok(
+        work_id=work.id,
+        title=work.proposed_title,
+        verdict=str(work.verdict),
+        notice=_nothing_searching(work),
+    )
+
+
+def _nothing_searching(work: CandidateWork) -> str:
+    """The next move for a wanted work, said at the moment it became one.
+
+    In the payload rather than only in the tool's tips: a caller arrives having
+    decided they want a scan they do not hold, and the one thing that finds one is a
+    different tool. Naming it here is what keeps wanting from reading as a request
+    that something will act on.
+    """
+    return (
+        "The work is wanted. Nothing is searching for a scan: art_discovery(action='resolve_images', "
+        f"work_ids=['{work.id}']) is what looks, and it spends. Gather every work you mean to re-search, "
+        "then ask once."
+    )
+
+
+def _list_wanted(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    works = [_wanted_fields(entry) for entry in services.discovery.list_wanted()]
+    return ok(works=works, count=len(works))
+
+
+def _wanted_fields(entry: WantedWork) -> dict[str, Any]:
+    """One wanted work, named as `WantedWorkOut` names it (`test_surface_parity.py`)."""
+    return {
+        "work_id": entry.work.id,
+        "title": entry.work.proposed_title,
+        "artist": entry.work.proposed_artist,
+        "run_id": entry.work.discovery_run_id,
+        "wikidata_qid": entry.work.wikidata_qid,
+        "scans_turned_down": entry.scans_turned_down,
+    }
 
 
 def _verdict_notice(outcome: VerdictOutcome) -> str | None:
@@ -942,6 +983,8 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_review", "set_canonical"): _set_canonical,
     ("art_review", "set_verdict"): _set_verdict,
     ("art_review", "reject_image"): _reject_image,
+    ("art_review", "want"): _want,
+    ("art_review", "list_wanted"): _list_wanted,
     ("art_catalogue", "list"): _list_artworks,
     ("art_catalogue", "get"): _get_artwork,
     ("art_catalogue", "sources"): _list_sources,

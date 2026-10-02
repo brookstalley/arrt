@@ -292,7 +292,7 @@ def test_a_rejected_instance_stays_rejected_while_its_work_stays_wanted(discover
     assert images[turned_down.id].rejected_at is not None
     assert images[turned_down.id].is_selected is False
     assert discovery.is_work_suppressed(work.work_dedup_key) is False
-    assert discovery.get_candidate_work(work.id).verdict is Verdict.AWAITING_BETTER_IMAGE
+    assert discovery.get_candidate_work(work.id).verdict is Verdict.WANTED
 
 
 def test_a_re_search_never_hands_back_the_instance_that_was_turned_down(discovery, resolved_work, add_image):
@@ -304,6 +304,49 @@ def test_a_re_search_never_hands_back_the_instance_that_was_turned_down(discover
     outcome = discovery.record_resolution(work.id)
 
     assert outcome.selected.id == fresh.id
+
+
+# -- Q31 and Q32: which works does the curator want, and why? ----------------
+#
+# Activity › Wanted's two questions. Why a work is wanted — its scan was turned
+# down, or nothing was found — is read from its instances rather than stored, so
+# the listing carries the count of scans turned down and the verdict carries
+# nothing more than the wish.
+
+
+def test_the_wanted_works_are_listed_across_runs_newest_run_first_with_what_was_turned_down(
+    discovery, run, propose, add_image, resolved_work
+):
+    turned_down = propose("The Elephants")
+    on_offer = add_image(turned_down, url="https://museum.example/elephants-1")
+    poor = add_image(turned_down, url="https://museum.example/elephants-2", confidence=0.3)
+    add_image(turned_down, url="https://museum.example/elephants-3", confidence=0.2)
+    discovery.record_resolution(turned_down.id)
+    discovery.reject_image(poor.id)
+    discovery.reject_image(on_offer.id)
+    still_pending = resolved_work("Swans Reflecting Elephants")
+    declined = resolved_work("Sleep")
+    discovery.set_verdict(declined.id, Verdict.REJECTED)
+
+    later = discovery.start_discovery_run(intent_text="Hopper", initiated_by=InitiatedBy.MCP_CLIENT)
+    never_found = propose("Nighthawks", run_id=later.id, dedup_key="hopper::nighthawks")
+    discovery.record_resolution(never_found.id)
+    discovery.want(never_found.id)
+
+    wanted = discovery.list_wanted()
+
+    assert [(entry.work.id, entry.work.discovery_run_id, entry.scans_turned_down) for entry in wanted] == [
+        (never_found.id, later.id, 0),
+        (turned_down.id, run.id, 2),
+    ]
+    assert still_pending.id not in {entry.work.id for entry in wanted}
+
+
+def test_nothing_is_wanted_until_somebody_wants_it(discovery, resolved_work, propose):
+    resolved_work()
+    discovery.record_resolution(propose("A work no museum holds").id)
+
+    assert discovery.list_wanted() == []
 
 
 # -- Q12: which works could not be resolved, and which kind of nothing was it? --

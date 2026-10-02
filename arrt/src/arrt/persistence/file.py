@@ -16,7 +16,12 @@ from functools import partial
 from pathlib import Path
 
 from arrt.persistence.durable import SqliteDurableStore
-from arrt.persistence.migrations import DEFAULT_WALL_NAME, establish_the_wall, mark_the_default_theme
+from arrt.persistence.migrations import (
+    DEFAULT_WALL_NAME,
+    establish_the_wall,
+    mark_the_default_theme,
+    rename_awaiting_to_wanted,
+)
 from arrt.persistence.sqlite import CATALOGUE_SCHEMA
 from arrt.persistence.sqlite_discovery import DISCOVERY_SCHEMA
 
@@ -37,5 +42,5 @@ def open_catalogue_file(path: Path | str, *, wall_name: str = DEFAULT_WALL_NAME)
     return SqliteDurableStore(
         path,
         CATALOGUE_SCHEMA + DISCOVERY_SCHEMA,
-        migrations=(partial(establish_the_wall, wall_name=wall_name), mark_the_default_theme),
+        migrations=(partial(establish_the_wall, wall_name=wall_name), mark_the_default_theme, rename_awaiting_to_wanted),
     )

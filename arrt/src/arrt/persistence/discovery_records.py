@@ -216,18 +216,28 @@ _REFUSAL_DEPTH: Final[dict[UnresolvedReason, int]] = {
 class Verdict(StrEnum):
     """What the curator decided about a proposed work.
 
-    `AWAITING_BETTER_IMAGE` is the verdict an accept/reject binary cannot express
-    — "I want this work; this instance is not good enough; find another". It is
-    not terminal, and it must never write dedup-key suppression: modelling it as
-    a rejection would silently lose a painting the curator explicitly asked to
-    keep. It means exactly one thing, a statement of intent, and intent does not
-    change when a re-search starts or finishes.
+    `WANTED` is the verdict an accept/reject binary cannot express — "I want this
+    work, and I do not hold a scan of it I would accept". It covers a work whose
+    scan on offer the curator turned down and a work no scan was found for at
+    all, because those are one wish: the difference is read from the work's
+    instances (a wanted work with a turned-down instance was turned down), not
+    stored. It is not terminal, and it must never write dedup-key suppression:
+    modelling it as a rejection would silently lose a painting the curator
+    explicitly asked to keep. It means exactly one thing, a statement of intent,
+    and intent does not change when a re-search starts or finishes.
+
+    The one way in is `DiscoveryService.want`; `set_verdict` refuses it.
+
+    Renamed from `awaiting_better_image` (2026-10-02), which was false of a work
+    that never had a scan. Stored rows are rewritten by
+    `migrations.rename_awaiting_to_wanted`, and no surface accepts the old
+    spelling (`api-contract.md` § Versioning).
     """
 
     PENDING = "pending"
     ACCEPTED = "accepted"
     REJECTED = "rejected"
-    AWAITING_BETTER_IMAGE = "awaiting_better_image"
+    WANTED = "wanted"
 
     @property
     def is_terminal(self) -> bool:
