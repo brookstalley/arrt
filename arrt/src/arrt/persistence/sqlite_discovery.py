@@ -341,6 +341,14 @@ class SqliteDiscovery(TableAdapter):
     def list_candidate_works(self, run_id: str) -> Sequence[CandidateWork]:
         return self._list("candidate_works", {"discovery_run_id": run_id}, _BY_TITLE, _candidate_work)
 
+    def list_works_awaiting_verdict(self) -> Sequence[CandidateWork]:
+        return self._list(
+            "candidate_works",
+            {"verdict": str(Verdict.PENDING), "resolution_status": str(ResolutionStatus.RESOLVED)},
+            _BY_TITLE,
+            _candidate_work,
+        )
+
     def list_candidate_works_by_dedup_key(self, work_dedup_key: str) -> Sequence[CandidateWork]:
         return self._list("candidate_works", {"work_dedup_key": work_dedup_key}, _BY_TITLE, _candidate_work)
 

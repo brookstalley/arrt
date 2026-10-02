@@ -62,6 +62,23 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-02: Activity › To review, with what waits counted in the sidebar
+
+<!-- prawduct: scope=get-and-ask -->
+
+**Why:** a run that finished with works nobody judged sat in History looking
+done (`information-architecture.md` § The *arr layout recorded the gap on
+2026-09-30), and Get makes such runs ordinary.
+
+**What:** `GET /api/runs` and `art_discovery(action='list_runs')` carry
+`awaiting` (works that found an image and have no verdict, by run) and
+`awaiting_works` (in all), and narrow to such runs with `awaiting`, before the
+cap. *To review* is Activity's first page, listing those runs with their counts,
+each opening Review; the count shows on its link and as *N to review* on
+Activity's, and is read again after every navigation and as soon as a verdict is
+recorded. The sidebar test now checks every section's pages, which it had listed
+and never read.
+
 ## 2026-10-02: Ask, where Add New was
 
 <!-- prawduct: scope=get-and-ask -->

@@ -487,6 +487,8 @@ def _a_run_list(count: int, total: int) -> dict:
         count=count,
         total=total,
         truncated=total > count,
+        awaiting_works=0,
+        awaiting={},
     ).model_dump(mode="json")
 
 

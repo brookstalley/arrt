@@ -38,8 +38,8 @@ that the figure a curator authorised is one the run cannot freely exceed.
 import logging
 import threading
 from collections import Counter
-from collections.abc import Callable, Iterator, Sequence
-from dataclasses import dataclass
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
 from enum import StrEnum
@@ -124,6 +124,14 @@ class RunListing:
 
     runs: Sequence[DiscoveryRun]
     total: int
+    #: Works with an image and no verdict yet, by the run that holds them, for
+    #: every run and not only the listed ones; a run with none is absent.
+    awaiting: Mapping[str, int] = field(default_factory=dict)
+
+    @property
+    def awaiting_works(self) -> int:
+        """How many works, across every run, are waiting for the curator."""
+        return sum(self.awaiting.values())
 
     @property
     def truncated(self) -> bool:
@@ -569,7 +577,7 @@ class DiscoveryRunner:
             month=month,
         )
 
-    def list_runs(self, *, status: RunStatus | None = None, kind: RunKind | None = None) -> RunListing:
+    def list_runs(self, *, status: RunStatus | None = None, kind: RunKind | None = None, awaiting: bool = False) -> RunListing:
         """The newest runs, optionally narrowed, capped at `MAX_RUNS_LISTED`.
 
         **`status` and `kind` are filters, not bounds.** Omitting both is the
@@ -582,8 +590,13 @@ class DiscoveryRunner:
         own note said as much before this existed: fixing one alone is how they
         drift apart.
         """
+        waiting = self._discovery.awaiting_verdict()
         runs = self._discovery.list_runs(status=status, kind=kind)
-        return RunListing(runs=runs[:MAX_RUNS_LISTED], total=len(runs))
+        if awaiting:
+            # Narrowed before the cap, so an older run with works still to judge
+            # is listed rather than lost behind fifty newer ones.
+            runs = [run for run in runs if run.id in waiting]
+        return RunListing(runs=runs[:MAX_RUNS_LISTED], total=len(runs), awaiting=waiting)
 
     def run_status(self, run_id: str, *, wait: bool = True) -> RunView:
         """Where a run is, holding until that changes if work is actually under way.

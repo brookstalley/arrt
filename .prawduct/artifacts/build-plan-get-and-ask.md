@@ -106,7 +106,7 @@ display floor is measured for three works only.
 - `[ASSUMPTION: a Get is a new run kind, "get". It starts at phase 2 (no phase 1, no approval step, no spend) with one candidate per chosen item. Each candidate carries the Wikidata item it was asked for, and accepting it stores that item on the new artwork, set by the curator. Works may share an item, so acceptance refuses nothing; held items are skipped when the Get starts | HIGH impact | user can correct]`
 - `[ASSUMPTION: after a Get starts, the page stays where it is and says so in its live region, with a link to the run. Radarr's Add does the same. The run is listed in Queue | LOW impact | user can correct]`
 - `[ASSUMPTION: the Commons source answers only a query that names a Wikidata item, and offers the item's image (P18). It searches Commons by title for nothing | MED impact | user can correct]`
-- `[ASSUMPTION: To review lists runs with at least one candidate not yet judged, newest first, each opening Review. The sidebar entry reads "To review" followed by the count as a number, and the Activity section carries the same word and count | MED impact | user can correct]`
+- `[ASSUMPTION: To review lists runs with at least one work that found an image and has no verdict, newest first, each opening Review; a work with no image is not counted, having nothing to accept. The sidebar entry reads "To review" followed by the count as a number, and the Activity section carries the count with the words "to review" | MED impact | user can correct]`
 
 **What would raise it:** Chunk 02's measurement of Commons images against the
 display floor over the owner's own artists' works.
@@ -350,6 +350,19 @@ box's row), and the IA tables, flows and the *arr-layout table with it.)*
   carry the count as a word and a number.
 - `information-architecture.md`'s tables gain the screen, and its recorded gap is
   closed.
+
+*(Built 2026-10-02. A work waits when it found an image and has no verdict; one
+with no image has nothing to accept. Counted on the run that owns it, so a
+re-search counts nothing of its own. The counts ride on the listing (`awaiting` by
+run, `awaiting_works` in all) rather than on each run, which a parity test refused,
+and `awaiting=true` narrows the listing before the cap, so an old run is not lost
+behind fifty new ones. The address is `#to_review`, because route keys are single
+words. The sidebar counts on To review's link (a number beside its name) and on
+Activity's (*N to review*), and Activity's link now opens To review, its first page.
+On the catalogue copy, 16 works from August were already waiting. The sidebar test
+listed Activity's pages and never checked them; every section is checked now. The
+count refreshes as soon as a verdict is recorded, before the card repaints, so a
+failed repaint cannot leave it stale. Fourteen mutations red across both halves.)*
 
 **Done when:**
 1. Integration tests for the count over HTTP and MCP (a run with mixed verdicts;

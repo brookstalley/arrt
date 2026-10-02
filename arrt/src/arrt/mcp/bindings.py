@@ -539,9 +539,15 @@ def _start_get(services: Services, arguments: Mapping[str, Any]) -> dict[str, An
 
 
 def _list_runs(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    listing = services.runner.list_runs(status=arguments.get("status"), kind=arguments.get("kind"))
+    listing = services.runner.list_runs(
+        status=arguments.get("status"), kind=arguments.get("kind"), awaiting=bool(arguments.get("awaiting"))
+    )
     return ok(
         runs=[_run_summary(run) for run in listing.runs],
+        # What is left to review: works with an image and no verdict, in all and
+        # by listed run, as the HTTP listing carries them.
+        awaiting_works=listing.awaiting_works,
+        awaiting={run.id: listing.awaiting[run.id] for run in listing.runs if run.id in listing.awaiting},
         count=len(listing.runs),
         total=listing.total,
         truncated=listing.truncated,

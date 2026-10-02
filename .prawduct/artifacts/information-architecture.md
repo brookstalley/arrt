@@ -136,6 +136,7 @@ Priority is **core** (on a stated core flow) or **supporting**.
 | **Work** | One work at full size, with its sources, renditions, mat history and theme membership. At `#work/Q…`, a work Wikidata knows that the library does not hold: its image found or none, its facts, its holder and number there, *Get this work*, and the rest of its artist's work; the library's own page replaces it, in place, when the library holds it. *(QID form built 2026-10-01, ruling 2.)* | A tile in Artworks; a tile on a Wall; a row in Review; a title in an artist's *Their work* or a work's *More by* | core (flows 4, 5) |
 | **Search results** | Everything a few words find, in one world (ruling 2): the library's artists and works first, then Wikidata's that the library does not already show, each marked ● *In your library*, ◐ *Image found* or ○ *Not held*; *All*, *In your library* and *Not held* narrow it; a top result when the words name one artist. Wikidata's works the library does not hold can be ticked and got (*Get N works*). *(Built 2026-10-01, `build-plan-one-world-search.md` Chunk 04; Get added 2026-10-02, `build-plan-get-and-ask.md` Chunk 04.)* | The dropdown's last row, *All results for "…"*; its own address (`#search?q=`) | core (S2, S3) |
 | **Ask** | Asking for something in words: the direct intent box on top, then the conversations, with a run's progress shown in the thread that started it. *(Discover until 2026-09-30, when it also listed every run; Add New until 2026-10-02, when ruling 3 made acquiring a Get action and this page Ask, at the same address `#discover`.)* | The sidebar, under Artworks; *Ask about "…"* in the search box and on an empty results page; an empty Artworks, Artists, Queue and Taste | core (flows 1, 2) |
+| **To review** | Every run holding works that found an image and wait for a verdict, newest first, each opening Review; the count is on its link and on Activity's. *(Built 2026-10-02, `build-plan-get-and-ask.md` Chunk 06.)* | The sidebar, under Activity, first | core (flow 3) |
 | **Queue** *(new)* | The searches that have not ended: working, or stopped at the approval gate. | The sidebar, under Activity | core (flow 2) |
 | **History** *(new)* | The searches that have ended, with how each ended. | The sidebar, under Activity | supporting |
 | **Run** | One discovery run while it works and after it stops: what it proposed, what it found images for, the gate where phase 2 is approved, and its work table. | Queue or History; Ask, as it starts; a Get's *Open the Get*; a re-search started on the review grid; its own address | core (flow 2) |
@@ -203,13 +204,14 @@ It becomes a rail inside Collection — a filter that is also editable — plus 
 This is the layout § Direction now requires, and everything below is built
 (`build-plan-arr-navigation.md`).
 
-> **A gap in Activity, recorded 2026-09-30 while building it.** Radarr's Queue
-> also holds what finished but needs the user, such as a manual import. Arrt's
-> equivalent is a run that finished with candidates nobody has judged, and it
-> belongs in Queue. The run listing carries no signal for it, so today it sits in
-> History with its state. Adding one is an API change: a count of unjudged
-> candidates per run, on `GET /api/runs` and its MCP twin. It is owed, and not
-> part of this plan.
+> **A gap in Activity, recorded 2026-09-30 while building it, closed 2026-10-02.**
+> Radarr's Queue also holds what finished but needs the user, such as a manual
+> import. Arrt's equivalent is a run that finished with candidates nobody has
+> judged. The run listing now counts them (`GET /api/runs` and `art_discovery
+> list_runs` carry `awaiting` by run and `awaiting_works` in all, and narrow to
+> them with `awaiting`), and they have a page of their own, **To review**, first
+> under Activity as `ia-proposal.md` § The map places it, rather than a row in
+> Queue (`build-plan-get-and-ask.md` Chunk 06).
 
 The owner chose the name, the home page and the scope on 2026-09-30. The
 placement of each page is the builder's reading of Radarr, and each placement is
@@ -223,7 +225,8 @@ listed below so it can be disputed.
 │   Ask        │                                              │
 │   Themes     │                                              │
 │ ▢ Walls      │                                              │
-│ ↻ Activity   │                                              │
+│ ↻ Activity ③ │                                              │
+│   To review ③│                                              │
 │   Queue      │                                              │
 │   History    │                                              │
 │ ⚙ Settings   │                                              │
@@ -240,6 +243,7 @@ listed below so it can be disputed.
 | Artworks › **Themes** | Theme, index and one theme | Radarr's Collections: a named grouping of items in the library |
 | Artworks › **Artists** | New 2026-10-01 | Lidarr's artist index and artist page, which are that app's library: the artist is the unit, and their page lists what is held and what is missing |
 | **Walls** | The Walls | No *arr page. It sits second, in Calendar's slot, because the wave-4 schedule (`re-architecture.md` § The manifest is a schedule) is the nearest *arr idea to "what is showing when" |
+| Activity › **To review** | New 2026-10-02 | Radarr's Queue holds what finished but needs the user; here that is a page of its own, the one queue that needs the curator, counted on Activity's link as Sonarr counts its queue. Review opens from here |
 | Activity › **Queue** | Discover's run list: runs that have not ended | Radarr's Queue: work in flight. Run opens from here |
 | Activity › **History** | Discover's run list: finished runs | Radarr's History |
 | Settings › **Taste** | Taste | Radarr's Profiles: the preferences that rank what it finds |
@@ -690,6 +694,7 @@ who did not edit this table.
 | Work | The image at full size; for a work not held, the image Wikidata found, or none | Artist, facets, mat colour, rendition size; for a work not held, its date, medium, and holder with number | Theme membership, re-mat, archive, change the Wikidata item or say there is none; for a work not held, *Get this work*, its artist, and the rest of their work | Fit verdict, image state; for a work not held, *Not held* (○), or *Not held · Image found* (◐) |
 | Search results | The artists and works the words find, artists first | Each artist's years; each work's maker; how many library works match beyond those listed | Open any result; switch *All*, *In your library*, *Not held*; open the library's matches in Artworks; *Ask about* when Wikidata has nothing | Each result's mark; whether Wikidata answered |
 | Ask | The intent box and the conversations | Samples inline | Type, react, commit, start direct | Run progress, spend |
+| To review | The runs with works waiting for a verdict | What each asked for, its kind, how many works wait, when | Review a run's works | The count, as a word and a number |
 | Queue | The searches in flight | What each asked for, and when | Open a search | Which state each is in |
 | History | The searches that ended | What each asked for, and when | Open a search | How each ended |
 | Run | The run's own sentence, and its work table | The tally behind the sentence, and the gate's price broken down | Approve, decline, cancel, open a work, go to the review | Which state the run is in, and whether the watch is still live |
@@ -813,6 +818,7 @@ almost no considered empty states.
 | Artworks | **Three different empties.** No works at all → an invitation into Ask. No works *matching the filter* → the filter, and how to clear it. **Filtered to one artist and holding none of them** → say so as a normal state and offer the search (see flow 1). Conflating the first two tells a curator with 3,000 works that they own nothing; conflating the third with the second reports the expected result of following a suggestion as a failed query | Skeleton tiles at the grid's real geometry, so nothing reflows | Partial page: show what arrived and say what did not |
 | Work | n/a. For a work not held: Wikidata has no such item → "Wikidata has no such work", with the QID | Image placeholder at the work's own aspect ratio | Named per missing part — a work with no rendition is not a failed page. For a work not held, Wikidata not configured or not answering is said in a sentence, and its *More by* section says so on its own |
 | Search results | No words → a note to type in the search box. Nothing found in the library → its sections say "No artists." and "No works."; Wikidata found nothing → says so and offers *Ask about* (fills in Ask, starts nothing) | The library's sections first; *Asking Wikidata…* in a live region until Wikidata answers, nothing above it waiting | The library's refusal in the page's error banner; Wikidata off or down said in that live region, the library's results left standing |
+| To review | Nothing waiting → say so, and say what would appear here | Nothing until the listing arrives | The request's refusal, in the page's error banner |
 | Queue | Nothing in flight → say so, say what would appear here, and offer Ask. Over a truncated listing it says what it checked, since an older search may still be at the gate | Nothing until the listing arrives, then the heading and the table together | The request's refusal, in the page's error banner |
 | History | No search has finished → say so | Nothing until the listing arrives, then the heading and the table together | The request's refusal, in the page's error banner |
 | Ask | No conversations → the intent box, prominent, with two or three worked examples | Per-turn, in the thread | A failed turn stays in the thread and is retryable; it never silently vanishes |

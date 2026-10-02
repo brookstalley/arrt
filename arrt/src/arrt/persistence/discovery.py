@@ -88,6 +88,15 @@ class DiscoveryStore(Protocol):
         """Return a run's proposals in a stable order."""
         ...
 
+    def list_works_awaiting_verdict(self) -> Sequence[CandidateWork]:
+        """Every work, across runs, that found an image and has no verdict yet.
+
+        The read behind *To review*: what a curator has still to judge, wherever
+        it came from. A work with no image has nothing to accept, so it is not
+        waiting on a verdict in the same sense and is left out.
+        """
+        ...
+
     def list_candidate_works_by_dedup_key(self, work_dedup_key: str) -> Sequence[CandidateWork]:
         """Return every proposal ever made for this work identity, across runs.
 

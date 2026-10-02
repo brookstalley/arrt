@@ -467,6 +467,11 @@ ART_DISCOVERY: Final = ToolRecord(
                     description="Restrict to first-time discovery runs, re-searches or Gets. Omit for all.",
                     choices=tuple(member.value for member in RunKind),
                 ),
+                Param(
+                    name="awaiting",
+                    type="boolean",
+                    description="Only runs holding works that found an image and await a verdict: what is left to review.",
+                ),
             ),
             tips=("Listings carry the fields needed to choose; use action='status' for one run in full.",),
         ),

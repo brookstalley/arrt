@@ -25,8 +25,9 @@ import { OPTIONAL_ID } from "./core/route.js";
 import { install, go, refresh } from "./core/router.js";
 import { installSearch, paintSearch } from "./core/search.js";
 import { installStatus, paintStatus } from "./core/status.js";
+import { paintAwaiting } from "./core/awaiting.js";
 import { state } from "./core/state.js";
-import { viewHistory, viewQueue } from "./screens/activity.js";
+import { viewHistory, viewQueue, viewToReview } from "./screens/activity.js";
 import { viewArtists } from "./screens/artists.js";
 import { viewCollection } from "./screens/collection.js";
 import { viewConversation } from "./screens/conversation.js";
@@ -52,7 +53,8 @@ import { viewWork } from "./screens/work.js";
 const SECTIONS = [
   { key: "artworks", label: "Artworks", glyph: "▣" },
   { key: "walls", label: "Walls", glyph: "▢" },
-  { key: "activity", label: "Activity", glyph: "↻" },
+  // `badge` names the count `core/awaiting.js` writes beside the label.
+  { key: "activity", label: "Activity", glyph: "↻", badge: "awaiting" },
   { key: "settings", label: "Settings", glyph: "⚙" },
   // `status` marks the section whose link carries the health badge.
   { key: "system", label: "System", glyph: "♥", status: true },
@@ -92,6 +94,9 @@ const ROUTES = {
   // at `#artist/<id>` one of them as the hub (ruling 4).
   artist: { render: viewArtists, detail: OPTIONAL_ID, section: "artworks", page: "Artists" },
   walls: { render: viewWalls, section: "walls", page: "Walls" },
+  // What waits for the curator's verdict, first under Activity because it is
+  // the one queue that needs them (`ia-proposal.md` § The map), with its count.
+  to_review: { render: viewToReview, section: "activity", page: "To review", badge: "awaiting" },
   // Radarr's Activity: the searches in flight, and the ones that ended.
   queue: { render: viewQueue, section: "activity", page: "Queue" },
   history: { render: viewHistory, section: "activity", page: "History" },
@@ -127,6 +132,7 @@ install(ROUTES, {
   onNavigate: () => {
     paintSearch();
     paintStatus();
+    paintAwaiting();
   },
 });
 

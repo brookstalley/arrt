@@ -5,6 +5,7 @@
  */
 
 import { api, fetchAllCandidates } from "../core/api.js";
+import { paintAwaiting } from "../core/awaiting.js";
 import { agree, counted } from "../core/counting.js";
 import {
   absentImage,
@@ -261,6 +262,9 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
         method: "POST",
         body: JSON.stringify({ verdict, reason: reason.value || null }),
       });
+      // A verdict is one fewer work to review: the sidebar's count is read again
+      // as soon as it is recorded, whatever happens to the card's repaint.
+      paintAwaiting();
       await repaint(outcome.notice);
     });
 

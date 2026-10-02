@@ -733,6 +733,7 @@ def list_runs(
     request: Request,
     status: Annotated[str | None, Query()] = None,
     kind: Annotated[str | None, Query()] = None,
+    awaiting: Annotated[bool, Query()] = False,
 ) -> RunListOut:
     """The newest runs, optionally narrowed, capped in the service layer.
 
@@ -753,9 +754,11 @@ def list_runs(
     a caller reaches it. A `limit`/`offset` pair would change the contract of a
     shipped surface and earns its own review rather than riding along here.
     """
-    listing = _services(request).runner.list_runs(status=status, kind=kind)
+    listing = _services(request).runner.list_runs(status=status, kind=kind, awaiting=awaiting)
     return RunListOut(
         runs=[_run(run) for run in listing.runs],
+        awaiting_works=listing.awaiting_works,
+        awaiting={run.id: listing.awaiting[run.id] for run in listing.runs if run.id in listing.awaiting},
         count=len(listing.runs),
         total=listing.total,
         truncated=listing.truncated,

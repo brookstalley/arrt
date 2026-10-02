@@ -19,7 +19,9 @@ pytest.importorskip(
 
 
 def a_listing(*runs) -> dict:
-    return RunListOut(runs=list(runs), count=len(runs), total=len(runs), truncated=False).model_dump(mode="json")
+    return RunListOut(
+        runs=list(runs), count=len(runs), total=len(runs), truncated=False, awaiting_works=0, awaiting={}
+    ).model_dump(mode="json")
 
 
 #: One run in each state the split has to tell apart. Waiting at the gate is in
@@ -137,7 +139,7 @@ def test_an_empty_queue_over_a_truncated_listing_does_not_claim_nothing_is_in_fl
     """
     ui.serve(
         "**/api/runs",
-        RunListOut(runs=[DONE], count=1, total=60, truncated=True).model_dump(mode="json"),
+        RunListOut(runs=[DONE], count=1, total=60, truncated=True, awaiting_works=0, awaiting={}).model_dump(mode="json"),
     )
     ui.open("#queue")
     ui.page.wait_for_selector("#view .empty")

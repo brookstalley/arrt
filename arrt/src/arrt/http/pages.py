@@ -38,6 +38,7 @@ STATIC_DIR: Final[Path] = Path(__file__).parent / "static"
 UI_PATHS: Final[tuple[str, ...]] = (
     "/",
     "/walls",
+    "/to_review",
     "/queue",
     "/history",
     "/collection",

@@ -423,6 +423,24 @@ nav.sidebar a[aria-current="page"] {
   margin-left: auto;
 }
 
+/* What waits for a verdict, beside Activity and To review. Neutral rather than the
+   warning colour System's badge uses: works to judge are the curator's next job,
+   not a fault. One line, so the words never wrap under the section's name. */
+.count-slot {
+  margin-left: auto;
+}
+
+.awaiting-count {
+  display: inline-block;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--text-strong);
+  font: 600 var(--text-xs) / 1.5 var(--font-ui);
+  white-space: nowrap;
+}
+
 .status-count {
   display: inline-block;
   min-width: 1.5em;

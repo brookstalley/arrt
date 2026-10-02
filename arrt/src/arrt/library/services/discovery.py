@@ -26,7 +26,8 @@ core keeps this logic testable without an event loop.
 
 import logging
 import uuid
-from collections.abc import Callable, Iterable, Sequence
+from collections import Counter
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
@@ -461,6 +462,15 @@ class DiscoveryService:
                     ),
                 )
         return run
+
+    def awaiting_verdict(self) -> Mapping[str, int]:
+        """How many works each run holds that found an image and await a verdict, by run id.
+
+        Counted on the run that owns each work, so a work a re-search looked at
+        again is counted once, on the run that first named it. Runs with nothing
+        waiting are absent.
+        """
+        return dict(Counter(work.discovery_run_id for work in self._store.list_works_awaiting_verdict()))
 
     def items_being_got(self) -> frozenset[str]:
         """The Wikidata items a Get still under way is looking for."""

@@ -839,6 +839,13 @@ class RunListOut(BaseModel):
     count: int
     total: int
     truncated: bool
+    #: Works with an image and no verdict yet, across every run and not only the
+    #: listed ones: what *To review* counts.
+    awaiting_works: int
+    #: The same, by run id, for the listed runs that hold any; a run with none is
+    #: absent. Beside the runs rather than on each, because a run read on its own
+    #: has its works to say it.
+    awaiting: dict[str, int]
 
 
 class EstimateOut(BaseModel):
