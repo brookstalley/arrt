@@ -219,8 +219,8 @@ non-artists first (Franklin for woodcut); search offers non-visual movements
 - [x] Chunk 04: Your works' topics, and the topic index
 - [x] Chunk 03d: A topic's artists ranked by the fame of their works in it
 - [x] Chunk 05: Library › Topics and the Topic page
-- [ ] Chunk 06: The owner's review of the screens
-- [ ] Chunk 07: Review on a Get's own page, wide, with its scans readable
+- [x] Chunk 06: The owner's review of the screens
+- [x] Chunk 07: Review on a Get's own page, wide, with its scans readable
 
 ### Chunk 01: A Get's destination, from HTTP and MCP
 

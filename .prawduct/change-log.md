@@ -62,6 +62,28 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-02: The owner's review of the screens: Add to, the typeahead, and Review on a Get's own page
+
+<!-- prawduct: scope=topics-and-destinations -->
+
+**Why:** the owner looked the screens over on a catalogue copy. On a Topic page
+*Add to* showed *New theme…* with the name already typed; the typeahead hid
+Wikidata's artists and works behind the slower topic search; a Get asked for a
+second page to judge works the curator had already chosen; Review's card was a
+narrow column whose Scans facts wrapped a few characters wide; and "would show
+at 28.2″" meant nothing without knowing the panel.
+
+**What:** *Add to* offers a caller's name as "<name> (new theme)", selected,
+with the name field hidden unless *New theme…*. The typeahead paints each
+Wikidata answer as it arrives, with *Asking Wikidata…* until both have. A Get's
+page is its review; cards are one work per row; Scans is a table after Radarr's
+interactive search; the scan's pixels show above the fold and no screen shows
+inches; clicking a picture enlarges it in place (`?size=large` previews). The
+scan payload gains `width` and `height`. Critic `rev-20261002T174121Z-200674d5`:
+0 blocking. Filed from the same review: #167 (accepting never acquires the
+master), #168 (Wanted), #169 (Artworks' theme filter vs add-to-theme, decided:
+follow Radarr).
+
 ## 2026-10-02: Library › Topics and the Topic page, kept answers, and the owner's topic rules
 
 <!-- prawduct: scope=topics-and-destinations -->
