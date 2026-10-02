@@ -65,6 +65,11 @@ owner's rulings of 2026-10-02 below. Two things a curator cannot do today:
 | 03 | Topics in the registry: one topic, its works, its artists, topic search | P6, owner 2026-10-02 |
 | 04 | Your works' topics, as facets, and the topic index | owner 2026-10-02 |
 | 05 | Library › Topics and the Topic page | 9; owner 2026-10-02 |
+| 03b | Topic rules, as the owner answered | owner 2026-10-02 |
+| 03c | Answers kept across restarts | owner 2026-10-02 |
+| 03d | A topic's artists ranked by the fame of their works in it | owner 2026-10-02 |
+| 06 | The owner's review of the screens | owner 2026-10-02 |
+| 07 | Review on a Get's own page, wide, with its scans readable | owner 2026-10-02 |
 
 **Not in this plan:**
 - **The taste half of ruling 5b.** Nothing reads taste, and acceptance writes
@@ -438,8 +443,9 @@ Q-rows in `data-model.md` § What this data must answer):
    address changing, and focus returns.
 2. A unit test that the selection sentence names pixels and no inches; an API
    test that the scan's width and height reach the payload.
-3. All suites and the browser suite pass; screenshots at 1280 and 375 px in the
-   operator-verification entry.
+3. All suites and the browser suite pass; the operator-verification entry
+   describes the views at 1280 and 375 px and how to regenerate them as
+   screenshots (as built: the views are described, and no images are committed).
 
 ### Chunk 03c: Answers kept across restarts
 
