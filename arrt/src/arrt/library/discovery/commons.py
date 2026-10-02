@@ -1,6 +1,8 @@
 """Wikimedia Commons, as one image source behind the seam, reached from a Wikidata item.
 
-Commons answers only a query that names the work's Wikidata item. It reads the
+Commons answers only a query that names the work's Wikidata item, and says it
+cannot answer any other (`ImageQueryUnanswerable`) rather than that it holds
+nothing. It reads the
 item's image (P18) through the registry, asks Commons what that file is, and
 reports one instance. It searches Commons by title for nothing, because a title
 search over Commons returns photographs of museum walls, posters and details, and
@@ -39,6 +41,7 @@ from arrt.library.discovery.images import (
     DEFAULT_PREVIEW_MAX_BYTES,
     FoundImage,
     ImageQuery,
+    ImageQueryUnanswerable,
     ImageSearchFailure,
 )
 from arrt.library.registry import Registry, RegistryUnavailable
@@ -90,7 +93,7 @@ class CommonsImageSearch:
 
     def find_images(self, query: ImageQuery) -> Sequence[FoundImage]:
         if query.qid is None:
-            return ()
+            raise ImageQueryUnanswerable("Commons looks a work up by its Wikidata item, and this work has none.")
         try:
             work = self._registry.work(query.qid)
         except RegistryUnavailable as exc:

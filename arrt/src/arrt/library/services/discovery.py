@@ -164,7 +164,14 @@ class RunCost:
 class DiscoveryService:
     """Read and write the pre-acceptance pipeline."""
 
-    def __init__(self, store: DiscoveryStore, catalogue: CatalogueService, artwork_box: ArtworkBox | None = None) -> None:
+    def __init__(
+        self,
+        store: DiscoveryStore,
+        catalogue: CatalogueService,
+        artwork_box: ArtworkBox | None = None,
+        *,
+        precedence: selection.Precedence | None = None,
+    ) -> None:
         self._store = store
         self._catalogue = catalogue
         #: The space a work is rendered into, which is what turns an instance's
@@ -174,6 +181,9 @@ class DiscoveryService:
         #: Optional so a caller with no deployment geometry gets the ranking
         #: without a floor rather than a constructor it cannot satisfy.
         self._artwork_box = artwork_box
+        #: The image sources' preference order, so a level tie between two
+        #: sources is settled here as phase 2 settled it. None with no sources.
+        self.precedence = precedence
 
     def transaction(self) -> AbstractContextManager[None]:
         """Apply a rule that spans several of this service's operations, atomically.
@@ -1024,7 +1034,7 @@ class DiscoveryService:
             # and the move would be silent.
             survivors = self._store.list_candidate_images(work.id)
             if not any(other.is_selected for other in survivors):
-                replacement = selection.best(survivors, box=self._artwork_box)
+                replacement = selection.best(survivors, box=self._artwork_box, precedence=self.precedence)
                 if replacement is not None:
                     self._select(replacement, rationale=None)
             awaiting = replace(work, verdict=Verdict.AWAITING_BETTER_IMAGE)
@@ -1056,7 +1066,7 @@ class DiscoveryService:
         with self._store.transaction():
             work = self.get_candidate_work(candidate_work_id)
             held = self._store.list_candidate_images(work.id)
-            chosen = selection.best(held, box=self._artwork_box)
+            chosen = selection.best(held, box=self._artwork_box, precedence=self.precedence)
             status = ResolutionStatus.RESOLVED if chosen is not None else ResolutionStatus.UNRESOLVED
             reason = None if chosen is not None else self._unresolved_reason(held, refusals)
             if work.verdict.is_terminal:
@@ -1094,7 +1104,7 @@ class DiscoveryService:
         happened: no record came back whose title matched.
         """
         if held:
-            surviving = selection.surviving(held)
+            surviving = selection.surviving(held, precedence=self.precedence)
             return UnresolvedReason.BELOW_FLOOR if surviving else UnresolvedReason.ALL_REJECTED
         return max(refusals, key=lambda reason: reason.depth, default=UnresolvedReason.NOT_HELD)
 

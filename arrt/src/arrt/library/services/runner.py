@@ -65,6 +65,7 @@ from arrt.library.discovery.engine import (
 )
 from arrt.library.discovery.images import FoundImage, ImageQuery, ImageSearchFailure
 from arrt.library.discovery.phase_two import JudgedImage, PhaseTwoEngine
+from arrt.library.discovery.pool import NoSourceCanAnswer
 from arrt.library.registry import ItemId
 from arrt.library.services.discovery import ChosenWork, DiscoveryService
 from arrt.library.services.previews import PreviewCache
@@ -1222,10 +1223,20 @@ class DiscoveryRunner:
                 )
             )
         except ImageSearchFailure as exc:
+            # Two reasons a work goes unasked, logged apart: a source that was
+            # down, and no wired source able to look a work like this up at all.
+            unanswerable = isinstance(exc, NoSourceCanAnswer)
             log.warning(
-                "could not search for a work's images; it stays pending rather than being called unresolved: %s",
+                (
+                    "no image source can look this work up; it stays pending: %s"
+                    if unanswerable
+                    else "could not search for a work's images; it stays pending rather than being called unresolved: %s"
+                ),
                 exc,
-                extra={"event": "phase_two.unreachable", "work_title": work.proposed_title},
+                extra={
+                    "event": "phase_two.unanswerable" if unanswerable else "phase_two.unreachable",
+                    "work_title": work.proposed_title,
+                },
             )
             return WorkOutcome.UNREACHABLE
         for entry in resolution.instances:

@@ -19,14 +19,31 @@ sources found is enough to call the work resolved. A work called unresolved
 because one server was down would tell a curator the painting is not out there.
 """
 
+import contextvars
 import logging
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
-from arrt.library.discovery.images import FoundImage, ImageQuery, ImageSearch, ImageSearchFailure
+from arrt.library.discovery.images import (
+    FoundImage,
+    ImageQuery,
+    ImageQueryUnanswerable,
+    ImageSearch,
+    ImageSearchFailure,
+)
 
 log = logging.getLogger(__name__)
+
+
+class NoSourceCanAnswer(ImageSearchFailure):
+    """Every wired source declined the work: none can look a work like it up.
+
+    A failure to ask, so the work waits as it does when every source is down,
+    and a kind of its own, so the log can say "nothing here can search for this"
+    rather than "the source was down" for every title-only work in a deployment
+    whose only source answers by item.
+    """
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,17 +91,28 @@ class ImageSourcePool:
     def find_images(self, query: ImageQuery) -> PoolAnswer:
         """Ask every source for the work at once, and say which could not be asked.
 
-        Raises `ImageSearchFailure` only when no source could be asked, because
+        A source that cannot look a work like this up is left out, as if not
+        wired. Raises `ImageSearchFailure` only when no source answered, because
         then there is no answer at all. A source raising anything other than
         `ImageSearchFailure` is a fault in that source and propagates.
         """
         with ThreadPoolExecutor(max_workers=len(self._sources), thread_name_prefix="image-source") as workers:
-            pending = [(source.provider, workers.submit(source.find_images, query)) for source in self._sources]
+            # Each call runs in a copy of the caller's context, so what a source
+            # logs from its worker thread still carries the run it is working for.
+            pending = [
+                (source.provider, workers.submit(contextvars.copy_context().run, source.find_images, query))
+                for source in self._sources
+            ]
             images: list[FoundImage] = []
             unreachable: list[str] = []
+            declined: list[str] = []
             for provider, future in pending:
                 try:
                     images.extend(future.result())
+                except ImageQueryUnanswerable:
+                    # Not asked, in effect: this source has nothing to say about
+                    # works like this one, which is neither "holds none" nor "down".
+                    declined.append(provider)
                 except ImageSearchFailure as exc:
                     log.warning(
                         "an image source could not be asked for a work: %s",
@@ -92,8 +120,12 @@ class ImageSourcePool:
                         extra={"event": "image_pool.unreachable", "provider": provider, "work_title": query.title},
                     )
                     unreachable.append(provider)
-        if len(unreachable) == len(self._sources):
-            raise ImageSearchFailure(f"No image source could be asked: {', '.join(unreachable)}.")
+        if len(unreachable) + len(declined) == len(self._sources):
+            # No source answered. Nothing is known about the work, so it is not
+            # recorded as held by nobody; it waits, as when every source is down.
+            if unreachable:
+                raise ImageSearchFailure(f"No image source could be asked: {', '.join(unreachable)}.")
+            raise NoSourceCanAnswer(f"No image source can look this work up: {', '.join(declined)} cannot.")
         return PoolAnswer(images=tuple(images), unreachable=tuple(unreachable))
 
     def fetch_preview(self, provider: str, url: str) -> bytes | None:

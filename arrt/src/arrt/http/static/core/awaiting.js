@@ -19,9 +19,11 @@ export async function paintAwaiting() {
   let waiting = 0;
   try {
     waiting = (await api("/api/runs?awaiting=true")).awaiting_works || 0;
-  } catch {
-    // A count that could not be read says nothing rather than a wrong number;
-    // the page itself reports the failure when the curator opens it.
+  } catch (failure) {
+    // A count that could not be read shows nothing rather than a wrong number;
+    // To review itself reports the failure when the curator opens it. Said in
+    // the console, so "could not count" is not silently "nothing waits".
+    console.warn(`The To review count could not be read: ${failure.message}`);
     waiting = 0;
   }
   for (const slot of slots) {

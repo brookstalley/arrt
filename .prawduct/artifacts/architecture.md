@@ -438,8 +438,8 @@ is no network between planes.
         │  ├─ DiscoveryEngine (Protocol)      │          phase 1 — discovery's paid seam, reachable
         │  │    UnavailableEngine ships       │          by no other service. NOT the only paid edge
         │  │                                  │          any more: MatEngine is the second, below
-        │  ├─ ImageSearch (Protocol)          │          phase 2 — the museum seam. Free, but
-        │  │    ArticImageSearch ships        │          behind a seam for the same reason
+        │  ├─ ImageSourcePool                 │          phase 2 — every ImageSearch (Protocol)
+        │  │    Commons, ArticImageSearch     │          asked at once; free, behind a seam
         │  ├─ CollectionBrowse (Protocol)     │          what the collection HOLDS by an artist, as
         │  │                                  │          opposed to what it can find: the offer
         │  │                                  │          supplementing works phase 2 could not confirm
@@ -568,6 +568,22 @@ is no network between planes.
   convincing stand-in wired here instead would write invented works into a real
   catalogue, indistinguishable from found ones; the test double therefore lives
   under `tests/` and is deliberately out of a deployment's reach.
+
+  **Phase 2 asks a pool of sources, since 2026-10-02** (`build-plan-get-and-ask.md`,
+  the owner's ruling: no source special-cased, searched in parallel, open to
+  more). `library/discovery/pool.py` holds every wired `ImageSearch` in an order
+  of preference, asks each about a work at once, and keeps three answers apart:
+  instances found, nothing held, and could not be asked. **The rule a source
+  author most needs:** return an empty list only when the source looked and
+  holds nothing; raise `ImageSearchFailure` when it could not be asked, and
+  `ImageQueryUnanswerable` when it cannot look a work like this up at all (Commons,
+  for a work with no Wikidata item). Phase 2 settles a work only on an instance
+  that clears the floor while any source was down, and no source answering is no
+  answer, so the work waits. The order breaks level ties, in phase 2 and in the
+  stored selection (`selection.py`, handed the pool's `precedence`). Previews and
+  tiles go back to the source an instance was recorded under. Wired today:
+  Commons (with `WIKIDATA_USER_AGENT`) first, the Art Institute (with
+  `ARTIC_USER_AGENT`) second.
 
   **`ImageSearch` is phase 2's seam, added 2026-08-02, and it is a seam despite
   costing nothing.** Museum APIs are open and unmetered, so the money argument

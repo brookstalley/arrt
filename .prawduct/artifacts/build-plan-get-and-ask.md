@@ -118,7 +118,7 @@ display floor over the owner's own artists' works.
 - [x] Chunk 03: Get, from HTTP and MCP
 - [x] Chunk 04: Get in the client
 - [x] Chunk 05: Ask replaces Add New
-- [ ] Chunk 06: Activity › To review
+- [x] Chunk 06: Activity › To review
 
 ### Chunk 01: An image-source pool
 

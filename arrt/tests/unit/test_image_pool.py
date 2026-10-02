@@ -13,7 +13,7 @@ import threading
 import pytest
 from fakes import an_image
 
-from arrt.library.discovery.images import FoundImage, ImageQuery, ImageSearchFailure
+from arrt.library.discovery.images import FoundImage, ImageQuery, ImageQueryUnanswerable, ImageSearchFailure
 from arrt.library.discovery.phase_two import PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.services.display_fit import ArtworkBox
@@ -33,11 +33,13 @@ class Source:
         name: str,
         *instances: FoundImage,
         fails: bool = False,
+        declines: bool = False,
         meet: threading.Barrier | None = None,
     ) -> None:
         self._name = name
         self._instances = instances
         self._fails = fails
+        self._declines = declines
         self._meet = meet
         self.previews: list[str] = []
         self.tiles: list[str] = []
@@ -53,6 +55,8 @@ class Source:
             self._meet.wait()
         if self._fails:
             raise ImageSearchFailure(f"{self._name} could not be reached")
+        if self._declines:
+            raise ImageQueryUnanswerable(f"{self._name} cannot look this up")
         return self._instances
 
     def fetch_preview(self, url: str) -> bytes | None:
@@ -180,3 +184,38 @@ def test_a_work_nobody_holds_is_settled_when_every_source_answered():
     resolution = resolve(Source("first"), Source("second"))
 
     assert resolution.instances == []
+
+
+def test_a_source_that_cannot_answer_leaves_the_others_answer_standing():
+    """One source declining is not one source down: the other's empty answer settles the work."""
+    answer = ImageSourcePool([Source("first", declines=True), Source("second")]).find_images(query())
+
+    assert (answer.images, answer.unreachable) == ((), ())
+
+
+def test_when_no_source_can_answer_nothing_is_known():
+    """Every source declining is no answer at all, never "nobody holds it"."""
+    with pytest.raises(ImageSearchFailure, match="cannot"):
+        ImageSourcePool([Source("first", declines=True)]).find_images(query())
+
+
+def test_a_source_down_and_one_declining_is_still_a_failure_to_ask():
+    with pytest.raises(ImageSearchFailure, match="second"):
+        ImageSourcePool([Source("first", declines=True), Source("second", fails=True)]).find_images(query())
+
+
+def test_what_a_source_logs_on_its_worker_carries_the_run_it_works_for():
+    """The run id is bound in the caller's context; a worker thread would otherwise start without it."""
+    from arrt.logs import current_run_id, run_context
+
+    seen: list[str | None] = []
+
+    class Seeing(Source):
+        def find_images(self, query: ImageQuery):
+            seen.append(current_run_id())
+            return ()
+
+    with run_context("run-7"):
+        ImageSourcePool([Seeing("first"), Seeing("second")]).find_images(query())
+
+    assert seen == ["run-7", "run-7"]

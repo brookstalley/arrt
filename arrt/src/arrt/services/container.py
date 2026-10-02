@@ -245,8 +245,10 @@ class Services:
         # floor is a size on the wall rather than a pixel count — so the rule
         # cannot be evaluated without the panel geometry that converts one to the
         # other.
-        discovery_service = DiscoveryService(discovery, catalogue_service, artwork_box)
         pool = ImageSourcePool(image_sources) if image_sources else None
+        discovery_service = DiscoveryService(
+            discovery, catalogue_service, artwork_box, precedence=None if pool is None else pool.precedence
+        )
         if (pool is None) != (previews is None):
             # Refused here rather than defaulted, because either half alone is a
             # misconfiguration that would otherwise disable phase 2 silently —

@@ -110,6 +110,9 @@ function instanceRow(instance, title, after) {
   const act = (path, body) =>
     guard(async () => {
       await api(path, { method: "POST", body: JSON.stringify(body || {}) });
+      // Turning a scan down can leave the work with no image to accept, which
+      // takes it off To review; choosing one can put it back.
+      paintAwaiting();
       await after();
     });
   return el("li", { class: "alternate" }, [

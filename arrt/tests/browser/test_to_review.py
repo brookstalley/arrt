@@ -16,7 +16,7 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
-from payloads import a_candidate, a_candidate_page, a_card, a_run, a_verdict  # noqa: E402
+from payloads import a_candidate, a_candidate_page, a_card, a_run, a_verdict, an_instance_listing  # noqa: E402
 
 from arrt.http.models import RunListOut  # noqa: E402
 
@@ -126,5 +126,34 @@ def test_a_verdict_takes_the_work_off_the_count(ui):
     count.first.wait_for()
 
     ui.page.click("li.card button:text-is('Accept')")
+
+    count.first.wait_for(state="detached")
+
+
+def test_turning_a_scan_down_reads_the_count_again(ui):
+    """Turning down the only scan leaves nothing to accept, so the work leaves To review."""
+    one = waiting([a_run(run_id=GET_ID, kind="get", intent=None)], {GET_ID: 1})
+    turned = {"down": False}
+
+    def listing(route):
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(NOTHING if turned["down"] else one))
+
+    def reject(route):
+        turned["down"] = True
+        route.fulfill(status=200, content_type="application/json", body=json.dumps({}))
+
+    ui.page.route("**/api/runs?awaiting=true", listing)
+    ui.page.route("**/api/candidate-images/*/reject", reject)
+    card = a_card(work=a_candidate(work_id="work-1"))
+    ui.serve(f"**/api/runs/{GET_ID}/candidates*", a_candidate_page([card], run=a_run(run_id=GET_ID, kind="get", intent=None)))
+    ui.serve("**/api/candidates/work-1/images", an_instance_listing())
+    ui.serve("**/api/candidates/work-1", card.model_dump(mode="json"))
+    ui.serve_image("**/api/candidate-images/*/preview")
+    ui.open(f"#review/{GET_ID}")
+    count = ui.page.locator("nav .awaiting-count")
+    count.first.wait_for()
+    ui.page.click("li.card summary")
+
+    ui.page.click("li.card button:has-text('Turn it down')")
 
     count.first.wait_for(state="detached")

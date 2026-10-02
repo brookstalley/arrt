@@ -210,6 +210,10 @@ between planes.
 > | `phase_two.not_the_work` | a result was discarded as a different painting, naming what the provider called it and who it says painted it |
 > | `phase_two.size_unknown` | a result was discarded because the provider reported no dimensions |
 > | `phase_two.unreachable` | a provider could not be asked about a work, which leaves it pending rather than unresolved |
+> | `phase_two.unanswerable` | no wired image source can look a work like this one up (Commons alone, for a work named by title); the work stays pending. Kept apart from `phase_two.unreachable`, which says a source was down |
+> | `image_pool.unreachable` | one image source of several could not be asked about a work, naming the source; the others' answers stand, and the work waits unless one of them found an instance that clears the floor |
+> | `commons.not_raster` | the image a Wikidata item names on Commons is not a picture the acquisition path can decode (SVG, PDF, video), naming its type; the work is answered as having none there |
+> | `get.asked` | a Get was asked for, with the run it started (`started_run_id`), how many works it chose and how many it skipped for each reason |
 > | `phase_two.verdict_stands` | a resolution finished against a work the curator had already decided; the result is reported, not applied |
 > | `phase_two.preview_too_large` | a provider's preview body passed the size ceiling and the read was abandoned, naming the URL and the ceiling. Distinct from `preview_failed`, which is a preview that could not be fetched at all — this one *was* being served, and the far end was sending more than a thumbnail. Both leave the card falling back to the source URL, so the log line is the only place the difference is visible |
 > | `preview.cached` / `preview.absent` | whether a review card will have local bytes to show |

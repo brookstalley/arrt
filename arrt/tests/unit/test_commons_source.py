@@ -14,7 +14,7 @@ import pytest
 from fakes import FakeImageSearch, FakeRegistry, an_image
 
 from arrt.library.discovery.commons import DOWNLOAD_WIDTH, PREVIEW_WIDTH, CommonsImageSearch
-from arrt.library.discovery.images import ImageQuery, ImageSearchFailure
+from arrt.library.discovery.images import ImageQuery, ImageQueryUnanswerable, ImageSearchFailure
 from arrt.library.discovery.phase_two import PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.registry import CommonsFile, ItemId, RegistryCreator, RegistryText, RegistryWork
@@ -130,11 +130,13 @@ def test_nothing_to_offer_is_an_empty_answer(works):
     assert find(FakeRegistry(works=works)) == ()
 
 
-def test_a_query_without_an_item_asks_nobody():
+def test_a_query_without_an_item_is_one_commons_cannot_answer_and_asks_nobody():
+    """Not "holds nothing": nothing was looked up, so the source says it cannot answer."""
     registry = FakeRegistry(works={"Q45585": a_work("Q45585", STARRY)})
     asked: list = []
 
-    assert a_source(registry, asked=asked).find_images(ImageQuery(title="The Starry Night")) == ()
+    with pytest.raises(ImageQueryUnanswerable):
+        a_source(registry, asked=asked).find_images(ImageQuery(title="The Starry Night"))
     assert (registry.works_asked, asked) == ([], [])
 
 

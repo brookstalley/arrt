@@ -116,6 +116,7 @@ class GetService:
             "a get was asked for",
             extra={
                 "event": "get.asked",
+                "started_run_id": None if run is None else run.id,
                 "works_chosen": len(chosen),
                 "skipped": {str(reason): sum(1 for s in skipped if s.reason is reason) for reason in SkipReason},
             },

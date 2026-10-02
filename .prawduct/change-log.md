@@ -62,6 +62,27 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-02: The cumulative review of Get and Ask, resolved
+
+<!-- prawduct: scope=get-and-ask -->
+
+**Why:** the cumulative review found two defects behind green suites. With
+Commons the only source, a search's works were recorded `not_held`, because
+Commons answered "nothing" for a work it cannot look up by title. And a level tie
+between sources was stored on a random id, because the stored selection
+re-ranked without the pool's order.
+
+**What:** a source now has a third answer, `ImageQueryUnanswerable`; Commons
+gives it for a work with no Wikidata item, the pool treats no answer as no answer
+(`NoSourceCanAnswer`, logged `phase_two.unanswerable`), and the work waits.
+`selection.py` ranks by the pool's precedence before the id, and a row from a
+source no longer wired ranks last rather than raising. Also: the pool's threads
+keep the run id in their logs; turning a scan down re-reads the To review count;
+a failed count read is said in the console; `get.asked` names the run it
+started; and `architecture.md`, `api-contract.md`, `observability-strategy.md`
+and `.env.example` describe the pool, the listing's counts, the new events and a
+Commons-only deployment.
+
 ## 2026-10-02: Activity › To review, with what waits counted in the sidebar
 
 <!-- prawduct: scope=get-and-ask -->
