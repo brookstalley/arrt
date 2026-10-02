@@ -183,7 +183,7 @@ scratchpad copy held none), and Chunk 04's measurement on the Dalí works.
 ## Status
 
 - [x] Chunk 01: The acquisition queue
-- [ ] Chunk 02: Saying it: the Work page, Review, Activity › Queue, Retry, and MCP
+- [x] Chunk 02: Saying it: the Work page, Review, Activity › Queue, Retry, and MCP
 - [x] Chunk 03: One wanted state and one way in
 - [ ] Chunk 04: Matching a wanted work to its Wikidata item
 - [ ] Chunk 05: Want and Forget on the card, and Activity › Wanted
