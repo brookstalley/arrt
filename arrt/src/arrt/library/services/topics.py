@@ -216,6 +216,12 @@ class TopicService:
         )
         # Named for the ranking: an answer kept under an earlier rule's name is
         # never read as this one's, and is thrown away when it ages out.
+        self._named: Kept[str, tuple[RegistryTopic, ...]] = kept.namespace(
+            "registry.topics_named",
+            codec=JsonCodec(tuple[RegistryTopic, ...]),
+            max_age=REGISTRY_KEPT_FOR,
+            size=REMEMBERED,
+        )
         self._artists: Kept[str, tuple[RegistrySimilar, ...]] = kept.namespace(
             "registry.topic_artists.by_fame",
             codec=JsonCodec(tuple[RegistrySimilar, ...]),
@@ -334,18 +340,24 @@ class TopicService:
     def named(self, text: str) -> TopicSearchView:
         """Topics the registry finds for a typed name: periods, movements, media, and subjects something depicts.
 
-        Not kept: a typeahead asks with every word, and few are asked twice.
+        Kept for a week by what was typed, ignoring case, as the registry's own
+        search is: the top bar asks this beside that search on every word, and
+        Wikidata has refused a run of questions before (`wikidata-findings.md`).
         """
         wanted = text.strip()
         if self._registry is None:
             return TopicSearchView(state=TopicState.NOT_CONFIGURED, note=TOPICS_NOT_CONFIGURED_NOTE)
         if not wanted:
             return TopicSearchView(state=TopicState.KNOWN)
-        try:
-            found = tuple(self._registry.topics_named(wanted))
-        except RegistryUnavailable as exc:
-            log.warning("Could not search Wikidata for topics named %r: %s", wanted, exc)
-            return TopicSearchView(state=TopicState.UNAVAILABLE, note=UNAVAILABLE_NOTE)
+        key = wanted.casefold()
+        found = self._named.get(key)
+        if found is None:
+            try:
+                found = tuple(self._registry.topics_named(wanted))
+            except RegistryUnavailable as exc:
+                log.warning("Could not search Wikidata for topics named %r: %s", wanted, exc)
+                return TopicSearchView(state=TopicState.UNAVAILABLE, note=UNAVAILABLE_NOTE)
+            self._named.put(key, found)
         return TopicSearchView(state=TopicState.KNOWN, topics=found)
 
     def _known(self, qid: str, registry: Registry) -> RegistryTopic | None:

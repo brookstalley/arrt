@@ -353,3 +353,32 @@ def test_an_unknown_subject_and_an_item_not_asked_about_are_left_out():
 def test_a_qid_is_checked_before_it_reaches_a_query(call):
     with pytest.raises(ValueError, match="not a Wikidata item id"):
         call(_answering())
+
+
+def test_a_topics_works_and_artists_are_given_the_services_own_limit_and_nothing_else_is():
+    """A named period's works and artists took 26-60 s to answer; at the pages' 20 s they never would.
+
+    A failure is never kept, so a section timed out at 20 s fails on every
+    visit. The two section questions carry the service's own limit; everything
+    else, a topic's head included, keeps the client's.
+    """
+    reads: list[tuple[str, float | None]] = []
+
+    def handler(request):
+        query = _sent_query(request)
+        reads.append((query.split()[1], request.extensions["timeout"]["read"]))
+        return httpx.Response(200, json={"results": {"bindings": []}})
+
+    registry = WikidataRegistry(
+        user_agent=UA,
+        client=httpx.Client(transport=httpx.MockTransport(handler), timeout=httpx.Timeout(20.0), follow_redirects=False),
+    )
+    period = _topic("Q7017", TopicKind.PERIOD, start=1501, end=1600)
+
+    registry.topic_works(period, limit=10)
+    registry.topic_artists(period, limit=10)
+    registry.topic("Q7017")
+
+    assert reads[0] == ("?work", 60.0)
+    assert reads[1] == ("?artist", 60.0)
+    assert all(read == 20.0 for _, read in reads[2:]) and reads[2:]

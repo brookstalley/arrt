@@ -249,6 +249,19 @@ def test_a_search_is_passed_through_and_an_empty_one_asks_nothing():
     assert registry.asked == [("topics_named", "winter")]
 
 
+def test_a_search_is_kept_by_what_was_typed_ignoring_case_and_a_failure_is_not():
+    """The top bar asks this beside the registry's own search on every word, so asking twice doubles Wikidata's load."""
+    registry = TopicRegistry(named={"Winter": [WINTER]}, failing=True)
+    service = _service(registry)
+
+    assert service.named("Winter").state is TopicState.UNAVAILABLE
+    registry.failing = False
+    assert service.named("Winter").topics == (WINTER,)
+    assert service.named("winter").topics == (WINTER,)
+
+    assert registry.asked == [("topics_named", "Winter"), ("topics_named", "Winter")]
+
+
 def test_a_failed_search_says_so_rather_than_finding_nothing():
     view = _service(TopicRegistry(failing=True)).named("winter")
 

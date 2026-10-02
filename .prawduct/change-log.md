@@ -62,6 +62,41 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-02: Library › Topics and the Topic page, kept answers, and the owner's topic rules
+
+<!-- prawduct: scope=topics-and-destinations -->
+
+**Why:** S12 asks to browse by period, movement, subject or medium and Get from
+there into a theme named after the topic. Chunk 03's measurement found period
+pages slow (7-60 s) and three rules that read badly; the owner answered all of
+it the same day.
+
+**What:**
+- **Library › Topics (`/topics`) and the Topic page (`#topic/<qid>`):** your
+  topics by kind with counts and a Wikidata search; a topic's head, *In your
+  library*, *Representative works* (headed with its years for a period) and
+  *Artists*, the registry sections filled after the page draws. Get from a topic
+  defaults *Add to* to a theme named after it. The top bar gains *Topics* and
+  *Wikidata: topics* groups.
+- **Answers kept across restarts:** `persistence/kept.py`, a general store any
+  slow foreign source can use, in **`ART_ROOT/kept-answers.sqlite`, which is
+  disposable: a backup may skip it, and deleting it costs only time.** Every
+  registry page section and topic search keeps its answers for a week. The
+  in-memory `Remembered` is retired; its LRU tests live on in
+  `test_kept_answers.py`.
+- **The owner's topic rules:** the kind rule loses its "start and end time"
+  clause; search drops movements no visual artwork's maker belongs to; a topic's
+  artists rank by the summed sitelinks of their works in it (after works-count
+  let bulk catalogue imports lead). A topic's works and artists get Wikidata's
+  own 60 s limit, so a named period is slow once and then kept.
+- Driven on a catalogue copy (S12): 16th century → three works into a new theme
+  "16th century" → accepted: the theme holds them, *All works* does not, and the
+  topic's count rose from 1 to 4. A bookmark to `/topics` 404'd until added to
+  `UI_PATHS`, caught by the boundary run.
+- Cumulative Critic `rev-20261002T161451Z-8549ec71`: 0 blocking; three warnings
+  fixed (section timeouts, topic search kept, the artist-match nudge tested),
+  the rest accepted on the record. Backlog #165 and #166 filed.
+
 ## 2026-10-02: Topics from Wikidata, and your works' topics as facets
 
 <!-- prawduct: scope=topics-and-destinations -->

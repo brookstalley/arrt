@@ -288,8 +288,12 @@ class TestWithNoRegistry:
 class TestTheRunningSweep:
     """The thread the application starts: a pass at once, then a pass whenever the library changes."""
 
-    def test_it_sweeps_at_start_and_again_after_an_acceptance_and_a_qid_change(self, sweep, service, services, registry):
+    def test_it_sweeps_at_start_and_again_after_an_acceptance_and_a_qid_change_to_a_work_or_an_artist(
+        self, sweep, service, services, registry
+    ):
         service.add_artwork(title="The Hunters in the Snow", wikidata_qid=HUNTERS)
+        rothko = service.add_artist(name="Mark Rothko")
+        service.add_artwork(title="Untitled", artist_id=rothko.id)
         halt = start_topic_sweep(sweep)
         try:
             until(lambda: len(registry.topics_asked) == 1)
@@ -303,6 +307,14 @@ class TestTheRunningSweep:
             services.identity.set_work_identity(purple.id, HUNTERS)
             until(lambda: len(registry.topics_asked) == 3)
             assert registry.topics_asked[2] == ((HUNTERS,), ())
+
+            # A work with no QID is asked about through its artist's, so
+            # matching the artist is a change the sweep must hear of too. The
+            # work was there before the sweep started, so only the match can
+            # have woken it.
+            services.identity.set_artist_identity(rothko.id, ROTHKO)
+            until(lambda: len(registry.topics_asked) == 4)
+            assert registry.topics_asked[3] == ((), (ROTHKO,))
         finally:
             halt()
         assert TOPIC_SWEEP_THREAD_NAME not in {thread.name for thread in threading.enumerate()}

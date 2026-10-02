@@ -73,9 +73,19 @@ TIMEOUT_SECONDS: Final[float] = 60.0
 
 #: Seconds, for the server's pages, where a curator is waiting and a stalled
 #: query holds one of the workers the library's own requests share. The slowest
-#: page query measured was 7.4 s (Renoir's similar artists, `wikidata-findings.md`);
-#: past this the page says Wikidata could not be asked, and the next visit asks again.
+#: artist or work page query measured was 7.4 s (Renoir's similar artists,
+#: `wikidata-findings.md`); past this the page says Wikidata could not be asked,
+#: and the next visit asks again. A topic's works and artists are the exception
+#: (`SECTION_TIMEOUT_SECONDS`).
 INTERACTIVE_TIMEOUT_SECONDS: Final[float] = 20.0
+
+#: Seconds, for the two questions a Topic page asks after it has drawn: its
+#: works and its artists. A named period's took 26-60 s when measured
+#: (`wikidata-findings.md` § Topics), so at the pages' 20 s they could never
+#: answer, and a failure is never kept, so they never would. Given the service's
+#: own limit instead, a period is slow once and then kept for a week. Nothing
+#: waits on these but the section that asked.
+SECTION_TIMEOUT_SECONDS: Final[float] = TIMEOUT_SECONDS
 
 
 #: Visual artist (`Q3391743`): the occupation painters, sculptors and
@@ -440,7 +450,8 @@ class WikidataRegistry:
         # The most renowned works are chosen first and named after: the label
         # service and the optional facts, run over every work in a century, are
         # what would make this slow. One row per work, however many made it.
-        rows = self._select(f"""SELECT ?work ?workLabel ?links (MIN(YEAR(?inception)) AS ?year) (SAMPLE(?image) AS ?img) WHERE {{
+        rows = self._select(
+            f"""SELECT ?work ?workLabel ?links (MIN(YEAR(?inception)) AS ?year) (SAMPLE(?image) AS ?img) WHERE {{
               {{ SELECT DISTINCT ?work ?links WHERE {{
                   {where}
                   ?work wikibase:sitelinks ?links .
@@ -448,7 +459,9 @@ class WikidataRegistry:
               OPTIONAL {{ ?work wdt:P571 ?inception }}
               OPTIONAL {{ ?work wdt:P18 ?image }}
               SERVICE wikibase:label {{ bd:serviceParam wikibase:language "{_LABELS}" . ?work rdfs:label ?workLabel . }}
-            }} GROUP BY ?work ?workLabel ?links ORDER BY DESC(?links) ?workLabel""")
+            }} GROUP BY ?work ?workLabel ?links ORDER BY DESC(?links) ?workLabel""",
+            timeout=SECTION_TIMEOUT_SECONDS,
+        )
         works = [(_qid(row, "work"), row) for row in rows]
         if not works:
             return []
@@ -505,7 +518,8 @@ class WikidataRegistry:
         # of the ten classes, depicting and of the genre, two inceptions) would
         # otherwise count its fame twice. An artist with no work sums to nought.
         # How many works is asked too, so an answer shows what the fame outranked.
-        rows = self._select(f"""SELECT ?artist ?artistLabel ?links ?fame ?works (MIN(YEAR(?b)) AS ?born) (MIN(YEAR(?d)) AS ?died)
+        rows = self._select(
+            f"""SELECT ?artist ?artistLabel ?links ?fame ?works (MIN(YEAR(?b)) AS ?born) (MIN(YEAR(?d)) AS ?died)
             WHERE {{
               {{ SELECT ?artist ?links (SUM(COALESCE(?workLinks, 0)) AS ?fame) (COUNT(?work) AS ?works) WHERE {{
                   {{ SELECT DISTINCT ?artist ?links ?work ?workLinks WHERE {{
@@ -515,7 +529,9 @@ class WikidataRegistry:
               OPTIONAL {{ ?artist wdt:P569 ?b }}
               OPTIONAL {{ ?artist wdt:P570 ?d }}
               SERVICE wikibase:label {{ bd:serviceParam wikibase:language "{_LABELS}" . ?artist rdfs:label ?artistLabel . }}
-            }} GROUP BY ?artist ?artistLabel ?links ?fame ?works""")
+            }} GROUP BY ?artist ?artistLabel ?links ?fame ?works""",
+            timeout=SECTION_TIMEOUT_SECONDS,
+        )
         people = [(_qid(row, "artist"), row) for row in rows]
         # The service chose them in this order, and the grouping around the
         # choice promises none, so the order is put back here.
@@ -625,10 +641,14 @@ class WikidataRegistry:
             for person, row in people
         ]
 
-    def _select(self, query: str) -> list[Mapping[str, Any]]:
-        """Run one SELECT and return its bindings, or say why it could not be run."""
+    def _select(self, query: str, *, timeout: float | None = None) -> list[Mapping[str, Any]]:
+        """Run one SELECT and return its bindings, or say why it could not be run.
+
+        `timeout` overrides the client's for this one question; none keeps it.
+        """
+        extra = {} if timeout is None else {"timeout": httpx.Timeout(timeout, connect=10.0)}
         try:
-            response = self._http.post(SPARQL_ENDPOINT, data={"query": query}, headers=self._headers)
+            response = self._http.post(SPARQL_ENDPOINT, data={"query": query}, headers=self._headers, **extra)
         except httpx.HTTPError as exc:
             raise RegistryUnavailable(f"Wikidata could not be reached: {exc}") from exc
         if response.status_code != 200:

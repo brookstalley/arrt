@@ -170,8 +170,9 @@ Open assumptions:
 coverage.
 
 **Chunk 03's measurement (2026-10-02, `wikidata-findings.md` § Topics):** the
-kind rule was wrong on 0 of 20, so it stands. It raised five questions for the
-owner, open as of this writing: period works are slow (7-26 s, some time out);
+kind rule was wrong on 0 of 20, so it stands. It raised five questions, which
+the owner answered the same day (§ The owner's answers to Chunk 03's
+measurement): period works are slow (7-26 s, some time out);
 a named period is matched by its dates only (Dutch Golden Age lists *Las
 Meninas*); the "start and end time" clause admits exhibitions and wars to
 search and makes Romanticism a period; ranking artists by sitelinks puts
@@ -183,11 +184,11 @@ non-artists first (Franklin for woodcut); search offers non-visual movements
 - [x] Chunk 01: A Get's destination, from HTTP and MCP
 - [x] Chunk 02: The destination in the client, and in Review
 - [x] Chunk 03: Topics in the registry
-- [ ] Chunk 03b: Topic rules, as the owner answered
-- [ ] Chunk 03c: Answers kept across restarts
+- [x] Chunk 03b: Topic rules, as the owner answered
+- [x] Chunk 03c: Answers kept across restarts
 - [x] Chunk 04: Your works' topics, and the topic index
-- [ ] Chunk 03d: A topic's artists ranked by the fame of their works in it
-- [ ] Chunk 05: Library › Topics and the Topic page
+- [x] Chunk 03d: A topic's artists ranked by the fame of their works in it
+- [x] Chunk 05: Library › Topics and the Topic page
 
 ### Chunk 01: A Get's destination, from HTTP and MCP
 
