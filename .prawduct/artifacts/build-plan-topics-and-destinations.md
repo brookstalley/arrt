@@ -277,8 +277,9 @@ Q-rows in `data-model.md` § What this data must answer):
 - **`core/getting.js`:** the Get control gains **Add to**, a labelled select
   listing *All works* (the default theme, first and selected), then every other
   theme, then *New theme…*, which reveals a name field. A caller may pass a
-  default name; when it is given, *New theme…* is selected with that name filled
-  in, or the existing theme of that name is selected if there is one (the owner's
+  default name; when it is given, it is offered and selected as "<name> (new
+  theme)" with the name field hidden (Chunk 06, the owner's review), or the
+  existing theme of that name is selected if there is one (the owner's
   ruling: a taken name joins). A new name is created with `POST /api/themes`
   before the Get starts.
 - **The confirmation names the destination in words**: "Getting 3 works into

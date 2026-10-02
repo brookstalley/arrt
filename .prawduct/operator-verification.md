@@ -23,7 +23,7 @@ Media, each kind with none saying so. Finding `impressionism` listed two
 *Impressionism*s told apart by Wikidata's description. The *16th century* page
 showed its kind, description and Wikidata link, *In your library (2)* as cards,
 then *Works from 1501–1600* (● Held, ◐ Image found, ○ No image known; no box on
-the held row), *Add to* already on *New theme…* named *16th century*, and
+the held row), *Add to* already on *16th century (new theme)* with no name field showing (since Chunk 06), and
 *Artists*. At 375 px the works table scrolls sideways inside its panel, as the
 Artist page's does. S12's path was driven through the API on a copy of your
 catalogue on 2026-10-02 (16th century, three works into a new theme *16th
