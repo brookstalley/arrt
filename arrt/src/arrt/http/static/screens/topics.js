@@ -311,7 +311,7 @@ function stateOf(work) {
   return workState(work);
 }
 
-/* *Artists*: the topic's most represented, each opening their page, the
+/* *Artists*: those whose works in the topic are best known, each opening their page, the
  * library's own where it holds them. */
 function paintArtists(section, view) {
   const heading = el("h3", { id: "topic-artists", text: "Artists" });

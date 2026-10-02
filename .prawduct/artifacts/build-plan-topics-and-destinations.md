@@ -276,7 +276,8 @@ Q-rows in `data-model.md` § What this data must answer):
     work (makers joined, never a row per maker).
   - `topic_artists(topic, limit)`: the artists most represented among the
     topic's works, or for a movement its artists, ranked by sitelinks (by
-    their works in the topic since Chunk 03b), with the count of their works
+    their works in the topic since Chunk 03b, by those works' summed sitelinks
+    since Chunk 03d), with the count of their works
     that have an image (as Similar artists shows).
   - `topics_named(text)`: topic candidates for a typed name, filtered to the four
     kinds, so `renaissance` offers the movement and not the political party.

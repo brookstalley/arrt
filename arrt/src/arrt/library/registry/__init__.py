@@ -302,7 +302,10 @@ class Registry(Protocol):
         ...
 
     def topic_artists(self, topic: RegistryTopic, *, limit: int) -> Sequence[RegistrySimilar]:
-        """The topic's artists, most works in it first and renown breaking ties: a movement's own, or the makers of its works."""
+        """The topic's artists: a movement's own, or the makers of its works.
+
+        Ranked by the fame of their works in the topic, their own fame breaking ties.
+        """
         ...
 
     def topics_named(self, text: str) -> Sequence[RegistryTopic]:
