@@ -176,6 +176,11 @@ to serve, elicited from the Product Brief's core flows:
 | Q28 | Which Topic page does this facet value open? | Owner 2026-10-02 (topics) |
 | Q29 | Do I already have this answer from a slow foreign source, and is it fresh enough to use? Asked by every page section that asks one (the registry's first). | Owner 2026-10-02 (kept answers) |
 | Q30 | How much is kept, and what can be thrown away first? Asked by the store itself on every write and at every open. | Owner 2026-10-02 (kept answers) |
+| Q31 | Which accepted works hold no master image, or owe the preparation after one, and are due an attempt now? Asked by the acquisition queue at start and on every wake. | Owner 2026-10-02 (#167) |
+| Q32 | How many times in a row has a work's fetch or preparation failed, and when may it next be tried? Asked by the queue's retry schedule: 1 hour, 1 day, 3 days. | Owner 2026-10-02 (#167) |
+| Q33 | Why did the last attempt fail, in words a curator can act on? Asked by the Work page and Activity › Queue. | Owner 2026-10-02 (#167) |
+| Q34 | Has the queue given up on this work? Asked by the Retry button. | Owner 2026-10-02 (#167) |
+| Q35 | Which source should the next attempt use, when someone named one? Asked by MCP's `retry_acquisition`. | Owner 2026-10-02 (#167) |
 
 **Q22 to Q24 are answered by one column, `DiscoveryRun.destination_theme_id`**
 (`build-plan-topics-and-destinations.md` Chunk 01). A work reaches its run
@@ -203,6 +208,16 @@ catalogue refers to it and nothing in it is a record: deleting the file costs
 each page section one more question of its source. That is why it is not part of
 the catalogue, why a backup skips it, and why its format changes by being
 replaced rather than migrated.
+
+**Q31 to Q35 are answered by `AcquisitionQueue`, one table in the catalogue
+file** (`build-plan-after-review.md` Chunk 01). Q31 is a join: accepted works with
+no `Original`, or with a queue row, whose row is absent, or has no
+`next_try_at`, or one that has passed, and whose `failures` is under the limit.
+Q32 is `failures` and `next_try_at`; Q33 is `detail`; Q35 is `source_id`. Q34 is
+`failures` reaching four (the first try and three retries), read rather than
+stored, so a "gave up" flag cannot disagree with the count. What is being fetched
+right now, and why the queue is paused, are not stored: both are facts about the
+running process, and a restart finds them out again by trying.
 
 **Q15 is what makes the collection navigable at the amended scale**
 (`nonfunctional-requirements.md`, thousands of works). At 41 works a curator
@@ -488,6 +503,39 @@ the art tree that rsync carries and git does not.
 > card judge against the Library's quality profile, which is stated in pixels
 > and names no device. The Library keeps only `width` and `height`, as this
 > section already requires.
+
+### AcquisitionQueue
+
+> **Library-owned, in the catalogue file** (table `acquisition_queue`, added
+> 2026-10-02 for #167). A new table, so `CREATE TABLE IF NOT EXISTS` reaches a
+> file written before it and no migration was needed.
+
+The acquisition queue's memory of each accepted work it has started on and not
+finished (Q31 to Q35). A row is written when the queue first attempts a work, or
+when a curator asks for a Retry, and deleted when the work has been fetched and
+prepared. So the table holds only the works still owing something:
+
+- **No `Original` and no row**: the work has not had its first turn.
+- **No `Original` and a row**: it has been tried and failed, or the queue gave up.
+- **An `Original` and a row**: it was fetched and still owes its preparation
+  (which failed, or the process stopped between the two), or a Retry named a
+  source to fetch it again from. The next attempt prepares without fetching,
+  unless a source was named.
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `artwork_id` | UUID | PK, FK → Artwork | One row per work. |
+| `failures` | integer | required, default 0, ≥ 0 | Attempts that failed in a row since the last success or Retry. The retry schedule and "gave up" (four) are read from it (Q32, Q34). |
+| `next_try_at` | datetime | nullable | When the work may next be tried (Q32). Null means now, or never once the queue has given up; `failures` says which. |
+| `detail` | string | nullable | Why the last attempt failed, in the words acquisition or preparation gave (Q33). |
+| `source_id` | UUID | FK → Source, nullable | The source the next fetch must use, when a Retry named one (Q35). Cleared once a fetch from it has been made. |
+
+> **What counts as a failure.** A fetch that records one (`Source.last_fetch_status
+> = failed`), a refusal about the work itself (no source, or several and none
+> primary), or a preparation that refuses. A fetch that comes back with gaps
+> (`partial_tiles`) is an image and counts as acquired. A deployment fault (a
+> short disk, no dezoomify-rs, a provider with no resolver) is not a failure of
+> the work: the queue pauses and the row is unchanged.
 
 ### Rendition
 
@@ -1705,7 +1753,7 @@ path consults it before spending.
 | `discovery_run_id` | UUID | FK → DiscoveryRun, nullable | Null for non-discovery spend, e.g. mat colour. |
 | `artwork_id` | UUID | FK → Artwork, nullable | Set for per-artwork spend. |
 | `conversation_turn_id` | UUID | FK → ConversationTurn, nullable | Set for intent-forming spend. Added 2026-08-10 — see below. **Nulled, never cascaded, when the conversation is deleted** (2026-08-12): the money was spent whatever became of the thread, and a ledger whose totals fall when someone tidies a transcript is the failure the `conversation_tokens` rule below exists to prevent. |
-| `category` | enum | required | `discovery_tokens` \| `web_search` \| `image_research` \| `mat_color_vision` \| `conversation_tokens` — **`mat_color_vision` has a producer but writes no row today; see the deferral below.** |
+| `category` | enum | required | `discovery_tokens` \| `web_search` \| `image_research` \| `mat_color_vision` \| `conversation_tokens` — **`mat_color_vision` is written since 2026-10-02; see the note below.** |
 | `model_id` | string | nullable | |
 | `input_tokens`, `output_tokens` | integer | nullable | Null where the unit is not tokens. |
 | `units` | integer | nullable | e.g. number of web searches. |
@@ -1739,26 +1787,24 @@ path consults it before spending.
 > after-the-fact "what did this run cost", and monthly reporting. Those are real
 > needs and none of them is enforcement.
 >
-> **`mat_color_vision` is declared and unwritten, recorded here so the row does not
-> read as implemented (2026-08-04).** The category and its two nullable-key columns
-> predate any producer. Chunk 18B shipped the producer — a vision call per accepted
-> work through `MatEngine` — and it writes no SpendRecord: the cost is returned to
-> the caller on `cost_usd`, reported in the tool result, and then discarded. So the
-> monthly total from `art_discovery(action='spend')` omits every mat call. The
-> figures are small (about $0.000063 a call, one per accepted work) and the ceiling
-> is unaffected either way, because the ceiling is the provider's and this table
-> never enforced it — but a month total that silently excludes a whole paid path is
-> the wrong kind of small.
+> **`mat_color_vision` is written, with the work's `artwork_id`, since 2026-10-02**
+> (`build-plan-after-review.md` Chunk 01). It was declared and unwritten from
+> 2026-08-04: the producer (a vision call per work through `MatEngine`) returned its
+> cost on `cost_usd` and nothing kept it, so the month total omitted every mat call.
+> The acquisition queue prepares every accepted work unattended, which turns an
+> occasional cost into a routine one, so the row is now written by
+> `PreparationService` wherever it asks the model: a first preparation (from the
+> queue or MCP's `regenerate`) and `choose_mat`. A row is written when the model
+> answered, or billed for an answer it could not use; a call that never reached
+> the model costs nothing and writes nothing. `model_id` names the model asked even
+> when the colour fell back, since that is who billed.
 >
-> **It is deferred rather than merely missing, and the reason is where the writer
-> would have to live.** `record_spend` belongs to `DiscoveryService`, so recording
-> mat spend today means `PreparationService` taking a dependency on the discovery
-> service to reach an accounting concern that has nothing to do with discovery —
-> deepening precisely the coupling that is already filed for removal. Spend
-> accounting is separable on its own records and its own aggregation, and the mat
-> path is the second caller that proves it. The writer lands with that split, and
-> both are tracked in the backlog.
->
+> **The coupling the earlier deferral named is contained, not removed.**
+> `record_spend` still lives on `DiscoveryService`, and preparation reaches it
+> through a one-method protocol (`SpendLedger`), as the conversation service does.
+> Moving the ledger out of discovery, which the backlog tracks, changes the wiring
+> in the container and nothing in preparation.
+
 > **Q4.** `category` separates `web_search` because it is billed per search rather
 > than per token, so a token-only breakdown would misattribute cost. The earlier
 > claim that it "may dominate token spend entirely — an unresolved open question"

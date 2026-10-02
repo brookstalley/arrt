@@ -151,8 +151,10 @@ Asked while this plan was drafted, after reading the code:
 inferred from the code and not yet exercised:
 
 - **How many accepted works have no image** on the owner's deployment, which
-  sets how long the first catch-up runs. On the catalogue copy, *The Hunters in
-  the Snow* is one. A tiled fetch may run up to 1800 s
+  sets how long the first catch-up runs. **Counted 2026-10-02 (Chunk 01) on the
+  catalogue copy in the session scratchpad: 0** — its 40 accepted works all hold
+  an original, and it holds no *Hunters in the Snow* (that was another copy).
+  The owner's deployment is still uncounted; Chunk 06 counts it on a fresh copy. A tiled fetch may run up to 1800 s
   (`TILE_TIMEOUT_SECONDS`), so a backlog of 20 could take hours, unattended.
 - **Whether Wikidata's `works_matching` finds the Dalí works by title** well
   enough for a picker. It returns a creator with each match, which is what
@@ -266,6 +268,13 @@ for the Queue, and
 - **MCP:** `retry_acquisition` calls `queue.retry` and returns the queued state.
   Its tool text says it no longer fetches in the call. `art_catalogue(action='get')`
   carries the acquisition state.
+
+- **Carried from Chunk 01's review:** an unexpected error (not a deployment
+  fault, not a `ServiceError`) pauses the whole queue without counting against
+  the work, so one work that always raises one holds every work behind it.
+  Decide here, once Activity shows the pause, whether repeated errors on the
+  same work count against it. And `queue.py` imports `service.py`'s private
+  `_DEPLOYMENT_FAULTS`; make it public if this chunk reads it too.
 
 Done when: browser tests for each Work-page state and the Retry button, and
 the Queue section; `information-architecture.md`'s Queue row and the screen

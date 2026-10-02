@@ -16,8 +16,10 @@ nothing at all in model spend.
 that has never had a mat cannot be rendered without choosing one, and `acquire()`
 does not prepare — so the first call on a freshly acquired work is a paid vision
 call, which is the normal case rather than an edge. `PreparationResult.cost_usd`
-carries it and the tool surface reports it. The tempting sentence was "regenerate
-never spends"; it is false on exactly the call a curator makes first.
+carries it, the tool surface reports it, and a `mat_color_vision` spend row records
+it against the work, so the month's total includes what the acquisition queue
+spends unattended. The tempting sentence was "regenerate never spends"; it is
+false on exactly the call a curator makes first.
 
 **Staleness is a comparison, not a flag.** A rendition records the
 `content_hash` of the original it was drawn from, so "is this current" is
@@ -32,13 +34,14 @@ from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
-from typing import Final
+from typing import Final, Protocol
 
 from arrt.library.acquisition.color import ColorError, format_hex, parse_hex
 from arrt.library.acquisition.compose import compose
 from arrt.library.acquisition.mat import MatChoice, MatEngine
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.display_fit import ArtworkBox, DisplayFit
+from arrt.persistence.discovery_records import SpendCategory
 from arrt.persistence.records import MatColor, MatMethod, RenditionKind
 from arrt.services.errors import ServiceError
 
@@ -134,13 +137,38 @@ class PreparationSettings:
             )
 
 
+class SpendLedger(Protocol):
+    """Where a paid mat choice is recorded: the one method preparation needs of the ledger.
+
+    `DiscoveryService` is the ledger today. Taken through this one method rather
+    than whole, so preparation reaches accounting without reaching discovery, and
+    moving the ledger out of discovery changes the wiring and nothing here.
+    """
+
+    def record_spend(
+        self,
+        *,
+        category: SpendCategory,
+        cost_usd: Decimal,
+        artwork_id: str | None = None,
+        model_id: str | None = None,
+        units: int | None = None,
+    ) -> object: ...
+
+
 class PreparationService:
     """Give a work a mat and a television canvas."""
 
-    def __init__(self, catalogue: CatalogueService, mat_engine: MatEngine, settings: PreparationSettings) -> None:
+    def __init__(
+        self, catalogue: CatalogueService, mat_engine: MatEngine, settings: PreparationSettings, *, spend: SpendLedger
+    ) -> None:
         self._catalogue = catalogue
         self._mat = mat_engine
         self._settings = settings
+        #: Required rather than defaulted to a ledger that records nothing: a
+        #: default that silently drops spend looks exactly like working wiring,
+        #: and the month total would omit every mat call without anything failing.
+        self._spend = spend
 
     def prepare(self, artwork_id: str, *, force: bool = False) -> PreparationResult:
         """Make this work ready for the wall, doing only what is not already done.
@@ -259,6 +287,7 @@ class PreparationService:
             reason=choice.reason or None,
             model_id=choice.model_id,
         )
+        self._record_spend(artwork_id, choice)
         # Forced, because the canvas that exists was painted in the old colour and
         # is current by the only test the catalogue applies — the original has not
         # changed. Without this the work would keep showing the superseded mat
@@ -336,7 +365,32 @@ class PreparationService:
             reason=choice.reason or None,
             model_id=choice.model_id,
         )
+        self._record_spend(artwork_id, choice)
         return recorded, choice
+
+    def _record_spend(self, artwork_id: str, choice: MatChoice) -> None:
+        """Record what asking the model for this work's mat cost, when the model answered or billed.
+
+        **Here, beside the choice, so the record follows the call and not the
+        route in.** Every path that asks — a first preparation, from the
+        acquisition queue or from MCP's `regenerate`, and `choose_mat` — passes
+        through one of the two methods that call this.
+
+        A fallback can be billed: the model answered with something unusable, and
+        `cost_usd` carries what that answer cost while `model_id` is None, because
+        no model chose the colour. The row names the model that was asked all the
+        same, since that is who billed it. A call that never reached the model
+        (no key, or a refused request) cost nothing and records nothing.
+        """
+        if choice.method is not MatMethod.VISION_MODEL and choice.cost_usd == 0:
+            return
+        self._spend.record_spend(
+            category=SpendCategory.MAT_COLOR_VISION,
+            cost_usd=choice.cost_usd,
+            artwork_id=artwork_id,
+            model_id=choice.model_id or self._mat.model_id,
+            units=1,
+        )
 
     def _current_tv_rendition(self, artwork_id: str) -> str | None:
         """The path of a television canvas that is current and actually on disk.
@@ -372,6 +426,7 @@ class PreparationService:
 
 
 __all__ = [
+    "SpendLedger",
     "PreparationOutcome",
     "PreparationResult",
     "PreparationService",

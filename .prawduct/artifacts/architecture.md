@@ -1081,6 +1081,21 @@ about, and the foreign keys go at wave 3's store split. The rule itself moved
 from the manifest builder to `library/readiness.py`, and the build asks it
 through the facade.
 
+**What clears `no_original`, and with it `no_mat_color` and `no_rendition`, for a
+newly accepted work (2026-10-02, `build-plan-after-review.md` Chunk 01).** The
+acquisition queue (`library/acquisition/queue.py`), one background worker that
+fetches each accepted work holding no original, then prepares it (a mat and a
+current television canvas), one work at a time. Acceptance and a restore wake it,
+and a pass at every start catches up on any work a lost announcement left behind,
+so a work reaches its walls with nobody calling `retry_acquisition` and
+`regenerate` by hand. The queue adds no readiness state: it changes the inputs the
+rule reads, and Programming hears the result as `IMAGE_CHANGED` and `MAT_CHANGED`,
+as it does from any other route. A work whose fetch keeps failing stays
+`no_original`, and the queue's own record (`data-model.md` § AcquisitionQueue)
+says why and when it will try again. A work that already holds an original but
+whose render went stale is not the queue's: `stale_rendition` is still cleared by
+`regenerate`.
+
 > **"The fetch succeeded" is deliberately not a sixth check** *(settled at build;
 > the four-signal sentence above reads as though it were).* Holding an original is
 > what a succeeded fetch produces, so the condition is already carried by
