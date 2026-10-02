@@ -114,7 +114,7 @@ display floor over the owner's own artists' works.
 ## Status
 
 - [x] Chunk 01: An image-source pool
-- [ ] Chunk 02: Commons as a source
+- [x] Chunk 02: Commons as a source
 - [ ] Chunk 03: Get, from HTTP and MCP
 - [ ] Chunk 04: Get in the client
 - [ ] Chunk 05: Ask replaces Add New
@@ -178,6 +178,23 @@ guard each turned a test red, and so did the runner passing a fixed source name.
 - **Carried from Chunk 01's review:** `test_startup.py` asserts the
   `phase2 image_sources=` line names every wired source.
 
+*(Built 2026-10-02. Measured over the 24 catalogue artists with a QID: 12,794
+works on Wikidata, 4,439 with an image, 2,959 clearing the floor, and coverage
+follows copyright, so Rothko, Dalí and Magritte have almost nothing while Renoir,
+Klee and Kandinsky have hundreds (`wikidata-findings.md` § Commons). Originals
+reach 752 MB and renderings stop at 3840, so a file wider than 3840 is offered
+as its 3840 rendering at that size, and a narrower one whole. The byte ceiling
+the plan mentioned is left to the acquisition path, because a file no wider than
+3840 cannot approach it and the branch could not be reached. Commons is recorded
+`institutional`, and `data-model.md`'s canonicity paragraph is reopened. Done-when
+2 is met through the engine with the real Commons client beside a museum,
+because the runner cannot pass an item until Chunk 03 gives candidates one; the
+runner-level test moves to Chunk 03. Sixteen mutations of the source and its
+wiring each turned a test red; two survivors were a dead branch (deleted) and a
+status check rescued by the JSON parse (a case added). `WIKIDATA_USER_AGENT` in
+`.env.example` now says it also turns on the registry pages and Commons. A live
+test keeps the 3840 limit checked.)*
+
 **Done when:**
 0. verify-api: for the Wikidata works of every artist the owner's catalogue holds
    (QIDs read from the catalogue copy, never typed), record how many have a P18
@@ -216,6 +233,8 @@ guard each turned a test red, and so did the runner passing a fixed source name.
   `art_discovery(action='get', qids=[…])`.
 
 **Done when:**
+0. Carried from Chunk 02: a Get resolved through the runner selects a Commons
+   instance over a smaller Art Institute one, and the reverse.
 1. Integration tests over HTTP and MCP, each watched failing: a Get of two items
    starts one run with two candidates, spends nothing, and resolves through fake
    sources; a held item is skipped and reported; accepting stores the item on the

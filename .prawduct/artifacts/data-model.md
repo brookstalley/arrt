@@ -1452,6 +1452,20 @@ selected. Produced by phase 2.
 > institution itself and is not one once a second provider offers copies of the
 > same work. **The chunk that adds a non-museum provider owns this**, and should
 > reopen this paragraph rather than inherit it.
+>
+> **Reopened 2026-10-02, when Commons became a source** (`build-plan-get-and-ask.md`
+> Chunk 02). The owner ruled that no source is special-cased: every source is
+> asked at once, and *"Commons then Chicago"* is an order of preference. So
+> canonicity is still decided by resolution and rights, and the order sources are
+> listed in breaks a tie between instances that rank level. A Commons copy that
+> is larger than the holding museum's own scan wins; a museum scan that is larger
+> wins. Commons instances are recorded `institutional`, because they arrive
+> with structured metadata, stated rights and published limits, and are reached
+> through the work's own Wikidata item rather than a title search. Their
+> identity is therefore at least as strong as a museum's title match, and the
+> `contemporary_web` risk of a wrong image does not arise the same way. What
+> remains unbuilt is a preference for the holding institution's own file over an
+> equally sized copy, which nothing has yet asked for.
 > **How both scores are derived (settled 2026-08-02, when phase 2 was built).**
 > The two fields existed with their meanings recorded and their *derivations*
 > open. Both are now decided, and the first one was decided by measurement rather

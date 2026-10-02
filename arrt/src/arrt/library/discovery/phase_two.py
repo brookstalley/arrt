@@ -37,10 +37,10 @@ API and is `institutional` — so a switch on it would have one reachable branch
 one branch no deployment could exercise. What stands in its place is stronger
 where it matters: confidence is not a weight but a gate, so an instance that is
 not the requested work is refused rather than ranked lower, which for a work with
-a single candidate image is the whole of the `contemporary_web` concern. The
-unbuilt half is canonicity among many institutional copies, and it becomes real
-when a second provider can offer copies of one work. `data-model.md` carries the
-deferral and the trigger to reopen it.
+a single candidate image is the whole of the `contemporary_web` concern. Among
+several institutional copies of one work, from more than one source, resolution
+and rights still decide, and the order the sources are listed in breaks a level
+tie; `data-model.md` records why no source is preferred outright.
 
 **Below the floor is not a rejection.** Such an instance is recorded, offered,
 and labelled with the size it would appear at — it is simply not selected without

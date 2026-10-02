@@ -62,6 +62,24 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-02: Commons is an image source, reached from a work's Wikidata item
+
+<!-- prawduct: scope=get-and-ask -->
+
+**Why:** the owner ruled Commons first and the Art Institute second in the
+image-source pool. A work chosen from Wikidata usually has an image there, and
+the Art Institute holds only its own collection.
+
+**What:** `library/discovery/commons.py` answers a query that names a Wikidata
+item: it reads the item's image through the registry, asks Commons for the file's
+size, type and rights, and offers the original when it is no wider than 3840 px
+and Commons' 3840 px rendering otherwise, at the size that will arrive. It is
+wired, first in the pool, whenever `WIKIDATA_USER_AGENT` is set. Measured first
+over the catalogue's artists (`wikidata-findings.md` § Commons): coverage follows
+copyright. `data-model.md`'s deferred canonicity paragraph is reopened. The
+startup line's image sources are now tested, and a live test keeps the 3840
+limit checked.
+
 ## 2026-10-02: Phase 2 asks a pool of image sources at once
 
 <!-- prawduct: scope=get-and-ask -->

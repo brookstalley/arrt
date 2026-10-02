@@ -542,3 +542,28 @@ def test_startup_with_init_creates_the_root_and_serves(tmp_path, monkeypatch):
     entry_point.main(["--init"])
 
     assert (art_root / MARKER_NAME).is_file()
+
+
+def test_startup_names_every_image_source_it_wires_in_order(tmp_path, monkeypatch, caplog):
+    """Commons first, then the Art Institute: the order breaks ties, so it is worth reading."""
+    art_root = tmp_path / "art"
+    art_root.mkdir()
+    _stub_settings(monkeypatch, art_root, artic_user_agent="arrt-tests/0", wikidata_user_agent="arrt-tests/0")
+    monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
+
+    with caplog.at_level("INFO"):
+        entry_point.main()
+
+    assert "phase2 image_sources=commons,artic " in caplog.text
+
+
+def test_startup_with_no_image_source_says_which_settings_would_add_one(tmp_path, monkeypatch, caplog):
+    art_root = tmp_path / "art"
+    art_root.mkdir()
+    _stub_settings(monkeypatch, art_root)
+    monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
+
+    with caplog.at_level("INFO"):
+        entry_point.main()
+
+    assert "phase2 image_sources=none (ARTIC_USER_AGENT and WIKIDATA_USER_AGENT unset) previews=disabled" in caplog.text

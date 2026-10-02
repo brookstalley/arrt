@@ -17,6 +17,7 @@ from arrt.library.acquisition.service import AcquisitionSettings
 from arrt.library.acquisition.transport import http_stream
 from arrt.library.discovery.artic import build_collection_browse, build_image_search
 from arrt.library.discovery.browse import CollectionBrowse
+from arrt.library.discovery.commons import CommonsImageSearch
 from arrt.library.discovery.conversation import (
     NO_CONVERSATION_KEY,
     ConversationEngine,
@@ -27,6 +28,7 @@ from arrt.library.discovery.engine import DiscoveryEngine, unavailable_engine
 from arrt.library.discovery.images import ImageSearch
 from arrt.library.discovery.openrouter import OpenRouterClient
 from arrt.library.discovery.phase_one import build_engine
+from arrt.library.registry import Registry
 from arrt.library.registry.wikidata import INTERACTIVE_TIMEOUT_SECONDS, WikidataRegistry
 from arrt.library.services.previews import PreviewSettings
 from arrt.library.services.thumbnails import ThumbnailSettings
@@ -103,8 +105,13 @@ def _conversation_engine(settings: Settings) -> ConversationEngine:
     )
 
 
-def _image_sources(settings: Settings) -> list[ImageSearch]:
+def _image_sources(settings: Settings, registry: Registry | None) -> list[ImageSearch]:
     """The image sources phase 2 asks, most preferred first; empty when none is configured.
+
+    Commons is listed first and the Art Institute second, by the owner's ruling
+    of 2026-10-01. The order only breaks ties: every source is asked at once.
+    Commons is reached through the work's Wikidata item, so it is wired exactly
+    when the registry is.
 
     Empty rather than a refusing stand-in, because the two say different things
     at different times. Phase 1 refuses at `start`, where a run does not yet
@@ -114,6 +121,14 @@ def _image_sources(settings: Settings) -> list[ImageSearch]:
     the run where it is and let `status` say so in words.
     """
     sources: list[ImageSearch] = []
+    if registry is not None and settings.wikidata_user_agent:
+        sources.append(
+            CommonsImageSearch(
+                registry=registry,
+                user_agent=settings.wikidata_user_agent,
+                preview_max_bytes=settings.preview_max_bytes,
+            )
+        )
     if settings.artic_user_agent:
         sources.append(
             build_image_search(
@@ -240,10 +255,11 @@ def main(argv: Sequence[str] = ()) -> None:
     # Which museum phase 2 asks, and whether it can be asked at all. Logged for
     # the same reason the key's presence is: "is it even configured" is the first
     # question a run stuck at `resolving_images` raises.
-    image_sources = _image_sources(settings)
+    registry = _registry(settings)
+    image_sources = _image_sources(settings, registry)
     log.info(
         "phase2 image_sources=%s previews=%s preview_sweep=%s",
-        ",".join(source.provider for source in image_sources) or "none (ARTIC_USER_AGENT unset)",
+        ",".join(source.provider for source in image_sources) or "none (ARTIC_USER_AGENT and WIKIDATA_USER_AGENT unset)",
         settings.previews_path if image_sources else "disabled",
         # On this line rather than its own: the directory and the only thing
         # that reclaims it are one operational fact, and a deployment reading
@@ -351,7 +367,7 @@ def main(argv: Sequence[str] = ()) -> None:
             ),
             mat_engine=_mat_engine(settings),
             conversation_engine=_conversation_engine(settings),
-            registry=_registry(settings),
+            registry=registry,
         )
         # The catalogue file outlives any single version of this code, so rules
         # added since it was written are brought to it here rather than assumed
