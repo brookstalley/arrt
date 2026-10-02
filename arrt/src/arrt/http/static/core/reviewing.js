@@ -81,8 +81,14 @@ function provenanceBadge(work) {
  * the largest preview the server holds, in a dialog over the page, with nothing
  * navigated (`core/enlarge.js`). A button rather than a click handler on the
  * image, so a keyboard reaches it and a screen reader says what it does —
- * `label` is that name, and it names the work, never the scan's id. */
-function instanceImage(instance, alt, label) {
+ * `label` is that name, and it names the work, never the scan's id.
+ *
+ * `alt` is the picture at card size, and `name` the picture enlarged, which
+ * names the dialog as well as its image. They differ in the Scans table, where
+ * the small picture sits in a row that already says which scan it is and the
+ * enlarged one stands alone over the page; the button's own name says what
+ * pressing it does, which is not what the picture that opens is. */
+function instanceImage(instance, { alt, label, name }) {
   if (!instance.preview_available) {
     return el("div", { class: "card-image" }, [absentImage(instance.preview_note)]);
   }
@@ -92,7 +98,7 @@ function instanceImage(instance, alt, label) {
     class: "card-image enlargeable",
     type: "button",
     "aria-label": label,
-    onclick: () => enlarge({ src: `${preview}?size=large`, alt: alt || label, trigger: frame }),
+    onclick: () => enlarge({ src: `${preview}?size=large`, alt: name, trigger: frame }),
   }, [image]);
   image.addEventListener("error", () => {
     // Nothing to enlarge once the picture has failed, so the button goes with
@@ -147,7 +153,21 @@ function instanceStateBadges(instance) {
  * fact into a few characters' width. */
 const SCAN_COLUMNS = ["Scan", "Resolution", "Provider", "Rights", "Confidence", "Chosen", "Actions"];
 
-function instanceRows(instance, title, after) {
+/* A work, as its picture is named: its title, and its artist where known. */
+function pictured(work) {
+  return work.artist ? `${work.title}, by ${work.artist}` : work.title;
+}
+
+/* Which scan a picture is, said without the table around it: the work, then
+ * where the scan came from and its size, which is how the row tells it apart
+ * from its neighbours. */
+function scanName(instance, work) {
+  const which = [`the scan from ${instance.provider}`, pixelSize(instance)].filter(Boolean).join(", ");
+  return `${pictured(work)} — ${which}`;
+}
+
+function instanceRows(instance, work, after) {
+  const title = work.title;
   const act = (path, body) =>
     guard(async () => {
       await api(path, { method: "POST", body: JSON.stringify(body || {}) });
@@ -167,7 +187,9 @@ function instanceRows(instance, title, after) {
   ]);
   return [
     el("tr", { class: "alternate" }, [
-      el("td", { class: "scan-preview" }, [instanceImage(instance, "", `Enlarge this scan of ${title}`)]),
+      el("td", { class: "scan-preview" }, [
+        instanceImage(instance, { alt: "", label: `Enlarge this scan of ${title}`, name: scanName(instance, work) }),
+      ]),
       el("td", { class: "scan-fact" }, [
         el("div", { class: "stack-tight" }, [
           pixelSize(instance) ? el("span", { class: "scan-pixels", text: pixelSize(instance) }) : null,
@@ -251,7 +273,7 @@ async function alternatesPanel(workId, after) {
       el("table", { class: "scans" }, [
         el("caption", { text: `The scans found for ${title}.` }),
         el("thead", {}, [el("tr", {}, SCAN_COLUMNS.map((name) => el("th", { scope: "col", text: name })))]),
-        el("tbody", {}, listing.instances.flatMap((instance) => instanceRows(instance, title, after))),
+        el("tbody", {}, listing.instances.flatMap((instance) => instanceRows(instance, listing.work, after))),
       ]),
     ]),
   ]);
@@ -298,6 +320,21 @@ function absentScanReason(card) {
   return "No scan was found for this work.";
 }
 
+/* What each card on the page was built from, and where it sends its verdicts.
+ *
+ * Read by `reviewSection` when it is handed the section it replaces: a card
+ * whose work answers exactly as it did is moved into the new section rather
+ * than built again, so a half-typed *Why*, an open *Scans* table and whatever
+ * the keyboard stood on inside the card all survive the page redrawing around
+ * it. A Get's page redraws each time the Get finds another work, and a card
+ * built afresh would lose all three to news about a different work.
+ *
+ * The verdict hook is held here rather than closed over, because a kept card
+ * outlives the section that built it: its verdicts must reach the offer to look
+ * again on the page it is now on, not one that has left the page. A WeakMap so a
+ * card dropped from the page takes its record with it. */
+const BUILT = new WeakMap();
+
 /* One proposed work, as the thing a curator decides about.
  *
  * `notice` is carried across a repaint rather than shown from a fresh fetch,
@@ -313,6 +350,8 @@ function absentScanReason(card) {
 function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
   const work = card.work;
   const node = el("li", { class: "card review-card", "data-work": work.work_id });
+  const hooks = { onVerdict };
+  BUILT.set(node, { signature: JSON.stringify(card), hooks });
 
   const repaint = async (message) => {
     const fresh = await api(`/api/candidates/${encodeURIComponent(work.work_id)}`);
@@ -320,13 +359,13 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
     // because this is the one path both ways of settling a work pass through:
     // the card's own Accept and Reject, and choosing or turning down a scan in
     // the alternates below, which reaches here as `after`.
-    onVerdict(work.work_id, fresh.work.verdict);
+    hooks.onVerdict(work.work_id, fresh.work.verdict);
     // The disclosure's state is carried over, because choosing between scans is
     // a sequence rather than one act: a curator turning one down is usually
     // about to turn down or choose another. Rebuilding the card closed would
     // collapse the list they are working in, on every click, and cost a second
     // fetch to get back to where they were.
-    node.replaceWith(candidateCard(fresh, message, disclosure.open, onVerdict));
+    node.replaceWith(candidateCard(fresh, message, disclosure.open, hooks.onVerdict));
   };
 
   const reason = el("input", { type: "text", id: `reason-${work.work_id}` });
@@ -375,7 +414,11 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
 
   node.append(
     card.shown
-      ? instanceImage(card.shown, work.artist ? `${work.title}, by ${work.artist}` : work.title, `Enlarge the picture of ${work.title}`)
+      ? instanceImage(card.shown, {
+          alt: pictured(work),
+          label: `Enlarge the picture of ${work.title}`,
+          name: pictured(work),
+        })
       : el("div", { class: "card-image" }, [absentImage(absentScanReason(card))]),
     el("div", { class: "card-body" }, [
       el("h3", { class: "card-title", text: work.title }),
@@ -597,8 +640,10 @@ function offeredGroupSentence(group, allCards) {
  * the collection's offers grouped under their queries — as nodes, for the
  * screen drawing them to place under whatever heading it has.
  *
- * `page` is `fetchAllCandidates`'s `{run, works, total}`. */
-export function reviewSection(page) {
+ * `page` is `fetchAllCandidates`'s `{run, works, total}`. `keptFrom` is the
+ * section this one replaces, when the screen is redrawing the same run: its
+ * cards whose works have not changed are kept rather than rebuilt (`BUILT`). */
+export function reviewSection(page, { keptFrom = null } = {}) {
   /* One answer to "which works are waiting for a better scan", held for as long
    * as this section is on screen.
    *
@@ -647,7 +692,18 @@ export function reviewSection(page) {
   // One work to a row, not a grid of tiles: a card is judged by reading it, its
   // scans open beneath it as a table, and a column of tiles a quarter of the
   // page wide wrapped every fact in them a few characters at a time.
-  const gridOf = (cards) => el("ul", { class: "review-grid" }, cards.map((card) => candidateCard(card, null, false, noteVerdict)));
+  const keepable = new Map();
+  if (keptFrom) for (const node of keptFrom.querySelectorAll("li.review-card")) keepable.set(node.dataset.work, node);
+  const cardFor = (card) => {
+    const kept = keepable.get(card.work.work_id);
+    const record = kept ? BUILT.get(kept) : null;
+    if (record && record.signature === JSON.stringify(card)) {
+      record.hooks.onVerdict = noteVerdict;
+      return kept;
+    }
+    return candidateCard(card, null, false, noteVerdict);
+  };
+  const gridOf = (cards) => el("ul", { class: "review-grid" }, cards.map(cardFor));
 
   /* The works the run named, then the collection's offers under their own
    * queries. Two sections rather than one list, because the sentence each offer
