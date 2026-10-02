@@ -285,6 +285,11 @@ class WorkFacet:
     #: For `INFERRED`, the model id. Null where nobody recorded it, which is
     #: honest rather than tidy.
     source_note: str | None = None
+    #: The Wikidata item the value names, where one does: the Topic page this
+    #: value opens. Null for a value nobody tied to an item, which an inferred
+    #: facet usually is. The label beside it is `value`, as the registry wrote it
+    #: when the row was recorded.
+    value_qid: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

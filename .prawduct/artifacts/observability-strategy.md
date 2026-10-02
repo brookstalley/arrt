@@ -290,6 +290,24 @@ between planes.
 > The counterpart on the operations side is `operational-spec.md` § Add disk
 > headroom, which now points at this event rather than at a manual prune.
 
+> **The topic sweep's events, added 2026-10-02** (`library/services/topic_sweep.py`,
+> `build-plan-topics-and-destinations.md` Chunk 04). The sweep keeps the
+> library's works' topics as facet rows from Wikidata: at start, when a work is
+> accepted or a QID changes, and daily. Its failure mode is the preview sweep's:
+> Library › Topics and the Artworks rail quietly stop changing.
+>
+> | Event | Level | Says |
+> |---|---|---|
+> | `topics.off` | INFO | logged **once, at start**, when `WIKIDATA_USER_AGENT` is unset: no sweep is started and topics stay as they are. Nothing else about the sweep is logged in that state |
+> | `topics.sweep_started` | DEBUG | a pass began; against `topics.swept`, a start with no finish is a pass waiting on Wikidata or wedged |
+> | `topics.swept` | INFO | a pass finished, with how many works were due, how many of those were asked about (the rest have no QID and no artist QID), and how many rows were withdrawn and are now written. Logged on every pass, including one with nothing due |
+> | `topics.sweep_unavailable` | WARNING | Wikidata could not be asked; nothing was replaced, and the due works are asked again next pass. Not followed by `topics.swept` |
+> | `topics.sweep_error` | ERROR | a whole pass raised, with its traceback; the loop continues |
+> | `topics.sweep_wedged` | WARNING | shutdown asked the sweep to stop and it did not within five seconds |
+>
+> At a daily interval `topics.swept` is one line a day plus one per acceptance or
+> QID change, so its absence over a day is the signal that the sweep died.
+
 ## What the museum is told about us
 
 The Art Institute's API is open — no key, no account — but asks callers to
@@ -662,6 +680,7 @@ signal exists:
 | *Planned, 2026-09-30:* the server is unreachable from a Player | The Player keeps rendering from its cache (`nonfunctional-requirements.md` § Direction, amended). It logs the failed poll once per episode rather than per poll, the same pairing `rotation.wall_unchanged` uses. The panel shows the heartbeat's age, which grows only if the POST also fails. It becomes a real fault when the manifest names media the cache does not hold, and the heartbeat's cache report exists to say that. Built in wave 2 |
 | *Planned, 2026-09-30:* a scheduled Library job (Watch, upgrade re-search) stopped running | A positive line on every pass, including empty ones, as with the preview sweep. Absence over an interval is the fault. Whether it also reaches a push channel is the revisit above. Built with Watches in wave 6 |
 | Budget exhausted | `halted_by_budget` outcome on the run, and the refusal text names the cause. *(Corrected 2026-08-02: this also promised "`limit_remaining` at zero in the UI" — a figure no surface exposes, and one that lags badly enough to read non-zero while calls are already being refused. See the note under the signals table.)* |
+| Topic sweep stopped running | `topics.swept` at INFO on every pass, including empty ones; its absence for more than a day, or after an acceptance, is the fault. A run of `topics.sweep_unavailable` is Wikidata refusing, not the sweep dying. With no `WIKIDATA_USER_AGENT` the one `topics.off` line at start says why there is nothing |
 | Preview sweep stopped running | **The only signal is a positive one, which is why it logs on empty passes**: `preview.swept` at INFO every interval, so what says the job died is its *absence* over one. A pass that hangs rather than stops reads differently — `preview.sweep_started` with no `preview.swept`, then `preview.sweep_wedged` at shutdown — and matters more, because that pass holds the store lock |
 | Disk nearly full | Guarded *before* acquisition starts, not discovered as an exception during it |
 | A work silently absent from a theme | **The manifest build reports exclusions** with a per-work reason — see `architecture.md`. Not a log line: a first-class UI surface |

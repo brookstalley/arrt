@@ -35,7 +35,7 @@ from arrt.library.discovery.engine import (
     WorkListRequest,
 )
 from arrt.library.discovery.images import FoundImage, ImageQuery, ImageSearchFailure
-from arrt.library.registry import RegistryArtist, RegistryUnavailable
+from arrt.library.registry import RegistryArtist, RegistryTopicsOf, RegistryUnavailable
 from arrt.persistence.discovery_records import SpendCategory
 from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
 
@@ -418,6 +418,12 @@ class FakeRegistry:
         similar=None,
         missing=None,
         failing=False,
+        topics=None,
+        topic_works=None,
+        topic_artists=None,
+        topics_found=None,
+        work_topics=None,
+        artist_topics=None,
     ):
         self.items = items or {}
         self.creators = creators or {}
@@ -444,6 +450,20 @@ class FakeRegistry:
         self.searched: list[str] = []
         self.asked_about: list[str] = []
         self.works_asked: list[str] = []
+        #: QID → the `RegistryTopic` `topic()` answers; absent is no such item.
+        self.topics = topics or {}
+        #: Topic QID → its `RegistryTopicWork`s, and → its `RegistrySimilar` artists.
+        self.topic_works_of = topic_works or {}
+        self.topic_artists_of = topic_artists or {}
+        #: Typed text → the `RegistryTopic`s `topics_named` finds.
+        self.topics_found = topics_found or {}
+        #: Work QID, and artist QID → the `RegistryTopicRef`s `topics_of` answers.
+        #: Mutable, so a test can change the registry's mind between sweeps.
+        self.work_topics = work_topics or {}
+        self.artist_topics = artist_topics or {}
+        #: Each `topics_of` call: the work QIDs and the artist QIDs asked about.
+        self.topics_asked: list[tuple[tuple[str, ...], tuple[str, ...]]] = []
+        self.topic_sections_asked: list[tuple[str, str]] = []
 
     def _check(self):
         if self.failing:
@@ -493,3 +513,31 @@ class FakeRegistry:
         self._check()
         self.works_asked.append(qid)
         return self.works.get(qid)
+
+    def topic(self, qid):
+        self._check()
+        self.topic_sections_asked.append(("topic", qid))
+        return self.topics.get(qid)
+
+    def topic_works(self, topic, *, limit):
+        self._check()
+        self.topic_sections_asked.append(("works", topic.qid))
+        return self.topic_works_of.get(topic.qid, [])[:limit]
+
+    def topic_artists(self, topic, *, limit):
+        self._check()
+        self.topic_sections_asked.append(("artists", topic.qid))
+        return self.topic_artists_of.get(topic.qid, [])[:limit]
+
+    def topics_named(self, text):
+        self._check()
+        return self.topics_found.get(text, [])
+
+    def topics_of(self, work_qids, artist_qids):
+        """Each QID asked about that the tables give topics, as the real client answers: one with none is absent."""
+        self._check()
+        self.topics_asked.append((tuple(work_qids), tuple(artist_qids)))
+        return RegistryTopicsOf(
+            works={qid: tuple(self.work_topics[qid]) for qid in work_qids if self.work_topics.get(qid)},
+            artists={qid: tuple(self.artist_topics[qid]) for qid in artist_qids if self.artist_topics.get(qid)},
+        )

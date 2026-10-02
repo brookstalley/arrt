@@ -114,6 +114,8 @@ async def test_help_works_without_arguments_and_without_the_catalogue(server_url
         "set_work_qid",
         "set_artist_qid",
         "regenerate",
+        "topics",
+        "topic",
         "help",
     }
 
@@ -164,6 +166,8 @@ async def test_an_unknown_action_is_an_error_result_that_enumerates_the_valid_se
         "set_work_qid",
         "set_artist_qid",
         "regenerate",
+        "topics",
+        "topic",
         "help",
     ]
     assert payload["example"] == "art_catalogue(action='help')"

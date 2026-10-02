@@ -112,7 +112,12 @@ _ARTWORK_ID = Param(
 _QID = Param(
     name="qid",
     type="string",
-    description="A Wikidata item id such as Q160149, or 'none' to record that there is no item.",
+    #: One description for every action taking it, because the wire schema
+    #: publishes only the first: the topic action takes an item and never 'none'.
+    description=(
+        "A Wikidata item id such as Q160149. set_work_qid and set_artist_qid also take 'none', "
+        "to record that there is no item."
+    ),
     required=True,
 )
 
@@ -294,6 +299,29 @@ ART_CATALOGUE: Final = ToolRecord(
                 "Use force=true after changing the panel geometry or clearing the rendered tree.",
                 "A work whose master image is missing from disk is refused rather than rendered blank; "
                 "action='retry_acquisition' fetches it again.",
+            ),
+        ),
+        Action(
+            name="topics",
+            description="List every topic the catalogue's works in circulation are in, by kind, with how many works.",
+            example="art_catalogue(action='topics')",
+            params=(),
+            tips=(
+                "Topics are periods (centuries), movements, subjects and kinds of work, as Wikidata gives them for "
+                "works and artists with a Wikidata item; a work with neither has none.",
+                "Read from the catalogue alone, so it never waits on Wikidata. Each topic's qid is what " "action='topic' takes.",
+                "state='not_configured' means WIKIDATA_USER_AGENT is unset, so nothing keeps topics up to date.",
+            ),
+        ),
+        Action(
+            name="topic",
+            description="Return one topic as the catalogue's works carry it, and its works in circulation.",
+            example="art_catalogue(action='topic', qid='Q40415')",
+            params=(_QID,),
+            tips=(
+                "A topic none of the catalogue's works is in returns no label and no works rather than an error.",
+                "The same values filter action='list': a movement topic's label is a movement facet value, a "
+                "period's an era value.",
             ),
         ),
     ),

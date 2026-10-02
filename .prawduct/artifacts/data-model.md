@@ -170,6 +170,10 @@ to serve, elicited from the Product Brief's core flows:
 | Q22 | Which theme does a work accepted from this Get join? Asked by Programming at acceptance and at every start, so a lost announcement lands the work where a delivered one would. | Owner 2026-10-02 (destinations) |
 | Q23 | Did this acceptance go into the everyday rotation? No destination means it did. Asked by plan 4's taste reader. | Owner 2026-10-02 (destinations) |
 | Q24 | Which Gets were sent somewhere other than the rotation, so Queue and Review can say where a Get's works go? | Owner 2026-10-02 (destinations) |
+| Q25 | Which topics does my library touch, and how many works in each? Asked by Library › Topics and by the Artworks rail. | Owner 2026-10-02 (topics) |
+| Q26 | Which of my works are in this topic? A Topic page's first section, answered with no network. | Owner 2026-10-02 (topics) |
+| Q27 | Where did this claim about a work come from, so a curator correcting it knows what they are arguing with? | Owner 2026-10-02 (topics) |
+| Q28 | Which Topic page does this facet value open? | Owner 2026-10-02 (topics) |
 
 **Q22 to Q24 are answered by one column, `DiscoveryRun.destination_theme_id`**
 (`build-plan-topics-and-destinations.md` Chunk 01). A work reaches its run
@@ -179,6 +183,17 @@ theme id held opaquely, with no foreign key (`architecture.md` seam rule 3): a
 theme deleted since the Get still reads back, which is what lets Q24 say "a
 theme that has been deleted" rather than nothing, and what tells Programming the
 curator chose "not the rotation" for a work accepted after the deletion.
+
+**Q25 to Q28 are answered by `WorkFacet` rows the topic sweep writes, and one
+column, `WorkFacet.value_qid`** (`build-plan-topics-and-destinations.md` Chunk
+04). Q25 is a count of works in circulation per (`kind`, `value_qid`); Q26 is the
+works carrying a `value_qid` under a topic kind (`era`, `movement`, `subject`,
+`medium`), so a palette value that names an item opens no Topic page; Q27 is
+`derivation` and `source_note`, already there, which the sweep fills as `sourced`
+and "Wikidata"; Q28 is the column. The label is `value`, as Wikidata wrote it when
+the row was recorded, so the rail and the index read without asking anything. A
+facet that names no item, as an inferred one usually will, has a null
+`value_qid` and is a rail value with no page.
 
 **Q15 is what makes the collection navigable at the amended scale**
 (`nonfunctional-requirements.md`, thousands of works). At 41 works a curator
@@ -834,8 +849,9 @@ Answers Q15. Added 2026-08-10 with the collection's retrieval surface
 | `kind` | enum | required | The same closed set as `Affinity.kind` — `artist` \| `movement` \| `era` \| `subject` \| `medium` \| `palette`. One vocabulary, two sides; see below. |
 | `value` | string | required | "Baroque", "Late 19th c.", "Seascape". |
 | `derivation` | enum | required | `sourced` (the institution published it) \| `inferred` (a model assigned it). Never absent — an unlabelled facet is a guess wearing a citation. |
-| `source_note` | string | nullable | For `sourced`, which field of which provider — e.g. `artic:classification_title`. For `inferred`, the model id. |
+| `source_note` | string | nullable | For `sourced`, which field of which provider — e.g. `artic:classification_title`, or `Wikidata` for the topic sweep's rows. For `inferred`, the model id. |
 | `created_at` | datetime | auto | |
+| `value_qid` | string | nullable | The Wikidata item the value names: the Topic page it opens (Q28). Null for a value nobody tied to an item. Added 2026-10-02 by widening (nullable, no written migration), with an index for "which works carry this item". |
 
 **Unique on (`artwork_id`, `kind`, `value`).** A work is Baroque once.
 
@@ -913,13 +929,30 @@ Answers Q15. Added 2026-08-10 with the collection's retrieval surface
 > version, no step and nothing to interrupt. `test_work_facets.py` opens exactly
 > such a file rather than leaving the claim to be read.
 >
-> **What is not built: nothing writes a facet on its own account yet.**
-> `CatalogueService.record_facet` and `remove_facet` exist and are how a facet
-> reaches the catalogue; no discovery path calls them, and neither the HTTP surface
-> nor the tool surface offers a write. So a real catalogue's facet vocabulary is
-> empty until inference lands, and the collection's rail is correspondingly empty —
-> which the retrieval treats as an ordinary state rather than an error, and which
-> the paid-path rule above still governs when it is filled.
+> **What is not built: inference.** Until 2026-10-02 nothing wrote a facet on
+> its own account. Since then the topic sweep does (below); no discovery path
+> calls `record_facet`, neither surface offers a write, and the paid-path rule
+> above still governs inference when it lands.
+
+> **The topic sweep writes `sourced` rows from Wikidata, 2026-10-02**
+> (`library/services/topic_sweep.py`; `build-plan-topics-and-destinations.md`
+> Chunk 04). For every work, it asks `topics_of` for the work's QID (its
+> Gregorian century as an `era`, what it depicts or its genre as `subject`s, the
+> kind of work it is as a `medium`) and its artist's QID (their `movement`s). A
+> work with neither gets none. It writes them with `source_note` "Wikidata" and
+> `value_qid`, and **replaces rather than adds**: in one transaction,
+> `CatalogueService.replace_sourced_facets` withdraws the work's rows that are
+> `sourced` with that note and records the new answer. An `inferred` row is never
+> withdrawn, and a claim the work already carries under any derivation is left as
+> it stands, so an inferred value is not relabelled as sourced; another source's
+> `sourced` rows are left alone. A work whose QIDs were cleared loses its
+> Wikidata rows with nothing asked. The sweep runs at start, when a work is
+> accepted or restored, when a QID is set, cleared or matched in the server
+> (the hand-run `python -m arrt.identify` is another process, seen at the next
+> pass), and otherwise daily; which works it asks about is kept in the process's memory, so a start
+> asks about every work once. A period facet is the century only, because
+> `topics_of` gives works no other period. Archived works are swept too: a facet
+> says what a work is, and the rail filters by status.
 
 ### Affinity
 
