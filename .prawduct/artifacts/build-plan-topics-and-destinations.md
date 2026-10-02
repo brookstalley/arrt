@@ -115,6 +115,25 @@ Asked after the twenty-topic measurement (`wikidata-findings.md` § Topics):
   period, and asked for the empty artist and palette facets to be backlogged.
   Chunk 03d.
 
+## The owner's review of the screens, 2026-10-02
+
+Looked over on a catalogue copy after Chunk 05:
+
+- **Library › Topics and *Find a topic*: good.** The page moves about as it
+  fills; to be organised later, not now.
+- **A held work with no image.** *The Hunters in the Snow* is *In your library*
+  with "No master image". Accepting a work never acquires its master: the only
+  caller of `AcquisitionService.acquire` is MCP's `retry_acquisition`, since
+  acquisition was built (archived plan Chunk 18, whose tests called `acquire`
+  directly). Not this plan's; filed for its own.
+- **On a Topic page, *Add to* should default to the topic's name, and the name
+  field should be blank and hidden unless *New theme…* is chosen.** Chunk 06.
+- **The typeahead showed only *Ask* and *Search* the first time.** Chunk 05
+  joined the topic search to the registry search, so Wikidata's works and artists
+  (0.7 s) waited for the topic search (5 s cold), with nothing on screen saying
+  so. Chunk 06.
+- Phone width: good.
+
 ## What I would do differently
 
 - **Medium is the weakest of the four kinds.** Wikidata's medium property (`P186`)
@@ -189,6 +208,7 @@ non-artists first (Franklin for woodcut); search offers non-visual movements
 - [x] Chunk 04: Your works' topics, and the topic index
 - [x] Chunk 03d: A topic's artists ranked by the fame of their works in it
 - [x] Chunk 05: Library › Topics and the Topic page
+- [ ] Chunk 06: The owner's review of the screens
 
 ### Chunk 01: A Get's destination, from HTTP and MCP
 
@@ -349,6 +369,29 @@ Q-rows in `data-model.md` § What this data must answer):
    summed-fame order, a tie broken by the artist's own sitelinks; an artist with
    many obscure works ranks below one with a few famous ones.
 2. The `live_museum` shape test still passes.
+
+### Chunk 06: The owner's review of the screens
+
+**Visual change:** yes
+
+- **`core/getting.js`, a caller's default name:** when no theme has that name,
+  *Add to* offers it as its own option, "<name> (new theme)", selected; *New
+  theme…* stays last and reveals an empty name field, hidden otherwise. Get with
+  the named option creates the theme by that name first (`POST /api/themes`),
+  then starts the Get. A name that is already a theme still selects that theme.
+- **`core/search.js`:** Wikidata's artists and works are painted when they
+  arrive, and its topics when they arrive, each on its own; while either is
+  pending the dropdown says *Asking Wikidata…*. The announcement and the one
+  note per dropdown still hold.
+
+**Done when:**
+1. Browser tests, each watched failing: on a Topic page with no theme of its
+   name, *Add to* shows "<name> (new theme)" selected and no name field; *New
+   theme…* reveals an empty field; Get creates the theme by the topic's name and
+   sends its id; registry artists and works appear while the topic search is
+   still held open; *Asking Wikidata…* shows while one is pending and is gone
+   after.
+2. All suites and the browser suite pass.
 
 ### Chunk 03c: Answers kept across restarts
 
