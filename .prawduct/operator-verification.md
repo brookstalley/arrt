@@ -10,6 +10,19 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Wikidata identity's one *Edit*; Library › Topics in columns — added 2026-10-02
+
+**`build-plan-library-screens.md` Chunk 05 (#174, #175).** Visual change: yes.
+
+Checked by the builder on 2026-10-02 in the browser suite's own server, and on
+a copy of the dev catalogue at 1440 px and 390 px.
+
+- **An Artist or Work page** shows "Wikidata: Q… (matched)" and one quiet
+  **Edit**. Edit reveals the Q… field, *Look up* and *There is none*; nothing
+  else shows at rest.
+- **Library › Topics** lays each kind out in columns, by name, each count beside
+  its name: several columns at desktop width, one on a phone.
+
 ### Library › Artists: surname order, posters and a table — added 2026-10-02
 
 **`build-plan-library-screens.md` Chunk 04 (#173).** Visual change: yes.
@@ -302,7 +315,7 @@ Lynch and Klee (●). On your held Rothko's Work page, looking up `q500985` name
    should it wait for taste (plan 4)?
 2. **The image count.** Does "0 works with an image" beside Pollock tell you what
    you need before you commit to him?
-3. **The control.** Change… → type an id → Look up → *Use Q…*. Is showing the item
+3. **The control.** Edit → type an id → Look up → *Use Q…*. Is showing the item
    first enough to stop a wrong one, and is *There is none* worded right?
 
 ### The search results page — added 2026-10-01

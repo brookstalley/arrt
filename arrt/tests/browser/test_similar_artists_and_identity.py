@@ -114,7 +114,7 @@ class TestSimilarArtists:
 
 
 def _open_control(ui):
-    ui.page.click("#view .identity button:has-text('Change…')")
+    ui.page.click("#view .identity button:has-text('Edit')")
     ui.page.wait_for_selector("#view .identity input:visible")
 
 
@@ -126,21 +126,27 @@ def _look_up(ui, typed):
 
 
 class TestSettingAnItemByHand:
-    def test_the_item_field_stays_hidden_until_change_is_pressed(self, ui, rothko):
-        """The owner's review, 2026-10-02: "Change…", "There is none" and an empty Q… field all showed at once.
+    @pytest.mark.parametrize("screen", ["work", "artist"])
+    def test_at_rest_the_control_is_the_identity_and_one_edit(self, ui, rothko, screen):
+        """The owner's ruling on #174: the item and one quiet *Edit*; the rest only once it is pressed.
 
-        The form is created `hidden`, and `.stack`'s flex display outranked the
-        browser's rule for the attribute; `app.css` now makes `hidden` win for
-        every class. Asserted as a rendered state, since the attribute was set
-        all along.
+        On both pages that share the control. Asserted as a rendered state.
         """
-        _artist, work = rothko
-        ui.open(f"#work/{work.id}")
-        ui.page.wait_for_selector("#view .identity button:has-text('There is none')")
+        artist, work = rothko
+        ui.open(f"#{screen}/{work.id if screen == 'work' else artist.id}")
+        ui.page.wait_for_selector("#view .identity button:has-text('Edit')")
 
+        assert ui.page.locator("#view .identity button:visible").all_inner_texts() == ["Edit"]
         assert ui.page.locator("#view .identity input").is_hidden()
+        assert ui.page.locator("#view .identity button:has-text('There is none')").is_hidden()
+        assert ui.page.get_attribute("#view .identity button:has-text('Edit')", "aria-expanded") == "false"
+
         _open_control(ui)
+
         assert ui.page.locator("#view .identity input").is_visible()
+        assert ui.page.locator("#view .identity button:has-text('Look up')").is_visible()
+        assert ui.page.locator("#view .identity button:has-text('There is none')").is_visible()
+        assert ui.page.get_attribute("#view .identity button:has-text('Edit')", "aria-expanded") == "true"
 
     def test_a_work_item_is_shown_before_it_is_stored(self, ui, service, rothko):
         _artist, work = rothko
@@ -174,6 +180,7 @@ class TestSettingAnItemByHand:
     def test_there_is_none_is_confirmed_and_clears_the_held_mark(self, ui, service, rothko):
         artist, work = rothko
         ui.open(f"#work/{work.id}")
+        _open_control(ui)
         ui.page.click("#view .identity button:has-text('There is none')")
         ui.page.click("dialog.confirm button:has-text('There is none')")
 
@@ -187,6 +194,7 @@ class TestSettingAnItemByHand:
     def test_cancelling_there_is_none_changes_nothing(self, ui, service, rothko):
         _artist, work = rothko
         ui.open(f"#work/{work.id}")
+        _open_control(ui)
         ui.page.click("#view .identity button:has-text('There is none')")
         ui.page.click("dialog.confirm button:has-text('Cancel')")
         ui.page.wait_for_selector("dialog.confirm", state="detached")
@@ -223,7 +231,7 @@ class TestSettingAnItemByHand:
         ui.open(f"#artist/{other.id}")
         _open_control(ui)
 
-        assert _look_up(ui, "Q777") == "Q777 exists on Wikidata with no English name; check it is the one you mean."
+        assert _look_up(ui, "Q777") == "Wikidata gives no English name for Q777; check it is the one you mean."
         ui.page.click("#view .identity button:has-text('Use Q777')")
 
         ui.page.wait_for_selector("#view .identity :text('Wikidata: Q777 (set by you)')")

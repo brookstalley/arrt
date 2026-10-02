@@ -143,7 +143,7 @@
 /* `hidden` means hidden, whatever display a class gives the element. The
    browser's own rule for the attribute is the weakest there is, so `.stack`,
    `.field` or any flex or grid class silently outranked it: the Artist page's
-   Wikidata form showed before Change… was pressed, and the Get dialog's name
+   Wikidata form showed before its button was pressed, and the Get dialog's name
    field needed a patch of its own. One rule here, rather than a patch per
    class that is found the same way. */
 [hidden] {
@@ -1126,6 +1126,15 @@ button.link {
   border-color: var(--accent);
 }
 
+/* The Wikidata identity at rest: the item and one quiet Edit on a line. */
+.identity-now {
+  align-items: baseline;
+}
+
+.identity-now p {
+  margin: 0;
+}
+
 /* -- a work's state, as an image style ----------------------------------------
    The owner's ruling on issue 172: held, wanted and not held are told apart first
    by how the picture is drawn, then by glyph and word (`workState` in
@@ -1498,6 +1507,18 @@ details > summary {
   padding: var(--space-2) 0;
   border-bottom: 1px solid var(--border);
   overflow-wrap: anywhere;
+}
+
+/* Library › Topics: each kind in columns, by name, each count beside its name.
+   The column width decides how many fit, so a phone gets one. A topic never
+   breaks across two columns. */
+.topic-columns {
+  columns: 14rem;
+  column-gap: var(--space-6);
+}
+
+.topic-columns li {
+  break-inside: avoid;
 }
 
 /* -- tables ---------------------------------------------------------------- */

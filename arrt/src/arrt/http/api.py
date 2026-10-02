@@ -316,7 +316,8 @@ def list_artists(request: Request, q: Annotated[str | None, Query()] = None) -> 
 
     **Not capped, and what bounds it is the catalogue**: one row per artist with a
     work in circulation, so never more rows than works, and an artist's row is a
-    name and a count. At the NFR's thousands of works that is a few hundred rows.
+    name, a count and one work id. At the NFR's thousands of works that is a few
+    hundred rows.
     If it is ever paged, the typeahead's `q` lookup is the caller that needs it.
     """
     return ArtistListOut(artists=[_held_artist(entry) for entry in _services(request).artists.index(q)])

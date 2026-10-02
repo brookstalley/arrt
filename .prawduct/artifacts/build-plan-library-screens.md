@@ -234,7 +234,7 @@ screenshots; an operator-verification entry.
 
 **Visual change:** yes
 
-- `identityControl` (`core/identity.js`, used on the Artist and Work pages) at
+- `identityControl` (`arrt/src/arrt/http/static/core/identity.js`, used on the Artist and Work pages) at
   rest shows the current identity and one quiet *Edit*. *Edit* reveals the Q…
   field, *Look up* and *There is none* together. The handoff's carried wording
   note on `identity.js` lands here.

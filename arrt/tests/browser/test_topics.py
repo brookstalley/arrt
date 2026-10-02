@@ -211,6 +211,55 @@ class TestTheIndex:
             ui.page.locator("section[aria-labelledby='topics-movement'] p").inner_text() == "None of your works is in a movement."
         )
 
+    @staticmethod
+    def thirty_subjects(ui):
+        subjects = [{"qid": f"Q{1000 + n}", "label": f"subject number {n:02d}", "works": n % 4 + 1} for n in range(30)]
+        ui.serve(
+            "**/api/topics",
+            {
+                "state": "known",
+                "note": None,
+                "kinds": [
+                    {"kind": "period", "topics": []},
+                    {"kind": "movement", "topics": []},
+                    {"kind": "subject", "topics": subjects},
+                    {"kind": "medium", "topics": []},
+                ],
+            },
+        )
+
+    def test_a_kind_of_thirty_takes_a_third_of_the_height_it_would_in_one_column(self, ui):
+        """The owner's ruling on #175: columns, by name, so a long kind uses the width."""
+        self.thirty_subjects(ui)
+        ui.page.set_viewport_size({"width": 1280, "height": 900})
+        ui.open("#topics")
+        ui.page.wait_for_selector("section[aria-labelledby='topics-subject'] li")
+
+        heights = ui.page.evaluate("""() => {
+            const list = document.querySelector("section[aria-labelledby='topics-subject'] ul");
+            const columned = list.getBoundingClientRect().height;
+            list.style.columns = "auto";
+            const single = list.getBoundingClientRect().height;
+            list.style.columns = "";
+            return { columned, single };
+        }""")
+        assert heights["columned"] <= heights["single"] / 3
+        # Each count stays beside its name.
+        first = ui.page.locator("section[aria-labelledby='topics-subject'] li").first.inner_text()
+        assert " ".join(first.split()) == "subject number 00 · 1 work"
+
+    def test_on_a_phone_a_kind_is_one_column(self, ui):
+        self.thirty_subjects(ui)
+        ui.page.set_viewport_size({"width": 390, "height": 844})
+        ui.open("#topics")
+        ui.page.wait_for_selector("section[aria-labelledby='topics-subject'] li")
+
+        lefts = ui.page.evaluate(
+            "() => [...document.querySelectorAll(\"section[aria-labelledby='topics-subject'] li\")]"
+            ".map((li) => Math.round(li.getBoundingClientRect().left))"
+        )
+        assert len(set(lefts)) == 1
+
     def test_a_topic_opens_its_page(self, ui, held):
         ui.open("#topics")
         ui.page.click("section[aria-labelledby='topics-period'] button:text-is('16th century')")
