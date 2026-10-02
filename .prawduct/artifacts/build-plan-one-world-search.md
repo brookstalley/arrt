@@ -101,7 +101,7 @@ the registry's behaviour is measured for three queries, not proven.
 
 - [x] Chunk 01: External text is shown as text
 - [x] Chunk 02: Pages for works and artists the library does not hold
-- [ ] Chunk 03: The typeahead shows one world
+- [x] Chunk 03: The typeahead shows one world
 - [ ] Chunk 04: The search results page
 - [ ] Chunk 05: Similar artists, and setting a QID by hand
 
@@ -264,6 +264,15 @@ first, then works, each with its state. If the query names one artist, that
 artist is the top result. Nothing on the page spends. When the registry has
 nothing, the page says so and offers *Search museums* (Ask replaces it in plan
 2). Reached by the dropdown's last row, *All results for "{query}"*. Enter still opens Artworks filtered to the query (ruled 2026-09-30, kept 2026-10-01).
+
+*(Built 2026-10-01. The registry search gained `wide` (10 artists, 20 works,
+remembered apart) for this page. *In your library* asks Wikidata nothing; the
+first version asked anyway, and a browser test caught it. The state mark moved
+into `core/registry.js`, so the dropdown and this page share it. A guard that
+every non-detail screen answers a real path for a reload failed on `/search`
+until the server served it. On the copy of the catalogue at both widths,
+`rothko` and `salvador dali` each put the artist first and `hunters` led with
+Bruegel; no errors, nothing wider than the screen.)*
 
 **Done when:**
 1. The 2026-10-01 answer is recorded in `information-architecture.md`, as a

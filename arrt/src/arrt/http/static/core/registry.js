@@ -83,3 +83,13 @@ export function workState(work) {
   }
   return el("span", { class: "muted", text: "—" });
 }
+
+/* A state as a badge: glyph, word and the badge's colour, in that order, as
+ * every state mark here carries one (`accessibility-spec.md`). `kind` is the
+ * badge class: `badge-held`, `badge-image-found` or `badge-not-held`. */
+export function stateBadge(kind, glyph, words) {
+  return el("span", { class: `badge ${kind} state-mark` }, [
+    el("span", { class: "glyph", text: glyph, "aria-hidden": true }),
+    el("span", { text: words }),
+  ]);
+}

@@ -158,6 +158,13 @@ function inherited(view, detailId) {
   return from && from !== defaultReturn(view) ? { from } : {};
 }
 
+/* What a contextual screen opened with parameters of its own must still carry:
+ * its opener. `go` with parameters uses exactly those, so a caller that has a
+ * query to pass and a return path to keep merges this in. */
+export function openedFrom(view, detailId = null) {
+  return inherited(view, detailId);
+}
+
 export function go(view, detailId = null, params = null) {
   const entry = table[view];
   const next = params === null ? inherited(view, detailId) : params;

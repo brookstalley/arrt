@@ -13,9 +13,9 @@
  */
 
 import { api } from "./api.js";
-import { named } from "./registry.js";
+import { named, stateBadge } from "./registry.js";
 import { el } from "./render.js";
-import { go } from "./router.js";
+import { go, openedFrom } from "./router.js";
 import { state } from "./state.js";
 
 /* The field shows the search that is currently in the address bar.
@@ -52,7 +52,7 @@ const THEMES_SHOWN = 3;
 const REGISTRY_SHORTEST = 3;
 
 /* Case and accents, ignored, as the library's search ignores them. */
-function fold(text) {
+export function fold(text) {
   return text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 }
 
@@ -179,7 +179,11 @@ function installSuggestions(field) {
     const museums = option("suggestion-museums", `Search museums for “${query}”`, () =>
       go("discover", null, { term: query }),
     );
-    options = [...people, ...held, ...matchedThemes, ...theirPeople, ...theirWorks, museums];
+    // The dropdown's last row: every match on a page of its own. Enter keeps
+    // opening Artworks filtered (the owner, 2026-10-01), so this is how the
+    // results page is reached.
+    const everything = option("suggestion-all-results", `All results for “${query}”`, () => go("search", null, { ...openedFrom("search"), q: query }));
+    options = [...people, ...held, ...matchedThemes, ...theirPeople, ...theirWorks, museums, everything];
     // A lookup that failed is not a library with no matches, and must not read as
     // one: the row below it spends money, on a work the curator may already own.
     const unsearched = failed
@@ -208,6 +212,7 @@ function installSuggestions(field) {
       // Named for the page the row opens, as Sonarr names its group "Add New
       // Series": the *arr precedent decides what things are called here.
       group("suggestions-add-new", "Add New", [museums]),
+      group("suggestions-all-results", "Search", [everything]),
     );
     list.hidden = false;
     field.setAttribute("aria-expanded", "true");
@@ -349,11 +354,4 @@ function registryWorkRow(work) {
       ? stateBadge("badge-image-found", "◐", "Image found")
       : stateBadge("badge-not-held", "○", "Not held");
   return [`${named(work.title, work.qid)}${maker}`, badge];
-}
-
-function stateBadge(kind, glyph, words) {
-  return el("span", { class: `badge ${kind} search-suggestions-state` }, [
-    el("span", { class: "glyph", text: glyph, "aria-hidden": true }),
-    el("span", { text: words }),
-  ]);
 }

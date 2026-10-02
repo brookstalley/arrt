@@ -142,3 +142,14 @@ class TestWithNoRegistryConfigured:
 
         assert found["state"] == "not_configured"
         assert "only your library is searched" in found["note"]
+
+
+def test_a_wide_search_asks_for_the_results_pages_longer_list_and_is_remembered_apart(http, registry):
+    registry.people["dali"] = [RegistryPerson(qid=f"Q{n}", label=f"Dalí {n}") for n in range(1, 13)]
+
+    narrow = _search(http, "dali")
+    wide = _search(http, "dali", wide="true")
+
+    assert (len(narrow["artists"]), len(wide["artists"])) == (3, 10)
+    assert registry.matched == [("dali", False), ("dali", False)]
+    assert registry.limits == [5, 20]

@@ -42,6 +42,11 @@ SHORTEST: Final[int] = 3
 ARTISTS_FOUND: Final[int] = 3
 WORKS_FOUND: Final[int] = 5
 
+#: How many of each a `wide` search returns, for the results page: a page to
+#: read down rather than a dropdown to pick from.
+ARTISTS_FOUND_WIDE: Final[int] = 10
+WORKS_FOUND_WIDE: Final[int] = 20
+
 #: How many queries' answers are remembered. A curator's typing produces one per
 #: pause, so this is hours of searching.
 _REMEMBERED: Final[int] = 512
@@ -84,13 +89,17 @@ class RegistrySearchService:
     def __init__(self, store: CatalogueStore, registry: Registry | None) -> None:
         self._store = store
         self._registry = registry
-        self._remembered: OrderedDict[tuple[str, bool], tuple[Sequence[RegistryPerson], Sequence[RegistryWorkMatch]]] = (
+        self._remembered: OrderedDict[tuple[str, bool, bool], tuple[Sequence[RegistryPerson], Sequence[RegistryWorkMatch]]] = (
             OrderedDict()
         )
         self._lock = threading.Lock()
 
-    def search(self, query: str, *, prefix: bool) -> RegistrySearch:
-        """The registry's artists and works for `query`; `prefix` reads its last word as the start of one."""
+    def search(self, query: str, *, prefix: bool, wide: bool = False) -> RegistrySearch:
+        """The registry's artists and works for `query`.
+
+        `prefix` reads its last word as the start of one; `wide` returns the
+        results page's longer lists rather than the typeahead's.
+        """
         words = _WORDS.findall(query)
         if sum(len(word) for word in words) < SHORTEST:
             return RegistrySearch(state=RegistrySearchState.TOO_SHORT)
@@ -103,7 +112,7 @@ class RegistrySearchService:
                 ),
             )
         try:
-            artists, works = self._found(words, prefix, self._registry)
+            artists, works = self._found(words, prefix, wide, self._registry)
         except RegistryUnavailable as exc:
             log.warning("Could not search Wikidata for %r: %s", query, exc)
             return RegistrySearch(state=RegistrySearchState.UNAVAILABLE, note="Wikidata could not be searched just now.")
@@ -118,9 +127,10 @@ class RegistrySearchService:
         )
 
     def _found(
-        self, words: Sequence[str], prefix: bool, registry: Registry
+        self, words: Sequence[str], prefix: bool, wide: bool, registry: Registry
     ) -> tuple[Sequence[RegistryPerson], Sequence[RegistryWorkMatch]]:
-        key = (search_fold(" ".join(words)), prefix)
+        key = (search_fold(" ".join(words)), prefix, wide)
+        artists_found, works_found = (ARTISTS_FOUND_WIDE, WORKS_FOUND_WIDE) if wide else (ARTISTS_FOUND, WORKS_FOUND)
         with self._lock:
             if key in self._remembered:
                 self._remembered.move_to_end(key)
@@ -128,8 +138,8 @@ class RegistrySearchService:
         # Asked outside the lock, and both at once: see the module's note.
         with ThreadPoolExecutor(max_workers=2) as pool:
             people = pool.submit(registry.people_named, " ".join(words))
-            matching = pool.submit(registry.works_matching, words, prefix=prefix, limit=WORKS_FOUND)
-            found = (tuple(people.result())[:ARTISTS_FOUND], tuple(matching.result()))
+            matching = pool.submit(registry.works_matching, words, prefix=prefix, limit=works_found)
+            found = (tuple(people.result())[:artists_found], tuple(matching.result()))
         with self._lock:
             self._remembered[key] = found
             while len(self._remembered) > _REMEMBERED:

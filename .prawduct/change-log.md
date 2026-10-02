@@ -66,6 +66,26 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-01: A results page for everything a search finds
+
+<!-- prawduct: chunks=04 | scope=one-world-search -->
+
+**Why:** ruling 2, one world. The dropdown shows a few of each kind; a curator
+reading what exists needs the whole list. The owner kept Enter on Artworks on
+2026-10-01, so the page is reached from the dropdown's new last row.
+
+**What:** `#search?q=` (served at `/search` too), a contextual page. The library's
+artists and works are drawn first, then Wikidata's that are not already shown,
+each marked ● *In your library*, ◐ *Image found* or ○ *Not held*. *All*, *In your
+library* and *Not held* narrow it, and only the first and last ask Wikidata. When
+the words name exactly one artist, that artist leads as the top result. When
+Wikidata has nothing, the page says so and offers *Search museums* (filled in,
+not started). The library's matches open in Artworks from a link. The registry
+search gains `wide` for the page's longer lists. The dropdown's last row, *All
+results for "…"*, opens it. Seven assertions in two typeahead tests now expect
+that row, one of them rewritten to count the library group directly. The screen
+tables, `SCREEN_NAMES` and the Contextual sentence carry the new screen.
+
 ## 2026-10-01: The search box covers Wikidata too
 
 <!-- prawduct: chunks=03 | scope=one-world-search -->

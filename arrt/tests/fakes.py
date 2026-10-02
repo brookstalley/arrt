@@ -422,6 +422,7 @@ class FakeRegistry:
         #: `works_matching` answers; anything else finds nothing.
         self.matches = matches or {}
         self.matched: list[tuple[str, bool]] = []
+        self.limits: list[int] = []
         self.failing = failing
         self.searched: list[str] = []
         self.asked_about: list[str] = []
@@ -456,6 +457,7 @@ class FakeRegistry:
     def works_matching(self, words, *, prefix, limit):
         self._check()
         self.matched.append((" ".join(words), prefix))
+        self.limits.append(limit)
         return self.matches.get(" ".join(words), [])[:limit]
 
     def work(self, qid):

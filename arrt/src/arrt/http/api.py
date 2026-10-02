@@ -294,15 +294,19 @@ def get_registry_artist(request: Request, qid: str) -> ArtistRegistryOut:
 
 @router.get("/registry/search")
 def search_registry(
-    request: Request, q: Annotated[str, Query()] = "", prefix: Annotated[bool, Query()] = False
+    request: Request,
+    q: Annotated[str, Query()] = "",
+    prefix: Annotated[bool, Query()] = False,
+    wide: Annotated[bool, Query()] = False,
 ) -> RegistrySearchOut:
     """Wikidata's artists and works for a few typed words, the other half of the top-bar search.
 
     `prefix=true` reads the last word as the start of one, as the typeahead does
-    mid-word. Always a 200: `state` says whether anything was asked and what the
-    registry did. Remembered per query; a failure is not.
+    mid-word; `wide=true` returns the results page's longer lists. Always a 200:
+    `state` says whether anything was asked and what the registry did.
+    Remembered per query; a failure is not.
     """
-    found = _services(request).registry_search.search(q, prefix=prefix)
+    found = _services(request).registry_search.search(q, prefix=prefix, wide=wide)
     held_artists, held_works = found.held_artists, found.held_works
     return RegistrySearchOut(
         state=str(found.state),

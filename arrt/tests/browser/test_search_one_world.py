@@ -101,6 +101,7 @@ def test_wikidata_follows_the_library_and_shows_nothing_twice(ui, matched):
         "The Burning Giraffe — Salvador Dalí ◐ Image found",
         "Crucifixion — Salvador Dalí ○ Not held",
         "Search museums for “dali”",
+        "All results for “dali”",
     ]
     listbox = ui.page.get_by_role("listbox", name="Suggestions")
     assert listbox.get_by_role("group", name="Wikidata: artists").get_by_role("option").count() == 1

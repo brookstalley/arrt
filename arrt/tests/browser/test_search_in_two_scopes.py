@@ -40,6 +40,7 @@ def test_typing_offers_library_matches_then_a_search_of_everything(ui, seeded_se
         "Salvador Dalí — artist",
         "The Persistence of Memory — Salvador Dalí",
         "Search museums for “Dalí”",
+        "All results for “Dalí”",
     ]
     # The groups are named through `aria-labelledby`, so a screen reader says
     # which scope an option is in: asserted by role and accessible name, which
@@ -58,7 +59,12 @@ def test_typing_without_the_accent_still_offers_the_library_match(ui, seeded_ser
 
     type_into_search(ui, "dali")
 
-    assert options(ui) == ["Salvador Dalí — artist", "The Persistence of Memory — Salvador Dalí", "Search museums for “dali”"]
+    assert options(ui) == [
+        "Salvador Dalí — artist",
+        "The Persistence of Memory — Salvador Dalí",
+        "Search museums for “dali”",
+        "All results for “dali”",
+    ]
 
 
 def test_with_no_library_match_only_the_search_of_everything_is_offered(ui, seeded_service):
@@ -69,7 +75,7 @@ def test_with_no_library_match_only_the_search_of_everything_is_offered(ui, seed
 
     type_into_search(ui, "Vermeer")
 
-    assert options(ui) == ["Search museums for “Vermeer”"]
+    assert options(ui) == ["Search museums for “Vermeer”", "All results for “Vermeer”"]
     assert ui.page.locator(f"{LISTBOX} .search-suggestions-label", has_text="library").count() == 0
 
 
@@ -115,7 +121,7 @@ def test_a_failed_artist_lookup_keeps_the_work_matches(ui, seeded_service):
 
     type_into_search(ui, "dali")
 
-    assert options(ui) == ["The Persistence of Memory — Salvador Dalí", "Search museums for “dali”"]
+    assert options(ui) == ["The Persistence of Memory — Salvador Dalí", "Search museums for “dali”", "All results for “dali”"]
     assert ui.page.locator(".search-suggestions-note").count() == 0
 
 
@@ -162,7 +168,10 @@ def test_enter_with_several_matches_opens_artworks_filtered_not_the_first(ui, se
     ui.page.wait_for_selector("#view h2")
 
     type_into_search(ui, "the")
-    assert len(options(ui)) == 3, "the fixture must match more than one work, or this cannot tell first from all"
+    library = ui.page.get_by_role("listbox", name="Suggestions").get_by_role("group", name="In your library")
+    assert (
+        library.get_by_role("option").count() == 2
+    ), "the fixture must match more than one work, or this cannot tell first from all"
     ui.page.keyboard.press("Enter")
 
     ui.page.wait_for_selector("#view h2:has-text('matching')")
@@ -196,7 +205,7 @@ def test_a_failed_library_lookup_still_offers_the_search_of_everything(ui, seede
 
     # The artist lookup is a separate request and answered, so the artist is still
     # offered; only the works could not be searched, and the dropdown says so.
-    assert options(ui) == ["Salvador Dalí — artist", "Search museums for “Dalí”"]
+    assert options(ui) == ["Salvador Dalí — artist", "Search museums for “Dalí”", "All results for “Dalí”"]
     assert "could not be searched" in ui.page.inner_text(LISTBOX)
 
 

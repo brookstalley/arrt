@@ -229,6 +229,31 @@ label (Q16682090, from a query). One query each, 0.24–0.49 s:
 - **A work with no readable title** shows its QID as the label, as on the Artist
   page, and is shown there as *No English title (Q…)*.
 
+**Similar artists with the occupation filter (Chunk 05's verify-api, 2026-10-01).**
+People sharing a movement, whose occupation is under *visual artist* (Q3391743, as
+`people_named` uses), ranked by sitelinks, with a second query counting each
+one's works that have an image (`P170` and `P18`):
+
+| Artist | Time (second run) | Top of the list, with works having an image |
+|---|---|---|
+| Renoir | 7.4 s, then 0.4 s for images | Matisse 507, Monet 1,286, Gauguin 739, Degas 649, Manet 443, Cassatt 255 |
+| Rothko | 2.2 s, then 0.4 s | Pollock 0, Bourgeois 7, de Kooning 3, Appel 8, Gorky 35, Captain Beefheart 0 |
+| Dalí | 5.2 s, then 0.5 s | Picasso 14, Kahlo 1, Miró 25, David Lynch 1, Klee 525, Buñuel 2, Breton 0 |
+| van Gogh | 4.3 s, then 0.4 s | Picasso 14, Matisse 507, Bhumibol Adulyadej 0, Cézanne 808, Gauguin 739, Munch 1,963 |
+
+- **The filter drops Octave Mirbeau and keeps everyone Wikidata also calls a
+  painter**: André Breton, Tristan Tzara and Paul Éluard for Dalí, Captain
+  Beefheart for Rothko, and the King of Thailand for van Gogh. Each has a
+  painter-like occupation recorded. No filter tried removes them without losing
+  real painters.
+- **Requiring an image would be wrong.** Pollock has none (in copyright) and is
+  Rothko's first. The count is shown instead, as `ia-proposal.md` § Artist asks,
+  so a curator sees that nobody can supply a Pollock before committing to him.
+- **Ranking by sitelinks first** keeps the obscure out of the top, as the earlier
+  table found.
+- **2 to 7 seconds** is too slow to wait for, so the section is asked after the
+  page is drawn, like *Their work*, and remembered per artist.
+
 A wrong figure that was caught: the first run used Q5432 for Dalí, typed from
 memory. It is another person, with Romanticism and Rococo as movements. Every
 QID above was read from a search result or from this document.

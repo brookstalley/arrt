@@ -10,6 +10,23 @@ each entry, which is the durable form.
 
 ## Pending
 
+### The search results page — added 2026-10-01
+
+**`build-plan-one-world-search.md` Chunk 04.** Reached from the search box's last
+row, *All results for "…"*; Enter still opens Artworks.
+
+Checked by the builder on 2026-10-01, on a copy of your catalogue at 1280 px and
+375 px, with no page errors and nothing wider than the screen: `rothko` led with
+Mark Rothko as the top result, then your two Rothkos (● *In your library*), then
+twenty more from Wikidata; `salvador dali` the same for Dalí; `hunters` led with
+*The Hunters in the Snow*. For you:
+
+1. **Is the row the right way in?** You kept Enter on Artworks; this page is one
+   arrow-key and Enter away. Is that enough, or should it be more visible?
+2. **The three views.** Do *All*, *In your library* and *Not held* answer "do I
+   have it?" and "what exists?" without making you scroll?
+3. **The top result** appears only when the words name exactly one artist.
+
 ### The search box covers Wikidata too — added 2026-10-01
 
 **`build-plan-one-world-search.md` Chunk 03.** Needs `WIKIDATA_USER_AGENT` set.
