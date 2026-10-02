@@ -1263,6 +1263,39 @@ class WantWork(BaseModel):
     turning_down: str | None = None
 
 
+class WorkMatchOut(BaseModel):
+    """One Wikidata item matching a wanted work's title, for the curator to pick from.
+
+    Registry text, shown as text. `has_image` says whether Commons holds a file
+    for it, which is what a re-search by this item could find.
+    """
+
+    qid: str
+    title: str
+    creator: str | None
+    sitelinks: int
+    has_image: bool
+    #: Whether its creator is the artist the run proposed: what puts it first.
+    by_proposed_artist: bool
+
+
+class WorkMatchesOut(BaseModel):
+    """Wikidata's items for a wanted work, and why there are or are not any."""
+
+    work_id: str
+    title: str
+    #: `known`, `not_configured` (no `WIKIDATA_USER_AGENT`) or `unavailable`.
+    state: str
+    note: str | None
+    matches: list[WorkMatchOut]
+
+
+class PickItem(BaseModel):
+    """The Wikidata item the curator picked for a wanted work."""
+
+    qid: str
+
+
 class WantedWorkOut(BaseModel):
     """A work the curator wants and holds no scan of they would accept.
 

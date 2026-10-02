@@ -76,6 +76,7 @@ from arrt.http.models import (
     MatColorOut,
     MoveWork,
     OriginalOut,
+    PickItem,
     PlayerTokenOut,
     QueuedWorkOut,
     QueuePauseOut,
@@ -134,6 +135,8 @@ from arrt.http.models import (
     WantWork,
     WorkDetailOut,
     WorkFacetOut,
+    WorkMatchesOut,
+    WorkMatchOut,
     WorkOut,
     WorkPageOut,
 )
@@ -1078,6 +1081,35 @@ def want_candidate(request: Request, work_id: str, body: WantWork) -> CandidateW
 def list_wanted(request: Request) -> WantedListingOut:
     """Every work the curator wants, across runs, newest run first."""
     return WantedListingOut(works=[_wanted_work(entry) for entry in _services(request).discovery.list_wanted()])
+
+
+@router.get("/candidates/{work_id}/wikidata-matches")
+def wikidata_matches(request: Request, work_id: str) -> WorkMatchesOut:
+    """Wikidata's items matching a wanted work's title, the proposed artist's first. Stores nothing."""
+    found = _services(request).wikidata_match.matches(work_id)
+    return WorkMatchesOut(
+        work_id=found.work.id,
+        title=found.work.proposed_title,
+        state=str(found.state),
+        note=found.note,
+        matches=[
+            WorkMatchOut(
+                qid=str(entry.match.qid),
+                title=str(entry.match.title),
+                creator=None if entry.match.creator is None else str(entry.match.creator.name),
+                sitelinks=entry.match.sitelinks,
+                has_image=entry.match.image is not None,
+                by_proposed_artist=entry.by_proposed_artist,
+            )
+            for entry in found.matches
+        ],
+    )
+
+
+@router.put("/candidates/{work_id}/wikidata-item")
+def pick_wikidata_item(request: Request, work_id: str, body: PickItem) -> CandidateWorkOut:
+    """Record the item the curator picked; a re-search then asks Commons by it."""
+    return _candidate_work(_services(request).wikidata_match.pick(work_id, body.qid))
 
 
 @router.post("/candidate-images/{image_id}/select")

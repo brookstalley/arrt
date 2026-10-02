@@ -79,6 +79,7 @@ from arrt.library.services.taste import TasteService
 from arrt.library.services.thumbnails import ThumbnailService, ThumbnailSettings
 from arrt.library.services.topic_sweep import TopicSweep
 from arrt.library.services.topics import TopicService
+from arrt.library.services.wikidata_match import WikidataMatchService
 from arrt.persistence.backup import BACKUP_RECEIPT_FILENAME
 from arrt.persistence.catalogue import CatalogueStore
 from arrt.persistence.discovery import DiscoveryStore
@@ -196,6 +197,9 @@ class Services:
     #: registry, like `sweep`; without one it does nothing, and the application
     #: says so once when it would have started it.
     topic_sweep: TopicSweep
+    #: Wikidata's items for a wanted work, for the curator to pick from. Over the
+    #: same registry as `identity`; says it is off without one.
+    wikidata_match: WikidataMatchService
 
     @classmethod
     def bind(
@@ -392,6 +396,7 @@ class Services:
             get=GetService(store=catalogue, discovery=discovery_service, runner=runner_service, registry=registry),
             topics=TopicService(catalogue, registry, kept=kept),
             topic_sweep=topic_sweep,
+            wikidata_match=WikidataMatchService(discovery_service, registry),
         )
 
     def reconcile(self) -> None:

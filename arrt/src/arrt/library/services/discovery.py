@@ -39,6 +39,7 @@ from arrt.library.discovery.dedup import clean_name, work_dedup_key
 from arrt.library.services import attribution, selection
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.display_fit import ArtworkBox, DisplayFit, assess_display_fit
+from arrt.library.services.remembered import checked_qid
 from arrt.persistence.discovery import DiscoveryStore
 from arrt.persistence.discovery_records import (
     CandidateImage,
@@ -1041,6 +1042,31 @@ class DiscoveryService:
             forgotten = replace(image, preview_path=None)
             store_write(self._store.update_candidate_image, forgotten)
         return forgotten
+
+    def set_wikidata_item(self, candidate_work_id: str, qid: str) -> CandidateWork:
+        """Record the Wikidata item the curator picked for a work still under review.
+
+        The curator's pick, never a match: `data-model.md` § Registry identity
+        forbids matching a work by title, and the QID set here becomes the
+        artwork's at acceptance, recorded as the curator's (`_accept`). A re-search
+        then asks Commons by it. Refused on a decided work, whose identity is the
+        catalogue's to change now (`IdentityService.set_work_identity`).
+        """
+        checked = checked_qid(qid)
+        with self._store.transaction():
+            work = self.get_candidate_work(candidate_work_id)
+            if work.verdict.is_terminal:
+                raise ServiceError(
+                    f"Candidate work {candidate_work_id!r} was already {work.verdict}; "
+                    "an accepted work's Wikidata item is changed on its Work page."
+                )
+            picked = replace(work, wikidata_qid=checked)
+            store_write(self._store.update_candidate_work, picked)
+        log.info(
+            "a wanted work's Wikidata item was picked",
+            extra={"event": "wanted.item_picked", "work_id": candidate_work_id, "qid": checked},
+        )
+        return picked
 
     def want(self, candidate_work_id: str, *, turning_down: str | None = None) -> CandidateWork:
         """Record that the curator wants this work and holds no scan of it they would accept.

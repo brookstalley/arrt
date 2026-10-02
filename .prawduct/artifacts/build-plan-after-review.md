@@ -346,6 +346,17 @@ Done when: 0. verify-api: run `works_matching` live on the seven Dalí works and
 `wikidata-findings.md`; tests against a double built from that answer; suites
 green; Critic.
 
+**Built 2026-10-02.** verify-api ran live: the seven no-scan Dalí works
+(*Lobster Telephone* among them) answered as recorded in `wikidata-findings.md`
+§ Matching a wanted work. It changed the design in one place: the search is the
+title **with the artist's name** first, the title alone only when that finds
+nothing, because the title alone missed the Dalí *Mountain Lake* entirely. The
+service is `WikidataMatchService` (new module) rather than a method on
+`DiscoveryService`, since it needs the registry and discovery does not hold one;
+the write stays in `DiscoveryService.set_wikidata_item`. Pictures in the picker:
+none in this chunk; each match says `has_image`, and Chunk 05 links it to the
+registry Work page (`#work/Q…`), which shows Wikidata's picture.
+
 ### Chunk 05: Want and Forget on the card, and Activity › Wanted
 
 **Visual change:** yes

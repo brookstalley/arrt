@@ -62,6 +62,33 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-02: A wanted work's Wikidata item, picked by the curator
+
+<!-- prawduct: scope=after-review -->
+
+**Why:** a re-search asks Commons only by Wikidata item, and works an Ask run
+proposed carry none, so Search again could never find their Commons scans
+(#168 requirement 3). `data-model.md` § Registry identity forbids matching a work
+by title, so the owner chose a picker: the registry offers, the curator picks.
+
+**What:**
+- **Measured first** (`wikidata-findings.md` § Matching a wanted work): on the
+  seven Dalí works with no scan, the title alone put the right item first for
+  six; adding the artist's name found the seventh (*Mountain Lake*, Q28555476);
+  two titles have two Dalí items each.
+- **`WikidataMatchService`** (`library/services/wikidata_match.py`) searches the
+  title with the artist's name, then the title alone, lists the proposed
+  artist's matches first, and stores nothing. **`DiscoveryService.set_wikidata_item`**
+  records the curator's pick, refused on a decided work or a non-item; at
+  acceptance it becomes the artwork's QID, set by the curator.
+- **HTTP** `GET /api/candidates/{id}/wikidata-matches` and
+  `PUT /api/candidates/{id}/wikidata-item`; **MCP** `art_review` gains
+  `wikidata_matches` and `set_wikidata_item` (additive). The browser's picker is
+  Chunk 05's.
+- Tests: eleven unit tests over a fake registry built from the live answers, the
+  routes and MCP actions against a real server, a field-name parity check; six
+  re-breaks caught.
+
 ## 2026-10-02: Where an accepted work's image stands, on every screen that shows the work
 
 <!-- prawduct: scope=after-review -->

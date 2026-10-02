@@ -402,3 +402,16 @@ def test_a_held_work_is_reported_as_held_on_every_surface():
     assert http_api._candidate_card(view).held_artwork_id == "aw_7"
     assert bindings._candidate_summary(view, bindings._Pictures())["held_artwork_id"] == "aw_7"
     assert bindings._candidate_detail(view, bindings._Pictures())["held_artwork_id"] == "aw_7"
+
+
+def test_the_wikidata_match_projections_carry_the_same_field_names():
+    """The browser's picker and `art_review(action='wikidata_matches')` read one listing."""
+    from arrt.library.registry import ItemId, RegistryText, RegistryWorkMatch
+    from arrt.library.services.wikidata_match import WorkMatch
+
+    entry = WorkMatch(
+        match=RegistryWorkMatch(qid=ItemId("Q2990594"), title=RegistryText("Lobster Telephone"), sitelinks=13),
+        by_proposed_artist=True,
+    )
+
+    check_parity("WorkMatch", set(bindings._match_fields(entry)), _fields(http_models.WorkMatchOut))

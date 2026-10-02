@@ -141,6 +141,8 @@ async def test_help_reports_exactly_the_actions_a_tool_actually_serves(server_ur
         "set_verdict",
         "want",
         "list_wanted",
+        "wikidata_matches",
+        "set_wikidata_item",
         "reject_image",
         "help",
     ]

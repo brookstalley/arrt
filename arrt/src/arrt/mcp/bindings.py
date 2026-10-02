@@ -33,6 +33,7 @@ from arrt.library.services.previews import InlinePreview
 from arrt.library.services.review import MAX_REVIEW_LIMIT, CandidatePage, CandidateView, InstanceListing, InstanceView
 from arrt.library.services.runner import RunListing, RunView
 from arrt.library.services.taste import AffinityView
+from arrt.library.services.wikidata_match import WorkMatch
 from arrt.mcp.envelope import ImageBlock, ok, with_images
 from arrt.mcp.registry import HELP_ACTION, RegistryError
 from arrt.mcp.tools import TOOLS
@@ -728,6 +729,35 @@ def _list_wanted(services: Services, arguments: Mapping[str, Any]) -> dict[str, 
     return ok(works=works, count=len(works))
 
 
+def _wikidata_matches(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    found = services.wikidata_match.matches(arguments["work_id"])
+    return ok(
+        work_id=found.work.id,
+        title=found.work.proposed_title,
+        state=str(found.state),
+        note=found.note,
+        matches=[_match_fields(entry) for entry in found.matches],
+    )
+
+
+def _match_fields(entry: WorkMatch) -> dict[str, Any]:
+    """One registry item for a wanted work, named as `WorkMatchOut` names it (`test_surface_parity.py`)."""
+    match = entry.match
+    return {
+        "qid": str(match.qid),
+        "title": str(match.title),
+        "creator": None if match.creator is None else str(match.creator.name),
+        "sitelinks": match.sitelinks,
+        "has_image": match.image is not None,
+        "by_proposed_artist": entry.by_proposed_artist,
+    }
+
+
+def _set_wikidata_item(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    work = services.wikidata_match.pick(arguments["work_id"], arguments["qid"])
+    return ok(work=_work_summary(work), wikidata_qid=work.wikidata_qid)
+
+
 def _wanted_fields(entry: WantedWork) -> dict[str, Any]:
     """One wanted work, named as `WantedWorkOut` names it (`test_surface_parity.py`)."""
     return {
@@ -940,6 +970,8 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_review", "list_images"): _list_candidate_images,
     ("art_review", "set_canonical"): _set_canonical,
     ("art_review", "set_verdict"): _set_verdict,
+    ("art_review", "wikidata_matches"): _wikidata_matches,
+    ("art_review", "set_wikidata_item"): _set_wikidata_item,
     ("art_review", "reject_image"): _reject_image,
     ("art_review", "want"): _want,
     ("art_review", "list_wanted"): _list_wanted,

@@ -780,6 +780,26 @@ ART_REVIEW: Final = ToolRecord(
             ),
         ),
         Action(
+            name="wikidata_matches",
+            description="List Wikidata's items matching a work's title, the proposed artist's first, to pick from.",
+            example="art_review(action='wikidata_matches', work_id='<a work_id from action=list_wanted>')",
+            params=(_WORK_ID,),
+            tips=(
+                "Nothing is stored: a work is never matched by title alone. Pick one with action='set_wikidata_item'.",
+                "A re-search asks Commons only by item, so a wanted work with no item finds no Commons scan.",
+            ),
+        ),
+        Action(
+            name="set_wikidata_item",
+            description="Record the Wikidata item you picked for a work still under review.",
+            example="art_review(action='set_wikidata_item', work_id='<a work_id>', qid='Q2990594')",
+            params=(
+                _WORK_ID,
+                Param(name="qid", type="string", description="The item, as Q followed by digits.", required=True),
+            ),
+            tips=("It becomes the artwork's item, as yours, if the work is accepted.",),
+        ),
+        Action(
             name="reject_image",
             description="Turn down one scan. Turning down the scan on offer makes the work wanted.",
             example="art_review(action='reject_image', image_id='<an image_id from action=list_images>')",
