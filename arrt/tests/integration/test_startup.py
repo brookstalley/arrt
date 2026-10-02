@@ -13,6 +13,7 @@ from dataclasses import replace
 from decimal import Decimal
 
 import pytest
+from fakes import FakeRegistry
 
 import arrt.__main__ as entry_point
 from arrt.art_root import MARKER_NAME, ArtRootError
@@ -49,6 +50,8 @@ from arrt.config import (
 )
 from arrt.library.discovery.phase_one import OpenRouterEngine
 from arrt.library.facade import LibraryFacade
+from arrt.library.registry import RegistrySimilar
+from arrt.library.services.artists import RegistryState
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.discovery import DiscoveryService
 from arrt.persistence.file import open_catalogue_file
@@ -594,3 +597,33 @@ def test_startup_with_no_image_source_says_which_settings_would_add_one(tmp_path
         entry_point.main()
 
     assert "phase2 image_sources=none (ARTIC_USER_AGENT and WIKIDATA_USER_AGENT unset) previews=disabled" in caplog.text
+
+
+def test_the_registry_pages_answer_from_what_the_last_process_kept(tmp_path, monkeypatch):
+    """The kept answers file is opened by `main` and reaches the registry pages.
+
+    Two processes over one art root: the first is asked about an artist's
+    similar artists with the registry up, the second with it down. Every
+    service test passes a file of its own, so without this a `main` that
+    wired none would leave every page keeping answers for the process alone.
+    """
+    art_root = tmp_path / "art"
+    _stub_settings(monkeypatch, art_root)
+    rembrandt = RegistrySimilar(qid="Q5598", name="Rembrandt", sitelinks=200, images=900)
+    answered: list = []
+
+    def run(registry) -> None:
+        def capture(services, **kwargs):  # noqa: ANN001, ANN003 - the real signature
+            answered.append(services.artists.similar("Q43270"))
+            return object()
+
+        monkeypatch.setattr(entry_point, "_registry", lambda settings: registry)
+        monkeypatch.setattr(entry_point, "create_app", capture)
+        monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
+        entry_point.main()
+
+    run(FakeRegistry(similar={"Q43270": [rembrandt]}))
+    run(FakeRegistry(failing=True))
+
+    assert [(view.state, view.people) for view in answered] == [(RegistryState.KNOWN, (rembrandt,))] * 2
+    assert (art_root / "kept-answers.sqlite").is_file()

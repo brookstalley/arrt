@@ -81,6 +81,7 @@ from arrt.library.services.topics import TopicService
 from arrt.persistence.backup import BACKUP_RECEIPT_FILENAME
 from arrt.persistence.catalogue import CatalogueStore
 from arrt.persistence.discovery import DiscoveryStore
+from arrt.persistence.kept import KeptAnswers
 from arrt.programming.access import PlayerAccess
 from arrt.programming.display import DisplayService, DisplaySettings
 from arrt.programming.store import ProgrammingStore
@@ -227,6 +228,10 @@ class Services:
         #: client, for the reason `image_sources` has none: a test suite must not
         #: be able to reach a foreign API through a wiring default.
         registry: Registry | None = None,
+        #: Where the registry pages keep answers across restarts. Defaults to
+        #: keeping them for the life of the process, which is a real deployment
+        #: and not a stub: it is what every registry page did before the file.
+        kept: KeptAnswers | None = None,
     ) -> Services:
         """Assemble the services over an already-open file.
 
@@ -241,6 +246,7 @@ class Services:
         one every test that has no business reaching a museum uses.
         """
         catalogue_service = CatalogueService(catalogue, art_root=thumbnails.art_root)
+        kept = kept or KeptAnswers.in_memory()
         # The artwork box reaches discovery for one reason: automatic selection
         # must withhold an instance that would render below the floor, and the
         # floor is a size on the wall rather than a pixel count — so the rule
@@ -365,9 +371,9 @@ class Services:
             # does not.
             taste=TasteService(discovery),
             identity=IdentityService(catalogue, registry, on_changed=topic_sweep.nudge),
-            artists=ArtistService(catalogue, registry),
-            registry_works=RegistryWorkService(catalogue, registry),
-            registry_search=RegistrySearchService(catalogue, registry),
+            artists=ArtistService(catalogue, registry, kept=kept),
+            registry_works=RegistryWorkService(catalogue, registry, kept=kept),
+            registry_search=RegistrySearchService(catalogue, registry, kept=kept),
             get=GetService(store=catalogue, discovery=discovery_service, runner=runner_service, registry=registry),
             topics=TopicService(catalogue, registry),
             topic_sweep=topic_sweep,

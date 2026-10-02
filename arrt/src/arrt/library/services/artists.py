@@ -5,11 +5,11 @@ library holds, which is always answerable, and what Wikidata knows, which may
 not be. They are separate calls so that a registry that is slow, absent or down
 leaves the first half working and says which of those it was.
 
-**What Wikidata lists is capped and remembered.** An artist can have thousands of
+**What Wikidata lists is capped and kept.** An artist can have thousands of
 items there and a query takes seconds (`wikidata-findings.md`), so the page asks
 for the most renowned, says how many more there are, and the answer is kept per
-artist for the life of the process. A failure is not kept, so the next visit asks
-again.
+artist for a week, across restarts (`persistence/kept.py`). A failure is not
+kept, so the next visit asks again.
 
 **An artist the library does not hold has a page too**, addressed by QID: the
 registry half alone, with every listed work still marked *Held* where the
@@ -25,13 +25,15 @@ Dalí was among them: the page that exists to say what is held said it of nothin
 import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from datetime import timedelta
 from enum import StrEnum
 from typing import Final
 
 from arrt.library.registry import Registry, RegistryArtist, RegistrySimilar, RegistryUnavailable
-from arrt.library.services.remembered import NOT_CONFIGURED_NOTE, Remembered, checked_qid
+from arrt.library.services.remembered import NOT_CONFIGURED_NOTE, REMEMBERED, checked_qid
 from arrt.persistence.catalogue import CatalogueStore, WorkQuery
 from arrt.persistence.folding import search_fold
+from arrt.persistence.kept import JsonCodec, Kept, KeptAnswers
 from arrt.persistence.records import Artist, ArtworkStatus
 from arrt.services.errors import ServiceError
 
@@ -46,6 +48,12 @@ HOLDINGS_SHOWN: Final[int] = 10
 #: How many similar artists it lists: enough for a next step, few enough that
 #: the query (one to seven seconds, `wikidata-findings.md`) stays bounded.
 SIMILAR_SHOWN: Final[int] = 12
+
+#: How long every registry page section keeps an answer. Long enough that a
+#: restart or a week of browsing asks nothing twice; short enough that an edit
+#: made on Wikidata reaches the page within a week. The registry's sections share
+#: it, so the Artist page and the pages it links to agree about how old they are.
+REGISTRY_KEPT_FOR: Final[timedelta] = timedelta(days=7)
 
 #: How many of the artist's own works are read to find the QIDs to list. Above
 #: any one artist's holding at the owner's scale.
@@ -104,11 +112,15 @@ class SimilarView:
 class ArtistService:
     """Read the artists the library holds, and ask the registry about one."""
 
-    def __init__(self, store: CatalogueStore, registry: Registry | None) -> None:
+    def __init__(self, store: CatalogueStore, registry: Registry | None, *, kept: KeptAnswers) -> None:
         self._store = store
         self._registry = registry
-        self._remembered: Remembered[tuple[str, tuple[str, ...]], RegistryArtist] = Remembered()
-        self._similar: Remembered[str, Sequence[RegistrySimilar]] = Remembered()
+        self._known_artists: Kept[tuple[str, tuple[str, ...]], RegistryArtist] = kept.namespace(
+            "registry.artist", codec=JsonCodec(RegistryArtist), max_age=REGISTRY_KEPT_FOR, size=REMEMBERED
+        )
+        self._similar: Kept[str, tuple[RegistrySimilar, ...]] = kept.namespace(
+            "registry.similar", codec=JsonCodec(tuple[RegistrySimilar, ...]), max_age=REGISTRY_KEPT_FOR, size=REMEMBERED
+        )
 
     def index(self, q: str | None = None) -> Sequence[HeldArtist]:
         """Every artist with a work in circulation, by name; narrowed to names containing `q`, ignoring accents."""
@@ -158,8 +170,8 @@ class ArtistService:
     def similar(self, qid: str) -> SimilarView:
         """Visual artists sharing a movement with this one, each marked where the library holds them.
 
-        Remembered per artist for the life of the process, as the rest of the
-        registry half is; a failure is not.
+        Kept per artist for a week, as the rest of the registry half is; a
+        failure is not.
         """
         qid = checked_qid(qid)
         if self._registry is None:
@@ -206,13 +218,13 @@ class ArtistService:
         # Keyed by what the library holds as well as by the artist, so a work
         # matched since the last visit is listed rather than served from memory.
         key = (qid, tuple(mine))
-        remembered = self._remembered.get(key)
-        if remembered is not None:
-            return remembered
-        # Asked outside the lock: a query takes seconds, and another artist's page
-        # must not wait for this one's.
+        kept = self._known_artists.get(key)
+        if kept is not None:
+            return kept
+        # Asked between `get` and `put`, under no lock: a query takes seconds, and
+        # another artist's page must not wait for this one's.
         known = registry.artist(qid, works=WORKS_SHOWN, holdings=HOLDINGS_SHOWN, include=mine)
-        self._remembered.put(key, known)
+        self._known_artists.put(key, known)
         return known
 
 

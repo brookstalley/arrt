@@ -174,6 +174,8 @@ to serve, elicited from the Product Brief's core flows:
 | Q26 | Which of my works are in this topic? A Topic page's first section, answered with no network. | Owner 2026-10-02 (topics) |
 | Q27 | Where did this claim about a work come from, so a curator correcting it knows what they are arguing with? | Owner 2026-10-02 (topics) |
 | Q28 | Which Topic page does this facet value open? | Owner 2026-10-02 (topics) |
+| Q29 | Do I already have this answer from a slow foreign source, and is it fresh enough to use? Asked by every page section that asks one (the registry's first). | Owner 2026-10-02 (kept answers) |
+| Q30 | How much is kept, and what can be thrown away first? Asked by the store itself on every write and at every open. | Owner 2026-10-02 (kept answers) |
 
 **Q22 to Q24 are answered by one column, `DiscoveryRun.destination_theme_id`**
 (`build-plan-topics-and-destinations.md` Chunk 01). A work reaches its run
@@ -194,6 +196,13 @@ and "Wikidata"; Q28 is the column. The label is `value`, as Wikidata wrote it wh
 the row was recorded, so the rail and the index read without asking anything. A
 facet that names no item, as an inferred one usually will, has a null
 `value_qid` and is a rail value with no page.
+
+**Q29 and Q30 are answered by `KeptAnswer`, in a file of its own and
+disposable** (`build-plan-topics-and-destinations.md` Chunk 03c). Nothing in the
+catalogue refers to it and nothing in it is a record: deleting the file costs
+each page section one more question of its source. That is why it is not part of
+the catalogue, why a backup skips it, and why its format changes by being
+replaced rather than migrated.
 
 **Q15 is what makes the collection navigable at the amended scale**
 (`nonfunctional-requirements.md`, thousands of works). At 41 works a curator
@@ -1846,6 +1855,51 @@ the entity that enforces the second Direction norm.
 > naming the identifier the television gave back, so the 2024 defect is unwritable
 > rather than merely avoided. The absence of a row still means "never tried",
 > which is the third state and the reason a failure keeps its row.
+
+### KeptAnswer *(curation plane, `kept-answers.sqlite`; disposable)*
+
+One answer a slow foreign source gave, kept so the next visit, and the next
+process, need not ask again (`arrt/src/arrt/persistence/kept.py`). **Not part of
+the catalogue**: a file of its own under `ART_ROOT`, holding no record and
+referred to by none. General purpose: the store names no source; each use
+registers a namespace with its own maximum age, size and codec. The registry's
+page sections are its first users (namespaces `registry.artist`,
+`registry.similar`, `registry.work`, `registry.search`, each 7 days and 512
+answers).
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `namespace` | string | PK part | The use the answer belongs to. Two uses never read each other's answers, and a name is registered once per open file. |
+| `key` | string | PK part | The question, as JSON of the caller's key (a QID, or a tuple of words and flags). |
+| `value` | string | required | The answer, as the namespace's codec wrote it. The registry's are JSON of their answer dataclasses, read back strictly: a field added, removed or retyped since makes it unreadable. |
+| `written` | float | required | When it was kept, in seconds since the epoch. **Q29**: an answer is used while `0 <= now - written < max_age`, the maximum age the namespace sets today; otherwise it is a miss and is deleted. |
+| `expires` | float | required | `written` plus the maximum age it was kept for. Read only at open, to throw away the answers of a namespace nobody registers any more. |
+| `used` | integer | required | A counter, larger for more recent use: a `put` and every hit raise it. Resumed from the file's largest at open. |
+
+**What the store enforces, Q30.** On every `put`, the namespace's answers older
+than its maximum age go first, then those beyond its size, least recently used
+first: so each namespace holds **at most** its size, and a burst in one (a
+typed search) never evicts another (an artist's page). At open, every answer
+past its `expires` goes, whichever namespace. Nothing bounds the file as a whole
+beyond the sum of the registered sizes and the expiry of the unregistered.
+
+**What is never kept, which is the callers' rule and not the store's.** A
+failure: callers `put` only what answered. A registry's "no such item": an item
+can be created. The library's own marks (*Held*), which are read fresh on every
+call and never stored with the answer.
+
+**Once open, every failure is a miss.** An entry its codec cannot read is
+deleted and asked again; a read or write the disk refuses is logged and the page
+goes on without it. At open, a file that is not a database, is damaged, or is of
+another format (`PRAGMA user_version` other than `FORMAT`) is replaced; a file
+that cannot be created at all stops the start, as an unwritable `ART_ROOT` stops
+the catalogue.
+
+> **Trust.** A registry answer read back from this file is the client's own
+> earlier output, with its image URLs already narrowed to Commons files
+> (`security-model.md` § Registry text). The file sits beside the catalogue
+> under `ART_ROOT` and is no easier to write than it is, so it adds no path for
+> outside text that the catalogue does not already have.
 
 ## Relationships
 
