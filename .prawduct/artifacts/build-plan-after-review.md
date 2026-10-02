@@ -185,7 +185,7 @@ scratchpad copy held none), and Chunk 04's measurement on the Dalí works.
 - [x] Chunk 01: The acquisition queue
 - [x] Chunk 02: Saying it: the Work page, Review, Activity › Queue, Retry, and MCP
 - [x] Chunk 03: One wanted state and one way in
-- [ ] Chunk 04: Matching a wanted work to its Wikidata item
+- [x] Chunk 04: Matching a wanted work to its Wikidata item
 - [ ] Chunk 05: Want and Forget on the card, and Activity › Wanted
 - [ ] Chunk 06: The owner's review of the screens
 
@@ -360,6 +360,12 @@ registry Work page (`#work/Q…`), which shows Wikidata's picture.
 ### Chunk 05: Want and Forget on the card, and Activity › Wanted
 
 **Visual change:** yes
+
+**Carried from Chunk 04's review:** split the title in `WikidataMatchService.matches`
+with `registry_search.py`'s word splitter (`_WORDS.findall`), so "Life," or
+"(Premonition" is not dropped by the registry's word filter; and a test that
+picking an item on a **wanted** work is allowed (it holds only because `wanted`
+is not a terminal verdict).
 
 **Found while building Chunk 02:** `art_discovery(action='resolve_images')`
 requires every work to come from the same discovery run, so **Search all**
