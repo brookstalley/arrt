@@ -249,7 +249,7 @@ export async function viewWanted(generation) {
           type: "button",
           text: "Search all",
           "aria-label": `Search again for all ${counted(works.length, "wanted work")}`,
-          onclick: () => searchAll(works),
+          onclick: () => searchAll(works, picker),
         }),
         runs.size > 1
           ? el("span", { class: "muted", text: `One re-search for each of the ${runs.size} searches these came from.` })
@@ -307,17 +307,48 @@ function searchFor(workIds) {
 }
 
 /* A re-search per originating search, since one covers one search's works; then
- * the run's own page when there is one, and Queue when there are several. */
-function searchAll(works) {
+ * the run's own page when there is one, and Queue when there are several.
+ *
+ * **A refused search does not stop the rest.** The server refuses works already
+ * being re-searched, which is the ordinary state just after *Search again* on
+ * one row; stopping there would leave every search after it unstarted, and
+ * pressing again would fail the same way. So each is tried, and when any was
+ * refused the page stays and says which started and why the others did not. */
+function searchAll(works, slot) {
   return guard(async () => {
     const byRun = new Map();
     for (const work of works) byRun.set(work.run_id, [...(byRun.get(work.run_id) || []), work.work_id]);
     const started = [];
+    const refused = [];
     for (const workIds of byRun.values()) {
-      started.push(await api("/api/runs/resolve", { method: "POST", body: JSON.stringify({ work_ids: workIds }) }));
+      try {
+        started.push(await api("/api/runs/resolve", { method: "POST", body: JSON.stringify({ work_ids: workIds }) }));
+      } catch (failure) {
+        // A refusal is the server's sentence for the curator; anything else
+        // (the network, a fault) is not ours to swallow.
+        if (failure.status !== 400) throw failure;
+        refused.push(failure.message);
+      }
     }
-    if (started.length === 1) go("run", started[0].run_id);
-    else go("queue");
+    if (!refused.length) {
+      if (started.length === 1) go("run", started[0].run_id);
+      else go("queue");
+      return;
+    }
+    fill(
+      slot,
+      el("div", { class: "panel note search-all-outcome", role: "status" }, [
+        el("p", {
+          text: started.length
+            ? `Started ${counted(started.length, "re-search", "re-searches")}. ${counted(refused.length, "other", "others")} could not start:`
+            : "No re-search could start:",
+        }),
+        el("ul", {}, refused.map((message) => el("li", { text: message }))),
+        started.length
+          ? el("button", { class: "action quiet", type: "button", text: "Open Queue", onclick: () => go("queue") })
+          : null,
+      ]),
+    );
   });
 }
 

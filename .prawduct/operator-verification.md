@@ -31,7 +31,7 @@ matches stubbed from the live answer for *Lobster Telephone*. Regenerate with
 - **Search again on a work with no item** opens *Which is <title>?* above the
   table: each match as **This one**, title, maker, item, and whether Wikidata
   has a picture; then *None of these — search without an item*.
-- **To look at on your catalogue:** the 16 August Dalí works. Want them, then
+- **To look at on your catalogue:** the seven no-scan works from the 16 August Dalí run. Want them, then
   pick *Lobster Telephone*'s item (Q2990594) and search again; and whether the
   picker's bulleted list reads well on a phone.
 

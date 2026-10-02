@@ -449,6 +449,11 @@ judgment on sequence":
 - **Still owed:** the count of accepted works with no image on the owner's real
   deployment. The scratchpad copy holds none; the PR says the first catch-up's
   length is unmeasured.
+- **Deferred to deploy, on the record (cumulative review R-2):** this chunk's
+  live checks (accept a work and watch it fetch, prepare and reach the manifest;
+  break the tile binary and watch the pause). The copy the owner reviewed holds
+  no accepted work without an image, and its masters are not on disk, so nothing
+  was fetched live; the queue's first real fetch is on the owner's deployment.
 
 First, count the accepted works with no image on a fresh copy of the owner's
 catalogue, and record it in Requirements Confidence. Then, on that copy: accept

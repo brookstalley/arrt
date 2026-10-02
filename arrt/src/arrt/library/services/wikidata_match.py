@@ -124,4 +124,6 @@ def _by(match: RegistryWorkMatch, artist: str) -> bool:
     """
     if match.creator is None or not artist:
         return False
-    return search_fold(str(match.creator.name)) in search_fold(artist)
+    creator = search_fold(str(match.creator.name)).strip()
+    # An empty name is in every string, so it would put every match first.
+    return bool(creator) and creator in search_fold(artist)

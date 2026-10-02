@@ -62,6 +62,27 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-02: The branch review's three bugs
+
+<!-- prawduct: scope=after-review -->
+
+**Why:** the cumulative review (`rev-20261002T212847Z-3ee44653`, 0 blocking)
+raised three faults worth a round; the rest were answered on the record.
+
+**What:**
+- **The acquisition queue's worker no longer dies silently** when waiting for its
+  next work fails: waiting reads the store, and an error there now pauses the
+  queue and is journalled (`acquisition.queue_error`), as an error during a pass
+  already was. Before, the thread ended with no log line and every accepted work
+  read *queued* until a restart.
+- **Search all tries every originating search**, and when the server refuses one
+  (its works are already being re-searched, as they are right after *Search
+  again*) the page stays and says which started and why the rest did not.
+- **The picker's artist match ignores an empty creator name**, which would have
+  counted every match as the proposed artist's.
+- Records: the `wanted` verdict row cites Q36-Q37; the verification entry says
+  "the seven no-scan works from the 16 August Dalí run".
+
 ## 2026-10-02: The owner's review of the After Review screens
 
 <!-- prawduct: scope=after-review -->

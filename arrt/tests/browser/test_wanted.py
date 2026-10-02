@@ -306,3 +306,24 @@ def test_search_all_over_one_search_opens_that_re_search(ui, wanted):
     ui.page.wait_for_function("() => window.location.hash.startsWith('#run/resolve-one')")
 
     assert [method for method, _, _ in requests if method == "POST"] == ["POST"], "one search, one re-search"
+
+
+def test_search_all_tries_every_search_and_says_which_could_not_start(ui, wanted, discovery, propose):
+    """The ordinary case just after Search again on one row: that work's search is already running."""
+    other_run = discovery.start_discovery_run(intent_text="Magritte", initiated_by=InitiatedBy.WEB_UI)
+    elsewhere = propose("The Son of Man", run_id=other_run.id, proposed_artist="René Magritte")
+    discovery.record_resolution(elsewhere.id)
+    discovery.want(elsewhere.id)
+    refusal = "A re-search is already running for 'Lobster Telephone (1938)'. Wait for it to finish, or cancel it."
+    ui.serve("**/api/runs/resolve", [(400, {"error": refusal}), {"run_id": "resolve-b"}])
+    requests = posted(ui, "/api/runs/resolve")
+
+    open_wanted(ui)
+    ui.page.click("button:text-is('Search all')")
+    ui.page.wait_for_selector(".search-all-outcome")
+
+    assert [method for method, _, _ in requests if method == "POST"] == ["POST", "POST"], "a refusal stopped the rest"
+    outcome = ui.page.inner_text(".search-all-outcome")
+    assert "Started 1 re-search. 1 other could not start:" in outcome
+    assert refusal in outcome
+    assert ui.page.evaluate("() => window.location.hash") == "#wanted", "the page left before saying what was refused"

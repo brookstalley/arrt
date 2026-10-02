@@ -593,7 +593,21 @@ def run_acquisition_queue(
             )
             queue.note_error(exc)
         after_pass()
-        queue.wait_for_work()
+        # Its own catch, because waiting reads the store too (when is the next
+        # retry due?), and a read that fails here would otherwise end the thread
+        # with no line in the journal while every accepted work read "queued".
+        # A pause is the answer, as for a failed pass: a paused queue's wait
+        # reads nothing, so a broken store cannot spin the loop.
+        try:
+            queue.wait_for_work()
+        except (
+            Exception
+        ) as exc:  # prawduct:allow prawduct/broad-except -- a background loop that dies stops every fetch, silently
+            log.exception(
+                "the acquisition queue could not wait for its next work; it pauses and tries again",
+                extra={"event": "acquisition.queue_error"},
+            )
+            queue.note_error(exc)
 
 
 def start_acquisition_queue(queue: AcquisitionQueue) -> Callable[[], None]:

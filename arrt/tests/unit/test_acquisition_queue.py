@@ -584,6 +584,37 @@ class TestTheListing:
         assert listing.pause is None
 
 
+class TestTheWorkerSurvives:
+    def test_an_error_while_waiting_pauses_rather_than_ending_the_thread(self, queue, work, monkeypatch, caplog):
+        """Waiting reads the store; a failed read there must not end the worker silently."""
+        work()
+        failing_once = {"left": 1}
+        real = queue._seconds_until_due
+
+        def seconds():
+            if failing_once["left"]:
+                failing_once["left"] -= 1
+                raise OSError("database disk image is malformed")
+            return real()
+
+        monkeypatch.setattr(queue, "_seconds_until_due", seconds)
+        stop = threading.Event()
+        passes = []
+
+        def after_pass():
+            passes.append(1)
+            if len(passes) == 2:
+                stop.set()
+            # A paused wait would otherwise hold for a quarter of an hour.
+            queue.nudge()
+
+        run_acquisition_queue(queue, stop=stop, after_pass=after_pass)
+
+        assert len(passes) == 2, "the worker ended after the failed wait instead of passing again"
+        errors = [record for record in caplog.records if getattr(record, "event", None) == "acquisition.queue_error"]
+        assert len(errors) == 1 and "could not wait" in errors[0].getMessage(), "the failed wait was not journalled"
+
+
 class TestTheRunningQueue:
     def test_two_acceptances_during_a_fetch_are_both_fetched_one_at_a_time(self, store, service, work, preparer):
         gate = threading.Event()

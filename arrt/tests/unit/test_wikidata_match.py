@@ -152,3 +152,13 @@ def test_a_wanted_work_s_item_can_be_picked(discovery, propose):
     picked = service_over(discovery, None).pick(work.id, "Q2990594")
 
     assert (picked.verdict, picked.wikidata_qid) == (Verdict.WANTED, "Q2990594")
+
+
+def test_a_creator_with_an_empty_name_is_not_taken_for_the_proposed_artist(discovery, propose):
+    blank = RegistryCreator(qid=ItemId("Q1"), name=RegistryText(""))
+    registry = FakeRegistry(matches={"Lobster Telephone Salvador Dalí": [a_match("Q9", "Lobster Telephone", creator=blank)]})
+    work = propose("Lobster Telephone (1938)", proposed_artist="Salvador Dalí")
+
+    found = service_over(discovery, registry).matches(work.id)
+
+    assert [entry.by_proposed_artist for entry in found.matches] == [False]
