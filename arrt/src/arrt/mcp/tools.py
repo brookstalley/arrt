@@ -198,6 +198,8 @@ ART_CATALOGUE: Final = ToolRecord(
                 "there is to filter by.",
                 "A facet's counts are computed with its OWN selection ignored, so an option showing 0 with another "
                 "facet chosen is an empty intersection rather than an empty catalogue.",
+                "Every result also lists each theme with the count it would select, counted the same way, so "
+                "theme=… can be chosen without a separate art_theme call.",
             ),
         ),
         Action(

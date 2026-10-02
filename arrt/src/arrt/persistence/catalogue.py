@@ -233,6 +233,14 @@ class CatalogueStore(Protocol):
         """Return a page of works matching `query` in `order`, stable across pages, with the unpaged total."""
         ...
 
+    def artwork_ids_matching(self, query: WorkQuery) -> frozenset[str]:
+        """Every work `query` selects, by id, unpaged and unordered.
+
+        For a caller that counts the selection against a grouping the catalogue
+        does not hold — a theme's members — and so needs the set, not a page.
+        """
+        ...
+
     def held_artists(self) -> Sequence[tuple[Artist, int]]:
         """Every artist with at least one work in circulation, and how many, by name."""
         ...

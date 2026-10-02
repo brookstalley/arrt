@@ -64,6 +64,25 @@ UNSET: Final[Unset] = Unset()
 
 
 @dataclass(frozen=True, slots=True)
+class ThemeCount:
+    """A theme as a filter option: how many of a given set of works it holds."""
+
+    theme: Theme
+    count: int
+    #: The theme the listing is filtered by.
+    selected: bool
+
+    @property
+    def disabled(self) -> bool:
+        """True for a theme that would select nothing, unless it is the one chosen.
+
+        The facet rule, applied to themes: a chosen option is never disabled,
+        because the option itself is the control that turns it off.
+        """
+        return self.count == 0 and not self.selected
+
+
+@dataclass(frozen=True, slots=True)
 class DisplaySettings:
     """The deployment facts the walls' operations need.
 
@@ -327,6 +346,27 @@ class DisplayService:
             raise ServiceError(f"Wall {wall.name!r} has no display directive, which this plane never writes.")
         theme_id = hanging.get(wall.id)
         return WallView(wall=wall, hanging=None if theme_id is None else themes[theme_id], directive=directive)
+
+    def theme_counts(self, work_ids: Iterable[str], *, selected: str | None = None) -> Sequence[ThemeCount]:
+        """Every theme, by name, with how many of `work_ids` it holds.
+
+        The ids are the Library's answer to "which works does this filter
+        select", taken as opaque references: Artworks' *Filter* rail prints each
+        theme's count beside it and disables a theme that would select nothing,
+        as it does a facet value. One read scope, so the counts agree with one
+        another; they cannot share a scope with the Library's read that produced
+        the ids, which is the price of the seam.
+        """
+        among = set(work_ids)
+        with self._store.reading():
+            return [
+                ThemeCount(
+                    theme=theme,
+                    count=sum(1 for membership in self._store.list_memberships(theme.id) if membership.artwork_id in among),
+                    selected=theme.id == selected,
+                )
+                for theme in self._store.list_themes()
+            ]
 
     def theme_work_ids(self, theme_id: str) -> Sequence[str]:
         """The ids of the theme's works, in curated order.

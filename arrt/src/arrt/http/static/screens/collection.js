@@ -21,9 +21,10 @@
  *   - **Three empty states, not one.** Nothing held, nothing matching a filter,
  *     and nothing by one named artist are three different facts leading to three
  *     different next moves.
- *   - **Organising happens against the works being organised.** The theme rail
- *     filters the grid; membership is edited from the grid, in place, without
- *     leaving the screen.
+ *   - **Organising happens against the works being organised.** A theme is one
+ *     more filter in the rail, composing with the facets and the search, and
+ *     membership is edited in *Select* mode — Radarr's mass editor — in place,
+ *     without leaving the screen.
  *
  * What is deliberately NOT here: archiving a work (it is an act against one work,
  * whose confirmation has to name which walls lose the picture, and it lives on the
@@ -31,10 +32,10 @@
  * rather than about the works, and lives on the Theme screen).
  */
 
-import { api, fetchAllWorks } from "../core/api.js";
+import { api, fetchAllWorks, fetchFilterCounts } from "../core/api.js";
 import { absentImage, fitBadge, shortfallNote, sourceBadge, statusBadge } from "../core/badges.js";
 import { addedSentence, addWorksToTheme, stoppedSentence } from "../core/membership.js";
-import { el, guard, render } from "../core/render.js";
+import { el, fill, guard, render } from "../core/render.js";
 import { go, goWithParams } from "../core/router.js";
 import { clearSearchLink } from "../core/search.js";
 import { state } from "../core/state.js";
@@ -123,6 +124,10 @@ const SKELETON_TILES = 12;
  * repaint within one navigation keeps it. */
 const selected = new Set();
 let selectionGeneration = -1;
+/* Whether *Select* mode is on: the ticks on the tiles and the action bar that
+ * adds them to a theme or removes them from one. Not addressable, for the
+ * reason the selection is not; a navigation leaves it. */
+let selecting = false;
 
 /* -- reading the address ---------------------------------------------------- */
 
@@ -161,34 +166,13 @@ function anyFacetChosen(chosen) {
   return FACET_KINDS.some((kind) => chosen[kind].length);
 }
 
-/* The address that results from turning one facet value on or off.
- *
- * Choosing a facet leaves a theme behind, for the reason stated at
- * `themeIsShowing`: the two narrowings cannot be composed by the server, so
- * offering them together would mean one of them silently doing nothing. */
+/* The address that results from turning one facet value on or off. A theme
+ * in the address stays: the server composes the two. */
 function withFacet(chosen, kind, value) {
   const values = chosen[kind].includes(value)
     ? chosen[kind].filter((held) => held !== value)
     : [...chosen[kind], value];
-  return { ...state.params, theme: "", [kind]: joinValues(values) };
-}
-
-/* Whether the theme rail's filter is the one actually in force.
- *
- * **A theme and a facet/text filter cannot both apply**, and that is a fact about
- * the API rather than a preference: a theme's works come from
- * `GET /api/themes/{id}` and a filtered catalogue from `GET /api/works`, and
- * neither route can express the other's narrowing. Intersecting them here would
- * be worse than not offering it — every facet count beside the grid would then be
- * a number about the whole catalogue printed next to a grid holding a theme's
- * slice of it, which is exactly the promise-you-cannot-keep the facet rules
- * exist to forbid.
- *
- * So one wins, the search wins, and the screen says so where the theme rail is.
- * The rail's own chips clear everything else, so choosing a theme always works;
- * this branch is for an address that arrived carrying both. */
-function themeIsShowing(query, chosen) {
-  return Boolean(state.params.theme) && !query && !anyFacetChosen(chosen);
+  return { ...state.params, [kind]: joinValues(values) };
 }
 
 /* Which density to draw, given how much there is.
@@ -238,11 +222,12 @@ function cardImage(work) {
 
 /* The tick that puts a work in a selection.
  *
- * Always drawn where it can do something, at both densities, rather than revealed
+ * Shown in *Select* mode on every tile, at every density, rather than revealed
  * on hover with the rest of the contact sheet's metadata: a control that only
- * exists once you are pointing at it is one a keyboard cannot find. And **not
- * drawn at all where it cannot** — with no theme to put a work into, a tick on
- * every tile is a control with nothing behind it, which is the same dead end the
+ * exists once you are pointing at it is one a keyboard cannot find. Outside
+ * the mode the CSS hides it (`.collection:not(.selecting)`). And **not drawn at
+ * all where it cannot act** — with no theme to put a work into, a tick on every
+ * tile is a control with nothing behind it, which is the same dead end the
  * facet rail is forbidden from offering. */
 function selectBox(work, onChange) {
   const box = el("input", {
@@ -327,7 +312,7 @@ function workRow(work, selection) {
  * selection to tick. */
 function tableAround(body, selection) {
   const head = [
-    selection ? el("th", { scope: "col" }, [el("span", { class: "visually-hidden", text: "Select" })]) : null,
+    selection ? el("th", { scope: "col", class: "row-select" }, [el("span", { class: "visually-hidden", text: "Select" })]) : null,
     ...["Title", "Artist", "Date", "Medium", "Status"].map((name) => el("th", { scope: "col", text: name })),
   ];
   return el("table", { class: "work-table" }, [
@@ -395,7 +380,7 @@ function skeletonScreen(density) {
     el("div", { class: railsShown ? "collection" : "collection rails-hidden" }, [
       railsShown ? el("aside", { class: "rails", "aria-hidden": true }) : null,
       el("div", { class: "collection-main" }, [
-        pageToolbar(density, null, false),
+        pageToolbar(density, null),
         // A table's rows have no picture whose geometry could jump, and a stand-in
         // drawn at the wrong row height would be the reflow it exists to prevent.
         density === TABLE ? null : skeletonGrid(density),
@@ -455,71 +440,53 @@ function facetOption(kind, option, chosen) {
   });
 }
 
-/* One theme in the rail: the filter, and the way to the theme itself.
+/* The rail's Theme group: one theme at a time, beside the facets.
  *
- * **Two acts, so two controls with two names.** Filtering the grid to a theme's
- * members and opening the theme are different things — one narrows what is on
- * this screen, the other leaves it — and a single chip whose behaviour depended
- * on where you clicked, or on a modifier, is a control whose action can only be
- * discovered by performing it. That is the failure this pair exists to avoid,
- * and it is an accessibility one before it is a usability one: a screen reader
- * announces one control with one name, so a hidden second act is not merely
- * undiscoverable there, it is unreachable.
- *
- * The filter keeps the theme's name as its whole label and its `aria-pressed`,
- * which is the toggle it has always been. The opener names the theme too —
- * "Open Winter" — because the rail renders one per theme and "Open" nine times
- * in a row tells a reader moving control by control nothing at all. */
-function themeChip(placement, activeId) {
-  const isShowing = placement.theme.theme_id === activeId;
-  return el("span", { class: "theme-chip-pair" }, [
-    el("button", {
-      class: "theme-chip",
-      type: "button",
-      "aria-pressed": isShowing ? "true" : "false",
-      text: placement.theme.name,
-      onclick: () =>
-        go(
-          "collection",
-          null,
-          // Everything else goes: a theme is not composable with a search or a
-          // facet, and a chip that appeared to do nothing because a search was
-          // still in the address would be the worst of both.
-          isShowing
-            ? viewing()
-            : { ...viewing(), theme: placement.theme.theme_id },
-        ),
-    }),
-    el("button", {
-      class: "action quiet theme-chip-open",
-      type: "button",
-      text: "Open",
-      "aria-label": `Open ${placement.theme.name}`,
-      onclick: () => go("theme", placement.theme.theme_id),
-    }),
-  ]);
-}
-
-function themeRail(themes, showingTheme) {
-  const activeId = showingTheme ? state.params.theme : "";
-  const chips = themes.map((placement) => themeChip(placement, activeId));
+ * **A theme is one more filter**, as a tag is in Radarr's: it composes with the
+ * facets and the search on the server, and each option carries the count it
+ * would select given every other filter, disabled at zero — the facet rule,
+ * for the reason the facet rule exists. Themes themselves are reached from
+ * Library › Themes, not from here (the owner's ruling on #169). */
+function themeRail(themes) {
+  if (!themes.length) return null;
   return el("div", { class: "rail" }, [
-    el("h3", { text: "Themes" }),
-    themes.length
-      ? el("div", { class: "theme-chips" }, chips)
-      : el("p", { class: "rail-note", text: "No themes yet." }),
-    el("p", {}, [
-      el("button", {
-        class: "action quiet",
-        type: "button",
-        text: themes.length ? "Manage themes" : "Create a theme",
-        onclick: () => go("theme"),
-      }),
-    ]),
+    el("h3", { text: "Theme" }),
+    el("ul", { class: "rail-options" }, themes.map((option) => el("li", {}, [themeOption(option)]))),
   ]);
 }
 
-/* -- the toolbar: density, and editing membership in place ------------------- */
+function themeOption(option) {
+  const button = el("button", {
+    class: "facet-option",
+    type: "button",
+    "data-theme": option.theme_id,
+    "aria-pressed": option.selected ? "true" : "false",
+    disabled: option.disabled,
+    text: `${option.name} (${option.count})`,
+    // One theme at a time: choosing another replaces it, and choosing the
+    // chosen one clears it.
+    onclick: () => go("collection", null, { ...state.params, theme: option.selected ? "" : option.theme_id }),
+  });
+  button.dataset.count = String(option.count);
+  return button;
+}
+
+/* A theme option's count after works joined or left it from this screen.
+ *
+ * Those works are on screen, so every other filter selects them and the count
+ * moves by exactly how many went. Changed in place, because nothing here
+ * repaints (`membershipControls`), and a count left stale beside the rail is
+ * the silent lie the counts exist to refuse. */
+function moveThemeCount(option, by) {
+  const button = document.querySelector(`button.facet-option[data-theme="${CSS.escape(option.theme_id)}"]`);
+  if (!button || !by) return;
+  const count = Number(button.dataset.count) + by;
+  button.dataset.count = String(count);
+  button.textContent = `${option.name} (${count})`;
+  button.disabled = count === 0 && button.getAttribute("aria-pressed") !== "true";
+}
+
+/* -- the toolbar: density, and Select mode ---------------------------------- */
 
 /* How the page is being shown, without anything it is narrowed by: the state a
  * reset of the narrowing keeps. "Show everything" means every work, not every
@@ -544,12 +511,12 @@ function railsHidden() {
   return state.params.filters === "hidden";
 }
 
-/* The *arr toolbar over the works: the selection's actions on the left; View,
- * Sort and Filter on the right (`core/toolbar.js`).
+/* The *arr toolbar over the works: *Select* and its action bar on the left;
+ * View, Sort and Filter on the right (`core/toolbar.js`).
  *
- * **Sort is not offered while a theme is showing**, because a theme comes in
- * its curated order, which is the theme's whole point — a sort would undo it. */
-function pageToolbar(density, selection, showingTheme) {
+ * A theme filtered here is in the Sort menu's order, as any filter is; its
+ * curated order is its own page's. */
+function pageToolbar(density, selection) {
   const controls = [
     menuButton({
       label: "View",
@@ -557,21 +524,19 @@ function pageToolbar(density, selection, showingTheme) {
       current: density,
       onChoose: (value) => goWithParams({ density: value }),
     }),
-    showingTheme
-      ? null
-      : menuButton({
-          label: "Sort",
-          options: SORTS,
-          current: offeredSort() || "title",
-          onChoose: (value) => goWithParams({ sort: value === "title" ? "" : value }),
-        }),
+    menuButton({
+      label: "Sort",
+      options: SORTS,
+      current: offeredSort() || "title",
+      onChoose: (value) => goWithParams({ sort: value === "title" ? "" : value }),
+    }),
     toggleButton({
       label: "Filter",
       pressed: !railsHidden(),
       onToggle: (show) => goWithParams({ filters: show ? "" : "hidden" }),
     }),
   ];
-  return toolbar({ actions: selection ? [selection.node] : [], controls });
+  return toolbar({ actions: selection ? [selection.toggle, selection.node] : [], controls });
 }
 
 function uncheck(grid, artworkId) {
@@ -584,12 +549,17 @@ function clearSelection(grid) {
   for (const box of grid.querySelectorAll("input.tile-select")) box.checked = false;
 }
 
-/* Adding and removing membership from the grid, with the selection multi-select.
+/* *Select* mode: the toggle, and the action bar that adds the ticked works to
+ * a theme or removes them from the theme being filtered — Radarr's mass
+ * editor, which is the owner's ruling on #169. Outside it no tick and no theme
+ * control shows, so filtering by a theme and changing a theme's members are
+ * never the same-looking control.
  *
  * **Nothing here repaints the screen**, and that is the rule rather than an
- * optimisation: a curator standing on "Add to theme" who is handed a new page has
- * lost their place and their focus. The outcome is announced in a live region and
- * the tiles that left are taken out one at a time.
+ * optimisation: a curator standing on "Add" who is handed a new page has lost
+ * their place and their focus. The outcome is announced in a live region, the
+ * tiles that left are taken out one at a time, and the rail's theme counts
+ * move in place (`moveThemeCount`).
  *
  * **There is no bulk route, so this is a loop, and a loop can stop halfway.**
  * `POST /api/themes/{id}/works` takes one work and the store refuses a work the
@@ -601,13 +571,13 @@ function clearSelection(grid) {
  * what already succeeded.
  *
  * Returns `null` when there is nothing a selection could be used for, which is
- * what keeps the tick off every tile in a collection with no themes. */
-function membershipControls({ themes, showingTheme, grid, heading, recount, whenEmpty }) {
-  // The theme being shown is not offered: every work on screen is already in it,
-  // so the only thing that control could do is refuse. Excluding it is also what
-  // stops the picker's own default being a one-click error.
-  const addable = themes.filter((placement) => !(showingTheme && placement.theme.theme_id === state.params.theme));
-  if (!addable.length && !showingTheme) return null;
+ * what keeps *Select* off a collection with no themes. */
+function membershipControls({ themes, shownTheme, grid, heading, recount, recountRail, whenEmpty }) {
+  // The theme being filtered is not offered: every work on screen is already
+  // in it, so the only thing that control could do is refuse. Excluding it is
+  // also what stops the picker's own default being a one-click error.
+  const addable = themes.filter((option) => !(shownTheme && option.theme_id === shownTheme.theme_id));
+  if (!addable.length && !shownTheme) return null;
 
   // Focusable, and focused when an edit completes. Finishing the edit disables
   // the button the curator is standing on, and a browser blurs a control it
@@ -617,17 +587,21 @@ function membershipControls({ themes, showingTheme, grid, heading, recount, when
   // toolbar into the grid.
   const announcement = el("p", { class: "muted selection-status", "aria-live": "polite", tabindex: "-1" });
 
-  const picker = addable.length
-    ? el("select", { id: "add-to-theme", "aria-label": "Theme to add the selected works to" })
-    : null;
-  for (const placement of addable) {
-    picker.append(el("option", { value: placement.theme.theme_id, text: placement.theme.name }));
+  // A visible name, not only an `aria-label`: the picker is the one control
+  // here whose purpose a sighted curator could otherwise only guess.
+  const picker = addable.length ? el("select", { id: "add-to-theme" }) : null;
+  for (const option of addable) {
+    picker.append(el("option", { value: option.theme_id, text: option.name }));
   }
-
-  const add = picker ? el("button", { class: "action", type: "button", text: "Add to theme" }) : null;
-  const remove = showingTheme
-    ? el("button", { class: "action quiet", type: "button", text: "Remove from this theme" })
+  const pickerField = picker
+    ? el("span", { class: "selection-field" }, [el("label", { for: "add-to-theme", text: "Theme" }), picker])
     : null;
+
+  // Each button says the whole act — how many, and into or out of what — so
+  // it reads the same to a screen reader moving control by control.
+  const add = picker ? el("button", { class: "action selection-add", type: "button" }) : null;
+  const remove = shownTheme ? el("button", { class: "action quiet selection-remove", type: "button" }) : null;
+  let removedSoFar = 0;
 
   const say = (words) => {
     // Not rewritten unchanged: a live region reassigned the same sentence
@@ -636,16 +610,45 @@ function membershipControls({ themes, showingTheme, grid, heading, recount, when
   };
 
   const settle = () => {
-    if (add) add.disabled = selected.size === 0;
-    if (remove) remove.disabled = selected.size === 0;
-    say(selected.size === 0 ? "No works selected." : `${selected.size} selected.`);
+    const count = selected.size;
+    const works = `${count} ${count === 1 ? "work" : "works"}`;
+    if (add) {
+      add.disabled = count === 0;
+      const into = picker.options[picker.selectedIndex].text;
+      add.textContent = count ? `Add ${works} to ${into}` : `Add to ${into}`;
+    }
+    if (remove) {
+      remove.disabled = count === 0;
+      remove.textContent = count ? `Remove ${works} from ${shownTheme.name}` : `Remove from ${shownTheme.name}`;
+    }
+    say(count === 0 ? "No works selected." : `${count} selected.`);
   };
+  if (picker) picker.addEventListener("change", settle);
+
+  const bar = el("div", { class: "selection", hidden: !selecting }, [announcement, pickerField, add, remove]);
+  const toggle = el("button", {
+    class: "action quiet select-toggle",
+    type: "button",
+    "aria-pressed": selecting ? "true" : "false",
+    text: "Select",
+  });
+  toggle.addEventListener("click", () => {
+    selecting = !selecting;
+    toggle.setAttribute("aria-pressed", selecting ? "true" : "false");
+    bar.hidden = !selecting;
+    const layout = grid.closest(".collection");
+    if (layout) layout.classList.toggle("selecting", selecting);
+    // Leaving *Select* drops the ticks: a selection nobody can see would be
+    // acted on the next time the mode is entered.
+    if (!selecting) clearSelection(grid);
+    settle();
+  });
 
   if (add) {
     add.addEventListener("click", () =>
       guard(async () => {
         const themeId = picker.value;
-        const name = picker.options[picker.selectedIndex].text;
+        const option = addable.find((candidate) => candidate.theme_id === themeId);
         let outcome;
         try {
           outcome = await addWorksToTheme(themeId, [...selected], {
@@ -655,17 +658,19 @@ function membershipControls({ themes, showingTheme, grid, heading, recount, when
             },
           });
         } catch (failure) {
+          if (failure.progress) moveThemeCount(option, failure.progress.added);
           settle();
-          if (failure.progress) say(stoppedSentence(failure.progress, name));
+          if (failure.progress) say(stoppedSentence(failure.progress, option.name));
           announcement.focus();
           // Rethrown so `guard` shows the server's own words for the refusal.
           // The sentence above says how far it got; only the server can say why
           // it stopped.
           throw failure;
         }
+        moveThemeCount(option, outcome.added);
         clearSelection(grid);
         settle();
-        say(addedSentence(outcome, name));
+        say(addedSentence(outcome, option.name));
         announcement.focus();
       }),
     );
@@ -674,12 +679,11 @@ function membershipControls({ themes, showingTheme, grid, heading, recount, when
   if (remove) {
     remove.addEventListener("click", () =>
       guard(async () => {
-        const themeId = state.params.theme;
         const going = [...selected];
         let removed = 0;
         try {
           for (const artworkId of going) {
-            await api(`/api/themes/${encodeURIComponent(themeId)}/works/${encodeURIComponent(artworkId)}`, {
+            await api(`/api/themes/${encodeURIComponent(shownTheme.theme_id)}/works/${encodeURIComponent(artworkId)}`, {
               method: "DELETE",
             });
             removed += 1;
@@ -688,25 +692,32 @@ function membershipControls({ themes, showingTheme, grid, heading, recount, when
             if (tile) tile.remove();
           }
         } finally {
+          removedSoFar += removed;
           settle();
           // The heading counted what was there before the removal, and a count
           // that no longer matches the tiles under it is the silent lie this
-          // surface exists to refuse. Both figures are the tile count: a theme
-          // comes whole rather than paged, so shown and held cannot differ.
-          heading.textContent = recount(grid.children.length);
+          // surface exists to refuse.
+          heading.textContent = recount(grid.children.length, removedSoFar);
           // A theme whose last member has just gone is empty, and an empty grid
           // with no sentence reads as a broken screen rather than as a theme
           // holding nothing.
           if (!grid.children.length) whenEmpty();
+          // The works that left were inside the theme's slice, so every facet
+          // count beside it fell, and a value they alone carried now selects
+          // nothing — an enabled option leading to an empty grid, the dead end
+          // the rail forbids. Recounted after a partial removal too. Adding
+          // cannot do that (the works stay on screen), so only a removal
+          // recounts, and only the rail is redrawn.
+          if (removed) await recountRail();
         }
-        say(`Removed ${removed} ${removed === 1 ? "work" : "works"} from this theme.`);
+        say(`Removed ${removed} ${removed === 1 ? "work" : "works"} from ${shownTheme.name}.`);
         announcement.focus();
       }),
     );
   }
 
   settle();
-  return { settle, node: el("div", { class: "selection" }, [announcement, picker, add, remove]) };
+  return { settle, toggle, node: bar };
 }
 
 /* -- the three empty states -------------------------------------------------- */
@@ -719,11 +730,11 @@ function membershipControls({ themes, showingTheme, grid, heading, recount, when
  * second reports the expected result of following a suggestion as a failed query,
  * and the conversation makes that one common — the artists it surfaces are by
  * definition ones the curator could not have named. */
-function emptyState(query, chosen, showingTheme, themeName) {
+function emptyState(query, chosen, shownTheme) {
   const artists = chosen.artist;
   const onlyAnArtist =
     !query &&
-    !showingTheme &&
+    !shownTheme &&
     artists.length === 1 &&
     !FACET_KINDS.filter((kind) => kind !== "artist").some((kind) => chosen[kind].length);
 
@@ -748,7 +759,7 @@ function emptyState(query, chosen, showingTheme, themeName) {
     ]);
   }
 
-  if (!query && !showingTheme && !anyFacetChosen(chosen)) {
+  if (!query && !shownTheme && !anyFacetChosen(chosen)) {
     return el("div", { class: "stack empty" }, [
       el("h3", { text: "Nothing is held yet." }),
       el("p", {
@@ -765,7 +776,7 @@ function emptyState(query, chosen, showingTheme, themeName) {
     el("h3", { text: "Nothing held matches this filter." }),
     // The filter itself, named. "No results" without saying what was asked for
     // leaves a curator guessing which of three narrowings did it.
-    el("p", { class: "muted", text: `The filter is ${filterPhrase(query, chosen, showingTheme, themeName)}.` }),
+    el("p", { class: "muted", text: `The filter is ${filterPhrase(query, chosen, shownTheme)}.` }),
     el("div", { class: "row" }, [
       // "Show everything" rather than "Clear the filter", and the wording is a
       // contract rather than a preference: it is what the way out of a search has
@@ -783,10 +794,10 @@ function emptyState(query, chosen, showingTheme, themeName) {
   ]);
 }
 
-function filterPhrase(query, chosen, showingTheme, themeName) {
+function filterPhrase(query, chosen, shownTheme) {
   const parts = [];
   if (query) parts.push(`the search “${query}”`);
-  if (showingTheme) parts.push(`the theme “${themeName}”`);
+  if (shownTheme) parts.push(`the theme “${shownTheme.name}”`);
   for (const kind of FACET_KINDS) {
     if (chosen[kind].length) {
       parts.push(`${FACET_LABELS[kind].toLowerCase()} ${chosen[kind].map((value) => `“${value}”`).join(" or ")}`);
@@ -802,35 +813,27 @@ function filterPhrase(query, chosen, showingTheme, themeName) {
  * `page.total` is the server's count over everything the filter selects, so the
  * two figures differ exactly when the runaway guard bit — and saying both is what
  * keeps a short list from reading as a complete one. */
-function headingText(shown, total, query, showingTheme, themeName) {
+function headingText(shown, total, query, shownTheme) {
   // A theme holding one work read "1 works", which the grid could get away with
   // while the only number it ever printed was a whole catalogue's.
   const noun = total === 1 ? "work" : "works";
   const counted = shown === total ? `${total} ${noun}` : `${shown} of ${total} ${noun}`;
-  if (query) return `${counted} matching “${query}”`;
-  if (showingTheme) return `${counted} in “${themeName}”`;
-  return counted;
+  const matching = query ? ` matching “${query}”` : "";
+  const within = shownTheme ? ` in “${shownTheme.name}”` : "";
+  return `${counted}${matching}${within}`;
 }
 
 /* -- the screen -------------------------------------------------------------- */
 
-async function themePage(themeId) {
-  const detail = await api(`/api/themes/${encodeURIComponent(themeId)}`);
-  // Shaped like a works page so the grid, the heading and `shortfallNote` read
-  // one thing. A theme's works come whole rather than paged, and it offers no
-  // facets — the counts beside a theme would be counts over the catalogue.
-  return { works: detail.works, total: detail.works.length, truncated: false, facets: [], theme: detail.theme };
-}
-
 export async function viewCollection(generation) {
   if (generation !== selectionGeneration) {
     selected.clear();
+    selecting = false;
     selectionGeneration = generation;
   }
 
   const query = (state.params.q || "").trim();
   const chosen = facetsFor(state.params);
-  const showingTheme = themeIsShowing(query, chosen);
 
   // Said, not drawn. How much there is decides the density and the density
   // decides the geometry, so a placeholder painted before the first page has
@@ -839,43 +842,34 @@ export async function viewCollection(generation) {
   // element the real heading replaces, so it holds its own place.
   render(generation, el("h2", { text: "Loading the collection…" }));
 
-  // The themes come along on every paint because the rail is part of the screen,
-  // not part of the theme filter: a curator has to see the themes in order to
-  // choose one, and adding to a theme needs their names.
-  const [themeList, page] = await Promise.all([
-    api("/api/themes"),
-    // The search and the facets go to the server, which is what makes the count
-    // in the heading a statement about the catalogue rather than about this
-    // screen's first page.
-    showingTheme
-      ? themePage(state.params.theme)
-      : fetchAllWorks(
-          query,
-          chosen,
-          (first) => {
-            // Only when there is more to come. A collection that arrives whole in
-            // one round trip has nothing to wait through, and the tiles it would
-            // stand in for are already on their way.
-            if (first.truncated) render(generation, ...skeletonScreen(resolveDensity(first.total)));
-          },
-          offeredSort(),
-        ),
-  ]);
+  // The search, the facets and the theme go to the server, which is what makes
+  // the count in the heading a statement about the catalogue rather than about
+  // this screen's first page — and what lets the three compose.
+  const page = await fetchAllWorks(
+    query,
+    chosen,
+    (first) => {
+      // Only when there is more to come. A collection that arrives whole in
+      // one round trip has nothing to wait through, and the tiles it would
+      // stand in for are already on their way.
+      if (first.truncated) render(generation, ...skeletonScreen(resolveDensity(first.total)));
+    },
+    offeredSort(),
+    { theme: state.params.theme || null },
+  );
 
-  // `ThemeListOut` wraps its list; the rail wants the placements themselves.
-  const themes = themeList.themes;
-  const themeName = showingTheme ? page.theme.name : "";
+  const themes = page.themes;
+  const shownTheme = themes.find((option) => option.selected) || null;
   const density = resolveDensity(page.total);
-  const heading = el("h2", { text: headingText(page.works.length, page.total, query, showingTheme, themeName) });
-  const recount = (count) => headingText(count, count, query, showingTheme, themeName);
+  const heading = el("h2", { text: headingText(page.works.length, page.total, query, shownTheme) });
+  // After a removal: the tiles left, out of what the filter now holds.
+  const recount = (shown, gone) => headingText(shown, page.total - gone, query, shownTheme);
 
   if (!page.works.length) {
     render(
       generation,
       heading,
-      collectionLayout(themes, page, chosen, showingTheme, density, null, [
-        emptyState(query, chosen, showingTheme, themeName),
-      ]),
+      collectionLayout(page, chosen, shownTheme, density, null, [emptyState(query, chosen, shownTheme)]),
     );
     return;
   }
@@ -885,11 +879,17 @@ export async function viewCollection(generation) {
   const grid = density === TABLE ? el("tbody") : el("ul", { class: density === CONTACT ? "grid contact-sheet" : "grid" });
   const selection = membershipControls({
     themes,
-    showingTheme,
+    shownTheme,
     grid,
     heading,
     recount,
-    whenEmpty: () => (grid.closest("table") || grid).replaceWith(emptyState(query, chosen, showingTheme, themeName)),
+    recountRail: async () => {
+      const rail = document.querySelector("aside.rails");
+      if (!rail) return;
+      const counts = await fetchFilterCounts(query, chosen, { theme: state.params.theme || null });
+      fill(rail, ...railContents(counts, chosen));
+    },
+    whenEmpty: () => (grid.closest("table") || grid).replaceWith(emptyState(query, chosen, shownTheme)),
   });
   const tile = density === TABLE ? workRow : density === CONTACT ? contactTile : workCard;
   for (const work of page.works) grid.append(tile(work, selection));
@@ -897,42 +897,32 @@ export async function viewCollection(generation) {
   render(
     generation,
     heading,
-    collectionLayout(themes, page, chosen, showingTheme, density, selection, [shortfallNote(page), shown]),
+    collectionLayout(page, chosen, shownTheme, density, selection, [shortfallNote(page), shown]),
   );
+}
+
+/* What the rails hold: the Theme group, then the facets. Said rather than
+ * drawn empty when there is neither, since a rail with no group in it reads as
+ * a screen that failed to load its filters. */
+function railContents(page, chosen) {
+  const groups = [themeRail(page.themes), ...facetRail(page.facets, chosen)].filter(Boolean);
+  return groups.length
+    ? groups
+    : [el("p", { class: "rail-note", text: "Nothing to filter by yet. Themes and facets appear here as works gain them." })];
 }
 
 /* The rails beside the works, and the toolbar above them. One function so the
  * populated screen and each empty one cannot come to disagree about where the
  * controls live — an empty grid that also loses its filters is an empty state a
  * curator cannot get out of. */
-function collectionLayout(themes, page, chosen, showingTheme, density, selection, main) {
-  const rails = [themeRail(themes, showingTheme)];
-  if (showingTheme) {
-    rails.push(
-      el("p", {
-        class: "rail-note",
-        text: "Facets and the search narrow the whole collection, so they are not offered while a theme is showing. Clear the theme to use them.",
-      }),
-    );
-  } else {
-    rails.push(...facetRail(page.facets, chosen));
-  }
-  // Stated rather than silent: an address carrying both narrowings gets the one
-  // that is in force and a sentence saying which.
-  if (state.params.theme && !showingTheme) {
-    rails.push(
-      el("p", {
-        class: "rail-note",
-        text: "A theme in this address is set aside while a search or a facet is narrowing the collection.",
-      }),
-    );
-  }
+function collectionLayout(page, chosen, shownTheme, density, selection, main) {
+  const rails = railContents(page, chosen);
   const shown = !railsHidden();
   // With the rails away, a facet or a theme still narrowing the works would be
   // invisible: the grid would read as the whole collection. So it says so, and
   // offers the rails back, where the narrowing can be seen and undone.
   const narrowedOutOfSight =
-    !shown && (showingTheme || anyFacetChosen(chosen))
+    !shown && (shownTheme || anyFacetChosen(chosen))
       ? el("p", { class: "note filters-hidden-note" }, [
           el("span", { text: "Filters are narrowing these works, and the filter rails are put away. " }),
           el("button", {
@@ -943,8 +933,9 @@ function collectionLayout(themes, page, chosen, showingTheme, density, selection
           }),
         ])
       : null;
-  return el("div", { class: shown ? "collection" : "collection rails-hidden" }, [
+  const classes = ["collection", shown ? null : "rails-hidden", selection && selecting ? "selecting" : null];
+  return el("div", { class: classes.filter(Boolean).join(" ") }, [
     shown ? el("aside", { class: "rails", "aria-label": "Filters" }, rails) : null,
-    el("div", { class: "collection-main" }, [pageToolbar(density, selection, showingTheme), narrowedOutOfSight, ...main]),
+    el("div", { class: "collection-main" }, [pageToolbar(density, selection), narrowedOutOfSight, ...main]),
   ]);
 }

@@ -328,6 +328,30 @@ class CatalogueService:
             facets=groups,
         )
 
+    def matching_ids(
+        self,
+        *,
+        status: str | None = None,
+        q: str | None = None,
+        facets: Mapping[str, Sequence[str]] | None = None,
+        artist_id: str | None = None,
+    ) -> frozenset[str]:
+        """The ids of every work these narrowings select, unpaged.
+
+        The same narrowings `list_artworks` takes, read the same way, less the
+        id restriction: this is the set a theme option's count is taken over,
+        and a theme's count ignores the theme's own selection as a facet's
+        ignores its own (`_facet_groups`). Programming counts each theme's
+        members among these ids, so the Library never learns what a theme is.
+        """
+        query = WorkQuery(
+            status=self._parse_status(status),
+            terms=self._parse_terms(q),
+            facets=self._parse_facets(facets),
+            artist_id=artist_id,
+        )
+        return self._store.artwork_ids_matching(query)
+
     def _facet_groups(self, query: WorkQuery) -> Sequence[FacetGroup]:
         """Every facet kind, with each value's count and whether it is chosen.
 

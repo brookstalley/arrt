@@ -604,6 +604,11 @@ class SqliteCatalogue(TableAdapter):
         )
         return ArtworkPage(artworks=[_artwork(row) for row in rows], total=total)
 
+    def artwork_ids_matching(self, query: WorkQuery) -> frozenset[str]:
+        selects = _matching(query)
+        rows = self._store.select_rows(f"SELECT a.id AS id {selects.source} WHERE {selects.where}", selects.values)
+        return frozenset(row["id"] for row in rows)
+
     def held_artists(self) -> Sequence[tuple[Artist, int]]:
         rows = self._store.select_rows(
             'SELECT ar.*, COUNT(a."id") AS held FROM artists ar JOIN artworks a ON a."artist_id" = ar."id" '

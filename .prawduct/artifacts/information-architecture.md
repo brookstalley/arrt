@@ -147,7 +147,7 @@ Priority is **core** (on a stated core flow) or **supporting**.
 | **Run** | One run while it works and after it stops: what it proposed, what it found images for, the gate where phase 2 is approved, and its work table. **A Get's run page is its review**: the review cards in place of the work table, and no *Review these works* *(the owner's ruling, 2026-10-02, `build-plan-topics-and-destinations.md` Chunk 07)*. | Queue or History; Ask, as it starts; a Get's *Open the Get*; a Get's row in To review; a re-search started on the review grid; its own address | core (flow 2) |
 | **Review** | Judging one run's candidates: accept, reject, choose a scan, ask for a better one. One work to a row, the picture left and the facts and verdicts right (one column on a phone), the scan's pixels above the fold, *Scans* opening beneath as a table, one row a scan; clicking a picture enlarges it in place. The same cards are a Get's page; `#review/<run>` still answers for a Get. | A finished discovery run or re-search, from its own page or To review; the run's own notification | core (flow 3) |
 | **Artists** | The artists the library holds, with how many works of theirs are in circulation; and at its own address one artist as the hub: who they are, what the library holds of theirs, what Wikidata lists with the held ones marked and the rest tickable to get (*Get N works*), and which collections hold their work. At `#artist/Q…`, an artist Wikidata knows that the library does not hold: the registry half alone, saying nothing of theirs is held; the library's page replaces it, in place, when the library holds them. Below Holdings, *Similar artists*: visual artists sharing a movement, by renown, each with how many of their works have an image, and ● where the library holds them. Under the name, which Wikidata item this is, who set it, and a control to change it (looked up and shown before it is stored) or say there is none (confirmed). *(Built 2026-10-01, ruling 4; the QID form, Similar artists and the control the same day, `build-plan-one-world-search.md`.)* | The sidebar, under Artworks; an artist's name on a work card, a table row or the Work page (either form); the top-bar search's Artists group; its own address | core (S2, S3, S11) |
-| **Themes** | The themes there are, and — at its own address — one of them: its members in curated order, its name, the act of hanging it, and which theme is the default that accepted works join. | The sidebar, under Artworks; Artworks' theme rail; a wall's theme control; its own address | core (flows 5, 6) |
+| **Themes** | The themes there are, and — at its own address — one of them: its members in curated order, its name, the act of hanging it, and which theme is the default that accepted works join. | The sidebar, under Artworks; a wall's theme control; its own address *(Artworks' theme rail and its per-theme *Open* went on 2026-10-02, #169)* | core (flows 5, 6) |
 | **Topics** | The periods, movements, subjects and media the library's works are in, by kind, each with how many of them, each opening its page; and *Find a topic*, which asks Wikidata for any other (`#topics?find=`). *(Built 2026-10-02, `build-plan-topics-and-destinations.md` Chunk 05; topics come from Wikidata, so without `WIKIDATA_USER_AGENT` the page says they need it and offers no search.)* | The sidebar, under Artworks, after Themes | core (S12) |
 | **Topic** | One topic, browsed like a genre: its name, kind, Wikidata's description and a link to its item; *In your library*, your works in circulation in it; *Representative works*, the most renowned Wikidata lists, each ● *Held*, ◐ *Image found* or ○ *No image known*, the unheld tickable to get into a theme named after the topic (*Add to* defaults to it); and *Artists*, those whose works in it are best known first (the sum of those works' sitelinks), each opening their page. A period's works are headed with its years ("Works from 1501–1600"), since they are matched by date alone. *(Built 2026-10-02, `build-plan-topics-and-destinations.md` Chunk 05.)* | Library › Topics; *Find a topic*; the top bar's *Topics* and *Wikidata: topics* groups; its own address | core (S12) |
 | **Status** | The three observations the panel states, and the spend record. *(Health until 2026-09-30.)* | The sidebar, under System; the top bar's status indicator; a failure's own link | supporting |
@@ -341,8 +341,8 @@ listed below so it can be disputed.
   View, Sort and Filter on the right. View offers Posters, Overview and Table
   (Posters was the contact sheet and Overview the catalogue; `?density=` keeps
   its spellings). Sort offers Title, Artist (unattributed last) and Recently
-  added, and is not offered while a theme is showing, since a theme comes in
-  its curated order. **Filter shows and hides the rails rather than replacing
+  added, and applies to a theme filtered here as to any filter (a theme's
+  curated order is its own page's; #169). **Filter shows and hides the rails rather than replacing
   them with a dropdown**, so the facet counts stay in view while browsing
   (ruled by the owner 2026-09-30, departing from Radarr's Filter menu). With
   the rails away, a facet or a theme still narrowing the works says so above
@@ -656,12 +656,32 @@ and neither is fully reversible, which drives two rules:
 
 ### Flow 5 — Organise into themes
 
-`Artworks → select → add to theme` *(and)* `Artworks → theme rail → Theme → reorder`
+`Artworks → Select → add to theme` *(and)* `Library › Themes → Theme → reorder`
 
 **CHANGE — organising happens in the collection, against the works being
-organised.** The theme rail filters the grid to a theme's members; membership is
-edited from the grid, in place, with multi-select. Reordering — which is genuinely
-about the theme rather than about the works — happens on the Theme screen.
+organised.** Membership is edited from the grid, in place, with multi-select.
+Reordering — which is genuinely about the theme rather than about the works —
+happens on the Theme screen.
+
+**Radarr's pattern, the owner's ruling of 2026-10-02 (#169).** The rail's theme
+list read as the way to add works to a theme, and the toolbar's theme picker as
+a filter; the two were redrawn apart:
+
+- **A theme is one more group in the *Filter* rail**, beside the facets, one
+  theme at a time. It composes with the facets and the search on the server
+  (`GET /api/works?theme=`), and each theme carries the count it would select
+  given every other filter, disabled at zero, as a facet value does
+  (§ A control never offers a dead end). A theme filtered here is in the Sort
+  menu's order, as any filter is; its curated order is its own page's. The
+  rail's separate theme list and its per-theme *Open* are gone: themes are
+  reached from Library › Themes.
+- **Adding and removing appear only in *Select* mode**, as Radarr's mass editor
+  does: a *Select* toggle in the toolbar (`aria-pressed`) shows ticks on the
+  tiles and an action bar whose buttons say the whole act — "Add 3 works to
+  Winter", with a visibly labelled *Theme* picker, and "Remove 3 from Baroque"
+  when a theme is in the filter. Outside the mode, nothing on the screen changes
+  a theme's members. Leaving it drops the ticks. With no themes at all, *Select*
+  is not offered.
 
 **One theme is the default, and acceptance fills it** *(the owner's ruling 8,
 built 2026-10-01)*. A work accepted from any route joins the default theme at the
@@ -719,7 +739,7 @@ who did not edit this table.
 | Screen | Primary | Secondary | Actions | Status |
 |---|---|---|---|---|
 | Walls | Each wall's hanging work, large | Title, artist, theme, which wall | Change theme, next, open work, issue or rotate the wall's Player token *(added 2026-09-30: the token is shown once, in place, and rotating asks first)* | Panel + TV health, quietly |
-| Artworks | The grid of images | Counts, active filters | Search, filter, select, add to theme, archive | Total, and what is filtered out |
+| Artworks | The grid of images | Counts, active filters | Search; filter by facet and by theme, which compose; *Select* mode, whose action bar adds the ticked works to a theme or removes them from the theme being filtered; archive | Total, and what is filtered out |
 | Work | The image at full size; for a work not held, the image Wikidata found, or none | Artist, facets, mat colour, rendition size; for a work not held, its date, medium, and holder with number | Theme membership, re-mat, archive, change the Wikidata item or say there is none, Retry a failed fetch; for a work not held, *Get this work*, its artist, and the rest of their work | Fit verdict, image state, and while the acquisition queue owes it one, where it stands there; for a work not held, *Not held* (○), or *Not held · Image found* (◐) |
 | Search results | The artists and works the words find, artists first | Each artist's years; each work's maker; how many library works match beyond those listed | Open any result; switch *All*, *In your library*, *Not held*; open the library's matches in Artworks; *Ask about* when Wikidata has nothing | Each result's mark; whether Wikidata answered |
 | Ask | The intent box and the conversations | Samples inline | Type, react, commit, start direct | Run progress, spend |

@@ -94,10 +94,11 @@ def _list_artworks(services: Services, arguments: Mapping[str, Any]) -> dict[str
     # calls composed, as `_get_theme` composes them.
     theme = arguments.get("theme")
     within = None if theme is None else services.display.theme_work_ids(theme)
+    facets = {kind: arguments[kind] for kind in _FACET_KINDS if arguments.get(kind)}
     listing = services.catalogue.list_artworks(
         status=arguments.get("status"),
         q=arguments.get("q"),
-        facets={kind: arguments[kind] for kind in _FACET_KINDS if arguments.get(kind)},
+        facets=facets,
         limit=arguments.get("limit"),
         offset=arguments.get("offset", 0),
         sort=arguments.get("sort"),
@@ -120,6 +121,26 @@ def _list_artworks(services: Services, arguments: Mapping[str, Any]) -> dict[str
         # a filter needs to see that a combination is empty rather than infer it
         # from an absence.
         facets=[_facet_group(group) for group in listing.facets],
+        # Every theme as a filter option, counted with the theme's own selection
+        # ignored, as the facets are and as the browser's rail gets them.
+        themes=[
+            {
+                "theme_id": option.theme.id,
+                "name": option.theme.name,
+                "count": option.count,
+                "selected": option.selected,
+                "disabled": option.disabled,
+            }
+            for option in services.display.theme_counts(
+                services.catalogue.matching_ids(
+                    status=arguments.get("status"),
+                    q=arguments.get("q"),
+                    facets=facets,
+                    artist_id=arguments.get("artist_id"),
+                ),
+                selected=theme,
+            )
+        ],
         notice=_truncation_notice(listing),
     )
 

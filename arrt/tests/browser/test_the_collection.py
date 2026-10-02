@@ -24,6 +24,8 @@ from payloads import (
     a_listing,
 )
 
+from arrt.persistence.records import FacetDerivation, VocabularyKind
+
 # At import time, not in a fixture. A marker deselection still *collects* this
 # module, so the default run — which does not install the browser group — has to
 # skip here rather than fail on the missing plugin.
@@ -471,7 +473,21 @@ def test_a_facet_value_holding_the_separator_survives_the_address(ui):
     assert "movement=" not in again.value.url, "choosing the value twice added a second copy instead of clearing it"
 
 
-# -- the theme rail, and membership edited in place ---------------------------
+# -- the Theme filter, and membership edited in Select mode -------------------
+#
+# The owner ruled on #169 for Radarr's pattern: a theme is one more group in the
+# *Filter* rail, composing with the facets, and adding and removing appear only
+# in a *Select* mode. Three tests of the old rail are retired with it, each
+# replaced by the contract the new design owes:
+#   - "a theme chip filters the grid" → `test_a_theme_in_the_filter_rail_narrows_the_grid`;
+#   - "the rail's filter and its opener are separate controls" → the two acts
+#     are now filtering and membership, and
+#     `test_filtering_by_a_theme_and_changing_its_members_are_different_controls`
+#     holds them apart;
+#   - "the opener goes to the theme" → the opener is gone by the ruling (themes
+#     are reached from Library › Themes); what the rail owes instead is that a
+#     theme composes with a facet and counts like one,
+#     `test_a_theme_composes_with_a_facet_and_counts_like_one`.
 
 
 @pytest.fixture
@@ -483,67 +499,123 @@ def a_theme_holding_one_work(display, seeded_service):
     return theme, works
 
 
-def test_a_theme_chip_filters_the_grid_to_its_members(ui, a_theme_holding_one_work):
-    """Themes stopped being a destination and became a rail that filters."""
+def theme_option(ui, theme):
+    return ui.page.locator(f"button.facet-option[data-theme='{theme.id}']")
+
+
+def enter_select_mode(ui):
+    ui.page.click("button.select-toggle")
+    ui.page.wait_for_selector(".selection", state="visible")
+
+
+def test_a_theme_in_the_filter_rail_narrows_the_grid(ui, a_theme_holding_one_work):
+    theme, _ = a_theme_holding_one_work
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid li.card")
     assert ui.page.locator("ul.grid li.card").count() == 3
 
-    ui.page.click("button.theme-chip:has-text('Baroque')")
+    assert theme_option(ui, theme).inner_text() == "Baroque (1)"
+    theme_option(ui, theme).click()
     ui.page.wait_for_function("() => document.querySelectorAll('ul.grid li.card').length === 1")
 
-    assert "in “Baroque”" in ui.page.inner_text("h2")
+    assert ui.page.inner_text("h2") == "1 work in “Baroque”"
+    assert theme_option(ui, theme).get_attribute("aria-pressed") == "true"
+    # Pressing it again is how it is turned off.
+    theme_option(ui, theme).click()
+    ui.page.wait_for_function("() => document.querySelectorAll('ul.grid li.card').length === 3")
 
 
-def test_the_rails_filter_and_its_opener_are_separate_controls_with_separate_names(ui, a_theme_holding_one_work):
-    """Two acts on one subject, and the accessible names are what keep them apart.
+def test_filtering_by_a_theme_and_changing_its_members_are_different_controls(ui, a_theme_holding_one_work):
+    """The confusion #169 was filed for: the theme dropdown read as a filter and was an editor.
 
-    Filtering the grid to a theme and opening the theme are different things —
-    one narrows this screen, the other leaves it — so a single chip whose
-    behaviour depended on where you clicked would be a control whose action can
-    only be found by performing it. To a screen reader it would be worse than
-    undiscoverable: one control announces one name, so the second act would be
-    unreachable rather than merely hidden.
-
-    The opener names the theme because the rail renders one per theme, and "Open"
-    nine times over tells a reader moving control by control nothing.
+    Outside *Select* mode, nothing on the screen changes a theme's members:
+    no tick on any tile and no theme picker. The rail's theme options are
+    toggles (`aria-pressed`), and the picker, once shown, has a visible name.
     """
-    theme, _ = a_theme_holding_one_work
+    theme, works = a_theme_holding_one_work
     ui.open("#collection")
-    ui.page.wait_for_selector("button.theme-chip")
+    ui.page.wait_for_selector("ul.grid li.card")
 
-    assert ui.page.get_attribute("button.theme-chip", "aria-pressed") == "false"
-    assert ui.page.inner_text("button.theme-chip") == "Baroque"
-    assert ui.page.get_attribute("button.theme-chip-open", "aria-label") == "Open Baroque"
-    # Both reachable by keyboard, which is the half a hover-revealed control
-    # fails. Asserted on which element holds focus rather than through
-    # `ui.focused()`, which reports an element's *text* — and the text is the
-    # half of this control that does not name the theme.
-    ui.page.focus("button.theme-chip")
-    assert ui.page.evaluate("() => document.activeElement.classList.contains('theme-chip')")
-    ui.page.focus("button.theme-chip-open")
-    assert ui.page.evaluate("() => document.activeElement.classList.contains('theme-chip-open')")
+    assert ui.page.locator("input.tile-select:visible").count() == 0
+    assert ui.page.locator("#add-to-theme:visible").count() == 0
+    assert theme_option(ui, theme).get_attribute("aria-pressed") == "false"
+    assert ui.page.get_attribute("button.select-toggle", "aria-pressed") == "false"
+
+    enter_select_mode(ui)
+
+    assert ui.page.get_attribute("button.select-toggle", "aria-pressed") == "true"
+    assert ui.page.locator("input.tile-select:visible").count() == 3
+    # Nothing ticked, so Add can do nothing yet; and with no theme in the
+    # filter there is no theme to remove from, so Remove is not drawn at all.
+    assert ui.page.locator("button.selection-remove").count() == 0
+    assert ui.page.is_disabled("button.selection-add")
+    assert ui.page.inner_text("label[for='add-to-theme']") == "Theme"
+    ui.page.check(f"li.card[data-artwork='{works[1].id}'] input.tile-select")
+    ui.page.check(f"li.card[data-artwork='{works[2].id}'] input.tile-select")
+    # The button says the whole act: how many, and into what.
+    assert ui.page.inner_text("button.selection-add") == "Add 2 works to Baroque"
 
 
-def test_the_rails_opener_goes_to_the_theme_rather_than_filtering_the_grid(ui, a_theme_holding_one_work):
-    """The paired positive: the second control does the second thing.
+def test_leaving_select_mode_hides_the_ticks_and_drops_them(ui, a_theme_holding_one_work):
+    """A selection nobody can see would be acted on the next time the mode is entered."""
+    _, works = a_theme_holding_one_work
+    ui.open("#collection")
+    ui.page.wait_for_selector("ul.grid li.card")
+    enter_select_mode(ui)
+    ui.page.check(f"li.card[data-artwork='{works[1].id}'] input.tile-select")
 
-    Asserted on the address as well as the page, because the point of the act is
-    that the curator ends up somewhere they could have bookmarked.
+    ui.page.click("button.select-toggle")
+
+    assert ui.page.locator("input.tile-select:visible").count() == 0
+    assert ui.page.locator(".selection").is_hidden()
+    enter_select_mode(ui)
+    assert ui.page.locator("input.tile-select:checked").count() == 0
+    assert "No works selected." in ui.page.inner_text(".selection-status")
+
+
+def test_a_theme_composes_with_a_facet_and_counts_like_one(ui, display, seeded_service, a_theme_holding_one_work):
+    """Theme and facet narrow together, and a theme the facet empties is disabled, not hidden.
+
+    *Baroque* holds the first work; a second theme, *Elsewhere*, holds the
+    second. Realism is recorded on the first and third works, so under Realism
+    *Baroque* still selects one and *Elsewhere* none.
     """
-    theme, _ = a_theme_holding_one_work
+    theme, works = a_theme_holding_one_work
+    elsewhere = display.add_theme(name="Elsewhere")
+    display.add_to_theme(theme_id=elsewhere.id, artwork_id=works[1].id)
+    for work in (works[0], works[2]):
+        seeded_service.record_facet(
+            artwork_id=work.id, kind=VocabularyKind.MOVEMENT, value="Realism", derivation=FacetDerivation.INFERRED
+        )
+
+    ui.open("#collection?movement=Realism")
+    ui.page.wait_for_selector("ul.grid li.card")
+    assert ui.page.locator("ul.grid li.card").count() == 2
+    assert theme_option(ui, elsewhere).inner_text() == "Elsewhere (0)"
+    assert theme_option(ui, elsewhere).is_disabled()
+
+    theme_option(ui, theme).click()
+    ui.page.wait_for_function("() => document.querySelectorAll('ul.grid li.card').length === 1")
+
+    # Both narrowings still in force and still shown as chosen.
+    assert ui.page.locator("button.facet-option[aria-pressed='true']", has_text="Realism").count() == 1
+    assert theme_option(ui, theme).get_attribute("aria-pressed") == "true"
+    assert ui.page.inner_text("h2") == "1 work in “Baroque”"
+    # A theme filtered here is in the Sort menu's order, so the menu is offered.
+    assert ui.page.locator(".page-toolbar button", has_text="Sort").count() == 1
+
+
+def test_adding_moves_the_rails_count_without_a_repaint(ui, display, a_theme_holding_one_work):
+    """Nothing repaints, so the count beside the rail has to move where it stands."""
+    theme, works = a_theme_holding_one_work
     ui.open("#collection")
-    ui.page.wait_for_selector("button.theme-chip-open")
+    ui.page.wait_for_selector("ul.grid li.card")
+    enter_select_mode(ui)
+    ui.page.check(f"li.card[data-artwork='{works[1].id}'] input.tile-select")
+    ui.page.click("button.selection-add")
+    ui.page.wait_for_selector(".selection-status:has-text('Added 1 work to Baroque.')")
 
-    ui.page.click("button[aria-label='Open Baroque']")
-    ui.page.wait_for_selector("h2:has-text('Baroque')")
-
-    # With the opener, since the *arr navigation: a theme's own default return is
-    # the Themes page, so a theme opened from Artworks records that it came from
-    # there, and its back link returns there.
-    assert ui.page.evaluate("() => window.location.hash") == f"#theme/{theme.id}?from=collection"
-    assert ui.page.locator("#view button", has_text="←").first.inner_text() == "← Artworks"
-    assert ui.page.locator("ul.grid").count() == 0, "opening a theme left the grid rather than filtering it"
+    assert theme_option(ui, theme).inner_text() == "Baroque (2)"
 
 
 def test_membership_is_edited_from_the_grid_without_leaving_it(ui, display, a_theme_holding_one_work):
@@ -552,13 +624,14 @@ def test_membership_is_edited_from_the_grid_without_leaving_it(ui, display, a_th
 
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid li.card")
+    enter_select_mode(ui)
 
     ui.page.check(f"li.card[data-artwork='{works[1].id}'] input.tile-select")
     ui.page.check(f"li.card[data-artwork='{works[2].id}'] input.tile-select")
     assert "2 selected." in ui.text()
 
     ui.page.select_option("#add-to-theme", theme.id)
-    ui.page.click("button:has-text('Add to theme')")
+    ui.page.click("button.selection-add")
     ui.page.wait_for_selector(".selection-status:has-text('Added 2 works to Baroque.')")
 
     # Still on the screen it started on, with the same works under it.
@@ -580,9 +653,10 @@ def test_editing_membership_does_not_drop_the_keyboard_to_the_top_of_the_page(ui
 
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid li.card")
+    enter_select_mode(ui)
     ui.page.check(f"li.card[data-artwork='{works[1].id}'] input.tile-select")
     ui.page.select_option("#add-to-theme", theme.id)
-    ui.page.click("button:has-text('Add to theme')")
+    ui.page.click("button.selection-add")
     ui.page.wait_for_selector(".selection-status:has-text('Added 1 work to Baroque.')")
 
     assert ui.focused() == "Added 1 work to Baroque."
@@ -596,25 +670,58 @@ def test_removing_from_a_theme_takes_the_tiles_out_and_says_what_is_left(ui, dis
     ui.open(f"#collection?theme={theme.id}")
     ui.page.wait_for_selector("ul.grid li.card")
     assert ui.page.locator("ul.grid li.card").count() == 2
+    enter_select_mode(ui)
 
     ui.page.check(f"li.card[data-artwork='{works[0].id}'] input.tile-select")
-    ui.page.click("button:has-text('Remove from this theme')")
+    assert ui.page.inner_text("button.selection-remove") == "Remove 1 work from Baroque"
+    ui.page.click("button.selection-remove")
     ui.page.wait_for_function("() => document.querySelectorAll('ul.grid li.card').length === 1")
 
     assert ui.page.inner_text("h2") == "1 work in “Baroque”"
+    assert theme_option(ui, theme).inner_text() == "Baroque (1)"
     assert len(display.theme_work_ids(theme.id)) == 1
+
+
+def test_removing_recounts_the_facets_so_none_leads_to_an_empty_grid(ui, display, seeded_service, a_theme_holding_one_work):
+    """A removal changes the theme's slice, and the facet counts beside it must follow.
+
+    Two works in *Baroque*; Realism is recorded only on the one removed. Left
+    at its old count, Realism would stay enabled beside a slice in which it
+    selects nothing — the dead end the rail forbids.
+    """
+    theme, works = a_theme_holding_one_work
+    display.add_to_theme(theme_id=theme.id, artwork_id=works[1].id)
+    seeded_service.record_facet(
+        artwork_id=works[0].id, kind=VocabularyKind.MOVEMENT, value="Realism", derivation=FacetDerivation.INFERRED
+    )
+    ui.open(f"#collection?theme={theme.id}")
+    ui.page.wait_for_selector("ul.grid li.card")
+    realism = ui.page.locator("button.facet-option", has_text="Realism")
+    assert realism.inner_text() == "Realism (1)"
+
+    enter_select_mode(ui)
+    ui.page.check(f"li.card[data-artwork='{works[0].id}'] input.tile-select")
+    ui.page.click("button.selection-remove")
+    ui.page.wait_for_function(
+        "() => [...document.querySelectorAll('button.facet-option')].some((b) => b.textContent === 'Realism (0)')"
+    )
+
+    assert realism.is_disabled()
+    assert theme_option(ui, theme).inner_text() == "Baroque (1)"
 
 
 def test_a_collection_with_no_themes_draws_no_tick_it_cannot_act_on(ui, seeded_service):
     """A control with nothing behind it is the dead end the facet rules forbid.
 
     With no theme to put a work into, a selection can do nothing — so there is no
-    toolbar for it and no checkbox on every tile. The paired positive is every
-    membership test above, each of which has a theme and finds the tick.
+    *Select* toggle and no checkbox on any tile, hidden or not. The paired
+    positive is every membership test above, each of which has a theme and finds
+    the toggle.
     """
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid li.card")
 
+    assert ui.page.locator("button.select-toggle").count() == 0
     assert ui.page.locator("input.tile-select").count() == 0
     assert ui.page.locator(".selection").count() == 0
 
@@ -629,9 +736,10 @@ def test_the_theme_being_shown_is_not_offered_as_somewhere_to_add(ui, a_theme_ho
 
     ui.open(f"#collection?theme={theme.id}")
     ui.page.wait_for_selector("ul.grid li.card")
+    enter_select_mode(ui)
 
     assert ui.page.locator("#add-to-theme").count() == 0
-    assert ui.page.locator("button:has-text('Remove from this theme')").count() == 1
+    assert ui.page.locator("button.selection-remove").count() == 1
 
 
 def test_adding_a_work_the_theme_already_holds_is_not_an_error(ui, display, a_theme_holding_one_work):
@@ -646,10 +754,11 @@ def test_adding_a_work_the_theme_already_holds_is_not_an_error(ui, display, a_th
 
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid li.card")
+    enter_select_mode(ui)
     ui.page.check(f"li.card[data-artwork='{works[0].id}'] input.tile-select")
     ui.page.check(f"li.card[data-artwork='{works[1].id}'] input.tile-select")
     ui.page.select_option("#add-to-theme", theme.id)
-    ui.page.click("button:has-text('Add to theme')")
+    ui.page.click("button.selection-add")
     ui.page.wait_for_selector(".selection-status:has-text('Added 1 work to Baroque. 1 was already in it.')")
 
     assert ui.page.locator("#error").is_hidden(), "a duplicate in the selection was reported as a failure"
@@ -689,6 +798,7 @@ def test_a_refusal_partway_through_leaves_exactly_the_works_that_did_not_go(ui, 
 
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid li.card")
+    enter_select_mode(ui)
     ui.page.check(f"li.card[data-artwork='{works[1].id}'] input.tile-select")
     ui.page.check(f"li.card[data-artwork='{works[2].id}'] input.tile-select")
     ui.page.select_option("#add-to-theme", theme.id)
@@ -696,7 +806,7 @@ def test_a_refusal_partway_through_leaves_exactly_the_works_that_did_not_go(ui, 
     # the outcome waited for below is text only the refusal can have produced.
     assert "2 selected." in ui.text()
 
-    ui.page.click("button:has-text('Add to theme')")
+    ui.page.click("button.selection-add")
     ui.page.wait_for_selector(".selection-status:has-text('Added 1 of 2 to Baroque.')")
 
     # Read whole rather than by substring: how far the loop got and what pressing
@@ -719,8 +829,8 @@ def test_a_refusal_partway_through_leaves_exactly_the_works_that_did_not_go(ui, 
     assert set(display.theme_work_ids(theme.id)) == {works[0].id, works[1].id}
 
     # The retry is pressing the same button, so it has to still be pressable.
-    assert ui.page.is_enabled("button:has-text('Add to theme')")
-    ui.page.click("button:has-text('Add to theme')")
+    assert ui.page.is_enabled("button.selection-add")
+    ui.page.click("button.selection-add")
     ui.page.wait_for_selector(".selection-status:has-text('Added 1 work to Baroque.')")
 
     # The clause that matters: one further write, carrying the work that was
@@ -740,8 +850,9 @@ def test_removing_a_theme_s_last_member_leaves_a_sentence_not_a_blank(ui, a_them
 
     ui.open(f"#collection?theme={theme.id}")
     ui.page.wait_for_selector("ul.grid li.card")
+    enter_select_mode(ui)
     ui.page.check(f"li.card[data-artwork='{works[0].id}'] input.tile-select")
-    ui.page.click("button:has-text('Remove from this theme')")
+    ui.page.click("button.selection-remove")
     ui.page.wait_for_selector(".empty")
 
     assert NOTHING_MATCHES in ui.text()

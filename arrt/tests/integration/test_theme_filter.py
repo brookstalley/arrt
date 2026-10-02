@@ -56,6 +56,8 @@ def themed(services, seeded_service):
     for title in ("I Saw the Figure 5 in Gold", "The Persistence of Memory"):
         services.display.add_to_theme(theme_id=theme.id, artwork_id=_by_title(seeded_service, title).id)
     empty = services.display.add_theme(name="Nothing yet")
+    realists = services.display.add_theme(name="Realists")
+    services.display.add_to_theme(theme_id=realists.id, artwork_id=_by_title(seeded_service, "Nighthawks").id)
     return theme.id, empty.id
 
 
@@ -142,6 +144,74 @@ class TestTheHttpSurface:
         assert "no-such-theme" in response.json()["error"]
 
 
+def _themes(payload):
+    return {option["name"]: (option["count"], option["selected"], option["disabled"]) for option in payload["themes"]}
+
+
+class TestEachThemeIsAFilterOptionWithItsCount:
+    """The *Filter* rail's Theme group follows the facet rule: a count per option, and no dead end.
+
+    A theme's count is how many works it would select **given every other
+    filter but the theme**, so a theme that would empty the grid is disabled
+    rather than offered, and the chosen theme stays pressable so it can be
+    turned off.
+    """
+
+    @pytest.fixture
+    def http(self, server_url, themed):
+        with httpx.Client(base_url=server_url, timeout=30.0) as client:
+            yield client
+
+    def test_unfiltered_each_theme_counts_its_members(self, http, themed):
+        payload = http.get("/api/works").raise_for_status().json()
+
+        assert _themes(payload) == {
+            "Nothing yet": (0, False, True),
+            "Realists": (1, False, False),
+            "Twentieth": (2, False, False),
+        }
+        assert [option["name"] for option in payload["themes"]] == ["Nothing yet", "Realists", "Twentieth"]
+
+    def test_a_facet_narrows_each_themes_count_and_disables_the_one_it_empties(self, http, themed):
+        """Surrealism leaves *Twentieth* one of its two members and *Realists* none."""
+        payload = http.get("/api/works", params={"movement": "Surrealism"}).raise_for_status().json()
+
+        assert _themes(payload) == {
+            "Nothing yet": (0, False, True),
+            "Realists": (0, False, True),
+            "Twentieth": (1, False, False),
+        }
+
+    def test_text_narrows_the_counts_too(self, http, themed):
+        payload = http.get("/api/works", params={"q": "nighthawks"}).raise_for_status().json()
+
+        assert _themes(payload)["Realists"] == (1, False, False)
+        assert _themes(payload)["Twentieth"] == (0, False, True)
+
+    def test_the_chosen_theme_is_counted_without_itself_and_never_disabled(self, http, themed):
+        """Chosen, and empty under the facet: the option is the only way to turn it off."""
+        realists = next(option for option in http.get("/api/works").json()["themes"] if option["name"] == "Realists")
+
+        chosen = {"theme": realists["theme_id"], "movement": "Surrealism"}
+        payload = http.get("/api/works", params=chosen).raise_for_status().json()
+
+        assert payload["total"] == 0
+        assert _themes(payload)["Realists"] == (0, True, False)
+        # The other themes are counted against the facet, not against the chosen
+        # theme: choosing *Twentieth* next would select one work, not none.
+        assert _themes(payload)["Twentieth"] == (1, False, False)
+
+    def test_a_theme_keeps_the_sort_it_is_given(self, http, themed):
+        """Sort orders the theme's slice and selects nothing; title and newest disagree here."""
+        theme_id, _ = themed
+
+        by_title = http.get("/api/works", params={"theme": theme_id}).raise_for_status().json()
+        newest = http.get("/api/works", params={"theme": theme_id, "sort": "newest"}).raise_for_status().json()
+
+        assert [work["title"] for work in by_title["works"]] == ["I Saw the Figure 5 in Gold", "The Persistence of Memory"]
+        assert [work["title"] for work in newest["works"]] == ["The Persistence of Memory", "I Saw the Figure 5 in Gold"]
+
+
 class TestTheToolSurface:
     """`art_catalogue(action='list')` takes the same theme and answers with the same slice."""
 
@@ -161,6 +231,9 @@ class TestTheToolSurface:
         assert not failed
         assert [work["title"] for work in payload["artworks"]] == ["I Saw the Figure 5 in Gold"]
         assert _movement_counts(payload["facets"], options="values") == {"Realism": 1, "Surrealism": 1}
+        # The theme options travel with it, counted the way the browser's are.
+        assert _themes(payload)["Twentieth"] == (1, True, False)
+        assert _themes(payload)["Realists"] == (1, False, False)
 
     async def test_an_unknown_theme_is_refused_by_name(self, server_url, themed):
         payload, failed = await self.call(server_url, action="list", theme="no-such-theme")

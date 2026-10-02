@@ -114,6 +114,7 @@ from arrt.http.models import (
     SuggestionOut,
     ThemeDetailOut,
     ThemeListOut,
+    ThemeOptionOut,
     ThemeOut,
     ThemePlacementOut,
     TopicArtistsOut,
@@ -160,7 +161,7 @@ from arrt.persistence.discovery_records import (
     InitiatedBy,
 )
 from arrt.persistence.records import Artist, Directive, IdentitySetBy, MatColor, Original, Source, Theme, WorkFacet
-from arrt.programming.display import ThemePlacement, WallView
+from arrt.programming.display import ThemeCount, ThemePlacement, WallView
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.programming.manifest.heartbeat import HeartbeatReading
 from arrt.services.container import Services
@@ -246,16 +247,21 @@ def list_works(
     services = _services(request)
     within = None if theme is None else services.display.theme_work_ids(theme)
     chosen = {"artist": artist, "movement": movement, "era": era, "subject": subject, "medium": medium, "palette": palette}
+    facets = {kind: values for kind, values in chosen.items() if values}
     page = services.survey.list_works(
         status=status,
         q=q,
-        facets={kind: values for kind, values in chosen.items() if values},
+        facets=facets,
         limit=limit,
         offset=offset,
         sort=sort,
         artist_id=artist_id,
         within=within,
     )
+    # The theme options, counted as the facets are, with the theme's own
+    # selection ignored: the Library names what the other filters select, and
+    # Programming counts each theme's members among them.
+    others = services.catalogue.matching_ids(status=status, q=q, facets=facets, artist_id=artist_id)
     return WorkPageOut(
         works=[_work(entry) for entry in page.entries],
         total=page.total,
@@ -263,6 +269,7 @@ def list_works(
         offset=page.offset,
         truncated=page.truncated,
         facets=[_facet_group(group) for group in page.facets],
+        themes=[_theme_option(option) for option in services.display.theme_counts(others, selected=theme)],
     )
 
 
@@ -1245,6 +1252,16 @@ def _theme_detail(services: Services, theme_id: str) -> ThemeDetailOut:
         # Two calls composed, as the MCP binding composes them: Programming's
         # order, and the Library's account of each work.
         works=[_work(entry) for entry in services.survey.survey_works(services.display.theme_work_ids(theme_id))],
+    )
+
+
+def _theme_option(option: ThemeCount) -> ThemeOptionOut:
+    return ThemeOptionOut(
+        theme_id=option.theme.id,
+        name=option.theme.name,
+        count=option.count,
+        selected=option.selected,
+        disabled=option.disabled,
     )
 
 

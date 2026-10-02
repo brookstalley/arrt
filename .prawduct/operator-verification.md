@@ -10,6 +10,33 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Artworks: Theme in the Filter rail, and Select mode — added 2026-10-02
+
+**`build-plan-library-screens.md` Chunk 02 (#169).** Visual change: yes.
+
+Checked by the builder on 2026-10-02 at 1440 px and 390 px against a copy of
+the dev catalogue (no masters, so tiles show the missing-image sentence), with
+a second theme, *Winter*, of four works added to the copy. Regenerate with a
+server on a copy (`ART_ROOT=<copy> CURATION_PORT=18767 OPENROUTER_API_KEY=
+uv run python -m arrt` in `arrt/`) and `page.screenshot` of `#collection`, with
+*Select* pressed, and of `#collection?theme=<id>`.
+
+- **The rail** opens with a *Theme* group: every theme with its count, as the
+  facets carry theirs. The chosen theme is pressed; a theme the other filters
+  empty is greyed and still listed. The old *Themes* list, its *Open* buttons
+  and *Manage themes* are gone (themes are reached from Library › Themes).
+- **A theme and a facet together** narrow the grid together; the heading reads
+  "*n* works in “Winter”", and the facet counts are about Winter's works.
+- **Outside *Select*,** no tick and no theme picker anywhere. **Select** shows
+  ticks on every tile and an action bar: "*n* selected", a labelled *Theme*
+  picker, **Add 2 works to All works**, and, with a theme filtered, **Remove 1
+  work from Winter**. Pressing Select again hides the ticks and drops them.
+- **Worth an opinion:** the Select toggle's pressed state is only a bolder
+  border, which may be too quiet; on a phone the Theme group scrolls sideways
+  like the facet groups, so a long theme name runs off the edge; and with a
+  theme filtered, the facet groups list every zero-count value disabled — the
+  rail's rule, but a long list of zeros under a small theme.
+
 ### Want and Forget, Activity › Wanted, and the Wikidata picker — added 2026-10-02
 
 **`build-plan-after-review.md` Chunk 05.** Visual change: yes.

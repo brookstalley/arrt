@@ -420,6 +420,19 @@ class FacetGroupOut(BaseModel):
     truncated: bool
 
 
+class ThemeOptionOut(BaseModel):
+    """One theme as the *Filter* rail offers it, beside the facets."""
+
+    theme_id: str
+    name: str
+    #: Works this theme would select **given every other filter but the theme**,
+    #: as a facet option's count ignores its own kind.
+    count: int
+    selected: bool
+    #: True for a theme that would select nothing; never for the selected one.
+    disabled: bool
+
+
 class WorkPageOut(BaseModel):
     """A page of works that describes its own place in the set."""
 
@@ -433,6 +446,8 @@ class WorkPageOut(BaseModel):
     #: the grid answers, and two routes would give a curator two answers to it
     #: with a write free to land in between.
     facets: list[FacetGroupOut] = []
+    #: Every theme, by name, as a filter option counted against this filter.
+    themes: list[ThemeOptionOut] = []
 
 
 class SourceOut(BaseModel):
