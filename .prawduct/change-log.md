@@ -62,6 +62,24 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-02: A Get names where its works go, over HTTP, MCP and the client
+
+<!-- prawduct: scope=topics-and-destinations -->
+
+**Why:** every accepted work joined the default theme, so works a curator
+wanted for one occasion entered the everyday rotation. The owner recast
+ruling 5a's "excursion" as a destination on every Get (2026-10-02).
+
+**What:** `discovery_runs.destination_theme_id` (nullable, no cross-seam
+foreign key) records a Get's theme; `LibraryFacade.destinations` answers it per
+work; Programming's `offer_destinations` (was `offer_to_default`) puts an
+accepted work in that theme, or none if it was deleted, and `catch_up_offers`
+does the same at start. `POST /api/gets` and `art_discovery(action='get')` take
+`theme_id`. The Get control gains *Add to*; Queue, History, the run page and
+Review say where a run's works go. "Excursion" is retired from the live
+artifacts; `data-model.md` gains Q22-Q24. Built by two delegates in worktrees,
+merged no-ff; Critic `rev-20261002T141127Z-2cff3579`, 0 blocking.
+
 ## 2026-10-02: The cumulative review of Get and Ask, resolved
 
 <!-- prawduct: scope=get-and-ask -->
