@@ -327,6 +327,9 @@ The recorded answers the source's tests run against are in
 
 ## Topics (Topics and destinations, 2026-10-02)
 
+Three rules here changed on the owner's answers the same day; what each changed
+is § The owner's rules, re-measured, at the end of this section.
+
 Measured for `build-plan-topics-and-destinations.md` Chunk 03 with the client's
 own calls (`topic`, `topic_works`, `topic_artists`, `topics_named`,
 `topics_of`), User-Agent `arrt test suite (+https://github.com/brookstalley/arrt) bot`,
@@ -500,6 +503,133 @@ woodblock printing in Japan).
   → millennium Q36507) and those are not, so the query asks for that. The
   registry's centuries before 1000 overlap by a year (2nd century 100–200, 3rd
   201–301, and two 10th centuries), so a work dated on a boundary there gets two.
+
+### The owner's rules, re-measured (Chunk 03b, 2026-10-02)
+
+The owner answered the measurement above with three rule changes
+(`build-plan-topics-and-destinations.md` § The owner's answers): years alone no
+longer make a period; search drops a movement no maker of a work of visual art
+belongs to (`?maker wdt:P135 ?item . ?work wdt:P170 ?maker`, the work an instance
+of one of the ten classes); and a topic's artists are ranked by how many of their
+works are in the topic, sitelinks breaking ties, over every work in it rather than
+the makers of its hundred most renowned. For a movement the count is of its own
+artists' works of visual art, and an artist of the movement with none is still
+listed, last.
+
+Measured with the client's own `topic`, `topic_artists(limit=10)` and
+`topics_named`, through the same timing wrapper and User-Agent: **before** is the
+unchanged client and **after** the changed one, the same day, one run each,
+the twenty QIDs taken from the table above. Period topics were spaced 45 s apart;
+the service answered every query in both runs and refused none.
+
+**Kind and the artists' query time** (seconds):
+
+| Topic | Kind before | Kind after | Artists s before | Artists s after |
+|---|---|---|---|---|
+| 16th century (Q7017) | period | period | 17.3 | 7.37 |
+| 1920s (Q35736) | period | period | 14.68 | 6.04 |
+| Dutch Golden Age (Q661566) | period | period | 22.55 | 20.91 |
+| Edo period (Q184963) | period | period | 51.01 | 25.76 |
+| Belle Époque (Q466887) | period | period | 51.63 | 33.06 |
+| Baroque (Q37853) | movement, period | movement, period | 1.36 | 4.72 |
+| Romanticism (Q37068) | movement, period | movement | 1.2 | 4.92 |
+| Impressionism (Q40415) | movement | movement | 1.11 | 8.03 |
+| cubism (Q42934) | movement | movement | 0.98 | 2.34 |
+| abstract expressionism (Q177725) | movement | movement | 0.57 | 2.27 |
+| winter (Q1311) | subject | subject | 11.16 | 0.85 |
+| horse (Q726) | subject | subject | 10.0 | 1.61 |
+| still life (Q170571) | subject | subject | 11.64 | 7.59 |
+| death (Q4) | subject | subject | 7.02 | 0.61 |
+| love (Q316) | subject | subject | 6.91 | 1.89 |
+| woodcut print (Q18219090) | medium | medium | 7.53 | 0.52 |
+| watercolor painting (Q18761202) | medium | medium | 5.77 | 0.96 |
+| pastel artwork (Q12043905) | medium | medium | 5.09 | 0.57 |
+| etching print (Q18218093) | medium | medium | 12.96 | 0.8 |
+| lithograph print (Q15123870) | medium | medium | 11.17 | 1.16 |
+
+**What changed in kind:** Romanticism alone of the twenty, from movement and
+period to movement. In search, Renaissance (Q4692) and *Baroque painting* lose
+their period kind the same way. Every other topic's kind is as before.
+
+**Time:** the artists of a subject or a kind of work now answer in under 2 s
+(still life 7.6 s), from 5 to 13 s; a century's and a decade's in 6 to 7 s, from
+15 to 17 s. The Edo period's and the Belle Époque's, which timed out in Chunk
+03's runs, answered in both: 51 s before, 26 and 33 s after. The Dutch Golden
+Age's took 21 to 23 s both times. All three are still over the pages' 20 s. A movement's artists are slower, 2 to 8 s from about 1 s, because
+every work of every artist of the movement is now counted.
+
+**Top ten artists** (after: works in the topic; sitelinks). The rows came back
+from the service in no order: the grouping around the ranked choice keeps none,
+so the client puts them back in rank order.
+
+- **16th century**. Before: Leonardo da Vinci, Michelangelo, Raphael, Albrecht Dürer, Caravaggio, El Greco, Titian, Hieronymus Bosch, Pieter Brueghel the Elder, Jacopo Tintoretto. After: Lucas Cranach the Elder (992; 60), Philip Galle (553; 14), Titian (415; 109), Jacopo Tintoretto (372; 85), Maarten van Heemskerck (344; 27), El Greco (329; 115), Joris Hoefnagel (310; 18), Lucas Cranach the Younger (297; 42), Hendrik Goltzius (288; 31), Paolo Veronese (274; 79).
+- **1920s**. Before: Pablo Picasso, Salvador Dalí, Henri Matisse, Joan Miró, Wassily Kandinsky, Paul Klee, René Magritte, Amedeo Modigliani, Diego Rivera, Kazimir Malevich. After: Stanisław Ignacy Witkiewicz (872; 49), Alfred Stieglitz (443; 49), Edvard Munch (356; 120), Marc Chagall (351; 103), Lovis Corinth (314; 50), Augusto Malta (313; 2), Paul Klee (300; 97), André Dunoyer de Segonzac (291; 10), Jan Sluijters (267; 16), Percy Benzie Abery (266; 5).
+- **Dutch Golden Age**. Before: Michelangelo, Rembrandt, Peter Paul Rubens, Diego Velázquez, Caravaggio, Johannes Vermeer, El Greco, Pieter Brueghel the Elder, Gian Lorenzo Bernini, Artemisia Gentileschi. After: Peter Paul Rubens (2049; 175), Anthony van Dyck (1450; 84), Jacques Callot (1357; 35), Rembrandt (1133; 207), David Teniers the Younger (1120; 31), Jan van Goyen (703; 42), Philips Wouwerman (597; 33), El Greco (567; 115), Jacob van Ruisdael (552; 48), Jacob Jordaens (547; 44).
+- **Edo period**. Before: Rembrandt, Francisco Goya, Peter Paul Rubens, Diego Velázquez, Claude Monet, Jean-Auguste-Dominique Ingres, Eugène Delacroix, Caravaggio, Johannes Vermeer, Édouard Manet. After: Paul Gavarni (2771; 27), Honoré Daumier (2506; 65), Thomas Rowlandson (2036; 34), Peter Paul Rubens (1990; 175), Anthony van Dyck (1477; 84), Jacques Callot (1339; 35), David Teniers the Younger (1158; 31), Rembrandt (1146; 207), George Catlin (887; 37), Charles Balthazar Julien Févret de Saint-Mémin (856; 4).
+- **Belle Époque**. Before: Vincent van Gogh, Pablo Picasso, Claude Monet, Paul Cézanne, Paul Gauguin, Auguste Rodin, Edvard Munch, Pierre-Auguste Renoir, Edgar Degas, Édouard Manet. After: Militão Augusto de Azevedo (9337; 4), John Thomas (2419; 10), Stanisław Wyspiański (2208; 48), Pierre-Auguste Renoir (1798; 115), Marc Ferrez (1522; 10), Edvard Munch (1394; 120), Apel·les Mestres i Oñós (1157; 13), Theo van Doesburg (1130; 60), Émile Bernard (1088; 52), Percy Benzie Abery (1045; 5).
+- **Baroque**. Before: Peter Paul Rubens, Diego Velázquez, Caravaggio, Francisco de Zurbarán, Gian Lorenzo Bernini, Frans Hals, Jusepe de Ribera, Giovanni Battista Tiepolo, Francesco Borromini, Guido Reni. After: Peter Paul Rubens (2852; 175), David Teniers the Younger (1475; 31), Jacob Jordaens (621; 44), Nicolaes Pieterszoon Berchem (511; 24), Giovanni Battista Tiepolo (449; 67), Wenceslaus Hollar (448; 32), Luca Giordano (443; 39), Stefano della Bella (405; 13), Guido Reni (393; 55), Cornelius van Poelenburgh (350; 19).
+- **Romanticism**. Before: Hans Christian Andersen, Francisco Goya, William Blake, Taras Shevchenko, Jean-Auguste-Dominique Ingres, Mikhail Lermontov, Eugène Delacroix, E. T. A. Hoffmann, Théophile Gautier, J. M. W. Turner. After: J. M. W. Turner (4052; 87), Thomas Rowlandson (2561; 34), Francisco Goya (945; 186), Eugène Delacroix (614; 121), William Blake (583; 162), John Constable (570; 72), Thomas Lawrence (556; 40), Henry Raeburn (451; 28), Akseli Gallen-Kallela (437; 52), Ivan Aivazovsky (418; 73).
+- **Impressionism**. Before: Henri Matisse, Claude Monet, Paul Gauguin, Pierre-Auguste Renoir, Edgar Degas, Édouard Manet, Mary Cassatt, Camille Pissarro, Alfred Sisley, Berthe Morisot. After: Pierre-Auguste Renoir (2131; 115), Lovis Corinth (1351; 50), Claude Monet (1284; 155), Eliseu Visconti (1165; 12), Eugène Louis Boudin (926; 53), Camille Pissarro (878; 87), John Singer Sargent (850; 62), Alfred Sisley (838; 74), Henri Matisse (818; 181), Paul Gauguin (756; 133).
+- **cubism**. Before: Pablo Picasso, Georges Braque, Francis Bacon, Juan Gris, Francis Picabia, André Derain, Fernand Léger, Josef Čapek, Max Jacob, Alexander Archipenko. After: Pablo Picasso (2215; 265), Fernand Léger (706; 54), André Derain (499; 55), Ossip Zadkine (473; 42), Georges Braque (434; 86), Maurice de Vlaminck (350; 47), Victor Brauner (330; 32), Alfred Pellan (238; 8), Juan Gris (237; 63), William Zorach (193; 15).
+- **abstract expressionism**. Before: Jackson Pollock, Mark Rothko, Louise Bourgeois, Willem de Kooning, Karel Appel, Arshile Gorky, Captain Beefheart, James Rosenquist, Helen Frankenthaler, Barnett Newman. After: Richard Diebenkorn (1496; 18), Mark Rothko (1274; 71), Jacob Kainen (622; 2), Jackson Pollock (252; 118), Robert Motherwell (208; 29), Sam Francis (201; 24), Philip Guston (185; 26), Franz Kline (180; 32), Willem de Kooning (178; 53), Karel Appel (177; 47).
+- **winter**. Before: Vincent van Gogh, Claude Monet, Edvard Munch, Pieter Brueghel the Elder, Caspar David Friedrich, Camille Pissarro, Gustave Courbet, Franz Marc, Alfred Sisley, Ivan Aivazovsky. After: Claude Monet (10; 155), Alfred Sisley (9; 74), Camille Pissarro (7; 87), Percy Benzie Abery (7; 5), Johan Christian Dahl (6; 36), Carl Hasenpflug (6; 10), Régis François Gignoux (6; 7), Axel Stephansen (6; 1), Edvard Munch (5; 120), Simon Kozhin (5; 18).
+- **horse**. Before: Rembrandt, Raphael, Francisco Goya, Peter Paul Rubens, Diego Velázquez, Jean-Auguste-Dominique Ingres, Eugène Delacroix, El Greco, Pierre-Auguste Renoir, Sandro Botticelli. After: Philips Wouwerman (239; 33), Grandma Moses (187; 38), Józef Chełmoński (105; 28), Thomas Rowlandson (89; 34), Aelbert Cuyp (59; 41), Werner Haberkorn (50; 3), Théodore Géricault (49; 71), Peter Paul Rubens (42; 175), George Catlin (34; 37), Jean Moyreau (33; 2).
+- **still life**. Before: Vincent van Gogh, Pablo Picasso, Salvador Dalí, Rembrandt, Albrecht Dürer, Francisco Goya, Henri Matisse, Andy Warhol, Diego Velázquez, Claude Monet. After: Abraham van Beijeren (304; 26), Jan Fyt (283; 25), Pieter Claesz (270; 35), Pablo Picasso (248; 265), Jan Sluijters (243; 16), Kees Verwey (212; 7), Adriaen de Grijef (200; 4), Frans Snyders (182; 31), Émile Bernard (173; 52), Lovis Corinth (169; 50).
+- **death**. Before: Francisco Goya, Peter Paul Rubens, Eugène Delacroix, Edvard Munch, Caravaggio, Édouard Manet, Paul Klee, Jusepe de Ribera, Giovanni Battista Tiepolo, Robert Capa. After: Jean Le Pautre (15; 11), Gustave Moreau (14; 53), Militão Augusto de Azevedo (12; 4), Léon Cogniet (8; 30), Pierre Mariette II (8; 1), Edvard Munch (7; 120), Claude Vignon (7; 16), François Chauveau (7; 11), Abraham Bosse (5; 23), Gilles Rousselet (5; 6).
+- **love**. Before: Raphael, Albrecht Dürer, Peter Paul Rubens, Jean-Auguste-Dominique Ingres, Auguste Rodin, Titian, Jacques-Louis David, Jean-Antoine Watteau, Pietro Perugino, William-Adolphe Bouguereau. After: Nicolas de Larmessin (7; 3), François Perrier (4; 15), François de Poilly (4; 8), François Gérard (3; 36), Pierre-Jacques Cazes (3; 11), Raphael (2; 195), William-Adolphe Bouguereau (2; 63), Théodore Chassériau (2; 31), Maarten van Heemskerck (2; 27), Jean-Bruno Gassies (2; 5).
+- **woodcut print**. Before: Benjamin Franklin, Albrecht Dürer, Katsushika Hokusai, M. C. Escher, Utagawa Hiroshige, Lucas Cranach the Elder, Peter Behrens, Albrecht Altdorfer, Kitagawa Utamaro, Raoul Dufy. After: Albrecht Dürer (421; 187), Utagawa Hiroshige (260; 68), Yoshitoshi (236; 26), Frans Masereel (223; 31), Jef Diederen (189; 3), Kitagawa Utamaro (165; 50), Katsushika Hokusai (158; 177), Suzuki Harunobu (158; 34), Sharaku (143; 28), Marianne van der Heijden (82; 3).
+- **watercolor painting**. Before: Adolf Hitler, Vincent van Gogh, Pablo Picasso, Albrecht Dürer, William Blake, Paul Gauguin, Eugène Delacroix, Wassily Kandinsky, Paul Klee, Caspar David Friedrich. After: J. M. W. Turner (3155; 87), Ferdinand Bauer (964; 23), Mary Vaux Walcott (787; 14), Hmayak Hakobyan (424; 5), William Catto (423; 0), Gerardo Orakian (348; 1), James Tissot (339; 47), Daniel Lysons (330; 4), Winslow Homer (320; 44), Ilon Wikland (241; 33).
+- **pastel artwork**. Before: Vincent van Gogh, Pablo Picasso, Eugène Delacroix, Pierre-Auguste Renoir, Edgar Degas, Édouard Manet, Henri de Toulouse-Lautrec, Mary Cassatt, Jean-François Millet, Élisabeth Louise Vigée Le Brun. After: Stanisław Ignacy Witkiewicz (2021; 49), Stanisław Wyspiański (336; 48), Edgar Degas (86; 114), Jean-Étienne Liotard (40; 32), Mary Cassatt (34; 89), Leon Wyczółkowski (32; 26), Maurice Quentin de La Tour (25; 40), Odilon Redon (23; 60), Cornelis Troost (22; 12), Giuseppe De Nittis (19; 24).
+- **etching print**. Before: Vincent van Gogh, Pablo Picasso, Salvador Dalí, Rembrandt, Albrecht Dürer, Francisco Goya, William Blake, Pierre-Auguste Renoir, Paul Klee, William Hogarth. After: James Ensor (653; 51), James Gillray (286; 33), Isaac Cruikshank (230; 10), Jules De Bruycker (181; 9), J. M. W. Turner (179; 87), Francesco Bartolozzi (153; 22), William Miller (132; 6), George Cruikshank (131; 33), David Young Cameron (108; 13), Thomas Rowlandson (107; 34).
+- **lithograph print**. Before: Vincent van Gogh, Pablo Picasso, Salvador Dalí, Francisco Goya, Eugène Delacroix, Edvard Munch, Henri de Toulouse-Lautrec, Camille Pissarro, M. C. Escher, Franz Marc. After: John Gould (1410; 40), Louis-Joseph van Peteghem (98; 2), James Ensor (83; 51), François-Séraphin Delpech (70; 6), John Doyle (63; 8), Pieter Defesche (63; 2), Henri Borremans (52; 2), Honoré Daumier (51; 65), Charles Heaphy (50; 9), Alexandre Joos (49; 0).
+
+**What the ranking says.** Every list changed, and every change is the counts:
+
+- **The fame-from-elsewhere cases are gone.** Benjamin Franklin is out of woodcut
+  (Dürer first, 421 woodcuts), Adolf Hitler out of watercolour, and Hans Christian
+  Andersen, Lermontov and E. T. A. Hoffmann out of Romanticism, which Turner,
+  Rowlandson, Goya and Delacroix now lead.
+- **A count rewards whoever has an item per work.** Printmakers, illustrators and
+  photographers lead: Militão Augusto de Azevedo's 9337 works top the Belle
+  Époque, Philip Galle's 553 the 16th century, John Gould's 1410 lithograph
+  print, Jean Le Pautre's 15 death. That a museum's or archive's catalogue import
+  put them there is inference, not measured. Asked directly, Leonardo has 35 works dated 1501 to 1600,
+  Michelangelo 107 and Raphael 195, against 274 for tenth place (Veronese); for
+  winter, Pieter Brueghel the Elder has 3 and Vincent van Gogh 1, against 5 for
+  tenth. Nothing here is a fault in the query; it is what the rule ranks by.
+- **A period is still everything made in its years, anywhere** (§ above): the
+  Edo period's ten include no Japanese artist (Gavarni, Daumier, Rowlandson lead).
+  That is Chunk 05's matter, not the ranking's.
+
+**Topic search** (seconds; kinds as the client reads them):
+
+| Typed | Before (s) | Offered before | After (s) | Offered after |
+|---|---|---|---|---|
+| `renaissance` | 0.64 | Renaissance (movement, period); Renaissance architecture (movement); Renaissance art (movement); Renaissance Revival architecture (movement); Renaissance (period) | 1.07 | Renaissance (movement); Renaissance architecture (movement); Renaissance Revival architecture (movement) |
+| `winter` | 0.75 | winter (subject); Winter War (period); Withania somnifera (subject); Winterswijk (subject) | 1.0 | winter (subject); Winter War (subject); Withania somnifera (subject); Winterswijk (subject) |
+| `16th century` | 0.97 | 16th century (period); 16th century BC (period); 16th century AH (period); 16th century generation (period); 16th-century clothing (period) | 1.11 | 16th century (period); 16th century BC (period); 16th century AH (period) |
+| `impressionism` | 0.96 | Impressionism (movement); impressionism in music (movement); impressionism (movement); Impressionism in Greece (movement); Impressionism in the Netherlands (movement); Impressionism: The Art of Landscape (period); impressionism in visual arts (movement); Impressionism, Fashion, and Modernity (period); Impressionism: Seurat, Renoir, Monet, Sisley, Pissarro (period); impressionist music (subject) | 2.31 | Impressionism (movement); impressionist music (subject) |
+| `baroque` | 0.84 | Baroque (movement, period); Baroque music (movement); baroque architecture (movement); baroque revival (movement); baroque pop (subject); Baroque painting (movement, period) | 3.21 | Baroque (movement, period); Baroque music (movement); baroque architecture (movement); baroque pop (subject); Baroque painting (movement) |
+
+- **The exhibitions, the war and the clothing are no longer periods.** The
+  Louvre-Lens *Renaissance* (Q16672500, 2012–2013), *Impressionism: The Art of
+  Landscape* (Q106858047), *16th-century clothing* (Q28972137) and *16th century
+  generation* (Q65643776) each read as a subject, asked one by one, and none is
+  offered; nor are the other two Impressionism exhibitions. The Winter War (Q134949,
+  1939–1940) is offered as a subject, because something depicts it.
+- **A music movement is dropped, but not every one.** *impressionism in music*
+  (Q837182) goes, and so does *baroque revival*. **Baroque music (Q8361) is still
+  offered**: eight makers of works of visual art name it as their movement,
+  composers who also drew or painted (Christian Ludwig von Loewenstern 8 works,
+  Robert Woodcock 4, Louis Aubert 3, Constantijn Huygens 2, Jan Zach 2,
+  Jean-Philippe Rameau, Corona Schröter and François Roberday 1 each). The rule
+  as chosen keeps it, and it was not tuned.
+- **Visual movements nobody is recorded as belonging to go too**: *Renaissance
+  art* (Q1133779), *impressionism in visual arts* (Q132300980), and Impressionism
+  in Greece and in the Netherlands. No maker of a work of visual art names them,
+  so as movements their pages would have listed no works.
+- **The check costs time**: `baroque` took 3.2 s and `impressionism` 2.3 s, from
+  under 1 s.
 
 ## Reproducing
 

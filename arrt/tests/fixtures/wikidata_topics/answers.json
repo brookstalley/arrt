@@ -5626,32 +5626,6 @@
   {
    "artist": {
     "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q5589"
-   },
-   "artistLabel": {
-    "xml:lang": "en",
-    "type": "literal",
-    "value": "Henri Matisse"
-   },
-   "links": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "181"
-   },
-   "born": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "1869"
-   },
-   "died": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "1954"
-   }
-  },
-  {
-   "artist": {
-    "type": "uri",
     "value": "http://www.wikidata.org/entity/Q296"
    },
    "artistLabel": {
@@ -5664,6 +5638,11 @@
     "type": "literal",
     "value": "155"
    },
+   "works": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1284"
+   },
    "born": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
@@ -5673,6 +5652,37 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
     "value": "1926"
+   }
+  },
+  {
+   "artist": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q5589"
+   },
+   "artistLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Henri Matisse"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "181"
+   },
+   "works": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "818"
+   },
+   "born": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1869"
+   },
+   "died": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1954"
    }
   },
   {
@@ -5689,6 +5699,11 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
     "value": "133"
+   },
+   "works": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "756"
    },
    "born": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
@@ -5716,6 +5731,11 @@
     "type": "literal",
     "value": "115"
    },
+   "works": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "2131"
+   },
    "born": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
@@ -5725,84 +5745,6 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
     "value": "1919"
-   }
-  },
-  {
-   "artist": {
-    "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q46373"
-   },
-   "artistLabel": {
-    "xml:lang": "en",
-    "type": "literal",
-    "value": "Edgar Degas"
-   },
-   "links": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "114"
-   },
-   "born": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "1834"
-   },
-   "died": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "1917"
-   }
-  },
-  {
-   "artist": {
-    "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q40599"
-   },
-   "artistLabel": {
-    "xml:lang": "en",
-    "type": "literal",
-    "value": "Édouard Manet"
-   },
-   "links": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "113"
-   },
-   "born": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "1832"
-   },
-   "died": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "1883"
-   }
-  },
-  {
-   "artist": {
-    "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q173223"
-   },
-   "artistLabel": {
-    "xml:lang": "en",
-    "type": "literal",
-    "value": "Mary Cassatt"
-   },
-   "links": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "89"
-   },
-   "born": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "1844"
-   },
-   "died": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "1926"
    }
   },
   {
@@ -5820,6 +5762,11 @@
     "type": "literal",
     "value": "87"
    },
+   "works": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "878"
+   },
    "born": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
@@ -5829,58 +5776,6 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
     "value": "1903"
-   }
-  },
-  {
-   "artist": {
-    "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q175130"
-   },
-   "artistLabel": {
-    "xml:lang": "en",
-    "type": "literal",
-    "value": "Alfred Sisley"
-   },
-   "links": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "74"
-   },
-   "born": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "1839"
-   },
-   "died": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "1899"
-   }
-  },
-  {
-   "artist": {
-    "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q105320"
-   },
-   "artistLabel": {
-    "xml:lang": "en",
-    "type": "literal",
-    "value": "Berthe Morisot"
-   },
-   "links": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "74"
-   },
-   "born": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "1841"
-   },
-   "died": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "1895"
    }
   },
   {
@@ -5898,6 +5793,11 @@
     "type": "literal",
     "value": "62"
    },
+   "works": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "850"
+   },
    "born": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
@@ -5912,27 +5812,125 @@
   {
    "artist": {
     "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q207298"
+    "value": "http://www.wikidata.org/entity/Q157610"
    },
    "artistLabel": {
     "xml:lang": "en",
     "type": "literal",
-    "value": "Frédéric Bazille"
+    "value": "Lovis Corinth"
    },
    "links": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "58"
+    "value": "50"
+   },
+   "works": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1351"
    },
    "born": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "1841"
+    "value": "1858"
    },
    "died": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "1870"
+    "value": "1925"
+   }
+  },
+  {
+   "artist": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q175130"
+   },
+   "artistLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Alfred Sisley"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "74"
+   },
+   "works": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "838"
+   },
+   "born": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1839"
+   },
+   "died": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1899"
+   }
+  },
+  {
+   "artist": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q212600"
+   },
+   "artistLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Eugène Louis Boudin"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "53"
+   },
+   "works": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "926"
+   },
+   "born": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1824"
+   },
+   "died": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1898"
+   }
+  },
+  {
+   "artist": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q2340277"
+   },
+   "artistLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Eliseu Visconti"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "12"
+   },
+   "works": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1165"
+   },
+   "born": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1866"
+   },
+   "died": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1944"
    }
   }
  ],
@@ -5962,17 +5960,6 @@
   {
    "person": {
     "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q37693"
-   },
-   "n": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "739"
-   }
-  },
-  {
-   "person": {
-    "type": "uri",
     "value": "http://www.wikidata.org/entity/Q39931"
    },
    "n": {
@@ -5984,45 +5971,12 @@
   {
    "person": {
     "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q46373"
+    "value": "http://www.wikidata.org/entity/Q37693"
    },
    "n": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "649"
-   }
-  },
-  {
-   "person": {
-    "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q40599"
-   },
-   "n": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "443"
-   }
-  },
-  {
-   "person": {
-    "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q105320"
-   },
-   "n": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "204"
-   }
-  },
-  {
-   "person": {
-    "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q155626"
-   },
-   "n": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "827"
+    "value": "739"
    }
   },
   {
@@ -6039,12 +5993,23 @@
   {
    "person": {
     "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q173223"
+    "value": "http://www.wikidata.org/entity/Q155626"
    },
    "n": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "255"
+    "value": "827"
+   }
+  },
+  {
+   "person": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q157610"
+   },
+   "n": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1318"
    }
   },
   {
@@ -6061,63 +6026,66 @@
   {
    "person": {
     "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q207298"
+    "value": "http://www.wikidata.org/entity/Q212600"
    },
    "n": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "64"
+    "value": "660"
+   }
+  },
+  {
+   "person": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q2340277"
+   },
+   "n": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1216"
    }
   }
  ],
  "artists expected": [
   [
-   "Q5589",
-   507
+   "Q39931",
+   1987
+  ],
+  [
+   "Q157610",
+   1318
   ],
   [
    "Q296",
    1286
   ],
   [
-   "Q37693",
-   739
+   "Q2340277",
+   1216
   ],
   [
-   "Q39931",
-   1987
-  ],
-  [
-   "Q46373",
-   649
-  ],
-  [
-   "Q40599",
-   443
-  ],
-  [
-   "Q173223",
-   255
+   "Q212600",
+   660
   ],
   [
    "Q134741",
    845
   ],
   [
-   "Q175130",
-   817
-  ],
-  [
-   "Q105320",
-   204
-  ],
-  [
    "Q155626",
    827
   ],
   [
-   "Q207298",
-   64
+   "Q175130",
+   817
+  ],
+  [
+   "Q5589",
+   507
+  ],
+  [
+   "Q37693",
+   739
   ]
  ],
  "named renaissance": [
@@ -6150,6 +6118,11 @@
     "value": "Renaissance"
    },
    "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   },
+   "followed": {
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "true"
@@ -6194,6 +6167,11 @@
     "value": "Renaissance"
    },
    "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   },
+   "followed": {
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "true"
@@ -6241,6 +6219,11 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
    }
   },
   {
@@ -6264,6 +6247,11 @@
     "value": "Renaissance"
    },
    "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
@@ -6301,6 +6289,11 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
    }
   },
   {
@@ -6335,6 +6328,11 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
    }
   },
   {
@@ -6358,6 +6356,11 @@
     "value": "Renaissance"
    },
    "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
@@ -6387,6 +6390,11 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
    }
   },
   {
@@ -6410,6 +6418,11 @@
     "value": "Renaissance"
    },
    "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
@@ -6439,6 +6452,11 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
    }
   },
   {
@@ -6462,6 +6480,11 @@
     "value": "Renaissance group"
    },
    "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
@@ -6491,6 +6514,11 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
    }
   },
   {
@@ -6517,6 +6545,11 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
    }
   },
   {
@@ -6540,6 +6573,11 @@
     "value": "Renaissance"
    },
    "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
@@ -6579,6 +6617,11 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
    }
   },
   {
@@ -6605,37 +6648,8 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
-   }
-  },
-  {
-   "root": {
-    "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q4502142"
    },
-   "item": {
-    "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q29951565"
-   },
-   "via": {
-    "type": "literal",
-    "value": "P31"
-   },
-   "description": {
-    "xml:lang": "en",
-    "type": "literal",
-    "value": "1989 video game"
-   },
-   "links": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "1"
-   },
-   "itemLabel": {
-    "xml:lang": "en",
-    "type": "literal",
-    "value": "Renaissance"
-   },
-   "depicted": {
+   "followed": {
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
@@ -6673,6 +6687,50 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q4502142"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q29951565"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "1989 video game"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Renaissance"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
    }
   },
   {
@@ -6696,6 +6754,11 @@
     "value": "Renaissance"
    },
    "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
@@ -6725,6 +6788,11 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
    }
   },
   {
@@ -6748,6 +6816,11 @@
     "value": "Renaissance"
    },
    "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
@@ -6780,6 +6853,11 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
    }
   },
   {
@@ -6806,6 +6884,11 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
    }
   },
   {
@@ -6829,6 +6912,11 @@
     "value": "Still Life"
    },
    "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
@@ -6866,6 +6954,11 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
    }
   },
   {
@@ -6889,6 +6982,11 @@
     "value": "Still Life"
    },
    "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
@@ -6918,6 +7016,11 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
    }
   },
   {
@@ -6944,6 +7047,11 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
    }
   },
   {
@@ -6967,6 +7075,11 @@
     "value": "Still Life"
    },
    "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
@@ -7005,6 +7118,11 @@
     "type": "literal",
     "value": "false"
    },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
    "root": {
     "type": "uri",
     "value": "http://www.wikidata.org/entity/Q4502142"
@@ -7035,6 +7153,11 @@
     "value": "Still Life"
    },
    "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
@@ -7073,6 +7196,11 @@
     "type": "literal",
     "value": "false"
    },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
    "root": {
     "type": "uri",
     "value": "http://www.wikidata.org/entity/Q4502142"
@@ -7103,6 +7231,11 @@
     "value": "Still Life"
    },
    "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
@@ -7141,6 +7274,11 @@
     "type": "literal",
     "value": "false"
    },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
    "root": {
     "type": "uri",
     "value": "http://www.wikidata.org/entity/Q4502142"
@@ -7171,6 +7309,11 @@
     "value": "Still Life"
    },
    "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
@@ -7209,6 +7352,11 @@
     "type": "literal",
     "value": "false"
    },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
    "root": {
     "type": "uri",
     "value": "http://www.wikidata.org/entity/Q4502142"
@@ -7239,6 +7387,11 @@
     "value": "Still Life"
    },
    "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
@@ -7277,6 +7430,11 @@
     "type": "literal",
     "value": "false"
    },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
    "root": {
     "type": "uri",
     "value": "http://www.wikidata.org/entity/Q4502142"
@@ -7307,6 +7465,11 @@
     "value": "Still life"
    },
    "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
@@ -7345,6 +7508,11 @@
     "type": "literal",
     "value": "false"
    },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
    "root": {
     "type": "uri",
     "value": "http://www.wikidata.org/entity/Q4502142"
@@ -7375,6 +7543,11 @@
     "value": "Still-life"
    },
    "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
@@ -8021,6 +8194,11 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
    }
   },
   {
@@ -8047,6 +8225,11 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
    }
   },
   {
@@ -8073,6 +8256,11 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
    }
   },
   {
@@ -8096,6 +8284,11 @@
     "value": "Woodcutters"
    },
    "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
@@ -8125,6 +8318,11 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
    }
   },
   {
@@ -8148,6 +8346,11 @@
     "value": "Woodcut Records"
    },
    "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
@@ -8177,6 +8380,11 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
    },
    "root": {
     "type": "uri",
@@ -8212,6 +8420,11 @@
     "type": "literal",
     "value": "true"
    },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
    "root": {
     "type": "uri",
     "value": "http://www.wikidata.org/entity/Q4502142"
@@ -8245,6 +8458,11 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
    }
   },
   {
@@ -8268,6 +8486,11 @@
     "value": "Woodcut"
    },
    "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
@@ -8306,6 +8529,11 @@
     "type": "literal",
     "value": "false"
    },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
    "root": {
     "type": "uri",
     "value": "http://www.wikidata.org/entity/Q4502142"
@@ -8336,6 +8564,11 @@
     "value": "Woodcut"
    },
    "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
@@ -8373,6 +8606,11 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
    }
   },
   {
@@ -8399,6 +8637,11 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
    }
   },
   {
@@ -8422,6 +8665,11 @@
     "value": "Woodcutter"
    },
    "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
@@ -8460,6 +8708,11 @@
     "type": "literal",
     "value": "false"
    },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
    "root": {
     "type": "uri",
     "value": "http://www.wikidata.org/entity/Q4502142"
@@ -8490,6 +8743,11 @@
     "value": "Woodcutter Deluxe Edition"
    },
    "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
@@ -8527,6 +8785,11 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
    }
   },
   {
@@ -8550,6 +8813,11 @@
     "value": "Woodcutter II"
    },
    "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
@@ -8579,6 +8847,11 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
    }
   },
   {
@@ -8602,6 +8875,11 @@
     "value": "Woodcutter Simulator 2011"
    },
    "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
     "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
     "type": "literal",
     "value": "false"
@@ -8640,6 +8918,11 @@
     "type": "literal",
     "value": "false"
    },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
    "root": {
     "type": "uri",
     "value": "http://www.wikidata.org/entity/Q4502142"
@@ -8650,5 +8933,2546 @@
    }
   }
  ],
- "woodcut work": "Q106535219"
+ "woodcut work": "Q106535219",
+ "topic Q16672500": [
+  {
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q16672500"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "exhibition and catalog in the Louvre-Lens 2012-2013"
+   },
+   "start": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "2012"
+   },
+   "end": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "2013"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Renaissance"
+   }
+  }
+ ],
+ "topic Q134949": [
+  {
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q134949"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "1939–1940 war between the Soviet Union and Finland"
+   },
+   "start": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1939"
+   },
+   "end": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1940"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Winter War"
+   }
+  }
+ ],
+ "topic Q28972137": [
+  {
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q28972137"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "costume in the years 1500-1600"
+   },
+   "start": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1500"
+   },
+   "end": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1600"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "16th-century clothing"
+   }
+  }
+ ],
+ "named baroque": [
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q968159"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q37853"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "end": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1750"
+   },
+   "start": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1590"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "cultural movement, starting around 1600"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "128"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Baroque"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q1792644"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q37853"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "end": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1750"
+   },
+   "start": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1590"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "cultural movement, starting around 1600"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "128"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Baroque"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q11514315"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q37853"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "end": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1750"
+   },
+   "start": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1590"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "cultural movement, starting around 1600"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "128"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Baroque"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q1792644"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q37853"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "end": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1750"
+   },
+   "start": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1590"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "cultural movement, starting around 1600"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "128"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Baroque"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q968159"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q8361"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "style of Western classical music"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "69"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Baroque music"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q1792644"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q8361"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "style of Western classical music"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "69"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Baroque music"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q1792644"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q840829"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "building style of the Baroque era"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "52"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "baroque architecture"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q1792644"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q911397"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "architectural movement"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "35"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "baroque revival"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q46046"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "fusion genre that combines rock music with particular elements of classical music"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "33"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "baroque pop"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q968159"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q808561"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "end": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1800"
+   },
+   "start": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1600"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "painting movement"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "29"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Baroque painting"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q1792644"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q808561"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "end": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1800"
+   },
+   "start": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1600"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "painting movement"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "29"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Baroque painting"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q1792644"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q808561"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "end": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1800"
+   },
+   "start": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1600"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "painting movement"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "29"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Baroque painting"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q4502142"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q2749298"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "1998 video game"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "6"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Baroque"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q808726"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "white French wine grape"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "6"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Baroque"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q3266807"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Japanese rock band"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "3"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Baroque"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q129623"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "studio album by Junko Onishi (2010)"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "2"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Baroque"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q3635130"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Italian music band"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "2"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Baroque"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q11960288"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "1995 debut studio album by Øivind Farmen"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Baroque"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q83654660"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "bulk carrier launched in 2011"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Baroque"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q4502142"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q46958427"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "painting by Balcomb Greene"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "0"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "BAROQUE"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q4502142"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q20506399"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "painting by John Von Wicht"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "0"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Baroque"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q4502142"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q20813136"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "painting by Thomas Chimes"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "0"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Baroque"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q4502142"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q28472653"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "painting by Rata Lovell-Smith"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "0"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Baroque"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q4502142"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q77926023"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "painting by Maria Helena Vieira da Silva"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "0"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Baroque"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q109610189"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "horse"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "0"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Baroque"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q32059991"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "video game developer"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "0"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Baroque Decay"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  }
+ ],
+ "named impressionism": [
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q968159"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q40415"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "19th-century art movement"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "115"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Impressionism"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q1792644"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q40415"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "19th-century art movement"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "115"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Impressionism"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q1792644"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q40415"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "19th-century art movement"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "115"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Impressionism"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q968159"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q40415"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "19th-century art movement"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "115"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Impressionism"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q1792644"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q40415"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "19th-century art movement"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "115"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Impressionism"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q968159"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q837182"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "movement in Western classical music, mainly during early 20th centuries"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "39"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "impressionism in music"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q1792644"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q837182"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "movement in Western classical music, mainly during early 20th centuries"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "39"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "impressionism in music"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q968159"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q1475680"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "movement in literature"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "15"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "impressionism"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q1792644"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q1475680"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "movement in literature"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "15"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "impressionism"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q106857407"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Permanent Exhibition at the Museum Barberini, Potsdam"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "2"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Impressionism: The Hasso Plattner Collection"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q6007593"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "play by Michael Jacobs"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Impressionism"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q21639914"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "academic presentation by Nikolai Punin"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Impressionism and the problem of the painting"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q968159"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q136295583"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Greek Impressionism"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Impressionism in Greece"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q1792644"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q136295583"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Greek Impressionism"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Impressionism in Greece"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q1792644"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q136295583"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Greek Impressionism"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Impressionism in Greece"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q968159"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q121863041"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "impressionist art movement in the Netherlands"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Impressionism in the Netherlands"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q1792644"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q121863041"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "impressionist art movement in the Netherlands"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Impressionism in the Netherlands"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q106858047"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Special Exhibition and catalog at the Museum Barberini, 2017"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Impressionism: The Art of Landscape"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "end": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "2017"
+   },
+   "start": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "2017"
+   }
+  },
+  {
+   "root": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q1792644"
+   },
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q132300980"
+   },
+   "via": {
+    "type": "literal",
+    "value": "P31"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "trend in visual arts"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "impressionism in visual arts"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q103935335"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "encyclopedia article"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "0"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Impressionism"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q28910518"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "South Korean art exhibition"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "0"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Impressionism and Modern Art"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q139874814"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "0"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Impressionism and the Modern Landscape"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q115054686"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "2012–2013 Exhibition at Metropolitan Museum"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "0"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Impressionism, Fashion, and Modernity"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "end": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "2013"
+   },
+   "start": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "2012"
+   }
+  },
+  {
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q134520189"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Photography book by Réhahn exploring impressionist techniques through the camera, published in 2024"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "0"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Impressionism, From Photography to Painting"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q106978340"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Exhibition catalogue from Museum Barberini"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "0"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Impressionism. The Hasso Plattner Collection"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q139993644"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "edited book published by Yale University Press (1988)"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "0"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Impressionism: Art, Leisure, and Parisian Society"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q30150454"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "book by John I. Clancy"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "0"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Impressionism: Historical Overview and Bibliography"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  },
+  {
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q79261245"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "1938 Exhibition at SFMOMA (then the San Francisco Museum of Art)"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "0"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Impressionism: Seurat, Renoir, Monet, Sisley, Pissarro"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   },
+   "end": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1938"
+   },
+   "start": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1938"
+   }
+  },
+  {
+   "item": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q105697765"
+   },
+   "description": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "style of Western classical music"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "0"
+   },
+   "itemLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "impressionist music"
+   },
+   "depicted": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "true"
+   },
+   "followed": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#boolean",
+    "type": "literal",
+    "value": "false"
+   }
+  }
+ ],
+ "artists woodcut": [
+  {
+   "artist": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q5580"
+   },
+   "artistLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Albrecht Dürer"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "187"
+   },
+   "works": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "421"
+   },
+   "born": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1471"
+   },
+   "died": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1528"
+   }
+  },
+  {
+   "artist": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q5586"
+   },
+   "artistLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Katsushika Hokusai"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "177"
+   },
+   "works": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "158"
+   },
+   "born": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1760"
+   },
+   "died": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1849"
+   }
+  },
+  {
+   "artist": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q200798"
+   },
+   "artistLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Utagawa Hiroshige"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "68"
+   },
+   "works": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "260"
+   },
+   "born": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1797"
+   },
+   "died": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1858"
+   }
+  },
+  {
+   "artist": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q272045"
+   },
+   "artistLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Kitagawa Utamaro"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "50"
+   },
+   "works": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "165"
+   },
+   "born": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1753"
+   },
+   "died": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1806"
+   }
+  },
+  {
+   "artist": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q360978"
+   },
+   "artistLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Suzuki Harunobu"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "34"
+   },
+   "works": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "158"
+   },
+   "born": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1724"
+   },
+   "died": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1770"
+   }
+  },
+  {
+   "artist": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q361174"
+   },
+   "artistLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Sharaku"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "28"
+   },
+   "works": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "143"
+   },
+   "died": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1801"
+   }
+  },
+  {
+   "artist": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q467337"
+   },
+   "artistLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Yoshitoshi"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "26"
+   },
+   "works": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "236"
+   },
+   "born": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1839"
+   },
+   "died": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1892"
+   }
+  },
+  {
+   "artist": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q559297"
+   },
+   "artistLabel": {
+    "xml:lang": "mul",
+    "type": "literal",
+    "value": "Frans Masereel"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "31"
+   },
+   "works": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "223"
+   },
+   "born": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1889"
+   },
+   "died": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1972"
+   }
+  },
+  {
+   "artist": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q956934"
+   },
+   "artistLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Jef Diederen"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "3"
+   },
+   "works": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "189"
+   },
+   "born": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1920"
+   },
+   "died": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "2009"
+   }
+  },
+  {
+   "artist": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q22334076"
+   },
+   "artistLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Marianne van der Heijden"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "3"
+   },
+   "works": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "82"
+   },
+   "born": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1922"
+   },
+   "died": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1998"
+   }
+  }
+ ],
+ "artist images woodcut": [
+  {
+   "person": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q5580"
+   },
+   "n": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "814"
+   }
+  },
+  {
+   "person": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q5586"
+   },
+   "n": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "339"
+   }
+  },
+  {
+   "person": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q272045"
+   },
+   "n": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "275"
+   }
+  },
+  {
+   "person": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q200798"
+   },
+   "n": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "368"
+   }
+  },
+  {
+   "person": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q360978"
+   },
+   "n": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "168"
+   }
+  },
+  {
+   "person": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q361174"
+   },
+   "n": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "151"
+   }
+  },
+  {
+   "person": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q467337"
+   },
+   "n": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "307"
+   }
+  },
+  {
+   "person": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q559297"
+   },
+   "n": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "2"
+   }
+  }
+ ]
 }

@@ -127,7 +127,7 @@ _LABELS: Final[str] = "en,mul"
 _SEPARATOR: Final[str] = "\u241e"
 
 #: The classes a period is an instance of, directly or through a subclass:
-#: century, decade, historical period.
+#: century, decade, historical period. Being one is the only way to be a period.
 _PERIOD_CLASSES: Final[frozenset[str]] = frozenset({"Q578", "Q39911", "Q11514315"})
 
 #: The classes a movement is an instance of: art movement, art style. Read as
@@ -148,11 +148,6 @@ _MILLENNIUM: Final[str] = "Q36507"
 #: movement's works are its artists', which is what a curator browsing Baroque
 #: means; the same item's period would be everything made in 160 years.
 _KIND_ORDER: Final[tuple[TopicKind, ...]] = (TopicKind.MOVEMENT, TopicKind.PERIOD, TopicKind.MEDIUM, TopicKind.SUBJECT)
-
-#: How many of a topic's most renowned works its artists are read from, when it
-#: is not a movement: twice the works a page lists, so an artist with one famous
-#: work and one less so is still found.
-_ARTISTS_FROM: Final[int] = 100
 
 #: How many search hits a topic search reads, as the search ranks them.
 _TOPICS_SEARCHED: Final[int] = 20
@@ -486,32 +481,36 @@ class WikidataRegistry:
         ]
 
     def topic_artists(self, topic: RegistryTopic, *, limit: int) -> Sequence[RegistrySimilar]:
+        # Ranked by how many of their works are in the topic, renown breaking
+        # ties: ranked by renown alone, Benjamin Franklin led woodcut for *Join,
+        # or Die* and Adolf Hitler led watercolour (`wikidata-findings.md` § Topics).
         if topic.kind is TopicKind.MOVEMENT:
             # A movement's own artists (`P135` sits on people, not works), visual
-            # artists only, as `similar_to` keeps them.
-            chosen = f"""?artist wdt:P135 wd:{_require_qid(topic.qid)} ; wdt:P31 wd:Q5 ; wikibase:sitelinks ?links .
-                  FILTER EXISTS {{ ?artist wdt:P106/wdt:P279* wd:{_VISUAL_ARTIST} }}"""
+            # artists only, as `similar_to` keeps them, and its works are theirs.
+            # One with no work of visual art recorded is still the movement's.
+            counted = f"""?artist wdt:P135 wd:{_require_qid(topic.qid)} ; wdt:P31 wd:Q5 ; wikibase:sitelinks ?links .
+                  FILTER EXISTS {{ ?artist wdt:P106/wdt:P279* wd:{_VISUAL_ARTIST} }}
+                  OPTIONAL {{ ?work wdt:P170 ?artist . {_ARTWORK} }}"""
         else:
             where = _works_in(topic)
             if where is None:
                 return []
-            # The makers of its most renowned works, not of all of them: ranked
-            # over every maker, fame from elsewhere came first (Adolf Hitler and
-            # Winston Churchill for the 1920s, Ferdowsi for the 16th century).
-            chosen = f"""{{ SELECT DISTINCT ?work WHERE {{
-                    {where}
-                    ?work wikibase:sitelinks ?workLinks .
-                  }} ORDER BY DESC(?workLinks) STR(?work) LIMIT {_ARTISTS_FROM} }}
+            counted = f"""{where}
                   ?work wdt:P170 ?artist . ?artist wdt:P31 wd:Q5 ; wikibase:sitelinks ?links ."""
-        rows = self._select(f"""SELECT ?artist ?artistLabel ?links (MIN(YEAR(?b)) AS ?born) (MIN(YEAR(?d)) AS ?died) WHERE {{
-              {{ SELECT DISTINCT ?artist ?links WHERE {{
-                  {chosen}
-                }} ORDER BY DESC(?links) STR(?artist) LIMIT {int(limit)} }}
+        rows = self._select(f"""SELECT ?artist ?artistLabel ?links ?works (MIN(YEAR(?b)) AS ?born) (MIN(YEAR(?d)) AS ?died)
+            WHERE {{
+              {{ SELECT ?artist ?links (COUNT(DISTINCT ?work) AS ?works) WHERE {{
+                  {counted}
+                }} GROUP BY ?artist ?links ORDER BY DESC(?works) DESC(?links) STR(?artist) LIMIT {int(limit)} }}
               OPTIONAL {{ ?artist wdt:P569 ?b }}
               OPTIONAL {{ ?artist wdt:P570 ?d }}
               SERVICE wikibase:label {{ bd:serviceParam wikibase:language "{_LABELS}" . ?artist rdfs:label ?artistLabel . }}
-            }} GROUP BY ?artist ?artistLabel ?links ORDER BY DESC(?links) ?artistLabel""")
-        return self._with_images([(_qid(row, "artist"), row) for row in rows], "artistLabel")
+            }} GROUP BY ?artist ?artistLabel ?links ?works""")
+        people = [(_qid(row, "artist"), row) for row in rows]
+        # The service chose them in this order, and the grouping around the
+        # choice promises none, so the order is put back here.
+        people.sort(key=lambda person: (-(_integer(person[1], "works") or 0), -(_integer(person[1], "links") or 0), person[0]))
+        return self._with_images(people, "artistLabel")
 
     def topics_named(self, text: str) -> Sequence[RegistryTopic]:
         # A subject is anything else, so the kinds alone would offer every hit:
@@ -519,8 +518,11 @@ class WikidataRegistry:
         # has it as its genre. That is what drops the French political party
         # *Renaissance*, which the search ranks first. Asking for a work of
         # visual art in particular took seconds for *still life* and dropped
-        # nothing more (`wikidata-findings.md` § Topics).
-        rows = self._select(f"""SELECT ?item ?itemLabel ?description ?links ?start ?end ?via ?root ?depicted WHERE {{
+        # nothing more (`wikidata-findings.md` § Topics). A movement is kept only
+        # if some work of visual art has a maker in it, which drops
+        # *impressionism in music*, whose page would list no works. Baroque
+        # music stays: composers who also drew name it as their movement.
+        rows = self._select(f"""SELECT ?item ?itemLabel ?description ?links ?start ?end ?via ?root ?depicted ?followed WHERE {{
               SERVICE wikibase:mwapi {{
                 bd:serviceParam wikibase:endpoint "www.wikidata.org"; wikibase:api "EntitySearch";
                   mwapi:search {_literal(text)}; mwapi:language "en"; mwapi:limit "{_TOPICS_SEARCHED}";
@@ -531,6 +533,7 @@ class WikidataRegistry:
               OPTIONAL {{ ?item schema:description ?description FILTER(LANG(?description) = "en") }}
               {_TOPIC_FACTS}
               BIND(EXISTS {{ ?work wdt:P180|wdt:P136 ?item }} AS ?depicted)
+              BIND(EXISTS {{ ?maker wdt:P135 ?item . ?work wdt:P170 ?maker . {_ARTWORK} }} AS ?followed)
               SERVICE wikibase:label {{ bd:serviceParam wikibase:language "{_LABELS}" . ?item rdfs:label ?itemLabel . }}
             }} ORDER BY DESC(?links) ?itemLabel""")
         grouped: dict[ItemId, list[Mapping[str, Any]]] = {}
@@ -544,10 +547,13 @@ class WikidataRegistry:
                 # *woodcut print* is a subclass of *art style*.
                 continue
             topic = _topic(item, its)
-            # Dropped only when the service says nothing depicts it: any other
-            # answer is not the service's to give, and the hit is kept.
-            if topic.kinds != (TopicKind.SUBJECT,) or its[0].get("depicted", {}).get("value") != "false":
-                found.append(topic)
+            # Dropped only when the service says no: any other answer is not the
+            # service's to give, and the hit is kept.
+            if topic.kind is TopicKind.SUBJECT and _said_no(its[0], "depicted"):
+                continue
+            if topic.kind is TopicKind.MOVEMENT and _said_no(its[0], "followed"):
+                continue
+            found.append(topic)
         return found
 
     def topics_of(self, work_qids: Sequence[str], artist_qids: Sequence[str]) -> RegistryTopicsOf:
@@ -655,7 +661,10 @@ def _topic(item: ItemId, rows: Sequence[Mapping[str, Any]]) -> RegistryTopic:
         if end is not None:
             ends.add(end)
     found = set()
-    if instance_of & _PERIOD_CLASSES or (starts and ends):
+    # A start and an end alone make nothing a period: they let in exhibitions, a
+    # war and *16th-century clothing*, and made Romanticism one. Every period a
+    # person named is an instance of a period class (`wikidata-findings.md` § Topics).
+    if instance_of & _PERIOD_CLASSES:
         found.add(TopicKind.PERIOD)
     if instance_of & _MOVEMENT_CLASSES:
         found.add(TopicKind.MOVEMENT)
@@ -674,19 +683,27 @@ def _topic(item: ItemId, rows: Sequence[Mapping[str, Any]]) -> RegistryTopic:
     )
 
 
+def _said_no(row: Mapping[str, Any], name: str) -> bool:
+    """Whether the service answered a yes-or-no question in `row` with no: a missing or other answer is not a no."""
+    return row.get(name, {}).get("value") == "false"
+
+
 def _is_work(row: Mapping[str, Any]) -> bool:
     """Whether a row of a topic's facts says it is an instance of visual artwork: a work, not a topic."""
     return row.get("via", {}).get("value") == "P31" and _qid(row, "root", required=False) == _VISUAL_ARTWORK
 
 
+#: Binds `?work` to a work of visual art: an instance of one of the ten classes.
+_ARTWORK: Final[str] = f"?work wdt:P31 ?class . VALUES ?class {{ {' '.join(f'wd:{qid}' for qid in _ARTWORK_CLASSES)} }}"
+
+
 def _works_in(topic: RegistryTopic) -> str | None:
     """The pattern binding `?work` to the topic's works of visual art, by its kind; None for a period with no years."""
     item = _require_qid(topic.qid)
-    classes = f"?work wdt:P31 ?class . VALUES ?class {{ {' '.join(f'wd:{qid}' for qid in _ARTWORK_CLASSES)} }}"
     match topic.kind:
         case TopicKind.MOVEMENT:
             # `P135` sits on artists, not works (`wikidata-findings.md` § Topics).
-            return f"?maker wdt:P135 wd:{item} . ?work wdt:P170 ?maker . {classes}"
+            return f"?maker wdt:P135 wd:{item} . ?work wdt:P170 ?maker . {_ARTWORK}"
         case TopicKind.PERIOD:
             if topic.start is None or topic.end is None:
                 return None
@@ -697,13 +714,13 @@ def _works_in(topic: RegistryTopic) -> str | None:
             # more for the Belle Époque and the Edo period (`wikidata-findings.md`).
             return (
                 "?work wdt:P571 ?made . hint:Prior hint:rangeSafe true . "
-                f"FILTER(?made >= {_instant(topic.start)} && ?made < {_instant(topic.end + 1)}) {classes}"
+                f"FILTER(?made >= {_instant(topic.start)} && ?made < {_instant(topic.end + 1)}) {_ARTWORK}"
             )
         case TopicKind.MEDIUM:
             # A kind of work is itself the class, and is often not one of the ten.
             return f"?work wdt:P31 wd:{item} ."
         case TopicKind.SUBJECT:
-            return f"{{ ?work wdt:P180 wd:{item} }} UNION {{ ?work wdt:P136 wd:{item} }} {classes}"
+            return f"{{ ?work wdt:P180 wd:{item} }} UNION {{ ?work wdt:P136 wd:{item} }} {_ARTWORK}"
 
 
 def _instant(year: int) -> str:
