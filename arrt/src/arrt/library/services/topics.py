@@ -136,7 +136,7 @@ class TopicWorksView:
 
 @dataclass(frozen=True, slots=True)
 class TopicArtistsView:
-    """*Artists*: the most renowned first, each marked where the library holds them."""
+    """*Artists*: most works in the topic first, fame breaking ties, each marked where the library holds them."""
 
     state: TopicState
     note: str | None = None
@@ -306,7 +306,7 @@ class TopicService:
         )
 
     def artists(self, qid: str) -> TopicArtistsView:
-        """The topic's artists, the most renowned first, each marked where the library holds them."""
+        """The topic's artists, most works in the topic first, fame breaking ties, each marked where the library holds them."""
         qid = checked_qid(qid)
         if self._registry is None:
             return TopicArtistsView(state=TopicState.NOT_CONFIGURED, note=TOPICS_NOT_CONFIGURED_NOTE)

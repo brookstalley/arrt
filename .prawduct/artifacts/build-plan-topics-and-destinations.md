@@ -152,7 +152,7 @@ Open assumptions:
 - `[ASSUMPTION: a destination is stored on the Get's run as an opaque theme id. No destination means the default theme, exactly as today; a run that names one sends its accepted works there and records them as offered to the default, so the startup catch-up never sweeps them into the rotation | HIGH impact | user can correct]`
 - `[ASSUMPTION: if the destination theme has been deleted by the time a work is accepted, the work joins no theme and is recorded as offered to the default. The curator chose 'not the rotation' when they started the Get, and a deleted theme does not reverse that. The log says so | MED impact | user can correct]`
 - `[ASSUMPTION: a destination applies to Gets only. A discovery run from Ask keeps joining the default theme. Ask's commit card could gain the same control later | LOW impact | user can correct]`
-- `[ASSUMPTION: a topic's kind comes from what Wikidata says it is (P31): a century, decade or historical period, or anything with a start and end time, is a period; an art movement or style is a movement; a subclass of a work of visual art is a medium; anything else is a subject. Chunk 03 measures this on twenty topics before trusting it | HIGH impact | user can correct]`
+- `[ASSUMPTION: a topic's kind comes from what Wikidata says it is (P31): a century, decade or historical period is a period (the 'or anything with a start and end time' clause was dropped by the owner on 2026-10-02, Chunk 03b); an art movement or style is a movement; a subclass of a work of visual art is a medium; anything else is a subject. Chunk 03 measures this on twenty topics before trusting it | HIGH impact | user can correct]`
 - `[ASSUMPTION: a movement's works are works by its artists (P170 → P135). A subject's works are works that depict it or have it as their genre (P180 or P136). A period's works have an inception (P571) inside its start and end. A medium's works are instances of it (P31) | HIGH impact | user can correct]`
 - `[ASSUMPTION: representative works are works of visual art (the ten classes `works_matching` already filters by), ranked by sitelinks, top 50, each with its state (Held, Image found, No image known). Requiring an image would hide what a Get cannot supply, which the Artist page shows rather than hides | MED impact | user can correct]`
 - `[ASSUMPTION: your works' topics come from the registry only: a work's own QID gives its period, subjects and medium; its artist's QID gives its movements. A held work with no QID and an artist with none has no topics. 22 of 40 held works and 24 of 31 artists on the owner's catalogue copy carry a QID | MED impact | user can correct]`
@@ -266,8 +266,9 @@ Q-rows in `data-model.md` § What this data must answer):
     sitelinks, with creator, inception and whether an image exists, one row per
     work (makers joined, never a row per maker).
   - `topic_artists(topic, limit)`: the artists most represented among the
-    topic's works, or for a movement its artists, ranked by sitelinks, with the
-    count of their works that have an image (as Similar artists shows).
+    topic's works, or for a movement its artists, ranked by sitelinks (by
+    their works in the topic since Chunk 03b), with the count of their works
+    that have an image (as Similar artists shows).
   - `topics_named(text)`: topic candidates for a typed name, filtered to the four
     kinds, so `renaissance` offers the movement and not the political party.
   - `topics_of(work_qids, artist_qids)`: for held works, each work's period,
