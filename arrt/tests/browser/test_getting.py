@@ -217,7 +217,7 @@ def test_a_work_not_held_is_got_from_its_own_page(ui):
     assert sent == [[HUNTERS]]
     assert status_text(ui) == "Getting 1 work. Open the Get"
     assert button.is_disabled(), "got once, a second press would only be left out"
-    assert ui.page.locator("#view button:has-text('Search museums')").count() == 0
+    assert ui.page.locator("#view button:has-text('Search museums'), #view button:has-text('Ask about')").count() == 0
 
 
 # -- the run, in Queue and on its own screen ------------------------------------------

@@ -117,7 +117,7 @@ display floor over the owner's own artists' works.
 - [x] Chunk 02: Commons as a source
 - [x] Chunk 03: Get, from HTTP and MCP
 - [x] Chunk 04: Get in the client
-- [ ] Chunk 05: Ask replaces Add New
+- [x] Chunk 05: Ask replaces Add New
 - [ ] Chunk 06: Activity › To review
 
 ### Chunk 01: An image-source pool
@@ -319,6 +319,16 @@ mutations each turned a browser test red.)*
 - **Artifacts**: `information-architecture.md`'s screen tables, the *arr layout
   table and Flows 1 and 2 are amended from the proposal.
   `tests/preferences/test_screen_tables.py` holds them to `app.js`.
+
+*(Built 2026-10-02. The address stays `#discover`, by the route table's own rule
+that keys keep their spellings when labels change (`#collection` is Artworks), so
+no alias was needed and no bookmark breaks; the plan's alias wording is moot. The
+buttons keep their tested wording, *Start the search* and *Talk it through first*,
+and the owner is asked in the verification entry. The screen-tables guard named
+pages from a hand-written map and stayed green with the IA still saying *Add New*:
+a test now holds every sidebar page's name to its route-table label, watched
+failing. Every visible *Add New* became *Ask* (or *Ask about "…"* for the search
+box's row), and the IA tables, flows and the *arr-layout table with it.)*
 
 **Done when:**
 1. The sidebar, typeahead, conversation and route tests are updated to the new

@@ -175,7 +175,7 @@ async function paintTheirWork(section, maker, qid) {
     return;
   }
   const others = view.works.filter((work) => work.qid !== qid);
-  fill(section, 
+  fill(section,
     heading,
     others.length
       ? el("div", { class: "artist-works" }, [

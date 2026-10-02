@@ -95,7 +95,7 @@ export function statusReading(health) {
 function paint(reading) {
   const indicator = document.getElementById("status");
   indicator.dataset.state = reading.well ? "well" : "unwell";
-  fill(indicator, 
+  fill(indicator,
     el("span", { class: "glyph", text: reading.well ? "●" : "▲", "aria-hidden": true }),
     el("span", { text: reading.words }),
   );

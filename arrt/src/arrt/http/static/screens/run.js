@@ -1,6 +1,6 @@
 /* One discovery run, watched while it works.
  *
- * Contextual: opened from Activity's Queue or History, from Add New as it
+ * Contextual: opened from Activity's Queue or History, from Ask as it
  * starts, or from a re-search started on the review grid — and it returns to
  * the page it was opened from.
  */

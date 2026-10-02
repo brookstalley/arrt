@@ -100,7 +100,7 @@ def test_wikidata_follows_the_library_and_shows_nothing_twice(ui, matched):
         "Gala Dalí (1894–1982) — artist ○ Not held",
         "The Burning Giraffe — Salvador Dalí ◐ Image found",
         "Crucifixion — Salvador Dalí ○ Not held",
-        "Search museums for “dali”",
+        "Ask about “dali”",
         "All results for “dali”",
     ]
     listbox = ui.page.get_by_role("listbox", name="Suggestions")
@@ -214,7 +214,7 @@ def test_a_new_query_starts_with_nothing_highlighted_so_enter_searches_artworks(
     assert ui.page.get_attribute("#search", "aria-activedescendant") == "suggestion-artist-0"
 
     ui.page.keyboard.type("i")
-    ui.page.wait_for_selector(f"{LISTBOX} [role='option']:has-text('Search museums for “dali”')")
+    ui.page.wait_for_selector(f"{LISTBOX} [role='option']:has-text('Ask about “dali”')")
     assert ui.page.get_attribute("#search", "aria-activedescendant") is None
     ui.page.keyboard.press("Enter")
 

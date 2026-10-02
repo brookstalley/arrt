@@ -63,7 +63,7 @@ def test_a_collection_holding_nothing_at_all_invites_the_curator_into_discover(u
     assert "Nothing by" not in ui.text()
     # The invitation, not merely the statement: an empty state that names no next
     # move is a dead end with better wording.
-    assert ui.page.locator("button:has-text('Go to Add New')").count() == 1
+    assert ui.page.locator("button:has-text('Go to Ask')").count() == 1
 
 
 def test_a_filter_matching_nothing_names_the_filter_and_offers_a_way_out(ui):
@@ -97,7 +97,7 @@ def test_filtering_to_one_artist_and_holding_none_says_so_as_a_normal_state(ui):
     # Named as normal rather than broken, and the offer is the search that would
     # actually find some — the collection holds none, so searching the collection
     # is not it.
-    assert ui.page.locator("button:has-text('Look for some in Add New')").count() == 1
+    assert ui.page.locator("button:has-text('Ask for some')").count() == 1
 
 
 def test_an_artist_filter_with_a_search_beside_it_is_the_filter_empty(ui):

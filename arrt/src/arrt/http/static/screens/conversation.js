@@ -1,12 +1,12 @@
 /* One intent-forming conversation: the thread, the turns, and the commit seam.
  *
- * Contextual, opened from Add New, and it returns there.
+ * Contextual, opened from Ask, and it returns there.
  *
  * THE SEAM IS THIS SCREEN'S HARD REQUIREMENT, NOT A POLISH ITEM. Committing a
  * direction never navigates: the commit card *becomes* the run's progress card
  * in place, and then becomes "12 works ready to review", with the transcript
  * above it the whole time. A commit that called `go("run", …)` — which is what
- * the direct-intent box on Add New does, correctly, because it has no
+ * the direct-intent box on Ask does, correctly, because it has no
  * transcript to keep — would turn this conversation into a wizard wearing a
  * costume, which is the exact risk the flow was designed against.
  *
@@ -133,7 +133,7 @@ async function paint(view, { conversationId, generation, pollGeneration }) {
   }
 
   // Asked for only when there is a direction to offer, and it is the same flat
-  // bound Add New shows: one model call plus the search allowance. There is no
+  // bound Ask shows: one model call plus the search allowance. There is no
   // intent-aware pricing anywhere in this product, and inventing one here would
   // put a figure on the card that nothing else could reproduce.
   let estimate = null;

@@ -83,8 +83,8 @@ def test_an_empty_queue_says_so_and_offers_add_new(ui):
     ui.page.wait_for_selector("#view .empty")
 
     assert "Nothing is in flight" in ui.text()
-    ui.page.click("#view button:has-text('Go to Add New')")
-    ui.page.wait_for_selector("#view h2:has-text('Add New')")
+    ui.page.click("#view button:has-text('Go to Ask')")
+    ui.page.wait_for_selector("#view h2:text-is('Ask')")
 
 
 def test_an_empty_history_says_so(ui):
@@ -96,10 +96,10 @@ def test_an_empty_history_says_so(ui):
 
 
 def test_add_new_no_longer_lists_the_searches(ui):
-    """They moved to Activity; a second copy on Add New would be two lists of one thing."""
+    """They moved to Activity; a second copy on Ask would be two lists of one thing."""
     ui.serve("**/api/runs", EVERY_KIND)
     ui.open("#discover")
-    ui.page.wait_for_selector("#view h2:has-text('Add New')")
+    ui.page.wait_for_selector("#view h2:text-is('Ask')")
 
     assert "Working on it" not in ui.text()
     assert "All done" not in ui.text()

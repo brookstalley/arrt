@@ -676,7 +676,18 @@ def test_a_run_that_cannot_look_for_images_says_so_in_the_singular(ui):
         f"**/api/runs/{RUN_ID}",
         a_run_view(
             run=run,
-            works=[a_candidate(resolution_status=ResolutionStatus.PENDING.value)],
+            # An offered work beside the proposed one, so the sentence shows it
+            # counts what the run proposed and not everything it holds.
+            works=[
+                a_candidate(resolution_status=ResolutionStatus.PENDING.value),
+                a_candidate(
+                    work_id="offered-1",
+                    provenance=WorkProvenance.OFFERED.value,
+                    offered_for_artist="Salvador Dalí",
+                    offered_artist_matched=1,
+                    resolution_status=ResolutionStatus.RESOLVED.value,
+                ),
+            ],
             image_resolution_available=False,
         ),
     )

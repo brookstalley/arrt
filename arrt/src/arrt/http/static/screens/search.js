@@ -11,7 +11,7 @@
  *
  * **The library half is drawn first and never waits** on the registry's, which
  * fills its own sections when it answers and says why when it cannot. Nothing on
- * this page spends: *Search museums* fills in Add New and does not start it.
+ * this page spends: *Ask about* fills in Ask and does not start it, and *Get* is free.
  *
  * Every string from the registry is untrusted text, shown as text. */
 
@@ -86,7 +86,7 @@ export async function viewSearch(generation) {
   if (registry.state === "known" && !registry.artists.length && !registry.works.length) {
     registryNote.after(
       el("div", { class: "row" }, [
-        el("button", { class: "action", type: "button", text: `Search museums for “${query}”`, onclick: () => go("discover", null, { term: query }) }),
+        el("button", { class: "action", type: "button", text: `Ask about “${query}”`, onclick: () => go("discover", null, { term: query }) }),
       ]),
     );
   }
@@ -145,7 +145,7 @@ function artistRows(view, library, registry) {
 
 function paintArtists(section, query, view, library, registry) {
   const rows = artistRows(view, library, registry);
-  fill(section, 
+  fill(section,
     el("h3", { id: "results-artists", text: "Artists" }),
     rows.length
       ? el("ul", { class: "results-list" }, rows.map((row) =>
@@ -185,7 +185,7 @@ function paintWorks(section, query, view, library, registry) {
     }
   }
   const more = view !== "not_held" && library.total > library.works.length;
-  fill(section, 
+  fill(section,
     el("h3", { id: "results-works", text: "Works" }),
     rows.length
       ? el("ul", { class: "results-list" }, rows.map((row) =>
@@ -218,7 +218,7 @@ function paintTop(section, query, view, library, registry) {
     return;
   }
   const [artist] = naming;
-  fill(section, 
+  fill(section,
     el("section", { class: "panel", "aria-labelledby": "results-top" }, [
       el("h3", { id: "results-top", text: "Top result" }),
       el("p", {}, [

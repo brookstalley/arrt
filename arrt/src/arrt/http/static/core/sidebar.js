@@ -67,7 +67,7 @@ let sections = [];
 export function paintSidebar(table, sectionList, pick) {
   const nav = document.getElementById("sidebar");
   sections = layout(table, sectionList);
-  fill(nav, 
+  fill(nav,
     el(
       "ul",
       {},

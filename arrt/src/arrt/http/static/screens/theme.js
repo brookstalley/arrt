@@ -99,7 +99,7 @@ export async function viewTheme(themeId, generation) {
    * so no wall's state can move, and no work is touched. */
   const list = el("div", { class: "stack" });
   const paintThemes = (placements) => {
-    fill(list, 
+    fill(list,
       ...(placements.length
         ? placements.map((placement) => themePanel(placement, walls.walls, works.works, paintThemes))
         : [el("p", { class: "muted", text: "No themes yet. Create one, then add works to it." })]),

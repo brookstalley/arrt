@@ -168,7 +168,7 @@ def test_when_wikidata_has_nothing_it_says_so_and_offers_museums(ui, seeded_serv
     _answered(ui)
 
     assert ui.page.locator("#view p[aria-live]").inner_text() == "Wikidata has nothing for “vermeer”."
-    ui.page.click("#view button:has-text('Search museums for “vermeer”')")
+    ui.page.click("#view button:has-text('Ask about “vermeer”')")
     ui.page.wait_for_function("() => window.location.hash.startsWith('#discover')")
 
 

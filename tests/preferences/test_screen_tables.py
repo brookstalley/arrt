@@ -64,7 +64,7 @@ SCREEN_NAMES = {
     "queue": "Queue",
     "history": "History",
     "collection": "Artworks",
-    "discover": "Add New",
+    "discover": "Ask",
     "work": "Work",
     "search": "Search results",
     "run": "Run",
@@ -224,6 +224,22 @@ def test_every_route_has_a_name():
     )
     unrouted = sorted(set(SCREEN_NAMES) - set(routes()))
     assert not unrouted, f"SCREEN_NAMES carries {unrouted}, which {_relative(ROUTE_TABLE)} does not route"
+
+
+def test_every_page_is_named_as_the_sidebar_labels_it():
+    """A sidebar page's name here is the label the route table gives it.
+
+    `SCREEN_NAMES` is written by hand, because contextual screens carry no label,
+    so a page renamed in the route table kept its old name here and in the tables:
+    Add New became Ask with every check in this file green. For a page, the label
+    is the source of truth, so this reads it.
+    """
+    labelled = {
+        key: match.group(1) for key, body in routes().items() if (match := re.search(r'page:\s*"([^"]+)"', body)) is not None
+    }
+    assert labelled, f"no page labels parsed from {_relative(ROUTE_TABLE)}; this check would pass vacuously"
+    stale = {key: (SCREEN_NAMES.get(key), label) for key, label in labelled.items() if SCREEN_NAMES.get(key) != label}
+    assert not stale, f"SCREEN_NAMES disagrees with the sidebar's labels (name here, label there): {stale}"
 
 
 @pytest.mark.parametrize("heading", TABLE_SECTIONS)

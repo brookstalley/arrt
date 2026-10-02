@@ -58,7 +58,7 @@ export async function viewArtists(artistId, generation) {
         ])
       : el("div", { class: "panel" }, [
           el("p", { class: "muted", text: "No artists yet. Works you accept bring their artists here." }),
-          el("button", { class: "action", type: "button", text: "Add New", onclick: () => go("discover") }),
+          el("button", { class: "action", type: "button", text: "Ask", onclick: () => go("discover") }),
         ]),
   );
 }
@@ -202,7 +202,7 @@ async function paintSimilar(section, qid) {
     fill(section, heading, el("p", { class: "note", text: view.note }));
     return;
   }
-  fill(section, 
+  fill(section,
     heading,
     view.artists.length
       ? el("ul", { class: "results-list" }, view.artists.map((person) =>
@@ -321,7 +321,7 @@ function paintRegistry(section, about, view) {
     fill(section, heading, el("p", { class: "note", text: view.note }));
     return;
   }
-  fill(about, 
+  fill(about,
     view.description ? el("p", { text: view.description }) : null,
     view.movements.length ? el("p", { class: "muted", text: view.movements.join(", ") }) : null,
   );
@@ -335,7 +335,7 @@ function paintRegistry(section, about, view) {
     ]),
   );
   const holdings = view.holdings.map((holding) => el("li", { text: `${named(holding.name, holding.qid)}: ${holding.works}` }));
-  fill(section, 
+  fill(section,
     heading,
     view.works.length
       ? el("div", { class: "artist-works" }, [el("table", {}, [

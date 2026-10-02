@@ -110,7 +110,8 @@ class TestAWorkNotHeld:
         ui.open(f"#work/{HUNTERS}")
         ui.page.wait_for_selector("#view button:text-is('Get this work')")
 
-        assert ui.page.locator("#view button:has-text('Search museums')").count() == 0
+        # Neither the old wording nor today's for a search in words: this page gets.
+        assert ui.page.locator("#view button:has-text('Search museums'), #view button:has-text('Ask about')").count() == 0
 
     def test_the_rest_of_their_work_follows_without_this_one(self, ui):
         ui.open(f"#work/{HUNTERS}")

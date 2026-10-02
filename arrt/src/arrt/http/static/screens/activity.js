@@ -79,10 +79,10 @@ export async function viewQueue(generation) {
       el("div", { class: "panel empty" }, [
         el("p", {
           text:
-            `${nothing} A search you start in Add New shows here while it works, ` +
+            `${nothing} A search you start in Ask, or a Get, shows here while it works, ` +
             "and while it waits for you to approve its price.",
         }),
-        el("button", { class: "action", type: "button", text: "Go to Add New", onclick: () => go("discover") }),
+        el("button", { class: "action", type: "button", text: "Go to Ask", onclick: () => go("discover") }),
       ]),
     );
   } else {

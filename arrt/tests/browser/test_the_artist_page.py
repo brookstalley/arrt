@@ -239,3 +239,14 @@ class TestTheWaysIn:
 
         ui.page.click("dl.facts button:has-text('Mark Rothko')")
         ui.page.wait_for_selector("#view h2:has-text('Mark Rothko')")
+
+
+def test_an_empty_artist_index_offers_ask(ui):
+    """With no artists yet, the index sends the curator where works come from."""
+    ui.serve("**/api/artists", {"artists": []})
+    ui.open("#artist")
+    button = ui.page.locator("#view button:text-is('Ask')")
+
+    button.click()
+
+    ui.page.wait_for_selector("#view h2:text-is('Ask')")

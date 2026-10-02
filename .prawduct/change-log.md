@@ -62,6 +62,22 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-02: Ask, where Add New was
+
+<!-- prawduct: scope=get-and-ask -->
+
+**Why:** ruling 3 dissolves Add New. Acquiring is *Get* on a selection, and the
+page that held the intent box and the conversations becomes *Ask*.
+
+**What:** the sidebar's Artworks › Add New is Artworks › Ask, at the same address
+`#discover`. The search box's group and row read *Ask* and *Ask about "…"*, as does
+the results page's empty state, and every button that opened Add New names Ask.
+`information-architecture.md` describes Ask in its screen tables, flows and the
+*arr-layout table. `tests/preferences/test_screen_tables.py` now holds each sidebar
+page's name to its route-table label, which a hand-written name had let drift.
+Carried from the last review: the run screen's no-provider sentence is tested
+over a discovery run holding an offered work.
+
 ## 2026-10-02: Get in the client, and no more "null" on the page
 
 <!-- prawduct: scope=get-and-ask -->

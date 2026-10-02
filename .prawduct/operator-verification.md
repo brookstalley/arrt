@@ -10,6 +10,22 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Ask, where Add New was — added 2026-10-02
+
+**`build-plan-get-and-ask.md` Chunk 05.** Ruling 3 dissolved Add New: acquiring
+is *Get* on a selection, and asking in words is *Ask*.
+
+Checked by the builder on 2026-10-02, on a copy of your catalogue at 1280 px and
+375 px, nothing wider than the screen: the sidebar reads Artworks › Ask, Themes,
+Artists; typing `seurat` in the search box offered *Ask about "seurat"*, which
+opened Ask with the words filled in and nothing started. The address is still
+`#discover`, as `#collection` is still Artworks, so bookmarks keep working. For you:
+
+1. **The name.** *Ask* for the intent box and the conversations, under Artworks.
+   Does it read as the place to ask for a direction?
+2. **The buttons.** They still say *Start the search* and *Talk it through first*;
+   the plan had proposed *Search now* and *Talk it through*. Keep or change?
+
 ### Get, from the Artist page, the results page and a work's page — added 2026-10-02
 
 **`build-plan-get-and-ask.md` Chunk 04.** Needs `WIKIDATA_USER_AGENT` and

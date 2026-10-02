@@ -225,7 +225,7 @@ header.topbar {
 }
 
 /* The dropdown under the search box: library matches, then the row that hands
-   the words to Add New. `aria-selected` marks the highlighted option, and is
+   the words to Ask. `aria-selected` marks the highlighted option, and is
    what the styling follows, so the highlight a sighted reader sees is the one a
    screen reader announces. */
 .search-suggestions {
