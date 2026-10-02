@@ -101,7 +101,7 @@ display floor is measured for three works only.
 - **Ruled by the owner 2026-10-01:** Wanted is left out of this plan.
 - **Ruled by the owner 2026-10-01:** the free-text box moves to the top of the Ask page.
 - `[DECISION: "Commons then Chicago" is an order of preference among instances, never an order of asking. Every source is asked at once, and phase 2's existing ranking picks the selected instance. Where two instances rank level, the source listed earlier in the wiring wins | the owner's ruling asks for parallel search and no special case; a source asked only when another failed would be a special case | user can veto/override]`
-- `[DECISION: when some sources fail and the others find nothing, the work stays pending, exactly as when today's one source fails. It is never recorded as not found. When any source finds an instance, the failures are logged and the work resolves on what was found | core.md: keep 'unconfirmable' apart from 'failed'. A work called unresolved because a server was down would tell the curator the painting is not out there | user can veto/override]`
+- `[DECISION: when some sources fail and the others find nothing, the work stays pending, exactly as when today's one source fails. It is never recorded as not found. When any source finds an instance that clears the display floor, the failures are logged and the work resolves on what was found; an instance below the floor does not settle it, because the source that was down may hold a larger one | core.md: keep 'unconfirmable' apart from 'failed'. A work called unresolved because a server was down would tell the curator the painting is not out there | user can veto/override]`
 - `[ASSUMPTION: Get acts on works the library does not hold. A held work in a selection is skipped and the control says how many it skips. Get on a held work (a better image) is a re-search, which exists, and is not merged into Get here | MED impact | user can correct]`
 - `[ASSUMPTION: a Get is a new run kind, "get". It starts at phase 2 (no phase 1, no approval step, no spend) with one candidate per chosen item. Each candidate carries the Wikidata item it was asked for, and accepting it stores that item on the new artwork, set by the curator | HIGH impact | user can correct]`
 - `[ASSUMPTION: after a Get starts, the page stays where it is and says so in its live region, with a link to the run. Radarr's Add does the same. The run is listed in Queue | LOW impact | user can correct]`
@@ -113,7 +113,7 @@ display floor over the owner's own artists' works.
 
 ## Status
 
-- [ ] Chunk 01: An image-source pool
+- [x] Chunk 01: An image-source pool
 - [ ] Chunk 02: Commons as a source
 - [ ] Chunk 03: Get, from HTTP and MCP
 - [ ] Chunk 04: Get in the client
@@ -122,7 +122,7 @@ display floor over the owner's own artists' works.
 
 ### Chunk 01: An image-source pool
 
-- **New `library/discovery/pool.py`**: an `ImageSearch` that holds an ordered list
+- **New `arrt/src/arrt/library/discovery/pool.py`**: an `ImageSearch` that holds an ordered list
   of `ImageSearch` sources. `find_images` asks every source at once, on a bounded
   thread pool, and returns their instances together. A failure in one source is
   logged with its name. Only when every source failed, or when some failed and the
@@ -139,6 +139,14 @@ display floor over the owner's own artists' works.
   Art Institute as the only one for now. The startup line names the sources wired.
   The runner and `PreviewCache` see one `ImageSearch`, as they do today.
 
+*(Built 2026-10-02. Routing a preview by URL alone could not work, because only
+the instance knows which source found it, so `PreviewCache` takes the source's
+name with the URL and the container takes a list, `image_sources`. A source being
+down settles a work only on an instance that clears the floor: one that found
+only a small image while another source was down leaves the work pending, since
+the missing source may hold the larger one. Eleven mutations of the pool and its
+guard each turned a test red, and so did the runner passing a fixed source name.)*
+
 **Done when:**
 1. Unit tests, each watched failing: two fake sources answering at once (each
    blocks until the other has been asked); one failing and the other finding (it
@@ -152,7 +160,7 @@ display floor over the owner's own artists' works.
 
 **Foreign API:** Wikimedia Commons (MediaWiki action API), Wikidata (P18)
 
-- **New `library/discovery/commons.py`**: an `ImageSearch` named `commons`. For a
+- **New `arrt/src/arrt/library/discovery/commons.py`**: an `ImageSearch` named `commons`. For a
   query with a Wikidata item, it reads the item's image (P18) through the registry
   client's endpoint and rules, then asks Commons for the file's size, type and
   licence. It reports one instance: the master's dimensions, the item's label as
@@ -167,6 +175,8 @@ display floor over the owner's own artists' works.
   before the Art Institute.
 - `wikidata-findings.md` gains a section on Commons: the measurements and the
   licences seen.
+- **Carried from Chunk 01's review:** `test_startup.py` asserts the
+  `phase2 image_sources=` line names every wired source.
 
 **Done when:**
 0. verify-api: for the Wikidata works of every artist the owner's catalogue holds

@@ -38,6 +38,7 @@ import pytest
 from arrt.library.discovery.artic import PROVIDER, build_image_search
 from arrt.library.discovery.images import ImageQuery
 from arrt.library.discovery.phase_two import CONFIDENT, PhaseTwoEngine
+from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.services.display_fit import ArtworkBox
 from arrt.persistence.records import AcquisitionMethod, SourceClass
 
@@ -65,7 +66,9 @@ def engine(museum):
     # panel. NOT the operator's set, which is 50" — this is a reference the
     # numbers are checkable against, and pinning it keeps the test stable when a
     # deployment value changes.
-    return PhaseTwoEngine(museum, box=ArtworkBox(width=3316, height=1597, pixels_per_inch=104.9, floor_inches=12.0))
+    return PhaseTwoEngine(
+        ImageSourcePool([museum]), box=ArtworkBox(width=3316, height=1597, pixels_per_inch=104.9, floor_inches=12.0)
+    )
 
 
 def _jpeg_size(blob: bytes) -> tuple[int, int]:

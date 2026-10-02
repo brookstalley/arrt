@@ -381,7 +381,7 @@ class TestReviewingWhatDiscoveryFound:
             artwork_box=settings.tv_artwork_box,
             engine=engine,
             discovery_settings=settings.discovery_settings,
-            image_search=museum,
+            image_sources=[museum],
             previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
         )
 

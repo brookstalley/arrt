@@ -150,15 +150,17 @@ class PreviewSettings:
 class PreviewCache:
     """Fetch a preview once and hand back the path the catalogue should record."""
 
-    def __init__(self, settings: PreviewSettings, fetch: Callable[[str], bytes | None]) -> None:
+    def __init__(self, settings: PreviewSettings, fetch: Callable[[str, str], bytes | None]) -> None:
         self._settings = settings
         #: Injected rather than reached for, because the transport belongs behind
         #: the image seam: this class writes files and computes paths, and a
         #: service that also made HTTP requests could not be tested without one.
+        #: Called with the source's name and the URL, because only the source
+        #: that found an instance can fetch its preview.
         self._fetch = fetch
 
-    def store(self, url: str) -> str | None:
-        """Cache the bytes at `url`, returning the path relative to `ART_ROOT`.
+    def store(self, provider: str, url: str) -> str | None:
+        """Cache the bytes at `url` from `provider`, returning the path relative to `ART_ROOT`.
 
         `None` means no local copy exists — the fetch failed, or returned
         nothing. The caller records the instance regardless, with its source-side
@@ -181,7 +183,7 @@ class PreviewCache:
         except OSError as exc:
             return self._absent(url, f"the cache could not be read: {exc}")
         try:
-            payload = self._fetch(url)
+            payload = self._fetch(provider, url)
         except Exception as exc:  # prawduct:allow prawduct/broad-except -- a provider fault must not fail the work
             # The seam promises `None` for a preview it cannot get, and a
             # provider that raises something else instead — an httpx URL error is

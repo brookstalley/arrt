@@ -34,6 +34,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Final, Protocol, runtime_checkable
 
+from arrt.library.registry import ItemId
 from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
 
 #: The largest preview body a museum may serve before it is refused. Enforced
@@ -76,6 +77,10 @@ class ImageQuery:
 
     title: str
     artist: str | None = None
+    #: The Wikidata item the work was asked for by, when the curator chose it
+    #: from the registry. A source that can look a work up by item uses it; one
+    #: that cannot ignores it and searches by title as before.
+    qid: ItemId | None = None
 
 
 @dataclass(frozen=True, slots=True)

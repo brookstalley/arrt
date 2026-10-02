@@ -1117,7 +1117,7 @@ class DiscoveryRunner:
             # question to answer when the answer is the question.
             confidence=OFFERED_CONFIDENCE,
             preview_url=found.preview_url,
-            preview_path=previews.store(found.preview_url) if found.preview_url else None,
+            preview_path=previews.store(found.provider, found.preview_url) if found.preview_url else None,
             estimated_width=found.estimated_width,
             estimated_height=found.estimated_height,
             rights_status=found.rights_status,
@@ -1205,7 +1205,7 @@ class DiscoveryRunner:
             acquisition_method=found.acquisition_method,
             confidence=entry.confidence,
             preview_url=found.preview_url,
-            preview_path=previews.store(found.preview_url) if found.preview_url else None,
+            preview_path=previews.store(found.provider, found.preview_url) if found.preview_url else None,
             estimated_width=found.estimated_width,
             estimated_height=found.estimated_height,
             rights_status=found.rights_status,

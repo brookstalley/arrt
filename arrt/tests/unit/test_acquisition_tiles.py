@@ -116,7 +116,7 @@ class TestTheContainerWiresResolutionFromTheConfiguredProvider:
             artwork_box=settings.tv_artwork_box,
             engine=engine,
             discovery_settings=settings.discovery_settings,
-            image_search=image_search,
+            image_sources=[] if image_search is None else [image_search],
             # Phase 2's two halves are wired together or not at all.
             previews=(
                 None if image_search is None else PreviewSettings(art_root=settings.art_root, directory=settings.previews_path)

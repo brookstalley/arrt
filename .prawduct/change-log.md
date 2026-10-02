@@ -62,6 +62,26 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-02: Phase 2 asks a pool of image sources at once
+
+<!-- prawduct: scope=get-and-ask -->
+
+**Why:** the owner asked for a pool of image sources, with none special-cased,
+searched in parallel and open to more. Until now phase 2 was wired to one
+museum, so a second source would have been a change to the runner, the preview
+cache and the tile wiring.
+
+**What:** `library/discovery/pool.py` asks every wired source at once and keeps
+a source that could not be asked apart from one that holds nothing. Phase 2
+settles a work only on an instance that clears the floor while any source was
+down; otherwise the work stays pending, as when no source answers. Rank ties go
+to the source listed first. Previews and tiles are routed back to the source an
+instance was recorded under, so `PreviewCache` now takes the source's name with
+the URL. `ImageQuery` carries an optional Wikidata item for sources that can use
+one. The container takes `image_sources`, a list, and the startup line names the
+sources wired (`phase2 image_sources=`). The Art Institute is the only source
+for now.
+
 ## 2026-10-02: The cumulative review of one-world search, resolved
 
 <!-- prawduct: scope=one-world-search -->

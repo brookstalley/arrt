@@ -18,6 +18,7 @@ from fakes import FakeImageSearch, a_work, an_image
 
 from arrt.library.discovery.engine import WorkList
 from arrt.library.discovery.phase_two import PhaseTwoEngine
+from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.services.previews import PreviewCache, PreviewSettings
 from arrt.library.services.runner import DiscoveryRunner
 from arrt.persistence.discovery_records import InitiatedBy, ResolutionStatus, RunStatus, Verdict
@@ -38,7 +39,7 @@ def museum() -> FakeImageSearch:
 def previews(settings, museum) -> PreviewCache:
     return PreviewCache(
         PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
-        museum.fetch_preview,
+        ImageSourcePool([museum]).fetch_preview,
     )
 
 
@@ -49,7 +50,7 @@ def runner(services, engine, settings, museum, previews) -> DiscoveryRunner:
         services.discovery,
         engine,
         settings.discovery_settings,
-        images=PhaseTwoEngine(museum, box=settings.tv_artwork_box),
+        images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
         previews=previews,
         spawn=lambda work: work(),
     )
@@ -269,17 +270,17 @@ def test_the_floor_is_deployment_geometry_rather_than_a_pixel_count(
             artwork_box=geometry.tv_artwork_box,
             engine=engine,
             discovery_settings=geometry.discovery_settings,
-            image_search=museum,
+            image_sources=[museum],
             previews=PreviewSettings(art_root=geometry.art_root, directory=geometry.previews_path),
         )
         runner = DiscoveryRunner(
             plane.discovery,
             engine,
             geometry.discovery_settings,
-            images=PhaseTwoEngine(museum, box=geometry.tv_artwork_box),
+            images=PhaseTwoEngine(ImageSourcePool([museum]), box=geometry.tv_artwork_box),
             previews=PreviewCache(
                 PreviewSettings(art_root=geometry.art_root, directory=geometry.previews_path),
-                museum.fetch_preview,
+                ImageSourcePool([museum]).fetch_preview,
             ),
             spawn=lambda work: work(),
         )
@@ -443,7 +444,7 @@ def test_a_verdict_reached_while_phase_2_ran_is_not_overwritten(services, engine
             services.discovery,
             engine,
             settings.discovery_settings,
-            images=PhaseTwoEngine(museum, box=settings.tv_artwork_box),
+            images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
             previews=previews,
             spawn=lambda work: work(),
         )
@@ -466,7 +467,7 @@ def test_a_run_cancelled_mid_resolve_stops_where_it_was(services, engine, settin
         services.discovery,
         engine,
         settings.discovery_settings,
-        images=PhaseTwoEngine(museum, box=settings.tv_artwork_box),
+        images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
         previews=previews,
         spawn=lambda work: work(),
     )
@@ -518,5 +519,60 @@ def test_half_a_phase_two_wiring_is_refused_at_construction(services, engine, se
             services.discovery,
             engine,
             settings.discovery_settings,
-            images=PhaseTwoEngine(museum, box=settings.tv_artwork_box),
+            images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
         )
+
+
+# -- more than one source -------------------------------------------------------
+
+
+class SecondSource:
+    """A source beside the museum, with a name of its own and its own previews."""
+
+    def __init__(self, *instances) -> None:
+        self._instances = instances
+        self.fetched: list[str] = []
+
+    @property
+    def provider(self) -> str:
+        return "second"
+
+    def find_images(self, query):
+        return self._instances
+
+    def fetch_preview(self, url: str) -> bytes | None:
+        self.fetched.append(url)
+        return b"\xff\xd8\xff\xe0 second"
+
+    def tile_url(self, url: str) -> str:
+        return url
+
+
+def test_an_instance_from_a_second_source_is_selected_and_its_preview_fetched_from_it(services, engine, settings, museum):
+    """The runner hands each instance's own source name to the preview cache."""
+    second = SecondSource(
+        replace(
+            an_image("The Elephants", width=6949, height=8400, provider="second", url="https://second.example/1"),
+            preview_url="https://second.example/1/preview.jpg",
+        )
+    )
+    museum.holdings = {"The Elephants": (an_image("The Elephants", width=2000, height=1500),)}
+    pool = ImageSourcePool([museum, second])
+    runner = DiscoveryRunner(
+        services.discovery,
+        engine,
+        settings.discovery_settings,
+        images=PhaseTwoEngine(pool, box=settings.tv_artwork_box),
+        previews=PreviewCache(PreviewSettings(art_root=settings.art_root, directory=settings.previews_path), pool.fetch_preview),
+        spawn=lambda work: work(),
+    )
+    engine.result = a_list("The Elephants")
+
+    run_id = start(runner).id
+    work = services.discovery.list_candidate_works(run_id)[0]
+    images = services.discovery.list_candidate_images(work.id)
+
+    selected = next(image for image in images if image.is_selected)
+    assert (selected.provider, selected.preview_path is not None) == ("second", True)
+    assert len(second.fetched) == 1
+    assert len(museum.fetched) == 1, "the museum's own instance still has its preview fetched from the museum"

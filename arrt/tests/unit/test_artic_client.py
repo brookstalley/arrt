@@ -18,6 +18,7 @@ import pytest
 from arrt.library.discovery.artic import PROVIDER, ArticImageSearch
 from arrt.library.discovery.images import ImageQuery, ImageSearchFailure
 from arrt.library.discovery.phase_two import PhaseTwoEngine
+from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.services.display_fit import ArtworkBox
 from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
 
@@ -265,7 +266,7 @@ def test_the_artist_still_reaches_the_judgement_that_refuses_a_near_match():
     """
     layton = {**AMERICAN_GOTHIC, "artist_title": "Elizabeth Layton"}
     box = ArtworkBox(width=3400, height=1687, pixels_per_inch=88.12, floor_inches=12.0)
-    engine = PhaseTwoEngine(_client(_serving(layton)), box=box)
+    engine = PhaseTwoEngine(ImageSourcePool([_client(_serving(layton))]), box=box)
 
     assert engine.resolve(ImageQuery(title="American Gothic", artist="Grant Wood")).instances == []
 
