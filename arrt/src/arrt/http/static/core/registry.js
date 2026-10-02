@@ -62,41 +62,77 @@ export function personLink(person) {
   });
 }
 
-/* Glyph, word and the badge colour, the order every badge here uses. */
-export function workState(work) {
-  const held = work.held_artwork_ids;
+/* A work's mark wherever registry works are listed — the search typeahead,
+ * the results page, the Topic, Artist and Work pages: its picture, in the
+ * image style of its state, then glyph and word.
+ *
+ *   ● *Held*: the library's own thumbnail, and a button to the work.
+ *   ◑ *Wanted*: Wikidata's picture, where it has one (Activity › Wanted).
+ *   ◐ *Not held · Image found*: Wikidata's picture.
+ *   ○ *Not held* (or `noImage`'s words): no picture.
+ *
+ * **The image styles are one block in `app.css`** (`.work-pic-held`,
+ * `.work-pic-wanted`, `.work-pic-not-held`): the owner's ruling on #172 is to
+ * style the three states as images and iterate on what reads clearest, so
+ * they sit side by side to be tuned together. The glyph and the word carry
+ * the state whatever the picture does — one that fails to load, or none,
+ * leaves every state readable (`accessibility-spec.md`).
+ *
+ * Held wins over wanted: a work wanted and since acquired is held. */
+export function workState(work, { noImage = "Not held", opens = true } = {}) {
+  const held = work.held_artwork_ids || [];
   if (held.length) {
     // Two held works naming one item is a duplicate the curator should see,
     // not a mark that quietly picks one; it opens the first.
     const words = held.length === 1 ? "Held" : `Held ×${held.length}`;
-    return el("button", { class: "badge badge-held", type: "button", onclick: () => go("work", held[0]) }, [
+    const parts = [
+      workPicture("held", `/api/works/${encodeURIComponent(held[0])}/thumbnail`),
       el("span", { class: "glyph", text: "●", "aria-hidden": true }),
       el("span", { text: words }),
-    ]);
+    ];
+    // Not a button where the row it sits in already opens the work: a button
+    // inside a search suggestion is a control inside an option, which ARIA
+    // forbids and which Tab would land on, and a results row would carry two
+    // ways to the same page.
+    if (!opens) return el("span", { class: "badge badge-held state-mark" }, parts);
+    return el("button", { class: "badge badge-held state-mark", type: "button", onclick: () => go("work", held[0]) }, parts);
   }
-  if (work.image) {
-    return el("span", { class: "badge badge-image-found" }, [
-      el("img", { src: `${work.image}?width=96`, alt: "", loading: "lazy", referrerpolicy: "no-referrer", class: "badge-thumb" }),
-      el("span", { class: "glyph", text: "◐", "aria-hidden": true }),
-      el("span", { text: "Image found" }),
-    ]);
-  }
-  return el("span", { class: "muted", text: "—" });
+  const found = work.image ? `${work.image}?width=96` : null;
+  if (work.wanted) return stateBadge("badge-wanted", "◑", "Wanted", found && workPicture("wanted", found));
+  if (found) return stateBadge("badge-image-found", "◐", "Not held · Image found", workPicture("not-held", found));
+  return stateBadge("badge-not-held", "○", noImage);
 }
 
-/* What the library holds of something the registry knows, as one mark with
- * one wording wherever it appears: ● *In your library*, ◐ *Image found*, or
- * ○ *Not held*. Glyph, word and the badge's colour, in that order, as every
- * state mark here carries one (`accessibility-spec.md`). The Artist page's
- * *Their work* draws its own, because there *Held* is a button to the work. */
-export function stateMark({ held = false, image = false } = {}) {
+/* A picture in the image style of a state. In a frame, because the not-held
+ * style draws hatching over the picture and an `<img>` cannot carry an
+ * overlay of its own. Decorative: the title beside it names the work.
+ *
+ * A picture that fails to load takes its frame with it, so a held work with
+ * no master yet, or a Commons outage, leaves glyph and word rather than a
+ * broken-image icon in a styled box. */
+function workPicture(kind, src) {
+  const picture = el("img", { src, alt: "", loading: "lazy", referrerpolicy: "no-referrer" });
+  const frame = el("span", { class: `work-pic work-pic-${kind}`, "aria-hidden": true }, [picture]);
+  picture.addEventListener("error", () => frame.remove());
+  return frame;
+}
+
+/* What the library holds of an artist, or of a work whose page this is, as one
+ * mark with one wording wherever it appears: ● *In your library*, ◑ *Wanted*,
+ * ◐ *Not held · Image found*, or ○ *Not held*. Glyph, word and the badge's
+ * colour, in that order, as every state mark here carries one
+ * (`accessibility-spec.md`). A work in a list takes `workState`, which adds
+ * its picture. */
+export function stateMark({ held = false, wanted = false, image = false } = {}) {
   if (held) return stateBadge("badge-held", "●", "In your library");
-  if (image) return stateBadge("badge-image-found", "◐", "Image found");
+  if (wanted) return stateBadge("badge-wanted", "◑", "Wanted");
+  if (image) return stateBadge("badge-image-found", "◐", "Not held · Image found");
   return stateBadge("badge-not-held", "○", "Not held");
 }
 
-function stateBadge(kind, glyph, words) {
+function stateBadge(kind, glyph, words, picture = null) {
   return el("span", { class: `badge ${kind} state-mark` }, [
+    picture,
     el("span", { class: "glyph", text: glyph, "aria-hidden": true }),
     el("span", { text: words }),
   ]);

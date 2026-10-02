@@ -196,6 +196,10 @@ columns):
 
 `information-architecture.md`'s Work screen table and the screens it names
 record the ruling, and the typeahead stops dropping the "Not held ·" prefix.
+*(Built: the Search results page draws works with the same mark, so it took
+the ruling too; the IA's new § A work's mark names all five places. Topics keep
+their `state` enum and gain a `wanted` beside it, so no reader branching on
+the enum changes.)*
 
 Done when: API tests that each of the four producers reports wanted (with a
 fixture holding a wanted candidate for a different QID, which must not mark

@@ -387,6 +387,7 @@ def search_registry(
                     else RegistryCreatorOut(qid=w.creator.qid, name=w.creator.name, artist_id=held_artists.get(w.creator.qid))
                 ),
                 held_artwork_ids=list(held_works.get(w.qid, ())),
+                wanted=w.qid in found.wanted_works,
             )
             for w in found.works
         ],
@@ -438,6 +439,7 @@ def get_registry_work(request: Request, qid: str) -> RegistryWorkPageOut:
             [] if known is None else [RegistryHolderOut(qid=h.qid, name=h.name, inventory=h.inventory) for h in known.holders]
         ),
         held_artwork_ids=list(view.held),
+        wanted=view.wanted,
     )
 
 
@@ -541,6 +543,7 @@ def get_topic_works(request: Request, qid: str) -> TopicWorksOut:
                 creator_unknown=entry.work.creator_unknown,
                 state=str(entry.state),
                 held_artwork_ids=list(entry.held),
+                wanted=entry.wanted,
             )
             for entry in view.works
         ],
@@ -613,6 +616,7 @@ def _artist_registry(view: RegistryView, *, artist_id: str | None = None) -> Art
                     sitelinks=entry.sitelinks,
                     image=entry.image,
                     held_artwork_ids=list(view.held.get(entry.qid, ())),
+                    wanted=entry.qid in view.wanted,
                 )
                 for entry in known.works
             ]

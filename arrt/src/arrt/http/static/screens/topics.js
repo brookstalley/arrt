@@ -298,17 +298,12 @@ function makers(work) {
   return parts.length ? parts : ["—"];
 }
 
-/* *Held* and *Image found* as the Artist page marks them; and for a work with
- * neither, ○ *No image known*, in words rather than a dash, since a Get may
- * still find one at a museum Wikidata has no picture from. */
+/* A work's mark as the Artist page draws it; and for a work with no picture
+ * that is neither held nor wanted, ○ *No image known*, in words rather than a
+ * dash, since a Get may still find one at a museum Wikidata has no picture
+ * from. */
 function stateOf(work) {
-  if (work.state === "no_image") {
-    return el("span", { class: "badge badge-not-held state-mark" }, [
-      el("span", { class: "glyph", text: "○", "aria-hidden": true }),
-      el("span", { text: "No image known" }),
-    ]);
-  }
-  return workState(work);
+  return workState(work, { noImage: "No image known" });
 }
 
 /* *Artists*: those whose works in the topic are best known, each opening their page, the

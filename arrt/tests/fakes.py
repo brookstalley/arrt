@@ -541,3 +541,10 @@ class FakeRegistry:
             works={qid: tuple(self.work_topics[qid]) for qid in work_qids if self.work_topics.get(qid)},
             artists={qid: tuple(self.artist_topics[qid]) for qid in artist_qids if self.artist_topics.get(qid)},
         )
+
+
+class NothingWanted:
+    """A `WantedItems` for a test about something else: no wanted work names any item."""
+
+    def wanted_qids(self) -> frozenset[str]:
+        return frozenset()

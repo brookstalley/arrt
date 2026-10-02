@@ -122,6 +122,20 @@ class TestTheArtistPage:
         ui.page.wait_for_function("(id) => window.location.hash.startsWith(`#work/${id}`)", arg=work.id)
         ui.page.wait_for_selector(f"#view h2:text-is('{work.title}')")
 
+    def test_their_work_marks_a_wanted_one_wanted_and_draws_each_picture_in_its_style(self, ui, rothko, want_item, pictures_load):
+        artist, work = rothko
+        want_item("Q17038023", "No 1")
+        _page(ui, artist)
+        _registry_answered(ui)
+
+        marks = {
+            row.locator("td").nth(1).inner_text(): row.locator("td").nth(3)
+            for row in ui.page.locator("section[aria-labelledby='their-work'] tbody tr").all()
+        }
+        assert " ".join(marks["No 1"].inner_text().split()) == "◑ Wanted"
+        assert marks["Untitled (Purple, White, and Red)"].locator(".work-pic-held img").count() == 1
+        assert marks["Rothko Chapel"].locator(".work-pic-not-held img").count() == 1
+
     def test_their_work_marks_the_held_one_held_and_the_others_not(self, ui, rothko):
         artist, work = rothko
         _page(ui, artist)
@@ -133,8 +147,10 @@ class TestTheArtistPage:
             for row in ui.page.locator("section[aria-labelledby='their-work'] tbody tr").all()
         }
         assert states["Untitled (Purple, White, and Red)"].endswith("Held")
-        assert states["Rothko Chapel"].endswith("Image found")
-        assert states["No 1"] == "—"
+        assert states["Rothko Chapel"].endswith("Not held · Image found")
+        # A work with neither says so in glyph and word, as every state does,
+        # rather than a dash (the owner's ruling on #172).
+        assert " ".join(states["No 1"].split()) == "○ Not held"
         assert "No English title (Q16682090)" in states
         assert "1276" in ui.page.locator("section[aria-labelledby='their-work'] caption").inner_text()
 

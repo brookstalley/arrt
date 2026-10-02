@@ -27,7 +27,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import timedelta
 from enum import StrEnum
-from typing import Final
+from typing import Final, Protocol
 
 from arrt.library.registry import Registry, RegistryArtist, RegistrySimilar, RegistryUnavailable
 from arrt.library.services.remembered import NOT_CONFIGURED_NOTE, REMEMBERED, checked_qid
@@ -96,6 +96,8 @@ class RegistryView:
     #: QID. Usually one; several when held works share a QID, which is a
     #: duplicate the page shows rather than hides (`data-model.md` § Artwork).
     held: Mapping[str, Sequence[str]] = field(default_factory=dict)
+    #: The QIDs among the listed works that a wanted work names.
+    wanted: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,12 +111,26 @@ class SimilarView:
     held: Mapping[str, str] = field(default_factory=dict)
 
 
+class WantedItems(Protocol):
+    """The one thing a page of registry works needs from discovery: which items are wanted.
+
+    A work wanted through Review names a Wikidata item once it is matched, and
+    every list of registry works marks it *Wanted* beside *Held* — the owner's
+    ruling on #172 that the three states read apart. Taken as this one method,
+    as the conversation takes its two, so these services do not depend on the
+    whole discovery service.
+    """
+
+    def wanted_qids(self) -> frozenset[str]: ...
+
+
 class ArtistService:
     """Read the artists the library holds, and ask the registry about one."""
 
-    def __init__(self, store: CatalogueStore, registry: Registry | None, *, kept: KeptAnswers) -> None:
+    def __init__(self, store: CatalogueStore, registry: Registry | None, *, kept: KeptAnswers, wanted: WantedItems) -> None:
         self._store = store
         self._registry = registry
+        self._wanted = wanted
         self._known_artists: Kept[tuple[str, tuple[str, ...]], RegistryArtist] = kept.namespace(
             "registry.artist", codec=JsonCodec(RegistryArtist), max_age=REGISTRY_KEPT_FOR, size=REMEMBERED
         )
@@ -208,10 +224,12 @@ class ArtistService:
         except RegistryUnavailable as exc:
             log.warning("Could not ask Wikidata about %s: %s", qid, exc)
             return RegistryView(state=RegistryState.UNAVAILABLE, note=unavailable)
+        wanted = self._wanted.wanted_qids()
         return RegistryView(
             state=RegistryState.KNOWN,
             known=known,
             held={entry.qid: holdings[entry.qid] for entry in known.works if entry.qid in holdings},
+            wanted=frozenset(entry.qid for entry in known.works if entry.qid in wanted),
         )
 
     def _known(self, qid: str, mine: Sequence[str], registry: Registry) -> RegistryArtist:

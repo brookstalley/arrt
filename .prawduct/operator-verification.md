@@ -10,6 +10,34 @@ each entry, which is the durable form.
 
 ## Pending
 
+### A work's mark: held, wanted and not held as image styles — added 2026-10-02
+
+**`build-plan-library-screens.md` Chunk 03 (#172).** Visual change: yes.
+
+Checked by the builder on 2026-10-02 in the browser suite's own server, with
+one work wanted and real pictures served: the Topic page (1280 px and 390 px),
+the search dropdown and the Artist page's *Their work* (1280 px). The Search
+results page and a work's *More by* were checked by the browser tests only, not
+by eye.
+On your catalogue: want a work in Review, pick its Wikidata item in Activity ›
+Wanted, then open a Topic, Artist or search that lists it.
+
+- **Wherever registry works are listed** (the typeahead, Search results, a
+  Topic's *Representative works*, an Artist's *Their work*, a work's *More
+  by*): ● *Held* with the library's own thumbnail; ◑ *Wanted*, with Wikidata's
+  picture under a dashed accent outline where there is one; ◐ *Not held · Image
+  found*, Wikidata's picture under diagonal hatching; ○ *Not held* (*No image
+  known* on a Topic) with none. A picture that fails to load is dropped, leaving
+  glyph and word.
+- **This is a first try, to iterate on**, as you asked: the three styles are one
+  block in `app.css` (`.work-pic-held`, `-wanted`, `-not-held`). Say which reads
+  clearest and what to change.
+- **Worth an opinion:** the hatching is strong (it reads at a glance, and hides
+  more of the picture); in the search dropdown a pictured row is taller than
+  its neighbours; and on a phone the Topic and Artist tables scroll sideways
+  and the state column starts off screen (it did before this change; the Artist
+  page hides the pictures on a phone, the Topic page does not).
+
 ### Artworks: Theme in the Filter rail, and Select mode — added 2026-10-02
 
 **`build-plan-library-screens.md` Chunk 02 (#169).** Visual change: yes.

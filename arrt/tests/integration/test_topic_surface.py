@@ -195,6 +195,19 @@ class TestTheRegistrysHalf:
             (LUNCHEON, "held", [sunrise.id]),
         ]
 
+    def test_representative_works_mark_a_wanted_work_beside_its_state(self, http, held, discovery, propose):
+        """Wanted travels beside `state`, so held, image found and no image keep their meaning."""
+        luncheon = propose("Luncheon of the Boating Party")
+        discovery.want(luncheon.id)
+        discovery.set_wikidata_item(luncheon.id, LUNCHEON)
+
+        works = http.get(f"/api/topics/{IMPRESSIONISM}/works").raise_for_status().json()["works"]
+
+        assert [(w["qid"], w["state"], w["wanted"]) for w in works] == [
+            (SUNRISE, "held", False),
+            (LUNCHEON, "no_image", True),
+        ]
+
     def test_artists_carry_the_librarys_artist_where_held(self, http, held):
         monet, _sunrise = held
 

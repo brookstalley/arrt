@@ -1072,7 +1072,7 @@ button.link {
     white-space: normal;
   }
 
-  .artist-works .badge-thumb {
+  .artist-works .work-pic {
     display: none;
   }
 }
@@ -1113,11 +1113,53 @@ button.link {
   border-style: dashed;
 }
 
-.badge-thumb {
+.badge-wanted {
+  border-style: dashed;
+  border-color: var(--accent);
+}
+
+/* -- a work's state, as an image style ----------------------------------------
+   The owner's ruling on issue 172: held, wanted and not held are told apart first
+   by how the picture is drawn, then by glyph and word (`workState` in
+   `core/registry.js`). The three are defined together so they can be tuned
+   against one another, which is what the owner asked to iterate on. First
+   try: held plain, wanted with a dashed accent outline, not held under
+   diagonal hatching — recognisable, and never mistakable for held. */
+.work-pic {
+  position: relative;
+  display: inline-block;
+  flex: none;
   width: 2rem;
   height: 2rem;
-  object-fit: cover;
   border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.work-pic img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.work-pic-held {
+  outline: 1px solid var(--good);
+}
+
+.work-pic-wanted {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+}
+
+.work-pic-not-held::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--surface-1) 70%, transparent) 0 2px,
+    transparent 2px 5px
+  );
 }
 
 /* The theme new works join. Solid accent, because it is a standing role rather

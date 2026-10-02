@@ -116,7 +116,7 @@ def test_wikidata_follows_the_library_and_shows_nothing_twice(ui, matched):
         "The Persistence of Memory — Salvador Dalí",
         "Dalí and friends — theme",
         "Gala Dalí (1894–1982) — artist ○ Not held",
-        "The Burning Giraffe — Salvador Dalí ◐ Image found",
+        "The Burning Giraffe — Salvador Dalí ◐ Not held · Image found",
         "Crucifixion — Salvador Dalí ○ Not held",
         "Ask about “dali”",
         "All results for “dali”",
@@ -130,6 +130,32 @@ def test_wikidata_follows_the_library_and_shows_nothing_twice(ui, matched):
     assert badge.locator(".glyph").get_attribute("aria-hidden") == "true"
 
 
+def test_a_wanted_match_says_wanted_and_only_the_unheld_picture_is_hatched(ui, matched, want_item, pictures_load):
+    """The typeahead's half of #172: *Image found* no longer reads as if it might mean held."""
+    want_item("Q99", "Crucifixion")
+    _type(ui, "dali")
+    _wait_for_registry(ui)
+
+    assert "Crucifixion — Salvador Dalí ◑ Wanted" in _options(ui)
+    giraffe = ui.page.locator(f"{LISTBOX} [role='option']", has_text="The Burning Giraffe")
+    assert giraffe.locator(".work-pic-not-held img").count() == 1
+    assert ui.page.locator(f"{LISTBOX} .work-pic-not-held").count() == 1
+
+
+def test_no_suggestion_holds_a_control_of_its_own(ui, matched, seeded_service, services):
+    """A held Wikidata match marks itself without a button.
+
+    An option holding a control is invalid ARIA, and Tab would land in it.
+    """
+    work = next(e.artwork for e in seeded_service.list_artworks().entries if e.artwork.title == "I Saw the Figure 5 in Gold")
+    services.identity.set_work_identity(work.id, GIRAFFE)
+    _type(ui, "dali")
+    _wait_for_registry(ui)
+
+    assert ui.page.locator(f"{LISTBOX} [role='option'] .badge-held").count() >= 1
+    assert ui.page.locator(f"{LISTBOX} [role='option'] button").count() == 0
+
+
 def test_a_held_match_the_library_rows_do_not_show_says_so_and_opens_the_library(ui, matched):
     """The library's rows show its first few works; a held work not among them is still marked held."""
     _dali, work = matched
@@ -141,7 +167,7 @@ def test_a_held_match_the_library_rows_do_not_show_says_so_and_opens_the_library
     _wait_for_registry(ui)
 
     row = f"{LISTBOX} [role='option']:has-text('The Persistence of Memory')"
-    assert " ".join(ui.page.locator(row).inner_text().split()) == "The Persistence of Memory — Salvador Dalí ● In your library"
+    assert " ".join(ui.page.locator(row).inner_text().split()) == "The Persistence of Memory — Salvador Dalí ● Held"
     assert ui.page.locator(f"{row} .badge-held .glyph").inner_text() == "●"
     ui.page.click(row)
     ui.page.wait_for_function("(id) => window.location.hash.startsWith(`#work/${id}`)", arg=work.id)

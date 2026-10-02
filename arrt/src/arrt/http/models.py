@@ -107,6 +107,10 @@ class RegistryWorkOut(BaseModel):
     #: The library's works in circulation that are this one (matched by QID).
     #: Empty when not held; more than one is a duplicate for the curator to see.
     held_artwork_ids: list[str]
+    #: A wanted work names this item (Activity › Wanted). Reported beside
+    #: `held_artwork_ids` rather than instead of it: the page decides which mark
+    #: wins (held), and both are true when a wanted work has since been acquired.
+    wanted: bool
 
 
 class RegistryHoldingOut(BaseModel):
@@ -179,6 +183,10 @@ class RegistryWorkPageOut(BaseModel):
     media: list[str]
     holders: list[RegistryHolderOut]
     held_artwork_ids: list[str]
+    #: A wanted work names this item (Activity › Wanted). Reported beside
+    #: `held_artwork_ids` rather than instead of it: the page decides which mark
+    #: wins (held), and both are true when a wanted work has since been acquired.
+    wanted: bool
 
 
 class RegistryPersonFoundOut(BaseModel):
@@ -199,6 +207,10 @@ class RegistryWorkFoundOut(BaseModel):
     creator: RegistryCreatorOut | None
     #: The library's works in circulation that are this one, by QID.
     held_artwork_ids: list[str]
+    #: A wanted work names this item (Activity › Wanted). Reported beside
+    #: `held_artwork_ids` rather than instead of it: the page decides which mark
+    #: wins (held), and both are true when a wanted work has since been acquired.
+    wanted: bool
 
 
 class RegistrySearchOut(BaseModel):
@@ -303,6 +315,10 @@ class TopicWorkOut(BaseModel):
     state: str
     #: The library's works in circulation that are it, by QID.
     held_artwork_ids: list[str]
+    #: A wanted work names this item (Activity › Wanted). Reported beside
+    #: `held_artwork_ids` rather than instead of it: the page decides which mark
+    #: wins (held), and both are true when a wanted work has since been acquired.
+    wanted: bool
 
 
 class TopicWorksOut(BaseModel):

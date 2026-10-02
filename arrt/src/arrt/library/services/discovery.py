@@ -1163,6 +1163,15 @@ class DiscoveryService:
                 f"Candidate work {work.id!r} was already {work.verdict}, so its images are no longer under review."
             )
 
+    def wanted_qids(self) -> frozenset[str]:
+        """The Wikidata items wanted works name, so a page listing registry works can mark them *Wanted*.
+
+        Only a wanted work matched to an item names one; a work wanted with no
+        item cannot be told apart from any other registry work, so it marks
+        nothing.
+        """
+        return frozenset(work.wikidata_qid for work in self._store.list_wanted_works() if work.wikidata_qid)
+
     def list_wanted(self) -> Sequence[WantedWork]:
         """Every wanted work across runs, newest run first, each with how many scans were turned down.
 
