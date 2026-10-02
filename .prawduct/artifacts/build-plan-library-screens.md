@@ -103,7 +103,7 @@ Open assumptions:
 - [x] Chunk 02: Artworks: the Filter rail and Select mode
 - [x] Chunk 03: A work's mark
 - [x] Chunk 04: Artists: surname order and cards
-- [ ] Chunk 05: Identity's *Edit*; Topics in columns
+- [x] Chunk 05: Identity's *Edit*; Topics in columns
 - [ ] Chunk 06: The owner's review
 
 ### Chunk 01: The works listing filters by theme
