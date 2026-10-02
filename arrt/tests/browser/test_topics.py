@@ -385,14 +385,18 @@ class TestTheTopicPage:
 
 
 def test_get_from_a_topic_defaults_to_a_new_theme_named_after_it(ui, services, held, all_works):
+    """The default reads as the topic's name, with no field to fill, and Get makes the theme.
+
+    The owner's review of the screens (`build-plan-topics-and-destinations.md`
+    Chunk 06), on the *winter* page with no theme named *winter*."""
     bodies = record_gets(ui)
     open_topic(ui)
     works_answered(ui)
     ui.page.wait_for_selector(f"{WORKS} .get-into option[value='new']", state="attached")
 
     picker = ui.page.locator(WORKS).get_by_label("Add to", exact=True)
-    assert picker.evaluate("node => node.value") == "new"
-    assert ui.page.locator(WORKS).get_by_label("New theme's name").input_value() == "16th century"
+    assert picker.evaluate("node => node.selectedOptions[0].textContent") == "16th century (new theme)"
+    assert not ui.page.locator(WORKS).get_by_label("New theme's name").is_visible()
     ui.page.check(f"{WORKS} tr:has-text('The Harvesters') input[type='checkbox']")
     ui.page.click(f"{WORKS} .get-control button.action")
 
