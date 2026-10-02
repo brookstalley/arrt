@@ -14,7 +14,10 @@
  * **Every Get names where its accepted works go**, beside its button: *Add to*,
  * the default theme first and selected, then every other theme, then *New
  * theme…* (`build-plan-topics-and-destinations.md`, the owner's rulings of
- * 2026-10-02). The default sends no `theme_id`, so a run's destination is null
+ * 2026-10-02). A caller's name that is no theme yet, such as a Topic page's
+ * topic, is offered just before *New theme…*, as "<name> (new theme)", and
+ * chosen (the owner's review of the screens, Chunk 06). The default sends no
+ * `theme_id`, so a run's destination is null
  * exactly when its works go to the default. A new theme is created by the
  * client's own `POST /api/themes` before the Get starts, never by the Get: the
  * binding that starts a Get does not branch on whether its theme exists. */
@@ -24,9 +27,11 @@ import { agree, counted } from "./counting.js";
 import { el, fill, guard } from "./render.js";
 import { go } from "./router.js";
 
-/* The select's value for *New theme…*. Theme ids are UUIDs, and the default
- * theme's option has the empty value, so neither can collide with it. */
+/* The select's values for *New theme…* and for a caller's name that is no theme
+ * yet. Theme ids are UUIDs, and the default theme's option has the empty value,
+ * so neither can collide with these, or these with each other. */
 const NEW_THEME = "new";
+const OFFERED = "offered";
 
 /* Ids for the label-to-control pairs, unique however many controls a page has. */
 let controls = 0;
@@ -41,13 +46,17 @@ function sameName(one, other) {
  *
  * `defaultName` is a caller's suggestion, such as a Topic page's topic. Given,
  * the theme of that name is selected if there is one (the owner's ruling: a
- * name that is already a theme joins it), and otherwise *New theme…* with the
- * name filled in. Not given, the default theme is selected.
+ * name that is already a theme joins it), and otherwise the name is offered as
+ * an option of its own, "<name> (new theme)", and selected. Not given, the
+ * default theme is selected. *New theme…* is for some other name, so its field
+ * starts empty and is shown only while *New theme…* is chosen; like it, the
+ * field follows the select in reading and tab order, and is not focused for
+ * the curator, since a select fires its change as the keyboard moves through it.
  *
  * `resolve()` answers `{ themeId, name }` for the Get about to start: a null
- * `themeId` for the default, which the request then leaves out. A new name is
- * created here, first, and stays selected, so a second Get from the same
- * control joins it rather than making another. */
+ * `themeId` for the default, which the request then leaves out. An offered or
+ * typed name is created here, first, and stays selected, so a second Get from
+ * the same control joins it rather than making another. */
 function destinationControl({ defaultName = null } = {}) {
   controls += 1;
   const pickerId = `get-into-${controls}`;
@@ -56,6 +65,8 @@ function destinationControl({ defaultName = null } = {}) {
   const name = el("input", { type: "text", id: nameId, autocomplete: "off" });
   const naming = el("div", { class: "field", hidden: true }, [el("label", { for: nameId, text: "New theme's name" }), name]);
   let themes = [];
+  // The caller's name while it is no theme: offered until it is made.
+  let offered = null;
   const showNaming = () => {
     naming.hidden = picker.value !== NEW_THEME;
   };
@@ -69,18 +80,18 @@ function destinationControl({ defaultName = null } = {}) {
       // With no default, a Get left here joins no theme, and the option says so.
       fallback ? option(fallback) : el("option", { value: "", text: "No theme (none is the default)" }),
       ...themes.filter((theme) => !theme.is_default).map(option),
+      offered ? el("option", { value: OFFERED, text: `${offered} (new theme)` }) : null,
       el("option", { value: NEW_THEME, text: "New theme…" }),
     );
   };
 
   const loaded = api("/api/themes").then((listing) => {
     themes = listing.themes.map((placement) => placement.theme);
+    const taken = defaultName ? themes.find((theme) => sameName(theme.name, defaultName)) : null;
+    if (defaultName && !taken) offered = defaultName;
     paint();
-    if (defaultName) {
-      const taken = themes.find((theme) => sameName(theme.name, defaultName));
-      picker.value = taken ? (taken.is_default ? "" : taken.theme_id) : NEW_THEME;
-      if (!taken) name.value = defaultName;
-    }
+    if (taken) picker.value = taken.is_default ? "" : taken.theme_id;
+    if (offered) picker.value = OFFERED;
     showNaming();
   });
   // The server's reason is said when the Get is pressed, by the Get's own guard,
@@ -89,22 +100,28 @@ function destinationControl({ defaultName = null } = {}) {
   // unhandled rejection.
   loaded.catch(() => fill(picker, el("option", { value: "", text: "The themes could not be read" })));
 
+  /* The theme by this name, made first if there is none, then selected. Once
+   * made, the offered name is a theme like any other and is no longer offered. */
+  async function intoNamed(wanted) {
+    const taken = themes.find((theme) => sameName(theme.name, wanted));
+    if (taken) {
+      picker.value = taken.is_default ? "" : taken.theme_id;
+      showNaming();
+      return { themeId: taken.is_default ? null : taken.theme_id, name: taken.name };
+    }
+    const created = await api("/api/themes", { method: "POST", body: JSON.stringify({ name: wanted }) });
+    themes.push(created);
+    if (offered && sameName(offered, created.name)) offered = null;
+    paint();
+    picker.value = created.theme_id;
+    showNaming();
+    return { themeId: created.theme_id, name: created.name };
+  }
+
   async function resolve() {
     await loaded;
-    if (picker.value === NEW_THEME) {
-      const taken = themes.find((theme) => sameName(theme.name, name.value));
-      if (taken) {
-        picker.value = taken.is_default ? "" : taken.theme_id;
-        showNaming();
-        return { themeId: taken.is_default ? null : taken.theme_id, name: taken.name };
-      }
-      const created = await api("/api/themes", { method: "POST", body: JSON.stringify({ name: name.value }) });
-      themes.push(created);
-      paint();
-      picker.value = created.theme_id;
-      showNaming();
-      return { themeId: created.theme_id, name: created.name };
-    }
+    if (picker.value === OFFERED) return intoNamed(offered);
+    if (picker.value === NEW_THEME) return intoNamed(name.value);
     if (picker.value === "") {
       const fallback = themes.find((theme) => theme.is_default);
       return { themeId: null, name: fallback ? fallback.name : null };

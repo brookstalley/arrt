@@ -396,8 +396,9 @@ def test_themes_that_cannot_be_read_start_nothing_and_say_why(ui, all_works):
 
 # -- a caller's default name ---------------------------------------------------------
 #
-# A Topic page will pass its topic's name. No screen passes one yet, so these mount
-# the control themselves, from the module every screen imports it from.
+# A Topic page passes its topic's name (`test_topics.py`). These mount the control
+# themselves, from the module every screen imports it from, so each case is one
+# the Topic page's fixtures need not be arranged to reach.
 
 
 def mount_with_a_default_name(ui, default_name: str) -> None:
@@ -428,6 +429,11 @@ def test_a_default_name_that_is_already_a_theme_selects_it_rather_than_creating_
     writes = record_writes(ui)
     mount_with_a_default_name(ui, "WINTER")
 
+    assert [text.strip() for text in add_to(ui, "#harness").locator("option").all_inner_texts()] == [
+        "All works",
+        "Winter",
+        "New theme…",
+    ], "a name that is a theme is not offered again as a new one"
     assert add_to(ui, "#harness").evaluate("node => node.selectedOptions[0].textContent") == "Winter"
     assert not ui.page.locator("#harness").get_by_label("New theme's name").is_visible()
     said = harness_get(ui)
@@ -442,22 +448,86 @@ def test_a_default_name_that_is_the_default_theme_sends_no_theme_id(ui, all_work
     bodies = record_gets(ui, a_get())
     mount_with_a_default_name(ui, "All works")
 
+    assert [text.strip() for text in add_to(ui, "#harness").locator("option").all_inner_texts()] == ["All works", "New theme…"]
     harness_get(ui)
 
     assert bodies == [{"qids": [HARVESTERS]}]
 
 
-def test_a_default_name_that_is_no_theme_yet_is_offered_as_a_new_one(ui, services, all_works):
+def test_a_default_name_that_is_no_theme_yet_is_offered_as_a_new_one(ui, services, winter, all_works):
+    """The name is its own option, chosen, and Get makes the theme before the Get that names it.
+
+    The owner's review (`build-plan-topics-and-destinations.md` Chunk 06): the
+    default reads as the name, and no field is shown while nothing needs typing.
+    *Winter* is here so the option's place, after every theme and before *New
+    theme…*, is an order three themes could get wrong."""
     bodies = record_gets(ui, a_get())
+    writes = record_writes(ui)
     mount_with_a_default_name(ui, "16th century")
 
-    assert add_to(ui, "#harness").evaluate("node => node.value") == "new"
-    assert ui.page.locator("#harness").get_by_label("New theme's name").input_value() == "16th century"
+    picker = add_to(ui, "#harness")
+    assert [text.strip() for text in picker.locator("option").all_inner_texts()] == [
+        "All works",
+        "Winter",
+        "16th century (new theme)",
+        "New theme…",
+    ]
+    assert picker.evaluate("node => node.selectedOptions[0].textContent") == "16th century (new theme)"
+    assert not ui.page.locator("#harness").get_by_label("New theme's name").is_visible(), "nothing is typed, so nothing is asked"
+    assert theme_names(services) == ["All works", "Winter"], "offering the name makes no theme"
     said = harness_get(ui)
 
     created = next(p.theme for p in services.display.survey_themes() if p.theme.name == "16th century")
+    assert writes == ["api/themes", "api/gets"], "the theme exists before the Get that names it starts"
     assert bodies == [{"qids": [HARVESTERS], "theme_id": created.id}]
     assert said == "Getting 1 work into 16th century. Open the Get"
+    assert [text.strip() for text in picker.locator("option").all_inner_texts()] == [
+        "All works",
+        "Winter",
+        "16th century",
+        "New theme…",
+    ], "made, the name is a theme like any other and is no longer offered as new"
+    assert picker.evaluate("node => node.selectedOptions[0].textContent") == "16th century"
+
+
+def test_a_second_get_from_a_default_name_joins_the_theme_the_first_made(ui, services, all_works):
+    bodies = record_gets(ui, a_get())
+    writes = record_writes(ui)
+    mount_with_a_default_name(ui, "16th century")
+    harness_get(ui)
+
+    ui.page.check("#harness input[type='checkbox']")
+    with ui.page.expect_response("**/api/gets"):
+        ui.page.click("#harness .get-control button.action")
+
+    assert theme_names(services) == ["16th century", "All works"]
+    assert writes == ["api/themes", "api/gets", "api/gets"]
+    assert len(bodies) == 2 and bodies[0]["theme_id"] == bodies[1]["theme_id"]
+
+
+def test_new_theme_beside_a_default_name_asks_for_a_name_of_its_own(ui, services, all_works):
+    """*New theme…* is for a name other than the one offered, so its field starts empty,
+    and it goes again when the offered name is chosen back."""
+    bodies = record_gets(ui, a_get())
+    mount_with_a_default_name(ui, "16th century")
+    picker = add_to(ui, "#harness")
+    name = ui.page.locator("#harness").get_by_label("New theme's name")
+
+    picker.select_option(label="New theme…")
+    assert name.is_visible()
+    assert name.input_value() == ""
+
+    picker.select_option(label="16th century (new theme)")
+    assert not name.is_visible()
+
+    picker.select_option(label="New theme…")
+    name.fill("Snow")
+    said = harness_get(ui)
+
+    created = next(p.theme for p in services.display.survey_themes() if p.theme.name == "Snow")
+    assert bodies == [{"qids": [HARVESTERS], "theme_id": created.id}]
+    assert theme_names(services) == ["All works", "Snow"], "the offered name is made only when it is the one chosen"
+    assert said == "Getting 1 work into Snow. Open the Get"
 
 
 # -- the run, in Queue and on its own screen ------------------------------------------
