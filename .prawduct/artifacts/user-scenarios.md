@@ -119,7 +119,7 @@ Frequency is the builder's guess in every row:
 | S9 | Clean up: bad crops, low resolution, candidates never judged | Artworks, Activity | Held | Monthly | The library holds only what they would hang |
 | S10 | Check everything is working | The status indicator, System | Held | Rarely, or when warned | They know whether anything needs them |
 | S11 | Get acquainted with an artist they know only by name: what the work looks like, and which works could be had | Search | Exists, Seeable → Hangable | Monthly | They have seen the work, and have a list with thumbnails marking what can be hung (§ Tested: Rothko) |
-| S12 | Go on an excursion: a theme outside their taste, on every wall for a day or two, then back to normal with nothing left behind | Add New, then Themes | Exists → Hangable → Held | A few times a year | The walls are back on what they showed before, and their taste and everyday library are as they were (§ Tested: the 16th century) |
+| S12 | Spend a day or two outside their taste: a theme of works got into a destination other than *All works*, on every wall, then back to normal with nothing left behind (the word "excursion" retired 2026-10-02 for a Get's destination, `build-plan-topics-and-destinations.md` § The owner's rulings) | Add New, then Themes | Exists → Hangable → Held | A few times a year | The walls are back on what they showed before, and their taste and everyday library are as they were (§ Tested: the 16th century) |
 
 ### What the search box can mean
 
@@ -221,7 +221,11 @@ Supply is no obstacle here: 16th-century work is long out of copyright and is th
 easy case for Hangable.
 
 **What it changed:** S12, and three requirements an excursion makes, listed in
-the open questions for the owner to rule on rather than assumed.
+the open questions for the owner to rule on rather than assumed. *(Recorded as
+tested on 2026-10-01. The owner's rulings 5a and 8 answered the library half,
+and on 2026-10-02 "excursion" became a **destination** on every Get: works got
+into any theme other than *All works* stay out of the default. The taste half
+is plan 4's. `build-plan-topics-and-destinations.md` § The owner's rulings.)*
 
 ### "I like Robert and Sonia Delaunay. Who's similar?"
 

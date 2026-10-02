@@ -142,6 +142,7 @@ def a_run(**overrides) -> RunOut:
         "parent_run_id": None,
         "started_at": "2026-08-05T10:00:00+00:00",
         "completed_at": None,
+        "destination_theme_id": None,
     }
     return RunOut(**(fields | overrides))
 

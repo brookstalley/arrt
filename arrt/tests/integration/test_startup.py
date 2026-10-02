@@ -50,9 +50,11 @@ from arrt.config import (
 from arrt.library.discovery.phase_one import OpenRouterEngine
 from arrt.library.facade import LibraryFacade
 from arrt.library.services.catalogue import CatalogueService
+from arrt.library.services.discovery import DiscoveryService
 from arrt.persistence.file import open_catalogue_file
 from arrt.persistence.migrations import DEFAULT_WALL_NAME
 from arrt.persistence.sqlite import SqliteCatalogue
+from arrt.persistence.sqlite_discovery import SqliteDiscovery
 from arrt.programming.display import DisplayService, DisplaySettings
 
 #: A key shaped like the real thing, so a naive redaction that only hides values
@@ -170,11 +172,13 @@ def test_the_plane_moves_the_catalogue_onto_walls_before_it_serves(tmp_path, mon
     def capture(app, **kwargs) -> None:  # noqa: ANN001, ANN003 - uvicorn's own signature
         # Read through a second connection to the same file, so this observes what
         # a request arriving at this moment would observe.
-        observer = SqliteCatalogue(open_catalogue_file(path))
+        opened = open_catalogue_file(path)
+        observer = SqliteCatalogue(opened)
         try:
+            catalogue = CatalogueService(observer)
             display = DisplayService(
                 observer,
-                LibraryFacade(CatalogueService(observer)),
+                LibraryFacade(catalogue, DiscoveryService(SqliteDiscovery(opened), catalogue)),
                 DisplaySettings(art_root=art_root, rotation_interval_seconds=180, shuffle=True),
             )
             wall = observer.list_walls()[0]

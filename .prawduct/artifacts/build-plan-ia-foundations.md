@@ -79,9 +79,12 @@ wave: the pieces that stand on their own or that everything after needs.
    and seeds a run with the chosen works. The conversation becomes *Ask*, under
    Library. Activity gains *To review*, which needs the unjudged-candidate count
    `information-architecture.md` § The *arr layout records as owed, and *Wanted*.
-3. **Topics and excursions.** Topic pages (period, movement, subject), and a Get
-   marked as an excursion, whose acceptances join their own theme and not the
-   default (5a), and write no taste (5b).
+3. **Topics and destinations.** Topic pages (period, movement, subject, medium),
+   and a destination on every Get, *All works* by default or any other theme,
+   whose acceptances join that theme and not the default (5a). What a
+   destination means for taste (5b) moved to plan 4. *(Renamed from "Topics and
+   excursions" by the owner's rulings of 2026-10-02:
+   `build-plan-topics-and-destinations.md` § The owner's rulings.)*
 4. **Taste that is read.** Ask and Similar artists read affinities (the brief's
    unbuilt promise, `user-scenarios.md` § Tested).
 5. **Walls.** The page leads with what each wall shows. Archive a selection, *Not
@@ -108,7 +111,7 @@ than ruled, and one is unmeasured:
 
 - `[DECISION: build this plan before wave 3 | the owner directed it on 2026-10-01 ("write build plan… start with a new session to build"). Its cost to wave 3: the store split that wave starts with carries a QID column on each of two Library tables and a designation on a Programming table. None crosses the seam, so rule 3's opaque references are unaffected | user can veto/override]`
 - `[ASSUMPTION: the default theme is designated by a stored mark on one theme, at most one at a time (a partial unique index enforces at most one, and the owner's All works is designated by migration so there is exactly one in practice); the default can be renamed and cannot be deleted while it is the default | MED impact | user can correct]`
-- `[ASSUMPTION: until an excursion Get exists (plan 3 of § What comes after), every acceptance joins the default theme | LOW impact | user can correct]`
+- `[ASSUMPTION: until a Get can name a destination (plan 3 of § What comes after), every acceptance joins the default theme | LOW impact | user can correct]` *(Superseded 2026-10-02: a Get names its destination, `build-plan-topics-and-destinations.md` Chunk 01.)*
 - `[ASSUMPTION: a QID is stored only on an unambiguous match, because a wrong QID marks the wrong work Held and is worse than none. Ambiguous and unmatched works keep no QID and stay matchable later | HIGH impact | user can correct]`
 - `[ASSUMPTION: Wikidata is the only registry this plan reads. Getty ULAN is reachable from a Wikidata artist (property P245) when something needs it | LOW impact | user can correct]`
 - `[DECISION: the Artist page ships with header, In your library, Their work and Holdings; Similar artists moves to the next plan | ruling 4 asks for the full hub. Similar artists depends on registry links and on Ask's suggestions, both of which the next plans build, and the chunk is the size of one Critic pass without it. Not dropped: § What comes after, plan 1 | user can veto/override]`
@@ -194,7 +197,8 @@ commits, with a failed subscriber caught up by reconciliation at the next start.
 - Which theme is the default, if any? (Programming, the Theme screen, MCP)
 - Can there be two? (No: at most one, enforced by the store, not by convention.)
 - Does an acceptance join it, and which acceptances do not? (All, until plan 3's
-  excursions.)
+  destinations: 2026-10-02, an acceptance from a Get that named another theme
+  joins that theme instead.)
 - Has this work already been offered to it? (So reconciliation never re-adds a
   work the curator removed.)
 - What happens when the default theme is deleted or renamed? (Delete refused

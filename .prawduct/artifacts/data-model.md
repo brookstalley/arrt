@@ -167,6 +167,18 @@ to serve, elicited from the Product Brief's core flows:
 | Q19 | Which registry artist is this library artist, so the Artist page can show what the registry knows? | Ruling 7 |
 | Q20 | Which held works and artists have no registry identity yet, so a later matching pass knows what to try? | Ruling 7 |
 | Q21 | How was each identity set, and can it be trusted: matched automatically and unambiguously, or set by the curator, including set to *none*, so a correction survives the next pass? | Ruling 7 |
+| Q22 | Which theme does a work accepted from this Get join? Asked by Programming at acceptance and at every start, so a lost announcement lands the work where a delivered one would. | Owner 2026-10-02 (destinations) |
+| Q23 | Did this acceptance go into the everyday rotation? No destination means it did. Asked by plan 4's taste reader. | Owner 2026-10-02 (destinations) |
+| Q24 | Which Gets were sent somewhere other than the rotation, so Queue and Review can say where a Get's works go? | Owner 2026-10-02 (destinations) |
+
+**Q22 to Q24 are answered by one column, `DiscoveryRun.destination_theme_id`**
+(`build-plan-topics-and-destinations.md` Chunk 01). A work reaches its run
+through the candidate acceptance minted it from (`CandidateWork.artwork_id`), so
+Q22 and Q23 are a join, and Q24 is the column read directly. The column is a
+theme id held opaquely, with no foreign key (`architecture.md` seam rule 3): a
+theme deleted since the Get still reads back, which is what lets Q24 say "a
+theme that has been deleted" rather than nothing, and what tells Programming the
+curator chose "not the rotation" for a work accepted after the deletion.
 
 **Q15 is what makes the collection navigable at the amended scale**
 (`nonfunctional-requirements.md`, thousands of works). At 41 works a curator
@@ -552,7 +564,9 @@ naming and grouping concept, not an accounts concept.
 
 > **The default theme** *(the owner's ruling 8, 2026-10-01: "There should be a
 > default 'all works' theme")*. Every work the Library announces as accepted joins
-> it, at the end of its order, once (see **DefaultThemeOffer**). With no theme
+> it, at the end of its order, once (see **DefaultThemeOffer**), unless the Get it
+> came from named another theme (`DiscoveryRun.destination_theme_id`, 2026-10-02),
+> which it joins instead. With no theme
 > marked, an acceptance joins nothing and still succeeds. The owner's existing
 > *All works* is marked by migration: on a file holding works but no offers (one
 > written before this field), the theme named *All works*, ignoring case, is
@@ -613,6 +627,13 @@ Join entity. Explicit rather than implicit so ordering can be curated.
 > the shape `architecture.md` seam rule 3 asks of every new reference across the
 > seam.
 
+> **Since 2026-10-02 the offer is of the work's destination**, the theme its Get
+> named (`DiscoveryRun.destination_theme_id`) or the default when none was named.
+> The table keeps its name: renaming one is a written migration that buys
+> nothing. A work whose named theme was deleted before it was accepted joins no
+> theme and is recorded as offered all the same, so no start sweeps it into the
+> default; the log names the work and the theme.
+
 One row per work the default theme has been offered, whether or not one existed
 to join (Q17). It is what makes the join happen once: the `work.accepted` event
 is published for a restored work as well as a new one, and startup
@@ -627,7 +648,8 @@ restore or restart.
 
 > **Recorded even when no theme is the default**, so that marking one later does
 > not sweep in every work accepted before it. The theme a work was offered to is
-> not recorded: nothing asks it, and membership already says where the work is.
+> not recorded here: where the curator asked it to go is the run's
+> `destination_theme_id` (Q22), and membership says where the work is now.
 >
 > **Back-filled once.** The migration that marks *All works* also records an offer
 > for every work already in the catalogue, because those works predate the
@@ -1062,6 +1084,7 @@ candidates provenance.
 | `unresolved_work_count` | integer | nullable | Works from phase 1 for which no credible instance was found. **Q12.** |
 | `started_at` | datetime | required | **Narrowed from nullable 2026-07-27.** A run row is only created by starting one, and both entry states (`resolving_works` for a discovery run, `resolving_images` for a resolve run) are active — there is no state in which a row exists and the run has not started. Nullable would have made every reader handle an absence that cannot occur. |
 | `completed_at` | datetime | nullable | Written by whichever transition ends the run. On `interrupted` it records when the death was *observed* at startup, not when it happened: the process that died could not write one, and a terminal run with no end time silently drops out of any window a report asks for. |
+| `destination_theme_id` | UUID | nullable; **not** a foreign key | The theme a `get` run's accepted works join instead of the default, or null for the default (**Q22-Q24**). Programming's id, held opaquely across the seam (rule 3), so it may name a theme deleted since. Written once, when the Get starts; the surface asks Programming that the theme exists first. Null on `discovery` and `resolve` runs, which keep joining the default (`build-plan-topics-and-destinations.md` § Requirements Confidence), and on every run written before the column. *Built 2026-10-02.* |
 
 > **The re-search is a run, not a side effect (decided 2026-07-20).** `resolve_images`
 > is a paid, minutes-long operation, and it previously created no row at all — so the

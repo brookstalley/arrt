@@ -93,11 +93,15 @@ class ProgrammingStore(Protocol):
         ...
 
     def record_offer(self, artwork_id: str, offered_at: datetime) -> None:
-        """Record that this work has been offered to the default theme. Raises if it already has."""
+        """Record that this work has been offered the theme it was accepted into. Raises if it already has.
+
+        The default theme, or the theme its Get named; the record does not say
+        which, because nothing asks and membership says where the work is.
+        """
         ...
 
     def offered_work_ids(self) -> set[str]:
-        """Every work the default theme has been offered, whether or not it joined."""
+        """Every work that has been offered its theme, whether or not it joined."""
         ...
 
     # -- walls ----------------------------------------------------------------

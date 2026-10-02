@@ -520,7 +520,12 @@ def _resolve_images(services: Services, arguments: Mapping[str, Any]) -> dict[st
 
 
 def _start_get(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    outcome = services.get.start(arguments["qids"], initiated_by=InitiatedBy.MCP_CLIENT)
+    # Two calls composed, with no branch on the first's answer: Programming says
+    # the theme exists (refusing an unknown one, so nothing starts), and the
+    # Library starts the Get.
+    theme_id = arguments.get("theme_id")
+    destination = None if theme_id is None else services.display.get_theme(theme_id).id
+    outcome = services.get.start(arguments["qids"], initiated_by=InitiatedBy.MCP_CLIENT, destination_theme_id=destination)
     skipped = [{"qid": entry.qid, "reason": str(entry.reason)} for entry in outcome.skipped]
     if outcome.run is None:
         return ok(
@@ -1173,6 +1178,9 @@ def _run_fields(run: DiscoveryRun) -> dict[str, Any]:
         "parent_run_id": run.parent_run_id,
         "started_at": _moment(run.started_at),
         "completed_at": _moment(run.completed_at),
+        # Where a Get's accepted works go instead of the default theme, or null
+        # for the default. A theme id, which may name one deleted since.
+        "destination_theme_id": run.destination_theme_id,
     }
 
 

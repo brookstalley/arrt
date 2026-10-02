@@ -718,6 +718,11 @@ class RunOut(BaseModel):
     parent_run_id: str | None
     started_at: str
     completed_at: str | None
+    #: The theme a Get's accepted works join instead of the default, or null for
+    #: the default. An id, which may name a theme deleted since: the run records
+    #: where the curator asked the works to go, and the theme is looked up by
+    #: whoever shows it.
+    destination_theme_id: str | None
 
 
 class CandidateWorkOut(BaseModel):
@@ -1027,9 +1032,13 @@ class StartResolve(BaseModel):
 
 
 class StartGet(BaseModel):
-    """The Wikidata items of the works to get."""
+    """The Wikidata items of the works to get, and where the accepted ones go."""
 
     qids: list[str]
+    #: The theme the accepted works join instead of the default, or null for the
+    #: default. An unknown theme refuses the Get and starts nothing. Creating a
+    #: new theme is an earlier `POST /api/themes`, never something this does.
+    theme_id: str | None = None
 
 
 class SkippedOut(BaseModel):

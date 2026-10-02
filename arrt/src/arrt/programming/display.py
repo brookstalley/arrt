@@ -21,6 +21,7 @@ Methods are synchronous, for the reason `catalogue.py` gives.
 
 import logging
 import uuid
+from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
@@ -409,48 +410,85 @@ class DisplayService:
         store_write(self._store.mark_default_theme, theme_id)
         return self.get_theme(theme_id)
 
-    def offer_to_default(self, work_ids: Iterable[str]) -> Sequence[str]:
-        """Offer each work the default theme once, and return the ones that joined.
+    def offer_destinations(self, work_ids: Iterable[str]) -> Sequence[str]:
+        """Offer each work the theme it was accepted into, once, and return the ones that joined.
 
-        The owner's ruling 8: what is accepted lands in the default theme, at the
-        end of its order. **Once per work, ever**, and that is what the offer
-        record is for: the Library announces a restored work as accepted, exactly
-        as it announces a new one, and startup offers every accepted work with no
-        offer recorded. Without the record either would put back a work the
-        curator took out of the default theme by hand. A work offered while no
-        theme was the default is recorded too, so marking one later does not sweep
-        in everything accepted before it.
+        **Where a work goes is the Library's to say and this service's to
+        apply.** The facade answers, for each work, the theme its Get named, or
+        None. None means the default theme, the owner's ruling 8: what is
+        accepted lands there, at the end of its order. A named theme takes the
+        default's place, so a work the curator sent somewhere else never enters
+        the everyday rotation (ruling 5a, as the owner recast it on 2026-10-02).
 
-        A work already in the default theme, placed there by hand before its
+        **A named theme that has since been deleted is joined by nothing.** The
+        curator chose "not the rotation" when they started the Get, and deleting
+        the theme does not reverse that. The work is recorded as offered all the
+        same, so the next start does not sweep it into the default either, and
+        the log says which work and which theme.
+
+        **Once per work, ever**, and that is what the offer record is for: the
+        Library announces a restored work as accepted, exactly as it announces a
+        new one, and startup offers every accepted work with no offer recorded.
+        Without the record either would put back a work the curator took out of
+        its theme by hand. A work offered while no theme was the default is
+        recorded too, so marking one later does not sweep in everything accepted
+        before it.
+
+        A work already in its theme, placed there by hand before its
         announcement arrived, is recorded and left where the curator put it.
         Offer and membership commit together, so a work is never recorded as
         offered without having joined, or joined without the record that stops a
         second join.
         """
+        already = self._store.offered_work_ids()
+        unoffered = [work_id for work_id in dict.fromkeys(work_ids) if work_id not in already]
+        if not unoffered:
+            return []
+        # Asked before the transaction, and once for every work: the facade is
+        # written as if remote, so it is one coarse question, never one per work
+        # and never with this plane's lock held.
+        destinations = self._library.destinations(unoffered)
         joined: list[str] = []
+        joined_by_theme: Counter[str] = Counter()
+        vanished: list[tuple[str, str]] = []
         with self._store.transaction():
             default = self._store.get_default_theme()
             offered = self._store.offered_work_ids()
-            for work_id in dict.fromkeys(work_ids):
+            for work_id in unoffered:
                 if work_id in offered:
                     continue
-                if default is not None and self._store.get_membership(default.id, work_id) is None:
-                    self.add_to_theme(theme_id=default.id, artwork_id=work_id)
+                named = destinations[work_id]
+                target = default if named is None else self._store.get_theme(named)
+                if named is not None and target is None:
+                    vanished.append((work_id, named))
+                if target is not None and self._store.get_membership(target.id, work_id) is None:
+                    self.add_to_theme(theme_id=target.id, artwork_id=work_id)
                     joined.append(work_id)
+                    joined_by_theme[target.name] += 1
                 store_write(self._store.record_offer, work_id, datetime.now(UTC))
-        if default is not None and joined:
-            log.info("Added %d newly accepted work(s) to the default theme %r.", len(joined), default.name)
+        for name, count in joined_by_theme.items():
+            log.info("Added %d newly accepted work(s) to theme %r.", count, name)
+        for work_id, theme_id in vanished:
+            # Said out loud, because the work is now in no theme at all, which is
+            # exactly what the curator would come looking for.
+            log.warning(
+                "Work %s was accepted from a Get that named theme %s, which has since been deleted. "
+                "It joins no theme, and not the default either; add it to one from Library › Works.",
+                work_id,
+                theme_id,
+            )
         return joined
 
-    def catch_up_the_default(self) -> Sequence[str]:
-        """Offer the default theme every accepted work that was never offered it. Run at start.
+    def catch_up_offers(self) -> Sequence[str]:
+        """Offer every accepted work that was never offered the theme it was accepted into. Run at start.
 
         For an announcement lost between the Library's commit and this plane's
-        handler. Every work the catalogue held before the default existed was
-        recorded as offered when the file was migrated, so this finds only what a
-        crash dropped.
+        handler. It goes through `offer_destinations`, so a work whose
+        announcement was lost lands where a delivered one would. Every work the
+        catalogue held before the default existed was recorded as offered when
+        the file was migrated, so this finds only what a crash dropped.
         """
-        return self.offer_to_default(self._library.accepted_work_ids())
+        return self.offer_destinations(self._library.accepted_work_ids())
 
     def activate_theme(self, theme_id: str, *, wall_id: str) -> ManifestBuild:
         """Hang this theme on this wall, and publish what follows.
@@ -905,16 +943,16 @@ class DisplayService:
     # -- keeping published manifests true to the Library ---------------------
 
     def on_work_changed(self, event: WorkChanged) -> None:
-        """The Library changed a work: take it off any wall it can no longer go on, and offer a new one the default theme.
+        """The Library changed a work: take it off any wall it can no longer go on, and offer a new one its theme.
 
         Subscribed to the Library's announcements. Both rules are the ones startup
         applies, narrowed to the one work, so the running server and a restarted
         one cannot disagree. The offer is made once per work, so an acceptance
-        announced for a restore offers nothing (`offer_to_default`).
+        announced for a restore offers nothing (`offer_destinations`).
         """
         self.reconcile([event.work_id], cause=event.change.value)
         if event.change is WorkChange.ACCEPTED:
-            self.offer_to_default([event.work_id])
+            self.offer_destinations([event.work_id])
 
     def reconcile(self, work_ids: Iterable[str] | None = None, *, cause: str = "startup") -> Reconciliation:
         """Make every published manifest and pin agree with what the Library will still show.

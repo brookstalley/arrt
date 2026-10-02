@@ -720,8 +720,15 @@ def start_get(request: Request, body: StartGet) -> GetOut:
     Returns at once with the run, which looks for images behind the response as
     any run does. Held items, items a Get is already looking for, and items the
     registry does not have are skipped and listed rather than refused.
+
+    With a `theme_id`, the accepted works join that theme instead of the
+    default. Two calls composed, with no branch on the first's answer:
+    Programming says the theme exists (refusing an unknown one, so nothing
+    starts), and the Library starts the Get.
     """
-    outcome = _services(request).get.start(body.qids, initiated_by=InitiatedBy.WEB_UI)
+    services = _services(request)
+    destination = None if body.theme_id is None else services.display.get_theme(body.theme_id).id
+    outcome = services.get.start(body.qids, initiated_by=InitiatedBy.WEB_UI, destination_theme_id=destination)
     return GetOut(
         run=None if outcome.run is None else _run(outcome.run),
         skipped=[SkippedOut(qid=entry.qid, reason=str(entry.reason)) for entry in outcome.skipped],
@@ -1221,6 +1228,7 @@ def _run(run: DiscoveryRun) -> RunOut:
         parent_run_id=run.parent_run_id,
         started_at=run.started_at.isoformat(),
         completed_at=None if run.completed_at is None else run.completed_at.isoformat(),
+        destination_theme_id=run.destination_theme_id,
     )
 
 

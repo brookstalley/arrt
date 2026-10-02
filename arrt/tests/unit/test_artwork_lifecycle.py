@@ -17,6 +17,7 @@ import pytest
 
 from arrt.library.facade import LibraryFacade
 from arrt.library.services.catalogue import CatalogueService
+from arrt.library.services.discovery import DiscoveryService
 from arrt.persistence.file import open_catalogue_file
 from arrt.persistence.records import (
     AcquisitionMethod,
@@ -29,6 +30,7 @@ from arrt.persistence.records import (
     Theme,
 )
 from arrt.persistence.sqlite import SqliteCatalogue
+from arrt.persistence.sqlite_discovery import SqliteDiscovery
 from arrt.programming.display import DisplayService, DisplaySettings
 from arrt.services.errors import ServiceError
 
@@ -68,9 +70,12 @@ def _a_showable_work(catalogue):
 
 def _display(store, tmp_path, *, catalogue=None):
     """A display service over an explicitly opened store, wired as the entry point wires one."""
+    catalogue = catalogue or CatalogueService(store)
+    # The discovery tables share the catalogue's open file, as in the container.
+    discovery = DiscoveryService(SqliteDiscovery(store._store), catalogue)  # noqa: SLF001
     return DisplayService(
         store,
-        LibraryFacade(catalogue or CatalogueService(store)),
+        LibraryFacade(catalogue, discovery),
         DisplaySettings(art_root=tmp_path, rotation_interval_seconds=180, shuffle=True),
     )
 

@@ -440,6 +440,14 @@ ART_DISCOVERY: Final = ToolRecord(
                     description="The Wikidata items of the works to get, such as Q45585.",
                     required=True,
                 ),
+                Param(
+                    name="theme_id",
+                    type="string",
+                    description=(
+                        "The theme the accepted works join instead of the default theme. Omit to send them to "
+                        "the default, which is the everyday rotation."
+                    ),
+                ),
             ),
             tips=(
                 "This spends nothing: a Get has no phase 1, and the image sources it asks are free.",
@@ -448,6 +456,9 @@ ART_DISCOVERY: Final = ToolRecord(
                 "item is skipped no run starts and `run_id` is null.",
                 "The run is like any other: action='status' and action='cancel' take its run_id, and its works "
                 "are judged with art_review. Accepting one records the item on the new work.",
+                "To send the works to a new theme, create it first with art_theme(action='create') and pass its "
+                "theme_id. An unknown theme_id refuses the Get and starts nothing. A theme deleted before a work "
+                "is accepted leaves that work in no theme, not in the default.",
             ),
         ),
         Action(
@@ -828,8 +839,9 @@ ART_THEME: Final = ToolRecord(
             params=(_THEME_ID,),
             tips=(
                 "At most one theme is the default; action='list' shows which, as is_default. Each work joins it "
-                "once, when it is accepted, at the end of the order. Works already in the catalogue are not added "
-                "by this, and a work taken out of the default by hand is not put back.",
+                "once, when it is accepted, at the end of the order, unless the Get it came from named another "
+                "theme_id, which it joins instead. Works already in the catalogue are not added by this, and a "
+                "work taken out of the default by hand is not put back.",
                 "The default cannot be deleted. Make another theme the default first.",
             ),
         ),

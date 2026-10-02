@@ -48,6 +48,7 @@ _EXPECTED_SCHEMA = {
         "unresolved_work_count",
         "started_at",
         "completed_at",
+        "destination_theme_id",
     },
     "candidate_works": {
         "id",
@@ -459,5 +460,36 @@ def test_a_file_from_before_gets_opens_and_takes_a_chosen_work(tmp_path):
         store.add_run(_run(id="r2", kind=RunKind.GET, status=RunStatus.RESOLVING_IMAGES))
         store.add_candidate_work(_work(id="c2", discovery_run_id="r2", provenance=WorkProvenance.CHOSEN, wikidata_qid="Q45585"))
         assert store.get_candidate_work("c2").wikidata_qid == "Q45585"
+    finally:
+        store.close()
+
+
+def test_a_file_from_before_destinations_opens_and_takes_a_run_that_names_one(tmp_path):
+    """A catalogue written before a Get could name a theme gains the column; its runs name none.
+
+    Made by removing the column from a real file, as the tests above do. The
+    null an older run reads back means the default theme, which is where every
+    acceptance went before a run could say otherwise.
+    """
+    path = tmp_path / "catalogue.sqlite"
+    open_catalogue_file(path).close()
+
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute("ALTER TABLE discovery_runs DROP COLUMN destination_theme_id")
+        connection.execute(
+            "INSERT INTO discovery_runs (id, kind, initiated_by, status, approval_required, started_at) "
+            "VALUES ('r1', 'get', 'mcp_client', 'resolving_images', 0, '2026-01-01T00:00:00+00:00')"
+        )
+        connection.commit()
+        assert "destination_theme_id" not in {row[1] for row in connection.execute("PRAGMA table_info(discovery_runs)")}
+    finally:
+        connection.close()
+
+    store = SqliteDiscovery(open_catalogue_file(path))
+    try:
+        assert store.get_run("r1").destination_theme_id is None, "an older run names no theme"
+        store.add_run(_run(id="r2", kind=RunKind.GET, status=RunStatus.RESOLVING_IMAGES, destination_theme_id="t-1"))
+        assert store.get_run("r2").destination_theme_id == "t-1"
     finally:
         store.close()

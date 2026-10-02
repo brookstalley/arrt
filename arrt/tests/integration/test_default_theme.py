@@ -152,7 +152,7 @@ class TestALostAnnouncementIsCaughtUpAtStart:
         def fails(event):
             raise StorageError("the disk went away")
 
-        monkeypatch.setattr(services.display, "offer_to_default", fails)
+        monkeypatch.setattr(services.display, "offer_destinations", fails)
         added = seeded_service.add_artwork(title="Blue Poles")
         monkeypatch.undo()
         assert added.id not in members(services, all_works.id), "the staged crash did not stop the join"
@@ -164,7 +164,7 @@ class TestALostAnnouncementIsCaughtUpAtStart:
     def test_a_work_the_curator_already_placed_is_left_where_they_put_it(self, services, themes, seeded_service, monkeypatch):
         """The announcement was lost, and the curator added the work by hand before the restart."""
         all_works, _winter = themes
-        monkeypatch.setattr(services.display, "offer_to_default", lambda work_ids: [])
+        monkeypatch.setattr(services.display, "offer_destinations", lambda work_ids: [])
         added = seeded_service.add_artwork(title="Blue Poles")
         monkeypatch.undo()
         services.display.add_to_theme(theme_id=all_works.id, artwork_id=added.id, position=0)

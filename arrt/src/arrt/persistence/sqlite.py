@@ -286,9 +286,12 @@ CREATE TABLE IF NOT EXISTS theme_memberships (
 
 CREATE INDEX IF NOT EXISTS theme_memberships_by_artwork ON theme_memberships(artwork_id);
 
--- Every work the default theme has been offered, joined or not, so that a work
--- is offered once: neither a restore, which the Library announces as an
--- acceptance, nor startup reconciliation puts back a work the curator took out.
+-- Every work that has been offered the theme it was accepted into (the default,
+-- or the theme its Get named), joined or not, so that a work is offered once:
+-- neither a restore, which the Library announces as an acceptance, nor startup
+-- reconciliation puts back a work the curator took out. Named for the default
+-- because that was the only destination when the table was made, and renaming a
+-- table is a written migration that buys nothing.
 -- `artwork_id` is deliberately not a foreign key: it is Programming's reference
 -- to a Library work, which the seam keeps opaque.
 CREATE TABLE IF NOT EXISTS default_theme_offers (

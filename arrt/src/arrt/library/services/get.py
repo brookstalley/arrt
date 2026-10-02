@@ -71,13 +71,24 @@ class GetService:
         self._runner = runner
         self._registry = registry
 
-    def start(self, qids: Sequence[str], *, initiated_by: InitiatedBy) -> GetOutcome:
+    def start(
+        self,
+        qids: Sequence[str],
+        *,
+        initiated_by: InitiatedBy,
+        destination_theme_id: str | None = None,
+    ) -> GetOutcome:
         """Start a Get over the chosen items that can be asked for, and report the rest.
 
         Refused outright with no registry, because a Get names its works by
         item and nothing else can say what an item is. A registry that cannot be
         asked is refused too: nothing has been started, and trying again later
         is the curator's whole remedy.
+
+        `destination_theme_id` is the theme the accepted works join instead of
+        the default, or None for the default. It is not checked here: a theme is
+        Programming's, so the surface asks Programming for it first, and an
+        unknown one is refused there before anything starts.
         """
         if not qids:
             raise ServiceError("A Get needs at least one work.")
@@ -111,12 +122,17 @@ class GetService:
                 skipped.append(Skipped(qid, SkipReason.NOT_FOUND))
                 continue
             chosen.append(ChosenWork(qid=qid, title=work.title, artist=work.creators[0].name if work.creators else None))
-        run = self._runner.get(works=chosen, initiated_by=initiated_by) if chosen else None
+        run = (
+            self._runner.get(works=chosen, initiated_by=initiated_by, destination_theme_id=destination_theme_id)
+            if chosen
+            else None
+        )
         log.info(
             "a get was asked for",
             extra={
                 "event": "get.asked",
                 "started_run_id": None if run is None else run.id,
+                "destination_theme_id": destination_theme_id,
                 "works_chosen": len(chosen),
                 "skipped": {str(reason): sum(1 for s in skipped if s.reason is reason) for reason in SkipReason},
             },
