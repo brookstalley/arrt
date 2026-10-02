@@ -16,6 +16,7 @@ import {
   resolutionBadge,
   shortfallNote,
 } from "../core/badges.js";
+import { destinationOf, destinationSentence, readThemes } from "../core/destination.js";
 import { el, fill, guard, render } from "../core/render.js";
 import { go } from "../core/router.js";
 import { runTitle } from "../core/runs.js";
@@ -514,7 +515,7 @@ function offeredGroupSentence(group, allCards) {
 }
 
 export async function viewReview(runId, generation) {
-  const page = await fetchAllCandidates(runId);
+  const [page, themes] = await Promise.all([fetchAllCandidates(runId), readThemes()]);
 
   /* One answer to "which works are waiting for a better scan", held for as long
    * as this view is on screen.
@@ -585,6 +586,8 @@ export async function viewReview(runId, generation) {
       el("button", { class: "action quiet", type: "button", text: page.run.kind === "get" ? "← The Get" : "← The search", onclick: () => go("run", runId) }),
     ]),
     el("h2", { text: runTitle(page.run) }),
+    // Where an Accept sends the work, said before the first one is pressed.
+    el("p", { class: "muted run-destination", text: destinationSentence(destinationOf(page.run, themes)) }),
     // The catalogue grid's own helper: `fetchAllCandidates` returns the
     // `{works, total}` shape it takes, and a second copy of the sentence is how
     // one grid comes to word truncation differently from the other.

@@ -8,6 +8,7 @@
 import { api } from "../core/api.js";
 import { facts, reasonBadge, resolutionBadge, table } from "../core/badges.js";
 import { agree, agreePartitive, counted } from "../core/counting.js";
+import { destinationOf, destinationSentence, readThemes } from "../core/destination.js";
 import { claimPoll, pollIsCurrent, schedulePollUnlessDone } from "../core/poll.js";
 import { el, guard, render } from "../core/render.js";
 import { backLink, go, refresh } from "../core/router.js";
@@ -227,6 +228,12 @@ export async function viewRun(runId, generation) {
     return;
   }
 
+  // Read only when the page is about to be painted, so an unchanged poll costs
+  // no second request. A failure is said in the sentence rather than thrown:
+  // the watch must not end because a theme's name could not be read.
+  const themes = await readThemes();
+  if (!pollIsCurrent(pollGeneration)) return;
+
   // The gate is the point of decision for phase 2, so its price and what that
   // price is made of belong beside the buttons rather than on a costs panel
   // further down. Asked for only at the gate: every other state either has no
@@ -315,6 +322,7 @@ export async function viewRun(runId, generation) {
       // is judged against how the intent was read rather than against its
       // wording, which is what makes a surprising list explicable.
       run.strategy ? el("p", { class: "muted", text: `How it read the request: ${run.strategy}` }) : null,
+      el("p", { class: "muted run-destination", text: destinationSentence(destinationOf(run, themes)) }),
       // What approving commits to, in the place the commitment is made. The
       // basis is the load-bearing half: the figure is currently zero because
       // phase 2 asks museum APIs, and a bare "$0" beside an approve button
@@ -436,7 +444,11 @@ export async function viewRun(runId, generation) {
   // a run that has stopped, and a stopped run schedules no further poll, so
   // there is no next attempt for withholding the signature to enable. The
   // sentence in the panel is the whole of that remedy.
-  if (gateEstimateProblem === null) state.painted = { runId, body };
+  //
+  // A destination that could not be looked up is held out for the same reason
+  // as the gate's price: the run is unchanged, so the next poll would match and
+  // leave the sentence saying so.
+  if (gateEstimateProblem === null && themes !== null) state.painted = { runId, body };
 
   // Poll only while there is something still to wait for. `is_terminal` comes
   // from the server rather than from a list of finished states written here,

@@ -1539,6 +1539,24 @@ button.action:hover {
   margin-block: var(--space-4);
 }
 
+/* Add to, beside the Get it names a destination for. Its fields carry no margin
+   of their own here, so the row's gap is the only spacing between them. */
+.get-into .field {
+  margin-bottom: 0;
+}
+
+/* The fields carry labels above them, so the button lines up with the
+   controls' bottom edge rather than the middle of label and control. */
+.get-control:has(.get-into) {
+  align-items: flex-end;
+}
+
+/* `.field` displays as flex, which outranks the browser's own rule for the
+   `hidden` attribute; the name field must be gone until New theme… is chosen. */
+.get-into .field[hidden] {
+  display: none;
+}
+
 .muted {
   color: var(--text-muted);
   font-size: var(--text-sm);
