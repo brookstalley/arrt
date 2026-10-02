@@ -181,6 +181,40 @@ class RegistryWorkPageOut(BaseModel):
     held_artwork_ids: list[str]
 
 
+class RegistryPersonFoundOut(BaseModel):
+    qid: str
+    name: str
+    born: int | None
+    died: int | None
+    #: The library's artist with this QID, where it holds one.
+    artist_id: str | None
+
+
+class RegistryWorkFoundOut(BaseModel):
+    qid: str
+    title: str
+    sitelinks: int
+    #: A Commons file URL, and only ever one.
+    image: str | None
+    creator: RegistryCreatorOut | None
+    #: The library's works in circulation that are this one, by QID.
+    held_artwork_ids: list[str]
+
+
+class RegistrySearchOut(BaseModel):
+    """The registry's half of a search: artists and works, each marked where the library holds it.
+
+    `state` is `known`, `too_short` (fewer than three letters: nothing asked),
+    `not_configured` or `unavailable`, with a `note` sentence for the last two.
+    Every string from the registry is untrusted text.
+    """
+
+    state: str
+    note: str | None
+    artists: list[RegistryPersonFoundOut]
+    works: list[RegistryWorkFoundOut]
+
+
 class WorkOut(BaseModel):
     """One work as a grid card shows it."""
 

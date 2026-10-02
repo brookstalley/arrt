@@ -7,6 +7,7 @@ misread, and a name with a quote in it cannot end the string it is placed in.
 """
 
 import json
+import re
 from urllib.parse import parse_qs
 
 import httpx
@@ -224,9 +225,19 @@ def test_names_are_asked_for_in_the_language_neutral_label_too():
     registry.people_named("Mark Rothko")
     registry.artist("Q160149", works=1, holdings=1)
     registry.work("Q20270685")
+    registry.works_matching(["hunters"], prefix=False, limit=5)
 
-    labelled = [query for query in asked if "wikibase:label" in query]
-    assert labelled and all('wikibase:language "en,mul"' in query for query in labelled)
+    # Every query that reads a name, which is every one but the artist's count.
+    named = [query for query in asked if "Label" in query]
+    assert len(named) == len(asked) - 1
+    assert all('wikibase:language "en,mul"' in query for query in named)
+    # No name is taken from a label filtered by language: that is what kept
+    # `mul` names out (a description has no `mul` form, so its filter stays).
+    assert not [query for query in named if re.search(r"LANG\(\?\w*Label\)", query)]
+    # A maker's name from the label service, not from a filter accepting `en` or
+    # `mul`, which let SAMPLE pick either: "Pieter Bruegel" one run, "Pieter
+    # Brueghel the Elder" the next (measured live, 2026-10-01).
+    assert "?maker rdfs:label ?makerLabel" in asked[-1] and "LANG(?makerLabel)" not in asked[-1]
 
 
 def test_an_artist_comes_back_named_and_dated():
@@ -298,3 +309,99 @@ def test_an_item_the_registry_does_not_have_is_none():
 def test_a_work_qid_is_checked_before_it_reaches_a_query():
     with pytest.raises(ValueError):
         _registry(lambda request: _results()).work("Q1 } UNION {")
+
+
+def test_a_work_search_asks_the_index_for_artworks_and_caps_its_paging():
+    """Without the cap the query service read every page of hits: 44 s for `david` (`wikidata-findings.md`)."""
+    asked = []
+
+    def handler(request):
+        asked.append(_sent_query(request))
+        return _results()
+
+    _registry(handler).works_matching(["hunters", "snow"], prefix=False, limit=5)
+
+    assert 'mwapi:srsearch "hunters snow haswbstatement:P31=Q3305213|' in asked[0]
+    assert "wikibase:limit 50" in asked[0] and "LIMIT 5" in asked[0]
+
+
+def test_only_the_last_word_is_a_prefix_and_only_when_asked():
+    asked = []
+
+    def handler(request):
+        asked.append(_sent_query(request))
+        return _results()
+
+    registry = _registry(handler)
+    registry.works_matching(["the", "persist"], prefix=True, limit=5)
+    registry.works_matching(["the", "persist"], prefix=False, limit=5)
+
+    assert '"the persist* haswbstatement:' in asked[0]
+    assert '"the persist haswbstatement:' in asked[1]
+
+
+@pytest.mark.parametrize("word", ["haswbstatement:P31=Q5", 'a"b', "x*", "(y)", "intitle:z", ""])
+def test_search_syntax_typed_by_a_curator_never_reaches_the_index(word):
+    asked = []
+
+    def handler(request):
+        asked.append(_sent_query(request))
+        return _results()
+
+    found = _registry(handler).works_matching([word], prefix=False, limit=5)
+
+    assert (found, asked) == ([], [])
+
+
+def test_a_work_match_comes_back_with_its_creator_and_only_a_commons_image():
+    def handler(request):
+        return _results(
+            {
+                "item": _uri("Q500985"),
+                "itemLabel": {"value": "The Hunters in the Snow"},
+                "links": {"value": "39"},
+                "img": {"value": "http://commons.wikimedia.org/wiki/Special:FilePath/H.jpg"},
+                "creator": _uri("Q43270"),
+                "creatorLabel": {"value": "Pieter Brueghel the Elder"},
+            },
+            {
+                "item": _uri("Q2"),
+                "itemLabel": {"value": "Unattributed"},
+                "links": {"value": "1"},
+                "img": {"value": "https://evil.example/x.jpg"},
+            },
+        )
+
+    found = _registry(handler).works_matching(["hunters"], prefix=False, limit=5)
+
+    assert [(m.qid, m.sitelinks, m.creator and m.creator.name, m.image) for m in found] == [
+        ("Q500985", 39, "Pieter Brueghel the Elder", "https://commons.wikimedia.org/wiki/Special:FilePath/H.jpg"),
+        ("Q2", 1, None, None),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("typed", "sent"),
+    [(["-snow"], None), (["NOT", "snow"], '"not snow haswbstatement:'), (["Hunters"], '"hunters haswbstatement:')],
+)
+def test_words_the_index_would_read_as_operators_are_not_sent_as_them(typed, sent):
+    asked = []
+
+    def handler(request):
+        asked.append(_sent_query(request))
+        return _results()
+
+    _registry(handler).works_matching(typed, prefix=False, limit=5)
+
+    assert (asked == []) if sent is None else (sent in asked[0])
+
+
+def test_a_movement_with_no_readable_name_is_left_out():
+    """The label service names it by its QID, which would read as a movement called `Q123`."""
+
+    def handler(request):
+        if "?movementLabel" in _sent_query(request):
+            return _results({"movements": {"value": "surrealism␞Q123"}})
+        return _results()
+
+    assert _registry(handler).artist("Q5577", works=1, holdings=1).movements == ("surrealism",)

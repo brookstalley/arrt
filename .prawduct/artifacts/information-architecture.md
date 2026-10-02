@@ -272,6 +272,18 @@ listed below so it can be disputed.
     marked *"Already in your library"*, and clicking it opens the library entry
     instead of the add dialog.
 
+  **One world, since 2026-10-01** (ruling 2, `build-plan-one-world-search.md`
+  Chunk 03): the dropdown's groups are *Artists* and *In your library* (the
+  library's), *Themes* (by name), then *Wikidata: artists* and *Wikidata: works*,
+  then *Add New*. Wikidata's rows arrive after the library's and never hold them
+  back, are asked from the third letter, carry a mark of glyph, word and colour (● *In
+  your library*, ◐ *Image found*, ○ *Not held*), leave out what the library's rows already show, and open the library's
+  page for a held match and the page by QID otherwise. Their arrival is announced
+  in a polite live region and moves no highlight; a new query starts with none, so
+  Enter is never sent to a row the curator did not choose. Wikidata off or down is said
+  in a note where its rows would be, in its own class, apart from the library's
+  note. Enter is unchanged (the owner, 2026-10-01: Enter stays on Artworks).
+
   Arrt follows that shape. The groups are *In your library* and *Add New*,
   named as Sonarr names its second group for the page it opens, and the Add
   New row reads *Search museums for "{query}"*. Picking it goes to

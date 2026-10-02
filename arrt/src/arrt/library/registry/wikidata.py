@@ -40,6 +40,7 @@ from arrt.library.registry import (
     RegistryUnavailable,
     RegistryWork,
     RegistryWorkEntry,
+    RegistryWorkMatch,
 )
 from arrt.library.registry.identifiers import IdentifierScheme
 
@@ -67,6 +68,36 @@ _VISUAL_ARTIST: Final[str] = "Q3391743"
 #: the cap is there so an item vandalised with hundreds of statements cannot
 #: make one page read thousands of rows.
 _WORK_ROWS: Final[int] = 2000
+
+#: The classes a work found by search must be an instance of, as the search
+#: index's own `haswbstatement` reads them: painting, sculpture, drawing, print,
+#: photograph, mural, watercolor painting, work of art, triptych, panel painting.
+#: Filtering in the index rather than in SPARQL is what keeps TV series and comics,
+#: which carry a creator too, out of the list in well under two seconds; a
+#: subclass walk took up to a minute and kept them in (`wikidata-findings.md`).
+_ARTWORK_CLASSES: Final[tuple[str, ...]] = (
+    "Q3305213",
+    "Q860861",
+    "Q93184",
+    "Q11060274",
+    "Q125191",
+    "Q219423",
+    "Q18761202",
+    "Q838948",
+    "Q79218",
+    "Q55439",
+)
+
+#: How many search hits are read before ranking by renown. The query service
+#: otherwise pages through every hit, which took 44 s for `david`.
+_SEARCHED: Final[int] = 50
+
+#: A word the search can be given: letters and digits, with the apostrophes and
+#: hyphens names carry inside them. Everything else is search syntax and is never
+#: passed through from a curator: `:` and `"` and `*`, and a leading `-`, which
+#: the index reads as "not". Words are also lowercased before they are sent, since
+#: `AND`, `OR` and `NOT` in capitals are operators and the index ignores case.
+_WORD: Final[re.Pattern[str]] = re.compile(r"^\w[\w'’-]*$")
 
 #: Label languages, in order. `mul` is Wikidata's language-neutral label, which
 #: some items (the National Gallery of Art among them) now carry instead of an
@@ -145,8 +176,8 @@ class WikidataRegistry:
         profile = self._select(
             f"""SELECT ?description (GROUP_CONCAT(DISTINCT ?movementLabel; separator="{_SEPARATOR}") AS ?movements) WHERE {{
               OPTIONAL {{ wd:{item} schema:description ?description FILTER(LANG(?description) = "en") }}
-              OPTIONAL {{ wd:{item} wdt:P135 ?movement . ?movement rdfs:label ?movementLabel
-                         FILTER(LANG(?movementLabel) = "en") }}
+              OPTIONAL {{ wd:{item} wdt:P135 ?movement }}
+              SERVICE wikibase:label {{ bd:serviceParam wikibase:language "{_LABELS}" . ?movement rdfs:label ?movementLabel . }}
             }} GROUP BY ?description"""
         )
         named = self._select(f"""SELECT ?itemLabel (MIN(YEAR(?born)) AS ?bornYear) (MIN(YEAR(?died)) AS ?diedYear) WHERE {{
@@ -188,7 +219,11 @@ class WikidataRegistry:
             born=_integer(person, "bornYear"),
             died=_integer(person, "diedYear"),
             description=first["description"]["value"] if "description" in first else None,
-            movements=tuple(name for name in first.get("movements", {}).get("value", "").split(_SEPARATOR) if name),
+            # The label service answers a movement with no readable name with its
+            # QID, which reads as a name; one with no name is left out instead.
+            movements=tuple(
+                name for name in first.get("movements", {}).get("value", "").split(_SEPARATOR) if name and not QID.match(name)
+            ),
             works=tuple(
                 RegistryWorkEntry(
                     qid=_qid(row, "work"),
@@ -263,6 +298,46 @@ class WikidataRegistry:
                 for qid, name in sorted(collections.items(), key=lambda pair: pair[1])
             ),
         )
+
+    def works_matching(self, words: Sequence[str], *, prefix: bool, limit: int) -> Sequence[RegistryWorkMatch]:
+        plain = [word.lower() for word in words if _WORD.match(word)]
+        if not plain:
+            return []
+        text = " ".join(plain) + ("*" if prefix else "")
+        classes = "|".join(f"P31={qid}" for qid in _ARTWORK_CLASSES)
+        rows = self._select(f"""SELECT ?item ?itemLabel ?links (SAMPLE(?image) AS ?img)
+                   (SAMPLE(?maker) AS ?creator) (SAMPLE(?makerLabel) AS ?creatorLabel) WHERE {{
+              SERVICE wikibase:mwapi {{
+                bd:serviceParam wikibase:endpoint "www.wikidata.org"; wikibase:api "Search";
+                  mwapi:srsearch {_literal(f"{text} haswbstatement:{classes}")}; mwapi:srlimit "{_SEARCHED}";
+                  wikibase:limit {_SEARCHED} .
+                ?item wikibase:apiOutputItem mwapi:title .
+              }}
+              ?item wikibase:sitelinks ?links .
+              OPTIONAL {{ ?item wdt:P18 ?image }}
+              OPTIONAL {{ ?item wdt:P170 ?maker }}
+              SERVICE wikibase:label {{
+                bd:serviceParam wikibase:language "{_LABELS}" .
+                ?item rdfs:label ?itemLabel . ?maker rdfs:label ?makerLabel .
+              }}
+            }} GROUP BY ?item ?itemLabel ?links ORDER BY DESC(?links) ?itemLabel LIMIT {int(limit)}""")
+        found = []
+        for row in rows:
+            # The maker's name comes from the label service, as every other name
+            # here does: it prefers `en` to `mul`, where a label filter accepting
+            # both handed SAMPLE whichever it met first ("Pieter Bruegel" one
+            # time, "Pieter Brueghel the Elder" the next).
+            maker = _qid(row, "creator", required=False)
+            found.append(
+                RegistryWorkMatch(
+                    qid=_qid(row, "item"),
+                    title=RegistryText(_value(row, "itemLabel")),
+                    sitelinks=_integer(row, "links") or 0,
+                    image=_commons_file(row.get("img", {}).get("value")),
+                    creator=None if maker is None else RegistryCreator(qid=maker, name=RegistryText(_value(row, "creatorLabel"))),
+                )
+            )
+        return found
 
     def close(self) -> None:
         self._http.close()

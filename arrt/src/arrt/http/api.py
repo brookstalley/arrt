@@ -76,6 +76,9 @@ from arrt.http.models import (
     RegistryCreatorOut,
     RegistryHolderOut,
     RegistryHoldingOut,
+    RegistryPersonFoundOut,
+    RegistrySearchOut,
+    RegistryWorkFoundOut,
     RegistryWorkOut,
     RegistryWorkPageOut,
     RenameTheme,
@@ -281,12 +284,49 @@ def get_registry_artist(request: Request, qid: str) -> ArtistRegistryOut:
     """What Wikidata knows about an artist reached by QID, whether or not the library holds them.
 
     The same shape and states as an artist's `/registry`, but `no_identity` cannot
-    occur. `artist_id` names the library's artist with this QID when there is one,
-    and the page goes there instead. A malformed QID is a 400.
+    occur. When the library holds an artist with this QID, `state` is `held`,
+    `artist_id` names them, the page goes there instead, and the registry is not
+    asked. A malformed QID is a 400.
     """
-    artists = _services(request).artists
-    held = artists.held_artist_id(qid)
-    return _artist_registry(artists.registry_view_by_qid(qid), artist_id=held)
+    held, view = _services(request).artists.registry_view_by_qid(qid)
+    return _artist_registry(view, artist_id=held)
+
+
+@router.get("/registry/search")
+def search_registry(
+    request: Request, q: Annotated[str, Query()] = "", prefix: Annotated[bool, Query()] = False
+) -> RegistrySearchOut:
+    """Wikidata's artists and works for a few typed words, the other half of the top-bar search.
+
+    `prefix=true` reads the last word as the start of one, as the typeahead does
+    mid-word. Always a 200: `state` says whether anything was asked and what the
+    registry did. Remembered per query; a failure is not.
+    """
+    found = _services(request).registry_search.search(q, prefix=prefix)
+    held_artists, held_works = found.held_artists, found.held_works
+    return RegistrySearchOut(
+        state=str(found.state),
+        note=found.note,
+        artists=[
+            RegistryPersonFoundOut(qid=p.qid, name=p.label, born=p.born, died=p.died, artist_id=held_artists.get(p.qid))
+            for p in found.artists
+        ],
+        works=[
+            RegistryWorkFoundOut(
+                qid=w.qid,
+                title=w.title,
+                sitelinks=w.sitelinks,
+                image=w.image,
+                creator=(
+                    None
+                    if w.creator is None
+                    else RegistryCreatorOut(qid=w.creator.qid, name=w.creator.name, artist_id=held_artists.get(w.creator.qid))
+                ),
+                held_artwork_ids=list(held_works.get(w.qid, ())),
+            )
+            for w in found.works
+        ],
+    )
 
 
 @router.get("/registry/works/{qid}")

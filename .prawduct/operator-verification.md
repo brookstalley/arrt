@@ -10,6 +10,25 @@ each entry, which is the durable form.
 
 ## Pending
 
+### The search box covers Wikidata too — added 2026-10-01
+
+**`build-plan-one-world-search.md` Chunk 03.** Needs `WIKIDATA_USER_AGENT` set.
+
+Checked by the builder on 2026-10-01, on a copy of your catalogue with Playwright
+at 1280 px and 375 px, with no page errors and nothing wider than the screen:
+`dali` gave your Dalí and *Untitled (Desert Landscape)* first, then Wikidata's
+*Dalibor Chatrný* and five Dalí works, with *Image found* where there is one;
+`the persistence` gave *The Persistence of Memory* first; `hunters` gave Bruegel's
+*The Hunters in the Snow* first. Wikidata's rows arrived about half a second
+after the library's. For you:
+
+1. **Type the way you search.** Do Wikidata's rows help, or crowd the library's?
+   Five works and three artists is the cap; is it the right size?
+2. **What a row says.** *in your library*, *Image found*, or nothing. Enough to
+   choose by?
+3. **Enter** still opens Artworks filtered, as you ruled. Does that still feel
+   right with Wikidata in the list?
+
 ### Pages for works and artists you do not hold — added 2026-10-01
 
 **`build-plan-one-world-search.md` Chunk 02.** Needs `WIKIDATA_USER_AGENT` set, as

@@ -89,7 +89,7 @@ the registry's behaviour is measured for three queries, not proven.
 - **Ruled by the owner 2026-10-01: Enter stays on Artworks**, and the dropdown's last row, *All results for "{query}"*, opens the results page. The question as put: what Enter does. On 2026-09-30 the owner ruled *"yes to filtered to the query"*: Enter opens Artworks filtered, departing from Sonarr. The proposal the owner ruled on 2026-10-01 says Enter opens a results page with *All*, *In your library* and *Not held*. Ruling 2 ("one world") ruled the scope, not the key. Built today: Enter opens `#collection?q=` (`arrt/src/arrt/http/static/core/search.js`, `installSearch`). Recommended: **keep Enter as ruled, and add *All results for "{query}"* as the dropdown's last row**, opening the results page.
 - `[NORM, ratified by the owner as written 2026-10-01, written into `security-model.md` by Chunk 01: "Text from outside Arrt (a registry, a museum, a model) reaches the page as text and is never parsed as markup. An image or link from outside is used only when its host is one this repository names, or is built here from a checked identifier." | HIGH impact | user can amend or reject]`
 - `[DECISION: an unheld work's page offers *Search museums for this work*, which opens the existing Add New with the work's title and artist filled in and spends nothing until the curator presses Search | ruling 3 dissolves Add New into Get, which is plan 2. Showing no action until then would make the page a dead end, and the seeded search is the one way to acquire a work that exists today. Plan 2 replaces it | user can veto/override]`
-- `[ASSUMPTION: registry rows in the typeahead come after the library's, start at three typed characters, wait 300 ms after the last keystroke, show at most 3 artists and 5 works, and are remembered per folded query for the life of the process | MED impact | user can correct]`
+- `[ASSUMPTION: registry rows in the typeahead come after the library's, start at three typed characters, are asked at the typeahead's existing 200 ms pause after the last keystroke, show at most 3 artists and 5 works, and are remembered per folded query for the life of the process | MED impact | user can correct]`
 - `[ASSUMPTION: an Artist page for an artist the library does not hold shows what the registry knows (header, Their work, Holdings, Similar artists) and says that nothing of theirs is held. The address is `#artist/Q…`; a held artist keeps `#artist/{id}` | LOW impact | user can correct]`
 - `[ASSUMPTION: Similar artists shows 12, people sharing a movement (`P135`), visual artists only, ranked by sitelinks, each with its count of works that have an image. Influence links are too sparse to rank and are left out | MED impact | user can correct]`
 - `[ASSUMPTION: the QID control offers Set (a QID, checked against Wikidata before it is stored, so a typo cannot mark the wrong work *Held*) and *There is none* (stops the matcher, as the routes already do). Handing an item back to the matcher has no route and is not added | MED impact | user can correct]`
@@ -100,7 +100,7 @@ the registry's behaviour is measured for three queries, not proven.
 ## Status
 
 - [x] Chunk 01: External text is shown as text
-- [ ] Chunk 02: Pages for works and artists the library does not hold
+- [x] Chunk 02: Pages for works and artists the library does not hold
 - [ ] Chunk 03: The typeahead shows one world
 - [ ] Chunk 04: The search results page
 - [ ] Chunk 05: Similar artists, and setting a QID by hand
@@ -182,7 +182,7 @@ fixed it before the typeahead could show it; the matcher's result on a copy of
 the catalogue was unchanged at 22 works and 24 artists. Pages addressed by QID
 branch on the id's shape, which a library id (a uuid) never has, and the
 library's page replaces a held one through a new `redirect` in the router, so
-Back skips it. The shared registry helpers moved to `core/registry.js`. Running it
+Back skips it. A work with no image found shows a sentence saying so rather than an empty frame: the registry gives no dimensions, so a frame would have a ratio it made up. The shared registry helpers moved to `core/registry.js`. Running it
 on the copy at 375 px found the library Work page 333 px wider than the screen,
 from a source URL in a table, a defect older than this plan: the shared table
 helper now scrolls inside its panel, with a browser test. Also seen there, not
@@ -207,6 +207,9 @@ fixed: a museum description's `<i>` shows as literal text, filed to the backlog.
 
 **Foreign API:** Wikidata Query Service
 
+- **Carried from Chunk 02's review:** `GET /api/registry/artists/{qid}` answers
+  with the held artist's id before asking Wikidata, as the work route already
+  does, so the redirect never waits on the registry.
 - **The registry searches works by title**, full text with `haswbstatement:P170`
   and a filter for works of visual art. Which filter is measured first
   (verify-api), against the six queries in `wikidata-findings.md`: the filter
@@ -223,6 +226,20 @@ fixed: a museum description's `<i>` shows as literal text, filed to the backlog.
   Themes group. A held registry match is shown once, as the library's. A slow or
   failed registry never delays or removes the library rows. Late rows are
   announced in a polite live region the typeahead gains; focus does not move.
+
+*(Built 2026-10-01. The filter is the search index's own `haswbstatement` on ten
+artwork classes, with `wikibase:limit 50`: both class walks in SPARQL took up to
+a minute and kept TV series, and the 44 s for `david` was the query service
+paging through every hit, not the search. Typed text is cut into words, so search
+syntax never reaches the index. Artists and works are asked on two threads and
+remembered per folded query. The by-QID artist route now answers a held artist
+without asking Wikidata (carried from Chunk 02's review). Driving it against the
+copy of the catalogue found makers named two ways ("Pieter Bruegel" and "Pieter
+Brueghel the Elder") because a label filter accepting `en` or `mul` let SAMPLE pick
+either. Every name now comes from the label service, the Artist page's movements
+included, which had the same `en`-only filter as Rothko's name. A unit test fails
+on any language-filtered label. The *Themes* group is in. The typeahead opened
+on every one of six driven runs.)*
 
 **Done when:**
 0. verify-api: the filter is chosen by measurement, recorded in

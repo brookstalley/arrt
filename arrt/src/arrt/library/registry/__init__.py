@@ -131,6 +131,18 @@ class RegistryWork:
     holders: tuple[RegistryHolder, ...] = ()
 
 
+@dataclass(frozen=True, slots=True)
+class RegistryWorkMatch:
+    """A work a registry's search found, with what a list of matches shows of it."""
+
+    qid: ItemId
+    title: RegistryText
+    sitelinks: int
+    image: CommonsFile | None = None
+    #: Its first recorded creator, where it has one: what tells two *The Kiss*es apart.
+    creator: RegistryCreator | None = None
+
+
 class RegistryUnavailable(Exception):
     """The registry could not be asked, or did not answer in the shape it promises.
 
@@ -166,4 +178,13 @@ class Registry(Protocol):
 
     def work(self, qid: str) -> RegistryWork | None:
         """What the registry knows about this work, or None when it has no such item."""
+        ...
+
+    def works_matching(self, words: Sequence[str], *, prefix: bool, limit: int) -> Sequence[RegistryWorkMatch]:
+        """Works of visual art whose text matches every word, the most renowned first.
+
+        `prefix` lets the last word be the start of one, as a curator mid-word
+        types it. The words are plain words: the caller strips anything the
+        registry's search would read as an operator.
+        """
         ...

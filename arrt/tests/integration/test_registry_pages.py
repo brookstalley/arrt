@@ -189,5 +189,17 @@ class TestWithNoRegistryConfigured:
         artist = http.get(f"/api/registry/artists/{ROTHKO}").raise_for_status().json()
 
         assert (work["state"], work["held_artwork_ids"]) == ("not_configured", [kept.id])
-        assert (artist["state"], artist["artist_id"]) == ("not_configured", rothko.id)
+        assert (artist["state"], artist["artist_id"]) == ("held", rothko.id)
         assert "WIKIDATA_USER_AGENT" in work["note"]
+
+
+class TestAHeldArtistByQid:
+    def test_the_library_answers_and_the_registry_is_not_asked(self, http, held, registry):
+        """The redirect to the library's page must not wait on Wikidata, as a held work's does not."""
+        rothko, _kept = held
+        registry.failing = True
+
+        page = http.get(f"/api/registry/artists/{ROTHKO}").raise_for_status().json()
+
+        assert (page["state"], page["artist_id"]) == ("held", rothko.id)
+        assert registry.asked_about == []

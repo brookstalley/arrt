@@ -139,6 +139,43 @@ service's `wikibase:mwapi`, and they answer different questions:
 - **Neither search folds a missing accent the way the library does.** That was not
   measured here; `dali` finding Salvador Dalí through `wbsearchentities` is.
 
+**The filter, chosen by measurement (Chunk 03's verify-api, 2026-10-01).** Four
+candidates, run on `persistence of memory`, `hunters in the snow`, `starry night`,
+`starr*`, `mona*` and `water lilies`:
+
+| Filter | Drops *Kojak*, *Power Girl*, Wikidata? | Worst time |
+|---|---|---|
+| none | no | 5.6 s (`mona*`) |
+| item is a subclass of *work of art* (`P31/P279*` Q838948), in SPARQL | no: TV series sit under it | 57 s, and `mona*` timed out |
+| item is a subclass of *visual artwork* (Q4502142), in SPARQL | no | 49 s, and `mona*` timed out |
+| a creator whose occupation is under *visual artist*, in SPARQL | no (`starr*` kept *Kojak* and *Power Girl*) | 6.2 s |
+| **the search index's own `haswbstatement:P31=…`, one per class below** | **yes** | 7.9 s for `mona*`, 44 s for `david` |
+
+The classes, each read from `wbsearchentities` on the day: painting Q3305213,
+sculpture Q860861, drawing Q93184, print Q11060274, photograph Q125191, mural
+Q219423, watercolor painting Q18761202, work of art Q838948, triptych Q79218,
+panel painting Q55439. *fresco* and *tapestry* were dropped: their top search
+result was a surname and an album.
+
+**The index answers in 0.3 s; the time was the query service paging.** Asked
+directly, the search index answered `david` in 0.32 s. Inside SPARQL, `mwapi`
+follows the search's continuation through every page unless told
+`wikibase:limit`. With `wikibase:limit 50` and `srlimit 50`, two runs of nine
+queries (the six above, `david`, `the kiss`, `thinker`, `dal*`) took 0.37–0.85 s
+on the second run and 1.75 s at worst. Results, by sitelinks: `david` gives
+Michelangelo's *David*, then Jacques-Louis David's works; `dal*` gives Dalí's
+works, because the index matches more than titles; `the kiss` gives Klimt,
+Hayez, Eisenstaedt and Rodin; `thinker` includes Rodin's.
+
+**A name filtered by language is a coin toss between `en` and `mul`.** Selecting a
+maker's label with `FILTER(LANG(?l) IN ("en","mul"))` and `SAMPLE` returned
+"Pieter Bruegel" in one run and "Pieter Brueghel the Elder" in the next, because an
+item carrying both labels gives two rows and SAMPLE takes either. The label
+service's explicit form (`?maker rdfs:label ?makerLabel` inside `SERVICE
+wikibase:label`) prefers `en` and falls back to `mul`, and it binds inside an
+aggregating query, where its implicit form did not. Every name the client reads
+now comes through it.
+
 **Similar artists, from shared movements (`P135`).** People sharing a movement,
 ranked by sitelinks, kept only if they made at least one work with an image:
 
@@ -179,12 +216,10 @@ label (Q16682090, from a query). One query each, 0.24–0.49 s:
   `en-gb` label and no `en` one, so a creator label filtered to `en` came back
   empty for both Rothkos. Every label the work query asks for goes through
   `en,mul`, as `_LABELS` already says.
-- **The shipped `people_named` has this defect.** It asks the label service for
-  `"en"` alone, and live it returns `Q160149` as Mark Rothko's label (Dalí and
-  Renoir come back named). The matcher reads only the QID and the years, so
-  nothing shown today is wrong. The typeahead would show it, so it is fixed
-  before registry artists are listed there (`build-plan-one-world-search.md`
-  Chunk 02).
+- **`people_named` had this defect, and it is fixed.** It asked the label
+  service for `"en"` alone, and live it returned `Q160149` as Mark Rothko's label.
+  It now asks for `en,mul` like every other query, and the live test pins
+  Rothko's name (`build-plan-one-world-search.md` Chunk 02).
 - **An inventory number belongs to a collection.** `P217` carries the collection
   as a `P195` qualifier (GG_1838 at the Kunsthistorisches Museum; 1983.509 at the
   Art Institute). A work held in two places has two numbers, so the pair is read

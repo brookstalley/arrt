@@ -73,6 +73,9 @@ class RegistryState(StrEnum):
     NOT_CONFIGURED = "not_configured"
     #: The registry was asked and could not answer.
     UNAVAILABLE = "unavailable"
+    #: Asked for by QID, and the library holds this artist: their own page is the
+    #: answer, and the registry is not asked.
+    HELD = "held"
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,13 +135,16 @@ class ArtistService:
             unavailable="Wikidata could not be asked just now. What the library holds is above; try again later.",
         )
 
-    def registry_view_by_qid(self, qid: str) -> RegistryView:
-        """What the registry knows about an artist the curator reached by QID, whether or not the library holds them."""
-        return self._view(_checked(qid), (), unavailable="Wikidata could not be asked just now. Try again later.")
+    def registry_view_by_qid(self, qid: str) -> tuple[str | None, RegistryView]:
+        """An artist the curator reached by QID: the library's artist with it, or what the registry knows.
 
-    def held_artist_id(self, qid: str) -> str | None:
-        """The library's artist carrying this QID, if one does: the page to send a curator to instead."""
-        return artist_ids_by_qid(self._store).get(_checked(qid))
+        A held artist is answered from the library alone, so the page that sends
+        the curator to their own page never waits on the registry.
+        """
+        held = artist_ids_by_qid(self._store).get(_checked(qid))
+        if held is not None:
+            return held, RegistryView(state=RegistryState.HELD, note="The library holds this artist.")
+        return None, self._view(qid, (), unavailable="Wikidata could not be asked just now. Try again later.")
 
     def _view(self, qid: str, mine: Sequence[str], *, unavailable: str) -> RegistryView:
         if self._registry is None:

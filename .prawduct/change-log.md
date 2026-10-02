@@ -66,6 +66,30 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-01: The search box covers Wikidata too
+
+<!-- prawduct: chunks=03 | scope=one-world-search -->
+
+**Why:** ruling 2, one world: typing an artist or a title should show what the
+library holds and what exists, each with its state, in one place.
+
+**What:** below the library's rows, the typeahead adds *Themes* (by name),
+*Wikidata: artists* and *Wikidata: works*. These are fetched from a new
+`GET /api/registry/search` from the third letter, after the library's rows are
+drawn. They say *in your library* or *Image found*, leave out what the library's
+rows already show, and open the library's page or the page by QID. Their
+arrival is announced in a polite live region and keeps the highlight where it
+was. Wikidata off or down is said in its own note, apart from the library's. The
+registry gains `works_matching`: a full-text search filtered in the search index
+to ten artwork classes and capped at 50 hits, which keeps TV series and comics
+out and answers in about half a second (measured; the alternatives took up to a
+minute). Typed text reaches it only as words. A new search service asks for
+artists and works at once and remembers each query. The by-QID artist route now
+answers a held artist without asking Wikidata. Every registry name comes from
+the label service. That fixed makers named two ways, and the Artist page's
+movements, which had the same `en`-only filter as Rothko's name. Tests were
+watched failing under mutations of the client, the service and the registry.
+
 ## 2026-10-01: Pages for works and artists the library does not hold
 
 <!-- prawduct: chunks=02 | scope=one-world-search -->

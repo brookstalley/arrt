@@ -405,7 +405,9 @@ class FakeRegistry:
     raise `RegistryUnavailable`, which is how an outage reaches the page.
     """
 
-    def __init__(self, *, items=None, creators=None, people=None, artists=None, extra_works=None, works=None, failing=False):
+    def __init__(
+        self, *, items=None, creators=None, people=None, artists=None, extra_works=None, works=None, matches=None, failing=False
+    ):
         self.items = items or {}
         self.creators = creators or {}
         self.people = people or {}
@@ -416,6 +418,10 @@ class FakeRegistry:
         #: QID → `RegistryWork`, what `work()` answers; an absent QID is an item
         #: the registry does not have.
         self.works = works or {}
+        #: The words searched, joined by a space → the `RegistryWorkMatch`es
+        #: `works_matching` answers; anything else finds nothing.
+        self.matches = matches or {}
+        self.matched: list[tuple[str, bool]] = []
         self.failing = failing
         self.searched: list[str] = []
         self.asked_about: list[str] = []
@@ -446,6 +452,11 @@ class FakeRegistry:
         listed = {entry.qid for entry in known.works}
         added = tuple(self.extra_works[extra] for extra in include if extra in self.extra_works and extra not in listed)
         return replace(known, works=known.works + added)
+
+    def works_matching(self, words, *, prefix, limit):
+        self._check()
+        self.matched.append((" ".join(words), prefix))
+        return self.matches.get(" ".join(words), [])[:limit]
 
     def work(self, qid):
         self._check()

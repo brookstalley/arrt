@@ -259,10 +259,21 @@ header.topbar {
   letter-spacing: 0.04em;
 }
 
-.search-suggestions-note {
+/* The library's note and the registry's look alike and are not alike: the first
+   says the library was not searched, which guards a paid search; the second only
+   that Wikidata was not, so tests and readers tell them apart by class. */
+.search-suggestions-note,
+.search-suggestions-registry-note {
   padding: var(--space-2) var(--space-3);
   color: var(--text-muted);
   font: var(--text-sm) / 1.4 var(--font-ui);
+}
+
+/* A Wikidata row's state, after its words: the Artist page's badge, set apart
+   from the title and not a button here, since the whole row is the choice. */
+.search-suggestions-state {
+  margin-left: var(--space-2);
+  cursor: inherit;
 }
 
 .search-suggestions [role="option"] {
