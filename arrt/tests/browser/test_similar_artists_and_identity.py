@@ -126,6 +126,22 @@ def _look_up(ui, typed):
 
 
 class TestSettingAnItemByHand:
+    def test_the_item_field_stays_hidden_until_change_is_pressed(self, ui, rothko):
+        """The owner's review, 2026-10-02: "Change…", "There is none" and an empty Q… field all showed at once.
+
+        The form is created `hidden`, and `.stack`'s flex display outranked the
+        browser's rule for the attribute; `app.css` now makes `hidden` win for
+        every class. Asserted as a rendered state, since the attribute was set
+        all along.
+        """
+        _artist, work = rothko
+        ui.open(f"#work/{work.id}")
+        ui.page.wait_for_selector("#view .identity button:has-text('There is none')")
+
+        assert ui.page.locator("#view .identity input").is_hidden()
+        _open_control(ui)
+        assert ui.page.locator("#view .identity input").is_visible()
+
     def test_a_work_item_is_shown_before_it_is_stored(self, ui, service, rothko):
         _artist, work = rothko
         ui.open(f"#work/{work.id}")

@@ -140,6 +140,16 @@
   box-sizing: border-box;
 }
 
+/* `hidden` means hidden, whatever display a class gives the element. The
+   browser's own rule for the attribute is the weakest there is, so `.stack`,
+   `.field` or any flex or grid class silently outranked it: the Artist page's
+   Wikidata form showed before Change… was pressed, and the Get dialog's name
+   field needed a patch of its own. One rule here, rather than a patch per
+   class that is found the same way. */
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   background: var(--surface-0);
@@ -1699,12 +1709,6 @@ button.action:hover {
    controls' bottom edge rather than the middle of label and control. */
 .get-control:has(.get-into) {
   align-items: flex-end;
-}
-
-/* `.field` displays as flex, which outranks the browser's own rule for the
-   `hidden` attribute; the name field must be gone until New theme… is chosen. */
-.get-into .field[hidden] {
-  display: none;
 }
 
 .muted {

@@ -71,7 +71,12 @@ had") and left the sequencing to the builder.
 
 **What:** a labelled field and its button now share a bottom edge on every form
 row (`.row > .field` drops the field's own bottom margin), held by a measured
-browser test watched failing without the rule. The rest of the review (search
+browser test watched failing without the rule. And `hidden` now hides whatever the
+element's class: the Artist and Work pages' Wikidata form was created hidden but
+shown by `.stack`'s flex display, so "Change…", "There is none" and an empty Q…
+field all showed at once (found by the backlog agent filing #174, confirmed in a
+browser). One `[hidden]` rule replaces the Get dialog's one-off patch; a test
+asserts the field is hidden until Change… is pressed, watched failing without it. The rest of the review (search
 and Topic page held/image-found states, the Artists index, the Artist page's
 Wikidata controls, Library › Topics' layout) is filed for one "Library screens"
 plan with #169, after this PR.
