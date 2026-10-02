@@ -295,10 +295,12 @@ between planes.
 The Art Institute's API is open — no key, no account — but asks callers to
 identify themselves. `ARTIC_USER_AGENT` carries a deployment name and a contact
 address, and **there is deliberately no default**: sending a made-up identifier
-would misrepresent whoever runs this to a third party. Unset switches phase 2 off
-rather than making it anonymous, which is also why the startup line reports which
-provider is configured — a run stuck at `resolving_images` should be one journal
-read from its explanation.
+would misrepresent whoever runs this to a third party. Unset leaves the Art
+Institute out of phase 2's image sources rather than asking it anonymously, and
+Commons is in them only when `WIKIDATA_USER_AGENT` is set, for the same reason.
+That is why the startup line `phase2 image_sources=` names the sources configured
+— a run stuck at `resolving_images` should be one journal read from its
+explanation.
 
 No rate-limit headers exist on that API to read back (measured, not assumed), so
 there is no budget signal to log and none is invented.
