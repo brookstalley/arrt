@@ -308,6 +308,27 @@ between planes.
 > At a daily interval `topics.swept` is one line a day plus one per acceptance or
 > QID change, so its absence over a day is the signal that the sweep died.
 
+> **The acquisition queue** (`library/acquisition/queue.py`, since 2026-10-02,
+> `build-plan-after-review.md` Chunks 01-02) fetches and then prepares each
+> accepted work holding no image, one at a time: woken by acceptance, a pass at
+> start, and otherwise when the next retry falls due or a day passes. Its failure
+> mode is the sweeps': accepted works quietly stay off every wall.
+>
+> | Event | Level | Says |
+> |---|---|---|
+> | `acquisition.queue_pass` | INFO | a pass finished: how many works were due, acquired, failed, given up on and waiting, and the pause it ended in if any. Logged on every pass, including one with nothing due |
+> | `acquisition.queue_failed` | INFO | one work's attempt failed; it names the try and when the next is due |
+> | `acquisition.queue_gave_up` | WARNING | a work failed its last try and waits for Retry |
+> | `acquisition.queue_paused` | WARNING | a deployment fault (`DEPLOYMENT_FAULTS`) paused every fetch, naming the condition; Activity › Queue and the Work page show it with its remedy |
+> | `acquisition.queue_unexpected` | ERROR | an error nothing anticipated, from one work's attempt, with its traceback; it counts as that work's failure |
+> | `acquisition.queue_error` | ERROR | a whole pass, or the wait for the next work, raised, with its traceback; the queue pauses and the loop continues |
+> | `acquisition.queue_retry` | INFO | a curator or an agent asked for a work again |
+> | `acquisition.queue_wedged` | WARNING | shutdown asked the worker to stop and a fetch was still running after five seconds |
+>
+> `acquisition.queue_pass` is at least one line a day and one per acceptance, so
+> its absence over a day, or after an acceptance, is the signal that the worker
+> died.
+
 > **The kept answers file's events, added 2026-10-02** (`persistence/kept.py`).
 > The file is disposable and every way it fails is a miss, so a page never
 > shows the fault: it only asks its foreign source again, and is slow. The
@@ -697,6 +718,7 @@ signal exists:
 | *Planned, 2026-09-30:* the server is unreachable from a Player | The Player keeps rendering from its cache (`nonfunctional-requirements.md` § Direction, amended). It logs the failed poll once per episode rather than per poll, the same pairing `rotation.wall_unchanged` uses. The panel shows the heartbeat's age, which grows only if the POST also fails. It becomes a real fault when the manifest names media the cache does not hold, and the heartbeat's cache report exists to say that. Built in wave 2 |
 | *Planned, 2026-09-30:* a scheduled Library job (Watch, upgrade re-search) stopped running | A positive line on every pass, including empty ones, as with the preview sweep. Absence over an interval is the fault. Whether it also reaches a push channel is the revisit above. Built with Watches in wave 6 |
 | Budget exhausted | `halted_by_budget` outcome on the run, and the refusal text names the cause. *(Corrected 2026-08-02: this also promised "`limit_remaining` at zero in the UI" — a figure no surface exposes, and one that lags badly enough to read non-zero while calls are already being refused. See the note under the signals table.)* |
+| Acquisition queue stopped running | `acquisition.queue_pass` at INFO on every pass, including empty ones; its absence for more than a day, or after an acceptance, is the fault, and Activity › Queue keeps showing *queued* works that never move. A run of `acquisition.queue_paused` is the deployment refusing (disk, binary, provider), not the worker dying |
 | Topic sweep stopped running | `topics.swept` at INFO on every pass, including empty ones; its absence for more than a day, or after an acceptance, is the fault. A run of `topics.sweep_unavailable` is Wikidata refusing, not the sweep dying. With no `WIKIDATA_USER_AGENT` the one `topics.off` line at start says why there is nothing |
 | Preview sweep stopped running | **The only signal is a positive one, which is why it logs on empty passes**: `preview.swept` at INFO every interval, so what says the job died is its *absence* over one. A pass that hangs rather than stops reads differently — `preview.sweep_started` with no `preview.swept`, then `preview.sweep_wedged` at shutdown — and matters more, because that pass holds the store lock |
 | Disk nearly full | Guarded *before* acquisition starts, not discovered as an exception during it |
