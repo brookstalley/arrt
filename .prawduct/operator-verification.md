@@ -10,6 +10,28 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Get, from the Artist page, the results page and a work's page — added 2026-10-02
+
+**`build-plan-get-and-ask.md` Chunk 04.** Needs `WIKIDATA_USER_AGENT` and
+`ARTIC_USER_AGENT` set. A Get fetches real images, so try it on a copy of your
+catalogue first if you would rather not add works to the real one by accident.
+
+Checked by the builder on 2026-10-02, on a copy of your catalogue at 1280 px and
+375 px, nothing wider than the screen: on Renoir's page, *Their work* offered a
+tick box on each of the 50 works you do not hold and none on *Seascape*, which you
+do. Ticking *Bal du moulin de la Galette* and *Luncheon of the Boating Party* and
+pressing *Get 2 works* said "Getting 2 works. Open the Get"; the run finished "2 of
+the 2 works you chose have an image", both from Commons at 3840 px, and Review
+showed each marked *◇ you chose* with its Wikidata item linked. For you:
+
+1. **Where the tick boxes are.** A *Get* column on the left of *Their work* and a
+   box beside each Wikidata work on the results page. Is ticking in a table the
+   right gesture, or would you rather select from cards with pictures?
+2. **No box on a held row.** The plan considered "Get 2 works (1 held, skipped)";
+   leaving held rows unticked seemed plainer. Agree?
+3. **What happens after.** The page stays put and says what started, with *Open
+   the Get*. Would you rather be taken to the run?
+
 ### Similar artists, and setting a Wikidata item by hand — added 2026-10-01
 
 **`build-plan-one-world-search.md` Chunk 05.** Needs `WIKIDATA_USER_AGENT` set.

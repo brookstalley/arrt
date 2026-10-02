@@ -1514,6 +1514,13 @@ button.action:hover {
   align-items: flex-end;
 }
 
+/* Get, and what it said, under a list of works: set apart from the heading that
+   follows, with the sentence beside the button rather than below its baseline. */
+.get-control {
+  align-items: center;
+  margin-block: var(--space-4);
+}
+
 .muted {
   color: var(--text-muted);
   font-size: var(--text-sm);

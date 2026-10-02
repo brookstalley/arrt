@@ -17,7 +17,7 @@
  * than importing it, so the two do not import each other.
  */
 
-import { el } from "./render.js";
+import { el, fill } from "./render.js";
 
 /* The page a section's own link opens, and which pages it lists beneath it.
  *
@@ -67,7 +67,7 @@ let sections = [];
 export function paintSidebar(table, sectionList, pick) {
   const nav = document.getElementById("sidebar");
   sections = layout(table, sectionList);
-  nav.replaceChildren(
+  fill(nav, 
     el(
       "ul",
       {},

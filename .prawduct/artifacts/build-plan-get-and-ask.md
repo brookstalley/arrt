@@ -33,7 +33,7 @@ governed_by:
       - "spend ceilings are enforced by the provider, never by application code → conforms: a Get skips phase 1 and spends nothing; nothing here adds a cap"
   - artifact: accessibility-spec
     dispositions:
-      - "WCAG 2.1 AA; colour never the sole carrier of state → binds Chunks 04 and 06: a selection's Get control says how many works it will ask for and how many it skips; the To review count is a word and a number, never a number alone"
+      - "WCAG 2.1 AA; colour never the sole carrier of state → binds Chunks 04 and 06: a selection's Get control says how many works it will ask for, and afterwards what it left out (held rows offer no tick box, so nothing ticked is held); the To review count is a word and a number, never a number alone"
   - artifact: observability-strategy
     dispositions:
       - "registry features say they are off when no User-Agent is configured → binds Chunk 02: with no `WIKIDATA_USER_AGENT` there is no Commons source, the startup line says which sources are wired, and Get says it cannot run with no source"
@@ -116,7 +116,7 @@ display floor over the owner's own artists' works.
 - [x] Chunk 01: An image-source pool
 - [x] Chunk 02: Commons as a source
 - [x] Chunk 03: Get, from HTTP and MCP
-- [ ] Chunk 04: Get in the client
+- [x] Chunk 04: Get in the client
 - [ ] Chunk 05: Ask replaces Add New
 - [ ] Chunk 06: Activity › To review
 
@@ -279,6 +279,18 @@ and with one curator neither is worth a lock.)*
   branch on `resolve` today and read a Get as a discovery).
 - **Review** shows the item a Get asked for, linked by QID.
 
+*(Built 2026-10-02. No tick box on a held row, so the control reads *Get 2
+works* and the sentence afterwards reports the server's skips (already being got,
+not on Wikidata); the "(1 held, skipped)" wording was not needed. A live Get of two
+Renoirs on a copy of the catalogue found both on Commons at 3840 px. Building it
+found that `replaceChildren` writes a null argument as the word "null": the Get
+sentence printed it, and so did the Artist page above an artist with no
+description, before this plan. Every screen now goes through `fill` in
+`core/render.js`, and a test refuses a direct call. The Work page's *Search
+museums for this work* is replaced by *Get this work*, and its test with it. The
+review page says *← The Get* and the run screen words a Get as one. Twelve client
+mutations each turned a browser test red.)*
+
 **Done when:**
 1. Browser tests, each watched failing: a selection's Get posts exactly the
    ticked, unheld items; the count and skip wording; the Work page's Get; the
@@ -291,6 +303,10 @@ and with one curator neither is worth a lock.)*
 ### Chunk 05: Ask replaces Add New
 
 **Visual change:** yes
+
+- **Carried from Chunk 04's review:** `test_a_run_that_cannot_look_for_images_says_so_in_the_singular`
+  gains an offered work, so a discovery run's no-provider sentence is shown to
+  count proposals and not the total.
 
 - **The `discover` screen becomes `ask`**, named *Ask*, in the same slot under
   the library section. `#discover` and `/discover` (and `/discovery`) keep

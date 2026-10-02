@@ -687,6 +687,29 @@ def test_a_run_that_cannot_look_for_images_says_so_in_the_singular(ui):
     assert "There are 1" not in ui.text()
 
 
+@pytest.mark.parametrize(
+    ("kind", "provenance"),
+    [
+        pytest.param("get", WorkProvenance.CHOSEN.value, id="a Get"),
+        pytest.param("resolve", WorkProvenance.OFFERED.value, id="a re-search of offered works"),
+    ],
+)
+def test_a_run_with_no_phase_one_that_cannot_look_counts_every_work_it_holds(ui, kind, provenance):
+    """Neither run proposed anything, so a proposed count would tell the curator there is nothing to find.
+
+    The works are not `proposed` here, so a sentence counting proposals reads
+    "There are 0 works" over a run holding two.
+    """
+    run = a_run(kind=kind, intent=None, status=RunStatus.RESOLVING_IMAGES.value, is_terminal=False)
+    works = [
+        a_candidate(work_id=f"w{n}", provenance=provenance, resolution_status=ResolutionStatus.PENDING.value) for n in range(2)
+    ]
+    ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(run=run, works=works, image_resolution_available=False))
+    ui.open(f"#run/{RUN_ID}")
+
+    ui.page.wait_for_selector("text=There are 2 works to find images for")
+
+
 def test_a_re_search_over_one_work_says_so_in_the_singular(ui):
     """The re-search's own in-flight sentence, which a discovery run never reaches.
 

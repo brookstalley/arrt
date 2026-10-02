@@ -23,22 +23,24 @@ import { api } from "../core/api.js";
 import { table } from "../core/badges.js";
 import { el, render } from "../core/render.js";
 import { go } from "../core/router.js";
+import { KIND_WORDS } from "../core/runs.js";
 
-/* The runs as rows. A re-search is a run too, and is listed with its parent. */
+/* The runs as rows. A re-search and a Get are runs too. A Get has no intent of
+ * its own: the curator chose its works, which is what its row says. */
 function runTable(caption, runs) {
   return table(
     caption,
     ["Asked for", "Kind", "State", "Started", "Open"],
     runs.map((run) => [
-      run.intent || "—",
-      run.kind === "resolve" ? "re-search" : "search",
+      run.intent || (run.kind === "get" ? "Works you chose" : "—"),
+      KIND_WORDS[run.kind] || run.kind,
       run.status,
       run.started_at,
       el("button", {
         class: "action quiet",
         type: "button",
         text: "Open",
-        "aria-label": `Open the search for ${run.intent || run.run_id}`,
+        "aria-label": `Open the ${KIND_WORDS[run.kind] || "run"} for ${run.intent || (run.kind === "get" ? "the works you chose" : run.run_id)}`,
         onclick: () => go("run", run.run_id),
       }),
     ]),

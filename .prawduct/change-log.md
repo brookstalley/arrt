@@ -62,6 +62,26 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-02: Get in the client, and no more "null" on the page
+
+<!-- prawduct: scope=get-and-ask -->
+
+**Why:** ruling 3 makes Get an action on any selection. The server half shipped
+with Chunk 03; this is where a curator does it.
+
+**What:** *Their work* on the Artist page and the results page's Wikidata works
+gain a tick box on every work the library does not hold, and a *Get N works*
+control (`core/getting.js`) that posts the ticked items and says what started,
+what was left out, and links the run. A work's own page offers *Get this work* in
+place of *Search museums for this work*; that page's test is replaced, not
+weakened (`test_it_offers_get_rather_than_a_museum_search`). Queue and History
+list a Get as *Get* with *Works you chose*, the run screen words it as one, and
+Review heads it *Get*, goes back to *← The Get*, and links each chosen work's
+item. `replaceChildren` wrote a `null` argument as the word "null", which the
+Artist page printed above an artist with no description: every screen now goes
+through `fill` in `core/render.js`, and `test_client_vocabulary.py` refuses a
+direct call. Two Artist-page tests now read the work from the second column.
+
 ## 2026-10-02: Get: works chosen by their Wikidata items, over HTTP and MCP
 
 <!-- prawduct: scope=get-and-ask -->

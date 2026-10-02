@@ -43,7 +43,7 @@ import { api } from "../core/api.js";
 import { confirmAct } from "../core/confirm.js";
 import { absentImage, facts, table } from "../core/badges.js";
 import { hangTheme } from "../core/hanging.js";
-import { el, guard, render } from "../core/render.js";
+import { el, fill, guard, render } from "../core/render.js";
 import { go, refresh } from "../core/router.js";
 
 export async function viewWalls(generation) {
@@ -449,7 +449,7 @@ function paintToken(panel, wall, issued) {
       onclick: () => guard(() => issueToken(panel, wall, Boolean(issuedAt))),
     }),
   );
-  panel.replaceChildren(...children);
+  fill(panel, ...children);
 }
 
 async function issueToken(panel, wall, rotating) {

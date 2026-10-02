@@ -35,7 +35,7 @@ import { api, fetchAllWorks } from "../core/api.js";
 import { fitBadge, shortfallNote, table } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
 import { hangTheme } from "../core/hanging.js";
-import { el, guard, render } from "../core/render.js";
+import { el, fill, guard, render } from "../core/render.js";
 import { backLink, backRow, go, refresh } from "../core/router.js";
 
 export async function viewTheme(themeId, generation) {
@@ -99,7 +99,7 @@ export async function viewTheme(themeId, generation) {
    * so no wall's state can move, and no work is touched. */
   const list = el("div", { class: "stack" });
   const paintThemes = (placements) => {
-    list.replaceChildren(
+    fill(list, 
       ...(placements.length
         ? placements.map((placement) => themePanel(placement, walls.walls, works.works, paintThemes))
         : [el("p", { class: "muted", text: "No themes yet. Create one, then add works to it." })]),
@@ -187,7 +187,7 @@ function themePanel(placement, walls, allWorks, repaintThemes, { heading: headin
   const paintMembers = (works) => {
     members = works;
     count.textContent = members.length === 1 ? "1 work" : `${members.length} works`;
-    body.replaceChildren(memberList(theme.theme_id, currentName, members, paintMembers));
+    fill(body, memberList(theme.theme_id, currentName, members, paintMembers));
   };
   // The one read here that is a read: nothing has answered with this theme's
   // works yet, because the listing this panel was built from does not carry them.

@@ -128,7 +128,8 @@ class TestTheArtistPage:
         _registry_answered(ui)
 
         states = {
-            row.locator("td").nth(0).inner_text(): row.locator("td").nth(2).inner_text().strip()
+            # The Get column comes first; the work and its state are the second and fourth.
+            row.locator("td").nth(1).inner_text(): row.locator("td").nth(3).inner_text().strip()
             for row in ui.page.locator("section[aria-labelledby='their-work'] tbody tr").all()
         }
         assert states["Untitled (Purple, White, and Red)"].endswith("Held")

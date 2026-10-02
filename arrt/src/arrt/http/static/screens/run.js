@@ -11,6 +11,7 @@ import { agree, agreePartitive, counted } from "../core/counting.js";
 import { claimPoll, pollIsCurrent, schedulePollUnlessDone } from "../core/poll.js";
 import { el, guard, render } from "../core/render.js";
 import { backLink, go, refresh } from "../core/router.js";
+import { runTitle } from "../core/runs.js";
 import { state } from "../core/state.js";
 
 /* What this run's state means, in a sentence.
@@ -45,10 +46,16 @@ export function runSentence(view) {
   }
   if (run.status === "resolving_images") {
     if (!view.image_resolution_available) {
-      return `There ${agree(tally.proposed, "is", "are")} ${counted(tally.proposed, "work")} to find images for, but no image provider is configured in this deployment, so the run will stay here. Cancel it when you are done reading it.`;
+      // A discovery run's works to find are the ones it proposed; a re-search's
+      // and a Get's are every work they hold.
+      const waiting = run.kind === "discovery" ? tally.proposed : tally.total;
+      return `There ${agree(waiting, "is", "are")} ${counted(waiting, "work")} to find images for, but no image provider is configured in this deployment, so the run will stay here. Cancel it when you are done reading it.`;
     }
     if (run.kind === "resolve") {
       return `Looking again for images of the ${counted(tally.total, "work")} this re-search covers.`;
+    }
+    if (run.kind === "get") {
+      return `Looking for images of the ${counted(tally.chosen, "work")} you chose.`;
     }
     return `The work list of ${counted(tally.proposed, "work")} is settled, and the run is looking for an image of each.`;
   }
@@ -62,8 +69,10 @@ export function runSentence(view) {
     let sentence =
       run.kind === "resolve"
         ? `This re-search finished: ${tally.resolved} of the ${counted(tally.total, "work")} it covers ${agreePartitive(tally.resolved, tally.total, "has", "have")} an image.`
-        : `This run finished: ${tally.resolved_proposals} of ${counted(tally.proposed, "work")} it was asked for ${agreePartitive(tally.resolved_proposals, tally.proposed, "has", "have")} an image.`;
-    if (run.kind !== "resolve" && tally.offered) {
+        : run.kind === "get"
+          ? `This Get finished: ${tally.resolved} of the ${counted(tally.chosen, "work")} you chose ${agreePartitive(tally.resolved, tally.chosen, "has", "have")} an image.`
+          : `This run finished: ${tally.resolved_proposals} of ${counted(tally.proposed, "work")} it was asked for ${agreePartitive(tally.resolved_proposals, tally.proposed, "has", "have")} an image.`;
+    if (run.kind === "discovery" && tally.offered) {
       // "found no image for" rather than "could not confirm". The run did name
       // works for those artists — they are in the table directly below this
       // sentence, badged `not held` — so a word that reads as "named nothing for"
@@ -299,7 +308,7 @@ export async function viewRun(runId, generation) {
 
   const panels = [
     el("p", {}, [backLink()]),
-    el("h2", { text: run.intent || "Re-search" }),
+    el("h2", { text: runTitle(run) }),
     el("div", { class: "panel" }, [
       el("p", { class: "note", text: runSentence(view) }),
       // The engine's own reading of the request, beside the request. A work list
@@ -371,7 +380,11 @@ export async function viewRun(runId, generation) {
         // Both counts, always, including when the collection offered nothing —
         // a line that appeared only when there was a supplement would train a
         // reader to read its absence as "these are all what I asked for".
-        text: `${tally.proposed} asked for, ${tally.offered} offered by the collection on top of them.`,
+        // A Get's works were chosen, so neither count applies to them.
+        text:
+          run.kind === "get"
+            ? `${counted(tally.chosen, "work")} you chose.`
+            : `${tally.proposed} asked for, ${tally.offered} offered by the collection on top of them.`,
       }),
       view.works.length
         ? table(

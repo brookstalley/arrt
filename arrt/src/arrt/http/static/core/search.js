@@ -14,7 +14,7 @@
 
 import { api } from "./api.js";
 import { named, stateMark } from "./registry.js";
-import { el } from "./render.js";
+import { el, fill } from "./render.js";
 import { go, openedFrom } from "./router.js";
 import { state } from "./state.js";
 
@@ -202,7 +202,7 @@ function installSuggestions(field) {
       registry && registry.note
         ? [el("li", { role: "presentation", class: "search-suggestions-registry-note", text: registry.note })]
         : [];
-    list.replaceChildren(
+    fill(list, 
       ...unsearched,
       ...(people.length ? [group("suggestions-artists", "Artists", people)] : []),
       ...(held.length ? [group("suggestions-held", "In your library", held)] : []),
