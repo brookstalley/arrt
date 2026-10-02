@@ -10,6 +10,29 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Add to: where a Get's works go — added 2026-10-02
+
+**`build-plan-topics-and-destinations.md` Chunk 02.** Every Get control (the
+Artist page's *Their work*, the results page, a work's own page) gains *Add to*,
+and Queue, History, the run page and Review say where a run's accepted works go.
+
+Checked by the builder on 2026-10-02 in the browser suite's own server, not on
+your catalogue, at 1280 px and 375 px, nothing wider than the screen: *Add to*
+read *All works*, *Winter*, *New theme…*; choosing *New theme…* showed a *New
+theme's name* field, and a Get into *16th century* said "Getting 1 work into
+16th century. Open the Get" and left *16th century* chosen. At 375 px the select
+and *Get* sit on one line and the sentence wraps beneath. Driving a Get into a
+new theme on a copy of your catalogue is still owed. For you:
+
+1. **The label.** *Add to* sits beside *Get*, and on the Artist page a second
+   select, *Theme*, adds works you already hold. Are the two told apart?
+2. **A name you type that is already a theme joins it**, ignoring capitals and
+   spaces, as a name a Topic page suggests will. Right for a typed name too?
+3. **With no default theme**, the first choice reads *No theme (none is the
+   default)* and the sentence says "into no theme". Clear enough?
+4. **History says *Into* for Ask runs too**, naming today's default, which may
+   not be the theme they joined if you have moved the default since.
+
 ### To review, and its count in the sidebar — added 2026-10-02
 
 **`build-plan-get-and-ask.md` Chunk 06.** Activity's first page lists the runs
