@@ -133,6 +133,17 @@ Looked over on a catalogue copy after Chunk 05:
   (0.7 s) waited for the topic search (5 s cold), with nothing on screen saying
   so. Chunk 06.
 - Phone width: good.
+- **Later the same day, on a Get of *The Magpie*:** the Get's page says "1 work"
+  and offers *Review these works*, a second page for works the curator already
+  chose; Review's card is a fixed narrow column, and with *Scans* open each
+  scan's facts wrap in a column a few characters wide (a one-work card ran to
+  about 7,000 px at 1280); the card should say the scan's resolution, and
+  "native — would show at 28.2″" means nothing without knowing the panel (it is
+  the long edge on the one panel this server is configured for, after the mat);
+  clicking the image should enlarge it without leaving the page. Asked, the
+  owner chose: **review a Get on its own page**; **pixels, and drop the inches**
+  (a per-wall fit returns with per-wall geometry, re-architecture wave 4); and
+  **on this branch, before the PR**. Chunk 07.
 
 ## What I would do differently
 
@@ -209,6 +220,7 @@ non-artists first (Franklin for woodcut); search offers non-visual movements
 - [x] Chunk 03d: A topic's artists ranked by the fame of their works in it
 - [x] Chunk 05: Library › Topics and the Topic page
 - [ ] Chunk 06: The owner's review of the screens
+- [ ] Chunk 07: Review on a Get's own page, wide, with its scans readable
 
 ### Chunk 01: A Get's destination, from HTTP and MCP
 
@@ -392,6 +404,41 @@ Q-rows in `data-model.md` § What this data must answer):
    still held open; *Asking Wikidata…* shows while one is pending and is gone
    after.
 2. All suites and the browser suite pass.
+
+### Chunk 07: Review on a Get's own page, wide, with its scans readable
+
+**Visual change:** yes
+
+- **A Get's page is its review.** The run page of a `get` run shows the review
+  cards (Accept, Reject, Why, Scans) in place of the *Works* table and *Review
+  these works*. Queue, To review and the confirmation's link lead there. A
+  discovery run's page is unchanged, and `#review/<run>` keeps working for both.
+- **The card is wide.** One work per row at desktop width: the image on the left,
+  the facts and actions on the right; one column at phone width.
+- **Scans as a table**, as Radarr's interactive search lists releases: one row
+  per scan with its preview, resolution, provider, rights, confidence and whether
+  it is the chosen one, and the existing actions (choose, turn down). *Scans*
+  stays collapsed by default.
+- **Resolution above the fold, in pixels** ("3,840 × 2,604 px"), for the shown
+  scan. The fit badge's "would show at N″" goes everywhere `fitBadge` draws it
+  (Review, Work, Theme, Artworks); the verdict word stays. The API gains the
+  scan's own `width` and `height`; the runner's selection sentence names pixels,
+  not inches, for new runs (stored sentences are records and stay).
+- **Clicking an image enlarges it in place**: a dialog with the largest preview
+  the server holds, closed by Escape, a close button or a click outside, focus
+  returned to the image; no navigation.
+
+**Done when:**
+1. Browser tests, each watched failing: a Get's page has Accept/Reject and no
+   *Review these works*; a discovery run's page is unchanged; a single card at
+   1280 px is wider than half the content area; Scans' facts never wrap a label
+   onto two lines at 1280 px; the card shows the scan's pixels and no inches
+   anywhere the fit badge draws; the enlarged image opens and closes without the
+   address changing, and focus returns.
+2. A unit test that the selection sentence names pixels and no inches; an API
+   test that the scan's width and height reach the payload.
+3. All suites and the browser suite pass; screenshots at 1280 and 375 px in the
+   operator-verification entry.
 
 ### Chunk 03c: Answers kept across restarts
 
