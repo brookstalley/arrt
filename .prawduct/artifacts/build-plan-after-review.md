@@ -184,7 +184,7 @@ scratchpad copy held none), and Chunk 04's measurement on the Dalí works.
 
 - [x] Chunk 01: The acquisition queue
 - [ ] Chunk 02: Saying it: the Work page, Review, Activity › Queue, Retry, and MCP
-- [ ] Chunk 03: One wanted state and one way in
+- [x] Chunk 03: One wanted state and one way in
 - [ ] Chunk 04: Matching a wanted work to its Wikidata item
 - [ ] Chunk 05: Want and Forget on the card, and Activity › Wanted
 - [ ] Chunk 06: The owner's review of the screens
@@ -269,6 +269,11 @@ for the Queue, and
   Its tool text says it no longer fetches in the call. `art_catalogue(action='get')`
   carries the acquisition state.
 
+- **Carried from Chunk 03's review:** MCP `resolve_images`' description and
+  example in `arrt/src/arrt/mcp/tools.py` still say "works whose instances the
+  curator turned down" / "awaiting a better image", while `want` sends an agent
+  there for a work with no scan. Say *wanted works*, and record the
+  description change in `api-contract.md` (§ Versioning treats it as breaking).
 - **Carried from Chunk 01's review:** an unexpected error (not a deployment
   fault, not a `ServiceError`) pauses the whole queue without counting against
   the work, so one work that always raises one holds every work behind it.
