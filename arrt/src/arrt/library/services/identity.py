@@ -19,7 +19,7 @@ none, so every rule above leans towards storing nothing.
 
 import logging
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, fields, replace
 from typing import Final
 
@@ -66,9 +66,14 @@ class IdentityReport:
 class IdentityService:
     """Match the catalogue to a registry, and let the curator say otherwise."""
 
-    def __init__(self, store: CatalogueStore, registry: Registry | None) -> None:
+    def __init__(
+        self, store: CatalogueStore, registry: Registry | None, *, on_changed: Callable[[], None] = lambda: None
+    ) -> None:
         self._store = store
         self._registry = registry
+        #: Called after any QID is set, cleared or matched: what a work's topics
+        #: come from has changed, and the topic sweep asks again.
+        self._on_changed = on_changed
 
     # -- by hand --------------------------------------------------------------
 
@@ -88,6 +93,7 @@ class IdentityService:
         checked = self._existing(_require_qid(qid))
         updated = replace(artwork, wikidata_qid=checked, wikidata_qid_set_by=IdentitySetBy.CURATOR)
         store_write(self._store.update_artwork, updated)
+        self._on_changed()
         return updated
 
     def set_artist_identity(self, artist_id: str, qid: str | None) -> Artist:
@@ -107,6 +113,7 @@ class IdentityService:
                 raise ServiceError(f"{other.name} already has {wanted}. Correct that artist first, or merge the two.")
         updated = replace(artist, wikidata_qid=self._existing(wanted), wikidata_qid_set_by=IdentitySetBy.CURATOR)
         store_write(self._store.update_artist, updated)
+        self._on_changed()
         return updated
 
     def _existing(self, qid: str | None) -> str | None:
@@ -143,6 +150,8 @@ class IdentityService:
             artist_report,
             **{spec.name: getattr(work_report, spec.name) for spec in fields(IdentityReport) if spec.name.startswith("works_")},
         )
+        if report.works_matched or report.artists_matched:
+            self._on_changed()
         log.info(
             "Matched %d work(s) and %d artist(s) to Wikidata; %d work(s) and %d artist(s) ambiguous.",
             report.works_matched,

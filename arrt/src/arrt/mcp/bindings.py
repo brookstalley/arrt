@@ -158,6 +158,35 @@ def _set_artist_qid(services: Services, arguments: Mapping[str, Any]) -> dict[st
     return ok(artist=_artist_fields(artist))
 
 
+def _list_topics(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    index = services.topics.index()
+    return ok(
+        state=str(index.state),
+        note=index.note,
+        kinds=[
+            {
+                "kind": group.kind.value,
+                "topics": [{"qid": topic.qid, "label": topic.label, "works": topic.works} for topic in group.topics],
+            }
+            for group in index.groups
+        ],
+    )
+
+
+def _get_topic(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    page = services.topics.page(arguments["qid"])
+    return ok(
+        state=str(page.state),
+        note=page.note,
+        qid=page.qid,
+        label=page.label,
+        kinds=[kind.value for kind in page.kinds],
+        # Two calls composed, as a theme's works are: the topic says which works,
+        # and the catalogue says what each is.
+        works=[_summary(entry) for entry in services.catalogue.resolve_details(page.work_ids)],
+    )
+
+
 def _stated_qid(value: str) -> str | None:
     """`none`, in any case, is the curator saying there is no item; anything else is checked as a QID."""
     return None if value.strip().lower() == "none" else value
@@ -923,6 +952,8 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_catalogue", "set_work_qid"): _set_work_qid,
     ("art_catalogue", "set_artist_qid"): _set_artist_qid,
     ("art_catalogue", "regenerate"): _regenerate,
+    ("art_catalogue", "topics"): _list_topics,
+    ("art_catalogue", "topic"): _get_topic,
     ("art_theme", "list"): _list_themes,
     ("art_theme", "get"): _get_theme,
     ("art_theme", "create"): _create_theme,

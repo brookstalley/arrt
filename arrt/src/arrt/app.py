@@ -31,6 +31,7 @@ from starlette.types import Receive, Scope, Send
 
 from arrt.http import api, pages, player
 from arrt.library.services.sweep import start_sweeping
+from arrt.library.services.topic_sweep import start_topic_sweep
 from arrt.mcp.server import build_server
 from arrt.services.container import Services
 from arrt.services.errors import ServiceError
@@ -57,7 +58,7 @@ MCP_SESSION_IDLE_TIMEOUT_SECONDS: Final[float] = 1800.0
 STATIC_PATH: Final[str] = "/static"
 
 
-def create_app(services: Services, *, preview_sweep_interval_seconds: int = 0) -> FastAPI:
+def create_app(services: Services, *, preview_sweep_interval_seconds: int = 0, sweep_topics: bool = False) -> FastAPI:
     """Build the application around already-constructed services.
 
     They are injected rather than assembled here so that a test can run the real
@@ -69,6 +70,10 @@ def create_app(services: Services, *, preview_sweep_interval_seconds: int = 0) -
     test harness should acquire by constructing the application: a suite that
     accepted a work and then read its review card would be racing a reclamation
     it never opted into, and the failure would be intermittent.
+
+    **The topic sweep is off unless asked for, for the same reason**: a suite
+    reading facet rows must not race a thread writing them. Asked for with no
+    registry configured, it starts nothing and says so once.
     """
     mcp_server = build_server(services)
     session_manager = StreamableHTTPSessionManager(
@@ -91,6 +96,7 @@ def create_app(services: Services, *, preview_sweep_interval_seconds: int = 0) -
             log.info("candidate previews will not be swept; PREVIEW_SWEEP_INTERVAL_SECONDS is 0")
         else:
             log.info("sweeping candidate previews every %ds", preview_sweep_interval_seconds)
+        halt_topics = start_topic_sweep(services.topic_sweep) if sweep_topics else None
         try:
             async with session_manager.run():
                 log.info("curation plane ready; MCP server mounted at %s", MCP_PATH)
@@ -98,6 +104,8 @@ def create_app(services: Services, *, preview_sweep_interval_seconds: int = 0) -
         finally:
             if halt is not None:
                 halt()
+            if halt_topics is not None:
+                halt_topics()
 
     app = FastAPI(
         title="Curation",

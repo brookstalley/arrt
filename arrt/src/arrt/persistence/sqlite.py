@@ -31,7 +31,7 @@ from datetime import datetime
 from typing import Any, Final
 
 from arrt.persistence.adapter import BY_ID, TableAdapter, from_iso, require_datetime, to_iso
-from arrt.persistence.catalogue import WorkOrder, WorkQuery
+from arrt.persistence.catalogue import TopicTally, WorkOrder, WorkQuery
 from arrt.persistence.durable import OrderBy, SqliteDurableStore
 from arrt.persistence.errors import StorageError
 from arrt.persistence.folding import search_fold
@@ -124,10 +124,11 @@ CREATE INDEX IF NOT EXISTS artworks_by_status ON artworks(status);
 -- they cannot disagree; declared per statement, the first one written without it
 -- splits a rail in two and halves both counts, silently and only on real data.
 --
--- Set here rather than deferred because nothing writes a facet yet: the path
--- that will is inference from museum text and a model's answer, which is the
--- documented source of inconsistent casing, and after the first row exists this
--- is a migration and a de-duplication rather than one word in the DDL.
+-- Set before the first row existed, because after it this is a migration and a
+-- de-duplication rather than one word in the DDL. The writers disagree about
+-- case by nature: the topic sweep writes Wikidata's labels ("painting",
+-- "Impressionism"), and inference from museum text and a model's answer, still
+-- to come, is the documented source of inconsistent casing.
 CREATE TABLE IF NOT EXISTS work_facets (
     id           TEXT PRIMARY KEY,
     artwork_id   TEXT NOT NULL REFERENCES artworks(id),
@@ -135,7 +136,8 @@ CREATE TABLE IF NOT EXISTS work_facets (
     value        TEXT NOT NULL COLLATE NOCASE,
     derivation   TEXT NOT NULL,
     source_note  TEXT,
-    created_at   TEXT NOT NULL
+    created_at   TEXT NOT NULL,
+    value_qid    TEXT
 );
 
 -- A work is Baroque once. Load-bearing rather than tidy: a facet's count is a
@@ -150,6 +152,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS work_facets_once_per_work ON work_facets(artwo
 CREATE INDEX IF NOT EXISTS work_facets_by_value ON work_facets(kind, value);
 
 CREATE INDEX IF NOT EXISTS work_facets_by_artwork ON work_facets(artwork_id);
+
+-- `value_qid` is the Wikidata item a value names, where one does: the Topic page
+-- the value opens. Nullable, because an inferred facet may name no item, and
+-- because the widening step can only add a column that allows NULL to a file
+-- written before it existed. Indexed for the Topic page's one read, "which works
+-- carry this item"; it enforces nothing.
+CREATE INDEX IF NOT EXISTS work_facets_by_item ON work_facets(value_qid);
 
 -- `rotation_interval_seconds` and `shuffle` are nullable because null means
 -- "inherit the global default" rather than "unset": a theme that has never
@@ -659,6 +668,41 @@ class SqliteCatalogue(TableAdapter):
                 counted[kind][row["value"]] = int(row["tally"])
         return counted
 
+    def topic_tallies(self, *, status: ArtworkStatus | None, qid: str | None = None) -> Sequence[TopicTally]:
+        selects = _matching(WorkQuery(status=status))
+        narrowed, bound = ("", ()) if qid is None else (" AND f.value_qid = ?", (qid,))
+        rows = self._store.select_rows(
+            # `COUNT(DISTINCT ...)` here, unlike `count_facet_values`: the
+            # uniqueness is per value, and two values on one work may name one
+            # item. `MIN` picks one label deterministically where two rows wrote
+            # the item's name differently.
+            f"SELECT f.kind AS kind, f.value_qid AS qid, MIN(f.value) AS label, COUNT(DISTINCT f.artwork_id) AS tally "
+            f"FROM work_facets f WHERE f.value_qid IS NOT NULL{narrowed}{selects.over_works(column='f.artwork_id')} "
+            f"GROUP BY f.kind, f.value_qid ORDER BY f.kind, label COLLATE NOCASE, f.value_qid",
+            (*bound, *selects.values),
+        )
+        tallies: list[TopicTally] = []
+        for row in rows:
+            # Skipped, as everywhere a facet kind is read: a later build's kind
+            # must not make the index unreadable.
+            kind = _known_kind(row["kind"])
+            if kind is not None:
+                tallies.append(TopicTally(kind=kind, qid=row["qid"], label=row["label"], works=int(row["tally"])))
+        return tallies
+
+    def works_with_topic(self, qid: str, *, status: ArtworkStatus | None, kinds: Sequence[VocabularyKind]) -> Sequence[str]:
+        if not kinds:
+            return []
+        selects = _matching(WorkQuery(status=status))
+        placeholders = ", ".join("?" for _ in kinds)
+        rows = self._store.select_rows(
+            f"SELECT a.id AS id {selects.source} WHERE {selects.where} "
+            f"AND a.id IN (SELECT artwork_id FROM work_facets WHERE value_qid = ? AND kind IN ({placeholders})) "
+            f"ORDER BY {_WORKS_ORDERS[WorkOrder.TITLE]}",
+            (*selects.values, qid, *(str(kind) for kind in kinds)),
+        )
+        return [row["id"] for row in rows]
+
     # -- sources --------------------------------------------------------------
 
     def add_source(self, source: Source) -> None:
@@ -897,6 +941,7 @@ def _facet_row(facet: WorkFacet) -> dict[str, Any]:
         "derivation": str(facet.derivation),
         "source_note": facet.source_note,
         "created_at": to_iso(facet.created_at),
+        "value_qid": facet.value_qid,
     }
 
 
@@ -1065,6 +1110,7 @@ def _facet(row: Mapping[str, Any]) -> WorkFacet:
         derivation=FacetDerivation(row["derivation"]),
         created_at=require_datetime(row["created_at"], "created_at"),
         source_note=row["source_note"],
+        value_qid=row["value_qid"],
     )
 
 

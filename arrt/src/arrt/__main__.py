@@ -384,7 +384,7 @@ def main(argv: Sequence[str] = ()) -> None:
         # reconstructing a run quietly not working. With no config of its own,
         # uvicorn's loggers propagate to the root handler installed above.
         uvicorn.run(
-            create_app(services, preview_sweep_interval_seconds=settings.preview_sweep_interval_seconds),
+            create_app(services, preview_sweep_interval_seconds=settings.preview_sweep_interval_seconds, sweep_topics=True),
             host=settings.host,
             port=settings.port,
             log_config=None,

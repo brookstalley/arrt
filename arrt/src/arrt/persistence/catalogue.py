@@ -58,6 +58,18 @@ class WorkOrder(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class TopicTally:
+    """One registry item the catalogue's facets name, under one kind, and how many works carry it."""
+
+    kind: VocabularyKind
+    #: The item, as `WorkFacet.value_qid` holds it.
+    qid: str
+    #: Its name, as the facet rows hold it.
+    label: str
+    works: int
+
+
+@dataclass(frozen=True, slots=True)
 class WorkQuery:
     """Which works a listing is about, before paging.
 
@@ -251,6 +263,19 @@ class CatalogueStore(Protocol):
         together is one statement instead of five, which is what keeps the
         collection's default screen from paying for six near-identical scans.
         """
+        ...
+
+    def topic_tallies(self, *, status: ArtworkStatus | None, qid: str | None = None) -> Sequence[TopicTally]:
+        """Every item a facet names by QID, per kind, with how many of the selected works carry it.
+
+        Only rows with a `value_qid` are counted: a value nobody tied to an item
+        has no page to open. `qid` narrows to that one item. Ordered by kind,
+        then label ignoring case, then QID.
+        """
+        ...
+
+    def works_with_topic(self, qid: str, *, status: ArtworkStatus | None, kinds: Sequence[VocabularyKind]) -> Sequence[str]:
+        """The ids of the selected works with a facet of one of `kinds` naming this item, each once, by title."""
         ...
 
     # -- sources --------------------------------------------------------------

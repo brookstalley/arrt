@@ -15,6 +15,11 @@ neither is an item the registry does not have, so the next visit asks again.
 answer is remembered; which of its works the library holds in circulation is
 read from the catalogue on every call, so a work accepted a minute ago is
 marked *Held* without forgetting the topic.
+
+**The library's half asks no registry at all.** `index` and `page` read the
+facet rows the topic sweep (`topic_sweep.py`) writes, so Library › Topics and a
+Topic page's *In your library* draw at once, whatever Wikidata is doing; the
+registry sections are asked for separately, as the Artist page's are.
 """
 
 import logging
@@ -29,10 +34,12 @@ from arrt.library.registry import (
     RegistryTopic,
     RegistryTopicWork,
     RegistryUnavailable,
+    TopicKind,
 )
 from arrt.library.services.artists import artist_ids_by_qid
 from arrt.library.services.remembered import Remembered, checked_qid
-from arrt.persistence.catalogue import CatalogueStore
+from arrt.persistence.catalogue import CatalogueStore, TopicTally
+from arrt.persistence.records import ArtworkStatus, VocabularyKind
 
 log = logging.getLogger(__name__)
 
@@ -50,6 +57,21 @@ TOPICS_NOT_CONFIGURED_NOTE: Final[str] = (
 
 #: What a section says when the registry was asked and could not answer.
 UNAVAILABLE_NOTE: Final[str] = "Wikidata could not be asked just now. Try again later."
+
+#: The facet kind each topic kind is recorded under. A period is an `era`, the
+#: shared vocabulary's word for it; the other three are the same word.
+FACET_KINDS: Final[Mapping[TopicKind, VocabularyKind]] = {
+    TopicKind.PERIOD: VocabularyKind.ERA,
+    TopicKind.MOVEMENT: VocabularyKind.MOVEMENT,
+    TopicKind.SUBJECT: VocabularyKind.SUBJECT,
+    TopicKind.MEDIUM: VocabularyKind.MEDIUM,
+}
+
+#: The order Library › Topics lists the kinds in: the owner's, period first.
+INDEX_ORDER: Final[tuple[TopicKind, ...]] = (TopicKind.PERIOD, TopicKind.MOVEMENT, TopicKind.SUBJECT, TopicKind.MEDIUM)
+
+#: Which topic kind a facet kind is, for the facets that are topics.
+_TOPIC_KINDS: Final[Mapping[VocabularyKind, TopicKind]] = {facet: topic for topic, facet in FACET_KINDS.items()}
 
 
 class TopicState(StrEnum):
@@ -105,6 +127,9 @@ class TopicWorksView:
     state: TopicState
     note: str | None = None
     works: Sequence[TopicWork] = ()
+    #: The library's artist for each listed maker it holds, by QID, so a maker
+    #: links to the library's own Artist page.
+    artists: Mapping[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,6 +152,51 @@ class TopicSearchView:
     topics: Sequence[RegistryTopic] = ()
 
 
+@dataclass(frozen=True, slots=True)
+class HeldTopic:
+    """A topic the library's works are in, and how many of them."""
+
+    qid: str
+    #: The registry's name for it, as the facet rows recorded it.
+    label: str
+    works: int
+
+
+@dataclass(frozen=True, slots=True)
+class TopicGroup:
+    """Every topic of one kind the library's works are in, by name."""
+
+    kind: TopicKind
+    topics: Sequence[HeldTopic] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class TopicIndex:
+    """Library › Topics: every topic the library's works are in, grouped by kind, one group per kind."""
+
+    #: `KNOWN` with a registry configured; `NOT_CONFIGURED` without one, when the
+    #: groups hold whatever an earlier configuration recorded and nothing renews it.
+    state: TopicState
+    note: str | None = None
+    groups: Sequence[TopicGroup] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class TopicPage:
+    """The library's half of a Topic page: the topic as the facets name it, and the works in it."""
+
+    qid: str
+    state: TopicState
+    note: str | None = None
+    #: The name the facet rows hold, or None where no work of the library's is in it.
+    label: str | None = None
+    #: The kinds the library's works carry it under, in `INDEX_ORDER`. Usually
+    #: one; two where, say, a movement is also what a work is said to be of.
+    kinds: tuple[TopicKind, ...] = ()
+    #: The library's works in circulation in it, by title.
+    work_ids: Sequence[str] = ()
+
+
 class TopicService:
     """Ask the registry about a topic, and say what the library holds of it."""
 
@@ -136,6 +206,46 @@ class TopicService:
         self._topics: Remembered[str, RegistryTopic] = Remembered()
         self._works: Remembered[str, tuple[RegistryTopicWork, ...]] = Remembered()
         self._artists: Remembered[str, tuple[RegistrySimilar, ...]] = Remembered()
+
+    def index(self) -> TopicIndex:
+        """Every topic the library's works in circulation are in, by kind, each with how many. No network."""
+        state, note = self._configured()
+        tallies = self._store.topic_tallies(status=ArtworkStatus.ACCEPTED)
+        held: dict[TopicKind, list[HeldTopic]] = {kind: [] for kind in INDEX_ORDER}
+        for tally in tallies:
+            kind = _TOPIC_KINDS.get(tally.kind)
+            if kind is not None:
+                held[kind].append(HeldTopic(qid=tally.qid, label=tally.label, works=tally.works))
+        return TopicIndex(
+            state=state, note=note, groups=tuple(TopicGroup(kind=kind, topics=tuple(held[kind])) for kind in INDEX_ORDER)
+        )
+
+    def page(self, qid: str) -> TopicPage:
+        """The topic as the library's facets name it, and its works in circulation. No network.
+
+        A topic no held work is in answers with no label and no works, rather
+        than refusing: a Topic page reached by search is ordinary, and its
+        registry sections still have something to say.
+        """
+        qid = checked_qid(qid)
+        state, note = self._configured()
+        tallies = [
+            tally for tally in self._store.topic_tallies(status=ArtworkStatus.ACCEPTED, qid=qid) if tally.kind in _TOPIC_KINDS
+        ]
+        kinds = {_TOPIC_KINDS[tally.kind] for tally in tallies}
+        return TopicPage(
+            qid=qid,
+            state=state,
+            note=note,
+            label=_label(tallies),
+            kinds=tuple(kind for kind in INDEX_ORDER if kind in kinds),
+            work_ids=tuple(self._store.works_with_topic(qid, status=ArtworkStatus.ACCEPTED, kinds=tuple(FACET_KINDS.values()))),
+        )
+
+    def _configured(self) -> tuple[TopicState, str | None]:
+        if self._registry is None:
+            return TopicState.NOT_CONFIGURED, TOPICS_NOT_CONFIGURED_NOTE
+        return TopicState.KNOWN, None
 
     def topic(self, qid: str) -> TopicView:
         """What this item is as a topic: its name, description, kinds and, for a period, its years."""
@@ -173,9 +283,12 @@ class TopicService:
         # "Held" means in circulation, as on the Artist page, so an archived
         # work is not marked.
         holdings = self._store.circulating_ids_by_qid()
+        ours = artist_ids_by_qid(self._store)
+        makers = {creator.qid for work in listed for creator in work.creators}
         return TopicWorksView(
             state=TopicState.KNOWN,
             works=tuple(_marked(work, holdings.get(work.qid, ())) for work in listed),
+            artists={qid: ours[qid] for qid in sorted(makers) if qid in ours},
         )
 
     def artists(self, qid: str) -> TopicArtistsView:
@@ -235,6 +348,13 @@ def _marked(work: RegistryTopicWork, held: Sequence[str]) -> TopicWork:
     if held:
         return TopicWork(work=work, state=WorkState.HELD, held=tuple(held))
     return TopicWork(work=work, state=WorkState.IMAGE_FOUND if work.image is not None else WorkState.NO_IMAGE)
+
+
+def _label(tallies: Sequence[TopicTally]) -> str | None:
+    """One name for the topic where its rows hold more than one: the one most works carry, then the first by name."""
+    if not tallies:
+        return None
+    return min(tallies, key=lambda tally: (-tally.works, tally.label.casefold(), tally.label)).label
 
 
 def _not_found(qid: str) -> str:

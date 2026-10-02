@@ -57,6 +57,7 @@ from arrt.library.discovery.engine import DiscoveryEngine
 from arrt.library.discovery.images import ImageSearch
 from arrt.library.discovery.phase_two import PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
+from arrt.library.events import WorkChange
 from arrt.library.facade import LibraryFacade
 from arrt.library.registry import Registry
 from arrt.library.services.artists import ArtistService
@@ -75,6 +76,8 @@ from arrt.library.services.survey import SurveyService
 from arrt.library.services.sweep import PreviewSweep
 from arrt.library.services.taste import TasteService
 from arrt.library.services.thumbnails import ThumbnailService, ThumbnailSettings
+from arrt.library.services.topic_sweep import TopicSweep
+from arrt.library.services.topics import TopicService
 from arrt.persistence.backup import BACKUP_RECEIPT_FILENAME
 from arrt.persistence.catalogue import CatalogueStore
 from arrt.persistence.discovery import DiscoveryStore
@@ -180,6 +183,13 @@ class Services:
     #: A Get: works chosen by their Wikidata items, turned into one run over the
     #: image sources. Over the same registry and runner as the services above.
     get: GetService
+    #: Topics: the library's, from the facet rows, and a topic's registry
+    #: sections. Over the same registry as `artists`.
+    topics: TopicService
+    #: Keeping the library's works' topics as facets. Built whatever the
+    #: registry, like `sweep`; without one it does nothing, and the application
+    #: says so once when it would have started it.
+    topic_sweep: TopicSweep
 
     @classmethod
     def bind(
@@ -251,6 +261,11 @@ class Services:
         # service that wired itself could not be built for a test without it.
         library.subscribe(display_service.on_work_changed)
         thumbnail_service = ThumbnailService(catalogue_service, thumbnails)
+        topic_sweep = TopicSweep(catalogue, catalogue_service, registry)
+        # The Library's own announcement, heard by the Library's own sweep: an
+        # accepted or restored work is asked about now rather than at the
+        # interval. Identity changes reach it through `identity` below.
+        catalogue_service.subscribe(lambda event: topic_sweep.nudge() if event.change is WorkChange.ACCEPTED else None)
         if (pool is None) != (previews is None):
             # Refused here rather than defaulted, because either half alone is a
             # misconfiguration that would otherwise disable phase 2 silently —
@@ -349,11 +364,13 @@ class Services:
             # transaction — the delete's whole correctness is that it commits or
             # does not.
             taste=TasteService(discovery),
-            identity=IdentityService(catalogue, registry),
+            identity=IdentityService(catalogue, registry, on_changed=topic_sweep.nudge),
             artists=ArtistService(catalogue, registry),
             registry_works=RegistryWorkService(catalogue, registry),
             registry_search=RegistrySearchService(catalogue, registry),
             get=GetService(store=catalogue, discovery=discovery_service, runner=runner_service, registry=registry),
+            topics=TopicService(catalogue, registry),
+            topic_sweep=topic_sweep,
         )
 
     def reconcile(self) -> None:
