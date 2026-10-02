@@ -10,6 +10,33 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Library › Topics and the Topic page — added 2026-10-02
+
+**`build-plan-topics-and-destinations.md` Chunk 05.** Needs `WIKIDATA_USER_AGENT`
+set; without it both pages say topics need it.
+
+Checked by the builder on 2026-10-02 in the browser suite's own server, with a
+fake Wikidata, not on your catalogue, at 1280 px and 375 px, nothing wider than
+the screen. Topics, under Artworks after Themes, read *Find a topic*, then
+Periods (*16th century · 2 works*), Movements, Subjects (*winter · 1 work*) and
+Media, each kind with none saying so. Finding `impressionism` listed two
+*Impressionism*s told apart by Wikidata's description. The *16th century* page
+showed its kind, description and Wikidata link, *In your library (2)* as cards,
+then *Works from 1501–1600* (● Held, ◐ Image found, ○ No image known; no box on
+the held row), *Add to* already on *New theme…* named *16th century*, and
+*Artists*. At 375 px the works table scrolls sideways inside its panel, as the
+Artist page's does. Driving S12's path on a copy of your catalogue is still owed.
+For you:
+
+1. **A period's heading.** Its works are headed *Works from 1501–1600* rather
+   than *Representative works*, because they are matched by date alone. Every
+   period, centuries included. Right?
+2. **The typeahead.** Typing a topic's name offers *Topics* (yours) after your
+   works, and *Wikidata: topics* after Wikidata's works, each with Wikidata's
+   description. Useful, or too much in the dropdown?
+3. **The titles look like buttons** in the works table and the topic lists, as
+   they do on the Artist page and the results page. Restyle them all as links?
+
 ### Add to: where a Get's works go — added 2026-10-02
 
 **`build-plan-topics-and-destinations.md` Chunk 02.** Every Get control (the

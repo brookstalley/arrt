@@ -101,3 +101,37 @@ function stateBadge(kind, glyph, words) {
     el("span", { text: words }),
   ]);
 }
+
+/* A topic's name, or what to say when Wikidata has none in English: the label
+ * service answers with the bare QID, as it does for a work (`named` above). */
+export function topicName(label, qid) {
+  return label && label !== qid ? label : `No English name (${qid})`;
+}
+
+/* A topic's kinds as a curator reads them, one and many, in the order the
+ * server gives them: `GET /api/topics` lists the four kinds period first. */
+export const TOPIC_KINDS = {
+  period: ["period", "Periods"],
+  movement: ["movement", "Movements"],
+  subject: ["subject", "Subjects"],
+  medium: ["medium", "Media"],
+};
+
+/* The kinds a topic is, in words: "movement and period" for Baroque. A kind
+ * the client has no word for is shown as the server spells it rather than
+ * dropped, so a fifth kind reads oddly instead of vanishing. */
+export function topicKinds(kinds) {
+  return (kinds || []).map((kind) => (TOPIC_KINDS[kind] ? TOPIC_KINDS[kind][0] : kind)).join(" and ");
+}
+
+/* A year as a caption reads it: Wikidata numbers the years before the common
+ * era as negatives, and "-500" reads as a typo. */
+function year(value) {
+  return value < 0 ? `${-value} BCE` : String(value);
+}
+
+/* A period's years, "1501–1600", or null when either end is unrecorded. */
+export function topicYears(topic) {
+  if (topic.start === null || topic.start === undefined || topic.end === null || topic.end === undefined) return null;
+  return `${year(topic.start)}–${year(topic.end)}`;
+}
