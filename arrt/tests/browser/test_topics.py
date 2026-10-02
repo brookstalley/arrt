@@ -349,8 +349,12 @@ class TestTheTopicPage:
     def test_registry_text_arrives_as_words_and_the_link_is_built_from_the_qid(self, ui, held):
         open_topic(ui)
         ui.page.wait_for_selector("#view h2:text-is('16th century')")
+        # The heading can paint before the description does, so the description
+        # is waited for in its own right before it is counted.
+        escaped = ui.page.get_by_text('century <img src=x onerror="window.pwned=1">')
+        escaped.wait_for()
 
-        assert ui.page.get_by_text('century <img src=x onerror="window.pwned=1">').count() == 1
+        assert escaped.count() == 1
         assert ui.page.evaluate("() => window.pwned") is None
         link = ui.page.locator("#view a:text-is('Wikidata Q7017')")
         assert link.get_attribute("href") == f"https://www.wikidata.org/wiki/{SIXTEENTH}"

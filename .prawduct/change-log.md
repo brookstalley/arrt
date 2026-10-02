@@ -83,7 +83,12 @@ scan payload gains `width` and `height`. Critic `rev-20261002T174121Z-200674d5`:
 0 blocking; its follow-ups keep a review card (its *Why*, open *Scans* and focus)
 across a running Get's redraw, tell a finished Get whose cards could not be read
 to reload, name an enlarged scan for the picture, and let fact lists wrap
-between words on phones (`rev-20261002T180820Z-3fd253b4`, clean). Filed from the same review: #167 (accepting never acquires the
+between words on phones (`rev-20261002T180820Z-3fd253b4`, clean). PR #171's
+browser CI leg then found the Scans table scrolling sideways inside a 1280 px
+card on the runner's wider fonts (it was already 24 px over on macOS, inside the
+edge check's padding slack): a scan's two actions now stack, and the test
+asserts the table's box does not scroll. Three browser tests that read the page
+before it settled under `-n auto` now wait for what they assert. Filed from the same review: #167 (accepting never acquires the
 master), #168 (Wanted), #169 (Artworks' theme filter vs add-to-theme, decided:
 follow Radarr).
 

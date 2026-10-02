@@ -201,7 +201,11 @@ function instanceRows(instance, work, after) {
       el("td", { class: "scan-fact", text: instance.confidence.toFixed(2) }),
       el("td", { class: "scan-fact" }, chosen.length ? [el("div", { class: "stack-tight" }, chosen)] : ["—"]),
       el("td", { class: "scan-actions" }, [
-        el("div", { class: "row" }, [
+        // One above the other rather than side by side: abreast, two labels
+        // that may not wrap made this the table's widest column, and the table
+        // overflowed a desktop card on wider fonts. The row is as tall as its
+        // preview either way.
+        el("div", { class: "stack-tight" }, [
           instance.rejected || instance.is_selected
             ? null
             : el("button", {

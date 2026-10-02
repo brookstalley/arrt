@@ -629,10 +629,11 @@ def test_a_page_that_says_there_is_more_and_carries_nothing_is_not_asked_again(u
     ui.serve_image("**/api/candidate-images/*/preview")
     ui.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([], total=5, truncated=True))
     ui.open(f"#review/{RUN_ID}")
-    ui.page.wait_for_selector("#view p.muted")
+    # Waits on the sentence rather than on `p.muted`, which the catalogue's
+    # loading line matches too: under load the assertions read that instead.
+    ui.page.wait_for_selector("#view p.muted:has-text('settled on no works')")
 
     assert len(ui.requests_matching(f"/api/runs/{RUN_ID}/candidates")) == 1
-    assert "settled on no works" in ui.text()
 
 
 def test_a_listing_that_keeps_insisting_there_is_more_still_terminates(ui):

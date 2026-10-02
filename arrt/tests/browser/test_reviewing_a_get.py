@@ -289,6 +289,14 @@ def test_no_label_in_the_scans_wraps_onto_two_lines_at_desktop_width(ui):
     table = ui.page.locator("table.scans").bounding_box()
     card = ui.page.locator("li.card").bounding_box()
     assert table["x"] + table["width"] <= card["x"] + card["width"] + 1
+    # Nor does it scroll sideways inside the card. The edge check above has the
+    # card's padding as slack, and a table already scrolling within its box
+    # passed it on one machine's fonts and failed it on CI's wider ones.
+    overflow = ui.page.evaluate(
+        "() => { const s = document.querySelector('table.scans').closest('.table-scroll');"
+        " return s.scrollWidth - s.clientWidth; }"
+    )
+    assert overflow <= 0, f"the scans scroll {overflow}px sideways at desktop width"
 
 
 # -- resolution in pixels, and no inches anywhere -------------------------------------

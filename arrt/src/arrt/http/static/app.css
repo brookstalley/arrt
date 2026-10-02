@@ -1309,11 +1309,6 @@ button.card-image.enlargeable {
   white-space: nowrap;
 }
 
-.scans .scan-actions .row {
-  flex-wrap: nowrap;
-  align-items: center;
-}
-
 /* The first row of a scan carries no rule beneath it: it and its sentences are
    one scan, and the rule belongs after both. */
 .scans tr.alternate td {
