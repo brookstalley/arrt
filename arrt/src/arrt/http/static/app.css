@@ -1145,6 +1145,15 @@ button.link {
   background: var(--surface-0);
 }
 
+/* A work the curator chose from Wikidata for a Get. Not asked of a model and not
+   offered by a collection, so it paints like neither: a double border, by weight
+   rather than colour, for the same reason as the pair above. */
+.badge-chosen {
+  border-style: double;
+  border-width: 3px;
+  background: var(--surface-0);
+}
+
 /* Whether a work ended up with an image. Its own axis again: a work can be
    offered and unresolved, and the two badges sit side by side on one row. */
 .badge-resolved {

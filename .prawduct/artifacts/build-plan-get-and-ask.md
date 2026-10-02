@@ -103,7 +103,7 @@ display floor is measured for three works only.
 - `[DECISION: "Commons then Chicago" is an order of preference among instances, never an order of asking. Every source is asked at once, and phase 2's existing ranking picks the selected instance. Where two instances rank level, the source listed earlier in the wiring wins | the owner's ruling asks for parallel search and no special case; a source asked only when another failed would be a special case | user can veto/override]`
 - `[DECISION: when some sources fail and the others find nothing, the work stays pending, exactly as when today's one source fails. It is never recorded as not found. When any source finds an instance that clears the display floor, the failures are logged and the work resolves on what was found; an instance below the floor does not settle it, because the source that was down may hold a larger one | core.md: keep 'unconfirmable' apart from 'failed'. A work called unresolved because a server was down would tell the curator the painting is not out there | user can veto/override]`
 - `[ASSUMPTION: Get acts on works the library does not hold. A held work in a selection is skipped and the control says how many it skips. Get on a held work (a better image) is a re-search, which exists, and is not merged into Get here | MED impact | user can correct]`
-- `[ASSUMPTION: a Get is a new run kind, "get". It starts at phase 2 (no phase 1, no approval step, no spend) with one candidate per chosen item. Each candidate carries the Wikidata item it was asked for, and accepting it stores that item on the new artwork, set by the curator | HIGH impact | user can correct]`
+- `[ASSUMPTION: a Get is a new run kind, "get". It starts at phase 2 (no phase 1, no approval step, no spend) with one candidate per chosen item. Each candidate carries the Wikidata item it was asked for, and accepting it stores that item on the new artwork, set by the curator. Works may share an item, so acceptance refuses nothing; held items are skipped when the Get starts | HIGH impact | user can correct]`
 - `[ASSUMPTION: after a Get starts, the page stays where it is and says so in its live region, with a link to the run. Radarr's Add does the same. The run is listed in Queue | LOW impact | user can correct]`
 - `[ASSUMPTION: the Commons source answers only a query that names a Wikidata item, and offers the item's image (P18). It searches Commons by title for nothing | MED impact | user can correct]`
 - `[ASSUMPTION: To review lists runs with at least one candidate not yet judged, newest first, each opening Review. The sidebar entry reads "To review" followed by the count as a number, and the Activity section carries the same word and count | MED impact | user can correct]`
@@ -115,7 +115,7 @@ display floor over the owner's own artists' works.
 
 - [x] Chunk 01: An image-source pool
 - [x] Chunk 02: Commons as a source
-- [ ] Chunk 03: Get, from HTTP and MCP
+- [x] Chunk 03: Get, from HTTP and MCP
 - [ ] Chunk 04: Get in the client
 - [ ] Chunk 05: Ask replaces Add New
 - [ ] Chunk 06: Activity › To review
@@ -232,13 +232,35 @@ test keeps the 3840 limit checked.)*
 - **Bindings**: `POST /api/gets {qids}` returns the run and what was skipped. MCP:
   `art_discovery(action='get', qids=[…])`.
 
+*(Built 2026-10-02. Two premises moved when the code was read. Works may share a
+Wikidata item (the identity service allows a duplicate, shown as *Held ×2*), so
+acceptance stores the item and refuses nothing; a held item is skipped when the
+Get starts instead, with items a Get under way is already looking for and items
+Wikidata has no work for. And the client's provenance badge was offered-or-not,
+which a guard written for this moment turned red: a chosen work would have been
+drawn as "asked for", so the badge now has a word and a glyph per provenance
+here rather than in Chunk 04. A Get is never supplemented: it owns its works, so
+an unresolved one would otherwise reach the offer path, which raises on any run
+but a discovery, and fail the Get; the test wires a collection so it can tell.
+Sixteen mutations of the service, store, routes and client each turned a test
+red. Left for Chunk 04: the run screen's and Queue's wording by kind
+(`run.js`, `activity.js`), which reads a Get as a discovery today. After the
+review: the MCP status and both tallies count a Get's works as `chosen` and word
+a Get as one; a Get asks for at most 50 items, since each is a Wikidata lookup
+inside the request. Accepted: the held and being-got checks run before the
+transaction that starts the run, so two Gets of one item sent at the same moment
+can both start, and a finished Get's unjudged item can be got again. Either way
+the result is a second candidate for the curator to judge, never a wrong record,
+and with one curator neither is worth a lock.)*
+
 **Done when:**
 0. Carried from Chunk 02: a Get resolved through the runner selects a Commons
    instance over a smaller Art Institute one, and the reverse.
 1. Integration tests over HTTP and MCP, each watched failing: a Get of two items
    starts one run with two candidates, spends nothing, and resolves through fake
    sources; a held item is skipped and reported; accepting stores the item on the
-   artwork; accepting an item another artwork holds is refused.
+   artwork; accepting one whose item the library came to hold meanwhile succeeds,
+   since works may share an item.
 2. A migration test opens a store from before this chunk.
 3. All suites pass.
 
@@ -252,7 +274,9 @@ test keeps the 3840 limit checked.)*
 - **A Work page for a work not held** replaces *Search museums for this work* with
   *Get this work*.
 - **After a Get**, the page stays and announces *Getting 3 works*, with a link to
-  the run. Queue and History label a Get as *Get*.
+  the run. Queue and History label a Get as *Get*, and the run and review
+  screens word it as one (`run.js`, `activity.js` and the review page's heading
+  branch on `resolve` today and read a Get as a discovery).
 - **Review** shows the item a Get asked for, linked by QID.
 
 **Done when:**

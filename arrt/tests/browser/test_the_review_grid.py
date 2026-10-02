@@ -1289,3 +1289,36 @@ def test_a_work_opened_from_a_review_card_returns_to_that_review(ui, service):
     ui.page.click("#view button:has-text('← The review')")
     ui.page.wait_for_selector("li.card")
     assert ui.page.evaluate("() => window.location.hash") == f"#review/{RUN_ID}"
+
+
+# -- a work chosen for a Get says so ---------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("provenance", "glyph", "word", "styled"),
+    [
+        pytest.param(WorkProvenance.CHOSEN.value, "◇", "you chose", "badge-chosen", id="chosen"),
+        pytest.param(WorkProvenance.OFFERED.value, "◈", "offered", "badge-offered", id="offered"),
+        pytest.param(WorkProvenance.PROPOSED.value, "◆", "asked for", None, id="proposed"),
+    ],
+)
+def test_each_provenance_is_drawn_as_itself(grid, provenance, glyph, word, styled):
+    """Glyph, word and its own badge for each, so no work is drawn as another kind."""
+    card = a_card(
+        work=a_candidate(
+            provenance=provenance,
+            offered_for_artist="Salvador Dalí" if provenance == "offered" else None,
+            offered_artist_matched=1 if provenance == "offered" else None,
+        )
+    )
+    grid.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([card]))
+    grid.open(f"#review/{RUN_ID}")
+    grid.page.wait_for_selector("li.card")
+
+    badge = grid.page.locator("li.card .badge", has_text=word).first
+    assert badge.inner_text().replace("\n", " ").strip() == f"{glyph} {word}"
+    classes = badge.get_attribute("class").split()
+    if styled is None:
+        assert classes == ["badge"], classes
+    else:
+        assert styled in classes, classes

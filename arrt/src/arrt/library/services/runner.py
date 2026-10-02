@@ -65,7 +65,8 @@ from arrt.library.discovery.engine import (
 )
 from arrt.library.discovery.images import FoundImage, ImageQuery, ImageSearchFailure
 from arrt.library.discovery.phase_two import JudgedImage, PhaseTwoEngine
-from arrt.library.services.discovery import DiscoveryService
+from arrt.library.registry import ItemId
+from arrt.library.services.discovery import ChosenWork, DiscoveryService
 from arrt.library.services.previews import PreviewCache
 from arrt.logs import run_context
 from arrt.persistence.discovery_records import (
@@ -302,6 +303,11 @@ class RunView:
         return sum(1 for work in self.works if work.provenance is WorkProvenance.OFFERED)
 
     @property
+    def chosen_count(self) -> int:
+        """How many works the curator chose for a Get. Only a Get holds any."""
+        return sum(1 for work in self.works if work.provenance is WorkProvenance.CHOSEN)
+
+    @property
     def resolved_proposals(self) -> int:
         """How many of the model's own works ended up with an image.
 
@@ -359,7 +365,8 @@ def _searchable(run: DiscoveryRun, works: Sequence[CandidateWork]) -> int:
     provenance — so filtering them by `PROPOSED` here would size a re-search of
     offered works at zero and publish `exhausted: true` for a run about to spend.
     """
-    if run.kind is RunKind.RESOLVE:
+    if run.kind is not RunKind.DISCOVERY:
+        # A re-search and a Get search every work they hold: the curator named each.
         return len(works)
     return sum(1 for work in works if work.provenance is WorkProvenance.PROPOSED)
 
@@ -521,6 +528,8 @@ class DiscoveryRunner:
         free = "Phase 2 asks museum APIs, which are free, and identifies works locally"
         if run.kind is RunKind.RESOLVE:
             return f"Re-searching the {counted(len(held), 'work')} this run covers. {free}, so this re-search costs nothing."
+        if run.kind is RunKind.GET:
+            return f"Getting the {counted(len(held), 'work')} you chose. {free}, so this Get costs nothing."
         # Proposed only: this sentence says what phase 2 will resolve, and a work
         # the collection offered was never phase 1's to propose nor phase 2's to
         # resolve. Counting it here described twelve works as proposed that the
@@ -700,6 +709,35 @@ class DiscoveryRunner:
                     "parent_run_id": run.parent_run_id,
                     "works_covered": len(self._discovery.covered_works(run.id)),
                     "estimated_cost_usd": str(run.estimated_cost_usd),
+                },
+            )
+        self._spawn(lambda: self._resolve_run(run.id))
+        return run
+
+    def get(self, *, works: Sequence[ChosenWork], initiated_by: InitiatedBy) -> DiscoveryRun:
+        """Begin a Get over works the curator chose, and return its handle at once.
+
+        Refused with no image source, for `resolve_images`' reason: a Get has
+        nothing in it but phase 2, so a run nothing would pick up would be
+        reported as under way.
+        """
+        images = self._images
+        if images is None:
+            raise ServiceError(
+                "This deployment has no image source configured, so a Get has nothing to ask. "
+                "Nothing was started and nothing was spent."
+            )
+        run = self._discovery.start_get_run(works=works, initiated_by=initiated_by)
+        with self._changed:
+            self._in_flight.add(run.id)
+        self._bump()
+        with run_context(run.id):
+            log.info(
+                "get started",
+                extra={
+                    "event": "run.started",
+                    "initiated_by": str(run.initiated_by),
+                    "works_chosen": len(self._discovery.list_candidate_works(run.id)),
                 },
             )
         self._spawn(lambda: self._resolve_run(run.id))
@@ -1009,17 +1047,13 @@ class DiscoveryRunner:
             )
             return
         if self._discovery.get_run(run_id).kind is not RunKind.DISCOVERY:
-            # A re-search asks for better images for works a curator already
-            # named; it does not supplement them. Stated here rather than left to
-            # the record layer, which refuses an offer on a resolve run by
+            # A re-search and a Get look for images of works a curator already
+            # named; neither is supplemented. Stated here rather than left to the
+            # record layer, which refuses an offer on any other kind of run by
             # *raising* — and this runs on a worker whose caller turns a
-            # ServiceError into a failed run, so a curator asking for a better
-            # image would be told the re-search broke. Today the refusal is never
-            # reached, because a resolve run owns no candidate works of its own
-            # and the facet list comes back empty first; that is an accident of
-            # where coverage is stored, not a guard, and it would stop holding
-            # the moment this read `covered_works` the way `_works_to_resolve`
-            # does.
+            # ServiceError into a failed run. A Get owns its candidate works, so
+            # without this guard an unresolved work in it would reach that
+            # refusal and the curator would be told the Get broke.
             return
         try:
             self._offer_from_collection(run_id, previews)
@@ -1167,7 +1201,13 @@ class DiscoveryRunner:
             )
             return WorkOutcome.VERDICT_STOOD
         try:
-            resolution = images.resolve(ImageQuery(title=work.proposed_title, artist=work.proposed_artist))
+            resolution = images.resolve(
+                ImageQuery(
+                    title=work.proposed_title,
+                    artist=work.proposed_artist,
+                    qid=None if work.wikidata_qid is None else ItemId(work.wikidata_qid),
+                )
+            )
         except ImageSearchFailure as exc:
             log.warning(
                 "could not search for a work's images; it stays pending rather than being called unresolved: %s",
@@ -1283,7 +1323,9 @@ class DiscoveryRunner:
         operation a curator can repeat as often as they like.
         """
         per_work = works * self._settings.phase2_searches_per_work
-        if run.kind is RunKind.RESOLVE:
+        if run.kind is not RunKind.DISCOVERY:
+            # No phase 1 happened on this run: a re-search's was its parent's, and
+            # a Get has none.
             return per_work
         return self._settings.phase1_search_allowance + per_work
 

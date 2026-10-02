@@ -265,15 +265,17 @@ def test_every_decided_verdict_has_words_and_a_glyph(name):
     assert _object_keys(name) == {str(verdict) for verdict in Verdict if verdict is not Verdict.PENDING}
 
 
-def test_provenance_is_still_the_two_values_the_client_renders_as_a_pair():
-    """The client draws provenance as offered-or-not, which only two values allow.
+@pytest.mark.parametrize("name", ["PROVENANCE_WORDS", "PROVENANCE_GLYPHS"])
+def test_every_provenance_has_words_and_a_glyph(name):
+    """Every provenance is drawn as itself, never as another one.
 
-    A third member would be rendered as "asked for" — silently, and wrongly, on
-    the one distinction the supplement exists to keep visible. This fails at the
-    moment the member is added rather than at the moment a curator accepts an
-    offered work believing they asked for it.
+    The client once drew provenance as offered-or-not, and a third member would
+    have been rendered as "asked for" — silently, and wrongly, on the one
+    distinction the supplement exists to keep visible. `chosen` was that third
+    member. Keyed on the enum, so a fourth fails here by name rather than at the
+    moment a curator accepts a work believing it was something else.
     """
-    assert {str(provenance) for provenance in WorkProvenance} == {"proposed", "offered"}
+    assert _object_keys(name) == {str(provenance) for provenance in WorkProvenance}
 
 
 def test_every_facet_kind_has_a_word_the_work_screen_can_label_it_with():

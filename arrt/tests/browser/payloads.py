@@ -160,6 +160,8 @@ def a_candidate(**overrides) -> CandidateWorkOut:
         # service will not write.
         "offered_for_artist": None,
         "offered_artist_matched": None,
+        # Null for the same reason: only a work chosen for a Get names an item.
+        "wikidata_qid": None,
         "verdict": Verdict.PENDING.value,
         "resolution_status": ResolutionStatus.RESOLVED.value,
         "unresolved_reason": None,
@@ -181,7 +183,8 @@ def a_run_view(run: RunOut | None = None, works: list[CandidateWorkOut] | None =
     tally = RunTallyOut(
         total=len(works),
         proposed=len(proposed),
-        offered=len(works) - len(proposed),
+        offered=len([w for w in works if w.provenance == WorkProvenance.OFFERED.value]),
+        chosen=len([w for w in works if w.provenance == WorkProvenance.CHOSEN.value]),
         resolved=len(resolved),
         resolved_proposals=len([w for w in proposed if w.resolution_status == ResolutionStatus.RESOLVED.value]),
         unresolved=len([w for w in works if w.resolution_status == ResolutionStatus.UNRESOLVED.value]),

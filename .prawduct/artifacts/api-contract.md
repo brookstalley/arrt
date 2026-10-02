@@ -160,7 +160,7 @@ lesson from a different count, which is why this one is stated as a shape.*
 
 | Tool | Actions | Notes |
 |---|---|---|
-| `art_discovery` | `estimate`, `start`, `status`, `approve`, `decline`, `cancel`, `resolve_images`, `list_runs`, `spend`, `help` | **The only tool that spends money in amounts worth authorising** — see the correction below. |
+| `art_discovery` | `estimate`, `start`, `status`, `approve`, `decline`, `cancel`, `resolve_images`, `get`, `list_runs`, `spend`, `help` | **The only tool that spends money in amounts worth authorising** — see the correction below. |
 | `art_review` | `list_works`, `get_work`, `list_images`, `set_canonical`, `set_verdict`, `reject_image`, `help` | Returns thumbnails; see Inputs & Outputs. Never spends. |
 | `art_catalogue` | `list`, `get`, `sources`, `archive`, `restore`, `retry_acquisition`, `set_mat_color`, `set_work_qid`, `set_artist_qid`, `regenerate`, `help` | `sources` is the provenance read; see below. `set_work_qid` and `set_artist_qid` (added 2026-10-01) are the curator's word on a Wikidata identity; matching itself is the hand-run `python -m arrt.identify`, not a tool. |
 | `art_theme` | `list`, `get`, `create`, `update`, `delete`, `make_default`, `add`, `remove`, `reorder`, `activate`, `unhang`, `help` | `activate` changes the wall immediately; `unhang` leaves the wall showing what it was showing. `make_default` (added 2026-10-01) moves the mark new works join, and changes no wall. |
@@ -1246,6 +1246,7 @@ Added 2026-08-05 with the review half, and exercised by
 | `POST /api/candidate-images/{id}/select`, `/reject` | Choose a scan, or turn one down. Rejecting returns the *work*, because the interesting change is its move to `awaiting_better_image`. |
 | `GET /api/candidate-images/{id}/preview` | The picture, re-encoded to JPEG. **Not the cached file served directly:** a preview's name on disk is derived from a URL and falls back to `.jpg` for anything unrecognised, so the suffix is not evidence of what the bytes are. Held rather than revalidated — the bytes behind an image id are written once and only ever deleted. |
 | `POST /api/runs/resolve` | Look again for images of works whose scans were turned down. A re-search is a run, so `GET /api/runs/{id}` follows it with nothing special to know. Records `initiated_by: web_ui`. |
+| `POST /api/gets` | Get works chosen by their Wikidata items, `{qids}`: one run of kind `get`, phase 2 only, spending nothing. Returns `{run, skipped}`: items the library holds, items a Get under way is already looking for, and items Wikidata has no work for are skipped with their reason (`held`, `being_got`, `not_found`), never refused; when every item is skipped `run` is null. At most 50 items, because each is a Wikidata lookup inside the request. Refused with no registry or no image source. Twin: `art_discovery(action='get', qids=[...])`. Records `initiated_by: web_ui`. |
 
 **The review listing does not inline its pictures, and the MCP twin does.** Both
 call the same service method; the browser passes `pictures=False` and fetches each

@@ -64,6 +64,7 @@ from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.conversation import ConversationService
 from arrt.library.services.discovery import DiscoveryService
 from arrt.library.services.display_fit import ArtworkBox
+from arrt.library.services.get import GetService
 from arrt.library.services.identity import IdentityService
 from arrt.library.services.previews import PreviewCache, PreviewSettings
 from arrt.library.services.registry_search import RegistrySearchService
@@ -176,6 +177,9 @@ class Services:
     #: The registry's half of one-world search: artists and works found for a
     #: few typed words, each marked where the library holds it.
     registry_search: RegistrySearchService
+    #: A Get: works chosen by their Wikidata items, turned into one run over the
+    #: image sources. Over the same registry and runner as the services above.
+    get: GetService
 
     @classmethod
     def bind(
@@ -345,6 +349,7 @@ class Services:
             artists=ArtistService(catalogue, registry),
             registry_works=RegistryWorkService(catalogue, registry),
             registry_search=RegistrySearchService(catalogue, registry),
+            get=GetService(store=catalogue, discovery=discovery_service, runner=runner_service, registry=registry),
         )
 
     def reconcile(self) -> None:

@@ -41,15 +41,24 @@ function verdictBadge(work) {
   ]);
 }
 
-/* The curator authorised a work list of a stated size, and a wired collection may
- * add to it. Labelled on every row rather than counted only in the summary: an
- * offered work is not what was asked for, and a grid that renders the two alike
- * invites accepting one as though it were. */
+/* Where a work came from, in words and as a glyph, one entry per provenance.
+ *
+ * The curator authorised a work list of a stated size, and a wired collection may
+ * add to it; a Get's works the curator chose by hand. Labelled on every row rather
+ * than counted only in the summary: an offered work is not what was asked for, and
+ * a grid that renders the two alike invites accepting one as though it were. A
+ * provenance missing here would be drawn as its raw token, so the vocabulary test
+ * holds these keys to the enum. */
+const PROVENANCE_GLYPHS = { proposed: "◆", offered: "◈", chosen: "◇" };
+
+const PROVENANCE_WORDS = { proposed: "asked for", offered: "offered", chosen: "you chose" };
+
 function provenanceBadge(work) {
-  const offered = work.provenance === "offered";
-  return el("span", { class: offered ? "badge badge-offered" : "badge" }, [
-    el("span", { class: "glyph", text: offered ? "◈" : "◆", "aria-hidden": true }),
-    el("span", { text: offered ? "offered" : "asked for" }),
+  // `proposed` is the ordinary case and keeps the base badge, as it always has.
+  const styled = work.provenance === "proposed" ? "badge" : `badge badge-${work.provenance}`;
+  return el("span", { class: styled }, [
+    el("span", { class: "glyph", text: PROVENANCE_GLYPHS[work.provenance] || "◆", "aria-hidden": true }),
+    el("span", { text: PROVENANCE_WORDS[work.provenance] || work.provenance }),
   ]);
 }
 

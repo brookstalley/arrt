@@ -62,6 +62,25 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-02: Get: works chosen by their Wikidata items, over HTTP and MCP
+
+<!-- prawduct: scope=get-and-ask -->
+
+**Why:** ruling 3 dissolves Add New into *Get*, an action on a selection. A
+curator who has found works in Wikidata needs to acquire those works, not to
+describe them to a model and hope it names them.
+
+**What:** a run of the new kind `get` holds one `chosen` candidate per item, each
+carrying its `wikidata_qid`, and starts at phase 2: no phase 1, no approval, no
+spend, and no supplement. The item reaches the image sources, so Commons answers
+it. `POST /api/gets {qids}` and `art_discovery(action='get')` start one through
+`GetService`, which skips items the library holds, items a Get under way is
+looking for, and items Wikidata does not have, and reports each skip. Accepting a
+chosen work stores its item on the artwork, set by the curator. The review grid
+labels a chosen work *◇ you chose*, and the provenance guard now holds a word and
+a glyph per provenance. `data-model.md` and `api-contract.md` carry the kind, the
+provenance, the column and the route.
+
 ## 2026-10-02: Commons is an image source, reached from a work's Wikidata item
 
 <!-- prawduct: scope=get-and-ask -->

@@ -60,6 +60,7 @@ from arrt.http.models import (
     FacetGroupOut,
     FacetOptionOut,
     FitOut,
+    GetOut,
     HangTheme,
     HealthOut,
     HeartbeatOut,
@@ -96,9 +97,11 @@ from arrt.http.models import (
     SetVerdict,
     SimilarArtistOut,
     SimilarArtistsOut,
+    SkippedOut,
     SourceOut,
     Speak,
     SpendOut,
+    StartGet,
     StartResolve,
     StartRun,
     StepDisplay,
@@ -710,6 +713,21 @@ def start_run(request: Request, body: StartRun) -> RunOut:
     )
 
 
+@router.post("/gets")
+def start_get(request: Request, body: StartGet) -> GetOut:
+    """Get the works these Wikidata items name, and say which were skipped.
+
+    Returns at once with the run, which looks for images behind the response as
+    any run does. Held items, items a Get is already looking for, and items the
+    registry does not have are skipped and listed rather than refused.
+    """
+    outcome = _services(request).get.start(body.qids, initiated_by=InitiatedBy.WEB_UI)
+    return GetOut(
+        run=None if outcome.run is None else _run(outcome.run),
+        skipped=[SkippedOut(qid=entry.qid, reason=str(entry.reason)) for entry in outcome.skipped],
+    )
+
+
 @router.get("/runs")
 def list_runs(
     request: Request,
@@ -1218,6 +1236,7 @@ def _run_view(view: RunView) -> RunViewOut:
             total=view.work_count,
             proposed=view.proposed_count,
             offered=view.offered_count,
+            chosen=view.chosen_count,
             resolved=view.resolved,
             resolved_proposals=view.resolved_proposals,
             unresolved=view.unresolved,
@@ -1242,6 +1261,7 @@ def _candidate_work(work: CandidateWork) -> CandidateWorkOut:
         provenance=str(work.provenance),
         offered_for_artist=work.offered_for_artist,
         offered_artist_matched=work.offered_artist_matched,
+        wikidata_qid=work.wikidata_qid,
         verdict=str(work.verdict),
         resolution_status=str(work.resolution_status),
         unresolved_reason=None if work.unresolved_reason is None else str(work.unresolved_reason),

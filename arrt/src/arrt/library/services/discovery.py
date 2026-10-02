@@ -134,6 +134,20 @@ class ResolutionOutcome:
 
 
 @dataclass(frozen=True, slots=True)
+class ChosenWork:
+    """A work the curator chose from the registry, as a Get asks for it.
+
+    The title and maker are the registry's, so the image sources and phase 2's
+    identity check compare like with like when a source answers in the
+    registry's own words.
+    """
+
+    qid: str
+    title: str
+    artist: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class RunCost:
     """What a run spent on its own, and what asking for it cost altogether.
 
@@ -404,6 +418,60 @@ class DiscoveryService:
                 store_write(self._store.add_coverage, ResolveRunWork(resolve_run_id=run.id, candidate_work_id=work.id))
         return run
 
+    def start_get_run(self, *, works: Sequence[ChosenWork], initiated_by: InitiatedBy) -> DiscoveryRun:
+        """Begin a Get: phase 2 over works the curator chose from the registry.
+
+        It enters at phase 2, like a re-search, because there is no work list to
+        draw up or approve: the curator named every work, by its item. It is
+        priced at nothing, because phase 2 asks free sources and nothing here
+        asks a model.
+
+        **A work the curator rejected before is not suppressed here.** Suppression
+        stops phase 1 proposing a declined work again; choosing it by name is the
+        curator reconsidering it, which `propose_work` only allows when asked for
+        explicitly, and a Get is that request.
+        """
+        if not works:
+            raise ServiceError("A Get needs at least one work.")
+        chosen = list({work.qid: work for work in works}.values())
+        with self._store.transaction():
+            run = DiscoveryRun(
+                id=str(uuid.uuid4()),
+                kind=RunKind.GET,
+                initiated_by=require_member(initiated_by, enum=InitiatedBy, field="initiated_by"),
+                status=RunStatus.RESOLVING_IMAGES,
+                approval_required=False,
+                started_at=datetime.now(UTC),
+                estimated_cost_usd=Decimal(0),
+            )
+            store_write(self._store.add_run, run)
+            for work in chosen:
+                title = require_text(work.title, field="title")
+                store_write(
+                    self._store.add_candidate_work,
+                    CandidateWork(
+                        id=str(uuid.uuid4()),
+                        discovery_run_id=run.id,
+                        proposed_title=title,
+                        proposed_artist=work.artist,
+                        rationale=f"You chose this from Wikidata ({work.qid}).",
+                        work_dedup_key=work_dedup_key(title=title, artist=work.artist),
+                        provenance=WorkProvenance.CHOSEN,
+                        wikidata_qid=work.qid,
+                    ),
+                )
+        return run
+
+    def items_being_got(self) -> frozenset[str]:
+        """The Wikidata items a Get still under way is looking for."""
+        return frozenset(
+            work.wikidata_qid
+            for run in self._store.list_runs(kind=RunKind.GET)
+            if not run.status.is_terminal
+            for work in self._store.list_candidate_works(run.id)
+            if work.wikidata_qid is not None
+        )
+
     def covered_works(self, resolve_run_id: str) -> Sequence[CandidateWork]:
         """Which works a resolve run is re-searching — its scope, not its provenance."""
         run = self.get_run(resolve_run_id)
@@ -623,10 +691,11 @@ class DiscoveryService:
             # Kind before status: a resolve run is never in `resolving_works`, so
             # the status refusal would reach it first and answer a question it did
             # not ask — and this guard would be a branch nothing could enter.
-            if self.get_run(run_id).kind is not RunKind.DISCOVERY:
+            kind = self.get_run(run_id).kind
+            if kind is not RunKind.DISCOVERY:
                 raise ServiceError(
-                    f"Run {run_id!r} is a resolve run, which re-searches works an earlier run proposed "
-                    "rather than proposing new ones."
+                    f"Run {run_id!r} is a {kind} run, whose works were named before it started; "
+                    "only a discovery run proposes works."
                 )
             self._require_status(run_id, RunStatus.RESOLVING_WORKS, doing="propose works")
             if not reconsider and self.is_work_suppressed(key):
@@ -677,10 +746,11 @@ class DiscoveryService:
         """
         key = require_text(work_dedup_key, field="work_dedup_key")
         with self._store.transaction():
-            if self.get_run(run_id).kind is not RunKind.DISCOVERY:
+            kind = self.get_run(run_id).kind
+            if kind is not RunKind.DISCOVERY:
                 raise ServiceError(
-                    f"Run {run_id!r} is a resolve run, which re-searches works an earlier run proposed rather "
-                    "than offering new ones."
+                    f"Run {run_id!r} is a {kind} run, whose works were named before it started; "
+                    "only a discovery run is offered works."
                 )
             self._require_status(run_id, RunStatus.RESOLVING_IMAGES, doing="offer works")
             if self.is_work_suppressed(key):
@@ -1194,7 +1264,13 @@ class DiscoveryService:
         if attributed.mint is not None:
             minted = self._catalogue.add_artist(name=attributed.mint)
         artist = attributed.matched if minted is None else minted
-        artwork = self._catalogue.add_artwork(title=work.proposed_title, artist_id=None if artist is None else artist.id)
+        artwork = self._catalogue.add_artwork(
+            title=work.proposed_title,
+            artist_id=None if artist is None else artist.id,
+            # The item the curator chose the work by. Works may share one (a
+            # duplicate the Artist page shows as *Held ×2*), so nothing is refused.
+            wikidata_qid=work.wikidata_qid,
+        )
         for image in images:
             self._catalogue.add_source(
                 artwork_id=artwork.id,
@@ -1294,9 +1370,9 @@ class DiscoveryService:
         `discovery_run_id` is its provenance and never changes; coverage records
         which run is re-searching it, which changes every time one does.
         """
-        if run.kind is RunKind.DISCOVERY:
-            return self._store.list_candidate_works(run.id)
-        return [self.get_candidate_work(coverage.candidate_work_id) for coverage in self._store.list_coverage_by_run(run.id)]
+        if run.kind is RunKind.RESOLVE:
+            return [self.get_candidate_work(coverage.candidate_work_id) for coverage in self._store.list_coverage_by_run(run.id)]
+        return self._store.list_candidate_works(run.id)
 
     def _descendants(self, run_id: str) -> list[str]:
         """Every resolve run below this one, however deep the chain goes."""
