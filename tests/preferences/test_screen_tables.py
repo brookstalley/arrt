@@ -66,6 +66,7 @@ SCREEN_NAMES = {
     "collection": "Artworks",
     "discover": "Add New",
     "work": "Work",
+    "search": "Search results",
     "run": "Run",
     "conversation": "Conversation",
     "review": "Review",

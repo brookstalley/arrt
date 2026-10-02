@@ -65,3 +65,42 @@ def test_a_cultures_name_finds_a_person_only_dates_keep_out(registry):
     found = registry.people_named("Moche")
 
     assert found, "the search no longer turns 'Moche' into a person; the undated rule is now belt and braces"
+
+
+def test_a_name_with_only_a_language_neutral_label_is_still_a_name(registry):
+    """Mark Rothko's name is a `mul` label, with no `en` one (measured 2026-10-01)."""
+    found = {person.qid: person.label for person in registry.people_named("Mark Rothko")}
+
+    assert found.get("Q160149") == "Mark Rothko"
+
+
+def test_one_work_pairs_its_number_with_its_holder(registry):
+    """The owner's held Rothko, ARTIC 100472 above, as its own page reads it."""
+    work = registry.work("Q20270685")
+
+    assert work is not None and [c.name for c in work.creators] == ["Mark Rothko"]
+    assert [(h.name, h.inventory) for h in work.holders] == [("Art Institute of Chicago", "1983.509")]
+
+
+def test_a_title_search_finds_the_painting_and_not_the_tv_series(registry):
+    """The index filter on artwork classes, measured 2026-10-01 (`wikidata-findings.md`)."""
+    found = registry.works_matching(["the", "persistence"], prefix=True, limit=5)
+
+    assert found and found[0].qid == "Q25729"
+    assert found[0].creator is not None and found[0].creator.name == "Salvador Dalí"
+    assert not any(
+        match.title in {"Kojak", "Power Girl", "Wikidata"} for match in registry.works_matching(["starr"], prefix=True, limit=5)
+    )
+
+
+def test_similar_artists_come_back_with_image_counts(registry):
+    """Rothko's list began with Pollock, who has no free image (measured 2026-10-01)."""
+    found = registry.similar_to("Q160149", limit=12)
+
+    assert len(found) >= 5
+    assert any(person.name == "Jackson Pollock" and person.images == 0 for person in found)
+
+
+def test_an_item_that_exists_is_named_and_one_that_does_not_is_none(registry):
+    assert registry.label_of("Q160149") == "Mark Rothko"
+    assert registry.label_of("Q999999999999") is None

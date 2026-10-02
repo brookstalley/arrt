@@ -400,12 +400,25 @@ def a_billed_failure(message: str = "The model returned no usable answer.") -> C
 class FakeRegistry:
     """A `Registry` answering from tables, which remembers what it was asked.
 
-    `artists` maps a QID to the `RegistryArtist` `artist()` returns; `failing`
-    makes every question raise `RegistryUnavailable`, which is how an outage
-    reaches the page.
+    `artists` maps a QID to the `RegistryArtist` `artist()` returns, and `works` a
+    QID to the `RegistryWork` `work()` returns; `failing` makes every question
+    raise `RegistryUnavailable`, which is how an outage reaches the page.
     """
 
-    def __init__(self, *, items=None, creators=None, people=None, artists=None, extra_works=None, failing=False):
+    def __init__(
+        self,
+        *,
+        items=None,
+        creators=None,
+        people=None,
+        artists=None,
+        extra_works=None,
+        works=None,
+        matches=None,
+        similar=None,
+        missing=None,
+        failing=False,
+    ):
         self.items = items or {}
         self.creators = creators or {}
         self.people = people or {}
@@ -413,9 +426,24 @@ class FakeRegistry:
         #: Works `artist()` lists only when asked to include them by QID: the
         #: held ones beyond the most renowned.
         self.extra_works = extra_works or {}
+        #: QID → `RegistryWork`, what `work()` answers; an absent QID is an item
+        #: the registry does not have.
+        self.works = works or {}
+        #: The words searched, joined by a space → the `RegistryWorkMatch`es
+        #: `works_matching` answers; anything else finds nothing.
+        self.matches = matches or {}
+        #: QID → the `RegistrySimilar`s `similar_to` answers.
+        self.similar = similar or {}
+        self.similar_asked: list[str] = []
+        #: QIDs `label_of` answers None for: items the registry does not have.
+        #: Every other QID exists, named by whatever table here knows it.
+        self.missing = set(missing or ())
+        self.matched: list[tuple[str, bool]] = []
+        self.limits: list[int] = []
         self.failing = failing
         self.searched: list[str] = []
         self.asked_about: list[str] = []
+        self.works_asked: list[str] = []
 
     def _check(self):
         if self.failing:
@@ -442,3 +470,26 @@ class FakeRegistry:
         listed = {entry.qid for entry in known.works}
         added = tuple(self.extra_works[extra] for extra in include if extra in self.extra_works and extra not in listed)
         return replace(known, works=known.works + added)
+
+    def works_matching(self, words, *, prefix, limit):
+        self._check()
+        self.matched.append((" ".join(words), prefix))
+        self.limits.append(limit)
+        return self.matches.get(" ".join(words), [])[:limit]
+
+    def label_of(self, qid):
+        self._check()
+        if qid in self.missing:
+            return None
+        known = self.artists.get(qid) or self.works.get(qid)
+        return getattr(known, "name", None) or getattr(known, "title", None) or qid
+
+    def similar_to(self, qid, *, limit):
+        self._check()
+        self.similar_asked.append(qid)
+        return self.similar.get(qid, [])[:limit]
+
+    def work(self, qid):
+        self._check()
+        self.works_asked.append(qid)
+        return self.works.get(qid)

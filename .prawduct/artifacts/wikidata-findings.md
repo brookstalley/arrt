@@ -112,6 +112,152 @@ sitelink count, image (`P18`) and collection (`P195`):
   the item carrying its identifier, and about a fifth of Rothko's top fifty
   have no English or `mul` label at all.
 
+## Searching for works, and similar artists (one-world search)
+
+Measured 2026-10-01 for `build-plan-one-world-search.md`, two runs of each
+query, same User-Agent.
+
+**Finding works by title.** Two search calls are reachable through the query
+service's `wikibase:mwapi`, and they answer different questions:
+
+| Query | `EntitySearch` (label prefix, as `people_named` uses) | `Search` with `haswbstatement:P170` (full text) |
+|---|---|---|
+| `persistence of memory` | J.C. Heywood's *Persistence of Memory* only; Dalí's is missed | Dalí's (48 sitelinks), then his *Disintegration of…*, then Heywood's |
+| `hunters in the snow` | Brueghel the Younger, Heymans, Courbet; the Elder's is missed | Brueghel the Elder's (39) first |
+| `starry night` | van Gogh (76), then *Over the Rhone* (38) | the same |
+| `starr` (a typed prefix) | van Gogh's two, then Munch | comics and TV ("Power Girl"); `starr*` gives van Gogh's two, then *Reign* and *Kojak* |
+| time per query | 0.3–0.9 s | 0.4–1.2 s |
+
+- **`EntitySearch` misses any title that starts with "The"** unless the curator
+  types the article, because it matches labels and aliases from their start. The
+  owner's own first test, *The Persistence of Memory*, is such a title.
+- **Full text finds them, and lets in anything with a creator.** `P170` sits on
+  TV series, comics and software (*Kojak*, *Power Girl*, Wikidata itself for
+  `mona`). Sorting by sitelinks puts those near the top, because they are
+  famous. So full text needs a filter for works of visual art, and the filter's
+  cost is unmeasured.
+- **Neither search folds a missing accent the way the library does.** That was not
+  measured here; `dali` finding Salvador Dalí through `wbsearchentities` is.
+
+**The filter, chosen by measurement (Chunk 03's verify-api, 2026-10-01).** Four
+candidates, run on `persistence of memory`, `hunters in the snow`, `starry night`,
+`starr*`, `mona*` and `water lilies`:
+
+| Filter | Drops *Kojak*, *Power Girl*, Wikidata? | Worst time |
+|---|---|---|
+| none | no | 5.6 s (`mona*`) |
+| item is a subclass of *work of art* (`P31/P279*` Q838948), in SPARQL | no: TV series sit under it | 57 s, and `mona*` timed out |
+| item is a subclass of *visual artwork* (Q4502142), in SPARQL | no | 49 s, and `mona*` timed out |
+| a creator whose occupation is under *visual artist*, in SPARQL | no (`starr*` kept *Kojak* and *Power Girl*) | 6.2 s |
+| **the search index's own `haswbstatement:P31=…`, one per class below** | **yes** | 7.9 s for `mona*`, 44 s for `david` |
+
+The classes, each read from `wbsearchentities` on the day: painting Q3305213,
+sculpture Q860861, drawing Q93184, print Q11060274, photograph Q125191, mural
+Q219423, watercolor painting Q18761202, work of art Q838948, triptych Q79218,
+panel painting Q55439. *fresco* and *tapestry* were dropped: their top search
+result was a surname and an album.
+
+**The index answers in 0.3 s; the time was the query service paging.** Asked
+directly, the search index answered `david` in 0.32 s. Inside SPARQL, `mwapi`
+follows the search's continuation through every page unless told
+`wikibase:limit`. With `wikibase:limit 50` and `srlimit 50`, two runs of nine
+queries (the six above, `david`, `the kiss`, `thinker`, `dal*`) took 0.37–0.85 s
+on the second run and 1.75 s at worst. Results, by sitelinks: `david` gives
+Michelangelo's *David*, then Jacques-Louis David's works; `dal*` gives Dalí's
+works, because the index matches more than titles; `the kiss` gives Klimt,
+Hayez, Eisenstaedt and Rodin; `thinker` includes Rodin's.
+
+**A name filtered by language is a coin toss between `en` and `mul`.** Selecting a
+maker's label with `FILTER(LANG(?l) IN ("en","mul"))` and `SAMPLE` returned
+"Pieter Bruegel" in one run and "Pieter Brueghel the Elder" in the next, because an
+item carrying both labels gives two rows and SAMPLE takes either. The label
+service's explicit form (`?maker rdfs:label ?makerLabel` inside `SERVICE
+wikibase:label`) prefers `en` and falls back to `mul`, and it binds inside an
+aggregating query, where its implicit form did not. Every name the client reads
+now comes through it.
+
+**Similar artists, from shared movements (`P135`).** People sharing a movement,
+ranked by sitelinks, kept only if they made at least one work with an image:
+
+| Artist | Movements | Top of the list | Time |
+|---|---|---|---|
+| Renoir (Q39931) | Impressionism | Matisse, Octave Mirbeau, Monet, Gauguin, Degas, Manet, Cassatt, Pissarro | 0.8–1.3 s |
+| Rothko (Q160149) | abstract expressionism | Bourgeois, de Kooning, Appel, Gorky, Newman | 0.4–1.5 s |
+| Dalí (Q5577) | surrealism | Picasso, Kahlo, Miró, David Lynch, Klee, Buñuel, Duchamp, Ernst | 0.4 s |
+| van Gogh (Q5582) | Expressionism, Post-impressionism | four minor painters sharing both, then Picasso, Matisse, Cézanne, Gauguin, Munch | 0.9 s |
+
+- **Ranking by the number of shared movements promotes obscure people.** For van
+  Gogh, four painters with 5 to 25 sitelinks come first because they share both
+  movements. Fame first, then shared movements, reads better on every artist
+  measured.
+- **Movements admit people who are not painters.** Octave Mirbeau is a critic
+  and novelist, Buñuel and Lynch are filmmakers, and Captain Beefheart appears
+  for Rothko without the image filter. The image filter removes some of them but
+  not all. An occupation filter (visual artist, as `people_named` uses) is the
+  next thing to try.
+- **Influence links (`P737`) are sparse and one-sided.** Renoir has 7, all
+  *influenced*, all minor; Dalí has 12 (Picasso, Bosch and Nietzsche among
+  *influenced by*). They are too few to rank, and are useful as a second section
+  at most.
+
+**One work by QID** (for the Work page of a work not held), measured on three
+works: the owner's held Rothko *Untitled (Purple, White, and Red)* (Q20270685,
+the live test's ARTIC 100472), *The Hunters in the Snow* (Q500985, from
+`wbsearchentities`), and Rothko's most-linked work with no English or `mul`
+label (Q16682090, from a query). One query each, 0.24–0.49 s:
+
+| Work | Title | Year | Image | Medium (`P186`) | Collection (`P195`) | Inventory (`P217`) |
+|---|---|---|---|---|---|---|
+| Q20270685 | *Untitled (Purple, White, and Red)* | 1953 | none | oil paint, canvas | Art Institute of Chicago | 1983.509 |
+| Q500985 | *The Hunters in the Snow* | 1565 | a Commons file | panel, oil paint | Kunsthistorisches Museum | GG_1838 |
+| Q16682090 | the QID itself | 1964 | none | oil paint, canvas | Musée National d'Art Moderne (twice) | AM 2007-126 |
+
+- **Names need `mul` as well as `en`.** Mark Rothko (Q160149) has a `mul` and an
+  `en-gb` label and no `en` one, so a creator label filtered to `en` came back
+  empty for both Rothkos. Every label the work query asks for goes through
+  `en,mul`, as `_LABELS` already says.
+- **`people_named` had this defect, and it is fixed.** It asked the label
+  service for `"en"` alone, and live it returned `Q160149` as Mark Rothko's label.
+  It now asks for `en,mul` like every other query, and the live test pins
+  Rothko's name (`build-plan-one-world-search.md` Chunk 02).
+- **An inventory number belongs to a collection.** `P217` carries the collection
+  as a `P195` qualifier (GG_1838 at the Kunsthistorisches Museum; 1983.509 at the
+  Art Institute). A work held in two places has two numbers, so the pair is read
+  together and not as two lists.
+- **Collections repeat**, as Q16682090's does, when a work has two `P195`
+  statements naming one collection. The page de-duplicates by QID.
+- **A work with no readable title** shows its QID as the label, as on the Artist
+  page, and is shown there as *No English title (Q…)*.
+
+**Similar artists with the occupation filter (Chunk 05's verify-api, 2026-10-01).**
+People sharing a movement, whose occupation is under *visual artist* (Q3391743, as
+`people_named` uses), ranked by sitelinks, with a second query counting each
+one's works that have an image (`P170` and `P18`):
+
+| Artist | Time (second run) | Top of the list, with works having an image |
+|---|---|---|
+| Renoir | 7.4 s, then 0.4 s for images | Matisse 507, Monet 1,286, Gauguin 739, Degas 649, Manet 443, Cassatt 255 |
+| Rothko | 2.2 s, then 0.4 s | Pollock 0, Bourgeois 7, de Kooning 3, Appel 8, Gorky 35, Captain Beefheart 0 |
+| Dalí | 5.2 s, then 0.5 s | Picasso 14, Kahlo 1, Miró 25, David Lynch 1, Klee 525, Buñuel 2, Breton 0 |
+| van Gogh | 4.3 s, then 0.4 s | Picasso 14, Matisse 507, Bhumibol Adulyadej 0, Cézanne 808, Gauguin 739, Munch 1,963 |
+
+- **The filter drops Octave Mirbeau and keeps everyone Wikidata also calls a
+  painter**: André Breton, Tristan Tzara and Paul Éluard for Dalí, Captain
+  Beefheart for Rothko, and the King of Thailand for van Gogh. Each has a
+  painter-like occupation recorded. No filter tried removes them without losing
+  real painters.
+- **Requiring an image would be wrong.** Pollock has none (in copyright) and is
+  Rothko's first. The count is shown instead, as `ia-proposal.md` § Artist asks,
+  so a curator sees that nobody can supply a Pollock before committing to him.
+- **Ranking by sitelinks first** keeps the obscure out of the top, as the earlier
+  table found.
+- **2 to 7 seconds** is too slow to wait for, so the section is asked after the
+  page is drawn, like *Their work*, and remembered per artist.
+
+A wrong figure that was caught: the first run used Q5432 for Dalí, typed from
+memory. It is another person, with Romanticism and Rococo as movements. Every
+QID above was read from a search result or from this document.
+
 ## Reproducing
 
 The probes were scratch scripts, not product code: a SPARQL helper with the

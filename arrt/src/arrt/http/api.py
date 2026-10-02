@@ -73,8 +73,14 @@ from arrt.http.models import (
     MoveWork,
     OriginalOut,
     PlayerTokenOut,
+    RegistryCreatorOut,
+    RegistryHolderOut,
     RegistryHoldingOut,
+    RegistryPersonFoundOut,
+    RegistrySearchOut,
+    RegistryWorkFoundOut,
     RegistryWorkOut,
+    RegistryWorkPageOut,
     RenameTheme,
     RenditionOut,
     RunListOut,
@@ -88,6 +94,8 @@ from arrt.http.models import (
     SetAffinity,
     SetIdentity,
     SetVerdict,
+    SimilarArtistOut,
+    SimilarArtistsOut,
     SourceOut,
     Speak,
     SpendOut,
@@ -109,7 +117,7 @@ from arrt.http.models import (
     WorkOut,
     WorkPageOut,
 )
-from arrt.library.services.artists import HeldArtist
+from arrt.library.services.artists import HeldArtist, RegistryView
 from arrt.library.services.catalogue import FacetGroup, RenditionView
 from arrt.library.services.conversation import ConversationDeletion, ConversationView, TurnView
 from arrt.library.services.discovery import VerdictOutcome
@@ -270,12 +278,121 @@ def get_artist_registry(request: Request, artist_id: str) -> ArtistRegistryOut:
     configured, cannot be asked, or has nothing for this artist is a state the
     page shows, named in `state` and said in `note`.
     """
-    view = _services(request).artists.registry_view(artist_id)
+    return _artist_registry(_services(request).artists.registry_view(artist_id))
+
+
+@router.get("/registry/artists/{qid}")
+def get_registry_artist(request: Request, qid: str) -> ArtistRegistryOut:
+    """What Wikidata knows about an artist reached by QID, whether or not the library holds them.
+
+    The same shape and states as an artist's `/registry`, but `no_identity` cannot
+    occur. When the library holds an artist with this QID, `state` is `held`,
+    `artist_id` names them, the page goes there instead, and the registry is not
+    asked. A malformed QID is a 400.
+    """
+    held, view = _services(request).artists.registry_view_by_qid(qid)
+    return _artist_registry(view, artist_id=held)
+
+
+@router.get("/registry/search")
+def search_registry(
+    request: Request,
+    q: Annotated[str, Query()] = "",
+    prefix: Annotated[bool, Query()] = False,
+    wide: Annotated[bool, Query()] = False,
+) -> RegistrySearchOut:
+    """Wikidata's artists and works for a few typed words, the other half of the top-bar search.
+
+    `prefix=true` reads the last word as the start of one, as the typeahead does
+    mid-word; `wide=true` returns the results page's longer lists. Always a 200:
+    `state` says whether anything was asked and what the registry did.
+    Remembered per query; a failure is not.
+    """
+    found = _services(request).registry_search.search(q, prefix=prefix, wide=wide)
+    held_artists, held_works = found.held_artists, found.held_works
+    return RegistrySearchOut(
+        state=str(found.state),
+        note=found.note,
+        artists=[
+            RegistryPersonFoundOut(qid=p.qid, name=p.label, born=p.born, died=p.died, artist_id=held_artists.get(p.qid))
+            for p in found.artists
+        ],
+        works=[
+            RegistryWorkFoundOut(
+                qid=w.qid,
+                title=w.title,
+                sitelinks=w.sitelinks,
+                image=w.image,
+                creator=(
+                    None
+                    if w.creator is None
+                    else RegistryCreatorOut(qid=w.creator.qid, name=w.creator.name, artist_id=held_artists.get(w.creator.qid))
+                ),
+                held_artwork_ids=list(held_works.get(w.qid, ())),
+            )
+            for w in found.works
+        ],
+    )
+
+
+@router.get("/registry/artists/{qid}/similar")
+def get_similar_artists(request: Request, qid: str) -> SimilarArtistsOut:
+    """*Similar artists* for the Artist page, by the artist's QID, held or not.
+
+    Asked after the page is drawn: the query takes one to seven seconds. Always a
+    200 for a well-formed QID; a malformed one is a 400.
+    """
+    view = _services(request).artists.similar(qid)
+    return SimilarArtistsOut(
+        state=str(view.state),
+        note=view.note,
+        artists=[
+            SimilarArtistOut(qid=p.qid, name=p.name, born=p.born, died=p.died, images=p.images, artist_id=view.held.get(p.qid))
+            for p in view.people
+        ],
+    )
+
+
+@router.get("/registry/works/{qid}")
+def get_registry_work(request: Request, qid: str) -> RegistryWorkPageOut:
+    """One work as Wikidata knows it, and the library's works that are it, for the Work page by QID.
+
+    Always a 200 for a well-formed QID: `state` says what the registry did, and
+    `held_artwork_ids` is filled whatever it did. A malformed QID is a 400.
+    """
+    view = _services(request).registry_works.view(qid)
+    known = view.known
+    return RegistryWorkPageOut(
+        state=str(view.state),
+        note=view.note,
+        qid=qid,
+        title=None if known is None else known.title,
+        year=None if known is None else known.year,
+        sitelinks=None if known is None else known.sitelinks,
+        image=None if known is None else known.image,
+        creators=(
+            []
+            if known is None
+            else [RegistryCreatorOut(qid=c.qid, name=c.name, artist_id=view.artists.get(c.qid)) for c in known.creators]
+        ),
+        media=[] if known is None else list(known.media),
+        holders=(
+            [] if known is None else [RegistryHolderOut(qid=h.qid, name=h.name, inventory=h.inventory) for h in known.holders]
+        ),
+        held_artwork_ids=list(view.held),
+    )
+
+
+def _artist_registry(view: RegistryView, *, artist_id: str | None = None) -> ArtistRegistryOut:
     known = view.known
     return ArtistRegistryOut(
         state=str(view.state),
         note=view.note,
         qid=None if known is None else known.qid,
+        name=None if known is None else known.name,
+        born=None if known is None else known.born,
+        died=None if known is None else known.died,
+        artist_id=artist_id,
         description=None if known is None else known.description,
         movements=[] if known is None else list(known.movements),
         works=(

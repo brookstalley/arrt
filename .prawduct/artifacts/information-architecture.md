@@ -133,13 +133,14 @@ Priority is **core** (on a stated core flow) or **supporting**.
 |---|---|---|---|
 | **Walls** | What is hanging right now on each display, the theme it is drawn from, and what is next. | The sidebar; after activating a theme | core (flow 6) |
 | **Artworks** | Everything acquired. Find, sort, filter, group, organise into themes, archive. The product's home. *(Collection until 2026-09-30.)* | Launch; the sidebar; search from anywhere; from a theme; after a run's accepted works land | core (flows 3, 5) |
-| **Work** | One work at full size, with its sources, renditions, mat history and theme membership. | A tile in Artworks; a tile on a Wall; a row in Review | core (flows 4, 5) |
+| **Work** | One work at full size, with its sources, renditions, mat history and theme membership. At `#work/Q…`, a work Wikidata knows that the library does not hold: its image found or none, its facts, its holder and number there, *Search museums for this work*, and the rest of its artist's work; the library's own page replaces it, in place, when the library holds it. *(QID form built 2026-10-01, ruling 2.)* | A tile in Artworks; a tile on a Wall; a row in Review; a title in an artist's *Their work* or a work's *More by* | core (flows 4, 5) |
+| **Search results** | Everything a few words find, in one world (ruling 2): the library's artists and works first, then Wikidata's that the library does not already show, each marked ● *In your library*, ◐ *Image found* or ○ *Not held*; *All*, *In your library* and *Not held* narrow it; a top result when the words name one artist. *(Built 2026-10-01, `build-plan-one-world-search.md` Chunk 04.)* | The dropdown's last row, *All results for "…"*; its own address (`#search?q=`) | core (S2, S3) |
 | **Add New** | Asking for something new: the direct intent box and the conversations, with a run's progress shown in the thread that started it. *(Discover until 2026-09-30, when it also listed every run.)* | The sidebar, under Artworks; "find something new" on the Walls and on an empty Artworks | core (flows 1, 2) |
 | **Queue** *(new)* | The searches that have not ended: working, or stopped at the approval gate. | The sidebar, under Activity | core (flow 2) |
 | **History** *(new)* | The searches that have ended, with how each ended. | The sidebar, under Activity | supporting |
 | **Run** | One discovery run while it works and after it stops: what it proposed, what it found images for, the gate where phase 2 is approved, and its work table. | Queue or History; Add New, as it starts; a re-search started on the review grid; its own address | core (flow 2) |
 | **Review** | Judging one run's candidates: accept, reject, choose a scan, ask for a better one. | A finished run, from History or its own page; the run's own notification | core (flow 3) |
-| **Artists** | The artists the library holds, with how many works of theirs are in circulation; and at its own address one artist as the hub: who they are, what the library holds of theirs, what Wikidata lists with the held ones marked, and which collections hold their work. *(Built 2026-10-01, ruling 4; Similar artists waits for the next plan.)* | The sidebar, under Artworks; an artist's name on a work card, a table row or the Work page; the top-bar search's Artists group; its own address | core (S2, S3, S11) |
+| **Artists** | The artists the library holds, with how many works of theirs are in circulation; and at its own address one artist as the hub: who they are, what the library holds of theirs, what Wikidata lists with the held ones marked, and which collections hold their work. At `#artist/Q…`, an artist Wikidata knows that the library does not hold: the registry half alone, saying nothing of theirs is held; the library's page replaces it, in place, when the library holds them. Below Holdings, *Similar artists*: visual artists sharing a movement, by renown, each with how many of their works have an image, and ● where the library holds them. Under the name, which Wikidata item this is, who set it, and a control to change it (looked up and shown before it is stored) or say there is none (confirmed). *(Built 2026-10-01, ruling 4; the QID form, Similar artists and the control the same day, `build-plan-one-world-search.md`.)* | The sidebar, under Artworks; an artist's name on a work card, a table row or the Work page (either form); the top-bar search's Artists group; its own address | core (S2, S3, S11) |
 | **Themes** | The themes there are, and — at its own address — one of them: its members in curated order, its name, the act of hanging it, and which theme is the default that accepted works join. | The sidebar, under Artworks; Artworks' theme rail; a wall's theme control; its own address | core (flows 5, 6) |
 | **Status** | The three observations the panel states, and the spend record. *(Health until 2026-09-30.)* | The sidebar, under System; the top bar's status indicator; a failure's own link | supporting |
 | **Conversation** *(new)* | One intent-forming thread, its samples, and what it committed to. | Add New; the conversation list; an affinity's provenance | core (flow 1) |
@@ -272,6 +273,19 @@ listed below so it can be disputed.
     marked *"Already in your library"*, and clicking it opens the library entry
     instead of the add dialog.
 
+  **One world, since 2026-10-01** (ruling 2, `build-plan-one-world-search.md`
+  Chunk 03): the dropdown's groups are *Artists* and *In your library* (the
+  library's), *Themes* (by name), then *Wikidata: artists* and *Wikidata: works*,
+  then *Add New*, then *Search*, whose one row, *All results for "…"*, opens
+  the Search results page. Wikidata's rows arrive after the library's and never hold them
+  back, are asked from the third letter, carry a mark of glyph, word and colour (● *In
+  your library*, ◐ *Image found*, ○ *Not held*), leave out what the library's rows already show, and open the library's
+  page for a held match and the page by QID otherwise. Their arrival is announced
+  in a polite live region and moves no highlight; a new query starts with none, so
+  Enter is never sent to a row the curator did not choose. Wikidata off or down is said
+  in a note where its rows would be, in its own class, apart from the library's
+  note. Enter is unchanged (the owner, 2026-10-01: Enter stays on Artworks).
+
   Arrt follows that shape. The groups are *In your library* and *Add New*,
   named as Sonarr names its second group for the page it opens, and the Add
   New row reads *Search museums for "{query}"*. Picking it goes to
@@ -289,7 +303,9 @@ listed below so it can be disputed.
     keeps today's behaviour, where search is the main way to find things at
     thousands of works. The matches in the dropdown are still one arrow key
     away. *(Ruled by the owner 2026-09-30: "yes to filtered to the query". This is
-    a recorded departure from the *arr precedent, for the reason above.)*
+    a recorded departure from the *arr precedent, for the reason above. **Kept by
+    the owner 2026-10-01**, when one-world search offered a results page for
+    Enter instead: the page is reached from the dropdown's last row.)*
   - **A held work keeps a quieter *Accept anyway*.** Sonarr's card for a series
     already in the library offers no add at all, because a TVDB id makes
     "already held" certain. Arrt's is found by title and artist, which two
@@ -325,8 +341,8 @@ rules that apply to all of them.
 
 - **Persistent:** the sidebar (a drawer behind the menu button below 40rem), the
   search box, and the status indicator, in the top bar on every page.
-- **Contextual:** everything that is not a sidebar page. Work, Run, Review and
-  Conversation are reached *from* a page and return to it. A page showing one
+- **Contextual:** everything that is not a sidebar page. Work, Run, Review,
+  Conversation and Search results are reached *from* a page and return to it. A page showing one
   of its own things — one theme, at `#theme/<id>` — is contextual in the same
   way, and returns to whichever page opened it.
 - **Status is a page under System**, with Sonarr's count badge on System. The
@@ -671,7 +687,8 @@ who did not edit this table.
 |---|---|---|---|---|
 | Walls | Each wall's hanging work, large | Title, artist, theme, which wall | Change theme, next, open work, issue or rotate the wall's Player token *(added 2026-09-30: the token is shown once, in place, and rotating asks first)* | Panel + TV health, quietly |
 | Artworks | The grid of images | Counts, active filters | Search, filter, select, add to theme, archive | Total, and what is filtered out |
-| Work | The image at full size | Artist, facets, mat colour, rendition size | Theme membership, re-mat, archive | Fit verdict, image state |
+| Work | The image at full size; for a work not held, the image Wikidata found, or none | Artist, facets, mat colour, rendition size; for a work not held, its date, medium, and holder with number | Theme membership, re-mat, archive, change the Wikidata item or say there is none; for a work not held, *Search museums for this work*, its artist, and the rest of their work | Fit verdict, image state; for a work not held, *Not held* (○), or *Not held · Image found* (◐) |
+| Search results | The artists and works the words find, artists first | Each artist's years; each work's maker; how many library works match beyond those listed | Open any result; switch *All*, *In your library*, *Not held*; open the library's matches in Artworks; *Search museums* when Wikidata has nothing | Each result's mark; whether Wikidata answered |
 | Add New | The intent box and the conversations | Samples inline | Type, react, commit, start direct | Run progress, spend |
 | Queue | The searches in flight | What each asked for, and when | Open a search | Which state each is in |
 | History | The searches that ended | What each asked for, and when | Open a search | How each ended |
@@ -680,7 +697,7 @@ who did not edit this table.
 | Taste | The judgments, grouped by kind | Sentiment, openness, and how the claim was derived | React, correct, forget, follow a claim back to its turn | Which claims the product inferred rather than was told |
 | Review | The candidate picture | Title, artist, size on this wall | Accept, reject, choose scan, ask better | Verdict, provenance, resolution |
 | Themes | Members in wall order | Name, count | Reorder, rename, hang, make default, delete | Which walls it hangs on; whether it is the default (★ default) |
-| Artists | The artist: on the index, every held artist by name; on one artist's page, their held works, then what Wikidata lists | Life dates, nationality, Wikidata's description and movements; each listed work's year; the collections holding their work | Open an artist; select held works and add them to a theme; react (*More like this*, *Not this*); open a held work from its *Held* mark | Each listed work marked *Held* (●) or *Image found* (◐) or neither; whether Wikidata answered |
+| Artists | The artist: on the index, every held artist by name; on one artist's page, their held works, then what Wikidata lists | Life dates, nationality, Wikidata's description and movements; each listed work's year; the collections holding their work | Open an artist; select held works and add them to a theme; react (*More like this*, *Not this*); open a held work from its *Held* mark, and any listed work from its title; open a similar artist; change the Wikidata item or say there is none | Each listed work marked *Held* (●) or *Image found* (◐) or neither; whether Wikidata answered; for an artist not held, that nothing of theirs is held |
 | Status | The three observations | Spend history | — | The whole screen is status |
 
 **"Remove" is the wrong word for a *work*, and that control must not use it.**
@@ -794,7 +811,8 @@ almost no considered empty states.
 |---|---|---|---|
 | Walls | Nothing hanging on a wall: name the reason (no active theme / empty theme / display plane silent) and offer the fix for that reason specifically | The frame, then the image | Cannot reach the display plane — say which of the two planes answered |
 | Artworks | **Three different empties.** No works at all → an invitation into Add New. No works *matching the filter* → the filter, and how to clear it. **Filtered to one artist and holding none of them** → say so as a normal state and offer the search (see flow 1). Conflating the first two tells a curator with 3,000 works that they own nothing; conflating the third with the second reports the expected result of following a suggestion as a failed query | Skeleton tiles at the grid's real geometry, so nothing reflows | Partial page: show what arrived and say what did not |
-| Work | n/a | Image placeholder at the work's own aspect ratio | Named per missing part — a work with no rendition is not a failed page |
+| Work | n/a. For a work not held: Wikidata has no such item → "Wikidata has no such work", with the QID | Image placeholder at the work's own aspect ratio | Named per missing part — a work with no rendition is not a failed page. For a work not held, Wikidata not configured or not answering is said in a sentence, and its *More by* section says so on its own |
+| Search results | No words → a note to type in the search box. Nothing found in the library → its sections say "No artists." and "No works."; Wikidata found nothing → says so and offers *Search museums* (fills in Add New, starts nothing) | The library's sections first; *Asking Wikidata…* in a live region until Wikidata answers, nothing above it waiting | The library's refusal in the page's error banner; Wikidata off or down said in that live region, the library's results left standing |
 | Queue | Nothing in flight → say so, say what would appear here, and offer Add New. Over a truncated listing it says what it checked, since an older search may still be at the gate | Nothing until the listing arrives, then the heading and the table together | The request's refusal, in the page's error banner |
 | History | No search has finished → say so | Nothing until the listing arrives, then the heading and the table together | The request's refusal, in the page's error banner |
 | Add New | No conversations → the intent box, prominent, with two or three worked examples | Per-turn, in the thread | A failed turn stays in the thread and is retryable; it never silently vanishes |
@@ -802,7 +820,7 @@ almost no considered empty states.
 | Conversation | A thread with no turns → the intent box, with the same worked examples Add New offers | Per-turn, in the thread, with the turn in flight named as such | A failed turn stays in the thread and is retryable; it never silently vanishes |
 | Review | No candidates: which of the four kinds of nothing (Q12) | Per-card | Per-card, so one bad candidate does not blank the grid |
 | Themes | A theme with no members → how to add from Artworks | Skeleton rows | Inline |
-| Artists | No artists → say that accepted works bring them, and offer Add New. On one artist's page: no work in circulation → say so; **Wikidata's half has four states** (answered; the artist is not matched; no registry configured; Wikidata could not be asked), each said in a sentence in that section | The library half first; the registry section says *Asking Wikidata…* until it answers, and nothing above it waits | The library half's refusal in the page's error banner; the registry's failure only in its own section, the library half left working. An address naming no artist → "That artist is not here", and a way to all artists |
+| Artists | No artists → say that accepted works bring them, and offer Add New. On one artist's page: no work in circulation → say so; **Wikidata's half has four states** (answered; the artist is not matched; no registry configured; Wikidata could not be asked), each said in a sentence in that section | The library half first; the registry section says *Asking Wikidata…* until it answers, and nothing above it waits | The library half's refusal in the page's error banner; the registry's failure only in its own section, the library half left working. An address naming no artist → "That artist is not here", and a way to all artists. At `#artist/Q…` the registry half is the page, with the same states in its own section under the header |
 | Taste | No affinities yet → what would create some | — | Inline |
 | Status | n/a — every observation has a value, and "never reported" is one of them | Per observation, so a slow plane does not hold the other two | **A plane that cannot be reached is an observation, not a failed page.** This screen's subject is failure, so rendering an error over it would hide the thing it was opened to show |
 

@@ -11,6 +11,11 @@ for the most renowned, says how many more there are, and the answer is kept per
 artist for the life of the process. A failure is not kept, so the next visit asks
 again.
 
+**An artist the library does not hold has a page too**, addressed by QID: the
+registry half alone, with every listed work still marked *Held* where the
+library holds it. A QID that names an artist the library does hold answers with
+that artist's id, so the page can send the curator to the full one.
+
 **The works the library holds are always listed**, after the most renowned, so
 they can be marked *Held*. Run against the owner's catalogue the first version
 listed only the top fifty by renown, and none of the owner's Rothkos or their
@@ -18,14 +23,13 @@ Dalí was among them: the page that exists to say what is held said it of nothin
 """
 
 import logging
-import threading
-from collections import OrderedDict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Final
 
-from arrt.library.registry import Registry, RegistryArtist, RegistryUnavailable
+from arrt.library.registry import Registry, RegistryArtist, RegistrySimilar, RegistryUnavailable
+from arrt.library.services.remembered import NOT_CONFIGURED_NOTE, Remembered, checked_qid
 from arrt.persistence.catalogue import CatalogueStore, WorkQuery
 from arrt.persistence.folding import search_fold
 from arrt.persistence.records import Artist, ArtworkStatus
@@ -39,14 +43,13 @@ WORKS_SHOWN: Final[int] = 50
 #: How many holding collections it lists.
 HOLDINGS_SHOWN: Final[int] = 10
 
+#: How many similar artists it lists: enough for a next step, few enough that
+#: the query (one to seven seconds, `wikidata-findings.md`) stays bounded.
+SIMILAR_SHOWN: Final[int] = 12
+
 #: How many of the artist's own works are read to find the QIDs to list. Above
 #: any one artist's holding at the owner's scale.
 _THEIRS: Final[int] = 500
-
-#: How many artists' registry answers are remembered. Above the library's artist
-#: count by a margin, so a curator browsing artists never evicts the one they
-#: came from.
-_REMEMBERED: Final[int] = 512
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +71,9 @@ class RegistryState(StrEnum):
     NOT_CONFIGURED = "not_configured"
     #: The registry was asked and could not answer.
     UNAVAILABLE = "unavailable"
+    #: Asked for by QID, and the library holds this artist: their own page is the
+    #: answer, and the registry is not asked.
+    HELD = "held"
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,14 +90,25 @@ class RegistryView:
     held: Mapping[str, Sequence[str]] = field(default_factory=dict)
 
 
+@dataclass(frozen=True, slots=True)
+class SimilarView:
+    """The *Similar artists* section: who, or why there is nobody to show."""
+
+    state: RegistryState
+    note: str | None = None
+    people: Sequence[RegistrySimilar] = ()
+    #: The library's artist for each similar artist it holds, by QID.
+    held: Mapping[str, str] = field(default_factory=dict)
+
+
 class ArtistService:
     """Read the artists the library holds, and ask the registry about one."""
 
     def __init__(self, store: CatalogueStore, registry: Registry | None) -> None:
         self._store = store
         self._registry = registry
-        self._remembered: OrderedDict[tuple[str, tuple[str, ...]], RegistryArtist] = OrderedDict()
-        self._lock = threading.Lock()
+        self._remembered: Remembered[tuple[str, tuple[str, ...]], RegistryArtist] = Remembered()
+        self._similar: Remembered[str, Sequence[RegistrySimilar]] = Remembered()
 
     def index(self, q: str | None = None) -> Sequence[HeldArtist]:
         """Every artist with a work in circulation, by name; narrowed to names containing `q`, ignoring accents."""
@@ -117,26 +134,68 @@ class ArtistService:
                 state=RegistryState.NO_IDENTITY,
                 note="This artist is not matched to Wikidata, so there is nothing more to show about them yet.",
             )
-        if self._registry is None:
-            return RegistryView(
-                state=RegistryState.NOT_CONFIGURED,
-                note="Wikidata is not configured on this server (WIKIDATA_USER_AGENT is unset).",
-            )
-        # "Held" means in circulation, as *In your library* above it does, so an
-        # archived work is neither listed there nor marked here.
-        holdings = self._store.circulating_ids_by_qid()
         theirs = self._store.list_artworks(
             WorkQuery(status=ArtworkStatus.ACCEPTED, artist_id=artist.id), limit=_THEIRS, offset=0
         ).artworks
         mine = sorted({work.wikidata_qid for work in theirs if work.wikidata_qid})
-        try:
-            known = self._known(artist.wikidata_qid, mine, self._registry)
-        except RegistryUnavailable as exc:
-            log.warning("Could not ask Wikidata about %s (%s): %s", artist.name, artist.wikidata_qid, exc)
-            return RegistryView(
-                state=RegistryState.UNAVAILABLE,
-                note="Wikidata could not be asked just now. What the library holds is above; try again later.",
+        return self._view(
+            artist.wikidata_qid,
+            mine,
+            unavailable="Wikidata could not be asked just now. What the library holds is above; try again later.",
+        )
+
+    def registry_view_by_qid(self, qid: str) -> tuple[str | None, RegistryView]:
+        """An artist the curator reached by QID: the library's artist with it, or what the registry knows.
+
+        A held artist is answered from the library alone, so the page that sends
+        the curator to their own page never waits on the registry.
+        """
+        held = artist_ids_by_qid(self._store).get(checked_qid(qid))
+        if held is not None:
+            return held, RegistryView(state=RegistryState.HELD, note="The library holds this artist.")
+        return None, self._view(qid, (), unavailable="Wikidata could not be asked just now. Try again later.")
+
+    def similar(self, qid: str) -> SimilarView:
+        """Visual artists sharing a movement with this one, each marked where the library holds them.
+
+        Remembered per artist for the life of the process, as the rest of the
+        registry half is; a failure is not.
+        """
+        qid = checked_qid(qid)
+        if self._registry is None:
+            return SimilarView(
+                state=RegistryState.NOT_CONFIGURED,
+                note=NOT_CONFIGURED_NOTE,
             )
+        people = self._similar.get(qid)
+        if people is None:
+            try:
+                people = tuple(self._registry.similar_to(qid, limit=SIMILAR_SHOWN))
+            except RegistryUnavailable as exc:
+                log.warning("Could not ask Wikidata for artists like %s: %s", qid, exc)
+                return SimilarView(state=RegistryState.UNAVAILABLE, note="Wikidata could not be asked just now.")
+            self._similar.put(qid, people)
+        ours = artist_ids_by_qid(self._store)
+        return SimilarView(
+            state=RegistryState.KNOWN,
+            people=people,
+            held={person.qid: ours[person.qid] for person in people if person.qid in ours},
+        )
+
+    def _view(self, qid: str, mine: Sequence[str], *, unavailable: str) -> RegistryView:
+        if self._registry is None:
+            return RegistryView(
+                state=RegistryState.NOT_CONFIGURED,
+                note=NOT_CONFIGURED_NOTE,
+            )
+        # "Held" means in circulation, as *In your library* does, so an archived
+        # work is neither listed there nor marked here.
+        holdings = self._store.circulating_ids_by_qid()
+        try:
+            known = self._known(qid, mine, self._registry)
+        except RegistryUnavailable as exc:
+            log.warning("Could not ask Wikidata about %s: %s", qid, exc)
+            return RegistryView(state=RegistryState.UNAVAILABLE, note=unavailable)
         return RegistryView(
             state=RegistryState.KNOWN,
             known=known,
@@ -147,15 +206,26 @@ class ArtistService:
         # Keyed by what the library holds as well as by the artist, so a work
         # matched since the last visit is listed rather than served from memory.
         key = (qid, tuple(mine))
-        with self._lock:
-            if key in self._remembered:
-                self._remembered.move_to_end(key)
-                return self._remembered[key]
+        remembered = self._remembered.get(key)
+        if remembered is not None:
+            return remembered
         # Asked outside the lock: a query takes seconds, and another artist's page
         # must not wait for this one's.
         known = registry.artist(qid, works=WORKS_SHOWN, holdings=HOLDINGS_SHOWN, include=mine)
-        with self._lock:
-            self._remembered[key] = known
-            while len(self._remembered) > _REMEMBERED:
-                self._remembered.popitem(last=False)
+        self._remembered.put(key, known)
         return known
+
+
+def artist_ids_by_qid(store: CatalogueStore) -> dict[str, str]:
+    """Every catalogue artist carrying a QID, by it. Read whole: a few hundred rows at the library's scale.
+
+    One artist per QID is what the identity service now enforces, for the curator
+    and the matcher both. A catalogue written before that may hold two; then the
+    first by name answers, every time, rather than whichever the store returned
+    last, and the identity control is how the curator separates them.
+    """
+    found: dict[str, str] = {}
+    for artist in sorted(store.list_artists(), key=lambda artist: (artist.name.casefold(), artist.id)):
+        if artist.wikidata_qid:
+            found.setdefault(artist.wikidata_qid, artist.id)
+    return found

@@ -152,6 +152,28 @@ class TestArtists:
 
         assert store.get_artist(miro.id).wikidata_qid == "Q152384"
 
+    def test_one_item_is_never_given_to_two_artists(self, store, service):
+        """Two catalogue records of one person both match; the second is reported, not given the same QID."""
+        first = service.add_artist(name="Joan Miró", born=1893, died=1983)
+        second = service.add_artist(name="Joan Miró", born=1893, died=1983)
+        registry = FakeRegistry(people={"Joan Miró": [RegistryPerson(qid="Q152384", label="Joan Miró", born=1893, died=1983)]})
+
+        report = identity(store, registry).match()
+
+        qids = [store.get_artist(artist.id).wikidata_qid for artist in (first, second)]
+        assert qids.count("Q152384") == 1 and qids.count(None) == 1
+        assert report.artists_ambiguous == ("Joan Miró",)
+
+    def test_an_item_a_curator_gave_one_artist_is_not_matched_to_another(self, store, service):
+        held = service.add_artist(name="Joan Miró", born=1893, died=1983)
+        identity(store, None).set_artist_identity(held.id, "Q152384")
+        twin = service.add_artist(name="Joan Miró", born=1893, died=1983)
+        registry = FakeRegistry(people={"Joan Miró": [RegistryPerson(qid="Q152384", label="Joan Miró", born=1893, died=1983)]})
+
+        identity(store, registry).match()
+
+        assert store.get_artist(twin.id).wikidata_qid is None
+
     def test_a_name_alone_is_never_enough(self, store, service):
         """*Moche* is a culture; the search finds one painter born in 1633."""
         moche = service.add_artist(name="Moche")
@@ -247,3 +269,17 @@ class TestTheCuratorsWord:
     def test_matching_without_a_registry_says_how_to_configure_one(self, store):
         with pytest.raises(ServiceError, match="WIKIDATA_USER_AGENT"):
             IdentityService(store, None).match()
+
+
+def test_two_artists_written_with_one_item_before_the_rule_resolve_to_the_first_by_name(store, service):
+    """Older catalogues can hold the duplicate the service now refuses; the answer must not depend on store order."""
+    from dataclasses import replace
+
+    from arrt.library.services.artists import artist_ids_by_qid
+
+    later = service.add_artist(name="Miró, Joan")
+    earlier = service.add_artist(name="Joan Miró")
+    for artist in (later, earlier):
+        store.update_artist(replace(store.get_artist(artist.id), wikidata_qid="Q152384"))
+
+    assert artist_ids_by_qid(store) == {"Q152384": earlier.id}

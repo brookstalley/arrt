@@ -10,6 +10,85 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Similar artists, and setting a Wikidata item by hand — added 2026-10-01
+
+**`build-plan-one-world-search.md` Chunk 05.** Needs `WIKIDATA_USER_AGENT` set.
+
+Checked by the builder on 2026-10-01, on a copy of your catalogue at 1280 px and
+375 px, with no page errors and nothing wider than the screen: Rothko's *Similar
+artists* lead with Jackson Pollock (0 works with an image), then Bourgeois, de
+Kooning, Appel and Gorky; Dalí's list Picasso, Kahlo, Miró (● in your library),
+Lynch and Klee (●). On your held Rothko's Work page, looking up `q500985` named
+*The Hunters in the Snow* and offered *Use Q500985*, which was not pressed. For you:
+
+1. **Similar artists.** Wikidata calls some non-painters painters too (Captain
+   Beefheart for Rothko, André Breton for Dalí). Is the list useful as it is, or
+   should it wait for taste (plan 4)?
+2. **The image count.** Does "0 works with an image" beside Pollock tell you what
+   you need before you commit to him?
+3. **The control.** Change… → type an id → Look up → *Use Q…*. Is showing the item
+   first enough to stop a wrong one, and is *There is none* worded right?
+
+### The search results page — added 2026-10-01
+
+**`build-plan-one-world-search.md` Chunk 04.** Reached from the search box's last
+row, *All results for "…"*; Enter still opens Artworks.
+
+Checked by the builder on 2026-10-01, on a copy of your catalogue at 1280 px and
+375 px, with no page errors and nothing wider than the screen: `rothko` led with
+Mark Rothko as the top result, then your two Rothkos (● *In your library*), then
+twenty more from Wikidata; `salvador dali` the same for Dalí; `hunters` led with
+*The Hunters in the Snow*. For you:
+
+1. **Is the row the right way in?** You kept Enter on Artworks; this page is one
+   arrow-key and Enter away. Is that enough, or should it be more visible?
+2. **The three views.** Do *All*, *In your library* and *Not held* answer "do I
+   have it?" and "what exists?" without making you scroll?
+3. **The top result** appears only when the words name exactly one artist.
+
+### The search box covers Wikidata too — added 2026-10-01
+
+**`build-plan-one-world-search.md` Chunk 03.** Needs `WIKIDATA_USER_AGENT` set.
+
+Checked by the builder on 2026-10-01, on a copy of your catalogue with Playwright
+at 1280 px and 375 px, with no page errors and nothing wider than the screen:
+`dali` gave your Dalí and *Untitled (Desert Landscape)* first, then Wikidata's
+*Dalibor Chatrný* and five Dalí works, with *Image found* where there is one;
+`the persistence` gave *The Persistence of Memory* first; `hunters` gave Bruegel's
+*The Hunters in the Snow* first. Wikidata's rows arrived about half a second
+after the library's. For you:
+
+1. **Type the way you search.** Do Wikidata's rows help, or crowd the library's?
+   Five works and three artists is the cap; is it the right size?
+2. **What a row says.** *in your library*, *Image found*, or nothing. Enough to
+   choose by?
+3. **Enter** still opens Artworks filtered, as you ruled. Does that still feel
+   right with Wikidata in the list?
+
+### Pages for works and artists you do not hold — added 2026-10-01
+
+**`build-plan-one-world-search.md` Chunk 02.** Needs `WIKIDATA_USER_AGENT` set, as
+the Artist page entry below does. Nothing here migrates the catalogue.
+
+Checked by the builder on 2026-10-01, on a copy of your catalogue with Playwright
+at 1280 px and 375 px, with no page errors and nothing wider than the screen:
+`#work/Q500985` (*The Hunters in the Snow*) showed its picture, Bruegel, 1565, oil
+on panel, the Kunsthistorisches Museum with its number GG_1838, *Search museums
+for this work*, and 49 more of Bruegel's works below; `#artist/Q43270` showed
+Bruegel's dates and what Wikidata lists; your Rothko's QID (`#work/Q20270685`)
+and Rothko's (`#artist/Q160149`) were replaced by the library's own pages, and
+Back skipped them; *Rothko Chapel*, from Rothko's *Their work*, opened as a
+work you do not hold. Your held Rothko's own Work page was 333 px wider than a
+phone before this chunk (a source URL in a table); it now scrolls the table
+instead. For you:
+
+1. **From an artist you hold, open a work you don't** (Rothko › *Their work* ›
+   *Rothko Chapel*), then its artist, then back. Does it read as one world?
+2. **The page of a work you don't hold.** Is *Search museums for this work* the
+   right offer until *Get* exists (plan 2), and is *Not held · Image found* clear?
+3. **An artist you don't hold** (`#artist/Q43270`, Bruegel). It says nothing of
+   theirs is in your library; is that the first thing you want to know?
+
 ### The Artist page, against your own catalogue — added 2026-10-01
 
 **`build-plan-ia-foundations.md` Chunks 03 and 04.** First, copy `catalogue.sqlite`

@@ -34,6 +34,7 @@ import { viewDiscover } from "./screens/discover.js";
 import { viewHealth } from "./screens/health.js";
 import { viewReview } from "./screens/review.js";
 import { RUN_POLL_MAX_FAILURES, viewRun } from "./screens/run.js";
+import { viewSearch } from "./screens/search.js";
 import { viewTaste } from "./screens/taste.js";
 import { viewTheme } from "./screens/theme.js";
 import { viewWalls } from "./screens/walls.js";
@@ -98,6 +99,11 @@ const ROUTES = {
   taste: { render: viewTaste, section: "settings", page: "Taste" },
   health: { render: viewHealth, section: "system", page: "Status" },
   work: { render: viewWork, detail: true, opensFrom: "collection" },
+  // Everything a few words find, the library's and Wikidata's (ruling 2), as
+  // Sonarr's search results are a page of their own. Reached from the
+  // dropdown's last row; Enter still opens Artworks filtered, so it returns
+  // there by default.
+  search: { render: viewSearch, opensFrom: "collection" },
   // A search is listed under Activity, so a bookmark to one returns to Queue.
   // Run and Review share that default because they are one search's two pages:
   // each opens the other, and with different defaults every hop between them

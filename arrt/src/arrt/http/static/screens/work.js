@@ -20,13 +20,21 @@
  * still in every theme that held it, and one click from being back on the wall —
  * and a curator who learns that a confirmation overstates will read the next one
  * less carefully.
+ *
+ * **A work the library does not hold has a page here too**, at `#work/Q…`
+ * (ruling 2): what Wikidata says of it, the one way to acquire it that exists
+ * until *Get* does, and the rest of its artist's work below. A QID the library
+ * holds is sent to the library's own page, in place. Every string on it is
+ * registry text, shown as text.
  */
 
 import { api } from "../core/api.js";
 import { facts, fitBadge, sourceBadge, statusBadge, table } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
+import { identityControl } from "../core/identity.js";
 import { el, guard, render } from "../core/render.js";
-import { backLink, go } from "../core/router.js";
+import { isQid, named, personLink, stateMark, wikidataLink, workLink, workState } from "../core/registry.js";
+import { backLink, go, redirect } from "../core/router.js";
 
 /* The typed vocabulary a work is filed under, in the words a label uses.
  *
@@ -87,7 +95,105 @@ function workPath(artworkId) {
 }
 
 export async function viewWork(artworkId, generation) {
+  if (isQid(artworkId)) {
+    await viewRegistryWork(artworkId, generation);
+    return;
+  }
   paint(await api(workPath(artworkId)), generation);
+}
+
+/* What the registry knows of a work the library does not hold, or why it cannot say. */
+async function viewRegistryWork(qid, generation) {
+  const page = await api(`/api/registry/works/${encodeURIComponent(qid)}`);
+  if (page.held_artwork_ids.length) {
+    redirect("work", page.held_artwork_ids[0]);
+    return;
+  }
+  if (page.state !== "known") {
+    render(
+      generation,
+      el("p", {}, [backLink()]),
+      el("h2", { text: page.state === "not_found" ? "Wikidata has no such work" : `Wikidata ${qid}` }),
+      el("p", { class: "note", text: page.note }),
+    );
+    return;
+  }
+  const title = named(page.title, qid);
+  const maker = page.creators[0];
+  const picture = page.image
+    ? el("img", {
+        class: "detail-image",
+        src: `${page.image}?width=1200`,
+        alt: maker ? `${title}, by ${named(maker.name, maker.qid)}` : title,
+        referrerpolicy: "no-referrer",
+      })
+    : el("p", { class: "note", text: "No free image of this work is known." });
+  const theirWork = el("section", { class: "panel", "aria-labelledby": "more-by" });
+  // Seeded with what a museum search needs to find it, and only filled in: Add
+  // New spends nothing until the curator presses Search there.
+  const term = [page.title === qid ? null : page.title, maker ? maker.name : null].filter(Boolean).join(" ");
+  render(
+    generation,
+    el("p", {}, [backLink()]),
+    el("div", { class: "panel" }, [
+      picture,
+      el("div", { class: "card-footer" }, [stateMark({ image: Boolean(page.image) })]),
+    ]),
+    el("div", { class: "panel" }, [
+      el("h2", { text: title }),
+      facts([
+        ["Artist", page.creators.length ? el("span", {}, page.creators.flatMap((person, at) => (at ? [", ", personLink(person)] : [personLink(person)]))) : null],
+        ["Date", page.year],
+        ["Medium", page.media.join(", ")],
+        ["Held by", page.holders.length ? page.holders.map(holderLine).join("; ") : null],
+      ]),
+      el("p", { class: "muted" }, [wikidataLink(qid, `Wikidata ${qid}`)]),
+      el("div", { class: "row" }, [
+        el("button", { class: "action", type: "button", text: "Search museums for this work", onclick: () => go("discover", null, { term }) }),
+      ]),
+      el("p", { class: "muted", text: "Not in your library. The search is filled in and not started; nothing is spent until you press Search." }),
+    ]),
+    maker ? theirWork : null,
+  );
+  if (maker) await paintTheirWork(theirWork, maker, qid);
+}
+
+function holderLine(holder) {
+  return holder.inventory ? `${holder.name} (${holder.inventory})` : holder.name;
+}
+
+/* The rest of the artist's work, the next thing to look at: what the Artist
+ * page lists, without this one, asked after the page is drawn. */
+async function paintTheirWork(section, maker, qid) {
+  const heading = el("h3", { id: "more-by", text: `More by ${named(maker.name, maker.qid)}` });
+  section.replaceChildren(heading, el("p", { class: "muted", "aria-live": "polite", text: "Asking Wikidata…" }));
+  let view;
+  try {
+    view = await api(maker.artist_id ? `/api/artists/${encodeURIComponent(maker.artist_id)}/registry` : `/api/registry/artists/${encodeURIComponent(maker.qid)}`);
+  } catch (failure) {
+    view = { state: "unavailable", note: "Wikidata could not be asked just now." };
+  }
+  if (!section.isConnected) return;
+  if (view.state !== "known") {
+    section.replaceChildren(heading, el("p", { class: "note", text: view.note }));
+    return;
+  }
+  const others = view.works.filter((work) => work.qid !== qid);
+  section.replaceChildren(
+    heading,
+    others.length
+      ? el("div", { class: "artist-works" }, [
+          el("table", {}, [
+            el("thead", {}, [el("tr", {}, ["Work", "Year", "State"].map((h) => el("th", { scope: "col", text: h })))]),
+            el("tbody", {}, others.map((work) => el("tr", {}, [
+              el("td", {}, [workLink(work)]),
+              el("td", { text: work.year ? String(work.year) : "—" }),
+              el("td", {}, [workState(work)]),
+            ]))),
+          ]),
+        ])
+      : el("p", { class: "muted", text: "Wikidata lists nothing else by them." }),
+  );
 }
 
 /* Draw the whole screen from one dossier.
@@ -139,6 +245,9 @@ function paint(detail, generation, focusAction = false) {
         ["Description", work.description],
       ]),
       el("div", { class: "row" }, [action]),
+      // The control repaints from the dossier the route answers with, as
+      // archive and restore do.
+      identityControl("work", work, (answer) => paint(answer, generation)),
     ]),
     facetPanel(detail.facets),
   ];

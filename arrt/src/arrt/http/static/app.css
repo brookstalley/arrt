@@ -259,10 +259,21 @@ header.topbar {
   letter-spacing: 0.04em;
 }
 
-.search-suggestions-note {
+/* The library's note and the registry's look alike and are not alike: the first
+   says the library was not searched, which guards a paid search; the second only
+   that Wikidata was not, so tests and readers tell them apart by class. */
+.search-suggestions-note,
+.search-suggestions-registry-note {
   padding: var(--space-2) var(--space-3);
   color: var(--text-muted);
   font: var(--text-sm) / 1.4 var(--font-ui);
+}
+
+/* A state mark after a row's words, in the dropdown and on the results page: set
+   apart from the title, and not a button, since the whole row is the choice. */
+.state-mark {
+  margin-left: var(--space-2);
+  cursor: inherit;
 }
 
 .search-suggestions [role="option"] {
@@ -1259,12 +1270,29 @@ details > summary {
   align-items: flex-start;
 }
 
+/* The results page's lists: one artist or work a row, its state mark after it. */
+.results-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.results-list li {
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+
 /* -- tables ---------------------------------------------------------------- */
 
 table {
   width: 100%;
   border-collapse: collapse;
   font-size: var(--text-sm);
+}
+
+.table-scroll {
+  overflow-x: auto;
 }
 
 caption {
