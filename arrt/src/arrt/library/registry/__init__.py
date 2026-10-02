@@ -2,15 +2,17 @@
 
 Wikidata is the only one today (`wikidata-findings.md`). What the Library asks a
 registry is small and stated as data: which items carry this museum identifier,
-who created these items, which people go by this name, and what is known about
-one artist. Judging whether an answer identifies a held work or artist is the
-identity service's job (`library/services/identity.py`), so a second registry
-would answer the same questions and inherit the same judgement.
+who created these items, which people go by this name, what is known about one
+artist, and what a topic is and which works and artists are in it. Judging
+whether an answer identifies a held work or artist is the identity service's
+job (`library/services/identity.py`), so a second registry would answer the same
+questions and inherit the same judgement.
 """
 
 import re
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from enum import Enum
 from typing import Final, NewType, Protocol
 
 from arrt.library.registry.identifiers import IdentifierScheme
@@ -145,7 +147,7 @@ class RegistryWorkMatch:
 
 @dataclass(frozen=True, slots=True)
 class RegistrySimilar:
-    """An artist sharing a movement with another, and how much of their work can be seen."""
+    """An artist listed beside another artist or in a topic, and how much of their work can be seen."""
 
     qid: ItemId
     name: RegistryText
@@ -155,6 +157,82 @@ class RegistrySimilar:
     #: Their works with a free image: what tells a curator whether anyone can
     #: supply them before they commit to the artist (Pollock has none).
     images: int = 0
+
+
+class TopicKind(Enum):
+    """What a topic is, which decides how its works are found.
+
+    An `Enum` and not a `StrEnum`: a kind is the client's reading of the
+    registry's classes, never words the registry wrote, so it is not a string.
+    """
+
+    #: A century, a decade, a historical period, or anything with a start and an
+    #: end. Its works were made between them.
+    PERIOD = "period"
+    #: An art movement or style. Its works are its artists' works.
+    MOVEMENT = "movement"
+    #: A kind of work of visual art (woodcut print, watercolor painting). Its
+    #: works are instances of it.
+    MEDIUM = "medium"
+    #: Anything else. Its works depict it, or have it as their genre.
+    SUBJECT = "subject"
+
+
+@dataclass(frozen=True, slots=True)
+class RegistryTopic:
+    """A period, movement, medium or subject, as a Topic page heads it."""
+
+    qid: ItemId
+    #: The label service's answer: the QID itself where there is no readable name.
+    label: RegistryText
+    #: Every kind the registry's classes give it, the one its works are found by
+    #: first: Baroque is a movement and a period. Never empty.
+    kinds: tuple[TopicKind, ...]
+    description: RegistryText | None = None
+    #: A period's first and last years, where the registry records them. A
+    #: period missing either has no works to list.
+    start: int | None = None
+    end: int | None = None
+
+    @property
+    def kind(self) -> TopicKind:
+        """The kind its works and artists are found by."""
+        return self.kinds[0]
+
+
+@dataclass(frozen=True, slots=True)
+class RegistryTopicWork:
+    """One work of visual art in a topic: one entry however many made it."""
+
+    qid: ItemId
+    #: The label service's answer: the QID itself where there is no readable title.
+    title: RegistryText
+    sitelinks: int
+    year: int | None = None
+    image: CommonsFile | None = None
+    creators: tuple[RegistryCreator, ...] = ()
+    #: Whether a maker is recorded as unknown: a statement that somebody made it
+    #: and nobody knows who, which is not an item and has no name.
+    creator_unknown: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class RegistryTopicRef:
+    """A topic a held work or artist is in, as a facet names it."""
+
+    qid: ItemId
+    label: RegistryText
+    #: The kind the route to it gives: an artist's movement, a work's century,
+    #: what it depicts or its genre, and the kind of work it is.
+    kind: TopicKind
+
+
+@dataclass(frozen=True, slots=True)
+class RegistryTopicsOf:
+    """The topics of held works and artists, keyed by the QID asked about. One with none is absent."""
+
+    works: Mapping[ItemId, tuple[RegistryTopicRef, ...]] = field(default_factory=dict)
+    artists: Mapping[ItemId, tuple[RegistryTopicRef, ...]] = field(default_factory=dict)
 
 
 class RegistryUnavailable(Exception):
@@ -213,4 +291,24 @@ class Registry(Protocol):
         types it. The words are plain words: the caller strips anything the
         registry's search would read as an operator.
         """
+        ...
+
+    def topic(self, qid: str) -> RegistryTopic | None:
+        """What this item is as a topic, or None when the registry has no such item."""
+        ...
+
+    def topic_works(self, topic: RegistryTopic, *, limit: int) -> Sequence[RegistryTopicWork]:
+        """Works of visual art in the topic, by its kind, the most renowned first."""
+        ...
+
+    def topic_artists(self, topic: RegistryTopic, *, limit: int) -> Sequence[RegistrySimilar]:
+        """The topic's artists, the most renowned first: a movement's own, or the makers of its works."""
+        ...
+
+    def topics_named(self, text: str) -> Sequence[RegistryTopic]:
+        """Topics the registry's own search finds for this name, the most renowned first; nothing that is not one."""
+        ...
+
+    def topics_of(self, work_qids: Sequence[str], artist_qids: Sequence[str]) -> RegistryTopicsOf:
+        """Each work's century, subjects and kind of work, and each artist's movements."""
         ...

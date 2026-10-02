@@ -16,6 +16,12 @@ stricter half of it, and the service has never been seen to send one.
 **"Visual artist" no longer sits under "artist" in Wikidata's occupation tree**, so
 `people_named` filters on the occupation that does reach painters, or on having
 created something at all, and not on the root that once covered both.
+
+**A topic's kind is read from the classes above it, in Python, not asked of the
+service.** Asking whether an item sits under *visual artwork* walked the class
+tree downwards from the root and took three to fourteen seconds; asking for the
+item's own ancestors among a handful of roots takes half a second
+(`wikidata-findings.md` § Topics).
 """
 
 import json
@@ -38,10 +44,15 @@ from arrt.library.registry import (
     RegistryPerson,
     RegistrySimilar,
     RegistryText,
+    RegistryTopic,
+    RegistryTopicRef,
+    RegistryTopicsOf,
+    RegistryTopicWork,
     RegistryUnavailable,
     RegistryWork,
     RegistryWorkEntry,
     RegistryWorkMatch,
+    TopicKind,
 )
 from arrt.library.registry.identifiers import IdentifierScheme
 
@@ -114,6 +125,37 @@ _LABELS: Final[str] = "en,mul"
 
 #: Joins an artist's movements in one result. A character no movement's name holds.
 _SEPARATOR: Final[str] = "\u241e"
+
+#: The classes a period is an instance of, directly or through a subclass:
+#: century, decade, historical period.
+_PERIOD_CLASSES: Final[frozenset[str]] = frozenset({"Q578", "Q39911", "Q11514315"})
+
+#: The classes a movement is an instance of: art movement, art style. Read as
+#: instances only: *woodcut print* is a subclass of *art style*, and a medium.
+_MOVEMENT_CLASSES: Final[frozenset[str]] = frozenset({"Q968159", "Q1792644"})
+
+#: Visual artwork (`Q4502142`): a medium is a subclass of it.
+_VISUAL_ARTWORK: Final[str] = "Q4502142"
+
+#: Century (`Q578`): the one period a held work's facts name.
+_CENTURY: Final[str] = "Q578"
+
+#: Millennium (`Q36507`). The Gregorian centuries are each part of one; the
+#: Islamic calendar's are centuries too, with years of their own, and are not.
+_MILLENNIUM: Final[str] = "Q36507"
+
+#: When an item has more than one kind, the one its works are found by. A
+#: movement's works are its artists', which is what a curator browsing Baroque
+#: means; the same item's period would be everything made in 160 years.
+_KIND_ORDER: Final[tuple[TopicKind, ...]] = (TopicKind.MOVEMENT, TopicKind.PERIOD, TopicKind.MEDIUM, TopicKind.SUBJECT)
+
+#: How many of a topic's most renowned works its artists are read from, when it
+#: is not a movement: twice the works a page lists, so an artist with one famous
+#: work and one less so is still found.
+_ARTISTS_FROM: Final[int] = 100
+
+#: How many search hits a topic search reads, as the search ranks them.
+_TOPICS_SEARCHED: Final[int] = 20
 
 #: The only image URLs passed on: a Commons file, by name.
 _COMMONS_FILE: Final[re.Pattern[str]] = re.compile(r"^https?://commons\.wikimedia\.org/wiki/Special:FilePath/([^?#\s]+)$")
@@ -381,7 +423,172 @@ class WikidataRegistry:
               OPTIONAL {{ ?other wdt:P570 ?d }}
               SERVICE wikibase:label {{ bd:serviceParam wikibase:language "{_LABELS}" . ?other rdfs:label ?otherLabel . }}
             }} GROUP BY ?other ?otherLabel ?links ORDER BY DESC(?links) ?otherLabel LIMIT {int(limit)}""")
-        people = [(_qid(row, "other"), row) for row in rows]
+        return self._with_images([(_qid(row, "other"), row) for row in rows], "otherLabel")
+
+    def topic(self, qid: str) -> RegistryTopic | None:
+        item = _require_qid(qid)
+        # `wikibase:sitelinks` is on every item that exists, so a missing item
+        # gives no row (as in `label_of`).
+        rows = self._select(f"""SELECT ?item ?itemLabel ?description ?start ?end ?via ?root WHERE {{
+              VALUES ?item {{ wd:{item} }}
+              ?item wikibase:sitelinks ?links .
+              OPTIONAL {{ ?item schema:description ?description FILTER(LANG(?description) = "en") }}
+              {_TOPIC_FACTS}
+              SERVICE wikibase:label {{ bd:serviceParam wikibase:language "{_LABELS}" . ?item rdfs:label ?itemLabel . }}
+            }} LIMIT {_WORK_ROWS}""")
+        return _topic(item, rows) if rows else None
+
+    def topic_works(self, topic: RegistryTopic, *, limit: int) -> Sequence[RegistryTopicWork]:
+        where = _works_in(topic)
+        if where is None:
+            return []
+        # The most renowned works are chosen first and named after: the label
+        # service and the optional facts, run over every work in a century, are
+        # what would make this slow. One row per work, however many made it.
+        rows = self._select(f"""SELECT ?work ?workLabel ?links (MIN(YEAR(?inception)) AS ?year) (SAMPLE(?image) AS ?img) WHERE {{
+              {{ SELECT DISTINCT ?work ?links WHERE {{
+                  {where}
+                  ?work wikibase:sitelinks ?links .
+                }} ORDER BY DESC(?links) STR(?work) LIMIT {int(limit)} }}
+              OPTIONAL {{ ?work wdt:P571 ?inception }}
+              OPTIONAL {{ ?work wdt:P18 ?image }}
+              SERVICE wikibase:label {{ bd:serviceParam wikibase:language "{_LABELS}" . ?work rdfs:label ?workLabel . }}
+            }} GROUP BY ?work ?workLabel ?links ORDER BY DESC(?links) ?workLabel""")
+        works = [(_qid(row, "work"), row) for row in rows]
+        if not works:
+            return []
+        made = self._select(f"""SELECT ?work ?maker ?makerLabel WHERE {{
+              VALUES ?work {{ {" ".join(f"wd:{work}" for work, _ in works)} }}
+              ?work wdt:P170 ?maker .
+              SERVICE wikibase:label {{ bd:serviceParam wikibase:language "{_LABELS}" . ?maker rdfs:label ?makerLabel . }}
+            }}""")
+        makers: dict[ItemId, dict[ItemId, RegistryText]] = {}
+        unknown: set[ItemId] = set()
+        for row in made:
+            work = _qid(row, "work")
+            maker = _qid(row, "maker", required=False)
+            if maker is None:
+                # "Somebody, unknown": a blank node, whose URL is nobody's name.
+                unknown.add(work)
+            else:
+                makers.setdefault(work, {}).setdefault(maker, RegistryText(_value(row, "makerLabel")))
+        return [
+            RegistryTopicWork(
+                qid=work,
+                title=RegistryText(_value(row, "workLabel")),
+                sitelinks=_integer(row, "links") or 0,
+                year=_integer(row, "year"),
+                image=_commons_file(row.get("img", {}).get("value")),
+                creators=tuple(RegistryCreator(qid=qid, name=name) for qid, name in sorted(makers.get(work, {}).items())),
+                creator_unknown=work in unknown,
+            )
+            for work, row in works
+        ]
+
+    def topic_artists(self, topic: RegistryTopic, *, limit: int) -> Sequence[RegistrySimilar]:
+        if topic.kind is TopicKind.MOVEMENT:
+            # A movement's own artists (`P135` sits on people, not works), visual
+            # artists only, as `similar_to` keeps them.
+            chosen = f"""?artist wdt:P135 wd:{_require_qid(topic.qid)} ; wdt:P31 wd:Q5 ; wikibase:sitelinks ?links .
+                  FILTER EXISTS {{ ?artist wdt:P106/wdt:P279* wd:{_VISUAL_ARTIST} }}"""
+        else:
+            where = _works_in(topic)
+            if where is None:
+                return []
+            # The makers of its most renowned works, not of all of them: ranked
+            # over every maker, fame from elsewhere came first (Adolf Hitler and
+            # Winston Churchill for the 1920s, Ferdowsi for the 16th century).
+            chosen = f"""{{ SELECT DISTINCT ?work WHERE {{
+                    {where}
+                    ?work wikibase:sitelinks ?workLinks .
+                  }} ORDER BY DESC(?workLinks) STR(?work) LIMIT {_ARTISTS_FROM} }}
+                  ?work wdt:P170 ?artist . ?artist wdt:P31 wd:Q5 ; wikibase:sitelinks ?links ."""
+        rows = self._select(f"""SELECT ?artist ?artistLabel ?links (MIN(YEAR(?b)) AS ?born) (MIN(YEAR(?d)) AS ?died) WHERE {{
+              {{ SELECT DISTINCT ?artist ?links WHERE {{
+                  {chosen}
+                }} ORDER BY DESC(?links) STR(?artist) LIMIT {int(limit)} }}
+              OPTIONAL {{ ?artist wdt:P569 ?b }}
+              OPTIONAL {{ ?artist wdt:P570 ?d }}
+              SERVICE wikibase:label {{ bd:serviceParam wikibase:language "{_LABELS}" . ?artist rdfs:label ?artistLabel . }}
+            }} GROUP BY ?artist ?artistLabel ?links ORDER BY DESC(?links) ?artistLabel""")
+        return self._with_images([(_qid(row, "artist"), row) for row in rows], "artistLabel")
+
+    def topics_named(self, text: str) -> Sequence[RegistryTopic]:
+        # A subject is anything else, so the kinds alone would offer every hit:
+        # a hit with no kind of its own is kept only if something depicts it or
+        # has it as its genre. That is what drops the French political party
+        # *Renaissance*, which the search ranks first. Asking for a work of
+        # visual art in particular took seconds for *still life* and dropped
+        # nothing more (`wikidata-findings.md` § Topics).
+        rows = self._select(f"""SELECT ?item ?itemLabel ?description ?links ?start ?end ?via ?root ?depicted WHERE {{
+              SERVICE wikibase:mwapi {{
+                bd:serviceParam wikibase:endpoint "www.wikidata.org"; wikibase:api "EntitySearch";
+                  mwapi:search {_literal(text)}; mwapi:language "en"; mwapi:limit "{_TOPICS_SEARCHED}";
+                  wikibase:limit {_TOPICS_SEARCHED} .
+                ?item wikibase:apiOutputItem mwapi:item .
+              }}
+              ?item wikibase:sitelinks ?links .
+              OPTIONAL {{ ?item schema:description ?description FILTER(LANG(?description) = "en") }}
+              {_TOPIC_FACTS}
+              BIND(EXISTS {{ ?work wdt:P180|wdt:P136 ?item }} AS ?depicted)
+              SERVICE wikibase:label {{ bd:serviceParam wikibase:language "{_LABELS}" . ?item rdfs:label ?itemLabel . }}
+            }} ORDER BY DESC(?links) ?itemLabel""")
+        grouped: dict[ItemId, list[Mapping[str, Any]]] = {}
+        for row in rows:
+            grouped.setdefault(_qid(row, "item"), []).append(row)
+        found = []
+        for item, its in grouped.items():
+            if any(_is_work(row) for row in its):
+                # A work is not a topic to browse, whatever its class makes it:
+                # Kunisada's woodcut print *Woodcut* read as a movement, because
+                # *woodcut print* is a subclass of *art style*.
+                continue
+            topic = _topic(item, its)
+            # Dropped only when the service says nothing depicts it: any other
+            # answer is not the service's to give, and the hit is kept.
+            if topic.kinds != (TopicKind.SUBJECT,) or its[0].get("depicted", {}).get("value") != "false":
+                found.append(topic)
+        return found
+
+    def topics_of(self, work_qids: Sequence[str], artist_qids: Sequence[str]) -> RegistryTopicsOf:
+        # Each route binds its own variable, so a topic's kind is the route that
+        # reached it and never a string read back from the answer.
+        works: dict[ItemId, set[RegistryTopicRef]] = {}
+        for batch in _batches(sorted({_require_qid(qid) for qid in work_qids})):
+            # A work's century is the Gregorian century item whose years hold
+            # its inception's (two, where the registry's centuries before 1000
+            # overlap by a year); its kind of work is a class it is an instance
+            # of that sits under visual artwork (painting, woodcut print).
+            rows = self._select(f"""SELECT ?item ?period ?periodLabel ?subject ?subjectLabel ?medium ?mediumLabel WHERE {{
+                  VALUES ?item {{ {" ".join(f"wd:{qid}" for qid in batch)} }}
+                  {{ ?item wdt:P571 ?inception .
+                     ?period wdt:P31 wd:{_CENTURY} ; wdt:P361/wdt:P31 wd:{_MILLENNIUM} ; wdt:P580 ?s ; wdt:P582 ?e .
+                     FILTER(YEAR(?inception) >= YEAR(?s) && YEAR(?inception) <= YEAR(?e)) }}
+                  UNION {{ ?item wdt:P180|wdt:P136 ?subject }}
+                  UNION {{ ?item wdt:P31 ?medium . ?medium wdt:P279* ?root . FILTER(?root IN (wd:{_VISUAL_ARTWORK})) }}
+                  SERVICE wikibase:label {{
+                    bd:serviceParam wikibase:language "{_LABELS}" .
+                    ?period rdfs:label ?periodLabel . ?subject rdfs:label ?subjectLabel . ?medium rdfs:label ?mediumLabel .
+                  }}
+                }}""")
+            _collect(rows, set(batch), works, _WORK_ROUTES)
+        artists: dict[ItemId, set[RegistryTopicRef]] = {}
+        for batch in _batches(sorted({_require_qid(qid) for qid in artist_qids})):
+            rows = self._select(f"""SELECT ?item ?movement ?movementLabel WHERE {{
+                  VALUES ?item {{ {" ".join(f"wd:{qid}" for qid in batch)} }}
+                  ?item wdt:P135 ?movement .
+                  SERVICE wikibase:label {{
+                    bd:serviceParam wikibase:language "{_LABELS}" . ?movement rdfs:label ?movementLabel .
+                  }}
+                }}""")
+            _collect(rows, set(batch), artists, {"movement": TopicKind.MOVEMENT})
+        return RegistryTopicsOf(works=_sorted_refs(works), artists=_sorted_refs(artists))
+
+    def close(self) -> None:
+        self._http.close()
+
+    def _with_images(self, people: Sequence[tuple[ItemId, Mapping[str, Any]]], label: str) -> list[RegistrySimilar]:
+        """People listed, each with a count of their works that have a free image: one more question, or none for nobody."""
         if not people:
             return []
         listed = " ".join(f"wd:{person}" for person, _ in people)
@@ -393,7 +600,7 @@ class WikidataRegistry:
         return [
             RegistrySimilar(
                 qid=person,
-                name=RegistryText(_value(row, "otherLabel")),
+                name=RegistryText(_value(row, label)),
                 sitelinks=_integer(row, "links") or 0,
                 born=_integer(row, "born"),
                 died=_integer(row, "died"),
@@ -401,9 +608,6 @@ class WikidataRegistry:
             )
             for person, row in people
         ]
-
-    def close(self) -> None:
-        self._http.close()
 
     def _select(self, query: str) -> list[Mapping[str, Any]]:
         """Run one SELECT and return its bindings, or say why it could not be run."""
@@ -421,6 +625,127 @@ class WikidataRegistry:
         if not isinstance(bindings, list):
             raise RegistryUnavailable("Wikidata's answer carried no list of results.")
         return bindings
+
+
+#: A topic's facts beyond its name: its years, and which of the kind roots sit
+#: above it, by instance (`P31`) or by subclass (`P279`). The roots are asked for
+#: by name from the item upwards; see the module docstring on why.
+_ROOTS: Final[str] = ", ".join(f"wd:{qid}" for qid in sorted(_PERIOD_CLASSES | _MOVEMENT_CLASSES | {_VISUAL_ARTWORK}))
+_TOPIC_FACTS: Final[str] = f"""OPTIONAL {{ ?item wdt:P580 ?s . BIND(YEAR(?s) AS ?start) }}
+              OPTIONAL {{ ?item wdt:P582 ?e . BIND(YEAR(?e) AS ?end) }}
+              OPTIONAL {{
+                {{ ?item wdt:P31/wdt:P279* ?root . BIND("P31" AS ?via) }} UNION {{ ?item wdt:P279* ?root . BIND("P279" AS ?via) }}
+                FILTER(?root IN ({_ROOTS}))
+              }}"""
+
+
+def _topic(item: ItemId, rows: Sequence[Mapping[str, Any]]) -> RegistryTopic:
+    """One topic from the rows its facts arrived as: every combination of its years and the roots above it."""
+    instance_of: set[str] = set()
+    subclass_of: set[str] = set()
+    starts: set[int] = set()
+    ends: set[int] = set()
+    for row in rows:
+        root = _qid(row, "root", required=False)
+        if root is not None:
+            (instance_of if row.get("via", {}).get("value") == "P31" else subclass_of).add(root)
+        start, end = _integer(row, "start"), _integer(row, "end")
+        if start is not None:
+            starts.add(start)
+        if end is not None:
+            ends.add(end)
+    found = set()
+    if instance_of & _PERIOD_CLASSES or (starts and ends):
+        found.add(TopicKind.PERIOD)
+    if instance_of & _MOVEMENT_CLASSES:
+        found.add(TopicKind.MOVEMENT)
+    if _VISUAL_ARTWORK in subclass_of:
+        found.add(TopicKind.MEDIUM)
+    first = rows[0]
+    return RegistryTopic(
+        qid=item,
+        label=RegistryText(_value(first, "itemLabel")),
+        kinds=tuple(kind for kind in _KIND_ORDER if kind in found) or (TopicKind.SUBJECT,),
+        description=RegistryText(_value(first, "description")) if "description" in first else None,
+        # The widest span its statements give: a period recorded twice is the
+        # whole of both.
+        start=min(starts) if starts else None,
+        end=max(ends) if ends else None,
+    )
+
+
+def _is_work(row: Mapping[str, Any]) -> bool:
+    """Whether a row of a topic's facts says it is an instance of visual artwork: a work, not a topic."""
+    return row.get("via", {}).get("value") == "P31" and _qid(row, "root", required=False) == _VISUAL_ARTWORK
+
+
+def _works_in(topic: RegistryTopic) -> str | None:
+    """The pattern binding `?work` to the topic's works of visual art, by its kind; None for a period with no years."""
+    item = _require_qid(topic.qid)
+    classes = f"?work wdt:P31 ?class . VALUES ?class {{ {' '.join(f'wd:{qid}' for qid in _ARTWORK_CLASSES)} }}"
+    match topic.kind:
+        case TopicKind.MOVEMENT:
+            # `P135` sits on artists, not works (`wikidata-findings.md` § Topics).
+            return f"?maker wdt:P135 wd:{item} . ?work wdt:P170 ?maker . {classes}"
+        case TopicKind.PERIOD:
+            if topic.start is None or topic.end is None:
+                return None
+            # Read as a range of the inception index, which the hint allows. A
+            # filter on YEAR() over the works of art timed out at a minute for
+            # the 16th century; the range answered in 7 to 26 seconds for a
+            # century, a decade and the Dutch Golden Age, and still took 50 s or
+            # more for the Belle Époque and the Edo period (`wikidata-findings.md`).
+            return (
+                "?work wdt:P571 ?made . hint:Prior hint:rangeSafe true . "
+                f"FILTER(?made >= {_instant(topic.start)} && ?made < {_instant(topic.end + 1)}) {classes}"
+            )
+        case TopicKind.MEDIUM:
+            # A kind of work is itself the class, and is often not one of the ten.
+            return f"?work wdt:P31 wd:{item} ."
+        case TopicKind.SUBJECT:
+            return f"{{ ?work wdt:P180 wd:{item} }} UNION {{ ?work wdt:P136 wd:{item} }} {classes}"
+
+
+def _instant(year: int) -> str:
+    """The first moment of `year` as a SPARQL dateTime, the form the inception index holds."""
+    year = int(year)
+    return f'"{"-" if year < 0 else ""}{abs(year):04d}-01-01T00:00:00Z"^^xsd:dateTime'
+
+
+#: The variables `topics_of` binds for a work, and the kind each route gives.
+_WORK_ROUTES: Final[Mapping[str, TopicKind]] = {
+    "period": TopicKind.PERIOD,
+    "subject": TopicKind.SUBJECT,
+    "medium": TopicKind.MEDIUM,
+}
+
+
+def _collect(
+    rows: Sequence[Mapping[str, Any]],
+    asked: set[str],
+    into: dict[ItemId, set[RegistryTopicRef]],
+    routes: Mapping[str, TopicKind],
+) -> None:
+    for row in rows:
+        item = _qid(row, "item")
+        if item not in asked:
+            # As in `works_by_identifier`: an item not asked about is not a key.
+            continue
+        for name, kind in routes.items():
+            topic = _qid(row, name, required=False)
+            # An unknown value ("depicts: somebody") is no topic.
+            if topic is not None:
+                into.setdefault(item, set()).add(
+                    RegistryTopicRef(qid=topic, label=RegistryText(_value(row, f"{name}Label")), kind=kind)
+                )
+
+
+def _sorted_refs(found: Mapping[ItemId, set[RegistryTopicRef]]) -> dict[ItemId, tuple[RegistryTopicRef, ...]]:
+    order = {kind: index for index, kind in enumerate(_KIND_ORDER)}
+    return {
+        item: tuple(sorted(refs, key=lambda ref: (order[ref.kind], ref.label.casefold(), ref.qid)))
+        for item, refs in sorted(found.items())
+    }
 
 
 def _inventory(collection: ItemId, numbers: set[tuple[str, ItemId | None]], *, single: bool) -> RegistryText | None:
