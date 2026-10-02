@@ -56,15 +56,31 @@ def _topic(qid, *kinds, start=None, end=None):
         ("Q1311", (TopicKind.SUBJECT,)),
         # A movement and a period: its works are found as a movement's.
         ("Q37853", (TopicKind.MOVEMENT, TopicKind.PERIOD)),
-        # A movement with a start and an end, and so a period too, though not an
-        # instance of one: the rule's last clause, which a person would not apply.
-        ("Q37068", (TopicKind.MOVEMENT, TopicKind.PERIOD)),
+        # Romanticism has a start and an end and is no instance of a period: a
+        # movement only, as a person would call it.
+        ("Q37068", (TopicKind.MOVEMENT,)),
     ],
 )
 def test_a_topics_kind_is_read_from_the_classes_above_it(qid, kinds):
     topic = _answering(ANSWERS[f"topic {qid}"]).topic(qid)
 
     assert topic.kinds == kinds and topic.kind is kinds[0]
+
+
+@pytest.mark.parametrize(
+    "qid",
+    # An exhibition at the Louvre-Lens, the Winter War, 16th-century clothing:
+    # each offered by search as a period while its years alone made one.
+    ["Q16672500", "Q134949", "Q28972137"],
+)
+def test_a_start_and_an_end_alone_make_nothing_a_period(qid):
+    rows = ANSWERS[f"topic {qid}"]
+    assert all("start" in row and "end" in row and "root" not in row for row in rows)
+
+    topic = _answering(rows).topic(qid)
+
+    assert topic.kinds == (TopicKind.SUBJECT,)
+    assert (topic.start, topic.end) == (int(rows[0]["start"]["value"]), int(rows[0]["end"]["value"]))
 
 
 def test_a_historical_period_with_no_years_recorded_is_still_a_period():
@@ -185,8 +201,12 @@ def test_a_movements_artists_are_its_own_and_anyone_elses_are_the_makers_of_its_
     registry.topic_artists(_topic("Q1311", TopicKind.SUBJECT), limit=12)
 
     assert "?artist wdt:P135 wd:Q40415" in asked[0] and "wdt:P106/wdt:P279* wd:Q3391743" in asked[0]
+    assert "OPTIONAL { ?work wdt:P170 ?artist . ?work wdt:P31 ?class . VALUES ?class {" in asked[0]
     assert "?work wdt:P180 wd:Q1311" in asked[1] and "?work wdt:P170 ?artist" in asked[1]
-    assert all("ORDER BY DESC(?links)" in query and "LIMIT 12" in query for query in asked)
+    assert all(
+        "COUNT(DISTINCT ?work) AS ?works" in query and "ORDER BY DESC(?works) DESC(?links) STR(?artist) LIMIT 12" in query
+        for query in asked
+    )
 
 
 def test_a_topics_artists_come_back_with_their_image_counts():
@@ -197,6 +217,34 @@ def test_a_topics_artists_come_back_with_their_image_counts():
     assert [(person.qid, person.images) for person in people] == [tuple(pair) for pair in ANSWERS["artists expected"]]
 
 
+def test_a_topics_artists_rank_by_their_works_in_it_then_by_renown():
+    """Woodcut print: ranked by renown, Benjamin Franklin came first for *Join, or Die*.
+
+    The recorded answer is given back in the opposite order, as the service may:
+    Hokusai and Suzuki Harunobu have 158 woodcuts each, and Hokusai's renown puts
+    him first.
+    """
+    rows = ANSWERS["artists woodcut"]
+    backwards = sorted(rows, key=lambda row: (int(row["works"]["value"]), int(row["links"]["value"])))
+
+    people = _answering(backwards, ANSWERS["artist images woodcut"]).topic_artists(
+        _topic("Q18219090", TopicKind.MEDIUM), limit=10
+    )
+
+    assert [person.name for person in people] == [
+        "Albrecht Dürer",
+        "Utagawa Hiroshige",
+        "Yoshitoshi",
+        "Frans Masereel",
+        "Jef Diederen",
+        "Kitagawa Utamaro",
+        "Katsushika Hokusai",
+        "Suzuki Harunobu",
+        "Sharaku",
+        "Marianne van der Heijden",
+    ]
+
+
 def test_a_topic_search_offers_the_movement_and_not_the_political_party():
     """`renaissance`: the search ranks a French political party first; nothing depicts it, so it is no topic."""
     asked = []
@@ -204,8 +252,25 @@ def test_a_topic_search_offers_the_movement_and_not_the_political_party():
 
     by_qid = {topic.qid: topic for topic in found}
     assert ANSWERS["renaissance party"] not in by_qid
-    assert by_qid["Q4692"].kinds == (TopicKind.MOVEMENT, TopicKind.PERIOD)
+    # A movement only: its years made it a period too, and years alone no longer do.
+    assert by_qid["Q4692"].kinds == (TopicKind.MOVEMENT,)
     assert 'mwapi:search "renaissance"' in asked[0] and "wikibase:limit 20" in asked[0]
+
+
+def test_a_movement_no_work_of_visual_art_was_made_in_is_not_offered():
+    """`impressionism`: *impressionism in music* is a movement, and no maker of a work of visual art belongs to it."""
+    rows = ANSWERS["named impressionism"]
+    music = [row for row in rows if row["item"]["value"].endswith("/Q837182")]
+    assert music and all(row["followed"]["value"] == "false" for row in music)
+
+    found = {topic.qid: topic for topic in _answering(rows).topics_named("impressionism")}
+
+    assert "Q837182" not in found
+    assert found["Q40415"].kinds == (TopicKind.MOVEMENT,)
+    # Only a movement is asked to have been followed: *impressionist music* is
+    # depicted and followed by nobody, and is offered as a subject.
+    assert [row["followed"]["value"] for row in rows if row["item"]["value"].endswith("/Q105697765")] == ["false"]
+    assert found["Q105697765"].kinds == (TopicKind.SUBJECT,)
 
 
 def test_a_subject_hit_is_kept_when_something_depicts_it():

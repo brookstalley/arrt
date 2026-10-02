@@ -166,8 +166,8 @@ class TopicKind(Enum):
     registry's classes, never words the registry wrote, so it is not a string.
     """
 
-    #: A century, a decade, a historical period, or anything with a start and an
-    #: end. Its works were made between them.
+    #: An instance of a century, a decade or a historical period. Its works were
+    #: made between its start and its end.
     PERIOD = "period"
     #: An art movement or style. Its works are its artists' works.
     MOVEMENT = "movement"
@@ -302,7 +302,7 @@ class Registry(Protocol):
         ...
 
     def topic_artists(self, topic: RegistryTopic, *, limit: int) -> Sequence[RegistrySimilar]:
-        """The topic's artists, the most renowned first: a movement's own, or the makers of its works."""
+        """The topic's artists, most works in it first and renown breaking ties: a movement's own, or the makers of its works."""
         ...
 
     def topics_named(self, text: str) -> Sequence[RegistryTopic]:
