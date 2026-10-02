@@ -19,8 +19,6 @@ cut into words, and the registry's client drops any word that is not one.
 
 import logging
 import re
-import threading
-from collections import OrderedDict
 from collections.abc import Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -29,6 +27,7 @@ from typing import Final
 
 from arrt.library.registry import Registry, RegistryPerson, RegistryUnavailable, RegistryWorkMatch
 from arrt.library.services.artists import artist_ids_by_qid
+from arrt.library.services.remembered import NOT_CONFIGURED_NOTE, Remembered
 from arrt.persistence.catalogue import CatalogueStore
 from arrt.persistence.folding import search_fold
 
@@ -46,10 +45,6 @@ WORKS_FOUND: Final[int] = 5
 #: read down rather than a dropdown to pick from.
 ARTISTS_FOUND_WIDE: Final[int] = 10
 WORKS_FOUND_WIDE: Final[int] = 20
-
-#: How many queries' answers are remembered. A curator's typing produces one per
-#: pause, so this is hours of searching.
-_REMEMBERED: Final[int] = 512
 
 #: A word as the search cuts a query into them, the characters names carry included.
 _WORDS: Final[re.Pattern[str]] = re.compile(r"\w[\w'’-]*")
@@ -77,7 +72,7 @@ class RegistrySearch:
     note: str | None = None
     artists: Sequence[RegistryPerson] = ()
     works: Sequence[RegistryWorkMatch] = ()
-    #: The library's artist for each artist found that it holds, by QID.
+    #: The library's artist for each artist found, and each work's maker, that it holds, by QID.
     held_artists: Mapping[str, str] = field(default_factory=dict)
     #: The library's works in circulation for each work found that it holds, by QID.
     held_works: Mapping[str, Sequence[str]] = field(default_factory=dict)
@@ -89,10 +84,9 @@ class RegistrySearchService:
     def __init__(self, store: CatalogueStore, registry: Registry | None) -> None:
         self._store = store
         self._registry = registry
-        self._remembered: OrderedDict[tuple[str, bool, bool], tuple[Sequence[RegistryPerson], Sequence[RegistryWorkMatch]]] = (
-            OrderedDict()
+        self._remembered: Remembered[tuple[str, bool, bool], tuple[Sequence[RegistryPerson], Sequence[RegistryWorkMatch]]] = (
+            Remembered()
         )
-        self._lock = threading.Lock()
 
     def search(self, query: str, *, prefix: bool, wide: bool = False) -> RegistrySearch:
         """The registry's artists and works for `query`.
@@ -106,10 +100,8 @@ class RegistrySearchService:
         if self._registry is None:
             return RegistrySearch(
                 state=RegistrySearchState.NOT_CONFIGURED,
-                note=(
-                    "Wikidata is not configured on this server (WIKIDATA_USER_AGENT is unset), "
-                    "so only your library is searched."
-                ),
+                # The shared sentence, continued: what the curator is shown instead.
+                note=f"{NOT_CONFIGURED_NOTE.removesuffix('.')}, so only your library is searched.",
             )
         try:
             artists, works = self._found(words, prefix, wide, self._registry)
@@ -122,7 +114,13 @@ class RegistrySearchService:
             state=RegistrySearchState.KNOWN,
             artists=artists,
             works=works,
-            held_artists={person.qid: ours[person.qid] for person in artists if person.qid in ours},
+            # The artists found and the works' makers both: a maker the library
+            # holds links to its page whether or not the name search found them.
+            held_artists={
+                qid: ours[qid]
+                for qid in {person.qid for person in artists} | {work.creator.qid for work in works if work.creator}
+                if qid in ours
+            },
             held_works={work.qid: holdings[work.qid] for work in works if work.qid in holdings},
         )
 
@@ -131,17 +129,13 @@ class RegistrySearchService:
     ) -> tuple[Sequence[RegistryPerson], Sequence[RegistryWorkMatch]]:
         key = (search_fold(" ".join(words)), prefix, wide)
         artists_found, works_found = (ARTISTS_FOUND_WIDE, WORKS_FOUND_WIDE) if wide else (ARTISTS_FOUND, WORKS_FOUND)
-        with self._lock:
-            if key in self._remembered:
-                self._remembered.move_to_end(key)
-                return self._remembered[key]
+        remembered = self._remembered.get(key)
+        if remembered is not None:
+            return remembered
         # Asked outside the lock, and both at once: see the module's note.
         with ThreadPoolExecutor(max_workers=2) as pool:
             people = pool.submit(registry.people_named, " ".join(words))
             matching = pool.submit(registry.works_matching, words, prefix=prefix, limit=works_found)
             found = (tuple(people.result())[:artists_found], tuple(matching.result()))
-        with self._lock:
-            self._remembered[key] = found
-            while len(self._remembered) > _REMEMBERED:
-                self._remembered.popitem(last=False)
+        self._remembered.put(key, found)
         return found

@@ -56,8 +56,15 @@ SPARQL_ENDPOINT: Final[str] = "https://query.wikidata.org/sparql"
 BATCH: Final[int] = 200
 
 #: Seconds. A query that has not answered in this long is one the service is
-#: about to time out itself (its limit is 60 s).
+#: about to time out itself (its limit is 60 s). For the hand-run matcher, which
+#: nobody is waiting on.
 TIMEOUT_SECONDS: Final[float] = 60.0
+
+#: Seconds, for the server's pages, where a curator is waiting and a stalled
+#: query holds one of the workers the library's own requests share. The slowest
+#: page query measured was 7.4 s (Renoir's similar artists, `wikidata-findings.md`);
+#: past this the page says Wikidata could not be asked, and the next visit asks again.
+INTERACTIVE_TIMEOUT_SECONDS: Final[float] = 20.0
 
 
 #: Visual artist (`Q3391743`): the occupation painters, sculptors and
@@ -115,9 +122,9 @@ _COMMONS_FILE: Final[re.Pattern[str]] = re.compile(r"^https?://commons\.wikimedi
 class WikidataRegistry:
     """The `Registry` over Wikidata's query service."""
 
-    def __init__(self, *, user_agent: str, client: httpx.Client | None = None) -> None:
+    def __init__(self, *, user_agent: str, client: httpx.Client | None = None, timeout: float = TIMEOUT_SECONDS) -> None:
         self._headers = {"User-Agent": user_agent, "Accept": "application/sparql-results+json"}
-        self._http = client or httpx.Client(timeout=httpx.Timeout(TIMEOUT_SECONDS, connect=10.0), follow_redirects=False)
+        self._http = client or httpx.Client(timeout=httpx.Timeout(timeout, connect=10.0), follow_redirects=False)
 
     def works_by_identifier(
         self, scheme: IdentifierScheme, values: Sequence[str]
@@ -150,18 +157,25 @@ class WikidataRegistry:
         return {item: frozenset(creators) for item, creators in found.items()}
 
     def people_named(self, name: str) -> Sequence[RegistryPerson]:
-        rows = self._select(f"""SELECT ?item ?itemLabel (MIN(YEAR(?born)) AS ?bornYear) (MIN(YEAR(?died)) AS ?diedYear) WHERE {{
+        rows = self._select(
+            f"""SELECT ?item ?itemLabel ?links (MIN(YEAR(?born)) AS ?bornYear) (MIN(YEAR(?died)) AS ?diedYear) WHERE {{
               SERVICE wikibase:mwapi {{
                 bd:serviceParam wikibase:endpoint "www.wikidata.org"; wikibase:api "EntitySearch";
                   mwapi:search {_literal(name)}; mwapi:language "en" .
                 ?item wikibase:apiOutputItem mwapi:item .
               }}
-              ?item wdt:P31 wd:Q5 .
+              ?item wdt:P31 wd:Q5 ; wikibase:sitelinks ?links .
               FILTER EXISTS {{ {{ ?item wdt:P106/wdt:P279* wd:{_VISUAL_ARTIST} }} UNION {{ ?made wdt:P170 ?item }} }}
               OPTIONAL {{ ?item wdt:P569 ?born }}
               OPTIONAL {{ ?item wdt:P570 ?died }}
               SERVICE wikibase:label {{ bd:serviceParam wikibase:language "{_LABELS}". }}
-            }} GROUP BY ?item ?itemLabel""")
+            }} GROUP BY ?item ?itemLabel ?links ORDER BY DESC(?links) ?itemLabel"""
+        )
+        # By renown, as the work search is: a caller that keeps the first few
+        # (the typeahead keeps three) keeps the famous one, not a namesake. The
+        # sort key is selected as well as grouped by: the query service ignored
+        # an ORDER BY on a grouped key it was not asked to return (measured
+        # 2026-10-01: "dali" put Dalibor Chatrný, 4 sitelinks, before Dalí, 247).
         return [
             RegistryPerson(
                 qid=_qid(row, "item"),
@@ -339,6 +353,18 @@ class WikidataRegistry:
                 )
             )
         return found
+
+    def label_of(self, qid: str) -> RegistryText | None:
+        item = _require_qid(qid)
+        # `wikibase:sitelinks` is on every item that exists and on nothing else,
+        # so a missing item gives no row where the label service alone would
+        # still answer with the QID.
+        rows = self._select(f"""SELECT ?itemLabel WHERE {{
+              VALUES ?item {{ wd:{item} }}
+              ?item wikibase:sitelinks ?links .
+              SERVICE wikibase:label {{ bd:serviceParam wikibase:language "{_LABELS}" . ?item rdfs:label ?itemLabel . }}
+            }}""")
+        return RegistryText(_value(rows[0], "itemLabel")) if rows else None
 
     def similar_to(self, qid: str, *, limit: int) -> Sequence[RegistrySimilar]:
         item = _require_qid(qid)

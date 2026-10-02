@@ -23,7 +23,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field, fields, replace
 from typing import Final
 
-from arrt.library.registry import QID, Registry, RegistryPerson
+from arrt.library.registry import QID, Registry, RegistryPerson, RegistryUnavailable
 from arrt.library.registry.identifiers import IdentifierScheme, museum_identifier
 from arrt.persistence.catalogue import CatalogueStore, WorkQuery
 from arrt.persistence.records import Artist, Artwork, IdentitySetBy
@@ -72,23 +72,60 @@ class IdentityService:
 
     # -- by hand --------------------------------------------------------------
 
+    # Every rule here binds both surfaces: the browser's control shows the item
+    # before offering to store it and refuses nothing of its own, so a click and
+    # an agent's `art_catalogue` action get the same refusals, from here.
+
     def set_work_identity(self, artwork_id: str, qid: str | None) -> Artwork:
-        """Set or clear a work's QID as the curator. Clearing records "there is none", which the matcher respects."""
+        """Set or clear a work's QID as the curator. Clearing records "there is none", which the matcher respects.
+
+        A QID must name an item the registry has, when one is configured. Two
+        works may share one: a duplicate the Artist page shows as *Held ×2*.
+        """
         artwork = self._store.get_artwork(artwork_id)
         if artwork is None:
             raise ServiceError(f"No artwork with id {artwork_id!r} is in the catalogue.")
-        updated = replace(artwork, wikidata_qid=_require_qid(qid), wikidata_qid_set_by=IdentitySetBy.CURATOR)
+        checked = self._existing(_require_qid(qid))
+        updated = replace(artwork, wikidata_qid=checked, wikidata_qid_set_by=IdentitySetBy.CURATOR)
         store_write(self._store.update_artwork, updated)
         return updated
 
     def set_artist_identity(self, artist_id: str, qid: str | None) -> Artist:
-        """Set or clear an artist's QID as the curator. Clearing records "there is none", which the matcher respects."""
+        """Set or clear an artist's QID as the curator. Clearing records "there is none", which the matcher respects.
+
+        A QID must name an item the registry has, when one is configured, and no
+        other artist in the catalogue may carry it: two artists with one item
+        would collapse into one on every page that finds an artist by QID.
+        """
         artist = self._store.get_artist(artist_id)
         if artist is None:
             raise ServiceError(f"No artist with id {artist_id!r} is in the catalogue.")
-        updated = replace(artist, wikidata_qid=_require_qid(qid), wikidata_qid_set_by=IdentitySetBy.CURATOR)
+        wanted = _require_qid(qid)
+        if wanted is not None:
+            other = next((a for a in self._store.list_artists() if a.wikidata_qid == wanted and a.id != artist_id), None)
+            if other is not None:
+                raise ServiceError(f"{other.name} already has {wanted}. Correct that artist first, or merge the two.")
+        updated = replace(artist, wikidata_qid=self._existing(wanted), wikidata_qid_set_by=IdentitySetBy.CURATOR)
         store_write(self._store.update_artist, updated)
         return updated
+
+    def _existing(self, qid: str | None) -> str | None:
+        """`qid`, once the registry has said it names something; unchecked when no registry is configured.
+
+        With no registry the curator's word stands: there is nothing to check it
+        against, and refusing would leave no way to record a known identity. A
+        registry that cannot be asked is a refusal, not a pass, because an
+        unchecked id is how a typo becomes an identity.
+        """
+        if qid is None or self._registry is None:
+            return qid
+        try:
+            label = self._registry.label_of(qid)
+        except RegistryUnavailable as exc:
+            raise ServiceError(f"Wikidata could not be asked, so {qid} could not be checked. Try again.") from exc
+        if label is None:
+            raise ServiceError(f"Wikidata has no item {qid}.")
+        return qid
 
     # -- by the matcher -------------------------------------------------------
 
@@ -165,6 +202,9 @@ class IdentityService:
         ambiguous: list[str] = []
         undated: list[str] = []
         unknown: list[str] = []
+        # One item, one artist: a QID another catalogue artist already carries
+        # is reported as ambiguous rather than given twice.
+        taken = {other.wikidata_qid: other.id for other in self._store.list_artists() if other.wikidata_qid}
         for artist in artists:
             pinned = set().union(*(creators.get(qid, frozenset()) for qid in identified.get(artist.id, ())))
             if len(pinned) == 1:
@@ -182,6 +222,10 @@ class IdentityService:
                     (ambiguous if candidates else unknown).append(artist.name)
                     continue
                 qid = candidates[0].qid
+            if taken.get(qid, artist.id) != artist.id:
+                ambiguous.append(artist.name)
+                continue
+            taken[qid] = artist.id
             # One write per artist rather than one transaction for the pass: the
             # name searches between them are network calls, and the store's lock
             # would hold every other request back for as long as they took.

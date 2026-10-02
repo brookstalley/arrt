@@ -14,23 +14,16 @@ remembered, so the next visit asks again.
 """
 
 import logging
-import threading
-from collections import OrderedDict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Final
 
-from arrt.library.registry import QID, Registry, RegistryUnavailable, RegistryWork
+from arrt.library.registry import Registry, RegistryUnavailable, RegistryWork
 from arrt.library.services.artists import artist_ids_by_qid
+from arrt.library.services.remembered import NOT_CONFIGURED_NOTE, Remembered, checked_qid
 from arrt.persistence.catalogue import CatalogueStore
-from arrt.services.errors import ServiceError
 
 log = logging.getLogger(__name__)
-
-#: How many works' registry answers are remembered. A curator's session visits
-#: tens; this keeps a long one from evicting the work they came from.
-_REMEMBERED: Final[int] = 512
 
 
 class RegistryWorkState(StrEnum):
@@ -67,17 +60,15 @@ class RegistryWorkService:
     def __init__(self, store: CatalogueStore, registry: Registry | None) -> None:
         self._store = store
         self._registry = registry
-        self._remembered: OrderedDict[str, RegistryWork] = OrderedDict()
-        self._lock = threading.Lock()
+        self._remembered: Remembered[str, RegistryWork] = Remembered()
 
     def view(self, qid: str) -> RegistryWorkView:
-        if not QID.match(qid):
-            raise ServiceError(f"{qid!r} is not a Wikidata item id (Q followed by digits).")
+        checked_qid(qid)
         held = tuple(self._store.circulating_ids_by_qid().get(qid, ()))
         if self._registry is None:
             return RegistryWorkView(
                 state=RegistryWorkState.NOT_CONFIGURED,
-                note="Wikidata is not configured on this server (WIKIDATA_USER_AGENT is unset).",
+                note=NOT_CONFIGURED_NOTE,
                 held=held,
             )
         try:
@@ -104,10 +95,9 @@ class RegistryWorkService:
         )
 
     def _known(self, qid: str, registry: Registry) -> RegistryWork | None:
-        with self._lock:
-            if qid in self._remembered:
-                self._remembered.move_to_end(qid)
-                return self._remembered[qid]
+        remembered = self._remembered.get(qid)
+        if remembered is not None:
+            return remembered
         # Asked outside the lock, as the Artist page's half is: another page must
         # not wait on this one's query.
         known = registry.work(qid)
@@ -115,8 +105,5 @@ class RegistryWorkService:
             # Not remembered either: an item can be created, and a curator who
             # mistyped will try again with the right one.
             return None
-        with self._lock:
-            self._remembered[qid] = known
-            while len(self._remembered) > _REMEMBERED:
-                self._remembered.popitem(last=False)
+        self._remembered.put(qid, known)
         return known

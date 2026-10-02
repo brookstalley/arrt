@@ -66,6 +66,29 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-02: The cumulative review of one-world search, resolved
+
+<!-- prawduct: chunks=05 | scope=one-world-search -->
+
+**Why:** the cumulative review found that the rules on a curator's Wikidata item
+lived only in the browser. An agent's `set_artist_qid` could give a second artist
+the same item, and every page that finds an artist by QID would then silently
+show one of the two.
+
+**What:** the identity service now refuses an artist's QID another catalogue
+artist carries, and checks that an item exists on Wikidata through a new
+one-query `label_of`. Both hold over HTTP and MCP. The matcher reports a second
+artist matching a taken item as ambiguous. `artist_ids_by_qid` resolves any
+older duplicate to the first by name. The review's warnings, fixed:
+- a work's maker the library holds links there in search, though the name search did not find them;
+- Wikidata's name search is ranked by renown (the sort key has to be selected, or the service ignores the order);
+- unpressed view buttons say `aria-pressed="false"`;
+- the page of an artist not held says where held work is filed rather than claiming none;
+- one `stateMark` draws ● / ◐ / ○ everywhere;
+- live tests cover the new queries;
+- the server's registry gives up after 20 s, not the matcher's 60;
+- the registry services share one bounded memory, note and QID check (`library/services/remembered.py`).
+
 ## 2026-10-01: Similar artists, and setting a Wikidata item by hand
 
 <!-- prawduct: chunks=05 | scope=one-world-search -->

@@ -27,7 +27,7 @@ from arrt.library.discovery.engine import DiscoveryEngine, unavailable_engine
 from arrt.library.discovery.images import ImageSearch
 from arrt.library.discovery.openrouter import OpenRouterClient
 from arrt.library.discovery.phase_one import build_engine
-from arrt.library.registry.wikidata import WikidataRegistry
+from arrt.library.registry.wikidata import INTERACTIVE_TIMEOUT_SECONDS, WikidataRegistry
 from arrt.library.services.previews import PreviewSettings
 from arrt.library.services.thumbnails import ThumbnailSettings
 from arrt.persistence.file import open_catalogue_file
@@ -138,7 +138,8 @@ def _registry(settings: Settings) -> WikidataRegistry | None:
     """Wikidata, or nothing while this deployment has not named itself to it."""
     if not settings.wikidata_user_agent:
         return None
-    return WikidataRegistry(user_agent=settings.wikidata_user_agent)
+    # The pages' timeout, not the matcher's: see INTERACTIVE_TIMEOUT_SECONDS.
+    return WikidataRegistry(user_agent=settings.wikidata_user_agent, timeout=INTERACTIVE_TIMEOUT_SECONDS)
 
 
 def main(argv: Sequence[str] = ()) -> None:

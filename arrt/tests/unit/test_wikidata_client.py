@@ -428,7 +428,8 @@ def test_similar_artists_come_back_ranked_with_their_image_counts():
     found = _registry(handler).similar_to("Q160149", limit=12)
 
     assert [(p.name, p.born, p.images) for p in found] == [("Jackson Pollock", 1912, 0), ("Arshile Gorky", None, 35)]
-    assert "ORDER BY DESC(?links)" in asked[0] and "wdt:P106/wdt:P279* wd:Q3391743" in asked[0] and "LIMIT 12" in asked[0]
+    assert "ORDER BY DESC(?links)" in asked[0] and "SELECT ?other ?otherLabel ?links " in asked[0]
+    assert "wdt:P106/wdt:P279* wd:Q3391743" in asked[0] and "LIMIT 12" in asked[0]
     assert "wd:Q37571 wd:Q153739" in asked[1]
 
 
@@ -446,3 +447,32 @@ def test_no_similar_artists_asks_no_second_question():
 def test_a_similar_artists_qid_is_checked_before_it_reaches_a_query():
     with pytest.raises(ValueError):
         _registry(lambda request: _results()).similar_to("Q1 } UNION {", limit=1)
+
+
+def test_people_are_asked_for_most_renowned_first():
+    """The typeahead keeps the first three, so an unranked list could keep namesakes and drop the painter."""
+    asked = []
+
+    def handler(request):
+        asked.append(_sent_query(request))
+        return _results()
+
+    _registry(handler).people_named("dali")
+
+    assert "ORDER BY DESC(?links)" in asked[0]
+    # Selected, not only grouped by, or the service ignores the order.
+    assert "SELECT ?item ?itemLabel ?links " in asked[0]
+
+
+def test_the_servers_registry_gives_up_sooner_than_the_matchers():
+    """A curator waits on the pages; the hand-run matcher has nobody waiting."""
+    from types import SimpleNamespace
+
+    from arrt.__main__ import _registry
+    from arrt.library.registry.wikidata import INTERACTIVE_TIMEOUT_SECONDS, TIMEOUT_SECONDS
+
+    # `_registry` reads one setting; the rest of `Settings` is the server's.
+    server = _registry(SimpleNamespace(wikidata_user_agent=UA))
+    matcher = WikidataRegistry(user_agent=UA)
+
+    assert server._http.timeout.read == INTERACTIVE_TIMEOUT_SECONDS < TIMEOUT_SECONDS == matcher._http.timeout.read

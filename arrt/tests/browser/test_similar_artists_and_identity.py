@@ -82,8 +82,8 @@ class TestSimilarArtists:
         ui.open(f"#artist/{artist.id}")
 
         assert _similar(ui) == [
-            "Jackson Pollock 1912–1956 · 0 works with an image",
-            "Barnett Newman 1905–1970 · 17 works with an image",
+            "Jackson Pollock 1912–1956 · 0 works with an image ○ Not held",
+            "Barnett Newman 1905–1970 · 17 works with an image ○ Not held",
         ]
         ui.page.click("section[aria-labelledby='similar-artists'] button:has-text('Jackson Pollock')")
         ui.page.wait_for_function("(qid) => window.location.hash.split('?')[0] === `#artist/${qid}`", arg=POLLOCK)
@@ -199,3 +199,36 @@ class TestSettingAnItemByHand:
 
         ui.page.wait_for_selector(f"#view .identity :text('Wikidata: {POLLOCK} (set by you)')")
         assert services.artists.get(other.id).artist.wikidata_qid == POLLOCK
+
+    def test_an_item_with_no_english_name_can_be_stored_as_the_service_would(self, ui, services, service):
+        """A Japanese painter's item may carry only a Japanese name; it is an item all the same."""
+        other = service.add_artist(name="Hokusai")
+        service.add_artwork(title="The Great Wave", artist_id=other.id)
+        ui.open(f"#artist/{other.id}")
+        _open_control(ui)
+
+        assert _look_up(ui, "Q777") == "Q777 exists on Wikidata with no English name; check it is the one you mean."
+        ui.page.click("#view .identity button:has-text('Use Q777')")
+
+        ui.page.wait_for_selector("#view .identity :text('Wikidata: Q777 (set by you)')")
+        assert services.artists.get(other.id).artist.wikidata_qid == "Q777"
+
+
+class TestSettingAnItemWithNoRegistryConfigured:
+    @pytest.fixture
+    def registry(self):
+        return None
+
+    def test_the_item_is_offered_unchecked_and_stored_as_the_service_would(self, ui, service, rothko):
+        _artist, work = rothko
+        ui.open(f"#work/{work.id}")
+        _open_control(ui)
+
+        assert (
+            _look_up(ui, "Q500985")
+            == "Wikidata is not configured on this server, so Q500985 cannot be checked. It can still be stored."
+        )
+        ui.page.click("#view .identity button:has-text('Use Q500985')")
+
+        ui.page.wait_for_selector("#view .identity :text('Wikidata: Q500985 (set by you)')")
+        assert service.get_artwork(work.id).artwork.wikidata_qid == "Q500985"

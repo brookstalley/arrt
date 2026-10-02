@@ -194,6 +194,14 @@ class Registry(Protocol):
         """What the registry knows about this work, or None when it has no such item."""
         ...
 
+    def label_of(self, qid: str) -> RegistryText | None:
+        """The item's name, or None when the registry has no such item: whether an id names anything at all.
+
+        An item with no readable name answers with its own QID, as the label
+        service does; it exists all the same.
+        """
+        ...
+
     def similar_to(self, qid: str, *, limit: int) -> Sequence[RegistrySimilar]:
         """Visual artists sharing a movement with this one, the most renowned first."""
         ...

@@ -24,6 +24,15 @@ def registry():
             "dali": [RegistryPerson(qid=DALI, label="Salvador Dalí", born=1904, died=1989)],
         },
         matches={
+            # A title search: the name search finds nobody, and the maker is held.
+            "persistence": [
+                RegistryWorkMatch(
+                    qid="Q25729",
+                    title="The Persistence of Memory",
+                    sitelinks=48,
+                    creator=RegistryCreator(qid=DALI, name="Salvador Dalí"),
+                )
+            ],
             "rothko": [
                 RegistryWorkMatch(
                     qid="Q2956755", title="Rothko Chapel", sitelinks=13, creator=RegistryCreator(qid=ROTHKO, name="Mark Rothko")
@@ -153,3 +162,13 @@ def test_a_wide_search_asks_for_the_results_pages_longer_list_and_is_remembered_
     assert (len(narrow["artists"]), len(wide["artists"])) == (3, 10)
     assert registry.matched == [("dali", False), ("dali", False)]
     assert registry.limits == [5, 20]
+
+
+def test_a_works_maker_the_library_holds_links_there_though_the_name_search_found_nobody(http, services, service):
+    dali = service.add_artist(name="Salvador Dalí", born=1904, died=1989)
+    services.identity.set_artist_identity(dali.id, DALI)
+
+    found = _search(http, "persistence")
+
+    assert found["artists"] == []
+    assert found["works"][0]["creator"] == {"qid": DALI, "name": "Salvador Dalí", "artist_id": dali.id}

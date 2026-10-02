@@ -416,6 +416,7 @@ class FakeRegistry:
         works=None,
         matches=None,
         similar=None,
+        missing=None,
         failing=False,
     ):
         self.items = items or {}
@@ -434,6 +435,9 @@ class FakeRegistry:
         #: QID → the `RegistrySimilar`s `similar_to` answers.
         self.similar = similar or {}
         self.similar_asked: list[str] = []
+        #: QIDs `label_of` answers None for: items the registry does not have.
+        #: Every other QID exists, named by whatever table here knows it.
+        self.missing = set(missing or ())
         self.matched: list[tuple[str, bool]] = []
         self.limits: list[int] = []
         self.failing = failing
@@ -472,6 +476,13 @@ class FakeRegistry:
         self.matched.append((" ".join(words), prefix))
         self.limits.append(limit)
         return self.matches.get(" ".join(words), [])[:limit]
+
+    def label_of(self, qid):
+        self._check()
+        if qid in self.missing:
+            return None
+        known = self.artists.get(qid) or self.works.get(qid)
+        return getattr(known, "name", None) or getattr(known, "title", None) or qid
 
     def similar_to(self, qid, *, limit):
         self._check()

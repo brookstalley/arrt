@@ -24,7 +24,7 @@ import { absentImage, facts } from "../core/badges.js";
 import { identityControl } from "../core/identity.js";
 import { addedSentence, addWorksToTheme, stoppedSentence } from "../core/membership.js";
 import { el, guard, render } from "../core/render.js";
-import { isQid, lifeDates, named, stateBadge, wikidataLink, workLink, workState } from "../core/registry.js";
+import { isQid, lifeDates, named, stateMark, wikidataLink, workLink, workState } from "../core/registry.js";
 import { backLink, backRow, go, redirect, refresh } from "../core/router.js";
 import { recordReaction } from "../core/taste.js";
 
@@ -148,6 +148,19 @@ async function registryArtist(qid, generation) {
   const registrySection = el("section", { class: "panel", "aria-labelledby": "their-work" }, [el("h3", { id: "their-work", text: "Their work" })]);
   const about = el("div", { class: "stack" });
   const similarSection = similarShell();
+  // Said only when it can be known. A held work listed here belongs to a library
+  // artist who is not matched to this item, so the curator is told where it is;
+  // when Wikidata did not answer, nothing is claimed either way.
+  const filedElsewhere = view.state === "known" && (view.works || []).some((work) => work.held_artwork_ids.length);
+  const heldNote =
+    view.state !== "known"
+      ? null
+      : el("p", {
+          class: "note",
+          text: filedElsewhere
+            ? "Some of their work is in your library, filed under another artist; it is marked Held below."
+            : "Nothing of theirs is in your library.",
+        });
   render(
     generation,
     el("p", {}, [backLink()]),
@@ -156,7 +169,7 @@ async function registryArtist(qid, generation) {
       facts([["Life", lifeDates(view)]]),
       el("p", { class: "muted" }, [wikidataLink(qid, `Wikidata ${qid}`)]),
       about,
-      el("p", { class: "note", text: "Nothing of theirs is in your library." }),
+      heldNote,
     ]),
     registrySection,
     similarSection,
@@ -196,7 +209,7 @@ async function paintSimilar(section, qid) {
             el("button", { class: "row-title", type: "button", text: named(person.name, person.qid), onclick: () => go("artist", person.artist_id || person.qid) }),
             lifeDates(person) ? el("span", { class: "muted", text: ` ${lifeDates(person)}` }) : null,
             el("span", { class: "muted", text: ` · ${person.images} ${person.images === 1 ? "work" : "works"} with an image` }),
-            person.artist_id ? stateBadge("badge-held", "●", "In your library") : null,
+            stateMark({ held: Boolean(person.artist_id) }),
           ]),
         ))
       : el("p", { class: "muted", text: "Wikidata records no movement shared with another painter." }),

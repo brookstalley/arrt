@@ -33,7 +33,7 @@ import { facts, fitBadge, sourceBadge, statusBadge, table } from "../core/badges
 import { confirmAct } from "../core/confirm.js";
 import { identityControl } from "../core/identity.js";
 import { el, guard, render } from "../core/render.js";
-import { isQid, named, personLink, wikidataLink, workLink, workState } from "../core/registry.js";
+import { isQid, named, personLink, stateMark, wikidataLink, workLink, workState } from "../core/registry.js";
 import { backLink, go, redirect } from "../core/router.js";
 
 /* The typed vocabulary a work is filed under, in the words a label uses.
@@ -137,7 +137,7 @@ async function viewRegistryWork(qid, generation) {
     el("p", {}, [backLink()]),
     el("div", { class: "panel" }, [
       picture,
-      el("div", { class: "card-footer" }, [notHeldBadge(page)]),
+      el("div", { class: "card-footer" }, [stateMark({ image: Boolean(page.image) })]),
     ]),
     el("div", { class: "panel" }, [
       el("h2", { text: title }),
@@ -156,13 +156,6 @@ async function viewRegistryWork(qid, generation) {
     maker ? theirWork : null,
   );
   if (maker) await paintTheirWork(theirWork, maker, qid);
-}
-
-/* *Not held*, with *Image found* when there is a picture: glyph, word, then colour. */
-function notHeldBadge(page) {
-  return page.image
-    ? el("span", { class: "badge badge-image-found" }, [el("span", { class: "glyph", text: "◐", "aria-hidden": true }), el("span", { text: "Not held · Image found" })])
-    : el("span", { class: "badge" }, [el("span", { class: "glyph", text: "○", "aria-hidden": true }), el("span", { text: "Not held" })]);
 }
 
 function holderLine(holder) {

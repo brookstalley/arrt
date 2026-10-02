@@ -53,6 +53,7 @@ CALLS = {
     "work": lambda registry: registry.work("Q1"),
     "works_matching": lambda registry: registry.works_matching(["any"], prefix=True, limit=5),
     "similar_to": lambda registry: registry.similar_to("Q1", limit=5),
+    "label_of": lambda registry: registry.label_of("Q1"),
 }
 
 

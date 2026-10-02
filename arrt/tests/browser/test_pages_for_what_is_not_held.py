@@ -99,7 +99,7 @@ class TestAWorkNotHeld:
         assert "1565" in facts
         assert "oil paint, panel" in facts
         assert "Kunsthistorisches Museum (GG_1838)" in facts
-        assert ui.page.locator("#view .card-footer").inner_text().strip().endswith("Not held · Image found")
+        assert " ".join(ui.page.locator("#view .card-footer").inner_text().split()) == "◐ Image found"
         image = ui.page.locator("#view img.detail-image")
         assert image.get_attribute("src") == f"{COMMONS}?width=1200"
         assert image.get_attribute("referrerpolicy") == "no-referrer"
@@ -191,6 +191,17 @@ class TestAnArtistNotHeld:
         assert "Flemish painter" in ui.page.locator("#view").inner_text()
         titles = ui.page.locator("section[aria-labelledby='their-work'] tbody td:first-child").all_inner_texts()
         assert titles == ["The Hunters in the Snow", "The Harvesters"]
+
+    def test_it_says_where_held_work_is_filed_rather_than_that_none_is_held(self, ui, services, service):
+        """A library work Wikidata lists under this artist, filed under a library artist with no item."""
+        unmatched = service.add_artist(name="Bruegel, Pieter")
+        work = service.add_artwork(title="The Hunters in the Snow", artist_id=unmatched.id)
+        services.identity.set_work_identity(work.id, HUNTERS)
+        ui.open(f"#artist/{BRUEGEL}")
+        ui.page.wait_for_selector("section[aria-labelledby='their-work'] table")
+
+        assert ui.page.locator("#view p.note").first.inner_text().startswith("Some of their work is in your library")
+        assert ui.page.locator("#view p.note:has-text('Nothing of theirs')").count() == 0
 
     def test_a_held_artists_qid_is_replaced_by_their_library_page(self, ui, rothko):
         artist, _work = rothko

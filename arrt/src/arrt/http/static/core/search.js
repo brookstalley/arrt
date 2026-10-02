@@ -13,7 +13,7 @@
  */
 
 import { api } from "./api.js";
-import { named, stateBadge } from "./registry.js";
+import { named, stateMark } from "./registry.js";
 import { el } from "./render.js";
 import { go, openedFrom } from "./router.js";
 import { state } from "./state.js";
@@ -48,7 +48,8 @@ const PAUSE_MS = 200;
 const THEMES_SHOWN = 3;
 
 /* Fewer letters than this and the registry is not asked: the server's own floor,
- * repeated here only so the dropdown does not send a request it will refuse. */
+ * repeated here only so the dropdown does not send a request the server would
+ * answer with `too_short`. */
 const REGISTRY_SHORTEST = 3;
 
 /* Case and accents, ignored, as the library's search ignores them. */
@@ -340,7 +341,7 @@ function registryPersonRow(person) {
   const years = person.born || person.died ? ` (${person.born || "?"}–${person.died || ""})` : "";
   return [
     `${named(person.name, person.qid)}${years} — artist`,
-    person.artist_id ? stateBadge("badge-held", "●", "In your library") : stateBadge("badge-not-held", "○", "Not held"),
+    stateMark({ held: Boolean(person.artist_id) }),
   ];
 }
 
@@ -348,10 +349,5 @@ function registryPersonRow(person) {
  * carries one, glyph and word and colour (`accessibility-spec.md`). */
 function registryWorkRow(work) {
   const maker = work.creator ? ` — ${named(work.creator.name, work.creator.qid)}` : "";
-  const badge = work.held_artwork_ids.length
-    ? stateBadge("badge-held", "●", "In your library")
-    : work.image
-      ? stateBadge("badge-image-found", "◐", "Image found")
-      : stateBadge("badge-not-held", "○", "Not held");
-  return [`${named(work.title, work.qid)}${maker}`, badge];
+  return [`${named(work.title, work.qid)}${maker}`, stateMark({ held: work.held_artwork_ids.length > 0, image: Boolean(work.image) })];
 }

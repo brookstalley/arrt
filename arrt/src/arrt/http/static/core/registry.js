@@ -84,10 +84,18 @@ export function workState(work) {
   return el("span", { class: "muted", text: "—" });
 }
 
-/* A state as a badge: glyph, word and the badge's colour, in that order, as
- * every state mark here carries one (`accessibility-spec.md`). `kind` is the
- * badge class: `badge-held`, `badge-image-found` or `badge-not-held`. */
-export function stateBadge(kind, glyph, words) {
+/* What the library holds of something the registry knows, as one mark with
+ * one wording wherever it appears: ● *In your library*, ◐ *Image found*, or
+ * ○ *Not held*. Glyph, word and the badge's colour, in that order, as every
+ * state mark here carries one (`accessibility-spec.md`). The Artist page's
+ * *Their work* draws its own, because there *Held* is a button to the work. */
+export function stateMark({ held = false, image = false } = {}) {
+  if (held) return stateBadge("badge-held", "●", "In your library");
+  if (image) return stateBadge("badge-image-found", "◐", "Image found");
+  return stateBadge("badge-not-held", "○", "Not held");
+}
+
+function stateBadge(kind, glyph, words) {
   return el("span", { class: `badge ${kind} state-mark` }, [
     el("span", { class: "glyph", text: glyph, "aria-hidden": true }),
     el("span", { text: words }),

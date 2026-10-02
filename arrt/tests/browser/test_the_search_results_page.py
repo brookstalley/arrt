@@ -110,6 +110,11 @@ def test_all_shows_the_library_then_wikidata_each_marked_and_nothing_twice(ui, m
     # Two artists carry "dali": no single one leads.
     assert ui.page.locator("#results-top").count() == 0
     assert ui.page.locator("#view [role='group'][aria-label='Show'] [aria-pressed='true']").inner_text() == "All"
+    # The others say they are not pressed, rather than not saying.
+    assert ui.page.locator("#view [role='group'][aria-label='Show'] [aria-pressed='false']").all_inner_texts() == [
+        "In your library",
+        "Not held",
+    ]
 
 
 def test_in_your_library_shows_only_the_library_and_asks_wikidata_nothing(ui, matched, registry):

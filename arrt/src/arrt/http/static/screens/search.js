@@ -16,7 +16,7 @@
  * Every string from the registry is untrusted text, shown as text. */
 
 import { api } from "../core/api.js";
-import { lifeDates, named, stateBadge } from "../core/registry.js";
+import { lifeDates, named, stateMark } from "../core/registry.js";
 import { el, render } from "../core/render.js";
 import { backLink, go } from "../core/router.js";
 import { fold } from "../core/search.js";
@@ -101,7 +101,9 @@ function viewSwitch(query, view) {
         class: key === view ? "action" : "action quiet",
         type: "button",
         text: label,
-        "aria-pressed": key === view,
+        // As a string: `el` drops a false value, and an unpressed toggle must
+        // say "false", not leave a reader unsure whether it is a toggle at all.
+        "aria-pressed": String(key === view),
         onclick: () => go("search", null, { ...state.params, q: query, view: key === "all" ? "" : key }),
       }),
     ),
@@ -149,7 +151,7 @@ function paintArtists(section, query, view, library, registry) {
           el("li", {}, [
             el("button", { class: "row-title", type: "button", text: row.name, onclick: row.open }),
             row.life ? el("span", { class: "muted", text: ` ${row.life}` }) : null,
-            heldMark(row.held, false),
+            stateMark({ held: row.held }),
           ]),
         ))
       : el("p", { class: "muted", text: "No artists." }),
@@ -186,7 +188,7 @@ function paintWorks(section, query, view, library, registry) {
           el("li", {}, [
             el("button", { class: "row-title", type: "button", text: row.title, onclick: row.open }),
             row.by ? el("span", { class: "muted", text: ` — ${row.by}` }) : null,
-            heldMark(row.held, row.image),
+            stateMark({ held: row.held, image: row.image }),
           ]),
         ))
       : el("p", { class: "muted", text: "No works." }),
@@ -199,11 +201,6 @@ function paintWorks(section, query, view, library, registry) {
   );
 }
 
-function heldMark(held, image) {
-  if (held) return stateBadge("badge-held", "●", "In your library");
-  if (image) return stateBadge("badge-image-found", "◐", "Image found");
-  return stateBadge("badge-not-held", "○", "Not held");
-}
 
 /* The words name one artist when exactly one artist found carries every word
  * of them in their name, accents and case ignored. That artist leads the page. */
@@ -221,7 +218,7 @@ function paintTop(section, query, view, library, registry) {
       el("p", {}, [
         el("button", { class: "row-title", type: "button", text: artist.name, onclick: artist.open }),
         artist.life ? el("span", { class: "muted", text: ` ${artist.life}` }) : null,
-        heldMark(artist.held, false),
+        stateMark({ held: artist.held }),
       ]),
     ]),
   );

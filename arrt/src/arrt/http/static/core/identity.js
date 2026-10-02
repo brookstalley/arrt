@@ -6,8 +6,13 @@
  * stored**: a typo cannot pass as an identity. *There is none* says the item does
  * not exist, which stops the matcher looking, and is confirmed first.
  *
- * Shared by the Artist and Work pages, which call the same two routes
- * (`POST /api/artists|works/{id}/wikidata`). Registry text is shown as text. */
+ * **Every refusal is the service's.** The control refuses nothing the routes
+ * would accept, so a click and an agent's `art_catalogue` action get the same
+ * answer: it shows what the item is first, and a refusal (an item another artist
+ * has, one Wikidata does not have, one Wikidata could not be asked about) is
+ * the route's, said in its words. Shared by the Artist and Work pages, which call
+ * the same two routes (`POST /api/artists|works/{id}/wikidata`). Registry text
+ * is shown as text. */
 
 import { api } from "./api.js";
 import { confirmAct } from "./confirm.js";
@@ -102,8 +107,15 @@ function currentWords(record) {
   return el("span", { text: "Wikidata: not matched yet" });
 }
 
+/* With no registry configured the service stores an item unchecked, so the
+ * control offers it too, saying so. */
+function unchecked(qid) {
+  return { words: `Wikidata is not configured on this server, so ${qid} cannot be checked. It can still be stored.`, usable: true };
+}
+
 async function describeWork(qid, artworkId) {
   const page = await api(`/api/registry/works/${encodeURIComponent(qid)}`);
+  if (page.state === "not_configured") return unchecked(qid);
   if (page.state === "not_found") return { words: `Wikidata has no item ${qid}.`, usable: false };
   if (page.state !== "known") return { words: page.note || "Wikidata could not be asked just now.", usable: false };
   const by = page.creators.length ? `, by ${page.creators.map((c) => named(c.name, c.qid)).join(", ")}` : "";
@@ -120,8 +132,11 @@ async function describeArtist(qid, artistId) {
       ? { words: `This artist already has ${qid}.`, usable: false }
       : { words: `Another artist in your library already has ${qid}. Correct that one first.`, usable: false };
   }
+  if (page.state === "not_configured") return unchecked(qid);
   if (page.state !== "known") return { words: page.note || "Wikidata could not be asked just now.", usable: false };
-  if (!page.name || page.name === qid) return { words: `Wikidata has no readable name for ${qid}; check the id.`, usable: false };
+  // An item named only in another language (a Japanese painter's, say) is an
+  // item all the same; the service accepts it, so the control does too.
+  if (!page.name || page.name === qid) return { words: `${qid} exists on Wikidata with no English name; check it is the one you mean.`, usable: true };
   const life = lifeDates(page);
   return { words: `${qid} is ${page.name}${life ? ` (${life})` : ""}.`, usable: true };
 }
