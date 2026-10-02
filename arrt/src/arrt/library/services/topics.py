@@ -136,7 +136,7 @@ class TopicWorksView:
 
 @dataclass(frozen=True, slots=True)
 class TopicArtistsView:
-    """*Artists*: most works in the topic first, fame breaking ties, each marked where the library holds them."""
+    """*Artists*: whose works in the topic are most famous first, their own fame breaking ties, each marked if held."""
 
     state: TopicState
     note: str | None = None
@@ -214,8 +214,10 @@ class TopicService:
             max_age=REGISTRY_KEPT_FOR,
             size=REMEMBERED,
         )
+        # Named for the ranking: an answer kept under an earlier rule's name is
+        # never read as this one's, and is thrown away when it ages out.
         self._artists: Kept[str, tuple[RegistrySimilar, ...]] = kept.namespace(
-            "registry.topic_artists",
+            "registry.topic_artists.by_fame",
             codec=JsonCodec(tuple[RegistrySimilar, ...]),
             max_age=REGISTRY_KEPT_FOR,
             size=REMEMBERED,
@@ -306,7 +308,7 @@ class TopicService:
         )
 
     def artists(self, qid: str) -> TopicArtistsView:
-        """The topic's artists, most works in the topic first, fame breaking ties, each marked where the library holds them."""
+        """The topic's artists, the fame of their works in it first, their own breaking ties, each marked if held."""
         qid = checked_qid(qid)
         if self._registry is None:
             return TopicArtistsView(state=TopicState.NOT_CONFIGURED, note=TOPICS_NOT_CONFIGURED_NOTE)

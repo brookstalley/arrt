@@ -4,10 +4,10 @@
 topic questions on 2026-10-02, and the client leans on these shapes: the classes
 that make Baroque a movement and a period, and Romanticism a movement only though
 it has years; a kind of work found as the class its works are instances of; a
-maker recorded as unknown arriving as a blank node; artists counted by their
-works in the topic; a search that ranks a political party first and nothing
-depicts, and offers a music movement no maker of visual art belongs to; and the
-routes from a held work and artist to their topics. Wikidata is edited by anyone,
+maker recorded as unknown arriving as a blank node; artists ranked by the fame
+of their works in the topic; a search that ranks a political party first and
+nothing depicts, and offers a music movement no maker of visual art belongs to;
+and the routes from a held work and artist to their topics. Wikidata is edited by anyone,
 so this fails when one stops holding.
 
 **Deselected by default**, and free: marked `live_museum` with its siblings
@@ -71,12 +71,15 @@ def test_a_movements_artists_are_its_own_with_image_counts(registry):
     assert people["Q296"].name == "Claude Monet" and people["Q296"].images > 0
 
 
-def test_a_topics_artists_are_counted_by_their_works_in_it(registry):
-    """Woodcut print: ranked by renown, Benjamin Franklin came first for *Join, or Die*; by woodcuts, Dürer does."""
+def test_a_topics_artists_are_ranked_by_the_fame_of_their_works_in_it(registry):
+    """Woodcut print: Dürer, Hiroshige and Hokusai, whose woodcuts are famous.
+
+    Ranked by their own renown, Benjamin Franklin came first for *Join, or Die*;
+    by how many woodcuts, Yoshitoshi came third and Hokusai seventh.
+    """
     people = [person.qid for person in registry.topic_artists(registry.topic("Q18219090"), limit=10)]
 
-    assert people[0] == "Q5580"
-    assert "Q34969" not in people
+    assert people[:3] == ["Q5580", "Q200798", "Q5586"]
 
 
 def test_a_topic_search_offers_the_movement_and_not_the_political_party(registry):

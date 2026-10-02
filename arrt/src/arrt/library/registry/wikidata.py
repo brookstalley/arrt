@@ -481,35 +481,45 @@ class WikidataRegistry:
         ]
 
     def topic_artists(self, topic: RegistryTopic, *, limit: int) -> Sequence[RegistrySimilar]:
-        # Ranked by how many of their works are in the topic, renown breaking
-        # ties: ranked by renown alone, Benjamin Franklin led woodcut for *Join,
-        # or Die* and Adolf Hitler led watercolour (`wikidata-findings.md` § Topics).
+        # Ranked by the fame of their works in the topic, the sum of those works'
+        # sitelinks, the artist's own breaking ties. Ranked by the artist's own
+        # fame, Benjamin Franklin led woodcut for *Join, or Die* and Adolf Hitler
+        # led watercolour; by how many works, whoever has an item per work led,
+        # Philip Galle the 16th century and Leonardo out (`wikidata-findings.md`
+        # § Topics).
         if topic.kind is TopicKind.MOVEMENT:
             # A movement's own artists (`P135` sits on people, not works), visual
             # artists only, as `similar_to` keeps them, and its works are theirs.
             # One with no work of visual art recorded is still the movement's.
-            counted = f"""?artist wdt:P135 wd:{_require_qid(topic.qid)} ; wdt:P31 wd:Q5 ; wikibase:sitelinks ?links .
-                  FILTER EXISTS {{ ?artist wdt:P106/wdt:P279* wd:{_VISUAL_ARTIST} }}
-                  OPTIONAL {{ ?work wdt:P170 ?artist . {_ARTWORK} }}"""
+            made = f"""?artist wdt:P135 wd:{_require_qid(topic.qid)} ; wdt:P31 wd:Q5 ; wikibase:sitelinks ?links .
+                      FILTER EXISTS {{ ?artist wdt:P106/wdt:P279* wd:{_VISUAL_ARTIST} }}
+                      OPTIONAL {{ ?work wdt:P170 ?artist . {_ARTWORK} ?work wikibase:sitelinks ?workLinks . }}"""
         else:
             where = _works_in(topic)
             if where is None:
                 return []
-            counted = f"""{where}
-                  ?work wdt:P170 ?artist . ?artist wdt:P31 wd:Q5 ; wikibase:sitelinks ?links ."""
-        rows = self._select(f"""SELECT ?artist ?artistLabel ?links ?works (MIN(YEAR(?b)) AS ?born) (MIN(YEAR(?d)) AS ?died)
+            made = f"""{where}
+                      ?work wdt:P170 ?artist ; wikibase:sitelinks ?workLinks .
+                      ?artist wdt:P31 wd:Q5 ; wikibase:sitelinks ?links ."""
+        # Each work once per artist before it is summed: a work reached twice (two
+        # of the ten classes, depicting and of the genre, two inceptions) would
+        # otherwise count its fame twice. An artist with no work sums to nought.
+        # How many works is asked too, so an answer shows what the fame outranked.
+        rows = self._select(f"""SELECT ?artist ?artistLabel ?links ?fame ?works (MIN(YEAR(?b)) AS ?born) (MIN(YEAR(?d)) AS ?died)
             WHERE {{
-              {{ SELECT ?artist ?links (COUNT(DISTINCT ?work) AS ?works) WHERE {{
-                  {counted}
-                }} GROUP BY ?artist ?links ORDER BY DESC(?works) DESC(?links) STR(?artist) LIMIT {int(limit)} }}
+              {{ SELECT ?artist ?links (SUM(COALESCE(?workLinks, 0)) AS ?fame) (COUNT(?work) AS ?works) WHERE {{
+                  {{ SELECT DISTINCT ?artist ?links ?work ?workLinks WHERE {{
+                      {made}
+                  }} }}
+                }} GROUP BY ?artist ?links ORDER BY DESC(?fame) DESC(?links) STR(?artist) LIMIT {int(limit)} }}
               OPTIONAL {{ ?artist wdt:P569 ?b }}
               OPTIONAL {{ ?artist wdt:P570 ?d }}
               SERVICE wikibase:label {{ bd:serviceParam wikibase:language "{_LABELS}" . ?artist rdfs:label ?artistLabel . }}
-            }} GROUP BY ?artist ?artistLabel ?links ?works""")
+            }} GROUP BY ?artist ?artistLabel ?links ?fame ?works""")
         people = [(_qid(row, "artist"), row) for row in rows]
         # The service chose them in this order, and the grouping around the
         # choice promises none, so the order is put back here.
-        people.sort(key=lambda person: (-(_integer(person[1], "works") or 0), -(_integer(person[1], "links") or 0), person[0]))
+        people.sort(key=lambda person: (-(_integer(person[1], "fame") or 0), -(_integer(person[1], "links") or 0), person[0]))
         return self._with_images(people, "artistLabel")
 
     def topics_named(self, text: str) -> Sequence[RegistryTopic]:

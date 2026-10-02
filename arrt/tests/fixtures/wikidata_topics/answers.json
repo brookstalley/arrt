@@ -5638,6 +5638,11 @@
     "type": "literal",
     "value": "155"
    },
+   "fame": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1137"
+   },
    "works": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
@@ -5668,6 +5673,11 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
     "value": "181"
+   },
+   "fame": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "617"
    },
    "works": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
@@ -5700,6 +5710,11 @@
     "type": "literal",
     "value": "133"
    },
+   "fame": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "789"
+   },
    "works": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
@@ -5731,6 +5746,11 @@
     "type": "literal",
     "value": "115"
    },
+   "fame": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1354"
+   },
    "works": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
@@ -5750,6 +5770,78 @@
   {
    "artist": {
     "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q40599"
+   },
+   "artistLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Édouard Manet"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "113"
+   },
+   "fame": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1055"
+   },
+   "works": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "466"
+   },
+   "born": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1832"
+   },
+   "died": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1883"
+   }
+  },
+  {
+   "artist": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q46373"
+   },
+   "artistLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Edgar Degas"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "114"
+   },
+   "fame": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "452"
+   },
+   "works": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "667"
+   },
+   "born": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1834"
+   },
+   "died": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1917"
+   }
+  },
+  {
+   "artist": {
+    "type": "uri",
     "value": "http://www.wikidata.org/entity/Q134741"
    },
    "artistLabel": {
@@ -5761,6 +5853,11 @@
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
     "value": "87"
+   },
+   "fame": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "463"
    },
    "works": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
@@ -5793,6 +5890,11 @@
     "type": "literal",
     "value": "62"
    },
+   "fame": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "458"
+   },
    "works": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
@@ -5812,125 +5914,73 @@
   {
    "artist": {
     "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q157610"
+    "value": "http://www.wikidata.org/entity/Q212754"
    },
    "artistLabel": {
     "xml:lang": "en",
     "type": "literal",
-    "value": "Lovis Corinth"
+    "value": "John William Waterhouse"
    },
    "links": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "50"
+    "value": "49"
+   },
+   "fame": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "381"
    },
    "works": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "1351"
+    "value": "141"
    },
    "born": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "1858"
+    "value": "1849"
    },
    "died": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "1925"
+    "value": "1917"
    }
   },
   {
    "artist": {
     "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q175130"
+    "value": "http://www.wikidata.org/entity/Q295144"
    },
    "artistLabel": {
     "xml:lang": "en",
     "type": "literal",
-    "value": "Alfred Sisley"
+    "value": "Gustave Caillebotte"
    },
    "links": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "74"
+    "value": "54"
+   },
+   "fame": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "374"
    },
    "works": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "838"
+    "value": "253"
    },
    "born": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "1839"
+    "value": "1848"
    },
    "died": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "1899"
-   }
-  },
-  {
-   "artist": {
-    "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q212600"
-   },
-   "artistLabel": {
-    "xml:lang": "en",
-    "type": "literal",
-    "value": "Eugène Louis Boudin"
-   },
-   "links": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "53"
-   },
-   "works": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "926"
-   },
-   "born": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "1824"
-   },
-   "died": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "1898"
-   }
-  },
-  {
-   "artist": {
-    "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q2340277"
-   },
-   "artistLabel": {
-    "xml:lang": "en",
-    "type": "literal",
-    "value": "Eliseu Visconti"
-   },
-   "links": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "12"
-   },
-   "works": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "1165"
-   },
-   "born": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "1866"
-   },
-   "died": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "1944"
+    "value": "1894"
    }
   }
  ],
@@ -5960,6 +6010,17 @@
   {
    "person": {
     "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q37693"
+   },
+   "n": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "739"
+   }
+  },
+  {
+   "person": {
+    "type": "uri",
     "value": "http://www.wikidata.org/entity/Q39931"
    },
    "n": {
@@ -5971,12 +6032,23 @@
   {
    "person": {
     "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q37693"
+    "value": "http://www.wikidata.org/entity/Q46373"
    },
    "n": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "739"
+    "value": "649"
+   }
+  },
+  {
+   "person": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q40599"
+   },
+   "n": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "443"
    }
   },
   {
@@ -6004,45 +6076,23 @@
   {
    "person": {
     "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q157610"
+    "value": "http://www.wikidata.org/entity/Q212754"
    },
    "n": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "1318"
+    "value": "141"
    }
   },
   {
    "person": {
     "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q175130"
+    "value": "http://www.wikidata.org/entity/Q295144"
    },
    "n": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "817"
-   }
-  },
-  {
-   "person": {
-    "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q212600"
-   },
-   "n": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "660"
-   }
-  },
-  {
-   "person": {
-    "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q2340277"
-   },
-   "n": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "1216"
+    "value": "243"
    }
   }
  ],
@@ -6052,20 +6102,20 @@
    1987
   ],
   [
-   "Q157610",
-   1318
-  ],
-  [
    "Q296",
    1286
   ],
   [
-   "Q2340277",
-   1216
+   "Q40599",
+   443
   ],
   [
-   "Q212600",
-   660
+   "Q37693",
+   739
+  ],
+  [
+   "Q5589",
+   507
   ],
   [
    "Q134741",
@@ -6076,16 +6126,16 @@
    827
   ],
   [
-   "Q175130",
-   817
+   "Q46373",
+   649
   ],
   [
-   "Q5589",
-   507
+   "Q212754",
+   141
   ],
   [
-   "Q37693",
-   739
+   "Q295144",
+   243
   ]
  ],
  "named renaissance": [
@@ -11078,7 +11128,43 @@
    }
   }
  ],
- "artists woodcut": [
+ "artists etching": [
+  {
+   "artist": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q5432"
+   },
+   "artistLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Francisco Goya"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "186"
+   },
+   "fame": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "6"
+   },
+   "works": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "5"
+   },
+   "born": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1746"
+   },
+   "died": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1828"
+   }
+  },
   {
    "artist": {
     "type": "uri",
@@ -11094,10 +11180,15 @@
     "type": "literal",
     "value": "187"
    },
+   "fame": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "9"
+   },
    "works": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "421"
+    "value": "9"
    },
    "born": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
@@ -11113,279 +11204,315 @@
   {
    "artist": {
     "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q5586"
+    "value": "http://www.wikidata.org/entity/Q5593"
    },
    "artistLabel": {
     "xml:lang": "en",
     "type": "literal",
-    "value": "Katsushika Hokusai"
+    "value": "Pablo Picasso"
    },
    "links": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "177"
+    "value": "265"
+   },
+   "fame": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "7"
    },
    "works": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "158"
+    "value": "11"
    },
    "born": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "1760"
+    "value": "1881"
    },
    "died": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "1849"
+    "value": "1973"
    }
   },
   {
    "artist": {
     "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q200798"
+    "value": "http://www.wikidata.org/entity/Q5598"
    },
    "artistLabel": {
     "xml:lang": "en",
     "type": "literal",
-    "value": "Utagawa Hiroshige"
+    "value": "Rembrandt"
    },
    "links": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "68"
+    "value": "207"
+   },
+   "fame": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "39"
    },
    "works": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "260"
+    "value": "46"
    },
    "born": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "1797"
+    "value": "1606"
    },
    "died": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "1858"
+    "value": "1669"
    }
   },
   {
    "artist": {
     "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q272045"
+    "value": "http://www.wikidata.org/entity/Q41513"
    },
    "artistLabel": {
     "xml:lang": "en",
     "type": "literal",
-    "value": "Kitagawa Utamaro"
+    "value": "William Blake"
    },
    "links": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "50"
+    "value": "162"
+   },
+   "fame": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "19"
    },
    "works": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "165"
+    "value": "19"
    },
    "born": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "1753"
+    "value": "1757"
    },
    "died": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "1806"
+    "value": "1827"
    }
   },
   {
    "artist": {
     "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q360978"
+    "value": "http://www.wikidata.org/entity/Q158840"
    },
    "artistLabel": {
     "xml:lang": "en",
     "type": "literal",
-    "value": "Suzuki Harunobu"
+    "value": "James Ensor"
    },
    "links": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "34"
+    "value": "51"
+   },
+   "fame": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "5"
    },
    "works": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "158"
+    "value": "653"
    },
    "born": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "1724"
+    "value": "1860"
    },
    "died": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "1770"
+    "value": "1949"
    }
   },
   {
    "artist": {
     "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q361174"
+    "value": "http://www.wikidata.org/entity/Q171344"
    },
    "artistLabel": {
     "xml:lang": "en",
     "type": "literal",
-    "value": "Sharaku"
+    "value": "William Hogarth"
    },
    "links": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "28"
-   },
-   "works": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "143"
-   },
-   "died": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "1801"
-   }
-  },
-  {
-   "artist": {
-    "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q467337"
-   },
-   "artistLabel": {
-    "xml:lang": "en",
-    "type": "literal",
-    "value": "Yoshitoshi"
-   },
-   "links": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "26"
-   },
-   "works": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "236"
-   },
-   "born": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "1839"
-   },
-   "died": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "1892"
-   }
-  },
-  {
-   "artist": {
-    "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q559297"
-   },
-   "artistLabel": {
-    "xml:lang": "mul",
-    "type": "literal",
-    "value": "Frans Masereel"
-   },
-   "links": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "31"
-   },
-   "works": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "223"
-   },
-   "born": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "1889"
-   },
-   "died": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "1972"
-   }
-  },
-  {
-   "artist": {
-    "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q956934"
-   },
-   "artistLabel": {
-    "xml:lang": "en",
-    "type": "literal",
-    "value": "Jef Diederen"
-   },
-   "links": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "3"
-   },
-   "works": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "189"
-   },
-   "born": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "1920"
-   },
-   "died": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "2009"
-   }
-  },
-  {
-   "artist": {
-    "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q22334076"
-   },
-   "artistLabel": {
-    "xml:lang": "en",
-    "type": "literal",
-    "value": "Marianne van der Heijden"
-   },
-   "links": {
-    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
-    "type": "literal",
-    "value": "3"
-   },
-   "works": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
     "value": "82"
    },
+   "fame": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "8"
+   },
+   "works": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "81"
+   },
    "born": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "1922"
+    "value": "1697"
    },
    "died": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "1998"
+    "value": "1764"
+   }
+  },
+  {
+   "artist": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q448555"
+   },
+   "artistLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Wenceslaus Hollar"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "32"
+   },
+   "fame": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "5"
+   },
+   "works": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "43"
+   },
+   "born": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1607"
+   },
+   "died": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1677"
+   }
+  },
+  {
+   "artist": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q460124"
+   },
+   "artistLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Jacques Callot"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "35"
+   },
+   "fame": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "10"
+   },
+   "works": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "19"
+   },
+   "born": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1592"
+   },
+   "died": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1635"
+   }
+  },
+  {
+   "artist": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q2825301"
+   },
+   "artistLabel": {
+    "xml:lang": "en",
+    "type": "literal",
+    "value": "Adrien de Witte"
+   },
+   "links": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "4"
+   },
+   "fame": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "5"
+   },
+   "works": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "4"
+   },
+   "born": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1850"
+   },
+   "died": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "1935"
    }
   }
  ],
- "artist images woodcut": [
+ "artist images etching": [
+  {
+   "person": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q5432"
+   },
+   "n": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "785"
+   }
+  },
+  {
+   "person": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/Q5593"
+   },
+   "n": {
+    "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+    "type": "literal",
+    "value": "14"
+   }
+  },
   {
    "person": {
     "type": "uri",
@@ -11400,78 +11527,78 @@
   {
    "person": {
     "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q5586"
+    "value": "http://www.wikidata.org/entity/Q5598"
    },
    "n": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "339"
+    "value": "1229"
    }
   },
   {
    "person": {
     "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q272045"
+    "value": "http://www.wikidata.org/entity/Q41513"
    },
    "n": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "275"
+    "value": "450"
    }
   },
   {
    "person": {
     "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q200798"
+    "value": "http://www.wikidata.org/entity/Q158840"
    },
    "n": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "368"
+    "value": "1710"
    }
   },
   {
    "person": {
     "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q360978"
+    "value": "http://www.wikidata.org/entity/Q171344"
    },
    "n": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "168"
+    "value": "478"
    }
   },
   {
    "person": {
     "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q361174"
+    "value": "http://www.wikidata.org/entity/Q448555"
    },
    "n": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "151"
+    "value": "406"
    }
   },
   {
    "person": {
     "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q467337"
+    "value": "http://www.wikidata.org/entity/Q460124"
    },
    "n": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "307"
+    "value": "1395"
    }
   },
   {
    "person": {
     "type": "uri",
-    "value": "http://www.wikidata.org/entity/Q559297"
+    "value": "http://www.wikidata.org/entity/Q2825301"
    },
    "n": {
     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
     "type": "literal",
-    "value": "2"
+    "value": "35"
    }
   }
  ]
