@@ -16,17 +16,27 @@ pytest.importorskip(
 
 from fakes import FakeRegistry  # noqa: E402  (after the skip guard)
 
-from arrt.library.registry import RegistryCreator, RegistryPerson, RegistryWorkMatch  # noqa: E402
+from arrt.library.registry import (  # noqa: E402
+    ItemId,
+    RegistryCreator,
+    RegistryPerson,
+    RegistryText,
+    RegistryTopic,
+    RegistryWorkMatch,
+    TopicKind,
+)
 
 LISTBOX = "#search-suggestions"
+PENDING = f"{LISTBOX} .search-suggestions-pending"
+ANNOUNCED = "#search-suggestions + [aria-live='polite']"
 DALI = "Q5577"
 PERSISTENCE = "Q25729"
 GIRAFFE = "Q1062364"
+SURREALISM = "Q39427"
 COMMONS = "https://commons.wikimedia.org/wiki/Special:FilePath/G.jpg"
 
 
-@pytest.fixture
-def registry():
+def _registry(**more):
     return FakeRegistry(
         people={
             "dali": [
@@ -56,7 +66,13 @@ def registry():
                 ),
             ],
         },
+        **more,
     )
+
+
+@pytest.fixture
+def registry():
+    return _registry()
 
 
 @pytest.fixture
@@ -84,9 +100,11 @@ def _options(ui):
 
 
 def _wait_for_registry(ui):
+    """Until both of Wikidata's searches have answered: each paints on its own, so the first is not enough."""
     ui.page.wait_for_selector(
         f"{LISTBOX} [aria-labelledby='suggestions-registry-works'], {LISTBOX} .search-suggestions-registry-note"
     )
+    ui.page.wait_for_selector(PENDING, state="detached")
 
 
 def test_wikidata_follows_the_library_and_shows_nothing_twice(ui, matched):
@@ -227,3 +245,118 @@ def test_choosing_a_theme_opens_it(ui, services, matched):
 
     ui.page.click(f"{LISTBOX} [role='option']:has-text('Dalí and friends — theme')")
     ui.page.wait_for_function("(id) => window.location.hash.split('?')[0] === `#theme/${id}`", arg=theme.id)
+
+
+class TestEachOfWikidatasSearchesPaintsOnItsOwn:
+    """The topic search can take seconds where the artists and works take under one.
+
+    Joined, the faster answer waited for the slower with nothing on screen saying
+    anything was coming. So each paints when it arrives, *Asking Wikidata…* says
+    while either is out, and the announcement is made once, when both have
+    answered, with what they found between them.
+    """
+
+    @pytest.fixture
+    def registry(self):
+        return _registry(
+            topics_found={
+                "dali": [
+                    RegistryTopic(
+                        qid=ItemId(SURREALISM),
+                        label=RegistryText("Surrealism"),
+                        kinds=(TopicKind.MOVEMENT,),
+                        description=RegistryText("art movement"),
+                    )
+                ],
+                # What an earlier keystroke's topic search finds, which must never be shown for a later one.
+                "dal": [RegistryTopic(qid=ItemId("Q38280"), label=RegistryText("Dalmatian"), kinds=(TopicKind.SUBJECT,))],
+            }
+        )
+
+    def _hold(self, ui, route_glob):
+        held = []
+        ui.page.route(route_glob, lambda route: held.append(route))
+        return held
+
+    def test_artists_and_works_are_shown_while_the_topic_search_is_held(self, ui, matched):
+        held = self._hold(ui, "**/api/registry/topics?*")
+        _type(ui, "dali")
+
+        ui.page.wait_for_selector(f"{LISTBOX} [aria-labelledby='suggestions-registry-works']", timeout=5000)
+        listbox = ui.page.get_by_role("listbox", name="Suggestions")
+        assert listbox.get_by_role("group", name="Wikidata: artists").get_by_role("option").count() == 1
+        assert listbox.get_by_role("group", name="Wikidata: works").get_by_role("option").count() == 2
+        assert ui.page.locator(f"{LISTBOX} [aria-labelledby='suggestions-registry-topics']").count() == 0
+        assert ui.page.locator(PENDING).inner_text() == "Asking Wikidata…"
+        # Announced once, when both have answered: not a count of half of them.
+        assert ui.page.locator(ANNOUNCED).inner_text() == ""
+
+        # A curator who has arrowed to a row stays on it when the topics arrive.
+        for _ in range(4):
+            ui.page.keyboard.press("ArrowDown")
+        before = ui.page.get_attribute("#search", "aria-activedescendant")
+        assert before == "suggestion-registry-artist-0"
+
+        held[0].continue_()
+        ui.page.wait_for_selector(f"{LISTBOX} [aria-labelledby='suggestions-registry-topics']")
+
+        assert listbox.get_by_role("group", name="Wikidata: topics").get_by_role("option").all_inner_texts() == [
+            "Surrealism — movement · art movement"
+        ]
+        assert ui.page.locator(PENDING).count() == 0
+        assert ui.page.get_attribute("#search", "aria-activedescendant") == before
+        assert ui.page.locator(ANNOUNCED).inner_text() == "Wikidata: 6 matches."
+
+    def test_asking_wikidata_shows_while_one_is_out_is_no_option_and_goes_when_both_answer(self, ui, matched):
+        held = self._hold(ui, "**/api/registry/search?*")
+        _type(ui, "dali")
+
+        ui.page.wait_for_selector(f"{LISTBOX} [aria-labelledby='suggestions-registry-topics']", timeout=5000)
+        pending = ui.page.locator(PENDING)
+        assert pending.inner_text() == "Asking Wikidata…"
+        assert pending.get_attribute("role") == "presentation"
+        # Not an option: arrow keys visit every option once and only options, then wrap.
+        options = ui.page.locator(f"{LISTBOX} [role='option']")
+        ids = [options.nth(at).get_attribute("id") for at in range(options.count())]
+        visited = []
+        for _ in ids:
+            ui.page.keyboard.press("ArrowDown")
+            visited.append(ui.page.get_attribute("#search", "aria-activedescendant"))
+        assert visited == ids
+        ui.page.keyboard.press("ArrowDown")
+        assert ui.page.get_attribute("#search", "aria-activedescendant") == ids[0]
+        # Announced once, when both have answered, so not yet.
+        assert ui.page.locator(ANNOUNCED).inner_text() == ""
+
+        held[0].continue_()
+        ui.page.wait_for_selector(f"{LISTBOX} [aria-labelledby='suggestions-registry-works']")
+
+        assert pending.count() == 0
+        # Two artists, three works and one topic, as Wikidata answered them.
+        ui.page.wait_for_function(f"() => document.querySelector(\"{ANNOUNCED}\").textContent !== ''")
+        assert ui.page.locator(ANNOUNCED).inner_text() == "Wikidata: 6 matches."
+
+    def test_a_late_topic_answer_to_an_earlier_keystroke_is_ignored(self, ui, matched):
+        held = []
+
+        def handler(route):
+            if route.request.url.endswith("q=dal"):
+                held.append(route)
+            else:
+                route.continue_()
+
+        ui.page.route("**/api/registry/topics?*", handler)
+        _type(ui, "dal")
+        ui.page.wait_for_timeout(400)
+        assert held, "the earlier topic search was never made, so this test cannot say anything"
+        ui.page.keyboard.type("i")
+        ui.page.wait_for_selector(f"{LISTBOX} [role='option']:has-text('Surrealism')")
+        ui.page.wait_for_selector(PENDING, state="detached")
+
+        held[0].continue_()
+        ui.page.wait_for_timeout(300)
+
+        texts = " ".join(_options(ui))
+        assert "Dalmatian" not in texts, "the earlier keystroke's topics replaced the later one's"
+        assert "Surrealism" in texts and "Ask about “dali”" in texts
+        assert ui.page.locator(ANNOUNCED).inner_text() == "Wikidata: 6 matches."

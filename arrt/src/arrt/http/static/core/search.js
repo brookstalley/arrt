@@ -76,9 +76,11 @@ export function fold(text) {
  *
  * **One world** (ruling 2): below the library's matches, Wikidata's artists,
  * works and topics, the artists and works each saying whether it is held. They
- * arrive after the library's rows, which never wait for them; a match the library's rows already show is not
- * shown twice; and their arrival is announced, not focused, so a curator
- * arrowing through the list is not moved.
+ * arrive after the library's rows, which never wait for them, and the artists
+ * and works never wait for the topics either, each search painting when it
+ * answers, with *Asking Wikidata…* below while either is out; a match the
+ * library's rows already show is not shown twice; and their arrival is
+ * announced, not focused, so a curator arrowing through the list is not moved.
  *
  * An ARIA combobox: the input keeps focus, arrow keys move
  * `aria-activedescendant` through the options, Escape closes the list, and the
@@ -146,8 +148,11 @@ function installSuggestions(field) {
       ]),
     ]);
 
-  const paint = (query, works, artists, topics, themes, registry, failed, { keepHighlight = false } = {}) => {
-    // Kept only across the repaint the registry's answer causes, so a curator who
+  // `wikidata` is null when Wikidata is not asked, else its two answers so far:
+  // `found`, the artists and works, and `named`, the topics, each null until it
+  // arrives.
+  const paint = (query, works, artists, topics, themes, wikidata, failed, { keepHighlight = false } = {}) => {
+    // Kept only across the repaints the registry's answers cause, so a curator who
     // has arrowed to a row stays on it. A new query starts with nothing
     // highlighted: row ids are positions, and a highlight carried to a new query
     // lands on whatever now sits there, which Enter would then open instead of
@@ -174,9 +179,11 @@ function installSuggestions(field) {
     // What the library's rows already show is not offered again as Wikidata's.
     const shownArtistIds = new Set(shownArtists.map((entry) => entry.artist.artist_id));
     const shownWorkIds = new Set(works.map((work) => work.artwork_id));
-    const known = registry && registry.state === "known" ? registry : { artists: [], works: [] };
+    const found = wikidata && wikidata.found;
+    const named = wikidata && wikidata.named;
+    const known = found && found.state === "known" ? found : { artists: [], works: [] };
     const shownTopics = new Set(topics.map((topic) => topic.qid));
-    const foundTopics = registry && registry.topics && registry.topics.state === "known" ? registry.topics.topics : [];
+    const foundTopics = named && named.state === "known" ? named.topics : [];
     const theirPeople = known.artists
       .filter((person) => !shownArtistIds.has(person.artist_id))
       .map((person, at) => option(`suggestion-registry-artist-${at}`, registryPersonRow(person), () => go("artist", person.artist_id || person.qid)));
@@ -214,10 +221,17 @@ function installSuggestions(field) {
     // that matched nothing must not read as everything having been searched.
     // One note however many of Wikidata's searches could not be made: the
     // search's own when it has one, else the topic search's.
-    const unsaid = registry ? registry.note || (registry.topics && registry.topics.note) : null;
+    const unsaid = (found && found.note) || (named && named.note) || null;
     const registryNote = unsaid
       ? [el("li", { role: "presentation", class: "search-suggestions-registry-note", text: unsaid })]
       : [];
+    // Said while either of Wikidata's searches is out, so rows still to come are
+    // not read as all there is. Presentation, not an option: nothing to choose,
+    // and arrow keys pass over it.
+    const asking =
+      wikidata && (!found || !named)
+        ? [el("li", { role: "presentation", class: "search-suggestions-pending", text: "Asking Wikidata…" })]
+        : [];
     fill(list,
       ...unsearched,
       ...(people.length ? [group("suggestions-artists", "Artists", people)] : []),
@@ -228,6 +242,7 @@ function installSuggestions(field) {
       ...(theirWorks.length ? [group("suggestions-registry-works", "Wikidata: works", theirWorks)] : []),
       ...(theirTopics.length ? [group("suggestions-registry-topics", "Wikidata: topics", theirTopics)] : []),
       ...registryNote,
+      ...asking,
       // Named for the page the row opens, as Sonarr names its group "Add New
       // Series" for its page. Here that page is Ask (ruling 3).
       group("suggestions-ask", "Ask", [ask]),
@@ -250,23 +265,24 @@ function installSuggestions(field) {
     let themes = [];
     let topics = [];
     let failed = false;
-    // Asked now and awaited after the library's rows are drawn: see above.
+    // Asked now and drawn after the library's rows: see above.
     const letters = (query.match(/[\p{L}\p{N}]/gu) || []).length;
-    // The topic search beside it, answered together: one arrival, one
-    // announcement, and one note when Wikidata cannot be asked.
+    // The topic search beside it, each painted when it arrives: the topic search
+    // can take seconds where the other takes under one, and joined, the faster
+    // answer waited for the slower with nothing on screen saying so.
     const fromRegistry =
       letters >= REGISTRY_SHORTEST
-        ? Promise.all([
-            api(`/api/registry/search?q=${encodeURIComponent(query)}&prefix=true`).catch(() => ({
+        ? {
+            found: api(`/api/registry/search?q=${encodeURIComponent(query)}&prefix=true`).catch(() => ({
               state: "unavailable",
               note: "Wikidata could not be searched just now.",
             })),
-            api(`/api/registry/topics?q=${encodeURIComponent(query)}`).catch(() => ({
+            named: api(`/api/registry/topics?q=${encodeURIComponent(query)}`).catch(() => ({
               state: "unavailable",
               note: "Wikidata's topics could not be searched just now.",
               topics: [],
             })),
-          ]).then(([found, named]) => ({ ...found, topics: named }))
+          }
         : null;
     // Settled separately: the artist and theme lookups are extras, and their
     // failure must not cost the work matches. Only the works lookup failing says
@@ -296,14 +312,31 @@ function installSuggestions(field) {
     else failed = true;
     // A slower answer to an earlier keystroke must not replace a later one.
     if (ticket !== asked || document.activeElement !== field) return;
-    paint(query, works, artists, topics, themes, null, failed);
+    let wikidata = fromRegistry ? { found: null, named: null } : null;
+    paint(query, works, artists, topics, themes, wikidata, failed);
     if (!fromRegistry) return;
-    const registry = await fromRegistry;
-    if (ticket !== asked || document.activeElement !== field) return;
-    paint(query, works, artists, topics, themes, registry, failed, { keepHighlight: true });
-    const topicsFound = registry.topics.state === "known" ? Math.min(registry.topics.topics.length, TOPICS_SHOWN) : 0;
-    const count = (registry.state === "known" ? registry.artists.length + registry.works.length : 0) + topicsFound;
-    arrived.textContent = registry.state === "known" ? `Wikidata: ${count} ${count === 1 ? "match" : "matches"}.` : registry.note || "";
+    // Each answer repaints on its own arrival, under the same two checks as the
+    // library's rows; both are drawn after them, since these handlers are
+    // attached only now.
+    const arrive = (part) => (answer) => {
+      if (ticket !== asked || document.activeElement !== field) return;
+      wikidata = { ...wikidata, [part]: answer };
+      paint(query, works, artists, topics, themes, wikidata, failed, { keepHighlight: true });
+      if (wikidata.found && wikidata.named) announce(wikidata);
+    };
+    fromRegistry.found.then(arrive("found"));
+    fromRegistry.named.then(arrive("named"));
+  };
+
+  // Announced once, when both of Wikidata's searches have answered, with what
+  // they found between them. Once rather than once per arrival: two polite
+  // updates close together can cut the first off before it is read, and a
+  // second count leaves the listener to work out whether it is a total or more.
+  // *Asking Wikidata…* on screen is what says the rest is coming.
+  const announce = ({ found, named }) => {
+    const topicsFound = named.state === "known" ? Math.min(named.topics.length, TOPICS_SHOWN) : 0;
+    const count = (found.state === "known" ? found.artists.length + found.works.length : 0) + topicsFound;
+    arrived.textContent = found.state === "known" ? `Wikidata: ${count} ${count === 1 ? "match" : "matches"}.` : found.note || "";
   };
 
   field.addEventListener("input", () => {
