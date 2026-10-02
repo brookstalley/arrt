@@ -405,3 +405,156 @@ def test_a_scan_in_the_table_enlarges_too(ui):
     ui.page.wait_for_selector("dialog.enlarged[open]")
     label = ui.page.locator("tr.alternate").nth(1).locator("button.card-image").get_attribute("aria-label")
     assert label == "Enlarge this scan of The Magpie"
+
+
+def test_a_scan_enlarged_from_the_table_is_named_for_the_picture_not_the_button(ui):
+    """The button says what pressing it does; what opens is the picture, and says which."""
+    a_finished_get(ui)
+    ui.open(f"#run/{GET_ID}")
+    ui.page.click("li.card summary")
+    ui.page.wait_for_selector("tr.alternate")
+
+    ui.page.locator("tr.alternate").nth(1).locator("button.card-image").click()
+    ui.page.wait_for_selector("dialog.enlarged[open] img")
+
+    named = "The Magpie, by Claude Monet — the scan from commons, 1,600 × 1,085 px"
+    assert ui.page.locator("dialog.enlarged").get_attribute("aria-label") == named
+    assert ui.page.locator("dialog.enlarged img").get_attribute("alt") == named
+    # The button keeps its own name: it is the control, not the picture.
+    label = ui.page.locator("tr.alternate").nth(1).locator("button.card-image").get_attribute("aria-label")
+    assert label == "Enlarge this scan of The Magpie"
+
+
+def test_the_card_s_own_picture_enlarged_is_named_for_the_work(ui):
+    """The paired case: the card's picture was already named for the work, and stays so."""
+    a_finished_get(ui)
+    ui.open(f"#run/{GET_ID}")
+    ui.page.click("li.card > button.card-image")
+    ui.page.wait_for_selector("dialog.enlarged[open] img")
+
+    assert ui.page.locator("dialog.enlarged").get_attribute("aria-label") == "The Magpie, by Claude Monet"
+    assert ui.page.locator("dialog.enlarged img").get_attribute("alt") == "The Magpie, by Claude Monet"
+
+
+# -- a card listing that failed says how to try again ---------------------------------
+
+
+def test_a_finished_get_whose_cards_could_not_be_read_says_to_reload(ui):
+    """A finished Get is not watched, so nothing on the page will ask again."""
+    run = a_run(run_id=GET_ID, kind="get", intent=None, status=RunStatus.COMPLETED.value, is_terminal=True)
+    ui.serve(f"**/api/runs/{GET_ID}", a_run_view(run=run, works=[chosen()]))
+    ui.serve(f"**/api/runs/{GET_ID}/spend", a_spend())
+    ui.serve(f"**/api/runs/{GET_ID}/candidates*", (500, {"error": "The listing broke."}))
+    ui.open(f"#run/{GET_ID}")
+
+    ui.page.wait_for_selector("text=This Get's works could not be read")
+    said = ui.page.locator(".get-review p.note").inner_text()
+    assert said.endswith("Reload the page to try again."), said
+
+
+def test_a_running_get_whose_cards_could_not_be_read_asks_again_by_itself(ui):
+    """The paired negative: a Get still looking is watched, and the next look retries."""
+    card = a_card(work=chosen())
+    run = a_run(run_id=GET_ID, kind="get", intent=None, status=RunStatus.RESOLVING_IMAGES.value, is_terminal=False)
+    ui.serve(f"**/api/runs/{GET_ID}", a_run_view(run=run, works=[card.work]))
+    ui.serve(f"**/api/runs/{GET_ID}/candidates*", [(500, {"error": "The listing broke."}), a_candidate_page([card], run=run)])
+    ui.serve_image("**/api/candidate-images/*/preview*")
+    ui.open(f"#run/{GET_ID}")
+
+    ui.page.wait_for_selector("text=This Get's works could not be read")
+    assert "Reload" not in ui.page.locator(".get-review p.note").inner_text()
+    # And the claim the missing sentence rests on: the next look reads them.
+    ui.page.wait_for_selector("li.card button:text-is('Accept')")
+
+
+# -- a running Get's redraw keeps the review in progress ------------------------------
+
+WHY = "The light on the snow"
+USE_THE_SECOND_SCAN = "li.card[data-work='work-1'] button[aria-label='Use this scan for The Magpie']"
+
+
+def a_get_still_looking(ui):
+    """The Magpie found and being reviewed; Haystacks not looked up yet.
+
+    Returns what the run becomes once Haystacks is found, for the test to serve
+    when it has done its reviewing.
+    """
+    magpie = a_card(work=chosen(), instances_held=2, instances_surviving=2)
+    haystacks = chosen(work_id="work-2", title="Haystacks")
+    waiting = a_card(work=chosen(work_id="work-2", title="Haystacks", resolution_status="pending"), shown=None)
+    found = a_card(work=haystacks, shown=an_instance(image_id="image-3", work_id="work-2"))
+    run = a_run(run_id=GET_ID, kind="get", intent=None, status=RunStatus.RESOLVING_IMAGES.value, is_terminal=False)
+    a_finished_get(ui, [magpie])
+    ui.serve(f"**/api/runs/{GET_ID}", a_run_view(run=run, works=[magpie.work, waiting.work]))
+    ui.serve(f"**/api/runs/{GET_ID}/candidates*", a_candidate_page([magpie, waiting], run=run))
+
+    def haystacks_found():
+        ui.serve(f"**/api/runs/{GET_ID}", a_run_view(run=run, works=[magpie.work, found.work]))
+        ui.serve(f"**/api/runs/{GET_ID}/candidates*", a_candidate_page([magpie, found], run=run))
+        ui.page.wait_for_selector("li.card[data-work='work-2'] > button.card-image")
+
+    return haystacks_found
+
+
+def test_a_running_get_s_redraw_keeps_the_why_the_open_scans_and_the_focus(ui):
+    """Each work the Get finds redraws the page; the card being judged must not notice."""
+    haystacks_found = a_get_still_looking(ui)
+    ui.open(f"#run/{GET_ID}")
+    ui.page.wait_for_selector("li.card[data-work='work-2'] .card-image-absent")
+
+    ui.page.fill("#reason-work-1", WHY)
+    ui.page.click("li.card[data-work='work-1'] summary")
+    ui.page.wait_for_selector(USE_THE_SECOND_SCAN)
+    ui.page.focus(USE_THE_SECOND_SCAN)
+
+    haystacks_found()
+
+    assert ui.page.input_value("#reason-work-1") == WHY
+    assert ui.page.locator("li.card[data-work='work-1'] details[open] tr.alternate").count() == 2
+    assert ui.page.evaluate("() => document.activeElement.getAttribute('aria-label')") == "Use this scan for The Magpie"
+    assert ui.page.evaluate("() => document.activeElement.isConnected")
+    # Kept rather than rebuilt and refilled: the scans were not asked for again.
+    assert len(ui.requests_matching("/api/candidates/work-1/images")) == 1
+
+
+def test_a_card_kept_across_a_redraw_still_reaches_the_offer_to_look_again(ui):
+    """A kept card tells the page it is now on about its verdict, not the page it came from."""
+    haystacks_found = a_get_still_looking(ui)
+    ui.open(f"#run/{GET_ID}")
+    ui.page.wait_for_selector("li.card[data-work='work-1'] summary")
+    ui.page.click("li.card[data-work='work-1'] summary")
+    ui.page.wait_for_selector(USE_THE_SECOND_SCAN)
+
+    haystacks_found()
+    ui.serve("**/api/candidate-images/image-1/reject", {})
+    ui.serve(
+        "**/api/candidates/work-1",
+        a_card(work=chosen(verdict=Verdict.AWAITING_BETTER_IMAGE.value), instances_held=2, instances_surviving=1).model_dump(
+            mode="json"
+        ),
+    )
+    ui.page.click("li.card[data-work='work-1'] tr.alternate >> nth=0 >> button:text-is('Turn it down')")
+
+    ui.page.wait_for_selector("#view h3:text-is('Scans you turned down')")
+    assert "1 work is waiting for a better scan" in ui.text()
+
+
+def test_a_get_s_page_opened_again_is_built_afresh(ui):
+    """Kept across the Get's own redraws, not across visits: a page left and come back to is read anew.
+
+    The scans behind a card left open on an earlier visit may have been chosen
+    or turned down since, so the cards of a visit that ended are not reused.
+    """
+    a_finished_get(ui)
+    ui.open(f"#run/{GET_ID}")
+    ui.page.fill("#reason-work-1", WHY)
+    ui.page.click("li.card summary")
+    ui.page.wait_for_selector("tr.alternate")
+
+    ui.page.click("li.card .card-meta button:text-is('Q3226397')")
+    ui.page.wait_for_selector("#view button:has-text('← The Get')")
+    ui.page.click("#view button:has-text('← The Get')")
+    ui.page.wait_for_selector("li.card summary")
+
+    assert ui.page.input_value("#reason-work-1") == ""
+    assert ui.page.locator("li.card details[open]").count() == 0

@@ -173,6 +173,16 @@ function scheduleRunPoll(runId, generation, { done }) {
   schedulePollUnlessDone({ view: "run", detailId: runId, generation, intervalMs: RUN_POLL_MS, done });
 }
 
+/* The Get's works section this screen last painted, and under which navigation.
+ *
+ * Handed to the next paint of the same page so the cards whose works have not
+ * changed are kept rather than rebuilt (`core/reviewing.js`). Keyed by the
+ * navigation alone, because every navigation moves it — to another run, or
+ * back to this one later — and a section from an earlier visit is not one the
+ * curator is still working in. Module scope rather than `state`, as that file
+ * asks of one screen's own bookkeeping. */
+let shownReview = null;
+
 export async function viewRun(runId, generation) {
   // Claimed at the top and checked after every await. This paint supersedes any
   // earlier one, and an earlier one still in flight must not paint over it or
@@ -293,10 +303,22 @@ export async function viewRun(runId, generation) {
     try {
       reviewPage = await fetchAllCandidates(runId);
     } catch (failure) {
+      // A Get still looking asks again on its next look, because this paint is
+      // not recorded as one to leave alone (below). A finished one is not
+      // watched, so nothing on the page will ask again and the curator is told
+      // what will.
       reviewProblem = `This Get's works could not be read: ${failure.message}`;
+      if (run.is_terminal) reviewProblem += " Reload the page to try again.";
     }
     if (!pollIsCurrent(pollGeneration)) return;
   }
+
+  /* What the keyboard is standing on, read before anything below is built.
+   * Keeping a card means lifting it out of the page into the new one, and the
+   * browser drops focus from anything lifted out — so it is read here and given
+   * back once the paint lands, where it is still on the page. */
+  const focused = document.activeElement;
+  const keptFrom = shownReview !== null && shownReview.generation === generation ? shownReview.section : null;
 
   const decisions = el("div", { class: "row" }, [
     run.status === "awaiting_approval"
@@ -390,16 +412,16 @@ export async function viewRun(runId, generation) {
 
   // A Get's works were chosen, so neither the asked-for nor the offered count
   // applies to them, and the cards are the table.
+  let section = null;
   if (run.kind === "get") {
-    panels.push(
-      el("section", { class: "get-review", "aria-label": "This Get's works" }, [
-        el("h3", { text: `Works (${tally.total})` }),
-        el("p", { class: "muted", text: `${counted(tally.chosen, "work")} you chose.` }),
-        reviewProblem ? el("p", { class: "note", text: reviewProblem }) : null,
-        ...(reviewPage ? reviewSection(reviewPage) : []),
-        view.works.length ? null : el("p", { class: "muted", text: "This Get holds no works." }),
-      ]),
-    );
+    section = el("section", { class: "get-review", "aria-label": "This Get's works" }, [
+      el("h3", { text: `Works (${tally.total})` }),
+      el("p", { class: "muted", text: `${counted(tally.chosen, "work")} you chose.` }),
+      reviewProblem ? el("p", { class: "note", text: reviewProblem }) : null,
+      ...(reviewPage ? reviewSection(reviewPage, { keptFrom }) : []),
+      view.works.length ? null : el("p", { class: "muted", text: "This Get holds no works." }),
+    ]);
+    panels.push(section);
   } else panels.push(
     el("div", { class: "panel" }, [
       el("h3", { text: `Works (${tally.total})` }),
@@ -461,6 +483,8 @@ export async function viewRun(runId, generation) {
   );
 
   render(generation, ...panels);
+  shownReview = { generation, section };
+  if (focused !== document.activeElement && focused.isConnected) focused.focus({ preventScroll: true });
 
   // Recorded only when the paint is one worth leaving alone. A gate whose price
   // could not be read is not: the run itself is unchanged, so every later poll

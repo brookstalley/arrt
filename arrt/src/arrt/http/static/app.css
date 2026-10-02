@@ -1063,6 +1063,12 @@ button.link {
   overflow-wrap: anywhere;
 }
 
+/* A health reading's sentence names the file it read, and a path is one word
+   wider than a phone: broken only where the line would otherwise overflow. */
+.reading-sentence {
+  overflow-wrap: break-word;
+}
+
 @media (max-width: 40rem) {
   .artist-works .badge {
     white-space: normal;
@@ -1700,9 +1706,14 @@ button.action:hover {
   gap: var(--space-4);
 }
 
+/* The label column is as wide as its longest label up to two fifths of the
+   list, and wraps between words past that; the value takes the rest. A label
+   held to one line on a phone ("Spent including every re-search") left the
+   value a column too narrow for "allowance", and `overflow-wrap: anywhere`
+   below then broke the word itself. */
 dl.facts {
   display: grid;
-  grid-template-columns: max-content 1fr;
+  grid-template-columns: fit-content(40%) 1fr;
   gap: var(--space-2) var(--space-4);
   margin: 0;
   font-size: var(--text-sm);

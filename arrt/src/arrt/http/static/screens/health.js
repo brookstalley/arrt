@@ -62,7 +62,7 @@ function heartbeatPanel(wall) {
     el("h3", { text: name }),
     // An observation with its age, never a verdict. A green dot computed from
     // a file that may simply be young is how a health surface starts lying.
-    el("p", { text: reading.description }),
+    el("p", { class: "reading-sentence", text: reading.description }),
     facts([
       ["Heartbeat file", reading.path],
       ["Last reported", reading.reported_at],
@@ -137,7 +137,7 @@ export async function viewHealth(generation) {
     ...heartbeatPanels(health),
     el("div", { class: "panel" }, [
       el("h3", { text: "The backup" }),
-      el("p", { text: health.backup.description }),
+      el("p", { class: "reading-sentence", text: health.backup.description }),
       facts([
         ["Backup record", health.backup.path],
         ["Last completed", health.backup.completed_at],
