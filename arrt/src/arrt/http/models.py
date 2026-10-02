@@ -1046,6 +1046,13 @@ class InstanceOut(BaseModel):
     rejected: bool
     rights_status: str | None
     selection_rationale: str | None
+    #: The scan's own size in pixels, as its provider reported it, or null when
+    #: nobody recorded it. What the browser shows a curator as the scan's
+    #: resolution: pixels are a fact about the scan, where the fit below is a
+    #: fact about the one panel this server is configured for. Each is null when
+    #: the provider did not report it, and `fit` is null whenever either is.
+    width: int | None
+    height: int | None
     fit: FitOut | None
     #: Present exactly when `fit` is null. An instance whose dimensions nobody
     #: recorded must not read like one known to be small: the first is a fact

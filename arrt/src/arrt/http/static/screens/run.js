@@ -1,16 +1,21 @@
-/* One discovery run, watched while it works.
+/* One run, watched while it works.
  *
  * Contextual: opened from Activity's Queue or History, from Ask as it
  * starts, or from a re-search started on the review grid — and it returns to
  * the page it was opened from.
+ *
+ * **A Get's page is its review.** A Get's works were chosen by the curator, so
+ * the review cards stand where a discovery run's work table stands, and there
+ * is no second page to go to (the owner's ruling, 2026-10-02).
  */
 
-import { api } from "../core/api.js";
+import { api, fetchAllCandidates } from "../core/api.js";
 import { facts, reasonBadge, resolutionBadge, table } from "../core/badges.js";
 import { agree, agreePartitive, counted } from "../core/counting.js";
 import { destinationOf, destinationSentence, readThemes } from "../core/destination.js";
 import { claimPoll, pollIsCurrent, schedulePollUnlessDone } from "../core/poll.js";
 import { el, guard, render } from "../core/render.js";
+import { reviewSection } from "../core/reviewing.js";
 import { backLink, go, refresh } from "../core/router.js";
 import { runTitle } from "../core/runs.js";
 import { state } from "../core/state.js";
@@ -277,6 +282,22 @@ export async function viewRun(runId, generation) {
     if (!pollIsCurrent(pollGeneration)) return;
   }
 
+  /* A Get's works as review cards, read only when the page is about to be
+   * painted, like the themes above. A failure is said where the cards would be
+   * rather than thrown: the watch, the sentence and the costs are still worth
+   * having, and a Get page that went blank because one listing failed would
+   * hide that the Get itself is fine. */
+  let reviewPage = null;
+  let reviewProblem = null;
+  if (run.kind === "get" && view.works.length) {
+    try {
+      reviewPage = await fetchAllCandidates(runId);
+    } catch (failure) {
+      reviewProblem = `This Get's works could not be read: ${failure.message}`;
+    }
+    if (!pollIsCurrent(pollGeneration)) return;
+  }
+
   const decisions = el("div", { class: "row" }, [
     run.status === "awaiting_approval"
       ? el("button", {
@@ -367,7 +388,19 @@ export async function viewRun(runId, generation) {
     ]),
   ];
 
-  panels.push(
+  // A Get's works were chosen, so neither the asked-for nor the offered count
+  // applies to them, and the cards are the table.
+  if (run.kind === "get") {
+    panels.push(
+      el("section", { class: "get-review", "aria-label": "This Get's works" }, [
+        el("h3", { text: `Works (${tally.total})` }),
+        el("p", { class: "muted", text: `${counted(tally.chosen, "work")} you chose.` }),
+        reviewProblem ? el("p", { class: "note", text: reviewProblem }) : null,
+        ...(reviewPage ? reviewSection(reviewPage) : []),
+        view.works.length ? null : el("p", { class: "muted", text: "This Get holds no works." }),
+      ]),
+    );
+  } else panels.push(
     el("div", { class: "panel" }, [
       el("h3", { text: `Works (${tally.total})` }),
       // The way from watching a run to judging what it brought back. Offered
@@ -388,11 +421,7 @@ export async function viewRun(runId, generation) {
         // Both counts, always, including when the collection offered nothing —
         // a line that appeared only when there was a supplement would train a
         // reader to read its absence as "these are all what I asked for".
-        // A Get's works were chosen, so neither count applies to them.
-        text:
-          run.kind === "get"
-            ? `${counted(tally.chosen, "work")} you chose.`
-            : `${tally.proposed} asked for, ${tally.offered} offered by the collection on top of them.`,
+        text: `${tally.proposed} asked for, ${tally.offered} offered by the collection on top of them.`,
       }),
       view.works.length
         ? table(
@@ -448,7 +477,9 @@ export async function viewRun(runId, generation) {
   // A destination that could not be looked up is held out for the same reason
   // as the gate's price: the run is unchanged, so the next poll would match and
   // leave the sentence saying so.
-  if (gateEstimateProblem === null && themes !== null) state.painted = { runId, body };
+  //
+  // A Get's cards that could not be read are held out for the same reason.
+  if (gateEstimateProblem === null && themes !== null && reviewProblem === null) state.painted = { runId, body };
 
   // Poll only while there is something still to wait for. `is_terminal` comes
   // from the server rather than from a list of finished states written here,

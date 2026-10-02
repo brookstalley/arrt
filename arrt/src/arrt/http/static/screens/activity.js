@@ -99,7 +99,8 @@ export async function viewToReview(generation) {
               type: "button",
               text: "Review",
               "aria-label": `Review the ${KIND_WORDS[run.kind] || "run"} for ${run.intent || (run.kind === "get" ? "the works you chose" : run.run_id)}`,
-              onclick: () => go("review", run.run_id),
+              // A Get is reviewed on its own page; every other run on Review.
+              onclick: () => (run.kind === "get" ? go("run", run.run_id) : go("review", run.run_id)),
             }),
           ]),
         ),

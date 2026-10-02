@@ -10,6 +10,43 @@ each entry, which is the durable form.
 
 ## Pending
 
+### A Get reviewed on its own page, wide, with its scans readable — added 2026-10-02
+
+**`build-plan-topics-and-destinations.md` Chunk 07.** Visual change: yes.
+
+Checked by the builder on 2026-10-02 in the browser suite's own server, with
+stubbed payloads and stand-in pictures (flat colour), not on your catalogue.
+Regenerate the same views with
+`cd arrt && uv run pytest -m browser -n0 tests/browser/test_reviewing_a_get.py`
+and a `page.screenshot` in a test of your own; no images are committed.
+
+- **1280 px.** A finished Get of *The Magpie*: the run's sentence and costs,
+  then *Works (1)* and "1 work you chose.", then the card — the picture in the
+  left two-fifths, and on the right the title, artist, **3,840 × 2,604 px**, the
+  badges (◇ you chose · ● the run found an image · ● native, no inches), the
+  Wikidata item, *Why*, *Accept*, *Reject*. No *Review these works* and no work
+  table. With *Scans* open, a table across the card's full width: Scan,
+  Resolution, Provider, Rights, Confidence, Chosen, Actions, one row a scan, and
+  under each its *Why this one* and *Where it lives*. No label or button wraps;
+  the card measured 811 px tall with two scans open (the owner's was about
+  7,000). Nothing wider than the screen. Clicking the picture opened it over the
+  page in a dialog with *Close*; Escape, *Close* and a click outside each shut it
+  and left the address alone.
+- **375 px.** One column: the picture above the facts. The Scans table scrolls
+  sideways inside the card, and the sentences under each scan stay on screen
+  while it does. Nothing wider than the screen.
+- Artworks, a work's page and a theme's page show the fit verdict's word alone.
+
+For you:
+
+1. **On your catalogue, a Get with a few works**: is one work to a row right, or
+   too tall to judge many in a sitting? (`#review/<get>` shows the same cards.)
+2. **The enlarged picture** is the largest preview the server holds: 843 px wide
+   from the Art Institute, 960 from Commons. Big enough to judge a scan by?
+3. **The sentence a run writes about a scan** now says "It is 3,840 × 2,604 px,
+   enough to fill the artwork box" rather than inches, for runs from now on.
+   Older runs keep the sentence they wrote.
+
 ### Library › Topics and the Topic page — added 2026-10-02
 
 **`build-plan-topics-and-destinations.md` Chunk 05.** Needs `WIKIDATA_USER_AGENT`

@@ -53,15 +53,29 @@ def test_it_lists_the_runs_waiting_with_how_many_each_holds(ui):
     assert rows[1].startswith("Quiet interiors search 1 ")
 
 
-def test_each_run_opens_its_review(ui):
+def test_a_get_opens_on_its_own_page_where_it_is_reviewed(ui):
+    """A Get's page is its review (the owner's ruling, 2026-10-02).
+
+    This test opened `#review/<get>` until then. The claim it guards — the
+    row's Review leads to where that run's works are judged — is unchanged;
+    where that is moved, for a Get.
+    """
     ui.serve("**/api/runs?awaiting=true", TWO_RUNS)
-    ui.serve(f"**/api/runs/{GET_ID}/candidates*", a_candidate_page([a_card()], run=a_run(run_id=GET_ID, kind="get", intent=None)))
-    ui.serve_image("**/api/candidate-images/*/preview")
     ui.open("#to_review")
 
     ui.page.locator("#view tbody tr").first.locator("button:text-is('Review')").click()
 
-    ui.page.wait_for_function(f"() => window.location.hash.startsWith('#review/{GET_ID}')")
+    ui.page.wait_for_function(f"() => window.location.hash.startsWith('#run/{GET_ID}')")
+
+
+def test_a_search_still_opens_review(ui):
+    """The paired negative: only a Get moved. A discovery run's works are judged on Review."""
+    ui.serve("**/api/runs?awaiting=true", TWO_RUNS)
+    ui.open("#to_review")
+
+    ui.page.locator("#view tbody tr").nth(1).locator("button:text-is('Review')").click()
+
+    ui.page.wait_for_function(f"() => window.location.hash.startsWith('#review/{SEARCH_ID}')")
 
 
 def test_with_nothing_waiting_it_says_so(ui):
