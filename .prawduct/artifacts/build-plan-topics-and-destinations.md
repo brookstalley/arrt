@@ -3,7 +3,7 @@ artifact: build-plan
 version: 1
 scope: topics-and-destinations
 branch: feature/topics-and-destinations
-partition: serial — 01 and 04 both edit the catalogue store and `library/facade.py`; 02 and 05 both edit `core/getting.js`, `app.js` and the sidebar tests
+partition: three waves — 01 ∥ 03, then 02 ∥ 04, then 05. 03 touches only `library/registry/wikidata.py`, a new topic service and `wikidata-findings.md`, which no other chunk in its wave edits. 04 waits for 01 because both edit the catalogue store and `library/facade.py`; 02 waits for 01's API; 05 waits for 02 and 04 and shares `core/getting.js` and `app.js` with 02. Each delegate works in its own worktree and branch; the coordinator merges, runs the suites and the Critic per wave (amended 2026-10-02, owner asked for parallel subagents)
 depends_on:
   - artifact: ia-proposal
   - artifact: information-architecture
