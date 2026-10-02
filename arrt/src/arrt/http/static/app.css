@@ -1216,7 +1216,7 @@ button.link {
   background: var(--surface-0);
 }
 
-.badge-awaiting_better_image {
+.badge-wanted {
   border-style: dashed;
   border-width: 2px;
   background: var(--surface-2);
@@ -1300,9 +1300,9 @@ button.card-image.enlargeable {
 }
 
 /* The facts compared down a column never wrap, and nor do the actions' labels:
-   a label broken across two lines is what made the old stacked layout
-   unreadable. The table scrolls sideways inside its card instead, on a screen
-   too narrow for it. */
+   a fact or a label broken a word to a line is unreadable in a table. The
+   actions stack, each label whole, and the table scrolls sideways inside its
+   card on a screen too narrow for it. */
 .scans th,
 .scans .scan-fact,
 .scans .scan-actions {
@@ -1397,8 +1397,9 @@ details > summary {
   padding: var(--space-2) 0;
 }
 
-/* Two badges stacked inside one table cell, closer than `.stack` sets things —
-   they are one statement about a work, not two sections. */
+/* Things stacked inside one table cell, closer than `.stack` sets them: a
+   scan's pixels and its fit, or its two actions. Each is one statement about
+   one scan, not two sections. */
 .stack-tight {
   display: flex;
   flex-direction: column;

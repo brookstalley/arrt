@@ -537,14 +537,12 @@ def test_a_card_kept_across_a_redraw_still_reaches_the_offer_to_look_again(ui):
     ui.serve("**/api/candidate-images/image-1/reject", {})
     ui.serve(
         "**/api/candidates/work-1",
-        a_card(work=chosen(verdict=Verdict.AWAITING_BETTER_IMAGE.value), instances_held=2, instances_surviving=1).model_dump(
-            mode="json"
-        ),
+        a_card(work=chosen(verdict=Verdict.WANTED.value), instances_held=2, instances_surviving=1).model_dump(mode="json"),
     )
     ui.page.click("li.card[data-work='work-1'] tr.alternate >> nth=0 >> button:text-is('Turn it down')")
 
-    ui.page.wait_for_selector("#view h3:text-is('Scans you turned down')")
-    assert "1 work is waiting for a better scan" in ui.text()
+    ui.page.wait_for_selector("#view h3:text-is('Wanted')")
+    assert "1 work is wanted." in ui.text()
 
 
 def test_a_get_s_page_opened_again_is_built_afresh(ui):

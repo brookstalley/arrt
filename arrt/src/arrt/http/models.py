@@ -1188,12 +1188,12 @@ class GetOut(BaseModel):
 
 
 class SetVerdict(BaseModel):
-    """A curator's decision about a proposed work.
+    """A curator's decision about a proposed work: `accepted` or `rejected`.
 
-    `awaiting_better_image` is deliberately not settable here: that verdict is
-    what rejecting an *image* means, and it is set by that call so the verdict and
-    the instance's suppression can never come apart. The service refuses it, and
-    the refusal says which call does set it.
+    `wanted` is deliberately not settable here: its one way in is
+    `POST /api/candidates/{id}/want`, which is also where a scan being turned
+    down on the way is suppressed, so the two can never come apart. The service
+    refuses it, and the refusal names `want`.
     """
 
     verdict: str
@@ -1201,6 +1201,47 @@ class SetVerdict(BaseModel):
     #: "rejected because it is a studio copy" are the same row to the pipeline and
     #: different evidence to whoever reads it later.
     reason: str | None = None
+
+
+class WantWork(BaseModel):
+    """That the curator wants a work, and which scan of it, if any, they are turning down.
+
+    `turning_down` is a scan of this work. Named, it is suppressed and the
+    selection falls through, as turning it down on its own row does; omitted,
+    nothing is suppressed, because wanting a work found with no scan is not a
+    judgement about any scan.
+    """
+
+    turning_down: str | None = None
+
+
+class WantedWorkOut(BaseModel):
+    """A work the curator wants and holds no scan of they would accept.
+
+    Named as `art_review(action='list_wanted')` names the same facts.
+    """
+
+    work_id: str
+    title: str
+    artist: str | None
+    #: The run that proposed the work, which is where its card lives.
+    run_id: str
+    #: The Wikidata item the work is known by, or null when none is.
+    wikidata_qid: str | None
+    #: How many of its scans the curator turned down: zero for a work wanted
+    #: because nothing was found. Counted from its scans, not stored.
+    scans_turned_down: int
+
+
+class WantedListingOut(BaseModel):
+    """Every wanted work, newest run first.
+
+    Uncapped, and what bounds it is the curator: each row is a work somebody
+    wanted by name, one call per work, so the list grows no faster than works are
+    judged, and a row is a few short strings with no picture.
+    """
+
+    works: list[WantedWorkOut]
 
 
 class SelectImage(BaseModel):

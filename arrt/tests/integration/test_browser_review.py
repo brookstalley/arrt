@@ -276,8 +276,9 @@ class TestTheAlternates:
     def test_turning_a_scan_down_keeps_the_work_and_keeps_the_scan_on_the_card(self, http):
         """Rejecting an *image* must never read as rejecting the painting.
 
-        The work moves to `awaiting_better_image` — the verdict an accept/reject
-        binary cannot express — and the refused scan stays listed and labelled,
+        Turning down the scan on offer moves the work to `wanted` — the verdict
+        an accept/reject binary cannot express — and the refused scan stays
+        listed and labelled,
         because it is the evidence of a judgement already made. A card that
         dropped it would leave a curator wondering why a re-search returned fewer
         instances than before.
@@ -290,12 +291,29 @@ class TestTheAlternates:
 
         work = http.post(f"/api/candidate-images/{selected['image_id']}/reject").json()
 
-        assert work["verdict"] == str(Verdict.AWAITING_BETTER_IMAGE)
+        assert work["verdict"] == str(Verdict.WANTED)
         after = http.get(f"/api/candidates/{work_id}/images").json()
         refused = next(i for i in after["instances"] if i["image_id"] == selected["image_id"])
         assert refused["rejected"] is True
         assert refused["is_selected"] is False
         assert after["held"] == 2, "the refused scan was dropped rather than labelled"
+
+    def test_turning_an_alternate_down_leaves_the_work_undecided(self, http):
+        """Only the scan on offer stands for the work; an alternate is turned down and that is all."""
+        run_id = a_finished_run(http)
+        page = http.get(f"/api/runs/{run_id}/candidates").json()
+        work_id = card_for(page, "The Elephants")["work"]["work_id"]
+        listing = http.get(f"/api/candidates/{work_id}/images").json()
+        alternate = next(instance for instance in listing["instances"] if not instance["is_selected"])
+
+        work = http.post(f"/api/candidate-images/{alternate['image_id']}/reject").json()
+
+        assert work["verdict"] == str(Verdict.PENDING)
+        after = http.get(f"/api/candidates/{work_id}/images").json()
+        refused = next(i for i in after["instances"] if i["image_id"] == alternate["image_id"])
+        assert refused["rejected"] is True
+        assert [i["image_id"] for i in after["instances"] if i["is_selected"]] != [alternate["image_id"]]
+        assert any(i["is_selected"] for i in after["instances"]), "the scan on offer still stands"
 
     def test_a_rejected_scan_cannot_be_chosen_again(self, http):
         run_id = a_finished_run(http)
@@ -315,7 +333,7 @@ class TestTheReSearch:
     def test_a_curator_can_ask_for_better_scans_from_the_browser(self, http):
         """The dead end this binding exists to close.
 
-        Turning a scan down leaves the work `awaiting_better_image`, and nothing
+        Turning the scan on offer down leaves the work `wanted`, and nothing
         looks again on its own. Without a binding here, a curator who used the
         grid's own reject button could only escape it from an MCP client.
         """
@@ -388,8 +406,19 @@ class TestTheVerdict:
         assert response.status_code == 400
         assert "final" in response.json()["error"]
 
-    def test_awaiting_better_image_is_refused_here_and_the_refusal_names_the_way_in(self, http):
+    def test_wanted_is_refused_here_and_the_refusal_names_the_way_in(self, http):
         """One entry into that verdict, so it and the scan's suppression cannot part."""
+        run_id = a_finished_run(http)
+        page = http.get(f"/api/runs/{run_id}/candidates").json()
+        work_id = card_for(page, "The Elephants")["work"]["work_id"]
+
+        response = http.post(f"/api/candidates/{work_id}/verdict", json={"verdict": "wanted"})
+
+        assert response.status_code == 400
+        assert "set by want" in response.json()["error"]
+
+    def test_the_verdict_s_old_name_is_not_accepted(self, http):
+        """Renamed with no shim: the old spelling is an unknown verdict, and the refusal lists the new one."""
         run_id = a_finished_run(http)
         page = http.get(f"/api/runs/{run_id}/candidates").json()
         work_id = card_for(page, "The Elephants")["work"]["work_id"]
@@ -397,7 +426,60 @@ class TestTheVerdict:
         response = http.post(f"/api/candidates/{work_id}/verdict", json={"verdict": "awaiting_better_image"})
 
         assert response.status_code == 400
-        assert "rejecting an image" in response.json()["error"]
+        assert "Unknown verdict" in response.json()["error"]
+        assert "wanted" in response.json()["error"]
+        assert http.get(f"/api/candidates/{work_id}").json()["work"]["verdict"] == "pending"
+
+
+class TestWanting:
+    def test_a_work_found_with_no_scan_can_be_wanted_and_is_listed(self, http, museum):
+        museum.holdings = {"The Elephants": museum.holdings["The Elephants"]}
+        run_id = a_finished_run(http)
+        page = http.get(f"/api/runs/{run_id}/candidates").json()
+        work_id = card_for(page, "Swans Reflecting Elephants")["work"]["work_id"]
+        assert http.get(f"/api/candidates/{work_id}/images").json()["held"] == 0
+
+        work = http.post(f"/api/candidates/{work_id}/want", json={}).json()
+
+        assert work["verdict"] == "wanted"
+        listed = http.get("/api/wanted").json()["works"]
+        assert listed == [
+            {
+                "work_id": work_id,
+                "title": "Swans Reflecting Elephants",
+                "artist": work["artist"],
+                "run_id": run_id,
+                "wikidata_qid": None,
+                "scans_turned_down": 0,
+            }
+        ]
+
+    def test_wanting_while_turning_down_the_scan_suppresses_it_and_counts_it(self, http):
+        run_id = a_finished_run(http)
+        page = http.get(f"/api/runs/{run_id}/candidates").json()
+        work_id = card_for(page, "The Elephants")["work"]["work_id"]
+        listing = http.get(f"/api/candidates/{work_id}/images").json()
+        on_offer = next(instance for instance in listing["instances"] if instance["is_selected"])
+
+        work = http.post(f"/api/candidates/{work_id}/want", json={"turning_down": on_offer["image_id"]}).json()
+
+        assert work["verdict"] == "wanted"
+        after = http.get(f"/api/candidates/{work_id}/images").json()
+        assert next(i for i in after["instances"] if i["image_id"] == on_offer["image_id"])["rejected"] is True
+        listed = {entry["work_id"]: entry for entry in http.get("/api/wanted").json()["works"]}
+        assert listed[work_id]["scans_turned_down"] == 1
+
+    def test_a_decided_work_cannot_be_wanted(self, http):
+        run_id = a_finished_run(http)
+        page = http.get(f"/api/runs/{run_id}/candidates").json()
+        work_id = card_for(page, "The Elephants")["work"]["work_id"]
+        http.post(f"/api/candidates/{work_id}/verdict", json={"verdict": "accepted"})
+
+        response = http.post(f"/api/candidates/{work_id}/want", json={})
+
+        assert response.status_code == 400
+        assert "final" in response.json()["error"]
+        assert http.get("/api/wanted").json()["works"] == []
 
     def test_a_newly_minted_artist_that_may_duplicate_a_held_one_is_said_out_loud(self, http, service, engine, museum):
         """The one part of a promotion a curator can neither see nor undo from it.

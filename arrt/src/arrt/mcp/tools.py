@@ -697,18 +697,16 @@ ART_REVIEW: Final = ToolRecord(
                     description="'accepted' puts the work in the catalogue; 'rejected' closes it. Both are final.",
                     required=True,
                     choices=("accepted", "rejected"),
-                    # `api-contract.md` § set_verdict cannot set
-                    # `awaiting_better_image` requires the refusal to name
-                    # `reject_image`, and it is the schema that refuses it — the
-                    # service's own teaching error is unreachable from here,
-                    # because validation runs first by design. A caller asking
-                    # for that verdict has not mistyped; they want the thing a
-                    # different action does, and an enumeration alone would send
-                    # them away without it.
+                    # `api-contract.md` § set_verdict cannot set `wanted` requires
+                    # the refusal to name `want`, and it is the schema that
+                    # refuses it — the service's own teaching error is unreachable
+                    # from here, because validation runs first by design. A caller
+                    # asking for that verdict has not mistyped; they want the
+                    # thing a different action does, and an enumeration alone
+                    # would send them away without it.
                     refused_hint=(
-                        "To ask for a better scan instead, use action='reject_image' with the image_id — that is "
-                        "the only way to awaiting_better_image, and it also suppresses the scan so a re-search "
-                        "cannot return it."
+                        "To want the work instead, use action='want' with the work_id, adding turning_down with "
+                        "the image_id of a scan you are turning down so a re-search cannot return it."
                     ),
                 ),
                 Param(
@@ -727,27 +725,61 @@ ART_REVIEW: Final = ToolRecord(
                 "minted_artist says a new artist row was created. Where it arrives with "
                 "possible_duplicate_artists, the catalogue may now hold the same painter twice under different "
                 "spellings — visible and mergeable, which a wrong merge would not be.",
-                "'awaiting_better_image' is not settable here. Turning down a scan is "
-                "action='reject_image', which is also what suppresses it.",
+                "'wanted' is not settable here: action='want' is its one way in.",
                 "Both verdicts are final: a work already accepted or rejected cannot be re-judged.",
+            ),
+        ),
+        # BREAKING, 2026-10-02 (`api-contract.md` § Versioning): the verdict
+        # `awaiting_better_image` is now `wanted`, and no old spelling is
+        # accepted; `want` is its one way in; and `reject_image` makes a work
+        # wanted only when the scan turned down was the one on offer. Turning
+        # down an alternate used to make the work wanted too, which asked for a
+        # better scan the curator had not asked for.
+        Action(
+            name="want",
+            description="Want a work you hold no acceptable scan of, turning down its scan on offer if named.",
+            example="art_review(action='want', work_id='<a work_id from action=list_works>')",
+            params=(
+                _WORK_ID,
+                Param(
+                    name="turning_down",
+                    type="string",
+                    description=(
+                        "A scan of this work being turned down on the way, as an image_id from "
+                        "action='list_images'. Omit when no scan was found."
+                    ),
+                ),
+            ),
+            tips=(
+                "The work's verdict becomes wanted. Nothing searches for a scan: "
+                "art_discovery(action='resolve_images') does, and it spends.",
+                "A named scan is suppressed so no re-search can return it. Naming none suppresses nothing.",
+                "Refused on a work already accepted or rejected. action='set_verdict' still works from wanted.",
+            ),
+        ),
+        Action(
+            name="list_wanted",
+            description="List every wanted work across runs, newest run first.",
+            example="art_review(action='list_wanted')",
+            tips=(
+                "scans_turned_down is 0 for a work wanted because nothing was found. wikidata_qid is null "
+                "when no item is known.",
             ),
         ),
         Action(
             name="reject_image",
-            description="Turn down one scan and ask for a better one. The work stays wanted.",
+            description="Turn down one scan. Turning down the scan on offer makes the work wanted.",
             example="art_review(action='reject_image', image_id='<an image_id from action=list_images>')",
             params=(_IMAGE_ID,),
             tips=(
                 "This does not go looking for a replacement — art_discovery(action='resolve_images') does, and "
-                "it is the call that spends money. Reject the scans you want re-searched, then re-search them "
-                "in one batch.",
-                "The work moves to awaiting_better_image and the scan is suppressed, so a later search cannot "
-                "hand back the one just turned down. The suppression is the reason this is the only way into "
-                "that state.",
-                "Rejecting the scan on offer falls the selection through to the next survivor; rejecting an "
-                "alternate leaves the standing choice alone.",
-                "You are never blocked on a re-search: action='set_verdict' works from awaiting_better_image "
-                "too, so a curator can accept the best scan on offer or give up on the work at any point.",
+                "it is the call that spends money. Turn down the scans you want re-searched, then re-search "
+                "them in one batch.",
+                "The scan is suppressed either way, so a later search cannot hand back the one just turned "
+                "down. The scan on offer moves the work to wanted and the selection to the next survivor; an "
+                "alternate leaves the verdict and the standing choice alone.",
+                "You are never blocked on a re-search: action='set_verdict' works from wanted too, so a "
+                "curator can accept the best scan on offer or give up on the work at any point.",
             ),
         ),
     ),

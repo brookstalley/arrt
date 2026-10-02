@@ -176,13 +176,13 @@ Open assumptions:
 - `[ASSUMPTION: a curator's 'none of these' in the Wikidata picker is not stored: the work is searched without an item, and the picker is offered again next time | LOW impact | user can correct]`
 - `[ASSUMPTION: Search again and Search all use the existing re-search (`runner.resolve_images`), which spends the phase-two estimate per work; the button says so with the estimate, as the run review's re-search offer does, and asks no confirmation | MED impact | user can correct]`
 
-**What would raise it:** counting the accepted works with no image on the
-owner's catalogue copy (one query, Chunk 01's first step), and Chunk 04's
-measurement on the Dalí works.
+**What would raise it:** counting the accepted works with no image on a
+fresh copy of the owner's catalogue (one query, Chunk 06's first step; the
+scratchpad copy held none), and Chunk 04's measurement on the Dalí works.
 
 ## Status
 
-- [ ] Chunk 01: The acquisition queue
+- [x] Chunk 01: The acquisition queue
 - [ ] Chunk 02: Saying it: the Work page, Review, Activity › Queue, Retry, and MCP
 - [ ] Chunk 03: One wanted state and one way in
 - [ ] Chunk 04: Matching a wanted work to its Wikidata item
@@ -362,7 +362,9 @@ queue gets entries; suites green, browser suite under `-n auto`; Critic.
 
 **Type:** cumulative-final
 
-On a catalogue copy: accept a work and watch it fetch, prepare and reach the
+First, count the accepted works with no image on a fresh copy of the owner's
+catalogue, and record it in Requirements Confidence. Then, on that copy: accept
+a work and watch it fetch, prepare and reach the
 wall's manifest; break the tile binary path and watch the queue pause and say
 why; want the seven Dalí works, pick *Lobster Telephone*'s item, and search
 again. Whatever the owner asks for is built here or filed. Then the cumulative

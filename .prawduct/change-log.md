@@ -62,6 +62,44 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-02: An accepted work fetches and prepares itself; one wanted state
+
+<!-- prawduct: scope=after-review -->
+
+**Why:** nothing fetched an accepted work's master image or prepared it, so
+every work accepted through Get or Ask stayed off every wall until an agent
+called `retry_acquisition` and `regenerate` by hand (#167). And a work with no
+scan offered only Accept or Reject, with no way to say "I want this, find it
+later" (#168). The owner asked that wanting any scan and wanting a better one
+converge.
+
+**What:**
+- **The acquisition queue** (`library/acquisition/queue.py`, Chunk 01): one
+  worker, woken by acceptance and catching up at start, fetches each accepted
+  work holding no image and then prepares it. Failures retry after 1 h, 1 day
+  and 3 days, then wait for Retry; a partial result counts as acquired; a
+  deployment fault (short disk, no dezoomify-rs, no tile resolver) pauses the
+  queue without counting against the work. Its state is one table,
+  `acquisition_queue` (Q31-Q35). Preparation now records the mat colour's model
+  spend as `mat_color_vision`. Built by a delegate in its own worktree; 30
+  re-breaks caught, re-run after a scratchpad collision with the other delegate.
+  Critic `rev-20261002T194630Z-9a001a93`: 1 blocking (two untested branches:
+  when the worker wakes for a retry, and no second fetch after a named source),
+  fixed with four tests watched failing, plus a Retry/attempt race closed;
+  `rev-20261002T195129Z-b2afcdfd` clean.
+- **One wanted state** (Chunk 03): `awaiting_better_image` is renamed `wanted`
+  by migration, with one way in, `DiscoveryService.want(work, turning_down=…)`.
+  Turning down the scan on offer wants a better one; turning down an alternate
+  only suppresses it. `set_verdict` still refuses the verdict. `POST
+  /api/candidates/{id}/want`, `GET /api/wanted`, and MCP `art_review` actions
+  `want` and `list_wanted`. The rename and the `reject_image` change are
+  breaking and recorded in `api-contract.md` (Q36-Q37). Built by a delegate;
+  integration found `art_review`'s pinned help listing missing the two new
+  actions, and added them.
+- Carried fixes: `app.css`'s scans and `.stack-tight` comments, `search_topics`'
+  docstring (topic search is kept a week), and `re-architecture.md`'s list of
+  what runs in the background.
+
 ## 2026-10-02: The owner's review of the screens: Add to, the typeahead, and Review on a Get's own page
 
 <!-- prawduct: scope=topics-and-destinations -->
@@ -88,7 +126,7 @@ browser CI leg then found the Scans table scrolling sideways inside a 1280 px
 card on the runner's wider fonts (it was already 24 px over on macOS, inside the
 edge check's padding slack): a scan's two actions now stack, and the test
 asserts the table's box does not scroll. Three browser tests that read the page
-before it settled under `-n auto` now wait for what they assert. Filed from the same review: #167 (accepting never acquires the
+before it settled under `-n auto` now wait for what they assert. Filed from the owner's review of the screens: #167 (accepting never acquires the
 master), #168 (Wanted), #169 (Artworks' theme filter vs add-to-theme, decided:
 follow Radarr).
 

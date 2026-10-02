@@ -1,7 +1,7 @@
 """What the curator's decision does, driven over a real MCP client.
 
-The service layer already holds the rules — a verdict is final, only rejecting an
-instance reaches `awaiting_better_image`, acceptance mints an artwork and promotes
+The service layer already holds the rules — a verdict is final, only `want`
+reaches `wanted`, acceptance mints an artwork and promotes
 every scan into a source — and the unit suite pins each of them. What these tests
 cover is the half that only exists once the actions are on the surface: that a
 caller holding nothing but ids the previous response gave them can reach a
@@ -224,15 +224,76 @@ async def test_rejecting_a_scan_moves_the_work_and_names_the_paid_call_that_repl
     payload, errored = await call(server_url, "art_review", action="reject_image", image_id=images[0].id)
 
     assert errored is False
-    assert payload["verdict"] == "awaiting_better_image"
+    assert payload["verdict"] == "wanted"
     assert "resolve_images" in payload["notice"]
     surviving = [image for image in services.discovery.list_candidate_images(work.id) if image.rejected_at is None]
     assert [image.id for image in surviving] == [images[1].id]
     assert next(image for image in surviving if image.is_selected).id == images[1].id, "the selection fell through"
 
 
+async def test_turning_down_an_alternate_leaves_the_verdict_and_says_why_nothing_is_searching(server_url, services, reviewable):
+    """An alternate is only turned down, and the notice must not claim the work is wanted."""
+    work, images = reviewable(instances=2)
+
+    payload, errored = await call(server_url, "art_review", action="reject_image", image_id=images[1].id)
+
+    assert errored is False
+    assert payload["verdict"] == "pending"
+    assert "alternate" in payload["notice"]
+    assert "resolve_images" not in payload["notice"], "nothing was asked for, so nothing is owed a search"
+    held = {image.id: image for image in services.discovery.list_candidate_images(work.id)}
+    assert held[images[1].id].rejected_at is not None
+    assert held[images[0].id].is_selected is True
+
+
+# -- wanting a work --------------------------------------------------------------
+
+
+async def test_a_work_can_be_wanted_without_turning_a_scan_down(server_url, services, reviewable):
+    work, images = reviewable(instances=1)
+
+    payload, errored = await call(server_url, "art_review", action="want", work_id=work.id)
+
+    assert errored is False
+    assert payload["verdict"] == "wanted"
+    assert "resolve_images" in payload["notice"]
+    held = services.discovery.list_candidate_images(work.id)[0]
+    assert (held.id, held.rejected_at, held.is_selected) == (images[0].id, None, True)
+
+
+async def test_wanting_while_turning_a_scan_down_suppresses_it_and_the_listing_counts_it(server_url, services, reviewable):
+    work, images = reviewable(instances=2)
+    nothing_found, _ = reviewable(title="Sleep", instances=0)
+    await call(server_url, "art_review", action="want", work_id=nothing_found.id)
+
+    payload, errored = await call(server_url, "art_review", action="want", work_id=work.id, turning_down=images[0].id)
+
+    assert errored is False
+    assert payload["verdict"] == "wanted"
+    assert services.discovery.get_candidate_image(images[0].id).rejected_at is not None
+    listed, errored = await call(server_url, "art_review", action="list_wanted")
+    assert errored is False
+    assert listed["count"] == 2
+    assert {entry["work_id"]: entry["scans_turned_down"] for entry in listed["works"]} == {
+        work.id: 1,
+        nothing_found.id: 0,
+    }
+    assert {entry["run_id"] for entry in listed["works"]} == {work.discovery_run_id}
+
+
+async def test_a_decided_work_cannot_be_wanted(server_url, services, reviewable):
+    work, _images = reviewable()
+    await call(server_url, "art_review", action="set_verdict", work_id=work.id, verdict="rejected")
+
+    payload, errored = await call(server_url, "art_review", action="want", work_id=work.id)
+
+    assert errored is True
+    assert "final" in payload["error"]
+    assert services.discovery.get_candidate_work(work.id).verdict is Verdict.REJECTED
+
+
 async def test_a_curator_is_never_blocked_on_a_re_search_they_have_not_asked_for(server_url, services, reviewable):
-    """Accepting from `awaiting_better_image` is the point of the source/target split.
+    """Accepting from `wanted` is the point of the source/target split.
 
     `set_verdict` refuses that value as a *target* and permits it as a source
     state, so a curator who turned down the best scan can still take the next
@@ -250,24 +311,25 @@ async def test_a_curator_is_never_blocked_on_a_re_search_they_have_not_asked_for
     assert primary.url == images[1].url, "the scan they did not turn down"
 
 
-async def test_asking_for_awaiting_better_image_teaches_the_action_that_sets_it(server_url, reviewable):
+@pytest.mark.parametrize("asked", ["wanted", "awaiting_better_image"])
+async def test_asking_for_wanted_by_either_name_teaches_the_action_that_sets_it(server_url, reviewable, asked):
+    """The old name is refused like the new one, with no shim: both are a request for `want`."""
     work, _images = reviewable()
 
-    payload, errored = await call(
-        server_url, "art_review", action="set_verdict", work_id=work.id, verdict="awaiting_better_image"
-    )
+    payload, errored = await call(server_url, "art_review", action="set_verdict", work_id=work.id, verdict=asked)
 
     assert errored is True
-    assert "awaiting_better_image" in payload["error"]
+    assert asked in payload["error"]
     assert payload["valid_values"] == {"verdict": ["accepted", "rejected"]}
     # The naming is the requirement, not the enumeration. `api-contract.md`
-    # § set_verdict cannot set `awaiting_better_image` asks the refusal to point
-    # at `reject_image`, and it is the *schema* that refuses here — validation
-    # runs before dispatch, so the service's own teaching error never fires
-    # through this path. A caller asking for that verdict has not mistyped a
-    # value; they want what another action does, and a valid-set enumeration
-    # alone would send them away without it.
-    assert "reject_image" in payload["error"]
+    # § set_verdict cannot set `wanted` asks the refusal to point at `want`, and
+    # it is the *schema* that refuses here — validation runs before dispatch, so
+    # the service's own teaching error never fires through this path. A caller
+    # asking for that verdict has not mistyped a value; they want what another
+    # action does, and a valid-set enumeration alone would send them away
+    # without it.
+    assert "action='want'" in payload["error"]
+    assert "reject_image" not in payload["error"]
 
 
 # -- choosing among the scans --------------------------------------------------

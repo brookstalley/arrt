@@ -186,8 +186,8 @@ def test_pending_is_where_a_work_starts_rather_than_something_a_curator_chooses(
 def test_the_curator_is_never_blocked_by_a_re_search_in_flight(discovery, resolved_work, add_image):
     """`set_verdict` constrains its target value only, never the state it comes from.
 
-    A curator who has asked for a better scan may still accept the best instance
-    on offer, or give up on the work, without waiting for a background job.
+    A curator who turned the scan on offer down may still accept the best
+    instance left, or give up on the work, without waiting for a background job.
     """
     work = resolved_work()
     rejected_image = discovery.list_candidate_images(work.id)[0]
@@ -287,9 +287,10 @@ def test_finding_nothing_is_an_outcome_rather_than_an_absent_row(discovery, prop
     assert discovery.get_candidate_work(work.id).resolution_status is ResolutionStatus.UNRESOLVED
 
 
-def test_a_work_awaiting_a_better_image_returns_to_review_once_one_is_on_offer(discovery, resolved_work, add_image):
+def test_a_wanted_work_returns_to_review_once_a_scan_is_on_offer(discovery, resolved_work, add_image):
     work = resolved_work()
     discovery.reject_image(discovery.list_candidate_images(work.id)[0].id)
+    assert discovery.get_candidate_work(work.id).verdict is Verdict.WANTED
     add_image(work, url="https://better.example/1", confidence=0.95)
 
     outcome = discovery.record_resolution(work.id)
@@ -305,7 +306,7 @@ def test_a_re_search_that_finds_nothing_leaves_the_work_where_the_curator_put_it
 
     outcome = discovery.record_resolution(work.id)
 
-    assert outcome.work.verdict is Verdict.AWAITING_BETTER_IMAGE
+    assert outcome.work.verdict is Verdict.WANTED
     assert outcome.resolution_status is ResolutionStatus.UNRESOLVED
 
 

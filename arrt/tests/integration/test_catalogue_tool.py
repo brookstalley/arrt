@@ -139,6 +139,8 @@ async def test_help_reports_exactly_the_actions_a_tool_actually_serves(server_ur
         "list_images",
         "set_canonical",
         "set_verdict",
+        "want",
+        "list_wanted",
         "reject_image",
         "help",
     ]
