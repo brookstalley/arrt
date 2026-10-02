@@ -72,18 +72,83 @@ def _registry_answered(ui):
 
 
 class TestTheIndex:
-    def test_held_artists_are_listed_with_counts_and_open_their_page(self, ui, rothko, seeded_service):
-        artist, _work = rothko
+    # Library › Artists became Lidarr's poster index, in surname order (the
+    # owner's ruling on #173). The table it was is the second view, so the old
+    # "listed with counts" test is replaced by one per view rather than dropped.
+
+    def test_held_artists_are_posters_in_surname_order_and_open_their_page(self, ui, rothko, seeded_service):
+        artist, work = rothko
+        ui.serve_image(f"**/api/works/{work.id}/thumbnail*")
         ui.open("#artist")
-        ui.page.wait_for_selector("#view h2:has-text('Artists')")
+        ui.page.wait_for_selector("ul.artist-posters li.card")
 
-        rows = ui.page.locator("tbody tr").all_inner_texts()
-        assert any(row.startswith("Mark Rothko") and row.rstrip().endswith("1") for row in rows)
-        assert any(row.startswith("Salvador Dalí") for row in rows)
+        names = ui.page.locator("ul.artist-posters .card-title").all_inner_texts()
+        assert names == ["Salvador Dalí", "Charles Demuth", "Mark Rothko"]
+        rothko_card = ui.page.locator(f"li.card[data-artist='{artist.id}']")
+        assert rothko_card.locator(".card-meta").inner_text() == "1903–1970 · 1 work"
+        assert rothko_card.locator("img").get_attribute("src") == f"/api/works/{work.id}/thumbnail"
 
-        ui.page.click("tbody button:has-text('Mark Rothko')")
+        ui.page.click("ul.artist-posters button:has-text('Mark Rothko')")
         ui.page.wait_for_selector("#view h2:has-text('Mark Rothko')")
         assert ui.page.evaluate("() => window.location.hash") == f"#artist/{artist.id}"
+
+    def test_the_table_view_is_the_same_order_and_is_kept_in_the_address(self, ui, rothko, seeded_service):
+        ui.open("#artist")
+        ui.page.wait_for_selector("ul.artist-posters")
+        ui.page.click("button.menu-button-trigger:has-text('View')")
+        ui.page.click("[role='menuitemradio']:has-text('Table')")
+        ui.page.wait_for_selector("#view table tbody tr")
+
+        assert ui.page.evaluate("() => window.location.hash") == "#artist?view=table"
+        assert ui.page.locator("button.menu-button-trigger", has_text="View").inner_text().startswith("View: Table")
+        assert ui.page.locator("#view tbody td:first-child").all_inner_texts() == [
+            "Salvador Dalí",
+            "Charles Demuth",
+            "Mark Rothko",
+        ]
+        ui.page.reload()
+        ui.page.wait_for_selector("#view table tbody tr")
+        assert ui.page.locator("ul.artist-posters").count() == 0
+
+    def test_every_artist_is_reached_by_keyboard(self, ui, rothko, seeded_service):
+        """The picture is a pointer's shortcut; the name is the control, and Tab reaches each one."""
+        ui.open("#artist")
+        ui.page.wait_for_selector("ul.artist-posters li.card")
+        ui.page.focus("button.menu-button-trigger")
+
+        reached = []
+        for _ in range(6):
+            ui.page.keyboard.press("Tab")
+            reached.append(ui.page.evaluate("() => document.activeElement.textContent"))
+
+        assert reached[:3] == ["Salvador Dalí", "Charles Demuth", "Mark Rothko"]
+
+    @pytest.mark.parametrize(("width", "fewest", "most"), [(1280, 5, 99), (390, 2, 2)], ids=["desktop", "phone"])
+    def test_the_posters_fill_the_width_and_pair_on_a_phone(self, ui, rothko, seeded_service, width, fewest, most):
+        """Several to a row on a desktop, two on a phone (Lidarr's poster index), never past the page edge."""
+        ui.page.set_viewport_size({"width": width, "height": 900})
+        ui.open("#artist")
+        ui.page.wait_for_selector("ul.artist-posters li.card")
+
+        tracks = ui.page.evaluate(
+            "() => getComputedStyle(document.querySelector('ul.artist-posters')).gridTemplateColumns.split(' ').length"
+        )
+        assert fewest <= tracks <= most
+        grid = ui.page.locator("ul.artist-posters").bounding_box()
+        assert grid["x"] + grid["width"] <= width, "the grid runs past the page"
+
+    def test_a_picture_that_fails_to_load_says_so_and_keeps_the_card(self, ui, rothko, seeded_service):
+        """The case the owner's catalogue meets: a pictured work whose master has not arrived, so its thumbnail fails."""
+        artist, work = rothko
+        ui.serve(f"**/api/works/{work.id}/thumbnail*", (404, {"error": "No image yet."}))
+        ui.open("#artist")
+        ui.page.wait_for_selector(f"li.card[data-artist='{artist.id}'] .card-image-absent")
+
+        card = ui.page.locator(f"li.card[data-artist='{artist.id}']")
+        assert card.locator(".card-image-absent").inner_text() == "No picture"
+        assert card.locator("img").count() == 0, "a broken image was left in the card"
+        assert card.locator(".card-title").inner_text() == "Mark Rothko"
+        assert card.locator(".card-meta").inner_text() == "1903–1970 · 1 work"
 
     def test_the_sidebar_offers_artists_under_artworks(self, ui, rothko):
         ui.open("#collection")

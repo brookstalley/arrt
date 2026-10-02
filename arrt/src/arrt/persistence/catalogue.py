@@ -241,8 +241,13 @@ class CatalogueStore(Protocol):
         """
         ...
 
-    def held_artists(self) -> Sequence[tuple[Artist, int]]:
-        """Every artist with at least one work in circulation, and how many, by name."""
+    def held_artists(self) -> Sequence[tuple[Artist, int, str]]:
+        """Every artist with at least one work in circulation, how many, and the first accepted of them, by name.
+
+        The first accepted work is the one the Artists index pictures the artist
+        by: no artist has a picture of their own, and the earliest acquisition is
+        a stable choice that does not change as more works arrive.
+        """
         ...
 
     def circulating_ids_by_qid(self) -> Mapping[str, Sequence[str]]:

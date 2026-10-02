@@ -309,7 +309,7 @@ def set_work_identity(request: Request, artwork_id: str, body: SetIdentity) -> W
 
 @router.get("/artists")
 def list_artists(request: Request, q: Annotated[str | None, Query()] = None) -> ArtistListOut:
-    """Library › Artists: every artist with a work in circulation, by name.
+    """Library › Artists: every artist with a work in circulation, by surname (`surname_key`).
 
     `q` narrows to names containing it, ignoring case and accents, which is what
     the top-bar search asks when it offers artists.
@@ -1383,7 +1383,7 @@ def _artist(artist: Artist) -> ArtistOut:
 
 
 def _held_artist(entry: HeldArtist) -> HeldArtistOut:
-    return HeldArtistOut(artist=_artist(entry.artist), held=entry.held)
+    return HeldArtistOut(artist=_artist(entry.artist), held=entry.held, pictured_artwork_id=entry.pictured)
 
 
 def _set_by(value: IdentitySetBy | None) -> str | None:

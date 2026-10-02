@@ -85,10 +85,14 @@ class HeldArtistOut(BaseModel):
 
     artist: ArtistOut
     held: int
+    #: The work the Artists index pictures them by, their first accepted work in
+    #: circulation; its thumbnail is `/api/works/{id}/thumbnail`. None only for
+    #: an artist with nothing in circulation.
+    pictured_artwork_id: str | None
 
 
 class ArtistListOut(BaseModel):
-    """Library › Artists: every artist with a work in circulation, by name."""
+    """Library › Artists: every artist with a work in circulation, by surname (`surname_key`)."""
 
     artists: list[HeldArtistOut]
 

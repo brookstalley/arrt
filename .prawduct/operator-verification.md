@@ -10,6 +10,27 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Library › Artists: surname order, posters and a table — added 2026-10-02
+
+**`build-plan-library-screens.md` Chunk 04 (#173).** Visual change: yes.
+
+Checked by the builder on 2026-10-02 at 1440 px and 390 px against a copy of
+the dev catalogue (31 artists, no masters, so every card says *No picture*),
+and in the browser suite with pictures served.
+
+- **Order:** Albers, Andrieu, Brancusi, Calder, Callahan, Curry, Dalí, Demuth…
+  by surname, the stored family name where the catalogue has one, else the last
+  word once *the Elder* / *the Younger* / *Jr.* is set aside. *Moche* sorts under
+  M. **Worth an opinion:** *Katsushika Hokusai* sorts under H, as Western
+  catalogues shelve him, though Katsushika is the family name; a stored family
+  name would move him.
+- **Posters** (the default): a card per artist pictured by their first accepted
+  work, uncropped, with life dates and how many works; several to a row on a
+  desktop, two on a phone. **View → Table** shows the old table in the same
+  order, and the choice stays in the address (`#artist?view=table`).
+- **Worth an opinion:** whether the first accepted work is the right picture
+  (the alternative is the most-shown or most-renowned one).
+
 ### A work's mark: held, wanted and not held as image styles — added 2026-10-02
 
 **`build-plan-library-screens.md` Chunk 03 (#172).** Visual change: yes.

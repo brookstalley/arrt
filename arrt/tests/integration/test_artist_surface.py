@@ -55,14 +55,36 @@ def http(server_url):
 
 
 class TestTheIndex:
-    def test_held_artists_by_name_with_works_in_circulation_counted(self, http, held):
+    def test_held_artists_by_surname_with_works_in_circulation_counted(self, http, held, service):
+        """By surname, the owner's ruling on #173 (it was by first name).
+
+        Replaces "by name": that order put Charles Demuth before Mark Rothko and
+        Salvador Dalí after both. A stored family name wins over the last word —
+        *Zed Alpha* is shelved under Z — so the test holds one that disagrees.
+        """
+        zed = service.add_artist(name="Zed Alpha", family_name="Zed")
+        service.add_artwork(title="Last on the shelf", artist_id=zed.id)
+
         listed = http.get("/api/artists").raise_for_status().json()["artists"]
         names = {entry["artist"]["name"]: entry["held"] for entry in listed}
 
         # The seeded catalogue's own artists are there too; the archived Rothko is not counted.
         assert names["Mark Rothko"] == 1
         assert names["Salvador Dalí"] == 1
-        assert list(names) == sorted(names, key=str.casefold)
+        assert list(names) == ["Salvador Dalí", "Charles Demuth", "Mark Rothko", "Zed Alpha"]
+
+    def test_each_artist_is_pictured_by_their_first_accepted_work_in_circulation(self, http, held, service):
+        rothko, kept = held
+        later = service.add_artwork(title="Untitled (Later)", artist_id=rothko.id)
+
+        listed = http.get("/api/artists").raise_for_status().json()["artists"]
+        pictured = next(entry["pictured_artwork_id"] for entry in listed if entry["artist"]["name"] == "Mark Rothko")
+
+        # The archived one was added earlier still and is not in circulation.
+        assert pictured == kept.id
+        assert pictured != later.id
+        # And the one artist's own route says the same.
+        assert http.get(f"/api/artists/{rothko.id}").raise_for_status().json()["pictured_artwork_id"] == kept.id
 
     def test_a_query_ignores_accents(self, http, held):
         found = http.get("/api/artists", params={"q": "dali"}).raise_for_status().json()["artists"]

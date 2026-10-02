@@ -107,6 +107,8 @@ def test_all_shows_the_library_then_wikidata_each_marked_and_nothing_twice(ui, m
         "The Burning Giraffe — Salvador Dalí ◐ Not held · Image found",
         "Crucifixion — Salvador Dalí ○ Not held",
     ]
+    # The row's title is the way in, so its mark is not a second button to the same work.
+    assert ui.page.locator("section[aria-labelledby='results-works'] button.state-mark").count() == 0
     # Two artists carry "dali": no single one leads.
     assert ui.page.locator("#results-top").count() == 0
     assert ui.page.locator("#view [role='group'][aria-label='Show'] [aria-pressed='true']").inner_text() == "All"

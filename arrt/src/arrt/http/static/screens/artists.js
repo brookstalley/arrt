@@ -26,8 +26,10 @@ import { addedSentence, addWorksToTheme, stoppedSentence } from "../core/members
 import { getSelection } from "../core/getting.js";
 import { el, fill, guard, render } from "../core/render.js";
 import { isQid, lifeDates, named, stateMark, wikidataLink, workLink, workState } from "../core/registry.js";
-import { backLink, backRow, go, redirect, refresh } from "../core/router.js";
+import { backLink, backRow, go, goWithParams, redirect, refresh } from "../core/router.js";
+import { state } from "../core/state.js";
 import { recordReaction } from "../core/taste.js";
+import { menuButton, toolbar } from "../core/toolbar.js";
 
 export async function viewArtists(artistId, generation) {
   if (isQid(artistId)) {
@@ -39,28 +41,87 @@ export async function viewArtists(artistId, generation) {
     return;
   }
   const listing = await api("/api/artists");
-  const rows = listing.artists.map(({ artist, held }) =>
+  const count = `${listing.artists.length} ${listing.artists.length === 1 ? "artist" : "artists"} with works in the library`;
+  const shown = artistView();
+  render(
+    generation,
+    backRow(),
+    el("h2", { text: "Artists" }),
+    listing.artists.length
+      ? toolbar({
+          controls: [
+            menuButton({
+              label: "View",
+              options: ARTIST_VIEWS,
+              current: shown,
+              onChoose: (value) => goWithParams({ view: value === POSTERS ? "" : value }),
+            }),
+          ],
+        })
+      : null,
+    listing.artists.length
+      ? shown === TABLE
+        ? artistTable(listing.artists, count)
+        : artistPosters(listing.artists, count)
+      : el("div", { class: "panel" }, [
+          el("p", { class: "muted", text: "No artists yet. Works you accept bring their artists here." }),
+          el("button", { class: "action", type: "button", text: "Ask", onclick: () => go("discover") }),
+        ]),
+  );
+}
+
+/* Library › Artists' two views, Lidarr's names for them: posters by default,
+ * the owner's ruling on #173, and the table it had before. The choice is in
+ * the address (`?view=table`), as Artworks' View is, so a reload and a link
+ * land on it; the default is left out of the address. */
+const POSTERS = "posters";
+const TABLE = "table";
+const ARTIST_VIEWS = [
+  { value: POSTERS, label: "Posters" },
+  { value: TABLE, label: "Table" },
+];
+
+function artistView() {
+  return state.params.view === TABLE ? TABLE : POSTERS;
+}
+
+/* One card per artist, in surname order, pictured by their first accepted
+ * work: no artist has a picture of their own. Every artist the index lists
+ * has one, since it lists only artists with a work in circulation. Uncropped,
+ * as every work here is shown. A picture that fails to load — a work whose
+ * master has not arrived yet — says so in its place, leaving the card's words. */
+function artistPosters(artists, count) {
+  return el("section", { "aria-label": count }, [
+    el("p", { class: "muted", text: count }),
+    el("ul", { class: "grid artist-posters" }, artists.map(({ artist, held, pictured_artwork_id: pictured }) => {
+      const open = () => go("artist", artist.artist_id);
+      const img = el("img", { src: `/api/works/${encodeURIComponent(pictured)}/thumbnail`, alt: "", loading: "lazy" });
+      img.addEventListener("error", () => img.replaceWith(el("span", { class: "card-image-absent", text: "No picture" })));
+      const picture = el("button", { class: "card-image", type: "button", tabindex: "-1", "aria-hidden": true, onclick: open }, [img]);
+      return el("li", { class: "card", "data-artist": artist.artist_id }, [
+        picture,
+        el("div", { class: "card-body" }, [
+          el("h3", { class: "card-title" }, [el("button", { type: "button", text: artist.name, onclick: open })]),
+          el("p", { class: "card-meta", text: [lifeDates(artist), `${held} ${held === 1 ? "work" : "works"}`].filter(Boolean).join(" · ") }),
+        ]),
+      ]);
+    })),
+  ]);
+}
+
+function artistTable(artists, count) {
+  const rows = artists.map(({ artist, held }) =>
     el("tr", {}, [
       el("td", {}, [el("button", { class: "row-title", type: "button", text: artist.name, onclick: () => go("artist", artist.artist_id) })]),
       el("td", { text: lifeDates(artist) || "—" }),
       el("td", { text: String(held) }),
     ]),
   );
-  render(
-    generation,
-    backRow(),
-    el("h2", { text: "Artists" }),
-    listing.artists.length
-      ? el("table", {}, [
-          el("caption", { text: `${listing.artists.length} ${listing.artists.length === 1 ? "artist" : "artists"} with works in the library` }),
-          el("thead", {}, [el("tr", {}, ["Artist", "Life", "Works held"].map((h) => el("th", { scope: "col", text: h })))]),
-          el("tbody", {}, rows),
-        ])
-      : el("div", { class: "panel" }, [
-          el("p", { class: "muted", text: "No artists yet. Works you accept bring their artists here." }),
-          el("button", { class: "action", type: "button", text: "Ask", onclick: () => go("discover") }),
-        ]),
-  );
+  return el("table", {}, [
+    el("caption", { text: count }),
+    el("thead", {}, [el("tr", {}, ["Artist", "Life", "Works held"].map((h) => el("th", { scope: "col", text: h })))]),
+    el("tbody", {}, rows),
+  ]);
 }
 
 /* One artist, addressed by `#artist/<id>`. An address that names nobody the

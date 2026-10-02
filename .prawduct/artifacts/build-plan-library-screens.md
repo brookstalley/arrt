@@ -225,7 +225,9 @@ all four screens; an operator-verification entry.
 
 Done when: store/service tests for the order; browser tests for both views,
 the toggle's state, keyboard reach, and an artist with no held work; a layout
-test that the cards fill the width at desktop and stack at phone width;
+test that the cards fill the width at desktop and stack at phone width
+*(built as two to a row on a phone: one card per screen made 31 artists a
+31-screen scroll; Lidarr's poster index pairs them)*;
 screenshots; an operator-verification entry.
 
 ### Chunk 05: Identity's *Edit*; Topics in columns

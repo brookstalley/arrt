@@ -910,6 +910,14 @@ button.link {
    focus. A keyboard has no hover, so `:focus-within` is the rule and not a
    refinement of it. */
 
+/* Library › Artists' posters: narrower than a work's card, since a card here
+   is a name and a picture rather than a work to judge — two to a row on a
+   phone, as Lidarr's poster index is, rather than one card per screen. */
+.grid.artist-posters {
+  grid-template-columns: repeat(auto-fill, minmax(min(9rem, 100%), 1fr));
+  gap: var(--space-3);
+}
+
 .grid.contact-sheet,
 .grid-skeleton.contact-sheet {
   grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
