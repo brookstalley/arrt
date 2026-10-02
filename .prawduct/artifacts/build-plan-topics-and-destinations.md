@@ -106,6 +106,14 @@ Asked after the twenty-topic measurement (`wikidata-findings.md` § Topics):
   fame breaking ties. Chosen over an occupation filter. Chunk 03b.
 - **Search drops the "start and end time" clause and non-visual movements.**
   Both recommended, both chosen. Chunk 03b.
+- **Asked again after Chunk 03b's re-measurement: rank a topic's artists by the
+  fame of their works in it** (the sum of those works' sitelinks), chosen over
+  counting only works with an article, keeping the count, and returning to the
+  artist's own fame. The count, which the builder had recommended, let bulk
+  catalogue imports lead (Philip Galle second in the 16th century, Leonardo,
+  Michelangelo and Raphael out). The owner also kept the years heading on every
+  period, and asked for the empty artist and palette facets to be backlogged.
+  Chunk 03d.
 
 ## What I would do differently
 
@@ -178,6 +186,7 @@ non-artists first (Franklin for woodcut); search offers non-visual movements
 - [ ] Chunk 03b: Topic rules, as the owner answered
 - [ ] Chunk 03c: Answers kept across restarts
 - [x] Chunk 04: Your works' topics, and the topic index
+- [ ] Chunk 03d: A topic's artists ranked by the fame of their works in it
 - [ ] Chunk 05: Library › Topics and the Topic page
 
 ### Chunk 01: A Get's destination, from HTTP and MCP
@@ -316,6 +325,27 @@ Q-rows in `data-model.md` § What this data must answer):
    and end time and no period class is not a period; Romanticism is a movement
    only; a music movement is not offered; artists come back in works-count order
    with the tie broken by sitelinks.
+2. The `live_museum` shape test still passes.
+
+### Chunk 03d: A topic's artists ranked by the fame of their works in it
+
+**Foreign API:** Wikidata
+
+- **`topic_artists` ranks by the sum of the sitelinks of the artist's works in
+  the topic**, the artist's own sitelinks breaking ties; for a movement, its
+  artists' works. The count of their works with an image is still reported.
+- The kept-answers namespace for a topic's artists changes name, so an answer
+  ranked by the old rule is never served as the new one.
+- `wikidata-findings.md` § Topics records the third measurement beside the two
+  before it.
+
+**Done when:**
+0. verify-api: the twenty topics of Chunk 03's table, top ten artists and time,
+   against Chunk 03b's; say for each period and subject whether its best-known
+   artists are back, and whether Franklin, Hitler and the writers stay out.
+1. Unit tests over recorded answers, each watched failing: artists come back in
+   summed-fame order, a tie broken by the artist's own sitelinks; an artist with
+   many obscure works ranks below one with a few famous ones.
 2. The `live_museum` shape test still passes.
 
 ### Chunk 03c: Answers kept across restarts
