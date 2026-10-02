@@ -17,14 +17,14 @@ governed_by:
       - "§ A control never offers a dead end → binds Chunk 02: Select mode's action bar offers Add and Remove only when they would do something (a work ticked; a theme in the filter for Remove)"
   - artifact: architecture
     dispositions:
-      - "operation logic lives only in the service layer → binds Chunk 01: the theme-composed listing is one service call; the HTTP handler passes its parameters through and branches on nothing"
+      - "operation logic lives only in the service layer → binds Chunks 01 and 02: each binding composes two service calls, one per plane, and decides nothing beyond whether a theme was named (see the seam decision below)"
       - "seam rule 1, the Library never imports Programming → binds Chunk 01. [DECISION: the theme filter is two calls composed in each binding, as `_theme_detail` (HTTP) and `_get_theme` (MCP) already compose them: Programming's `theme_work_ids`, then the Library's listing restricted to those ids as opaque references | the Library learns nothing about themes, so the split stays a deployment change; the alternative, the listing reading `theme_memberships`, is the cross-seam read rule 4 forbids. Chunk 01 first planned a composing service in `arrt/services/`; the existing precedent, which `theme_work_ids`' docstring names as the composition bindings are allowed, made it unnecessary | owner can veto]"
       - "seam rule 2, the facade takes and returns ids and plain data → conforms: the survey's new restriction is a set of work ids"
       - "seam rule 3, no new cross-seam foreign keys → conforms: no schema change in this plan"
   - artifact: api-contract
     dispositions:
       - "§ Versioning: adding a field to a response is additive → conforms: Chunk 03's wanted marker on registry works"
-      - "§ Versioning: adding an optional query parameter is additive, not breaking → conforms: `GET /api/works?theme=<id>` is new and optional; the route's other parameters keep their meaning. and its MCP twin, `art_catalogue(action='list')`, takes the same `theme` (the facet filters landed on both surfaces together, and `test_search_and_facets.py` holds the two to the same answer)"
+      - "§ Versioning: adding an optional query parameter is additive, not breaking → conforms: `GET /api/works?theme=<id>` is new and optional; the route's other parameters keep their meaning, and its MCP twin, `art_catalogue(action='list')`, takes the same `theme` (the facet filters landed on both surfaces together, and `test_search_and_facets.py` holds the two to the same answer)"
   - artifact: accessibility-spec
     dispositions:
       - "WCAG 2.1 AA; colour is never the sole carrier of state → binds Chunk 03: each state's image style is a second signal, never the only one; ● Held, ◑ Wanted, ◐ Not held · Image found and ○ Not held keep their glyph and word, and are tested with no picture at all"
@@ -99,7 +99,7 @@ Open assumptions:
 
 ## Status
 
-- [ ] Chunk 01: The works listing filters by theme
+- [x] Chunk 01: The works listing filters by theme
 - [ ] Chunk 02: Artworks: the Filter rail and Select mode
 - [ ] Chunk 03: A work's mark
 - [ ] Chunk 04: Artists: surname order and cards
