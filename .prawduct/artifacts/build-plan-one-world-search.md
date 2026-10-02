@@ -104,7 +104,7 @@ the registry's behaviour is measured for three queries, not proven.
 - [x] Chunk 02: Pages for works and artists the library does not hold
 - [x] Chunk 03: The typeahead shows one world
 - [x] Chunk 04: The search results page
-- [ ] Chunk 05: Similar artists, and setting a QID by hand
+- [x] Chunk 05: Similar artists, and setting a QID by hand
 
 ### Chunk 01: External text is shown as text
 
