@@ -132,3 +132,23 @@ def test_the_picked_item_becomes_the_artwork_s_as_the_curator_s_at_acceptance(di
 
     artwork = service.get_artwork(outcome.work.artwork_id).artwork
     assert (artwork.wikidata_qid, artwork.wikidata_qid_set_by) == ("Q2990594", IdentitySetBy.CURATOR)
+
+
+def test_a_word_touching_punctuation_is_still_searched_for(discovery, propose):
+    registry = FakeRegistry()
+    work = propose("Soft Construction with Boiled Beans (Premonition of Civil War)", proposed_artist="Salvador Dalí")
+
+    service_over(discovery, registry).matches(work.id)
+
+    asked, _ = registry.matched[0]
+    assert "Premonition" in asked.split() and "War" in asked.split()
+
+
+def test_a_wanted_work_s_item_can_be_picked(discovery, propose):
+    """The case the picker exists for: a work wanted with no scan, which Search again needs an item for."""
+    work = propose("Lobster Telephone (1938)", proposed_artist="Salvador Dalí")
+    discovery.want(work.id)
+
+    picked = service_over(discovery, None).pick(work.id, "Q2990594")
+
+    assert (picked.verdict, picked.wikidata_qid) == (Verdict.WANTED, "Q2990594")

@@ -25,9 +25,9 @@ import { OPTIONAL_ID } from "./core/route.js";
 import { install, go, refresh } from "./core/router.js";
 import { installSearch, paintSearch } from "./core/search.js";
 import { installStatus, paintStatus } from "./core/status.js";
-import { paintAwaiting } from "./core/awaiting.js";
+import { paintAwaiting, paintWanted } from "./core/awaiting.js";
 import { state } from "./core/state.js";
-import { viewHistory, viewQueue, viewToReview } from "./screens/activity.js";
+import { viewHistory, viewQueue, viewToReview, viewWanted } from "./screens/activity.js";
 import { viewArtists } from "./screens/artists.js";
 import { viewCollection } from "./screens/collection.js";
 import { viewConversation } from "./screens/conversation.js";
@@ -49,8 +49,8 @@ import { viewWork } from "./screens/work.js";
  * **A new section needs an *arr precedent or an owner ruling** — § Direction's
  * last sentence, and the one clause of the old navigation norm that survived
  * its amendment. A subsystem that gains a UI gets a page in an existing section.
- * Wanted is the precedent waiting: it appears when there is a quality cutoff or
- * a Watch to be unmet. */
+ * Wanted is a page in Activity, as in Lidarr: the works the curator wants and
+ * holds no acceptable scan of (the owner's ruling on #168, 2026-10-02). */
 const SECTIONS = [
   { key: "artworks", label: "Artworks", glyph: "▣" },
   { key: "walls", label: "Walls", glyph: "▢" },
@@ -105,6 +105,9 @@ const ROUTES = {
   // Radarr's Activity: the searches in flight, and the ones that ended.
   queue: { render: viewQueue, section: "activity", page: "Queue" },
   history: { render: viewHistory, section: "activity", page: "History" },
+  // Lidarr's Wanted: works the curator wants and holds no acceptable scan of.
+  // Its link appears once one is wanted (`core/awaiting.js`).
+  wanted: { render: viewWanted, section: "activity", page: "Wanted", badge: "wanted" },
   // Radarr's Profiles: the preferences that rank what it finds.
   taste: { render: viewTaste, section: "settings", page: "Taste" },
   health: { render: viewHealth, section: "system", page: "Status" },
@@ -147,6 +150,7 @@ install(ROUTES, {
     paintSearch();
     paintStatus();
     paintAwaiting();
+    paintWanted();
   },
 });
 

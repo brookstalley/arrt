@@ -72,6 +72,7 @@ happen to a work once a curator has judged it, which today happen to none.
 | 03 | One wanted state and one way in | #168 |
 | 04 | Matching a wanted work to its Wikidata item, picked by the curator | #168 |
 | 05 | Want and Forget on the card, and Activity › Wanted | #168 |
+| 05b | A re-search spends nothing, said everywhere | found in Chunk 05 |
 | 06 | The owner's review of the screens | both |
 
 **Not in this plan:**
@@ -187,6 +188,7 @@ scratchpad copy held none), and Chunk 04's measurement on the Dalí works.
 - [x] Chunk 03: One wanted state and one way in
 - [x] Chunk 04: Matching a wanted work to its Wikidata item
 - [ ] Chunk 05: Want and Forget on the card, and Activity › Wanted
+- [ ] Chunk 05b: A re-search spends nothing, said everywhere
 - [ ] Chunk 06: The owner's review of the screens
 
 ### Chunk 01: The acquisition queue
@@ -361,6 +363,21 @@ registry Work page (`#work/Q…`), which shows Wikidata's picture.
 
 **Visual change:** yes
 
+**Built 2026-10-02, and what changed on the way:**
+- **No pictures on Wanted** (descoped, the builder's call): `GET /api/wanted`
+  carries none, and a picture per row would be a request per wanted work. Each
+  work's Wikidata link opens the registry Work page, which shows Wikidata's
+  picture, and the picker says whether each item has one. The owner can ask for
+  pictures in Chunk 06.
+- **Want and Forget appear once the search has finished and found nothing**
+  (`resolution_status` `unresolved`), not on a card whose search is still
+  running, which has found nothing *yet*.
+- **"Turn it down" keeps its label**; on the scan on offer its accessible name
+  and the card's note after it say the work now waits in Wanted. Six existing
+  tests click the label, and the action is the same.
+- **Search all starts one re-search per originating search**, in the client,
+  as `resolve_images` requires, and opens Queue when there are several.
+
 **Carried from Chunk 04's review:** split the title in `WikidataMatchService.matches`
 with `registry_search.py`'s word splitter (`_WORDS.findall`), so "Life," or
 "(Premonition" is not dropped by the registry's word filter; and a test that
@@ -392,6 +409,21 @@ Done when: browser tests for Want and Forget on a no-scan card, the Wanted page
 (both reasons, Search again with and without an item, Forget, Search all), and
 the sidebar's count; `test_screen_tables.py` green; the operator verification
 queue gets entries; suites green, browser suite under `-n auto`; Critic.
+
+### Chunk 05b: A re-search spends nothing, said everywhere
+
+**Found while building Chunk 05, 2026-10-02.** `RunnerSettings.phase2_estimate_usd`
+returns zero, "measured, not assumed" (2026-08-02): phase 2 asks open museum and
+Commons APIs and makes no model call, and nothing writes an `IMAGE_RESEARCH`
+spend row. Yet the review page ("a re-search is what looks, and it spends"),
+MCP's `want`, `reject_image` and `_nothing_searching` texts, `http/api.py`'s
+docstrings, `api-contract.md` § "Rejecting an image does not re-search — that is
+a separate, paid call", and comments in `discovery.py` and `reviewing.js` still
+say a re-search spends. Sweep the whole repo for the claim (no `--include`),
+rewrite each to what the code does (free today; the price returns if a paid
+image provider is added), and record the MCP description changes in
+`api-contract.md` § Versioning. Chunk 05's Wanted page says it correctly from
+the start.
 
 ### Chunk 06: The owner's review of the screens
 

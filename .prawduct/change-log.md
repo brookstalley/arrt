@@ -62,6 +62,34 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-02: Want and Forget, and Activity › Wanted
+
+<!-- prawduct: scope=after-review -->
+
+**Why:** a work its search found no scan for offered Accept, which would mint a
+work with no image, and Reject, which forgets it for good (#168). The owner
+asked for Want and Forget on such a card, and for every wanted work, with or
+without a scan, to wait in Activity › Wanted with Search again, Forget and
+Search all.
+
+**What:**
+- **The review card:** a work whose search finished with no scan offers
+  **Want** and **Forget**; a wanted one offers Forget. Turning down the scan on
+  offer says, in its name and the note after it, that the work now waits in
+  Wanted; an alternate's does not.
+- **Activity › Wanted** (`#wanted`, served at `/wanted` so a reload lands on it, `screens/activity.js`): every wanted work,
+  why (no scan found, or *n* turned down), its Wikidata item, the search it came
+  from; **Search again** (re-search, or first the Wikidata picker when the work
+  has no item: the pick, then the search, two calls), **Forget**, and **Search
+  all** (one re-search per originating search). The page says searching spends
+  nothing. Its sidebar link, with a count, appears once something is wanted.
+- **Chunk 04's review notes:** the matcher splits titles into words with the
+  registry search's splitter (`search_words`), so a word touching punctuation is
+  still searched; and a test picks an item on a wanted work.
+- `information-architecture.md`: Wanted's rows in the three tables, the sidebar,
+  and "Wanted is not shown yet" amended. Thirteen browser tests, nine re-breaks
+  caught.
+
 ## 2026-10-02: A wanted work's Wikidata item, picked by the curator
 
 <!-- prawduct: scope=after-review -->

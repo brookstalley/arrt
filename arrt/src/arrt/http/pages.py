@@ -41,6 +41,7 @@ UI_PATHS: Final[tuple[str, ...]] = (
     "/to_review",
     "/queue",
     "/history",
+    "/wanted",
     "/collection",
     "/discover",
     "/theme",

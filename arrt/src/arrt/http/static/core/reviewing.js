@@ -11,7 +11,7 @@
 
 import { acquisitionLine } from "./acquiring.js";
 import { api } from "./api.js";
-import { paintAwaiting } from "./awaiting.js";
+import { paintAwaiting, paintWanted } from "./awaiting.js";
 import { agree, counted } from "./counting.js";
 import {
   absentImage,
@@ -39,6 +39,12 @@ const VERDICT_WORDS = {
   rejected: "rejected",
   wanted: "wanted",
 };
+
+/* What a card says once a work becomes wanted, so a curator knows where it went
+ * and that nothing is looking for it yet. */
+const WANTED_NO_SCAN = "Wanted. It waits in Activity › Wanted, where Search again looks for a scan when you ask.";
+const WANTED_AFTER_TURNING_DOWN =
+  "Turned down, and the work is wanted: it waits in Activity › Wanted for a better scan, and nothing looks until you ask there.";
 
 function verdictBadge(work) {
   const glyph = VERDICT_GLYPHS[work.verdict];
@@ -169,13 +175,15 @@ function scanName(instance, work) {
 
 function instanceRows(instance, work, after) {
   const title = work.title;
-  const act = (path, body) =>
+  const act = (path, body, message = null) =>
     guard(async () => {
       await api(path, { method: "POST", body: JSON.stringify(body || {}) });
       // Turning a scan down can leave the work with no image to accept, which
-      // takes it off To review; choosing one can put it back.
+      // takes it off To review; choosing one can put it back. Turning down the
+      // scan on offer also makes the work wanted, which Wanted's count shows.
       paintAwaiting();
-      await after();
+      paintWanted();
+      await after(message);
     });
   const chosen = instanceStateBadges(instance).filter(Boolean);
   const detail = facts([
@@ -226,8 +234,17 @@ function instanceRows(instance, work, after) {
                 class: "action quiet",
                 type: "button",
                 text: "Turn it down",
-                "aria-label": `Turn down this scan for ${title}`,
-                onclick: () => act(`/api/candidate-images/${encodeURIComponent(instance.image_id)}/reject`),
+                // The scan on offer is the one whose turning down makes the work
+                // wanted, so its name says so; an alternate's only turns it down.
+                "aria-label": instance.is_selected
+                  ? `Turn down this scan for ${title}; the work will wait in Wanted for a better one`
+                  : `Turn down this scan for ${title}`,
+                onclick: () =>
+                  act(
+                    `/api/candidate-images/${encodeURIComponent(instance.image_id)}/reject`,
+                    null,
+                    instance.is_selected ? WANTED_AFTER_TURNING_DOWN : null,
+                  ),
               }),
         ]),
       ]),
@@ -410,7 +427,7 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
   // would otherwise carry up to twelve instances each, and a curator opens the
   // alternates for the few works whose first answer they doubt.
   disclosure.addEventListener("toggle", () => {
-    if (disclosure.open) guard(async () => fill(alternates, await alternatesPanel(work.work_id, () => repaint(null))));
+    if (disclosure.open) guard(async () => fill(alternates, await alternatesPanel(work.work_id, (message) => repaint(message))));
   });
   // Opening it here fires `toggle`, which is what fetches the list — so a
   // carried-over disclosure loads rather than restoring the placeholder.
@@ -422,6 +439,54 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
   // test pass. Left in this order because it reads better, not because anything
   // depends on it.
   if (alternatesOpen) disclosure.open = true;
+
+  // A work its search finished without finding any scan for: nothing to
+  // accept, so Want or Forget. Not one whose search is still running, which has
+  // found nothing *yet* and may still.
+  const noScan = card.instances_held === 0 && work.resolution_status === "unresolved";
+  const acceptOrReject = () => [
+    card.held_artwork_id
+      ? el("button", {
+          class: "action",
+          type: "button",
+          text: "Open it in Artworks",
+          "aria-label": `Open ${work.title} in Artworks`,
+          onclick: () => go("work", card.held_artwork_id),
+        })
+      : el("button", { class: "action", type: "button", text: "Accept", "aria-label": `Accept ${work.title}`, onclick: () => decide("accepted") }),
+    card.held_artwork_id
+      ? el("button", {
+          class: "action quiet",
+          type: "button",
+          text: "Accept anyway",
+          "aria-label": `Accept ${work.title} anyway, as a second artwork`,
+          onclick: () => decide("accepted"),
+        })
+      : null,
+    el("button", { class: "action quiet", type: "button", text: "Reject", "aria-label": `Reject ${work.title}`, onclick: () => decide("rejected") }),
+  ];
+  const want = () =>
+    guard(async () => {
+      await api(`/api/candidates/${encodeURIComponent(work.work_id)}/want`, { method: "POST", body: JSON.stringify({}) });
+      paintAwaiting();
+      paintWanted();
+      await repaint(WANTED_NO_SCAN);
+    });
+  const wantOrForget = () => [
+    // Already wanted: Want would change nothing, so only Forget is offered.
+    work.verdict === "wanted"
+      ? null
+      : el("button", { class: "action", type: "button", text: "Want", "aria-label": `Want ${work.title}, and find a scan later`, onclick: want }),
+    // Reject by another name: it stops the work being proposed again, which
+    // is what a curator forgetting a painting means.
+    el("button", {
+      class: "action quiet",
+      type: "button",
+      text: "Forget",
+      "aria-label": `Forget ${work.title}: stop proposing it`,
+      onclick: () => decide("rejected"),
+    }),
+  ];
 
   node.append(
     card.shown
@@ -484,25 +549,12 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
           el("label", { for: `reason-${work.work_id}`, text: "Why (optional)" }),
           reason,
         ]),
-        card.held_artwork_id
-          ? el("button", {
-              class: "action",
-              type: "button",
-              text: "Open it in Artworks",
-              "aria-label": `Open ${work.title} in Artworks`,
-              onclick: () => go("work", card.held_artwork_id),
-            })
-          : el("button", { class: "action", type: "button", text: "Accept", "aria-label": `Accept ${work.title}`, onclick: () => decide("accepted") }),
-        card.held_artwork_id
-          ? el("button", {
-              class: "action quiet",
-              type: "button",
-              text: "Accept anyway",
-              "aria-label": `Accept ${work.title} anyway, as a second artwork`,
-              onclick: () => decide("accepted"),
-            })
-          : null,
-        el("button", { class: "action quiet", type: "button", text: "Reject", "aria-label": `Reject ${work.title}`, onclick: () => decide("rejected") }),
+        // **A work nothing was ever found for offers Want and Forget**, not
+        // Accept and Reject: accepting it would mint a work with no image, and
+        // rejecting it is "forget it for good", which is said as such. Want is
+        // the one way to say "I want this painting; no scan exists yet", and it
+        // waits in Activity › Wanted (the owner's ruling on #168, 2026-10-02).
+        ...(noScan ? wantOrForget() : acceptOrReject()),
       ]),
     ]),
     // Beneath the picture and the facts both, the card's full width: the Scans

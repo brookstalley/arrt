@@ -31,6 +31,7 @@ from typing import Final
 
 from arrt.library.registry import Registry, RegistryUnavailable, RegistryWorkMatch
 from arrt.library.services.discovery import DiscoveryService
+from arrt.library.services.registry_search import search_words
 from arrt.persistence.discovery_records import CandidateWork
 from arrt.persistence.folding import search_fold
 
@@ -96,9 +97,9 @@ class WikidataMatchService:
         title = _TRAILING_YEAR.sub("", work.proposed_title)
         artist = work.proposed_artist or ""
         try:
-            found = registry.works_matching([*title.split(), *artist.split()], prefix=False, limit=MATCHES_SHOWN)
+            found = registry.works_matching(search_words(f"{title} {artist}"), prefix=False, limit=MATCHES_SHOWN)
             if not found:
-                found = registry.works_matching(title.split(), prefix=False, limit=MATCHES_SHOWN)
+                found = registry.works_matching(search_words(title), prefix=False, limit=MATCHES_SHOWN)
         except RegistryUnavailable as exc:
             log.warning(
                 "Wikidata could not be asked for a wanted work's matches",

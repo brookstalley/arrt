@@ -143,6 +143,7 @@ Priority is **core** (on a stated core flow) or **supporting**.
 | **To review** | Every run holding works that found an image and wait for a verdict, newest first, each opening Review — a Get opening its own page, where it is reviewed (2026-10-02); the count is on its link and on Activity's. *(Built 2026-10-02, `build-plan-get-and-ask.md` Chunk 06.)* | The sidebar, under Activity, first | core (flow 3) |
 | **Queue** *(new)* | The searches that have not ended: working, or stopped at the approval gate. Beneath them, **Fetching images**: every accepted work still owed its image or its preparation, in the order the acquisition queue will try them, each queued, fetching, failed, given up on or paused, with Retry where it failed; a pause is said above them with its remedy *(the owner's decision on #167, 2026-10-02, `build-plan-after-review.md` Chunk 02)*. Not counted on Activity's link, which is To review's: a fetch needs time, not the curator. | The sidebar, under Activity | core (flow 2) |
 | **History** *(new)* | The searches that have ended, with how each ended. | The sidebar, under Activity | supporting |
+| **Wanted** *(new 2026-10-02)* | Every work the curator wants and holds no acceptable scan of — wanted on a no-scan card, or by turning down the scan on offer — each saying which, with its Wikidata item or none, the search it came from, *Search again* and *Forget*; *Search all* above. Search again on a work with no item first offers Wikidata's matches to pick from (`build-plan-after-review.md` Chunks 04-05; the owner's ruling on #168). | The sidebar, under Activity, once something is wanted; a review card's *Want*; turning down a scan on offer | core (flow 3) |
 | **Run** | One run while it works and after it stops: what it proposed, what it found images for, the gate where phase 2 is approved, and its work table. **A Get's run page is its review**: the review cards in place of the work table, and no *Review these works* *(the owner's ruling, 2026-10-02, `build-plan-topics-and-destinations.md` Chunk 07)*. | Queue or History; Ask, as it starts; a Get's *Open the Get*; a Get's row in To review; a re-search started on the review grid; its own address | core (flow 2) |
 | **Review** | Judging one run's candidates: accept, reject, choose a scan, ask for a better one. One work to a row, the picture left and the facts and verdicts right (one column on a phone), the scan's pixels above the fold, *Scans* opening beneath as a table, one row a scan; clicking a picture enlarges it in place. The same cards are a Get's page; `#review/<run>` still answers for a Get. | A finished discovery run or re-search, from its own page or To review; the run's own notification | core (flow 3) |
 | **Artists** | The artists the library holds, with how many works of theirs are in circulation; and at its own address one artist as the hub: who they are, what the library holds of theirs, what Wikidata lists with the held ones marked and the rest tickable to get (*Get N works*), and which collections hold their work. At `#artist/Q…`, an artist Wikidata knows that the library does not hold: the registry half alone, saying nothing of theirs is held; the library's page replaces it, in place, when the library holds them. Below Holdings, *Similar artists*: visual artists sharing a movement, by renown, each with how many of their works have an image, and ● where the library holds them. Under the name, which Wikidata item this is, who set it, and a control to change it (looked up and shown before it is stored) or say there is none (confirmed). *(Built 2026-10-01, ruling 4; the QID form, Similar artists and the control the same day, `build-plan-one-world-search.md`.)* | The sidebar, under Artworks; an artist's name on a work card, a table row or the Work page (either form); the top-bar search's Artists group; its own address | core (S2, S3, S11) |
@@ -237,6 +238,7 @@ listed below so it can be disputed.
 │   To review ③│                                              │
 │   Queue      │                                              │
 │   History    │                                              │
+│   Wanted  ⑦  │                                              │
 │ ⚙ Settings   │                                              │
 │   Taste      │                                              │
 │ ♥ System  ②  │                                              │
@@ -255,6 +257,7 @@ listed below so it can be disputed.
 | Activity › **To review** | New 2026-10-02 | Radarr's Queue holds what finished but needs the user; here that is a page of its own, the one queue that needs the curator, counted on Activity's link as Sonarr counts its queue. Review opens from here |
 | Activity › **Queue** | Discover's run list: runs that have not ended; and, since 2026-10-02, the images being fetched | Radarr's Queue: work in flight, downloads included. Run and Work open from here |
 | Activity › **History** | Discover's run list: finished runs | Radarr's History |
+| Activity › **Wanted** | New 2026-10-02 | Lidarr's Wanted › Missing: what the library wants and does not have. Shown once something is in it. Cutoff Unmet (wave 4) and a Watch's Missing (wave 6) become its tabs when they exist |
 | Settings › **Taste** | Taste | Radarr's Profiles: the preferences that rank what it finds |
 | System › **Status** | Health, with the spend record | Radarr's System › Status, with health checks at the top |
 
@@ -346,10 +349,14 @@ listed below so it can be disputed.
   them and offers the rails back, since the grid would otherwise read as the
   whole collection. Other list pages have no toolbar yet, because they have no
   actions or views to put in one.
-- **Wanted is not shown yet.** It is where *Cutoff Unmet* (works below the
-  quality profile's cutoff, `re-architecture.md` wave 4) and *Missing* (a Watch's
-  unmet wants, wave 6) land, and it appears when the first of those exists.
-  Watches themselves follow Radarr's Lists and go under Settings.
+- **Wanted holds the works the curator wants** *(shown since 2026-10-02, the
+  owner's ruling on #168, `build-plan-after-review.md` Chunk 05)*: a work wanted
+  on a no-scan review card, or whose scan on offer was turned down, which is one
+  state. Its link appears once something is in it, with its count. It is also
+  where *Cutoff Unmet* (works below the quality profile's cutoff,
+  `re-architecture.md` wave 4) and *Missing* (a Watch's unmet wants, wave 6)
+  land, as tabs beside today's list. Watches themselves follow Radarr's Lists and
+  go under Settings.
 - **On phones the sidebar becomes a drawer** behind a menu button, as it does in
   the *arr apps. This replaces the bottom bar in `design-direction.md`'s layout
   table.
@@ -719,6 +726,7 @@ who did not edit this table.
 | To review | The runs with works waiting for a verdict | What each asked for, its kind, how many works wait, when | Review a run's works | The count, as a word and a number |
 | Queue | The searches in flight, then the images being fetched | What each asked for, and when; for a fetch, why it failed and when it tries again | Open a search; open a work, Retry a failed fetch | Which state each is in; a fetch's as glyph and word (◌ queued, ↻ fetching, ▲ failed, ✗ gave up, ‖ paused) |
 | History | The searches that ended | What each asked for, and when | Open a search | How each ended |
+| Wanted | The works wanted | Why each is wanted, its Wikidata item, the search it came from | Search again (picking a Wikidata item first where it has none), Forget, Search all | No scan found, or *n* scans turned down, in words |
 | Run | The run's own sentence, and its work table; for a Get, its review cards in place of the table | The tally behind the sentence, and the gate's price broken down | Approve, decline, cancel, open a work, go to the review; for a Get, everything Review offers on its cards | Which state the run is in, and whether the watch is still live |
 | Conversation | The thread, newest exchange last | Each turn's suggestions, with their samples | Type, react to a sample, commit a direction, delete the thread | Whether a turn is in flight, and what the exchange cost |
 | Taste | The judgments, grouped by kind | Sentiment, openness, and how the claim was derived | React, correct, forget, follow a claim back to its turn | Which claims the product inferred rather than was told |
@@ -845,6 +853,7 @@ almost no considered empty states.
 | To review | Nothing waiting → say so, and say what would appear here | Nothing until the listing arrives | The request's refusal, in the page's error banner |
 | Queue | No search in flight → say so, say what would appear here, and offer Ask. Over a truncated listing it says what it checked, since an older search may still be at the gate. No image owed → "Every accepted work holds its image" | Nothing until both listings arrive, then the headings and the tables together | The request's refusal, in the page's error banner; a paused acquisition queue is not an error, and is said above its works with its remedy |
 | History | No search has finished → say so | Nothing until the listing arrives, then the heading and the table together | The request's refusal, in the page's error banner |
+| Wanted | Nothing wanted → say so, and say how a work comes to be here | Nothing until the listing arrives, then the heading and the table together | The request's refusal, in the page's error banner; Wikidata off or not answering is said in the picker, with *Search without an item* still offered |
 | Ask | No conversations → the intent box, prominent, with two or three worked examples | Per-turn, in the thread | A failed turn stays in the thread and is retryable; it never silently vanishes |
 | Run | n/a — a run always has a status, and "no works yet" is a populated run in `resolving_works` | The sentence first, then the work table filling in beneath it without moving it | **The watch says whether it is still watching.** A blip is reported and retried; after five consecutive failures it says it has given up and to reload, because a page that stopped polling silently is indistinguishable from a live one |
 | Conversation | A thread with no turns → the intent box, with the same worked examples Ask offers | Per-turn, in the thread, with the turn in flight named as such | A failed turn stays in the thread and is retryable; it never silently vanishes |
