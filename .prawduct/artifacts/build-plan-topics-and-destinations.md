@@ -394,9 +394,11 @@ disposable one; Q-rows in `data-model.md`):
   kind, each with its count, linking to its page, and a search box offering
   `topics_named`'s candidates.
 - **The Topic page** (`#topic/<qid>`): name, kind, description and a Wikidata
-  link; for a named period or a decade, **Representative works** is
-  headed with its years ("Works from 1588-1672", the owner's answer of
-  2026-10-02); **In your library**; **Representative works**, with states and tick
+  link; for a period, **Representative works** is headed with its
+  years ("Works from 1588-1672"; the owner's answer of 2026-10-02 named named
+  periods, and the coordinator extended it to every period, centuries included,
+  because every period's works are matched by date alone and the client then
+  needs no rule telling a century from a named period); **In your library**; **Representative works**, with states and tick
   boxes; **Artists**, linking to Artist pages. Its Get control passes the topic's
   name as the default destination (Chunk 02).
 - **The top bar's typeahead gains a Topics group**, after Works, as
