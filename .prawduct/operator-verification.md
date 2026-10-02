@@ -25,8 +25,8 @@ runs and the sidebar read *Activity 18 to review* and *To review 18*. For you:
    section. Sonarr's Activity opens its Queue. Which would you rather land on?
 2. **The count's wording.** *18 to review* beside Activity and *18* beside To
    review. Clear, or too much in the sidebar?
-3. **The 16 old works.** Those August candidates have waited since then. Worth a
-   look, or rejecting in bulk (there is no bulk control yet)?
+3. ~~**The 16 old works.**~~ Answered 2026-10-02: leave them waiting, so To
+   review has real works to show while it is developed.
 
 ### Ask, where Add New was — added 2026-10-02
 
