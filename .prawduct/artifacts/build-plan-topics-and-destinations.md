@@ -3,7 +3,7 @@ artifact: build-plan
 version: 1
 scope: topics-and-destinations
 branch: feature/topics-and-destinations
-partition: three waves — 01 ∥ 03, then 02 ∥ 04, then 05. 03 touches only `library/registry/wikidata.py`, a new topic service and `wikidata-findings.md`, which no other chunk in its wave edits. 04 waits for 01 because both edit the catalogue store and `library/facade.py`; 02 waits for 01's API; 05 waits for 02 and 04 and shares `core/getting.js` and `app.js` with 02. Each delegate works in its own worktree and branch; the coordinator merges, runs the suites and the Critic per wave (amended 2026-10-02, owner asked for parallel subagents)
+partition: 01 ∥ 03, then 02 ∥ 04 ∥ 03b ∥ 03c, then 05, each chunk starting when what it needs is merged. 03 touches only `library/registry/wikidata.py`, a new topic service and `wikidata-findings.md`, which no other chunk in its wave edits; 03b owns `wikidata.py`'s rules, which 04 is barred from; 03c is a new module plus the Artist page's adoption, and adopts it in `topics.py` after 04 merges. 04 waits for 01 because both edit the catalogue store and `library/facade.py`; 02 waits for 01's API; 05 waits for 02 and 04 and shares `core/getting.js` and `app.js` with 02. Each delegate works in its own worktree and branch; the coordinator merges, runs the suites and the Critic per wave (amended 2026-10-02, owner asked for parallel subagents)
 depends_on:
   - artifact: ia-proposal
   - artifact: information-architecture
@@ -92,6 +92,21 @@ owner's rulings of 2026-10-02 below. Two things a curator cannot do today:
 - **A destination defaults to the topic's name on a Topic page**, and to *All
   works* elsewhere. A name that is already a theme joins that theme.
 
+## The owner's answers to Chunk 03's measurement, 2026-10-02
+
+Asked after the twenty-topic measurement (`wikidata-findings.md` § Topics):
+
+- **Period speed: keep answers on disk, "as a general purpose cache system, not
+  specific to Wikidata"** (owner's words). Chosen over narrowing the query and
+  over accepting slow pages. Chunk 03c.
+- **A named period says "from its years".** Its works stay matched by date, and
+  the section is headed with the years so it claims no more than it checks.
+  Narrowing by place was offered and not chosen. Chunk 05.
+- **A topic's artists are ranked by how many of their works are in the topic**,
+  fame breaking ties. Chosen over an occupation filter. Chunk 03b.
+- **Search drops the "start and end time" clause and non-visual movements.**
+  Both recommended, both chosen. Chunk 03b.
+
 ## What I would do differently
 
 - **Medium is the weakest of the four kinds.** Wikidata's medium property (`P186`)
@@ -160,6 +175,8 @@ non-artists first (Franklin for woodcut); search offers non-visual movements
 - [x] Chunk 01: A Get's destination, from HTTP and MCP
 - [x] Chunk 02: The destination in the client, and in Review
 - [ ] Chunk 03: Topics in the registry
+- [ ] Chunk 03b: Topic rules, as the owner answered
+- [ ] Chunk 03c: Answers kept across restarts
 - [ ] Chunk 04: Your works' topics, and the topic index
 - [ ] Chunk 05: Library › Topics and the Topic page
 
@@ -276,6 +293,59 @@ Q-rows in `data-model.md` § What this data must answer):
 2. A `live_museum`-marked test keeps the shapes checked.
 3. Root and curation suites pass.
 
+### Chunk 03b: Topic rules, as the owner answered
+
+**Foreign API:** Wikidata
+
+- **The kind rule loses its "has a start and an end time" clause.** A period is
+  an instance of a century, a decade or a historical period (or a subclass).
+- **`topics_named` drops movements no visual artwork's maker belongs to**: a
+  movement is offered only if some work of visual art has a maker whose `P135`
+  is it, the same shape as the subject check.
+- **`topic_artists` ranks by the count of the artist's works in the topic**,
+  sitelinks breaking ties; for a movement, its artists' works.
+- `wikidata-findings.md` § Topics records the re-measurement beside the first.
+
+**Done when:**
+0. verify-api: re-run the twenty topics of Chunk 03's table (QIDs from that
+   table, which were copied from the service) for kind and top ten artists, and
+   the search names that admitted an exhibition, a war, clothing and a music
+   movement; record before and after.
+1. Unit tests over recorded answers, each watched failing: an item with start
+   and end time and no period class is not a period; Romanticism is a movement
+   only; a music movement is not offered; artists come back in works-count order
+   with the tie broken by sitelinks.
+2. The `live_museum` shape test still passes.
+
+### Chunk 03c: Answers kept across restarts
+
+**The questions the stored answers answer** (a persisted format, but a
+disposable one; Q-rows in `data-model.md`):
+1. Do I already have this answer, and is it fresh enough to use? (Every page
+   section that asks a foreign service.)
+2. How much is kept, and what can be thrown away first? (The bound.)
+
+- **A durable form of `Remembered`**, in the curation plane, usable by any
+  service that asks a slow foreign source: the same `get`/`put` shape, plus a
+  namespace per use and a maximum age per namespace. Wikidata is its first user,
+  not its definition.
+- **Adopted by every registry page section** that uses `Remembered` today: the
+  Artist page's sections and Similar artists, and the Topic page's sections
+  (the Topic adoption follows Chunk 04's merge, since Chunk 04 edits
+  `topics.py`).
+
+`[ASSUMPTION: the kept answers live in their own SQLite file under ART_ROOT, apart from the catalogue, so deleting it loses only time and a backup can skip it | MED impact | user can correct]`
+`[ASSUMPTION: an answer older than its namespace's maximum age is a miss, never served stale; the registry's sections keep answers for 7 days | MED impact | user can correct]`
+`[ASSUMPTION: a failure is never kept (as today), Held marks are read fresh on every call (as today), and an entry that cannot be decoded is a miss, so a changed answer shape costs one refetch | LOW impact | user can correct]`
+`[ASSUMPTION: the file is bounded by entry count, oldest-used first out, as Remembered is | LOW impact | user can correct]`
+
+**Done when:**
+1. Tests, each watched failing: an answer survives a restart; an expired one is
+   a miss; a failure is not kept; an undecodable entry is a miss; the bound
+   evicts oldest-used first; two namespaces with the same key do not collide;
+   an Artist page section answers from the kept answer with the registry down.
+2. Root and curation suites pass.
+
 ### Chunk 04: Your works' topics, and the topic index
 
 **Exposed API:** `GET /api/topics`, `GET /api/topics/{qid}`, `GET /api/topics/{qid}/works`, `GET /api/topics/{qid}/artists`, `art_catalogue(action='topics'|'topic')`. The two section routes were added 2026-10-02 after Chunk 03 measured period works at 7-26 s and some periods timing out: the page route answers from the facet rows with no network, and the registry sections are served apart, as the Artist page's are.
@@ -324,7 +394,9 @@ Q-rows in `data-model.md` § What this data must answer):
   kind, each with its count, linking to its page, and a search box offering
   `topics_named`'s candidates.
 - **The Topic page** (`#topic/<qid>`): name, kind, description and a Wikidata
-  link; **In your library**; **Representative works**, with states and tick
+  link; for a named period or a decade, **Representative works** is
+  headed with its years ("Works from 1588-1672", the owner's answer of
+  2026-10-02); **In your library**; **Representative works**, with states and tick
   boxes; **Artists**, linking to Artist pages. Its Get control passes the topic's
   name as the default destination (Chunk 02).
 - **The top bar's typeahead gains a Topics group**, after Works, as
