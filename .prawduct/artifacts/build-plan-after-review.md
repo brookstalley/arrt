@@ -187,7 +187,7 @@ scratchpad copy held none), and Chunk 04's measurement on the Dalí works.
 - [x] Chunk 02: Saying it: the Work page, Review, Activity › Queue, Retry, and MCP
 - [x] Chunk 03: One wanted state and one way in
 - [x] Chunk 04: Matching a wanted work to its Wikidata item
-- [ ] Chunk 05: Want and Forget on the card, and Activity › Wanted
+- [x] Chunk 05: Want and Forget on the card, and Activity › Wanted
 - [ ] Chunk 05b: A re-search spends nothing, said everywhere
 - [ ] Chunk 06: The owner's review of the screens
 
