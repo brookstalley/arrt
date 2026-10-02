@@ -20,13 +20,15 @@ from arrt.library.registry import (
     RegistryUnavailable,
     TopicKind,
 )
+from arrt.library.services.artists import REGISTRY_KEPT_FOR
+from arrt.library.services.remembered import REMEMBERED
 from arrt.library.services.topics import (
     TOPICS_NOT_CONFIGURED_NOTE,
     TopicService,
     TopicState,
     WorkState,
 )
-from arrt.persistence.kept import KeptAnswers
+from arrt.persistence.kept import JsonCodec, KeptAnswers
 from arrt.services.errors import ServiceError
 
 WINTER = RegistryTopic(qid=ItemId("Q1311"), label=RegistryText("winter"), kinds=(TopicKind.SUBJECT,))
@@ -139,6 +141,34 @@ def test_a_topics_sections_answer_after_a_restart_with_the_registry_down(tmp_pat
     assert [(entry.state, tuple(entry.held)) for entry in works.works] == [(WorkState.HELD, ("work-1",))]
     assert artists.state is TopicState.KNOWN
     assert down.asked == []
+
+
+def test_artists_kept_under_the_rule_before_are_asked_again_not_served(tmp_path):
+    """A week's answers ranked by how many works an artist has in the topic, kept under that rule's name.
+
+    The ranking changed to the fame of those works; a deploy must not serve the
+    old order as the new one for a week.
+    """
+    path = tmp_path / "kept-answers.sqlite"
+    before = KeptAnswers(path)
+    counted = before.namespace(
+        "registry.topic_artists",
+        codec=JsonCodec(tuple[RegistrySimilar, ...]),
+        max_age=REGISTRY_KEPT_FOR,
+        size=REMEMBERED,
+    )
+    counted.put("Q1311", (MATISSE,))
+    before.close()
+
+    after = KeptAnswers(path)
+    registry = TopicRegistry(topics=[WINTER], artists={"Q1311": [MONET]})
+    try:
+        artists = TopicService(Store(), registry, kept=after).artists("Q1311")
+    finally:
+        after.close()
+
+    assert list(artists.people) == [MONET]
+    assert ("topic_artists", "Q1311") in registry.asked
 
 
 def test_a_failure_is_not_remembered_so_the_next_visit_asks_again():

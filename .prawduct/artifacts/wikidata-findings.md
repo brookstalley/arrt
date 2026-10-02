@@ -328,7 +328,9 @@ The recorded answers the source's tests run against are in
 ## Topics (Topics and destinations, 2026-10-02)
 
 Three rules here changed on the owner's answers the same day; what each changed
-is § The owner's rules, re-measured, at the end of this section.
+is § The owner's rules, re-measured. The artists' ranking changed again after
+that measurement: § The fame of their works, re-measured, at the end of this
+section.
 
 Measured for `build-plan-topics-and-destinations.md` Chunk 03 with the client's
 own calls (`topic`, `topic_works`, `topic_artists`, `topics_named`,
@@ -630,6 +632,107 @@ so the client puts them back in rank order.
   so as movements their pages would have listed no works.
 - **The check costs time**: `baroque` took 3.2 s and `impressionism` 2.3 s, from
   under 1 s.
+
+### The fame of their works, re-measured (Chunk 03d, 2026-10-02)
+
+Asked again after the measurement above, the owner chose to rank a topic's
+artists by **the sum of the sitelinks of their works in the topic**, their own
+sitelinks breaking ties (`build-plan-topics-and-destinations.md` § The owner's
+answers). Each work is counted once per artist before it is summed, however many
+routes reach it. For a movement, it is still its own artists' works of visual
+art, and one with none sums to nought.
+
+Measured with the client's own `topic` and `topic_artists(limit=10)`, through the
+same timing wrapper and User-Agent, over the twenty QIDs of the first table:
+**03b's rule** is the unchanged client and **by fame** the changed one, one run
+each, the same afternoon. Period topics were spaced 45 s apart. The service
+refused nothing. 03b's rule gave back the lists recorded above, name for name,
+for all twenty.
+
+**The artists' query time** (seconds; the whole call, with its image count):
+
+| Topic | Kind | Artists s, 03b's rule | Artists s, by fame |
+|---|---|---|---|
+| 16th century (Q7017) | period | 3.43 | 3.15 |
+| 1920s (Q35736) | period | 8.13 | 8.07 |
+| Dutch Golden Age (Q661566) | period | 8.29 | 14.78 |
+| Edo period (Q184963) | period | 26.21 | 48.84 |
+| Belle Époque (Q466887) | period | 46.16 | timed out (60.0) |
+| Baroque (Q37853) | movement, period | 7.75 | 3.55 |
+| Romanticism (Q37068) | movement | 1.84 | 6.34 |
+| Impressionism (Q40415) | movement | 3.71 | 4.72 |
+| cubism (Q42934) | movement | 1.22 | 2.13 |
+| abstract expressionism (Q177725) | movement | 2.05 | 2.4 |
+| winter (Q1311) | subject | 1.05 | 1.31 |
+| horse (Q726) | subject | 0.84 | 4.2 |
+| still life (Q170571) | subject | 1.91 | 2.53 |
+| death (Q4) | subject | 0.57 | 2.14 |
+| love (Q316) | subject | 0.46 | 0.43 |
+| woodcut print (Q18219090) | medium | 0.53 | 1.61 |
+| watercolor painting (Q18761202) | medium | 0.78 | 3.52 |
+| pastel artwork (Q12043905) | medium | 0.87 | 1.49 |
+| etching print (Q18218093) | medium | 0.77 | 0.63 |
+| lithograph print (Q15123870) | medium | 1.25 | 0.67 |
+
+**The Belle Époque timed out once, and so did 03b's rule.** Asked again with
+60 s between runs: by fame 29.36 s, then 03b's rule timed out at 60 s, then by
+fame 40.07 s. The Edo period, asked the same way, took 44.47 s by 03b's rule and
+26.78 s by fame. Both rules sit near the client's 60 s for those two, and the
+same query varies by more than the rules differ. The Dutch Golden Age (14.8 s)
+is the only other period over 10 s. Elsewhere summing is slower than counting by
+up to 3.5 s (horse 0.8 s to 4.2 s), and no topic that is not a period took over
+7 s (Romanticism 6.3 s).
+
+**Top ten artists by fame** (the sum of their works' sitelinks; how many works;
+their own sitelinks). The Belle Époque's, from the retry that answered: Vincent
+van Gogh, Pierre-Auguste Renoir, Claude Monet, Paul Gauguin, Edvard Munch, Paul
+Cézanne, Édouard Manet, Pablo Picasso, Gustav Klimt, John Singer Sargent.
+
+- **16th century**: Titian (1790; 415; 109), Raphael (1312; 195; 195), El Greco (1033; 329; 115), Pieter Brueghel the Elder (746; 98; 92), Caravaggio (605; 48; 116), Lorenzo Lotto (518; 146; 45), Michelangelo (505; 107; 259), Albrecht Dürer (504; 257; 187), Lucas Cranach the Elder (498; 992; 60), Jacopo Tintoretto (492; 372; 85).
+- **1920s**: Wassily Kandinsky (141; 115; 103), Salvador Dalí (138; 220; 247), Henri Matisse (91; 202; 181), René Magritte (86; 97; 96), Joan Miró (82; 104; 106), Paul Klee (68; 300; 97), Edward Hopper (62; 41; 60), Pablo Picasso (49; 243; 265), Félix Vallotton (44; 83; 47), Max Ernst (35; 114; 72).
+- **Dutch Golden Age**: Rembrandt (1796; 1133; 207), Peter Paul Rubens (1491; 2049; 175), Caravaggio (1265; 107; 116), El Greco (1234; 567; 115), Diego Velázquez (976; 176; 167), Johannes Vermeer (869; 36; 116), Anthony van Dyck (566; 1450; 84), Artemisia Gentileschi (484; 126; 74), Bartolomé Esteban Murillo (445; 263; 81), Gian Lorenzo Bernini (425; 166; 80).
+- **Edo period**: Francisco Goya (1798; 555; 186), Rembrandt (1795; 1146; 207), Peter Paul Rubens (1450; 1990; 175), Diego Velázquez (999; 180; 167), Johannes Vermeer (869; 36; 116), Gustave Courbet (858; 439; 81), Jean-Auguste-Dominique Ingres (744; 311; 133), Jacques-Louis David (700; 264; 94), Anthony van Dyck (571; 1477; 84), Caspar David Friedrich (569; 338; 91).
+- **Belle Époque**: timed out at 60 s in this run; see the retries above.
+- **Baroque**: Peter Paul Rubens (1510; 2852; 175), Caravaggio (1266; 116; 116), Diego Velázquez (1000; 200; 167), Gian Lorenzo Bernini (513; 220; 80), Guercino (390; 348; 46), Francisco de Zurbarán (383; 308; 81), Frans Hals (382; 312; 68), Jusepe de Ribera (366; 330; 68), Annibale Carracci (292; 340; 50), Giovanni Battista Tiepolo (258; 449; 67).
+- **Romanticism**: Francisco Goya (1842; 945; 186), Jean-Auguste-Dominique Ingres (746; 347; 133), Eugène Delacroix (563; 614; 121), J. M. W. Turner (552; 4052; 87), John Constable (274; 570; 72), Thomas Lawrence (195; 556; 40), Francesco Hayez (183; 104; 51), Théodore Géricault (171; 371; 71), Ivan Aivazovsky (131; 418; 73), Horace Vernet (126; 245; 40).
+- **Impressionism**: Pierre-Auguste Renoir (1354; 2131; 115), Claude Monet (1137; 1284; 155), Édouard Manet (1055; 466; 113), Paul Gauguin (789; 756; 133), Henri Matisse (617; 818; 181), Camille Pissarro (463; 878; 87), John Singer Sargent (458; 850; 62), Edgar Degas (452; 667; 114), John William Waterhouse (381; 141; 49), Gustave Caillebotte (374; 253; 54).
+- **cubism**: Pablo Picasso (855; 2215; 265), Francis Bacon (119; 135; 69), Georges Braque (104; 434; 86), Juan Gris (54; 237; 63), André Derain (50; 499; 55), Fernand Léger (46; 706; 54), Jean Metzinger (35; 97; 33), Amadeo de Souza Cardoso (31; 80; 33), Francis Picabia (28; 133; 57), Marie Laurencin (19; 142; 43).
+- **abstract expressionism**: Jackson Pollock (63; 252; 118), Mark Rothko (43; 1274; 71), Willem de Kooning (38; 178; 53), Louise Bourgeois (37; 35; 59), Mark di Suvero (19; 41; 11), Barnett Newman (17; 97; 37), David Smith (12; 50; 18), John Chamberlain (12; 9; 13), Louise Nevelson (7; 140; 30), Joan Mitchell (7; 65; 25).
+- **winter**: Pieter Brueghel the Elder (75; 3; 92), Claude Monet (32; 10; 155), Hendrick Avercamp (19; 4; 44), Gustave Courbet (18; 3; 81), Camille Pissarro (16; 7; 87), Vincent van Gogh (15; 1; 266), Jean-Léon Gérôme (13; 2; 57), Gustave Caillebotte (13; 1; 54), Caspar David Friedrich (11; 3; 91), Johan Christian Dahl (11; 6; 36).
+- **horse**: Peter Paul Rubens (140; 42; 175), Eugène Delacroix (107; 28; 121), Diego Velázquez (89; 9; 167), Francisco Goya (55; 8; 186), Franz Marc (55; 19; 75), Józef Chełmoński (55; 105; 28), Anthony van Dyck (54; 19; 84), Hieronymus Bosch (49; 1; 93), Théodore Géricault (45; 49; 71), Jacques-Louis David (35; 4; 94).
+- **still life**: Vincent van Gogh (270; 130; 266), Paul Cézanne (139; 135; 139), Édouard Manet (104; 39; 113), Jean-Baptiste-Siméon Chardin (91; 138; 51), Salvador Dalí (82; 37; 247), Henri Matisse (61; 83; 181), Paul Gauguin (49; 52; 133), Pablo Picasso (47; 248; 265), Diego Velázquez (46; 4; 167), Luis Egidio Meléndez (43; 65; 17).
+- **death**: Francisco Goya (40; 2; 186), Caravaggio (27; 1; 116), Piero di Cosimo (15; 1; 45), Eugène Delacroix (11; 2; 121), Gustave Moreau (9; 14; 53), Sebastiano del Piombo (8; 1; 38), Edvard Munch (7; 7; 120), Arnold Böcklin (7; 1; 56), Georges de La Tour (7; 1; 53), Pierre-Paul Prud'hon (7; 2; 28).
+- **love**: William-Adolphe Bouguereau (21; 2; 63), Jacques-Louis David (15; 1; 94), François Gérard (15; 3; 36), Jean-Auguste-Dominique Ingres (11; 1; 133), Pietro Perugino (8; 1; 65), Anne-Louis Girodet (7; 1; 35), Jean-Antoine Watteau (5; 1; 70), Jean-Baptiste Greuze (5; 1; 37), Giovanni Segantini (4; 1; 33), Nasreddine Dinet (4; 1; 22).
+- **woodcut print**: Albrecht Dürer (291; 421; 187), Utagawa Hiroshige (245; 260; 68), Katsushika Hokusai (214; 158; 177), M. C. Escher (40; 17; 87), Benjamin Franklin (20; 1; 216), Kitagawa Utamaro (19; 165; 50), Franz Marc (13; 19; 75), Hans Springinklee (12; 4; 9), Sharaku (11; 143; 28), Lucas Cranach the Elder (10; 50; 60).
+- **watercolor painting**: Vincent van Gogh (98; 72; 266), Albrecht Dürer (51; 19; 187), Stanisław Masłowski (26; 27; 10), Anders Zorn (24; 20; 53), J. M. W. Turner (22; 3155; 87), John Singer Sargent (22; 43; 62), Winslow Homer (19; 320; 44), Edward Burne-Jones (17; 33; 47), Félicien Rops (17; 1; 34), Carl Larsson (14; 14; 57).
+- **pastel artwork**: Edgar Degas (55; 86; 114), Stanisław Wyspiański (15; 336; 48), Pablo Picasso (9; 6; 265), Henri de Toulouse-Lautrec (9; 2; 97), Maurice Quentin de La Tour (8; 25; 40), Rosalba Carriera (8; 12; 39), Édouard Manet (6; 12; 113), Leon Wyczółkowski (6; 32; 26), Fernand Khnopff (5; 9; 30), Odilon Redon (4; 23; 60).
+- **etching print**: Rembrandt (39; 46; 207), William Blake (19; 19; 162), Jacques Callot (10; 19; 35), Albrecht Dürer (9; 9; 187), William Hogarth (8; 81; 82), Pablo Picasso (7; 11; 265), Francisco Goya (6; 5; 186), James Ensor (5; 653; 51), Wenceslaus Hollar (5; 43; 32), Adrien de Witte (5; 4; 4).
+- **lithograph print**: M. C. Escher (114; 22; 87), J. Howard Miller (34; 1; 9), Walter Hood Fitch (22; 25; 14), Henri de Toulouse-Lautrec (19; 15; 97), Alphonse Mucha (10; 10; 70), Henry De la Beche (10; 1; 23), Francisco Goya (7; 1; 186), Hermann Knackfuß (7; 1; 9), Pablo Picasso (5; 3; 265), Honoré Daumier (3; 51; 65).
+
+**What the ranking says:**
+
+- **The best-known artists are back.** Titian, Raphael, Michelangelo and
+  Brueghel for the 16th century; Kandinsky, Dalí, Matisse and Magritte for the 1920s; Rembrandt, Vermeer
+  and Velázquez for the Dutch Golden Age; van Gogh, Renoir and Monet for the Belle
+  Époque. Subjects too: Brueghel first for winter, van Gogh and Cézanne for still
+  life, Goya and Caravaggio for death. The printmakers, photographers and
+  illustrators that a count put first (Philip Galle, Militão Augusto de Azevedo,
+  John Gould, Jean Le Pautre) are gone from all twenty.
+- **Leonardo is still not in the 16th century's ten.** His 35 works dated 1501 to
+  1600 sum to 345, *Mona Lisa* 146 of it, against 492 for tenth place
+  (Tintoretto). Asked by the same period pattern restricted to him.
+- **Many obscure works now rank below a few famous ones.** James Ensor has 653
+  etchings worth 5 sitelinks together and is eighth, below Rembrandt's 46 (39);
+  J. M. W. Turner's 3155 watercolours (22) are fifth; Philip Galle is out.
+- **One famous work can carry its maker.** Benjamin Franklin is back in woodcut,
+  fifth, on *Join, or Die* alone (20); J. Howard Miller is second in lithograph
+  on *We Can Do It!* (34); Hieronymus Bosch is in horse on one work. This is
+  the work's fame, not the maker's: Franklin was first under the first rule, on
+  his own 216 sitelinks, and is now below Dürer, Hiroshige, Hokusai and Escher.
+  Adolf Hitler is not in watercolour's ten, and no writer is in Romanticism's
+  (Andersen, Lermontov, Hoffmann and Gautier were, under the first rule).
+- **A period is still everything made in its years, anywhere.** The Edo period's
+  ten are European (Goya, Rembrandt, Rubens), as they were under the count.
 
 ## Reproducing
 

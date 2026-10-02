@@ -203,8 +203,11 @@ def test_a_movements_artists_are_its_own_and_anyone_elses_are_the_makers_of_its_
     assert "?artist wdt:P135 wd:Q40415" in asked[0] and "wdt:P106/wdt:P279* wd:Q3391743" in asked[0]
     assert "OPTIONAL { ?work wdt:P170 ?artist . ?work wdt:P31 ?class . VALUES ?class {" in asked[0]
     assert "?work wdt:P180 wd:Q1311" in asked[1] and "?work wdt:P170 ?artist" in asked[1]
+    # Each work's fame is summed once per artist, however many routes reach it.
     assert all(
-        "COUNT(DISTINCT ?work) AS ?works" in query and "ORDER BY DESC(?works) DESC(?links) STR(?artist) LIMIT 12" in query
+        "SELECT DISTINCT ?artist ?links ?work ?workLinks" in query
+        and "SUM(COALESCE(?workLinks, 0)) AS ?fame" in query
+        and "ORDER BY DESC(?fame) DESC(?links) STR(?artist) LIMIT 12" in query
         for query in asked
     )
 
@@ -217,32 +220,42 @@ def test_a_topics_artists_come_back_with_their_image_counts():
     assert [(person.qid, person.images) for person in people] == [tuple(pair) for pair in ANSWERS["artists expected"]]
 
 
-def test_a_topics_artists_rank_by_their_works_in_it_then_by_renown():
-    """Woodcut print: ranked by renown, Benjamin Franklin came first for *Join, or Die*.
+def _etching_artists():
+    """Etching print's top ten as the service answered, given back least famous first, as it may."""
+    rows = ANSWERS["artists etching"]
+    backwards = sorted(rows, key=lambda row: (int(row["fame"]["value"]), int(row["links"]["value"])))
+    return _answering(backwards, ANSWERS["artist images etching"]).topic_artists(_topic("Q18218093", TopicKind.MEDIUM), limit=10)
 
-    The recorded answer is given back in the opposite order, as the service may:
-    Hokusai and Suzuki Harunobu have 158 woodcuts each, and Hokusai's renown puts
-    him first.
+
+def test_a_topics_artists_rank_by_the_fame_of_their_works_in_it_then_by_their_own():
+    """Etching print: James Ensor, Wenceslaus Hollar and Adrien de Witte each have etchings worth 5 sitelinks.
+
+    Their own renown (51, 32 and 4) orders them, which their QIDs would not.
     """
-    rows = ANSWERS["artists woodcut"]
-    backwards = sorted(rows, key=lambda row: (int(row["works"]["value"]), int(row["links"]["value"])))
-
-    people = _answering(backwards, ANSWERS["artist images woodcut"]).topic_artists(
-        _topic("Q18219090", TopicKind.MEDIUM), limit=10
-    )
-
-    assert [person.name for person in people] == [
+    assert [person.name for person in _etching_artists()] == [
+        "Rembrandt",
+        "William Blake",
+        "Jacques Callot",
         "Albrecht Dürer",
-        "Utagawa Hiroshige",
-        "Yoshitoshi",
-        "Frans Masereel",
-        "Jef Diederen",
-        "Kitagawa Utamaro",
-        "Katsushika Hokusai",
-        "Suzuki Harunobu",
-        "Sharaku",
-        "Marianne van der Heijden",
+        "William Hogarth",
+        "Pablo Picasso",
+        "Francisco Goya",
+        "James Ensor",
+        "Wenceslaus Hollar",
+        "Adrien de Witte",
     ]
+
+
+def test_an_artist_with_many_obscure_works_ranks_below_one_with_a_few_famous_ones():
+    """Counted, James Ensor's 653 etchings led etching print; summed, they are worth 5 sitelinks, and Rembrandt's 46 lead."""
+    works = {row["artist"]["value"].rsplit("/", 1)[1]: int(row["works"]["value"]) for row in ANSWERS["artists etching"]}
+
+    people = [person.qid for person in _etching_artists()]
+
+    ensor = people.index("Q158840")
+    assert works["Q158840"] == max(works.values())
+    assert people[0] == "Q5598" and works["Q5598"] < works["Q158840"]
+    assert all(works[qid] < works["Q158840"] for qid in people[:ensor])
 
 
 def test_a_topic_search_offers_the_movement_and_not_the_political_party():
