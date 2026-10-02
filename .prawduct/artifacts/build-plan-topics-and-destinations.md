@@ -17,7 +17,7 @@ governed_by:
       - "Library/Programming seam rule 1, one-way imports through the facade → binds Chunk 01: the Library records a Get's destination as an opaque theme id and never imports Programming; Programming learns it through the facade"
       - "seam rule 2, the facade is written as if remote → binds Chunk 01: the facade answers 'where should these accepted works go' for a list of ids with plain data, and is idempotent"
       - "seam rule 3, no new cross-seam foreign keys (interim rule) → binds Chunk 01: `discovery_runs.destination_theme_id` is an opaque reference that may fail to resolve, with no REFERENCES clause"
-      - "seam rule 4, Library changes reach Programming as events; Programming reconciles at start → binds Chunk 01: the acceptance event is unchanged; the handler and `catch_up_the_default` both ask the facade for the destination, so a lost event and a delivered one land the work in the same theme"
+      - "seam rule 4, Library changes reach Programming as events; Programming reconciles at start → binds Chunk 01: the acceptance event is unchanged; the handler and `catch_up_offers` (formerly `catch_up_the_default`) both ask the facade for the destination, so a lost event and a delivered one land the work in the same theme"
       - "RULING 2026-09-30: composing two services is still dispatch; a binding that branches on one call's result is a violation → binds Chunks 01 and 02: `POST /api/gets` with a theme checks the theme exists (Programming) and then starts the Get (Library), with no branch; creating a new theme by name is the client's (or agent's) earlier call to `POST /api/themes`, never a branch in the binding"
       - "operation logic lives only in the service layer → binds Chunks 01, 03 and 04: destination, topic lookup and the topic index are services; HTTP and MCP are thin bindings"
   - artifact: information-architecture
@@ -175,10 +175,10 @@ Q-rows in `data-model.md` § What this data must answer):
   run's destination, or none: work → candidate (`candidate_works.artwork_id`) →
   run. A work accepted before this column existed, or from a discovery run, has
   none.
-- **Programming:** `offer_to_default` becomes the offer for a work's destination.
+- **Programming:** `offer_to_default` becomes `offer_destinations`, the offer for a work's destination.
   It asks the facade, then adds the work to the destination theme if it still
   exists, to the default otherwise, and records the offer either way, in one
-  transaction as today. `on_work_changed` and `catch_up_the_default` both go
+  transaction as today. `on_work_changed` and `catch_up_offers` both go
   through it, so a lost event lands the work where a delivered one would.
 - **Surfaces:** `StartGet` gains optional `theme_id`; `art_discovery(action='get')`
   gains optional `theme_id`. The binding gets the theme (unknown → the existing
