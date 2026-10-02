@@ -25,7 +25,9 @@ showed its kind, description and Wikidata link, *In your library (2)* as cards,
 then *Works from 1501–1600* (● Held, ◐ Image found, ○ No image known; no box on
 the held row), *Add to* already on *New theme…* named *16th century*, and
 *Artists*. At 375 px the works table scrolls sideways inside its panel, as the
-Artist page's does. Driving S12's path on a copy of your catalogue is still owed.
+Artist page's does. S12's path was driven through the API on a copy of your
+catalogue on 2026-10-02 (16th century, three works into a new theme *16th
+century*, accepted: in it and not in *All works*), so what is left is the look.
 For you:
 
 1. **A period's heading.** Its works are headed *Works from 1501–1600* rather
@@ -49,7 +51,9 @@ read *All works*, *Winter*, *New theme…*; choosing *New theme…* showed a *Ne
 theme's name* field, and a Get into *16th century* said "Getting 1 work into
 16th century. Open the Get" and left *16th century* chosen. At 375 px the select
 and *Get* sit on one line and the sentence wraps beneath. Driving a Get into a
-new theme on a copy of your catalogue is still owed. For you:
+new theme on a copy of your catalogue was done through the API on 2026-10-02 (in
+that theme, not in *All works*, still not after a restart), so what is left is
+the look. For you:
 
 1. **The label.** *Add to* sits beside *Get*, and on the Artist page a second
    select, *Theme*, adds works you already hold. Are the two told apart?
