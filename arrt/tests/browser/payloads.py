@@ -215,6 +215,10 @@ def an_instance(**overrides) -> InstanceOut:
         "rejected": False,
         "rights_status": "public_domain",
         "selection_rationale": None,
+        # The scan's own pixels, which the card states as its resolution. Not
+        # the rendered size below: that is the scan fitted to one panel.
+        "width": 3840,
+        "height": 2604,
         "fit": FitOut(
             verdict=DisplayFit.NATIVE.value,
             rendered_width=3316,

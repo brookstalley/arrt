@@ -1181,7 +1181,11 @@ the long edge.
 **Below the floor, the work is not rejected and the image is not hidden.** Phase 2
 does not *auto-select* a below-floor instance; the review grid shows it labelled
 with its rendered physical size ("would show at 8.6 inches") and the curator may
-select it anyway. If every instance is below floor the work lands at
+select it anyway. *(Since 2026-10-02 the browser shows the scan's own pixels and
+the fit verdict's word instead of the inches — the owner's ruling,
+`build-plan-topics-and-destinations.md` Chunk 07: the inches are the long edge on
+the one panel this server is configured for, and read as a fact about the scan.
+The floor itself is unchanged, and still in inches.)* If every instance is below floor the work lands at
 `resolution_status = unresolved`, which is already a first-class outcome that may
 never be silently omitted (`data-model.md` constraint 9), and the work stays
 eligible for re-search. Nothing is silently dropped and nothing is silently

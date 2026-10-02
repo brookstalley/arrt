@@ -163,7 +163,7 @@ def test_a_below_floor_instance_is_recorded_but_never_selected_for_the_curator(s
 
     assert len(images) == 1, "the instance is offered, not hidden"
     assert images[0].is_selected is False, "and never chosen without being asked for"
-    assert "below the 12-inch floor" in images[0].selection_rationale
+    assert "too small to reach this wall's size floor" in images[0].selection_rationale
     assert work.resolution_status is ResolutionStatus.UNRESOLVED
 
 

@@ -162,6 +162,49 @@ class TestTheGrid:
         small = card_for(page, "Swans Reflecting Elephants")["shown"]["fit"]["rendered_long_edge_inches"]
         assert big > small
 
+    def test_every_instance_carries_the_scan_s_own_pixels(self, http):
+        """What the card states as the scan's resolution: its pixels, not inches on one panel.
+
+        Asserted on two scans of different sizes, on the card and in its listing,
+        so a payload that copied one scan's size onto every row, or reported the
+        rendered size in place of the scan's own, would fail.
+        """
+        run_id = a_finished_run(http)
+        page = http.get(f"/api/runs/{run_id}/candidates").json()
+
+        small = card_for(page, "Swans Reflecting Elephants")["shown"]
+        assert (small["width"], small["height"]) == (900, 700)
+        listing = http.get(f"/api/candidates/{card_for(page, 'The Elephants')['work']['work_id']}/images").json()
+        assert {(instance["width"], instance["height"]) for instance in listing["instances"]} == {
+            (6949, 8400),
+            (4000, 5000),
+        }
+
+    def test_the_enlarged_picture_is_the_preview_at_its_own_size(self, http):
+        """`size=large` is what a card opens in place: the held preview, not the card's copy.
+
+        The fixture's preview is 1200 x 900, larger than the card's 480 px box, so
+        the two sizes are told apart by the decoded dimensions, not by a status.
+        """
+        run_id = a_finished_run(http)
+        page = http.get(f"/api/runs/{run_id}/candidates").json()
+        image_id = card_for(page, "The Elephants")["shown"]["image_id"]
+
+        card = Image.open(BytesIO(http.get(f"/api/candidate-images/{image_id}/preview").content))
+        large = http.get(f"/api/candidate-images/{image_id}/preview", params={"size": "large"})
+
+        assert large.status_code == 200
+        assert large.headers["content-type"] == "image/jpeg"
+        assert max(card.size) == 480
+        assert Image.open(BytesIO(large.content)).size == (1200, 900)
+
+    def test_a_size_nobody_offers_is_refused_rather_than_answered_small(self, http):
+        run_id = a_finished_run(http)
+        page = http.get(f"/api/runs/{run_id}/candidates").json()
+        image_id = card_for(page, "The Elephants")["shown"]["image_id"]
+
+        assert http.get(f"/api/candidate-images/{image_id}/preview", params={"size": "huge"}).status_code == 422
+
     def test_a_card_says_which_kind_of_nothing_when_no_image_was_found(self, http, museum):
         """Chunk 21's whole point has to survive the trip to a card.
 

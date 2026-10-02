@@ -123,7 +123,11 @@ const ROUTES = {
   // Run and Review share that default because they are one search's two pages:
   // each opens the other, and with different defaults every hop between them
   // would record an opener the curator never chose.
-  run: { render: viewRun, detail: true, opensFrom: "queue" },
+  //
+  // A Get's page is its review, so a Work opened from one of its cards returns
+  // to it, as one opened from Review returns to Review. Labelled for a Get
+  // because a Get's page is the only run page that opens a Work.
+  run: { render: viewRun, detail: true, opensFrom: "queue", returnLabel: "The Get", returnFor: ["work"] },
   // Contextual rather than a page: a conversation is something a curator does
   // *within* Ask, and returns there.
   conversation: { render: viewConversation, detail: true, opensFrom: "discover" },

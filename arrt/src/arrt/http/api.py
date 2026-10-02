@@ -29,7 +29,7 @@ that safe.
 """
 
 import logging
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Query, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
@@ -1059,8 +1059,18 @@ def reject_candidate_image(request: Request, image_id: str) -> CandidateWorkOut:
 
 
 @router.get("/candidate-images/{image_id}/preview", response_class=Response)
-def get_candidate_preview(request: Request, image_id: str) -> Response:
+def get_candidate_preview(
+    request: Request,
+    image_id: str,
+    size: Annotated[Literal["card", "large"], Query()] = "card",
+) -> Response:
     """The picture for one instance, re-encoded for a browser.
+
+    `size=large` is the picture a review card opens in place when it is
+    clicked: the largest preview the server holds, at its own size
+    (`ENLARGED_MAX_EDGE_PX` bounds it). The default is the card's own, small
+    enough for a page of them. Any other value is refused rather than read as
+    the default, so a misspelt request is not quietly answered small.
 
     Not a `FileResponse` over the cached file, and not for want of trying to keep
     this thin. A cached preview's *name* is derived from its URL and falls back to
@@ -1075,7 +1085,7 @@ def get_candidate_preview(request: Request, image_id: str) -> Response:
     is the grid: a card asks once, and only for the works whose alternates a
     curator opens.
     """
-    rendered = _services(request).review.preview_image(image_id)
+    rendered = _services(request).review.preview_image(image_id, enlarged=size == "large")
     return Response(content=rendered.data, media_type=rendered.media_type, headers={"Cache-Control": PREVIEW_CACHE_CONTROL})
 
 
@@ -1487,6 +1497,8 @@ def _instance(view: InstanceView) -> InstanceOut:
         rejected=view.rejected,
         rights_status=None if image.rights_status is None else str(image.rights_status),
         selection_rationale=image.selection_rationale,
+        width=image.estimated_width,
+        height=image.estimated_height,
         fit=(
             None
             if view.fit is None

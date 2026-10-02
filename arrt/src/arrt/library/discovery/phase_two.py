@@ -278,7 +278,7 @@ class PhaseTwoEngine:
             found=found,
             confidence=confidence,
             quality_score=quality,
-            rationale=_rationale(found, confidence=confidence, fit=fit, box=self._box),
+            rationale=_rationale(found, confidence=confidence, fit=fit),
             fit=fit,
         )
 
@@ -347,13 +347,20 @@ def _within_band(fit: FitAssessment, *, width: int, height: int, box: ArtworkBox
     return min(1.0, coverage / _NATIVE_SATURATION)
 
 
-def _rationale(found: FoundImage, *, confidence: float, fit: FitAssessment, box: ArtworkBox) -> str:
+def _rationale(found: FoundImage, *, confidence: float, fit: FitAssessment) -> str:
     """Why this instance was chosen, in the words a curator asking gets back.
 
     Written for the review card rather than for a log: it names what the museum
-    calls the work, how the identity was established, and the size it would
-    appear at — the last because a curator judging a below-floor instance needs
-    the number, not the verdict.
+    calls the work, how the identity was established, and the scan's size — the
+    last because a curator judging a below-floor instance needs the number, not
+    the verdict.
+
+    **The size is the scan's pixels, never inches on a wall** (the owner's
+    ruling, 2026-10-02). Inches are the long edge on the one panel this server
+    is configured for, after the mat, and in a sentence beside a picture they
+    read as a fact about the picture. The verdict's consequence is still said in
+    words. A sentence already stored is a record of what the run said and is
+    left as written; this governs runs from now on.
     """
     holder = f"{found.provider} holds this as {found.title!r}"
     holder += f" by {found.artist}" if found.artist else ", with no artist recorded"
@@ -363,14 +370,11 @@ def _rationale(found: FoundImage, *, confidence: float, fit: FitAssessment, box:
         identity = "matching the requested title; the request named no artist"
     else:
         identity = "matching the requested title; the record names no artist to confirm it"
-    size = (
-        f"At {found.estimated_width}x{found.estimated_height} it would render "
-        f"{fit.rendered_long_edge_inches:.1f} inches on the long edge"
-    )
+    size = f"It is {found.estimated_width:,} × {found.estimated_height:,} px"
     if fit.fit is DisplayFit.BELOW_FLOOR:
-        size += f", below the {box.floor_inches:g}-inch floor, so it is offered but not selected automatically"
+        size += ", too small to reach this wall's size floor, so it is offered but not selected automatically"
     elif fit.fit is DisplayFit.MATTED_SMALL:
         size += ", smaller than the artwork box, so it is matted wider rather than downscaled"
     else:
-        size += ", filling the artwork box"
+        size += ", enough to fill the artwork box"
     return f"{holder}, {identity}. {size}."
