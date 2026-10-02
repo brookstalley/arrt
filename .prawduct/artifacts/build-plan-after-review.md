@@ -436,7 +436,10 @@ judgment on sequence":
 - **Built here:** a labelled field and its button now share a bottom edge
   everywhere (Create on Themes; Rename, Make default and Delete beside a theme's
   name; Look up on the Artist page; Want or Accept beside *Why*). One rule
-  (`.row > .field` kept its bottom margin), one browser test.
+  (`.row > .field` kept its bottom margin), one browser test. And the
+  Wikidata form on the Artist and Work pages no longer shows before Change… is
+  pressed: `hidden` lost to `.stack`'s display; one global `[hidden]` rule fixes
+  it and every other class that would have done the same.
 - **Filed for one "Library screens" plan after this PR, with #169** (the theme
   rail and a Select mode): the typeahead's and Topic page's held / image-found
   states (the owner: "Does image found mean held?" — no; and on a Topic page an
