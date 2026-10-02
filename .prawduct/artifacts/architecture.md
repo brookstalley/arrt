@@ -246,7 +246,11 @@ convenience would otherwise make that split a migration.
 > `arrt/tests/unit/test_reconciliation.py` hold it. *(2026-10-01: the same
 > subscriber and startup catch-up offer a newly accepted work to the default
 > theme, once, through `LibraryFacade.accepted_work_ids`; `arrt/tests/integration/test_default_theme.py`
-> holds it.)* **Still in the
+> holds it. 2026-10-02: the offer is for the work's destination, which the
+> handler and the catch-up both ask of `LibraryFacade.destinations`, the theme
+> its Get named or None for the default, so a lost event and a delivered one
+> land the work in the same theme. The run holds the theme id opaquely, with no
+> foreign key; `arrt/tests/integration/test_get_destination.py` holds it.)* **Still in the
 > inventory:** the two foreign keys (rule 3), and one migration:
 > `mark_the_default_theme` (`persistence/migrations.py`) reads the Library's
 > `artworks` to back-fill Programming's `default_theme_offers` on a file that

@@ -728,12 +728,19 @@ class DiscoveryRunner:
         self._spawn(lambda: self._resolve_run(run.id))
         return run
 
-    def get(self, *, works: Sequence[ChosenWork], initiated_by: InitiatedBy) -> DiscoveryRun:
+    def get(
+        self,
+        *,
+        works: Sequence[ChosenWork],
+        initiated_by: InitiatedBy,
+        destination_theme_id: str | None = None,
+    ) -> DiscoveryRun:
         """Begin a Get over works the curator chose, and return its handle at once.
 
         Refused with no image source, for `resolve_images`' reason: a Get has
         nothing in it but phase 2, so a run nothing would pick up would be
-        reported as under way.
+        reported as under way. `destination_theme_id` is recorded on the run as
+        `DiscoveryService.start_get_run` says.
         """
         images = self._images
         if images is None:
@@ -741,7 +748,7 @@ class DiscoveryRunner:
                 "This deployment has no image source configured, so a Get has nothing to ask. "
                 "Nothing was started and nothing was spent."
             )
-        run = self._discovery.start_get_run(works=works, initiated_by=initiated_by)
+        run = self._discovery.start_get_run(works=works, initiated_by=initiated_by, destination_theme_id=destination_theme_id)
         with self._changed:
             self._in_flight.add(run.id)
         self._bump()
@@ -752,6 +759,7 @@ class DiscoveryRunner:
                     "event": "run.started",
                     "initiated_by": str(run.initiated_by),
                     "works_chosen": len(self._discovery.list_candidate_works(run.id)),
+                    "destination_theme_id": run.destination_theme_id,
                 },
             )
         self._spawn(lambda: self._resolve_run(run.id))

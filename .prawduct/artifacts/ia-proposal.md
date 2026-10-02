@@ -56,17 +56,20 @@ looking never spend.
 **P4. Walls are rooms.** Hanging works like playing music to a room. It takes any
 set: a theme, an artist, a selection or one work. You choose which walls (one,
 some or all). **The duration half waits for wave 4** (ruling 6): until then a
-hanging lasts until changed, and ending an excursion is hanging the default theme
-again, one wall at a time. A wall keeps a history, which answers S6's "what was
+hanging lasts until changed, and returning to the everyday rotation is hanging
+the default theme again, one wall at a time. A wall keeps a history, which answers S6's "what was
 that?".
 
-**P5. Taste is what the curator says, and excursions do not count.** Reactions
-("more like this", "not for me") can be given on any artist or work and are
-recorded as taste. Accepting works from a Get marked as an **excursion** writes
-no taste, while a reaction given during it still counts (ruling 5b). The
-excursion's works form a theme and **do not join the default theme** (ruling
-5a). This principle matters only once something reads taste; today nothing does
-(`user-scenarios.md` § Tested, the Delaunay request).
+**P5. Taste is what the curator says.** Reactions ("more like this", "not for
+me") can be given on any artist or work and are recorded as taste. A Get names a
+**destination**: *All works* by default, or any other theme, whose works then
+**do not join the default theme** (ruling 5a). Ruling 5b said acceptances from
+such a Get write no taste while reactions still count; what a destination means
+for taste is plan 4's to decide, and the destination is recorded on each Get for
+it. This principle matters only once something reads taste; today nothing does
+(`user-scenarios.md` § Tested, the Delaunay request). *(2026-10-02: "excursion"
+became a destination on every Get, `build-plan-topics-and-destinations.md`
+§ The owner's rulings.)*
 
 **P6. A thing has one page in every state.** An artist, work or topic has one
 address, whether held or not, so a link never breaks when a work arrives. Where a
@@ -194,8 +197,9 @@ shows below, as the next thing to look at.
 
 A period, movement, subject or medium, browsed like a genre. It shows held works
 in the topic, then **representative works** ranked by renown with their states,
-then artists in the topic. Select, then **Get**, optionally as an excursion. This
-is S12's door in. Representative works are free to list: measured 2026-10-01, the
+then artists in the topic. Select, then **Get**, into a theme named after the
+topic by default (`build-plan-topics-and-destinations.md` § The owner's rulings,
+2026-10-02). This is S12's door in. Representative works are free to list: measured 2026-10-01, the
 15 most-covered 16th-century paintings on Wikidata (sitelinks over 25) all have a
 free image (Mona Lisa, *The Hunters in the Snow*, *The Ambassadors*, …). It also
 shows the registry's messiness: *Salvator Mundi* appears twice, once for Leonardo
@@ -229,11 +233,13 @@ direction it settles on becomes a **Get**, in place (the seam ruling in
 A playlist: held works in an order. **Hang…** takes walls (and, from wave 4, a
 duration).
 
-**The default theme is the everyday rotation, and it is an ordinary theme.** An
-excursion's works form their own theme and are not in the default one (ruling
-5a). Nothing else marks an excursion: when it is over, the curator hangs the
-default theme again, and the excursion's works stay held, in their theme, out of
-the rotation. *"I'm not sure
+**The default theme is the everyday rotation, and it is an ordinary theme.**
+Every Get names a **destination**, *All works* unless the curator picks another
+theme, new or existing. Works sent elsewhere form that theme and are not in the
+default one (ruling 5a). Nothing else marks them: when the curator is done, they
+hang the default theme again, and those works stay held, in their theme, out of
+the rotation. *(2026-10-02: ruling 5a's "excursion" became this destination,
+`build-plan-topics-and-destinations.md` § The owner's rulings.)* *"I'm not sure
 there's anything needed beyond marking them as a theme, and not being in the
 default theme? Let's not overcomplicate."* (the owner, 2026-10-01).
 
@@ -241,11 +247,11 @@ default theme? Let's not overcomplicate."* (the owner, 2026-10-01).
 *All works* is an ordinary theme with recorded membership (40 members, the 40
 accepted works), and it is what their wall is hanging. Nothing adds a work to a
 theme automatically: the only callers of `add_to_theme` are the HTTP route and
-its MCP twin. So an excursion's works stay out of *All works* simply by not
-being added. But an ordinary acceptance joins no theme either, so every new
+its MCP twin. So works sent elsewhere would stay out of *All works* simply by
+not being added. But an ordinary acceptance joins no theme either, so every new
 everyday work had to be added to *All works* by hand. **Ruling 8 makes *All
-works* the default theme**: ordinary acceptances join it automatically, and
-excursion acceptances still do not.
+works* the default theme**: acceptances join it automatically, unless their Get
+named another destination, which they join instead (built 2026-10-02).
 
 ### Activity
 
@@ -271,7 +277,7 @@ future Watch would land, like Lidarr's Wanted › Missing.
 | S9 Clean-up | Library › Works filtered by low resolution or never hung; Activity › To review | No |
 | S10 Is it working? | The status indicator in the top bar → System › Status | No |
 | S11 Rothko, knowing nothing | Search `rothko` → Artist: 2 held, then their work with previews and states → select → **Get** | At Get |
-| S12 16th century for two days | Library › Topics → 16th century → representative works → **Get as excursion** → its theme → **Hang…** on each wall → when done, hang the default theme again. The works stay in their theme, out of the rotation. From wave 4: **Hang… on all walls until Sunday**, and the walls return by themselves | At Get |
+| S12 16th century for two days | Library › Topics → 16th century → representative works → **Get** into *16th century* (the destination defaults to the topic's name) → its theme → **Hang…** on each wall → when done, hang the default theme again. The works stay in their theme, out of the rotation. From wave 4: **Hang… on all walls until Sunday**, and the walls return by themselves | At Get |
 | Delaunays | Search → Robert Delaunay → Similar artists (each with how much has an image) → *More like this* records taste → Ask for more | No, until Get |
 
 S11 and S12, the two scenarios the built IA failed in `user-scenarios.md`
@@ -287,9 +293,9 @@ S11 and S12, the two scenarios the built IA failed in `user-scenarios.md`
 | Two-scope search: library, then *Search museums* → a paid run | One world: library and registry matches with states, free | **Changed** |
 | Search misses `dali` | Folds accents | **Fix**, independent of everything else |
 | Hang on one wall per click; no end; no history | Walls keep a history now; hanging on several walls, for a duration, with revert comes with wave 4's schedule | **New**, mostly deferred (ruling 6) |
-| *All works* is an ordinary theme, kept by hand | The designated default theme: ordinary acceptances join it automatically, excursion acceptances do not | **Changed** (rulings 5a and 8) |
+| *All works* is an ordinary theme, kept by hand | The designated default theme: acceptances join it automatically unless their Get named another destination (2026-10-02) | **Changed** (rulings 5a and 8) |
 | Archive one work at a time | Archive a selection; *Not this one again* from Walls | **Changed** |
-| Taste recorded, unread | Taste read by Ask and by similar artists; excursion acceptances write none, reactions during one do | **New** |
+| Taste recorded, unread | Taste read by Ask and by similar artists; what a Get's destination means for taste is plan 4's (ruling 5b, amended 2026-10-02) | **New** |
 | Activity: Queue, History | Activity: To review, Queue, History, Wanted | **Added**: To review and Wanted |
 | Walls as a top-level page | The same slot, now leading with what each wall shows | **Kept** (ruling 9) |
 

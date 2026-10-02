@@ -35,7 +35,10 @@ those differ is marked **CHANGE** with the reasoning.
 > (held and unheld works together, each with its state), an Artist page as hub,
 > Topic pages, Add New dissolved into a *Get* action and *Ask*, a default *All
 > works* theme that ordinary acceptances join, registry IDs stored, and hanging
-> for a duration left to wave 4. **This artifact still describes what runs**, and
+> for a duration left to wave 4. *(2026-10-02: ruling 5a's "excursion" became a
+> **destination** on every Get, *All works* by default or any other theme, by the
+> owner's rulings in `build-plan-topics-and-destinations.md`, which also places
+> Topics under Library.)* **This artifact still describes what runs**, and
 > its tables are guarded against the built client. Where the two differ,
 > `ia-proposal.md` wins for the target and this text wins for today, until the
 > build plan that lands each piece amends it.
@@ -640,7 +643,9 @@ about the theme rather than about the works — happens on the Theme screen.
 **One theme is the default, and acceptance fills it** *(the owner's ruling 8,
 built 2026-10-01)*. A work accepted from any route joins the default theme at the
 end of its order, once: taken out by hand, it stays out through a restart and a
-restore. The Theme screen marks the default with a star, the word *default* and
+restore. A Get may name another theme as its destination, over the API and MCP
+(`build-plan-topics-and-destinations.md` Chunk 01, 2026-10-02); its accepted
+works join that theme instead, and none if it was deleted meanwhile. The Theme screen marks the default with a star, the word *default* and
 the accent colour, offers *Make default* on every other theme, and says so when
 no theme is the default. The default cannot be deleted until another theme is
 made the default. *(The 2026-08-12 "whether it is the active theme" status this

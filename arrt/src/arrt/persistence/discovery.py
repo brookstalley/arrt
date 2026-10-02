@@ -11,7 +11,7 @@ values, no state-machine opinion. Every rule about what a valid run or candidate
 looks like belongs to the service layer, which is the only caller.
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from contextlib import AbstractContextManager
 from datetime import datetime
 from typing import Protocol
@@ -102,6 +102,16 @@ class DiscoveryStore(Protocol):
 
         This is the read behind work-scoped suppression, so it deliberately spans
         runs: a work declined in March must not come back in April.
+        """
+        ...
+
+    def destinations_of_artworks(self, artwork_ids: Sequence[str]) -> Mapping[str, str]:
+        """Each artwork's run's destination theme id, for the artworks whose run named one.
+
+        Joined artwork → the candidate work acceptance minted it from
+        (`candidate_works.artwork_id`) → that work's run. An artwork no
+        candidate work became, and one whose run named no destination, is
+        absent rather than mapped to None: the caller answers every id it asked.
         """
         ...
 

@@ -429,7 +429,13 @@ class DiscoveryService:
                 store_write(self._store.add_coverage, ResolveRunWork(resolve_run_id=run.id, candidate_work_id=work.id))
         return run
 
-    def start_get_run(self, *, works: Sequence[ChosenWork], initiated_by: InitiatedBy) -> DiscoveryRun:
+    def start_get_run(
+        self,
+        *,
+        works: Sequence[ChosenWork],
+        initiated_by: InitiatedBy,
+        destination_theme_id: str | None = None,
+    ) -> DiscoveryRun:
         """Begin a Get: phase 2 over works the curator chose from the registry.
 
         It enters at phase 2, like a re-search, because there is no work list to
@@ -441,6 +447,13 @@ class DiscoveryService:
         stops phase 1 proposing a declined work again; choosing it by name is the
         curator reconsidering it, which `propose_work` only allows when asked for
         explicitly, and a Get is that request.
+
+        **`destination_theme_id` is where its accepted works go**, a theme in
+        place of the default, or None for the default. It is recorded and never
+        read here: a theme is Programming's, so the Library holds its id as an
+        opaque reference and does not check it. The binding asked Programming
+        whether the theme exists before calling this, and `destinations` is how
+        Programming learns it back.
         """
         if not works:
             raise ServiceError("A Get needs at least one work.")
@@ -454,6 +467,7 @@ class DiscoveryService:
                 approval_required=False,
                 started_at=datetime.now(UTC),
                 estimated_cost_usd=Decimal(0),
+                destination_theme_id=destination_theme_id,
             )
             store_write(self._store.add_run, run)
             for work in chosen:
@@ -481,6 +495,18 @@ class DiscoveryService:
         waiting are absent.
         """
         return dict(Counter(work.discovery_run_id for work in self._store.list_works_awaiting_verdict()))
+
+    def destinations(self, artwork_ids: Iterable[str]) -> Mapping[str, str | None]:
+        """Where each artwork's acceptance asked it to go: a theme id, or None for the default.
+
+        Every id asked is answered. None is the answer for a work accepted from a
+        run that named no destination (an Ask, or a Get left at *All works*), for
+        one accepted before runs could name one, and for one no run minted
+        (seeded, or added by hand) or the catalogue does not hold.
+        """
+        wanted = list(dict.fromkeys(artwork_ids))
+        named = self._store.destinations_of_artworks(wanted)
+        return {artwork_id: named.get(artwork_id) for artwork_id in wanted}
 
     def items_being_got(self) -> frozenset[str]:
         """The Wikidata items a Get still under way is looking for."""
