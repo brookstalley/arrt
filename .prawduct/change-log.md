@@ -6,9 +6,8 @@
 
      # Tagged entries
 
-     Add a tag-line directly under each ## header recording which build-plan
-     chunks the entry shipped, which release it belongs to, and its rollup
-     scope.
+     Add a tag-line directly under each ## header recording its rollup scope
+     and, once released, which release it belongs to.
 
      **Nothing is REGENERATED from these tags any more — but they are still
      READ, and the difference matters when you write one.** `prawduct-hook
@@ -29,16 +28,13 @@
 
          ## YYYY-MM-DD: title (vN.M.P)
 
-         <!-- prawduct: chunks=00,01,02 | release=v1.3.18 | status=shipped | scope=v1.4 -->
+         <!-- prawduct: release=v1.3.18 | scope=v1.4 -->
 
          **Why:** ...
 
      Recognized keys:
-       chunks   - comma-separated chunk IDs (zero-padded, must match
-                  build-plan.md ## Status headers exactly: `Chunk 00:`).
-                  Informational: nothing regenerates from it and release
-                  readiness ignores it, but it ties an entry to the chunk it
-                  shipped, which a reader and the Critic's record check use.
+       chunks   - retired: nothing reads it. Archived entries carry it as
+                  history; `scope=` ties an entry to its plan.
        release  - version string (used by the release-notes view)
        status   - shipped | merged (legacy). Write a new entry with NO
                   status= on the feature branch: a statusless tagged entry
@@ -68,7 +64,7 @@
 
 ## 2026-10-02: The cumulative review of one-world search, resolved
 
-<!-- prawduct: chunks=05 | scope=one-world-search -->
+<!-- prawduct: scope=one-world-search -->
 
 **Why:** the cumulative review found that the rules on a curator's Wikidata item
 lived only in the browser. An agent's `set_artist_qid` could give a second artist
@@ -91,7 +87,7 @@ older duplicate to the first by name. The review's warnings, fixed:
 
 ## 2026-10-01: Similar artists, and setting a Wikidata item by hand
 
-<!-- prawduct: chunks=05 | scope=one-world-search -->
+<!-- prawduct: scope=one-world-search -->
 
 **Why:** ruling 4 asks for the full Artist hub, and *Similar artists* was the
 piece left. Ruling 7's identities had routes to correct them and no control, so
@@ -110,7 +106,7 @@ failed-search test now asserts the library's own message.
 
 ## 2026-10-01: A results page for everything a search finds
 
-<!-- prawduct: chunks=04 | scope=one-world-search -->
+<!-- prawduct: scope=one-world-search -->
 
 **Why:** ruling 2, one world. The dropdown shows a few of each kind; a curator
 reading what exists needs the whole list. The owner kept Enter on Artworks on
@@ -130,7 +126,7 @@ tables, `SCREEN_NAMES` and the Contextual sentence carry the new screen.
 
 ## 2026-10-01: The search box covers Wikidata too
 
-<!-- prawduct: chunks=03 | scope=one-world-search -->
+<!-- prawduct: scope=one-world-search -->
 
 **Why:** ruling 2, one world: typing an artist or a title should show what the
 library holds and what exists, each with its state, in one place.
@@ -154,7 +150,7 @@ watched failing under mutations of the client, the service and the registry.
 
 ## 2026-10-01: Pages for works and artists the library does not hold
 
-<!-- prawduct: chunks=02 | scope=one-world-search -->
+<!-- prawduct: scope=one-world-search -->
 
 **Why:** ruling 2 puts the library and the registry in one world. Until now a
 work Wikidata lists was only a link out to wikidata.org, and an artist the
@@ -182,7 +178,7 @@ under mutations of the code they cover.
 
 ## 2026-10-01: Outside text reaches the page as text, by norm
 
-<!-- prawduct: chunks=01 | scope=one-world-search -->
+<!-- prawduct: scope=one-world-search -->
 
 **Why:** one-world search puts Wikidata's words into the typeahead, the second
 page to show registry text. The first, the Artist page, was bounded only by its
@@ -192,7 +188,7 @@ by a rule, not by someone remembering one page.
 **What:** `security-model.md` gains a § Direction: text from a registry, a
 museum or a model is never parsed as markup, and an outside image or link is
 used only from a named host or built from a checked id. Its row in the norm
-index names three tests. `tests/preferences/test_external_text.py` reads every
+index names five tests. `tests/preferences/test_external_text.py` reads every
 script under `arrt/src/arrt/http/static/`, comments removed, and refuses twelve
 sinks that parse markup or compile a string; the client uses none today. It also
 refuses inline script in a page there. On the registry seam every string, in a
@@ -212,7 +208,7 @@ Open's entry is closed in place. Also: the plan for this scope, and
 
 ## 2026-10-01: Library › Artists, and the Artist page
 
-<!-- prawduct: chunks=04 | scope=ia-foundations -->
+<!-- prawduct: scope=ia-foundations -->
 
 **Why:** the owner's ruling 4: the artist is the hub. A curator getting to know
 an artist (S11) wants to see who they are, what the library holds of theirs,
@@ -245,7 +241,7 @@ manifest (backlog #147).
 
 ## 2026-10-01: Works and artists carry a Wikidata QID where one is certain
 
-<!-- prawduct: chunks=03 | scope=ia-foundations -->
+<!-- prawduct: scope=ia-foundations -->
 
 **Why:** the owner's ruling 7, so the Artist page (and later, search) can tell
 which registry works the library holds without matching titles.
@@ -274,7 +270,7 @@ migration that reads across the seam.
 
 ## 2026-10-01: All works is the default theme, and acceptances join it
 
-<!-- prawduct: chunks=02 | scope=ia-foundations -->
+<!-- prawduct: scope=ia-foundations -->
 
 **Why:** the owner's ruling 8, "There should be a default 'all works' theme."
 Nothing added a work to a theme automatically, so an accepted work landed nowhere
@@ -296,7 +292,7 @@ work not rejoining is an ASSUMPTION in the plan, recommended to the owner.
 
 ## 2026-10-01: Library search ignores case, accents and ligatures
 
-<!-- prawduct: chunks=01 | scope=ia-foundations -->
+<!-- prawduct: scope=ia-foundations -->
 
 **Why:** `dali`, `miro` and `rene` found nothing in a library holding Dalí, Miró
 and Magritte, and the typeahead offered only a paid museum search
