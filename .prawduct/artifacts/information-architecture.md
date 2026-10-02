@@ -643,9 +643,10 @@ about the theme rather than about the works — happens on the Theme screen.
 **One theme is the default, and acceptance fills it** *(the owner's ruling 8,
 built 2026-10-01)*. A work accepted from any route joins the default theme at the
 end of its order, once: taken out by hand, it stays out through a restart and a
-restore. A Get may name another theme as its destination, over the API and MCP
-(`build-plan-topics-and-destinations.md` Chunk 01, 2026-10-02); its accepted
-works join that theme instead, and none if it was deleted meanwhile. The Theme screen marks the default with a star, the word *default* and
+restore. A Get may name another theme as its destination: the Get control's *Add to*
+select, the API and MCP (`build-plan-topics-and-destinations.md` Chunks 01-02,
+2026-10-02). Its accepted works join that theme instead, and none if it was
+deleted meanwhile; Queue, the run page and Review say which. The Theme screen marks the default with a star, the word *default* and
 the accent colour, offers *Make default* on every other theme, and says so when
 no theme is the default. The default cannot be deleted until another theme is
 made the default. *(The 2026-08-12 "whether it is the active theme" status this
