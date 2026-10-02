@@ -22,19 +22,22 @@
 import { api } from "../core/api.js";
 import { table } from "../core/badges.js";
 import { counted } from "../core/counting.js";
+import { destinationOf, destinationWords, readThemes } from "../core/destination.js";
 import { el, render } from "../core/render.js";
 import { go } from "../core/router.js";
 import { KIND_WORDS } from "../core/runs.js";
 
 /* The runs as rows. A re-search and a Get are runs too. A Get has no intent of
- * its own: the curator chose its works, which is what its row says. */
-function runTable(caption, runs) {
+ * its own: the curator chose its works, which is what its row says. *Into* is
+ * the theme its accepted works join, named from `themes`, the theme listing. */
+function runTable(caption, runs, themes) {
   return table(
     caption,
-    ["Asked for", "Kind", "State", "Started", "Open"],
+    ["Asked for", "Kind", "Into", "State", "Started", "Open"],
     runs.map((run) => [
       run.intent || (run.kind === "get" ? "Works you chose" : "—"),
       KIND_WORDS[run.kind] || run.kind,
+      destinationWords(destinationOf(run, themes)),
       run.status,
       run.started_at,
       el("button", {
@@ -96,7 +99,8 @@ export async function viewToReview(generation) {
               type: "button",
               text: "Review",
               "aria-label": `Review the ${KIND_WORDS[run.kind] || "run"} for ${run.intent || (run.kind === "get" ? "the works you chose" : run.run_id)}`,
-              onclick: () => go("review", run.run_id),
+              // A Get is reviewed on its own page; every other run on Review.
+              onclick: () => (run.kind === "get" ? go("run", run.run_id) : go("review", run.run_id)),
             }),
           ]),
         ),
@@ -108,7 +112,7 @@ export async function viewToReview(generation) {
 }
 
 export async function viewQueue(generation) {
-  const runs = await api("/api/runs");
+  const [runs, themes] = await Promise.all([api("/api/runs"), readThemes()]);
   const active = runs.runs.filter((run) => !run.is_terminal);
   const panels = [el("h2", { text: "Queue" })];
   if (!active.length) {
@@ -132,7 +136,7 @@ export async function viewQueue(generation) {
     panels.push(
       el("div", { class: "panel" }, [
         el("h3", { text: `In flight (${active.length})` }),
-        runTable("Every search still working or waiting for approval, newest first.", active),
+        runTable("Every search still working or waiting for approval, newest first.", active, themes),
       ]),
     );
   }
@@ -141,7 +145,7 @@ export async function viewQueue(generation) {
 }
 
 export async function viewHistory(generation) {
-  const runs = await api("/api/runs");
+  const [runs, themes] = await Promise.all([api("/api/runs"), readThemes()]);
   const finished = runs.runs.filter((run) => run.is_terminal);
   const panels = [el("h2", { text: "History" })];
   if (!finished.length) {
@@ -150,7 +154,7 @@ export async function viewHistory(generation) {
     panels.push(
       el("div", { class: "panel" }, [
         el("h3", { text: `Finished (${finished.length})` }),
-        runTable("Every search that has ended, newest first, with how it ended.", finished),
+        runTable("Every search that has ended, newest first, with how it ended.", finished, themes),
       ]),
     );
   }

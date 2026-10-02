@@ -63,6 +63,10 @@ from arrt.persistence.discovery_records import (
 from arrt.persistence.durable import OrderBy
 from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass, VocabularyKind
 
+#: How many ids one `IN (...)` binds. Well under SQLite's bound on a statement's
+#: parameters, which is 999 on builds older than 3.32.
+_IDS_PER_STATEMENT: Final[int] = 500
+
 DISCOVERY_SCHEMA = """
 CREATE TABLE IF NOT EXISTS discovery_runs (
     id                     TEXT PRIMARY KEY,
@@ -80,7 +84,13 @@ CREATE TABLE IF NOT EXISTS discovery_runs (
     approval_required      INTEGER NOT NULL,
     unresolved_work_count  INTEGER,
     started_at             TEXT NOT NULL,
-    completed_at           TEXT
+    completed_at           TEXT,
+    -- The theme a Get's accepted works join instead of the default. Programming's
+    -- id, so deliberately no REFERENCES clause: it is an opaque reference across
+    -- the Library/Programming seam that may fail to resolve once the theme is
+    -- deleted. Null means the default, and is what every run before Gets could
+    -- name a theme reads as; nullable so widening reaches older files.
+    destination_theme_id   TEXT
 );
 
 -- Startup reconciliation reads runs by status, on every process start.
@@ -352,6 +362,22 @@ class SqliteDiscovery(TableAdapter):
     def list_candidate_works_by_dedup_key(self, work_dedup_key: str) -> Sequence[CandidateWork]:
         return self._list("candidate_works", {"work_dedup_key": work_dedup_key}, _BY_TITLE, _candidate_work)
 
+    def destinations_of_artworks(self, artwork_ids: Sequence[str]) -> Mapping[str, str]:
+        found: dict[str, str] = {}
+        wanted = list(dict.fromkeys(artwork_ids))
+        # In slices, because the catch-up at start may ask about every work the
+        # catalogue holds and SQLite bounds how many values one statement binds.
+        for start in range(0, len(wanted), _IDS_PER_STATEMENT):
+            chunk = wanted[start : start + _IDS_PER_STATEMENT]
+            rows = self._store.select_rows(
+                'SELECT cw."artwork_id" AS artwork_id, r."destination_theme_id" AS theme_id '
+                'FROM candidate_works cw JOIN discovery_runs r ON r."id" = cw."discovery_run_id" '
+                f'WHERE r."destination_theme_id" IS NOT NULL AND cw."artwork_id" IN ({", ".join("?" * len(chunk))})',
+                chunk,
+            )
+            found.update({row["artwork_id"]: row["theme_id"] for row in rows})
+        return found
+
     # -- candidate images -----------------------------------------------------
 
     def add_candidate_image(self, image: CandidateImage) -> None:
@@ -524,6 +550,7 @@ def _run_row(run: DiscoveryRun) -> dict[str, Any]:
         "unresolved_work_count": run.unresolved_work_count,
         "started_at": to_iso(run.started_at),
         "completed_at": to_iso(run.completed_at),
+        "destination_theme_id": run.destination_theme_id,
     }
 
 
@@ -648,6 +675,7 @@ def _run(row: Mapping[str, Any]) -> DiscoveryRun:
         actual_cost_usd=from_money(row["actual_cost_usd"]),
         unresolved_work_count=row["unresolved_work_count"],
         completed_at=from_iso(row["completed_at"]),
+        destination_theme_id=row["destination_theme_id"],
     )
 
 

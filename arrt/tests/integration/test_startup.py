@@ -13,6 +13,7 @@ from dataclasses import replace
 from decimal import Decimal
 
 import pytest
+from fakes import FakeRegistry
 
 import arrt.__main__ as entry_point
 from arrt.art_root import MARKER_NAME, ArtRootError
@@ -49,10 +50,14 @@ from arrt.config import (
 )
 from arrt.library.discovery.phase_one import OpenRouterEngine
 from arrt.library.facade import LibraryFacade
+from arrt.library.registry import RegistrySimilar
+from arrt.library.services.artists import RegistryState
 from arrt.library.services.catalogue import CatalogueService
+from arrt.library.services.discovery import DiscoveryService
 from arrt.persistence.file import open_catalogue_file
 from arrt.persistence.migrations import DEFAULT_WALL_NAME
 from arrt.persistence.sqlite import SqliteCatalogue
+from arrt.persistence.sqlite_discovery import SqliteDiscovery
 from arrt.programming.display import DisplayService, DisplaySettings
 
 #: A key shaped like the real thing, so a naive redaction that only hides values
@@ -170,11 +175,13 @@ def test_the_plane_moves_the_catalogue_onto_walls_before_it_serves(tmp_path, mon
     def capture(app, **kwargs) -> None:  # noqa: ANN001, ANN003 - uvicorn's own signature
         # Read through a second connection to the same file, so this observes what
         # a request arriving at this moment would observe.
-        observer = SqliteCatalogue(open_catalogue_file(path))
+        opened = open_catalogue_file(path)
+        observer = SqliteCatalogue(opened)
         try:
+            catalogue = CatalogueService(observer)
             display = DisplayService(
                 observer,
-                LibraryFacade(CatalogueService(observer)),
+                LibraryFacade(catalogue, DiscoveryService(SqliteDiscovery(opened), catalogue)),
                 DisplaySettings(art_root=art_root, rotation_interval_seconds=180, shuffle=True),
             )
             wall = observer.list_walls()[0]
@@ -459,6 +466,29 @@ def test_the_configured_sweep_interval_reaches_the_application(tmp_path, monkeyp
     assert built["preview_sweep_interval_seconds"] == 900
 
 
+def test_the_entry_point_asks_for_the_topic_sweep(tmp_path, monkeypatch):
+    """`create_app` sweeps topics only when asked, and this entry point is the one that asks.
+
+    Without that one argument a deployment never gives its works topics, and
+    every test of the sweep still passes.
+    """
+    art_root = tmp_path / "art"
+    art_root.mkdir()
+    _stub_settings(monkeypatch, art_root)
+    built: dict = {}
+
+    def capture(services, **kwargs):  # noqa: ANN001, ANN003 - the real signature
+        built.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(entry_point, "create_app", capture)
+    monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
+
+    entry_point.main()
+
+    assert built["sweep_topics"] is True
+
+
 def test_uvicorns_own_default_is_what_makes_that_argument_necessary():
     """Read from uvicorn itself, so the reason cannot outlive the behaviour.
 
@@ -567,3 +597,33 @@ def test_startup_with_no_image_source_says_which_settings_would_add_one(tmp_path
         entry_point.main()
 
     assert "phase2 image_sources=none (ARTIC_USER_AGENT and WIKIDATA_USER_AGENT unset) previews=disabled" in caplog.text
+
+
+def test_the_registry_pages_answer_from_what_the_last_process_kept(tmp_path, monkeypatch):
+    """The kept answers file is opened by `main` and reaches the registry pages.
+
+    Two processes over one art root: the first is asked about an artist's
+    similar artists with the registry up, the second with it down. Every
+    service test passes a file of its own, so without this a `main` that
+    wired none would leave every page keeping answers for the process alone.
+    """
+    art_root = tmp_path / "art"
+    _stub_settings(monkeypatch, art_root)
+    rembrandt = RegistrySimilar(qid="Q5598", name="Rembrandt", sitelinks=200, images=900)
+    answered: list = []
+
+    def run(registry) -> None:
+        def capture(services, **kwargs):  # noqa: ANN001, ANN003 - the real signature
+            answered.append(services.artists.similar("Q43270"))
+            return object()
+
+        monkeypatch.setattr(entry_point, "_registry", lambda settings: registry)
+        monkeypatch.setattr(entry_point, "create_app", capture)
+        monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
+        entry_point.main()
+
+    run(FakeRegistry(similar={"Q43270": [rembrandt]}))
+    run(FakeRegistry(failing=True))
+
+    assert [(view.state, view.people) for view in answered] == [(RegistryState.KNOWN, (rembrandt,))] * 2
+    assert (art_root / "kept-answers.sqlite").is_file()

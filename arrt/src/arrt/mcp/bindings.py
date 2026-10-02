@@ -158,6 +158,35 @@ def _set_artist_qid(services: Services, arguments: Mapping[str, Any]) -> dict[st
     return ok(artist=_artist_fields(artist))
 
 
+def _list_topics(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    index = services.topics.index()
+    return ok(
+        state=str(index.state),
+        note=index.note,
+        kinds=[
+            {
+                "kind": group.kind.value,
+                "topics": [{"qid": topic.qid, "label": topic.label, "works": topic.works} for topic in group.topics],
+            }
+            for group in index.groups
+        ],
+    )
+
+
+def _get_topic(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    page = services.topics.page(arguments["qid"])
+    return ok(
+        state=str(page.state),
+        note=page.note,
+        qid=page.qid,
+        label=page.label,
+        kinds=[kind.value for kind in page.kinds],
+        # Two calls composed, as a theme's works are: the topic says which works,
+        # and the catalogue says what each is.
+        works=[_summary(entry) for entry in services.catalogue.resolve_details(page.work_ids)],
+    )
+
+
 def _stated_qid(value: str) -> str | None:
     """`none`, in any case, is the curator saying there is no item; anything else is checked as a QID."""
     return None if value.strip().lower() == "none" else value
@@ -520,7 +549,12 @@ def _resolve_images(services: Services, arguments: Mapping[str, Any]) -> dict[st
 
 
 def _start_get(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    outcome = services.get.start(arguments["qids"], initiated_by=InitiatedBy.MCP_CLIENT)
+    # Two calls composed, with no branch on the first's answer: Programming says
+    # the theme exists (refusing an unknown one, so nothing starts), and the
+    # Library starts the Get.
+    theme_id = arguments.get("theme_id")
+    destination = None if theme_id is None else services.display.get_theme(theme_id).id
+    outcome = services.get.start(arguments["qids"], initiated_by=InitiatedBy.MCP_CLIENT, destination_theme_id=destination)
     skipped = [{"qid": entry.qid, "reason": str(entry.reason)} for entry in outcome.skipped]
     if outcome.run is None:
         return ok(
@@ -918,6 +952,8 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_catalogue", "set_work_qid"): _set_work_qid,
     ("art_catalogue", "set_artist_qid"): _set_artist_qid,
     ("art_catalogue", "regenerate"): _regenerate,
+    ("art_catalogue", "topics"): _list_topics,
+    ("art_catalogue", "topic"): _get_topic,
     ("art_theme", "list"): _list_themes,
     ("art_theme", "get"): _get_theme,
     ("art_theme", "create"): _create_theme,
@@ -1173,6 +1209,9 @@ def _run_fields(run: DiscoveryRun) -> dict[str, Any]:
         "parent_run_id": run.parent_run_id,
         "started_at": _moment(run.started_at),
         "completed_at": _moment(run.completed_at),
+        # Where a Get's accepted works go instead of the default theme, or null
+        # for the default. A theme id, which may name one deleted since.
+        "destination_theme_id": run.destination_theme_id,
     }
 
 

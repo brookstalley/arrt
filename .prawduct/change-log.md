@@ -62,6 +62,109 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-02: The owner's review of the screens: Add to, the typeahead, and Review on a Get's own page
+
+<!-- prawduct: scope=topics-and-destinations -->
+
+**Why:** the owner looked the screens over on a catalogue copy. On a Topic page
+*Add to* showed *New theme…* with the name already typed; the typeahead hid
+Wikidata's artists and works behind the slower topic search; a Get asked for a
+second page to judge works the curator had already chosen; Review's card was a
+narrow column whose Scans facts wrapped a few characters wide; and "would show
+at 28.2″" meant nothing without knowing the panel.
+
+**What:** *Add to* offers a caller's name as "<name> (new theme)", selected,
+with the name field hidden unless *New theme…*. The typeahead paints each
+Wikidata answer as it arrives, with *Asking Wikidata…* until both have. A Get's
+page is its review; cards are one work per row; Scans is a table after Radarr's
+interactive search; the scan's pixels show above the fold and no screen shows
+inches; clicking a picture enlarges it in place (`?size=large` previews). The
+scan payload gains `width` and `height`. Critic `rev-20261002T174121Z-200674d5`:
+0 blocking; its follow-ups keep a review card (its *Why*, open *Scans* and focus)
+across a running Get's redraw, tell a finished Get whose cards could not be read
+to reload, name an enlarged scan for the picture, and let fact lists wrap
+between words on phones (`rev-20261002T180820Z-3fd253b4`, clean). PR #171's
+browser CI leg then found the Scans table scrolling sideways inside a 1280 px
+card on the runner's wider fonts (it was already 24 px over on macOS, inside the
+edge check's padding slack): a scan's two actions now stack, and the test
+asserts the table's box does not scroll. Three browser tests that read the page
+before it settled under `-n auto` now wait for what they assert. Filed from the same review: #167 (accepting never acquires the
+master), #168 (Wanted), #169 (Artworks' theme filter vs add-to-theme, decided:
+follow Radarr).
+
+## 2026-10-02: Library › Topics and the Topic page, kept answers, and the owner's topic rules
+
+<!-- prawduct: scope=topics-and-destinations -->
+
+**Why:** S12 asks to browse by period, movement, subject or medium and Get from
+there into a theme named after the topic. Chunk 03's measurement found period
+pages slow (7-60 s) and three rules that read badly; the owner answered all of
+it the same day.
+
+**What:**
+- **Library › Topics (`/topics`) and the Topic page (`#topic/<qid>`):** your
+  topics by kind with counts and a Wikidata search; a topic's head, *In your
+  library*, *Representative works* (headed with its years for a period) and
+  *Artists*, the registry sections filled after the page draws. Get from a topic
+  defaults *Add to* to a theme named after it. The top bar gains *Topics* and
+  *Wikidata: topics* groups.
+- **Answers kept across restarts:** `persistence/kept.py`, a general store any
+  slow foreign source can use, in **`ART_ROOT/kept-answers.sqlite`, which is
+  disposable: a backup may skip it, and deleting it costs only time.** Every
+  registry page section and topic search keeps its answers for a week. The
+  in-memory `Remembered` is retired; its LRU tests live on in
+  `test_kept_answers.py`.
+- **The owner's topic rules:** the kind rule loses its "start and end time"
+  clause; search drops movements no visual artwork's maker belongs to; a topic's
+  artists rank by the summed sitelinks of their works in it (after works-count
+  let bulk catalogue imports lead). A topic's works and artists get Wikidata's
+  own 60 s limit, so a named period is slow once and then kept.
+- Driven on a catalogue copy (S12): 16th century → three works into a new theme
+  "16th century" → accepted: the theme holds them, *All works* does not, and the
+  topic's count rose from 1 to 4. A bookmark to `/topics` 404'd until added to
+  `UI_PATHS`, caught by the boundary run.
+- Cumulative Critic `rev-20261002T161451Z-8549ec71`: 0 blocking; three warnings
+  fixed (section timeouts, topic search kept, the artist-match nudge tested),
+  the rest accepted on the record. Backlog #165 and #166 filed.
+
+## 2026-10-02: Topics from Wikidata, and your works' topics as facets
+
+<!-- prawduct: scope=topics-and-destinations -->
+
+**Why:** a curator could browse by artist but not by period, movement, subject
+or medium, and the Artworks facet rail was empty because nothing wrote
+`work_facets`.
+
+**What:** the registry answers a topic, its works, its artists, topic search
+and a held work's topics (`wikidata.py`, `TopicService`); the kind rule was
+measured on twenty topics, 0 wrong (`wikidata-findings.md` § Topics). A topic
+sweep writes `sourced` facet rows with `value_qid` at start, after acceptance
+and after a QID change, never touching `inferred` rows. `GET /api/topics`,
+`/api/topics/{qid}` (no network), its `/registry`, `/works` and `/artists`
+sections, `/api/registry/topics`, and `art_catalogue(action='topics'|'topic')`.
+Driven on a catalogue copy: the sweep wrote 140 rows and the rail shows
+movement, era, subject and medium with counts, narrowing the grid when chosen.
+Critic `rev-20261002T145007Z-483be496` found the sweep's wiring untested; four
+tests now hold it (`rev-20261002T145426Z-32e27622`, resolved).
+
+## 2026-10-02: A Get names where its works go, over HTTP, MCP and the client
+
+<!-- prawduct: scope=topics-and-destinations -->
+
+**Why:** every accepted work joined the default theme, so works a curator
+wanted for one occasion entered the everyday rotation. The owner recast
+ruling 5a's "excursion" as a destination on every Get (2026-10-02).
+
+**What:** `discovery_runs.destination_theme_id` (nullable, no cross-seam
+foreign key) records a Get's theme; `LibraryFacade.destinations` answers it per
+work; Programming's `offer_destinations` (was `offer_to_default`) puts an
+accepted work in that theme, or none if it was deleted, and `catch_up_offers`
+does the same at start. `POST /api/gets` and `art_discovery(action='get')` take
+`theme_id`. The Get control gains *Add to*; Queue, History, the run page and
+Review say where a run's works go. "Excursion" is retired from the live
+artifacts; `data-model.md` gains Q22-Q24. Built by two delegates in worktrees,
+merged no-ff; Critic `rev-20261002T141127Z-2cff3579`, 0 blocking.
+
 ## 2026-10-02: The cumulative review of Get and Ask, resolved
 
 <!-- prawduct: scope=get-and-ask -->

@@ -26,7 +26,16 @@ import httpx
 import pytest
 
 import arrt.library.registry as seam
-from arrt.library.registry import QID, CommonsFile, ItemId, MuseumIdentifier, Registry, RegistryText
+from arrt.library.registry import (
+    QID,
+    CommonsFile,
+    ItemId,
+    MuseumIdentifier,
+    Registry,
+    RegistryText,
+    RegistryTopic,
+    TopicKind,
+)
 from arrt.library.registry.identifiers import IdentifierScheme
 from arrt.library.registry.wikidata import WikidataRegistry
 
@@ -45,6 +54,9 @@ COMMONS = "https://commons.wikimedia.org/wiki/Special:FilePath/"
 #: the question makes (`include` is outside the most renowned, so its query runs).
 ASKED = "1"
 
+#: A topic as a caller hands it back: the registry's own answer to `topic`.
+_A_SUBJECT = RegistryTopic(qid=ItemId("Q1"), label=RegistryText("winter"), kinds=(TopicKind.SUBJECT,))
+
 CALLS = {
     "works_by_identifier": lambda registry: registry.works_by_identifier(IdentifierScheme.ARTIC, [ASKED]),
     "creators_of": lambda registry: registry.creators_of(["Q1"]),
@@ -54,6 +66,12 @@ CALLS = {
     "works_matching": lambda registry: registry.works_matching(["any"], prefix=True, limit=5),
     "similar_to": lambda registry: registry.similar_to("Q1", limit=5),
     "label_of": lambda registry: registry.label_of("Q1"),
+    "topic": lambda registry: registry.topic("Q1"),
+    # A subject reaches both of a topic's queries, the works' and their makers'.
+    "topic_works": lambda registry: registry.topic_works(_A_SUBJECT, limit=5),
+    "topic_artists": lambda registry: registry.topic_artists(_A_SUBJECT, limit=5),
+    "topics_named": lambda registry: registry.topics_named("anything"),
+    "topics_of": lambda registry: registry.topics_of(["Q1"], ["Q2"]),
 }
 
 

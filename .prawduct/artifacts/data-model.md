@@ -167,6 +167,42 @@ to serve, elicited from the Product Brief's core flows:
 | Q19 | Which registry artist is this library artist, so the Artist page can show what the registry knows? | Ruling 7 |
 | Q20 | Which held works and artists have no registry identity yet, so a later matching pass knows what to try? | Ruling 7 |
 | Q21 | How was each identity set, and can it be trusted: matched automatically and unambiguously, or set by the curator, including set to *none*, so a correction survives the next pass? | Ruling 7 |
+| Q22 | Which theme does a work accepted from this Get join? Asked by Programming at acceptance and at every start, so a lost announcement lands the work where a delivered one would. | Owner 2026-10-02 (destinations) |
+| Q23 | Did this acceptance go into the everyday rotation? No destination means it did. Asked by plan 4's taste reader. | Owner 2026-10-02 (destinations) |
+| Q24 | Which Gets were sent somewhere other than the rotation, so Queue and Review can say where a Get's works go? | Owner 2026-10-02 (destinations) |
+| Q25 | Which topics does my library touch, and how many works in each? Asked by Library › Topics and by the Artworks rail. | Owner 2026-10-02 (topics) |
+| Q26 | Which of my works are in this topic? A Topic page's first section, answered with no network. | Owner 2026-10-02 (topics) |
+| Q27 | Where did this claim about a work come from, so a curator correcting it knows what they are arguing with? | Owner 2026-10-02 (topics) |
+| Q28 | Which Topic page does this facet value open? | Owner 2026-10-02 (topics) |
+| Q29 | Do I already have this answer from a slow foreign source, and is it fresh enough to use? Asked by every page section that asks one (the registry's first). | Owner 2026-10-02 (kept answers) |
+| Q30 | How much is kept, and what can be thrown away first? Asked by the store itself on every write and at every open. | Owner 2026-10-02 (kept answers) |
+
+**Q22 to Q24 are answered by one column, `DiscoveryRun.destination_theme_id`**
+(`build-plan-topics-and-destinations.md` Chunk 01). A work reaches its run
+through the candidate acceptance minted it from (`CandidateWork.artwork_id`), so
+Q22 and Q23 are a join, and Q24 is the column read directly. The column is a
+theme id held opaquely, with no foreign key (`architecture.md` seam rule 3): a
+theme deleted since the Get still reads back, which is what lets Q24 say "a
+theme that has been deleted" rather than nothing, and what tells Programming the
+curator chose "not the rotation" for a work accepted after the deletion.
+
+**Q25 to Q28 are answered by `WorkFacet` rows the topic sweep writes, and one
+column, `WorkFacet.value_qid`** (`build-plan-topics-and-destinations.md` Chunk
+04). Q25 is a count of works in circulation per (`kind`, `value_qid`); Q26 is the
+works carrying a `value_qid` under a topic kind (`era`, `movement`, `subject`,
+`medium`), so a palette value that names an item opens no Topic page; Q27 is
+`derivation` and `source_note`, already there, which the sweep fills as `sourced`
+and "Wikidata"; Q28 is the column. The label is `value`, as Wikidata wrote it when
+the row was recorded, so the rail and the index read without asking anything. A
+facet that names no item, as an inferred one usually will, has a null
+`value_qid` and is a rail value with no page.
+
+**Q29 and Q30 are answered by `KeptAnswer`, in a file of its own and
+disposable** (`build-plan-topics-and-destinations.md` Chunk 03c). Nothing in the
+catalogue refers to it and nothing in it is a record: deleting the file costs
+each page section one more question of its source. That is why it is not part of
+the catalogue, why a backup skips it, and why its format changes by being
+replaced rather than migrated.
 
 **Q15 is what makes the collection navigable at the amended scale**
 (`nonfunctional-requirements.md`, thousands of works). At 41 works a curator
@@ -552,7 +588,9 @@ naming and grouping concept, not an accounts concept.
 
 > **The default theme** *(the owner's ruling 8, 2026-10-01: "There should be a
 > default 'all works' theme")*. Every work the Library announces as accepted joins
-> it, at the end of its order, once (see **DefaultThemeOffer**). With no theme
+> it, at the end of its order, once (see **DefaultThemeOffer**), unless the Get it
+> came from named another theme (`DiscoveryRun.destination_theme_id`, 2026-10-02),
+> which it joins instead. With no theme
 > marked, an acceptance joins nothing and still succeeds. The owner's existing
 > *All works* is marked by migration: on a file holding works but no offers (one
 > written before this field), the theme named *All works*, ignoring case, is
@@ -613,6 +651,13 @@ Join entity. Explicit rather than implicit so ordering can be curated.
 > the shape `architecture.md` seam rule 3 asks of every new reference across the
 > seam.
 
+> **Since 2026-10-02 the offer is of the work's destination**, the theme its Get
+> named (`DiscoveryRun.destination_theme_id`) or the default when none was named.
+> The table keeps its name: renaming one is a written migration that buys
+> nothing. A work whose named theme was deleted before it was accepted joins no
+> theme and is recorded as offered all the same, so no start sweeps it into the
+> default; the log names the work and the theme.
+
 One row per work the default theme has been offered, whether or not one existed
 to join (Q17). It is what makes the join happen once: the `work.accepted` event
 is published for a restored work as well as a new one, and startup
@@ -627,7 +672,8 @@ restore or restart.
 
 > **Recorded even when no theme is the default**, so that marking one later does
 > not sweep in every work accepted before it. The theme a work was offered to is
-> not recorded: nothing asks it, and membership already says where the work is.
+> not recorded here: where the curator asked it to go is the run's
+> `destination_theme_id` (Q22), and membership says where the work is now.
 >
 > **Back-filled once.** The migration that marks *All works* also records an offer
 > for every work already in the catalogue, because those works predate the
@@ -812,8 +858,9 @@ Answers Q15. Added 2026-08-10 with the collection's retrieval surface
 | `kind` | enum | required | The same closed set as `Affinity.kind` — `artist` \| `movement` \| `era` \| `subject` \| `medium` \| `palette`. One vocabulary, two sides; see below. |
 | `value` | string | required | "Baroque", "Late 19th c.", "Seascape". |
 | `derivation` | enum | required | `sourced` (the institution published it) \| `inferred` (a model assigned it). Never absent — an unlabelled facet is a guess wearing a citation. |
-| `source_note` | string | nullable | For `sourced`, which field of which provider — e.g. `artic:classification_title`. For `inferred`, the model id. |
+| `source_note` | string | nullable | For `sourced`, which field of which provider — e.g. `artic:classification_title`, or `Wikidata` for the topic sweep's rows. For `inferred`, the model id. |
 | `created_at` | datetime | auto | |
+| `value_qid` | string | nullable | The Wikidata item the value names: the Topic page it opens (Q28). Null for a value nobody tied to an item. Added 2026-10-02 by widening (nullable, no written migration), with an index for "which works carry this item". |
 
 **Unique on (`artwork_id`, `kind`, `value`).** A work is Baroque once.
 
@@ -891,13 +938,30 @@ Answers Q15. Added 2026-08-10 with the collection's retrieval surface
 > version, no step and nothing to interrupt. `test_work_facets.py` opens exactly
 > such a file rather than leaving the claim to be read.
 >
-> **What is not built: nothing writes a facet on its own account yet.**
-> `CatalogueService.record_facet` and `remove_facet` exist and are how a facet
-> reaches the catalogue; no discovery path calls them, and neither the HTTP surface
-> nor the tool surface offers a write. So a real catalogue's facet vocabulary is
-> empty until inference lands, and the collection's rail is correspondingly empty —
-> which the retrieval treats as an ordinary state rather than an error, and which
-> the paid-path rule above still governs when it is filled.
+> **What is not built: inference.** Until 2026-10-02 nothing wrote a facet on
+> its own account. Since then the topic sweep does (below); no discovery path
+> calls `record_facet`, neither surface offers a write, and the paid-path rule
+> above still governs inference when it lands.
+
+> **The topic sweep writes `sourced` rows from Wikidata, 2026-10-02**
+> (`library/services/topic_sweep.py`; `build-plan-topics-and-destinations.md`
+> Chunk 04). For every work, it asks `topics_of` for the work's QID (its
+> Gregorian century as an `era`, what it depicts or its genre as `subject`s, the
+> kind of work it is as a `medium`) and its artist's QID (their `movement`s). A
+> work with neither gets none. It writes them with `source_note` "Wikidata" and
+> `value_qid`, and **replaces rather than adds**: in one transaction,
+> `CatalogueService.replace_sourced_facets` withdraws the work's rows that are
+> `sourced` with that note and records the new answer. An `inferred` row is never
+> withdrawn, and a claim the work already carries under any derivation is left as
+> it stands, so an inferred value is not relabelled as sourced; another source's
+> `sourced` rows are left alone. A work whose QIDs were cleared loses its
+> Wikidata rows with nothing asked. The sweep runs at start, when a work is
+> accepted or restored, when a QID is set, cleared or matched in the server
+> (the hand-run `python -m arrt.identify` is another process, seen at the next
+> pass), and otherwise daily; which works it asks about is kept in the process's memory, so a start
+> asks about every work once. A period facet is the century only, because
+> `topics_of` gives works no other period. Archived works are swept too: a facet
+> says what a work is, and the rail filters by status.
 
 ### Affinity
 
@@ -1062,6 +1126,7 @@ candidates provenance.
 | `unresolved_work_count` | integer | nullable | Works from phase 1 for which no credible instance was found. **Q12.** |
 | `started_at` | datetime | required | **Narrowed from nullable 2026-07-27.** A run row is only created by starting one, and both entry states (`resolving_works` for a discovery run, `resolving_images` for a resolve run) are active — there is no state in which a row exists and the run has not started. Nullable would have made every reader handle an absence that cannot occur. |
 | `completed_at` | datetime | nullable | Written by whichever transition ends the run. On `interrupted` it records when the death was *observed* at startup, not when it happened: the process that died could not write one, and a terminal run with no end time silently drops out of any window a report asks for. |
+| `destination_theme_id` | UUID | nullable; **not** a foreign key | The theme a `get` run's accepted works join instead of the default, or null for the default (**Q22-Q24**). Programming's id, held opaquely across the seam (rule 3), so it may name a theme deleted since. Written once, when the Get starts; the surface asks Programming that the theme exists first. Null on `discovery` and `resolve` runs, which keep joining the default (`build-plan-topics-and-destinations.md` § Requirements Confidence), and on every run written before the column. *Built 2026-10-02.* |
 
 > **The re-search is a run, not a side effect (decided 2026-07-20).** `resolve_images`
 > is a paid, minutes-long operation, and it previously created no row at all — so the
@@ -1790,6 +1855,51 @@ the entity that enforces the second Direction norm.
 > naming the identifier the television gave back, so the 2024 defect is unwritable
 > rather than merely avoided. The absence of a row still means "never tried",
 > which is the third state and the reason a failure keeps its row.
+
+### KeptAnswer *(curation plane, `kept-answers.sqlite`; disposable)*
+
+One answer a slow foreign source gave, kept so the next visit, and the next
+process, need not ask again (`arrt/src/arrt/persistence/kept.py`). **Not part of
+the catalogue**: a file of its own under `ART_ROOT`, holding no record and
+referred to by none. General purpose: the store names no source; each use
+registers a namespace with its own maximum age, size and codec. The registry's
+page sections are its first users (namespaces `registry.artist`,
+`registry.similar`, `registry.work`, `registry.search`, each 7 days and 512
+answers).
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `namespace` | string | PK part | The use the answer belongs to. Two uses never read each other's answers, and a name is registered once per open file. |
+| `key` | string | PK part | The question, as JSON of the caller's key (a QID, or a tuple of words and flags). |
+| `value` | string | required | The answer, as the namespace's codec wrote it. The registry's are JSON of their answer dataclasses, read back strictly: a field added, removed or retyped since makes it unreadable. |
+| `written` | float | required | When it was kept, in seconds since the epoch. **Q29**: an answer is used while `0 <= now - written < max_age`, the maximum age the namespace sets today; otherwise it is a miss and is deleted. |
+| `expires` | float | required | `written` plus the maximum age it was kept for. Read only at open, to throw away the answers of a namespace nobody registers any more. |
+| `used` | integer | required | A counter, larger for more recent use: a `put` and every hit raise it. Resumed from the file's largest at open. |
+
+**What the store enforces, Q30.** On every `put`, the namespace's answers older
+than its maximum age go first, then those beyond its size, least recently used
+first: so each namespace holds **at most** its size, and a burst in one (a
+typed search) never evicts another (an artist's page). At open, every answer
+past its `expires` goes, whichever namespace. Nothing bounds the file as a whole
+beyond the sum of the registered sizes and the expiry of the unregistered.
+
+**What is never kept, which is the callers' rule and not the store's.** A
+failure: callers `put` only what answered. A registry's "no such item": an item
+can be created. The library's own marks (*Held*), which are read fresh on every
+call and never stored with the answer.
+
+**Once open, every failure is a miss.** An entry its codec cannot read is
+deleted and asked again; a read or write the disk refuses is logged and the page
+goes on without it. At open, a file that is not a database, is damaged, or is of
+another format (`PRAGMA user_version` other than `FORMAT`) is replaced; a file
+that cannot be created at all stops the start, as an unwritable `ART_ROOT` stops
+the catalogue.
+
+> **Trust.** A registry answer read back from this file is the client's own
+> earlier output, with its image URLs already narrowed to Commons files
+> (`security-model.md` § Registry text). The file sits beside the catalogue
+> under `ART_ROOT` and is no easier to write than it is, so it adds no path for
+> outside text that the catalogue does not already have.
 
 ## Relationships
 

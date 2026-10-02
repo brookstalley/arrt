@@ -23,6 +23,12 @@ _MAY_IMPORT_SQLITE = {
     # this one reaches the driver by necessity rather than by convenience. It
     # stays inside the persistence package, which is the line this guard draws.
     "arrt.persistence.migrations",
+    # The kept answers file, which is not the catalogue and holds nothing a
+    # record names. Every way it fails is a miss rather than an error, so it
+    # has to catch the driver's own errors (a file that is not a database, a
+    # disk that refuses a write), which the durable store lets through. Inside
+    # the persistence package, the line this guard draws.
+    "arrt.persistence.kept",
 }
 
 _DRIVER = "sqlite3"

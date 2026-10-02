@@ -213,7 +213,7 @@ between planes.
 > | `phase_two.unanswerable` | no wired image source can look a work like this one up (Commons alone, for a work named by title); the work stays pending. Kept apart from `phase_two.unreachable`, which says a source was down |
 > | `image_pool.unreachable` | one image source of several could not be asked about a work, naming the source; the others' answers stand, and the work waits unless one of them found an instance that clears the floor |
 > | `commons.not_raster` | the image a Wikidata item names on Commons is not a picture the acquisition path can decode (SVG, PDF, video), naming its type; the work is answered as having none there |
-> | `get.asked` | a Get was asked for, with the run it started (`started_run_id`), how many works it chose and how many it skipped for each reason |
+> | `get.asked` | a Get was asked for, with the run it started (`started_run_id`), the theme its accepted works join (`destination_theme_id`, null for the default), how many works it chose and how many it skipped for each reason |
 > | `phase_two.verdict_stands` | a resolution finished against a work the curator had already decided; the result is reported, not applied |
 > | `phase_two.preview_too_large` | a provider's preview body passed the size ceiling and the read was abandoned, naming the URL and the ceiling. Distinct from `preview_failed`, which is a preview that could not be fetched at all — this one *was* being served, and the far end was sending more than a thumbnail. Both leave the card falling back to the source URL, so the log line is the only place the difference is visible |
 > | `preview.cached` / `preview.absent` | whether a review card will have local bytes to show |
@@ -289,6 +289,41 @@ between planes.
 >
 > The counterpart on the operations side is `operational-spec.md` § Add disk
 > headroom, which now points at this event rather than at a manual prune.
+
+> **The topic sweep's events, added 2026-10-02** (`library/services/topic_sweep.py`,
+> `build-plan-topics-and-destinations.md` Chunk 04). The sweep keeps the
+> library's works' topics as facet rows from Wikidata: at start, when a work is
+> accepted or a QID changes, and daily. Its failure mode is the preview sweep's:
+> Library › Topics and the Artworks rail quietly stop changing.
+>
+> | Event | Level | Says |
+> |---|---|---|
+> | `topics.off` | INFO | logged **once, at start**, when `WIKIDATA_USER_AGENT` is unset: no sweep is started and topics stay as they are. Nothing else about the sweep is logged in that state |
+> | `topics.sweep_started` | DEBUG | a pass began; against `topics.swept`, a start with no finish is a pass waiting on Wikidata or wedged |
+> | `topics.swept` | INFO | a pass finished, with how many works were due, how many of those were asked about (the rest have no QID and no artist QID), and how many rows were withdrawn and are now written. Logged on every pass, including one with nothing due |
+> | `topics.sweep_unavailable` | WARNING | Wikidata could not be asked; nothing was replaced, and the due works are asked again next pass. Not followed by `topics.swept` |
+> | `topics.sweep_error` | ERROR | a whole pass raised, with its traceback; the loop continues |
+> | `topics.sweep_wedged` | WARNING | shutdown asked the sweep to stop and it did not within five seconds |
+>
+> At a daily interval `topics.swept` is one line a day plus one per acceptance or
+> QID change, so its absence over a day is the signal that the sweep died.
+
+> **The kept answers file's events, added 2026-10-02** (`persistence/kept.py`).
+> The file is disposable and every way it fails is a miss, so a page never
+> shows the fault: it only asks its foreign source again, and is slow. The
+> journal is the one place the difference between "kept" and "asked every time"
+> is visible, so each quiet state has a line of its own.
+>
+> | Event | Level | Says |
+> |---|---|---|
+> | `kept.opened` | INFO | the file was opened at startup, with its path, how many answers it holds, and how many it threw away as expired |
+> | `kept.replaced` | WARNING | the file was not a database, was damaged, or was of another format, and was replaced by an empty one, with the reason. Every page asks again once. Once after an upgrade that changes the format is expected; at every start it is a disk that is failing |
+> | `kept.unreadable` | INFO | one answer could not be read back by its namespace's codec, naming the namespace and the error's type, and was dropped. A run of these after an upgrade is a changed answer shape costing one question each; one namespace logging them at every visit is a codec that cannot read what it writes |
+> | `kept.unwritable` | WARNING | a namespace's codec could not write an answer, so it is not kept. A bug in the caller's declared type, never a condition of the machine: the page has its answer, and every visit asks again |
+> | `kept.failed` | WARNING | a read or write of the file raised (a full disk, a read-only mount), naming the namespace and the operation. The answer is asked fresh or not kept |
+>
+> Hits and misses are not logged: a page section asks at human pace, and a
+> line per view would bury the four above.
 
 ## What the museum is told about us
 
@@ -662,6 +697,7 @@ signal exists:
 | *Planned, 2026-09-30:* the server is unreachable from a Player | The Player keeps rendering from its cache (`nonfunctional-requirements.md` § Direction, amended). It logs the failed poll once per episode rather than per poll, the same pairing `rotation.wall_unchanged` uses. The panel shows the heartbeat's age, which grows only if the POST also fails. It becomes a real fault when the manifest names media the cache does not hold, and the heartbeat's cache report exists to say that. Built in wave 2 |
 | *Planned, 2026-09-30:* a scheduled Library job (Watch, upgrade re-search) stopped running | A positive line on every pass, including empty ones, as with the preview sweep. Absence over an interval is the fault. Whether it also reaches a push channel is the revisit above. Built with Watches in wave 6 |
 | Budget exhausted | `halted_by_budget` outcome on the run, and the refusal text names the cause. *(Corrected 2026-08-02: this also promised "`limit_remaining` at zero in the UI" — a figure no surface exposes, and one that lags badly enough to read non-zero while calls are already being refused. See the note under the signals table.)* |
+| Topic sweep stopped running | `topics.swept` at INFO on every pass, including empty ones; its absence for more than a day, or after an acceptance, is the fault. A run of `topics.sweep_unavailable` is Wikidata refusing, not the sweep dying. With no `WIKIDATA_USER_AGENT` the one `topics.off` line at start says why there is nothing |
 | Preview sweep stopped running | **The only signal is a positive one, which is why it logs on empty passes**: `preview.swept` at INFO every interval, so what says the job died is its *absence* over one. A pass that hangs rather than stops reads differently — `preview.sweep_started` with no `preview.swept`, then `preview.sweep_wedged` at shutdown — and matters more, because that pass holds the store lock |
 | Disk nearly full | Guarded *before* acquisition starts, not discovered as an exception during it |
 | A work silently absent from a theme | **The manifest build reports exclusions** with a per-work reason — see `architecture.md`. Not a log line: a first-class UI surface |

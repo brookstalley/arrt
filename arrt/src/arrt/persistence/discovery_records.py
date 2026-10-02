@@ -299,6 +299,11 @@ class DiscoveryRun:
     actual_cost_usd: Decimal | None = None
     unresolved_work_count: int | None = None
     completed_at: datetime | None = None
+    #: The theme a Get's accepted works join instead of the default, by id, or
+    #: None for the default. Programming's id, held here as an opaque reference
+    #: that may fail to resolve (`architecture.md` seam rule 3): the Library
+    #: records where the curator asked the works to go and never reads a theme.
+    destination_theme_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

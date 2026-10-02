@@ -238,6 +238,112 @@ class SimilarArtistsOut(BaseModel):
     artists: list[SimilarArtistOut]
 
 
+class HeldTopicOut(BaseModel):
+    """A topic the library's works are in. `label` is registry text: show it as text."""
+
+    qid: str
+    label: str
+    #: The library's works in circulation in it.
+    works: int
+
+
+class TopicKindOut(BaseModel):
+    """Every topic of one kind the library's works are in, by name."""
+
+    #: `period`, `movement`, `subject` or `medium`.
+    kind: str
+    topics: list[HeldTopicOut]
+
+
+class TopicsOut(BaseModel):
+    """Library › Topics: one group per kind, period first, each topic with its count. Read from the facets alone.
+
+    `state` is `known`, or `not_configured` with a `note` saying topics need
+    `WIKIDATA_USER_AGENT`; then the groups hold only what an earlier
+    configuration recorded.
+    """
+
+    state: str
+    note: str | None
+    kinds: list[TopicKindOut]
+
+
+class TopicRegistryOut(BaseModel):
+    """A topic as Wikidata knows it: the head of a Topic page, or why there is none.
+
+    `state` is `known`, `not_found`, `not_configured` or `unavailable`, with a
+    `note` for every state but `known`. Every string is registry text.
+    """
+
+    state: str
+    note: str | None
+    qid: str
+    label: str | None
+    #: Every kind Wikidata's classes give it, the one its works are found by first.
+    kinds: list[str]
+    description: str | None
+    #: A period's first and last years.
+    start: int | None
+    end: int | None
+
+
+class TopicWorkOut(BaseModel):
+    """One of a topic's works, as Wikidata lists it, with what the library holds of it."""
+
+    qid: str
+    title: str
+    sitelinks: int
+    year: int | None
+    #: A Commons file URL, and only ever one.
+    image: str | None
+    creators: list[RegistryCreatorOut]
+    #: A maker recorded as unknown: somebody made it and nobody knows who.
+    creator_unknown: bool
+    #: `held`, `image_found` or `no_image`.
+    state: str
+    #: The library's works in circulation that are it, by QID.
+    held_artwork_ids: list[str]
+
+
+class TopicWorksOut(BaseModel):
+    """*Representative works*: up to 50, the most renowned first, or why there are none.
+
+    `state` is `known`, `not_found`, `not_configured` or `unavailable`, with a
+    `note` for every state but `known`.
+    """
+
+    state: str
+    note: str | None
+    works: list[TopicWorkOut]
+
+
+class TopicArtistsOut(BaseModel):
+    """A topic's *Artists*: up to 12, the most renowned first, or why there are none. States as `TopicWorksOut`."""
+
+    state: str
+    note: str | None
+    artists: list[SimilarArtistOut]
+
+
+class TopicFoundOut(BaseModel):
+    """A topic a typed name finds. Every string is registry text."""
+
+    qid: str
+    label: str
+    kinds: list[str]
+    description: str | None
+    start: int | None
+    end: int | None
+
+
+class TopicSearchOut(BaseModel):
+    """Topics Wikidata finds for a typed name. `state` is `known`, `not_configured` or `unavailable`."""
+
+    state: str
+    note: str | None
+    topics: list[TopicFoundOut]
+
+
 class WorkOut(BaseModel):
     """One work as a grid card shows it."""
 
@@ -280,6 +386,8 @@ class WorkFacetOut(BaseModel):
     derivation: str
     #: Which field of which provider, or which model. Null where nobody recorded it.
     source_note: str | None
+    #: The Wikidata item the value names, the Topic page it opens; null where none.
+    value_qid: str | None
 
 
 class FacetOptionOut(BaseModel):
@@ -381,6 +489,23 @@ class MatColorOut(BaseModel):
     is_current: bool
     reason: str | None
     chosen_at: str
+
+
+class TopicPageOut(BaseModel):
+    """The library's half of a Topic page, read from the facets alone: it never waits on Wikidata.
+
+    `label` and `kinds` are what the library's works carry the topic as, and are
+    null and empty for a topic none of them is in; the registry's own head is
+    `/api/topics/{qid}/registry`. `works` are the library's works in circulation
+    in it, by title. `state` and `note` as `TopicsOut`.
+    """
+
+    state: str
+    note: str | None
+    qid: str
+    label: str | None
+    kinds: list[str]
+    works: list[WorkOut]
 
 
 class WorkDetailOut(BaseModel):
@@ -718,6 +843,11 @@ class RunOut(BaseModel):
     parent_run_id: str | None
     started_at: str
     completed_at: str | None
+    #: The theme a Get's accepted works join instead of the default, or null for
+    #: the default. An id, which may name a theme deleted since: the run records
+    #: where the curator asked the works to go, and the theme is looked up by
+    #: whoever shows it.
+    destination_theme_id: str | None
 
 
 class CandidateWorkOut(BaseModel):
@@ -916,6 +1046,13 @@ class InstanceOut(BaseModel):
     rejected: bool
     rights_status: str | None
     selection_rationale: str | None
+    #: The scan's own size in pixels, as its provider reported it, or null when
+    #: nobody recorded it. What the browser shows a curator as the scan's
+    #: resolution: pixels are a fact about the scan, where the fit below is a
+    #: fact about the one panel this server is configured for. Each is null when
+    #: the provider did not report it, and `fit` is null whenever either is.
+    width: int | None
+    height: int | None
     fit: FitOut | None
     #: Present exactly when `fit` is null. An instance whose dimensions nobody
     #: recorded must not read like one known to be small: the first is a fact
@@ -1027,9 +1164,13 @@ class StartResolve(BaseModel):
 
 
 class StartGet(BaseModel):
-    """The Wikidata items of the works to get."""
+    """The Wikidata items of the works to get, and where the accepted ones go."""
 
     qids: list[str]
+    #: The theme the accepted works join instead of the default, or null for the
+    #: default. An unknown theme refuses the Get and starts nothing. Creating a
+    #: new theme is an earlier `POST /api/themes`, never something this does.
+    theme_id: str | None = None
 
 
 class SkippedOut(BaseModel):

@@ -57,6 +57,12 @@ ORIGINALS_DIRNAME: Final[str] = "raw"
 #: row carries the target size, and that row is what makes staleness detectable.
 READY_DIRNAME: Final[str] = "ready"
 
+#: The file answers from slow foreign sources are kept in under `ART_ROOT`
+#: (`persistence/kept.py`). **Disposable**: deleting it costs the next visit to
+#: each page one more question and loses nothing else, which is why it is a
+#: file apart from the catalogue and the backup skips it.
+KEPT_ANSWERS_FILENAME: Final[str] = "kept-answers.sqlite"
+
 #: Where a tiled fetch stores tiles as it walks the grid. **Working space, not
 #: storage**: it exists so a fetch that came back partial can be retried without
 #: re-downloading what already arrived, and it is reclaimed per work as soon as
@@ -69,9 +75,9 @@ TILE_CACHE_DIRNAME: Final[str] = "tile-cache"
 #: **Truthful by default, which is a change from the 2024 pipeline.** That code
 #: sent a hardcoded Chrome-on-Windows string — a claim to be software it is not,
 #: made to servers whose operators use it to decide how to treat traffic. The
-#: same reasoning already governs `ARTIC_USER_AGENT`, whose absence switches
-#: phase 2 off rather than let this product misrepresent whoever runs it: a
-#: default is acceptable here only because this one misrepresents nobody.
+#: same reasoning already governs `ARTIC_USER_AGENT`, whose absence leaves the
+#: Art Institute out rather than let this product misrepresent whoever runs it:
+#: a default is acceptable here only because this one misrepresents nobody.
 #: Deployments that want a contact address in it should set their own.
 DEFAULT_ACQUISITION_USER_AGENT: Final[str] = "arrt (+https://github.com/brookstalley/arrt)"
 
@@ -427,13 +433,16 @@ class Settings:
     #: serves the whole catalogue and refuses only to *start* a discovery run,
     #: which is a far better failure than refusing to boot.
     openrouter_api_key: str | None = None
-    #: How this deployment identifies itself to the museum APIs phase 2 asks.
-    #: **Optional, and its absence is what switches phase 2 off**: the Art
-    #: Institute's API is open but asks callers to name themselves and give a
-    #: contact address, and sending someone else's identifier — or a default
-    #: pretending to be one — would be this product misrepresenting whoever runs
-    #: it to a third party. So there is no default, and a deployment that has not
-    #: set one resolves no images rather than resolving them anonymously.
+    #: How this deployment identifies itself to the Art Institute's API.
+    #: **Optional, and its absence leaves the Art Institute out**: of phase 2's
+    #: image sources, of a run's supplement and of a conversation's sample
+    #: pictures. Phase 2 still runs on Commons when Wikidata is configured, and
+    #: is off only when neither is. The API is open but asks callers to name
+    #: themselves and give a contact address, and sending someone else's
+    #: identifier — or a default pretending to be one — would be this product
+    #: misrepresenting whoever runs it to a third party. So there is no default,
+    #: and a deployment that has not set one never asks the Art Institute
+    #: anonymously.
     artic_user_agent: str | None = None
     #: How this deployment identifies itself to Wikidata's query service, which
     #: refuses or blocks callers without a descriptive agent and contact details
@@ -529,6 +538,11 @@ class Settings:
         not: the mat is drawn to this panel's physical size.
         """
         return self.art_root / READY_DIRNAME
+
+    @property
+    def kept_answers_path(self) -> Path:
+        """Where answers from slow foreign sources are kept across restarts. Disposable."""
+        return self.art_root / KEPT_ANSWERS_FILENAME
 
     @property
     def tile_cache_path(self) -> Path:

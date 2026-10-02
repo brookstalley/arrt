@@ -154,7 +154,10 @@ def test_showing_everything_keeps_how_the_page_is_shown(ui, seeded_service):
 def test_a_theme_is_shown_in_its_own_order_so_sort_is_not_offered(ui, services, seeded_service):
     theme = services.display.add_theme(name="Late night")
     ui.open(f"#collection?theme={theme.id}")
-    ui.page.wait_for_selector("#view h2")
+    # Waits for the toolbar, not the heading: the heading can paint first, and a
+    # toolbar not yet drawn offers no Sort either, so the absence would pass
+    # for the wrong reason.
+    ui.page.wait_for_selector("button.menu-button-trigger:has-text('View')")
 
     assert ui.page.locator("button.menu-button-trigger", has_text="Sort").count() == 0
     assert ui.page.locator("button.menu-button-trigger", has_text="View").count() == 1

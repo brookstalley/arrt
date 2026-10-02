@@ -38,6 +38,7 @@ import { RUN_POLL_MAX_FAILURES, viewRun } from "./screens/run.js";
 import { viewSearch } from "./screens/search.js";
 import { viewTaste } from "./screens/taste.js";
 import { viewTheme } from "./screens/theme.js";
+import { viewTopic, viewTopics } from "./screens/topics.js";
 import { viewWalls } from "./screens/walls.js";
 import { viewWork } from "./screens/work.js";
 
@@ -90,6 +91,10 @@ const ROUTES = {
   // it is what a wall's theme control points at and what a curator bookmarks.
   // Radarr's Collections: a named grouping of what the library holds.
   theme: { render: viewTheme, detail: OPTIONAL_ID, section: "artworks", page: "Themes" },
+  // The periods, movements, subjects and media the library's works are in. No
+  // *arr page is one; the nearest idea is a music app's genre (`ia-proposal.md`
+  // § Objects), and ruling 9 put it under the library, after Themes.
+  topics: { render: viewTopics, section: "artworks", page: "Topics" },
   // Lidarr's artist index, which is that app's library: every held artist, and
   // at `#artist/<id>` one of them as the hub (ruling 4).
   artist: { render: viewArtists, detail: OPTIONAL_ID, section: "artworks", page: "Artists" },
@@ -109,11 +114,20 @@ const ROUTES = {
   // dropdown's last row; Enter still opens Artworks filtered, so it returns
   // there by default.
   search: { render: viewSearch, opensFrom: "collection" },
+  // One topic, browsed like a genre, reached from Library › Topics, the top
+  // bar's dropdown, or a search on the Topics page, and returned to Topics by a
+  // bookmark. Its own route rather than an id on `topics`, as the plan
+  // addresses it (`#topic/<qid>`).
+  topic: { render: viewTopic, detail: true, opensFrom: "topics" },
   // A search is listed under Activity, so a bookmark to one returns to Queue.
   // Run and Review share that default because they are one search's two pages:
   // each opens the other, and with different defaults every hop between them
   // would record an opener the curator never chose.
-  run: { render: viewRun, detail: true, opensFrom: "queue" },
+  //
+  // A Get's page is its review, so a Work opened from one of its cards returns
+  // to it, as one opened from Review returns to Review. Labelled for a Get
+  // because a Get's page is the only run page that opens a Work.
+  run: { render: viewRun, detail: true, opensFrom: "queue", returnLabel: "The Get", returnFor: ["work"] },
   // Contextual rather than a page: a conversation is something a curator does
   // *within* Ask, and returns there.
   conversation: { render: viewConversation, detail: true, opensFrom: "discover" },

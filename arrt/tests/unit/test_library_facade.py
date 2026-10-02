@@ -16,6 +16,8 @@ from collections.abc import Callable
 import pytest
 
 from arrt.library.facade import PlayableWork, Unplayable, UnplayableReason
+from arrt.library.services.discovery import ChosenWork
+from arrt.persistence.discovery_records import InitiatedBy, Verdict
 from arrt.persistence.records import FetchStatus
 
 
@@ -233,3 +235,46 @@ def test_a_hashed_render_that_becomes_unreadable_is_not_served(service, ready_wo
         assert service.read_media(sha) is None
 
     assert any(path in record.getMessage() for record in caplog.records)
+
+
+# -- where an accepted work was sent ---------------------------------------------
+
+
+def _accepted_from_a_get(discovery, add_image, title: str, *, destination: str | None) -> str:
+    """Accept the one work a Get named, and return the artwork it became."""
+    run = discovery.start_get_run(
+        works=[ChosenWork(qid=f"Q{abs(hash(title)) % 10_000}", title=title)],
+        initiated_by=InitiatedBy.MCP_CLIENT,
+        destination_theme_id=destination,
+    )
+    (work,) = discovery.list_candidate_works(run.id)
+    add_image(work)
+    return discovery.set_verdict(work.id, Verdict.ACCEPTED).work.artwork_id
+
+
+def test_destinations_answer_every_id_with_the_theme_its_get_named(library, discovery, add_image, propose, seeded_service):
+    """Joined work → candidate → run, per work: two Gets naming two themes keep them apart.
+
+    A work from an Ask, one added by hand, and one the catalogue does not hold
+    all answer None, which Programming reads as the default theme.
+    """
+    to_winter = _accepted_from_a_get(discovery, add_image, "The Elephants", destination="theme-winter")
+    to_spring = _accepted_from_a_get(discovery, add_image, "Swans Reflecting Elephants", destination="theme-spring")
+    to_default = _accepted_from_a_get(discovery, add_image, "Sleep", destination=None)
+    asked = propose("The Burning Giraffe")
+    add_image(asked)
+    from_an_ask = discovery.set_verdict(asked.id, Verdict.ACCEPTED).work.artwork_id
+    by_hand = seeded_service.list_artworks().entries[0].artwork.id
+
+    answer = library.destinations([to_winter, to_spring, to_default, from_an_ask, by_hand, "no-such-work", to_winter])
+
+    assert answer == {
+        to_winter: "theme-winter",
+        to_spring: "theme-spring",
+        to_default: None,
+        from_an_ask: None,
+        by_hand: None,
+        "no-such-work": None,
+    }
+    assert list(answer) == [to_winter, to_spring, to_default, from_an_ask, by_hand, "no-such-work"], "in the order asked"
+    assert library.destinations([to_winter, to_default]) == {to_winter: "theme-winter", to_default: None}, "and again"

@@ -57,6 +57,7 @@ from arrt.library.discovery.engine import DiscoveryEngine
 from arrt.library.discovery.images import ImageSearch
 from arrt.library.discovery.phase_two import PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
+from arrt.library.events import WorkChange
 from arrt.library.facade import LibraryFacade
 from arrt.library.registry import Registry
 from arrt.library.services.artists import ArtistService
@@ -75,9 +76,12 @@ from arrt.library.services.survey import SurveyService
 from arrt.library.services.sweep import PreviewSweep
 from arrt.library.services.taste import TasteService
 from arrt.library.services.thumbnails import ThumbnailService, ThumbnailSettings
+from arrt.library.services.topic_sweep import TopicSweep
+from arrt.library.services.topics import TopicService
 from arrt.persistence.backup import BACKUP_RECEIPT_FILENAME
 from arrt.persistence.catalogue import CatalogueStore
 from arrt.persistence.discovery import DiscoveryStore
+from arrt.persistence.kept import KeptAnswers
 from arrt.programming.access import PlayerAccess
 from arrt.programming.display import DisplayService, DisplaySettings
 from arrt.programming.store import ProgrammingStore
@@ -180,6 +184,13 @@ class Services:
     #: A Get: works chosen by their Wikidata items, turned into one run over the
     #: image sources. Over the same registry and runner as the services above.
     get: GetService
+    #: Topics: the library's, from the facet rows, and a topic's registry
+    #: sections. Over the same registry as `artists`.
+    topics: TopicService
+    #: Keeping the library's works' topics as facets. Built whatever the
+    #: registry, like `sweep`; without one it does nothing, and the application
+    #: says so once when it would have started it.
+    topic_sweep: TopicSweep
 
     @classmethod
     def bind(
@@ -217,6 +228,10 @@ class Services:
         #: client, for the reason `image_sources` has none: a test suite must not
         #: be able to reach a foreign API through a wiring default.
         registry: Registry | None = None,
+        #: Where the registry pages keep answers across restarts. Defaults to
+        #: keeping them for the life of the process, which is a real deployment
+        #: and not a stub: it is what every registry page did before the file.
+        kept: KeptAnswers | None = None,
     ) -> Services:
         """Assemble the services over an already-open file.
 
@@ -231,15 +246,7 @@ class Services:
         one every test that has no business reaching a museum uses.
         """
         catalogue_service = CatalogueService(catalogue, art_root=thumbnails.art_root)
-        library = LibraryFacade(catalogue_service)
-        # The same open file passed as Programming's store: one object serves
-        # both protocols until Programming's tables get a file of their own.
-        display_service = DisplayService(catalogue, library, display_settings)
-        # Programming hears the Library's changes here, where both are composed,
-        # rather than subscribing itself: the subscription is wiring, and a
-        # service that wired itself could not be built for a test without it.
-        library.subscribe(display_service.on_work_changed)
-        thumbnail_service = ThumbnailService(catalogue_service, thumbnails)
+        kept = kept or KeptAnswers.in_memory()
         # The artwork box reaches discovery for one reason: automatic selection
         # must withhold an instance that would render below the floor, and the
         # floor is a size on the wall rather than a pixel count — so the rule
@@ -249,6 +256,22 @@ class Services:
         discovery_service = DiscoveryService(
             discovery, catalogue_service, artwork_box, precedence=None if pool is None else pool.precedence
         )
+        # Discovery before the facade, because the facade answers where a Get
+        # sent its accepted works, and only the run knows.
+        library = LibraryFacade(catalogue_service, discovery_service)
+        # The same open file passed as Programming's store: one object serves
+        # both protocols until Programming's tables get a file of their own.
+        display_service = DisplayService(catalogue, library, display_settings)
+        # Programming hears the Library's changes here, where both are composed,
+        # rather than subscribing itself: the subscription is wiring, and a
+        # service that wired itself could not be built for a test without it.
+        library.subscribe(display_service.on_work_changed)
+        thumbnail_service = ThumbnailService(catalogue_service, thumbnails)
+        topic_sweep = TopicSweep(catalogue, catalogue_service, registry)
+        # The Library's own announcement, heard by the Library's own sweep: an
+        # accepted or restored work is asked about now rather than at the
+        # interval. Identity changes reach it through `identity` below.
+        catalogue_service.subscribe(lambda event: topic_sweep.nudge() if event.change is WorkChange.ACCEPTED else None)
         if (pool is None) != (previews is None):
             # Refused here rather than defaulted, because either half alone is a
             # misconfiguration that would otherwise disable phase 2 silently —
@@ -347,11 +370,13 @@ class Services:
             # transaction — the delete's whole correctness is that it commits or
             # does not.
             taste=TasteService(discovery),
-            identity=IdentityService(catalogue, registry),
-            artists=ArtistService(catalogue, registry),
-            registry_works=RegistryWorkService(catalogue, registry),
-            registry_search=RegistrySearchService(catalogue, registry),
+            identity=IdentityService(catalogue, registry, on_changed=topic_sweep.nudge),
+            artists=ArtistService(catalogue, registry, kept=kept),
+            registry_works=RegistryWorkService(catalogue, registry, kept=kept),
+            registry_search=RegistrySearchService(catalogue, registry, kept=kept),
             get=GetService(store=catalogue, discovery=discovery_service, runner=runner_service, registry=registry),
+            topics=TopicService(catalogue, registry, kept=kept),
+            topic_sweep=topic_sweep,
         )
 
     def reconcile(self) -> None:
@@ -368,14 +393,14 @@ class Services:
         Library tells Programming when a work changes, after the change commits,
         and a crash between the two loses the announcement. So every start takes
         any work the Library now refuses off every published manifest and pin,
-        and offers the default theme any accepted work never offered it, so a
-        lost announcement delays either until the next start rather than leaving
-        it undone.
+        and offers any accepted work never offered its theme (the default, or
+        the one its Get named), so a lost announcement delays either until the
+        next start rather than leaving it undone.
         """
         self.discovery.reconcile()
         # Before the walls, and outside their `OSError` guard: it writes no
         # manifest, only the catalogue, and a failure here is one to see.
-        self.display.catch_up_the_default()
+        self.display.catch_up_offers()
         try:
             self.display.reconcile()
         except OSError:

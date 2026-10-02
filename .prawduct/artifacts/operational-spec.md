@@ -469,6 +469,18 @@ every judgement they have already made.
 > instance was selected, the rationale, which images were rejected — are catalogue
 > rows and are backed up.
 
+> **`kept-answers.sqlite` is not backed up either, and a backup may skip it**
+> (2026-10-02, `build-plan-topics-and-destinations.md` Chunk 03c). It holds
+> answers from slow foreign sources, Wikidata's first, kept for a week so a
+> restart does not put the next page view behind a query of several seconds
+> (`data-model.md` § KeptAnswer). Here **disposable does mean "it comes back"**:
+> deleting the file, or restoring without it, costs each page section one more
+> question of its source and loses no record. So it is a file apart from the
+> catalogue, and its `-wal` and `-shm` companions go with it. The plane replaces
+> it by itself when it is damaged or of another format (`kept.replaced` in the
+> journal), so deleting it by hand is never a repair step, only a way to make
+> every registry page ask again.
+
 **Destination: another machine on the network** (desktop or NAS, over LAN or the
 overlay network). Decided 2026-07-20. No third party, no cost, no credential on
 the Pi beyond what already exists.

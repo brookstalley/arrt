@@ -292,15 +292,41 @@ def test_confidence_never_reaches_certainty():
 
 
 def test_a_below_floor_instance_is_kept_and_labelled_rather_than_hidden():
-    """Not a rejection: shown, sized in inches, and selectable by a curator who wants it."""
+    """Not a rejection: shown, sized, and selectable by a curator who wants it."""
     judged = resolve(an_instance("Small Study", artist="Someone", width=600, height=400), title="Small Study", artist="Someone")
 
     assert len(judged) == 1
     assert judged[0].below_floor is True
     assert judged[0].fit.fit is DisplayFit.BELOW_FLOOR
-    assert "below the 12-inch floor" in judged[0].rationale
-    # The number, not just the verdict — a curator judging one needs the size.
-    assert f"{judged[0].fit.rendered_long_edge_inches:.1f} inches" in judged[0].rationale
+    assert "too small to reach this wall's size floor" in judged[0].rationale
+    assert "not selected automatically" in judged[0].rationale
+
+
+@pytest.mark.parametrize(
+    ("width", "height", "said"),
+    [
+        pytest.param(600, 400, "too small to reach this wall's size floor", id="below the floor"),
+        pytest.param(2000, 1500, "matted wider rather than downscaled", id="matted small"),
+        pytest.param(6000, 4000, "enough to fill the artwork box", id="native"),
+    ],
+)
+def test_the_selection_sentence_names_the_scan_s_pixels_and_no_inches(width, height, said):
+    """The owner's ruling, 2026-10-02: the scan's size in pixels, and no inches.
+
+    This replaced an assertion that the sentence carried the rendered size in
+    inches. Inches are the long edge on the one panel this server is configured
+    for, after the mat, and beside a picture they read as a fact about the
+    picture; the number a curator judging a below-floor scan needs is still in
+    the sentence, as the scan's pixels. Every verdict, because each has its own
+    clause and any of them could carry a unit back in.
+    """
+    judged = resolve(an_instance("Study", artist="Someone", width=width, height=height), title="Study", artist="Someone")
+
+    sentence = judged[0].rationale
+    assert f"{width:,} × {height:,} px" in sentence
+    assert said in sentence
+    assert "inch" not in sentence
+    assert "″" not in sentence
 
 
 def test_below_floor_instances_sort_behind_every_instance_that_clears_it():

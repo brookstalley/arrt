@@ -31,7 +31,13 @@ from typing import Final
 from arrt.library.services import selection
 from arrt.library.services.discovery import DiscoveryService
 from arrt.library.services.display_fit import ArtworkBox, FitAssessment, assess_display_fit
-from arrt.library.services.previews import InlinePreview, RenderedPreview, browser_preview, inline_preview
+from arrt.library.services.previews import (
+    InlinePreview,
+    RenderedPreview,
+    browser_preview,
+    enlarged_preview,
+    inline_preview,
+)
 from arrt.persistence.discovery_records import CandidateImage, CandidateWork, DiscoveryRun
 from arrt.services.errors import ServiceError
 
@@ -418,7 +424,7 @@ class ReviewService:
             surviving_held=sum(1 for image in held if image.rejected_at is None),
         )
 
-    def preview_image(self, candidate_image_id: str) -> RenderedPreview:
+    def preview_image(self, candidate_image_id: str, *, enlarged: bool = False) -> RenderedPreview:
         """The picture for one instance, as bytes a browser paints.
 
         **The one place this layer raises where its neighbours report absence.**
@@ -438,7 +444,10 @@ class ReviewService:
         image = self._discovery.get_candidate_image(candidate_image_id)
         work = self._discovery.get_candidate_work(image.candidate_work_id)
         if image.preview_path is not None:
-            rendered = browser_preview(self._art_root / image.preview_path)
+            # `enlarged` is the picture a card opens in place when clicked: the
+            # same file, in the larger box (`ENLARGED_MAX_EDGE_PX`).
+            render = enlarged_preview if enlarged else browser_preview
+            rendered = render(self._art_root / image.preview_path)
             if rendered is not None:
                 return rendered
         raise ServiceError(self._absent_preview_note(image, work))

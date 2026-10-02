@@ -112,7 +112,12 @@ _ARTWORK_ID = Param(
 _QID = Param(
     name="qid",
     type="string",
-    description="A Wikidata item id such as Q160149, or 'none' to record that there is no item.",
+    #: One description for every action taking it, because the wire schema
+    #: publishes only the first: the topic action takes an item and never 'none'.
+    description=(
+        "A Wikidata item id such as Q160149. set_work_qid and set_artist_qid also take 'none', "
+        "to record that there is no item."
+    ),
     required=True,
 )
 
@@ -296,6 +301,29 @@ ART_CATALOGUE: Final = ToolRecord(
                 "action='retry_acquisition' fetches it again.",
             ),
         ),
+        Action(
+            name="topics",
+            description="List every topic the catalogue's works in circulation are in, by kind, with how many works.",
+            example="art_catalogue(action='topics')",
+            params=(),
+            tips=(
+                "Topics are periods (centuries), movements, subjects and kinds of work, as Wikidata gives them for "
+                "works and artists with a Wikidata item; a work with neither has none.",
+                "Read from the catalogue alone, so it never waits on Wikidata. Each topic's qid is what " "action='topic' takes.",
+                "state='not_configured' means WIKIDATA_USER_AGENT is unset, so nothing keeps topics up to date.",
+            ),
+        ),
+        Action(
+            name="topic",
+            description="Return one topic as the catalogue's works carry it, and its works in circulation.",
+            example="art_catalogue(action='topic', qid='Q40415')",
+            params=(_QID,),
+            tips=(
+                "A topic none of the catalogue's works is in returns no label and no works rather than an error.",
+                "The same values filter action='list': a movement topic's label is a movement facet value, a "
+                "period's an era value.",
+            ),
+        ),
     ),
 )
 
@@ -440,6 +468,14 @@ ART_DISCOVERY: Final = ToolRecord(
                     description="The Wikidata items of the works to get, such as Q45585.",
                     required=True,
                 ),
+                Param(
+                    name="theme_id",
+                    type="string",
+                    description=(
+                        "The theme the accepted works join instead of the default theme. Omit to send them to "
+                        "the default, which is the everyday rotation."
+                    ),
+                ),
             ),
             tips=(
                 "This spends nothing: a Get has no phase 1, and the image sources it asks are free.",
@@ -448,6 +484,9 @@ ART_DISCOVERY: Final = ToolRecord(
                 "item is skipped no run starts and `run_id` is null.",
                 "The run is like any other: action='status' and action='cancel' take its run_id, and its works "
                 "are judged with art_review. Accepting one records the item on the new work.",
+                "To send the works to a new theme, create it first with art_theme(action='create') and pass its "
+                "theme_id. An unknown theme_id refuses the Get and starts nothing. A theme deleted before a work "
+                "is accepted leaves that work in no theme, not in the default.",
             ),
         ),
         Action(
@@ -828,8 +867,9 @@ ART_THEME: Final = ToolRecord(
             params=(_THEME_ID,),
             tips=(
                 "At most one theme is the default; action='list' shows which, as is_default. Each work joins it "
-                "once, when it is accepted, at the end of the order. Works already in the catalogue are not added "
-                "by this, and a work taken out of the default by hand is not put back.",
+                "once, when it is accepted, at the end of the order, unless the Get it came from named another "
+                "theme_id, which it joins instead. Works already in the catalogue are not added by this, and a "
+                "work taken out of the default by hand is not put back.",
                 "The default cannot be deleted. Make another theme the default first.",
             ),
         ),

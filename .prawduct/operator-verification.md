@@ -10,6 +10,97 @@ each entry, which is the durable form.
 
 ## Pending
 
+### A Get reviewed on its own page, wide, with its scans readable — added 2026-10-02
+
+**`build-plan-topics-and-destinations.md` Chunk 07.** Visual change: yes.
+
+Checked by the builder on 2026-10-02 in the browser suite's own server, with
+stubbed payloads and stand-in pictures (flat colour), not on your catalogue.
+Regenerate the same views with
+`cd arrt && uv run pytest -m browser -n0 tests/browser/test_reviewing_a_get.py`
+and a `page.screenshot` in a test of your own; no images are committed.
+
+- **1280 px.** A finished Get of *The Magpie*: the run's sentence and costs,
+  then *Works (1)* and "1 work you chose.", then the card — the picture in the
+  left two-fifths, and on the right the title, artist, **3,840 × 2,604 px**, the
+  badges (◇ you chose · ● the run found an image · ● native, no inches), the
+  Wikidata item, *Why*, *Accept*, *Reject*. No *Review these works* and no work
+  table. With *Scans* open, a table across the card's full width: Scan,
+  Resolution, Provider, Rights, Confidence, Chosen, Actions, one row a scan, and
+  under each its *Why this one* and *Where it lives*. No label or button wraps;
+  the card measured 811 px tall with two scans open (the owner's was about
+  7,000). Nothing wider than the screen. Clicking the picture opened it over the
+  page in a dialog with *Close*; Escape, *Close* and a click outside each shut it
+  and left the address alone.
+- **375 px.** One column: the picture above the facts. The Scans table scrolls
+  sideways inside the card, and the sentences under each scan stay on screen
+  while it does. Nothing wider than the screen.
+- Artworks, a work's page and a theme's page show the fit verdict's word alone.
+
+For you:
+
+1. **On your catalogue, a Get with a few works**: is one work to a row right, or
+   too tall to judge many in a sitting? (`#review/<get>` shows the same cards.)
+2. **The enlarged picture** is the largest preview the server holds: 843 px wide
+   from the Art Institute, 960 from Commons. Big enough to judge a scan by?
+3. **The sentence a run writes about a scan** now says "It is 3,840 × 2,604 px,
+   enough to fill the artwork box" rather than inches, for runs from now on.
+   Older runs keep the sentence they wrote.
+
+### Library › Topics and the Topic page — added 2026-10-02
+
+**`build-plan-topics-and-destinations.md` Chunk 05.** Needs `WIKIDATA_USER_AGENT`
+set; without it both pages say topics need it.
+
+Checked by the builder on 2026-10-02 in the browser suite's own server, with a
+fake Wikidata, not on your catalogue, at 1280 px and 375 px, nothing wider than
+the screen. Topics, under Artworks after Themes, read *Find a topic*, then
+Periods (*16th century · 2 works*), Movements, Subjects (*winter · 1 work*) and
+Media, each kind with none saying so. Finding `impressionism` listed two
+*Impressionism*s told apart by Wikidata's description. The *16th century* page
+showed its kind, description and Wikidata link, *In your library (2)* as cards,
+then *Works from 1501–1600* (● Held, ◐ Image found, ○ No image known; no box on
+the held row), *Add to* already on *16th century (new theme)* with no name field showing (since Chunk 06), and
+*Artists*. At 375 px the works table scrolls sideways inside its panel, as the
+Artist page's does. S12's path was driven through the API on a copy of your
+catalogue on 2026-10-02 (16th century, three works into a new theme *16th
+century*, accepted: in it and not in *All works*), so what is left is the look.
+For you:
+
+1. **A period's heading.** Its works are headed *Works from 1501–1600* rather
+   than *Representative works*, because they are matched by date alone. Every
+   period, centuries included. Right?
+2. **The typeahead.** Typing a topic's name offers *Topics* (yours) after your
+   works, and *Wikidata: topics* after Wikidata's works, each with Wikidata's
+   description. Useful, or too much in the dropdown?
+3. **The titles look like buttons** in the works table and the topic lists, as
+   they do on the Artist page and the results page. Restyle them all as links?
+
+### Add to: where a Get's works go — added 2026-10-02
+
+**`build-plan-topics-and-destinations.md` Chunk 02.** Every Get control (the
+Artist page's *Their work*, the results page, a work's own page) gains *Add to*,
+and Queue, History, the run page and Review say where a run's accepted works go.
+
+Checked by the builder on 2026-10-02 in the browser suite's own server, not on
+your catalogue, at 1280 px and 375 px, nothing wider than the screen: *Add to*
+read *All works*, *Winter*, *New theme…*; choosing *New theme…* showed a *New
+theme's name* field, and a Get into *16th century* said "Getting 1 work into
+16th century. Open the Get" and left *16th century* chosen. At 375 px the select
+and *Get* sit on one line and the sentence wraps beneath. Driving a Get into a
+new theme on a copy of your catalogue was done through the API on 2026-10-02 (in
+that theme, not in *All works*, still not after a restart), so what is left is
+the look. For you:
+
+1. **The label.** *Add to* sits beside *Get*, and on the Artist page a second
+   select, *Theme*, adds works you already hold. Are the two told apart?
+2. **A name you type that is already a theme joins it**, ignoring capitals and
+   spaces, as a name a Topic page suggests will. Right for a typed name too?
+3. **With no default theme**, the first choice reads *No theme (none is the
+   default)* and the sentence says "into no theme". Clear enough?
+4. **History says *Into* for Ask runs too**, naming today's default, which may
+   not be the theme they joined if you have moved the default since.
+
 ### To review, and its count in the sidebar — added 2026-10-02
 
 **`build-plan-get-and-ask.md` Chunk 06.** Activity's first page lists the runs

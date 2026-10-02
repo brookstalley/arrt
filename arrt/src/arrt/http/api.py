@@ -29,7 +29,7 @@ that safe.
 """
 
 import logging
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Query, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
@@ -65,6 +65,7 @@ from arrt.http.models import (
     HealthOut,
     HeartbeatOut,
     HeldArtistOut,
+    HeldTopicOut,
     ImageOut,
     InstanceListingOut,
     InstanceOut,
@@ -110,6 +111,15 @@ from arrt.http.models import (
     ThemeListOut,
     ThemeOut,
     ThemePlacementOut,
+    TopicArtistsOut,
+    TopicFoundOut,
+    TopicKindOut,
+    TopicPageOut,
+    TopicRegistryOut,
+    TopicSearchOut,
+    TopicsOut,
+    TopicWorkOut,
+    TopicWorksOut,
     VerdictOut,
     WallHeartbeatOut,
     WallListOut,
@@ -129,6 +139,7 @@ from arrt.library.services.review import CandidatePage, CandidateView, InstanceL
 from arrt.library.services.runner import Estimate, RunView, SpendReport
 from arrt.library.services.survey import WorkDossier, WorkSurvey
 from arrt.library.services.taste import AffinityView
+from arrt.library.services.topics import TopicIndex, TopicPage
 from arrt.persistence.backup import BackupReading
 from arrt.persistence.discovery_records import (
     CandidateImage,
@@ -309,7 +320,7 @@ def search_registry(
     `prefix=true` reads the last word as the start of one, as the typeahead does
     mid-word; `wide=true` returns the results page's longer lists. Always a 200:
     `state` says whether anything was asked and what the registry did.
-    Remembered per query; a failure is not.
+    Kept per query for a week, across restarts; a failure is not.
     """
     found = _services(request).registry_search.search(q, prefix=prefix, wide=wide)
     held_artists, held_works = found.held_artists, found.held_works
@@ -383,6 +394,154 @@ def get_registry_work(request: Request, qid: str) -> RegistryWorkPageOut:
             [] if known is None else [RegistryHolderOut(qid=h.qid, name=h.name, inventory=h.inventory) for h in known.holders]
         ),
         held_artwork_ids=list(view.held),
+    )
+
+
+# -- topics -------------------------------------------------------------------
+
+
+@router.get("/topics")
+def list_topics(request: Request) -> TopicsOut:
+    """Library › Topics: every topic the library's works in circulation are in, by kind, with counts.
+
+    Read from the facet rows the topic sweep writes, so it never waits on
+    Wikidata. Always a 200.
+    """
+    return _topics(_services(request).topics.index())
+
+
+@router.get("/registry/topics")
+def search_topics(request: Request, q: Annotated[str, Query()] = "") -> TopicSearchOut:
+    """Topics Wikidata finds for a typed name: periods, movements, kinds of work, and subjects.
+
+    Always a 200: `state` says whether the registry was asked and what it did.
+    Not remembered, as a typeahead asks with every word.
+    """
+    found = _services(request).topics.named(q)
+    return TopicSearchOut(
+        state=str(found.state),
+        note=found.note,
+        topics=[
+            TopicFoundOut(
+                qid=topic.qid,
+                label=topic.label,
+                kinds=[kind.value for kind in topic.kinds],
+                description=topic.description,
+                start=topic.start,
+                end=topic.end,
+            )
+            for topic in found.topics
+        ],
+    )
+
+
+@router.get("/topics/{qid}")
+def get_topic(request: Request, qid: str) -> TopicPageOut:
+    """The library's half of a Topic page: the topic as its works carry it, and those works. No network.
+
+    A topic none of the library's works is in answers with no label and no
+    works rather than a 404: a Topic page reached by search is ordinary. A
+    malformed QID is a 400.
+    """
+    services = _services(request)
+    page = services.topics.page(qid)
+    # Two calls composed, as a theme's works are: the topic says which works,
+    # and the survey says what each is as a card.
+    return _topic_page(page, [_work(entry) for entry in services.survey.survey_works(page.work_ids)])
+
+
+@router.get("/topics/{qid}/registry")
+def get_topic_registry(request: Request, qid: str) -> TopicRegistryOut:
+    """The topic as Wikidata knows it, the page's head, asked separately so it delays nothing.
+
+    Always a 200 for a well-formed QID; a malformed one is a 400. Kept per topic
+    for a week, across restarts; a missing item and a failure are not.
+    """
+    view = _services(request).topics.topic(qid)
+    known = view.known
+    return TopicRegistryOut(
+        state=str(view.state),
+        note=view.note,
+        qid=qid,
+        label=None if known is None else known.label,
+        kinds=[] if known is None else [kind.value for kind in known.kinds],
+        description=None if known is None else known.description,
+        start=None if known is None else known.start,
+        end=None if known is None else known.end,
+    )
+
+
+@router.get("/topics/{qid}/works")
+def get_topic_works(request: Request, qid: str) -> TopicWorksOut:
+    """*Representative works*: the topic's most renowned works, each Held, Image found or no image known.
+
+    Asked after the page is drawn: a period's works took 7 to 26 seconds to
+    ask for. Always a 200 for a well-formed QID; a malformed one is a 400.
+    """
+    view = _services(request).topics.works(qid)
+    return TopicWorksOut(
+        state=str(view.state),
+        note=view.note,
+        works=[
+            TopicWorkOut(
+                qid=entry.work.qid,
+                title=entry.work.title,
+                sitelinks=entry.work.sitelinks,
+                year=entry.work.year,
+                image=entry.work.image,
+                creators=[
+                    RegistryCreatorOut(qid=creator.qid, name=creator.name, artist_id=view.artists.get(creator.qid))
+                    for creator in entry.work.creators
+                ],
+                creator_unknown=entry.work.creator_unknown,
+                state=str(entry.state),
+                held_artwork_ids=list(entry.held),
+            )
+            for entry in view.works
+        ],
+    )
+
+
+@router.get("/topics/{qid}/artists")
+def get_topic_artists(request: Request, qid: str) -> TopicArtistsOut:
+    """The topic's *Artists*, the most renowned first, each with the library's artist where held.
+
+    Asked after the page is drawn, as *Representative works* is. Always a 200
+    for a well-formed QID; a malformed one is a 400.
+    """
+    view = _services(request).topics.artists(qid)
+    return TopicArtistsOut(
+        state=str(view.state),
+        note=view.note,
+        artists=[
+            SimilarArtistOut(qid=p.qid, name=p.name, born=p.born, died=p.died, images=p.images, artist_id=view.held.get(p.qid))
+            for p in view.people
+        ],
+    )
+
+
+def _topics(index: TopicIndex) -> TopicsOut:
+    return TopicsOut(
+        state=str(index.state),
+        note=index.note,
+        kinds=[
+            TopicKindOut(
+                kind=group.kind.value,
+                topics=[HeldTopicOut(qid=topic.qid, label=topic.label, works=topic.works) for topic in group.topics],
+            )
+            for group in index.groups
+        ],
+    )
+
+
+def _topic_page(page: TopicPage, works: list[WorkOut]) -> TopicPageOut:
+    return TopicPageOut(
+        state=str(page.state),
+        note=page.note,
+        qid=page.qid,
+        label=page.label,
+        kinds=[kind.value for kind in page.kinds],
+        works=works,
     )
 
 
@@ -720,8 +879,15 @@ def start_get(request: Request, body: StartGet) -> GetOut:
     Returns at once with the run, which looks for images behind the response as
     any run does. Held items, items a Get is already looking for, and items the
     registry does not have are skipped and listed rather than refused.
+
+    With a `theme_id`, the accepted works join that theme instead of the
+    default. Two calls composed, with no branch on the first's answer:
+    Programming says the theme exists (refusing an unknown one, so nothing
+    starts), and the Library starts the Get.
     """
-    outcome = _services(request).get.start(body.qids, initiated_by=InitiatedBy.WEB_UI)
+    services = _services(request)
+    destination = None if body.theme_id is None else services.display.get_theme(body.theme_id).id
+    outcome = services.get.start(body.qids, initiated_by=InitiatedBy.WEB_UI, destination_theme_id=destination)
     return GetOut(
         run=None if outcome.run is None else _run(outcome.run),
         skipped=[SkippedOut(qid=entry.qid, reason=str(entry.reason)) for entry in outcome.skipped],
@@ -893,8 +1059,18 @@ def reject_candidate_image(request: Request, image_id: str) -> CandidateWorkOut:
 
 
 @router.get("/candidate-images/{image_id}/preview", response_class=Response)
-def get_candidate_preview(request: Request, image_id: str) -> Response:
+def get_candidate_preview(
+    request: Request,
+    image_id: str,
+    size: Annotated[Literal["card", "large"], Query()] = "card",
+) -> Response:
     """The picture for one instance, re-encoded for a browser.
+
+    `size=large` is the picture a review card opens in place when it is
+    clicked: the largest preview the server holds, at its own size
+    (`ENLARGED_MAX_EDGE_PX` bounds it). The default is the card's own, small
+    enough for a page of them. Any other value is refused rather than read as
+    the default, so a misspelt request is not quietly answered small.
 
     Not a `FileResponse` over the cached file, and not for want of trying to keep
     this thin. A cached preview's *name* is derived from its URL and falls back to
@@ -909,7 +1085,7 @@ def get_candidate_preview(request: Request, image_id: str) -> Response:
     is the grid: a card asks once, and only for the works whose alternates a
     curator opens.
     """
-    rendered = _services(request).review.preview_image(image_id)
+    rendered = _services(request).review.preview_image(image_id, enlarged=size == "large")
     return Response(content=rendered.data, media_type=rendered.media_type, headers={"Cache-Control": PREVIEW_CACHE_CONTROL})
 
 
@@ -1041,6 +1217,7 @@ def _facet(facet: WorkFacet) -> WorkFacetOut:
         value=facet.value,
         derivation=str(facet.derivation),
         source_note=facet.source_note,
+        value_qid=facet.value_qid,
     )
 
 
@@ -1221,6 +1398,7 @@ def _run(run: DiscoveryRun) -> RunOut:
         parent_run_id=run.parent_run_id,
         started_at=run.started_at.isoformat(),
         completed_at=None if run.completed_at is None else run.completed_at.isoformat(),
+        destination_theme_id=run.destination_theme_id,
     )
 
 
@@ -1319,6 +1497,8 @@ def _instance(view: InstanceView) -> InstanceOut:
         rejected=view.rejected,
         rights_status=None if image.rights_status is None else str(image.rights_status),
         selection_rationale=image.selection_rationale,
+        width=image.estimated_width,
+        height=image.estimated_height,
         fit=(
             None
             if view.fit is None

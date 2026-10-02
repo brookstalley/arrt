@@ -88,6 +88,27 @@ MAX_SEARCH_TERMS: Final[int] = 8
 
 
 @dataclass(frozen=True, slots=True)
+class FacetClaim:
+    """One thing a source says a work is, before it is recorded."""
+
+    kind: VocabularyKind
+    value: str
+    #: The registry item the value names, where the source gave one.
+    value_qid: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class FacetReplacement:
+    """What replacing one source's facets on a work changed."""
+
+    #: The source's earlier rows taken away.
+    withdrawn: int
+    #: Its rows the work now carries. Fewer than the claims where a claim
+    #: repeated another, or the work already carried it from elsewhere.
+    written: int
+
+
+@dataclass(frozen=True, slots=True)
 class ArtworkDetail:
     """A work together with the artist record it points at, if any."""
 
@@ -172,6 +193,11 @@ class RenditionView:
 
     rendition: Rendition
     stale: bool
+
+
+def _from(facet: WorkFacet, source_note: str) -> bool:
+    """Whether this row is what one source published, and so what its next answer replaces."""
+    return facet.derivation is FacetDerivation.SOURCED and facet.source_note == source_note
 
 
 def _offered(options: Sequence[FacetOption]) -> Sequence[FacetOption]:
@@ -610,6 +636,7 @@ class CatalogueService:
         value: str,
         derivation: FacetDerivation | str,
         source_note: str | None = None,
+        value_qid: str | None = None,
     ) -> WorkFacet:
         """Say that a work is one more thing, and where that claim came from.
 
@@ -656,9 +683,38 @@ class CatalogueService:
             derivation=resolved_derivation,
             created_at=datetime.now(UTC),
             source_note=source_note,
+            value_qid=value_qid,
         )
         store_write(self._store.add_facet, facet)
         return facet
+
+    def replace_sourced_facets(self, artwork_id: str, *, source_note: str, claims: Sequence[FacetClaim]) -> FacetReplacement:
+        """Make `claims` the work's whole set of `sourced` facets from this one source, in one transaction.
+
+        **Only rows that are `sourced` and carry exactly this `source_note` are
+        withdrawn**: they are the source's own earlier answer, which the new one
+        supersedes. An `inferred` row is never touched, and neither is a row
+        another source published. A claim the work already carries under any
+        derivation (compared ignoring case, as the column compares) is left as it
+        stands, which is `record_facet`'s rule: the first recording of a claim
+        keeps its provenance, so an inferred value is not relabelled as sourced.
+        """
+        self._require_artwork(artwork_id)
+        with self._store.transaction():
+            withdrawn = [facet for facet in self._store.list_facets(artwork_id) if _from(facet, source_note)]
+            for facet in withdrawn:
+                store_write(self._store.remove_facet, facet.id)
+            for claim in claims:
+                self.record_facet(
+                    artwork_id=artwork_id,
+                    kind=claim.kind,
+                    value=claim.value,
+                    derivation=FacetDerivation.SOURCED,
+                    source_note=source_note,
+                    value_qid=claim.value_qid,
+                )
+            written = sum(1 for facet in self._store.list_facets(artwork_id) if _from(facet, source_note))
+        return FacetReplacement(withdrawn=len(withdrawn), written=written)
 
     def remove_facet(self, artwork_id: str, *, facet_id: str) -> None:
         """Withdraw a claim about a work.

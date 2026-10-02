@@ -246,7 +246,11 @@ convenience would otherwise make that split a migration.
 > `arrt/tests/unit/test_reconciliation.py` hold it. *(2026-10-01: the same
 > subscriber and startup catch-up offer a newly accepted work to the default
 > theme, once, through `LibraryFacade.accepted_work_ids`; `arrt/tests/integration/test_default_theme.py`
-> holds it.)* **Still in the
+> holds it. 2026-10-02: the offer is for the work's destination, which the
+> handler and the catch-up both ask of `LibraryFacade.destinations`, the theme
+> its Get named or None for the default, so a lost event and a delivered one
+> land the work in the same theme. The run holds the theme id opaquely, with no
+> foreign key; `arrt/tests/integration/test_get_destination.py` holds it.)* **Still in the
 > inventory:** the two foreign keys (rule 3), and one migration:
 > `mark_the_default_theme` (`persistence/migrations.py`) reads the Library's
 > `artworks` to back-fill Programming's `default_theme_offers` on a file that
@@ -290,6 +294,7 @@ recorded plan (curation on a desktop, NAS, or second Pi) — see Decision Log.
                     │  └───────────┬──────────────┘   │   raw/ ready/ thumbs/    │ │
                     │              │                  │   tv-thumbs/ tile-cache/ │ │
                     │              │                  │   previews/              │ │
+                    │              │                  │   kept-answers.sqlite    │ │
                     │              │ HTTPS            │                          │ │
                     │              ▼                  │   display-state.sqlite(D)│ │
                     │   OpenRouter, museum APIs,      └────────────┬─────────────┘ │
@@ -1011,6 +1016,7 @@ equal by `tests/preferences/test_heartbeat_contract.py`.
 | Store | Sole writer | Readers |
 |---|---|---|
 | `catalogue.sqlite` | curation | curation |
+| `kept-answers.sqlite` — answers from slow foreign sources, disposable (`persistence/kept.py`), since 2026-10-02 | curation | curation |
 | `theme-manifest-{wall_id}.json` — **one file per wall**, since 2026-08-12 | curation | display |
 | image tree (`raw/`, `ready/`, …) | curation | display |
 | `display-state.sqlite` | display | display |
