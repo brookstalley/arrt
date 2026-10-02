@@ -14,6 +14,7 @@ from arrt.library.registry import (
     RegistryArtist,
     RegistryCreator,
     RegistryHolder,
+    RegistrySimilar,
     RegistryWork,
     RegistryWorkEntry,
 )
@@ -57,6 +58,12 @@ def registry():
                 works_total=125,
             ),
             ROTHKO: RegistryArtist(qid=ROTHKO, name="Mark Rothko"),
+        },
+        similar={
+            BRUEGEL: [
+                RegistrySimilar(qid="Q5598", name="Rembrandt", sitelinks=200, born=1606, died=1669, images=900),
+                RegistrySimilar(qid=ROTHKO, name="Mark Rothko", sitelinks=150, born=1903, died=1970, images=1),
+            ]
         },
     )
 
@@ -182,6 +189,11 @@ class TestWithNoRegistryConfigured:
     def registry(self):
         return None
 
+    def test_similar_artists_say_wikidata_is_not_configured(self, http):
+        page = http.get(f"/api/registry/artists/{BRUEGEL}/similar").raise_for_status().json()
+
+        assert (page["state"], page["artists"]) == ("not_configured", [])
+
     def test_both_pages_say_wikidata_is_not_configured_and_the_library_still_answers(self, http, held):
         rothko, kept = held
 
@@ -203,3 +215,31 @@ class TestAHeldArtistByQid:
 
         assert (page["state"], page["artist_id"]) == ("held", rothko.id)
         assert registry.asked_about == []
+
+
+class TestSimilarArtists:
+    def test_they_come_back_with_image_counts_and_the_held_one_marked(self, http, held):
+        rothko, _kept = held
+
+        page = http.get(f"/api/registry/artists/{BRUEGEL}/similar").raise_for_status().json()
+
+        assert (page["state"], page["note"]) == ("known", None)
+        assert page["artists"] == [
+            {"qid": "Q5598", "name": "Rembrandt", "born": 1606, "died": 1669, "images": 900, "artist_id": None},
+            {"qid": ROTHKO, "name": "Mark Rothko", "born": 1903, "died": 1970, "images": 1, "artist_id": rothko.id},
+        ]
+
+    def test_they_are_asked_once_per_artist_and_an_outage_is_not_remembered(self, http, registry):
+        registry.failing = True
+        assert http.get(f"/api/registry/artists/{BRUEGEL}/similar").json()["state"] == "unavailable"
+        registry.failing = False
+        http.get(f"/api/registry/artists/{BRUEGEL}/similar").raise_for_status()
+        http.get(f"/api/registry/artists/{BRUEGEL}/similar").raise_for_status()
+
+        assert registry.similar_asked == [BRUEGEL]
+
+    def test_a_malformed_qid_is_refused_by_name(self, http):
+        refused = http.get("/api/registry/artists/bruegel/similar")
+
+        assert refused.status_code == 400
+        assert "bruegel" in refused.json()["error"]

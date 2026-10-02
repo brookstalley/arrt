@@ -405,3 +405,44 @@ def test_a_movement_with_no_readable_name_is_left_out():
         return _results()
 
     assert _registry(handler).artist("Q5577", works=1, holdings=1).movements == ("surrealism",)
+
+
+def test_similar_artists_come_back_ranked_with_their_image_counts():
+    asked = []
+
+    def handler(request):
+        query = _sent_query(request)
+        asked.append(query)
+        if "VALUES ?person" in query:
+            return _results({"person": _uri("Q37571"), "n": {"value": "0"}}, {"person": _uri("Q153739"), "n": {"value": "35"}})
+        return _results(
+            {
+                "other": _uri("Q37571"),
+                "otherLabel": {"value": "Jackson Pollock"},
+                "links": {"value": "118"},
+                "born": {"value": "1912"},
+            },
+            {"other": _uri("Q153739"), "otherLabel": {"value": "Arshile Gorky"}, "links": {"value": "44"}},
+        )
+
+    found = _registry(handler).similar_to("Q160149", limit=12)
+
+    assert [(p.name, p.born, p.images) for p in found] == [("Jackson Pollock", 1912, 0), ("Arshile Gorky", None, 35)]
+    assert "ORDER BY DESC(?links)" in asked[0] and "wdt:P106/wdt:P279* wd:Q3391743" in asked[0] and "LIMIT 12" in asked[0]
+    assert "wd:Q37571 wd:Q153739" in asked[1]
+
+
+def test_no_similar_artists_asks_no_second_question():
+    asked = []
+
+    def handler(request):
+        asked.append(request)
+        return _results()
+
+    assert _registry(handler).similar_to("Q160149", limit=12) == []
+    assert len(asked) == 1
+
+
+def test_a_similar_artists_qid_is_checked_before_it_reaches_a_query():
+    with pytest.raises(ValueError):
+        _registry(lambda request: _results()).similar_to("Q1 } UNION {", limit=1)

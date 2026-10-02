@@ -102,7 +102,7 @@ the registry's behaviour is measured for three queries, not proven.
 - [x] Chunk 01: External text is shown as text
 - [x] Chunk 02: Pages for works and artists the library does not hold
 - [x] Chunk 03: The typeahead shows one world
-- [ ] Chunk 04: The search results page
+- [x] Chunk 04: The search results page
 - [ ] Chunk 05: Similar artists, and setting a QID by hand
 
 ### Chunk 01: External text is shown as text
@@ -290,6 +290,8 @@ Bruegel; no errors, nothing wider than the screen.)*
 **Foreign API:** Wikidata Query Service
 **Type:** cumulative-final
 
+- **Carried from Chunk 04's review:** the results page's failed-search test
+  asserts the library's own message in the error banner, not only the banner.
 - **Similar artists**, per the ASSUMPTION: a registry method, one query, in the
   Artist page's registry half, fetched after the page paints like *Their work*.
   Each row shows the artist's name, dates and works with an image found, and
@@ -299,6 +301,20 @@ Bruegel; no errors, nothing wider than the screen.)*
   before it is stored and the dialog shows what it names, so a typo cannot pass
   as an identity. Calls the routes that exist (`POST
   /api/works|artists/{id}/wikidata`).
+
+*(Built 2026-10-01. The occupation filter drops critics and keeps those Wikidata
+also records as painters (Breton, Captain Beefheart, the King of Thailand), and no
+filter tried removes them without losing painters; the image count beside each
+name is what tells a curator who can be supplied (Pollock: 0). One query for the
+people and one for their image counts, about a second in the client, asked after
+the page is drawn and remembered per artist. The control looks a new item up
+before it can be stored, refuses an item another artist in the library already
+has, and confirms *There is none*; a browser test found that a test which always
+confirmed could not tell a confirmation from none, so a cancel case was added.
+Also carried: the results page's failed-search test asserts the library's own
+message. On the copy of the catalogue at both widths: Rothko's similar artists
+lead with Pollock (0 images), Dalí's mark Miró and Klee as held, and a look-up of
+Q500985 named *The Hunters in the Snow* without storing it.)*
 
 **Done when:**
 0. verify-api: the similar-artists query with the occupation filter is run for

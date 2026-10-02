@@ -36,6 +36,7 @@ from arrt.library.registry import (
     RegistryHolder,
     RegistryHolding,
     RegistryPerson,
+    RegistrySimilar,
     RegistryText,
     RegistryUnavailable,
     RegistryWork,
@@ -338,6 +339,42 @@ class WikidataRegistry:
                 )
             )
         return found
+
+    def similar_to(self, qid: str, *, limit: int) -> Sequence[RegistrySimilar]:
+        item = _require_qid(qid)
+        # Ranked by renown, not by how many movements are shared: the second put
+        # four painters few have heard of ahead of Picasso for van Gogh. Visual
+        # artists only, which drops critics and keeps those Wikidata also calls
+        # painters (`wikidata-findings.md`).
+        rows = self._select(f"""SELECT ?other ?otherLabel ?links (MIN(YEAR(?b)) AS ?born) (MIN(YEAR(?d)) AS ?died) WHERE {{
+              wd:{item} wdt:P135 ?movement .
+              ?other wdt:P135 ?movement ; wdt:P31 wd:Q5 ; wikibase:sitelinks ?links .
+              FILTER(?other != wd:{item})
+              FILTER EXISTS {{ ?other wdt:P106/wdt:P279* wd:{_VISUAL_ARTIST} }}
+              OPTIONAL {{ ?other wdt:P569 ?b }}
+              OPTIONAL {{ ?other wdt:P570 ?d }}
+              SERVICE wikibase:label {{ bd:serviceParam wikibase:language "{_LABELS}" . ?other rdfs:label ?otherLabel . }}
+            }} GROUP BY ?other ?otherLabel ?links ORDER BY DESC(?links) ?otherLabel LIMIT {int(limit)}""")
+        people = [(_qid(row, "other"), row) for row in rows]
+        if not people:
+            return []
+        listed = " ".join(f"wd:{person}" for person, _ in people)
+        seen = self._select(f"""SELECT ?person (COUNT(DISTINCT ?work) AS ?n) WHERE {{
+              VALUES ?person {{ {listed} }}
+              ?work wdt:P170 ?person ; wdt:P18 ?image .
+            }} GROUP BY ?person""")
+        images = {_qid(row, "person"): _integer(row, "n") or 0 for row in seen}
+        return [
+            RegistrySimilar(
+                qid=person,
+                name=RegistryText(_value(row, "otherLabel")),
+                sitelinks=_integer(row, "links") or 0,
+                born=_integer(row, "born"),
+                died=_integer(row, "died"),
+                images=images.get(person, 0),
+            )
+            for person, row in people
+        ]
 
     def close(self) -> None:
         self._http.close()

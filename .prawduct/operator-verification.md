@@ -10,6 +10,25 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Similar artists, and setting a Wikidata item by hand — added 2026-10-01
+
+**`build-plan-one-world-search.md` Chunk 05.** Needs `WIKIDATA_USER_AGENT` set.
+
+Checked by the builder on 2026-10-01, on a copy of your catalogue at 1280 px and
+375 px, with no page errors and nothing wider than the screen: Rothko's *Similar
+artists* lead with Jackson Pollock (0 works with an image), then Bourgeois, de
+Kooning, Appel and Gorky; Dalí's list Picasso, Kahlo, Miró (● in your library),
+Lynch and Klee (●). On your held Rothko's Work page, looking up `q500985` named
+*The Hunters in the Snow* and offered *Use Q500985*, which was not pressed. For you:
+
+1. **Similar artists.** Wikidata calls some non-painters painters too (Captain
+   Beefheart for Rothko, André Breton for Dalí). Is the list useful as it is, or
+   should it wait for taste (plan 4)?
+2. **The image count.** Does "0 works with an image" beside Pollock tell you what
+   you need before you commit to him?
+3. **The control.** Change… → type an id → Look up → *Use Q…*. Is showing the item
+   first enough to stop a wrong one, and is *There is none* worded right?
+
 ### The search results page — added 2026-10-01
 
 **`build-plan-one-world-search.md` Chunk 04.** Reached from the search box's last

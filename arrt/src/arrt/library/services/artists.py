@@ -30,7 +30,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Final
 
-from arrt.library.registry import QID, Registry, RegistryArtist, RegistryUnavailable
+from arrt.library.registry import QID, Registry, RegistryArtist, RegistrySimilar, RegistryUnavailable
 from arrt.persistence.catalogue import CatalogueStore, WorkQuery
 from arrt.persistence.folding import search_fold
 from arrt.persistence.records import Artist, ArtworkStatus
@@ -43,6 +43,10 @@ WORKS_SHOWN: Final[int] = 50
 
 #: How many holding collections it lists.
 HOLDINGS_SHOWN: Final[int] = 10
+
+#: How many similar artists it lists: enough for a next step, few enough that
+#: the query (one to seven seconds, `wikidata-findings.md`) stays bounded.
+SIMILAR_SHOWN: Final[int] = 12
 
 #: How many of the artist's own works are read to find the QIDs to list. Above
 #: any one artist's holding at the owner's scale.
@@ -92,6 +96,17 @@ class RegistryView:
     held: Mapping[str, Sequence[str]] = field(default_factory=dict)
 
 
+@dataclass(frozen=True, slots=True)
+class SimilarView:
+    """The *Similar artists* section: who, or why there is nobody to show."""
+
+    state: RegistryState
+    note: str | None = None
+    people: Sequence[RegistrySimilar] = ()
+    #: The library's artist for each similar artist it holds, by QID.
+    held: Mapping[str, str] = field(default_factory=dict)
+
+
 class ArtistService:
     """Read the artists the library holds, and ask the registry about one."""
 
@@ -99,6 +114,7 @@ class ArtistService:
         self._store = store
         self._registry = registry
         self._remembered: OrderedDict[tuple[str, tuple[str, ...]], RegistryArtist] = OrderedDict()
+        self._similar: OrderedDict[str, Sequence[RegistrySimilar]] = OrderedDict()
         self._lock = threading.Lock()
 
     def index(self, q: str | None = None) -> Sequence[HeldArtist]:
@@ -145,6 +161,39 @@ class ArtistService:
         if held is not None:
             return held, RegistryView(state=RegistryState.HELD, note="The library holds this artist.")
         return None, self._view(qid, (), unavailable="Wikidata could not be asked just now. Try again later.")
+
+    def similar(self, qid: str) -> SimilarView:
+        """Visual artists sharing a movement with this one, each marked where the library holds them.
+
+        Remembered per artist for the life of the process, as the rest of the
+        registry half is; a failure is not.
+        """
+        qid = _checked(qid)
+        if self._registry is None:
+            return SimilarView(
+                state=RegistryState.NOT_CONFIGURED,
+                note="Wikidata is not configured on this server (WIKIDATA_USER_AGENT is unset).",
+            )
+        with self._lock:
+            people = self._similar.get(qid)
+            if people is not None:
+                self._similar.move_to_end(qid)
+        if people is None:
+            try:
+                people = tuple(self._registry.similar_to(qid, limit=SIMILAR_SHOWN))
+            except RegistryUnavailable as exc:
+                log.warning("Could not ask Wikidata for artists like %s: %s", qid, exc)
+                return SimilarView(state=RegistryState.UNAVAILABLE, note="Wikidata could not be asked just now.")
+            with self._lock:
+                self._similar[qid] = people
+                while len(self._similar) > _REMEMBERED:
+                    self._similar.popitem(last=False)
+        ours = artist_ids_by_qid(self._store)
+        return SimilarView(
+            state=RegistryState.KNOWN,
+            people=people,
+            held={person.qid: ours[person.qid] for person in people if person.qid in ours},
+        )
 
     def _view(self, qid: str, mine: Sequence[str], *, unavailable: str) -> RegistryView:
         if self._registry is None:

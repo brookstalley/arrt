@@ -31,6 +31,7 @@
 import { api } from "../core/api.js";
 import { facts, fitBadge, sourceBadge, statusBadge, table } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
+import { identityControl } from "../core/identity.js";
 import { el, guard, render } from "../core/render.js";
 import { isQid, named, personLink, wikidataLink, workLink, workState } from "../core/registry.js";
 import { backLink, go, redirect } from "../core/router.js";
@@ -251,6 +252,9 @@ function paint(detail, generation, focusAction = false) {
         ["Description", work.description],
       ]),
       el("div", { class: "row" }, [action]),
+      // The control repaints from the dossier the route answers with, as
+      // archive and restore do.
+      identityControl("work", work, (answer) => paint(answer, generation)),
     ]),
     facetPanel(detail.facets),
   ];

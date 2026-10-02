@@ -94,6 +94,8 @@ from arrt.http.models import (
     SetAffinity,
     SetIdentity,
     SetVerdict,
+    SimilarArtistOut,
+    SimilarArtistsOut,
     SourceOut,
     Speak,
     SpendOut,
@@ -329,6 +331,24 @@ def search_registry(
                 held_artwork_ids=list(held_works.get(w.qid, ())),
             )
             for w in found.works
+        ],
+    )
+
+
+@router.get("/registry/artists/{qid}/similar")
+def get_similar_artists(request: Request, qid: str) -> SimilarArtistsOut:
+    """*Similar artists* for the Artist page, by the artist's QID, held or not.
+
+    Asked after the page is drawn: the query takes one to seven seconds. Always a
+    200 for a well-formed QID; a malformed one is a 400.
+    """
+    view = _services(request).artists.similar(qid)
+    return SimilarArtistsOut(
+        state=str(view.state),
+        note=view.note,
+        artists=[
+            SimilarArtistOut(qid=p.qid, name=p.name, born=p.born, died=p.died, images=p.images, artist_id=view.held.get(p.qid))
+            for p in view.people
         ],
     )
 

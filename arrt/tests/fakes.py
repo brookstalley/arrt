@@ -406,7 +406,17 @@ class FakeRegistry:
     """
 
     def __init__(
-        self, *, items=None, creators=None, people=None, artists=None, extra_works=None, works=None, matches=None, failing=False
+        self,
+        *,
+        items=None,
+        creators=None,
+        people=None,
+        artists=None,
+        extra_works=None,
+        works=None,
+        matches=None,
+        similar=None,
+        failing=False,
     ):
         self.items = items or {}
         self.creators = creators or {}
@@ -421,6 +431,9 @@ class FakeRegistry:
         #: The words searched, joined by a space → the `RegistryWorkMatch`es
         #: `works_matching` answers; anything else finds nothing.
         self.matches = matches or {}
+        #: QID → the `RegistrySimilar`s `similar_to` answers.
+        self.similar = similar or {}
+        self.similar_asked: list[str] = []
         self.matched: list[tuple[str, bool]] = []
         self.limits: list[int] = []
         self.failing = failing
@@ -459,6 +472,11 @@ class FakeRegistry:
         self.matched.append((" ".join(words), prefix))
         self.limits.append(limit)
         return self.matches.get(" ".join(words), [])[:limit]
+
+    def similar_to(self, qid, *, limit):
+        self._check()
+        self.similar_asked.append(qid)
+        return self.similar.get(qid, [])[:limit]
 
     def work(self, qid):
         self._check()

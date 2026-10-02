@@ -66,6 +66,25 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-01: Similar artists, and setting a Wikidata item by hand
+
+<!-- prawduct: chunks=05 | scope=one-world-search -->
+
+**Why:** ruling 4 asks for the full Artist hub, and *Similar artists* was the
+piece left. Ruling 7's identities had routes to correct them and no control, so
+the only way to fix a wrong *Held* mark was an MCP action.
+
+**What:** *Similar artists* on every Artist page, held or by QID, from
+`GET /api/registry/artists/{qid}/similar`. It lists up to twelve visual artists
+sharing a movement, by renown, each with how many of their works have an image,
+and ● where the library holds them. It is asked after the page is drawn and
+remembered per artist. The registry gains `similar_to`. Under a held artist's
+name and on a held work's page, a new control shows the Wikidata item and who set
+it. *Change…* looks a new item up and says what it is before *Use* can store it.
+It refuses an item another artist in the library already has, and warns of a
+duplicate work. *There is none* is confirmed first. The results page's
+failed-search test now asserts the library's own message.
+
 ## 2026-10-01: A results page for everything a search finds
 
 <!-- prawduct: chunks=04 | scope=one-world-search -->

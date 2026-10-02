@@ -215,6 +215,29 @@ class RegistrySearchOut(BaseModel):
     works: list[RegistryWorkFoundOut]
 
 
+class SimilarArtistOut(BaseModel):
+    qid: str
+    name: str
+    born: int | None
+    died: int | None
+    #: Their works with a free image on Wikidata.
+    images: int
+    #: The library's artist with this QID, where it holds one.
+    artist_id: str | None
+
+
+class SimilarArtistsOut(BaseModel):
+    """*Similar artists*: visual artists sharing a movement, by renown, or why there are none.
+
+    `state` is `known`, `not_configured` or `unavailable`, with a `note` for the
+    last two. Every string from the registry is untrusted text.
+    """
+
+    state: str
+    note: str | None
+    artists: list[SimilarArtistOut]
+
+
 class WorkOut(BaseModel):
     """One work as a grid card shows it."""
 

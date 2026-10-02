@@ -212,6 +212,8 @@ def test_a_failed_library_search_is_an_error_not_an_empty_page(ui, seeded_servic
     ui.open("#search?q=dali")
 
     ui.page.wait_for_selector("#error:not([hidden])")
+    # The library's own words, which say what failed, not a generic apology.
+    assert ui.page.locator("#error").inner_text() == "boom"
 
 
 def test_too_few_letters_says_why_wikidata_was_not_asked(ui, seeded_service, registry):

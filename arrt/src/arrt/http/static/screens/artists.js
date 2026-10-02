@@ -21,10 +21,11 @@
 
 import { api, fetchAllWorks } from "../core/api.js";
 import { absentImage, facts } from "../core/badges.js";
+import { identityControl } from "../core/identity.js";
 import { addedSentence, addWorksToTheme, stoppedSentence } from "../core/membership.js";
 import { el, guard, render } from "../core/render.js";
-import { isQid, lifeDates, named, wikidataLink, workLink, workState } from "../core/registry.js";
-import { backLink, backRow, go, redirect } from "../core/router.js";
+import { isQid, lifeDates, named, stateBadge, wikidataLink, workLink, workState } from "../core/registry.js";
+import { backLink, backRow, go, redirect, refresh } from "../core/router.js";
 import { recordReaction } from "../core/taste.js";
 
 export async function viewArtists(artistId, generation) {
@@ -95,6 +96,7 @@ async function oneArtist(artistId, generation) {
     el("p", { class: "muted", "aria-live": "polite", text: "Asking Wikidata…" }),
   ]);
   const about = el("div", { class: "stack" });
+  const similarSection = artist.wikidata_qid ? similarShell() : null;
 
   render(
     generation,
@@ -105,12 +107,13 @@ async function oneArtist(artistId, generation) {
         ["Life", lifeDates(artist)],
         ["Nationality", artist.display_nationality || artist.nationality],
       ]),
-      artist.wikidata_qid ? el("p", { class: "muted" }, [wikidataLink(artist.wikidata_qid, `Wikidata ${artist.wikidata_qid}`)]) : null,
+      identityControl("artist", artist, () => refresh()),
       about,
       tasteControls(artist),
     ]),
     heldSection(works, themes.themes),
     registrySection,
+    similarSection,
   );
 
   // After the page is drawn, and into its own section: see the module's note
@@ -123,6 +126,7 @@ async function oneArtist(artistId, generation) {
   }
   if (!registrySection.isConnected) return;
   paintRegistry(registrySection, about, view);
+  if (similarSection) await paintSimilar(similarSection, artist.wikidata_qid);
 }
 
 /* An artist addressed by QID. The library's page replaces it when the library
@@ -143,6 +147,7 @@ async function registryArtist(qid, generation) {
   }
   const registrySection = el("section", { class: "panel", "aria-labelledby": "their-work" }, [el("h3", { id: "their-work", text: "Their work" })]);
   const about = el("div", { class: "stack" });
+  const similarSection = similarShell();
   render(
     generation,
     el("p", {}, [backLink()]),
@@ -154,8 +159,48 @@ async function registryArtist(qid, generation) {
       el("p", { class: "note", text: "Nothing of theirs is in your library." }),
     ]),
     registrySection,
+    similarSection,
   );
   paintRegistry(registrySection, about, view);
+  await paintSimilar(similarSection, qid);
+}
+
+/* *Similar artists* (ruling 4): visual artists sharing a movement, by renown,
+ * each with how many of their works have an image, so a curator does not commit
+ * to an artist nobody can supply. Asked last: the query takes seconds. */
+function similarShell() {
+  return el("section", { class: "panel", "aria-labelledby": "similar-artists" }, [
+    el("h3", { id: "similar-artists", text: "Similar artists" }),
+    el("p", { class: "muted", "aria-live": "polite", text: "Asking Wikidata…" }),
+  ]);
+}
+
+async function paintSimilar(section, qid) {
+  let view;
+  try {
+    view = await api(`/api/registry/artists/${encodeURIComponent(qid)}/similar`);
+  } catch (failure) {
+    view = { state: "unavailable", note: "Wikidata could not be asked just now.", artists: [] };
+  }
+  if (!section.isConnected) return;
+  const heading = section.querySelector("h3");
+  if (view.state !== "known") {
+    section.replaceChildren(heading, el("p", { class: "note", text: view.note }));
+    return;
+  }
+  section.replaceChildren(
+    heading,
+    view.artists.length
+      ? el("ul", { class: "results-list" }, view.artists.map((person) =>
+          el("li", {}, [
+            el("button", { class: "row-title", type: "button", text: named(person.name, person.qid), onclick: () => go("artist", person.artist_id || person.qid) }),
+            lifeDates(person) ? el("span", { class: "muted", text: ` ${lifeDates(person)}` }) : null,
+            el("span", { class: "muted", text: ` · ${person.images} ${person.images === 1 ? "work" : "works"} with an image` }),
+            person.artist_id ? stateBadge("badge-held", "●", "In your library") : null,
+          ]),
+        ))
+      : el("p", { class: "muted", text: "Wikidata records no movement shared with another painter." }),
+  );
 }
 
 /* *More like this* and *Not this*, the same two of the three reactions a

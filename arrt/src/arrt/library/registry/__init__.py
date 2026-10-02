@@ -143,6 +143,20 @@ class RegistryWorkMatch:
     creator: RegistryCreator | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class RegistrySimilar:
+    """An artist sharing a movement with another, and how much of their work can be seen."""
+
+    qid: ItemId
+    name: RegistryText
+    sitelinks: int
+    born: int | None = None
+    died: int | None = None
+    #: Their works with a free image: what tells a curator whether anyone can
+    #: supply them before they commit to the artist (Pollock has none).
+    images: int = 0
+
+
 class RegistryUnavailable(Exception):
     """The registry could not be asked, or did not answer in the shape it promises.
 
@@ -178,6 +192,10 @@ class Registry(Protocol):
 
     def work(self, qid: str) -> RegistryWork | None:
         """What the registry knows about this work, or None when it has no such item."""
+        ...
+
+    def similar_to(self, qid: str, *, limit: int) -> Sequence[RegistrySimilar]:
+        """Visual artists sharing a movement with this one, the most renowned first."""
         ...
 
     def works_matching(self, words: Sequence[str], *, prefix: bool, limit: int) -> Sequence[RegistryWorkMatch]:
