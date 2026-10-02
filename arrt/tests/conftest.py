@@ -56,6 +56,7 @@ from arrt.config import (
     DEFAULT_TV_PANEL_WIDTH_PX,
     Settings,
 )
+from arrt.library.acquisition.direct import StreamOpener
 from arrt.library.acquisition.preparation import PreparationSettings
 from arrt.library.facade import LibraryFacade
 from arrt.library.registry import Registry
@@ -243,6 +244,7 @@ def services(
     conversation_engine: FakeConversationEngine,
     registry: Registry | None,
     kept: KeptAnswers,
+    open_stream: StreamOpener | None,
 ) -> Services:
     """Every service, wired the way the entry point wires them."""
     bound = Services.bind(
@@ -292,8 +294,19 @@ def services(
         conversation_engine=conversation_engine,
         registry=registry,
         kept=kept,
+        open_stream=open_stream,
     )
     return bound
+
+
+@pytest.fixture
+def open_stream() -> StreamOpener | None:
+    """No transport: the container's default, which refuses every direct fetch.
+
+    A module that fetches overrides this with one serving canned bytes, so no
+    test reaches a museum through the container.
+    """
+    return None
 
 
 @pytest.fixture

@@ -33,6 +33,7 @@ from arrt.persistence.records import (
     ArtworkStatus,
     MatColor,
     Original,
+    QueuedAcquisition,
     Rendition,
     Source,
     VocabularyKind,
@@ -67,6 +68,19 @@ class TopicTally:
     #: Its name, as the facet rows hold it.
     label: str
     works: int
+
+
+@dataclass(frozen=True, slots=True)
+class WorkToAcquire:
+    """One accepted work the acquisition queue may owe something: a fetch, or the preparation after one."""
+
+    artwork_id: str
+    #: Whether the work holds a master image already. True only for a work with a
+    #: queue row, which is one fetched and still owing its preparation, or one a
+    #: Retry named a source to fetch again from.
+    holds_original: bool
+    #: The queue's row for it, or None for a work it has not yet tried.
+    queued: QueuedAcquisition | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -342,6 +356,28 @@ class CatalogueStore(Protocol):
         """Return a work's mat colours newest first, which is its history."""
         ...
 
+    # -- the acquisition queue ------------------------------------------------
+
+    def works_to_acquire(self) -> Sequence[WorkToAcquire]:
+        """Every accepted work holding no original or holding a queue row, oldest acceptance first.
+
+        Archived works are left out whatever their row says: the queue fetches
+        only what is in circulation, and a restored work comes back with its row.
+        """
+        ...
+
+    def get_queued_acquisition(self, artwork_id: str) -> QueuedAcquisition | None:
+        """Return the queue's row for this work, or None if it has none."""
+        ...
+
+    def set_queued_acquisition(self, entry: QueuedAcquisition) -> None:
+        """Write the queue's row for this work, replacing any it had."""
+        ...
+
+    def remove_queued_acquisition(self, artwork_id: str) -> None:
+        """Delete the queue's row for this work. A missing row is not an error."""
+        ...
+
 
 #: Re-exported, not declared here. Both live in `persistence/errors.py`, which
 #: neither domain owns — `durable.py` and `sqlite_discovery.py` need them and
@@ -349,4 +385,4 @@ class CatalogueStore(Protocol):
 #: the two domains it serves. They stay importable from here because
 #: `CatalogueStore`'s own methods raise them, and a caller holding a catalogue
 #: store should not have to know which module declared the class to catch it.
-__all__ = ["CatalogueStore", "StorageError", "StoreMisuseError", "WorkQuery"]
+__all__ = ["CatalogueStore", "StorageError", "StoreMisuseError", "WorkQuery", "WorkToAcquire"]

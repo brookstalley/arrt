@@ -489,6 +489,29 @@ def test_the_entry_point_asks_for_the_topic_sweep(tmp_path, monkeypatch):
     assert built["sweep_topics"] is True
 
 
+def test_the_entry_point_asks_for_the_acquisition_queue(tmp_path, monkeypatch):
+    """`create_app` starts the acquisition queue only when asked, and this entry point is the one that asks.
+
+    Without that one argument an accepted work is never fetched or prepared on
+    a deployment, and every test of the queue still passes.
+    """
+    art_root = tmp_path / "art"
+    art_root.mkdir()
+    _stub_settings(monkeypatch, art_root)
+    built: dict = {}
+
+    def capture(services, **kwargs):  # noqa: ANN001, ANN003 - the real signature
+        built.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(entry_point, "create_app", capture)
+    monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
+
+    entry_point.main()
+
+    assert built["acquire_queue"] is True
+
+
 def test_uvicorns_own_default_is_what_makes_that_argument_necessary():
     """Read from uvicorn itself, so the reason cannot outlive the behaviour.
 

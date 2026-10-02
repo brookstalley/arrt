@@ -31,7 +31,7 @@ from datetime import datetime
 from typing import Any, Final
 
 from arrt.persistence.adapter import BY_ID, TableAdapter, from_iso, require_datetime, to_iso
-from arrt.persistence.catalogue import TopicTally, WorkOrder, WorkQuery
+from arrt.persistence.catalogue import TopicTally, WorkOrder, WorkQuery, WorkToAcquire
 from arrt.persistence.durable import OrderBy, SqliteDurableStore
 from arrt.persistence.errors import StorageError
 from arrt.persistence.folding import search_fold
@@ -48,6 +48,7 @@ from arrt.persistence.records import (
     MatColor,
     MatMethod,
     Original,
+    QueuedAcquisition,
     Rendition,
     RenditionKind,
     RightsStatus,
@@ -320,7 +321,26 @@ CREATE TABLE IF NOT EXISTS directives (
 );
 
 CREATE INDEX IF NOT EXISTS directives_by_pin ON directives(pinned_work_id);
+
+-- The acquisition queue's memory of each work it has started on and not
+-- finished: how many attempts failed in a row, when the next may be made, why the
+-- last one failed, and a source someone named for the next. Deleted once the work
+-- is fetched and prepared, so the table holds only the works still owing
+-- something. "Gave up" is `failures` reaching the queue's limit, read rather than
+-- stored, and what is in flight or why the queue is paused is not stored at all.
+-- A new table, so `CREATE TABLE IF NOT EXISTS` reaches a file written before it
+-- and no migration is needed.
+CREATE TABLE IF NOT EXISTS acquisition_queue (
+    artwork_id   TEXT PRIMARY KEY REFERENCES artworks(id),
+    failures     INTEGER NOT NULL DEFAULT 0 CHECK (failures >= 0),
+    next_try_at  TEXT,
+    detail       TEXT,
+    source_id    TEXT REFERENCES sources(id)
+);
 """
+
+#: The queue's table is keyed by the work alone: one row per work it owes something.
+_BY_ARTWORK: Final[tuple[str, ...]] = ("artwork_id",)
 
 #: The join's own key. A work appears at most once in a theme.
 _MEMBERSHIP_KEY: Final[tuple[str, ...]] = ("theme_id", "artwork_id")
@@ -756,6 +776,44 @@ class SqliteCatalogue(TableAdapter):
     def list_mat_colors(self, artwork_id: str) -> Sequence[MatColor]:
         return self._list("mat_colors", {"artwork_id": artwork_id}, _BY_RECENCY, _mat_color)
 
+    # -- the acquisition queue ------------------------------------------------
+
+    def works_to_acquire(self) -> Sequence[WorkToAcquire]:
+        # Oldest acceptance first, so a backlog is worked in the order it was
+        # asked for. `accepted_at` is null on rows written before it existed,
+        # which then fall back to when the work was catalogued; `rowid` breaks a
+        # tie within one clock tick.
+        rows = self._store.select_rows(
+            'SELECT a."id" AS work_id, o."id" IS NOT NULL AS held, q."artwork_id" AS queued_id, '
+            'q."failures", q."next_try_at", q."detail", q."source_id" '
+            "FROM artworks a "
+            'LEFT JOIN originals o ON o."artwork_id" = a."id" '
+            'LEFT JOIN acquisition_queue q ON q."artwork_id" = a."id" '
+            'WHERE a."status" = ? AND (o."id" IS NULL OR q."artwork_id" IS NOT NULL) '
+            'ORDER BY coalesce(a."accepted_at", a."created_at"), a.rowid',
+            (str(ArtworkStatus.ACCEPTED),),
+        )
+        return [
+            WorkToAcquire(
+                artwork_id=row["work_id"],
+                holds_original=bool(row["held"]),
+                queued=None if row["queued_id"] is None else _queued({**row, "artwork_id": row["queued_id"]}),
+            )
+            for row in rows
+        ]
+
+    def get_queued_acquisition(self, artwork_id: str) -> QueuedAcquisition | None:
+        return self._get("acquisition_queue", {"artwork_id": artwork_id}, _queued)
+
+    def set_queued_acquisition(self, entry: QueuedAcquisition) -> None:
+        # `update` rather than `raise`: the row is the queue's working memory of
+        # one work, rewritten after every attempt, and there is no "add" that a
+        # second write could be a mistaken repeat of.
+        self._store.upsert("acquisition_queue", _queued_row(entry), pk=_BY_ARTWORK, on_conflict="update")
+
+    def remove_queued_acquisition(self, artwork_id: str) -> None:
+        self._delete("acquisition_queue", {"artwork_id": artwork_id})
+
     # -- themes ---------------------------------------------------------------
 
     def add_theme(self, theme: Theme) -> None:
@@ -976,6 +1034,16 @@ def _original_row(original: Original) -> dict[str, Any]:
     }
 
 
+def _queued_row(entry: QueuedAcquisition) -> dict[str, Any]:
+    return {
+        "artwork_id": entry.artwork_id,
+        "failures": entry.failures,
+        "next_try_at": to_iso(entry.next_try_at),
+        "detail": entry.detail,
+        "source_id": entry.source_id,
+    }
+
+
 def _rendition_row(rendition: Rendition) -> dict[str, Any]:
     return {
         "id": rendition.id,
@@ -1145,6 +1213,16 @@ def _original(row: Mapping[str, Any]) -> Original:
         # is widened on open, but a row read through a mapping built from an older
         # file's columns would raise KeyError where the contract is "unrecorded".
         fetch_status=None if row.get("fetch_status") is None else FetchStatus(row["fetch_status"]),
+    )
+
+
+def _queued(row: Mapping[str, Any]) -> QueuedAcquisition:
+    return QueuedAcquisition(
+        artwork_id=row["artwork_id"],
+        failures=row["failures"],
+        next_try_at=from_iso(row["next_try_at"]),
+        detail=row["detail"],
+        source_id=row["source_id"],
     )
 
 

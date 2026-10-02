@@ -353,6 +353,36 @@ class Original:
 
 
 @dataclass(frozen=True, slots=True)
+class QueuedAcquisition:
+    """The acquisition queue's memory of one work it has started on and not finished.
+
+    A row exists from the queue's first attempt at a work, or a Retry of it, until
+    the work is fetched and prepared; then it is deleted. So a work holding no
+    original and no row is simply waiting its first turn, and a work holding an
+    original *and* a row was fetched and still owes a preparation — which is what
+    lets a preparation that failed, or a process that died between the fetch and
+    the preparation, be finished without fetching again.
+
+    What is in flight, and why the queue is paused, are deliberately not here:
+    both are facts about this process, and a restart re-derives them by trying.
+    """
+
+    artwork_id: str
+    #: Attempts that failed in a row since the last success or Retry. The retry
+    #: schedule and "gave up" are read from it, so neither is a second field that
+    #: could disagree with it.
+    failures: int = 0
+    #: When the work may next be tried. None means now (no failure yet, or a
+    #: Retry) or never (the queue gave up); `failures` says which.
+    next_try_at: datetime | None = None
+    #: Why the last attempt failed, in the words acquisition or preparation gave.
+    detail: str | None = None
+    #: The source the next fetch must use, when someone named one. Cleared once a
+    #: fetch from it has been made.
+    source_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Rendition:
     """A derived output, regenerated rather than transported.
 

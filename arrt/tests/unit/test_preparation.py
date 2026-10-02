@@ -24,6 +24,7 @@ from arrt.library.acquisition.preparation import (
     PreparationSettings,
 )
 from arrt.library.services.display_fit import DisplayFit
+from arrt.persistence.discovery_records import SpendCategory
 from arrt.persistence.records import (
     AcquisitionMethod,
     FetchStatus,
@@ -243,7 +244,7 @@ class TestStaleness:
         assert result.outcome is PreparationOutcome.PREPARED
         assert (settings.art_root / result.relative_path).is_file()
 
-    def test_a_canvas_composed_for_another_panel_is_re_rendered(self, service, settings, prep_settings):
+    def test_a_canvas_composed_for_another_panel_is_re_rendered(self, service, discovery, settings, prep_settings):
         """Not stale by the hash test — the original did not change — and not
         showable either. The panel is a deployment value, and the catalogue
         outlives the television."""
@@ -251,7 +252,7 @@ class TestStaleness:
 
         work, _ = _work_with_original(service, settings)
         engine = MatEngine(None, image_max_edge=256)
-        PreparationService(service, engine, prep_settings).prepare(work.id)
+        PreparationService(service, engine, prep_settings, spend=discovery).prepare(work.id)
 
         # A coherent second deployment, not just a smaller number: the box is
         # derived from *this* panel, because the two are wired together and the
@@ -264,7 +265,7 @@ class TestStaleness:
             panel_height=1080,
             box=replace(prep_settings.box, width=1658, height=798, pixels_per_inch=52.4),
         )
-        result = PreparationService(service, engine, smaller_panel).prepare(work.id)
+        result = PreparationService(service, engine, smaller_panel, spend=discovery).prepare(work.id)
 
         assert result.outcome is PreparationOutcome.PREPARED
         with Image.open(settings.art_root / result.relative_path) as canvas:
@@ -443,20 +444,22 @@ class TestWhatItCosts:
     exactly the call a curator makes first.
     """
 
-    def test_the_first_preparation_of_a_work_reports_what_choosing_its_mat_cost(self, service, settings, prep_settings):
+    def test_the_first_preparation_of_a_work_reports_what_choosing_its_mat_cost(
+        self, service, discovery, settings, prep_settings
+    ):
         work, _ = _work_with_original(service, settings)
         engine = _spending_engine("#27285b", Decimal("0.00006626"))
 
-        result = PreparationService(service, engine, prep_settings).prepare(work.id)
+        result = PreparationService(service, engine, prep_settings, spend=discovery).prepare(work.id)
 
         assert result.cost_usd == Decimal("0.00006626")
 
-    def test_a_second_preparation_costs_nothing_and_says_so(self, service, settings, prep_settings):
+    def test_a_second_preparation_costs_nothing_and_says_so(self, service, discovery, settings, prep_settings):
         """The other half. A field only ever populated on the paying path would be
         indistinguishable from one the caller forgot to read."""
         work, _ = _work_with_original(service, settings)
         engine = _spending_engine("#27285b", Decimal("0.00006626"))
-        prep = PreparationService(service, engine, prep_settings)
+        prep = PreparationService(service, engine, prep_settings, spend=discovery)
         prep.prepare(work.id)
 
         again = prep.prepare(work.id, force=True)
@@ -464,13 +467,13 @@ class TestWhatItCosts:
         assert again.cost_usd == Decimal(0)
         assert again.outcome is PreparationOutcome.PREPARED
 
-    def test_an_unchanged_result_still_carries_a_first_choice_it_paid_for(self, service, settings, prep_settings):
+    def test_an_unchanged_result_still_carries_a_first_choice_it_paid_for(self, service, discovery, settings, prep_settings):
         """The branch that made the old code wrong in two places rather than one:
         a mat is chosen *before* the already-current check, so a work whose canvas
         survived a lost mat row pays on a call that then reports `unchanged`."""
         work, _ = _work_with_original(service, settings)
         engine = _spending_engine("#27285b", Decimal("0.00006626"))
-        prep = PreparationService(service, engine, prep_settings)
+        prep = PreparationService(service, engine, prep_settings, spend=discovery)
         prep.prepare(work.id)
         # The canvas stays; the mat row goes, as a restored catalogue can leave it.
         for colour in service.mat_color_history(work.id):
@@ -490,6 +493,89 @@ class TestWhatItCosts:
         result = prep.prepare(work.id)
 
         assert result.mat_fallback_detail is not None
+
+
+def _mat_spend(discovery_store):
+    """Every mat spend row, as (artwork, cost, model, units), in no promised order."""
+    return {
+        (record.artwork_id, record.cost_usd, record.model_id, record.units)
+        for record in discovery_store.list_spend_records()
+        if record.category is SpendCategory.MAT_COLOR_VISION
+    }
+
+
+class TestWhatItSpendsIsRecorded:
+    """A paid mat call writes a `mat_color_vision` row naming the work, on every path that asks.
+
+    Unattended preparation (the acquisition queue) turns an occasional cost into
+    a routine one, so the month total has to include it. The row is written where
+    the model is asked, so `regenerate`, `set_mat_color` with no colour and the
+    queue all record it without any of them knowing to.
+    """
+
+    def test_a_first_preparation_records_what_the_model_cost_against_the_work(
+        self, service, discovery, discovery_store, settings, prep_settings
+    ):
+        work, _ = _work_with_original(service, settings)
+        prep = PreparationService(service, _spending_engine("#27285b", Decimal("0.00006626")), prep_settings, spend=discovery)
+
+        prep.prepare(work.id)
+
+        assert _mat_spend(discovery_store) == {(work.id, Decimal("0.00006626"), "qwen/qwen3.7-flash", 1)}
+
+    def test_a_preparation_that_asks_nothing_records_nothing_more(
+        self, service, discovery, discovery_store, settings, prep_settings
+    ):
+        work, _ = _work_with_original(service, settings)
+        prep = PreparationService(service, _spending_engine("#27285b", Decimal("0.00006626")), prep_settings, spend=discovery)
+        prep.prepare(work.id)
+
+        prep.prepare(work.id, force=True)
+
+        assert len(_mat_spend(discovery_store)) == 1
+
+    def test_choosing_the_mat_again_records_a_second_call(self, service, discovery, discovery_store, settings, prep_settings):
+        work, _ = _work_with_original(service, settings)
+        prep = PreparationService(service, _spending_engine("#27285b", Decimal("0.00006626")), prep_settings, spend=discovery)
+        prep.prepare(work.id)
+
+        prep.choose_mat(work.id)
+
+        assert [record.artwork_id for record in discovery_store.list_spend_records()] == [work.id, work.id]
+
+    def test_a_billed_answer_the_engine_could_not_use_is_recorded_against_the_model_asked(
+        self, service, discovery, discovery_store, settings, prep_settings
+    ):
+        """The fallback's `model_id` is None, since no model chose the colour; the model that billed is named anyway."""
+
+        class _BilledFallback(MatEngine):
+            @property
+            def model_id(self):
+                return "qwen/qwen3.7-flash"
+
+            def choose(self, image_path):  # noqa: ARG002 - a canned answer
+                return MatChoice(
+                    hex_rgb="#202020",
+                    method=MatMethod.DOMINANT_COLOR_FALLBACK,
+                    reason="derived",
+                    cost_usd=Decimal("0.00004"),
+                    fallback_detail="the model answered with no colour",
+                )
+
+        work, _ = _work_with_original(service, settings)
+        prep = PreparationService(service, _BilledFallback(None, image_max_edge=256), prep_settings, spend=discovery)
+
+        prep.prepare(work.id)
+
+        assert _mat_spend(discovery_store) == {(work.id, Decimal("0.00004"), "qwen/qwen3.7-flash", 1)}
+
+    def test_a_keyless_preparation_records_no_spend(self, prep, service, discovery_store, settings):
+        """The container's own engine has no client: nothing is asked, so a row would claim a call never made."""
+        work, _ = _work_with_original(service, settings)
+
+        prep.prepare(work.id)
+
+        assert discovery_store.list_spend_records() == []
 
 
 class TestAnUndecodableOriginal:
