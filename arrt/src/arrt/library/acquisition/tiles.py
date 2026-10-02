@@ -35,10 +35,9 @@ from arrt.persistence.records import Source
 #: **An implementation may raise `ImageSearchFailure` and nothing else**, and the
 #: contract is named here because a `Callable` alias cannot carry it. The caller
 #: translates that one type into a recorded failure against the source; anything
-#: else propagates out of `acquire`, past the deliberate clauses at the tool
-#: boundary, and reaches a curator as "failed unexpectedly" — the exact outcome
-#: those clauses exist to prevent, and it would name no source, no provider and
-#: no remedy. This matters because the seam is a declared extension point: the
+#: else propagates out of `acquire`, and the acquisition queue counts it as an
+#: unexpected failure of the work — which names no source, no provider and no
+#: remedy, the outcome the recorded failure exists to prevent. This matters because the seam is a declared extension point: the
 #: container's map is overridable, so the next resolver is written by someone
 #: reading this line and not the caller's `except` list. A resolver that talks to
 #: something with its own exceptions wraps them here.

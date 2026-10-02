@@ -25,7 +25,7 @@ alone: the image is held, and fetching it again would cost a museum a gigapixel
 to repeat what already worked.
 
 **A deployment fault pauses the queue and costs no work anything.** The
-conditions acquisition raises for rather than records (`_DEPLOYMENT_FAULTS`: a
+conditions acquisition raises for rather than records (`DEPLOYMENT_FAULTS`: a
 disk below `MIN_FREE_BYTES`, no dezoomify-rs, a provider with no resolver) are
 none of them one work's fault, and retrying the work cannot fix any of them. So
 the pass stops, the queue remembers why, and it tries again every 15 minutes and
@@ -48,7 +48,7 @@ from enum import StrEnum
 from typing import Final, Protocol
 
 from arrt.library.acquisition.preparation import PreparationResult
-from arrt.library.acquisition.service import _DEPLOYMENT_FAULTS, AcquisitionOutcome, AcquisitionResult
+from arrt.library.acquisition.service import DEPLOYMENT_FAULTS, AcquisitionOutcome, AcquisitionResult, remedy_for
 from arrt.library.services.catalogue import CatalogueService
 from arrt.persistence.catalogue import CatalogueStore, WorkToAcquire
 from arrt.persistence.records import ArtworkStatus, QueuedAcquisition
@@ -134,6 +134,11 @@ class AcquisitionState:
     #: The deployment fault the queue is paused on, by its exception's name (`paused`).
     condition: str | None = None
 
+    @property
+    def remedy(self) -> str | None:
+        """What an operator changes to end the pause this work waits on; None when there is none to name."""
+        return None if self.condition is None else remedy_for(self.condition)
+
 
 @dataclass(frozen=True, slots=True)
 class QueuePause:
@@ -143,6 +148,11 @@ class QueuePause:
     condition: str
     detail: str
     since: datetime
+
+    @property
+    def remedy(self) -> str | None:
+        """What an operator changes to end it. None for an error nothing anticipated: the journal has that one."""
+        return remedy_for(self.condition)
 
 
 @dataclass(frozen=True, slots=True)
@@ -161,6 +171,22 @@ class QueuePassResult:
     waiting: int = 0
     #: The pause the pass ended in, if it ended in one.
     paused: QueuePause | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class QueueEntry:
+    """One work the queue owes something, named for a person reading the queue."""
+
+    title: str
+    state: AcquisitionState
+
+
+@dataclass(frozen=True, slots=True)
+class QueueListing:
+    """What Activity › Queue shows of acquisition: the pause, if any, then every work owed."""
+
+    pause: QueuePause | None
+    entries: Sequence[QueueEntry]
 
 
 class _Paused(Exception):
@@ -218,7 +244,13 @@ class AcquisitionQueue:
         artwork = self._catalogue.get_artwork(artwork_id).artwork
         if artwork.status is ArtworkStatus.ARCHIVED:
             raise ServiceError(f"Artwork {artwork_id!r} is archived; restore it and it will be fetched.")
-        if source_id is not None and source_id not in {source.id for source in self._catalogue.list_sources(artwork_id)}:
+        sources = {source.id for source in self._catalogue.list_sources(artwork_id)}
+        if not sources:
+            # Refused here rather than queued to fail an hour later: nothing a
+            # retry schedule does can give a work a source, and the caller asking
+            # is the one who can.
+            raise ServiceError(f"Artwork {artwork_id!r} has no source to acquire from.")
+        if source_id is not None and source_id not in sources:
             raise ServiceError(f"Source {source_id!r} does not belong to artwork {artwork_id!r}.")
         with self._state_lock:
             if self._fetching is not None and self._fetching[0] == artwork_id:
@@ -260,6 +292,30 @@ class AcquisitionQueue:
                     continue
                 states[artwork_id] = _state(artwork_id, queued, now=now, fetching=fetching, pause=pause)
         return states
+
+    def listing(self) -> QueueListing:
+        """Everything the queue owes, in the order it will be tried, and why it is paused if it is.
+
+        The work being fetched leads, then a Retry's works, then oldest
+        acceptance; works given up on and works waiting for a retry follow in
+        the same order, since each still holds its place.
+        """
+        works = self._in_turn(list(self._store.works_to_acquire()))
+        with self._state_lock:
+            fetching = None if self._fetching is None else self._fetching[0]
+        ids = [work.artwork_id for work in works]
+        if fetching in ids:
+            ids.remove(fetching)
+            ids.insert(0, fetching)
+        states = self.state_of(ids)
+        entries = []
+        for artwork_id in ids:
+            state = states.get(artwork_id)
+            artwork = self._store.get_artwork(artwork_id)
+            if state is None or artwork is None:
+                continue
+            entries.append(QueueEntry(title=artwork.title, state=state))
+        return QueueListing(pause=self.pause, entries=tuple(entries))
 
     # -- the worker ------------------------------------------------------------
 
@@ -361,19 +417,36 @@ class AcquisitionQueue:
             if artwork_id in self._front:
                 self._front.remove(artwork_id)
         try:
-            if not work.holds_original or entry.source_id is not None:
-                failure = self._fetch(entry)
-                if failure is not None:
-                    return self._record_failure(entry, failure)
-                if entry.source_id is not None:
-                    # Fetched from the source that was named, so the next attempt,
-                    # if preparation fails, must not fetch again.
-                    entry = replace(entry, source_id=None)
-                    self._store.set_queued_acquisition(entry)
             try:
-                self._preparation.prepare(artwork_id)
-            except ServiceError as exc:
-                return self._record_failure(entry, f"the image was fetched but could not be prepared: {exc}")
+                if not work.holds_original or entry.source_id is not None:
+                    failure = self._fetch(entry)
+                    if failure is not None:
+                        return self._record_failure(entry, failure)
+                    if entry.source_id is not None:
+                        # Fetched from the source that was named, so the next attempt,
+                        # if preparation fails, must not fetch again.
+                        entry = replace(entry, source_id=None)
+                        self._store.set_queued_acquisition(entry)
+                try:
+                    self._preparation.prepare(artwork_id)
+                except ServiceError as exc:
+                    return self._record_failure(entry, f"the image was fetched but could not be prepared: {exc}")
+            except _Paused:
+                raise
+            except (
+                Exception
+            ) as exc:  # prawduct:allow prawduct/broad-except -- one work's surprise must not hold every work behind it
+                # Counted against this work rather than pausing the queue: a
+                # pause leaves the work first in line, so an error peculiar to it
+                # would be met again on every pass and nothing behind it would
+                # ever be fetched. A fault that is truly the host's fails each work
+                # in turn instead, on the retry schedule, and says so on each.
+                log.exception(
+                    "acquiring %s raised an error nothing expected; it counts as a failure of that work",
+                    artwork_id,
+                    extra={"event": "acquisition.queue_unexpected", "artwork_id": artwork_id},
+                )
+                return self._record_failure(entry, f"an unexpected error: {type(exc).__name__}: {exc}")
             self._store.remove_queued_acquisition(artwork_id)
             return _Outcome.DONE
         finally:
@@ -384,7 +457,7 @@ class AcquisitionQueue:
         """Fetch the work's image; return why it failed, or None once it holds one."""
         try:
             result = self._acquisition.acquire(entry.artwork_id, source_id=entry.source_id)
-        except _DEPLOYMENT_FAULTS as exc:
+        except DEPLOYMENT_FAULTS as exc:
             pause = QueuePause(condition=type(exc).__name__, detail=str(exc), since=self._clock())
             self._enter_pause(pause)
             raise _Paused(pause) from exc
@@ -553,6 +626,8 @@ __all__ = [
     "AcquisitionPhase",
     "AcquisitionQueue",
     "AcquisitionState",
+    "QueueEntry",
+    "QueueListing",
     "QueuePassResult",
     "QueuePause",
     "start_acquisition_queue",

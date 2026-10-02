@@ -344,7 +344,7 @@ class Services:
             discovery=discovery_service,
             display=display_service,
             thumbnails=thumbnail_service,
-            survey=SurveyService(catalogue_service, thumbnail_service, artwork_box),
+            survey=SurveyService(catalogue_service, thumbnail_service, artwork_box, acquisition=acquisition_queue),
             # `art_root` is read off the thumbnail settings rather than taken as
             # an argument of its own. It is the same deployment value — every
             # catalogue path is relative to it — and it is already required and

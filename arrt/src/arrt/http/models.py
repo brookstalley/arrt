@@ -508,6 +508,48 @@ class TopicPageOut(BaseModel):
     works: list[WorkOut]
 
 
+class AcquisitionStateOut(BaseModel):
+    """Where one work stands in the acquisition queue.
+
+    `phase` is one of `queued`, `fetching`, `failed`, `gave_up` and `paused`,
+    each said in words by the client beside its glyph. `detail` is why the last
+    attempt failed, or why the queue is paused; `remedy` is what an operator
+    changes to end a pause, when the condition has one.
+    """
+
+    artwork_id: str
+    phase: str
+    failures: int
+    detail: str | None
+    next_try_at: str | None
+    since: str | None
+    condition: str | None
+    remedy: str | None
+
+
+class QueuePauseOut(BaseModel):
+    """Why the acquisition queue is paused: a condition that is the deployment's, not any work's."""
+
+    condition: str
+    detail: str
+    since: str
+    remedy: str | None
+
+
+class QueuedWorkOut(BaseModel):
+    """One work the acquisition queue owes something, named for a person."""
+
+    title: str
+    acquisition: AcquisitionStateOut
+
+
+class AcquisitionQueueOut(BaseModel):
+    """Activity › Queue's acquisitions: the pause, if any, then every work owed, in the order tried."""
+
+    pause: QueuePauseOut | None
+    works: list[QueuedWorkOut]
+
+
 class WorkDetailOut(BaseModel):
     """One work in full."""
 
@@ -520,6 +562,9 @@ class WorkDetailOut(BaseModel):
     #: detail rather than on `WorkOut`, because the grid shows the collection's
     #: counts and the Work screen shows one work's facts.
     facets: list[WorkFacetOut] = []
+    #: Where the work stands in the acquisition queue; null when the queue owes
+    #: it nothing (its image is held and prepared, or it is archived).
+    acquisition: AcquisitionStateOut | None = None
 
 
 class ThemeOut(BaseModel):
@@ -861,6 +906,9 @@ class CandidateWorkOut(BaseModel):
     """
 
     work_id: str
+    #: The catalogue work acceptance made of it; null until it is accepted. What
+    #: a review card follows to say how the work's image is coming along.
+    artwork_id: str | None = None
     title: str
     artist: str | None
     #: Why the engine named this work. Shown because a curator judging a work

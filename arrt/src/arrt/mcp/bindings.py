@@ -24,11 +24,8 @@ from datetime import datetime
 from typing import Any, Final
 
 from arrt.counting import agree, agree_partitive, counted
-from arrt.library.acquisition.dezoomify import DezoomifyUnavailable
 from arrt.library.acquisition.preparation import PreparationResult
-from arrt.library.acquisition.service import AcquisitionOutcome, AcquisitionResult
-from arrt.library.acquisition.space import NotEnoughSpace
-from arrt.library.acquisition.tiles import TileTargetUnavailable
+from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState
 from arrt.library.services.catalogue import MAX_LIST_LIMIT, ArtworkDetail, ArtworkListing, FacetGroup
 from arrt.library.services.discovery import VerdictOutcome, WantedWork
 from arrt.library.services.display_fit import DisplayFit
@@ -52,7 +49,6 @@ from arrt.persistence.records import Artist, Artwork, Directive, Source, Theme, 
 from arrt.programming.display import UNSET, ThemePlacement, WallView, describe_wall_status
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.services.container import Services
-from arrt.services.errors import ServiceError
 
 #: A bound action: validated arguments in, a result payload out. Every binding
 #: takes the whole container rather than the one service it happens to need, so
@@ -135,7 +131,11 @@ def _facet_group(group: FacetGroup) -> dict[str, Any]:
 
 
 def _get_artwork(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    return ok(artwork=_full(services.catalogue.get_artwork(arguments["artwork_id"])))
+    artwork_id = arguments["artwork_id"]
+    return ok(
+        artwork=_full(services.catalogue.get_artwork(artwork_id)),
+        acquisition=_acquisition_fields(services.acquisition_queue.state_of([artwork_id]).get(artwork_id)),
+    )
 
 
 def _list_sources(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -210,56 +210,41 @@ def _restore_artwork(services: Services, arguments: Mapping[str, Any]) -> dict[s
 
 
 def _retry_acquisition(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    try:
-        result = services.acquisition.acquire(
-            arguments["artwork_id"],
-            source_id=arguments.get("source_id"),
-        )
-    # Translated rather than allowed to reach the generic handler. These are the
-    # conditions acquisition deliberately raises for instead of recording,
-    # because no source is at fault — and a caller told only that the call
-    # "failed unexpectedly" would go looking at the museum. What each clause adds
-    # is the **remedy**: the sentence naming what an operator changes to make the
-    # refusal stop. That is a tool-boundary concern and it belongs here.
-    #
-    # The journal line is *not* here, and that is the division. It follows the
-    # condition, so `AcquisitionService` emits it at the raise and every caller
-    # gets it — a browser route added later inherits the signal instead of
-    # inheriting silence. Adding a `_deployment_fault(...)` call back into these
-    # clauses would log every MCP refusal twice.
-    #
-    # **Every raise-rather-record condition needs a clause here.** Adding one to
-    # the service without one here is silent: the generic handler drops the
-    # exception text, so the deliberate refusal arrives as the very "failed
-    # unexpectedly" these clauses exist to prevent.
-    except NotEnoughSpace as exc:
-        raise ServiceError(
-            f"Acquisition did not start: {exc} Free space on the art tree's disk, or lower MIN_FREE_BYTES "
-            "if this deployment means to run closer to full."
-        ) from exc
-    except DezoomifyUnavailable as exc:
-        raise ServiceError(
-            f"Acquisition did not start: {exc} This is a deployment problem rather than a bad source — "
-            "install dezoomify-rs, or set DEZOOMIFY_PATH to where it lives. Every source using "
-            "acquisition_method='dezoomify' is affected, and no source is at fault."
-        ) from exc
-    except TileTargetUnavailable as exc:
-        raise ServiceError(
-            f"Acquisition did not start: {exc} Set ARTIC_USER_AGENT in .env to a string naming this "
-            "deployment and a contact address — the museum's API is open, but it asks callers to identify "
-            "themselves, and an object's image service can only be reached by asking. Every source from "
-            "that provider is affected, and no source is at fault."
-        ) from exc
-    return ok(
-        artwork_id=result.artwork_id,
-        source_id=result.source_id,
-        outcome=result.outcome.value,
-        detail=result.detail,
-        relative_path=result.relative_path,
-        byte_size=result.byte_size,
-        width=result.width,
-        height=result.height,
-        notice=_acquisition_notice(result),
+    # Through the queue, never a fetch in the call: a tiled fetch can run for
+    # half an hour, and a second fetch beside the queue's own would break the one
+    # fetch at a time the Pi's memory allows. Renamed in behaviour, not in name,
+    # 2026-10-02 (`api-contract.md` § Versioning: a description change is
+    # breaking, announced and annotated here and in the tool's text). The fetch's
+    # outcome, and a deployment fault's remedy, now arrive on `get`'s
+    # `acquisition` and on the work's sources.
+    state = services.acquisition_queue.retry(arguments["artwork_id"], source_id=arguments.get("source_id"))
+    return ok(acquisition=_acquisition_fields(state), notice=_retry_notice(state))
+
+
+def _acquisition_fields(state: AcquisitionState | None) -> dict[str, Any] | None:
+    if state is None:
+        return None
+    return {
+        "artwork_id": state.artwork_id,
+        "phase": str(state.phase),
+        "failures": state.failures,
+        "detail": state.detail,
+        "next_try_at": None if state.next_try_at is None else state.next_try_at.isoformat(),
+        "since": None if state.since is None else state.since.isoformat(),
+        "condition": state.condition,
+        "remedy": state.remedy,
+    }
+
+
+def _retry_notice(state: AcquisitionState) -> str:
+    """What happens next, since the call itself fetched nothing."""
+    if state.phase is AcquisitionPhase.PAUSED:
+        remedy = state.remedy or "The journal has the error (event acquisition.queue_error)."
+        return f"Queued, but the acquisition queue is paused: {state.detail} {remedy}"
+    return (
+        "Queued at the front of the acquisition queue; nothing was fetched in this call. "
+        "art_catalogue(action='get') shows its progress under `acquisition`, which is null once the image "
+        "is fetched and prepared."
     )
 
 
@@ -360,33 +345,6 @@ def _regenerate_notice(result: PreparationResult) -> str | None:
             "art_review's re-search finds a larger scan if one exists."
         )
     return " ".join(notices) or None
-
-
-def _acquisition_notice(result: AcquisitionResult) -> str | None:
-    """What the outcome means for the work, when the outcome alone understates it."""
-    if result.outcome is AcquisitionOutcome.PARTIAL:
-        # Said out loud because `partial` reads like a failure and is not one:
-        # the work is on the wall, with gaps, and asking again may close them.
-        return (
-            "The image is usable and the work holds it, but some tiles never arrived, so it has gaps. "
-            "Retrying re-uses the tiles already fetched, so a second attempt is cheap and may complete it."
-        )
-    if result.outcome is AcquisitionOutcome.FAILED:
-        return (
-            "The work holds whatever image it had before; a failed fetch replaces nothing. "
-            "art_catalogue(action='sources') shows the other sources this work has, if any."
-        )
-    if result.outcome is AcquisitionOutcome.KEPT_HELD:
-        # The one outcome where the source did nothing wrong and the work still
-        # changed nothing, so neither "acquired" nor "failed" describes it. Said in
-        # full because the obvious next move — retry again — has the same result
-        # until the tile server stops dropping tiles.
-        return (
-            "The fetch worked but came back with missing tiles, and the work already holds a better image, "
-            "so nothing was replaced. Retrying repeats this until the source returns every tile; "
-            "art_catalogue(action='sources') shows the work's other sources, if any."
-        )
-    return None
 
 
 def _sources_notice(sources: Sequence[Source]) -> str | None:
@@ -1353,6 +1311,9 @@ def _work_summary(work: CandidateWork) -> dict[str, Any]:
     """
     return {
         "work_id": work.id,
+        # The catalogue work an acceptance made, or null: what `art_catalogue`
+        # takes, so an accepted work's image and its fetch can be followed.
+        "artwork_id": work.artwork_id,
         "title": work.proposed_title,
         # As phase 1 wrote it, unparsed. Matching it to a catalogue artist is
         # acceptance's job and does not happen until a work is promoted. On an

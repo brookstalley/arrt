@@ -152,7 +152,7 @@ ART_CATALOGUE: Final = ToolRecord(
     title="Art catalogue",
     summary=(
         "Read and manage the works already accepted into the collection. Two actions reach outside the machine: "
-        "retry_acquisition fetches from a museum, and set_mat_color asks a vision model when given no colour."
+        "retry_acquisition queues a fetch from a museum, and set_mat_color asks a vision model when given no colour."
     ),
     read_only=False,
     destructive=False,
@@ -195,10 +195,15 @@ ART_CATALOGUE: Final = ToolRecord(
         ),
         Action(
             name="get",
-            description="Return one work in full, with its artist resolved.",
+            description="Return one work in full, with its artist resolved and where it stands in the acquisition queue.",
             example="art_catalogue(action='get', artwork_id='<an artwork_id from action=list>')",
             params=(_ARTWORK_ID,),
-            tips=("Ids are stable internal identities, never source URLs, so they survive a museum reorganising its site.",),
+            tips=(
+                "Ids are stable internal identities, never source URLs, so they survive a museum reorganising its site.",
+                "`acquisition` is null once the work's image is fetched and prepared; otherwise its phase is queued, "
+                "fetching, failed (with the next try), gave_up (waits for retry_acquisition) or paused (with the "
+                "remedy an operator applies).",
+            ),
         ),
         Action(
             name="sources",
@@ -230,12 +235,18 @@ ART_CATALOGUE: Final = ToolRecord(
         ),
         Action(
             name="retry_acquisition",
-            description="Fetch the work's master image again from one of its sources.",
+            # Changed 2026-10-02 from fetching in the call to queueing: a breaking
+            # description change by `api-contract.md` § Versioning, announced
+            # with the plan that made it (`build-plan-after-review.md` Chunk 02).
+            description="Queue the work's master image to be fetched again, first in line, and return at once.",
             example="art_catalogue(action='retry_acquisition', artwork_id='<an artwork_id from action=list>')",
             params=(_ARTWORK_ID, _SOURCE_ID),
             tips=(
-                "Use it after a failed or partial fetch; action='sources' shows which, and what went wrong last time.",
-                "Omitting source_id uses the work's primary source.",
+                "Nothing is fetched in the call: the acquisition queue fetches one work at a time, and a tiled fetch "
+                "can take half an hour. action='get' shows its progress under `acquisition`.",
+                "It forgets the work's failures, so a work the queue gave up on is tried again.",
+                "Omitting source_id finishes what the work is owed; naming one fetches from it even when the work "
+                "already holds an image, which is how to ask for a complete scan after a partial one.",
                 "Retrying cannot cost the work its image: an attempt that fails replaces nothing, and one that "
                 "comes back with missing tiles is refused outright when the work already holds a complete image.",
             ),
@@ -432,8 +443,10 @@ ART_DISCOVERY: Final = ToolRecord(
         ),
         Action(
             name="resolve_images",
-            description="Look again for images of works whose instances the curator turned down. Returns a handle at once.",
-            example="art_discovery(action='resolve_images', work_ids=['<a work_id awaiting a better image>'])",
+            # Changed 2026-10-02: wanted works include works with no scan at all,
+            # which `art_review(action='want')` sends here (`api-contract.md`).
+            description="Look again for images of wanted works, with or without a scan. Returns a handle at once.",
+            example="art_discovery(action='resolve_images', work_ids=['<a work_id from art_review action=list_wanted>'])",
             params=(
                 Param(
                     name="work_ids",

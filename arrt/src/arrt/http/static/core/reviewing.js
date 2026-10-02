@@ -9,6 +9,7 @@
  * screens, which `core/badges.js` states as the rule: two screens use it.
  */
 
+import { acquisitionLine } from "./acquiring.js";
 import { api } from "./api.js";
 import { paintAwaiting } from "./awaiting.js";
 import { agree, counted } from "./counting.js";
@@ -372,6 +373,12 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
     node.replaceWith(candidateCard(fresh, message, disclosure.open, hooks.onVerdict));
   };
 
+  // An accepted work's image is fetched by the acquisition queue, not by the
+  // verdict, so the card says how that is coming along — the moment after
+  // Accept is when a curator wonders whether anything happened.
+  const acquisitionSlot = work.verdict === "accepted" && work.artwork_id ? el("div", { class: "acquisition-slot" }) : null;
+  if (acquisitionSlot) guard(() => paintAcquisition(acquisitionSlot, work));
+
   const reason = el("input", { type: "text", id: `reason-${work.work_id}` });
   const decide = (verdict) =>
     guard(async () => {
@@ -437,6 +444,7 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
         reasonBadge(work),
         card.shown ? fitBadge(card.shown, "size unrecorded") : null,
       ]),
+      acquisitionSlot,
       // A chosen work names the Wikidata item it was got by, which opens that
       // item's page here: what the registry knows of the work, to judge it by.
       work.wikidata_qid
@@ -503,6 +511,21 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
     disclosure,
   );
   return node;
+}
+
+/* Where an accepted work's image stands: the queue's line while it owes one,
+ * and a plain sentence once it does not. */
+async function paintAcquisition(slot, work) {
+  const detail = await api(`/api/works/${encodeURIComponent(work.artwork_id)}`);
+  fill(
+    slot,
+    detail.acquisition
+      ? acquisitionLine(detail.acquisition, work.title, () => paintAcquisition(slot, work))
+      : el("p", {
+          class: "muted",
+          text: detail.original ? "Its image is held and prepared for the wall." : "No image is being fetched for it.",
+        }),
+  );
 }
 
 /* The offer to look again, over the works currently wanted.

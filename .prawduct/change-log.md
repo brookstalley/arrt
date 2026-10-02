@@ -62,6 +62,42 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-02: Where an accepted work's image stands, on every screen that shows the work
+
+<!-- prawduct: scope=after-review -->
+
+**Why:** Chunk 01's queue fetches and prepares accepted works in the background,
+and a background job that nobody can see reads exactly like one that never ran.
+The owner asked that the Work and Review pages say whether a work is queued,
+being fetched, or failed and why, and that a pause say why on Activity (#167).
+
+**What:**
+- **The Work page, a Review card for an accepted work, and Activity › Queue**
+  say where a work stands, in one set of words (`core/acquiring.js`): queued,
+  fetching, failed (which try, why, when next), gave up (with **Retry**), or
+  paused (why, and the remedy). Queue lists every work owed, in the order the
+  queue will try them, under the searches. Activity's count stays To review's.
+- **HTTP:** `GET /api/works/{id}` gains `acquisition`; new
+  `POST /api/works/{id}/acquisition/retry` and `GET /api/acquisitions`; every
+  candidate work gains `artwork_id`.
+- **MCP, breaking:** `retry_acquisition` queues the work and returns at once,
+  instead of fetching in the call beside the queue's own fetch; `get` carries
+  `acquisition`. Its per-outcome notice went with the synchronous fetch, and
+  `sources` still reports a partial fetch. `resolve_images`' text now says
+  *wanted works*. Recorded in `api-contract.md` § Versioning.
+- **The queue:** an unexpected error from one work's attempt now counts against
+  that work instead of pausing every fetch; a Retry on a work with no source is
+  refused. The deployment faults' remedies moved from MCP's binding to
+  `DEPLOYMENT_REMEDIES`, beside `DEPLOYMENT_FAULTS` (now public).
+- **Tests rewritten to the new contract, not weakened:** MCP's retry tests (it
+  queues; a pass then shows the failure or the pause through `get`); the
+  binding's notice and remedy tests (the remedy table, parametrised over
+  `DEPLOYMENT_FAULTS`); Chunk 01's pause-on-unexpected-error test, split into
+  the error from one work (counts against it, the next is still fetched) and the
+  error outside any work (still pauses). Queue's empty sentence now says "No
+  search is in flight", since the fetches beneath may be. Eight new tests watched
+  failing against eight re-breaks.
+
 ## 2026-10-02: An accepted work fetches and prepares itself; one wanted state
 
 <!-- prawduct: scope=after-review -->

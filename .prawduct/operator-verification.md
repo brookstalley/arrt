@@ -10,6 +10,33 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Where an accepted work's image stands: the Work page, Review, Activity › Queue — added 2026-10-02
+
+**`build-plan-after-review.md` Chunk 02.** Visual change: yes.
+
+Checked by the builder on 2026-10-02 at 1280 px and 390 px in the browser
+suite's own server (the seeded works plus two written into the queue's table),
+not on your catalogue, and with no worker running. Regenerate with
+`cd arrt && uv run pytest -m browser -n0 tests/browser/test_acquisition_states.py`
+and a `page.screenshot` of your own.
+
+- **Work page, *The master image*:** a work with no image says
+  `◌ queued` and "Waiting its turn to be fetched…", with no button; one the
+  queue gave up on says `✗ gave up`, "Gave up after 4 tries: <why>. Nothing tries
+  again until you retry.", and **Retry**, which repaints it to queued. A failed
+  try says "Try 1 of 4 failed: <why> It tries again at <date, time>." with
+  **Retry now**. On a phone the sentence wraps beside the badge and Retry sits
+  beneath.
+- **Activity › Queue:** below the searches, *Fetching images (n)* is a table of
+  Work, State, What happened, in the order the queue will try them. A paused
+  queue says "Every fetch is paused: <why> <remedy>" above the table.
+- **Review:** an accepted card says the same line under its badges.
+- **To look at on your catalogue:** whether the repeated "Waiting its turn…"
+  sentence on every queued row of the Queue reads as noise with a long backlog,
+  and how *fetching* reads while a real tiled fetch runs (no test drives a live
+  fetch).
+
+
 ### A Get reviewed on its own page, wide, with its scans readable — added 2026-10-02
 
 **`build-plan-topics-and-destinations.md` Chunk 07.** Visual change: yes.

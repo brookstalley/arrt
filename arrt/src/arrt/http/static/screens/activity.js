@@ -19,6 +19,7 @@
  * another screen.
  */
 
+import { acquisitionBadge, acquisitionSentence, retryButton } from "../core/acquiring.js";
 import { api } from "../core/api.js";
 import { table } from "../core/badges.js";
 import { counted } from "../core/counting.js";
@@ -111,17 +112,53 @@ export async function viewToReview(generation) {
   render(generation, ...panels);
 }
 
+/* The images being fetched: Radarr's Queue holds downloads, and this is ours.
+ *
+ * Every work the acquisition queue owes something, in the order it will try
+ * them, with the pause first when there is one, since a pause holds every row
+ * beneath it. Not counted on Activity's link: that count is To review's, the
+ * one queue that needs the curator, and a fetch needs only time. */
+function acquisitionPanel(listing, generation) {
+  const repaint = () => viewQueue(generation);
+  const rows = listing.works.map(({ title, acquisition }) => [
+    el("button", {
+      class: "link",
+      type: "button",
+      text: title,
+      onclick: () => go("work", acquisition.artwork_id),
+    }),
+    acquisitionBadge(acquisition),
+    el("div", { class: "stack-tight" }, [
+      el("span", { text: acquisitionSentence(acquisition) }),
+      retryButton(acquisition, title, repaint),
+    ]),
+  ]);
+  return el("div", { class: "panel acquisitions" }, [
+    el("h3", { text: `Fetching images (${listing.works.length})` }),
+    listing.pause
+      ? el("p", { class: "note acquisition-pause" }, [
+          el("span", { class: "glyph", text: "‖", "aria-hidden": true }),
+          ` Every fetch is paused: ${listing.pause.detail} ${listing.pause.remedy || "Nothing anticipated this error; the server's journal has it, as acquisition.queue_error."}`,
+        ])
+      : null,
+    listing.works.length
+      ? table("Every accepted work still owed its image or its preparation, in the order the queue will try them.", ["Work", "State", "What happened"], rows)
+      : el("p", { class: "muted", text: "Every accepted work holds its image. A work you accept is fetched here, one at a time, then prepared for the wall." }),
+  ]);
+}
+
 export async function viewQueue(generation) {
-  const [runs, themes] = await Promise.all([api("/api/runs"), readThemes()]);
+  const [runs, themes, acquisitions] = await Promise.all([api("/api/runs"), readThemes(), api("/api/acquisitions")]);
   const active = runs.runs.filter((run) => !run.is_terminal);
   const panels = [el("h2", { text: "Queue" })];
   if (!active.length) {
     // Only as sure as the listing: when the cap left older searches out, one of
     // them may still be at the approval gate, so the page says what it checked
-    // rather than that nothing is in flight.
+    // rather than that nothing is in flight. "No search", not "nothing": the
+    // fetches below may be.
     const nothing = runs.truncated
-      ? `Nothing is in flight among the ${runs.count} most recent searches.`
-      : "Nothing is in flight.";
+      ? `No search is in flight among the ${runs.count} most recent searches.`
+      : "No search is in flight.";
     panels.push(
       el("div", { class: "panel empty" }, [
         el("p", {
@@ -141,6 +178,7 @@ export async function viewQueue(generation) {
     );
   }
   panels.push(truncation(runs, "Checked"));
+  panels.push(acquisitionPanel(acquisitions, generation));
   render(generation, ...panels);
 }
 

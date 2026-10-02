@@ -250,10 +250,17 @@ Done when:
 
 ### Chunk 02: Saying it: the Work page, Review, Activity › Queue, Retry, and MCP
 
-**Exposed API:** `GET /api/artworks/{id}` (gains the work's acquisition state),
-new `POST /api/artworks/{id}/acquisition/retry`, new `GET /api/acquisitions`
+**Exposed API:** `GET /api/works/{id}` (gains the work's acquisition state),
+new `POST /api/works/{id}/acquisition/retry`, new `GET /api/acquisitions`
 for the Queue, and
-`art_catalogue(action='retry_acquisition')`.
+`art_catalogue(action='retry_acquisition')`. (The plan first said
+`/api/artworks/…`; the routes are `/api/works/…`, and the build follows them.)
+
+**Decided while building, 2026-10-02:**
+- `[DECISION: Activity's count stays To review's; the images being fetched are not counted on Activity's link | `arrt/src/arrt/http/static/core/awaiting.js` and the IA call To review the one queue that needs the curator, and a fetch needs time, not the curator; a gave-up or paused fetch is said on Activity › Queue and on the Work page | owner can veto]` This replaces "Activity's count includes them" below.
+- `[DECISION: an unexpected error raised during one work's attempt counts as that work's failure, on the retry schedule; only an error outside any attempt pauses the queue | a pause left the failing work first in line, so one work that always raised held every work behind it (Chunk 01's review) | owner can veto]`
+- `[DECISION: a Retry on a work with no source is refused at once, not queued to fail | nothing a retry schedule does gives a work a source | owner can veto]`
+- Every candidate work gains `artwork_id` on HTTP and MCP, so an accepted Review card can find its fetch.
 
 - **Work page:** "No master image has been acquired for this work yet"
   becomes one of: *Queued*; *Fetching since …*; *Failed: why, next try at …*;
@@ -342,6 +349,12 @@ green; Critic.
 ### Chunk 05: Want and Forget on the card, and Activity › Wanted
 
 **Visual change:** yes
+
+**Found while building Chunk 02:** `art_discovery(action='resolve_images')`
+requires every work to come from the same discovery run, so **Search all**
+across runs needs one re-search per run (several runs, several prices), or that
+rule relaxed with its reason re-read first (`api-contract.md` § Rejecting an
+image… records why a resolve run has a `parent_run_id`).
 
 - **Review card:** a work with no scan on offer and none found offers **Want**
   and **Forget** in place of Accept and Reject. Forget is `rejected`, and its

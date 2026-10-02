@@ -526,24 +526,62 @@ class TestThePause:
 
         assert queue._seconds_until_due() == IDLE_SECONDS
 
-    def test_an_unexpected_error_in_a_pass_pauses_rather_than_spinning(self, queue, work, fetcher):
-        """The work in hand stays due, so a loop going straight back would raise as fast as it could log."""
-        artwork_id = work()
+    def test_an_unexpected_error_from_one_work_counts_against_it_and_the_next_is_still_fetched(self, queue, work, fetcher, clock):
+        """One work that always raises must not hold every work behind it, and must not spin.
+
+        Counted as that work's failure, it waits an hour like any other, and the
+        pass carries on to the work behind it. A pause here would have left it
+        first in line, met again on every pass.
+        """
+        failing, behind = work("Raises"), work("Behind it")
         fetcher.answers = [OSError("disk I/O error")]
+
+        result = queue.run()
+
+        assert (result.failed, result.acquired) == (1, 1)
+        assert queue.pause is None
+        state = queue.state_of([failing])[failing]
+        assert state.phase is AcquisitionPhase.FAILED
+        assert "OSError" in state.detail and "disk I/O error" in state.detail
+        assert state.next_try_at == clock.now + timedelta(hours=1)
+        assert queue.state_of([behind]) == {}
+
+    def test_an_error_outside_any_work_pauses_rather_than_spinning(self, queue, work, store, monkeypatch):
+        """Nothing is in hand to blame, so the loop pauses: going straight back would raise as fast as it could log."""
+        artwork_id = work()
+
+        def broken():
+            raise OSError("database disk image is malformed")
+
+        monkeypatch.setattr(store, "works_to_acquire", broken)
         stop = threading.Event()
-        passes = []
 
         def after_pass():
-            passes.append(1)
             stop.set()
             # Paused, the loop would otherwise wait a quarter of an hour before
             # it next looked at `stop`; a shutdown nudges it the same way.
             queue.nudge()
 
         run_acquisition_queue(queue, stop=stop, after_pass=after_pass)
+        monkeypatch.undo()
 
         assert queue.pause is not None and queue.pause.condition == "OSError"
         assert queue.state_of([artwork_id])[artwork_id].phase is AcquisitionPhase.PAUSED
+
+
+class TestTheListing:
+    def test_the_work_being_fetched_leads_then_a_retry_then_oldest_acceptance(self, queue, work, clock):
+        work("Accepted first")
+        retried, fetching = work("Retried"), work("Being fetched")
+        queue.retry(retried)
+        # What the worker sets while it holds a work.
+        queue._fetching = (fetching, clock.now)
+
+        listing = queue.listing()
+
+        assert [entry.title for entry in listing.entries] == ["Being fetched", "Retried", "Accepted first"]
+        assert listing.entries[0].state.phase is AcquisitionPhase.FETCHING
+        assert listing.pause is None
 
 
 class TestTheRunningQueue:

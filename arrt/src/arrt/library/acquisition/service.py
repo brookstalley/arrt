@@ -58,13 +58,40 @@ _FILENAME: Final[str] = "{artwork_id}.jpg"
 #: full disk, a missing binary, a provider whose image service cannot be asked.
 #:
 #: Membership here is the same judgement `_record_failure` is the other side of.
-#: A new raise-rather-record condition belongs in this tuple, and a condition
-#: that turns out to be one source's fault belongs in neither.
-_DEPLOYMENT_FAULTS: Final[tuple[type[Exception], ...]] = (
+#: A new raise-rather-record condition belongs in this tuple, **with a remedy in
+#: `DEPLOYMENT_REMEDIES`**, and a condition that turns out to be one source's
+#: fault belongs in neither. Public because the acquisition queue pauses on
+#: exactly these.
+DEPLOYMENT_FAULTS: Final[tuple[type[Exception], ...]] = (
     NotEnoughSpace,
     DezoomifyUnavailable,
     TileTargetUnavailable,
 )
+
+#: What an operator changes to make each deployment fault stop, keyed by the
+#: condition's name as the queue's pause and `acquisition.deployment_fault`
+#: carry it. Held here, beside the conditions, so the Work page, Activity › Queue
+#: and MCP say the same sentence: a remedy written at each surface is three
+#: chances to drift, and the one that drifts is the one an operator reads.
+DEPLOYMENT_REMEDIES: Final[Mapping[str, str]] = {
+    NotEnoughSpace.__name__: (
+        "Free space on the art tree's disk, or lower MIN_FREE_BYTES if this deployment means to run closer to full."
+    ),
+    DezoomifyUnavailable.__name__: (
+        "This is a deployment problem rather than a bad source: install dezoomify-rs, or set DEZOOMIFY_PATH to "
+        "where it lives. Every source using acquisition_method='dezoomify' is affected, and no source is at fault."
+    ),
+    TileTargetUnavailable.__name__: (
+        "Set ARTIC_USER_AGENT in .env to a string naming this deployment and a contact address — the museum's "
+        "API is open, but it asks callers to identify themselves, and an object's image service can only be "
+        "reached by asking. Every source from that provider is affected, and no source is at fault."
+    ),
+}
+
+
+def remedy_for(condition: str) -> str | None:
+    """What an operator changes to clear a deployment fault, by the condition's name; None for anything else."""
+    return DEPLOYMENT_REMEDIES.get(condition)
 
 
 def _journal_deployment_fault(exc: Exception, *, artwork_id: str) -> None:
@@ -213,7 +240,7 @@ class AcquisitionService:
         """
         try:
             return self._acquire(artwork_id, source_id=source_id)
-        except _DEPLOYMENT_FAULTS as exc:
+        except DEPLOYMENT_FAULTS as exc:
             _journal_deployment_fault(exc, artwork_id=artwork_id)
             raise
 
@@ -583,9 +610,12 @@ def _discard(path: Path) -> None:
 
 
 __all__ = [
+    "DEPLOYMENT_FAULTS",
+    "DEPLOYMENT_REMEDIES",
     "AcquisitionOutcome",
     "AcquisitionResult",
     "AcquisitionService",
     "AcquisitionSettings",
     "NotEnoughSpace",
+    "remedy_for",
 ]

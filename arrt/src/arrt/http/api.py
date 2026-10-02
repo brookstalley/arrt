@@ -35,6 +35,8 @@ from fastapi import APIRouter, Query, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 
 from arrt.http.models import (
+    AcquisitionQueueOut,
+    AcquisitionStateOut,
     AddWork,
     AffinityListOut,
     AffinityOut,
@@ -75,6 +77,8 @@ from arrt.http.models import (
     MoveWork,
     OriginalOut,
     PlayerTokenOut,
+    QueuedWorkOut,
+    QueuePauseOut,
     RegistryCreatorOut,
     RegistryHolderOut,
     RegistryHoldingOut,
@@ -133,6 +137,7 @@ from arrt.http.models import (
     WorkOut,
     WorkPageOut,
 )
+from arrt.library.acquisition.queue import AcquisitionState, QueueListing, QueuePause
 from arrt.library.services.artists import HeldArtist, RegistryView
 from arrt.library.services.catalogue import FacetGroup, RenditionView
 from arrt.library.services.conversation import ConversationDeletion, ConversationView, TurnView
@@ -252,6 +257,22 @@ def list_works(
 def get_work(request: Request, artwork_id: str) -> WorkDetailOut:
     """One work in full — metadata, artist, sources, renditions and mats."""
     return _dossier(_services(request).survey.get_work(artwork_id))
+
+
+@router.post("/works/{artwork_id}/acquisition/retry")
+def retry_acquisition(request: Request, artwork_id: str) -> AcquisitionStateOut:
+    """Forget the work's failures and put it at the front of the acquisition queue.
+
+    Fetches nothing in the request: a tiled fetch may take half an hour, and the
+    queue fetches one work at a time. Answers with where the work now stands.
+    """
+    return _acquisition(_services(request).acquisition_queue.retry(artwork_id))
+
+
+@router.get("/acquisitions")
+def list_acquisitions(request: Request) -> AcquisitionQueueOut:
+    """Every work the acquisition queue owes something, in the order it will try them, and its pause if any."""
+    return _acquisition_queue(_services(request).acquisition_queue.listing())
 
 
 @router.post("/works/{artwork_id}/wikidata")
@@ -1226,6 +1247,31 @@ def _dossier(dossier: WorkDossier) -> WorkDetailOut:
         renditions=[_rendition(view) for view in dossier.renditions],
         mat_colors=[_mat_color(mat) for mat in dossier.mat_colors],
         facets=[_facet(facet) for facet in dossier.facets],
+        acquisition=None if dossier.acquisition is None else _acquisition(dossier.acquisition),
+    )
+
+
+def _acquisition(state: AcquisitionState) -> AcquisitionStateOut:
+    return AcquisitionStateOut(
+        artwork_id=state.artwork_id,
+        phase=str(state.phase),
+        failures=state.failures,
+        detail=state.detail,
+        next_try_at=None if state.next_try_at is None else state.next_try_at.isoformat(),
+        since=None if state.since is None else state.since.isoformat(),
+        condition=state.condition,
+        remedy=state.remedy,
+    )
+
+
+def _queue_pause(pause: QueuePause) -> QueuePauseOut:
+    return QueuePauseOut(condition=pause.condition, detail=pause.detail, since=pause.since.isoformat(), remedy=pause.remedy)
+
+
+def _acquisition_queue(listing: QueueListing) -> AcquisitionQueueOut:
+    return AcquisitionQueueOut(
+        pause=None if listing.pause is None else _queue_pause(listing.pause),
+        works=[QueuedWorkOut(title=entry.title, acquisition=_acquisition(entry.state)) for entry in listing.entries],
     )
 
 
@@ -1455,6 +1501,7 @@ def _run_view(view: RunView) -> RunViewOut:
 def _candidate_work(work: CandidateWork) -> CandidateWorkOut:
     return CandidateWorkOut(
         work_id=work.id,
+        artwork_id=work.artwork_id,
         title=work.proposed_title,
         artist=work.proposed_artist,
         rationale=work.rationale,

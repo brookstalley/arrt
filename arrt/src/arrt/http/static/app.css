@@ -1222,6 +1222,38 @@ button.link {
   background: var(--surface-2);
 }
 
+/* Where a work stands in the acquisition queue. The glyph and the word carry
+   the phase; the border only separates the ones a curator acts on (failed,
+   gave up) and the one an operator does (paused) from the ones that need time. */
+.badge-acquisition-failed {
+  border-style: solid;
+  border-width: 2px;
+}
+
+.badge-acquisition-gave_up {
+  border-style: double;
+  border-width: 3px;
+  font-weight: 600;
+}
+
+.badge-acquisition-paused {
+  border-style: dashed;
+  border-width: 2px;
+  font-weight: 600;
+}
+
+/* The badge and its sentence read as one line, and Retry follows them. */
+.acquisition-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.acquisition-line p {
+  margin: 0;
+}
+
 /* Whether a scan is the one a verdict would accept on, and whether it has been
    turned down. Two more axes: a card shows a refused scan beside the one on
    offer, and they must not paint alike. */

@@ -162,7 +162,7 @@ lesson from a different count, which is why this one is stated as a shape.*
 |---|---|---|
 | `art_discovery` | `estimate`, `start`, `status`, `approve`, `decline`, `cancel`, `resolve_images`, `get`, `list_runs`, `spend`, `help` | **The only tool that spends money in amounts worth authorising** — see the correction below. |
 | `art_review` | `list_works`, `get_work`, `list_images`, `set_canonical`, `set_verdict`, `reject_image`, `want`, `list_wanted`, `help` | Returns thumbnails; see Inputs & Outputs. Never spends. `want` and `list_wanted` (added 2026-10-02, `build-plan-after-review.md` Chunk 03) are the one way into `wanted` and Activity › Wanted's listing; see § `set_verdict` cannot set `wanted`. |
-| `art_catalogue` | `list`, `get`, `sources`, `archive`, `restore`, `retry_acquisition`, `set_mat_color`, `set_work_qid`, `set_artist_qid`, `regenerate`, `topics`, `topic`, `help` | `sources` is the provenance read; see below. `set_work_qid` and `set_artist_qid` (added 2026-10-01) are the curator's word on a Wikidata identity; matching itself is the hand-run `python -m arrt.identify`, not a tool. `topics` and `topic` (added 2026-10-02) are `GET /api/topics` and `GET /api/topics/{qid}`, the library's half only. |
+| `art_catalogue` | `list`, `get`, `sources`, `archive`, `restore`, `retry_acquisition`, `set_mat_color`, `set_work_qid`, `set_artist_qid`, `regenerate`, `topics`, `topic`, `help` | `sources` is the provenance read; see below. `set_work_qid` and `set_artist_qid` (added 2026-10-01) are the curator's word on a Wikidata identity; matching itself is the hand-run `python -m arrt.identify`, not a tool. `topics` and `topic` (added 2026-10-02) are `GET /api/topics` and `GET /api/topics/{qid}`, the library's half only. `retry_acquisition` **queues** the work and returns at once (changed 2026-10-02, `build-plan-after-review.md` Chunk 02; breaking, see § Versioning): it fetched in the call until then, for up to half an hour, beside the acquisition queue's own fetch. `get` carries the work's `acquisition` state. |
 | `art_theme` | `list`, `get`, `create`, `update`, `delete`, `make_default`, `add`, `remove`, `reorder`, `activate`, `unhang`, `help` | `activate` changes the wall immediately; `unhang` leaves the wall showing what it was showing. `make_default` (added 2026-10-01) moves the mark new works join, and changes no wall. |
 | `art_display` | `walls`, `add_wall`, `status`, `sync`, `show_now`, `next`, `help` | Every action goes through the theme manifest — see below. `walls` is where every other action's `wall_id` comes from. |
 | `art_taste` | `list`, `set`, `delete`, `help` | The curator's standing judgments about artists, movements and subjects. Never spends. Added 2026-08-11 by operator decision — see below, and § The routes the interface design requires. |
@@ -1181,6 +1181,31 @@ value additively** — give it the companion first.
 > sentences that mislead them. (The behaviour it now describes is constraint 16 in
 > `data-model.md`.)
 
+> **`retry_acquisition` stops fetching in the call, 2026-10-02** (the builder's
+> recommendation in `build-plan-after-review.md`, unopposed by the owner; Chunk 02).
+> It now queues the work and answers with the work's queue state, and the fetch's
+> outcome is read afterwards from `get`'s `acquisition` and from `sources`. A
+> behaviour and description change, so breaking by the table, and made because the
+> old shape broke a rule the owner set for the Pi: one fetch at a time. A tiled
+> fetch may run half an hour, and a synchronous retry would have run beside the
+> queue's own. Its `outcome`, `detail`, `relative_path`, size fields and the
+> per-outcome notice (a partial fetch "has gaps; retrying may complete it") went
+> with it; `sources` still reports a partial fetch as `partial_tiles`. The
+> deployment faults' remedies moved from this binding's `except` clauses to
+> `DEPLOYMENT_REMEDIES` in `library/acquisition/service.py`, which the queue's
+> pause carries to every surface. Annotated at the action in `mcp/tools.py`, and
+> announced to the operator in the PR.
+
+> **`resolve_images` says *wanted works*, 2026-10-02** (Chunk 02, carried from
+> Chunk 03's review). Its description read "works whose instances the curator
+> turned down", and its example "a work_id awaiting a better image". Since
+> `want` can mark a work wanted with no scan at all, and its answer sends an agent
+> here, the text now says "wanted works, with or without a scan", and the example
+> takes an id from `art_review(action='list_wanted')`. The behaviour is
+> unchanged; by the table a description change is breaking, and it is made because
+> the old wording would steer an agent away from re-searching a work that never
+> had a scan. Annotated at the action in `mcp/tools.py`.
+
 **Tool names never change.** hallucinote states the rule as *"stable surface — never
 rename, only alias"* and enforces it at import time; cordyceps pins its seven tool
 names in an explicit test whose comment reads *"a regression here silently renames
@@ -1285,7 +1310,7 @@ Added 2026-08-05 with the review half, and exercised by
 | Route | What it is |
 |---|---|
 | `GET /api/runs/{id}/candidates` | A page of the works a run is responsible for, each as a card: the instance whose picture stands for it, its size on this wall, and whether that instance is the one a verdict would accept on. **Paged where the run view's own work list is not**, and the difference is the payload rather than an inconsistency — that list is text, this one is a card per work. |
-| `GET /api/candidates/{work_id}` | One card, which is what the grid repaints a single tile from after a verdict. |
+| `GET /api/candidates/{work_id}` | One card, which is what the grid repaints a single tile from after a verdict. Every candidate work, here and on MCP's summaries, carries `artwork_id`: the catalogue work its acceptance made, or null (added 2026-10-02, Chunk 02). |
 | `GET /api/candidates/{work_id}/images` | Every scan found for the work, in the order the card offers them, capped — with `held` and `shows_every_choosable_instance` beside the rows so a truncated card cannot read as a complete one. Each instance, here and as a card's `shown`, carries the scan's own `width` and `height` in pixels (added 2026-10-02; null where the provider reported none). MCP's `list_images` already carried them as `estimated_width` and `estimated_height`. |
 | `POST /api/candidates/{work_id}/verdict` | Accept or reject. Carries the minted artist and any held painter it may duplicate, which is the one part of a promotion a curator can neither see nor undo from the work. `wanted` is refused here — `want` is its only entry. |
 | `POST /api/candidates/{work_id}/want` | Want the work, `{turning_down?}` (added 2026-10-02, `build-plan-after-review.md` Chunk 03). Returns the work. Naming a scan suppresses it; naming none suppresses nothing. Refused on a decided work. Twin: `art_review(action='want')`. |
@@ -1294,6 +1319,9 @@ Added 2026-08-05 with the review half, and exercised by
 | `GET /api/candidate-images/{id}/preview` | The picture, re-encoded to JPEG. **Not the cached file served directly:** a preview's name on disk is derived from a URL and falls back to `.jpg` for anything unrecognised, so the suffix is not evidence of what the bytes are. Held rather than revalidated — the bytes behind an image id are written once and only ever deleted. **`size=large`** (added 2026-10-02, Chunk 07) is the picture a card enlarges in place: the largest preview the server holds, at its own size (843 px wide from ARTIC, 960 from Commons), bounded at 2048 px for decode memory; the default `card` fits 480 px. Any other value is refused (422). |
 | `POST /api/runs/resolve` | Look again for images of wanted works. A re-search is a run, so `GET /api/runs/{id}` follows it with nothing special to know. Records `initiated_by: web_ui`. |
 | `POST /api/gets` | Get works chosen by their Wikidata items, `{qids}`: one run of kind `get`, phase 2 only, spending nothing. Returns `{run, skipped}`: items the library holds, items a Get under way is already looking for, and items Wikidata has no work for are skipped with their reason (`held`, `being_got`, `not_found`), never refused; when every item is skipped `run` is null. At most 50 items, because each is a Wikidata lookup inside the request. Refused with no registry or no image source. **Optional `theme_id`** (added 2026-10-02, `build-plan-topics-and-destinations.md` Chunk 01): the theme the accepted works join instead of the default. The binding asks Programming for the theme and then starts the Get, two calls with no branch, so an unknown id is the theme's not-found refusal and nothing starts; a new theme is the client's earlier `POST /api/themes`. The run carries it back as `destination_theme_id` (null for the default) on every run shape, here and in MCP. Twin: `art_discovery(action='get', qids=[...], theme_id=...)`. Records `initiated_by: web_ui`. |
+| `GET /api/works/{id}` gains `acquisition` | Where the work stands in the acquisition queue — `phase` (`queued`, `fetching`, `failed`, `gave_up`, `paused`), `failures`, `detail`, `next_try_at`, `since`, `condition`, `remedy` — or null when the queue owes it nothing (added 2026-10-02, Chunk 02). `art_catalogue(action='get')` carries the same object. |
+| `POST /api/works/{id}/acquisition/retry` | Forget the work's failures and put it first in the acquisition queue; fetches nothing in the request. Returns the work's new state. Refused for an archived work, or one with no source (added 2026-10-02, Chunk 02). |
+| `GET /api/acquisitions` | Activity › Queue's images: `pause` (`condition`, `detail`, `since`, `remedy`) or null, then every work owed, `{title, acquisition}`, in the order the queue tries them (added 2026-10-02, Chunk 02). Uncapped: it is bounded by the accepted works that hold no image, which the queue drains. |
 
 **The review listing does not inline its pictures, and the MCP twin does.** Both
 call the same service method; the browser passes `pictures=False` and fetches each
