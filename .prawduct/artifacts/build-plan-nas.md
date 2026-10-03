@@ -233,9 +233,8 @@ differs somewhere not yet found. (3) The cache test (stop the NAS, the wall
 keeps rotating) waits for (1). Not ticked until the wall rotates from the NAS.
 
 *Chunk 04 closed 2026-10-02:* the router's `arrt.lan` record and the homelab's
-Caddy route were added with the owner's yes, and the owner has since worked
-against the NAS app and directed this branch's merge. No separate record of the
-owner's first look was taken.
+Caddy route were added with the owner's yes. The owner directed this branch's
+merge; no separate record of the owner opening the app was taken.
 
 *Chunk 05 descoped 2026-10-02, by the owner's direction of the same day:* the
 Pi is not left on the wall-token HTTP mode. `clients.md` (the owner's rulings)
