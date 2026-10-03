@@ -10,9 +10,15 @@ each entry, which is the durable form.
 
 ## Pending
 
-### No mat darker than L\* 15 — added 2026-10-03
+### ✅ No mat darker than L\* 15 — added 2026-10-03, VERIFIED 2026-10-03
 
 **`build-plan-mat-floor.md` Chunk 03.** Visual change: yes.
+
+**Looked at by the owner on 2026-10-03** on the deployed wall (image `bb021bb`):
+"Yep all good". At startup 10 works were queued and all 10 were re-chosen by the
+vision model, with no fallback. Afterwards every current mat (40) was at or above
+L\* 15, computed from its hex; the darkest was Albers's *Full*, `#1a2252` at
+L\* 15.3. The owner did not say which works they looked at.
 
 Checked by the builder on 2026-10-03 against the suite only: the floor in the
 engine, the re-choice through the queue, and the corpus seed with its 10 works

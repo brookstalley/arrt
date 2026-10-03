@@ -58,7 +58,7 @@ High for the rule, which the owner stated. The mechanism is the agent's:
 
 - [x] Chunk 01: The floor in the engine
 - [x] Chunk 02: Existing mats below the floor are chosen again
-- [ ] Chunk 03: Deploy and look
+- [x] Chunk 03: Deploy and look
 
 ### Chunk 01: The floor in the engine
 
@@ -113,6 +113,9 @@ High for the rule, which the owner stated. The mechanism is the agent's:
 - The startup journal shows the works queued; the owner looks at the wall,
   especially the works that had near-black mats (Kelly, Hokusai, Rothko, Albers,
   Johns, Vasarely, Kline, Egreja, Still). Entered in `operator-verification.md`.
+
+*Deployed 2026-10-03 (image `bb021bb`, 10 mats re-chosen by the model, none by
+the fallback); looked at by the owner 2026-10-03: "Yep all good".*
 
 ## Verification strategy
 
