@@ -21,9 +21,11 @@ to write plainly here rather than to carve out of the Frame's loop:
 * **a missing render is skipped, never fatal.** The wall going black is always
   worse than the wall being incomplete.
 
-**The output is an interface** (`ScreenOutput`), and drawing to an HDMI
-connector is its next implementation. Until then `PendingOutput` stands in at
-run time and says once that it draws nothing.
+**The output is an interface** (`ScreenOutput`); an HDMI connector's is
+`kms.KmsOutput`. The loop asks it on every poll to draw again if its screen came
+back, which is what turns a monitor plugged in after the wall started — or a
+television switched back to this input — into the wall's picture rather than a
+black screen until the next rotation.
 """
 
 import asyncio
@@ -55,6 +57,13 @@ class ScreenOutput(Protocol):
 
     def show(self, render: Path) -> None: ...
 
+    def refresh(self) -> None:
+        """Draw the last render again if the screen went away and came back, or changed size.
+
+        Called on every poll, so it must be cheap when nothing changed, and like
+        `show` it blocks and must not raise for a screen that is off or unplugged.
+        """
+
     @property
     def connected(self) -> bool:
         """Whether a screen is present on the output now."""
@@ -62,34 +71,6 @@ class ScreenOutput(Protocol):
     @property
     def screen(self) -> tuple[int, int] | None:
         """`(width, height)` of the screen in pixels, or None when not known."""
-
-
-class PendingOutput:
-    """The output an HDMI wall gets until drawing to a connector is built: it draws nothing, and says so once."""
-
-    def __init__(self, *, wall_id: str, output: str) -> None:
-        self._wall_id = wall_id
-        self._output = output
-        self._said = False
-
-    def show(self, render: Path) -> None:
-        if self._said:
-            return
-        self._said = True
-        log.warning(
-            "HDMI drawing arrives in Chunk 04; wall %s rotates on %s and nothing is drawn yet",
-            self._wall_id,
-            self._output,
-            extra={"event": "screen.not_drawn", "wall_id": self._wall_id, "output": self._output},
-        )
-
-    @property
-    def connected(self) -> bool:
-        return False
-
-    @property
-    def screen(self) -> tuple[int, int] | None:
-        return None
 
 
 class ScreenWall:
@@ -124,6 +105,8 @@ class ScreenWall:
         self._last_error: str | None = None
         self._heartbeat_at: float | None = None
         self._heartbeat_failed = ReportOnce()
+        self._refresh_failed = ReportOnce()
+        self._draw_failed = ReportOnce()
         self._missing: set[str] = set()
 
     @property
@@ -153,6 +136,7 @@ class ScreenWall:
         manifest = self._watcher.current
         if manifest is not None and not await self._act_on_directive(manifest):
             await self._rotate_if_due(manifest)
+        await self._refresh()
         self._beat(manifest)
         return self._wall.poll_interval_seconds
 
@@ -244,13 +228,18 @@ class ScreenWall:
                 await asyncio.to_thread(self._output.show, render)
             except Exception as exc:  # prawduct:allow prawduct/broad-except -- costs this picture, never the wall
                 self._last_error = f"the screen refused {entry.work_id} ({exc})"
-                log.warning(
-                    "could not draw %s on the screen (%s); the wall keeps rotating",
-                    entry.work_id,
-                    exc,
-                    extra={"event": "screen.draw_failed"},
-                )
+                # Once per episode: a screen that refuses one work refuses the
+                # next, and the rotation tries every work in the theme each time.
+                if self._draw_failed.begin():
+                    log.warning(
+                        "could not draw %s on the screen (%s); the wall keeps rotating",
+                        entry.work_id,
+                        exc,
+                        extra={"event": "screen.draw_failed"},
+                    )
                 return False
+            if self._draw_failed.end():
+                log.info("the screen draws again", extra={"event": "screen.draw_recovered"})
             self._showing = entry.work_id
             log.info(
                 "showing %s",
@@ -258,6 +247,22 @@ class ScreenWall:
                 extra={"event": "rotation.selected", "render_path": str(render)},
             )
             return True
+
+    async def _refresh(self) -> None:
+        """Let the output draw again for a screen that came back. Its failure is said once, and costs the poll nothing."""
+        try:
+            await asyncio.to_thread(self._output.refresh)
+        except Exception as exc:  # prawduct:allow prawduct/broad-except -- a screen that cannot be redrawn must not stop the wall
+            self._last_error = f"the screen could not be drawn again ({exc})"
+            if self._refresh_failed.begin():
+                log.warning(
+                    "could not draw the screen again (%s); trying on every poll",
+                    exc,
+                    extra={"event": "screen.refresh_failed", "wall_id": self._wall.wall_id},
+                )
+            return
+        if self._refresh_failed.end():
+            log.info("the screen can be drawn again", extra={"event": "screen.refresh_recovered", "wall_id": self._wall.wall_id})
 
     def _beat(self, manifest: Manifest | None) -> None:
         """Write the wall's heartbeat once per interval, for the pull to forward. Never stops the wall."""

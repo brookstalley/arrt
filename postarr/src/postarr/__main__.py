@@ -36,11 +36,12 @@ from postarr import logs
 from postarr.client import FRAME_KIND, OutputReport, Supervisor, client_outputs
 from postarr.config import ClientSettings, ConfigError, FrameSettings, Settings, WallSettings, load
 from postarr.daemon import Clock, Daemon
+from postarr.kms import KmsOutput
 from postarr.manifest import Watcher
 from postarr.panel import Geometry, LabelSurface, SurfaceUnavailable
 from postarr.panel.legibility import TypeScale, ViewingConditionsUnknown, margin_for, type_scale_for
 from postarr.pull import ClientPull, Pull
-from postarr.screen import PendingOutput, ScreenOutput, ScreenWall
+from postarr.screen import ScreenOutput, ScreenWall
 from postarr.state import DisplayState, StateSchemaTooNew
 from postarr.tv.samsung import SamsungTv
 
@@ -244,8 +245,8 @@ async def run_screen_wall(wall: WallSettings, output: str, stop: asyncio.Event, 
 
 
 def screen_output(wall: WallSettings, output: str) -> ScreenOutput:
-    """What a wall on an HDMI connector draws on. Nothing yet: drawing to a connector is the next chunk."""
-    return PendingOutput(wall_id=wall.wall_id, output=output)
+    """What a wall on an HDMI connector draws on: the connector, through kernel mode setting."""
+    return KmsOutput(output)
 
 
 async def run_wall(settings: ClientSettings, wall: WallSettings, output: OutputReport, stop: asyncio.Event) -> None:

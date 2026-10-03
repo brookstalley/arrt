@@ -120,10 +120,23 @@ taken away, and reports outputs.
   that was cached.
 
 **The HDMI output** draws the render fitted to the connector's screen, with no
-desktop, as the service user. The technology is chosen by a research pass and
-a spike on the Pi (Chunk 04); waking or switching a TV's input over CEC is a
-power act and is not done automatically (`nonfunctional-requirements.md`
-§ The television belongs to whoever is using it).
+desktop, as the service user: kernel mode setting through `libdrm`, chosen and
+measured on the Pi in `hdmi-output-findings.md`. Waking or switching a TV's
+input over CEC is a power act and is not done automatically
+(`nonfunctional-requirements.md` § The television belongs to whoever is using
+it). What it does as built:
+
+- **Fitted whole, on black**, at the first mode the kernel lists for the
+  connector, which is the size the client heartbeat reports.
+- **The service user must be in group `video`** to open the card; a Player
+  that cannot is logged once per episode, keeps rotating, and tries again on
+  every poll.
+- **A screen that is absent is not an error**: said once (`screen.absent`), the
+  wall rotating unseen. When a screen arrives, comes back or changes size, the
+  current picture is drawn on the next poll (`screen.returned`).
+- **The Player holds the screen while it runs.** When it stops, the kernel
+  gives the screen back to the text console, which is what a wall shows while
+  its Player is down.
 
 ## What the stored data must answer
 

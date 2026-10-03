@@ -454,11 +454,19 @@ class RecordingOutput:
         self.screen = screen
         #: Armed to make `show` raise, as a driver that loses its device would.
         self.fails: Exception | None = None
+        #: How many times the loop asked for a redraw, and what `refresh` raises when armed.
+        self.refreshed = 0
+        self.refresh_fails: Exception | None = None
 
     def show(self, render: Path) -> None:
         if self.fails is not None:
             raise self.fails
         self.shown.append(render)
+
+    def refresh(self) -> None:
+        self.refreshed += 1
+        if self.refresh_fails is not None:
+            raise self.refresh_fails
 
 
 def drm_tree(root: Path, connectors: dict[str, tuple[str, str]]) -> Path:

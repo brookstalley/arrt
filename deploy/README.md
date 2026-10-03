@@ -77,7 +77,7 @@ existing checkout and its only `uv` both sat under a home directory at mode `070
 which such an account cannot traverse at all. A path the service account cannot
 reach is not a detail to leave to whoever reads a unit file next.
 
-Creating that account, giving it the `spi` and `gpio` groups, moving the art tree
+Creating that account, giving it the `spi`, `gpio` and `video` groups, moving the art tree
 to `/srv/art`, placing the checkout at `/opt`, and enabling these two units are
 **one change, not five** — any of them landing alone leaves a machine that is
 neither the old arrangement nor the new one. `operational-spec.md` § The Service
@@ -110,6 +110,7 @@ of what was run, in order, and it is the procedure for doing it again.
     sudo install -m 0755 -o root -g root ~/.local/bin/uv /usr/local/bin/uv
     sudo adduser --system --group --no-create-home --shell /usr/sbin/nologin tvpi
     sudo adduser tvpi spi && sudo adduser tvpi gpio
+    sudo adduser tvpi video                         # an HDMI wall: the display card; added 2026-10-02
     sudo install -d -m 0750 -o tvpi -g tvpi /var/lib/tvpi
     sudo usermod --home /var/lib/tvpi tvpi          # see the note below
 

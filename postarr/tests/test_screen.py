@@ -15,7 +15,7 @@ from fakes import RecordingOutput
 
 from postarr.heartbeat import path_in
 from postarr.manifest import Watcher
-from postarr.screen import PendingOutput, ScreenWall
+from postarr.screen import ScreenWall
 
 
 @pytest.fixture
@@ -148,16 +148,22 @@ async def test_shuffle_shows_every_work_once_per_pass(screen, output, publish, c
     assert shown(output) != works, "a shuffled theme came out in order, so this shows nothing about shuffling"
 
 
-async def test_an_output_that_fails_costs_the_picture_and_not_the_wall(screen, output, publish, clock):
-    publish(["w1", "w2"])
+async def test_an_output_that_fails_costs_the_picture_and_not_the_wall(screen, output, publish, clock, caplog):
+    publish(["w1", "w2", "w3"])
     output.fails = OSError("the connector went away")
-    await screen.tick()
+    with caplog.at_level(logging.INFO):
+        await screen.tick()
+        clock.advance(180.4)
+        await screen.tick()
 
-    output.fails = None
-    clock.advance(180.4)
-    await screen.tick()
+        output.fails = None
+        clock.advance(180.4)
+        await screen.tick()
 
     assert shown(output) == ["w1"]
+    events = [record.__dict__.get("event") for record in caplog.records]
+    assert events.count("screen.draw_failed") == 1, "a refusing screen was reported per work, not per episode"
+    assert events.count("screen.draw_recovered") == 1
 
 
 async def test_its_heartbeat_names_the_work_on_the_screen_and_no_television(screen, publish, wall_dir):
@@ -179,14 +185,32 @@ async def test_with_no_manifest_yet_it_shows_nothing_and_still_beats(screen, out
     assert json.loads(path_in(wall_dir, "living-room").read_text())["manifest_schema"] is None
 
 
-def test_the_pending_output_says_once_that_it_draws_nothing(tmp_path, caplog):
-    pending = PendingOutput(wall_id="hall", output="hdmi-a-1")
+async def test_every_poll_asks_the_output_to_draw_again_for_a_screen_that_came_back(screen, output, publish, clock):
+    publish(["w1", "w2"], interval_seconds=60)
 
-    with caplog.at_level(logging.WARNING):
+    for _ in range(3):
+        await screen.tick()
+        clock.advance(7.3)
+
+    assert output.refreshed == 3
+    assert shown(output) == ["w1"], "a refresh is not a rotation"
+
+
+async def test_a_screen_that_cannot_be_drawn_again_is_said_once_and_rotation_goes_on(
+    screen, output, publish, clock, wall_dir, caplog
+):
+    publish(["w1", "w2"], interval_seconds=60)
+    output.refresh_fails = OSError(13, "Permission denied")
+
+    with caplog.at_level(logging.INFO):
         for _ in range(3):
-            pending.show(tmp_path / "a-render")
+            await screen.tick()
+            clock.advance(60.3)
+        output.refresh_fails = None
+        await screen.tick()
 
-    lines = [record.getMessage() for record in caplog.records]
-    assert len(lines) == 1
-    assert "HDMI drawing arrives in Chunk 04" in lines[0]
-    assert (pending.connected, pending.screen) == (False, None)
+    events = [record.__dict__.get("event") for record in caplog.records]
+    assert events.count("screen.refresh_failed") == 1
+    assert events.count("screen.refresh_recovered") == 1
+    assert shown(output) == ["w1", "w2", "w1", "w2"]
+    assert "Permission denied" in json.loads(path_in(wall_dir, "living-room").read_text())["last_error"]

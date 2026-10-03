@@ -71,7 +71,7 @@ machine:
 | Login | None. `--system`, no password, shell `/usr/sbin/nologin` |
 | Home | `/var/lib/tvpi`, for tool state only — see below |
 | Privilege | No sudo. Nothing either plane does needs root |
-| Groups | `spi` and `gpio` — the e-paper HAT is reached through both |
+| Groups | `spi` and `gpio` — the e-paper HAT is reached through both; `video` — an HDMI wall opens the display card (`/dev/dri/card*`) |
 | Owns | `/srv/art` (`ART_ROOT`) and `/opt/samsung-frame-art-loader` (the checkout the units execute from) |
 
 **Create it as part of the systemd-unit cutover, not before.** The account, its

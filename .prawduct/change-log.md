@@ -62,6 +62,30 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-02: An HDMI wall draws on its screen
+
+<!-- prawduct: scope=clients -->
+
+**Why:** a wall assigned to a Pi's HDMI connector rotated with nothing drawn.
+`clients.md` asks for the server's render fitted to the screen, with no desktop,
+as the service user.
+
+**What:**
+- **`postarr/src/postarr/kms.py`**: kernel mode setting through `libdrm` by
+  `ctypes`, legacy `SetCrtc` on two dumb buffers per connector, the card held
+  open for the process's life and shared between its connectors. The render is
+  fitted whole on black at the first mode the kernel lists, the size the client
+  heartbeat already reports.
+- **Screens coming and going**: an absent screen is said once and costs
+  nothing; the screen loop asks the output on every poll to draw again when a
+  screen arrives, returns or changes size (`ScreenOutput.refresh`). A failing
+  redraw is said once and tried on every poll.
+- `PendingOutput`, which drew nothing, is gone.
+- **Measured on the Pi and a 4K LG** (`hdmi-output-findings.md`): about half a
+  second per picture as `tvpi`, colour and black level confirmed by the owner,
+  the picture kept by the kernel through a replug, the console restored when the
+  program exits. `tvpi` was added to group `video` on the owner's yes.
+
 ## 2026-10-02: The branch review's three bugs
 
 <!-- prawduct: scope=after-review -->

@@ -10,6 +10,19 @@ each entry, which is the durable form.
 
 ## Pending
 
+### An HDMI wall on its screen — added 2026-10-02
+
+**`build-plan-clients.md` Chunk 04.** Visual change: yes.
+
+Checked by the builder and the owner on 2026-10-02, on the Pi's HDMI-A-1 and a
+4K LG, with the built output run by hand as `tvpi` against three renders (two
+3840×2160 Frame renders and a 1200×2000 portrait); the measurements are in
+`hdmi-output-findings.md`. **Still to look at, once Chunk 05 deploys the
+Player:** a real wall rotating on the monitor, fitted whole with nothing
+cropped, a portrait work with bars at the sides; the monitor switched off and on
+(or its cable pulled) and the picture back within a poll; and, with the Player
+stopped, the text console in its place.
+
 ### Settings › Clients, and which client shows each wall — added 2026-10-02
 
 **`build-plan-clients.md` Chunk 02.** Visual change: yes.

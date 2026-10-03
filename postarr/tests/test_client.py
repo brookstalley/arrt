@@ -333,6 +333,32 @@ async def test_an_unchanged_client_document_is_asked_for_with_its_etag(client, s
     assert link.cached() == first
 
 
+def _etag_not_utf8(path: Path) -> None:
+    path.write_bytes(b'\xff\xfe"stale"')
+
+
+def _etag_unreadable(path: Path) -> None:
+    path.unlink()
+    path.mkdir()
+
+
+@pytest.mark.parametrize("spoil", [_etag_not_utf8, _etag_unreadable], ids=["not-utf8", "unreadable"])
+async def test_a_spoiled_etag_is_not_sent_and_the_whole_document_comes_back(client, server, spoil):
+    from postarr import pull as pull_module
+
+    link = ClientPull(client)
+    try:
+        first = await link.fetch()
+        spoil(client.cache_dir / pull_module.CLIENT_ETAG_FILENAME)
+        sent_before = len(server.requests)
+        second = await link.fetch()
+    finally:
+        await link.close()
+
+    assert second == first, "a spoiled ETag cost the client its document"
+    assert len(server.requests) == sent_before + 1
+
+
 async def test_a_client_document_that_cannot_be_cached_still_starts_its_walls_and_is_said_once(
     monkeypatch, client, server, drm, television, caplog
 ):
