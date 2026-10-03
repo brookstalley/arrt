@@ -678,6 +678,9 @@ class ClientHeartbeatOut(BaseModel):
     absent: bool
     #: Set when a report is present and could not be read.
     problem: str | None
+    #: The reading as one sentence — never reported, unreadable, or its age —
+    #: so the page and the tool surface say it in the same words.
+    description: str
     outputs: list[ReportedOutputOut]
 
 

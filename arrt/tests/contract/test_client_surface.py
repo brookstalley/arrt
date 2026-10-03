@@ -5,7 +5,7 @@
 `contract/schemas/client.v1.schema.json` and `client-heartbeat.v1.schema.json`
 and their fixtures, so the server and a Player in another repository agree on
 them without either importing the other. The curator's routes under `/api` are
-the bindings Settings › Clients will use.
+the bindings Settings › Clients uses.
 """
 
 import hashlib

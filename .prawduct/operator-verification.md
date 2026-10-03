@@ -10,6 +10,37 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Settings › Clients, and which client shows each wall — added 2026-10-02
+
+**`build-plan-clients.md` Chunk 02.** Visual change: yes.
+
+Checked by the builder on 2026-10-02 at 1280 px and 390 px in the browser
+suite's own server: no client; a client that had reported two outputs and
+showed one wall beside one with no token and no report; the token shown once
+after an add; and the Walls screen with one wall assigned and two not. Not on
+your catalogue. Regenerate with
+`cd arrt && uv run pytest -m browser -n0 tests/browser/test_the_clients.py tests/browser/test_the_walls.py -k client`
+and a `page.screenshot` of your own.
+
+- **Settings › Clients** is under Settings, after Taste. *Add a client* takes a
+  name and issues its token in the same act: the token appears once, selected in
+  a read-only field, with a sentence saying it is the only time and to set
+  `CLIENT_TOKEN` and `SERVER_URL` in the Player's settings (the address is the
+  one your browser used — check it is the one the Pi reaches). Reload, and it is
+  gone.
+- **Each client** says when its token was issued (or that it has none), its last
+  report's age, its outputs as a table (Output, Kind, Connected, Screen), the
+  walls it shows with **Unassign**, an **Assign a wall** row (a picker of reported
+  outputs, the free one first; a text field with `hdmi-a-1` as placeholder when
+  nothing is reported), and **Rename**, **Rotate the token** / **Issue a token**,
+  **Remove**. Rotate and Remove ask first; Remove names the walls left without a
+  client.
+- **The Walls screen** says under each wall's title "Shown by pi4 on hdmi-a-1",
+  or "No client shows this wall." with a link to Settings › Clients.
+- **To look at:** whether the outputs table, which scrolls sideways inside its
+  panel on a phone, reads well enough there; and whether adding a client and
+  issuing its token in one act is what you want, rather than two steps.
+
 ### Want and Forget, Activity › Wanted, and the Wikidata picker — added 2026-10-02
 
 **`build-plan-after-review.md` Chunk 05.** Visual change: yes.

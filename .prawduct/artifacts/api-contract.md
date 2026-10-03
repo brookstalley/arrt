@@ -164,7 +164,7 @@ lesson from a different count, which is why this one is stated as a shape.*
 | `art_review` | `list_works`, `get_work`, `list_images`, `set_canonical`, `set_verdict`, `reject_image`, `want`, `list_wanted`, `wikidata_matches`, `set_wikidata_item`, `help` | Returns thumbnails; see Inputs & Outputs. Never spends. `want` and `list_wanted` (added 2026-10-02, `build-plan-after-review.md` Chunk 03) are the one way into `wanted` and Activity › Wanted's listing; see § `set_verdict` cannot set `wanted`. `wikidata_matches` offers Wikidata's items for a work's title and stores nothing; `set_wikidata_item` records the curator's pick, refused on a decided work (added 2026-10-02, `build-plan-after-review.md` Chunk 04). |
 | `art_catalogue` | `list`, `get`, `sources`, `archive`, `restore`, `retry_acquisition`, `set_mat_color`, `set_work_qid`, `set_artist_qid`, `regenerate`, `topics`, `topic`, `help` | `sources` is the provenance read; see below. `set_work_qid` and `set_artist_qid` (added 2026-10-01) are the curator's word on a Wikidata identity; matching itself is the hand-run `python -m arrt.identify`, not a tool. `topics` and `topic` (added 2026-10-02) are `GET /api/topics` and `GET /api/topics/{qid}`, the library's half only. `retry_acquisition` **queues** the work and returns at once (changed 2026-10-02, `build-plan-after-review.md` Chunk 02; breaking, see § Versioning): it fetched in the call until then, for up to half an hour, beside the acquisition queue's own fetch. `get` carries the work's `acquisition` state. |
 | `art_theme` | `list`, `get`, `create`, `update`, `delete`, `make_default`, `add`, `remove`, `reorder`, `activate`, `unhang`, `help` | `activate` changes the wall immediately; `unhang` leaves the wall showing what it was showing. `make_default` (added 2026-10-01) moves the mark new works join, and changes no wall. |
-| `art_display` | `walls`, `add_wall`, `status`, `sync`, `show_now`, `next`, `help` | Every action goes through the theme manifest — see below. `walls` is where every other action's `wall_id` comes from. |
+| `art_display` | `walls`, `add_wall`, `status`, `sync`, `show_now`, `next`, `clients`, `add_client`, `rename_client`, `remove_client`, `issue_client_token`, `assign_wall`, `unassign_wall`, `help` | Every wall action goes through the theme manifest — see below. `walls` is where every other action's `wall_id` comes from, and `clients` every `client_id` and output name. The client actions (added 2026-10-02, `build-plan-clients.md` Chunk 02) are § Clients' routes on this surface; `issue_client_token` answers the token once. Destructive since then, because `remove_client` and `issue_client_token` cannot be undone. |
 | `art_taste` | `list`, `set`, `delete`, `help` | The curator's standing judgments about artists, movements and subjects. Never spends. Added 2026-08-11 by operator decision — see below, and § The routes the interface design requires. |
 
 **This table is the surface as designed, and no row states what is built.** That
@@ -1972,21 +1972,24 @@ plus honest `readOnlyHint` / `destructiveHint`.
 token, driving any number of walls, each on one of its outputs by name. The
 Player routes take the client's token (`player-contract.md` § Transport is the
 specification); the curator's routes below bind `programming/clients.py` and
-`programming/access.py`. MCP actions for clients and assignment arrive with
-Settings › Clients (Chunk 02); until then these routes are HTTP-only, a
-recorded gap in parity rather than a design.
+`programming/access.py`. **The MCP twins arrived with Settings › Clients
+(Chunk 02, 2026-10-02)** as `art_display` actions, thin bindings over the same
+two services: until then these routes were HTTP-only, a recorded gap in parity.
+`art_display` became `destructiveHint: true` with them, because
+`remove_client` and `issue_client_token` cannot be undone (the reason
+`art_taste` gives for its own flag).
 
 | Route | Tool | What it is for |
 |---|---|---|
 | `GET /client` *(Player)* | — | The presenting client and its walls with their outputs, `ETag`/`304`. `401` without a valid client token |
 | `POST /client/heartbeat` *(Player)* | — | The client's outputs (name, kind, connected, screen), kept as `client-heartbeat-{client_id}.json` under `ART_ROOT` beside the wall heartbeats. `204`; `400` naming the problem |
-| `GET /api/clients` | *(Chunk 02)* | Every client, with `token_issued_at` (never the token), its walls and outputs, and its last heartbeat's outputs and age |
-| `POST /api/clients` `{name}` | *(Chunk 02)* | Record a client. No token, no walls |
-| `POST /api/clients/{client_id}` `{name}` | *(Chunk 02)* | Rename. Token and walls unchanged |
-| `DELETE /api/clients/{client_id}` | *(Chunk 02)* | Forget a client: its token stops working, its walls become unassigned and keep their themes, its heartbeat file goes. Answers the remaining list |
-| `POST /api/clients/{client_id}/token` | *(Chunk 02)* | Issue or rotate; answers `{client_id, token, token_issued_at}` once |
-| `POST /api/walls/{wall_id}/client` `{client_id, output}` | *(Chunk 02)* | Show the wall on that client's output. Answers `{wall, notice}`: `notice` says when the output is not among the client's last reported outputs, or it has not reported; the assignment is made either way. Refused when that output already shows another wall |
-| `DELETE /api/walls/{wall_id}/client` | *(Chunk 02)* | Unassign. Idempotent |
+| `GET /api/clients` | `art_display(action='clients')` | Every client, with `token_issued_at` (never the token), its walls and outputs, and its last heartbeat's outputs, age and `description` (the reading as one sentence, the same on both surfaces; added Chunk 02) |
+| `POST /api/clients` `{name}` | `art_display(action='add_client', name)` | Record a client. No token, no walls |
+| `POST /api/clients/{client_id}` `{name}` | `art_display(action='rename_client', client_id, name)` | Rename. Token and walls unchanged |
+| `DELETE /api/clients/{client_id}` | `art_display(action='remove_client', client_id)` | Forget a client: its token stops working, its walls become unassigned and keep their themes, its heartbeat file goes. Answers the remaining list; the tool answers the walls released (`released_walls`), named in its notice |
+| `POST /api/clients/{client_id}/token` | `art_display(action='issue_client_token', client_id)` | Issue or rotate; answers `{client_id, token, token_issued_at}` once. The tool adds a notice naming `CLIENT_TOKEN` and `SERVER_URL` |
+| `POST /api/walls/{wall_id}/client` `{client_id, output}` | `art_display(action='assign_wall', wall_id, client_id, output)` | Show the wall on that client's output. Answers `{wall, notice}`: `notice` says when the output is not among the client's last reported outputs, or it has not reported; the assignment is made either way. Refused when that output already shows another wall |
+| `DELETE /api/walls/{wall_id}/client` | `art_display(action='unassign_wall', wall_id)` | Unassign. Idempotent |
 
 `WallOut` and the MCP wall shape lose `token_issued_at` and gain `client_id` and
 `output` (both null while no client shows the wall).

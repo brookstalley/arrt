@@ -1,7 +1,7 @@
 """The client service and the access service: every operation, through the real store.
 
 `clients.md` is the requirement. What is held here is what both surfaces rely on:
-HTTP binds these today and MCP binds them next, so a rule tested only through
+HTTP and MCP both bind these, so a rule tested only through
 one surface would be a rule the other could miss.
 """
 
