@@ -319,9 +319,14 @@ class TestACuratorsOwnColour:
 
         assert result.mat_hex == "#27285b"
         assert service.current_mat_color(work.id).method is MatMethod.MANUAL
+        # Read along the middle row rather than at a corner: the mat takes the
+        # work's shape, so a corner of a 4:3 work's canvas is black.
         with Image.open(settings.art_root / result.relative_path) as canvas:
-            pixel = canvas.convert("RGB").load()[0, 0]
-        assert all(abs(channel - expected) <= 12 for channel, expected in zip(pixel, (39, 40, 91), strict=True))
+            rgb = canvas.convert("RGB")
+            row = [rgb.getpixel((x, rgb.height // 2)) for x in range(rgb.width)]
+        mat = (39, 40, 91)
+        painted = [p for p in row if all(abs(channel - expected) <= 12 for channel, expected in zip(p, mat, strict=True))]
+        assert len(painted) > 100
 
     @pytest.mark.parametrize("spelling", ["#27285B", "27285b", "#abc"])
     def test_a_person_may_spell_a_colour_the_way_the_model_is_allowed_to(self, prep, service, settings, spelling):

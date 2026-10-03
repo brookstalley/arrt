@@ -64,7 +64,8 @@ def fitted(render: Path, screen: tuple[int, int]) -> Image.Image:
 
     The render arrives matted for the Frame; fitting keeps all of it, mat and
     all, so a screen of another shape shows bars rather than losing an edge of
-    the picture.
+    the picture. The render is already black outside the mat, so the bars are
+    more of the same black rather than a second boundary.
     """
     with Image.open(render) as opened:
         picture = ImageOps.exif_transpose(opened).convert("RGB")

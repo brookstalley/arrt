@@ -6,8 +6,16 @@ the mat in inches, and `assess_display_fit` already judges an original against
 it. This module draws what those two decided, which is what stops a third answer
 to "how big is the mat" existing.
 
+**The mat takes the work's shape, not the screen's, and everything outside it is
+black.** A framer would never put a square work in a wide mat, so the mat is the
+work's own rectangle grown by the mat width on the left, right and top and by the
+deeper bottom margin below, and the rest of the canvas is `#000000`. Only a work
+with the box's own shape gets a mat that meets every edge of the screen
+(`nonfunctional-requirements.md` § The mat is geometric).
+
 **No upscaling, ever.** A source smaller than the artwork box is pasted at its
-own size and the mat is simply wider. That is not a degraded path: it is what the
+own size, inside a mat of the usual width, with more black around it. That is not
+a degraded path: it is what the
 2024 pipeline did through `image.thumbnail()`, which never enlarged, and
 acquisition at gallery resolution is a product promise. Upscaling is the one
 option that actively misrepresents quality, converting an honest "this image is
@@ -67,6 +75,13 @@ class Composition:
     #: answers least reliably.
     artwork_left: int
     artwork_top: int
+    #: The mat's rectangle on the canvas, in pixels: the work grown by the mat on
+    #: every side. Everything outside it is black. Reported for the same reason
+    #: the artwork's placement is: the boundary is where JPEG rings.
+    mat_left: int
+    mat_top: int
+    mat_width: int
+    mat_height: int
     #: How the original met the space, for a caller that reports it.
     fit: DisplayFit
     #: How large the work appears on the wall along its long edge, in inches.
@@ -82,7 +97,7 @@ def compose(
     panel_height: int,
     box: ArtworkBox,
 ) -> Composition:
-    """Draw `source` centred in a mat of `mat_hex` on a `panel_width` x `panel_height` canvas.
+    """Draw `source` in a mat of `mat_hex`, on black, on a `panel_width` x `panel_height` canvas.
 
     **The artwork is not centred on the canvas — it is centred in the artwork
     box**, and the box already sits higher than centre because its bottom margin
@@ -110,7 +125,6 @@ def compose(
     with reading(source, lambda: Image.open(source)) as image:
         artwork, assessment = reading(source, lambda: _fit_into_box(image, panel_width, panel_height, box))
 
-        canvas = Image.new("RGB", (panel_width, panel_height), mat_rgb)
         # **The margins are recovered from the box, never recomputed from the
         # configured weight.** `tv_artwork_box` builds the box as
         # `width = panel_width - 2 * mat` and `height = panel_height - mat -
@@ -123,11 +137,21 @@ def compose(
         # because the box is shorter than a four-equal-sides mat would leave. The
         # weighting therefore arrives here as geometry rather than as a rule this
         # module has to remember to apply.
+        bottom_mat = panel_height - side_mat - box.height
         top = side_mat + (box.height - artwork.height) // 2
         left = side_mat + (box.width - artwork.width) // 2
-        canvas.paste(artwork, (left, top))
-
         rendered_width, rendered_height = artwork.size
+
+        # The work stays where the box puts it, and the mat is grown around it.
+        # Because the box is inset by exactly these margins, the mat comes out
+        # centred on the canvas, to within the pixel the halving above rounds.
+        mat_left, mat_top = left - side_mat, top - side_mat
+        mat_width = rendered_width + 2 * side_mat
+        mat_height = rendered_height + side_mat + bottom_mat
+
+        canvas = Image.new("RGB", (panel_width, panel_height), (0, 0, 0))
+        canvas.paste(mat_rgb, (mat_left, mat_top, mat_left + mat_width, mat_top + mat_height))
+        canvas.paste(artwork, (left, top))
 
     destination.parent.mkdir(parents=True, exist_ok=True)
     staged = destination.with_name(f"{destination.name}.composing")
@@ -155,6 +179,10 @@ def compose(
         rendered_height=rendered_height,
         artwork_left=left,
         artwork_top=top,
+        mat_left=mat_left,
+        mat_top=mat_top,
+        mat_width=mat_width,
+        mat_height=mat_height,
         fit=assessment.fit,
         rendered_long_edge_inches=assessment.rendered_long_edge_inches,
     )

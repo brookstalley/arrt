@@ -1107,6 +1107,22 @@ convention, because a true-centred image reads as sitting low. This is what
 "museum-quality mat" has to mean if it means anything; the 2024 pipeline's mat was
 aspect-ratio residue, so a 16:9 source got no mat at all.
 
+**The mat takes the work's shape, and everything outside it is pure black**
+(the owner's ruling, 2026-10-02, backlog #189): "the mat should match the work's
+aspect ratio, and everything outside should be pure black". Until then the whole
+canvas was mat colour, so a square work on a 16:9 screen sat in 12" of mat at
+each side: the mat width held only where the work met the artwork box, and
+everywhere else the mat was still aspect-ratio residue. Now the mat is the work's
+rectangle grown by the mat width on the sides and top and by the weighted bottom
+below, and the rest of the screen is `#000000`. The work is fitted into the
+artwork box exactly as before, so the matted work comes out centred on the screen
+and is as large as fits; the mat meets the screen's edge in whichever dimension
+binds, and there is no minimum black margin. The rule holds on every screen, the
+Frame included. The same day the default mat became **1.5"** (it was 2.5"): with
+nothing beyond the mat but black, the mat is all of the border a viewer sees. The
+worked examples below keep 2.5" because they are arithmetic, asserted at that
+value.
+
 *(**The weighting was stated without a number until 2026-08-01**, when the first
 surface to judge a work against the artwork box needed a box height and so had to
 have one. It is now a deployment value,
