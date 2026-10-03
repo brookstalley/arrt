@@ -26,27 +26,50 @@ things:
 Every finder ends in a URL, and readers claim URLs. So a URL from any route
 (a finder, a pasted link, the model's web search) reaches the same readers.
 
-Today's `Finder` (`library/discovery/images.py`, named `ImageSearch` until
-2026-10-03) does both: the Art Institute's client searches *and* resolves its own
-tiles (`tile_url`), and
-acquisition picks a resolver by the provider's name (`RESOLUTION_REQUIRED`,
-`tile_targets` in `library/acquisition/tiles.py`). This contract separates them.
+Until 2026-10-03 one protocol, `ImageSearch`, did both: the Art Institute's
+client searched *and* resolved its own tiles (`tile_url`), and acquisition picked
+a resolver by the provider's name (`RESOLUTION_REQUIRED`, `tile_targets`). This
+contract separates them: `Finder` (`library/discovery/images.py`) only finds, and
+a `Reader` (`library/sources/reading.py`) only reads.
 
 ## Three layers
 
 | Layer | Owner | Input → output | Examples |
 |---|---|---|---|
 | **Finder** | a plugin, per holder; or the Wikidata finder, for every holder Wikidata records | a work → candidate URLs, with what the holder calls the work and the size where known | the Art Institute's search API; an Artlogic site's artist page; Wikidata's holder IDs |
-| **Reader** | a plugin, per protocol or page shape | a URL it recognises → how to fetch the image, its size, and the holder's title and artist | a Commons file page; an Art Institute object (resolved to IIIF); a IIIF manifest; a Google Arts & Culture asset |
+| **Reader** | a plugin, per protocol or page shape | a URL it claims → how to fetch the image (§ Fetch locators) | an Art Institute object (resolved to IIIF); later a Commons file page, a IIIF manifest, a Google Arts & Culture asset |
 | **Fetcher** | Arrt, never a plugin | a fetch locator → the master, on disk | direct HTTP; tiles through `dezoomify-rs` |
 
-A plugin provides at most one finder, any number of readers, and at most one
-collection to browse (`CollectionBrowse`, `library/discovery/browse.py`, which
-the Art Institute offers today). One finder, because the images it reports are
-recorded under the plugin's own name, so a stored row names the plugin that
-found it. It provides no fetcher. *Mine:* plugins that serve the image's
+A plugin provides at most one finder, at most one reader (which may read many
+URL shapes), and at most one collection to browse (`CollectionBrowse`,
+`library/discovery/browse.py`, which the Art Institute offers today). It provides
+no fetcher. *Mine:* one finder, because the images it reports are recorded under
+the plugin's own name, so a stored row names the plugin that found it; one
+reader, because which URLs it reads is declared once, on the plugin (§ Which
+plugin reads a URL). *Mine:* plugins that serve the image's
 bytes themselves (paid, local, or behind a login) are the planned next
 capability, and come with the first plugin that needs one (§ Not in version 1).
+
+### Which plugin reads a URL
+
+A plugin declares `claims(url)`: static, with no I/O and no configuration, so
+Arrt can ask it of a plugin that declined as well as one that loaded. Acquisition
+routes a stored source by its URL, never by the provider that recorded it:
+
+- **claimed by a loaded plugin:** its reader decides the fetch;
+- **claimed by a plugin installed and not loaded:** a deployment fault naming the
+  plugin and its own reason (`SourcePluginUnavailable`). This is the Art
+  Institute without `ARTIC_USER_AGENT`;
+- **claimed by none:** fetched as recorded, as before plugins. This covers the
+  2024 seed's Google Arts & Culture rows and Commons' direct image URLs, which
+  need no plugin.
+
+A source whose provider is not installed at all cannot be told apart from a 2024
+seed provider (`google_arts_culture` was never a plugin), so it is fetched as
+recorded and journalled (`acquisition.unclaimed`). A claims check must be
+narrower than a path: the Art Institute's checks the museum's hosts as well as
+`/artworks/<id>`, because another site's `/artworks/91194` must not be sent to
+the museum.
 
 ### Fetch locators
 
@@ -154,7 +177,7 @@ added for an imagined consumer.
 
 - **A plugin is a Python distribution** that registers an entry point in the
   `arrt.sources` group. The entry point names a factory: given a
-  `SourceContext`, it returns the plugin's finder, readers and collection, or
+  `SourceContext`, it returns the plugin's finder, reader and collection, or
   declines with a reason (an Art Institute plugin with no `ARTIC_USER_AGENT`
   declines, exactly as the source is left unwired today).
 - **The built-in plugins register the same way**, from `arrt/pyproject.toml`.
@@ -179,11 +202,11 @@ added for an imagined consumer.
   log already names what loaded. The health panel says so too, because panel-only
   alerting is this product's chosen channel (`observability-strategy.md`), and a
   source missing in silence would look like works nobody holds.
-- **A source recorded by a plugin that is no longer installed** is a deployment
-  fault at acquisition, not a failure of that source: "the plugin `artic` is not
-  installed". This generalises today's `RESOLUTION_REQUIRED`: no source is at
-  fault, and the remedy is in this deployment. Its rows keep their provider
-  names unchanged, so reinstalling the plugin reaches them again.
+- **A source whose plugin is installed and not loaded** is a deployment fault at
+  acquisition, not a failure of that source; one whose plugin is not installed at
+  all is fetched as recorded (§ Which plugin reads a URL says why the two differ).
+  Rows keep their provider names unchanged, so reinstalling a plugin reaches its
+  rows again.
 
 ## Trust
 
@@ -202,6 +225,15 @@ What still holds, because Arrt keeps it rather than trusting a plugin to:
 - **Arrt decides** a work's identity, its rights record, duplicates, review,
   quality, spending and storage. A plugin answers "what images exist, and where",
   and writes nothing.
+
+**A plugin logs URLs as it would send them, encoded.** The journal cuts every
+URL's query string, finding the URL and its query by running to whitespace,
+`"`, `<` or `>`, the characters an HTTP client always encodes. It runs past `'`
+and `\`, which httpx leaves in a path and a query as they are (`O'Keeffe`); a
+test checks every character httpx leaves unencoded, read from httpx itself. So `?q=van gogh&key=…` written raw would keep
+everything after the space; an encoded URL, which is what an HTTP client's own
+error carries, has no space in it. *Mine*, accepted at review rather than built:
+no plugin here logs a raw URL.
 
 ## Versioning and errors
 
@@ -274,8 +306,11 @@ case:
   `nonfunctional-requirements.md` § Direction holds that spend ceilings are
   enforced by the provider, never by application code. A plugin on a flat
   subscription needs nothing.
-- **Pasting a URL.** Readers already claim URLs, so it needs a surface, not a
-  new contract.
+- **Pasting a URL.** Readers already claim URLs, so it needs a surface and one
+  addition to the reader's answer: the image's size and the holder's own title
+  and artist. A source a finder found already carries those; a pasted URL does
+  not, and the identity check needs them. *Mine:* added with the paste surface
+  (a minor version), not before, since nothing would read them.
 - **Watches** following a page (`re-architecture.md` § Procurement).
 - **Readers for new protocols**: IIIF in general, Google Arts & Culture,
   Artlogic. Which comes first is what the sightings count. Under the owner's

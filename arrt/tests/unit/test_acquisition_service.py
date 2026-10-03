@@ -18,9 +18,13 @@ from arrt.library.acquisition.service import (
     AcquisitionOutcome,
     AcquisitionService,
     AcquisitionSettings,
+    SourcePluginUnavailable,
 )
 from arrt.library.acquisition.space import NotEnoughSpace
-from arrt.library.acquisition.tiles import TileTargetUnavailable
+from arrt.library.discovery.images import ImageSearchFailure
+from arrt.library.sources.artic import claims as artic_claims
+from arrt.library.sources.loading import Route, SourceRoster
+from arrt.library.sources.reading import FetchLocator
 from arrt.persistence.records import (
     AcquisitionMethod,
     FetchStatus,
@@ -80,11 +84,39 @@ def _resolves_publicly(_host: str):
     return ["93.184.216.34"]
 
 
-def _acquisition(service, acq_settings, open_stream, *, resolve=_resolves_publicly, tile_targets=None) -> AcquisitionService:
-    # Empty by default: every provider these tests use records a URL the fetcher
-    # can read as it stands, so no resolution is wanted. The seam itself is
-    # covered in `TestResolvingTheTileTargetBeforeFetching`.
-    return AcquisitionService(service, acq_settings, open_stream=open_stream, resolve=resolve, tile_targets=tile_targets or {})
+def _claims_nothing(_url: str) -> Route:
+    return Route()
+
+
+def _acquisition(service, acq_settings, open_stream, *, resolve=_resolves_publicly, route=_claims_nothing) -> AcquisitionService:
+    # No plugin claims anything by default: every provider these tests use
+    # records a URL the fetcher can read as it stands, so no reading is wanted.
+    # The seam itself is covered in `TestResolvingTheTileTargetBeforeFetching`.
+    return AcquisitionService(service, acq_settings, open_stream=open_stream, resolve=resolve, route=route)
+
+
+class _Reads:
+    """A reader for the Art Institute's URLs that answers what a test gives it, and records what it was asked."""
+
+    def __init__(self, answer: FetchLocator | Exception) -> None:
+        self._answer = answer
+        self.asked: list[str] = []
+
+    def read(self, url: str) -> FetchLocator:
+        self.asked.append(url)
+        if isinstance(self._answer, Exception):
+            raise self._answer
+        return self._answer
+
+
+def _artic_reads(answer: FetchLocator | Exception):
+    """A route under which the Art Institute's plugin is loaded and its reader answers `answer`."""
+    return SourceRoster.of(readers={"artic": (artic_claims, _Reads(answer))}).route
+
+
+def _artic_not_loaded():
+    """A route under which the Art Institute's plugin is installed and declined, as on a keyless deployment."""
+    return SourceRoster.of(unavailable={"artic": (artic_claims, "ARTIC_USER_AGENT is unset")}).route
 
 
 #: The stand-in binary's output path is its last argument, which is awkward to
@@ -317,28 +349,20 @@ class TestTheDeploymentFaultsReachTheJournal:
         assert [record.condition for record in self._faults(caplog)] == ["DezoomifyUnavailable"]
         assert self._faults(caplog)[0].artwork_id == work.id
 
-    def test_an_unresolvable_tile_target_is_journalled(self, service, acq_settings, caplog):
-        """A provider with no resolver wired: the museum is fine, the wiring is not."""
+    def test_a_source_whose_plugin_is_not_loaded_is_journalled(self, service, acq_settings, caplog):
+        """The plugin that reads this URL is installed and declined: the museum is fine, the deployment is not."""
         work, _ = _work_with_source(
             service,
             method=AcquisitionMethod.DEZOOMIFY,
             url="https://api.artic.edu/api/v1/artworks/91194",
         )
 
-        def _no_resolver(_source):
-            raise TileTargetUnavailable("no resolver is wired for provider 'gallery_site'.")
+        acquisition = _acquisition(service, acq_settings, _serves(b""), route=_artic_not_loaded())
 
-        acquisition = _acquisition(
-            service,
-            acq_settings,
-            _serves(b""),
-            tile_targets={"gallery_site": _no_resolver},
-        )
-
-        with caplog.at_level(logging.ERROR), pytest.raises(TileTargetUnavailable):
+        with caplog.at_level(logging.ERROR), pytest.raises(SourcePluginUnavailable, match="ARTIC_USER_AGENT is unset"):
             acquisition.acquire(work.id)
 
-        assert [record.condition for record in self._faults(caplog)] == ["TileTargetUnavailable"]
+        assert [record.condition for record in self._faults(caplog)] == ["SourcePluginUnavailable"]
         assert self._faults(caplog)[0].artwork_id == work.id
 
     def test_a_refusal_that_is_one_source_s_fault_is_not_journalled_as_a_deployment_fault(self, service, acq_settings, caplog):
@@ -990,7 +1014,7 @@ class TestResolvingTheTileTargetBeforeFetching:
             service,
             replace(acq_settings, tile_binary=binary),
             _serves(b""),
-            tile_targets={"artic": lambda _: "https://www.artic.edu/iiif/2/c8024369"},
+            route=_artic_reads(FetchLocator.tiles("https://www.artic.edu/iiif/2/c8024369")),
         ).acquire(work.id)
 
         assert result.outcome is AcquisitionOutcome.ACQUIRED
@@ -1017,13 +1041,13 @@ class TestResolvingTheTileTargetBeforeFetching:
                 service,
                 replace(acq_settings, tile_binary=binary),
                 _serves(b""),
-                tile_targets={"artic": lambda _: "https://www.artic.edu/iiif/2/c8024369"},
+                route=_artic_reads(FetchLocator.tiles("https://www.artic.edu/iiif/2/c8024369")),
             ).acquire(work.id)
 
-        resolved = [r for r in caplog.records if r.__dict__.get("event") == "acquisition.tile_target_resolved"]
+        resolved = [r for r in caplog.records if r.__dict__.get("event") == "acquisition.source_read"]
         assert len(resolved) == 1
         assert resolved[0].__dict__["recorded_url"] == "https://api.artic.edu/api/v1/artworks/91194"
-        assert resolved[0].__dict__["tile_url"] == "https://www.artic.edu/iiif/2/c8024369"
+        assert resolved[0].__dict__["fetch_url"] == "https://www.artic.edu/iiif/2/c8024369"
 
     def test_a_provider_that_needed_no_resolution_is_not_journalled_as_resolved(self, service, acq_settings, tmp_path, caplog):
         """Pass-through is not a resolution, and a record saying so would be noise."""
@@ -1035,9 +1059,9 @@ class TestResolvingTheTileTargetBeforeFetching:
         work, _ = _work_with_source(service, method=AcquisitionMethod.DEZOOMIFY, url="https://www.artic.edu/iiif/2/abc/info.json")
 
         with caplog.at_level(logging.INFO):
-            _acquisition(service, replace(acq_settings, tile_binary=binary), _serves(b""), tile_targets={}).acquire(work.id)
+            _acquisition(service, replace(acq_settings, tile_binary=binary), _serves(b"")).acquire(work.id)
 
-        assert not [r for r in caplog.records if r.__dict__.get("event") == "acquisition.tile_target_resolved"]
+        assert not [r for r in caplog.records if r.__dict__.get("event") == "acquisition.source_read"]
 
     def test_the_recorded_url_is_left_alone_for_provenance(self, service, acq_settings, tmp_path):
         """Resolution is for this fetch; it must not rewrite what the source says."""
@@ -1051,7 +1075,7 @@ class TestResolvingTheTileTargetBeforeFetching:
             service,
             replace(acq_settings, tile_binary=binary),
             _serves(b""),
-            tile_targets={"artic": lambda _: "https://www.artic.edu/iiif/2/c8024369"},
+            route=_artic_reads(FetchLocator.tiles("https://www.artic.edu/iiif/2/c8024369")),
         ).acquire(work.id)
 
         refreshed = next(s for s in service.list_sources(work.id) if s.id == source.id)
@@ -1066,14 +1090,14 @@ class TestResolvingTheTileTargetBeforeFetching:
         """
         from dataclasses import replace
 
-        from arrt.library.acquisition.tiles import TileTargetUnavailable
-
         (tmp_path / "seed.jpg").write_bytes(_jpeg_bytes(200, 150))
         binary, argv_log = self._binary_recording_argv(tmp_path, tmp_path / "seed.jpg")
         work, source = self._artic_work(service)
 
-        with pytest.raises(TileTargetUnavailable):
-            _acquisition(service, replace(acq_settings, tile_binary=binary), _serves(b""), tile_targets={}).acquire(work.id)
+        with pytest.raises(SourcePluginUnavailable):
+            _acquisition(service, replace(acq_settings, tile_binary=binary), _serves(b""), route=_artic_not_loaded()).acquire(
+                work.id
+            )
 
         assert not argv_log.exists(), "the fetcher was run against an unresolved identity URL"
         refreshed = next(s for s in service.list_sources(work.id) if s.id == source.id)
@@ -1081,11 +1105,6 @@ class TestResolvingTheTileTargetBeforeFetching:
 
     def test_a_provider_that_cannot_be_asked_records_a_failure_against_the_source(self, service, acq_settings, tmp_path):
         from dataclasses import replace
-
-        from arrt.library.discovery.images import ImageSearchFailure
-
-        def unreachable(_: str) -> str:
-            raise ImageSearchFailure("could not reach the collection")
 
         (tmp_path / "seed.jpg").write_bytes(_jpeg_bytes(200, 150))
         binary, _ = self._binary_recording_argv(tmp_path, tmp_path / "seed.jpg")
@@ -1095,7 +1114,7 @@ class TestResolvingTheTileTargetBeforeFetching:
             service,
             replace(acq_settings, tile_binary=binary),
             _serves(b""),
-            tile_targets={"artic": unreachable},
+            route=_artic_reads(ImageSearchFailure("could not reach the collection")),
         ).acquire(work.id)
 
         assert result.outcome is AcquisitionOutcome.FAILED
@@ -1115,7 +1134,7 @@ class TestResolvingTheTileTargetBeforeFetching:
             service,
             replace(acq_settings, tile_binary=binary),
             _serves(b""),
-            tile_targets={"artic": lambda _: "file:///etc/passwd"},
+            route=_artic_reads(FetchLocator.tiles("file:///etc/passwd")),
         ).acquire(work.id)
 
         assert result.outcome is AcquisitionOutcome.FAILED

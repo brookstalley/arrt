@@ -2,7 +2,8 @@
 
 The pool's promise has three halves: the sources are asked in parallel, a source
 that could not be asked never reads as one that holds nothing, and each instance's
-preview and tiles go back to the source that found it. The engine-level tests at
+preview goes back to the source that found it (its tiles go to the plugin that
+claims its URL, `test_acquisition_reading.py`). The engine-level tests at
 the bottom are where the second half matters, because only phase 2's judgement
 can say whether what the reachable sources found settles the work.
 """
@@ -42,7 +43,6 @@ class Source:
         self._declines = declines
         self._meet = meet
         self.previews: list[str] = []
-        self.tiles: list[str] = []
 
     @property
     def provider(self) -> str:
@@ -62,10 +62,6 @@ class Source:
     def fetch_preview(self, url: str) -> bytes | None:
         self.previews.append(url)
         return self._name.encode()
-
-    def tile_url(self, url: str) -> str:
-        self.tiles.append(url)
-        return f"https://{self._name}.example/tiles/{url.rsplit('/', 1)[-1]}"
 
 
 def found(provider: str, *, width: int = 6949, height: int = 8400, title: str = TITLE) -> FoundImage:
@@ -115,14 +111,6 @@ def test_a_preview_goes_back_to_the_source_that_found_it():
 
     assert pool.fetch_preview("second", "https://second.example/p.jpg") == b"second"
     assert (first.previews, second.previews) == ([], ["https://second.example/p.jpg"])
-
-
-def test_each_source_resolves_its_own_tiles():
-    first, second = Source("first"), Source("second")
-    targets = ImageSourcePool([first, second]).tile_targets()
-
-    assert targets["second"]("https://second.example/objects/7") == "https://second.example/tiles/7"
-    assert (first.tiles, second.tiles) == ([], ["https://second.example/objects/7"])
 
 
 def test_a_source_the_pool_does_not_hold_is_refused_by_name():

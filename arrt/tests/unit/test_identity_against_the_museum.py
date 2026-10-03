@@ -66,9 +66,6 @@ class OneRecord:
     def fetch_preview(self, url: str):
         return b""
 
-    def tile_url(self, url: str) -> str:
-        return url
-
 
 def resolves(pair) -> bool:
     """Whether the pipeline would accept this museum record as the work asked for."""

@@ -39,7 +39,7 @@ from arrt.library.discovery.images import ImageQuery
 from arrt.library.discovery.phase_two import CONFIDENT, PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.services.display_fit import ArtworkBox
-from arrt.library.sources.artic import PROVIDER, build_image_search
+from arrt.library.sources.artic import PROVIDER, ArticReader, build_image_search
 from arrt.persistence.records import AcquisitionMethod, SourceClass
 
 pytestmark = pytest.mark.live_museum
@@ -189,38 +189,38 @@ GOLDEN_BIRD_PAGE = "https://www.artic.edu/artworks/91194/golden-bird"
 GOLDEN_BIRD_API = "https://api.artic.edu/api/v1/artworks/91194"
 
 
-def test_the_object_endpoint_still_answers_with_an_image_id(museum):
+def test_the_object_endpoint_still_answers_with_an_image_id():
     """Acquisition cannot fetch an artic work without this call succeeding.
 
     It is a *different* endpoint from the search every other test here uses —
     `/artworks/{id}` rather than `/artworks/search` — and the fetch path depends
     on it entirely. Nothing else in the suite would notice it moving.
     """
-    target = museum.tile_url(GOLDEN_BIRD_API)
+    target = reader().read(GOLDEN_BIRD_API).url
 
     assert target.startswith("https://www.artic.edu/iiif/2/")
     # An image_id after the base, not a bare base with nothing on the end.
     assert len(target.rsplit("/", 1)[1]) > 8
 
 
-def test_both_recorded_url_shapes_still_resolve_to_the_same_image_service(museum):
+def test_both_recorded_url_shapes_still_resolve_to_the_same_image_service():
     """The seeded corpus carries page URLs; discovery records api_links.
 
     Both are real shapes held in this product's catalogue right now, and a change
     to the museum's URL scheme that broke either would strand a third of the
     works with no signal until someone tried to fetch one.
     """
-    assert museum.tile_url(GOLDEN_BIRD_PAGE) == museum.tile_url(GOLDEN_BIRD_API)
+    assert reader().read(GOLDEN_BIRD_PAGE).url == reader().read(GOLDEN_BIRD_API).url
 
 
-def test_the_resolved_image_service_is_really_a_iiif_endpoint(museum):
+def test_the_resolved_image_service_is_really_a_iiif_endpoint():
     """Proves the resolution lands somewhere dezoomify can read, not merely
     somewhere well-formed. `info.json` under the base is the contract the tile
     fetcher relies on, and it is checked against the live service rather than
     assumed from the URL's shape."""
     import httpx
 
-    target = museum.tile_url(GOLDEN_BIRD_API)
+    target = reader().read(GOLDEN_BIRD_API).url
 
     response = httpx.get(f"{target}/info.json", timeout=20.0, follow_redirects=True)
     response.raise_for_status()
@@ -293,3 +293,8 @@ def test_a_surname_two_artists_share_is_still_refused(collection):
     (group,) = collection.browse([BrowseQuery(artist="Antonio Martorell")], per_query=3)
 
     assert group.works == (), f"offered work under a shared surname: {[w.artist for w in group.works]}"
+
+
+def reader() -> ArticReader:
+    """The Art Institute plugin's reader, against the live museum."""
+    return ArticReader(user_agent=USER_AGENT)

@@ -720,3 +720,40 @@ def test_startup_gives_each_source_plugin_the_deployments_user_agent(tmp_path, m
     entry_point.main()
 
     assert [context.user_agent for context in given] == ["arrt-tests (+https://example.org/house)"]
+
+
+def test_startup_builds_the_services_over_the_plugins_it_loaded(tmp_path, monkeypatch):
+    """Through `main`, with every source setting at a value that is not its default.
+
+    Each line of the wiring has to show here: the order, the preview ceiling, the
+    collection and the roster itself. Without this test each of them could be
+    deleted with every suite green.
+    """
+    art_root = tmp_path / "art"
+    _stub_settings(
+        monkeypatch, art_root, wikidata_user_agent="arrt-tests/0", source_order=("artic", "commons"), preview_max_bytes=4321
+    )
+    monkeypatch.setenv("ARTIC_USER_AGENT", "arrt-tests/0")
+    monkeypatch.setenv("WIKIDATA_USER_AGENT", "arrt-tests/0")
+    contexts, seen = [], {}
+    real = entry_point.load_sources
+
+    def capture(services, **kwargs):  # noqa: ANN001, ANN003 - the real signature
+        # Read here, while the catalogue is open: `main` closes it on the way out.
+        seen["loaded"] = [
+            health.reading.name for health in services.health.observe().sources if health.reading.state.value == "loaded"
+        ]
+        seen["route"] = services.acquisition._route("https://www.artic.edu/artworks/91194").plugin
+        seen["collection"] = services.conversation._collection.provider
+        return object()
+
+    monkeypatch.setattr(entry_point, "load_sources", lambda context, **kw: contexts.append(context) or real(context, **kw))
+    monkeypatch.setattr(entry_point, "create_app", capture)
+    monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
+
+    entry_point.main()
+
+    assert seen["loaded"][:2] == ["artic", "commons"], "SOURCE_ORDER did not reach the loader"
+    assert contexts[0].preview_max_bytes == 4321
+    assert seen["route"] == "artic", "the roster did not reach acquisition"
+    assert seen["collection"] == "artic", "the roster's collection did not reach the conversation"

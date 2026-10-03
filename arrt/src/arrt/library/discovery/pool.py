@@ -21,7 +21,7 @@ because one server was down would tell a curator the painting is not out there.
 
 import contextvars
 import logging
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
@@ -134,10 +134,6 @@ class ImageSourcePool:
     def fetch_preview(self, provider: str, url: str) -> bytes | None:
         """The preview bytes, from the source the instance was recorded under."""
         return self._source(provider).fetch_preview(url)
-
-    def tile_targets(self) -> Mapping[str, Callable[[str], str]]:
-        """Each source's tile resolver, keyed by the name its instances carry."""
-        return {name: source.tile_url for name, source in self._by_name.items()}
 
     def _source(self, provider: str) -> Finder:
         try:

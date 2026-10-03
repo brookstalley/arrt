@@ -78,7 +78,7 @@ _TIMEOUT_SECONDS: Final[float] = 20.0
 _FILE_PATH_PREFIX: Final[str] = "https://commons.wikimedia.org/wiki/Special:FilePath/"
 
 
-class CommonsImageSearch:
+class CommonsFinder:
     """The image a work's Wikidata item names, as Commons holds it."""
 
     def __init__(
@@ -176,10 +176,6 @@ class CommonsImageSearch:
             )
             return None
         return b"".join(chunks)
-
-    def tile_url(self, url: str) -> str:
-        """A Commons image is fetched whole, so its recorded URL is where it is served."""
-        return url
 
     def _what_to_fetch(self, info: Mapping[str, Any]) -> tuple[str, int | None, int | None] | None:
         """The original when it is no wider than the widest rendering, else that rendering.
@@ -283,7 +279,7 @@ def _create(context: SourceContext) -> SourceParts | Declined:
     if context.registry is None:
         return Declined("no registry is configured, and Commons is reached only through a work's Wikidata item")
     return SourceParts(
-        finder=CommonsImageSearch(registry=context.registry, user_agent=user_agent, preview_max_bytes=context.preview_max_bytes)
+        finder=CommonsFinder(registry=context.registry, user_agent=user_agent, preview_max_bytes=context.preview_max_bytes)
     )
 
 

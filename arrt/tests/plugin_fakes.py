@@ -11,6 +11,7 @@ from arrt.library.sources import (
     AcquisitionMethod,
     BrowseQuery,
     Declined,
+    FetchLocator,
     FoundImage,
     ImageQuery,
     ImageQueryUnanswerable,
@@ -22,7 +23,7 @@ from arrt.library.sources import (
 )
 
 
-class FakeFinder:
+class StubFinder:
     """A finder that answers one image per query, or raises what it is told to."""
 
     def __init__(self, provider: str, *, raises: BaseException | None = None) -> None:
@@ -52,13 +53,26 @@ class FakeFinder:
             raise self._raises
         return b"preview"
 
-    def tile_url(self, url: str) -> str:
+
+class StubReader:
+    """A reader that answers a direct locator for any URL, or raises what it is told to."""
+
+    def __init__(self, *, raises: BaseException | None = None, answer: object = None) -> None:
+        self._raises = raises
+        self._answer = answer
+
+    def read(self, url: str) -> FetchLocator:
         if self._raises is not None:
             raise self._raises
-        return url
+        return self._answer if self._answer is not None else FetchLocator.direct(url)
 
 
-class FakeCollection:
+def claims_example(url: str) -> bool:
+    """The stub plugins' claims: anything on `example.org`."""
+    return url.startswith("https://example.org/")
+
+
+class StubCollection:
     """A collection that offers nothing, or raises what it is told to."""
 
     def __init__(self, provider: str, *, raises: BaseException | None = None) -> None:
@@ -76,25 +90,25 @@ class FakeCollection:
 
 
 def _good(context: SourceContext) -> SourceParts:
-    return SourceParts(finder=FakeFinder("good"), collection=FakeCollection("good"))
+    return SourceParts(finder=StubFinder("good"), collection=StubCollection("good"))
 
 
 def _other(context: SourceContext) -> SourceParts:
-    return SourceParts(finder=FakeFinder("other"))
+    return SourceParts(finder=StubFinder("other"))
 
 
 def _faulty(context: SourceContext) -> SourceParts:
-    return SourceParts(finder=FakeFinder("faulty", raises=KeyError("a field the page no longer has")))
+    return SourceParts(finder=StubFinder("faulty", raises=KeyError("a field the page no longer has")))
 
 
 def _unanswerable(context: SourceContext) -> SourceParts:
-    return SourceParts(finder=FakeFinder("unanswerable", raises=ImageQueryUnanswerable("only by item")))
+    return SourceParts(finder=StubFinder("unanswerable", raises=ImageQueryUnanswerable("only by item")))
 
 
 def _configured(context: SourceContext) -> SourceParts | Declined:
     if not context.environ.get("FAKE_SOURCE_KEY"):
         return Declined("FAKE_SOURCE_KEY is unset")
-    return SourceParts(finder=FakeFinder("configured"))
+    return SourceParts(finder=StubFinder("configured"))
 
 
 def _raising(context: SourceContext) -> SourceParts:
@@ -102,7 +116,7 @@ def _raising(context: SourceContext) -> SourceParts:
 
 
 def _misnamed(context: SourceContext) -> SourceParts:
-    return SourceParts(finder=FakeFinder("somebody-else"))
+    return SourceParts(finder=StubFinder("somebody-else"))
 
 
 def _not_parts(context: SourceContext) -> object:
@@ -119,3 +133,49 @@ MISNAMED = SourcePlugin(api_major=1, create=_misnamed)
 NOT_PARTS = SourcePlugin(api_major=1, create=_not_parts)
 FUTURE = SourcePlugin(api_major=2, create=_good)
 NOT_A_PLUGIN = object()
+
+
+class RaisingProvider(StubFinder):
+    """A finder whose `provider` raises: reading it runs the plugin's code."""
+
+    @property
+    def provider(self) -> str:
+        raise RuntimeError("the provider property broke")
+
+
+class Answers(StubFinder):
+    """A finder that answers whatever it was built with, shape and all."""
+
+    def __init__(self, provider: str, answer: object) -> None:
+        super().__init__(provider)
+        self._answer = answer
+
+    def find_images(self, query: ImageQuery) -> object:
+        return self._answer
+
+
+def _raising_provider(context: SourceContext) -> SourceParts:
+    return SourceParts(finder=RaisingProvider("x"))
+
+
+def _not_a_finder(context: SourceContext) -> SourceParts:
+    return SourceParts(finder="a string, not a finder")
+
+
+def _reader_without_claims(context: SourceContext) -> SourceParts:
+    return SourceParts(reader=StubReader())
+
+
+def _claims_without_reader(context: SourceContext) -> SourceParts:
+    return SourceParts(finder=StubFinder("claimer"))
+
+
+def _leaky(context: SourceContext) -> SourceParts:
+    raise RuntimeError("401 for url https://api.example.net/v1/search?key=sk-live-123&q=x")
+
+
+RAISING_PROVIDER = SourcePlugin(api_major=1, create=_raising_provider)
+NOT_A_FINDER = SourcePlugin(api_major=1, create=_not_a_finder)
+READER_WITHOUT_CLAIMS = SourcePlugin(api_major=1, create=_reader_without_claims)
+CLAIMS_WITHOUT_READER = SourcePlugin(api_major=1, create=_claims_without_reader, claims=claims_example)
+LEAKY = SourcePlugin(api_major=1, create=_leaky)

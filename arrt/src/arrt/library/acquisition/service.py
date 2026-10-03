@@ -23,7 +23,7 @@ to a museum to look for a problem that is in this deployment.
 """
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -37,11 +37,12 @@ from arrt.library.acquisition.dezoomify import (
 )
 from arrt.library.acquisition.direct import StreamOpener, direct_fetch
 from arrt.library.acquisition.space import NotEnoughSpace, require_free_space
-from arrt.library.acquisition.tiles import TileTargetResolver, TileTargetUnavailable, resolve_tile_target
 from arrt.library.acquisition.urls import Resolver, UrlRefused, check_fetchable, system_resolver
 from arrt.library.discovery.images import ImageSearchFailure
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.imaging import measure
+from arrt.library.sources.loading import Route, scrub
+from arrt.library.sources.reading import FetchLocator, LocatorKind
 from arrt.persistence.records import AcquisitionMethod, FetchStatus, Source
 from arrt.services.errors import ServiceError
 
@@ -51,6 +52,18 @@ log = logging.getLogger(__name__)
 #: title is not unique, not stable, and not a filename — the 2024 tree keyed files
 #: by title and could not hold two works with the same name.
 _FILENAME: Final[str] = "{artwork_id}.jpg"
+
+
+class SourcePluginUnavailable(RuntimeError):
+    """A source needs a plugin that is installed here and not loaded.
+
+    The plugin claims the source's URL, so it is the only thing that can read
+    it, and it declined or failed at startup. No source is at fault and retrying
+    the work cannot help, so this reaches the caller as a deployment fault rather
+    than a failed fetch, which would send whoever reads it to a museum that is
+    fine. The message carries the plugin's own reason, which names the setting.
+    """
+
 
 #: The conditions acquisition **raises for rather than records**, gathered so the
 #: journal line below follows the condition instead of the caller. Every one of
@@ -65,7 +78,7 @@ _FILENAME: Final[str] = "{artwork_id}.jpg"
 DEPLOYMENT_FAULTS: Final[tuple[type[Exception], ...]] = (
     NotEnoughSpace,
     DezoomifyUnavailable,
-    TileTargetUnavailable,
+    SourcePluginUnavailable,
 )
 
 #: What an operator changes to make each deployment fault stop, keyed by the
@@ -81,10 +94,10 @@ DEPLOYMENT_REMEDIES: Final[Mapping[str, str]] = {
         "This is a deployment problem rather than a bad source: install dezoomify-rs, or set DEZOOMIFY_PATH to "
         "where it lives. Every source using acquisition_method='dezoomify' is affected, and no source is at fault."
     ),
-    TileTargetUnavailable.__name__: (
-        "Set ARTIC_USER_AGENT in .env to a string naming this deployment and a contact address — the museum's "
-        "API is open, but it asks callers to identify themselves, and an object's image service can only be "
-        "reached by asking. Every source from that provider is affected, and no source is at fault."
+    SourcePluginUnavailable.__name__: (
+        "Configure the source plugin the message names: its reason says which setting it is missing, and System › "
+        "Status lists it. For the Art Institute that is ARTIC_USER_AGENT in .env, a string naming this deployment "
+        "and a contact address. Every source that plugin reads is affected, and no source is at fault."
     ),
 }
 
@@ -208,17 +221,17 @@ class AcquisitionService:
         settings: AcquisitionSettings,
         *,
         open_stream: StreamOpener,
-        tile_targets: Mapping[str, TileTargetResolver],
+        route: Callable[[str], Route],
         resolve: Resolver = system_resolver,
     ) -> None:
         self._catalogue = catalogue
         self._settings = settings
-        #: Per provider, how to get from a source's identity URL to something the
-        #: tile fetcher can read. **Required rather than defaulted to empty:** an
-        #: empty map is indistinguishable from a correctly wired one right up to
-        #: the moment a museum source fails, and a default that looks like working
-        #: wiring is precisely the trap this product has now been bitten by twice.
-        self._tile_targets = tile_targets
+        #: Which plugin a source's URL needs, and its reader if that plugin is
+        #: loaded (`SourceRoster.route`). **Required rather than defaulted:** a
+        #: default that claimed nothing is indistinguishable from correctly wired
+        #: plugins right up to the moment a museum source fails, which is the trap
+        #: this product has been bitten by twice.
+        self._route = route
         #: Injected for the same reason `PreviewCache` injects its fetch: the
         #: transport belongs behind the image seam, and a service that also made
         #: HTTP requests could not be exercised without a network.
@@ -253,47 +266,31 @@ class AcquisitionService:
         require_free_space(self._settings.originals_path, required_bytes=self._settings.min_free_bytes)
 
         destination = self._settings.originals_path / _FILENAME.format(artwork_id=artwork_id)
+        route = self._route(source.url)
+        if route.plugin is not None and route.reader is None:
+            # Raised rather than recorded, like a missing tile binary: the plugin
+            # that reads this URL is installed and not loaded, no source is at
+            # fault, and retrying the work cannot fix it.
+            raise SourcePluginUnavailable(route.unavailable or f"the {route.plugin} source plugin is not loaded")
+        if route.reader is not None:
+            return self._acquire_read(source, plugin=route.plugin or "", read=route.reader.read, destination=destination)
+        if source.provider and not route.plugin:
+            # Fetched as recorded: no installed plugin claims this URL. Ordinary
+            # for a 2024 seed row (`google_arts_culture` was never a plugin) and for
+            # a Commons image URL; logged so a source whose plugin was uninstalled
+            # is traceable, since nothing can tell that case from the first two.
+            log.info(
+                "fetching a source as recorded: no installed plugin claims its URL",
+                extra={"event": "acquisition.unclaimed", "provider": source.provider, "source_id": source.id},
+            )
         if source.acquisition_method is AcquisitionMethod.DEZOOMIFY:
-            # The recorded URL identifies the object; the tile fetcher needs the
-            # image service. For most providers those are the same string, and for
-            # a museum serving IIIF they are not — so this is asked rather than
-            # assumed. `check_fetchable` runs on the answer and on nothing else
-            # here, because the answer is the only address this path fetches — and
-            # a URL this deployment did not record is exactly the kind that has to
-            # be checked before it is. The recorded URL is deliberately not
-            # checked: gating a tiled fetch on a provenance link nobody fetches
-            # recorded failures against sources that were never at fault.
-            #
-            # `TileTargetUnavailable` is deliberately *not* caught, for the same
-            # reason `DezoomifyUnavailable` is not: a provider with no resolver
-            # wired is a deployment fault, no source is at fault, and retrying the
-            # work cannot fix it. Recorded as a failed fetch it would send whoever
-            # reads it to the museum to look for a problem that is in the wiring.
+            # The recorded URL is the one the tile fetcher reads. It is checked
+            # here because it is about to be fetched; a URL a reader resolved is
+            # checked in `_acquire_read` for the same reason.
             try:
-                url = check_fetchable(resolve_tile_target(source, resolvers=self._tile_targets), resolve=self._resolve)
-                if url != source.url:
-                    # Logged because the fetch that follows is against an address
-                    # no record holds: without this line a failed tile fetch
-                    # cannot be attributed to a bad resolution versus a museum
-                    # that went away, and the recorded failure names only the URL
-                    # the source carries — which was never the one fetched.
-                    log.info(
-                        "resolved a source's image service before fetching",
-                        extra={
-                            "event": "acquisition.tile_target_resolved",
-                            "provider": source.provider,
-                            "source_id": source.id,
-                            "recorded_url": source.url,
-                            "tile_url": url,
-                        },
-                    )
-            except ImageSearchFailure as exc:
-                # The provider *was* asked and could not answer — unreachable, or
-                # holding no image of this object. That is about this source and
-                # this attempt, so it is recorded like any other failed fetch.
-                return self._record_failure(source, f"no image service could be reached for this source: {exc}")
+                url = check_fetchable(source.url, resolve=self._resolve)
             except UrlRefused as exc:
-                return self._record_failure(source, f"the resolved image service URL was refused: {exc}")
+                return self._record_failure(source, f"the source URL was refused: {exc}")
             return self._acquire_tiled(source, url=url, destination=destination)
         if source.acquisition_method is AcquisitionMethod.DIRECT_HTTP:
             # Checked here rather than before the dispatch, and the difference is
@@ -320,6 +317,56 @@ class AcquisitionService:
             f"no fetch path is built for acquisition_method={source.acquisition_method.value!r}; "
             "no source in this deployment records it",
         )
+
+    def _acquire_read(
+        self,
+        source: Source,
+        *,
+        plugin: str,
+        read: Callable[[str], FetchLocator],
+        destination: Path,
+    ) -> AcquisitionResult:
+        """Fetch a source whose URL a loaded plugin's reader claims, the way the reader says.
+
+        The recorded URL identifies the object; what is fetched is what the reader
+        answers, which for a museum serving IIIF is its image service and not the
+        page. `check_fetchable` runs on the answer, because the answer is the
+        address this path fetches and no record holds it. The recorded URL is not
+        checked: gating a fetch on a provenance link nobody fetches recorded
+        failures against sources that were never at fault.
+        """
+        try:
+            locator = read(source.url)
+        except ImageSearchFailure as exc:
+            # The plugin *was* asked and could not answer. That is about this
+            # source and this attempt, so it is recorded like any failed fetch.
+            return self._record_failure(source, f"the {plugin} plugin could not read this source: {exc}")
+        if locator.kind is LocatorKind.NONE:
+            return self._record_failure(source, f"the {plugin} plugin found no image for this source: {locator.reason}")
+        try:
+            url = check_fetchable(locator.url or "", resolve=self._resolve)
+        except UrlRefused as exc:
+            return self._record_failure(source, f"the address the {plugin} plugin read was refused: {exc}")
+        if url != source.url:
+            # Logged because the fetch that follows is against an address no
+            # record holds: without this line a failed fetch cannot be attributed
+            # to a bad read versus a holder that went away, and the recorded
+            # failure names only the URL the source carries.
+            log.info(
+                "read a source's URL into what to fetch",
+                extra={
+                    "event": "acquisition.source_read",
+                    "provider": source.provider,
+                    "plugin": plugin,
+                    "source_id": source.id,
+                    "recorded_url": scrub(source.url),
+                    "fetch_url": scrub(url),
+                    "locator": locator.kind.value,
+                },
+            )
+        if locator.kind is LocatorKind.TILES:
+            return self._acquire_tiled(source, url=url, destination=destination)
+        return self._acquire_direct(source, url=url, destination=destination)
 
     def _acquire_tiled(self, source: Source, *, url: str, destination: Path) -> AcquisitionResult:
         # Its own directory per source, which is what makes the reclaim below
@@ -557,6 +604,11 @@ class AcquisitionService:
         )
 
     def _record_failure(self, source: Source, detail: str) -> AcquisitionResult:
+        # Scrubbed once, here, because every recorded failure passes through and
+        # many carry a URL: one a plugin's reader answered, or its words about one.
+        # A query string is where a paid source's key travels, and this detail is
+        # journalled and shown on the Work page and in MCP.
+        detail = scrub(detail)
         self._catalogue.record_fetch(source.id, status=FetchStatus.FAILED)
         log.info("acquisition of %s from %s failed: %s", source.artwork_id, source.provider, detail)
         return AcquisitionResult(

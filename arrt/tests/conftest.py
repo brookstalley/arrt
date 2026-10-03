@@ -19,7 +19,8 @@ from typing import Final
 
 import pytest
 import uvicorn
-from fakes import FakeConversationEngine, FakeEngine
+from fakes import FakeConversationEngine, FakeEngine, FakeReader
+from fault_guard import FaultRecords
 from PIL import Image
 
 from arrt.app import create_app
@@ -68,7 +69,8 @@ from arrt.library.services.conversation import ConversationService
 from arrt.library.services.discovery import DiscoveryService
 from arrt.library.services.runner import DiscoveryRunner
 from arrt.library.services.thumbnails import ThumbnailService, ThumbnailSettings
-from arrt.library.sources.loading import FAULT_EVENT, SourceRoster
+from arrt.library.sources.artic import claims as artic_claims
+from arrt.library.sources.loading import SourceRoster
 from arrt.persistence.discovery_records import DiscoveryRun, InitiatedBy
 from arrt.persistence.durable import SqliteDurableStore
 from arrt.persistence.file import open_catalogue_file
@@ -125,38 +127,18 @@ def _no_source_plugin_settings(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv(name, raising=False)
 
 
-class _FaultRecords(logging.Handler):
-    def __init__(self) -> None:
-        super().__init__(level=logging.ERROR)
-        self.faults: list[logging.LogRecord] = []
-
-    def emit(self, record: logging.LogRecord) -> None:
-        if getattr(record, "event", None) == FAULT_EVENT:
-            self.faults.append(record)
-
-
 @pytest.fixture(autouse=True)
 def _no_plugin_fault_unless_expected(request: pytest.FixtureRequest) -> Iterator[None]:
-    """Fail any test in which a source plugin faulted, unless it means to.
-
-    The loader contains a plugin's fault so that one bad package cannot stop a
-    run, and that containment would hide a bug in the built-in plugins from the
-    suite, which before plugins saw it as a raised exception. This puts the
-    strictness back for tests, where a fault is always a bug.
-    """
-    records = _FaultRecords()
-    logger = logging.getLogger("arrt.library.sources.loading")
-    logger.addHandler(records)
+    """Fail any test in which a source plugin faulted, unless it means to (`fault_guard.py`)."""
+    records = FaultRecords()
+    records.attach()
     try:
         yield
     finally:
-        logger.removeHandler(records)
-    if records.faults and request.node.get_closest_marker("plugin_fault_expected") is None:
-        pytest.fail(
-            "a source plugin faulted: "
-            + "; ".join(f"{getattr(r, 'plugin', '?')} in {getattr(r, 'operation', '?')}" for r in records.faults),
-            pytrace=False,
-        )
+        records.detach()
+    complaint = records.complaint(expected=request.node.get_closest_marker("plugin_fault_expected") is not None)
+    if complaint is not None:
+        pytest.fail(complaint, pytrace=False)
 
 
 @pytest.fixture
@@ -306,9 +288,17 @@ def kept(settings: Settings) -> Iterator[KeptAnswers]:
 
 
 @pytest.fixture
-def sources() -> SourceRoster | None:
-    """The source plugins the health panel reports: none, unless a test supplies a roster."""
-    return None
+def sources() -> SourceRoster:
+    """The plugins the services are built over: the Art Institute's reader, with its real claims.
+
+    A museum source records the object's page; the tile fetcher needs the image
+    service, and only the plugin that claims the URL can say where that is. Wired
+    here even though these tests configure no image *search*, because a catalogue
+    holding artic works and a deployment able to fetch them is a real arrangement,
+    and without it every such fetch is a deployment fault before it reaches the
+    code the test is about. A test that needs other plugins overrides this fixture.
+    """
+    return SourceRoster.of(readers={"artic": (artic_claims, FakeReader())})
 
 
 @pytest.fixture
@@ -323,7 +313,7 @@ def services(
     registry: Registry | None,
     kept: KeptAnswers,
     open_stream: StreamOpener | None,
-    sources: SourceRoster | None,
+    sources: SourceRoster,
 ) -> Services:
     """Every service, wired the way the entry point wires them."""
     bound = Services.bind(
@@ -348,13 +338,6 @@ def services(
             panel_height=settings.tv_panel_height_px,
             box=settings.tv_artwork_box,
         ),
-        # A museum source records the object's page; the tile fetcher needs the
-        # image service, and only the provider can say where that is. Wired here
-        # even though these tests configure no image *search*, because a catalogue
-        # holding artic works and a deployment able to fetch them is a real
-        # arrangement — and without it every such fetch refuses before reaching
-        # the code the test is about.
-        tile_targets={"artic": lambda url: f"https://www.artic.edu/iiif/2/{abs(hash(url)) % 100000}"},
         # Stated rather than looked up, for every test that reaches acquisition. A
         # suite whose job is to be green cannot depend on the network — pyproject
         # says so and deselects the tests that deliberately do. Without this the

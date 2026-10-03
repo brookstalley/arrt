@@ -170,3 +170,125 @@ def test_configuring_leaves_handlers_it_did_not_install_alone():
     finally:
         root.handlers = before
         root.setLevel(before_level)
+
+
+SECRET = "sk-live-123"
+KEYED = f"https://api.example.net/v1/search?key={SECRET}&q=x"
+
+
+def _refuse(url: str) -> None:
+    raise RuntimeError(f"401 for url {url}")
+
+
+def test_a_query_string_is_cut_from_the_message_the_fields_and_the_traceback(emitted):
+    """Wherever a key could ride: the message, an argument, an attached field, or the
+    message a traceback repeats. The address itself stays, so the line still says where."""
+    log = logging.getLogger("arrt.tests.scrub")
+    try:
+        _refuse(KEYED)
+    except RuntimeError:
+        log.warning("fetch of %s failed", KEYED, exc_info=True, extra={"fetch_url": KEYED})
+
+    (line,) = emitted
+    assert SECRET not in json.dumps(line)
+    assert line["message"] == "fetch of https://api.example.net/v1/search?… failed"
+    assert line["fetch_url"] == "https://api.example.net/v1/search?…"
+    assert "401 for url https://api.example.net/v1/search?…" in line["exception"]
+
+
+def test_a_url_with_no_query_string_is_left_alone(emitted):
+    logging.getLogger("arrt.tests.scrub").info("fetched https://www.artic.edu/iiif/2/abc/info.json")
+
+    assert emitted[0]["message"] == "fetched https://www.artic.edu/iiif/2/abc/info.json"
+
+
+def test_a_direct_fetch_that_raises_with_a_keyed_url_journals_no_key(emitted, tmp_path):
+    """Through the fetcher's own warning, the line that logs the URL it was asked and a traceback."""
+    from contextlib import contextmanager
+
+    from arrt.library.acquisition.direct import direct_fetch
+
+    @contextmanager
+    def raising(url: str):
+        raise ValueError(f"transport refused {url}")
+        yield  # pragma: no cover - keeps this a generator
+
+    result = direct_fetch(KEYED, destination=tmp_path / "x.jpg", open_stream=raising, max_bytes=1000)
+
+    assert result.path is None
+    warned = [line for line in emitted if "direct fetch of" in line["message"]]
+    assert warned and SECRET not in json.dumps(warned)
+
+
+ACCENTED = f"https://api.example.net/v1/search?q=Dürer&key={SECRET}"
+
+
+class _Rendered:
+    """An object JSON cannot hold, whose `str` carries a keyed URL: an `httpx.URL` is one."""
+
+    def __str__(self) -> str:
+        return ACCENTED
+
+
+def test_a_key_after_an_accented_letter_is_cut_too(emitted):
+    """JSON escapes the ü; a scrub after encoding stopped there and kept the rest of the query."""
+    log = logging.getLogger("arrt.tests.scrub")
+    try:
+        _refuse(ACCENTED)
+    except RuntimeError:
+        log.warning(
+            "fetch of %s failed",
+            ACCENTED,
+            exc_info=True,
+            extra={"fetch_url": ACCENTED, "nested": {"urls": [ACCENTED]}, "rendered": _Rendered()},
+        )
+
+    (line,) = emitted
+    assert SECRET not in json.dumps(line)
+    assert line["message"] == "fetch of https://api.example.net/v1/search?… failed"
+    assert line["nested"] == {"urls": ["https://api.example.net/v1/search?…"]}
+    assert line["rendered"] == "https://api.example.net/v1/search?…"
+
+
+def test_a_key_after_an_apostrophe_or_backslash_is_cut_too(emitted):
+    """httpx leaves both in a query as they are, in the shape its own error message takes."""
+    import httpx
+
+    url = str(httpx.URL(f"https://api.example.net/search?q=O'Keeffe&p=a\\b&key={SECRET}"))
+    log = logging.getLogger("arrt.tests.scrub")
+    try:
+        _refuse(f"'{url}'")
+    except RuntimeError:
+        log.warning("Client error for url '%s'", url, exc_info=True, extra={"fetch_url": url, "by_url": {url: 1}})
+
+    (line,) = emitted
+    assert SECRET not in json.dumps(line)
+    assert line["message"].startswith("Client error for url 'https://api.example.net/search?…")
+
+
+def _httpx_leaves_unencoded() -> tuple[str, str]:
+    """The characters httpx leaves as they are in a path and in a query, from httpx itself.
+
+    Read rather than copied, so a release that leaves one more character
+    unencoded fails here, not in a journal.
+    """
+    from httpx import _urlparse
+
+    return _urlparse.PATH_SAFE, _urlparse.QUERY_SAFE
+
+
+@pytest.mark.parametrize("part", ["path", "query"])
+def test_no_character_httpx_leaves_unencoded_shields_a_key(part):
+    import httpx
+
+    path_safe, query_safe = _httpx_leaves_unencoded()
+    leaked = []
+    for character in path_safe if part == "path" else query_safe:
+        if part == "path":
+            url = httpx.URL(f"https://api.example.net/v1/a{character}b/works?key={SECRET}")
+        else:
+            url = httpx.URL(f"https://api.example.net/v1/works?q=a{character}b&key={SECRET}")
+        if SECRET in logs.scrub(f"Client error for url '{url}'"):
+            leaked.append(character)
+
+    assert leaked == []

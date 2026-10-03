@@ -16,7 +16,7 @@ import logging
 
 import httpx
 import pytest
-from fakes import FakeImageSearch, FakeRegistry, an_image
+from fakes import FakeFinder, FakeRegistry, a_roster, an_image
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
@@ -51,8 +51,8 @@ def registry() -> FakeRegistry:
 
 
 @pytest.fixture
-def museum() -> FakeImageSearch:
-    return FakeImageSearch(
+def museum() -> FakeFinder:
+    return FakeFinder(
         holdings={
             "The Elephants": (an_image("The Elephants"),),
             "Swans Reflecting Elephants": (an_image("Swans Reflecting Elephants"),),
@@ -71,7 +71,7 @@ def services(store, discovery_store, wall_settings, thumbnail_settings, settings
         artwork_box=settings.tv_artwork_box,
         engine=engine,
         discovery_settings=settings.discovery_settings,
-        image_sources=[museum],
+        sources=a_roster(museum),
         previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
         registry=registry,
     )

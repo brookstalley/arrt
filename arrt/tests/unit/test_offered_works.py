@@ -13,7 +13,7 @@ import logging
 from dataclasses import replace
 
 import pytest
-from fakes import FakeCollectionBrowse, FakeImageSearch, a_collection_holding, a_work, an_image
+from fakes import FakeCollectionBrowse, FakeFinder, a_collection_holding, a_work, an_image
 
 from arrt.library.discovery.engine import WorkList
 from arrt.library.discovery.phase_two import PhaseTwoEngine
@@ -35,9 +35,9 @@ def a_list(*works: tuple[str, str]) -> WorkList:
 
 
 @pytest.fixture
-def museum() -> FakeImageSearch:
+def museum() -> FakeFinder:
     """A museum that holds nothing anyone asks for: every work comes back unresolved."""
-    return FakeImageSearch()
+    return FakeFinder()
 
 
 @pytest.fixture

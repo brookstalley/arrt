@@ -102,6 +102,84 @@ repository. Contract: `source-plugins.md`. Plan: `build-plan-source-plugins.md`.
   plugins' variables cleared, and any test that logs a plugin fault fails unless
   it is marked `plugin_fault_expected`.
 
+**What (Chunk 02):**
+- **Readers.**
+  - A plugin declares which URLs it `claims` (static, no I/O), and a loaded one
+    provides a `Reader` that turns a claimed URL into a `FetchLocator`: direct,
+    tiles, or none.
+  - Acquisition routes a stored source by its URL, through `SourceRoster.route`:
+    - claimed by a loaded plugin: its reader decides the fetch;
+    - claimed by a plugin that is installed and not loaded: a deployment fault,
+      `SourcePluginUnavailable`, naming the plugin and its reason;
+    - claimed by none: fetched as recorded.
+  - The Art Institute's `tile_url` became its reader, and it claims only the
+    museum's hosts.
+  - `tile_url`, `RESOLUTION_REQUIRED`, the pool's and the container's
+    `tile_targets`, and `library/acquisition/tiles.py` are gone.
+    `TileTargetUnavailable` became `SourcePluginUnavailable`.
+  - The Commons reader moved to Chunk 03, where its input first exists.
+- **The container's only source input is the roster** (`sources=`).
+  `image_sources` and `collection` are gone, so the finders, collection, readers
+  and health panel cannot disagree.
+- **Containment closed its holes** (carried from Chunk 01's final review):
+  - a part whose `provider` raises, or that is not a `Finder`, `Reader` or
+    `CollectionBrowse`, leaves the plugin out;
+  - a finder's answer of the wrong shape, or with an image under another
+    plugin's name, is a contained fault;
+  - a raising `claims` claims nothing and is counted;
+  - error text loses every URL's query string before the journal or the panel;
+  - each plugin is journalled before its factory runs;
+  - an unknown `SOURCE_ORDER` name is a warning.
+- **Renamed:** `ArticImageSearch` and `CommonsImageSearch` are now `ArticFinder`
+  and `CommonsFinder`.
+- **Fixed at the start of this chunk:** `SourceContext.user_agent`, added in
+  Chunk 01 at review, carries `ACQUISITION_USER_AGENT` to every plugin. No
+  built-in reads it yet: the Art Institute and Commons each require their own
+  identifying variable.
+
+**Tests changed in Chunk 02, and why:**
+- `test_acquisition_tiles.py` became `test_acquisition_reading.py`. Each of its
+  contracts is kept against the reader that replaced the resolver:
+  - the reader is asked about the recorded URL;
+  - a URL nobody claims keeps its URL;
+  - a claimed URL with its plugin not loaded is a deployment fault, now driven
+    through the real loader and the real declining Art Institute plugin;
+  - a reader's fault never falls through to the recorded URL;
+  - the Art Institute claims both of its URL shapes and not Google's.
+
+  The two tests of the `RESOLUTION_REQUIRED` declaration became tests of the
+  plugin's `claims`, which is the declaration now.
+- `test_image_pool.py::test_each_source_resolves_its_own_tiles` is retired. The
+  pool no longer resolves tiles. Its claim, that a source's tiles go to the code
+  that knows them, is `test_acquisition_reading.py`'s routing tests.
+- `test_artic_client.py`'s image-service tests call the reader, not
+  `tile_url`. "Publishes no image" is now a `none` locator, not a raise. It is
+  still distinct from a failed lookup, which the old test asserted.
+- `test_acquisition_service.py` and `test_catalogue_tool.py` route through
+  rosters, not provider-keyed maps, with every assertion kept. Two catalogue
+  tests now give their source an object page: their IIIF `info.json` URL needs
+  no plugin, so it is correctly no longer a fault.
+- `test_bindings.py`: the remedy table names `SourcePluginUnavailable`, and its
+  remedy still names `ARTIC_USER_AGENT`.
+- The suite-wide fault guard moved to `tests/fault_guard.py`, where it reads its
+  logger name from the loader. It is now tested (`test_fault_guard.py`).
+- **Added at review:**
+  - The tiled-source provenance test (a recorded URL whose host does not
+    resolve must not stop a claimed source being read) was dropped in the
+    rewrite, and is restored in `test_acquisition_reading.py`.
+  - The scrubbing now covers every way a plugin's words leave the containment:
+    its own failures, its decline reason, faults and browse failures. Each way
+    has a test through its caller.
+  - The Art Institute reader treats an answer that is not the object's own
+    record as could-not-be-asked, never as "no image" (gap 5).
+  - The plan's survey of the NAS `sources` table moved to Chunk 05, with the
+    shapes taken from the code that writes them meanwhile.
+  - The journal formatter (`logs.JsonFormatter`) cuts every URL's query string
+    from each finished line, covering every call site, the fetchers' own
+    warnings and tracebacks included. Every recorded acquisition failure is
+    scrubbed too, in `_record_failure`. The scrub was first added call site by
+    call site, and two verification rounds each found one more site.
+
 ## 2026-10-03: A corpus to choose the next source by
 
 <!-- prawduct: scope=procurement-corpus -->

@@ -86,7 +86,7 @@ checked mechanically in Chunk 02 against every stored source row.
 ## Status
 
 - [x] Chunk 01: The plugin interface and loader
-- [ ] Chunk 02: Readers
+- [x] Chunk 02: Readers
 - [ ] Chunk 03: The Wikidata finder, and sightings
 - [ ] Chunk 04: The author's guide, deployment, security model
 - [ ] Chunk 05: Deploy, and check against the corpus
@@ -150,6 +150,39 @@ is faulting; an entry goes in `.prawduct/operator-verification.md`.
 
 ### Chunk 02: Readers
 
+**Design, settled at the start of the chunk** (mine, 2026-10-03; it refines the
+bullets below, which were written before the code was read):
+
+- **Which plugin a URL needs is known even when that plugin is not loaded.** A
+  `SourcePlugin` declares `claims(url) -> bool`: static, no I/O, available
+  whether the factory loaded or declined. A loaded plugin that claims URLs
+  provides a `reader`, and one with a reader declares `claims`. One reader per
+  plugin, which may read many URL shapes.
+- **`Reader.read(url) -> FetchLocator`**: `direct` (an image URL), `tiles` (a URL
+  `dezoomify-rs` reads), or `none` (the page is the expected one and shows no
+  image, with a reason). Could-not-be-asked raises `ImageSearchFailure`.
+- **Acquisition routes a stored source by its URL:**
+  - claimed by a loaded plugin: its reader decides the fetch;
+  - claimed by a plugin that is installed and not loaded: a deployment fault
+    naming the plugin and its reason (this generalises `RESOLUTION_REQUIRED`:
+    the Art Institute without `ARTIC_USER_AGENT`);
+  - claimed by none: fetched as recorded, as today. That covers the Google Arts
+    & Culture rows and Commons' direct image URLs, which need no plugin.
+
+  *Changed from the bullet below:* a source whose provider is not installed at
+  all cannot be told from a 2024 seed provider (`google_arts_culture` was never a
+  plugin), so it is fetched as recorded and journalled at INFO
+  (`acquisition.unclaimed`), not WARNING, because it fires on every Commons fetch.
+- **`Finder.tile_url` leaves the interface**, with `RESOLUTION_REQUIRED`, the
+  pool's `tile_targets` and the container's `tile_targets`. The interface stays
+  1.0, because it has not left this branch.
+- **The Commons reader moves to Chunk 03.** Its input, a Commons file page, first
+  exists when the Wikidata finder offers P18 as one. A reader with no URL to read
+  would be built against a shape nothing produces.
+- **The roster is the container's only source input** (carried below).
+  `SourceRoster.of(...)` builds one from parts without entry points, for tests
+  and for anything that assembles sources by hand.
+
 **Carried from Chunk 01's final review** (`rev` of 2026-10-03, 0 blocking; the
 observations below are real, and land here so this chunk's review covers them):
 
@@ -192,13 +225,14 @@ observations below are real, and land here so this chunk's review covers them):
   a fetch locator (`direct`, `tiles`, or `none`), with the size and the holder's
   title and artist where the page carries them.
 - The Art Institute plugin gains a reader for its object URLs (today's
-  `tile_url`); the Commons plugin gains a reader for Commons file pages.
+  `tile_url`). *(The Commons reader moved to Chunk 03; see the design note.)*
 - Acquisition asks the readers in order for a stored source's URL:
   - the first that claims it decides the fetch;
   - a URL no reader claims is fetched as recorded, as today (the Google Arts &
     Culture rows);
-  - a URL whose recording provider is not installed is a deployment fault
-    naming the plugin.
+  - a URL claimed by a plugin that is installed and not loaded is a deployment
+    fault naming the plugin. *(Changed at design: a provider not installed at
+    all is fetched as recorded; see the design note.)*
 
   `RESOLUTION_REQUIRED` and the provider-keyed `tile_targets` retire, with
   their docstrings' reasons carried to the reader contract.
@@ -207,12 +241,18 @@ observations below are real, and land here so this chunk's review covers them):
 - Tests:
   - **Every stored source shape resolves exactly as before:** an `artic` object
     URL to the same IIIF target, a Commons file to the same direct URL, a Google
-    Arts & Culture page to itself. The fixtures come from the shapes actually
-    stored, read from a copy of the NAS catalogue's `sources` table (provider,
-    method, URL pattern), not from memory.
+    Arts & Culture page to itself.
+    *Descoped from this chunk, 2026-10-03, and moved to Chunk 05:* the fixtures
+    were to come from a copy of the NAS catalogue's `sources` table, and this
+    session has no access to the NAS. The shapes were taken instead from the code
+    that writes them: the 2024 seed's two known hosts (`arrt/src/arrt/seed/legacy.py`,
+    `_KNOWN_HOSTS`, over `all.json`: 33 `www.artic.edu` and 8
+    `artsandculture.google.com` rows, all `dezoomify`), and the two finders'
+    recorded URLs (Art Institute API links, Commons direct image URLs). Chunk 05
+    surveys the live table before deploying.
   - Two readers claiming one URL go to the one first in order.
-  - An `artic` row with the plugin uninstalled is a deployment fault, not a
-    failed source.
+  - An `artic` row whose plugin declined is a deployment fault, not a failed
+    source.
   - A reader whose page is not the page it expects raises could-not-be-asked
     (gap 5).
 
@@ -270,6 +310,13 @@ Type: doc-only.
 
 ### Chunk 05: Deploy, and check against the corpus
 
+- **Before deploying, survey the NAS catalogue's `sources` table** (moved from
+  Chunk 02): count rows by provider, acquisition method and URL shape (host and
+  path pattern, never a full house URL, since this repository is public). Check
+  each shape against `SourceRoster.route`: claimed by a loaded plugin, fetched as
+  recorded, or a deployment fault. A shape the suite does not cover gets a test
+  before the deploy.
+
 - A `live_museum` test over the corpus's rows found in run 1 (1, 2, 3, 9, 19, 35)
   gets the same source and size through the plugins. It runs by hand with `-n0`.
 - Deploy to the NAS. The startup log names the loaded plugins, and the health
@@ -288,8 +335,9 @@ Type: doc-only.
 
 `cd arrt && uv run pytest`, and the root suite for the artifact-reading guards,
 for every chunk; `-m browser` for Chunk 01's health panel change. Chunk 02's
-regression fixtures are drawn from the real catalogue's stored rows. Chunk 05 is
-the live check and the owner's look.
+regression fixtures are drawn from the code that writes source rows, and Chunk
+05 checks them against the real catalogue's stored rows. Chunk 05 is the live
+check and the owner's look.
 
 ## Governance checkpoints
 

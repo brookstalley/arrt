@@ -60,15 +60,6 @@ class StubSearch:
     def fetch_preview(self, url: str) -> bytes | None:
         return b"jpeg"
 
-    def tile_url(self, url: str) -> str:
-        """Unused by phase 2, and implemented so this really is a `Finder`.
-
-        A stand-in that satisfies only the members its own tests call will pass
-        while the Protocol grows past it, and the next member added at the fetch
-        seam would find this class silently non-conforming.
-        """
-        return f"https://www.artic.edu/iiif/2/{abs(hash(url)) % 100000}"
-
 
 def resolve(*instances: FoundImage, title: str, artist: str | None = None):
     """The instances that survived, which is what most of this module is about.

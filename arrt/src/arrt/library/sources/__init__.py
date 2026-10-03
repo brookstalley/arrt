@@ -34,6 +34,7 @@ from arrt.library.sources.plugin import (
     SourceParts,
     SourcePlugin,
 )
+from arrt.library.sources.reading import FetchLocator, LocatorKind, Reader
 from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
 
 __all__ = [
@@ -44,13 +45,16 @@ __all__ = [
     "CollectionBrowse",
     "CollectionBrowseFailure",
     "Declined",
+    "FetchLocator",
     "Finder",
     "FoundImage",
     "ImageQuery",
     "ImageQueryUnanswerable",
     "ImageSearchFailure",
     "ItemId",
+    "LocatorKind",
     "OfferedGroup",
+    "Reader",
     "Registry",
     "RegistryUnavailable",
     "RightsStatus",

@@ -183,16 +183,3 @@ class Finder(Protocol):
         the `None` this signature already has: it is one more preview that did
         not arrive, and no curator could act on the distinction.
         """
-
-    def tile_url(self, url: str) -> str:
-        """Where the tiles of the object `url` names are actually served.
-
-        On this seam because the provider is the only thing that can answer it:
-        the URL a source records identifies the object, and for a provider serving
-        tiles the image service lives somewhere the object's own address does not
-        say. A provider whose recorded URLs the tile fetcher can already read
-        returns its argument.
-
-        Raises `ImageSearchFailure` when the provider could not be asked, or
-        answered without an image.
-        """

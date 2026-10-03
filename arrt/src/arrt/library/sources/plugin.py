@@ -19,6 +19,7 @@ from typing import Final
 from arrt.library.discovery.browse import CollectionBrowse
 from arrt.library.discovery.images import Finder
 from arrt.library.registry import Registry
+from arrt.library.sources.reading import Reader
 
 #: The interface version this Arrt provides, as `(major, minor)`. A plugin
 #: declares the major it was written for, and one written for any other major is
@@ -56,7 +57,7 @@ class SourceContext:
 
 @dataclass(frozen=True, slots=True)
 class SourceParts:
-    """What a loaded plugin provides: a finder, a collection to browse, or both.
+    """What a loaded plugin provides: any of a finder, a reader, and a collection to browse.
 
     **The finder's `provider` must be the plugin's name.** It is what every image
     the finder reports is recorded under, so a stored source row names the plugin
@@ -65,13 +66,16 @@ class SourceParts:
     """
 
     finder: Finder | None = None
+    #: Reads the URLs the plugin claims (`SourcePlugin.claims`). A plugin with a
+    #: reader declares what it claims, and one that claims URLs provides a reader.
+    reader: Reader | None = None
     collection: CollectionBrowse | None = None
 
     def __post_init__(self) -> None:
-        if self.finder is None and self.collection is None:
+        if self.finder is None and self.reader is None and self.collection is None:
             # A plugin with nothing to offer that still loads would read as a
             # source on every startup line and answer nothing. Declining says why.
-            raise ValueError("A plugin's parts need a finder, a collection, or both; decline with a reason instead.")
+            raise ValueError("A plugin's parts need a finder, a reader or a collection; decline with a reason instead.")
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,3 +103,9 @@ class SourcePlugin:
     #: The interface major this plugin was written for (`API_VERSION[0]`).
     api_major: int
     create: SourceFactory
+    #: Whether a URL is one this plugin's reader reads. **Static: no I/O, and no
+    #: configuration**, because Arrt asks it of plugins that declined as well as of
+    #: those that loaded. A source this plugin must read, recorded while it was
+    #: configured, then reaches a deployment fault naming the plugin and its
+    #: reason, rather than a fetch of a page no fetcher can read.
+    claims: Callable[[str], bool] | None = None

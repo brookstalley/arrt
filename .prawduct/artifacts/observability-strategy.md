@@ -235,16 +235,18 @@ between planes.
 > | `browse.below_floor` | a work was not offered because it would render too small. **Systemic rather than per-work**: one wrong artwork-box setting makes every browse result fall below the floor, and without this line the supplement offers nothing for ever while reporting only `works_offered: 0` |
 > | `work.suppressed` / `work.already_present` | an offer was declined because the curator rejected that work earlier, or because the run already carries it |
 >
-> **Acquisition's events, which start here.** `acquisition.tile_target_resolved`
-> is the product's first, and it exists because the fetch that follows it is
+> **Acquisition's events, which start here.** `acquisition.source_read` (named
+> `acquisition.tile_target_resolved` until 2026-10-03, when readers became
+> plugins) is the product's first, and it exists because the fetch that follows it is
 > against an address no record holds — without the line, a failed tile fetch
 > cannot be told apart from a museum that went away, and the recorded failure
 > names only the URL the source carries, which was never the one fetched.
 >
 > | Event | Says |
 > |---|---|
-> | `acquisition.tile_target_resolved` | a source's image service was resolved before fetching, naming both the recorded URL and the one actually used |
-> | `acquisition.deployment_fault` | acquisition refused before it started for a reason no source is at fault for — a full disk, a missing binary, an unwired provider. **At ERROR, and for these three conditions it is the only journal signal there is**: unlike a failed fetch, which is recorded against the source and readable afterwards, these reach the caller as a refusal the tool boundary answers without logging — and the person who can fix them is not the one holding the tool result. **Emitted by `AcquisitionService` at the raise, so the signal follows the condition and not the route in** — every caller gets it, and a surface added later inherits it rather than inheriting silence. The operator-facing *remedy* is held once beside the conditions, in `DEPLOYMENT_REMEDIES` (`library/acquisition/service.py`): the acquisition queue pauses on these conditions (`acquisition.queue_paused`, naming the condition), and the Work page, Activity › Queue and MCP's `get` all show the pause with that remedy (since 2026-10-02, `build-plan-after-review.md` Chunk 02; until then `retry_acquisition`'s three `except` clauses wrote it). (Until 2026-08-05 the line was emitted by that binding instead, so it existed only where acquisition was driven over MCP. Harmless while MCP was the only caller and a trap the moment it was not.) |
+> | `acquisition.source_read` | a plugin's reader turned a source's URL into what to fetch, naming the plugin, the recorded URL, the URL actually fetched, and whether it was tiles or a direct image |
+> | `acquisition.unclaimed` | a source was fetched as recorded because no installed plugin claims its URL. Ordinary for a 2024 seed row or a Commons image URL; the line that traces a source whose plugin was uninstalled, since nothing else can tell that case apart |
+> | `acquisition.deployment_fault` | acquisition refused before it started for a reason no source is at fault for — a full disk, a missing binary, a source whose plugin is installed and not loaded (`SourcePluginUnavailable`). **At ERROR, and for these three conditions it is the only journal signal there is**: unlike a failed fetch, which is recorded against the source and readable afterwards, these reach the caller as a refusal the tool boundary answers without logging — and the person who can fix them is not the one holding the tool result. **Emitted by `AcquisitionService` at the raise, so the signal follows the condition and not the route in** — every caller gets it, and a surface added later inherits it rather than inheriting silence. The operator-facing *remedy* is held once beside the conditions, in `DEPLOYMENT_REMEDIES` (`library/acquisition/service.py`): the acquisition queue pauses on these conditions (`acquisition.queue_paused`, naming the condition), and the Work page, Activity › Queue and MCP's `get` all show the pause with that remedy (since 2026-10-02, `build-plan-after-review.md` Chunk 02; until then `retry_acquisition`'s three `except` clauses wrote it). (Until 2026-08-05 the line was emitted by that binding instead, so it existed only where acquisition was driven over MCP. Harmless while MCP was the only caller and a trap the moment it was not.) |
 >
 > **`phase_two.not_the_work` is the one to read first when a run comes back
 > emptier than expected.** It carries the museum's own title and artist beside the
@@ -547,12 +549,27 @@ the panel names every installed plugin and what became of it.
   `ARTIC_USER_AGENT`), and says which setting would change it. A failed one could
   not be imported, was written for another interface major, raised in its
   factory, or broke the interface's rules, and says which. Logged as
-  `source.loaded`, `source.declined` (INFO) and `source.failed` (ERROR).
+  `source.loading` (INFO, before each factory runs, so a factory that hangs
+  leaves its name), `source.loaded`, `source.declined` (INFO) and `source.failed`
+  (ERROR). A `SOURCE_ORDER` name no installed plugin has is
+  `source.order_unknown` (WARNING), because a misspelling would otherwise
+  reorder the sources in silence.
 - **While running, a loaded plugin's faults are counted.** A fault is anything a
   plugin raises outside its three answers. It is contained to the call, logged at
-  ERROR as `source.plugin_fault` with the traceback, and the panel shows the count
+  ERROR as `source.plugin_fault` with the traceback's frames, and the panel shows the count
   since startup and the age of the last one. Counts reset with the process,
-  because the count is about the code running now.
+  because the count is about the code running now. A fault includes answering in
+  a shape the interface forbids: an image under another plugin's name, or a
+  `None` where a list belongs.
+- **Every URL's query string is cut from every journal line**, by the formatter
+  (`logs.JsonFormatter`): message, fields and traceback alike. An HTTP client's
+  error names the URL it asked, a reader may answer a URL with a key in it, and a
+  paid source's key usually travels in the query, so this is the "no secret in a
+  log line" rule (`project-preferences.md`) applied at the one place every line
+  passes. What leaves by other routes is scrubbed where it leaves: a plugin's
+  failures and decline reason at the containment (they reach the health panel),
+  and a recorded acquisition failure in `_record_failure` (it reaches the Work
+  page and MCP).
 - **The System badge counts a failed plugin and a faulting one**, never a
   declined one, which is a choice and not a problem.
 

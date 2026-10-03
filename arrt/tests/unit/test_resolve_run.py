@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
-from fakes import FakeImageSearch, a_work, an_image
+from fakes import FakeFinder, a_work, an_image
 
 from arrt.library.discovery.engine import WorkList
 from arrt.library.discovery.phase_two import PhaseTwoEngine
@@ -37,8 +37,8 @@ from arrt.services.errors import ServiceError
 
 
 @pytest.fixture
-def museum() -> FakeImageSearch:
-    return FakeImageSearch()
+def museum() -> FakeFinder:
+    return FakeFinder()
 
 
 @pytest.fixture
