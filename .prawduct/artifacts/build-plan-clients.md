@@ -3,7 +3,7 @@ artifact: build-plan
 version: 1
 scope: clients
 branch: feature/clients
-partition: serial, with Chunk 01 built by one delegate in an isolated worktree (it rewrites the token model across the store, the access service, the Player routes, the Walls screen's token panel, MCP and the contract, which is long, self-contained work); the coordinator reviews and merges it, and builds 02-05 itself, since 03 and 04 both change the Player's daemon and 05 is operations on the owner's machines
+partition: serial, with Chunks 01 and 02 each built by one delegate in an isolated worktree (01 rewrote the token model end to end; 02 is the Settings › Clients page, the Walls screen and MCP over the API 01 built — self-contained, test-heavy work); the coordinator reviews and merges each, and builds 03-05 itself, since 03 and 04 both change the Player's daemon and 05 is operations on the owner's machines
 depends_on:
   - artifact: clients
   - artifact: player-contract
