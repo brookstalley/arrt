@@ -333,6 +333,36 @@ async def test_an_unchanged_client_document_is_asked_for_with_its_etag(client, s
     assert link.cached() == first
 
 
+async def test_a_client_document_that_cannot_be_cached_still_starts_its_walls_and_is_said_once(
+    monkeypatch, client, server, drm, television, caplog
+):
+    """A full disk costs the cache, not the walls: the supervisor gets the
+    document all the same, and the failure is said once over several polls."""
+    from postarr import pull as pull_module
+
+    cache_files = {client.client_document_path, client.cache_dir / pull_module.CLIENT_ETAG_FILENAME}
+    write = pull_module._write_atomically
+
+    def disk_full_for_the_client_cache(path: Path, data: bytes) -> None:
+        if path in cache_files:
+            raise OSError(28, "No space left on device")
+        write(path, data)
+
+    monkeypatch.setattr(pull_module, "_write_atomically", disk_full_for_the_client_cache)
+    server.publish("w1", wall_id="living-room")
+
+    with caplog.at_level(logging.INFO, logger="postarr.pull"):
+        async with Running(supervisor_for(client, drm)) as supervisor:
+            await eventually(lambda: television.on_the_wall is not None, what="the Frame to show the wall")
+            await asyncio.sleep(0.3)  # several polls
+            assert supervisor.running == {"living-room": "frame"}
+
+    events = [record.__dict__.get("event") for record in caplog.records]
+    assert events.count("client.cache_unwritable") == 1, events
+    assert "client.cache_writable" not in events, "the cache was said to recover while every write failed"
+    assert not client.client_document_path.exists()
+
+
 # -- a worker that fails ---------------------------------------------------------------------
 
 

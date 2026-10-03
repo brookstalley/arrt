@@ -427,6 +427,7 @@ class ClientPull:
         self._unreachable = ReportOnce()
         self._refused_status: dict[int, ReportOnce] = {}
         self._unreadable = ReportOnce()
+        self._uncacheable = ReportOnce()
         self._heartbeat_failing = ReportOnce()
 
     def cached(self) -> ClientDocument | None:
@@ -495,12 +496,28 @@ class ClientPull:
             return None
         if self._unreadable.end():
             log.info("the server's client document can be read again", extra={"event": "client.document_readable"})
-        self._document_path.parent.mkdir(parents=True, exist_ok=True)
-        _write_atomically(self._document_path, text.encode("utf-8"))
-        if served_etag:
-            _write_atomically(self._etag_path, served_etag.encode("utf-8"))
-        else:
-            self._etag_path.unlink(missing_ok=True)
+        # **A cache that cannot be written costs the cache, not the walls.** The
+        # document is handed over all the same: a full disk would otherwise end
+        # the process, and every restart would meet the same disk.
+        try:
+            self._document_path.parent.mkdir(parents=True, exist_ok=True)
+            _write_atomically(self._document_path, text.encode("utf-8"))
+            if served_etag:
+                _write_atomically(self._etag_path, served_etag.encode("utf-8"))
+            else:
+                self._etag_path.unlink(missing_ok=True)
+        except OSError as exc:
+            if self._uncacheable.begin():
+                log.error(  # noqa: TRY400 -- the message is the finding
+                    "the client document cannot be cached at %s (%s); the walls follow it, and a restart "
+                    "while the server is down starts from the last one cached",
+                    self._document_path,
+                    exc,
+                    extra={"event": "client.cache_unwritable"},
+                )
+            return document
+        if self._uncacheable.end():
+            log.info("the client document is cached again", extra={"event": "client.cache_writable"})
         return document
 
     async def report(self, heartbeat: dict[str, Any]) -> bool:
@@ -544,7 +561,9 @@ class ClientPull:
             return None
         try:
             return self._etag_path.read_text(encoding="utf-8").strip() or None
-        except FileNotFoundError:
+        except (OSError, UnicodeDecodeError):
+            # Missing or unreadable, the answer is the same: ask without one,
+            # and the server sends the whole document.
             return None
 
     def _auth(self) -> dict[str, str]:

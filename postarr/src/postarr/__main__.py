@@ -197,7 +197,23 @@ async def run_frame_wall(settings: Settings, stop: asyncio.Event, *, clock: Cloc
     # to the same question, and the store's is the one that has to survive a
     # restart.
     clock = clock if clock is not None else Clock.system()
-    with DisplayState(settings.state_path, now=clock.now) as state:
+    # **A store from a newer plane parks this wall, and only this wall.** Opening
+    # it would guess at a shape this code does not know, and restarting cannot
+    # change the answer — the fix is a rollout — so the worker says so once and
+    # waits to be stopped, rather than crash-looping a traceback per backoff step
+    # or ending the process and blanking every other wall this client drives.
+    try:
+        state = DisplayState(settings.state_path, now=clock.now)
+    except StateSchemaTooNew as exc:
+        log.error(  # noqa: TRY400 -- the fix is a rollout, not a frame
+            "wall %s is not shown: %s",
+            settings.wall_id,
+            exc,
+            extra={"event": "daemon.state_too_new", "wall_id": settings.wall_id},
+        )
+        await stop.wait()
+        return
+    with state:
         daemon = Daemon(
             settings=settings,
             tv=tv,
@@ -313,14 +329,10 @@ def main() -> int:
         # this failure is a person who has just run the command by hand and a
         # JSON line is the harder of the two to read at a terminal.
         #
-        # No traceback on either of these: both say a *deployment value* is wrong,
-        # and the fix is in `.env` or in the rollout. A stack through `load()`
-        # points at this codebase, which is the one place the problem is not.
+        # No traceback: it says a *deployment value* is wrong, and the fix is in
+        # `.env`. A stack through `load()` points at this codebase, which is the
+        # one place the problem is not.
         log.error("%s", exc, extra={"event": "daemon.misconfigured"})  # noqa: TRY400 -- the fix is in .env, not in a frame
-        print(f"display plane cannot start: {exc}", file=sys.stderr)  # noqa: T201 — the operator is at a terminal
-        return 2
-    except StateSchemaTooNew as exc:
-        log.error("%s", exc, extra={"event": "daemon.state_too_new"})  # noqa: TRY400 -- the fix is a rollout, not a frame
         print(f"display plane cannot start: {exc}", file=sys.stderr)  # noqa: T201 — the operator is at a terminal
         return 2
 

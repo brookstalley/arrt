@@ -1,12 +1,15 @@
 """What the composition root refuses to start for, and what it starts anyway.
 
-**Two refusals.** A missing deployment value, and a store written by a newer plane
-than this one. Both are read by a person who has just run the command at a
-terminal, so both owe the same three things: a non-zero exit so systemd and a
-shell agree something failed, a sentence on stderr rather than only a JSON log
+**One refusal.** A missing deployment value, read by a person who has just run
+the command at a terminal, so it owes three things: a non-zero exit so systemd and
+a shell agree something failed, a sentence on stderr rather than only a JSON log
 line, and no traceback, because a stack through `load()` points at this codebase,
-which is the one place the problem is not. Those are driven through `main`, since
-what is under test is the handling rather than the work.
+which is the one place the problem is not. It is driven through `main`, since what
+is under test is the handling rather than the work.
+
+**A store written by a newer plane is not a refusal any more.** The store is a
+wall's, opened by that wall's worker, so it parks that wall and says so once; the
+process and every other wall keep running.
 
 **And one thing that is emphatically not a refusal**: a label panel that will not
 open. The television is the product and the label annotates it, so that costs the
@@ -42,23 +45,9 @@ def _raising(exc: Exception):
     return _run
 
 
-@pytest.mark.parametrize(
-    ("exc", "what"),
-    [
-        pytest.param(
-            ConfigError("CLIENT_TOKEN is not set. Copy .env.example to .env and fill it in."),
-            "CLIENT_TOKEN",
-            id="a missing deployment value",
-        ),
-        pytest.param(
-            StateSchemaTooNew("display-state.sqlite was written by a display plane at schema 9; this one understands 8."),
-            "schema 9",
-            id="a store from a newer plane",
-        ),
-    ],
-)
-def test_a_deployment_fault_refuses_to_start_and_says_so_at_the_terminal(monkeypatch, capsys, exc: Exception, what: str):
-    monkeypatch.setattr(entry, "_run", _raising(exc))
+def test_a_missing_deployment_value_refuses_to_start_and_says_so_at_the_terminal(monkeypatch, capsys):
+    what = "CLIENT_TOKEN"
+    monkeypatch.setattr(entry, "_run", _raising(ConfigError(f"{what} is not set. Copy .env.example to .env and fill it in.")))
 
     code = entry.main()
 
@@ -69,8 +58,8 @@ def test_a_deployment_fault_refuses_to_start_and_says_so_at_the_terminal(monkeyp
 
 
 def test_an_unexpected_failure_is_not_swallowed_into_a_tidy_exit(monkeypatch):
-    """Only the two deployment faults are handled. Anything else must keep its
-    traceback: those two are 'the fix is in `.env`', and a bug wearing the same
+    """Only the deployment fault is handled. Anything else must keep its
+    traceback: that one is 'the fix is in `.env`', and a bug wearing the same
     two-line exit would send whoever reads it to the wrong file."""
     monkeypatch.setattr(entry, "_run", _raising(RuntimeError("something nobody anticipated")))
 
@@ -425,3 +414,33 @@ async def test_a_pull_that_dies_ends_its_walls_worker_at_once_and_says_why(monke
 
     assert [record.__dict__.get("event") for record in caplog.records if record.levelno >= logging.ERROR] == ["pull.crashed"]
     assert not supervisors_stop.is_set(), "the pull's death was told to the supervisor as the wall being taken away"
+
+
+async def test_a_store_from_a_newer_plane_parks_its_wall_and_says_so_once(monkeypatch, settings, tv, caplog):
+    """The wall waits to be stopped rather than ending: an ending is a crash to the
+    supervisor, restarted every few seconds with a traceback each time, and the
+    answer cannot change until a rollout. No loop and no pull start for it."""
+    import logging
+
+    async def must_not_run(stop) -> None:
+        raise AssertionError("the Frame's loop ran against a store it cannot read")
+
+    _wire(monkeypatch, tv, daemon_run=must_not_run)
+
+    def too_new(path, *, now=None):
+        raise StateSchemaTooNew("display-state.sqlite was written by a display plane at schema 9; this one understands 8.")
+
+    monkeypatch.setattr(entry, "DisplayState", too_new)
+    stop = asyncio.Event()
+    with caplog.at_level(logging.ERROR):
+        worker = asyncio.create_task(entry.run_frame_wall(settings, stop))
+        await asyncio.sleep(0.05)
+        assert not worker.done(), "the wall ended, which the supervisor reads as a crash and restarts"
+        stop.set()
+        await asyncio.wait_for(worker, timeout=5)
+
+    said = [record for record in caplog.records if record.levelno >= logging.ERROR]
+    assert [record.__dict__.get("event") for record in said] == ["daemon.state_too_new"]
+    assert "schema 9" in said[0].getMessage()
+    assert said[0].exc_info is None, "a rollout fault was logged with a traceback into this codebase"
+    assert _PullRecorder.started == []

@@ -108,6 +108,16 @@ taken away, and reports outputs.
   the wall's directory under `CACHE_DIR`.
 - The Frame's pairing token now defaults to `CACHE_DIR/token_file`; a Player
   paired under the old default points `TV_TOKEN_FILE` at it.
+- The Frame's binding store (`display-state.sqlite`) moves from `ART_ROOT/` to
+  the wall's directory under `CACHE_DIR`, and nothing reads `ART_ROOT` any
+  more. A Frame Player upgraded in place starts with no record of what it
+  uploaded and uploads its theme to the set again, unless the old store is
+  copied into the wall's directory first.
+- **A Frame store written by a newer Player parks that wall**: said once at
+  ERROR, the wall not shown until a rollout, every other wall running.
+- **A client document that cannot be cached** (a full disk) is still followed;
+  said once, and a restart while the server is down starts from the last one
+  that was cached.
 
 **The HDMI output** draws the render fitted to the connector's screen, with no
 desktop, as the service user. The technology is chosen by a research pass and
