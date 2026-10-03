@@ -86,7 +86,7 @@ Open assumptions:
 - [x] Chunk 01: Clients on the server
 - [x] Chunk 02: Settings › Clients and the Walls screen
 - [x] Chunk 03: The Player as a client
-- [ ] Chunk 04: The HDMI output
+- [x] Chunk 04: The HDMI output
 - [ ] Chunk 05: Deploy and look
 
 ### Chunk 01: Clients on the server
@@ -174,6 +174,19 @@ Pi's real connector in Chunk 05.
 Done when: the spike's findings recorded (`hdmi-output-findings.md`); unit
 tests for fitting (letterbox for a non-16:9 screen) and for hotplug states;
 the output running on the Pi against a test image.
+
+*Chunk 04 verified 2026-10-02 (commit `e80f901`; review
+`rev-20261003T034826Z-6cdee701`, 1 blocking outside the chunk — an untested
+widened ETag catch from `99bbde4` — fixed and verified by
+`rev-20261003T035349Z-eacd4e2a`, 0 blocking):* the spike named `libdrm` by
+`ctypes` (findings in `hdmi-output-findings.md`); `KmsOutput` ran on the Pi's
+HDMI-A-1 as `tvpi` against two 3840×2160 renders and a 1200×2000 portrait,
+0.46–0.60 s a picture; fitting and the hotplug states are unit-tested
+(`test_kms.py`), nine hand mutations of the new code each caught. Display
+suite with `--group raster` and the root suite green, lint and format clean.
+The assumption that an absent screen keeps the worker running and draws again
+when it returns holds as built. Carried to Chunk 05: put the deployed Player on
+the monitor and look (operator-verification entry).
 
 ### Chunk 05: Deploy and look
 
