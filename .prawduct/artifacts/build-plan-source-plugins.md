@@ -25,7 +25,7 @@ governed_by:
   - artifact: architecture
     dispositions:
       - "§ Direction, operation logic only in the service layer → conforms: loading is wiring, and the sightings query is a service method the API binds"
-      - "§ Direction, the Library/Programming seam → conforms: arrt.sources is Library-side, and Programming imports none of it (Chunk 01 confirms the import guard sees the new package)"
+      - "§ Direction, the Library/Programming seam → conforms: arrt.library.sources is Library-side, and Programming imports none of it (Chunk 01 confirms the import guard sees the new package)"
       - "§ Direction, the theme manifest file / the display renders its own label → inapplicable: nothing here reaches the Player"
   - artifact: project-preferences
     dispositions:
@@ -85,7 +85,7 @@ checked mechanically in Chunk 02 against every stored source row.
 
 ## Status
 
-- [ ] Chunk 01: The plugin interface and loader
+- [x] Chunk 01: The plugin interface and loader
 - [ ] Chunk 02: Readers
 - [ ] Chunk 03: The Wikidata finder, and sightings
 - [ ] Chunk 04: The author's guide, deployment, security model
@@ -96,9 +96,10 @@ checked mechanically in Chunk 02 against every stored source row.
 Critic mode: final. The interface is the keystone everything else is built on,
 and it is a public surface once a private plugin depends on it.
 
-**Exposed API:** `arrt.sources`, the plugin interface.
+**Exposed API:** `arrt.library.sources`, the plugin interface.
 
-- new `arrt/src/arrt/sources/`: the only import path for a plugin. It exports
+- new `arrt/src/arrt/library/sources/`: the only import path for a plugin (under
+  `arrt.library` so the Library/Programming import guard walks it). It exports
   `API_VERSION`, `SourceContext`, the plugin factory's signature and its "decline
   with a reason" answer, `Finder` (today's `ImageSearch.find_images` and
   `fetch_preview`), `ImageQuery`, `FoundImage`, `ImageSearchFailure`,
@@ -120,7 +121,7 @@ and it is a public surface once a private plugin depends on it.
   tile routing key on them until Chunk 02.
 - **Guards scoped to the old shape** (the learnings rule on moved code): the
   plane-isolation and Library/Programming import guards are re-read to confirm
-  they see `arrt/sources/`; the held-out-artists guard already scans all of
+  they see `arrt/src/arrt/library/sources/`; the held-out-artists guard already scans all of
   `arrt/src`. Every consumer listed by
   `grep -rln "discovery.artic\|discovery.commons\|ImageSearch\b\|build_image_search\|build_collection_browse"`
   over `arrt/` (2026-10-03: 30 files, mostly tests) is
@@ -133,8 +134,9 @@ and it is a public surface once a private plugin depends on it.
   - A declining plugin is logged with its reason.
   - A finder that raises `KeyError` is recorded as could-not-be-asked, logged,
     and counted, while the other finders' answers stand.
-  - The built-in plugins import only from `arrt.sources` and the standard
-    library, so the examples authors copy cannot reach past the interface.
+  - The built-in plugins import nothing from `arrt` but `arrt.library.sources`,
+    so the examples authors copy cannot reach past the interface. (Third-party
+    libraries such as httpx are theirs to use.)
   - The existing phase 2, Get and browse suites pass unchanged.
   - The loader is tested with injected entry points; one test reads the
     installed `arrt` distribution's real entry points, because a typo in
@@ -148,7 +150,45 @@ is faulting; an entry goes in `.prawduct/operator-verification.md`.
 
 ### Chunk 02: Readers
 
-- `Reader` joins `arrt.sources`: recognise a URL (or say *not mine*), then return
+**Carried from Chunk 01's final review** (`rev` of 2026-10-03, 0 blocking; the
+observations below are real, and land here so this chunk's review covers them):
+
+- **Containment has holes.**
+  - The loader reads a part's `provider` outside any `try`, so a plugin whose
+    `provider` raises stops startup.
+  - A finder's answer is not checked: an image under another plugin's name is
+    stored as that plugin's; an unknown name raises `ValueError` and a `None`
+    answer `TypeError`, both outside containment.
+  - A part that is not a `Finder` or `CollectionBrowse` loads, then faults on
+    every call.
+
+  Contain all three, and check the answer's shape.
+- **`Services.bind` takes `image_sources`, `collection` and `sources`, which
+  can disagree.** Make the roster the only input.
+- **A plugin's error text reaches the log, `/api/health` and the panel
+  unfiltered.** An HTTP error carries its request URL, so a key in a query string
+  would be published, against "no secret in a log line". Strip query strings, or
+  show only the exception type, on the panel.
+- **The wiring in `__main__._sources` is untested:** four of its lines can each
+  be deleted with every suite green. Add a test that builds the services from
+  loaded plugins and reads `/api/health`.
+- **The suite-wide fault guard:**
+  - It hooks a hard-coded logger name, so it goes quiet if this chunk moves the
+    containment. Derive the name instead.
+  - It has been watched failing only by hand; keep that check in the suite.
+- **The built-ins' import guard misses relative imports.**
+- **Stale names:**
+  - `architecture.md` still says `ImageSearch`, and describes sources wired in
+    the entry point.
+  - The examples are still called `ArticImageSearch` and `CommonsImageSearch`.
+    Rename them with the reader work.
+- **The one-finder rule is the agent's call;** mark it *Mine* in `source-plugins.md`.
+- **Smaller fixes:**
+  - A `SOURCE_ORDER` name that no installed plugin has should be logged.
+  - Log before each factory runs, so a hang names its plugin.
+  - The startup line misreports a plugin that offers only a collection.
+
+- `Reader` joins `arrt.library.sources`: recognise a URL (or say *not mine*), then return
   a fetch locator (`direct`, `tiles`, or `none`), with the size and the holder's
   title and artist where the page carries them.
 - The Art Institute plugin gains a reader for its object URLs (today's
@@ -217,7 +257,7 @@ Type: doc-only.
 
 - new `docs/source-plugins.md`, for people writing a plugin:
   - the entry point and the factory;
-  - `arrt.sources` and nothing else;
+  - `arrt.library.sources` and nothing else;
   - the three answers and gap 5's rule;
   - what Arrt fetches and checks for them;
   - how to test against the built-ins as examples.

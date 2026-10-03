@@ -523,7 +523,7 @@ repo."* So:
   the terms-of-service question for sources that forbid scraping, such as Google
   Arts & Culture and the auction houses: this public repo ships the plugin
   contract, not those adapters.
-- **The seam already exists.** `ImageSearch` (`library/discovery/images.py`) is
+- **The seam already exists.** `ImageSearch` (`library/discovery/images.py`, renamed `Finder` when plugins were built) is
   what the pool asks, and nothing above the pool knows how many sources there
   are. A plugin is that protocol opened to code outside Arrt.
 

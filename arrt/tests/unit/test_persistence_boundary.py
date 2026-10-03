@@ -85,11 +85,11 @@ _MAY_REACH_THE_NETWORK = {
     # The Art Institute client — the far side of the *image* seam, the same
     # arrangement one phase down. `urllib.parse` comes with it, for percent-
     # encoding a search term into a query string; no request is made through it.
-    "arrt.library.discovery.artic",
+    "arrt.library.sources.artic",
     # The Commons client — the far side of the image seam beside the Art
     # Institute's. `urllib.parse` comes with it, to read a file name out of the
     # registry's file URL and strip tracking parameters; no request goes through it.
-    "arrt.library.discovery.commons",
+    "arrt.library.sources.commons",
     # The Wikidata client — the far side of the registry seam
     # (`library/registry/__init__.py`), the same arrangement as the museum
     # clients. The identity service above it takes a `Registry`, so the matching

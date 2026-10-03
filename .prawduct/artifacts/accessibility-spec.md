@@ -701,7 +701,7 @@ how an arrangement that measured correctly everywhere it was checked reached the
 panel wrong. Every figure in this amendment is from the panel's own machine.
 
 - **This needs a real field, not a heuristic. Built 2026-08-11.** `Artist`
-  carries `name` as one string; the surname heuristic in `library/discovery/artic.py` is
+  carries `name` as one string; the surname heuristic in `library/sources/artic.py` is
   documented there as unreliable, and it is wrong for "Titian (Tiziano
   Vecellio)", for "van Gogh", and for every name whose family part is not the
   last word. The catalogue gained `family_name` and `given_name`; the manifest

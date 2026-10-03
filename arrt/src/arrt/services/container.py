@@ -55,7 +55,7 @@ from arrt.library.acquisition.urls import Resolver
 from arrt.library.discovery.browse import CollectionBrowse
 from arrt.library.discovery.conversation import NO_CONVERSATION_KEY, ConversationEngine, UnavailableConversation
 from arrt.library.discovery.engine import DiscoveryEngine
-from arrt.library.discovery.images import ImageSearch
+from arrt.library.discovery.images import Finder
 from arrt.library.discovery.phase_two import PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.events import WorkChange
@@ -80,6 +80,7 @@ from arrt.library.services.thumbnails import ThumbnailService, ThumbnailSettings
 from arrt.library.services.topic_sweep import TopicSweep
 from arrt.library.services.topics import TopicService
 from arrt.library.services.wikidata_match import WikidataMatchService
+from arrt.library.sources.loading import SourceRoster
 from arrt.persistence.backup import BACKUP_RECEIPT_FILENAME
 from arrt.persistence.catalogue import CatalogueStore
 from arrt.persistence.discovery import DiscoveryStore
@@ -215,7 +216,7 @@ class Services:
         artwork_box: ArtworkBox,
         engine: DiscoveryEngine,
         discovery_settings: DiscoverySettings,
-        image_sources: Sequence[ImageSearch] = (),
+        image_sources: Sequence[Finder] = (),
         collection: CollectionBrowse | None = None,
         previews: PreviewSettings | None = None,
         acquisition: AcquisitionSettings | None = None,
@@ -244,6 +245,11 @@ class Services:
         #: keeping them for the life of the process, which is a real deployment
         #: and not a stub: it is what every registry page did before the file.
         kept: KeptAnswers | None = None,
+        #: What became of every installed source plugin, for the health panel.
+        #: `image_sources` and `collection` are the loaded parts of the same
+        #: roster; a process assembled without loading plugins, as most tests
+        #: are, states that none is installed.
+        sources: SourceRoster | None = None,
     ) -> Services:
         """Assemble the services over an already-open file.
 
@@ -368,6 +374,7 @@ class Services:
                 display_service,
                 backup_receipt_path=thumbnails.art_root / BACKUP_RECEIPT_FILENAME,
                 box=artwork_box,
+                sources=SourceRoster.empty() if sources is None else sources,
             ),
             runner=runner_service,
             # `art_root` off the thumbnail settings for the same reason `review`

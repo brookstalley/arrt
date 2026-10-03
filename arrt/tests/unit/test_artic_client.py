@@ -15,11 +15,11 @@ import json
 import httpx
 import pytest
 
-from arrt.library.discovery.artic import PROVIDER, ArticImageSearch
 from arrt.library.discovery.images import ImageQuery, ImageSearchFailure
 from arrt.library.discovery.phase_two import PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.services.display_fit import ArtworkBox
+from arrt.library.sources.artic import PROVIDER, ArticImageSearch
 from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
 
 USER_AGENT = "arrt (test@example.org)"

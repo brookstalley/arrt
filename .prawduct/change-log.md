@@ -62,6 +62,46 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-03: Image sources are plugins
+
+<!-- prawduct: scope=source-plugins -->
+
+**Why:** the owner ruled that sources are plugins, so that people can add paid,
+local or any other sources, and that the owner's own scrapers live in a private
+repository. Contract: `source-plugins.md`. Plan: `build-plan-source-plugins.md`.
+
+**What (Chunk 01):**
+- `arrt.library.sources`: the plugin interface, versioned `1.0`, and the only
+  import path a plugin may use.
+- `ImageSearch` is renamed `Finder` everywhere.
+- The Art Institute and Commons moved to `library/sources/`. They register as
+  `arrt.sources` entry points in `arrt/pyproject.toml`, and import nothing from
+  `arrt` but the interface.
+- The loader (`library/sources/loading.py`):
+  - A plugin that cannot load is left out and named, and Arrt starts without it.
+  - A fault in a loaded plugin is contained to the call, logged as
+    `source.plugin_fault`, and counted.
+- Each plugin reads its own variables from the environment. `ARTIC_USER_AGENT`
+  left `Settings`; the name and its meaning are unchanged.
+- New setting: `SOURCE_ORDER`.
+- System › Status has an *Image sources* panel, and the System badge counts a
+  failed or faulting plugin.
+
+**Tests changed, and why:**
+- `test_no_budget_balance_appears_anywhere_on_the_panel`: its exact set of the
+  health reading's keys gained `sources`. It is still exact, and the budget-word
+  check over every key, the new ones included, is unchanged.
+- `test_startup_names_every_image_source_it_wires_in_order`: it sets the user
+  agents in the environment rather than in `Settings`, which is now the only
+  place a plugin can read them from. The assertion is unchanged.
+- `test_startup_with_no_image_source_says_which_settings_would_add_one`: it
+  asserts each plugin's own reason, in order, where it asserted one hand-written
+  sentence that named both built-ins. The claim (the line says which settings
+  would add a source) is the same, and it is now derived from the plugins.
+- New suite-wide fixtures (`arrt/tests/conftest.py`): every test runs with the
+  plugins' variables cleared, and any test that logs a plugin fault fails unless
+  it is marked `plugin_fault_expected`.
+
 ## 2026-10-03: A corpus to choose the next source by
 
 <!-- prawduct: scope=procurement-corpus -->

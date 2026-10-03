@@ -61,7 +61,7 @@ class StubSearch:
         return b"jpeg"
 
     def tile_url(self, url: str) -> str:
-        """Unused by phase 2, and implemented so this really is an `ImageSearch`.
+        """Unused by phase 2, and implemented so this really is a `Finder`.
 
         A stand-in that satisfies only the members its own tests call will pass
         while the Protocol grows past it, and the next member added at the fetch

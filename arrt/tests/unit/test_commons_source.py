@@ -13,12 +13,12 @@ import httpx
 import pytest
 from fakes import FakeImageSearch, FakeRegistry, an_image
 
-from arrt.library.discovery.commons import DOWNLOAD_WIDTH, PREVIEW_WIDTH, CommonsImageSearch
 from arrt.library.discovery.images import ImageQuery, ImageQueryUnanswerable, ImageSearchFailure
 from arrt.library.discovery.phase_two import PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.registry import CommonsFile, ItemId, RegistryCreator, RegistryText, RegistryWork
 from arrt.library.services.display_fit import ArtworkBox
+from arrt.library.sources.commons import DOWNLOAD_WIDTH, PREVIEW_WIDTH, CommonsImageSearch
 from arrt.persistence.records import AcquisitionMethod, RightsStatus
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "commons"

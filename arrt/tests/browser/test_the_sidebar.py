@@ -874,3 +874,30 @@ def test_every_old_address_opens_the_page_that_took_over(ui, seeded_service):
         # The address bar is corrected, so what a curator copies is what this
         # surface would produce, and the page that took over is the one lit.
         assert lit(ui, now).count() == 1, old
+
+
+def test_the_system_badge_counts_a_source_that_failed_or_faulted_and_not_one_that_declined(
+    ui, a_health_reading, a_source_reading
+):
+    """A failed or faulting plugin makes works read as held by nobody, which looks
+    like a fact about art; a declined one is configured off on purpose. Three
+    plugins, two problems, so a badge that counted every non-loaded plugin, or
+    ignored faults, fails."""
+    ui.serve(
+        "**/api/health",
+        a_health_reading(
+            sources=[
+                a_source_reading(name="commons", state="declined", reason="WIKIDATA_USER_AGENT is unset"),
+                a_source_reading(name="artic", faults=3),
+                a_source_reading(name="gallery", state="failed", reason="it could not be imported"),
+            ]
+        ),
+    )
+    ui.open("#collection")
+    ui.page.wait_for_selector("#status[data-state='unwell']")
+
+    assert system_link(ui).get_attribute("aria-label") == "System: 2 problems"
+    words = ui.page.locator("#status").inner_text()
+    assert "The gallery source could not be loaded" in words
+    assert "The artic source has faulted since startup" in words
+    assert "commons" not in words

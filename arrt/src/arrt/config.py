@@ -22,6 +22,7 @@ from dotenv import load_dotenv
 from arrt.library.discovery.images import DEFAULT_PREVIEW_MAX_BYTES
 from arrt.library.services.display_fit import ArtworkBox
 from arrt.library.services.runner import DiscoverySettings
+from arrt.library.sources.loading import DEFAULT_SOURCE_ORDER
 from arrt.persistence.migrations import DEFAULT_WALL_NAME
 from arrt.programming.manifest.builder import MANIFEST_FILENAME_TEMPLATE, manifest_path_in
 from arrt.programming.manifest.heartbeat import heartbeat_path_in
@@ -75,8 +76,9 @@ TILE_CACHE_DIRNAME: Final[str] = "tile-cache"
 #: **Truthful by default, which is a change from the 2024 pipeline.** That code
 #: sent a hardcoded Chrome-on-Windows string — a claim to be software it is not,
 #: made to servers whose operators use it to decide how to treat traffic. The
-#: same reasoning already governs `ARTIC_USER_AGENT`, whose absence leaves the
-#: Art Institute out rather than let this product misrepresent whoever runs it:
+#: same reasoning already governs `ARTIC_USER_AGENT` (read by the Art Institute
+#: plugin, `library/sources/artic.py`), whose absence leaves the Art Institute
+#: out rather than let this product misrepresent whoever runs it:
 #: a default is acceptable here only because this one misrepresents nobody.
 #: Deployments that want a contact address in it should set their own.
 DEFAULT_ACQUISITION_USER_AGENT: Final[str] = "arrt (+https://github.com/brookstalley/arrt)"
@@ -454,21 +456,17 @@ class Settings:
     #: serves the whole catalogue and refuses only to *start* a discovery run,
     #: which is a far better failure than refusing to boot.
     openrouter_api_key: str | None = None
-    #: How this deployment identifies itself to the Art Institute's API.
-    #: **Optional, and its absence leaves the Art Institute out**: of phase 2's
-    #: image sources, of a run's supplement and of a conversation's sample
-    #: pictures. Phase 2 still runs on Commons when Wikidata is configured, and
-    #: is off only when neither is. The API is open but asks callers to name
-    #: themselves and give a contact address, and sending someone else's
-    #: identifier — or a default pretending to be one — would be this product
-    #: misrepresenting whoever runs it to a third party. So there is no default,
-    #: and a deployment that has not set one never asks the Art Institute
-    #: anonymously.
-    artic_user_agent: str | None = None
+    #: Source plugins by name, most preferred first; plugins it does not name
+    #: follow, by name. Order only breaks a tie between images ranked level,
+    #: because every finder is asked at once. The default is the owner's ruling of
+    #: 2026-10-01: Commons, then the Art Institute.
+    source_order: tuple[str, ...] = DEFAULT_SOURCE_ORDER
     #: How this deployment identifies itself to Wikidata's query service, which
     #: refuses or blocks callers without a descriptive agent and contact details
-    #: (`wikidata-findings.md`). **No default, for `artic_user_agent`'s reason**:
-    #: unset switches matching off, and the registry features say so.
+    #: (`wikidata-findings.md`). **No default**: sending someone else's
+    #: identifier, or a default pretending to be one, would misrepresent whoever
+    #: runs this to a third party. Unset switches matching off, and the registry
+    #: features say so.
     wikidata_user_agent: str | None = None
 
     @property
@@ -709,7 +707,7 @@ class Settings:
                 "CONVERSATION_MAX_OUTPUT_TOKENS", DEFAULT_CONVERSATION_MAX_OUTPUT_TOKENS
             ),
             openrouter_api_key=os.environ.get("OPENROUTER_API_KEY") or None,
-            artic_user_agent=os.environ.get("ARTIC_USER_AGENT") or None,
+            source_order=_names("SOURCE_ORDER", DEFAULT_SOURCE_ORDER),
             wikidata_user_agent=os.environ.get("WIKIDATA_USER_AGENT") or None,
         )
 
@@ -725,6 +723,13 @@ class Settings:
             name: ("<set>" if getattr(self, name) else "<unset>") if name in _SECRET_FIELDS else getattr(self, name)
             for name in self.__dataclass_fields__
         }
+
+
+def _names(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    """A comma-separated list of names, blanks dropped; the default when unset or empty."""
+    raw = os.environ.get(name, "")
+    names = tuple(part.strip() for part in raw.split(",") if part.strip())
+    return names or default
 
 
 def _require(name: str) -> str:

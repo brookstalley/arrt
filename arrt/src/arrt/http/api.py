@@ -112,6 +112,7 @@ from arrt.http.models import (
     SimilarArtistsOut,
     SkippedOut,
     SourceOut,
+    SourcePluginOut,
     Speak,
     SpendOut,
     StartGet,
@@ -173,7 +174,7 @@ from arrt.programming.display import ThemePlacement, WallView
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.programming.manifest.heartbeat import HeartbeatReading
 from arrt.services.container import Services
-from arrt.services.health import HealthReading
+from arrt.services.health import HealthReading, SourceHealth
 
 log = logging.getLogger(__name__)
 
@@ -1812,6 +1813,21 @@ def _health(reading: HealthReading) -> HealthOut:
         description=reading.describe(),
         backup=_backup(reading.backup),
         artwork_box=_artwork_box(reading.artwork_box),
+        sources=[_source_plugin(each) for each in reading.sources],
+    )
+
+
+def _source_plugin(health: SourceHealth) -> SourcePluginOut:
+    reading = health.reading
+    return SourcePluginOut(
+        name=reading.name,
+        state=reading.state.value,
+        reason=reading.reason,
+        faults=reading.faults,
+        last_fault_at=None if reading.last_fault_at is None else reading.last_fault_at.isoformat(),
+        last_fault_age_seconds=health.last_fault_age_seconds,
+        last_fault=reading.last_fault,
+        description=health.describe(),
     )
 
 

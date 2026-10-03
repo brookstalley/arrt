@@ -26,8 +26,9 @@ things:
 Every finder ends in a URL, and readers claim URLs. So a URL from any route
 (a finder, a pasted link, the model's web search) reaches the same readers.
 
-Today's `ImageSearch` (`library/discovery/images.py`) does both: the Art
-Institute's client searches *and* resolves its own tiles (`tile_url`), and
+Today's `Finder` (`library/discovery/images.py`, named `ImageSearch` until
+2026-10-03) does both: the Art Institute's client searches *and* resolves its own
+tiles (`tile_url`), and
 acquisition picks a resolver by the provider's name (`RESOLUTION_REQUIRED`,
 `tile_targets` in `library/acquisition/tiles.py`). This contract separates them.
 
@@ -39,9 +40,11 @@ acquisition picks a resolver by the provider's name (`RESOLUTION_REQUIRED`,
 | **Reader** | a plugin, per protocol or page shape | a URL it recognises → how to fetch the image, its size, and the holder's title and artist | a Commons file page; an Art Institute object (resolved to IIIF); a IIIF manifest; a Google Arts & Culture asset |
 | **Fetcher** | Arrt, never a plugin | a fetch locator → the master, on disk | direct HTTP; tiles through `dezoomify-rs` |
 
-A plugin provides any of finders, readers and a collection to browse
-(`CollectionBrowse`, `library/discovery/browse.py`, which the Art Institute
-offers today). It provides no fetcher. *Mine:* plugins that serve the image's
+A plugin provides at most one finder, any number of readers, and at most one
+collection to browse (`CollectionBrowse`, `library/discovery/browse.py`, which
+the Art Institute offers today). One finder, because the images it reports are
+recorded under the plugin's own name, so a stored row names the plugin that
+found it. It provides no fetcher. *Mine:* plugins that serve the image's
 bytes themselves (paid, local, or behind a login) are the planned next
 capability, and come with the first plugin that needs one (§ Not in version 1).
 
@@ -151,13 +154,14 @@ added for an imagined consumer.
 
 - **A plugin is a Python distribution** that registers an entry point in the
   `arrt.sources` group. The entry point names a factory: given a
-  `SourceContext`, it returns the plugin's finders, readers and collection, or
+  `SourceContext`, it returns the plugin's finder, readers and collection, or
   declines with a reason (an Art Institute plugin with no `ARTIC_USER_AGENT`
   declines, exactly as the source is left unwired today).
 - **The built-in plugins register the same way**, from `arrt/pyproject.toml`.
   Nothing in the wiring imports them by name, so they are proof that the loader
   works, and they are the examples a plugin author copies.
-- **What `SourceContext` gives a plugin:** the deployment's user agent; the
+- **What `SourceContext` gives a plugin:** the deployment's user agent
+  (`ACQUISITION_USER_AGENT`); the
   preview size ceiling; the registry, when one is configured (the Commons reader
   needs none, but the Wikidata finder does); and the environment, read-only, for
   the plugin's own settings. A plugin documents its own environment variables,
@@ -201,11 +205,14 @@ What still holds, because Arrt keeps it rather than trusting a plugin to:
 
 ## Versioning and errors
 
-- **`arrt.sources.API_VERSION`** is `major.minor`, starting at `1.0`. A plugin
+- **`arrt.library.sources.API_VERSION`** is `major.minor`, starting at `1.0`. A plugin
   declares the major it was written for; Arrt refuses to load one whose major
   differs, by name, and loads one written for an older minor. A minor release adds
   optional capabilities only. *Mine.*
-- **`arrt.sources` is the only import path a plugin may use.** It re-exports the
+- **`arrt.library.sources` is the only import path a plugin may use.** It lives
+  under `arrt.library` rather than at the top level because the Library/Programming
+  import guard (`tests/preferences/test_seam_imports.py`) walks only `arrt.library`,
+  and a plugin importing Programming must be inside what it walks. It re-exports the
   types above. Anything a plugin imports from elsewhere in `arrt` is not part of
   the interface and may break in any release. A test holds the built-in plugins to
   this, because they are what authors copy.

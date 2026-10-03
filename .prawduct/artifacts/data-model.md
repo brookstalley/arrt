@@ -381,7 +381,7 @@ re-parsing a blob, and so two works by the same artist agree.
 > than a person. Both are nullable and the two ways of being null are the same
 > fact downstream — the label falls back to `name`, unstyled. Supplied for the
 > seeded corpus by a written table (`arrt/src/arrt/seed/names.py`), never by a
-> heuristic; `library/discovery/artic.py` documents its own surname guess as unreliable.
+> heuristic; `library/sources/artic.py` documents its own surname guess as unreliable.
 > Nothing derives one part from the other, and nothing derives `name` from them.
 >
 > **`display_nationality` is the same decision one field over, added 2026-08-13.**

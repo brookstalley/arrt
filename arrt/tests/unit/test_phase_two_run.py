@@ -633,7 +633,7 @@ def test_with_commons_the_only_source_a_work_named_by_title_is_not_called_unheld
     import httpx
     from fakes import FakeRegistry
 
-    from arrt.library.discovery.commons import CommonsImageSearch
+    from arrt.library.sources.commons import CommonsImageSearch
 
     def no_request(request):
         raise AssertionError(f"Commons was asked about a work it cannot look up: {request.url}")

@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+import os
 import shutil
 import sys
 from collections.abc import Sequence
@@ -15,9 +16,6 @@ from arrt.library.acquisition.mat import MatEngine
 from arrt.library.acquisition.preparation import PreparationSettings
 from arrt.library.acquisition.service import AcquisitionSettings
 from arrt.library.acquisition.transport import http_stream
-from arrt.library.discovery.artic import build_collection_browse, build_image_search
-from arrt.library.discovery.browse import CollectionBrowse
-from arrt.library.discovery.commons import CommonsImageSearch
 from arrt.library.discovery.conversation import (
     NO_CONVERSATION_KEY,
     ConversationEngine,
@@ -25,13 +23,14 @@ from arrt.library.discovery.conversation import (
     build_conversation_engine,
 )
 from arrt.library.discovery.engine import DiscoveryEngine, unavailable_engine
-from arrt.library.discovery.images import ImageSearch
 from arrt.library.discovery.openrouter import OpenRouterClient
 from arrt.library.discovery.phase_one import build_engine
 from arrt.library.registry import Registry
 from arrt.library.registry.wikidata import INTERACTIVE_TIMEOUT_SECONDS, WikidataRegistry
 from arrt.library.services.previews import PreviewSettings
 from arrt.library.services.thumbnails import ThumbnailSettings
+from arrt.library.sources import SourceContext
+from arrt.library.sources.loading import SourceRoster, environment_of, load_sources
 from arrt.persistence.backup import BACKUP_RECEIPT_FILENAME, CatalogueBackup
 from arrt.persistence.file import open_catalogue_file
 from arrt.persistence.kept import KeptAnswers
@@ -107,51 +106,34 @@ def _conversation_engine(settings: Settings) -> ConversationEngine:
     )
 
 
-def _image_sources(settings: Settings, registry: Registry | None) -> list[ImageSearch]:
-    """The image sources phase 2 asks, most preferred first; empty when none is configured.
+def _sources(settings: Settings, registry: Registry | None) -> SourceRoster:
+    """Every installed source plugin, loaded against this deployment, in its order of preference.
 
-    Commons is listed first and the Art Institute second, by the owner's ruling
-    of 2026-10-01. The order only breaks ties: every source is asked at once.
-    Commons is reached through the work's Wikidata item, so it is wired exactly
-    when the registry is.
+    Nothing here names a plugin: the Art Institute and Commons register as entry
+    points like any other (`arrt/pyproject.toml`), so this is the same path a
+    plugin from outside this repository takes. Each plugin reads its own settings
+    from the environment, because a plugin nobody here has written cannot have a
+    field in `Settings`.
 
-    Empty rather than a refusing stand-in, because the two say different things
-    at different times. Phase 1 refuses at `start`, where a run does not yet
-    exist and refusing creates no record. Phase 2 has a run in hand by the time
-    it would refuse, and failing it would record a run that broke when in fact a
-    capability is simply not configured — so the honest arrangement is to leave
-    the run where it is and let `status` say so in words.
+    **Called after `Settings.from_env`**, which is what loads `.env` into the
+    process environment. A plugin's variable set in `.env` reaches it only
+    because of that order.
     """
-    sources: list[ImageSearch] = []
-    if registry is not None and settings.wikidata_user_agent:
-        sources.append(
-            CommonsImageSearch(
-                registry=registry,
-                user_agent=settings.wikidata_user_agent,
-                preview_max_bytes=settings.preview_max_bytes,
-            )
-        )
-    if settings.artic_user_agent:
-        sources.append(
-            build_image_search(
-                user_agent=settings.artic_user_agent,
-                preview_max_bytes=settings.preview_max_bytes,
-            )
-        )
-    return sources
+    return load_sources(
+        SourceContext(
+            environ=environment_of(os.environ),
+            user_agent=settings.acquisition_user_agent,
+            preview_max_bytes=settings.preview_max_bytes,
+            registry=registry,
+        ),
+        order=settings.source_order,
+    )
 
 
-def _collection(settings: Settings) -> CollectionBrowse | None:
-    """The collection a run supplements from, or nothing when none is configured.
-
-    Gated on the same identifier as phase 2 and for the same reason: it is the
-    same museum, asked a second kind of question, and that museum asks callers to
-    say who they are. A deployment that has not said so browses nothing rather
-    than browsing anonymously.
-    """
-    if not settings.artic_user_agent:
-        return None
-    return build_collection_browse(user_agent=settings.artic_user_agent)
+def _no_finder(sources: SourceRoster) -> str:
+    """Why no finder loaded, from each plugin's own answer, for the startup line."""
+    reasons = [f"{reading.name}: {reading.reason}" for reading in sources.observe() if reading.reason]
+    return f"none ({'; '.join(reasons)})" if reasons else "none (no source plugin is installed)"
 
 
 def _registry(settings: Settings) -> WikidataRegistry | None:
@@ -258,10 +240,11 @@ def main(argv: Sequence[str] = ()) -> None:
     # the same reason the key's presence is: "is it even configured" is the first
     # question a run stuck at `resolving_images` raises.
     registry = _registry(settings)
-    image_sources = _image_sources(settings, registry)
+    sources = _sources(settings, registry)
+    image_sources = sources.finders
     log.info(
         "phase2 image_sources=%s previews=%s preview_sweep=%s",
-        ",".join(source.provider for source in image_sources) or "none (ARTIC_USER_AGENT and WIKIDATA_USER_AGENT unset)",
+        ",".join(source.provider for source in image_sources) or _no_finder(sources),
         settings.previews_path if image_sources else "disabled",
         # On this line rather than its own: the directory and the only thing
         # that reclaims it are one operational fact, and a deployment reading
@@ -306,7 +289,11 @@ def main(argv: Sequence[str] = ()) -> None:
         # The sample pictures are the collection's, over the same free seam the
         # run's supplement uses — so a deployment that has not named itself to
         # the museum gets names without pictures, and says so here.
-        "artic" if settings.artic_user_agent else "none (ARTIC_USER_AGENT unset; names carry no pictures)",
+        (
+            sources.collection.provider
+            if sources.collection
+            else "none (no source plugin offers a collection; names carry no pictures)"
+        ),
     )
     log.info(
         "registry=%s",
@@ -338,7 +325,8 @@ def main(argv: Sequence[str] = ()) -> None:
             engine=_engine(settings),
             discovery_settings=settings.discovery_settings,
             image_sources=image_sources,
-            collection=_collection(settings),
+            collection=sources.collection,
+            sources=sources,
             previews=(
                 None if not image_sources else PreviewSettings(art_root=settings.art_root, directory=settings.previews_path)
             ),

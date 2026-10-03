@@ -190,7 +190,7 @@ class Artist:
     label leads with the family name and sets it apart, which needs to know which
     part of the name that is — and no rule over `name` can say. "Titian (Tiziano
     Vecellio)", "van Gogh" and "Frank Lloyd Wright" each break a different
-    last-word heuristic, and the heuristic in `library/discovery/artic.py` documents its
+    last-word heuristic, and the heuristic in `library/sources/artic.py` documents its
     own unreliability. So the parts are stored facts, supplied by whoever knows,
     and an artist who has neither is set unstyled under `name` rather than split
     by a guess. Both parts are optional because the corpus holds records that are

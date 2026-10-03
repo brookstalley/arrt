@@ -535,6 +535,27 @@ across planes. It can still drift in time — the reader is built and the writin
 job is separate, later work — which is why the name is written here rather than
 left in the code that reads it.
 
+### Source plugins: what loaded, and what faulted (2026-10-03, `source-plugins.md`)
+
+Image sources are plugins, so a source can now be missing or broken for reasons
+outside this repository. Either way the symptom is works that read as held by
+nobody, which looks like a fact about art rather than about this deployment. So
+the panel names every installed plugin and what became of it.
+
+- **At startup, each plugin is loaded, declined or failed.** A declined plugin is
+  installed and not configured here (the Art Institute without
+  `ARTIC_USER_AGENT`), and says which setting would change it. A failed one could
+  not be imported, was written for another interface major, raised in its
+  factory, or broke the interface's rules, and says which. Logged as
+  `source.loaded`, `source.declined` (INFO) and `source.failed` (ERROR).
+- **While running, a loaded plugin's faults are counted.** A fault is anything a
+  plugin raises outside its three answers. It is contained to the call, logged at
+  ERROR as `source.plugin_fault` with the traceback, and the panel shows the count
+  since startup and the age of the last one. Counts reset with the process,
+  because the count is about the code running now.
+- **The System badge counts a failed plugin and a faulting one**, never a
+  declined one, which is a choice and not a problem.
+
 ### The panel shows staleness in absolute terms
 
 **Never a green dot.** The health panel displays "last heartbeat: 4 days ago", not

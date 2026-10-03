@@ -68,6 +68,7 @@ from arrt.library.services.conversation import ConversationService
 from arrt.library.services.discovery import DiscoveryService
 from arrt.library.services.runner import DiscoveryRunner
 from arrt.library.services.thumbnails import ThumbnailService, ThumbnailSettings
+from arrt.library.sources.loading import FAULT_EVENT, SourceRoster
 from arrt.persistence.discovery_records import DiscoveryRun, InitiatedBy
 from arrt.persistence.durable import SqliteDurableStore
 from arrt.persistence.file import open_catalogue_file
@@ -110,6 +111,52 @@ def _root_logger_as_found() -> Iterator[None]:
         if handler not in handlers:
             root.removeHandler(handler)
     root.setLevel(level)
+
+
+#: The variables the built-in source plugins read for themselves. Cleared for
+#: every test, because startup now reads them from the process environment, and a
+#: developer whose shell carries one would otherwise run a different suite from CI.
+_SOURCE_PLUGIN_VARIABLES: Final[tuple[str, ...]] = ("ARTIC_USER_AGENT", "WIKIDATA_USER_AGENT", "SOURCE_ORDER")
+
+
+@pytest.fixture(autouse=True)
+def _no_source_plugin_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in _SOURCE_PLUGIN_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
+
+
+class _FaultRecords(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__(level=logging.ERROR)
+        self.faults: list[logging.LogRecord] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if getattr(record, "event", None) == FAULT_EVENT:
+            self.faults.append(record)
+
+
+@pytest.fixture(autouse=True)
+def _no_plugin_fault_unless_expected(request: pytest.FixtureRequest) -> Iterator[None]:
+    """Fail any test in which a source plugin faulted, unless it means to.
+
+    The loader contains a plugin's fault so that one bad package cannot stop a
+    run, and that containment would hide a bug in the built-in plugins from the
+    suite, which before plugins saw it as a raised exception. This puts the
+    strictness back for tests, where a fault is always a bug.
+    """
+    records = _FaultRecords()
+    logger = logging.getLogger("arrt.library.sources.loading")
+    logger.addHandler(records)
+    try:
+        yield
+    finally:
+        logger.removeHandler(records)
+    if records.faults and request.node.get_closest_marker("plugin_fault_expected") is None:
+        pytest.fail(
+            "a source plugin faulted: "
+            + "; ".join(f"{getattr(r, 'plugin', '?')} in {getattr(r, 'operation', '?')}" for r in records.faults),
+            pytrace=False,
+        )
 
 
 @pytest.fixture
@@ -259,6 +306,12 @@ def kept(settings: Settings) -> Iterator[KeptAnswers]:
 
 
 @pytest.fixture
+def sources() -> SourceRoster | None:
+    """The source plugins the health panel reports: none, unless a test supplies a roster."""
+    return None
+
+
+@pytest.fixture
 def services(
     store: SqliteCatalogue,
     discovery_store: SqliteDiscovery,
@@ -270,6 +323,7 @@ def services(
     registry: Registry | None,
     kept: KeptAnswers,
     open_stream: StreamOpener | None,
+    sources: SourceRoster | None,
 ) -> Services:
     """Every service, wired the way the entry point wires them."""
     bound = Services.bind(
@@ -320,6 +374,7 @@ def services(
         registry=registry,
         kept=kept,
         open_stream=open_stream,
+        sources=sources,
     )
     return bound
 

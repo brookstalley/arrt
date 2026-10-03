@@ -35,11 +35,11 @@ import struct
 
 import pytest
 
-from arrt.library.discovery.artic import PROVIDER, build_image_search
 from arrt.library.discovery.images import ImageQuery
 from arrt.library.discovery.phase_two import CONFIDENT, PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.services.display_fit import ArtworkBox
+from arrt.library.sources.artic import PROVIDER, build_image_search
 from arrt.persistence.records import AcquisitionMethod, SourceClass
 
 pytestmark = pytest.mark.live_museum
@@ -239,7 +239,7 @@ def test_the_resolved_image_service_is_really_a_iiif_endpoint(museum):
 @pytest.fixture(scope="module")
 def collection():
     """The real browse client, against the live collection. Free, like its sibling."""
-    from arrt.library.discovery.artic import build_collection_browse
+    from arrt.library.sources.artic import build_collection_browse
 
     return build_collection_browse(user_agent=USER_AGENT)
 

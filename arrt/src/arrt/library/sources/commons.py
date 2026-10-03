@@ -37,15 +37,22 @@ from urllib.parse import unquote, urlsplit, urlunsplit
 
 import httpx
 
-from arrt.library.discovery.images import (
+from arrt.library.sources import (
     DEFAULT_PREVIEW_MAX_BYTES,
+    AcquisitionMethod,
+    Declined,
     FoundImage,
     ImageQuery,
     ImageQueryUnanswerable,
     ImageSearchFailure,
+    Registry,
+    RegistryUnavailable,
+    RightsStatus,
+    SourceClass,
+    SourceContext,
+    SourceParts,
+    SourcePlugin,
 )
-from arrt.library.registry import Registry, RegistryUnavailable
-from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
 
 log = logging.getLogger(__name__)
 
@@ -261,3 +268,25 @@ def _rights(metadata: object) -> RightsStatus:
 
 def _integer(value: object) -> int | None:
     return value if isinstance(value, int) else None
+
+
+def _create(context: SourceContext) -> SourceParts | Declined:
+    """Commons, reached through a work's Wikidata item, or why it cannot be.
+
+    It needs the registry to find the item's image, and it names itself to
+    Wikimedia with `WIKIDATA_USER_AGENT`, which has no default for the reason the
+    registry gives (`wikidata-findings.md`).
+    """
+    user_agent = context.environ.get("WIKIDATA_USER_AGENT") or None
+    if user_agent is None:
+        return Declined("WIKIDATA_USER_AGENT is unset, and Commons is reached only through a work's Wikidata item")
+    if context.registry is None:
+        return Declined("no registry is configured, and Commons is reached only through a work's Wikidata item")
+    return SourceParts(
+        finder=CommonsImageSearch(registry=context.registry, user_agent=user_agent, preview_max_bytes=context.preview_max_bytes)
+    )
+
+
+#: What the `commons` entry point names. Written for interface major 1 as a
+#: literal, as a plugin outside this repository would write it.
+PLUGIN: Final[SourcePlugin] = SourcePlugin(api_major=1, create=_create)

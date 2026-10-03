@@ -133,7 +133,7 @@ class ImageQueryUnanswerable(Exception):
 
 
 @runtime_checkable
-class ImageSearch(Protocol):
+class Finder(Protocol):
     """Phase 2's providers, as everything above them sees them.
 
     **No `unavailable_reason` here, deliberately — the asymmetry with phase 1's

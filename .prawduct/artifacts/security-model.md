@@ -363,7 +363,7 @@ properties, and each is weaker than "the tool cannot do this":
    >
    > What carries the weight instead is two checks, both in code and both tested:
    > the advertised IIIF base must start with the museum's own `https` host before
-   > it is used (`library/discovery/artic.py`, and the mutation sweep kills a version that
+   > it is used (`library/sources/artic.py`, and the mutation sweep kills a version that
    > trusts whatever is advertised), and **bound 2 below runs on the resolved URL
    > rather than on the recorded one** — so scheme and routability are checked on
    > the address actually fetched. *(It read "re-runs … rather than only on the

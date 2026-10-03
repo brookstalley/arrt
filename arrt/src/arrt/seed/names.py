@@ -12,7 +12,7 @@ index stores one undivided string per artist. Every heuristic over that string i
 wrong for some name in this very corpus: "Frank Lloyd Wright" defeats last-word,
 "Georgia O'Keeffe" defeats first-word, "Katsushika Hokusai" inverts the order it
 looks like it follows, and "Moche" is not a person. The surname heuristic in
-`library/discovery/artic.py` documents the same unreliability from the other end.
+`library/sources/artic.py` documents the same unreliability from the other end.
 
 So the split is written down, once, for the names the 2024 corpus actually holds.
 It is a lookup rather than an algorithm on purpose: a lookup can be read and

@@ -1,7 +1,7 @@
 """Every wired image source, asked at once, and the answers kept apart by source.
 
 Phase 2 used to reach one museum. The owner asked for a pool instead, with no
-source special-cased: each source is an `ImageSearch`, every one of them is asked
+source special-cased: each source is a `Finder`, every one of them is asked
 for every work in parallel, and adding one is a line in the wiring. Nothing above
 the pool learns how many sources there are.
 
@@ -26,10 +26,10 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 from arrt.library.discovery.images import (
+    Finder,
     FoundImage,
     ImageQuery,
     ImageQueryUnanswerable,
-    ImageSearch,
     ImageSearchFailure,
 )
 
@@ -62,7 +62,7 @@ class PoolAnswer:
 class ImageSourcePool:
     """The image sources phase 2 asks, in order of preference."""
 
-    def __init__(self, sources: Sequence[ImageSearch]) -> None:
+    def __init__(self, sources: Sequence[Finder]) -> None:
         if not sources:
             # An empty pool would answer every work with nothing, which reads as
             # "no source holds it". A deployment with no source has no pool at
@@ -75,8 +75,8 @@ class ImageSourcePool:
             # tiles are routed back by it. Two sources sharing a name would send
             # one source's URLs to the other.
             raise ValueError(f"Two image sources share a name: {', '.join(duplicated)}.")
-        self._sources: tuple[ImageSearch, ...] = tuple(sources)
-        self._by_name: dict[str, ImageSearch] = dict(zip(names, self._sources, strict=True))
+        self._sources: tuple[Finder, ...] = tuple(sources)
+        self._by_name: dict[str, Finder] = dict(zip(names, self._sources, strict=True))
 
     @property
     def providers(self) -> tuple[str, ...]:
@@ -94,7 +94,10 @@ class ImageSourcePool:
         A source that cannot look a work like this up is left out, as if not
         wired. Raises `ImageSearchFailure` only when no source answered, because
         then there is no answer at all. A source raising anything other than
-        `ImageSearchFailure` is a fault in that source and propagates.
+        `ImageSearchFailure` is a fault in that source and propagates. A plugin's
+        finder never gets that far: the loader wraps it so that a fault arrives
+        here as `ImageSearchFailure` (`library/sources/loading.py`). A finder
+        handed to the pool directly, as in most tests, still propagates.
         """
         with ThreadPoolExecutor(max_workers=len(self._sources), thread_name_prefix="image-source") as workers:
             # Each call runs in a copy of the caller's context, so what a source
@@ -136,7 +139,7 @@ class ImageSourcePool:
         """Each source's tile resolver, keyed by the name its instances carry."""
         return {name: source.tile_url for name, source in self._by_name.items()}
 
-    def _source(self, provider: str) -> ImageSearch:
+    def _source(self, provider: str) -> Finder:
         try:
             return self._by_name[provider]
         except KeyError:

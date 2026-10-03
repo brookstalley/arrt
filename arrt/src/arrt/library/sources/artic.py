@@ -47,15 +47,24 @@ from urllib.parse import quote
 
 import httpx
 
-from arrt.library.discovery.browse import BrowseQuery, CollectionBrowse, CollectionBrowseFailure, OfferedGroup
-from arrt.library.discovery.images import (
+from arrt.library.sources import (
     DEFAULT_PREVIEW_MAX_BYTES,
+    AcquisitionMethod,
+    BrowseQuery,
+    CollectionBrowse,
+    CollectionBrowseFailure,
+    Declined,
+    Finder,
     FoundImage,
     ImageQuery,
-    ImageSearch,
     ImageSearchFailure,
+    OfferedGroup,
+    RightsStatus,
+    SourceClass,
+    SourceContext,
+    SourceParts,
+    SourcePlugin,
 )
-from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
 
 log = logging.getLogger(__name__)
 
@@ -790,7 +799,7 @@ def build_image_search(
     user_agent: str,
     client: httpx.Client | None = None,
     preview_max_bytes: int = DEFAULT_PREVIEW_MAX_BYTES,
-) -> ImageSearch:
+) -> Finder:
     """The image provider a deployment gets. One museum today, by name."""
     return ArticImageSearch(user_agent=user_agent, client=client, preview_max_bytes=preview_max_bytes)
 
@@ -798,3 +807,25 @@ def build_image_search(
 def build_collection_browse(*, user_agent: str, client: httpx.Client | None = None) -> CollectionBrowse:
     """The collection a deployment supplements from. The same museum, asked differently."""
     return ArticCollectionBrowse(user_agent=user_agent, client=client)
+
+
+def _create(context: SourceContext) -> SourceParts | Declined:
+    """The Art Institute's finder and collection, or why this deployment has neither.
+
+    `ARTIC_USER_AGENT` has no default: the API is open but asks callers to name
+    themselves and give a contact address, and sending someone else's identifier,
+    or a default pretending to be one, would misrepresent whoever runs this to a
+    third party. A deployment that has not set it never asks the museum.
+    """
+    user_agent = context.environ.get("ARTIC_USER_AGENT") or None
+    if user_agent is None:
+        return Declined("ARTIC_USER_AGENT is unset, and the Art Institute is never asked anonymously")
+    return SourceParts(
+        finder=build_image_search(user_agent=user_agent, preview_max_bytes=context.preview_max_bytes),
+        collection=build_collection_browse(user_agent=user_agent),
+    )
+
+
+#: What the `artic` entry point names. Written for interface major 1 as a
+#: literal, as a plugin outside this repository would write it.
+PLUGIN: Final[SourcePlugin] = SourcePlugin(api_major=1, create=_create)

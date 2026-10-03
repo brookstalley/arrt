@@ -158,7 +158,7 @@ Each is derived from one of these rules, so a wrong prediction says which rule
 was wrong:
 
 - **R1, Commons.** The pool asks Commons only for the image the item itself names
-  (P18), never by title (`library/discovery/commons.py`). I predict an item has
+  (P18), never by title (`library/sources/commons.py`). I predict an item has
   that image when the work is free in the US *and* in its home country, which
   Commons generally requires. The exception: works free at home and restored in
   the US (eu-open) usually stay on Commons too. For 3D works and for items created

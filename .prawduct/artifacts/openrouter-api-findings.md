@@ -829,7 +829,7 @@ actually needs:
 httpx.Timeout(180.0, connect=5.0)
 ```
 
-`library/discovery/artic.py` already carries exactly this shape; the mitigation this
+`library/sources/artic.py` already carries exactly this shape; the mitigation this
 codebase had already chosen was applied to one client and not the other.
 
 **One number to be careful with, because two readings of this got it wrong in

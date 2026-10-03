@@ -84,6 +84,18 @@ export function statusReading(health) {
   else if (backup.problem) troubles.push("The backup record cannot be read");
   else if (backup.absent) troubles.push("The catalogue has never been backed up");
 
+  // A plugin that declined is configured off on purpose and is not a trouble. One
+  // that failed to load, or that has faulted, is: either way works it would have
+  // answered read as held by nobody, which looks like a fact about art.
+  if (!Array.isArray(health.sources)) {
+    troubles.push("The health reading carries no image sources");
+  } else {
+    for (const source of health.sources) {
+      if (source.state === "failed") troubles.push(`The ${source.name} source could not be loaded`);
+      else if (source.faults > 0) troubles.push(`The ${source.name} source has faulted since startup`);
+    }
+  }
+
   if (!troubles.length) return { well: true, count: 0, words: "Well" };
   return { well: false, count: troubles.length, words: troubles.join(" · ") };
 }

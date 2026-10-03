@@ -17,8 +17,8 @@ import json
 import httpx
 import pytest
 
-from arrt.library.discovery.artic import PROVIDER, ArticCollectionBrowse
 from arrt.library.discovery.browse import BrowseQuery, CollectionBrowseFailure
+from arrt.library.sources.artic import PROVIDER, ArticCollectionBrowse
 from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
 
 USER_AGENT = "arrt (test@example.org)"
