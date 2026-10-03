@@ -527,10 +527,22 @@ repo."* So:
   what the pool asks, and nothing above the pool knows how many sources there
   are. A plugin is that protocol opened to code outside Arrt.
 
+**Decided later the same day, by the owner:**
+
+- **A plugin is a Python package loaded inside Arrt**, not a separate service.
+  The agent recommended a service, for isolation and for deployment as a sibling
+  container; the owner chose the package. So installing a plugin trusts it as
+  fully as Arrt's own code.
+- **The existing sources are the examples.** The Art Institute and Commons are
+  rebuilt on the plugin interface rather than kept as a special case beside it.
+- **Plugins are per protocol, not per institution** (IIIF, Google Arts &
+  Culture, Artlogic, and so on), so one plugin reaches every holder that serves
+  its protocol.
+
 **Not yet decided:**
 
-- how a plugin is loaded: a separate service over HTTP, or a Python package
-  inside Arrt;
+- where search lives: in each plugin, or in Arrt with plugins only reading what
+  it finds;
 - what a plugin must report for its spending to be capped;
 - how its untrusted text and bytes are bounded (`security-model.md`).
 
