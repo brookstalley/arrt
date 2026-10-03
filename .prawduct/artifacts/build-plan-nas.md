@@ -89,7 +89,7 @@ Open assumptions:
 
 ## Status
 
-- [ ] Chunk 01: The container
+- [x] Chunk 01: The container
 - [ ] Chunk 02: The backup writer
 - [ ] Chunk 03: The homelab half
 - [ ] Chunk 04: Seed and deploy
@@ -111,6 +111,15 @@ green in the image; the image runs against a copy of the dev library and serves
 the UI, `/api/health`, `/mcp` and a Player route with a token; `/healthz` has a
 test; `.dockerignore` keeps `.env`, `.venv` and data out of the build context
 (checked by listing the context).
+
+*Chunk 01 verified 2026-10-02:* the image built for `linux/amd64`; the test
+target passed in the image (3005 passed, browser and paid suites skipped as
+everywhere); run against a copy of the dev library it served the UI (200),
+`/healthz` (`ok`), `/api/health`, `/mcp` (6 tools, `art_catalogue` listing 40
+works), and a wall's manifest only with that wall's token (401 without, 200
+with: 40 entries, 40 with media) and a render through `/media/sha256-…` (200,
+a JPEG); the build context held only `Dockerfile`, `pyproject.toml`, `uv.lock`,
+`src`, `tests`, `tools` and `.dockerignore`.
 
 ### Chunk 02: The backup writer
 
