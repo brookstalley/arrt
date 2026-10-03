@@ -62,6 +62,47 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-03: No mat near black
+
+<!-- prawduct: scope=mat-floor -->
+
+**Why:** the owner's ruling on #183. With the mat inside pure black, a
+near-black mat "looks like a bad LCD". 10 of the 41 mats carried from 2024 are
+darker than L\* 15.
+
+**What:**
+- **No mat darker than L\* 15** (`MAT_LIGHTNESS_FLOOR`), on every screen. A
+  model answer below it is asked once more, naming the floor; two such answers
+  fall back to the mechanical colour. The fallback is lifted to the floor in its
+  own hue. A person's colour below it is refused by name.
+- **The prompt** says the display outside the mat is black, states the floor,
+  and asks for a faint warm or cool cast rather than a neutral grey, even for a
+  black-and-white work. It no longer says a grey is right for an achromatic
+  work. The cast is guidance only; the owner ruled out a chroma floor.
+- **Mats already below the floor are chosen again.** Preparation will not keep
+  one and redraws the canvas in the new colour; at startup each accepted work
+  with a canvas and such a mat gets a prepare-only queue row. The old colour
+  stays in the work's mat history. Each is a paid model call, counted in the
+  journal as `preparation.mat_rechoice_queued`.
+- **The regression bar** (`nonfunctional-requirements.md` § Output Quality) no
+  longer includes the 10 corpus mats below the floor, and the unbuilt `#222222`
+  preset is marked below it, left to #91.
+- **The floor is checked once**, in `CatalogueService.record_mat_color`. The
+  seed skips a 2024 colour below it (report note `mat_below_floor`) and no longer
+  re-carries a colour the work has worn before, so re-seeding cannot restore a
+  replaced mat. A changed index colour still supersedes.
+- **A canvas records the mat it was painted in** (`renditions.mat_hex`, added on
+  open). One painted in another colour, or recorded before the column, is not
+  current, so a mat recorded before its redraw cannot leave the old colour on
+  the wall.
+- **Test contracts changed by ruling:** the fallback is no longer always darker
+  than the work (a near-black work's mat is lifted; that case moved to its own
+  test). On a fresh seed, the works whose 2024 mat is below the floor arrive with
+  none and stay off the wall by name until their first preparation, so the
+  corpus manifest tests give those works a mat the way preparation would, and a
+  new test asserts the exclusion. Tests that used a dark colour as an arbitrary
+  input now use a 2024 colour above the floor.
+
 ## 2026-10-02: The mat takes the work's shape
 
 <!-- prawduct: scope=mat-follows-work -->

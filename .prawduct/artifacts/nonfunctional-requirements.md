@@ -958,6 +958,20 @@ record is `all.json` — replaced as a schema, but **retained, tracked, and read
 directly**: it is the only place the hand-tuned mat colours exist, so repo-hygiene
 work (issue #4 untracks its *backups*) must not delete the file itself.
 
+> **Amended by the owner's ruling of 2026-10-03 (#183): no mat darker than L\* 15,
+> on every screen.** Once the mat sat inside pure black (#189), the owner looked at
+> the wall and said a near-black mat "looks like a bad LCD": next to real black it
+> reads as the panel failing to show black. 10 of the corpus's 41 colours are below
+> L\* 15 (`#14141e` to `#222222`), and those 10 **are no longer the bar**. Above the
+> floor the corpus stays the bar it was. The floor is lightness only. The owner
+> ruled out a floor on chroma, though neutral greys "look accidental", so the
+> prompt asks for a faint warm or cool cast even on a black-and-white work and
+> nothing enforces it. The number, 15, is the owner's choice from a proposal, not a
+> measurement. The seascape mat they liked, `#22394b`, is L\* 22.9.
+> `MAT_LIGHTNESS_FLOOR` in `library/acquisition/mat.py` holds the number and
+> records where each way in enforces it. Mats already below it are chosen again by
+> the vision model, with the old colour kept in the work's history.
+
 > **Settled 2026-08-03: there is no extracted fixture, and this record is
 > permanent rather than interim.** This paragraph read "retained as a *test
 > fixture* … must not delete the file itself **before the regression fixture is
@@ -1084,6 +1098,10 @@ withdrawn on the same evidence that withdrew it as the default** — no mat in t
 above anything the corpus contains, on the emissive panel where that glares.
 Pure black was not chosen either, for the quieter reason that the corpus does not
 contain it: the darkest of the 41 is `#14141e` at L\* 6.7.
+
+> **`#222222` is below the floor of 2026-10-03** (above), so it cannot be a preset
+> as it stands; the floor refuses it. The presets are not built. Choosing the dark
+> one again belongs to #91, the curator's mat control.
 
 **Rendered size must be adequate, and the current pipeline has no floor.**
 `resize_file_with_matte` uses PIL's `image.thumbnail()`, which **never upscales** —

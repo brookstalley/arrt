@@ -413,6 +413,13 @@ class Rendition:
     #: reaches canvases already drawn. None for a thumbnail, and for a canvas
     #: recorded before this was, which counts as out of date.
     layout: str | None = None
+    #: The mat colour a television canvas was painted in. A canvas painted in a
+    #: colour that is no longer the work's current mat is recomposed, so a mat
+    #: recorded before its canvas was redrawn (a crash between the two, or a
+    #: redraw that failed) cannot leave the old colour on the wall. None for a
+    #: thumbnail, and for a canvas recorded before this was, which counts as out
+    #: of date.
+    mat_hex: str | None = None
 
 
 def is_current(rendition: Rendition, original: Original | None) -> bool:

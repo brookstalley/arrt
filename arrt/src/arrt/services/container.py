@@ -425,6 +425,9 @@ class Services:
         # Canvases drawn with another mat, panel or drawing rule are queued to be
         # recomposed. Nothing is drawn here; the queue does it once serving.
         self.acquisition_queue.owe_recomposition(self.preparation.layout)
+        # Mats darker than the floor, all of them older than it, are chosen
+        # again the same way: a queue row each, the queue's `prepare` choosing.
+        self.acquisition_queue.owe_mats_over_the_floor()
         # Before the walls, and outside their `OSError` guard: it writes no
         # manifest, only the catalogue, and a failure here is one to see.
         self.display.catch_up_offers()

@@ -10,7 +10,9 @@ stale looks exactly like one that is correct, on every surface, until someone
 walks past the television.
 """
 
+import uuid
 from dataclasses import replace
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -28,6 +30,7 @@ from arrt.persistence.discovery_records import SpendCategory
 from arrt.persistence.records import (
     AcquisitionMethod,
     FetchStatus,
+    MatColor,
     MatMethod,
     RenditionKind,
     RightsStatus,
@@ -399,6 +402,27 @@ class TestACuratorsOwnColour:
 
         assert service.current_mat_color(work.id).hex_rgb == before
 
+    def test_a_colour_below_the_floor_is_refused_before_anything_is_written(self, prep, service, settings):
+        """A person's colour is held to the floor too (owner, 2026-10-03).
+        Accepted, it would be on the wall against the ruling, and the next
+        preparation would choose again over the person's head. `#252525` is
+        L* 14.7, the darkest grey just under the floor."""
+        work, _ = _work_with_original(service, settings)
+        prep.prepare(work.id)
+        before = service.current_mat_color(work.id).hex_rgb
+
+        with pytest.raises(ServiceError, match=r"darker than the mat floor of L\* 15"):
+            prep.set_mat(work.id, "#252525")
+
+        assert service.current_mat_color(work.id).hex_rgb == before
+
+    def test_the_darkest_colour_at_the_floor_is_accepted(self, prep, service, settings):
+        """The boundary's other side: `#262626` is L* 15.2."""
+        work, _ = _work_with_original(service, settings)
+        prep.prepare(work.id)
+
+        assert prep.set_mat(work.id, "#262626").mat_hex == "#262626"
+
 
 class TestWhatItRefuses:
     def test_a_work_with_no_original_is_refused_with_the_remedy(self, prep, service):
@@ -600,7 +624,7 @@ class TestWhatItSpendsIsRecorded:
 
             def choose(self, image_path):  # noqa: ARG002 - a canned answer
                 return MatChoice(
-                    hex_rgb="#202020",
+                    hex_rgb="#2d2d2d",
                     method=MatMethod.DOMINANT_COLOR_FALLBACK,
                     reason="derived",
                     cost_usd=Decimal("0.00004"),
@@ -660,3 +684,107 @@ class TestAnUndecodableOriginal:
 
         with pytest.raises(ServiceError, match="could not be read"):
             prep.prepare(work.id)
+
+
+def _legacy_mat(service, artwork_id, hex_rgb):
+    """Make `hex_rgb` the work's current mat, written to the store directly.
+
+    The service refuses a colour below the floor, so a mat from before the floor
+    (the 2024 index's) can only be set up the way it arrived: as a row already in
+    the file.
+    """
+    for colour in service.mat_color_history(artwork_id):
+        if colour.is_current:
+            service._store.update_mat_color(replace(colour, is_current=False))
+    service._store.add_mat_color(
+        MatColor(
+            id=str(uuid.uuid4()),
+            artwork_id=artwork_id,
+            hex_rgb=hex_rgb,
+            method=MatMethod.MANUAL,
+            chosen_at=datetime.now(UTC),
+            reason="Carried from 2024.",
+        )
+    )
+
+
+class TestAMatBelowTheFloor:
+    """A mat darker than the floor predates the owner's ruling of 2026-10-03, and
+    preparing the work chooses it again and redraws the canvas."""
+
+    def _prepared_in(self, service, settings, prep_settings, discovery, hex_rgb):
+        """A work with a current canvas whose mat is now `hex_rgb`, and a service
+        whose engine answers `#27285b`. The canvas is drawn in `#6e4848` first, so
+        a redraw in the engine's colour changes its bytes."""
+        work, _ = _work_with_original(service, settings)
+        first = PreparationService(service, _spending_engine("#6e4848", Decimal(0)), prep_settings, spend=discovery)
+        first.prepare(work.id)
+        _legacy_mat(service, work.id, hex_rgb)
+        prep = PreparationService(service, _spending_engine("#27285b", Decimal("0.0001")), prep_settings, spend=discovery)
+        return work, prep
+
+    def test_it_is_chosen_again_and_the_canvas_redrawn(self, service, settings, prep_settings, discovery):
+        work, prep = self._prepared_in(service, settings, prep_settings, discovery, "#1c1c1c")
+        canvas = settings.art_root / f"ready/{work.id}.jpg"
+        before = canvas.read_bytes()
+
+        result = prep.prepare(work.id)
+
+        assert result.outcome is PreparationOutcome.PREPARED
+        assert result.mat_hex == "#27285b"
+        assert result.cost_usd == Decimal("0.0001")
+        assert canvas.read_bytes() != before
+        # The old colour is history, not gone.
+        assert "#1c1c1c" in {colour.hex_rgb for colour in service.mat_color_history(work.id) if not colour.is_current}
+
+    def test_a_mat_at_the_floor_is_kept_and_costs_nothing(self, service, settings, prep_settings, discovery):
+        """The guard's other side: `#262626` is L* 15.2, and re-choosing it would
+        pay to replace a legal colour on every preparation."""
+        work, prep = self._prepared_in(service, settings, prep_settings, discovery, "#262626")
+        history = len(service.mat_color_history(work.id))
+
+        result = prep.prepare(work.id)
+
+        assert result.mat_hex == "#262626"
+        assert result.cost_usd == Decimal(0)
+        assert len(service.mat_color_history(work.id)) == history
+        # The fixture's canvas was painted in another colour, so this first
+        # preparation redraws it; the next finds it current and does nothing.
+        assert prep.prepare(work.id).outcome is PreparationOutcome.UNCHANGED
+
+
+class TestACanvasRecordsItsMat:
+    """A canvas painted in a colour that is no longer the work's mat is not current.
+
+    A mat is recorded before its canvas is redrawn, so a crash or a failed redraw
+    between the two would otherwise leave the old colour on the wall, with every
+    later preparation finding the canvas current."""
+
+    def test_a_mat_recorded_without_its_redraw_is_redrawn_on_the_next_preparation(self, prep, service, settings):
+        work, _ = _work_with_original(service, settings)
+        prep.prepare(work.id)
+        canvas = settings.art_root / f"ready/{work.id}.jpg"
+        before = canvas.read_bytes()
+        # The interrupted half of `set_mat`: the colour recorded, the canvas not.
+        service.record_mat_color(artwork_id=work.id, hex_rgb="#6e4848", method=MatMethod.MANUAL)
+
+        result = prep.prepare(work.id)
+
+        assert result.outcome is PreparationOutcome.PREPARED
+        assert canvas.read_bytes() != before
+        assert service.list_renditions(work.id)[0].rendition.mat_hex == "#6e4848"
+
+    def test_a_canvas_from_before_canvases_recorded_their_mat_is_redrawn(self, prep, service, settings):
+        work, _ = _work_with_original(service, settings)
+        prep.prepare(work.id)
+        (view,) = service.list_renditions(work.id)
+        service._store.update_rendition(replace(view.rendition, mat_hex=None))
+
+        assert prep.prepare(work.id).outcome is PreparationOutcome.PREPARED
+
+    def test_a_canvas_in_the_current_mat_is_left_alone(self, prep, service, settings):
+        """The guard's other side, which every test of `unchanged` above also holds."""
+        work, _ = _work_with_original(service, settings)
+        prep.prepare(work.id)
+
+        assert prep.prepare(work.id).outcome is PreparationOutcome.UNCHANGED
