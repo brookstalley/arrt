@@ -73,6 +73,11 @@ High for the rule, which the owner stated. The mechanism is the agent's:
 - The fallback is lifted to the floor, keeping a\* and b\*, and searches upward
   where the conversion's gamut clip darkens it. That is the mirror of the ceiling.
 - `PreparationService.set_mat` refuses a colour below the floor by name.
+  *(Moved at review: `CatalogueService.record_mat_color`, the one write every
+  mat goes through, refuses it, so no caller can bypass it. The seed skips a 2024
+  colour below the floor, with a report note, and no longer re-carries a colour
+  the work has worn before, which would have restored the dark mats on every
+  re-seed.)*
 - Tests: the prompt carries the floor; a model answer below it is asked again and
   the second answer is used; two answers below it fall back, with both costs
   reported; fallbacks across the RGB cube land in [floor, ceiling]; `set_mat`
@@ -91,9 +96,20 @@ High for the rule, which the owner stated. The mechanism is the agent's:
 - Tests: a below-floor mat is chosen again and the canvas redrawn; a mat at the
   floor is left alone and nothing is spent; the startup pass queues exactly the
   works below the floor; a work already queued keeps its row.
+- *(Added at review.)* A canvas records the mat it was painted in
+  (`renditions.mat_hex`), and one painted in another colour is not current. A
+  mat is recorded before its canvas is redrawn, so without this a crash between
+  the two left the old colour on the wall for good; it also replaces the
+  "superseded" flag the first version passed around. The startup pass also
+  queues a work with a canvas and no mat, which is what a fresh seed leaves for
+  a dark 2024 colour.
 
 ### Chunk 03: Deploy and look
 
+- Before deploying: the NAS's OpenRouter key is set and has credit. Without it
+  the startup pass gives these works the mechanical colour, permanently, since
+  a mat at the floor is never chosen again. Run `tools/mat_masters.py` knowing
+  #119: it now counts every floor lift as "machine lighter than the human".
 - The startup journal shows the works queued; the owner looks at the wall,
   especially the works that had near-black mats (Kelly, Hokusai, Rothko, Albers,
   Johns, Vasarely, Kline, Egreja, Still). Entered in `operator-verification.md`.

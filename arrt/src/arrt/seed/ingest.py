@@ -25,6 +25,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Final
 
+from arrt.library.acquisition.color import format_hex, parse_hex
+from arrt.library.acquisition.mat import below_the_floor
 from arrt.library.services.catalogue import MAX_LIST_LIMIT, CatalogueService
 from arrt.persistence.records import MatMethod, RenditionKind, RightsStatus
 from arrt.seed.images import read_image_facts
@@ -69,6 +71,7 @@ class SeedNote(StrEnum):
     RENDITION_STALE = "rendition_stale"
     DUPLICATE_RECORD_DISCARDED = "duplicate_record_discarded"
     ARTIST_NAME_PARTS_ABSENT = "artist_name_parts_absent"
+    MAT_BELOW_FLOOR = "mat_below_floor"
 
 
 #: A sentence per cause, in terms of what it means rather than what it is called.
@@ -92,6 +95,9 @@ _DETAIL: Final[dict[SeedNote, str]] = {
     SeedNote.RENDITION_STALE: (
         "Its television render at {path} was made from an earlier master, so it stays off the wall until the renderer "
         "replaces it — seeding will not adopt a render it did not record, because it cannot tell which master made one."
+    ),
+    SeedNote.MAT_BELOW_FLOOR: (
+        "Its 2024 mat {colour} is darker than the floor of L* 15, so it was not carried; preparing the work chooses a new one."
     ),
     SeedNote.DUPLICATE_RECORD_DISCARDED: (
         "The index describes this work {count} times; the last was taken and the earlier mat colour {discarded} was dropped."
@@ -174,7 +180,7 @@ def seed_catalogue(records: Sequence[LegacyRecord], *, catalogue: CatalogueServi
             work_id = _mint(record, catalogue=catalogue, artist=artists[record.artist.name], existing=existing)
         entry = [*notes, *_label_notes(record, artist=artists[record.artist.name])]
         entry.extend(_attach_images(record, work_id=work_id, catalogue=catalogue, art_root=art_root))
-        _attach_mat(record, work_id=work_id, catalogue=catalogue)
+        entry.extend(_attach_mat(record, work_id=work_id, catalogue=catalogue))
         works.append(SeededWork(url=record.url, title=record.title, work_id=work_id, created=created, notes=entry))
 
     report = SeedReport(records_read=len(records), works=works)
@@ -458,13 +464,26 @@ def _attach_images(record: LegacyRecord, *, work_id: str, catalogue: CatalogueSe
     return notes
 
 
-def _attach_mat(record: LegacyRecord, *, work_id: str, catalogue: CatalogueService) -> None:
-    """Record the mat colour the index carried.
+def _attach_mat(record: LegacyRecord, *, work_id: str, catalogue: CatalogueService) -> list[SeedNoteEntry]:
+    """Record the mat colour the index carried, once.
 
-    Re-recording what is already in force is the service's own no-op, so a
-    second run of the same index leaves the history exactly where it was.
+    **A colour the work has worn before is not carried again**, even when a
+    later choice has superseded it. Re-seeding is the documented way to bring
+    the catalogue new fields, and re-recording would put the 2024 colour back
+    over whatever replaced it: a mat chosen again under the floor, or one a
+    curator set. A colour the index has *changed* is new, and supersedes as
+    before, so editing the index and re-seeding still works.
+
+    **A colour below `MAT_LIGHTNESS_FLOOR` is not carried at all**: the
+    catalogue refuses it, and the work's first preparation chooses one. Noted,
+    so the report says why a work arrived with no mat.
     """
-    catalogue.record_mat_color(artwork_id=work_id, hex_rgb=record.mat_hex, method=MatMethod.MANUAL, reason=MAT_REASON)
+    if below_the_floor(record.mat_hex):
+        return [_note(SeedNote.MAT_BELOW_FLOOR, colour=record.mat_hex)]
+    worn = {colour.hex_rgb for colour in catalogue.mat_color_history(work_id)}
+    if format_hex(parse_hex(record.mat_hex)) not in worn:
+        catalogue.record_mat_color(artwork_id=work_id, hex_rgb=record.mat_hex, method=MatMethod.MANUAL, reason=MAT_REASON)
+    return []
 
 
 def _primary_source_id(catalogue: CatalogueService, *, work_id: str, url: str) -> str:

@@ -109,11 +109,12 @@ MAT_SCHEMA: Final[dict[str, Any]] = {
 #: **Lightness only.** The owner ruled out a floor on chroma; avoiding neutral grey
 #: is guidance in the prompt, not a check.
 #:
-#: Enforced everywhere a colour enters: the model's answer (asked again, never
-#: edited), the fallback (lifted), and a person's own colour
-#: (`PreparationService.set_mat` refuses it). That is why a mat below it in the
-#: catalogue can only be one that predates the ruling, which preparation chooses
-#: again.
+#: Enforced at the one write every mat goes through,
+#: `CatalogueService.record_mat_color`, which refuses a colour below it. Above
+#: that, each producer keeps clear of it: the model's answer is asked again, never
+#: edited; the fallback is lifted; the seed skips a 2024 colour below it. So a mat
+#: below it in the catalogue can only be a row from before the ruling, which
+#: preparation chooses again.
 MAT_LIGHTNESS_FLOOR: Final[float] = 15.0
 
 #: How much of the dominant colour's lightness the fallback keeps. Carried from
@@ -209,7 +210,10 @@ _FALLBACK_MAX_EDGE: Final[int] = 256
 
 #: What the fallback records as its reason, so a reader of the history sees why a
 #: colour was arrived at mechanically rather than an empty field.
-_FALLBACK_REASON: Final[str] = "Derived from the artwork's dominant colour, darkened; no vision model choice was available."
+_FALLBACK_REASON: Final[str] = (
+    "Derived from the artwork's dominant colour, darkened and kept between the mat floor and ceiling; "
+    "no vision model choice was available."
+)
 
 
 @dataclass(frozen=True, slots=True)

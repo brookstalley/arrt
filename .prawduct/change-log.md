@@ -87,9 +87,21 @@ darker than L\* 15.
 - **The regression bar** (`nonfunctional-requirements.md` § Output Quality) no
   longer includes the 10 corpus mats below the floor, and the unbuilt `#222222`
   preset is marked below it, left to #91.
-- **One test's contract changed by ruling:** the fallback is no longer always
-  darker than the work. A near-black work's mat is lifted to the floor, lighter
-  than the work. That case moved to its own test, which asserts the floor.
+- **The floor is checked once**, in `CatalogueService.record_mat_color`. The
+  seed skips a 2024 colour below it (report note `mat_below_floor`) and no longer
+  re-carries a colour the work has worn before, so re-seeding cannot restore a
+  replaced mat. A changed index colour still supersedes.
+- **A canvas records the mat it was painted in** (`renditions.mat_hex`, added on
+  open). One painted in another colour, or recorded before the column, is not
+  current, so a mat recorded before its redraw cannot leave the old colour on
+  the wall.
+- **Test contracts changed by ruling:** the fallback is no longer always darker
+  than the work (a near-black work's mat is lifted; that case moved to its own
+  test). On a fresh seed, the works whose 2024 mat is below the floor arrive with
+  none and stay off the wall by name until their first preparation, so the
+  corpus manifest tests give those works a mat the way preparation would, and a
+  new test asserts the exclusion. Tests that used a dark colour as an arbitrary
+  input now use a 2024 colour above the floor.
 
 ## 2026-10-02: The mat takes the work's shape
 

@@ -36,7 +36,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Final, Protocol
 
-from arrt.library.acquisition.color import ColorError, format_hex, parse_hex, rgb_to_lab
+from arrt.library.acquisition.color import ColorError, format_hex, parse_hex
 from arrt.library.acquisition.compose import compose, layout
 from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR, MatChoice, MatEngine, below_the_floor
 from arrt.library.services.catalogue import CatalogueService
@@ -191,8 +191,8 @@ class PreparationService:
 
         **This is free for a work that already has a mat it may keep, and only
         for one.** A mat below `MAT_LIGHTNESS_FLOOR` is not one it may keep: it
-        predates the floor, and is chosen again here, which also redraws the
-        canvas whatever `force` says. A
+        predates the floor, and is chosen again here, and the canvas painted in it
+        is then not current. A
         work that has never had a mat cannot be rendered without choosing one, so
         the first preparation of a freshly acquired work asks the vision model —
         and `acquire()` does not prepare, so that first call is the normal case
@@ -216,11 +216,8 @@ class PreparationService:
                 "Re-acquire it before preparing."
             )
 
-        mat, chosen, superseded = self._current_or_chosen_mat(artwork_id, source=source)
-        # The canvas was painted in the colour just replaced, so it is redrawn
-        # however current it otherwise reads, as in `choose_mat`.
-        force = force or superseded is not None
-        current = self._current_tv_rendition(artwork_id)
+        mat, chosen = self._current_or_chosen_mat(artwork_id, source=source)
+        current = self._current_tv_rendition(artwork_id, mat_hex=mat.hex_rgb)
         if current is not None and not force:
             return PreparationResult(
                 artwork_id=artwork_id,
@@ -261,6 +258,7 @@ class PreparationService:
             target_height=composition.canvas_height,
             path=relative,
             layout=self._settings.layout,
+            mat_hex=mat.hex_rgb,
         )
         return PreparationResult(
             artwork_id=artwork_id,
@@ -305,10 +303,9 @@ class PreparationService:
             model_id=choice.model_id,
         )
         self._record_spend(artwork_id, choice)
-        # Forced, because the canvas that exists was painted in the old colour and
-        # is current by the only test the catalogue applies — the original has not
-        # changed. Without this the work would keep showing the superseded mat
-        # while the catalogue reported the new one.
+        # Forced, so asking again always redraws. A new colour would make the
+        # canvas not current anyway (it records the colour it was painted in);
+        # the force is for the answer that repeats the colour in force.
         result = self.prepare(artwork_id, force=True)
         return PreparationResult(
             artwork_id=result.artwork_id,
@@ -347,26 +344,18 @@ class PreparationService:
         caller as itself.
 
         **A colour darker than `MAT_LIGHTNESS_FLOOR` is refused**, a person's as
-        much as the engine's. Accepting it would put a mat on the wall that the
-        owner's ruling forbids, and preparation would then choose it again over
-        the person's head, since a mat below the floor is one it re-chooses.
+        much as the engine's, by `record_mat_color`. Accepting it would put a mat
+        on the wall that the owner's ruling forbids, and preparation would then
+        choose it again over the person's head.
         """
         try:
-            rgb = parse_hex(hex_rgb)
+            normalised = format_hex(parse_hex(hex_rgb))
         except ColorError as exc:
             raise ServiceError(str(exc)) from exc
-        normalised = format_hex(rgb)
-        lightness = rgb_to_lab(rgb).l
-        if lightness < MAT_LIGHTNESS_FLOOR:
-            raise ServiceError(
-                f"{normalised} is L* {lightness:.1f}, darker than the mat floor of L* {MAT_LIGHTNESS_FLOOR:g}: "
-                "inside the screen's black, a mat that dark looks like the panel failing to show black. "
-                "Choose a lighter colour."
-            )
         self._catalogue.record_mat_color(artwork_id=artwork_id, hex_rgb=normalised, method=MatMethod.MANUAL)
         return self.prepare(artwork_id, force=True)
 
-    def _current_or_chosen_mat(self, artwork_id: str, *, source: Path) -> tuple[MatColor, MatChoice | None, MatColor | None]:
+    def _current_or_chosen_mat(self, artwork_id: str, *, source: Path) -> tuple[MatColor, MatChoice | None]:
         """The mat in force, choosing one only if the work has none it may keep.
 
         **The reason a re-render is free for a work that already has a mat.** A
@@ -382,14 +371,12 @@ class PreparationService:
         false on a work's first — or report a cost it never incurred.
 
         **A mat below the floor is not kept**, whoever chose it: nothing can record
-        one now (`set_mat` refuses it, the engine never answers one), so it is a
-        colour from before the owner's ruling, and it is chosen again. The third
-        element is that superseded mat, or `None`, so the caller knows the canvas
-        shows a colour that is no longer current.
+        one now (`CatalogueService.record_mat_color` refuses it), so it is a
+        colour from before the owner's ruling, and it is chosen again.
         """
         current = self._catalogue.current_mat_color(artwork_id)
         if current is not None and not below_the_floor(current.hex_rgb):
-            return current, None, None
+            return current, None
         if current is not None:
             log.info(
                 "the mat of %s, %s, is below the floor of L* %g; choosing again",
@@ -410,7 +397,7 @@ class PreparationService:
             model_id=choice.model_id,
         )
         self._record_spend(artwork_id, choice)
-        return recorded, choice, current
+        return recorded, choice
 
     def _record_spend(self, artwork_id: str, choice: MatChoice) -> None:
         """Record what asking the model for this work's mat cost, when the model answered or billed.
@@ -436,16 +423,20 @@ class PreparationService:
             units=1,
         )
 
-    def _current_tv_rendition(self, artwork_id: str) -> str | None:
+    def _current_tv_rendition(self, artwork_id: str, *, mat_hex: str) -> str | None:
         """The path of a television canvas that is current and actually on disk.
 
-        Four conditions, and none is redundant. The hash test is the catalogue's
+        Five conditions, and none is redundant. The hash test is the catalogue's
         — `list_renditions` derives it by comparing each rendition's recorded
         parent against the original the work holds now. The panel test catches a
         canvas composed for a television this deployment no longer has, which the
         hash cannot see because the *original* did not change. The layout test
         catches a canvas at the right pixel size drawn with another mat or another
-        drawing rule, which neither of those can see. And the file test
+        drawing rule, which neither of those can see. The mat test catches a
+        canvas painted in a colour that is no longer the work's mat: a mat is
+        recorded before its canvas is redrawn, so a crash or a failed redraw in
+        between would otherwise leave the old colour on the wall for good, every
+        later preparation finding the canvas current. And the file test
         catches a row that is current by both and whose file has been deleted,
         which is exactly the state a restored catalogue or a cleared `ready/`
         leaves — trusting the row alone would report a work ready for a wall it
@@ -466,6 +457,9 @@ class PreparationService:
                 # not what this deployment composes, and nothing else would
                 # notice: the original and the panel's pixel size can both be
                 # unchanged while every margin moved.
+                continue
+            if rendition.mat_hex != mat_hex:
+                # Painted in another colour, or before canvases recorded theirs.
                 continue
             if (self._settings.art_root / rendition.relative_path).is_file():
                 return rendition.relative_path

@@ -13,6 +13,7 @@ produces on demand and about days no test can wait.
 import logging
 import threading
 import time
+import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
@@ -44,6 +45,7 @@ from arrt.persistence.discovery_records import Verdict
 from arrt.persistence.records import (
     AcquisitionMethod,
     FetchStatus,
+    MatColor,
     MatMethod,
     QueuedAcquisition,
     RenditionKind,
@@ -179,8 +181,10 @@ class TestThroughTheApplication:
         async with app.router.lifespan_context(app):
             artwork_id = _accept_a_direct_work(discovery, run)
             until(lambda: services.acquisition_queue.state_of([artwork_id]) == {})
-        services.catalogue.record_mat_color(artwork_id=artwork_id, hex_rgb="#1c1c1c", method=MatMethod.MANUAL)
-        drawn = store.list_renditions(artwork_id)[0]
+        _legacy_mat(store, artwork_id, "#1c1c1c")
+        # Painted in the 2024 colour, as the wall's canvases are.
+        drawn = replace(store.list_renditions(artwork_id)[0], mat_hex="#1c1c1c")
+        store.update_rendition(drawn)
 
         services.reconcile()
 
@@ -369,17 +373,30 @@ class TestOwingARecomposition:
         assert queue.owe_recomposition("new") == 0
 
 
+def _legacy_mat(store, artwork_id, hex_rgb):
+    """Make `hex_rgb` the work's current mat, written to the store directly, as a
+    mat from before the floor arrived; the service refuses one below it."""
+    for colour in store.list_mat_colors(artwork_id):
+        if colour.is_current:
+            store.update_mat_color(replace(colour, is_current=False))
+    store.add_mat_color(
+        MatColor(
+            id=str(uuid.uuid4()), artwork_id=artwork_id, hex_rgb=hex_rgb, method=MatMethod.MANUAL, chosen_at=datetime.now(UTC)
+        )
+    )
+
+
 class TestOwingANewMat:
     """The startup step that takes the mat floor to mats chosen before it."""
 
     @pytest.fixture
-    def drawn(self, queue, work, service):
+    def drawn(self, queue, work, service, store):
         """A work fetched and prepared, holding a canvas in a mat of `hex_rgb`."""
 
         def _drawn(hex_rgb, title="Nighthawks"):
             artwork_id = work(title)
             queue.run()
-            service.record_mat_color(artwork_id=artwork_id, hex_rgb=hex_rgb, method=MatMethod.MANUAL)
+            _legacy_mat(store, artwork_id, hex_rgb)
             service.record_rendition(
                 artwork_id=artwork_id,
                 kind=RenditionKind.TV_DISPLAY,
@@ -405,15 +422,30 @@ class TestOwingANewMat:
         assert len(fetcher.calls) == fetches
         assert preparer.calls[preparations:] == [dark]
 
-    def test_a_work_with_no_canvas_is_not_queued(self, queue, work, service):
+    def test_a_work_with_no_canvas_is_not_queued(self, queue, work, store):
         """It has nothing on a wall to correct, and its own first preparation
         will choose the mat when it comes."""
         artwork_id = work()
-        service.record_mat_color(artwork_id=artwork_id, hex_rgb="#1c1c1c", method=MatMethod.MANUAL)
         queue.run()
-        service.record_mat_color(artwork_id=artwork_id, hex_rgb="#1c1c1c", method=MatMethod.MANUAL)
+        _legacy_mat(store, artwork_id, "#1c1c1c")
 
         assert queue.owe_mats_over_the_floor() == 0
+
+    def test_a_work_with_a_canvas_and_no_mat_is_queued(self, queue, work, service, store):
+        """What a fresh seed leaves for a work whose 2024 mat is below the floor:
+        the 2024 canvas, and no mat it may keep. Preparing it chooses one."""
+        artwork_id = work()
+        queue.run()
+        service.record_rendition(
+            artwork_id=artwork_id,
+            kind=RenditionKind.TV_DISPLAY,
+            target_width=3840,
+            target_height=2160,
+            path=f"ready/{artwork_id}.jpg",
+        )
+        assert service.current_mat_color(artwork_id) is None
+
+        assert queue.owe_mats_over_the_floor() == 1
 
     def test_a_work_the_queue_already_holds_keeps_its_row(self, queue, drawn, store):
         artwork_id = drawn("#1c1c1c")

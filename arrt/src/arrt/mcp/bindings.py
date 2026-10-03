@@ -292,8 +292,8 @@ def _mat_notice(result: PreparationResult) -> str | None:
         return None
     return (
         f"The vision model did not choose this colour — it was derived from the artwork's own dominant "
-        f"colour and darkened, because {result.mat_fallback_detail}. Setting hex_rgb yourself overrides it, "
-        "and asking again may succeed if the cause was temporary."
+        f"colour, kept between the mat floor and ceiling, because {result.mat_fallback_detail}. Setting hex_rgb "
+        "yourself overrides it, and asking again may succeed if the cause was temporary."
     )
 
 
@@ -337,8 +337,9 @@ def _regenerate_notice(result: PreparationResult) -> str | None:
         # so the mat a work ends up wearing is usually the one chosen on the
         # `regenerate` that follows.
         notices.append(
-            f"This work had no mat, so one was chosen for it — but not by the vision model, because "
-            f"{result.mat_fallback_detail}. It was derived from the artwork's own dominant colour and darkened."
+            f"This work had no mat it could keep (none, or one below the floor), so one was chosen for it — but not "
+            f"by the vision model, because {result.mat_fallback_detail}. It was derived from the artwork's own "
+            "dominant colour, kept between the mat floor and ceiling."
         )
     if result.fit is DisplayFit.BELOW_FLOOR and result.rendered_long_edge_inches is not None:
         notices.append(
