@@ -138,6 +138,7 @@ _EXPECTED_SCHEMA = {
         "generated_at",
         "content_sha256",
         "byte_size",
+        "layout",
     },
     "mat_colors": {
         "id",

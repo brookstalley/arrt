@@ -265,6 +265,32 @@ class AcquisitionQueue:
         self.nudge()
         return self.state_of([artwork_id])[artwork_id]
 
+    def owe_recomposition(self, layout: str) -> int:
+        """Queue a preparation for every work whose canvas was drawn at another layout. Returns how many.
+
+        Run at startup, so a changed mat or panel reaches the canvases already
+        drawn. The queue's prepare-only path does the work, one at a time, and
+        `prepare` recomposes because the canvas is no longer current. The old
+        canvas stays on the wall until the new one is recorded, since nothing
+        that decides what plays reads the layout. A work the queue already holds
+        a row for is left as it is, so this never resets a failure count.
+        """
+        queued = 0
+        with self._state_lock:
+            for artwork_id in self._store.works_with_canvas_outside_layout(layout):
+                if self._store.get_queued_acquisition(artwork_id) is None:
+                    self._store.set_queued_acquisition(QueuedAcquisition(artwork_id=artwork_id))
+                    queued += 1
+        log.info(
+            "%d canvases queued to be recomposed at %s",
+            queued,
+            layout,
+            extra={"event": "preparation.recompose_queued", "queued": queued, "layout": layout},
+        )
+        if queued:
+            self.nudge()
+        return queued
+
     @property
     def pause(self) -> QueuePause | None:
         """Why the queue is paused, or None while it is not."""

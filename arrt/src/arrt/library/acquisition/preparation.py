@@ -37,7 +37,7 @@ from pathlib import Path
 from typing import Final, Protocol
 
 from arrt.library.acquisition.color import ColorError, format_hex, parse_hex
-from arrt.library.acquisition.compose import compose
+from arrt.library.acquisition.compose import compose, layout
 from arrt.library.acquisition.mat import MatChoice, MatEngine
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.display_fit import ArtworkBox, DisplayFit
@@ -136,6 +136,11 @@ class PreparationSettings:
                 "different deployments."
             )
 
+    @property
+    def layout(self) -> str:
+        """What a canvas composed against these settings records, and is compared against."""
+        return layout(panel_width=self.panel_width, panel_height=self.panel_height, box=self.box)
+
 
 class SpendLedger(Protocol):
     """Where a paid mat choice is recorded: the one method preparation needs of the ledger.
@@ -169,6 +174,11 @@ class PreparationService:
         #: default that silently drops spend looks exactly like working wiring,
         #: and the month total would omit every mat call without anything failing.
         self._spend = spend
+
+    @property
+    def layout(self) -> str:
+        """The layout every canvas this service composes now records."""
+        return self._settings.layout
 
     def prepare(self, artwork_id: str, *, force: bool = False) -> PreparationResult:
         """Make this work ready for the wall, doing only what is not already done.
@@ -244,6 +254,7 @@ class PreparationService:
             target_width=composition.canvas_width,
             target_height=composition.canvas_height,
             path=relative,
+            layout=self._settings.layout,
         )
         return PreparationResult(
             artwork_id=artwork_id,
@@ -395,11 +406,13 @@ class PreparationService:
     def _current_tv_rendition(self, artwork_id: str) -> str | None:
         """The path of a television canvas that is current and actually on disk.
 
-        Three conditions, and none is redundant. The hash test is the catalogue's
+        Four conditions, and none is redundant. The hash test is the catalogue's
         — `list_renditions` derives it by comparing each rendition's recorded
         parent against the original the work holds now. The panel test catches a
         canvas composed for a television this deployment no longer has, which the
-        hash cannot see because the *original* did not change. And the file test
+        hash cannot see because the *original* did not change. The layout test
+        catches a canvas at the right pixel size drawn with another mat or another
+        drawing rule, which neither of those can see. And the file test
         catches a row that is current by both and whose file has been deleted,
         which is exactly the state a restored catalogue or a cleared `ready/`
         leaves — trusting the row alone would report a work ready for a wall it
@@ -414,6 +427,12 @@ class PreparationService:
                 # the original has not changed — but not showable here either,
                 # and the panel is a deployment value that can change under a
                 # catalogue that outlives the television.
+                continue
+            if rendition.layout != self._settings.layout:
+                # Drawn with another mat, panel or drawing rule. Its pixels are
+                # not what this deployment composes, and nothing else would
+                # notice: the original and the panel's pixel size can both be
+                # unchanged while every margin moved.
                 continue
             if (self._settings.art_root / rendition.relative_path).is_file():
                 return rendition.relative_path

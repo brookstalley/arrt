@@ -407,6 +407,12 @@ class Rendition:
     content_sha256: str | None = None
     #: The file's size, recorded with the hash so a manifest can state it.
     byte_size: int | None = None
+    #: The geometry and drawing rule a television canvas was composed with
+    #: (`compose.layout`). A canvas whose layout is not the one this deployment
+    #: composes with now is recomposed, which is how a changed mat or panel
+    #: reaches canvases already drawn. None for a thumbnail, and for a canvas
+    #: recorded before this was, which counts as out of date.
+    layout: str | None = None
 
 
 def is_current(rendition: Rendition, original: Original | None) -> bool:

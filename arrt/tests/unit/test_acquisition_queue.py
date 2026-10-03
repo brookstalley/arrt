@@ -14,7 +14,7 @@ import logging
 import threading
 import time
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
 
@@ -39,7 +39,7 @@ from arrt.library.acquisition.space import NotEnoughSpace
 from arrt.library.events import WorkChange
 from arrt.library.readiness import PlayableWork
 from arrt.persistence.discovery_records import Verdict
-from arrt.persistence.records import AcquisitionMethod, FetchStatus, QueuedAcquisition, RightsStatus, SourceClass
+from arrt.persistence.records import AcquisitionMethod, FetchStatus, QueuedAcquisition, RenditionKind, RightsStatus, SourceClass
 from arrt.services.errors import ServiceError
 
 _A_MOMENT = datetime(2026, 10, 2, 9, 0, tzinfo=UTC)
@@ -134,6 +134,31 @@ class TestThroughTheApplication:
             assert not _queue_threads()
 
         assert open_stream.served == []
+
+    async def test_a_canvas_drawn_at_another_layout_is_recomposed_after_the_next_start(
+        self, services, discovery, run, open_stream, store
+    ):
+        """How the existing works reach a changed mat. The startup step queues the
+        work, the queue recomposes it, and the wall keeps the old canvas until the
+        new one is recorded."""
+        app = create_app(services, acquire_queue=True)
+        async with app.router.lifespan_context(app):
+            artwork_id = _accept_a_direct_work(discovery, run)
+            until(lambda: isinstance(services.library.playable([artwork_id])[artwork_id], PlayableWork))
+            until(lambda: services.acquisition_queue.state_of([artwork_id]) == {})
+        drawn = store.list_renditions(artwork_id)[0]
+        store.update_rendition(replace(drawn, layout="full-screen-mat panel=3840x2160 box=3316x1597"))
+
+        services.reconcile()
+
+        assert artwork_id in services.acquisition_queue.state_of([artwork_id])
+        assert isinstance(services.library.playable([artwork_id])[artwork_id], PlayableWork)
+        app = create_app(services, acquire_queue=True)
+        async with app.router.lifespan_context(app):
+            until(lambda: store.list_renditions(artwork_id)[0].layout == services.preparation.layout)
+            until(lambda: services.acquisition_queue.state_of([artwork_id]) == {})
+        assert store.list_renditions(artwork_id)[0].generated_at > drawn.generated_at
+        assert len(open_stream.served) == 1, "a recompose must not fetch the image again"
 
     async def test_the_queue_stops_when_the_application_does(self, services):
         app = create_app(services, acquire_queue=True)
@@ -250,6 +275,65 @@ def work(service):
 
 def _phase(queue, artwork_id):
     return queue.state_of([artwork_id])[artwork_id].phase
+
+
+class TestOwingARecomposition:
+    """The startup step that takes a changed mat to canvases already drawn."""
+
+    @pytest.fixture
+    def drawn(self, queue, work, service):
+        """A work fetched and prepared, holding a canvas drawn at `layout`."""
+
+        def _drawn(layout, title="Nighthawks"):
+            artwork_id = work(title)
+            queue.run()
+            service.record_rendition(
+                artwork_id=artwork_id,
+                kind=RenditionKind.TV_DISPLAY,
+                target_width=3840,
+                target_height=2160,
+                path=f"ready/{artwork_id}.jpg",
+                layout=layout,
+            )
+            return artwork_id
+
+        return _drawn
+
+    def test_a_canvas_at_another_layout_is_prepared_again_without_a_fetch(self, queue, drawn, fetcher, preparer):
+        artwork_id = drawn("old")
+        fetches, preparations = len(fetcher.calls), len(preparer.calls)
+
+        assert queue.owe_recomposition("new") == 1
+        queue.run()
+
+        assert len(fetcher.calls) == fetches
+        assert preparer.calls[preparations:] == [artwork_id]
+        assert queue.state_of([artwork_id]) == {}
+
+    def test_a_canvas_at_the_current_layout_is_left_alone(self, queue, drawn, preparer):
+        drawn("new")
+        preparations = len(preparer.calls)
+
+        assert queue.owe_recomposition("new") == 0
+        queue.run()
+
+        assert len(preparer.calls) == preparations
+
+    def test_a_work_the_queue_already_holds_keeps_its_row(self, queue, drawn, store):
+        """Queueing a recompose must not reset a failure count the retry schedule
+        is reading."""
+        artwork_id = drawn("old")
+        store.set_queued_acquisition(QueuedAcquisition(artwork_id=artwork_id, failures=2, detail="the canvas would not encode"))
+
+        assert queue.owe_recomposition("new") == 0
+
+        assert store.get_queued_acquisition(artwork_id).failures == 2
+
+    def test_an_archived_work_is_not_queued(self, queue, drawn, service):
+        artwork_id = drawn("old")
+        service.archive_artwork(artwork_id)
+
+        assert queue.owe_recomposition("new") == 0
 
 
 class TestAPass:

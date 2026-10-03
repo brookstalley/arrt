@@ -276,7 +276,11 @@ CREATE TABLE IF NOT EXISTS renditions (
     source_content_hash  TEXT NOT NULL,
     generated_at         TEXT NOT NULL,
     content_sha256       TEXT,
-    byte_size            INTEGER
+    byte_size            INTEGER,
+    -- The geometry a television canvas was drawn with. Nullable because the
+    -- widening step can only add a column that allows NULL; null reads as out of
+    -- date, so a canvas drawn before this existed is recomposed.
+    layout               TEXT
 );
 
 -- Media is fetched by content hash, so the hash is how a render is found.
@@ -823,6 +827,19 @@ class SqliteCatalogue(TableAdapter):
             for row in rows
         ]
 
+    def works_with_canvas_outside_layout(self, layout: str) -> Sequence[str]:
+        # A work with a canvas at the current layout is left alone even if it
+        # also keeps an older one at another panel size: the old row is not what
+        # it shows, and queueing it would recompose nothing on every start.
+        rows = self._store.select_rows(
+            'SELECT a."id" AS work_id FROM artworks a WHERE a."status" = ? '
+            'AND EXISTS (SELECT 1 FROM renditions r WHERE r."artwork_id" = a."id" AND r."kind" = ?) '
+            'AND NOT EXISTS (SELECT 1 FROM renditions r WHERE r."artwork_id" = a."id" AND r."kind" = ? AND r."layout" = ?) '
+            'ORDER BY coalesce(a."accepted_at", a."created_at"), a.rowid',
+            (str(ArtworkStatus.ACCEPTED), str(RenditionKind.TV_DISPLAY), str(RenditionKind.TV_DISPLAY), layout),
+        )
+        return [row["work_id"] for row in rows]
+
     def get_queued_acquisition(self, artwork_id: str) -> QueuedAcquisition | None:
         return self._get("acquisition_queue", {"artwork_id": artwork_id}, _queued)
 
@@ -1095,6 +1112,7 @@ def _rendition_row(rendition: Rendition) -> dict[str, Any]:
         "generated_at": to_iso(rendition.generated_at),
         "content_sha256": rendition.content_sha256,
         "byte_size": rendition.byte_size,
+        "layout": rendition.layout,
     }
 
 
@@ -1287,6 +1305,9 @@ def _rendition(row: Mapping[str, Any]) -> Rendition:
         generated_at=require_datetime(row["generated_at"], "generated_at"),
         content_sha256=row["content_sha256"],
         byte_size=row["byte_size"],
+        # `.get` for the reason `fetch_status` uses it: a row read through a
+        # mapping built from an older file's columns has no such key.
+        layout=row.get("layout"),
     )
 
 

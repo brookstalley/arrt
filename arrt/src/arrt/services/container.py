@@ -422,6 +422,9 @@ class Services:
         next start rather than leaving it undone.
         """
         self.discovery.reconcile()
+        # Canvases drawn with another mat, panel or drawing rule are queued to be
+        # recomposed. Nothing is drawn here; the queue does it once serving.
+        self.acquisition_queue.owe_recomposition(self.preparation.layout)
         # Before the walls, and outside their `OSError` guard: it writes no
         # manifest, only the catalogue, and a failure here is one to see.
         self.display.catch_up_offers()

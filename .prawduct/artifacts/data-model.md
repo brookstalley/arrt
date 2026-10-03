@@ -187,6 +187,7 @@ to serve, elicited from the Product Brief's core flows:
 | Q39 | Which walls does this client drive? The client's own question, asked over HTTP about every 30 seconds (`GET /client`). | Owner 2026-10-02 (clients) |
 | Q40 | Is this request from a client allowed this wall? Asked by every per-wall Player route. | Owner 2026-10-02 (clients) |
 | Q41 | What outputs did this client last report, and when? Asked by the curator choosing an output for a wall. | Owner 2026-10-02 (clients) |
+| Q42 | Was this television canvas drawn with the mat, panel and drawing rule this deployment composes with now? Asked by preparation before it calls a canvas current, and at startup to queue the ones that are not. | Owner 2026-10-02 (#189, #74) |
 
 **Q22 to Q24 are answered by one column, `DiscoveryRun.destination_theme_id`**
 (`build-plan-topics-and-destinations.md` Chunk 01). A work reaches its run
@@ -580,6 +581,7 @@ A derived, device-specific output. **Regenerated, never transported.**
 | `generated_at` | datetime | auto | Refreshed on upsert, so a recomposed canvas is newer than it was. Load-bearing rather than bookkeeping: it is the only column that moves when a canvas is redrawn at the same path from the same Original, which is what makes a stale `thumbnail` of it detectable (invariant 4). |
 | `content_sha256` | string | optional, indexed | *(Added 2026-09-30, wave 2b.)* The SHA-256 of the file's bytes: the render's identity once it is served, at `/media/sha256-<hex>`. The catalogue service hashes the file itself when the rendition is recorded, never taking it from the caller, for the reason `source_content_hash` is read rather than accepted. Null for a render recorded before the column existed, or whose file was not there to read, and filled in the first time the Library is asked to offer it as media. |
 | `byte_size` | integer | optional | *(Added 2026-09-30.)* The file's size, recorded with the hash so a manifest can state it. |
+| `layout` | string | optional | *(Added 2026-10-02, #189.)* For a `tv_display` canvas, the geometry and drawing rule it was composed with: the panel and artwork box in pixels and the compositor's rule name (`compose.layout`). Answers Q42. A canvas whose layout is not the one this deployment composes with now is recomposed, and at startup the acquisition queue is given a preparation for each such work; the old canvas stays on the wall until the new one is recorded. Null for a thumbnail, and for a canvas recorded before the column existed, which counts as out of date. Goes with `tv_display` in wave 4. |
 
 > **Q8.** Geometry is *columns*, not a filename suffix. The 2024 design encoded
 > it as `_w648_h480` in the filename, which is why the recovered catalogue points

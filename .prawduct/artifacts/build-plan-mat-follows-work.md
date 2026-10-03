@@ -70,7 +70,7 @@ High. The owner stated the requirement and answered the three open questions.
 ## Status
 
 - [x] Chunk 01: The mat follows the work
-- [ ] Chunk 02: Canvases recompose when the geometry changes
+- [x] Chunk 02: Canvases recompose when the geometry changes
 - [ ] Chunk 03: Deploy and look
 
 ### Chunk 01: The mat follows the work

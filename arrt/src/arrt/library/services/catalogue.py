@@ -889,6 +889,7 @@ class CatalogueService:
         target_width: int,
         target_height: int,
         path: str,
+        layout: str | None = None,
     ) -> Rendition:
         """Record a derived output, stamped with the image it was made from.
 
@@ -925,6 +926,7 @@ class CatalogueService:
                 relative_path=relative_path(path, field="path"),
                 source_content_hash=original.content_hash,
                 generated_at=datetime.now(UTC),
+                layout=layout,
             )
             # Hashed here from the file, never accepted from the caller, for the
             # reason the parent's hash is: the hash is what a Player checks the

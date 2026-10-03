@@ -49,6 +49,22 @@ _FORMAT: Final[str] = "JPEG"
 _QUALITY: Final[int] = 95
 
 
+#: The drawing rule, named. It goes into every canvas's recorded layout, so a
+#: change to how the compositor draws the same geometry recomposes the canvases
+#: drawn the old way. Change it whenever that happens.
+_DRAWING_RULE: Final[str] = "work-shaped-mat"
+
+
+def layout(*, panel_width: int, panel_height: int, box: ArtworkBox) -> str:
+    """What a canvas composed with this geometry records, to be compared later.
+
+    The panel and the box together fix every margin in pixels, so a changed mat
+    width, bottom weight or panel diagonal each changes this, while a change that
+    moves no pixel does not.
+    """
+    return f"{_DRAWING_RULE} panel={panel_width}x{panel_height} box={box.width}x{box.height}"
+
+
 @dataclass(frozen=True, slots=True)
 class Composition:
     """A composed canvas and the facts a caller records about it.
@@ -207,4 +223,4 @@ def _fit_into_box(image: Image.Image, panel_width: int, panel_height: int, box: 
     return artwork, assessment
 
 
-__all__ = ["Composition", "compose"]
+__all__ = ["Composition", "compose", "layout"]
