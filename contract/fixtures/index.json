@@ -2,6 +2,90 @@
   "_about": "Every fixture, the schema it is judged against, whether that schema accepts it, and, for invalid manifests, whether a major 1 Player must refuse it. A Player may be more tolerant than the schema, which states the writer's obligations; player_must_refuse lists the rules the reader enforces. Filenames name the one rule an invalid fixture breaks. An invalid fixture breaks either the schema or one of the semantic rules in player-contract.md § Major 2; 'breaks' says which.",
   "fixtures": [
     {
+      "path": "fixtures/client-heartbeat.v1/invalid/connected-not-a-boolean.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/kind-unknown.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/output-missing-screen.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/output-name-empty.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/screen-not-a-pair.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/timestamp-instead-of-reported-at.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/valid/frame-and-hdmi.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/valid/no-outputs-and-an-unknown-key.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/valid/two-connectors-one-unplugged.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/client.v1/invalid/wall-missing-output.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client.v1/invalid/wall-output-empty.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client.v1/invalid/walls-not-a-list.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client.v1/valid/no-walls-yet.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/client.v1/valid/two-walls-on-two-outputs.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/client.v1/valid/unknown-key.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": true
+    },
+    {
       "path": "fixtures/heartbeat.v1/invalid/backend-unknown.json",
       "schema": "schemas/heartbeat.v1.schema.json",
       "valid": false,

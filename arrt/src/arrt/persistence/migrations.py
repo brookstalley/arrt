@@ -162,13 +162,14 @@ def _drop_what_the_wall_replaced(connection: sqlite3.Connection) -> None:
     connection.commit()
 
 
-def _require_drop_column() -> None:
-    # Takes nothing: the capability is the interpreter's, not this file's, and a
-    # connection parameter here would suggest the answer could differ per file.
+def _require_drop_column(*, predates: str = "per-wall hanging") -> None:
+    # Takes no connection: the capability is the interpreter's, not this file's,
+    # and a connection parameter here would suggest the answer could differ per
+    # file. `predates` names the change, so the refusal says which migration needs it.
     version = tuple(int(part) for part in sqlite3.sqlite_version.split("."))
     if version < _DROP_COLUMN_SINCE:
         raise RuntimeError(
-            f"This catalogue file predates per-wall hanging and migrating it needs SQLite "
+            f"This catalogue file predates {predates} and migrating it needs SQLite "
             f"{'.'.join(str(part) for part in _DROP_COLUMN_SINCE)} or newer to drop a column; "
             f"this interpreter is linked against {sqlite3.sqlite_version}."
         )
@@ -238,3 +239,30 @@ def rename_awaiting_to_wanted(connection: sqlite3.Connection) -> None:
     connection.commit()
     if rewritten:
         log.info("Rewrote %d candidate works from 'awaiting_better_image' to 'wanted'.", rewritten)
+
+
+#: The wall token columns, which clients replaced on 2026-10-02 (`clients.md`).
+_RETIRED_WALL_TOKEN_COLUMNS: Final[tuple[str, ...]] = ("token_verifier", "token_issued_at")
+
+
+def retire_wall_tokens(connection: sqlite3.Connection) -> None:
+    """Drop the per-wall token columns, so a wall's old token is not kept anywhere.
+
+    A Player is now admitted by its *client's* token, and a wall token admits
+    nothing. Dropping the verifiers rather than leaving them unread makes that
+    true of the file as well as of the code: there is no stored verifier left for
+    a later change to start honouring again by mistake. No transition is kept,
+    by the plan's ruling: there is one Player, and it moves to a client token in
+    the same change.
+
+    Guarded by the file: a column already gone is skipped, so a second open, or
+    one after an interrupted first, does what is left and nothing more.
+    """
+    retired = [column for column in _RETIRED_WALL_TOKEN_COLUMNS if _has_column(connection, "walls", column)]
+    if not retired:
+        return
+    _require_drop_column(predates="client tokens")
+    for column in retired:
+        connection.execute(f'ALTER TABLE walls DROP COLUMN "{column}"')
+    connection.commit()
+    log.info("Dropped walls.%s: Players are admitted by their client's token now.", " and walls.".join(retired))

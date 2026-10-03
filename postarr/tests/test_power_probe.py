@@ -60,9 +60,14 @@ def deployment(monkeypatch, tmp_path):
     from postarr import config
 
     monkeypatch.setattr(config, "load_dotenv", lambda *a, **k: None)
+    # The settings a one-wall Player read are refused by name now, so one left in
+    # the environment of whoever runs the suite must not decide these tests.
+    for retired in config.RETIRED_SETTINGS:
+        monkeypatch.delenv(retired, raising=False)
     for name, value in (
-        ("ART_ROOT", str(tmp_path)),
-        ("WALL_ID", "living-room"),
+        ("SERVER_URL", "http://127.0.0.1:9"),
+        ("CLIENT_TOKEN", "a-clients-token"),
+        ("CACHE_DIR", str(tmp_path)),
         ("TV_ADDRESS", "10.0.0.2"),
         ("LATITUDE", "45.68"),
         ("LONGITUDE", "-111.04"),

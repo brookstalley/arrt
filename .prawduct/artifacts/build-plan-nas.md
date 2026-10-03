@@ -93,7 +93,7 @@ Open assumptions:
 - [x] Chunk 02: The backup writer
 - [x] Chunk 03: The homelab half
 - [x] Chunk 04: Seed and deploy
-- [x] Chunk 05: The Pi on HTTP — **descoped 2026-10-02**, superseded by `build-plan-clients.md`, on `feature/clients` until it merges (see the chunk)
+- [x] Chunk 05: The Pi on HTTP *(re-scoped: the wall rotating moves to build-plan-clients.md)*
 
 ### Chunk 01: The container
 
@@ -236,15 +236,14 @@ keeps rotating) waits for (1). Not ticked until the wall rotates from the NAS.
 Caddy route were added with the owner's yes. The owner directed this branch's
 merge; no separate record of the owner opening the app was taken.
 
-*Chunk 05 descoped 2026-10-02, by the owner's direction of the same day:* the
-Pi is not left on the wall-token HTTP mode. `clients.md` (the owner's rulings)
-skips the Frame for now and stopped and disabled the Pi's Player so nothing
-reaches for a set someone is watching; the Pi returns to the server as a
-**client** with an HDMI wall in `build-plan-clients.md` Chunk 05. What this chunk
-did stands as history: the Pi's databases and `.env` snapshotted, its checkout
-on released `main`, the pull from the NAS seen working. Its two open faults
-are backlog, not this plan: the television's art channel (#182) and the label
-panel's driver (#181). The cache test moves to the clients plan's deploy.
+*Chunk 05 re-scoped by the owner, later on 2026-10-02:* "Let's skip the frame,
+I'm watching stuff on it. Instead, let's get the rpi ready to show images over
+hdmi." The Pi's player was stopped and disabled so nothing reaches for the set.
+What this chunk proved stands — the Pi's databases and `.env` snapshotted, its
+checkout on released `main`, the Pi pulling the NAS's manifest and renders and
+the NAS seeing its heartbeat — and the rest (a wall rotating from the NAS, and the
+cache test) moves to `build-plan-clients.md` Chunk 05, on HDMI. #182 (the TV's
+art channel) and #181 (the label panel) stay open for when the Frame returns.
 
 ## Verification strategy
 

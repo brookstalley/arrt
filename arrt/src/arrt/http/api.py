@@ -44,10 +44,16 @@ from arrt.http.models import (
     ArtistOut,
     ArtistRegistryOut,
     ArtworkBoxOut,
+    AssignWall,
     BackupOut,
     CandidateCardOut,
     CandidatePageOut,
     CandidateWorkOut,
+    ClientHeartbeatOut,
+    ClientListOut,
+    ClientOut,
+    ClientTokenOut,
+    ClientWallOut,
     CommitDirection,
     ConversationDeletionOut,
     ConversationListOut,
@@ -75,9 +81,9 @@ from arrt.http.models import (
     ManifestOut,
     MatColorOut,
     MoveWork,
+    NameClient,
     OriginalOut,
     PickItem,
-    PlayerTokenOut,
     QueuedWorkOut,
     QueuePauseOut,
     RegistryCreatorOut,
@@ -90,6 +96,7 @@ from arrt.http.models import (
     RegistryWorkPageOut,
     RenameTheme,
     RenditionOut,
+    ReportedOutputOut,
     RunListOut,
     RunOut,
     RunTallyOut,
@@ -126,6 +133,7 @@ from arrt.http.models import (
     TopicWorkOut,
     TopicWorksOut,
     VerdictOut,
+    WallAssignmentOut,
     WallHeartbeatOut,
     WallListOut,
     WallOut,
@@ -160,6 +168,7 @@ from arrt.persistence.discovery_records import (
     InitiatedBy,
 )
 from arrt.persistence.records import Artist, Directive, IdentitySetBy, MatColor, Original, Source, Theme, WorkFacet
+from arrt.programming.clients import ClientView
 from arrt.programming.display import ThemePlacement, WallView
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.programming.manifest.heartbeat import HeartbeatReading
@@ -773,27 +782,36 @@ def list_walls(request: Request) -> WallListOut:
 def create_wall(request: Request, body: CreateWall) -> WallOut:
     """Record a wall. It arrives with nothing hanging on it.
 
-    **A wall recorded here lights up once a display plane is pointed at it.**
+    **A wall recorded here lights up once a client is assigned to show it.**
     Hanging a theme writes that wall's own manifest, named by the id this route
-    returns, and a display serves the one wall its `WALL_ID` names — so a second
-    room needs a second device configured with that id, and nothing about it
-    disturbs the first. Until 2026-08-12 there was one manifest for the
-    installation and a second wall overwrote it silently.
+    returns, and a client is admitted only to the walls assigned to it — so a
+    second room needs a client output of its own, and nothing about it disturbs
+    the first. Until 2026-08-12 there was one manifest for the installation and
+    a second wall overwrote it silently.
     """
     services = _services(request)
     return _wall(services.display.get_wall_view(services.display.add_wall(name=body.name).id))
 
 
-@router.post("/walls/{wall_id}/token")
-def issue_token(request: Request, wall_id: str) -> PlayerTokenOut:
-    """Issue the wall's Player token, replacing any it had. It is shown here once.
+@router.post("/walls/{wall_id}/client")
+def assign_wall(request: Request, wall_id: str, body: AssignWall) -> WallAssignmentOut:
+    """Show this wall on one of a client's outputs, by the output's name.
 
-    The Walls screen's "Issue token" and "Rotate token", and
-    `art_display(action='issue_token')`. Nothing can read it back afterwards,
-    because only a verifier is kept.
+    Read-back-after-mutate, for the reason `clear_wall` gives: the answer is the
+    wall as it now stands, with a notice when the output could not be checked
+    against what the client last reported.
     """
-    issued = _services(request).access.issue(wall_id)
-    return PlayerTokenOut(wall_id=issued.wall_id, token=issued.token, token_issued_at=issued.issued_at.isoformat())
+    services = _services(request)
+    assignment = services.clients.assign_wall(wall_id, client_id=body.client_id, output=body.output)
+    return WallAssignmentOut(wall=_wall(services.display.get_wall_view(wall_id)), notice=assignment.notice)
+
+
+@router.delete("/walls/{wall_id}/client")
+def unassign_wall(request: Request, wall_id: str) -> WallOut:
+    """Take the wall off whichever client showed it. Its theme stays hung."""
+    services = _services(request)
+    services.clients.unassign_wall(wall_id)
+    return _wall(services.display.get_wall_view(wall_id))
 
 
 @router.delete("/walls/{wall_id}/theme")
@@ -811,6 +829,49 @@ def clear_wall(request: Request, wall_id: str) -> WallOut:
     services = _services(request)
     services.display.clear_wall(wall_id)
     return _wall(services.display.get_wall_view(wall_id))
+
+
+# -- clients ------------------------------------------------------------------
+
+
+@router.get("/clients")
+def list_clients(request: Request) -> ClientListOut:
+    """Every client, with its walls and what it last reported about its outputs."""
+    return ClientListOut(clients=[_client(view) for view in _services(request).clients.list_clients()])
+
+
+@router.post("/clients")
+def add_client(request: Request, body: NameClient) -> ClientOut:
+    """Record a client. It has no token until one is issued."""
+    services = _services(request)
+    return _client(services.clients.get_client_view(services.clients.add_client(name=body.name).id))
+
+
+@router.post("/clients/{client_id}")
+def rename_client(request: Request, client_id: str, body: NameClient) -> ClientOut:
+    """Rename a client. Its token and its walls are unchanged."""
+    services = _services(request)
+    services.clients.rename_client(client_id, name=body.name)
+    return _client(services.clients.get_client_view(client_id))
+
+
+@router.delete("/clients/{client_id}")
+def remove_client(request: Request, client_id: str) -> ClientListOut:
+    """Forget a client. Its token stops working and its walls become unassigned."""
+    services = _services(request)
+    services.clients.remove_client(client_id)
+    return ClientListOut(clients=[_client(view) for view in services.clients.list_clients()])
+
+
+@router.post("/clients/{client_id}/token")
+def issue_client_token(request: Request, client_id: str) -> ClientTokenOut:
+    """Issue the client's token, replacing any it had. It is shown here once.
+
+    Nothing can read it back afterwards, because only a verifier is kept. The
+    host puts it in the Player's environment file.
+    """
+    issued = _services(request).access.issue(client_id)
+    return ClientTokenOut(client_id=issued.client_id, token=issued.token, token_issued_at=issued.issued_at.isoformat())
 
 
 @router.post("/directives")
@@ -1427,7 +1488,37 @@ def _wall(view: WallView) -> WallOut:
         theme=None if view.hanging is None else _theme(view.hanging),
         directive_sequence=view.directive.sequence,
         pinned_work_id=view.directive.pinned_work_id,
-        token_issued_at=None if view.wall.token_issued_at is None else view.wall.token_issued_at.isoformat(),
+        client_id=view.wall.client_id,
+        output=view.wall.output,
+    )
+
+
+def _client(view: ClientView) -> ClientOut:
+    client = view.client
+    reading = view.heartbeat
+    return ClientOut(
+        client_id=client.id,
+        name=client.name,
+        created_at=client.created_at.isoformat(),
+        token_issued_at=None if client.token_issued_at is None else client.token_issued_at.isoformat(),
+        # Every wall a client listing holds is assigned, so it has an output.
+        walls=[ClientWallOut(wall_id=wall.id, name=wall.name, output=wall.output or "") for wall in view.walls],
+        heartbeat=ClientHeartbeatOut(
+            reported_at=None if reading.reported_at is None else reading.reported_at.isoformat(),
+            age_seconds=reading.age_seconds,
+            absent=reading.absent,
+            problem=reading.problem,
+            description=reading.describe(),
+            outputs=[
+                ReportedOutputOut(
+                    name=output.name,
+                    kind=output.kind,
+                    connected=output.connected,
+                    screen=None if output.screen is None else list(output.screen),
+                )
+                for output in reading.outputs
+            ],
+        ),
     )
 
 

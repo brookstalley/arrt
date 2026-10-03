@@ -231,6 +231,11 @@ token in the UI, then update the Player. A leaked token lets someone read one
 wall's schedule and forge its health, and nothing more. It never reaches the
 catalogue or the curator's surfaces. It lands in wave 2, with the routes.
 
+> **Amended 2026-10-02 by the owner's ruling that clients are first-class
+> (`clients.md`).** The token is per **client**, an installed Player driving
+> any number of walls, and opens the walls assigned to that client; wall
+> tokens are retired. `player-contract.md` § Transport is the as-built rule.
+
 `[DECISION: per-wall bearer tokens, checked on every wall route and on media;
 the server stores only a verifier | the operator's ruling "each wall gets a
 token". Checking the GETs as well as the POST is the advisor's addition: one rule

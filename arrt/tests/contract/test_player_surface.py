@@ -1,9 +1,14 @@
-"""The Player's surface over real HTTP: the manifest, media by hash, the heartbeat, and wall tokens.
+"""The Player's surface over real HTTP: the manifest, media by hash, the heartbeat, and client tokens.
 
 Against a real booted server, as every surface test here is, because the thing a
 Player depends on is the wire: the status, the headers and the bytes.
 `player-contract.md` § Transport is the specification and `contract/routes.json`
-holds the spelling of the three routes.
+holds the spelling of the routes. The two client routes, `GET /client` and
+`POST /client/heartbeat`, are `test_client_surface.py`'s.
+
+**Every request carries a client's token** (`clients.md`), admitted for the walls
+assigned to that client. Wall tokens are retired; `test_retired_wall_tokens.py`
+holds that a token issued under the old scheme opens nothing.
 """
 
 import hashlib
@@ -18,6 +23,7 @@ from scenarios import connect
 
 from arrt.http import player
 from arrt.library.readiness import MEDIA_PATH_TEMPLATE
+from arrt.mcp.tools import TOOLS
 from arrt.programming.access import REFUSAL_LOG_INTERVAL_SECONDS
 
 CONTRACT = Path(__file__).resolve().parents[3] / "contract"
@@ -52,13 +58,30 @@ def playing(services, ready_work, wall_id, wall_settings, render_bytes):
 
 
 @pytest.fixture
-def token(services, wall_id) -> str:
-    return services.access.issue(wall_id).token
+def hall_pi(services, wall_id):
+    """The client the wall is assigned to."""
+    client = services.clients.add_client(name="The Pi in the hall")
+    services.clients.assign_wall(wall_id, client_id=client.id, output="hdmi-a-1")
+    return client
+
+
+@pytest.fixture
+def token(services, hall_pi) -> str:
+    """The token of the client the wall is assigned to."""
+    return services.access.issue(hall_pi.id).token
 
 
 @pytest.fixture
 def study(services) -> str:
     return services.display.add_wall(name="Study").id
+
+
+@pytest.fixture
+def study_token(services, study) -> str:
+    """A valid client token whose client drives another wall, not this one."""
+    client = services.clients.add_client(name="The Pi in the study")
+    services.clients.assign_wall(study, client_id=client.id, output="hdmi-a-1")
+    return services.access.issue(client.id).token
 
 
 # -- the routes are the contract's ----------------------------------------------------
@@ -148,11 +171,13 @@ def test_media_whose_file_changed_under_its_hash_is_not_served(
     assert response.status_code == 404
 
 
-def test_media_answers_to_any_walls_token(server_url, services, playing, token, wall_id, study):
-    other = services.access.issue(study).token
+def test_media_answers_to_any_clients_token_even_one_with_no_walls(server_url, services, playing, token, wall_id):
+    """A render is shared by every wall that shows it, so media asks only that the client is one."""
+    idle = services.clients.add_client(name="A Pi with nothing assigned")
+    idle_token = services.access.issue(idle.id).token
     entry = httpx.get(server_url + _path("manifest", wall_id=wall_id), headers=_bearer(token)).json()["entries"][0]
 
-    assert httpx.get(server_url + entry["media"]["url"], headers=_bearer(other)).status_code == 200
+    assert httpx.get(server_url + entry["media"]["url"], headers=_bearer(idle_token)).status_code == 200
 
 
 def test_an_unknown_or_malformed_hash_answers_404(server_url, token):
@@ -201,12 +226,12 @@ def test_a_heartbeat_the_panel_could_not_read_is_refused_and_not_written(server_
     assert reading.absent
 
 
-# -- tokens -----------------------------------------------------------------------------
+# -- admission --------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("route", ["manifest", "heartbeat"])
-def test_every_wall_route_refuses_without_a_valid_token(server_url, services, playing, token, wall_id, study, route):
-    other = services.access.issue(study).token
+def test_every_wall_route_admits_only_the_client_the_wall_is_assigned_to(server_url, playing, token, study_token, wall_id, route):
+    """Own wall admitted; another client's token is 403; no valid client token is 401."""
     url = server_url + _path(route, wall_id=wall_id)
     send = (
         (lambda headers: httpx.get(url, headers=headers))
@@ -217,36 +242,75 @@ def test_every_wall_route_refuses_without_a_valid_token(server_url, services, pl
     assert send({}).status_code == 401
     assert send(_bearer("not-a-token")).status_code == 401
     assert send({"Authorization": f"Basic {token}"}).status_code == 401
-    assert send(_bearer(other)).status_code == 403
+    assert send(_bearer(study_token)).status_code == 403
     assert send(_bearer(token)).status_code in (200, 204)
 
 
-def test_media_refuses_without_a_valid_token(server_url, playing, token, wall_id):
+def test_the_study_clients_own_wall_admits_it(server_url, services, wall_id, token, study, study_token):
+    """The 403 above is about assignment, not about the study client being refused everywhere."""
+    url = server_url + _path("heartbeat", wall_id=study)
+    document = {"reported_at": "2026-09-30T12:00:00+00:00"}
+
+    assert httpx.post(url, json=document, headers=_bearer(study_token)).status_code == 204
+    assert httpx.post(url, json=document, headers=_bearer(token)).status_code == 403
+
+
+def test_reassigning_a_wall_moves_its_admission_with_it(server_url, services, playing, token, wall_id, hall_pi):
+    url = server_url + _path("manifest", wall_id=wall_id)
+    other = services.clients.add_client(name="The Pi in the kitchen")
+    other_token = services.access.issue(other.id).token
+    assert httpx.get(url, headers=_bearer(other_token)).status_code == 403
+
+    services.clients.assign_wall(wall_id, client_id=other.id, output="hdmi-a-2")
+
+    assert httpx.get(url, headers=_bearer(other_token)).status_code == 200
+    assert httpx.get(url, headers=_bearer(token)).status_code == 403
+    services.clients.unassign_wall(wall_id)
+    assert httpx.get(url, headers=_bearer(other_token)).status_code == 403
+
+
+def test_a_wall_assigned_to_no_client_admits_no_client(server_url, services, playing, wall_id, token):
+    services.clients.unassign_wall(wall_id)
+
+    assert httpx.get(server_url + _path("manifest", wall_id=wall_id), headers=_bearer(token)).status_code == 403
+
+
+def test_media_refuses_without_a_valid_client_token(server_url, playing, token, wall_id):
     entry = httpx.get(server_url + _path("manifest", wall_id=wall_id), headers=_bearer(token)).json()["entries"][0]
 
     assert httpx.get(server_url + entry["media"]["url"]).status_code == 401
     assert httpx.get(server_url + entry["media"]["url"], headers=_bearer("not-a-token")).status_code == 401
 
 
-def test_a_rotated_out_token_is_refused(server_url, services, playing, token, wall_id):
+def test_a_rotated_out_client_token_is_refused(server_url, services, playing, token, wall_id, hall_pi):
     url = server_url + _path("manifest", wall_id=wall_id)
-    rotated = services.access.issue(wall_id).token
+    rotated = services.access.issue(hall_pi.id).token
 
     assert httpx.get(url, headers=_bearer(token)).status_code == 401
     assert httpx.get(url, headers=_bearer(rotated)).status_code == 200
 
 
-def test_a_wall_with_no_token_yet_admits_nobody(server_url, playing, wall_id):
+def test_a_client_with_no_token_yet_admits_nobody(server_url, playing, wall_id, hall_pi):
     assert httpx.get(server_url + _path("manifest", wall_id=wall_id), headers=_bearer("anything")).status_code == 401
 
 
-def test_the_token_is_stored_only_as_a_verifier(services, wall_id, store):
-    issued = services.access.issue(wall_id)
-    wall = store.get_wall(wall_id)
+def test_a_removed_clients_token_opens_nothing(server_url, services, playing, token, wall_id, hall_pi):
+    services.clients.remove_client(hall_pi.id)
 
-    assert wall.token_verifier == hashlib.sha256(issued.token.encode()).hexdigest()
-    assert issued.token not in json.dumps({"verifier": wall.token_verifier})
-    assert wall.token_issued_at == issued.issued_at
+    assert httpx.get(server_url + _path("manifest", wall_id=wall_id), headers=_bearer(token)).status_code == 401
+    assert httpx.get(server_url + _path("client"), headers=_bearer(token)).status_code == 401
+
+
+def test_the_token_is_stored_only_as_a_verifier(services, hall_pi, store):
+    issued = services.access.issue(hall_pi.id)
+    client = store.get_client(hall_pi.id)
+
+    assert client.token_verifier == hashlib.sha256(issued.token.encode()).hexdigest()
+    assert issued.token not in json.dumps({"verifier": client.token_verifier})
+    assert client.token_issued_at == issued.issued_at
+
+
+# -- the refusal log --------------------------------------------------------------------
 
 
 def test_a_refused_token_never_reaches_the_journal_and_is_logged_once(server_url, services, playing, token, wall_id, caplog):
@@ -263,52 +327,91 @@ def test_a_refused_token_never_reaches_the_journal_and_is_logged_once(server_url
     assert token not in journal
     refusals = [record for record in caplog.records if record.getMessage().startswith("Refused a Player request")]
     assert len(refusals) == 1, f"a Player retrying every second must be logged once per {REFUSAL_LOG_INTERVAL_SECONDS}s"
+    assert "an unknown client" in refusals[0].getMessage()
+
+
+def test_a_client_asking_for_another_wall_is_logged_once_by_name_and_never_by_token(
+    server_url, services, playing, wall_id, study_token, caplog
+):
+    url = server_url + _path("manifest", wall_id=wall_id)
+
+    with caplog.at_level(logging.DEBUG):
+        for _ in range(3):
+            assert httpx.get(url, headers=_bearer(study_token)).status_code == 403
+
+    journal = "\n".join(record.getMessage() for record in caplog.records)
+    assert study_token not in journal
+    refusals = [record for record in caplog.records if record.getMessage().startswith("Refused a Player request")]
+    assert len(refusals) == 1
+    assert "'The Pi in the study'" in refusals[0].getMessage()
     assert services.display.get_wall(wall_id).name in refusals[0].getMessage()
 
 
-def test_invented_wall_ids_share_one_refusal_line_and_never_reach_the_journal(server_url, caplog):
+def test_invented_wall_ids_share_one_refusal_line_and_never_reach_the_journal(server_url, study_token, caplog):
     """The id in the URL is the caller's choice, so it keys nothing and is never written down."""
     invented = [f"invented-{n}%0Aforged-line" for n in range(3)]
 
     with caplog.at_level(logging.DEBUG):
         for wall_id in invented:
             assert httpx.get(server_url + _path("manifest", wall_id=wall_id), headers=_bearer("x")).status_code == 401
+            assert httpx.get(server_url + _path("manifest", wall_id=wall_id), headers=_bearer(study_token)).status_code == 403
 
     # The server's journal, not the test client's own request log beside it.
     journal = "\n".join(record.getMessage() for record in caplog.records if record.name.startswith("arrt"))
     assert "invented-" not in journal and "forged-line" not in journal
-    refusals = [record for record in caplog.records if record.getMessage().startswith("Refused a Player request")]
-    assert len(refusals) == 1
-    assert "an unknown wall" in refusals[0].getMessage()
+    refusals = [record.getMessage() for record in caplog.records if record.getMessage().startswith("Refused a Player request")]
+    assert len(refusals) == 2, refusals
+    assert any("an unknown client" in refusal for refusal in refusals)
+    assert any("a wall this server does not hold" in refusal for refusal in refusals)
 
 
-# -- issuing, from each surface ---------------------------------------------------------
+# -- issuing ----------------------------------------------------------------------------
 
 
-def test_a_token_issued_over_http_opens_the_wall_and_is_never_read_back(server_url, playing, wall_id):
-    issued = httpx.post(server_url + f"/api/walls/{wall_id}/token")
+def test_a_client_token_issued_over_http_opens_its_wall_and_is_never_read_back(server_url, playing, wall_id, hall_pi):
+    issued = httpx.post(server_url + f"/api/clients/{hall_pi.id}/token")
     assert issued.status_code == 200
     token = issued.json()["token"]
 
     assert httpx.get(server_url + _path("manifest", wall_id=wall_id), headers=_bearer(token)).status_code == 200
-    walls = httpx.get(server_url + "/api/walls")
-    wall = next(entry for entry in walls.json()["walls"] if entry["wall_id"] == wall_id)
-    assert wall["token_issued_at"] == issued.json()["token_issued_at"]
-    assert token not in walls.text
+    clients = httpx.get(server_url + "/api/clients")
+    client = next(entry for entry in clients.json()["clients"] if entry["client_id"] == hall_pi.id)
+    assert client["token_issued_at"] == issued.json()["token_issued_at"]
+    assert token not in clients.text
+    assert token not in httpx.get(server_url + "/api/walls").text
 
 
-def test_a_wall_with_no_token_says_so(server_url, wall_id):
+def test_no_wall_token_can_be_issued_any_more(server_url, wall_id):
+    """The route that issued them is gone, not merely unused."""
+    assert httpx.post(server_url + f"/api/walls/{wall_id}/token").status_code in (404, 405)
+
+
+def test_a_wall_assigned_to_no_client_says_so(server_url, wall_id):
     wall = next(entry for entry in httpx.get(server_url + "/api/walls").json()["walls"] if entry["wall_id"] == wall_id)
 
-    assert wall["token_issued_at"] is None
+    assert (wall["client_id"], wall["output"]) == (None, None)
+    assert "token_issued_at" not in wall
 
 
-async def test_a_token_issued_through_the_tool_opens_the_wall_and_is_never_read_back(server_url, playing, wall_id):
+@pytest.mark.parametrize("record", TOOLS, ids=lambda record: record.name)
+def test_no_tool_still_issues_or_teaches_wall_tokens(record):
+    """Retiring the wall token is a sweep of the sentences that taught it, not only the action."""
+    prose = " ".join(
+        [record.summary]
+        + [part for action in record.actions for part in (action.name, action.description, action.example, *action.tips)]
+    )
+
+    assert "issue_token" not in prose
+    assert "WALL_TOKEN" not in prose
+    assert "Player token" not in prose
+
+
+async def test_the_tool_surface_refuses_the_retired_action(server_url, wall_id):
     async with connect(server_url) as caller:
-        issued = await caller.ok("art_display", "issue_token", wall_id=wall_id)
+        refused = await caller.call("art_display", "issue_token", wall_id=wall_id)
         walls = await caller.ok("art_display", "walls")
 
-    assert httpx.get(server_url + _path("manifest", wall_id=wall_id), headers=_bearer(issued["token"])).status_code == 200
+    assert refused["success"] is False
     wall = next(entry for entry in walls["walls"] if entry["wall_id"] == wall_id)
-    assert wall["token_issued_at"] == issued["token_issued_at"]
-    assert issued["token"] not in json.dumps(walls)
+    assert (wall["client_id"], wall["output"]) == (None, None)
+    assert "token_issued_at" not in wall

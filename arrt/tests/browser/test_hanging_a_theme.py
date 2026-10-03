@@ -178,9 +178,9 @@ def test_each_walls_panels_nest_under_that_wall_rather_than_beside_it(ui, a_them
     assert sorted(ui.page.locator("h3").all_inner_texts()) == ["Study: Late night", "The wall: Late night"]
     assert ui.page.locator("h3.wall-title").count() == 2
     assert ui.page.locator(".panel h3").count() == 0
-    # Four per wall: the manifest's three panels and the Player token panel.
-    assert ui.page.locator(".panel h4").count() == 8
-    assert ui.page.locator("section.wall").nth(0).locator(".panel h4").count() == 4
+    # Three per wall: the manifest's three panels.
+    assert ui.page.locator(".panel h4").count() == 6
+    assert ui.page.locator("section.wall").nth(0).locator(".panel h4").count() == 3
     # And with nothing empty there is no take-down note: a caption with nothing
     # to caption. This is the other half of the guard the sibling test above
     # exercises, and without it the guard could be deleted with the suite green.

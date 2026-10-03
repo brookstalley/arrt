@@ -22,7 +22,15 @@
 > cutover record, the power-key measurements and the e-paper pin are hardware
 > facts about the wall, and they travel with the Player.
 
-**`display.service` and `curation.service` run the wall**, as the `tvpi` service
+> **As of 2026-10-02 the Pi runs only `display.service`, as a client of the
+> server on the NAS** (§ The Player as a client of the NAS, below). Its
+> `curation.service` is stopped and disabled. The sections after that one
+> describe the one-wall Player of released v0.1.0, with `WALL_ID`,
+> `MANIFEST_SOURCE` and the file channel. The current Player refuses all three.
+> Those sections stay as the record of how the wall got here, and as hardware facts
+> about the Frame, which comes back as a client's `frame` output.
+
+**`display.service` and `curation.service` ran the wall**, as the `tvpi` service
 account on the Raspberry Pi driving the Frame TV. They were installed and enabled
 on 2026-08-11; § The cutover below is what was run.
 
@@ -59,6 +67,76 @@ beside the house's other apps.
 - **Renders recorded before the media route existed carry no content hash.**
   They are hashed the first time a manifest names them, which needs the file.
 
+## The Player as a client of the NAS (2026-10-02, `build-plan-clients.md`)
+
+**A Pi is a client of the server.** The server knows which walls each client
+shows and on which of its outputs. The Pi is configured with the server's
+address and its own token, and learns everything else from `GET /client`.
+`clients.md` is the authority. This is what was run on 2026-10-02.
+
+**Before deploying the clients release to the server, copy the catalogue.** The
+release drops the per-wall token columns when it opens the catalogue, so the way
+back below needs a copy taken first, outside the backup writer's rotation:
+
+    sqlite3 <art root>/catalogue.sqlite ".backup <backups dir>/pre-clients-<timestamp>.sqlite"
+
+Then deploy (`bin/arrt-app.sh` in the homelab repo) and confirm `/healthz`.
+
+**On the server** (Settings › Clients, or the same routes from a shell):
+
+    curl -s -X POST -H 'content-type: application/json' -d '{"name":"Living room Pi"}' "$SERVER_URL"/api/clients
+    curl -s -X POST "$SERVER_URL"/api/clients/<client_id>/token        # shown once; keep it out of shell history
+
+**On the Pi**, with `display.service` stopped:
+
+    cd /opt/samsung-frame-art-loader
+    sudo -u tvpi git fetch origin <branch or tag> && sudo -u tvpi git checkout -B <branch> FETCH_HEAD
+    cd postarr && sudo -u tvpi /usr/local/bin/uv sync --group raster --group epaper
+    sudo cp -p ../.env ../.env.pre-clients-<date>      # the way back starts here
+    # in .env: set SERVER_URL, CLIENT_TOKEN and CACHE_DIR; remove WALL_ID,
+    # WALL_TOKEN and MANIFEST_SOURCE, which the client Player refuses by name
+    sudo adduser tvpi video                            # an HDMI wall opens the display card
+    sudo cp ../deploy/display.service /etc/systemd/system/ && sudo systemctl daemon-reload
+    sudo systemctl enable --now display.service
+
+**Then assign a wall** to one of the outputs the client reported, on Settings ›
+Clients or with `POST /api/walls/<wall_id>/client {client_id, output}`. The
+Player starts that wall within a poll (about 30 s).
+
+**The Frame is optional, and was left off on 2026-10-02.** `TV_ADDRESS` gives the
+client a `frame` output, and `EPD_DEVICE` (the label panel) is refused without
+it. Both are commented out in the Pi's `.env` while the set is being watched, so
+the client reports only its HDMI connectors and nothing on the Pi can reach for
+the television.
+
+**How to tell it worked:**
+- Settings › Clients shows the client's outputs (`hdmi-a-1` connected at its
+  screen's size) and how long ago it reported.
+- The Player's journal shows `client.started`, then `client.wall_started`,
+  `pull.adopted` and `rotation.selected` for each work.
+- On an HDMI wall, `screen.absent` means the Pi sees no screen on that
+  connector. Unless the cable has been pulled, `sudo vclog --msg` is where to
+  look (`hdmi-output-findings.md`).
+- **A stopped Player leaves the text console on the screen.** The Player holds
+  the display card while it runs, and the kernel hands the screen back to the
+  console when it exits.
+- With the server stopped, the wall keeps rotating from `CACHE_DIR`
+  (`client.unreachable` and `pull.unreachable` are logged, and nothing else
+  changes). This was checked on 2026-10-02 with the NAS app stopped for two
+  minutes across a rotation.
+
+**The way back**, to the one-wall Player of v0.1.0 pulling over HTTP:
+1. On the NAS, take a catalogue copy, then roll the app back with
+   `TAG=<the previous image> bin/arrt-app.sh app` in the homelab repo. **The
+   clients release drops the per-wall token columns on open**, so the old image
+   needs the catalogue backup taken before the clients deploy
+   (`pre-clients-<timestamp>.sqlite` in the backups directory). It cannot use
+   the migrated catalogue.
+2. On the Pi: `sudo systemctl stop display.service`, check out the release the
+   Pi ran before (`7e211f1`), `uv sync` as above, restore
+   `.env.pre-clients-<date>`, install that revision's `deploy/display.service`,
+   and start it again.
+
 ## The two new units, and where everything they name now lives
 
 `display.service` and `curation.service` are the planes this product is being
@@ -78,7 +156,7 @@ existing checkout and its only `uv` both sat under a home directory at mode `070
 which such an account cannot traverse at all. A path the service account cannot
 reach is not a detail to leave to whoever reads a unit file next.
 
-Creating that account, giving it the `spi` and `gpio` groups, moving the art tree
+Creating that account, giving it the `spi`, `gpio` and `video` groups, moving the art tree
 to `/srv/art`, placing the checkout at `/opt`, and enabling these two units are
 **one change, not five** — any of them landing alone leaves a machine that is
 neither the old arrangement nor the new one. `operational-spec.md` § The Service
@@ -111,6 +189,7 @@ of what was run, in order, and it is the procedure for doing it again.
     sudo install -m 0755 -o root -g root ~/.local/bin/uv /usr/local/bin/uv
     sudo adduser --system --group --no-create-home --shell /usr/sbin/nologin tvpi
     sudo adduser tvpi spi && sudo adduser tvpi gpio
+    sudo adduser tvpi video                         # an HDMI wall: the display card; added 2026-10-02
     sudo install -d -m 0750 -o tvpi -g tvpi /var/lib/tvpi
     sudo usermod --home /var/lib/tvpi tvpi          # see the note below
 

@@ -1,0 +1,23 @@
+{
+  "reported_at": "2026-10-02T14:00:05.250Z",
+  "outputs": [
+    {
+      "name": "frame",
+      "kind": "frame",
+      "connected": true,
+      "screen": [
+        3840,
+        2160
+      ]
+    },
+    {
+      "name": "hdmi-a-1",
+      "kind": "framebuffer",
+      "connected": true,
+      "screen": [
+        1280,
+        1024
+      ]
+    }
+  ]
+}

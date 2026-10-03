@@ -16,19 +16,28 @@ The heartbeat runs the other way: what `Health.document()` writes must validate
 against the contract's heartbeat schema, for a Player mid-flight and for one
 that has only just started.
 
+**The client's two documents are the same pair, one level up.** The Player reads
+the client document (`client.v1`): every valid fixture must be read whole and
+every invalid one refused. It writes the client heartbeat
+(`client-heartbeat.v1`): what it reports must validate, and for the fixture's
+own machine must be the fixture.
+
 These tests read JSON files and never import curation, which is the
 plane-isolation norm; after the repo split they read a pinned copy of the same
 files.
 """
 
 import json
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from fakes import drm_tree
 from jsonschema import Draft202012Validator
 
 from postarr import manifest
+from postarr.client import ClientDocumentUnreadable, client_heartbeat, client_outputs, parse_client_document
 from postarr.heartbeat import Health
 
 CONTRACT = Path(__file__).resolve().parents[2] / "contract"
@@ -136,3 +145,91 @@ def test_a_heartbeat_from_a_running_player_conforms():
 
 def test_a_heartbeat_from_a_player_that_has_only_just_started_conforms():
     assert _heartbeat_errors(Health().document(reported_at=datetime(2026, 9, 30, 14, 0, 5, tzinfo=UTC))) == []
+
+
+# -- the client document, which the Player reads -------------------------------------------
+
+CLIENT_DOCUMENTS = [row for row in INDEX if row["schema"] == "schemas/client.v1.schema.json"]
+CLIENT_HEARTBEATS = [row for row in INDEX if row["schema"] == "schemas/client-heartbeat.v1.schema.json"]
+
+
+def test_the_index_holds_client_documents_and_client_heartbeats_of_both_kinds():
+    """The vacuity check: the parametrized tests below pass trivially over an empty list."""
+    for rows in (CLIENT_DOCUMENTS, CLIENT_HEARTBEATS):
+        assert {row["valid"] for row in rows} == {True, False}
+
+
+@pytest.mark.parametrize("row", [row for row in CLIENT_DOCUMENTS if row["valid"]], ids=lambda row: row["path"])
+def test_every_valid_client_document_is_read_whole(row):
+    """Every wall, with its id, name and output, read from the document in its order."""
+    document = json.loads((CONTRACT / row["path"]).read_text(encoding="utf-8"))
+
+    read = parse_client_document((CONTRACT / row["path"]).read_text(encoding="utf-8"))
+
+    assert (read.client_id, read.name) == (document["client_id"], document["name"])
+    assert [(wall.wall_id, wall.name, wall.output) for wall in read.walls] == [
+        (wall["wall_id"], wall["name"], wall["output"]) for wall in document["walls"]
+    ]
+
+
+@pytest.mark.parametrize("row", [row for row in CLIENT_DOCUMENTS if not row["valid"]], ids=lambda row: row["path"])
+def test_every_invalid_client_document_is_refused_whole(row):
+    """Refused rather than read in part: acting on the readable part would stop
+    the walls the unreadable part named."""
+    with pytest.raises(ClientDocumentUnreadable):
+        parse_client_document((CONTRACT / row["path"]).read_text(encoding="utf-8"))
+
+
+# -- the client heartbeat, which the Player writes -----------------------------------------
+
+
+def _client_heartbeat_errors(document: dict) -> list[str]:
+    schema = json.loads((CONTRACT / "schemas" / "client-heartbeat.v1.schema.json").read_text(encoding="utf-8"))
+    validator = Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER)
+    return [error.message for error in validator.iter_errors(document)]
+
+
+@pytest.mark.parametrize("row", CLIENT_HEARTBEATS, ids=lambda row: row["path"])
+def test_the_client_heartbeat_schema_judges_its_fixtures_as_the_index_says(row):
+    """So the validator below is one that can say no."""
+    errors = _client_heartbeat_errors(json.loads((CONTRACT / row["path"]).read_text(encoding="utf-8")))
+
+    assert (errors == []) is row["valid"], errors
+
+
+def test_what_the_player_writes_for_two_connectors_one_unplugged_is_the_fixture(tmp_path, client_settings):
+    """The Player's own report of the fixture's machine, compared output for output."""
+    fixture = json.loads((CONTRACT / "fixtures/client-heartbeat.v1/valid/two-connectors-one-unplugged.json").read_text())
+    drm = drm_tree(
+        tmp_path / "drm",
+        {"card1-HDMI-A-1": ("connected", "1920x1080\n1280x720\n"), "card1-HDMI-A-2": ("disconnected", "")},
+    )
+
+    written = client_heartbeat(
+        client_outputs(replace(client_settings, frame=None), drm_root=drm),
+        reported_at=datetime(2026, 10, 2, 14, 0, 5, tzinfo=UTC),
+    )
+
+    assert _client_heartbeat_errors(written) == []
+    assert written["outputs"] == fixture["outputs"]
+
+
+def test_what_a_player_with_a_frame_writes_conforms(tmp_path, client_settings):
+    drm = drm_tree(tmp_path / "drm", {"card1-HDMI-A-1": ("connected", "1280x1024\n")})
+
+    written = client_heartbeat(
+        client_outputs(client_settings, drm_root=drm), reported_at=datetime(2026, 10, 2, 14, 0, 5, 250000, tzinfo=UTC)
+    )
+
+    assert _client_heartbeat_errors(written) == []
+    assert [output["name"] for output in written["outputs"]] == ["frame", "hdmi-a-1"]
+
+
+def test_what_a_player_with_nothing_to_draw_on_writes_conforms(tmp_path, client_settings):
+    written = client_heartbeat(
+        client_outputs(replace(client_settings, frame=None), drm_root=tmp_path / "no-drm"),
+        reported_at=datetime(2026, 10, 2, 14, 0, 5, tzinfo=UTC),
+    )
+
+    assert written["outputs"] == []
+    assert _client_heartbeat_errors(written) == []

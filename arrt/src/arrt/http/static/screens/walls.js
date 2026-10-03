@@ -40,10 +40,9 @@
  */
 
 import { api } from "../core/api.js";
-import { confirmAct } from "../core/confirm.js";
 import { absentImage, facts, table } from "../core/badges.js";
 import { hangTheme } from "../core/hanging.js";
-import { el, fill, guard, render } from "../core/render.js";
+import { el, guard, render } from "../core/render.js";
 import { go, refresh } from "../core/router.js";
 
 export async function viewWalls(generation) {
@@ -69,6 +68,7 @@ export async function viewWalls(generation) {
   }
 
   const beats = await heartbeats();
+  const shownBy = await clientNames();
   const builds = await Promise.all(walls.walls.map(built));
 
   if (!walls.walls.length) {
@@ -86,7 +86,7 @@ export async function viewWalls(generation) {
     return;
   }
 
-  const sections = walls.walls.map((wall, index) => wallSection(wall, builds[index], beats, themes.themes));
+  const sections = walls.walls.map((wall, index) => wallSection(wall, builds[index], beats, themes.themes, shownBy));
   render(generation, heading(), ...sections, walls.walls.some((wall) => !wall.theme) ? takeDownNote() : null);
 }
 
@@ -111,6 +111,44 @@ function heading() {
  * block rather than a mark on each row. */
 function takeDownNote() {
   return el("p", { class: "note", text: "A wall goes on showing what it was showing until a theme is hung." });
+}
+
+/* Every client's name by its id, or why they could not be read.
+ *
+ * A wall carries the id of the client that shows it and the output's name; the
+ * client's name is in the client listing. Caught here for `heartbeats`' reason:
+ * a listing that failed is a fact about what this screen can say of each wall,
+ * not a refusal of anything the curator did. */
+async function clientNames() {
+  try {
+    const listing = await api("/api/clients");
+    return { byId: new Map(listing.clients.map((client) => [client.client_id, client.name])) };
+  } catch (failure) {
+    return { failure: failure.message };
+  }
+}
+
+/* Which client shows this wall, on which output, or that none does.
+ *
+ * A wall nobody shows is an ordinary state (`clients.md` § The model), and the
+ * one where everything else on this screen happens to no screen at all — so it
+ * is said, with the way to Settings › Clients, where a wall is assigned. A link
+ * rather than a button, as the sidebar's are: it goes somewhere and does
+ * nothing there. */
+function shownByLine(wall, shownBy) {
+  if (!wall.client_id) {
+    return el("p", { class: "muted wall-client" }, [
+      el("span", { text: "No client shows this wall. " }),
+      el("a", { href: "#clients", text: "Assign it in Settings › Clients" }),
+    ]);
+  }
+  const name = shownBy.byId ? shownBy.byId.get(wall.client_id) : null;
+  return el("p", {
+    class: "muted wall-client",
+    text: name
+      ? `Shown by ${name} on ${wall.output}`
+      : `Shown on ${wall.output} by a client whose name could not be read${shownBy.failure ? ` — ${shownBy.failure}` : ""}`,
+  });
 }
 
 /* Every wall's last observation, or the fact that the reading did not arrive.
@@ -169,7 +207,7 @@ function reasonFor(wall, build, beats) {
   return "hanging";
 }
 
-function wallSection(wall, build, beats, themes) {
+function wallSection(wall, build, beats, themes, shownBy) {
   const manifest = build.manifest;
   const reason = reasonFor(wall, build, beats);
   return el("section", { class: "wall" }, [
@@ -179,6 +217,7 @@ function wallSection(wall, build, beats, themes) {
     // which room. The single-wall view read correctly by accident, having only
     // one room's worth of headings to confuse.
     el("h3", { class: "wall-title", text: manifest ? `${wall.name}: ${manifest.theme.name}` : wall.name }),
+    shownByLine(wall, shownBy),
     // The server's own sentence about how much of the theme reached the wall,
     // and not repeated when a reason below is about to say the same thing in
     // more useful words: a screen states a fact once, and two copies of one fact
@@ -187,7 +226,6 @@ function wallSection(wall, build, beats, themes) {
     ...emptiness(reason, wall, build, beats),
     controls(wall, themes, reason, manifest),
     ...(manifest ? manifestPanels(manifest) : []),
-    tokenPanel(wall),
   ]);
 }
 
@@ -395,75 +433,6 @@ function nextButton(wall) {
         await refresh();
       }),
   });
-}
-
-/* The wall's Player token: whether it has one, when it was issued, and the act.
- *
- * **Shown once, in place, and never again.** The server keeps only a verifier, so
- * the token exists in the answer to the request that issued it and nowhere else.
- * The panel therefore replaces its own contents rather than repainting the
- * screen: a `refresh()` would re-read the wall, which carries no token, and the
- * one chance to copy it would be gone before it was seen.
- *
- * **Rotating asks first, and issuing the first one does not.** A rotation stops
- * the Player holding the old token at once, so the question names that
- * consequence and the wall. The first token replaces nothing.
- *
- * **The issue date is the point of showing anything else.** After a rotation, it
- * is how a curator tells which Player is still on the old token. */
-function tokenPanel(wall) {
-  const panel = el("div", { class: "panel player-token", "aria-live": "polite" });
-  paintToken(panel, wall, null);
-  return panel;
-}
-
-function paintToken(panel, wall, issued) {
-  const issuedAt = issued ? issued.token_issued_at : wall.token_issued_at;
-  const children = [
-    el("h4", { text: "Player token" }),
-    issuedAt
-      ? el("p", { class: "note", text: `The token for ${wall.name} was issued ${new Date(issuedAt).toLocaleString()}.` })
-      : el("p", {
-          class: "muted",
-          text: `${wall.name} has no Player token yet. A Player that reads this wall over the network needs one.`,
-        }),
-  ];
-  if (issued) {
-    const fieldId = `token-${wall.wall_id}`;
-    children.push(
-      el("div", { class: "field" }, [
-        el("label", { for: fieldId, text: `New Player token for ${wall.name}` }),
-        el("input", { id: fieldId, class: "token", type: "text", readonly: "", value: issued.token }),
-      ]),
-      el("p", {
-        class: "note",
-        text: "This is the only time it is shown. Put it in the Player's environment file as WALL_TOKEN.",
-      }),
-    );
-  }
-  children.push(
-    el("button", {
-      class: "action quiet",
-      type: "button",
-      text: issuedAt ? `Rotate the Player token for ${wall.name}` : `Issue a Player token for ${wall.name}`,
-      onclick: () => guard(() => issueToken(panel, wall, Boolean(issuedAt))),
-    }),
-  );
-  fill(panel, ...children);
-}
-
-async function issueToken(panel, wall, rotating) {
-  if (rotating) {
-    const agreed = await confirmAct({
-      title: `Rotate the Player token for ${wall.name}?`,
-      consequence: `The Player using the current token stops being able to read ${wall.name} until it is given the new one.`,
-      confirmLabel: "Rotate token",
-    });
-    if (!agreed) return;
-  }
-  const issued = await api(`/api/walls/${encodeURIComponent(wall.wall_id)}/token`, { method: "POST" });
-  paintToken(panel, wall, issued);
-  panel.querySelector("input.token").focus();
 }
 
 function manifestPanels(manifest) {

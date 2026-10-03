@@ -1,6 +1,7 @@
 """The persistence contract over Programming's tables.
 
-Themes, what each holds, walls, what hangs on each, and each wall's directive.
+Themes, what each holds, walls, what hangs on each, each wall's directive, and
+the clients that show walls.
 Programming reaches its storage only through this protocol and never through
 `persistence.catalogue.CatalogueStore`, which is the Library's. Today one SQLite
 file serves both and one object implements both protocols. The split is
@@ -18,7 +19,7 @@ from contextlib import AbstractContextManager
 from datetime import datetime
 from typing import Protocol
 
-from arrt.persistence.records import Directive, Theme, ThemeAssignment, ThemeMembership, Wall
+from arrt.persistence.records import Client, Directive, Theme, ThemeAssignment, ThemeMembership, Wall
 
 
 class ProgrammingStore(Protocol):
@@ -123,6 +124,28 @@ class ProgrammingStore(Protocol):
 
         Unpaged: a household has as many walls as it has displays.
         """
+        ...
+
+    # -- clients --------------------------------------------------------------
+
+    def add_client(self, client: Client) -> None:
+        """Persist a client. Raises if the id or the name is already present."""
+        ...
+
+    def get_client(self, client_id: str) -> Client | None:
+        """Return the client, or None if no such id is stored."""
+        ...
+
+    def update_client(self, client: Client) -> None:
+        """Overwrite a stored client with this one. Raises if the id is absent."""
+        ...
+
+    def list_clients(self) -> Sequence[Client]:
+        """Return every client in a stable order. Unpaged: a household has a few."""
+        ...
+
+    def remove_client(self, client_id: str) -> None:
+        """Delete a client. No wall may still name it; removing an absent one is not an error."""
         ...
 
     # -- what is hanging ------------------------------------------------------

@@ -46,7 +46,8 @@ from arrt.persistence.discovery_records import (
     RunStatus,
     Verdict,
 )
-from arrt.persistence.records import Artist, Artwork, Directive, Source, Theme, VocabularyKind, Wall
+from arrt.persistence.records import Artist, Artwork, Client, Directive, Source, Theme, VocabularyKind, Wall
+from arrt.programming.clients import ClientView
 from arrt.programming.display import UNSET, ThemePlacement, WallView, describe_wall_status
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.services.container import Services
@@ -841,6 +842,113 @@ def _add_wall(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any
     return ok(wall=_wall_fields(services.display.add_wall(name=arguments["name"])))
 
 
+def _list_clients(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    views = services.clients.list_clients()
+    return ok(clients=[_client_view_fields(view) for view in views], count=len(views))
+
+
+def _add_client(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    client = services.clients.add_client(name=arguments["name"])
+    return ok(
+        client=_client_fields(client),
+        notice=(
+            f"{client.name} is recorded with no token and no walls. Issue its token with "
+            "action='issue_client_token', and assign it walls with action='assign_wall'."
+        ),
+    )
+
+
+def _rename_client(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    return ok(client=_client_fields(services.clients.rename_client(arguments["client_id"], name=arguments["name"])))
+
+
+def _remove_client(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    released = services.clients.remove_client(arguments["client_id"])
+    names = ", ".join(repr(wall.name) for wall in released)
+    affected = (
+        f"{counted(len(released), 'wall')} it showed now {agree(len(released), 'has', 'have')} no client: {names}. "
+        "They keep their themes."
+        if released
+        else "It showed no wall, so no wall is affected."
+    )
+    return ok(
+        client_id=arguments["client_id"],
+        # Never omitted when empty, so "no wall was affected" is stated rather
+        # than left to be inferred from an absent key.
+        released_walls=[_wall_fields(wall) for wall in released],
+        notice=f"That client is forgotten and its token no longer works. {affected}",
+    )
+
+
+def _issue_client_token(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    issued = services.access.issue(arguments["client_id"])
+    return ok(
+        client_id=issued.client_id,
+        token=issued.token,
+        token_issued_at=_moment(issued.issued_at),
+        notice=(
+            "This is the only time this token is shown; only a verifier of it is kept. It goes in the Player's "
+            "settings as CLIENT_TOKEN, beside SERVER_URL, this server's address as that host reaches it. Any "
+            "token this client had before no longer works."
+        ),
+    )
+
+
+def _assign_wall(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    assignment = services.clients.assign_wall(arguments["wall_id"], client_id=arguments["client_id"], output=arguments["output"])
+    return ok(
+        wall=_wall_fields(assignment.wall),
+        client=_client_fields(assignment.client),
+        # The service's own sentence, or None when the client last reported an
+        # output by that name and nothing about the assignment needs saying.
+        notice=assignment.notice,
+    )
+
+
+def _unassign_wall(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    return ok(wall=_wall_fields(services.clients.unassign_wall(arguments["wall_id"])))
+
+
+def _client_fields(client: Client) -> dict[str, Any]:
+    """One client as a caller sees it, and never its token, which exists only in the answer that issued it.
+
+    Field names match `ClientOut` on the browser surface, for the reason
+    `_affinity_fields` gives.
+    """
+    return {
+        "client_id": client.id,
+        "name": client.name,
+        "created_at": _moment(client.created_at),
+        # Null while it has none, and then it is admitted to nothing.
+        "token_issued_at": _moment(client.token_issued_at),
+    }
+
+
+def _client_view_fields(view: ClientView) -> dict[str, Any]:
+    """A client with its walls and what it last reported, as `GET /api/clients` carries it."""
+    reading = view.heartbeat
+    return {
+        **_client_fields(view.client),
+        "walls": [{"wall_id": wall.id, "name": wall.name, "output": wall.output} for wall in view.walls],
+        "heartbeat": {
+            "reported_at": _moment(reading.reported_at),
+            "age_seconds": reading.age_seconds,
+            "absent": reading.absent,
+            "problem": reading.problem,
+            "description": reading.describe(),
+            "outputs": [
+                {
+                    "name": output.name,
+                    "kind": output.kind,
+                    "connected": output.connected,
+                    "screen": None if output.screen is None else list(output.screen),
+                }
+                for output in reading.outputs
+            ],
+        },
+    }
+
+
 def _list_taste(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     affinities = services.taste.list_affinities(
         kind=arguments.get("kind"),
@@ -947,11 +1055,6 @@ def _next(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     return ok(**_directive_fields(services.display.step_display(arguments["wall_id"])))
 
 
-def _issue_token(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    issued = services.access.issue(arguments["wall_id"])
-    return ok(wall_id=issued.wall_id, token=issued.token, token_issued_at=_moment(issued.issued_at))
-
-
 #: Every built action, keyed by tool and action name. A tool absent from here
 #: answers `help` and nothing else, which is what its registry record says.
 BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
@@ -1004,7 +1107,13 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_display", "sync"): _sync,
     ("art_display", "show_now"): _show_now,
     ("art_display", "next"): _next,
-    ("art_display", "issue_token"): _issue_token,
+    ("art_display", "clients"): _list_clients,
+    ("art_display", "add_client"): _add_client,
+    ("art_display", "rename_client"): _rename_client,
+    ("art_display", "remove_client"): _remove_client,
+    ("art_display", "issue_client_token"): _issue_client_token,
+    ("art_display", "assign_wall"): _assign_wall,
+    ("art_display", "unassign_wall"): _unassign_wall,
     ("art_taste", "list"): _list_taste,
     ("art_taste", "set"): _set_taste,
     ("art_taste", "delete"): _delete_taste,
@@ -1178,9 +1287,10 @@ def _wall_fields(wall: Wall) -> dict[str, Any]:
         "wall_id": wall.id,
         "name": wall.name,
         "created_at": _moment(wall.created_at),
-        # When the Player token was issued, or None while the wall has none. The
-        # token itself is never read back: it exists only in the issuing answer.
-        "token_issued_at": None if wall.token_issued_at is None else _moment(wall.token_issued_at),
+        # The client that shows the wall and the name of its output, or None for
+        # both while no client does — an ordinary state, stated rather than omitted.
+        "client_id": wall.client_id,
+        "output": wall.output,
     }
 
 

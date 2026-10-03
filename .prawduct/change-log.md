@@ -62,6 +62,59 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-02: A Pi is a client of the server
+
+<!-- prawduct: scope=clients -->
+
+**Why:** the owner's rulings in `clients.md`. One host drives any number of walls,
+each on one of its outputs. The server holds which client shows which wall where,
+and the host holds only the server's address and its own token.
+
+**What:**
+- **Clients on the server**: a client has a name, a token (issued once, rotated,
+  never shown again) and the walls assigned to its outputs by name. `GET /client`
+  tells a client its walls; `POST /client/heartbeat` takes its outputs. The
+  per-wall tokens are retired, and the catalogue drops their columns on open.
+- **Settings › Clients and the Walls screen**: add, rename, remove, issue a token,
+  see what a client last reported, and assign a wall to an output.
+- **The curator API and MCP**: `/api/clients` (list, add, rename, remove, issue a
+  token) and `POST`/`DELETE /api/walls/{wall_id}/client`; `art_display` gains the
+  same client actions and is now marked destructive (removing a client releases
+  its walls). **Removed**, breaking any caller: `POST /api/walls/{wall_id}/token`
+  and `art_display(action='issue_token')`, the per-wall tokens' routes.
+- **The Player as a client**: one process supervising one worker per assigned
+  wall, a last-good client document cached, the walls running on through a server
+  outage, and the old `WALL_ID`, `WALL_TOKEN` and `MANIFEST_SOURCE` refused by name.
+- **Deployed 2026-10-02**: the NAS runs this release, the Pi is the client
+  "Living room Pi", and the wall rotates on its HDMI monitor. The way back is in
+  `deploy/README.md`.
+- **Not in this plan**: the Frame (skipped while it is watched), and label
+  outputs (the owner's next direction, after #181).
+
+## 2026-10-02: An HDMI wall draws on its screen
+
+<!-- prawduct: scope=clients -->
+
+**Why:** a wall assigned to a Pi's HDMI connector rotated with nothing drawn.
+`clients.md` asks for the server's render fitted to the screen, with no desktop,
+as the service user.
+
+**What:**
+- **`postarr/src/postarr/kms.py`**: kernel mode setting through `libdrm` by
+  `ctypes`, legacy `SetCrtc` on two dumb buffers per connector, the card held
+  open for the process's life and shared between its connectors. The render is
+  fitted whole on black at the first mode the kernel lists, the size the client
+  heartbeat already reports.
+- **Screens coming and going**: an absent screen is said once and costs
+  nothing; the screen loop asks the output on every poll to draw again when a
+  screen arrives, returns or changes size (`ScreenOutput.refresh`). A failing
+  redraw is said once and tried on every poll.
+- `PendingOutput`, which drew nothing, is gone.
+- **Measured on the Pi and a 4K LG** (`hdmi-output-findings.md`): about half a
+  second per picture as `tvpi`, colour and black level confirmed by the owner,
+  the picture kept by the kernel through a replug, the console restored when the
+  program exits. `tvpi` was added to group `video` on the owner's yes.
+
 ## 2026-10-02: Arrt on the NAS
 
 <!-- prawduct: scope=nas -->

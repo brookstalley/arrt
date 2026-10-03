@@ -539,17 +539,49 @@ class Theme:
 
 
 @dataclass(frozen=True, slots=True)
+class Client:
+    """An installed Player, known to the server by a name and one credential.
+
+    `clients.md` § The model. A client drives any number of walls, each on one of
+    its outputs, and learns which from the server; the host is configured with
+    the server's address and this client's token and nothing else.
+
+    **Nothing about the device**, for the reason the `Wall` record gives: no
+    address, no geometry, no model. What outputs a client has, and whether each
+    is connected, is what the client *reports* in its heartbeat, a file beside
+    the wall heartbeats rather than a column here.
+    """
+
+    id: str
+    #: The curator's word for the host ("The Pi in the hall"). Unique, because
+    #: every confirmation about a client names it.
+    name: str
+    created_at: datetime
+    #: The SHA-256 hex digest of the client's token, never the token. None until
+    #: one is issued, and such a client is admitted nowhere.
+    token_verifier: str | None = None
+    #: When the current token was issued, so a curator can tell which host still
+    #: holds the old one after a rotation.
+    token_issued_at: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Wall:
-    """A place where art hangs. One display serves one wall.
+    """A place where art hangs, and which client shows it on which output.
 
     **Few fields, and the shortness is the design.** A wall is an identity, a
-    name, and the verifier of the one credential that lets a Player serve it; it
-    is not a device. Geometry, network address, panel model, TV
-    content ids, upload state, reachability and last-heartbeat are all per-device
-    runtime state and are permanently forbidden here — they belong to the display
-    plane's own store or to the configuration both planes read. Which display
-    serves which wall is display-plane configuration, exactly as `TV_ADDRESS`
-    already is.
+    name, and its assignment: the client that drives it and the name of the
+    output that client shows it on. It is not a device. Geometry, network
+    address, panel model, TV content ids, upload state, reachability and
+    last-heartbeat are all per-device runtime state and are permanently
+    forbidden here — they belong to the client, which reports what it can drive
+    in its own heartbeat.
+
+    **The assignment is the one fact about the display the catalogue holds**,
+    by the owner's ruling of 2026-10-02 (`clients.md`): the server has to tell a
+    client its walls, and an output's *name* (`hdmi-a-1`, `frame`) is the
+    smallest fact that lets a curator place a wall on a screen without the
+    device's geometry or address entering the catalogue.
 
     That this record lives in the catalogue at all is a ruling against
     `data-model.md`'s "per-device runtime state never lives in the catalogue"
@@ -564,14 +596,12 @@ class Wall:
     id: str
     name: str
     created_at: datetime
-    #: The SHA-256 hex digest of the wall's Player token, never the token. None
-    #: until a token is issued, which the Walls screen shows as "no token yet".
-    #: Whichever device holds the token serves this wall, so replacing the
-    #: television does not change it; rotating does.
-    token_verifier: str | None = None
-    #: When the current token was issued, so a curator can tell which Player
-    #: still holds the old one after a rotation.
-    token_issued_at: datetime | None = None
+    #: The client that drives this wall, or None while none does — an ordinary
+    #: state, like a wall with nothing hanging. Set together with `output`.
+    client_id: str | None = None
+    #: The name of the client's output this wall is shown on, as the client
+    #: reported it. None exactly when `client_id` is.
+    output: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
