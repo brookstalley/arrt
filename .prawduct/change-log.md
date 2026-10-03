@@ -62,6 +62,55 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-03: A corpus to choose the next source by
+
+<!-- prawduct: scope=procurement-corpus -->
+
+**Why:** the owner ruled the contemporary-web half of procurement built, not
+retracted: "in-copyright count, users will add those and it's not our place to
+limit them." Which source to build first should be measured, not guessed.
+
+**What:**
+- `procurement-corpus.md`:
+  - **Part A:** 59 works by the owner's 19 anchors, each with a verified QID or
+    the search that found none, a rights band, the failures expected, and a
+    prediction for today's pool and for the source that would get it, written
+    before any run.
+  - **Part B:** a held-out list of 34 artists for discovery.
+  - **Gaps:** seven product gaps the research exposed.
+  - The researchers' notes, in `procurement-corpus-research/`.
+- The ruling recorded in `nonfunctional-requirements.md` § The Supply Horizon and
+  `project-state.yaml` § integrations, where the question was held open.
+
+- **The owner's rulings:**
+  - Small images are placeholders for better versions, so they are worth getting.
+  - Every work stays.
+  - The first Get runs on the NAS.
+  - The gaps were left to the agent to rule on. The agent ruled on each in the
+    artifact.
+- `tests/preferences/test_held_out_artists.py`: no Part B artist may be named
+  under `arrt/src` or be an artist in `all.json`. On its first run it failed on
+  Magritte, Jasper Johns and Vasarely, all three already in the library. They came
+  off the list for three artists from the reserve.
+
+**Run 1, the first Get on the NAS:**
+- 11 of 50 found, at $0.
+- 40 of 50 predictions right.
+- The misses refined two rules:
+  - The Art Institute serves works it holds in copyright at full resolution.
+    This was already recorded on 2026-08-04; my prediction rule contradicted it.
+  - Commons answers past the rights boundary with photographs of works, once
+    with a photograph of the artist in place of *Whaam!*.
+- Step 3a: the Art Institute holds about a thousand imaged works by 13 of the 19
+  anchors, nearly all above the floor.
+
+The Supply Horizon section carries a dated note pointing at the measurement.
+
+**Review:** 0 blocking and 1 warning, now fixed. The rulings that bind future
+code (gaps 4–6, and the held-out rule) now have rows in the norm index in
+`project-preferences.md`. `architecture.md`'s rule for source authors now points
+at the unrecognised-page trap.
+
 ## 2026-10-03: No mat near black
 
 <!-- prawduct: scope=mat-floor -->
