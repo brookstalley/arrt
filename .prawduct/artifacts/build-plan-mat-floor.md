@@ -108,7 +108,7 @@ High for the rule, which the owner stated. The mechanism is the agent's:
 
 - Before deploying: the NAS's OpenRouter key is set and has credit. Without it
   the startup pass gives these works the mechanical colour, permanently, since
-  a mat at the floor is never chosen again. Run `tools/mat_masters.py` knowing
+  a mat at the floor is never chosen again. Run `arrt/tools/mat_masters.py` knowing
   #119: it now counts every floor lift as "machine lighter than the human".
 - The startup journal shows the works queued; the owner looks at the wall,
   especially the works that had near-black mats (Kelly, Hokusai, Rothko, Albers,
@@ -117,7 +117,7 @@ High for the rule, which the owner stated. The mechanism is the agent's:
 ## Verification strategy
 
 `cd arrt && uv run pytest` and the root suite for Chunks 01–02. Before deploying,
-`tools/mat_masters.py` on the machine that holds the masters reports the
+`arrt/tools/mat_masters.py` on the machine that holds the masters reports the
 fallback's change. Chunk 03 is the owner's eye.
 
 ## Governance checkpoints

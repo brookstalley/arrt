@@ -10,6 +10,30 @@ each entry, which is the durable form.
 
 ## Pending
 
+### No mat darker than L\* 15 — added 2026-10-03
+
+**`build-plan-mat-floor.md` Chunk 03.** Visual change: yes.
+
+Checked by the builder on 2026-10-03 against the suite only: the floor in the
+engine, the re-choice through the queue, and the corpus seed with its 10 works
+below the floor. Not on your catalogue or your wall.
+
+- **Before deploying:** the NAS's OpenRouter key is set and has credit. Without
+  it, the works below the floor get the mechanical colour (lifted to L\* 15), and
+  a mat at the floor is never chosen again by itself.
+- **After deploying:** the startup journal carries `preparation.mat_rechoice_queued`
+  with the number of works queued (10 in the 2024 corpus), then queue passes
+  choosing each one's mat, one paid call each (two when the model answers below
+  the floor first). Every other canvas is redrawn once, free, the next time its
+  work is prepared, because canvases now record the colour they were painted in.
+- **Look at:** the works that had near-black mats: Kelly's *Red Yellow Blue
+  White and Black II*, Hokusai's *Cranes*, Rothko's *Untitled (Purple, White, and
+  Red)*, Albers's *Full*, Johns's *Corpse and Mirror II* and *Target*, Vasarely's
+  *ION 11*, Kline's *Painting*, Egreja's still life, Still's *PH-129*. No mat should
+  read as the screen failing to show black.
+- **Rolling back:** the old image and a re-seed would put the dark 2024 colours
+  back. Without a re-seed the re-chosen mats stay, under either image.
+
 ### ✅ The mat takes the work's shape, with black beyond it — added 2026-10-02, VERIFIED 2026-10-03
 
 **`build-plan-mat-follows-work.md` Chunk 03.** Visual change: yes.
