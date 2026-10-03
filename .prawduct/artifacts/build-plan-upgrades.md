@@ -3,7 +3,7 @@ artifact: build-plan
 version: 1
 scope: upgrades
 branch: feature/upgrades
-partition: serial — 01 decides the gate every later chunk calls, 03 and 04 share the persisted records 03 designs, and 05 draws them. 01's evidence gathering could run as a delegate, but its output is the plan's one open question and is read before 02 is written, so it gains no wall clock
+partition: 01 delegated to one agent in an isolated worktree — building and labelling a few hundred image pairs by eye is long, image-heavy work that would fill the coordinator's context, and it writes only under `arrt/tools/upgrade_gate/` (the findings move into `.prawduct/artifacts/` at merge). 02-06 serial: 03 and 04 share the records 03 designs, and 05 draws them
 depends_on:
   - artifact: upgrades
   - artifact: re-architecture
