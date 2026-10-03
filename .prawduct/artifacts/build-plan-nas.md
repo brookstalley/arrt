@@ -91,7 +91,7 @@ Open assumptions:
 
 - [x] Chunk 01: The container
 - [x] Chunk 02: The backup writer
-- [ ] Chunk 03: The homelab half
+- [x] Chunk 03: The homelab half
 - [ ] Chunk 04: Seed and deploy
 - [ ] Chunk 05: The Pi on HTTP
 
@@ -165,6 +165,14 @@ NAS registry; `app`: render and apply; rollback by tag; `test`).
 Done when: the homelab files are committed in the homelab repo (not pushed
 without the owner); the script's `image` step pushes an image the registry
 lists; nothing in this repo names an address.
+
+*Chunk 03 done 2026-10-02 (homelab commit `f6607eb`, not pushed):* `arrt/compose.yaml`
+(a template outside `apps/`, because the homelab's apps loop applies compose
+files verbatim and this one needs `${TAG}` rendered), `bin/arrt-app.sh`
+(tacularr's deploy flow on the homelab's own NAS helpers: `image`, `app`,
+`test`, `seed`, rollback by `TAG`), `secrets/arrt.env.example`, the Caddy route
+and a README section. `bin/arrt-app.sh image` pushed the image, and the NAS
+registry lists it. The router's DNS record is the owner's.
 
 ### Chunk 04: Seed and deploy
 
