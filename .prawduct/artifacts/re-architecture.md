@@ -510,6 +510,32 @@ the Watch:
 The UI may offer "also make a playlist from this watch" as a shortcut that
 creates both.
 
+### Sources are plugins (the owner, 2026-10-03)
+
+**The owner's ruling:** *"let's make acquisition through plugins, that way people
+can add paid or local or whatever they choose to; then build our own as a private
+repo."* So:
+
+- **Image sources are plugins.** A deployment adds a source without changing
+  Arrt, whether that source is paid, local, or a site Arrt's authors would never
+  ship.
+- **The owner's own scrapers live in a private repo**, not here. That settles
+  the terms-of-service question for sources that forbid scraping, such as Google
+  Arts & Culture and the auction houses: this public repo ships the plugin
+  contract, not those adapters.
+- **The seam already exists.** `ImageSearch` (`library/discovery/images.py`) is
+  what the pool asks, and nothing above the pool knows how many sources there
+  are. A plugin is that protocol opened to code outside Arrt.
+
+**Not yet decided:**
+
+- how a plugin is loaded: a separate service over HTTP, or a Python package
+  inside Arrt;
+- what a plugin must report for its spending to be capped;
+- how its untrusted text and bytes are bounded (`security-model.md`).
+
+The contract artifact settles these before any code.
+
 ## Player outputs
 
 There are two families of screen, behind one "show this work" interface:

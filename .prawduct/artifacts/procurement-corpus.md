@@ -386,6 +386,10 @@ the source is paywalled).
 4. **The gaps below are mine to rule on.** The owner asked; the rulings are mine
    (the agent's), each marked, and each the owner's to overturn.
 5. **The held-out rule is enforced by a test** (§ Part B).
+6. **Sources are plugins, and the owner's own are in a private repo** (ruled later
+   the same day). This changes what step 3 builds: a source in § Sources becomes
+   a plugin, not a module of Arrt. The ruling and what it leaves open are in
+   `re-architecture.md` § Sources are plugins.
 
 ## Gaps the corpus exposes
 
