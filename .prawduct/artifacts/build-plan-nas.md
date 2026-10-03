@@ -212,6 +212,26 @@ a fresh heartbeat; the cache test passed; the soak entry in
 `operator-verification.md` is updated with what was seen; the way back is
 written down (re-enable the Pi's server and set `MANIFEST_SOURCE=file`).
 
+*Chunk 05, 2026-10-02 evening (the owner approved "go now" while away):* the
+Pi's databases and `.env` were snapshotted to the Mac first; its checkout went
+from `7b400ff` to released `main` (`7e211f1`; no player or contract change
+between `main` and `develop`) by the runbook, the player synced with its
+raster and e-paper groups, the new `display.service` installed, `WALL_ID` set
+to the NAS's wall and HTTP mode switched on (`.env.pre-http-2026-10-02` kept),
+and the Pi's `curation.service` stopped and disabled. **Working:** the player
+pulled the NAS's manifest ("40 of 40 entries; 40 renders held") and the NAS's
+Walls screen shows its heartbeat. **Not yet:** (1) **the television has not
+opened its art channel since 16:23 local, three hours before the cutover** —
+the old code logged the same `tv.unavailable` after the Pi's reboot and never
+recovered, so the wall has not rotated since then under either version; it
+needs a look at the set (a restart of the TV, by a person: no code presses
+power, per `nonfunctional-requirements.md`). (2) **The label panel no longer
+opens**: "could not open the e-paper device 'waveshare_epd.it8951' (Could not
+determine Jetson model)" — the old environment opened it on this same kernel
+this morning, and the driver pins are identical, so the fresh environment
+differs somewhere not yet found. (3) The cache test (stop the NAS, the wall
+keeps rotating) waits for (1). Not ticked until the wall rotates from the NAS.
+
 ## Verification strategy
 
 Every chunk ends on the real thing: the image running on the Mac (01), a
