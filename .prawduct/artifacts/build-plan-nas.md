@@ -83,7 +83,7 @@ machine before anything is changed.
 
 Open assumptions:
 - [ASSUMPTION: the container's memory limit is 3 GB | LOW impact | owner can correct]
-- [ASSUMPTION: the masters (`raw/`) move with the library; renditions, thumbnails and previews are regenerated on the NAS | MED impact | owner can correct]
+- [ASSUMPTION: the masters (`raw/`), renders (`ready/`) and thumbnails (`thumbs/`) move with the library; previews are regenerated or lost (they are disposable) | MED impact | owner can correct] *(Revised in Chunk 01: regenerating renders on the NAS is not what happens — see the finding under Chunk 02.)*
 - [ASSUMPTION: backups go to a separate NAS dataset (not the app's own), 14 daily generations kept; ZFS snapshots of the app's dataset are the owner's to configure if they are not already | MED impact | owner can correct]
 - [ASSUMPTION: the Pi's old `curation.service` is stopped and disabled, not removed, for a quick way back during the soak | LOW impact | owner can override]
 
@@ -121,9 +121,20 @@ A pass is logged every time, as the queue's is. `kept-answers.sqlite` is not
 backed up. The restore exercise: a documented command that restores the newest
 backup into a scratch art root and starts the server against it.
 
+**Found in Chunk 01, and fixed here because the restore exercise depends on
+it:** readiness checks that a work has a current render *row*, never that the
+render *file* exists. Run against a copy with no `ready/`, the manifest listed
+all 40 works with no exclusion (measured 2026-10-02), so a restore onto an empty
+image tree does not do what `operational-spec.md` § The restore path promises
+("the manifest build finds no current render for any work, excludes them all
+and reports why"). A render whose file is missing becomes `no_rendition`, and
+preparation regenerates it.
+
 Done when: tests for a backup, the receipt written only on success, retention,
-a failure leaving the previous receipt, and the panel's age after a run; the
-restore exercise run once on the Mac and recorded; `operational-spec.md`
+a failure leaving the previous receipt, and the panel's age after a run; a test
+that a missing render file excludes the work as `no_rendition` and that
+preparation renders it again; the restore exercise run once on the Mac and
+recorded; `operational-spec.md`
 § Backup and Restore updated; #14 closed.
 
 ### Chunk 03: The homelab half

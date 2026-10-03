@@ -1,0 +1,45 @@
+# Arrt as a container app — the shape only.
+#
+# This repository is public, so the real file, with the house's addresses, ports,
+# paths and env file, lives in the operator's private homelab repository and is
+# applied from there (`build-plan-nas.md` Chunk 03). Everything in angle
+# brackets is the house's to fill in.
+
+services:
+  arrt:
+    # Built from a commit (`arrt/Dockerfile`) and pushed to the house's registry,
+    # so a rollback is the previous tag.
+    image: <registry>/arrt:<commit>
+    restart: unless-stopped
+    # The image runs as an unprivileged user; choose the one that owns the art
+    # root on the host.
+    user: "<uid>:<gid>"
+    security_opt:
+      - no-new-privileges:true
+    # SIGTERM, then this long to stop its workers and close the catalogue
+    # cleanly. A hard kill mid-write is what the grace period exists to avoid.
+    stop_grace_period: 30s
+    # In place of the Pi unit's MemoryMax: one large image held in memory at a
+    # time, with headroom.
+    mem_limit: 3g
+    ports:
+      - "<host port>:8770"
+    environment:
+      ART_ROOT: /art
+    # The keys and the house's settings (OPENROUTER_API_KEY,
+    # WIKIDATA_USER_AGENT, ARTIC_USER_AGENT, …) — see `.env.example`.
+    env_file:
+      - <path to arrt.env>
+    volumes:
+      # The catalogue, masters, renders and thumbnails: everything the server
+      # writes. The only place it writes.
+      - <art root on the host>:/art
+      # Where the backup job writes its generations: a different dataset from
+      # the art root, so losing one does not lose the other.
+      - <backup directory on the host>:/backups
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8770/healthz', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3

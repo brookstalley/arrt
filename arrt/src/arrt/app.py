@@ -24,7 +24,7 @@ from contextlib import asynccontextmanager
 from typing import Final
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from starlette.types import Receive, Scope, Send
@@ -148,6 +148,17 @@ def create_app(
         """
         log.info("refused: %s", error)
         return api.service_error_response(str(error))
+
+    @app.get("/healthz", include_in_schema=False)
+    def healthz() -> PlainTextResponse:
+        """Liveness for a container's healthcheck: the process is up and answering.
+
+        Deliberately not `/api/health`, which reads the whole health panel — the
+        wall's heartbeat, the backup's age, the queue — and so is the right page
+        for a person and the wrong probe for a supervisor that calls every few
+        seconds and restarts what does not answer. This touches nothing.
+        """
+        return PlainTextResponse("ok")
 
     app.include_router(api.router)
     app.include_router(player.router)
