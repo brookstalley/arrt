@@ -62,6 +62,37 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-03: A corpus to choose the next source by
+
+<!-- prawduct: scope=procurement-corpus -->
+
+**Why:** the owner ruled the contemporary-web half of procurement built, not
+retracted: "in-copyright count, users will add those and it's not our place to
+limit them." Which source to build first should be measured, not guessed.
+
+**What:**
+- `procurement-corpus.md`:
+  - **Part A:** 59 works by the owner's 19 anchors, each with a verified QID or
+    the search that found none, a rights band, the failures expected, and a
+    prediction for today's pool and for the source that would get it, written
+    before any run.
+  - **Part B:** a held-out list of 34 artists for discovery.
+  - **Gaps:** seven product gaps the research exposed.
+- The ruling recorded in `nonfunctional-requirements.md` § The Supply Horizon and
+  `project-state.yaml` § integrations, where the question was held open.
+
+- **The owner's rulings:**
+  - Small images are placeholders for better versions, so they are worth getting.
+  - Every work stays.
+  - The first Get runs on the NAS.
+  - The gaps are mine to rule on; I ruled on each in the artifact.
+- `tests/preferences/test_held_out_artists.py`: no Part B artist may be named
+  under `arrt/src` or be an artist in `all.json`. On its first run it failed on
+  Magritte, Jasper Johns and Vasarely, all three already in the library. They came
+  off the list for three artists from the reserve.
+
+Nothing has been run against the corpus yet.
+
 ## 2026-10-03: No mat near black
 
 <!-- prawduct: scope=mat-floor -->

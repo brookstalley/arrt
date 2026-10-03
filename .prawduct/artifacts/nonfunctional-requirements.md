@@ -935,10 +935,13 @@ gets a run that spends money and returns nothing.
 oversight** (operator, 2026-08-04: *record rights, do not gate, do not filter*).
 Constraint 13 already holds rights to a quality weight and never an exclusion, and
 nothing measured here amends it — none of this is about whether a work may be
-shown. What is open, and is deliberately left open, is whether the contemporary-web
-half of that integrations decision gets built or gets retracted. Until one of those
-happens this section exists so the horizon is read rather than rediscovered, which
-so far has cost two runs.
+shown. Whether the contemporary-web half of that integrations decision gets built
+or retracted was left open here until **2026-10-03, when the owner ruled it built**:
+*"in-copyright count, users will add those and it's not our place to limit them."*
+Which source gets built first is a measurement, not a guess: the corpus for it, and
+each work's outcome predicted before any run, is `procurement-corpus.md`. Until a
+source lands this section still exists so the horizon is read rather than
+rediscovered, which so far has cost two runs.
 
 ## Output Quality
 
