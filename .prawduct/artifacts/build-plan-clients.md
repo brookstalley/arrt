@@ -107,6 +107,19 @@ wall, another client's wall, unknown token, a retired wall token refused), for
 contract tests against the schemas and fixtures from all three suites; the
 migration tested on a copy of the dev catalogue.
 
+*Chunk 01 verified 2026-10-02, and one Done-when moved:* a copy of the dev
+catalogue (`~/samsung-art`, 20 tables, 1 wall with the two wall-token columns,
+1 hanging, 1 directive) migrated on first start under this code: the walls
+table became `id, name, created_at, client_id, output`, the `clients` table was
+created, the foreign key `walls.client_id → clients.id` is present, the wall,
+its hanging and its directive kept, `PRAGMA integrity_check` ok and
+`foreign_key_check` empty; the API listed the wall with no client. **Moved to
+Chunk 03:** "contract tests against the schemas and fixtures from all three
+suites" is met by the root and curation suites; the display suite gets its
+test of `client.v1` and `client-heartbeat.v1` in Chunk 03, which is where the
+Player starts reading the one and writing the other (the builder's call,
+2026-10-02, the owner can veto).
+
 ### Chunk 02: Settings › Clients and the Walls screen
 
 **Visual change:** yes
@@ -130,7 +143,10 @@ Frame output keeps working behind the same interface.
 
 Done when: tests with the server double for a wall assigned, a wall taken away,
 the server unreachable (workers keep their caches), and two walls on two
-outputs at once; the client heartbeat validated against its schema.
+outputs at once; the client heartbeat validated against its schema; the display
+suite's contract test reading `client.v1` and `client-heartbeat.v1` and their
+fixtures (moved here from Chunk 01); `.env.example`'s Player section rewritten
+for `CLIENT_TOKEN`.
 
 ### Chunk 04: The HDMI output
 

@@ -370,6 +370,14 @@ arrt`) and open it in a browser.
 
 ### Switch the Pi to HTTP mode, and let it soak — added 2026-09-30
 
+> **Partly done, and changed, 2026-10-02.** The Pi pulled from the NAS in HTTP
+> mode on 2026-10-02 (`build-plan-nas.md` Chunk 05: manifest and 40 renders
+> cached, heartbeat seen on the NAS); the soak below did not run, because the
+> owner skipped the Frame and the Pi's player is stopped. Steps 1, 2 and 5 name
+> the retired wall token: a Player now connects as a client
+> (`CLIENT_TOKEN`, from Settings › Clients), and `build-plan-clients.md`
+> Chunk 05 replaces this soak on the Pi's HDMI output.
+
 **Wave 2b Chunk 04.** Postarr can now pull its wall from Arrt instead of
 reading the shared file. The file channel stays the default, and wave 3 retires
 it only after this has run on the real wall. After wave 2b reaches the Pi:
@@ -396,22 +404,12 @@ it only after this has run on the real wall. After wave 2b reaches the Pi:
 7. Let it run for a few days, then record here what the journal showed. To go
    back, set `MANIFEST_SOURCE=file` and restart.
 
-### The Player token panel on the Walls screen — added 2026-09-30
+### ~~The Player token panel on the Walls screen~~ — retired 2026-10-02
 
-**Wave 2b Chunk 03.** Each wall's section on the Walls screen ends with a
-**Player token** panel. Run `cd arrt && uv run python -m arrt` and open
-the Walls.
-
-1. **A wall with no token** says so and offers "Issue a Player token for …".
-2. **Issuing** shows the token once, in a read-only field with focus on it, and
-   says it is the only time. Reload the page: the token is gone, and the panel
-   says when one was issued. Is "shown once, in place" clear enough that nobody
-   reloads before copying it?
-3. **Rotating** asks first, naming the wall and the consequence (the current
-   Player stops until it has the new token). Cancel keeps the old token working.
-4. The panel sits below the manifest's three panels on every wall. Does a token
-   belong on the home screen at all, or on a wall's own settings once one
-   exists? It's here because the Walls screen is where walls are managed today.
+The per-wall token and its panel were retired by `build-plan-clients.md`
+Chunk 01: a Player now connects as a **client** with one token, issued on
+Settings › Clients (Chunk 02). Nothing here is left to check; the clients
+entry replaces it when Chunk 02 lands.
 
 ### Next and show_now move the wall without a sync — added 2026-09-30
 
