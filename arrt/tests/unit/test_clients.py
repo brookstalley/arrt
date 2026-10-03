@@ -8,7 +8,6 @@ one surface would be a rule the other could miss.
 import hashlib
 import json
 import logging
-import threading
 from dataclasses import replace
 
 import pytest
@@ -206,24 +205,11 @@ def test_refusals_are_logged_once_per_subject_per_interval(store, clients, pi, w
             access.admit(wall_id, other_token)
         now[0] = REFUSAL_LOG_INTERVAL_SECONDS + 1
         access.admit(wall_id, "stale")
-        # Another server's refusal on its own thread, as a live server left by an
-        # earlier test can log one mid-capture: not this access's line to count.
-        stranger = PlayerAccess(store, clock=lambda: 0.0)
-        elsewhere = threading.Thread(target=stranger.admit, args=(wall_id, "another"))
-        elsewhere.start()
-        elsewhere.join()
 
-    # Counted over this access's own lines: the access logger, on this thread.
-    # Every PlayerAccess in the process logs through the same logger, and a live
-    # server left by an earlier test in this worker can refuse a request on its
-    # own thread while this capture is open.
-    here = threading.get_ident()
-    mine = [r.getMessage() for r in caplog.records if r.name == "arrt.programming.access" and r.thread == here]
-    assert sum("an unknown client" in message for message in mine) == 2
-    assert sum("'The Pi in the study'" in message for message in mine) == 1
-    # Neither token reaches any line, from any logger or thread.
-    everything = [record.getMessage() for record in caplog.records]
-    assert not any("stale" in message or other_token in message for message in everything)
+    messages = [record.getMessage() for record in caplog.records]
+    assert sum("an unknown client" in message for message in messages) == 2
+    assert sum("'The Pi in the study'" in message for message in messages) == 1
+    assert not any("stale" in message or other_token in message for message in messages)
 
 
 # -- assignment -------------------------------------------------------------------------

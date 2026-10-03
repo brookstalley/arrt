@@ -7,6 +7,7 @@ three-minute rotation interval is asserted in microseconds.
 """
 
 import json
+import logging
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -83,6 +84,24 @@ WALL_ID = "living-room"
 #: The client's token in every fixture. Distinctive, so a test can search a
 #: journal for it.
 CLIENT_TOKEN = "the-clients-token"
+
+
+@pytest.fixture(autouse=True)
+def _root_logger_as_found() -> Iterator[None]:
+    """Undo whatever a test's `main()` does to the root logger.
+
+    `logs.configure()` sets the root level and attaches a handler on the test's
+    own stderr, which pytest closes when that test ends. Left in place, every
+    later test in the run captures lines it never asked for, and writes each to a
+    closed stream. The curation suite failed on exactly this.
+    """
+    root = logging.getLogger()
+    level, handlers = root.level, list(root.handlers)
+    yield
+    for handler in list(root.handlers):
+        if handler not in handlers:
+            root.removeHandler(handler)
+    root.setLevel(level)
 
 
 @pytest.fixture

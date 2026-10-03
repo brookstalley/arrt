@@ -8,7 +8,6 @@ test a file nobody has on disk.
 """
 
 import sqlite3
-import threading
 from dataclasses import replace
 from datetime import UTC, datetime
 
@@ -152,18 +151,9 @@ def test_opening_again_changes_nothing_and_keeps_an_assignment(tmp_path, caplog)
 
     with caplog.at_level("INFO", logger="arrt.persistence.migrations"):
         second = SqliteCatalogue(open_catalogue_file(path))
-        # Another catalogue migrating on its own thread, as a live server left by
-        # an earlier test in this worker can while this capture is open: its
-        # line is not this open's to count.
-        elsewhere = threading.Thread(
-            target=lambda: open_catalogue_file(_wall_token_catalogue(tmp_path / "elsewhere.sqlite")).close()
-        )
-        elsewhere.start()
-        elsewhere.join()
     try:
         assert (second.get_wall("w-living").client_id, second.get_wall("w-living").output) == ("c1", "frame")
-        here = threading.get_ident()
-        assert not [r for r in caplog.records if r.thread == here and "Dropped walls." in r.getMessage()]
+        assert not [record for record in caplog.records if "Dropped walls." in record.getMessage()]
     finally:
         second.close()
 
