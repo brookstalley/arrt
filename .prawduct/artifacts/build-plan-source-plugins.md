@@ -87,7 +87,7 @@ checked mechanically in Chunk 02 against every stored source row.
 
 - [x] Chunk 01: The plugin interface and loader
 - [x] Chunk 02: Readers
-- [ ] Chunk 03: The Wikidata finder, and sightings
+- [x] Chunk 03: The Wikidata finder, and sightings
 - [ ] Chunk 04: The author's guide, deployment, security model
 - [ ] Chunk 05: Deploy, and check against the corpus
 
@@ -371,6 +371,10 @@ Type: doc-only.
 
 - A `live_museum` test over the corpus's rows found in run 1 (1, 2, 3, 9, 19, 35)
   gets the same source and size through the plugins. It runs by hand with `-n0`.
+- **Carried from Chunk 03's review:** `pages_about` gets a live case in
+  `arrt/tests/live/test_wikidata_shapes_are_still_real.py` (*Drowning Girl*
+  gives a `www.moma.org` page), so the 2026-10-03 measurement stays a check
+  rather than a fixture.
 - Deploy to the NAS. The startup log names the loaded plugins, and the health
   panel shows them.
 - Get the corpus's 50 QIDs again, through a run that writes nothing new for

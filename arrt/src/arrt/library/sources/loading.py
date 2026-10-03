@@ -50,6 +50,7 @@ from arrt.library.discovery.images import (
     ImageQuery,
     ImageQueryUnanswerable,
     ImageSearchFailure,
+    offers_images,
 )
 from arrt.library.sources.plugin import API_VERSION, Declined, SourceContext, SourceParts, SourcePlugin
 from arrt.library.sources.reading import FetchLocator, Reader
@@ -230,6 +231,9 @@ class _ContainedFinder:
         self._inner = inner
         self._plugin = plugin
         self._faults = faults
+        #: Carried from the plugin's finder, so the pool can tell a finder of
+        #: pages from one of images through the containment.
+        self.offers_images = offers_images(inner)
 
     @property
     def provider(self) -> str:
@@ -541,6 +545,8 @@ def _breach(name: str, plugin: SourcePlugin, parts: SourceParts) -> str | None:
                 f"its {part} records images under {recorded.provider!r}, and a plugin's parts must use the "
                 f"plugin's own name, {name!r}, so stored rows name the plugin that found them"
             )
+    if parts.finder is not None and not isinstance(getattr(parts.finder, "offers_images", True), bool):
+        return "its finder's offers_images is not a bool, so whether it finds images cannot be read"
     if parts.reader is not None and plugin.claims is None:
         return "it provides a reader and declares no claims, so no URL would ever reach it"
     if parts.reader is None and plugin.claims is not None:

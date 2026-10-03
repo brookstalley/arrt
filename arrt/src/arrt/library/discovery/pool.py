@@ -32,6 +32,7 @@ from arrt.library.discovery.images import (
     ImageQuery,
     ImageQueryUnanswerable,
     ImageSearchFailure,
+    offers_images,
 )
 
 log = logging.getLogger(__name__)
@@ -113,15 +114,20 @@ class ImageSourcePool:
             ]
             images: list[FoundImage] = []
             pages: dict[FoundPage, None] = {}
+            answered: list[str] = []
+            pages_only: list[str] = []
             unreachable: list[str] = []
             declined: list[str] = []
-            for provider, future in pending:
+            for source, (provider, future) in zip(self._sources, pending, strict=True):
                 try:
                     for found in future.result():
                         if isinstance(found, FoundPage):
                             pages[found] = None
                         else:
                             images.append(found)
+                    # A finder of pages answering says nothing about whether an
+                    # image exists, so it is not a source that answered.
+                    (answered if offers_images(source) else pages_only).append(provider)
                 except ImageQueryUnanswerable:
                     # Not asked, in effect: this source has nothing to say about
                     # works like this one, which is neither "holds none" nor "down".
@@ -133,12 +139,15 @@ class ImageSourcePool:
                         extra={"event": "image_pool.unreachable", "provider": provider, "work_title": query.title},
                     )
                     unreachable.append(provider)
-        if len(unreachable) + len(declined) == len(self._sources):
-            # No source answered. Nothing is known about the work, so it is not
-            # recorded as held by nobody; it waits, as when every source is down.
+        if not answered:
+            # No source of images answered. Nothing is known about the work, so
+            # it is not recorded as held by nobody; it waits, as when every source
+            # is down. The pages found are dropped with the answer, and a later
+            # search of the work finds them again.
             if unreachable:
                 raise ImageSearchFailure(f"No image source could be asked: {', '.join(unreachable)}.")
-            raise NoSourceCanAnswer(f"No image source can look this work up: {', '.join(declined)} cannot.")
+            cannot = [*(f"{name} cannot" for name in declined), *(f"{name} finds pages only" for name in pages_only)]
+            raise NoSourceCanAnswer(f"No image source can look this work up: {'; '.join(cannot)}.")
         return PoolAnswer(images=tuple(images), unreachable=tuple(unreachable), pages=tuple(pages))
 
     def fetch_preview(self, provider: str, url: str) -> bytes | None:

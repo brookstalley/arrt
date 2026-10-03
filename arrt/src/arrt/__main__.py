@@ -23,6 +23,7 @@ from arrt.library.discovery.conversation import (
     build_conversation_engine,
 )
 from arrt.library.discovery.engine import DiscoveryEngine, unavailable_engine
+from arrt.library.discovery.images import offers_images
 from arrt.library.discovery.openrouter import OpenRouterClient
 from arrt.library.discovery.phase_one import build_engine
 from arrt.library.registry import Registry
@@ -133,11 +134,11 @@ def _sources(settings: Settings, registry: Registry | None) -> SourceRoster:
 def _no_finder(sources: SourceRoster) -> str:
     """Why no finder loaded, from each plugin's own answer, for the startup line.
 
-    A loaded plugin with no finder (one that only reads, or only offers a
-    collection) is named as such, so the line never says nothing is installed
-    while something is.
+    A loaded plugin that finds no image (one that only reads, only offers a
+    collection, or only finds pages) is named as such, so the line never says
+    nothing is installed while something is.
     """
-    reasons = [f"{reading.name}: {reading.reason or 'loaded, and offers no finder'}" for reading in sources.observe()]
+    reasons = [f"{reading.name}: {reading.reason or 'loaded, and finds no image'}" for reading in sources.observe()]
     return f"none ({'; '.join(reasons)})" if reasons else "none (no source plugin is installed)"
 
 
@@ -248,8 +249,8 @@ def main(argv: Sequence[str] = ()) -> None:
     sources = _sources(settings, registry)
     log.info(
         "phase2 image_sources=%s previews=%s preview_sweep=%s",
-        ",".join(source.provider for source in sources.finders) or _no_finder(sources),
-        settings.previews_path if sources.finders else "disabled",
+        ",".join(source.provider for source in sources.finders if offers_images(source)) or _no_finder(sources),
+        settings.previews_path if any(offers_images(source) for source in sources.finders) else "disabled",
         # On this line rather than its own: the directory and the only thing
         # that reclaims it are one operational fact, and a deployment reading
         # `previews=<path>` with no sweep beside it is the state § Risks names.

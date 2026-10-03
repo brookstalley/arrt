@@ -166,6 +166,14 @@ class Finder(Protocol):
     `resolving_images`, and the wording a caller reads comes from whether the
     wiring is there. A refusing stand-in here would be a second way to express
     the same absence, and the two would eventually disagree.
+
+    **A finder that offers only pages says so**, with a class attribute
+    `offers_images = False` (a `bool`; a finder without one offers images). Its
+    answer says nothing about whether any image of the work exists, so the pool
+    never counts it as a source that answered: a work only it answered for waits,
+    as when no source can be asked, instead of being recorded as held by nobody.
+    An attribute rather than a member of this protocol, so a finder written
+    before it needs no change.
     """
 
     @property
@@ -205,3 +213,8 @@ class Finder(Protocol):
         the `None` this signature already has: it is one more preview that did
         not arrive, and no curator could act on the distinction.
         """
+
+
+def offers_images(finder: Finder) -> bool:
+    """Whether a finder's answer can hold an image, and so whether its answering says anything about one."""
+    return getattr(finder, "offers_images", True) is not False

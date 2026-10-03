@@ -141,6 +141,16 @@ left to that plugin, whose own finder is how its images are found. Turning a
 claimed page into an image needs a reader that reports the image's size and the
 holder's words, which is the paste-URL addition (§ Not in version 1).
 
+**A finder of pages says so, and is never counted as a source that answered.**
+Its class carries `offers_images = False` (a `bool`; a finder without one offers
+images, so one written before this needs no change). An answer from it says
+nothing about whether an image of the work exists, so a work only it answered
+for waits, as when no source can be asked (`NoSourceCanAnswer`), instead of
+being recorded as held by nobody. The startup line lists only the finders that
+offer images. *Mine,* 2026-10-03, after review found the gap: with the Art
+Institute unconfigured and Commons not loaded, the Wikidata finder's answer alone
+would have recorded works as held by nobody.
+
 **The item's image (P18) stays the Commons finder's**, read as an image with its
 size, as before plugins. *The owner's choice, 2026-10-03,* over two others: the
 Wikidata finder taking P18, which would put Commons' size rule in two plugins

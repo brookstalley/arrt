@@ -217,6 +217,12 @@ repository. Contract: `source-plugins.md`. Plan: `build-plan-source-plugins.md`.
   from the installed entry points. It named `artic.py` and `commons.py` by hand,
   so the new plugin would have gone unchecked.
 - `test_discovery_store.py`: the expected schema gained `sightings`.
+- **Fixed after review:** a finder of pages declares `offers_images = False`,
+  and the pool does not count it as a source that answered. Before the fix, the
+  Wikidata finder's answer alone, pages or none, recorded a work as held by
+  nobody. The startup line lists only finders of images, so
+  `test_startup_names_every_image_source_it_wires_in_order` is back to its
+  original assertion, plus a check that `wikidata` loaded.
 
 ## 2026-10-03: A corpus to choose the next source by
 

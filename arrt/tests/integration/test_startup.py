@@ -603,9 +603,10 @@ def test_startup_with_init_creates_the_root_and_serves(tmp_path, monkeypatch):
 
 
 def test_startup_names_every_image_source_it_wires_in_order(tmp_path, monkeypatch, caplog):
-    """Commons first, then the Art Institute, then the plugins the order does not name, by name.
+    """Commons first, then the Art Institute: the order breaks ties, so it is worth reading.
 
-    The order breaks ties, so it is worth reading.
+    The Wikidata plugin loads too, with the same user agent, and is not named:
+    it finds pages, not images, and the line says which sources can supply one.
     """
     art_root = tmp_path / "art"
     art_root.mkdir()
@@ -619,7 +620,8 @@ def test_startup_names_every_image_source_it_wires_in_order(tmp_path, monkeypatc
     with caplog.at_level("INFO"):
         entry_point.main()
 
-    assert "phase2 image_sources=commons,artic,wikidata " in caplog.text
+    assert "phase2 image_sources=commons,artic " in caplog.text
+    assert "source plugin wikidata loaded" in caplog.text
 
 
 def test_startup_with_no_image_source_says_which_settings_would_add_one(tmp_path, monkeypatch, caplog):

@@ -13,15 +13,16 @@ import pytest
 from fakes import FakeFinder, FakeRegistry
 from plugin_fakes import StubFinder, claims_example
 
-from arrt.library.discovery.images import FoundImage, FoundPage, ImageQuery
+from arrt.library.discovery.images import FoundImage, FoundPage, ImageQuery, ImageQueryUnanswerable, offers_images
 from arrt.library.discovery.phase_two import PhaseTwoEngine
-from arrt.library.discovery.pool import ImageSourcePool
+from arrt.library.discovery.pool import ImageSourcePool, NoSourceCanAnswer
 from arrt.library.registry import ItemId
 from arrt.library.services.discovery import ChosenWork
 from arrt.library.services.previews import PreviewCache, PreviewSettings
 from arrt.library.services.runner import DiscoveryRunner
 from arrt.library.services.sightings import HostCount, SightingService
-from arrt.library.sources.loading import FAULT_EVENT, FAULT_LOGGER, SourceRoster
+from arrt.library.sources import SourceContext
+from arrt.library.sources.loading import FAULT_EVENT, FAULT_LOGGER, SourceRoster, load_sources
 from arrt.library.sources.wikidata import WikidataFinder
 from arrt.persistence.discovery_records import (
     CandidateWork,
@@ -197,6 +198,48 @@ def test_a_finder_answering_something_that_is_neither_image_nor_page_is_a_contai
     assert answer.pages == ()
 
 
+@pytest.mark.parametrize("pages", [(FoundPage(url=MOMA),), ()], ids=["with pages", "with none"])
+def test_a_finder_of_pages_alone_is_not_a_source_that_answered(pages):
+    """Its answer says nothing about images, so the work waits rather than being held by nobody."""
+    roster = SourceRoster.of(finders=[_Pages("wikidata", *pages, offers_images=False)])
+
+    with pytest.raises(NoSourceCanAnswer, match="wikidata finds pages only"):
+        ImageSourcePool(roster.finders).find_images(ImageQuery(title="Drowning Girl", qid=ItemId(DROWNING_GIRL)))
+
+
+def test_a_finder_of_pages_beside_one_that_declined_still_leaves_the_work_waiting():
+    roster = SourceRoster.of(finders=[_Raw("commons", _declines), _Pages("wikidata", FoundPage(url=MOMA), offers_images=False)])
+
+    with pytest.raises(NoSourceCanAnswer, match="commons cannot; wikidata finds pages only"):
+        ImageSourcePool(roster.finders).find_images(ImageQuery(title="Drowning Girl"))
+
+
+def test_an_image_source_answering_nothing_beside_a_finder_of_pages_is_held_by_nobody():
+    """The other direction: an image source did answer, so the empty answer is a fact about the work."""
+    roster = SourceRoster.of(finders=[_Raw("artic", list), _Pages("wikidata", FoundPage(url=MOMA), offers_images=False)])
+
+    answer = ImageSourcePool(roster.finders).find_images(ImageQuery(title="Drowning Girl"))
+
+    assert (answer.images, answer.unreachable, answer.pages) == ((), (), (FoundPage(url=MOMA),))
+
+
+def test_the_loaded_wikidata_plugin_is_a_finder_of_pages_through_the_containment():
+    """Read from the real entry point and the real loader: the declaration has to survive the wrapping."""
+    roster = load_sources(
+        SourceContext(
+            environ={"WIKIDATA_USER_AGENT": "arrt-tests/0"},
+            user_agent="arrt-tests/0",
+            preview_max_bytes=1,
+            registry=FakeRegistry(),
+        ),
+        order=(),
+    )
+
+    finders = {finder.provider: finder for finder in roster.finders}
+    assert offers_images(finders["wikidata"]) is False
+    assert offers_images(finders["commons"]) is True
+
+
 def test_phase_two_passes_the_pages_on_untouched(settings):
     engine = PhaseTwoEngine(
         ImageSourcePool(SourceRoster.of(finders=[_Pages("wikidata", _page(MOMA))]).finders),
@@ -283,11 +326,16 @@ def _open_work(store, run_id: str, qid: str, **state) -> CandidateWork:
 
 
 class _Pages:
-    """A finder that answers the same pages for every work, and no image."""
+    """A finder that answers the same pages for every work, and no image.
 
-    def __init__(self, provider: str, *pages: FoundPage) -> None:
+    It says it offers images unless told otherwise: a finder of images that found
+    only pages this time, which is a real answer of "no image here".
+    """
+
+    def __init__(self, provider: str, *pages: FoundPage, offers_images: bool = True) -> None:
         self._provider = provider
         self._pages = pages
+        self.offers_images = offers_images
 
     @property
     def provider(self) -> str:
@@ -312,7 +360,12 @@ class _Raw:
         return self._provider
 
     def find_images(self, query: ImageQuery) -> list[FoundImage | FoundPage]:
-        return [self._build()]
+        answer = self._build()
+        return answer if isinstance(answer, list) else [answer]
 
     def fetch_preview(self, url: str) -> bytes | None:
         return None
+
+
+def _declines():
+    raise ImageQueryUnanswerable("this finder looks a work up by item")

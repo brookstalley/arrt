@@ -43,6 +43,10 @@ PROVIDER: Final[str] = "wikidata"
 class WikidataFinder:
     """The pages a work's Wikidata item records."""
 
+    #: Pages only: its answer says nothing about whether an image of the work
+    #: exists, so the pool does not count it as a source that answered.
+    offers_images = False
+
     def __init__(self, *, registry: Registry) -> None:
         self._registry = registry
 

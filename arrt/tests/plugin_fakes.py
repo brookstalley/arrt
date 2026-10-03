@@ -170,12 +170,23 @@ def _claims_without_reader(context: SourceContext) -> SourceParts:
     return SourceParts(finder=StubFinder("claimer"))
 
 
+class UnclearAboutImages(StubFinder):
+    """A finder whose `offers_images` is not a bool: neither "pages only" nor "images" can be read from it."""
+
+    offers_images = "no"
+
+
+def _unclear_about_images(context: SourceContext) -> SourceParts:
+    return SourceParts(finder=UnclearAboutImages("x"))
+
+
 def _leaky(context: SourceContext) -> SourceParts:
     raise RuntimeError("401 for url https://api.example.net/v1/search?key=sk-live-123&q=x")
 
 
 RAISING_PROVIDER = SourcePlugin(api_major=1, create=_raising_provider)
 NOT_A_FINDER = SourcePlugin(api_major=1, create=_not_a_finder)
+UNCLEAR_ABOUT_IMAGES = SourcePlugin(api_major=1, create=_unclear_about_images)
 READER_WITHOUT_CLAIMS = SourcePlugin(api_major=1, create=_reader_without_claims)
 CLAIMS_WITHOUT_READER = SourcePlugin(api_major=1, create=_claims_without_reader, claims=claims_example)
 LEAKY = SourcePlugin(api_major=1, create=_leaky)

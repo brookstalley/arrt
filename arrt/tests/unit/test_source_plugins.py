@@ -166,6 +166,7 @@ def test_the_collection_is_the_most_preferred_plugins_that_offers_one():
     [
         ("RAISING_PROVIDER", "its parts raised while being checked: RuntimeError: the provider property broke"),
         ("NOT_A_FINDER", "its finder is a str, which is not a Finder"),
+        ("UNCLEAR_ABOUT_IMAGES", "its finder's offers_images is not a bool"),
         ("READER_WITHOUT_CLAIMS", "it provides a reader and declares no claims"),
         ("CLAIMS_WITHOUT_READER", "it declares claims and provides no reader"),
     ],
