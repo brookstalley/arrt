@@ -62,6 +62,27 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-02: Arrt on the NAS
+
+<!-- prawduct: scope=nas -->
+
+**Why:** the server ran on the Pi beside the Player. The owner chose to move it
+to the NAS now, ahead of the store split (`re-architecture.md` § Order of work).
+
+**What:**
+- **A container image** (`arrt/Dockerfile`): uv-managed Python 3.14 and the
+  `dezoomify-rs` binary, a memory limit in place of systemd's `MemoryMax`, no
+  Pango.
+- **The backup writer**: the catalogue copied with SQLite's backup API at start
+  and daily, fourteen generations kept, its last run shown on the panel; the
+  image tree is left to the storage's own snapshots.
+- **The homelab half** lives in the operator's private repo: the app definition,
+  the seed and deploy script, the LAN-only `.lan` route with no login (a
+  recorded departure from the security model's overlay-network assumption).
+- **Deployed**: the dev library seeded onto the NAS and the app running there.
+  The Pi's move to HTTP was descoped in favour of the clients plan; its open
+  faults are #181 and #182.
+
 ## 2026-10-02: The branch review's three bugs
 
 <!-- prawduct: scope=after-review -->

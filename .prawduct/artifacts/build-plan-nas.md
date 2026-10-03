@@ -92,8 +92,8 @@ Open assumptions:
 - [x] Chunk 01: The container
 - [x] Chunk 02: The backup writer
 - [x] Chunk 03: The homelab half
-- [ ] Chunk 04: Seed and deploy
-- [ ] Chunk 05: The Pi on HTTP
+- [x] Chunk 04: Seed and deploy
+- [x] Chunk 05: The Pi on HTTP — **descoped 2026-10-02**, superseded by `build-plan-clients.md` (see the chunk)
 
 ### Chunk 01: The container
 
@@ -231,6 +231,21 @@ determine Jetson model)" — the old environment opened it on this same kernel
 this morning, and the driver pins are identical, so the fresh environment
 differs somewhere not yet found. (3) The cache test (stop the NAS, the wall
 keeps rotating) waits for (1). Not ticked until the wall rotates from the NAS.
+
+*Chunk 04 closed 2026-10-02:* the router's `arrt.lan` record and the homelab's
+Caddy route were added with the owner's yes, and the owner has since worked
+against the NAS app and directed this branch's merge. No separate record of the
+owner's first look was taken.
+
+*Chunk 05 descoped 2026-10-02, by the owner's direction of the same day:* the
+Pi is not left on the wall-token HTTP mode. `clients.md` (the owner's rulings)
+skips the Frame for now and stopped and disabled the Pi's Player so nothing
+reaches for a set someone is watching; the Pi returns to the server as a
+**client** with an HDMI wall in `build-plan-clients.md` Chunk 05. What this chunk
+did stands as history: the Pi's databases and `.env` snapshotted, its checkout
+on released `main`, the pull from the NAS seen working. Its two open faults
+are backlog, not this plan: the television's art channel (#182) and the label
+panel's driver (#181). The cache test moves to the clients plan's deploy.
 
 ## Verification strategy
 
