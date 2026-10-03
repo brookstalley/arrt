@@ -42,7 +42,14 @@ governed_by:
     dispositions:
       - "an acquisition outcome is a structured event, not prose (backlog #70) → binds Chunk 04: each search, decision, swap, refusal and revert is an event with the work id"
 last_validated: null
+lifecycle: superseded
+archived: 2026-10-03
+superseded_by: "backlog #177 (manual upgrades), #178 (scheduler), #179 (tacularr idea) — parked by the owner as a research and planning spike, 2026-10-02"
+unbuilt_at_archive: "6 of 6 Status items still unticked (Chunk 01: Measure the gate, Chunk 02: The gate as a Library service, Chunk 03: Finding scans for a held work, …) — the scope shipped, but this plan did not finish with it"
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — Upgrades (manual)
 

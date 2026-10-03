@@ -1,5 +1,13 @@
 # Upgrades: finding and taking a better image of a work you hold
 
+> **Status: parked, 2026-10-02 — a research and planning spike.** The owner,
+> the same day: "I love this research but quality upgrades are not the most
+> important thing right now. Let's call it a research and planning spike, save
+> documentation and plans and backlog, then pivot to what's needed to really
+> get the system usable day to day." The plan is archived as superseded by its
+> backlog items (#177 manual upgrades, #178 the scheduler, #179 the tacularr
+> idea); nothing was built. Chunk 01's measurement had not started.
+
 <!-- Requirements and design, written 2026-10-02 from the owner's direction and
 three research passes (tacularr, the *arr apps, Arrt as built). The build is
 `build-plan-upgrades.md` (manual upgrades); a later plan adds the scheduler. -->
