@@ -78,6 +78,7 @@ limit them." Which source to build first should be measured, not guessed.
     before any run.
   - **Part B:** a held-out list of 34 artists for discovery.
   - **Gaps:** seven product gaps the research exposed.
+  - The researchers' notes, in `procurement-corpus-research/`.
 - The ruling recorded in `nonfunctional-requirements.md` § The Supply Horizon and
   `project-state.yaml` § integrations, where the question was held open.
 
@@ -85,7 +86,8 @@ limit them." Which source to build first should be measured, not guessed.
   - Small images are placeholders for better versions, so they are worth getting.
   - Every work stays.
   - The first Get runs on the NAS.
-  - The gaps are mine to rule on; I ruled on each in the artifact.
+  - The gaps were left to the agent to rule on. The agent ruled on each in the
+    artifact.
 - `tests/preferences/test_held_out_artists.py`: no Part B artist may be named
   under `arrt/src` or be an artist in `all.json`. On its first run it failed on
   Magritte, Jasper Johns and Vasarely, all three already in the library. They came
@@ -99,7 +101,7 @@ limit them." Which source to build first should be measured, not guessed.
     This was already recorded on 2026-08-04; my prediction rule contradicted it.
   - Commons answers past the rights boundary with photographs of works, once
     with a photograph of the artist in place of *Whaam!*.
-- Step 3a: the Art Institute holds about a thousand imaged works by 15 of the 19
+- Step 3a: the Art Institute holds about a thousand imaged works by 13 of the 19
   anchors, nearly all above the floor.
 
 The Supply Horizon section carries a dated note pointing at the measurement.
