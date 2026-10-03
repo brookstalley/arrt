@@ -62,6 +62,30 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-02: A Pi is a client of the server
+
+<!-- prawduct: scope=clients -->
+
+**Why:** the owner's rulings in `clients.md`. One host drives any number of walls,
+each on one of its outputs. The server holds which client shows which wall where,
+and the host holds only the server's address and its own token.
+
+**What:**
+- **Clients on the server**: a client has a name, a token (issued once, rotated,
+  never shown again) and the walls assigned to its outputs by name. `GET /client`
+  tells a client its walls; `POST /client/heartbeat` takes its outputs. The
+  per-wall tokens are retired, and the catalogue drops their columns on open.
+- **Settings › Clients and the Walls screen**: add, rename, remove, issue a token,
+  see what a client last reported, and assign a wall to an output.
+- **The Player as a client**: one process supervising one worker per assigned
+  wall, a last-good client document cached, the walls running on through a server
+  outage, and the old `WALL_ID`, `WALL_TOKEN` and `MANIFEST_SOURCE` refused by name.
+- **Deployed 2026-10-02**: the NAS runs this release, the Pi is the client
+  "Living room Pi", and the wall rotates on its HDMI monitor. The way back is in
+  `deploy/README.md`.
+- **Not in this plan**: the Frame (skipped while it is watched), and label
+  outputs (the owner's next direction, after #181).
+
 ## 2026-10-02: An HDMI wall draws on its screen
 
 <!-- prawduct: scope=clients -->
