@@ -603,7 +603,10 @@ def test_startup_with_init_creates_the_root_and_serves(tmp_path, monkeypatch):
 
 
 def test_startup_names_every_image_source_it_wires_in_order(tmp_path, monkeypatch, caplog):
-    """Commons first, then the Art Institute: the order breaks ties, so it is worth reading."""
+    """Commons first, then the Art Institute, then the plugins the order does not name, by name.
+
+    The order breaks ties, so it is worth reading.
+    """
     art_root = tmp_path / "art"
     art_root.mkdir()
     _stub_settings(monkeypatch, art_root, wikidata_user_agent="arrt-tests/0")
@@ -616,7 +619,7 @@ def test_startup_names_every_image_source_it_wires_in_order(tmp_path, monkeypatc
     with caplog.at_level("INFO"):
         entry_point.main()
 
-    assert "phase2 image_sources=commons,artic " in caplog.text
+    assert "phase2 image_sources=commons,artic,wikidata " in caplog.text
 
 
 def test_startup_with_no_image_source_says_which_settings_would_add_one(tmp_path, monkeypatch, caplog):
@@ -632,7 +635,8 @@ def test_startup_with_no_image_source_says_which_settings_would_add_one(tmp_path
     # knows which plugins exist: a third plugin's reason would be missing from that.
     assert (
         "phase2 image_sources=none (commons: WIKIDATA_USER_AGENT is unset, and Commons is reached only through a "
-        "work's Wikidata item; artic: ARTIC_USER_AGENT is unset, and the Art Institute is never asked anonymously) "
+        "work's Wikidata item; artic: ARTIC_USER_AGENT is unset, and the Art Institute is never asked anonymously; "
+        "wikidata: no registry is configured (WIKIDATA_USER_AGENT is unset), and pages are read from a work's item) "
         "previews=disabled"
     ) in caplog.text
 

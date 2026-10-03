@@ -53,6 +53,7 @@ from arrt.persistence.discovery_records import (
     ResolveRunWork,
     RunKind,
     RunStatus,
+    Sighting,
     SpendCategory,
     SpendRecord,
     TurnRole,
@@ -275,10 +276,24 @@ CREATE TABLE IF NOT EXISTS resolve_run_works (
 );
 
 CREATE INDEX IF NOT EXISTS resolve_run_works_by_work ON resolve_run_works(candidate_work_id);
+
+-- Pages about a work that no installed plugin reads (`Sighting`). A new table, so
+-- `CREATE TABLE IF NOT EXISTS` reaches a file written before it. Keyed by the
+-- item and the page together: the same page found again is the same sighting.
+-- Not tied to a candidate work, because a work is one item across every run that
+-- proposed it; rows are never deleted, since a page seen stays seen.
+CREATE TABLE IF NOT EXISTS sightings (
+    wikidata_qid  TEXT NOT NULL,
+    url           TEXT NOT NULL,
+    PRIMARY KEY (wikidata_qid, url)
+);
 """
 
 #: The join's own key. A work appears at most once per resolve run.
 _COVERAGE_KEY: Final[tuple[str, ...]] = ("resolve_run_id", "candidate_work_id")
+
+#: The table's own key: one row per page per item.
+_SIGHTING_KEY: Final[tuple[str, ...]] = ("wikidata_qid", "url")
 
 #: Newest first: a run list is a history, and the run someone is asking about is
 #: almost always the last one.
@@ -533,6 +548,21 @@ class SqliteDiscovery(TableAdapter):
 
     def list_coverage_by_work(self, candidate_work_id: str) -> Sequence[ResolveRunWork]:
         return self._list("resolve_run_works", {"candidate_work_id": candidate_work_id}, _BY_COVERAGE, _coverage)
+
+    # -- sightings --------------------------------------------------------------
+
+    def add_sighting(self, sighting: Sighting) -> bool:
+        row = {"wikidata_qid": sighting.wikidata_qid, "url": sighting.url}
+        return self._store.upsert("sightings", row, pk=_SIGHTING_KEY, on_conflict="ignore") == 1
+
+    def list_open_sightings(self) -> Sequence[Sighting]:
+        rows = self._store.select_rows(
+            'SELECT s."wikidata_qid" AS wikidata_qid, s."url" AS url FROM sightings s WHERE s."wikidata_qid" IN '
+            '(SELECT cw."wikidata_qid" FROM candidate_works cw WHERE cw."verdict" = ? '
+            'OR (cw."resolution_status" = ? AND cw."verdict" = ?)) ORDER BY s."wikidata_qid", s."url"',
+            (str(Verdict.WANTED), str(ResolutionStatus.UNRESOLVED), str(Verdict.PENDING)),
+        )
+        return [Sighting(wikidata_qid=row["wikidata_qid"], url=row["url"]) for row in rows]
 
 
 # -- record to row ------------------------------------------------------------

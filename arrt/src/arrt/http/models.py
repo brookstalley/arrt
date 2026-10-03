@@ -1411,6 +1411,24 @@ class WantedListingOut(BaseModel):
     works: list[WantedWorkOut]
 
 
+class SightingHostOut(BaseModel):
+    """A host with pages for open works that no installed source plugin reads.
+
+    A name, never an address: a sighting's URL came from a registry anyone can
+    edit, and none reaches the browser (`security-model.md` § Direction).
+    """
+
+    host: str
+    #: How many open works it has such a page for.
+    works: int
+
+
+class SightingHostsOut(BaseModel):
+    """Every such host, most works first. Named as `art_review(action='sighting_hosts')` names the same facts."""
+
+    hosts: list[SightingHostOut]
+
+
 class SelectImage(BaseModel):
     """Why this scan rather than the one the pipeline picked."""
 

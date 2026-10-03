@@ -116,6 +116,9 @@ _MAY_REACH_THE_NETWORK = {
     # *that* wrong merges two works under one identity. Standard parsing rather
     # than a hand-rolled split for exactly that reason. No request is made.
     "arrt.library.discovery.dedup",
+    # `urllib.parse` only, to read the host a sighting's page is on: the count by
+    # host is the whole answer, and the page itself is never fetched here.
+    "arrt.library.services.sightings",
 }
 
 _REACHES_THE_NETWORK = {"httpx", "requests", "urllib", "urllib3", "http", "socket", "aiohttp", "openai", "anthropic"}

@@ -1,15 +1,17 @@
 """Every string a registry hands the Library says what it is (`security-model.md` § Direction).
 
 Registry text reaches the browser as words; only a Commons file may become a URL
-there. The client and the page keep those apart by the field's type, so the two
-tests here hold the types:
+there. A work page is a URL too, which the server keeps and never sends there. The
+client and the page keep those apart by the field's type, so the two tests here
+hold the types:
 
 - **every string on the seam's types, and in every question's answer, is one of the
   named kinds**, so a new field or return cannot arrive as a plain `str` that
   nobody decided about; and
 - **a registry answering every question with a stranger's URL** puts it in no
   Commons file, no item id and no identifier key, so the client's checks cannot be
-  skipped by a new query.
+  skipped by a new query. It can make a stranger's URL a work page, which is why
+  a work page reaches no response (`tests/integration/test_sightings_api.py`).
 
 Both are derived from the seam itself, the dataclasses it defines and the methods
 `Registry` declares, so a new type or question is covered by existing, and a new
@@ -35,6 +37,7 @@ from arrt.library.registry import (
     RegistryText,
     RegistryTopic,
     TopicKind,
+    WorkPage,
 )
 from arrt.library.registry.identifiers import IdentifierScheme
 from arrt.library.registry.wikidata import WikidataRegistry
@@ -72,6 +75,7 @@ CALLS = {
     "topic_artists": lambda registry: registry.topic_artists(_A_SUBJECT, limit=5),
     "topics_named": lambda registry: registry.topics_named("anything"),
     "topics_of": lambda registry: registry.topics_of(["Q1"], ["Q2"]),
+    "pages_about": lambda registry: registry.pages_about("Q1"),
 }
 
 
@@ -102,7 +106,7 @@ def _answer_type(question: str) -> object:
 
 def test_the_seam_has_types_and_questions_to_check():
     """A rename that emptied either list would leave the tests below passing on nothing."""
-    assert KINDS == {ItemId, RegistryText, CommonsFile, MuseumIdentifier}
+    assert KINDS == {ItemId, RegistryText, CommonsFile, MuseumIdentifier, WorkPage}
     assert {kind.__name__ for kind in _seam_types()} >= {"RegistryArtist", "RegistryWorkEntry"}
     assert "artist" in _questions()
 
@@ -202,6 +206,8 @@ def test_a_hostile_registry_reaches_no_image_id_or_key(question):
     assert all(value is None or value.startswith(COMMONS) for kind, value in found if kind is CommonsFile)
     assert all(QID.match(str(value)) for kind, value in found if kind is ItemId)
     assert all(value == ASKED for kind, value in found if kind is MuseumIdentifier)
+    # Checked only as an address, because it never leaves the server.
+    assert all(value.startswith(("https://", "http://")) for kind, value in found if kind is WorkPage)
 
 
 def test_the_walk_reaches_an_image_field():

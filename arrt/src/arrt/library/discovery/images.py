@@ -110,6 +110,28 @@ class FoundImage:
     rights_status: RightsStatus | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class FoundPage:
+    """A page about the work that a finder found and does not read itself.
+
+    Not an image: nothing here says the page shows one, how large, or under what
+    title, so phase 2 has nothing to judge, and a page is never an instance. Arrt
+    offers it to the installed plugins' readers instead, and records one that
+    none of them claims as a sighting, evidence of a holder no plugin here reads
+    yet (`source-plugins.md` § Sightings). A finder that knows a page only by its
+    address, as the Wikidata finder knows MoMA's from an identifier, answers with
+    this rather than a `FoundImage` with nothing in it.
+    """
+
+    url: str
+
+    def __post_init__(self) -> None:
+        # Only an address a reader could be given. The registry checks its own,
+        # and this is the check a finder outside this repository gets.
+        if not isinstance(self.url, str) or not self.url.startswith(("https://", "http://")):
+            raise ValueError(f"A found page is an http(s) URL, not {self.url!r}.")
+
+
 class ImageSearchFailure(Exception):
     """A provider could not be asked, or could not be understood.
 
@@ -156,8 +178,8 @@ class Finder(Protocol):
         copy nobody would think to check.
         """
 
-    def find_images(self, query: ImageQuery) -> Sequence[FoundImage]:
-        """Every instance this provider holds for the work, unjudged and unranked.
+    def find_images(self, query: ImageQuery) -> Sequence[FoundImage | FoundPage]:
+        """Every instance this provider holds for the work, unjudged and unranked, and any page it found and cannot read.
 
         Raises `ImageSearchFailure` when the provider could not be asked, and
         `ImageQueryUnanswerable` when it cannot look a work like this one up.

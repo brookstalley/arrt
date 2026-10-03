@@ -43,7 +43,14 @@ from types import MappingProxyType
 from typing import Final, NoReturn
 
 from arrt.library.discovery.browse import BrowseQuery, CollectionBrowse, CollectionBrowseFailure, OfferedGroup
-from arrt.library.discovery.images import Finder, FoundImage, ImageQuery, ImageQueryUnanswerable, ImageSearchFailure
+from arrt.library.discovery.images import (
+    Finder,
+    FoundImage,
+    FoundPage,
+    ImageQuery,
+    ImageQueryUnanswerable,
+    ImageSearchFailure,
+)
 from arrt.library.sources.plugin import API_VERSION, Declined, SourceContext, SourceParts, SourcePlugin
 from arrt.library.sources.reading import FetchLocator, Reader
 from arrt.logs import scrub
@@ -171,14 +178,17 @@ class _Faults:
             return self._count.get(plugin, 0), None if last is None else last[0], None if last is None else last[1]
 
 
-def _images(answer: object, plugin: str) -> tuple[FoundImage, ...]:
+def _images(answer: object, plugin: str) -> tuple[FoundImage | FoundPage, ...]:
     """A finder's answer, checked. Each image is recorded under its own `provider`,
     and previews and fetches are routed back by it, so an image under another
-    plugin's name would be stored and fetched as that plugin's."""
+    plugin's name would be stored and fetched as that plugin's. A page carries no
+    name, because nothing is recorded under one."""
     if isinstance(answer, str | bytes) or not isinstance(answer, Iterable):
         raise _InterfaceBreach(f"find_images answered a {type(answer).__name__}, not a list of FoundImage")
     images = tuple(answer)
     for image in images:
+        if isinstance(image, FoundPage):
+            continue
         if not isinstance(image, FoundImage):
             raise _InterfaceBreach(f"find_images answered a {type(image).__name__} among its images")
         if image.provider != plugin:
@@ -225,7 +235,7 @@ class _ContainedFinder:
     def provider(self) -> str:
         return self._plugin
 
-    def find_images(self, query: ImageQuery) -> Sequence[FoundImage]:
+    def find_images(self, query: ImageQuery) -> Sequence[FoundImage | FoundPage]:
         try:
             return _images(self._inner.find_images(query), self._plugin)
         # Two of the interface's three answers, passed through as themselves with

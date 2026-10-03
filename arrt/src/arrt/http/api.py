@@ -108,6 +108,8 @@ from arrt.http.models import (
     SetAffinity,
     SetIdentity,
     SetVerdict,
+    SightingHostOut,
+    SightingHostsOut,
     SimilarArtistOut,
     SimilarArtistsOut,
     SkippedOut,
@@ -1144,6 +1146,14 @@ def want_candidate(request: Request, work_id: str, body: WantWork) -> CandidateW
 def list_wanted(request: Request) -> WantedListingOut:
     """Every work the curator wants, across runs, newest run first."""
     return WantedListingOut(works=[_wanted_work(entry) for entry in _services(request).discovery.list_wanted()])
+
+
+@router.get("/sightings/hosts")
+def sighting_hosts(request: Request) -> SightingHostsOut:
+    """Which hosts have pages for open works that no installed source plugin reads, by how many works. Names only."""
+    return SightingHostsOut(
+        hosts=[SightingHostOut(host=entry.host, works=entry.works) for entry in _services(request).sightings.hosts()]
+    )
 
 
 @router.get("/candidates/{work_id}/wikidata-matches")

@@ -435,8 +435,12 @@ class FakeRegistry:
         topics_found=None,
         work_topics=None,
         artist_topics=None,
+        pages=None,
     ):
         self.items = items or {}
+        #: QID → the work pages `pages_about` answers; an absent QID has none.
+        self.pages = pages or {}
+        self.pages_asked: list[str] = []
         self.creators = creators or {}
         self.people = people or {}
         self.artists = artists or {}
@@ -552,6 +556,11 @@ class FakeRegistry:
             works={qid: tuple(self.work_topics[qid]) for qid in work_qids if self.work_topics.get(qid)},
             artists={qid: tuple(self.artist_topics[qid]) for qid in artist_qids if self.artist_topics.get(qid)},
         )
+
+    def pages_about(self, qid):
+        self._check()
+        self.pages_asked.append(qid)
+        return sorted(set(self.pages.get(qid, ())))
 
 
 def a_roster(*finders, collection=None) -> SourceRoster:

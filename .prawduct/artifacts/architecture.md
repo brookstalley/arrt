@@ -604,9 +604,12 @@ is no network between planes.
   back to the source an instance was recorded under; a source's URL goes to the
   reader of the plugin that claims it. **Since 2026-10-03 every source is a
   plugin** (`source-plugins.md`), loaded through `arrt.sources` entry points, the
-  two built-ins included, and nothing in the wiring names one. `SOURCE_ORDER`
+  three built-ins included, and nothing in the wiring names one. `SOURCE_ORDER`
   sets the order; its default is Commons (with `WIKIDATA_USER_AGENT`) first and
-  the Art Institute (with `ARTIC_USER_AGENT`) second.
+  the Art Institute (with `ARTIC_USER_AGENT`) second, and a plugin it does not
+  name follows by name. The third built-in, `wikidata`, finds no image: it offers
+  the pages a work's item records, and a page no installed plugin claims is kept
+  as a sighting (`library/services/sightings.py`).
 
   **`Finder` (named `ImageSearch` until 2026-10-03) is phase 2's seam, added 2026-08-02, and it is a seam despite
   costing nothing.** Museum APIs are open and unmetered, so the money argument

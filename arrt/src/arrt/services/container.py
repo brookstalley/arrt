@@ -69,6 +69,7 @@ from arrt.library.services.registry_search import RegistrySearchService
 from arrt.library.services.registry_works import RegistryWorkService
 from arrt.library.services.review import ReviewService
 from arrt.library.services.runner import DiscoveryRunner, DiscoverySettings
+from arrt.library.services.sightings import SightingService
 from arrt.library.services.survey import SurveyService
 from arrt.library.services.sweep import PreviewSweep
 from arrt.library.services.taste import TasteService
@@ -200,6 +201,9 @@ class Services:
     #: Wikidata's items for a wanted work, for the curator to pick from. Over the
     #: same registry as `identity`; says it is off without one.
     wikidata_match: WikidataMatchService
+    #: The pages found for works that no installed plugin reads, by host. Over
+    #: the same routing acquisition uses, so a page a plugin claims is not one.
+    sightings: SightingService
 
     @classmethod
     def bind(
@@ -327,6 +331,7 @@ class Services:
         # sweep: the work is fetched now rather than at the next pass. A lost
         # announcement delays the fetch until the next start, which catches up.
         catalogue_service.subscribe(lambda event: acquisition_queue.nudge() if event.change is WorkChange.ACCEPTED else None)
+        sighting_service = SightingService(discovery, catalogue, route=sources.route)
         runner_service = DiscoveryRunner(
             discovery_service,
             engine,
@@ -337,6 +342,7 @@ class Services:
             # without supplementing, and a run with no collection simply offers
             # nothing.
             collection=sources.collection,
+            sightings=sighting_service,
         )
         return cls(
             catalogue=catalogue_service,
@@ -396,6 +402,7 @@ class Services:
             topics=TopicService(catalogue, registry, kept=kept),
             topic_sweep=topic_sweep,
             wikidata_match=WikidataMatchService(discovery_service, registry),
+            sightings=sighting_service,
         )
 
     def reconcile(self) -> None:

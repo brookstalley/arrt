@@ -178,7 +178,9 @@ bullets below, which were written before the code was read):
   1.0, because it has not left this branch.
 - **The Commons reader moves to Chunk 03.** Its input, a Commons file page, first
   exists when the Wikidata finder offers P18 as one. A reader with no URL to read
-  would be built against a shape nothing produces.
+  would be built against a shape nothing produces. *(Descoped from this plan at
+  Chunk 03, 2026-10-03: P18 stayed the Commons finder's, so that input never
+  exists. See Chunk 03's design note.)*
 - **The roster is the container's only source input** (carried below).
   `SourceRoster.of(...)` builds one from parts without entry points, for tests
   and for anything that assembles sources by hand.
@@ -225,7 +227,8 @@ observations below are real, and land here so this chunk's review covers them):
   a fetch locator (`direct`, `tiles`, or `none`), with the size and the holder's
   title and artist where the page carries them.
 - The Art Institute plugin gains a reader for its object URLs (today's
-  `tile_url`). *(The Commons reader moved to Chunk 03; see the design note.)*
+  `tile_url`). *(The Commons reader moved to Chunk 03, and was descoped there;
+  see both design notes.)*
 - Acquisition asks the readers in order for a stored source's URL:
   - the first that claims it decides the fetch;
   - a URL no reader claims is fetched as recorded, as today (the Google Arts &
@@ -258,14 +261,59 @@ observations below are real, and land here so this chunk's review covers them):
 
 ### Chunk 03: The Wikidata finder, and sightings
 
+**Design, settled at the start of the chunk** (the owner's choice of three,
+2026-10-03; the rest is mine). It replaces the bullets below where they differ:
+
+- **Commons keeps its finder, and no Commons reader is built in this plan.** As
+  the bullets were written, a page the finder offers would reach a reader, and a
+  reader's answer carries no size and none of the holder's own words, so phase 2
+  would drop every such image. Taking P18 into the Wikidata finder would put
+  Commons' size rule in two plugins that may not import each other. Bringing the
+  paste-URL addition forward, so readers report size, would change both sides of
+  the interface. The owner chose the smallest change: P18 stays the Commons
+  finder's, and a curator sees no difference.
+- **The Wikidata finder offers pages only:** every external-identifier claim
+  whose property has a formatter URL, and every P973. It never offers P18.
+- **A finder's answer may carry `FoundPage`s beside its `FoundImage`s**: a page
+  about the work that the finder found and does not read. The pool carries them
+  apart from the images, and phase 2 passes them on untouched. The interface
+  stays 1.0, because it has not left this branch.
+- **Arrt routes each page:** one that no installed plugin claims is a sighting;
+  one that a plugin claims is journalled and left to that plugin. Turning a
+  claimed page into an image needs a reader that reports size, which is the
+  paste-URL addition (`source-plugins.md` § Not in version 1).
+- **A sighting is keyed by the work's Wikidata item**, the only key the Wikidata
+  finder has. A page offered for a work with no item is journalled, not stored.
+- **Sightings store the item and the URL, and nothing else.** Question 1 counts
+  hosts, which are read from the URL. Question 2 gives each URL to `claims`.
+  Question 3 is a read by item.
+- **Question 1 is answered over works still open:** wanted, or unresolved with
+  their verdict pending. A work the catalogue holds is left out, and so is a
+  page that an installed plugin claims now.
+- **There is no caching.** The bullet below assumed the registry client caches;
+  it does not, because caching is done in the services, which a plugin cannot
+  reach. One query per work per resolution attempt needs none.
+- **Measured 2026-10-03 against the live service**, on four corpus items:
+  - besides holders' pages, items carry encyclopedias, catalogues raisonnés and
+    a Google search link (P646, Freebase), so the host count will include noise.
+    Chunk 05 reads it with that in mind;
+  - the Athenaeum's formatter URL goes through `web.archive.org`;
+  - one formatter (BabelNet's) is not a well-formed URL template;
+  - values carry characters a URL must encode (`fr:La_Persistance_de_la_mémoire`).
+
+  *Drowning Girl* (`Q5308687`) carries MoMA (P2014), the Lichtenstein catalogue
+  raisonné (P11885) and P646. The recorded answers are the tests' fixtures.
+
 - A built-in `wikidata` plugin's finder: for a query carrying a QID, every
   external-identifier claim whose property has a formatter URL (P1630), every
   P973, and P18 as a Commons file page. The Commons plugin keeps only its reader,
   because finding a Commons image becomes this finder's P18. Formatter URLs are
   checked as URLs before use, and the registry client's existing caching and
-  user agent apply.
+  user agent apply. *(Changed at design: P18 stays the Commons finder's, no
+  Commons reader is built, and there is no caching to apply. The registry's user
+  agent does apply.)*
 - Each page found goes to the readers. A page none claims is stored as a
-  sighting.
+  sighting. *(A page a plugin claims is journalled and left to it.)*
 - **Persisted format, enumerated before its fields** (the planning rule on
   lock-in). Sightings answer three questions:
   1. Hosts by count, over works that are `wanted` or unresolved.
@@ -280,8 +328,12 @@ observations below are real, and land here so this chunk's review covers them):
   - On a recorded Wikidata item fixture for *Drowning Girl* (`Q5308687`), the
     finder offers the MoMA page through P2014's formatter URL.
   - The fixture also carries a reproduction site's ID; it is offered too, and
-    left to the readers.
-  - An item with no external IDs offers only its P18 image.
+    left to the readers. *(The recording for* Drowning Girl *carries the
+    Lichtenstein catalogue raisonné and a Google link. The Athenaeum and HA! are
+    on* The Persistence of Memory*'s, which is recorded too.)*
+  - An item with no external IDs offers only its P18 image. *(Changed at
+    design: through the pool, the image is the Commons finder's, and the
+    Wikidata finder offers nothing.)*
   - A page no reader claims becomes exactly one sighting, and the same page
     found twice stays one.
   - The hosts query counts only `wanted` and unresolved works: a held work's

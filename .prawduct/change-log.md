@@ -180,6 +180,44 @@ repository. Contract: `source-plugins.md`. Plan: `build-plan-source-plugins.md`.
     scrubbed too, in `_record_failure`. The scrub was first added call site by
     call site, and two verification rounds each found one more site.
 
+**What (Chunk 03):**
+- **The owner chose, at the start of the chunk, that Commons keeps its finder.**
+  The plan's Commons reader is descoped: a reader's answer carries no size, so a
+  P18 page read by it would never become an image. The design note in the plan
+  has the three options.
+- **A finder's answer may carry `FoundPage`s**: pages it found and does not read.
+  The pool keeps them apart from images and each once, phase 2 passes them on,
+  and the containment accepts them. The interface stays 1.0.
+- **A built-in `wikidata` plugin** offers every page a work's item records: each
+  external identifier put into its property's formatter URL, and each P973. It
+  needs the registry, and declines without one.
+- **`Registry.pages_about`**, and a new registry string kind, `WorkPage`: a URL
+  checked only as `http(s)` with a host, never sent to the browser.
+- **Sightings** (`sightings` table; `library/services/sightings.py`): a page no
+  installed plugin claims, stored once per item and URL. The runner records them
+  after each search attempt that answered. A claimed page is journalled and left
+  to its plugin.
+- **Question 1:** `GET /api/sightings/hosts` and
+  `art_review(action='sighting_hosts')` count open works by host, and return
+  host names only.
+
+**Tests changed in Chunk 03, and why:**
+- `test_startup.py`: the startup line names `wikidata` after the two the
+  default order names, and the no-source line carries its decline reason. Both
+  assertions are as exact as before.
+- `test_catalogue_tool.py`: `art_review`'s action list gained `sighting_hosts`,
+  still compared exactly.
+- `test_registry_strings.py`: the registry's kinds gained `WorkPage`, and the
+  hostile-registry test now checks `pages_about` as well. A work page is checked
+  only as an address, so the test now says it can be a stranger's URL, and
+  points to the test that keeps it out of every response.
+- `test_persistence_boundary.py`: `library/services/sightings.py` joins the
+  network allowlist, with its reason: it imports `urllib.parse` to read a host.
+- `test_source_plugins.py`: the built-ins' import guard reads its module list
+  from the installed entry points. It named `artic.py` and `commons.py` by hand,
+  so the new plugin would have gone unchecked.
+- `test_discovery_store.py`: the expected schema gained `sightings`.
+
 ## 2026-10-03: A corpus to choose the next source by
 
 <!-- prawduct: scope=procurement-corpus -->

@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from arrt.library.discovery.images import (
     Finder,
     FoundImage,
+    FoundPage,
     ImageQuery,
     ImageQueryUnanswerable,
     ImageSearchFailure,
@@ -53,10 +54,14 @@ class PoolAnswer:
     `unreachable` names the sources that could not be asked. It is empty when
     every source answered, which is the only case in which an empty `images`
     means no source holds the work.
+
+    `pages` are the pages the sources found and do not read, each once, kept apart
+    from the images because nothing about them can be judged (`FoundPage`).
     """
 
     images: Sequence[FoundImage]
     unreachable: tuple[str, ...]
+    pages: tuple[FoundPage, ...] = ()
 
 
 class ImageSourcePool:
@@ -107,11 +112,16 @@ class ImageSourcePool:
                 for source in self._sources
             ]
             images: list[FoundImage] = []
+            pages: dict[FoundPage, None] = {}
             unreachable: list[str] = []
             declined: list[str] = []
             for provider, future in pending:
                 try:
-                    images.extend(future.result())
+                    for found in future.result():
+                        if isinstance(found, FoundPage):
+                            pages[found] = None
+                        else:
+                            images.append(found)
                 except ImageQueryUnanswerable:
                     # Not asked, in effect: this source has nothing to say about
                     # works like this one, which is neither "holds none" nor "down".
@@ -129,7 +139,7 @@ class ImageSourcePool:
             if unreachable:
                 raise ImageSearchFailure(f"No image source could be asked: {', '.join(unreachable)}.")
             raise NoSourceCanAnswer(f"No image source can look this work up: {', '.join(declined)} cannot.")
-        return PoolAnswer(images=tuple(images), unreachable=tuple(unreachable))
+        return PoolAnswer(images=tuple(images), unreachable=tuple(unreachable), pages=tuple(pages))
 
     def fetch_preview(self, provider: str, url: str) -> bytes | None:
         """The preview bytes, from the source the instance was recorded under."""

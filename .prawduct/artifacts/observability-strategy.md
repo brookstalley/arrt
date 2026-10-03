@@ -572,6 +572,14 @@ the panel names every installed plugin and what became of it.
   page and MCP).
 - **The System badge counts a failed plugin and a faulting one**, never a
   declined one, which is a choice and not a problem.
+- **Pages a search found are journalled by what became of them** (2026-10-03,
+  `source-plugins.md` § Sightings), all at INFO, since none is a problem:
+  `sightings.recorded` (how many pages, and how many were new sightings),
+  `sightings.claimed` (a page an installed plugin claims, naming the plugin and
+  the host, and left to it), and `sightings.no_item` (pages for a work with no
+  Wikidata item, which have no key to be kept under). The count by host is a
+  query (`GET /api/sightings/hosts`), not a panel signal: it chooses the next
+  reader, and is read when that choice is being made.
 
 ### The panel shows staleness in absolute terms
 

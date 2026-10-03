@@ -85,11 +85,12 @@ dependencies = [
 
 # The source plugins this distribution provides. Registered exactly as a plugin
 # from outside this repository would be, so the wiring imports neither by name and
-# these two are the proof that the loader works (`source-plugins.md` § Loading).
+# these are the proof that the loader works (`source-plugins.md` § Loading).
 # A new entry here is read only after the project is installed again (`uv sync`).
 [project.entry-points."arrt.sources"]
 commons = "arrt.library.sources.commons:PLUGIN"
 artic = "arrt.library.sources.artic:PLUGIN"
+wikidata = "arrt.library.sources.wikidata:PLUGIN"
 
 [dependency-groups]
 # httpx appears here *and* in `[project].dependencies`, deliberately. It is a

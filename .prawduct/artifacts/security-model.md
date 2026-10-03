@@ -64,10 +64,14 @@ identifier.**
   `textContent`.
 - **A registry's strings say what they are.** Every string a registry hands the
   Library, in a type or in a question's answer, is typed as registry text, an
-  item id, a museum identifier the caller asked about, or a Commons file. A plain
-  string fails a test, so a new field or question has to choose. A Commons file is the only
-  kind that may become a URL, and the client keeps one only when its host is
-  `commons.wikimedia.org`.
+  item id, a museum identifier the caller asked about, a Commons file, or a work
+  page. A plain string fails a test, so a new field or question has to choose. A
+  Commons file is the only kind that may become a URL in the browser, and the
+  client keeps one only when its host is `commons.wikimedia.org`. **A work page**
+  (added 2026-10-03, `source-plugins.md` § The Wikidata finder) is a URL the
+  server keeps as a sighting and never sends to the browser, as a link or as
+  text: the sightings route and its MCP twin return its host as a name, which
+  `tests/integration/test_sightings_api.py` holds.
 - **Links out are built from an item id**, never from a URL the registry
   supplied. No test sees this half, which is the Critic's.
 

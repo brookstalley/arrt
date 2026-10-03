@@ -29,6 +29,7 @@ import logging
 import re
 from collections.abc import Iterator, Mapping, Sequence
 from typing import Any, Final
+from urllib.parse import quote, urlsplit
 
 import httpx
 
@@ -53,6 +54,7 @@ from arrt.library.registry import (
     RegistryWorkEntry,
     RegistryWorkMatch,
     TopicKind,
+    WorkPage,
 )
 from arrt.library.registry.identifiers import IdentifierScheme
 
@@ -161,6 +163,18 @@ _KIND_ORDER: Final[tuple[TopicKind, ...]] = (TopicKind.MOVEMENT, TopicKind.PERIO
 
 #: How many search hits a topic search reads, as the search ranks them.
 _TOPICS_SEARCHED: Final[int] = 20
+
+#: Rows one item's pages may return. A famous painting carries a few dozen
+#: identifiers; the cap is there for the same reason `_WORK_ROWS` is.
+_PAGE_ROWS: Final[int] = 500
+
+#: The characters an identifier keeps when it is put into a formatter URL, as
+#: Wikibase's own `wfUrlencode` keeps them; everything else is percent-encoded, so
+#: `fr:La_Persistance_de_la_mémoire` arrives as a URL and not as text.
+_FORMATTER_SAFE: Final[str] = ";:@$!*(),/~"
+
+#: The longest page URL kept. Past this it is not an address anyone typed.
+_PAGE_URL_MAX: Final[int] = 2048
 
 #: The only image URLs passed on: a Commons file, by name.
 _COMMONS_FILE: Final[re.Pattern[str]] = re.compile(r"^https?://commons\.wikimedia\.org/wiki/Special:FilePath/([^?#\s]+)$")
@@ -616,6 +630,33 @@ class WikidataRegistry:
             _collect(rows, set(batch), artists, {"movement": TopicKind.MOVEMENT})
         return RegistryTopicsOf(works=_sorted_refs(works), artists=_sorted_refs(artists))
 
+    def pages_about(self, qid: str) -> Sequence[WorkPage]:
+        item = _require_qid(qid)
+        # Two kinds of statement give a page: an external identifier, put into
+        # its property's formatter URL (MoMA's P2014 and
+        # `https://www.moma.org/collection/works/$1`), and "described at URL"
+        # (P973), which is a URL already. Measured 2026-10-03 on four corpus items
+        # (`build-plan-source-plugins.md` Chunk 03).
+        rows = self._select(f"""SELECT ?prop ?value ?formatter ?described WHERE {{
+              {{ wd:{item} ?direct ?value .
+                 ?prop wikibase:directClaim ?direct ; wikibase:propertyType wikibase:ExternalId ; wdt:P1630 ?formatter . }}
+              UNION {{ wd:{item} wdt:P973 ?described . }}
+            }} LIMIT {_PAGE_ROWS}""")
+        pages: set[WorkPage] = set()
+        for row in rows:
+            described = row.get("described", {}).get("value")
+            formatter, value = row.get("formatter", {}).get("value"), row.get("value", {}).get("value")
+            if isinstance(described, str):
+                page = _work_page(described)
+            elif isinstance(formatter, str) and isinstance(value, str) and "$1" in formatter:
+                page = _work_page(formatter.replace("$1", quote(value, safe=_FORMATTER_SAFE)))
+            else:
+                # A formatter with nowhere to put the identifier names no page.
+                page = None
+            if page is not None:
+                pages.add(page)
+        return sorted(pages)
+
     def close(self) -> None:
         self._http.close()
 
@@ -837,6 +878,24 @@ def _qid(row: Mapping[str, Any], name: str, *, required: bool = True) -> ItemId 
     if required:
         raise RegistryUnavailable(f"A Wikidata result's {name!r} was not an item: {candidate!r}.")
     return None
+
+
+def _work_page(url: str) -> WorkPage | None:
+    """`url` when it is an `http(s)` address with a host and nothing a URL cannot carry; else None.
+
+    The only check a work page gets, because nothing here sends one to the browser
+    (`WorkPage`). A value no reader could fetch, or one that would log as more
+    than one line, is dropped here rather than stored.
+    """
+    if len(url) > _PAGE_URL_MAX or any(character <= " " or character == "\x7f" for character in url):
+        return None
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return None
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        return None
+    return WorkPage(url)
 
 
 def _commons_file(url: str | None) -> CommonsFile | None:

@@ -36,8 +36,8 @@ a `Reader` (`library/sources/reading.py`) only reads.
 
 | Layer | Owner | Input → output | Examples |
 |---|---|---|---|
-| **Finder** | a plugin, per holder; or the Wikidata finder, for every holder Wikidata records | a work → candidate URLs, with what the holder calls the work and the size where known | the Art Institute's search API; an Artlogic site's artist page; Wikidata's holder IDs |
-| **Reader** | a plugin, per protocol or page shape | a URL it claims → how to fetch the image (§ Fetch locators) | an Art Institute object (resolved to IIIF); later a Commons file page, a IIIF manifest, a Google Arts & Culture asset |
+| **Finder** | a plugin, per holder; or the Wikidata finder, for every holder Wikidata records | a work → candidate images, with what the holder calls the work and the size where known; and pages it found and does not read (`FoundPage`) | the Art Institute's search API; an Artlogic site's artist page; Wikidata's holder IDs |
+| **Reader** | a plugin, per protocol or page shape | a URL it claims → how to fetch the image (§ Fetch locators) | an Art Institute object (resolved to IIIF); later a IIIF manifest, a Google Arts & Culture asset |
 | **Fetcher** | Arrt, never a plugin | a fetch locator → the master, on disk | direct HTTP; tiles through `dezoomify-rs` |
 
 A plugin provides at most one finder, at most one reader (which may read many
@@ -131,24 +131,47 @@ For a work with a QID, Arrt itself finds the holders' pages, with no search:
    formatter URL (Wikidata's P1630) gives a page: MoMA's work ID (P2014) and
    `https://www.moma.org/collection/works/$1` give MoMA's page.
 2. Every "described at URL" claim (P973) gives a page.
-3. The item's image (P18) gives a Commons file page. This is what the Commons
-   source does today, which makes it a Wikidata finder result read by the Commons
-   reader.
+
+**It offers pages, never images** (`FoundPage`, `library/discovery/images.py`).
+A page is known only by its address, and whether it shows the work, how large and
+under what title is what phase 2 judges, so a page with none of that cannot be an
+image. Arrt gives each page to the installed plugins' `claims`: a page none
+claims is a sighting (§ Sightings), and a page a plugin claims is journalled and
+left to that plugin, whose own finder is how its images are found. Turning a
+claimed page into an image needs a reader that reports the image's size and the
+holder's words, which is the paste-URL addition (§ Not in version 1).
+
+**The item's image (P18) stays the Commons finder's**, read as an image with its
+size, as before plugins. *The owner's choice, 2026-10-03,* over two others: the
+Wikidata finder taking P18, which would put Commons' size rule in two plugins
+that may not import each other; and readers reporting size now, which changes
+both sides of the interface. So no Commons reader exists, and stored Commons
+rows, which are direct image URLs, are fetched as recorded.
 
 *Measured 2026-10-03, on five corpus rows chosen by hand from the museum-page
 rows (not a random sample):* all five carry a holder's page. MoMA (P2014) is on
 rows 22, 34 and 42, the Pompidou (P6323 and P6355) on row 4, and SFMOMA (P973)
 on row 48. Some items also carry pages that are not holders: the Athenaeum
-(P4144) and HA! (P13023) are reproduction sites. A reader judges what it
-recognises; the finder offers every page.
+(P4144, now reached only through `web.archive.org`) and HA! (P13023) are
+reproduction sites, and items carry encyclopedias, catalogues raisonnés and a
+Google search link (P646, from Freebase) too. A reader judges what it recognises;
+the finder offers every page. So the sightings count below includes hosts that
+hold nothing, and is read with that in mind.
+
+**A page is built and checked by the registry client** (`pages_about`,
+`library/registry/wikidata.py`). The identifier is percent-encoded into the
+formatter as Wikibase encodes it, and the result is kept only if it is an
+`http(s)` URL with a host, with no whitespace or control character and at most
+2048 characters. A formatter with no `$1` names no page. That is all the checking
+it gets, because it never reaches the browser.
 
 **Pages no reader claims are recorded, not dropped** (§ Sightings).
 
 **These URLs never reach the curator's browser.** A formatter URL is
 registry-supplied, and `security-model.md` § Direction allows an outside link
 only to a host this repository names or built from a checked identifier. A page
-the Wikidata finder builds is fetched by the server, and the client is shown a
-source by name.
+the Wikidata finder builds is kept by the server, and fetched only through a
+reader and Arrt's own guarded fetch; the client is shown its host, by name.
 
 ## Sightings
 
@@ -168,10 +191,26 @@ They are stored because of the questions they answer:
    as upgrade candidates.
 
 The first plan stores sightings and answers question 1. Questions 2 and 3 are
-readings the stored rows allow; acting on question 2 waits for the upgrade loop
-(the parked spike on `feature/upgrades`, #177 and #178).
+readings the stored rows allow. Acting on question 2 waits for the upgrade loop
+(the parked spike on `feature/upgrades`, #177 and #178), and for a reader that
+reports an image's size (§ The Wikidata finder).
 Anything a sighting stores is decided by those three, and no other column is
 added for an imagined consumer.
+
+**What is stored** (`sightings`, `data-model.md` § Sighting): the work's
+Wikidata item and the page's URL, once per pair. The host, for question 1, and
+whether a plugin installed since claims the page, for question 2, are both read
+from the URL. *Mine:* keyed by the item, because the item is the only key the
+finder that offers pages has, and a work is one item across every run that
+proposed it. A page offered for a work with no item is journalled, not stored.
+
+**Question 1, as built** (`GET /api/sightings/hosts`,
+`art_review(action='sighting_hosts')`): each host, with how many open works it
+has a page for, most first. *Mine:* open means wanted, or unresolved with the
+verdict still pending; a work the catalogue holds is left out, and so is a page
+an installed plugin claims now. A sighting is recorded from a search attempt that
+answered. Phase 2 raises for one that could not be asked, and that attempt's
+pages are lost with it; a later search of the work records them.
 
 ## Loading
 
@@ -185,8 +224,8 @@ added for an imagined consumer.
   works, and they are the examples a plugin author copies.
 - **What `SourceContext` gives a plugin:** the deployment's user agent
   (`ACQUISITION_USER_AGENT`); the
-  preview size ceiling; the registry, when one is configured (the Commons reader
-  needs none, but the Wikidata finder does); and the environment, read-only, for
+  preview size ceiling; the registry, when one is configured (the Commons and
+  Wikidata finders need it); and the environment, read-only, for
   the plugin's own settings. A plugin documents its own environment variables,
   and the built-ins keep the names deployments already set (`ARTIC_USER_AGENT`,
   `WIKIDATA_USER_AGENT`).

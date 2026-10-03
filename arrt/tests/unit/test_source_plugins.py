@@ -355,8 +355,8 @@ def test_this_distribution_registers_the_built_in_plugins_as_entry_points():
     """Read from the installed metadata: the injected tests above cannot see a typo in pyproject."""
     installed = {point.name: point for point in importlib.metadata.entry_points(group=ENTRY_POINT_GROUP)}
 
-    assert {"commons", "artic"} <= set(installed)
-    for name in ("commons", "artic"):
+    assert {"commons", "artic", "wikidata"} <= set(installed)
+    for name in ("commons", "artic", "wikidata"):
         assert isinstance(installed[name].load(), SourcePlugin), name
 
 
@@ -380,6 +380,7 @@ def test_the_built_in_plugins_load_through_the_real_entry_points():
         ("artic", {}, "ARTIC_USER_AGENT is unset"),
         ("commons", {"WIKIDATA_USER_AGENT": "arrt-tests/0"}, "no registry is configured"),
         ("commons", {}, "WIKIDATA_USER_AGENT is unset"),
+        ("wikidata", {"WIKIDATA_USER_AGENT": "arrt-tests/0"}, "no registry is configured"),
     ],
 )
 def test_a_built_in_plugin_declines_when_its_setting_is_missing(name, environ, said):
@@ -392,10 +393,29 @@ def test_a_built_in_plugin_declines_when_its_setting_is_missing(name, environ, s
     assert said in answer.reason
 
 
+def _built_in_modules() -> list[str]:
+    """The file of every plugin this distribution registers, read from its installed entry points.
+
+    Derived rather than listed, so a built-in added to `pyproject.toml` is held to
+    the rule below without anyone remembering to name it here.
+    """
+    modules = [
+        point.value.split(":")[0]
+        for point in importlib.metadata.entry_points(group=ENTRY_POINT_GROUP)
+        if point.dist is not None and point.dist.name == "arrt"
+    ]
+    return sorted(f"{module.rsplit('.', 1)[1]}.py" for module in modules if module.startswith("arrt.library.sources."))
+
+
+def test_the_built_in_plugin_modules_are_read_from_the_entry_points():
+    """An empty or short list would let the guard below pass over nothing."""
+    assert _built_in_modules() == ["artic.py", "commons.py", "wikidata.py"]
+
+
 def test_the_built_in_plugins_import_nothing_from_arrt_but_the_interface():
     """They are the examples a plugin author copies, so they may not reach past it."""
     offences = []
-    for module in ("artic.py", "commons.py"):
+    for module in _built_in_modules():
         tree = ast.parse((SOURCES / module).read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             names = []
