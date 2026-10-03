@@ -90,7 +90,7 @@ Open assumptions:
 ## Status
 
 - [x] Chunk 01: The container
-- [ ] Chunk 02: The backup writer
+- [x] Chunk 02: The backup writer
 - [ ] Chunk 03: The homelab half
 - [ ] Chunk 04: Seed and deploy
 - [ ] Chunk 05: The Pi on HTTP
