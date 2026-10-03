@@ -301,8 +301,8 @@ class Daemon:
     async def run(self, stop: asyncio.Event) -> None:
         """Reconcile until asked to stop."""
         log.info(
-            "display plane starting against %s",
-            self._settings.art_root,
+            "the Frame starting for wall %s",
+            self._settings.wall_id,
             extra={"event": "daemon.started", **self._settings.startup_lines()},
         )
         crashed = False
@@ -1559,9 +1559,9 @@ def _render_changed(binding: Binding, render: Path) -> bool:
     mat colour rewrites the bytes under an unchanged name; the binding still reads
     `uploaded`, and the television goes on showing the old composition for ever.
     Both `set_mat_color` and `regenerate` are live actions, so this is reachable
-    by ordinary use rather than by mishap. In HTTP mode the cached name is the
-    render's hash, so a re-render arrives under a new name instead; the
-    fingerprint is what notices a change either way.
+    by ordinary use rather than by mishap. A pulled render is named by its
+    hash, so a re-render arrives under a new name instead; the fingerprint is
+    what notices a change either way.
 
     A binding with no recorded fingerprint — every row written before the column
     existed — counts as changed. That costs one re-upload per work on the first

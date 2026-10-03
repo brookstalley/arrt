@@ -121,7 +121,8 @@ written it since wave 2b Chunk 03, omitting `media` for a render whose file it c
 
 ### Transport (wave 2; clients from 2026-10-02)
 
-The file channel keeps working until wave 3 retires it. Over HTTP, a Player is a
+A Player no longer reads the file channel: from `build-plan-clients.md` Chunk 03 it
+always pulls, and refuses a configuration that asks otherwise. Over HTTP, a Player is a
 **client** (`clients.md`): an installed Player with one token, driving any number
 of walls, each on one of its outputs. It learns its walls from the server.
 

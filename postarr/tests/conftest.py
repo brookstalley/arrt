@@ -15,7 +15,7 @@ import pytest
 from fakes import FakeTv
 from hypothesis import settings as hypothesis_settings
 
-from postarr.config import Settings
+from postarr.config import CACHED_MANIFEST_FILENAME, ClientSettings, FrameSettings, Settings
 from postarr.daemon import Clock, Daemon
 from postarr.manifest import Watcher
 from postarr.state import DisplayState
@@ -76,27 +76,36 @@ class FakeClock:
 
 #: The wall every fixture in this suite serves. A readable literal rather than a
 #: UUID because what the plane requires is *a* wall id, and the assertions that
-#: name a file are legible with this one. Module-level so a test that has an art
-#: root but no `Settings` can still say which wall's file it means.
+#: name a file are legible with this one. Module-level so a test that has a wall
+#: directory but no `Settings` can still say which wall's file it means.
 WALL_ID = "living-room"
+
+#: The client's token in every fixture. Distinctive, so a test can search a
+#: journal for it.
+CLIENT_TOKEN = "the-clients-token"
 
 
 @pytest.fixture
-def art_root(tmp_path: Path) -> Path:
-    root = tmp_path / "art"
+def cache_dir(tmp_path: Path) -> Path:
+    """`CACHE_DIR`: every wall this client serves has a directory under it."""
+    return tmp_path / "cache"
+
+
+@pytest.fixture
+def wall_dir(cache_dir: Path) -> Path:
+    """The fixture wall's directory, as `ClientSettings.wall` derives it."""
+    root = cache_dir / WALL_ID
     (root / "ready").mkdir(parents=True)
     return root
 
 
 @pytest.fixture
-def settings(art_root: Path) -> Settings:
-    """A deployment whose every interval is a round number a test can reason about."""
-    return Settings(
-        art_root=art_root,
-        wall_id=WALL_ID,
+def frame_settings(cache_dir: Path) -> FrameSettings:
+    """A Frame whose every interval is a round number a test can reason about."""
+    return FrameSettings(
         tv_address="10.0.0.1",
         tv_port=8002,
-        tv_token_file=art_root / "token_file",
+        tv_token_file=cache_dir / "token_file",
         tv_client_name="tvpi-test",
         epd_panel_width_px=1448,
         epd_panel_height_px=1072,
@@ -120,7 +129,6 @@ def settings(art_root: Path) -> Settings:
         location_region="USA",
         tv_min_brightness=-4,
         tv_max_brightness=10,
-        poll_interval_seconds=1.0,
         brightness_interval_seconds=300.0,
         upload_timeout_seconds=60.0,
         upload_retry_seconds=300.0,
@@ -131,9 +139,29 @@ def settings(art_root: Path) -> Settings:
         tv_connect_timeout_seconds=30.0,
         tv_retry_min_seconds=5.0,
         tv_retry_max_seconds=300.0,
+    )
+
+
+@pytest.fixture
+def client_settings(cache_dir: Path, frame_settings: FrameSettings) -> ClientSettings:
+    """A client with a Frame. Its server is an address nothing listens on; tests that talk to one replace it."""
+    return ClientSettings(
+        server_url="http://127.0.0.1:9",
+        client_token=CLIENT_TOKEN,
+        cache_dir=cache_dir,
+        poll_interval_seconds=1.0,
         rotation_interval_fallback_seconds=180,
         rotation_shuffle_fallback=False,
+        frame=frame_settings,
     )
+
+
+@pytest.fixture
+def settings(client_settings: ClientSettings, wall_dir: Path) -> Settings:
+    """The fixture wall on the Frame, derived exactly as the supervisor derives it."""
+    derived = client_settings.frame_wall(WALL_ID)
+    assert derived.wall_dir == wall_dir
+    return derived
 
 
 @pytest.fixture
@@ -167,8 +195,8 @@ def daemon(settings: Settings, tv: FakeTv, state: DisplayState, clock: FakeClock
 
 
 @pytest.fixture
-def publish(art_root: Path) -> Callable[..., dict]:
-    """Write a manifest the way curation does, and the renders it names.
+def publish(wall_dir: Path) -> Callable[..., dict]:
+    """Cache a manifest the way the pull does, and the renders it names.
 
     Renders are created by default because their *absence* is a distinct
     behaviour with its own tests — a fixture that silently omitted them would
@@ -215,26 +243,28 @@ def publish(art_root: Path) -> Callable[..., dict]:
                 # so a fixture that rewrote them would move every file's mtime and
                 # make each `sync` look like forty re-renders — which the daemon
                 # now correctly treats as forty re-uploads.
-                render = art_root / "ready" / f"{work_id}.jpg"
+                render = wall_dir / "ready" / f"{work_id}.jpg"
                 if not render.exists():
                     render.write_bytes(b"not really a jpeg")
-        write_manifest(art_root, document, wall_id=wall_id)
+        write_manifest(wall_dir, document, wall_id=wall_id)
         return document
 
     return _publish
 
 
-def write_manifest(art_root: Path, document: object, *, wall_id: str = WALL_ID) -> None:
-    """Publish atomically, exactly as the curation plane does.
+def write_manifest(wall_dir: Path, document: object, *, wall_id: str = WALL_ID) -> None:
+    """Cache a manifest as the pull does: atomically, into the wall's own directory.
 
     Temp file in the same directory then `os.replace`, so a reader never sees a
     partial document — and so the mtime the watcher keys on moves on every write.
 
     **The wall defaults to the one the fixtures serve, and is an argument at
-    all** so a test can publish for a room this device does not serve — which is
-    the whole property one manifest per wall was built for.
+    all** so a test can cache a manifest for another wall on the same client —
+    which lands in that wall's directory, beside this one's, and is the property
+    one directory per wall was built for.
     """
-    target = art_root / f"theme-manifest-{wall_id}.json"
+    target = wall_dir.parent / wall_id / CACHED_MANIFEST_FILENAME
+    target.parent.mkdir(parents=True, exist_ok=True)
     temporary = target.with_suffix(".json.tmp")
     temporary.write_text(json.dumps(document), encoding="utf-8")
     temporary.replace(target)

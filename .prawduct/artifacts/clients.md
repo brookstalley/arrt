@@ -87,6 +87,28 @@ wall's picture and label are still decided in one place. The supervisor polls
 `GET /client`, starts a worker for a newly assigned wall, stops one for a wall
 taken away, and reports outputs.
 
+**As built (`build-plan-clients.md` Chunk 03), where it adds to the above:**
+
+- **The last good client document is kept** in `CACHE_DIR`, so a client
+  restarted while the server is down starts the walls it last knew, each from its
+  own cache, rather than none.
+- **A worker that fails is restarted by the supervisor**, logged at ERROR with a
+  wait that doubles to five minutes. A wall's pull dying ends that wall's worker
+  rather than the process: one process now drives several walls, and stopping it
+  over one wall's fault would blank the others. The supervisor's own failure
+  still ends the process for systemd to restart.
+- **The Frame is reported `connected: true` with no screen size.** It is a
+  television on the network rather than a cable this host can sense; whether it
+  answers is reported per wall (`television_reachable`), and its size is the
+  server's to know, since the render arrives composed for it.
+- **A wall assigned to an output this client lacks**, or to an output another
+  wall already holds, is reported once at ERROR and not started; the wall goes
+  on being shown nowhere until the assignment changes.
+- **A wall id that is not a plain directory name is refused**, since it names
+  the wall's directory under `CACHE_DIR`.
+- The Frame's pairing token now defaults to `CACHE_DIR/token_file`; a Player
+  paired under the old default points `TV_TOKEN_FILE` at it.
+
 **The HDMI output** draws the render fitted to the connector's screen, with no
 desktop, as the service user. The technology is chosen by a research pass and
 a spike on the Pi (Chunk 04); waking or switching a TV's input over CEC is a
