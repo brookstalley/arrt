@@ -220,6 +220,39 @@ resolve beside Arrt's locked ones, which is the cost of loading in-process. That
 derived image's recipe lives in the private repository, beside the plugin. This
 repository's `deploy/README.md` shows the shape.
 
+## Considered: 3tears scrape (2026-10-03)
+
+The owner asked whether Arrt should use or contribute to `3tears-scrape`, in
+core or in a plugin. Read at 3tears `origin/develop` `ffa128c0` (0.60.0); the
+agent's verdict, for the owner to overturn: **neither, for now.**
+
+- **It solves a different problem.** It extracts structured *records* from pages
+  (its working example tracks WARN Act notices on state labour sites), using a
+  model to propose and judge extraction recipes. It has no image extraction at
+  all: no `og:image`, `srcset`, IIIF or tiles (searched; no matches).
+- **It cannot be taken in part.** Its required dependencies include 3tears core
+  (NATS client, asyncpg, SQLAlchemy), `3tears-models`, `3tears-agent-tools`,
+  camoufox and Playwright, all pinned to the same 3tears minor version, and it is
+  async throughout. That reverses the reasons Arrt declined 3tears core and kept
+  `3tears-models` out of the default install (`3tears-integration-findings.md`
+  § Consequence for this product). As a private plugin it would put all of that
+  into `/opt/venv`, and break with each 3tears minor release.
+- **A scrape service behind a thin plugin** would only pay off for a site that
+  needs a real browser to get past a bot wall. None of the readers in view
+  (Artlogic, IIIF, museum pages, Google Arts & Culture through `dezoomify-rs`)
+  needs one. Revisit if a source does.
+
+**Ideas taken from it, not code.** Its `challenge.py` keeps "the page was never
+received" apart from "the page changed", which this contract's could-not-be-asked
+rule already does; Arrt's check stays a cheap structural one, not a model call.
+Its per-target fetch health matches what acquisition outcomes and sightings record
+per host.
+
+**What Arrt could contribute back:** scrape checks a URL's address once, then its
+drivers follow redirects unchecked. Arrt's direct fetch re-checks every redirect
+hop (`library/acquisition/transport.py`, `http_stream`). Offering that upstream is
+the owner's call.
+
 ## Not in version 1
 
 Each waits for the first plugin that needs it, so that it is built against a real
