@@ -85,7 +85,7 @@ Open assumptions:
 
 - [x] Chunk 01: Clients on the server
 - [x] Chunk 02: Settings › Clients and the Walls screen
-- [ ] Chunk 03: The Player as a client
+- [x] Chunk 03: The Player as a client
 - [ ] Chunk 04: The HDMI output
 - [ ] Chunk 05: Deploy and look
 
@@ -152,6 +152,12 @@ outputs at once; the client heartbeat validated against its schema; the display
 suite's contract test reading `client.v1` and `client-heartbeat.v1` and their
 fixtures (moved here from Chunk 01); `.env.example`'s Player section rewritten
 for `CLIENT_TOKEN`.
+
+*Chunk 03 verified 2026-10-02 (delegate, merged `9da7ad6`; review
+`rev-20261003T031153Z-f03b252e`, 0 blocking):* root 401 (one fewer: the
+manifest-filename case left `test_heartbeat_contract.py` with the file
+channel), curation 3214, display 747 with `--group raster` passed after the
+merge; lint and format clean in all three projects.
 
 ### Chunk 04: The HDMI output
 
