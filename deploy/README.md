@@ -37,7 +37,8 @@ see the banner above its recipe further down before running anything from it.
 - `arrt/Dockerfile` — the image, built from a commit with everything it
   fetches pinned (base images by digest, Python by version, packages by
   `uv.lock`, `dezoomify-rs` by release and checksum). It runs as an
-  unprivileged user, serves on 8770, writes only under `/art`, and answers
+  unprivileged user, serves on 8770, writes under `/art` and, when
+  `BACKUP_DIR` is set, under `/backups` (both mounts must be writable by it), and answers
   `/healthz` for the container's healthcheck. Build it for the NAS with
   `docker buildx build --platform linux/amd64 -t arrt:<commit> arrt/`; run the
   curation suite inside it with `--target test --build-context repo=.`.
@@ -52,7 +53,7 @@ beside the house's other apps.
 
 - **The art root must carry `ready/` and `thumbs/`, not only `raw/` and the
   catalogue.** The catalogue records each render; until readiness checks that a
-  render's *file* exists (`build-plan-nas.md` Chunk 02), a catalogue without its
+  render's *file* exists (backlog #180), a catalogue without its
   renders publishes works whose files are missing, and a Player on HTTP skips
   every one of them (no file, no hash, no media).
 - **Renders recorded before the media route existed carry no content hash.**

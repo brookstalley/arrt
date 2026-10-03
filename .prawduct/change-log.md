@@ -85,6 +85,34 @@ as the service user.
   second per picture as `tvpi`, colour and black level confirmed by the owner,
   the picture kept by the kernel through a replug, the console restored when the
   program exits. `tvpi` was added to group `video` on the owner's yes.
+## 2026-10-02: Arrt on the NAS
+
+<!-- prawduct: scope=nas -->
+
+**Why:** the server ran on the Pi beside the Player. The owner chose to move it
+to the NAS now, ahead of the store split (`re-architecture.md` § Order of work).
+
+**What:**
+- **A container image** (`arrt/Dockerfile`): uv-managed Python 3.14 and the
+  `dezoomify-rs` binary, a memory limit in place of systemd's `MemoryMax`, no
+  Pango.
+- **The backup writer** (`arrt/src/arrt/persistence/backup.py`): the catalogue
+  copied with `VACUUM INTO` at start and then every `BACKUP_INTERVAL_SECONDS`
+  (default daily) into `BACKUP_DIR`, the newest `BACKUP_KEEP` (default 14)
+  kept, its last run shown on the panel. Only the catalogue: a restore also
+  needs the image tree, left to the storage's own snapshots, and each wall's
+  theme hung again (#180).
+- **`/healthz`** for the container's health check.
+- **The homelab half** lives in the operator's private repo: the app definition,
+  the seed and deploy script, the LAN-only `.lan` route with no login (a
+  recorded departure from the security model's overlay-network assumption).
+- **Deployed**: the dev library seeded onto the NAS and the app running there.
+- **The Pi was cut over to HTTP and then stood down**: its checkout moved to
+  released `main`, HTTP mode switched on and seen pulling from the NAS, its
+  `curation.service` stopped and disabled. The owner then skipped the Frame
+  (`build-plan-clients.md`, on `feature/clients`), so its Player was stopped and
+  disabled too, and the rest of this plan's Chunk 05 moved to that plan. Its open
+  faults are #181 (the label panel) and #182 (the television's art channel).
 
 ## 2026-10-02: The branch review's three bugs
 

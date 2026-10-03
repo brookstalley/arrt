@@ -92,7 +92,7 @@ Open assumptions:
 - [x] Chunk 01: The container
 - [x] Chunk 02: The backup writer
 - [x] Chunk 03: The homelab half
-- [ ] Chunk 04: Seed and deploy
+- [x] Chunk 04: Seed and deploy
 - [x] Chunk 05: The Pi on HTTP *(re-scoped: the wall rotating moves to build-plan-clients.md)*
 
 ### Chunk 01: The container
@@ -194,7 +194,7 @@ image `249a8ec` deployed as the app `arrt`, state RUNNING. On the NAS:
 `art_catalogue` listed 40, the backup taken at start (the panel: "last backed
 up 3 seconds ago", one generation in the backups directory), and *All works*
 hung on the wall published 40 entries with none excluded. Waiting on the owner:
-the router's `arrt.lan` record, and opening it.
+the router's record for the app's `.lan` name, and opening it.
 
 ### Chunk 05: The Pi on HTTP
 
@@ -232,13 +232,17 @@ this morning, and the driver pins are identical, so the fresh environment
 differs somewhere not yet found. (3) The cache test (stop the NAS, the wall
 keeps rotating) waits for (1). Not ticked until the wall rotates from the NAS.
 
+*Chunk 04 closed 2026-10-02:* the router's record for the app's `.lan` name and the homelab's
+Caddy route were added with the owner's yes. The owner directed this branch's
+merge; no separate record of the owner opening the app was taken.
+
 *Chunk 05 re-scoped by the owner, later on 2026-10-02:* "Let's skip the frame,
 I'm watching stuff on it. Instead, let's get the rpi ready to show images over
 hdmi." The Pi's player was stopped and disabled so nothing reaches for the set.
 What this chunk proved stands — the Pi pulls the NAS's manifest and renders and
-the NAS sees its heartbeat — and the rest (a wall rotating from the NAS) moves
-to `build-plan-clients.md` Chunk 05, on HDMI. #182 (the TV's art channel) and
-#181 (the label panel) stay open for when the Frame returns.
+the NAS sees its heartbeat — and the rest (a wall rotating from the NAS, and the
+cache test) moves to `build-plan-clients.md` Chunk 05, on HDMI. #182 (the TV's
+art channel) and #181 (the label panel) stay open for when the Frame returns.
 
 ## Verification strategy
 
