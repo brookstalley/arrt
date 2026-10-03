@@ -71,6 +71,23 @@ class ClientHeartbeatReading:
             return None
         return {output.name for output in self.outputs}
 
+    def describe(self) -> str:
+        """This reading as one sentence, the same words on every surface that shows it.
+
+        Three states and three sentences, because they send the curator to three
+        different places: a client that has never reported has not been started
+        (or cannot reach this server), a report that cannot be read is a Player
+        writing something this server does not understand, and a report with an
+        age is the ordinary case, whose age is the whole of what it says.
+        """
+        if self.absent:
+            return "It has not reported its outputs yet."
+        if self.problem is not None:
+            return f"Its last report could not be read: {self.problem}"
+        # A report present and readable always carries its age: `observe` sets a
+        # problem for every document whose instant it cannot read.
+        return f"It last reported {observations.ago(self.age_seconds or 0.0)}."
+
 
 def client_heartbeat_path_in(art_root: Path, client_id: str) -> Path:
     """Where one client's heartbeat lives under a given art root."""

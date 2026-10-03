@@ -635,28 +635,82 @@ def test_a_repaint_this_screen_did_not_navigate_to_does_not_send_focus_to_the_vi
     assert ui.focused() != "view"
 
 
-# -- where a Player's credential went --------------------------------------------------
+# -- which client shows each wall ------------------------------------------------------
 
 
-def test_the_walls_screen_issues_no_wall_token_and_says_where_players_connect(ui, services, the_wall):
-    """Wall tokens are retired: no panel, no button, no route behind one — and one line saying so.
+def test_the_walls_screen_issues_no_wall_token_and_says_which_client_shows_each_wall(ui, services, the_wall):
+    """Wall tokens are retired: no panel, no button, no route behind one.
 
-    Players connect as clients now, each with its own token, and Settings ›
-    Clients is where they will be managed. The note is said once, under every
-    wall, rather than in each section: it is not a fact about any one wall.
+    Rewritten from *…and says where players connect*, which held the interim note
+    ("Settings › Clients, where they are managed, is not built yet") that stood in
+    for Settings › Clients. That page now exists, so the one global note became a
+    line per wall saying which client shows it; the no-token half is kept as it
+    was, and the per-wall lines have tests of their own below.
     """
+    hall = services.clients.add_client(name="Hall Pi")
+    services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
     study = services.display.add_wall(name="Study")
     ui.open("#walls")
-    ui.page.wait_for_selector("section.wall")
+    ui.page.wait_for_selector("section.wall p.wall-client")
 
     assert ui.page.locator("section.wall").count() == 2
     assert ui.page.locator(".player-token").count() == 0
     assert ui.page.locator("button", has_text="Player token").count() == 0
     assert "Player token" not in ui.text()
     assert "WALL_TOKEN" not in ui.text()
-    note = ui.page.locator("p.clients-note")
-    assert note.count() == 1
-    assert "Players now connect as clients" in note.inner_text()
-    assert "Settings › Clients" in note.inner_text()
-    assert ui.page.locator("section.wall p.clients-note").count() == 0
+    assert "is not built yet" not in ui.text()
+    # One line inside each wall's own section, and none outside them.
+    assert ui.page.locator("section.wall p.wall-client").count() == 2
+    assert ui.page.locator("#view > p.wall-client").count() == 0
     assert study.name in ui.text()
+
+
+def _client_line(ui, wall_name):
+    section = ui.page.locator("section.wall", has=ui.page.locator(f"h3.wall-title:has-text('{wall_name}')"))
+    return section.locator("p.wall-client")
+
+
+def test_an_assigned_wall_says_which_client_shows_it_and_on_which_output(ui, services, the_wall):
+    hall = services.clients.add_client(name="Hall Pi")
+    services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-2")
+    services.display.add_wall(name="Study")
+    ui.open("#walls")
+    ui.page.wait_for_selector("section.wall p.wall-client")
+
+    assert _client_line(ui, the_wall.name).inner_text() == "Shown by Hall Pi on hdmi-a-2"
+    # The other wall's line is its own: an assignment painted under every wall
+    # would read correctly with one wall and be wrong with two.
+    assert _client_line(ui, "Study").inner_text().startswith("No client shows this wall.")
+
+
+def test_an_unassigned_wall_says_no_client_shows_it_and_links_to_where_one_is_assigned(ui, services, the_wall):
+    services.clients.add_client(name="Hall Pi")
+    ui.open("#walls")
+    ui.page.wait_for_selector("section.wall p.wall-client")
+
+    line = _client_line(ui, the_wall.name)
+    assert line.inner_text() == "No client shows this wall. Assign it in Settings › Clients"
+    link = line.get_by_role("link", name="Assign it in Settings › Clients")
+    assert link.get_attribute("href") == "#clients"
+
+    link.click()
+    ui.page.wait_for_selector("#view h2:has-text('Clients')")
+    assert ui.page.locator("nav.sidebar a[data-view='clients'][aria-current='page']").count() == 1
+
+
+def test_a_client_listing_that_never_arrives_still_says_which_output_shows_the_wall(ui, services, the_wall):
+    """The listing is where a client's name is; without it the wall still knows its output.
+
+    Stubbed, for the reason the unreachable-plane tests are: a server cannot be
+    asked to fail on purpose. Nothing else on the screen may go with it.
+    """
+    hall = services.clients.add_client(name="Hall Pi")
+    services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
+    ui.serve("**/api/clients", (503, {"error": "the client listing is down"}))
+    ui.open("#walls")
+    ui.page.wait_for_selector("section.wall p.wall-client")
+
+    line = _client_line(ui, the_wall.name).inner_text()
+    assert line == "Shown on hdmi-a-1 by a client whose name could not be read — the client listing is down"
+    assert ui.page.locator("#error").is_hidden()
+    assert "Nothing is hanging on" in ui.text()

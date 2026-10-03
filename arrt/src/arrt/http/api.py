@@ -1508,6 +1508,7 @@ def _client(view: ClientView) -> ClientOut:
             age_seconds=reading.age_seconds,
             absent=reading.absent,
             problem=reading.problem,
+            description=reading.describe(),
             outputs=[
                 ReportedOutputOut(
                     name=output.name,

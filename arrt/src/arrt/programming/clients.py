@@ -8,7 +8,7 @@ in Programming beside the walls it changes.
 
 **Every rule about a valid assignment is here**, and the store's partial unique
 index is only the weaker statement of one of them: a client's output shows one
-wall. HTTP binds this today; MCP binds it in the next chunk.
+wall. HTTP (Settings › Clients) and MCP (`art_display`) both bind it.
 
 Methods are synchronous, for the reason `catalogue.py` gives.
 """

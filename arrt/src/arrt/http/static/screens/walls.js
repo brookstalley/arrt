@@ -68,6 +68,7 @@ export async function viewWalls(generation) {
   }
 
   const beats = await heartbeats();
+  const shownBy = await clientNames();
   const builds = await Promise.all(walls.walls.map(built));
 
   if (!walls.walls.length) {
@@ -85,14 +86,8 @@ export async function viewWalls(generation) {
     return;
   }
 
-  const sections = walls.walls.map((wall, index) => wallSection(wall, builds[index], beats, themes.themes));
-  render(
-    generation,
-    heading(),
-    ...sections,
-    walls.walls.some((wall) => !wall.theme) ? takeDownNote() : null,
-    clientsNote(),
-  );
+  const sections = walls.walls.map((wall, index) => wallSection(wall, builds[index], beats, themes.themes, shownBy));
+  render(generation, heading(), ...sections, walls.walls.some((wall) => !wall.theme) ? takeDownNote() : null);
 }
 
 /* The one heading on this surface set at `--text-3xl`, and the token's only use.
@@ -118,14 +113,41 @@ function takeDownNote() {
   return el("p", { class: "note", text: "A wall goes on showing what it was showing until a theme is hung." });
 }
 
-/* Where a Player's credential went. Players connect as clients now, each with
- * one token for every wall it shows, so the per-wall token this screen used to
- * issue is gone; the page that manages clients is Settings › Clients, which is
- * not built yet. One line, once, for the reason `takeDownNote` gives. */
-function clientsNote() {
+/* Every client's name by its id, or why they could not be read.
+ *
+ * A wall carries the id of the client that shows it and the output's name; the
+ * client's name is in the client listing. Caught here for `heartbeats`' reason:
+ * a listing that failed is a fact about what this screen can say of each wall,
+ * not a refusal of anything the curator did. */
+async function clientNames() {
+  try {
+    const listing = await api("/api/clients");
+    return { byId: new Map(listing.clients.map((client) => [client.client_id, client.name])) };
+  } catch (failure) {
+    return { failure: failure.message };
+  }
+}
+
+/* Which client shows this wall, on which output, or that none does.
+ *
+ * A wall nobody shows is an ordinary state (`clients.md` § The model), and the
+ * one where everything else on this screen happens to no screen at all — so it
+ * is said, with the way to Settings › Clients, where a wall is assigned. A link
+ * rather than a button, as the sidebar's are: it goes somewhere and does
+ * nothing there. */
+function shownByLine(wall, shownBy) {
+  if (!wall.client_id) {
+    return el("p", { class: "muted wall-client" }, [
+      el("span", { text: "No client shows this wall. " }),
+      el("a", { href: "#clients", text: "Assign it in Settings › Clients" }),
+    ]);
+  }
+  const name = shownBy.byId ? shownBy.byId.get(wall.client_id) : null;
   return el("p", {
-    class: "note clients-note",
-    text: "Players now connect as clients, each with its own token; Settings › Clients, where they are managed, is not built yet.",
+    class: "muted wall-client",
+    text: name
+      ? `Shown by ${name} on ${wall.output}`
+      : `Shown on ${wall.output} by a client whose name could not be read${shownBy.failure ? ` — ${shownBy.failure}` : ""}`,
   });
 }
 
@@ -185,7 +207,7 @@ function reasonFor(wall, build, beats) {
   return "hanging";
 }
 
-function wallSection(wall, build, beats, themes) {
+function wallSection(wall, build, beats, themes, shownBy) {
   const manifest = build.manifest;
   const reason = reasonFor(wall, build, beats);
   return el("section", { class: "wall" }, [
@@ -195,6 +217,7 @@ function wallSection(wall, build, beats, themes) {
     // which room. The single-wall view read correctly by accident, having only
     // one room's worth of headings to confuse.
     el("h3", { class: "wall-title", text: manifest ? `${wall.name}: ${manifest.theme.name}` : wall.name }),
+    shownByLine(wall, shownBy),
     // The server's own sentence about how much of the theme reached the wall,
     // and not repeated when a reason below is about to say the same thing in
     // more useful words: a screen states a fact once, and two copies of one fact

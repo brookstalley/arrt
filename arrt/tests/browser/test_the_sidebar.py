@@ -42,7 +42,7 @@ PAGES = {
     "Artworks": ["Ask", "Themes", "Topics", "Artists"],
     "Walls": [],
     "Activity": ["To review", "Queue", "History"],
-    "Settings": ["Taste"],
+    "Settings": ["Taste", "Clients"],
     "System": ["Status"],
 }
 
@@ -58,6 +58,7 @@ SIDEBAR_PAGES = [
     ("queue", "Queue"),
     ("history", "History"),
     ("taste", "What this product thinks you like"),
+    ("clients", "Clients"),
     ("health", "Status"),
 ]
 

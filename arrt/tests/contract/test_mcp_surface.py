@@ -433,7 +433,40 @@ _ACTS_ON_ONE_WALL = {
     ("art_display", "sync"),
     ("art_display", "show_now"),
     ("art_display", "next"),
+    ("art_display", "assign_wall"),
+    ("art_display", "unassign_wall"),
 }
+
+
+#: Every action that acts on one client, for the reason `_ACTS_ON_ONE_WALL` is
+#: written out: derived from the declarations, it would agree with any answer.
+_ACTS_ON_ONE_CLIENT = {
+    ("art_display", "rename_client"),
+    ("art_display", "remove_client"),
+    ("art_display", "issue_client_token"),
+    ("art_display", "assign_wall"),
+}
+
+
+@pytest.mark.parametrize(("tool_name", "action_name"), sorted(_ACTS_ON_ONE_CLIENT))
+def test_every_act_against_a_client_names_it_and_says_where_its_id_comes_from(tool_name, action_name):
+    """A client id is obtainable from `action='clients'` and from nothing else, so each says so."""
+    action = next(entry for entry in TOOLS_BY_NAME[tool_name].actions if entry.name == action_name)
+
+    client = next((param for param in action.params if param.name == "client_id"), None)
+    assert client is not None and client.required, f"{tool_name}(action={action_name!r}) does not require a client"
+    assert "client_id=" in action.example
+    assert "action='clients'" in " ".join([client.description, *action.tips])
+
+
+def test_the_display_tool_declares_itself_destructive_since_it_can_forget_a_client():
+    """`remove_client` and `issue_client_token` cannot be undone, so the hint must not say otherwise.
+
+    A client that auto-approves non-destructive tools would otherwise rotate a
+    working Player's token, refusing it, without asking anyone.
+    """
+    assert {"remove_client", "issue_client_token"} <= set(ART_DISPLAY.action_names)
+    assert ART_DISPLAY.destructive is True
 
 
 @pytest.mark.parametrize(("tool_name", "action_name"), sorted(_ACTS_ON_ONE_WALL))
@@ -457,7 +490,7 @@ def test_every_act_against_a_wall_names_which_wall(tool_name, action_name):
 def test_the_walls_action_is_where_every_wall_id_comes_from(tools):
     """An action is only usable if its arguments are obtainable from something built.
 
-    Five actions require a `wall_id` and nothing else on the surface returns one,
+    Every action above requires a `wall_id` and nothing else on the surface returns one,
     so this listing is load-bearing rather than a convenience — and the actions
     that need it say where to get it.
     """
