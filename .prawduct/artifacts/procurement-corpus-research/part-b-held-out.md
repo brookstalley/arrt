@@ -1,5 +1,10 @@
 # Discovery corpus — Part B (held-out list)
 
+> **Superseded in part, 2026-10-03.** Magritte, Jasper Johns and Vasarely below came
+> off the held-out list the day it was written, because the library already holds
+> a work by each. Hilma af Klint, Sean Scully and Barbara Kruger replaced them. The
+> list the test reads is the one in `procurement-corpus.md` § Part B, not this one.
+
 Compiled 2026-10-03. The system must never be shown this list. The anchors are listed in the brief and are not repeated here. Anything marked **(inferred)** was not read on a page.
 
 ## B1: established held-out artists (20)

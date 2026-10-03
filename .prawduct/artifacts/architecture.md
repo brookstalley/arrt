@@ -591,7 +591,9 @@ is no network between planes.
   of preference, asks each about a work at once, and keeps three answers apart:
   instances found, nothing held, and could not be asked. **The rule a source
   author most needs:** return an empty list only when the source looked and
-  holds nothing; raise `ImageSearchFailure` when it could not be asked, and
+  holds nothing; raise `ImageSearchFailure` when it could not be asked (for a
+  source that reads pages, that includes a page it does not recognise, such as a
+  site answering 200 with "unavailable": `procurement-corpus.md` § Gaps, 5), and
   `ImageQueryUnanswerable` when it cannot look a work like this up at all (Commons,
   for a work with no Wikidata item). Phase 2 settles a work only on an instance
   that clears the floor while any source was down, and no source answering is no

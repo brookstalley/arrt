@@ -139,7 +139,7 @@ The acquisition path's handling of WebP from a gallery is unchecked.
 
 ## Part A — Procurement
 
-59 works, 2–3 per anchor, researched 2026-10-03. The researchers checked every
+59 works, two or three per anchor (five for Sonia Delaunay, counting her joint works), researched 2026-10-03. The researchers checked every
 QID against the item's type, creator, collection, date and materials. They were
 told not to look at any image on Commons, the Art Institute or a museum's open
 access, and did not. The one exception is the six gallery works (Bull, Stephens),

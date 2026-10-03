@@ -101,6 +101,11 @@ limit them." Which source to build first should be measured, not guessed.
 
 The Supply Horizon section carries a dated note pointing at the measurement.
 
+**Review:** 0 blocking and 1 warning, now fixed. The rulings that bind future
+code (gaps 4–6, and the held-out rule) now have rows in the norm index in
+`project-preferences.md`. `architecture.md`'s rule for source authors now points
+at the unrecognised-page trap.
+
 ## 2026-10-03: No mat near black
 
 <!-- prawduct: scope=mat-floor -->
