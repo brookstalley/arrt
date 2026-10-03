@@ -1,7 +1,8 @@
 """Whether the catalogue has been backed up lately, and how long ago.
 
-The catalogue is the irreplaceable asset — the image tree is deliberately not
-backed up, because every file in it can be fetched again. So "a backup that
+The catalogue is the irreplaceable asset, and the only thing this backs up: the
+image tree is the storage's own snapshots' to keep (a restore carries both,
+`operational-spec.md` § Backup and Restore; #180). So "a backup that
 silently stopped succeeding a month ago" is the failure this reading exists to
 make visible, and `operational-spec.md` names surfacing its age on the health
 panel as part of the backup's design rather than as a nicety.

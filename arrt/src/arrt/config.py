@@ -540,10 +540,10 @@ class Settings:
     def originals_path(self) -> Path:
         """Where acquired master images live.
 
-        Upstream rather than derived: nothing regenerates these, so this is the
-        directory a backup would have to carry if the image tree were backed up
-        at all — and the recorded decision is that it is not, because
-        re-acquisition refills it from the catalogue.
+        Upstream rather than derived: nothing regenerates these. The backup
+        carries the catalogue alone, so these are the storage's own snapshots'
+        to keep; a master whose row survives its file is not re-fetched today
+        (#180).
         """
         return self.art_root / ORIGINALS_DIRNAME
 
@@ -551,9 +551,9 @@ class Settings:
     def ready_path(self) -> Path:
         """Where composed television canvases live.
 
-        Derived and regenerable, so a lost `ready/` costs a re-render rather than
-        a re-acquisition — which is why the backup carries neither this nor the
-        originals beside it. Specific to the television in a way `thumbs/` is
+        Derived and regenerable by a re-render, but nothing re-renders a missing
+        file on its own today (#180), so a restore carries `ready/` with the
+        originals beside it; the backup itself carries neither. Specific to the television in a way `thumbs/` is
         not: the mat is drawn to this panel's physical size.
         """
         return self.art_root / READY_DIRNAME
