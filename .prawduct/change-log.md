@@ -62,6 +62,28 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-02: The mat takes the work's shape
+
+<!-- prawduct: scope=mat-follows-work -->
+
+**Why:** the owner's ruling on #189: "the mat should match the work's aspect
+ratio, and everything outside should be pure black". A square or tall work sat
+in a 16:9 field of mat colour.
+
+**What:**
+- **The compositor** paints the canvas black, the mat as the work's rectangle
+  grown by the mat on the sides and top and the weighted bottom below, then the
+  work where the artwork box already put it. The matted work is centred and as
+  large as fits, on every screen.
+- **The default mat is 1.5"** (was 2.5"), bottom still 1.15x. A deployment that
+  sets `MAT_WIDTH_INCHES` explicitly keeps its own value.
+- **Canvases record the layout they were drawn with** (`renditions.layout`,
+  added on open). Preparation treats another layout as not current, and startup
+  queues a prepare-only row for each accepted work whose canvas is out of date,
+  so existing works are redrawn one at a time while the old canvas stays on the
+  wall. This also closes #74: a changed panel diagonal or mat now reaches
+  canvases already drawn.
+
 ## 2026-10-02: A Pi is a client of the server
 
 <!-- prawduct: scope=clients -->
