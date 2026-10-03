@@ -83,7 +83,7 @@ High. The owner stated the requirement and answered the three open questions.
 - Tests, in `arrt/tests/unit/test_compose.py`: for 1:1, 4:7, 16:9, a 3:1
   panorama, and a work smaller than the box, assert that the pixels outside the
   mat are `#000000`, the mat's margins against the work, and that the mat is
-  centred on the canvas. A 16:9 work fills the canvas with no black.
+  centred on the canvas. A work with the artwork box's shape fills the canvas with no black; a 16:9 work gets a thin band of black at each side.
 - Artifacts: amend `nonfunctional-requirements.md` § The mat is geometric
   with the ruling; add the rule to `re-architecture.md` § Compositing moves to
   the Player; correct comments that describe the old shape (`mat.py` above
