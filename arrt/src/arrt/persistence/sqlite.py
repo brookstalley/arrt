@@ -840,6 +840,17 @@ class SqliteCatalogue(TableAdapter):
         )
         return [row["work_id"] for row in rows]
 
+    def current_mats_of_works_with_canvas(self) -> Sequence[tuple[str, str]]:
+        rows = self._store.select_rows(
+            'SELECT a."id" AS work_id, m."hex_rgb" AS hex_rgb FROM artworks a '
+            'JOIN mat_colors m ON m."artwork_id" = a."id" AND m."is_current" = 1 '
+            'WHERE a."status" = ? '
+            'AND EXISTS (SELECT 1 FROM renditions r WHERE r."artwork_id" = a."id" AND r."kind" = ?) '
+            'ORDER BY coalesce(a."accepted_at", a."created_at"), a.rowid',
+            (str(ArtworkStatus.ACCEPTED), str(RenditionKind.TV_DISPLAY)),
+        )
+        return [(row["work_id"], row["hex_rgb"]) for row in rows]
+
     def get_queued_acquisition(self, artwork_id: str) -> QueuedAcquisition | None:
         return self._get("acquisition_queue", {"artwork_id": artwork_id}, _queued)
 

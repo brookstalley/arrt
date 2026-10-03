@@ -281,7 +281,7 @@ class MatEngine:
         choice = _read_choice(completion)
         if choice is None:
             return self._fallback(image_path, detail=_unusable_detail(completion), cost_usd=completion.cost_usd)
-        if not _below_the_floor(choice.hex_rgb):
+        if not below_the_floor(choice.hex_rgb):
             return choice
         return self._ask_again(self._client, image_path, attachment, dark=choice)
 
@@ -315,7 +315,7 @@ class MatEngine:
         if again is None:
             detail = f"{first}, and its second was unusable: {_unusable_detail(completion)}"
             return self._fallback(image_path, detail=detail, cost_usd=spent)
-        if _below_the_floor(again.hex_rgb):
+        if below_the_floor(again.hex_rgb):
             return self._fallback(image_path, detail=f"{first}, and its second, {again.hex_rgb}, was too", cost_usd=spent)
         return replace(again, cost_usd=spent)
 
@@ -475,7 +475,7 @@ def _over_the_floor(rgb: tuple[int, int, int]) -> tuple[int, int, int]:
     return lab_to_rgb(Lab(l=clears, a=lab.a, b=lab.b))
 
 
-def _below_the_floor(hex_rgb: str) -> bool:
+def below_the_floor(hex_rgb: str) -> bool:
     """Whether a colour is darker than the floor, judged on the colour itself.
 
     On the hex, never on the `lab_l` a model sends beside it: the two can disagree,
@@ -636,4 +636,13 @@ def _number(value: object) -> float | None:
     return None
 
 
-__all__ = ["CORPUS_MAX_LIGHTNESS", "MAT_LIGHTNESS_FLOOR", "MAT_PROMPT", "MAT_SCHEMA", "MatChoice", "MatEngine", "dominant_color"]
+__all__ = [
+    "CORPUS_MAX_LIGHTNESS",
+    "MAT_LIGHTNESS_FLOOR",
+    "MAT_PROMPT",
+    "MAT_SCHEMA",
+    "MatChoice",
+    "MatEngine",
+    "below_the_floor",
+    "dominant_color",
+]

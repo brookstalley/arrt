@@ -38,7 +38,7 @@ from typing import Final, Protocol
 
 from arrt.library.acquisition.color import ColorError, format_hex, parse_hex, rgb_to_lab
 from arrt.library.acquisition.compose import compose, layout
-from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR, MatChoice, MatEngine
+from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR, MatChoice, MatEngine, below_the_floor
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.display_fit import ArtworkBox, DisplayFit
 from arrt.persistence.discovery_records import SpendCategory
@@ -189,7 +189,10 @@ class PreparationService:
         decision they did not mention. Choosing again is `choose_mat` — a separate
         request, because it is a separate intent.
 
-        **This is free for a work that already has a mat, and only for one.** A
+        **This is free for a work that already has a mat it may keep, and only
+        for one.** A mat below `MAT_LIGHTNESS_FLOOR` is not one it may keep: it
+        predates the floor, and is chosen again here, which also redraws the
+        canvas whatever `force` says. A
         work that has never had a mat cannot be rendered without choosing one, so
         the first preparation of a freshly acquired work asks the vision model —
         and `acquire()` does not prepare, so that first call is the normal case
@@ -213,7 +216,10 @@ class PreparationService:
                 "Re-acquire it before preparing."
             )
 
-        mat, chosen = self._current_or_chosen_mat(artwork_id, source=source)
+        mat, chosen, superseded = self._current_or_chosen_mat(artwork_id, source=source)
+        # The canvas was painted in the colour just replaced, so it is redrawn
+        # however current it otherwise reads, as in `choose_mat`.
+        force = force or superseded is not None
         current = self._current_tv_rendition(artwork_id)
         if current is not None and not force:
             return PreparationResult(
@@ -360,8 +366,8 @@ class PreparationService:
         self._catalogue.record_mat_color(artwork_id=artwork_id, hex_rgb=normalised, method=MatMethod.MANUAL)
         return self.prepare(artwork_id, force=True)
 
-    def _current_or_chosen_mat(self, artwork_id: str, *, source: Path) -> tuple[MatColor, MatChoice | None]:
-        """The mat in force, choosing one only if the work has never had one.
+    def _current_or_chosen_mat(self, artwork_id: str, *, source: Path) -> tuple[MatColor, MatChoice | None, MatColor | None]:
+        """The mat in force, choosing one only if the work has none it may keep.
 
         **The reason a re-render is free for a work that already has a mat.** A
         mat is a judgement, and re-asking a model for one the work already has
@@ -374,10 +380,24 @@ class PreparationService:
         answered. Without it the caller cannot tell a free call from a paid one,
         and would have to either report every preparation as free — which is
         false on a work's first — or report a cost it never incurred.
+
+        **A mat below the floor is not kept**, whoever chose it: nothing can record
+        one now (`set_mat` refuses it, the engine never answers one), so it is a
+        colour from before the owner's ruling, and it is chosen again. The third
+        element is that superseded mat, or `None`, so the caller knows the canvas
+        shows a colour that is no longer current.
         """
         current = self._catalogue.current_mat_color(artwork_id)
+        if current is not None and not below_the_floor(current.hex_rgb):
+            return current, None, None
         if current is not None:
-            return current, None
+            log.info(
+                "the mat of %s, %s, is below the floor of L* %g; choosing again",
+                artwork_id,
+                current.hex_rgb,
+                MAT_LIGHTNESS_FLOOR,
+                extra={"event": "preparation.mat_below_floor", "artwork_id": artwork_id, "hex_rgb": current.hex_rgb},
+            )
         choice = self._mat.choose(source)
         recorded = self._catalogue.record_mat_color(
             artwork_id=artwork_id,
@@ -390,7 +410,7 @@ class PreparationService:
             model_id=choice.model_id,
         )
         self._record_spend(artwork_id, choice)
-        return recorded, choice
+        return recorded, choice, current
 
     def _record_spend(self, artwork_id: str, choice: MatChoice) -> None:
         """Record what asking the model for this work's mat cost, when the model answered or billed.

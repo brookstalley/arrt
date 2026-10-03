@@ -62,6 +62,35 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-03: No mat near black
+
+<!-- prawduct: scope=mat-floor -->
+
+**Why:** the owner's ruling on #183. With the mat inside pure black, a
+near-black mat "looks like a bad LCD". 10 of the 41 mats carried from 2024 are
+darker than L\* 15.
+
+**What:**
+- **No mat darker than L\* 15** (`MAT_LIGHTNESS_FLOOR`), on every screen. A
+  model answer below it is asked once more, naming the floor; two such answers
+  fall back to the mechanical colour. The fallback is lifted to the floor in its
+  own hue. A person's colour below it is refused by name.
+- **The prompt** says the display outside the mat is black, states the floor,
+  and asks for a faint warm or cool cast rather than a neutral grey, even for a
+  black-and-white work. It no longer says a grey is right for an achromatic
+  work. The cast is guidance only; the owner ruled out a chroma floor.
+- **Mats already below the floor are chosen again.** Preparation will not keep
+  one and redraws the canvas in the new colour; at startup each accepted work
+  with a canvas and such a mat gets a prepare-only queue row. The old colour
+  stays in the work's mat history. Each is a paid model call, counted in the
+  journal as `preparation.mat_rechoice_queued`.
+- **The regression bar** (`nonfunctional-requirements.md` § Output Quality) no
+  longer includes the 10 corpus mats below the floor, and the unbuilt `#222222`
+  preset is marked below it, left to #91.
+- **One test's contract changed by ruling:** the fallback is no longer always
+  darker than the work. A near-black work's mat is lifted to the floor, lighter
+  than the work. That case moved to its own test, which asserts the floor.
+
 ## 2026-10-02: The mat takes the work's shape
 
 <!-- prawduct: scope=mat-follows-work -->

@@ -370,6 +370,10 @@ class CatalogueStore(Protocol):
         """Accepted works holding a television canvas, none of them drawn at `layout`, oldest acceptance first."""
         ...
 
+    def current_mats_of_works_with_canvas(self) -> Sequence[tuple[str, str]]:
+        """(work, current mat hex) for every accepted work holding a television canvas, oldest acceptance first."""
+        ...
+
     def get_queued_acquisition(self, artwork_id: str) -> QueuedAcquisition | None:
         """Return the queue's row for this work, or None if it has none."""
         ...

@@ -57,7 +57,7 @@ High for the rule, which the owner stated. The mechanism is the agent's:
 ## Status
 
 - [x] Chunk 01: The floor in the engine
-- [ ] Chunk 02: Existing mats below the floor are chosen again
+- [x] Chunk 02: Existing mats below the floor are chosen again
 - [ ] Chunk 03: Deploy and look
 
 ### Chunk 01: The floor in the engine

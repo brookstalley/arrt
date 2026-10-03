@@ -47,6 +47,7 @@ from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Final, Protocol
 
+from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR, below_the_floor
 from arrt.library.acquisition.preparation import PreparationResult
 from arrt.library.acquisition.service import DEPLOYMENT_FAULTS, AcquisitionOutcome, AcquisitionResult, remedy_for
 from arrt.library.services.catalogue import CatalogueService
@@ -286,6 +287,35 @@ class AcquisitionQueue:
             queued,
             layout,
             extra={"event": "preparation.recompose_queued", "queued": queued, "layout": layout},
+        )
+        if queued:
+            self.nudge()
+        return queued
+
+    def owe_mats_over_the_floor(self) -> int:
+        """Queue a preparation for every work on a canvas whose mat is below the floor. Returns how many.
+
+        Run at startup, so mats that predate the floor (all of them carried from
+        2024) are chosen again without anyone asking for each. `prepare` does the
+        choosing, because a mat below the floor is one it will not keep, and
+        redraws the canvas in the new colour. The old canvas stays on the wall
+        until then. Each one is a paid model call, and the count is in the
+        journal. A work the queue already holds a row for is left as it is.
+
+        Nothing below the floor can enter the catalogue now, so once these are
+        chosen this finds nothing on later starts.
+        """
+        queued = 0
+        with self._state_lock:
+            for artwork_id, hex_rgb in self._store.current_mats_of_works_with_canvas():
+                if below_the_floor(hex_rgb) and self._store.get_queued_acquisition(artwork_id) is None:
+                    self._store.set_queued_acquisition(QueuedAcquisition(artwork_id=artwork_id))
+                    queued += 1
+        log.info(
+            "%d works queued to have their mat chosen again: below the floor of L* %g",
+            queued,
+            MAT_LIGHTNESS_FLOOR,
+            extra={"event": "preparation.mat_rechoice_queued", "queued": queued, "floor": MAT_LIGHTNESS_FLOOR},
         )
         if queued:
             self.nudge()

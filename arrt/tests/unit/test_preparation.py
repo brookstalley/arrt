@@ -681,3 +681,46 @@ class TestAnUndecodableOriginal:
 
         with pytest.raises(ServiceError, match="could not be read"):
             prep.prepare(work.id)
+
+
+class TestAMatBelowTheFloor:
+    """A mat darker than the floor predates the owner's ruling of 2026-10-03, and
+    preparing the work chooses it again and redraws the canvas."""
+
+    def _prepared_in(self, service, settings, prep_settings, discovery, hex_rgb):
+        """A work with a current canvas whose mat is now `hex_rgb`, and a service
+        whose engine answers `#27285b`. The canvas is drawn in `#6e4848` first, so
+        a redraw in the engine's colour changes its bytes."""
+        work, _ = _work_with_original(service, settings)
+        first = PreparationService(service, _spending_engine("#6e4848", Decimal(0)), prep_settings, spend=discovery)
+        first.prepare(work.id)
+        service.record_mat_color(artwork_id=work.id, hex_rgb=hex_rgb, method=MatMethod.MANUAL, reason="Carried from 2024.")
+        prep = PreparationService(service, _spending_engine("#27285b", Decimal("0.0001")), prep_settings, spend=discovery)
+        return work, prep
+
+    def test_it_is_chosen_again_and_the_canvas_redrawn(self, service, settings, prep_settings, discovery):
+        work, prep = self._prepared_in(service, settings, prep_settings, discovery, "#1c1c1c")
+        canvas = settings.art_root / f"ready/{work.id}.jpg"
+        before = canvas.read_bytes()
+
+        result = prep.prepare(work.id)
+
+        assert result.outcome is PreparationOutcome.PREPARED
+        assert result.mat_hex == "#27285b"
+        assert result.cost_usd == Decimal("0.0001")
+        assert canvas.read_bytes() != before
+        # The old colour is history, not gone.
+        assert "#1c1c1c" in {colour.hex_rgb for colour in service.mat_color_history(work.id) if not colour.is_current}
+
+    def test_a_mat_at_the_floor_is_kept_and_costs_nothing(self, service, settings, prep_settings, discovery):
+        """The guard's other side: `#262626` is L* 15.2, and re-choosing it would
+        pay to replace a legal colour on every preparation."""
+        work, prep = self._prepared_in(service, settings, prep_settings, discovery, "#262626")
+        history = len(service.mat_color_history(work.id))
+
+        result = prep.prepare(work.id)
+
+        assert result.outcome is PreparationOutcome.UNCHANGED
+        assert result.mat_hex == "#262626"
+        assert result.cost_usd == Decimal(0)
+        assert len(service.mat_color_history(work.id)) == history

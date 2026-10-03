@@ -626,7 +626,7 @@ regenerating it costs money.
 |---|---|---|---|
 | `id` | UUID | PK | |
 | `artwork_id` | UUID | FK → Artwork, required | |
-| `hex_rgb` | string | required | e.g. `#27285b`. |
+| `hex_rgb` | string | required | e.g. `#27285b`. *(Floor added 2026-10-03, #183.)* No darker than CIE L\* 15 (`MAT_LIGHTNESS_FLOOR`). The store does not check it; the mat engine never answers below it and `PreparationService.set_mat` refuses it. A current colour below it predates the floor, and preparing the work chooses again and redraws the canvas. At startup the acquisition queue gets a preparation for each such work that holds a canvas. |
 | `lab_l`, `lab_a`, `lab_b` | float | nullable | Preserved when the model returns them. |
 | `reason` | text | nullable | The model's stated rationale. |
 | `method` | enum | required | `vision_model` \| `dominant_color_fallback` \| `manual`. |

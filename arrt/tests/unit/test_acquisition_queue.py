@@ -22,7 +22,9 @@ import pytest
 from PIL import Image
 
 from arrt.app import create_app
+from arrt.library.acquisition.color import parse_hex, rgb_to_lab
 from arrt.library.acquisition.dezoomify import DezoomifyUnavailable
+from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR
 from arrt.library.acquisition.preparation import PreparationOutcome, PreparationResult
 from arrt.library.acquisition.queue import (
     ACQUISITION_QUEUE_THREAD_NAME,
@@ -39,7 +41,15 @@ from arrt.library.acquisition.space import NotEnoughSpace
 from arrt.library.events import WorkChange
 from arrt.library.readiness import PlayableWork
 from arrt.persistence.discovery_records import Verdict
-from arrt.persistence.records import AcquisitionMethod, FetchStatus, QueuedAcquisition, RenditionKind, RightsStatus, SourceClass
+from arrt.persistence.records import (
+    AcquisitionMethod,
+    FetchStatus,
+    MatMethod,
+    QueuedAcquisition,
+    RenditionKind,
+    RightsStatus,
+    SourceClass,
+)
 from arrt.services.errors import ServiceError
 
 _A_MOMENT = datetime(2026, 10, 2, 9, 0, tzinfo=UTC)
@@ -159,6 +169,29 @@ class TestThroughTheApplication:
             until(lambda: services.acquisition_queue.state_of([artwork_id]) == {})
         assert store.list_renditions(artwork_id)[0].generated_at > drawn.generated_at
         assert len(open_stream.served) == 1, "a recompose must not fetch the image again"
+
+    async def test_a_mat_below_the_floor_is_chosen_again_after_the_next_start(self, services, discovery, run, open_stream, store):
+        """How the 2024 mats reach the floor: the startup step queues the work, the
+        queue's preparation chooses a new mat and redraws the canvas, and the old
+        colour stays in the history. No key is configured, so the new colour is the
+        fallback's, which is lifted to the floor too."""
+        app = create_app(services, acquire_queue=True)
+        async with app.router.lifespan_context(app):
+            artwork_id = _accept_a_direct_work(discovery, run)
+            until(lambda: services.acquisition_queue.state_of([artwork_id]) == {})
+        services.catalogue.record_mat_color(artwork_id=artwork_id, hex_rgb="#1c1c1c", method=MatMethod.MANUAL)
+        drawn = store.list_renditions(artwork_id)[0]
+
+        services.reconcile()
+
+        assert artwork_id in services.acquisition_queue.state_of([artwork_id])
+        app = create_app(services, acquire_queue=True)
+        async with app.router.lifespan_context(app):
+            until(lambda: services.catalogue.current_mat_color(artwork_id).hex_rgb != "#1c1c1c")
+            until(lambda: services.acquisition_queue.state_of([artwork_id]) == {})
+        assert rgb_to_lab(parse_hex(services.catalogue.current_mat_color(artwork_id).hex_rgb)).l >= MAT_LIGHTNESS_FLOOR
+        assert store.list_renditions(artwork_id)[0].generated_at > drawn.generated_at
+        assert len(open_stream.served) == 1, "choosing a mat again must not fetch the image again"
 
     async def test_the_queue_stops_when_the_application_does(self, services):
         app = create_app(services, acquire_queue=True)
@@ -334,6 +367,67 @@ class TestOwingARecomposition:
         service.archive_artwork(artwork_id)
 
         assert queue.owe_recomposition("new") == 0
+
+
+class TestOwingANewMat:
+    """The startup step that takes the mat floor to mats chosen before it."""
+
+    @pytest.fixture
+    def drawn(self, queue, work, service):
+        """A work fetched and prepared, holding a canvas in a mat of `hex_rgb`."""
+
+        def _drawn(hex_rgb, title="Nighthawks"):
+            artwork_id = work(title)
+            queue.run()
+            service.record_mat_color(artwork_id=artwork_id, hex_rgb=hex_rgb, method=MatMethod.MANUAL)
+            service.record_rendition(
+                artwork_id=artwork_id,
+                kind=RenditionKind.TV_DISPLAY,
+                target_width=3840,
+                target_height=2160,
+                path=f"ready/{artwork_id}.jpg",
+                layout="current",
+            )
+            return artwork_id
+
+        return _drawn
+
+    def test_only_a_mat_below_the_floor_is_queued_and_prepared_without_a_fetch(self, queue, drawn, fetcher, preparer):
+        """`#252525` is L* 14.7 and `#262626` L* 15.2, the two greys either side
+        of the floor."""
+        dark = drawn("#252525", title="Night")
+        drawn("#262626", title="Dusk")
+        fetches, preparations = len(fetcher.calls), len(preparer.calls)
+
+        assert queue.owe_mats_over_the_floor() == 1
+        queue.run()
+
+        assert len(fetcher.calls) == fetches
+        assert preparer.calls[preparations:] == [dark]
+
+    def test_a_work_with_no_canvas_is_not_queued(self, queue, work, service):
+        """It has nothing on a wall to correct, and its own first preparation
+        will choose the mat when it comes."""
+        artwork_id = work()
+        service.record_mat_color(artwork_id=artwork_id, hex_rgb="#1c1c1c", method=MatMethod.MANUAL)
+        queue.run()
+        service.record_mat_color(artwork_id=artwork_id, hex_rgb="#1c1c1c", method=MatMethod.MANUAL)
+
+        assert queue.owe_mats_over_the_floor() == 0
+
+    def test_a_work_the_queue_already_holds_keeps_its_row(self, queue, drawn, store):
+        artwork_id = drawn("#1c1c1c")
+        store.set_queued_acquisition(QueuedAcquisition(artwork_id=artwork_id, failures=2, detail="the canvas would not encode"))
+
+        assert queue.owe_mats_over_the_floor() == 0
+
+        assert store.get_queued_acquisition(artwork_id).failures == 2
+
+    def test_an_archived_work_is_not_queued(self, queue, drawn, service):
+        artwork_id = drawn("#1c1c1c")
+        service.archive_artwork(artwork_id)
+
+        assert queue.owe_mats_over_the_floor() == 0
 
 
 class TestAPass:
