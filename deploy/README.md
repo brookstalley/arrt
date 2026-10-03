@@ -74,6 +74,14 @@ shows and on which of its outputs. The Pi is configured with the server's
 address and its own token, and learns everything else from `GET /client`.
 `clients.md` is the authority. This is what was run on 2026-10-02.
 
+**Before deploying the clients release to the server, copy the catalogue.** The
+release drops the per-wall token columns when it opens the catalogue, so the way
+back below needs a copy taken first, outside the backup writer's rotation:
+
+    sqlite3 <art root>/catalogue.sqlite ".backup <backups dir>/pre-clients-<timestamp>.sqlite"
+
+Then deploy (`bin/arrt-app.sh` in the homelab repo) and confirm `/healthz`.
+
 **On the server** (Settings › Clients, or the same routes from a shell):
 
     curl -s -X POST -H 'content-type: application/json' -d '{"name":"Living room Pi"}' "$SERVER_URL"/api/clients
@@ -91,8 +99,8 @@ address and its own token, and learns everything else from `GET /client`.
     sudo cp ../deploy/display.service /etc/systemd/system/ && sudo systemctl daemon-reload
     sudo systemctl enable --now display.service
 
-**Then assign a wall** to one of the outputs the client reported, on the Walls
-screen or with `POST /api/walls/<wall_id>/client {client_id, output}`. The
+**Then assign a wall** to one of the outputs the client reported, on Settings ›
+Clients or with `POST /api/walls/<wall_id>/client {client_id, output}`. The
 Player starts that wall within a poll (about 30 s).
 
 **The Frame is optional, and was left off on 2026-10-02.** `TV_ADDRESS` gives the

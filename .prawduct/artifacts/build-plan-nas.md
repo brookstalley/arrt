@@ -239,8 +239,9 @@ merge; no separate record of the owner opening the app was taken.
 *Chunk 05 re-scoped by the owner, later on 2026-10-02:* "Let's skip the frame,
 I'm watching stuff on it. Instead, let's get the rpi ready to show images over
 hdmi." The Pi's player was stopped and disabled so nothing reaches for the set.
-What this chunk proved stands — the Pi pulls the NAS's manifest and renders and
-the NAS sees its heartbeat — and the rest (a wall rotating from the NAS, and the
+What this chunk proved stands — the Pi's databases and `.env` snapshotted, its
+checkout on released `main`, the Pi pulling the NAS's manifest and renders and
+the NAS seeing its heartbeat — and the rest (a wall rotating from the NAS, and the
 cache test) moves to `build-plan-clients.md` Chunk 05, on HDMI. #182 (the TV's
 art channel) and #181 (the label panel) stay open for when the Frame returns.
 

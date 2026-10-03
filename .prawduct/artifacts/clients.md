@@ -89,7 +89,9 @@ is the Frame.
 > like its HDMI connectors and Frames, and the server will map a wall's label
 > to it, so the panel can caption an HDMI wall or any Frame without an edit on
 > the host. Until that plan lands (it follows this one, after #181), the
-> sentence above is what runs: an HDMI wall has no label. `re-architecture.md`'s "one process per wall drives both the
+> sentence above is what runs: an HDMI wall has no label.
+
+`re-architecture.md`'s "one process per wall drives both the
 picture and the label, so they can never disagree" is kept *per worker*: a
 wall's picture and label are still decided in one place. The supervisor polls
 `GET /client`, starts a worker for a newly assigned wall, stops one for a wall

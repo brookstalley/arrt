@@ -17,8 +17,10 @@ each entry, which is the durable form.
 Checked by the builder and the owner on 2026-10-02, on the Pi's HDMI-A-1 and a
 4K LG, with the built output run by hand as `tvpi` against three renders (two
 3840×2160 Frame renders and a 1200×2000 portrait); the measurements are in
-`hdmi-output-findings.md`. **Still to look at, once Chunk 05 deploys the
-Player:** a real wall rotating on the monitor, fitted whole with nothing
+`hdmi-output-findings.md`. **Looked at by the owner on 2026-10-02 with the
+deployed Player** ("wall is showing"): the wall rotating from the NAS on the
+monitor. The owner's look raised the mat's shape (#189) and grey mats (#183),
+not the output. **Not yet looked at:** a real wall rotating on the monitor, fitted whole with nothing
 cropped, a portrait work with bars at the sides; the monitor switched off and on
 (or its cable pulled) and the picture back within a poll; and, with the Player
 stopped, the text console in its place.
@@ -412,7 +414,14 @@ arrt`) and open it in a browser.
    and Filter to put the rails away. Does the Table earn its place, and does
    hiding the rails give the grid enough back to be worth a button?
 
-### Switch the Pi to HTTP mode, and let it soak — added 2026-09-30
+### ~~Switch the Pi to HTTP mode, and let it soak~~ — retired 2026-10-02
+
+> **Retired 2026-10-02.** The Player it describes (`MANIFEST_SOURCE`,
+> `WALL_TOKEN`, rolling back with `MANIFEST_SOURCE=file`) is refused at start by
+> the client Player. Its checks were run on the client Player instead: the wall
+> pulls from the NAS, the server stopped across a rotation and the wall rotated on
+> from its cache (`build-plan-clients.md` Chunk 05; `deploy/README.md` § The
+> Player as a client of the NAS). Kept below as the record.
 
 > **Partly done, and changed, 2026-10-02.** The Pi pulled from the NAS in HTTP
 > mode on 2026-10-02 (`build-plan-nas.md` Chunk 05: manifest and 40 renders

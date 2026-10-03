@@ -77,6 +77,11 @@ and the host holds only the server's address and its own token.
   per-wall tokens are retired, and the catalogue drops their columns on open.
 - **Settings › Clients and the Walls screen**: add, rename, remove, issue a token,
   see what a client last reported, and assign a wall to an output.
+- **The curator API and MCP**: `/api/clients` (list, add, rename, remove, issue a
+  token) and `POST`/`DELETE /api/walls/{wall_id}/client`; `art_display` gains the
+  same client actions and is now marked destructive (removing a client releases
+  its walls). **Removed**, breaking any caller: `POST /api/walls/{wall_id}/token`
+  and `art_display(action='issue_token')`, the per-wall tokens' routes.
 - **The Player as a client**: one process supervising one worker per assigned
   wall, a last-good client document cached, the walls running on through a server
   outage, and the old `WALL_ID`, `WALL_TOKEN` and `MANIFEST_SOURCE` refused by name.
@@ -109,6 +114,7 @@ as the service user.
   second per picture as `tvpi`, colour and black level confirmed by the owner,
   the picture kept by the kernel through a replug, the console restored when the
   program exits. `tvpi` was added to group `video` on the owner's yes.
+
 ## 2026-10-02: Arrt on the NAS
 
 <!-- prawduct: scope=nas -->

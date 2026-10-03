@@ -87,7 +87,7 @@ Open assumptions:
 - [x] Chunk 02: Settings › Clients and the Walls screen
 - [x] Chunk 03: The Player as a client
 - [x] Chunk 04: The HDMI output
-- [ ] Chunk 05: Deploy and look
+- [x] Chunk 05: Deploy and look
 
 ### Chunk 01: Clients on the server
 
@@ -198,6 +198,17 @@ screen and looks; then the cumulative review.
 
 Done when: the screen shows the wall's art from the NAS and changes on the
 rotation; the owner has looked; the way back is written down.
+
+*Chunk 05 verified 2026-10-02 (commits `8d984a2`…`18cf3f5`; cumulative review
+`rev-20261003T045755Z-7b63ae50` of tree `18cf3f5`, 0 blocking):* the NAS runs the clients release (image
+`6450f7b`, after a pre-deploy catalogue copy that passed `integrity_check`); the
+Pi is client "Living room Pi", its checkout, `.env` and unit moved to the client
+Player, and the wall assigned to `hdmi-a-1`. It started within one poll (30 s),
+pulled 40 of 40 entries, and rotated every 180 s. With the NAS app stopped from
+04:22:16 to 04:24:28Z it rotated at 04:24:22Z from its cache. **The owner
+looked:** "wall is showing". The way back is in `deploy/README.md`. All three
+suites green, recorded. Two intermittent curation failures traced to a test
+leaking `logs.configure()` into later tests, and fixed in both suites.
 
 ## Verification strategy
 
