@@ -89,6 +89,12 @@ High. The owner stated the requirement and answered the three open questions.
   the Player; correct comments that describe the old shape (`mat.py` above
   `MAT_PROMPT`, `postarr/src/postarr/kms.py` `fitted()`).
 
+*Chunks 01–02 verified 2026-10-02 (commits `fb63be9`, `e06901b`; review
+`rev-20261003T053907Z-88ee94a6`, 0 blocking, 4 observations accepted).* The
+comment above `MAT_PROMPT` needed no edit: it says the mat is of even width on
+all four sides, which this change made true. A changed diagonal reaches
+preparation only as a different box, so the narrower-mat test covers it.
+
 ### Chunk 02: Canvases recompose when the geometry changes
 
 Without this, every canvas already composed reads as current and the wall keeps
