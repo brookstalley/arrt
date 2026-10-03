@@ -533,6 +533,38 @@ that will actually get run rather than skipped.
 >   render" becomes "no presentation master", and a Player whose cache is empty
 >   re-pulls once the server has regenerated the masters.
 
+> **The backup writer is built, and a restore is not self-healing (2026-10-02,
+> `build-plan-nas.md` Chunk 02).** With `BACKUP_DIR` set, the server takes a
+> generation with `VACUUM INTO` at every start and then every
+> `BACKUP_INTERVAL_SECONDS` (default daily), checks it with `PRAGMA
+> integrity_check` before naming it, keeps the newest `BACKUP_KEEP` (default
+> 14), and writes `backup-status.json` beside the catalogue only when all of that
+> succeeded, which is what the health panel's age reads. Each pass logs
+> `backup.completed` or `backup.failed`. **What a restore does, measured:** the
+> walk-through above ("excludes them all and reports why", "re-acquisition
+> refills the tree") is not what the code does today. Readiness checks a
+> render's row, not its file, so a catalogue restored without its image tree
+> publishes works whose renders are missing; and nothing re-fetches a master
+> whose row survives its file. So a restore is **the catalogue plus the image
+> tree**: the newest generation from `BACKUP_DIR` as `catalogue.sqlite`, and
+> `raw/`, `ready/` and `thumbs/` from the art root's own snapshot. Making the
+> partial restore self-heal is backlog. The exercise:
+>
+>     # into a scratch art root, never the live one
+>     mkdir -p /tmp/restore && cp "$(ls -1 "$BACKUP_DIR"/catalogue-*Z.sqlite | tail -1)" /tmp/restore/catalogue.sqlite
+>     cp -R "$ART_ROOT"/raw "$ART_ROOT"/ready "$ART_ROOT"/thumbs /tmp/restore/
+>     ART_ROOT=/tmp/restore CURATION_PORT=18790 uv run python -m arrt   # in arrt/
+>
+> **Then hang each wall's theme again** (Walls screen, or `POST
+> /api/themes/{id}/activate`): a wall's published manifest is a file beside the
+> catalogue, not a row in it, so a restored server answers "nothing has been
+> published for this wall yet" until it is re-hung, while the wall keeps playing
+> from its cache. Run on the Mac on 2026-10-02 against a copy of the dev
+> library: the backup at start wrote its generation and receipt (the panel read
+> "last backed up 2 seconds ago"); the restored server answered 404 for the
+> wall's manifest until the theme was re-hung, then served 40 works, all 40 with
+> media.
+
 ## Routine Operations
 
 | Operation | Procedure |

@@ -29,6 +29,12 @@ _MAY_IMPORT_SQLITE = {
     # disk that refuses a write), which the durable store lets through. Inside
     # the persistence package, the line this guard draws.
     "arrt.persistence.kept",
+    # The catalogue's backup: `VACUUM INTO` a generation, then `PRAGMA
+    # integrity_check` on the copy before it is named. Both are operations on the
+    # file as a file, which the record contract exists not to know about, on a
+    # connection of its own that never writes the catalogue. Inside the
+    # persistence package, the line this guard draws.
+    "arrt.persistence.backup",
 }
 
 _DRIVER = "sqlite3"

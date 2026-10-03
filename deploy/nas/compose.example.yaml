@@ -26,20 +26,17 @@ services:
       - "<host port>:8770"
     environment:
       ART_ROOT: /art
+      # The backup job writes generations here, daily and at every start.
+      BACKUP_DIR: /backups
     # The keys and the house's settings (OPENROUTER_API_KEY,
     # WIKIDATA_USER_AGENT, ARTIC_USER_AGENT, …) — see `.env.example`.
     env_file:
       - <path to arrt.env>
     volumes:
-      # The catalogue, masters, renders and thumbnails: everything the server
-      # writes. The only place it writes.
+      # The catalogue, masters, renders and thumbnails.
       - <art root on the host>:/art
       # Where the backup job writes its generations: a different dataset from
       # the art root, so losing one does not lose the other.
       - <backup directory on the host>:/backups
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8770/healthz', timeout=4)"]
-      interval: 30s
-      timeout: 5s
-      start_period: 30s
-      retries: 3
+    # No healthcheck here: the image's own probes /healthz on the port the
+    # container is configured with, which a copy here would not follow.

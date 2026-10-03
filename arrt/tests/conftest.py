@@ -25,6 +25,8 @@ from arrt.app import create_app
 from arrt.config import (
     CATALOGUE_FILENAME,
     DEFAULT_ACQUISITION_USER_AGENT,
+    DEFAULT_BACKUP_INTERVAL_SECONDS,
+    DEFAULT_BACKUP_KEEP,
     DEFAULT_DISCOVERY_APPROVAL_THRESHOLD,
     DEFAULT_DISCOVERY_MAX_OUTPUT_TOKENS,
     DEFAULT_DISCOVERY_MODEL,
@@ -158,6 +160,9 @@ def settings(tmp_path) -> Settings:
         rotation_interval_seconds=DEFAULT_ROTATION_INTERVAL_SECONDS,
         rotation_shuffle=DEFAULT_ROTATION_SHUFFLE,
         preview_sweep_interval_seconds=DEFAULT_PREVIEW_SWEEP_INTERVAL_SECONDS,
+        backup_dir=None,
+        backup_interval_seconds=DEFAULT_BACKUP_INTERVAL_SECONDS,
+        backup_keep=DEFAULT_BACKUP_KEEP,
         tv_panel_width_px=DEFAULT_TV_PANEL_WIDTH_PX,
         tv_panel_height_px=DEFAULT_TV_PANEL_HEIGHT_PX,
         tv_panel_diagonal_inches=DEFAULT_TV_PANEL_DIAGONAL_INCHES,

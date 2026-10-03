@@ -17,7 +17,7 @@ governed_by:
       - "the image needs a uv-managed Python 3.14, the dezoomify-rs binary, and a memory limit in place of MemoryMax; no Pango → binds Chunk 01"
   - artifact: security-model
     dispositions:
-      - "both surfaces are LAN-only, reached remotely over an overlay network; the application performs no authentication → [DECISION: on the NAS, Arrt is reached at http://arrt.lan through the homelab's LAN-only Caddy, with no login and no overlay network, as tacularr is; the provider's $20/month cap bounds the worst case of a LAN client spending OpenRouter credit | the owner's choice of 2026-10-02 ('LAN-only, as tacularr'); the homelab has no overlay network, so the model's assumption is amended rather than met | owner can veto]. A login is backlog, not this plan"
+      - "both surfaces are LAN-only, reached remotely over an overlay network; the application performs no authentication → [DECISION: on the NAS, Arrt is reached at a `.lan` name through the homelab's LAN-only reverse proxy, with no login and no overlay network, as tacularr is; the provider's $20/month cap bounds the worst case of a LAN client spending OpenRouter credit | the owner's choice of 2026-10-02 ('LAN-only, as tacularr'); the homelab has no overlay network, so the model's assumption is amended rather than met | owner can veto]. A login is backlog, not this plan"
       - "the Player routes require a per-wall bearer token → conforms: Chunk 05 issues the Pi's token on the Walls screen"
       - "image provenance and pinning undecided (§ open) → binds Chunk 01: base images and the dezoomify-rs binary are pinned by version and checksum, and the image is built from a commit"
   - artifact: operational-spec
@@ -57,8 +57,8 @@ its art over HTTP.
 | 05 | The Pi: update its player to current code, switch it to HTTP, soak |
 
 **The owner's choices, 2026-10-02:** NAS now, skipping the store split; the
-Mac's dev library (`~/samsung-art`) becomes the live one; LAN-only at
-`arrt.lan` with no login, as tacularr; the Dockerfile here and the rest in
+Mac's dev library (`~/samsung-art`) becomes the live one; LAN-only at a `.lan`
+name with no login, as tacularr; the Dockerfile here and the rest in
 homelab; build the backup writer; the Pi straight to the NAS, then a soak.
 
 **Not in this plan:** the store split (re-architecture wave 3's first step);
@@ -130,29 +130,35 @@ A pass is logged every time, as the queue's is. `kept-answers.sqlite` is not
 backed up. The restore exercise: a documented command that restores the newest
 backup into a scratch art root and starts the server against it.
 
-**Found in Chunk 01, and fixed here because the restore exercise depends on
-it:** readiness checks that a work has a current render *row*, never that the
-render *file* exists. Run against a copy with no `ready/`, the manifest listed
-all 40 works with no exclusion (measured 2026-10-02), so a restore onto an empty
-image tree does not do what `operational-spec.md` § The restore path promises
-("the manifest build finds no current render for any work, excludes them all
-and reports why"). A render whose file is missing becomes `no_rendition`, and
-preparation regenerates it.
+**Found in Chunk 01, and moved to the backlog rather than fixed here** *(the
+builder's call, 2026-10-02, which the owner can veto; filed as #180)*:
+readiness checks that a work has a current render *row*, never that the render
+*file* exists. Run against a copy with no `ready/`, the manifest listed all 40
+works with no exclusion (measured 2026-10-02), so a restore onto an empty image
+tree does not do what `operational-spec.md` § The restore path promised ("the
+manifest build finds no current render for any work, excludes them all and
+reports why"), and nothing re-fetches a master whose row survives its file.
+Fixing it changes a decision the Player contract pins
+(`test_a_render_with_no_file_is_published_without_media_and_says_so`: an
+unreadable render is published without media), so it is a contract decision
+of its own, not a backup detail; and day-to-day use does not need it, since the
+NAS seed carries the renders and the NAS's snapshots carry the image tree. This
+chunk corrects the operational spec to say what a restore actually does, and
+the restore exercise restores the catalogue *with* its image tree.
 
 Done when: tests for a backup, the receipt written only on success, retention,
-a failure leaving the previous receipt, and the panel's age after a run; a test
-that a missing render file excludes the work as `no_rendition` and that
-preparation renders it again; the restore exercise run once on the Mac and
-recorded; `operational-spec.md`
+a failure leaving the previous receipt, and the panel's age after a run; the
+restore exercise run once on the Mac and recorded; the readiness finding filed
+in the backlog; `operational-spec.md`
 § Backup and Restore updated; #14 closed.
 
 ### Chunk 03: The homelab half
 
 In the private homelab repo, following its own pattern and tacularr's deploy:
-`apps/arrt/compose.yaml` (the image by commit tag, `/mnt/Bulk/apps/arrt/art`
+`apps/arrt/compose.yaml` (the image by commit tag, the app's data directory
 as `/art`, the backup dataset, env file, port, healthcheck, memory limit,
-restart policy, `no-new-privileges`), the env template, the Caddy block for
-`arrt.lan`, the router's A record (instructions), and an Arrt deploy script
+restart policy, `no-new-privileges`), the env template, the reverse proxy's route
+for its `.lan` name, the router's A record (instructions), and an Arrt deploy script
 adapted from tacularr's (`image`: build amd64, tag with the commit, push to the
 NAS registry; `app`: render and apply; rollback by tag; `test`).
 
@@ -164,12 +170,12 @@ lists; nothing in this repo names an address.
 
 Copy the Mac's dev library to the NAS dataset (the catalogue with the SQLite
 backup API; `raw/` as files), with the app's ownership; deploy; open
-`http://arrt.lan` from the Mac; check the UI, Activity, the Walls screen, a
+the app's `.lan` address from the Mac; check the UI, Activity, the Walls screen, a
 Get's search, MCP from a client, a backup run and its receipt; let
 renditions and thumbnails regenerate.
 
 Done when: each check above passes on the NAS and is recorded; the first
-backup exists on the backup dataset; the owner has opened `arrt.lan`.
+backup exists on the backup dataset; the owner has opened it.
 
 ### Chunk 05: The Pi on HTTP
 
