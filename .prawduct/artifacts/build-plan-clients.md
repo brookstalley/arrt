@@ -83,7 +83,7 @@ Open assumptions:
 
 ## Status
 
-- [ ] Chunk 01: Clients on the server
+- [x] Chunk 01: Clients on the server
 - [ ] Chunk 02: Settings › Clients and the Walls screen
 - [ ] Chunk 03: The Player as a client
 - [ ] Chunk 04: The HDMI output
