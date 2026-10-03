@@ -177,6 +177,39 @@ trained on photographs, and may score a soft-edged Rothko as blurred or a flat
 colour field as low-contrast; comparing two images *of the same work* cancels
 most of that, since the style is common to both.
 
+**What the research pass on IQA found (2026-10-02), and the gate it points
+to.** No-reference IQA is trained on consumer photographs and judges "a good
+photo", not "a faithful reproduction" — a vivid gallery phone shot may outscore
+an evenly lit museum scan, and no study measures it on paintings. The best
+maintained library, `pyiqa`, is licensed for **non-commercial use only** and
+needs PyTorch (over 1 GB of memory), so it is not used. Heritage digitisation
+standards (FADGI, ISO 19264-1, Metamorfoze) define "faithful" — sharpness,
+tone, colour error, geometric distortion — but measure it against a target
+chart Arrt never has. So the gate is the reference-based design, **torch-free**
+(OpenCV, numpy, scikit-image):
+
+1. **Geometry**: local features matched between candidate and held image, a
+   homography fitted robustly. Too few matches → a different work. Strong
+   keystone → photographed at an angle. The held image's corners falling
+   outside the candidate → a crop or detail. The held image filling much less
+   than the candidate → a frame or wall around it. Then the candidate is warped
+   onto the held image's frame.
+2. **Fidelity at the held image's scale**: a full-reference measure (GMSD or
+   MS-SSIM) overall and per tile, so glare and reflections show as local
+   disagreement; colour error on blurred versions, and the mean colour shift (a
+   cast). Fidelity says "different", not "which is right", so provenance
+   counts too: an institutional source, no phone in the EXIF.
+3. **Better at full size**: *effective* resolution, not pixel count — detail
+   the candidate carries beyond what the held image can, and a test that an
+   upscaled image fails — plus a JPEG-quality floor.
+4. **Never automatic for objects that are not flat** (sculpture, vessels: a
+   homography does not hold), and other impressions of a print or photograph
+   are different objects, not upgrades.
+
+Thresholds are set so that **no negative in the evaluation set is accepted**:
+replacing a held image wrongly costs more than missing an upgrade. The miss
+rate that leaves is reported for the owner.
+
 **The gate is computed locally, with no model call**, so an upgrade spends
 nothing (the vision model's $20 a month ceiling is for mat colour). A paid
 model judgement is a fallback the owner can choose later if the measured
