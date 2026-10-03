@@ -923,17 +923,16 @@ forward a year at a time, so it is the boundary that is the constant here and no
 the date.
 
 *(Refined 2026-10-03 by the first run against `procurement-corpus.md`, § Results.)*
-Two things continue past the boundary that this section's sweep did not see:
+The partition holds for open *reproductions of paintings*, but two things continue
+past it:
 
-- **The Art Institute serves works it holds in copyright at full resolution.**
-  Measured on two works: a tile past the first 843 pixels came back as image data
-  for both.
-- **A Wikidata item's image is often a freely licensed photograph of the work**:
-  an object in a gallery, an installation, a building. It is occasionally not of
-  the work at all.
-
-So what stops at the boundary is *open reproductions of paintings*. Holdings and
-photographs continue past it, and the Art Institute's limit is what it holds.
+- **Holdings.** The Art Institute serves works it holds in copyright at full
+  resolution through the tiled path. That was already recorded in
+  `project-state.yaml` § integrations, 2026-08-04, and the corpus re-measured it.
+  It holds about a thousand imaged works by the owner's anchor artists.
+- **Photographs.** A Wikidata item's image is often a freely licensed photograph of
+  the work: an object in a gallery, an installation, a building. Occasionally it is
+  not of the work at all.
 
 **This sits against a recorded decision, and the collision is recorded rather than
 quietly resolved.** `project-state.yaml` § integrations commits discovery to museum

@@ -526,10 +526,13 @@ Every other row: none, as predicted.
   are legitimate images of a work, judged at review, and the review is all that
   stands between the owner and row 33. One find was missed the other way: row 13
   is public domain, yet its item names no image.
-- **R2 was wrong.** The Art Institute serves full-resolution tiles for works it
-  holds *in copyright*, too. Measured: for both rows 19 and 35, a tile beyond
-  the first 843 pixels came back as image data (about 250 KB each). Its limit is
-  what it holds, not the rights.
+- **R2 was wrong, and should not have been written.** The Art Institute serves
+  full-resolution tiles for works it holds *in copyright*, too. Measured: for both
+  rows 19 and 35, a tile beyond the first 843 pixels came back as image data (about
+  250 KB each). Its limit is what it holds, not the rights. This was already
+  recorded: `project-state.yaml` § integrations, 2026-08-04, says in-copyright
+  masters arrive "through the tiled-fetch path". I wrote R2 from the API findings'
+  preview size without reading that decision.
 - **R3's harm did not appear.** Row 41, with no creator, got its own item's image,
   which is the right one. Row 44 got nothing. Per gap 3's ruling, nothing is filed.
   The wrong image came from a different place: an item whose chosen image is not
@@ -537,9 +540,43 @@ Every other row: none, as predicted.
 - **The identity check worked.** Three title matches naming another artist were
   refused rather than attached.
 
+### Step 3a — what the Art Institute holds by each anchor (2026-10-03)
+
+Asked its search API for each anchor's name, kept the works whose artist matched,
+and counted those with an image. The size is the image's full size as the API
+reports it (`thumbnail.width`/`height`). Full-size tiles were confirmed on two
+works only (rows 19 and 35).
+
+| Anchor | Held | With an image | At or above the floor | Mostly |
+|---|---|---|---|---|
+| Robert Rauschenberg | 335 | 323 | 323 | prints (312) |
+| Andy Warhol | 216 | 215 | 214 | photographs (156), prints (40), paintings (12) |
+| Cy Twombly | 114 | 100 | 100 | prints (86) |
+| Ellsworth Kelly | 89 | 84 | 79 | drawings (31), photographs (17), paintings (15) |
+| Roy Lichtenstein | 63 | 62 | 61 | prints (47) |
+| Gerhard Richter | 44 | 43 | 41 | paintings (17), prints (15) |
+| Salvador Dalí | 41 | 28 | 28 | prints (10), drawings (9), paintings (5) |
+| Alexander Calder | 36 | 34 | 34 | drawings (14), sculpture (10) |
+| Sonia Delaunay | 15 | 13 | 13 | textiles (13), produced in 1977 from 1920 designs |
+| Anselm Kiefer | 6 | 6 | 6 | mixed |
+| Robert Delaunay | 5 | 4 | 4 | mixed |
+| Agnes Martin | 4 | 4 | 4 | drawings (3), a painting |
+| Kay Sage | 2 | 2 | 2 | a painting, a drawing |
+| Exter, Taeuber-Arp, Escher, Banksy, Bull, Stephens | 0 | — | — | — |
+
+**About a thousand works by the anchors, nearly all above the floor, from a source
+already wired.** None of them is in Part A, because Part A named each artist's most
+famous works and the Art Institute mostly holds others. The existing *offered*
+works rule (`project-state.yaml` § integrations, 2026-08-04: a run may offer other
+works by the artist named) already reaches them through Ask. The six anchors at
+zero are exactly the ones that need another kind of source.
+
 **What this changes:**
 
-- **The Art Institute is a source past the boundary**, for what it holds. Step 3
-  starts with the cheapest probe there is: ask it for each anchor artist.
+- **The Art Institute is a source past the boundary**, for what it holds (step 3a).
+  Browsing it by anchor is the cheapest way to fill the wall with works in the
+  owner's taste today. The next sources are for what it lacks: Exter, Taeuber-Arp,
+  Escher, Banksy and the living gallery artists, and the famous works it does not
+  hold.
 - **The owner's review queue holds the 11 finds.** Reject row 33's photograph; it
   is not *Whaam!*.

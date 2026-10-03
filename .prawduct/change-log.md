@@ -96,8 +96,11 @@ limit them." Which source to build first should be measured, not guessed.
 - 40 of 50 predictions right.
 - The misses refined two rules:
   - The Art Institute serves works it holds in copyright at full resolution.
+    This was already recorded on 2026-08-04; my prediction rule contradicted it.
   - Commons answers past the rights boundary with photographs of works, once
     with a photograph of the artist in place of *Whaam!*.
+- Step 3a: the Art Institute holds about a thousand imaged works by 15 of the 19
+  anchors, nearly all above the floor.
 
 The Supply Horizon section carries a dated note pointing at the measurement.
 
