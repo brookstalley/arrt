@@ -40,10 +40,9 @@
  */
 
 import { api } from "../core/api.js";
-import { confirmAct } from "../core/confirm.js";
 import { absentImage, facts, table } from "../core/badges.js";
 import { hangTheme } from "../core/hanging.js";
-import { el, fill, guard, render } from "../core/render.js";
+import { el, guard, render } from "../core/render.js";
 import { go, refresh } from "../core/router.js";
 
 export async function viewWalls(generation) {
@@ -87,7 +86,13 @@ export async function viewWalls(generation) {
   }
 
   const sections = walls.walls.map((wall, index) => wallSection(wall, builds[index], beats, themes.themes));
-  render(generation, heading(), ...sections, walls.walls.some((wall) => !wall.theme) ? takeDownNote() : null);
+  render(
+    generation,
+    heading(),
+    ...sections,
+    walls.walls.some((wall) => !wall.theme) ? takeDownNote() : null,
+    clientsNote(),
+  );
 }
 
 /* The one heading on this surface set at `--text-3xl`, and the token's only use.
@@ -111,6 +116,17 @@ function heading() {
  * block rather than a mark on each row. */
 function takeDownNote() {
   return el("p", { class: "note", text: "A wall goes on showing what it was showing until a theme is hung." });
+}
+
+/* Where a Player's credential went. Players connect as clients now, each with
+ * one token for every wall it shows, so the per-wall token this screen used to
+ * issue is gone; the page that manages clients is Settings › Clients, which is
+ * not built yet. One line, once, for the reason `takeDownNote` gives. */
+function clientsNote() {
+  return el("p", {
+    class: "note clients-note",
+    text: "Players now connect as clients, each with its own token; Settings › Clients, where they are managed, is not built yet.",
+  });
 }
 
 /* Every wall's last observation, or the fact that the reading did not arrive.
@@ -187,7 +203,6 @@ function wallSection(wall, build, beats, themes) {
     ...emptiness(reason, wall, build, beats),
     controls(wall, themes, reason, manifest),
     ...(manifest ? manifestPanels(manifest) : []),
-    tokenPanel(wall),
   ]);
 }
 
@@ -395,75 +410,6 @@ function nextButton(wall) {
         await refresh();
       }),
   });
-}
-
-/* The wall's Player token: whether it has one, when it was issued, and the act.
- *
- * **Shown once, in place, and never again.** The server keeps only a verifier, so
- * the token exists in the answer to the request that issued it and nowhere else.
- * The panel therefore replaces its own contents rather than repainting the
- * screen: a `refresh()` would re-read the wall, which carries no token, and the
- * one chance to copy it would be gone before it was seen.
- *
- * **Rotating asks first, and issuing the first one does not.** A rotation stops
- * the Player holding the old token at once, so the question names that
- * consequence and the wall. The first token replaces nothing.
- *
- * **The issue date is the point of showing anything else.** After a rotation, it
- * is how a curator tells which Player is still on the old token. */
-function tokenPanel(wall) {
-  const panel = el("div", { class: "panel player-token", "aria-live": "polite" });
-  paintToken(panel, wall, null);
-  return panel;
-}
-
-function paintToken(panel, wall, issued) {
-  const issuedAt = issued ? issued.token_issued_at : wall.token_issued_at;
-  const children = [
-    el("h4", { text: "Player token" }),
-    issuedAt
-      ? el("p", { class: "note", text: `The token for ${wall.name} was issued ${new Date(issuedAt).toLocaleString()}.` })
-      : el("p", {
-          class: "muted",
-          text: `${wall.name} has no Player token yet. A Player that reads this wall over the network needs one.`,
-        }),
-  ];
-  if (issued) {
-    const fieldId = `token-${wall.wall_id}`;
-    children.push(
-      el("div", { class: "field" }, [
-        el("label", { for: fieldId, text: `New Player token for ${wall.name}` }),
-        el("input", { id: fieldId, class: "token", type: "text", readonly: "", value: issued.token }),
-      ]),
-      el("p", {
-        class: "note",
-        text: "This is the only time it is shown. Put it in the Player's environment file as WALL_TOKEN.",
-      }),
-    );
-  }
-  children.push(
-    el("button", {
-      class: "action quiet",
-      type: "button",
-      text: issuedAt ? `Rotate the Player token for ${wall.name}` : `Issue a Player token for ${wall.name}`,
-      onclick: () => guard(() => issueToken(panel, wall, Boolean(issuedAt))),
-    }),
-  );
-  fill(panel, ...children);
-}
-
-async function issueToken(panel, wall, rotating) {
-  if (rotating) {
-    const agreed = await confirmAct({
-      title: `Rotate the Player token for ${wall.name}?`,
-      consequence: `The Player using the current token stops being able to read ${wall.name} until it is given the new one.`,
-      confirmLabel: "Rotate token",
-    });
-    if (!agreed) return;
-  }
-  const issued = await api(`/api/walls/${encodeURIComponent(wall.wall_id)}/token`, { method: "POST" });
-  paintToken(panel, wall, issued);
-  panel.querySelector("input.token").focus();
 }
 
 function manifestPanels(manifest) {

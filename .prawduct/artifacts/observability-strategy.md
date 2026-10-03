@@ -655,10 +655,11 @@ rather than retry.
 
 **No secret may ever reach a log line.** This has unusual force here because the
 repository is **public** and log excerpts are exactly what gets pasted into a
-GitHub issue. Concretely: no OpenRouter API key, no TV pairing token, no wall
-Player token, no full `Authorization` header, no `.env` dump on startup. A refused
-Player request is logged by wall and by status (`Refused a Player request for …`),
-once per wall per ten minutes, and never with the token it presented;
+GitHub issue. Concretely: no OpenRouter API key, no TV pairing token, no
+client token, no full `Authorization` header, no `.env` dump on startup. A refused
+Player request is logged by the client it came from, or as "an unknown client",
+with the reason (`Refused a Player request from …`), once per that subject per
+ten minutes, and never with the token it presented or the wall id it asked for;
 `arrt/tests/contract/test_player_surface.py` holds that.
 
 **Programming's reconciliation says what it changed** (from 2026-09-30): `Wall

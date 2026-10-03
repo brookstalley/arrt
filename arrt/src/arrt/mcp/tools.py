@@ -1034,9 +1034,9 @@ ART_DISPLAY: Final = ToolRecord(
                 "A wall is a place and a name, never a device: which display serves it is that display's own "
                 "configuration, and nothing about a television is recorded here.",
                 "Refuses a name that is empty or already taken.",
-                "A new wall shows nothing until a display device is configured with the wall_id this "
-                "returns — each wall has its own manifest file, and a display serves the one wall it is "
-                "pointed at. Hanging a theme on a new wall disturbs no other wall.",
+                "A new wall shows nothing until it is assigned to a client — an installed Player — on one of "
+                "that client's outputs. Each wall has its own manifest, and a client is admitted only to the "
+                "walls assigned to it. Hanging a theme on a new wall disturbs no other wall.",
             ),
         ),
         Action(
@@ -1088,19 +1088,6 @@ ART_DISPLAY: Final = ToolRecord(
                 "It steps that wall and no other: each wall carries its own counter, so a step in the living "
                 "room leaves the study where it was.",
                 "Repeated calls inside one poll interval coalesce into a single step — latest wins.",
-            ),
-        ),
-        Action(
-            name="issue_token",
-            description="Issue a new token for the Player that serves a named wall, replacing any it had.",
-            example="art_display(action='issue_token', wall_id='<a wall_id>')",
-            params=(_WALL_ID,),
-            tips=(
-                "The token is returned once and never again: only a verifier is kept. It belongs in the "
-                "Player's environment file as WALL_TOKEN, and nowhere a transcript is kept for longer.",
-                "Issuing again is how a token is rotated: the old one stops working at once, so the Player "
-                "holding it is refused until it is given the new one.",
-                "Every Player request for this wall's manifest, its heartbeat and any render needs it.",
             ),
         ),
     ),

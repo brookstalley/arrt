@@ -1,0 +1,7 @@
+{
+  "client_id": "c-pi-hall",
+  "name": "The Pi in the hall",
+  "walls": {
+    "w-hall": "hdmi-a-1"
+  }
+}

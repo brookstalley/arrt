@@ -90,7 +90,13 @@ _EXPECTED_SCHEMA = {
     "themes": {"id", "name", "description", "created_at", "rotation_interval_seconds", "shuffle", "is_default"},
     # Which works the default theme has been offered, so each is offered once.
     "default_theme_offers": {"artwork_id", "offered_at"},
-    "walls": {"id", "name", "created_at", "token_verifier", "token_issued_at"},
+    # The wall token columns went on 2026-10-02, when a Player became a client
+    # admitted by the client's token (`migrations.retire_wall_tokens`); the
+    # client that shows the wall, and on which output, arrived in their place.
+    "walls": {"id", "name", "created_at", "client_id", "output"},
+    # An installed Player: a name and the verifier of its one token, nothing
+    # about the device.
+    "clients": {"id", "name", "created_at", "token_verifier", "token_issued_at"},
     "theme_assignments": {"wall_id", "theme_id", "assigned_at"},
     "directives": {"wall_id", "sequence", "pinned_work_id"},
     "sources": {
@@ -712,6 +718,38 @@ def test_a_file_predating_a_column_opens_when_the_schema_indexes_that_column(tmp
         assert store.fetch_one("notes", {"id": "n1"}) == {"id": "n1", "turn_id": None}
         store.upsert("notes", {"id": "n1", "turn_id": "t1"}, pk=("id",))
         assert store.fetch_one("notes", {"id": "n1"})["turn_id"] == "t1"
+    finally:
+        store.close()
+
+
+def test_a_widened_column_keeps_the_reference_its_declaration_makes(tmp_path):
+    """A column added to an older file refers to what the schema says it refers to.
+
+    Rebuilt from `PRAGMA table_info` alone, the column arrived as bare `TEXT` and
+    the reference was dropped in silence: a new file refused a row naming a parent
+    that does not exist and an upgraded one stored it. `walls.client_id` was the
+    first widened column with a reference, and is the one this guards.
+    """
+    path = tmp_path / "catalogue.sqlite"
+    connection = sqlite3.connect(path)
+    try:
+        connection.executescript("CREATE TABLE IF NOT EXISTS notes (id TEXT PRIMARY KEY);")
+        connection.execute("INSERT INTO notes (id) VALUES ('n1')")
+        connection.commit()
+    finally:
+        connection.close()
+
+    widened = (
+        "CREATE TABLE IF NOT EXISTS owners (id TEXT PRIMARY KEY);"
+        "CREATE TABLE IF NOT EXISTS notes (id TEXT PRIMARY KEY, owner_id TEXT REFERENCES owners(id));"
+    )
+    store = SqliteDurableStore(path, widened)
+    try:
+        with pytest.raises(StorageError, match="refers to a record that is not stored"):
+            store.upsert("notes", {"id": "n1", "owner_id": "nobody"}, pk=("id",))
+        store.upsert("owners", {"id": "o1"}, pk=("id",), on_conflict="raise")
+        store.upsert("notes", {"id": "n1", "owner_id": "o1"}, pk=("id",))
+        assert store.fetch_one("notes", {"id": "n1"})["owner_id"] == "o1"
     finally:
         store.close()
 

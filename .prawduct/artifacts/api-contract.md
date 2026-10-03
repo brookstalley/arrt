@@ -1960,12 +1960,41 @@ plus honest `readOnlyHint` / `destructiveHint`.
 > published. The media route hashes the bytes it is about to send and refuses
 > (`404`) if they no longer match. The heartbeat POST accepts exactly what the
 > health panel can read and answers `400` otherwise, in the error shape `/api`
-> already uses. Tokens are issued from `POST /api/walls/{wall_id}/token` (the
-> Walls screen's Player token panel) and `art_display(action='issue_token')`.
-> Both return the token once, and the wall's `token_issued_at` is on both
-> surfaces' wall shapes. The Player's side is `postarr/src/postarr/pull.py` (Chunk 04):
+> already uses. Tokens were issued per wall from `POST /api/walls/{wall_id}/token`
+> and `art_display(action='issue_token')` until 2026-10-02, when clients replaced
+> them (below). The Player's side is `postarr/src/postarr/pull.py` (Chunk 04):
 > `MANIFEST_SOURCE=http` pulls into `CACHE_DIR` and renders only from there. What follows is the design as recorded before the build, and where it
 > disagrees with the code or with `player-contract.md`, those win.
+
+### Clients — BUILT 2026-10-02 (`build-plan-clients.md` Chunk 01)
+
+`clients.md` is the requirement: a **client** is an installed Player with one
+token, driving any number of walls, each on one of its outputs by name. The
+Player routes take the client's token (`player-contract.md` § Transport is the
+specification); the curator's routes below bind `programming/clients.py` and
+`programming/access.py`. MCP actions for clients and assignment arrive with
+Settings › Clients (Chunk 02); until then these routes are HTTP-only, a
+recorded gap in parity rather than a design.
+
+| Route | Tool | What it is for |
+|---|---|---|
+| `GET /client` *(Player)* | — | The presenting client and its walls with their outputs, `ETag`/`304`. `401` without a valid client token |
+| `POST /client/heartbeat` *(Player)* | — | The client's outputs (name, kind, connected, screen), kept as `client-heartbeat-{client_id}.json` under `ART_ROOT` beside the wall heartbeats. `204`; `400` naming the problem |
+| `GET /api/clients` | *(Chunk 02)* | Every client, with `token_issued_at` (never the token), its walls and outputs, and its last heartbeat's outputs and age |
+| `POST /api/clients` `{name}` | *(Chunk 02)* | Record a client. No token, no walls |
+| `POST /api/clients/{client_id}` `{name}` | *(Chunk 02)* | Rename. Token and walls unchanged |
+| `DELETE /api/clients/{client_id}` | *(Chunk 02)* | Forget a client: its token stops working, its walls become unassigned and keep their themes, its heartbeat file goes. Answers the remaining list |
+| `POST /api/clients/{client_id}/token` | *(Chunk 02)* | Issue or rotate; answers `{client_id, token, token_issued_at}` once |
+| `POST /api/walls/{wall_id}/client` `{client_id, output}` | *(Chunk 02)* | Show the wall on that client's output. Answers `{wall, notice}`: `notice` says when the output is not among the client's last reported outputs, or it has not reported; the assignment is made either way. Refused when that output already shows another wall |
+| `DELETE /api/walls/{wall_id}/client` | *(Chunk 02)* | Unassign. Idempotent |
+
+`WallOut` and the MCP wall shape lose `token_issued_at` and gain `client_id` and
+`output` (both null while no client shows the wall).
+
+**Retired 2026-10-02:** `POST /api/walls/{wall_id}/token` and
+`art_display(action='issue_token')`, with the Walls screen's Player token panel.
+A wall token admits nothing. This is breaking for a Player configured with
+`WALL_TOKEN`, by the plan's ruling that no transition is kept.
 
 **Before 2026-09-30 nothing in this section existed in code.** It records the target that
 `re-architecture.md` § Seam 2 sets. **The contract artifact now exists:
@@ -1989,7 +2018,9 @@ recorded in `architecture.md` § Direction.
 
 **Every route carries the wall's token** (decided 2026-09-30,
 `re-architecture.md` § Seam 2) as a bearer credential. A missing or wrong token
-is `401`, and a token for another wall is `403`. The Player treats either as a
+is `401`, and a token for another wall is `403`. *(Amended 2026-10-02: the
+client's token, admitted for the walls assigned to that client; `403` for a wall
+that is not its client's. § Clients above.)* The Player treats either as a
 configuration error, stated once in the journal, and keeps its cache, like a
 `404` on its wall.
 

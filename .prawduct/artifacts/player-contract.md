@@ -18,7 +18,7 @@ surface points here. `re-architecture.md` § Seam 2 is where the decisions behin
 it were made.
 
 The contract is three things, and they are kept together because each is only
-half an answer alone:
+half an answer alone (the routes' spelling is a fourth file, `contract/routes.json`):
 
 - **Schemas** in `contract/schemas/`, JSON Schema Draft 2020-12, one per document
   and major. A schema states the **writer's obligations**: what a conforming
@@ -33,8 +33,10 @@ half an answer alone:
 **Who tests what.** The root suite (`tests/preferences/test_player_contract.py`)
 checks that the fixtures and schemas agree. Every invalid fixture must break
 exactly one rule, the one its filename names. Arrt's suite validates
-manifests its real builder writes, and runs its heartbeat reader over the
-heartbeat fixtures. Postarr's suite runs its manifest reader over the manifest
+manifests its real builder writes, runs its heartbeat reader over the
+heartbeat fixtures, validates the `GET /client` document it serves against the
+client schema, and holds its client-heartbeat reader to the client-heartbeat
+fixtures (`arrt/tests/contract/test_client_surface.py`). Postarr's suite runs its manifest reader over the manifest
 fixtures and validates the heartbeat it writes. When Postarr moves to its own
 repository (wave 5), it pins a copy of `contract/` and runs the same tests
 against it. Arrt owns the contract, and a Player that needs a field asks
@@ -42,7 +44,8 @@ for it here.
 
 ## Versioning
 
-Both documents carry `schema: {major, minor}`. The manifest has always carried
+The manifest and the wall heartbeat carry `schema: {major, minor}`; the two
+client documents do not (§ Transport). The manifest has always carried
 it. The heartbeat gains it in wave 2, and a heartbeat without one is 1.0.
 
 - **A new major is a breaking change**: a field removed, a meaning changed, a new
@@ -116,20 +119,40 @@ written it since wave 2b Chunk 03, omitting `media` for a render whose file it c
   interval with margin.
 - **Minor 1 (wave 2)** adds the `schema` key.
 
-### Transport (wave 2)
+### Transport (wave 2; clients from 2026-10-02)
 
-The file channel keeps working until wave 3 retires it. Over HTTP:
+The file channel keeps working until wave 3 retires it. Over HTTP, a Player is a
+**client** (`clients.md`): an installed Player with one token, driving any number
+of walls, each on one of its outputs. It learns its walls from the server.
 
 | Route | Body | Answers |
 |---|---|---|
+| `GET /client` | none | `200` with the client document (`contract/schemas/client.v1.schema.json`): `{client_id, name, walls: [{wall_id, name, output}]}`, only the walls assigned to this client, and an `ETag`; `304` when `If-None-Match` matches. Polled about every 30 seconds |
+| `POST /client/heartbeat` | the client heartbeat (`contract/schemas/client-heartbeat.v1.schema.json`): `{reported_at, outputs: [{name, kind, connected, screen}]}` | `204`; `400` naming the problem for a body that is not JSON or not a client heartbeat |
 | `GET /walls/{wall_id}/manifest` | none | `200` with the manifest and an `ETag`; `304` when `If-None-Match` matches. Polled about once a second |
 | `GET /media/sha256-{hex}` | none | `200` with the image, `Cache-Control: public, max-age=31536000, immutable`. A hash never serves different bytes |
 | `POST /walls/{wall_id}/heartbeat` | the heartbeat | `204` |
 
-- **Every request carries the wall's token** as `Authorization: Bearer <token>`.
-  Arrt issues one per wall from its UI, shows it once and keeps only a
-  verifier. A missing or wrong token is `401`, and a token for another wall is
-  `403`. `/media/...` accepts any wall's valid token.
+- **Every request carries the client's token** as `Authorization: Bearer <token>`.
+  Arrt issues one per client, shows it once and keeps only a verifier. A
+  missing or unknown token is `401`. A valid token on a per-wall route for a wall
+  not assigned to that client, or one the server does not hold, is `403`.
+  `/media/...` accepts any client's valid token, whatever walls it drives.
+- **Wall tokens are retired, and this is a breaking change** for a Player
+  configured with a wall token (`WALL_TOKEN`): every request it makes is `401`
+  from the change on, and its operator moves it to a client token. No
+  transition is kept, because there was one deployment and it moves in the same
+  change (`build-plan-clients.md` Chunk 05). The server drops the stored wall
+  verifiers when it opens a catalogue that holds them.
+- **A client learns its walls; the host is not told them.** Assigning a wall to
+  a client, or taking one away, changes `GET /client`'s document and so its
+  `ETag`; the client starts or stops showing that wall on its next poll.
+- **The output is a name the client chose and reported.** A wall is placed on
+  `hdmi-a-1` or `frame` by that name. The server keeps only the name; the
+  output's kind, whether it is connected and its size stay on the client, which
+  reports them in the client heartbeat. **No two outputs in one report share a
+  name**, which a schema cannot state and the server refuses. An output of one
+  client shows at most one wall.
 - **Media is identified by the SHA-256 of its bytes and located by its `url`.**
   The manifest gives `url`, `sha256`, `bytes` and `content_type`. The `url` is
   a URI reference resolved against the manifest's own URL. Today it is
@@ -152,6 +175,9 @@ The file channel keeps working until wave 3 retires it. Over HTTP:
   wall going black is always worse than the wall being incomplete.
 - **In waves 2 and 3, `/media/...` serves the composed render** that
   `render_path` names. From wave 4 it serves the presentation master.
+- **Neither the client document nor the client heartbeat carries a `schema` key.** Both allow unknown keys,
+  so additions are free; a breaking change to either is a new schema major and a
+  new route.
 
 ## Major 2 (draft)
 

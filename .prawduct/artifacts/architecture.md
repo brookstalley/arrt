@@ -91,6 +91,11 @@ database. Adding a second channel is a departure requiring a recorded decision.
 > file channel is still the default and still works, so today both channels are
 > in force, and a Pi switches by configuration after a soak. Wave 3 retires the
 > file channel.
+>
+> **Amended 2026-10-02 (`clients.md`):** the per-wall token is replaced by a
+> per-client token, admitted for the walls assigned to that client, and the
+> server gains `GET /client` and `POST /client/heartbeat` (`player-contract.md`
+> § Transport). Wall tokens are retired.
 
 <!-- Ratified by the owner 2026-08-07, in the words they stated it: "The display
      device HAS to render the label. We may have multiple pi's with different

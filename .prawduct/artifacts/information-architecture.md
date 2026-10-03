@@ -718,7 +718,7 @@ who did not edit this table.
 
 | Screen | Primary | Secondary | Actions | Status |
 |---|---|---|---|---|
-| Walls | Each wall's hanging work, large | Title, artist, theme, which wall | Change theme, next, open work, issue or rotate the wall's Player token *(added 2026-09-30: the token is shown once, in place, and rotating asks first)* | Panel + TV health, quietly |
+| Walls | Each wall's hanging work, large | Title, artist, theme, which wall | Change theme, next, open work *(the wall token panel, added 2026-09-30, was retired 2026-10-02 with wall tokens; one note under the walls says Players connect as clients, managed from Settings › Clients, `build-plan-clients.md` Chunk 02)* | Panel + TV health, quietly |
 | Artworks | The grid of images | Counts, active filters | Search, filter, select, add to theme, archive | Total, and what is filtered out |
 | Work | The image at full size; for a work not held, the image Wikidata found, or none | Artist, facets, mat colour, rendition size; for a work not held, its date, medium, and holder with number | Theme membership, re-mat, archive, change the Wikidata item or say there is none, Retry a failed fetch; for a work not held, *Get this work*, its artist, and the rest of their work | Fit verdict, image state, and while the acquisition queue owes it one, where it stands there; for a work not held, *Not held* (○), or *Not held · Image found* (◐) |
 | Search results | The artists and works the words find, artists first | Each artist's years; each work's maker; how many library works match beyond those listed | Open any result; switch *All*, *In your library*, *Not held*; open the library's matches in Artworks; *Ask about* when Wikidata has nothing | Each result's mark; whether Wikidata answered |

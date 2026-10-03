@@ -363,14 +363,14 @@ class DisplayService:
         belongs on a wall the curator has not hung anything on, and the empty
         state is a designed one.
 
-        **A wall recorded here shows nothing until a display plane is configured
-        to serve it**, and that is a deployment step rather than a gap. Each wall
-        gets its own manifest, named by the wall's id, and a display reads the one
-        wall its `WALL_ID` names — so a second wall's manifest exists from the
-        moment a theme is hung on it and is read by whichever device is pointed at
-        it. Nothing is overwritten and no display can open a wall it does not
-        serve; until 2026-08-12 both were false, and a second wall was a thing an
-        operator could record and be told would not light up.
+        **A wall recorded here shows nothing until a client is assigned to show
+        it** (`clients.ClientService.assign_wall`), and that is a curatorial step
+        rather than a gap. Each wall gets its own manifest, named by the wall's
+        id, from the moment a theme is hung on it, and a client is admitted only
+        to the walls assigned to it. Nothing is overwritten and no client can
+        open a wall it does not show; until 2026-08-12 both were false, and a
+        second wall was a thing an operator could record and be told would not
+        light up.
         """
         with self._store.transaction():
             wall = Wall(id=str(uuid.uuid4()), name=require_text(name, field="name"), created_at=datetime.now(UTC))
