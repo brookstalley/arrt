@@ -553,7 +553,9 @@ that will actually get run rather than skipped.
 >     # into a scratch art root, never the live one
 >     mkdir -p /tmp/restore && cp "$(ls -1 "$BACKUP_DIR"/catalogue-*Z.sqlite | tail -1)" /tmp/restore/catalogue.sqlite
 >     cp -R "$ART_ROOT"/raw "$ART_ROOT"/ready "$ART_ROOT"/thumbs /tmp/restore/
->     ART_ROOT=/tmp/restore CURATION_PORT=18790 uv run python -m arrt   # in arrt/
+>     # BACKUP_DIR emptied: the scratch server's start-up backup would otherwise
+>     # land in the live set and prune its oldest real generation
+>     ART_ROOT=/tmp/restore BACKUP_DIR= CURATION_PORT=18790 uv run python -m arrt   # in arrt/
 >
 > **Then hang each wall's theme again** (Walls screen, or `POST
 > /api/themes/{id}/activate`): a wall's published manifest is a file beside the
