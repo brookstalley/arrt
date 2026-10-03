@@ -353,7 +353,10 @@ caption drawn in the mat, which needs the mat *sized for the caption*.
 - **The Library keeps** the Original, the mat colour and its reasoning, and the
   label text. It **produces** the presentation master.
 - **The Player composes** the mat for its own geometry, and (for caption mode)
-  sets the label in the mat area.
+  sets the label in the mat area. The mat takes the **work's** shape and the
+  rest of the screen is black (`nonfunctional-requirements.md` § The mat is
+  geometric, ruled 2026-10-02 and built in the server's compositor ahead of this
+  move); the Player's compositor inherits that rule.
 - **On a Samsung Frame, a caption can only exist burned into the image before
   upload.** That is a second reason compositing belongs where the label is
   decided.

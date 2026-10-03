@@ -490,10 +490,10 @@ class TestHealth:
 
     def test_the_panel_shows_the_geometry_every_size_in_the_grid_is_judged_against(self, http):
         box = http.get("/api/health").json()["artwork_box"]
-        # The reference 42" 4K panel with the shipped 2.5" mat: 3840 less two
-        # mats of 262 px, and 2160 less a top mat plus a bottom weighted 1.15x.
-        assert box["width"] == 3316
-        assert box["height"] == 1597
+        # The reference 42" 4K panel with the shipped 1.5" mat: 3840 less two
+        # mats of 157 px, and 2160 less a top mat plus a bottom weighted 1.15x.
+        assert box["width"] == 3526
+        assert box["height"] == 1822
         assert box["floor_inches"] == 12.0
 
 

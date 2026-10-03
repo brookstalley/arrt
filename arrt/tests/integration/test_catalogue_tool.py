@@ -616,7 +616,9 @@ async def test_a_colour_a_person_spells_loosely_is_accepted_like_the_models_own(
 
 
 async def test_regenerate_composes_the_canvas_and_reports_where_it_went(server_url, services, settings):
-    work = _a_work_with_an_original(services, settings)
+    # Larger than the artwork box both ways, so the fit is `native` whatever the
+    # configured mat leaves.
+    work = _a_work_with_an_original(services, settings, width=3200, height=2400)
 
     payload, errored = await call(server_url, "art_catalogue", action="regenerate", artwork_id=work.id)
 

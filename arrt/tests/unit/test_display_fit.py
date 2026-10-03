@@ -32,7 +32,7 @@ def test_a_gallery_resolution_source_is_downscaled_into_the_box():
 
 
 def test_a_source_smaller_than_the_box_is_pasted_at_native_size():
-    """The mat is simply wider. On the real corpus this is uncommon and fine."""
+    """Shown smaller, with more black around it. On the real corpus this is uncommon and fine."""
     assessment = assess_display_fit(width=2000, height=1300, box=_FORTY_TWO_INCH)
 
     assert assessment.fit is DisplayFit.MATTED_SMALL

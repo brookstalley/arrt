@@ -10,6 +10,25 @@ each entry, which is the durable form.
 
 ## Pending
 
+### The mat takes the work's shape, with black beyond it — added 2026-10-02
+
+**`build-plan-mat-follows-work.md` Chunk 03.** Visual change: yes.
+
+Checked by the builder on 2026-10-02 against four synthetic sources composed at
+the 50" panel's geometry (1.5" mat: 132 px top and sides, 152 px bottom): a
+square, a 4:7, a 3:1 panorama and a 16:9. Each mat hugs its work and the rest is
+black, centred; a 16:9 work gets about 1.4" of black at each side, because its
+matted shape is a little narrower than the screen. Not on your catalogue.
+
+- **Before deploying:** set `MAT_WIDTH_INCHES=1.5` in the NAS's environment, or
+  remove the line. The `.env` was copied from `.env.example`, which set 2.5
+  explicitly, and an explicit value overrides the new default.
+- **After deploying:** the startup journal carries `preparation.recompose_queued`
+  with the number of canvases queued, then queue passes recomposing them one at a
+  time. The old canvas stays on the wall until each is redrawn.
+- **Look at:** a square and a tall work on the HDMI monitor. The mat is the
+  work's shape and 1.5" wide (deeper below), and everything else is black.
+
 ### An HDMI wall on its screen — added 2026-10-02
 
 **`build-plan-clients.md` Chunk 04.** Visual change: yes.

@@ -366,6 +366,10 @@ class CatalogueStore(Protocol):
         """
         ...
 
+    def works_with_canvas_outside_layout(self, layout: str) -> Sequence[str]:
+        """Accepted works holding a television canvas, none of them drawn at `layout`, oldest acceptance first."""
+        ...
+
     def get_queued_acquisition(self, artwork_id: str) -> QueuedAcquisition | None:
         """Return the queue's row for this work, or None if it has none."""
         ...

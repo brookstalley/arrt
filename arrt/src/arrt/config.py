@@ -164,8 +164,10 @@ DEFAULT_TV_PANEL_HEIGHT_PX: Final[int] = 2160
 DEFAULT_TV_PANEL_DIAGONAL_INCHES: Final[float] = 42.0
 
 #: The mat's width on the sides and top, in inches on the wall. Physical units
-#: rather than pixels or a ratio, so it means the same thing on any panel.
-DEFAULT_MAT_WIDTH_INCHES: Final[float] = 2.5
+#: rather than pixels or a ratio, so it means the same thing on any panel. The mat
+#: hugs the work, with black beyond it, so this is the whole of the mat a viewer
+#: sees on every side, not a minimum the screen's shape adds to.
+DEFAULT_MAT_WIDTH_INCHES: Final[float] = 1.5
 
 #: How much deeper the bottom margin is than the top. A true-centred image reads
 #: as sitting low, so conservators weight the bottom — the convention this

@@ -272,6 +272,46 @@ class TestStaleness:
             assert canvas.size == (1920, 1080)
 
 
+class TestTheLayout:
+    """A canvas records the geometry it was drawn with, so a changed mat reaches
+    canvases already drawn. The panel test cannot see a mat change: the canvas
+    stays the panel's pixel size while every margin moves."""
+
+    def test_the_canvas_records_the_layout_it_was_drawn_with(self, prep, service, settings):
+        work, _ = _work_with_original(service, settings)
+
+        prep.prepare(work.id)
+
+        assert service.list_renditions(work.id)[0].rendition.layout == prep.layout
+
+    def test_a_canvas_drawn_with_another_mat_is_re_rendered(self, service, discovery, settings, prep_settings, store):
+        work, _ = _work_with_original(service, settings)
+        engine = MatEngine(None, image_max_edge=256)
+        PreparationService(service, engine, prep_settings, spend=discovery).prepare(work.id)
+
+        # The same panel with a narrower mat: a box 100 px wider and taller.
+        box = prep_settings.box
+        narrower_mat = replace(prep_settings, box=replace(box, width=box.width + 100, height=box.height + 100))
+        result = PreparationService(service, engine, narrower_mat, spend=discovery).prepare(work.id)
+
+        assert result.outcome is PreparationOutcome.PREPARED
+        assert service.list_renditions(work.id)[0].rendition.layout == narrower_mat.layout
+        assert narrower_mat.layout != prep_settings.layout
+
+    def test_a_canvas_recorded_before_layouts_were_is_re_rendered(self, prep, service, settings, store):
+        """Every canvas drawn before this existed has no layout, and every one of
+        them has the full-screen mat. Unknown reads as out of date."""
+        work, _ = _work_with_original(service, settings)
+        prep.prepare(work.id)
+        recorded = store.list_renditions(work.id)[0]
+        store.update_rendition(replace(recorded, layout=None))
+
+        result = prep.prepare(work.id)
+
+        assert result.outcome is PreparationOutcome.PREPARED
+        assert store.list_renditions(work.id)[0].layout == prep.layout
+
+
 class TestChoosingTheMatAgain:
     def test_it_supersedes_without_discarding_the_previous_choice(self, prep, service, settings):
         """Mat quality is this product's subjective bar, so "the new model picked
@@ -319,9 +359,14 @@ class TestACuratorsOwnColour:
 
         assert result.mat_hex == "#27285b"
         assert service.current_mat_color(work.id).method is MatMethod.MANUAL
+        # Read along the middle row rather than at a corner: the mat takes the
+        # work's shape, so a corner of a 4:3 work's canvas is black.
         with Image.open(settings.art_root / result.relative_path) as canvas:
-            pixel = canvas.convert("RGB").load()[0, 0]
-        assert all(abs(channel - expected) <= 12 for channel, expected in zip(pixel, (39, 40, 91), strict=True))
+            rgb = canvas.convert("RGB")
+            row = [rgb.getpixel((x, rgb.height // 2)) for x in range(rgb.width)]
+        mat = (39, 40, 91)
+        painted = [p for p in row if all(abs(channel - expected) <= 12 for channel, expected in zip(p, mat, strict=True))]
+        assert len(painted) > 100
 
     @pytest.mark.parametrize("spelling", ["#27285B", "27285b", "#abc"])
     def test_a_person_may_spell_a_colour_the_way_the_model_is_allowed_to(self, prep, service, settings, spelling):
