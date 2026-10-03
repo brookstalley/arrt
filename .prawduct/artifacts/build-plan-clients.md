@@ -3,7 +3,7 @@ artifact: build-plan
 version: 1
 scope: clients
 branch: feature/clients
-partition: serial — 01 defines the records, the access rule and the contract every later chunk uses; 03 and 04 both change the Player's daemon; 05 is operations on the owner's NAS and Pi, run and watched by the coordinator
+partition: serial, with Chunk 01 built by one delegate in an isolated worktree (it rewrites the token model across the store, the access service, the Player routes, the Walls screen's token panel, MCP and the contract, which is long, self-contained work); the coordinator reviews and merges it, and builds 02-05 itself, since 03 and 04 both change the Player's daemon and 05 is operations on the owner's machines
 depends_on:
   - artifact: clients
   - artifact: player-contract
