@@ -185,6 +185,17 @@ renditions and thumbnails regenerate.
 Done when: each check above passes on the NAS and is recorded; the first
 backup exists on the backup dataset; the owner has opened it.
 
+*Chunk 04, 2026-10-02 (all but the owner's look):* the Mac's dev library was
+seeded onto the NAS with `bin/arrt-app.sh seed` (the catalogue by SQLite's
+backup API, then `raw/`, `ready/` and `thumbs/`, 619 MB; the directories then
+made group-writable for the container, which the script now does itself), and
+image `249a8ec` deployed as the app `arrt`, state RUNNING. On the NAS:
+`/healthz` ok, the UI 200, 40 works, a Wikidata search answered, MCP's
+`art_catalogue` listed 40, the backup taken at start (the panel: "last backed
+up 3 seconds ago", one generation in the backups directory), and *All works*
+hung on the wall published 40 entries with none excluded. Waiting on the owner:
+the router's `arrt.lan` record, and opening it.
+
 ### Chunk 05: The Pi on HTTP
 
 On the Pi, before any change: snapshot `/srv/art` (done once on 2026-10-02;
