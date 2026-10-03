@@ -426,7 +426,10 @@ Panel geometry was briefly listed as a second shared value; it is not, because
 > the `EPD_MARGIN_PX` note above anticipated.
 >
 > In wave 2 the shared `.env` stops being shared. The Player gains the server's
-> base URL and a cache directory, and keeps the `WALL_ID` it already has. The server keeps its own configuration, delivered as
+> base URL and a cache directory, and keeps the `WALL_ID` it already has.
+> *(2026-10-02, `clients.md`: the Player is now a client. It holds
+> `SERVER_URL`, `CLIENT_TOKEN` and `CACHE_DIR`, learns its walls from the
+> server, and refuses `WALL_ID`, `WALL_TOKEN` and `MANIFEST_SOURCE` by name.)* The server keeps its own configuration, delivered as
 > container environment on the NAS. The single root `.env` read by both planes is
 > a property of co-location and retires with it.
 

@@ -411,8 +411,10 @@ writer's to shape: the reader hands the whole object through untouched.
 
 **One heartbeat per wall, since 2026-08-12**, matching the manifest
 (`architecture.md` § One manifest per wall). The wall id is the one the curation
-catalogue minted, and the display plane takes it from `WALL_ID` in its
-environment exactly as it takes `TV_ADDRESS`. The reason is this section's own
+catalogue minted. Until 2026-10-02 the display plane took it from `WALL_ID` in its
+environment, exactly as it takes `TV_ADDRESS`. The client Player
+(`clients.md`) learns its walls from the server's client document and refuses
+`WALL_ID`, and one process now writes one heartbeat per wall it shows. The reason is this section's own
 requirement read across two rooms: `information-architecture.md` asks health to
 name *which* wall is silent, and one shared file cannot — a second display would
 overwrite the first's report every minute, so a wall that had gone dark would
@@ -480,6 +482,32 @@ more on the reading side would be a second contract the writer never agreed to,
 and a writer that spelled one of them differently would drop off the panel in
 silence — the failure the one named key exists to prevent, reintroduced for every
 other field.
+
+### A client, and a wall on its screen (2026-10-02, `clients.md`)
+
+**Two levels of report, kept apart.** The **client heartbeat** (`POST
+/client/heartbeat`) says which outputs a client has, whether each is connected,
+and at what size. Settings › Clients shows it with its age. **Each wall's
+heartbeat** stays what it was: the work on the screen and the last error. A
+screen that is unplugged shows up in the first as `connected: false`, while the
+wall's own heartbeat keeps beating, because its worker keeps rotating.
+
+The Player's journal events for a client and an HDMI wall:
+
+| Event | Level | Means |
+|---|---|---|
+| `client.started` | INFO | The process is up, naming its server and cache, and whether it has a Frame |
+| `client.wall_started` / `client.wall_stopped` | INFO | The server assigned or took away a wall on an output |
+| `client.unreachable` / `client.reachable` | WARNING / INFO | The server cannot be reached; the walls run on from the cache |
+| `client.refused` | ERROR | The server refuses this client's token (`CLIENT_TOKEN`) |
+| `screen.absent` / `screen.returned` | WARNING / INFO | No screen on the wall's connector, then one again (drawn at once) |
+| `screen.draw_failed` / `screen.draw_recovered` | WARNING / INFO | The output refused a picture, said once per episode. The commonest cause is a service user outside group `video` |
+| `screen.refresh_failed` / `screen.refresh_recovered` | WARNING / INFO | The same, for the redraw tried on every poll |
+
+**A Player that has stopped leaves the text console on an HDMI screen**: the
+kernel gives the screen back when the process lets go of the display card. On
+the wall, that is how an outage looks, and Settings › Clients shows the client
+heartbeat ageing.
 
 ### The backup records that it succeeded, and the panel reads its age
 

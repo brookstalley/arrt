@@ -220,6 +220,19 @@ def test_a_report_that_cannot_be_read_is_said_to_be_one(ui, settings, hall):
     assert "has not reported its outputs yet" not in text
 
 
+def test_a_report_of_no_outputs_says_so_and_lists_none(ui, settings, hall):
+    report(settings, hall, {"reported_at": "2026-10-02T14:00:05+00:00", "outputs": []})
+    open_clients(ui)
+    ui.page.wait_for_selector("section.client")
+
+    text = panel(ui, hall).inner_text()
+    assert "Hall Pi reported that it has no outputs." in text
+    assert "Hall Pi reported no outputs, so type the name of the output" in text
+    assert panel(ui, hall).locator("table").count() == 0
+    assert "has not reported its outputs yet" not in text
+    assert "could not be read" not in text
+
+
 # -- assignment -----------------------------------------------------------------------
 
 
