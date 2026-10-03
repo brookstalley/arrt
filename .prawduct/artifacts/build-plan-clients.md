@@ -84,7 +84,7 @@ Open assumptions:
 ## Status
 
 - [x] Chunk 01: Clients on the server
-- [ ] Chunk 02: Settings › Clients and the Walls screen
+- [x] Chunk 02: Settings › Clients and the Walls screen
 - [ ] Chunk 03: The Player as a client
 - [ ] Chunk 04: The HDMI output
 - [ ] Chunk 05: Deploy and look
@@ -132,6 +132,11 @@ assignment. `information-architecture.md` rows.
 
 Done when: browser tests for each act and the token shown once; MCP parity
 tests; screenshots; an operator-verification entry.
+
+*Chunk 02 verified 2026-10-02 (delegate, merged `7325384`; review
+`rev-20261003T030831Z-cfc36e3f`, 0 findings):* curation 3214, browser 604, root
+402 passed after the merge; screenshots of the Clients page (empty, populated,
+token once) and the Walls screen at 1280 and 390 px were looked at.
 
 ### Chunk 03: The Player as a client
 
