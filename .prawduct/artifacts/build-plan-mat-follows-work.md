@@ -71,7 +71,7 @@ High. The owner stated the requirement and answered the three open questions.
 
 - [x] Chunk 01: The mat follows the work
 - [x] Chunk 02: Canvases recompose when the geometry changes
-- [ ] Chunk 03: Deploy and look
+- [x] Chunk 03: Deploy and look
 
 ### Chunk 01: The mat follows the work
 
@@ -118,6 +118,9 @@ the old full-screen mat (#74, which this closes).
   was copied from `.env.example`, which set 2.5 explicitly) and deploys.
 - The startup log shows the recompose; the owner looks at a square and a tall
   work on the HDMI monitor. Entered in `operator-verification.md`.
+
+*Deployed 2026-10-02 (image `5469c8b`, 40 canvases recomposed); looked at by the
+owner 2026-10-03: "Mat looks good".*
 
 ## Verification strategy
 

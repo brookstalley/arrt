@@ -10,9 +10,14 @@ each entry, which is the durable form.
 
 ## Pending
 
-### The mat takes the work's shape, with black beyond it — added 2026-10-02
+### ✅ The mat takes the work's shape, with black beyond it — added 2026-10-02, VERIFIED 2026-10-03
 
 **`build-plan-mat-follows-work.md` Chunk 03.** Visual change: yes.
+
+**Looked at by the owner on 2026-10-03** on the deployed wall (image `5469c8b`,
+all 40 canvases recomposed at startup): "Mat looks good". The owner did not say
+which works they looked at. The grey and near-black mats that are now inside
+black are #183, not this entry.
 
 Checked by the builder on 2026-10-02 against four synthetic sources composed at
 the 50" panel's geometry (1.5" mat: 132 px top and sides, 152 px bottom): a
