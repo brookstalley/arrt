@@ -23,7 +23,7 @@ exercisable without a database or a network.
 import base64
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal
 from io import BytesIO
 from pathlib import Path
@@ -58,17 +58,26 @@ log = logging.getLogger(__name__)
 #: because that is what its compositor produced. This one composes a mat of even
 #: width on all four sides, so describing it the old way would have the model
 #: reasoning about a picture nobody will see.
+#:
+#: Three more lines are the owner's, from looking at the wall with the mat inside
+#: black (2026-10-02 and 2026-10-03): the black outside the mat, the floor, and
+#: the faint cast an achromatic work still gets. The 2024 prompt said a grey was
+#: right for an achromatic work; on this screen a neutral grey "looks accidental",
+#: so that line is gone rather than kept for continuity.
 MAT_PROMPT: Final[str] = """You are choosing a mat colour for a framed artwork that will hang on a wall-mounted display.
 
 The artwork is centred on the display inside a mat that surrounds it on all four sides, so it reads as the mount of a
-framed picture rather than as bars beside a video.
+framed picture rather than as bars beside a video. Everything on the display outside the mat is pure black.
 
 Choose the mat colour. Guidelines:
 - Reason in CIE LAB space, which aligns with human perception.
 - Consider the artwork's palette, mood, and overall aesthetic; if you recognise the work or artist, consider their style.
 - Avoid a colour or lightness that blends into the artwork's edges.
 - The display is emissive, so a mat brighter than the artwork glares. When in doubt, go darker.
-- Prefer a low-chroma colour drawn from the artwork over a neutral grey, but a grey is right when the work is achromatic.
+- Never choose a colour darker than L* 15. Beside the display's black, a mat that dark looks like the screen failing to
+  show black rather than like a mat.
+- Prefer a low-chroma colour drawn from the artwork over a neutral grey. Even for a black-and-white work, give the mat a
+  faint warm or cool cast, taken from its paper or canvas tone; a neutral grey looks accidental.
 
 Answer with the chosen colour and a short reason."""
 
@@ -88,6 +97,24 @@ MAT_SCHEMA: Final[dict[str, Any]] = {
     "required": ["hex_rgb", "lab_l", "lab_a", "lab_b", "reason"],
     "additionalProperties": False,
 }
+
+#: **The darkest mat the product shows, by the owner's ruling of 2026-10-03.** The
+#: mat sits inside pure black, and beside it a near-black mat reads as a panel
+#: failing to show black. The owner saw it on the HDMI monitor: "it looks like a
+#: bad LCD". The number is the owner's choice from a proposal, not a measurement:
+#: it clears the near-blacks they objected to (the corpus has 10 below it, `#222222`
+#: at L* 13.2 among them) and sits well under the seascape's `#22394b` at L* 22.9,
+#: which they liked.
+#:
+#: **Lightness only.** The owner ruled out a floor on chroma; avoiding neutral grey
+#: is guidance in the prompt, not a check.
+#:
+#: Enforced everywhere a colour enters: the model's answer (asked again, never
+#: edited), the fallback (lifted), and a person's own colour
+#: (`PreparationService.set_mat` refuses it). That is why a mat below it in the
+#: catalogue can only be one that predates the ruling, which preparation chooses
+#: again.
+MAT_LIGHTNESS_FLOOR: Final[float] = 15.0
 
 #: How much of the dominant colour's lightness the fallback keeps. Carried from
 #: the 2024 pipeline, which multiplied the dominant colour's luminance by this
@@ -170,7 +197,7 @@ _DERIVED_LIGHTNESS_CEILING: Final[float] = 45.2
 _CLUSTER_MERGE_DISTANCE: Final[float] = 10.0
 
 #: How many halvings the gamut search takes to find the most saturated colour that
-#: fits under the ceiling. Twenty resolves the chroma scale to about one part in a
+#: fits under the ceiling, or the least that clears the floor. Twenty resolves the chroma scale to about one part in a
 #: million — far finer than the 8-bit channels the answer is rounded into, so the
 #: bound is the encoding rather than the search.
 _GAMUT_SEARCH_STEPS: Final[int] = 20
@@ -252,13 +279,45 @@ class MatEngine:
             return self._fallback(image_path, detail=f"the vision model could not be reached: {exc}")
 
         choice = _read_choice(completion)
-        if choice is not None:
+        if choice is None:
+            return self._fallback(image_path, detail=_unusable_detail(completion), cost_usd=completion.cost_usd)
+        if not _below_the_floor(choice.hex_rgb):
             return choice
-        return self._fallback(
-            image_path,
-            detail=_unusable_detail(completion),
-            cost_usd=completion.cost_usd,
+        return self._ask_again(self._client, image_path, attachment, dark=choice)
+
+    def _ask_again(
+        self, client: OpenRouterClient, image_path: Path, attachment: ImageAttachment, *, dark: MatChoice
+    ) -> MatChoice:
+        """Ask once more, saying why, after the model answered below the floor.
+
+        **Asked again rather than edited.** Lifting the model's colour would record
+        a colour nobody selected under a `method` saying the model chose it, which
+        is the substitution `MatColor.method` exists to end. **Once, not until it
+        complies**: a model that answers below the floor twice, having been told the
+        floor, is not converging, and the work gets the mechanical colour with both
+        answers named in the detail.
+
+        Both calls are billed, so both are reported.
+        """
+        log.info(
+            "mat for %s was answered below the floor (%s, L* %.1f); asking once more",
+            image_path.name,
+            dark.hex_rgb,
+            rgb_to_lab(parse_hex(dark.hex_rgb)).l,
         )
+        first = f"its first answer, {dark.hex_rgb}, was darker than L* {MAT_LIGHTNESS_FLOOR:g}"
+        try:
+            completion = client.complete(prompt=_again(dark.hex_rgb), schema=MAT_SCHEMA, image=attachment)
+        except OpenRouterError as exc:
+            return self._fallback(image_path, detail=f"{first}, and asking again failed: {exc}", cost_usd=dark.cost_usd)
+        spent = dark.cost_usd + completion.cost_usd
+        again = _read_choice(completion)
+        if again is None:
+            detail = f"{first}, and its second was unusable: {_unusable_detail(completion)}"
+            return self._fallback(image_path, detail=detail, cost_usd=spent)
+        if _below_the_floor(again.hex_rgb):
+            return self._fallback(image_path, detail=f"{first}, and its second, {again.hex_rgb}, was too", cost_usd=spent)
+        return replace(again, cost_usd=spent)
 
     def _encode(self, image_path: Path) -> ImageAttachment:
         """The work as a JPEG small enough to send, upright and in RGB.
@@ -284,8 +343,19 @@ class MatEngine:
         rgb = reading(image_path, lambda: dominant_color(image_path))
         scaled = scale_lightness(rgb, _FALLBACK_LIGHTNESS)
         darkened = _under_the_corpus_bar(scaled)
-        lab = rgb_to_lab(darkened)
+        held = _over_the_floor(darkened)
+        lab = rgb_to_lab(held)
         log.info("mat for %s fell back to the dominant colour: %s", image_path.name, detail)
+        if held != darkened:
+            # Logged for the reason the ceiling is, below: `method` cannot say a
+            # derived colour was moved, and a curator asking why a black work has
+            # a mat lighter than itself has nowhere else to look.
+            log.info(
+                "mat for %s was lifted to the floor: derived L* %.1f, lifted to L* %.1f",
+                image_path.name,
+                rgb_to_lab(darkened).l,
+                lab.l,
+            )
         if darkened != scaled:
             # **The ceiling firing is the one thing about a derived colour that is
             # otherwise unrecoverable.** `method` records that the colour was
@@ -302,7 +372,7 @@ class MatEngine:
                 lab.l,
             )
         return MatChoice(
-            hex_rgb=format_hex(darkened),
+            hex_rgb=format_hex(held),
             method=MatMethod.DOMINANT_COLOR_FALLBACK,
             reason=_FALLBACK_REASON,
             lab_l=lab.l,
@@ -330,8 +400,9 @@ def _under_the_corpus_bar(rgb: tuple[int, int, int]) -> tuple[int, int, int]:
     to reason about the work and its answer is a considered choice; silently
     darkening it would make the recorded colour something no one selected, which is
     the invisible-substitution failure `MatColor.method` exists to end. Whether the
-    model's answers need a bar of their own is a separate question with separate
-    evidence, and is not settled here.
+    model's answers need a ceiling of their own is a separate question with separate
+    evidence, and is not settled here. They do have a floor, enforced by asking
+    again rather than by editing the answer (`MatEngine._ask_again`).
     """
     lab = rgb_to_lab(rgb)
     if lab.l <= _DERIVED_LIGHTNESS_CEILING:
@@ -359,8 +430,8 @@ def _fitted_to_the_gamut(lab: Lab) -> tuple[int, int, int]:
     grey, when the prompt that produced the corpus says to prefer a low-chroma
     colour *drawn from the artwork* over a neutral. Going darker is the corpus's own
     instruction for exactly this doubt ("when in doubt, go darker"), it keeps the
-    mat the work's colour, and L\\* 6.7 is the corpus's floor, so there is room
-    beneath the ceiling to move in.
+    mat the work's colour, and the floor is thirty L\\* below the ceiling, so there
+    is room beneath it to move in.
 
     The search always has an answer — black is displayable at every hue — so it
     terminates on a real colour rather than on a bound.
@@ -373,6 +444,52 @@ def _fitted_to_the_gamut(lab: Lab) -> tuple[int, int, int]:
         else:
             exceeds = middle
     return lab_to_rgb(Lab(l=fits, a=lab.a, b=lab.b))
+
+
+def _over_the_floor(rgb: tuple[int, int, int]) -> tuple[int, int, int]:
+    """The same colour, no darker than `MAT_LIGHTNESS_FLOOR`.
+
+    The ceiling's mirror. Lightness only, keeping a\\* and b\\*, so a dark navy
+    work gets a navy at the floor rather than a grey. A colour already at or above
+    the floor is returned exactly as it arrived.
+
+    **Asking for the floor does not always get it**, for the reason it does not at
+    the ceiling: a hue sRGB cannot show at L\\* 15 is clipped into the gamut, and
+    the clip can come back darker. Then the search goes up rather than down, to the
+    least lightness whose displayable colour clears the floor. White clears it at
+    every hue, so the search always ends on a real colour.
+    """
+    lab = rgb_to_lab(rgb)
+    if lab.l >= MAT_LIGHTNESS_FLOOR:
+        return rgb
+    at_floor = lab_to_rgb(Lab(l=MAT_LIGHTNESS_FLOOR, a=lab.a, b=lab.b))
+    if rgb_to_lab(at_floor).l >= MAT_LIGHTNESS_FLOOR:
+        return at_floor
+    short, clears = MAT_LIGHTNESS_FLOOR, 100.0
+    for _ in range(_GAMUT_SEARCH_STEPS):
+        middle = (short + clears) / 2
+        if rgb_to_lab(lab_to_rgb(Lab(l=middle, a=lab.a, b=lab.b))).l >= MAT_LIGHTNESS_FLOOR:
+            clears = middle
+        else:
+            short = middle
+    return lab_to_rgb(Lab(l=clears, a=lab.a, b=lab.b))
+
+
+def _below_the_floor(hex_rgb: str) -> bool:
+    """Whether a colour is darker than the floor, judged on the colour itself.
+
+    On the hex, never on the `lab_l` a model sends beside it: the two can disagree,
+    and the hex is what gets painted.
+    """
+    return rgb_to_lab(parse_hex(hex_rgb)).l < MAT_LIGHTNESS_FLOOR
+
+
+def _again(dark_hex: str) -> str:
+    """The prompt again, with the answer it is asking to replace named."""
+    return (
+        f"{MAT_PROMPT}\n\nA previous answer for this artwork, {dark_hex}, was darker than L* "
+        f"{MAT_LIGHTNESS_FLOOR:g}. Choose again, no darker than that."
+    )
 
 
 def dominant_color(image_path: Path) -> tuple[int, int, int]:
@@ -519,4 +636,4 @@ def _number(value: object) -> float | None:
     return None
 
 
-__all__ = ["CORPUS_MAX_LIGHTNESS", "MAT_PROMPT", "MAT_SCHEMA", "MatChoice", "MatEngine", "dominant_color"]
+__all__ = ["CORPUS_MAX_LIGHTNESS", "MAT_LIGHTNESS_FLOOR", "MAT_PROMPT", "MAT_SCHEMA", "MatChoice", "MatEngine", "dominant_color"]

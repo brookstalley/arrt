@@ -36,9 +36,9 @@ from enum import Enum
 from pathlib import Path
 from typing import Final, Protocol
 
-from arrt.library.acquisition.color import ColorError, format_hex, parse_hex
+from arrt.library.acquisition.color import ColorError, format_hex, parse_hex, rgb_to_lab
 from arrt.library.acquisition.compose import compose, layout
-from arrt.library.acquisition.mat import MatChoice, MatEngine
+from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR, MatChoice, MatEngine
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.display_fit import ArtworkBox, DisplayFit
 from arrt.persistence.discovery_records import SpendCategory
@@ -339,11 +339,24 @@ class PreparationService:
         with a message fit to return into an unhandled error at the surface. Only
         the parse is wrapped — a `ServiceError` from the write below must reach the
         caller as itself.
+
+        **A colour darker than `MAT_LIGHTNESS_FLOOR` is refused**, a person's as
+        much as the engine's. Accepting it would put a mat on the wall that the
+        owner's ruling forbids, and preparation would then choose it again over
+        the person's head, since a mat below the floor is one it re-chooses.
         """
         try:
-            normalised = format_hex(parse_hex(hex_rgb))
+            rgb = parse_hex(hex_rgb)
         except ColorError as exc:
             raise ServiceError(str(exc)) from exc
+        normalised = format_hex(rgb)
+        lightness = rgb_to_lab(rgb).l
+        if lightness < MAT_LIGHTNESS_FLOOR:
+            raise ServiceError(
+                f"{normalised} is L* {lightness:.1f}, darker than the mat floor of L* {MAT_LIGHTNESS_FLOOR:g}: "
+                "inside the screen's black, a mat that dark looks like the panel failing to show black. "
+                "Choose a lighter colour."
+            )
         self._catalogue.record_mat_color(artwork_id=artwork_id, hex_rgb=normalised, method=MatMethod.MANUAL)
         return self.prepare(artwork_id, force=True)
 

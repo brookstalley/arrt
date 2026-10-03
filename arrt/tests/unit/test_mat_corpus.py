@@ -40,8 +40,10 @@ from arrt.library.acquisition.mat import (
     _DERIVED_LIGHTNESS_CEILING,
     _FALLBACK_LIGHTNESS,
     CORPUS_MAX_LIGHTNESS,
+    MAT_LIGHTNESS_FLOOR,
     MatEngine,
     _most_covered_colour,
+    _over_the_floor,
     _under_the_corpus_bar,
     dominant_color,
 )
@@ -156,13 +158,18 @@ class TestTheMechanicalProducerAgainstTheBar:
             ((30, 60, 120), "a deep blue"),
             ((200, 40, 40), "a saturated red"),
             ((128, 128, 128), "mid grey"),
-            ((10, 10, 10), "near black"),
         ],
     )
     def test_the_fallback_never_proposes_a_mat_lighter_than_the_work(self, tmp_path, colour, label):
         """**Including from a white artwork**, which is the case that decides it:
         two thirds of white is still bright, and an engine that returned it would
-        put a glaring mat around the palest works in a collection."""
+        put a glaring mat around the palest works in a collection.
+
+        A near-black work was a case here until the floor (owner, 2026-10-03). Its
+        mat is now lifted to L\\* 15, lighter than the work, and that is the ruling
+        rather than a regression: the reason for this test is glare, and a mat at
+        L\\* 15 does not glare. That case is
+        `test_a_near_black_work_gets_a_mat_at_the_floor_in_its_own_hue`."""
         source = tmp_path / "work.jpg"
         Image.new("RGB", (400, 300), colour).save(source, format="JPEG", quality=95)
 
@@ -265,6 +272,65 @@ class TestTheMechanicalProducerAgainstTheBar:
         }
 
         assert over == {}
+
+    def test_a_near_black_work_gets_a_mat_at_the_floor_in_its_own_hue(self, tmp_path):
+        """The floor, on the input it exists for. A navy so dark that darkening it
+        by a third lands near black: the mat comes back at the floor, not above it
+        (a lift that overshoots would make every dark work's mat the same pale
+        colour), and still blue (a lift through grey would pass a lightness-only
+        assertion)."""
+        source = tmp_path / "night.jpg"
+        Image.new("RGB", (400, 300), (8, 12, 40)).save(source, format="JPEG", quality=95)
+        derived = rgb_to_lab(scale_lightness(dominant_color(source), _FALLBACK_LIGHTNESS))
+        assert derived.l < MAT_LIGHTNESS_FLOOR, "the fixture must start below the floor or the lift is not exercised"
+
+        chosen = rgb_to_lab(parse_hex(MatEngine(None, image_max_edge=256).choose(source).hex_rgb))
+
+        assert MAT_LIGHTNESS_FLOOR <= chosen.l < MAT_LIGHTNESS_FLOOR + 1
+        assert chosen.b < -10
+
+    def test_the_floor_holds_for_every_colour_a_display_can_show(self):
+        """The ceiling's sweep, for the floor, and over both together, since a
+        fallback passes through the ceiling and then the floor: every colour in the
+        lattice comes out between them. The lattice starts at 0, so the darkest
+        and most saturated colours, the ones the gamut clip darkens, are in it."""
+        outside = {}
+        for colour in (
+            (red, green, blue) for red in range(0, 256, 15) for green in range(0, 256, 15) for blue in range(0, 256, 15)
+        ):
+            lightness = rgb_to_lab(_over_the_floor(_under_the_corpus_bar(colour))).l
+            if not MAT_LIGHTNESS_FLOOR <= lightness <= _DERIVED_LIGHTNESS_CEILING:
+                outside[colour] = round(lightness, 2)
+
+        assert outside == {}
+
+    def test_a_colour_at_or_above_the_floor_is_left_exactly_where_it_was(self):
+        """The lift is a floor, not a rescale. `#22394b`, the seascape mat the owner
+        singled out as right, must come through untouched."""
+        seascape = parse_hex("#22394b")
+
+        assert _over_the_floor(seascape) == seascape
+
+    def test_a_lifted_mat_says_so_where_someone_can_read_it(self, tmp_path, caplog):
+        """Like the ceiling's line: `method` says a colour was derived, not that it
+        was then lifted, and "why is this black work's mat lighter than it?" has
+        nowhere else to look."""
+        source = tmp_path / "night.jpg"
+        Image.new("RGB", (400, 300), (8, 12, 40)).save(source, format="JPEG", quality=95)
+
+        with caplog.at_level(logging.INFO, logger="arrt.library.acquisition.mat"):
+            choice = MatEngine(None, image_max_edge=256).choose(source)
+
+        assert f"lifted to L* {rgb_to_lab(parse_hex(choice.hex_rgb)).l:.1f}" in caplog.text
+
+    def test_a_mat_the_floor_did_not_touch_says_nothing_about_it(self, tmp_path, caplog):
+        source = tmp_path / "deep-blue.jpg"
+        Image.new("RGB", (400, 300), (30, 60, 120)).save(source, format="JPEG", quality=95)
+
+        with caplog.at_level(logging.INFO, logger="arrt.library.acquisition.mat"):
+            MatEngine(None, image_max_edge=256).choose(source)
+
+        assert "lifted to the floor" not in caplog.text
 
     def test_a_clamped_mat_says_so_where_someone_can_read_it(self, tmp_path, caplog):
         """**The ceiling firing is otherwise unrecoverable after the fact.**

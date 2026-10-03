@@ -24,7 +24,7 @@ import pytest
 from PIL import Image
 
 from arrt.library.acquisition.color import parse_hex, rgb_to_lab
-from arrt.library.acquisition.mat import MAT_PROMPT, MatEngine, dominant_color
+from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR, MAT_PROMPT, MatEngine, dominant_color
 from arrt.library.discovery.openrouter import OpenRouterClient
 from arrt.persistence.records import MatMethod
 from arrt.services.errors import ServiceError
@@ -66,6 +66,27 @@ def _client(payload, *, recorder: list | None = None, status: int = 200, model: 
         max_output_tokens=2000,
         client=httpx.Client(transport=_transport(payload, recorder=recorder, status=status)),
     )
+
+
+def _answering_in_turn(*responses: tuple[int, dict], recorder: list) -> OpenRouterClient:
+    """A client whose successive calls get successive responses, as (status, payload)."""
+    remaining = list(responses)
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        recorder.append(json.loads(request.content))
+        status, payload = remaining.pop(0)
+        return httpx.Response(status, json=payload)
+
+    return OpenRouterClient(
+        "test-key",
+        model="qwen/qwen3.7-flash",
+        max_output_tokens=2000,
+        client=httpx.Client(transport=httpx.MockTransport(handle)),
+    )
+
+
+def _prompt_of(request: dict) -> str:
+    return next(part["text"] for part in request["messages"][0]["content"] if part["type"] == "text")
 
 
 @pytest.fixture
@@ -111,8 +132,9 @@ class TestTheModelAnswers:
         to, and chosen for that. Darkening it would put a colour in the catalogue
         that no one selected, under a `method` saying a model chose it, which is the
         invisible substitution `MatColor.method` exists to end. Whether the model's
-        answers deserve a bar of their own is open; it is not open that the answer
-        may be edited on the way to being recorded without saying so."""
+        answers deserve a ceiling of their own is open; it is not open that the
+        answer may be edited on the way to being recorded without saying so. (They
+        have a floor, enforced by asking again rather than by editing: `TestTheFloor`.)"""
         pale = json.dumps(
             {
                 "hex_rgb": "#e8e2d0",
@@ -362,3 +384,103 @@ class TestTheDominantColour:
         Image.new("L", (60, 60), 90).save(path)
 
         assert len(dominant_color(path)) == 3
+
+
+#: `#1c1c1c`, L* 10.3: one of the 2024 mats the owner called a bad LCD.
+DARK_ANSWER = json.dumps({"hex_rgb": "#1c1c1c", "lab_l": 10.3, "lab_a": 0, "lab_b": 0, "reason": "Near black."})
+
+
+class TestTheFloor:
+    """No mat darker than L* 15 (owner, 2026-10-03), enforced on the model by
+    asking again rather than by editing what it chose."""
+
+    def test_the_prompt_states_the_floor_and_no_longer_licenses_grey(self):
+        assert f"darker than L* {MAT_LIGHTNESS_FLOOR:g}" in MAT_PROMPT
+        assert "pure black" in MAT_PROMPT
+        assert "a grey is right" not in MAT_PROMPT
+        assert "faint warm or cool cast" in MAT_PROMPT
+
+    def test_an_answer_below_the_floor_is_asked_again_and_the_second_is_used(self, artwork):
+        requests: list = []
+        client = _answering_in_turn(
+            (200, _answered(DARK_ANSWER, cost=0.0001)), (200, _answered(GOOD_ANSWER, cost=0.0002)), recorder=requests
+        )
+
+        choice = MatEngine(client, image_max_edge=768).choose(artwork)
+
+        assert choice.hex_rgb == "#27285b"
+        assert choice.method is MatMethod.VISION_MODEL
+        assert choice.fallback_detail is None
+        assert choice.cost_usd == Decimal("0.0003")
+        assert len(requests) == 2
+        assert "#1c1c1c" not in _prompt_of(requests[0])
+        assert "#1c1c1c" in _prompt_of(requests[1])
+        # The second request carries the image too; the provider keeps no thread.
+        assert any(part["type"] == "image_url" for part in requests[1]["messages"][0]["content"])
+
+    def test_an_answer_at_the_floor_is_not_asked_again(self, artwork):
+        """The guard's other side. `#2a2a2a` is L* 16.9: a re-ask here would
+        double the cost of every dark-but-legal mat."""
+        legal = json.dumps({"hex_rgb": "#2a2a2a", "lab_l": 16.9, "lab_a": 0, "lab_b": 0, "reason": "Charcoal."})
+        requests: list = []
+        client = _answering_in_turn((200, _answered(legal)), recorder=requests)
+
+        choice = MatEngine(client, image_max_edge=768).choose(artwork)
+
+        assert choice.hex_rgb == "#2a2a2a"
+        assert len(requests) == 1
+
+    def test_the_floor_is_judged_on_the_hex_not_on_the_lightness_the_model_claims(self, artwork):
+        """The two can disagree, and the hex is what gets painted. Here the model
+        claims L* 30 for a colour that is L* 10.3."""
+        claims_light = json.dumps({"hex_rgb": "#1c1c1c", "lab_l": 30, "lab_a": 0, "lab_b": 0, "reason": "Grey."})
+        requests: list = []
+        client = _answering_in_turn((200, _answered(claims_light)), (200, _answered(GOOD_ANSWER)), recorder=requests)
+
+        choice = MatEngine(client, image_max_edge=768).choose(artwork)
+
+        assert choice.hex_rgb == "#27285b"
+        assert len(requests) == 2
+
+    def test_two_answers_below_the_floor_fall_back_naming_both(self, artwork):
+        requests: list = []
+        second = json.dumps({"hex_rgb": "#141414", "lab_l": 6, "lab_a": 0, "lab_b": 0, "reason": "Darker still."})
+        client = _answering_in_turn(
+            (200, _answered(DARK_ANSWER, cost=0.0001)), (200, _answered(second, cost=0.0002)), recorder=requests
+        )
+
+        choice = MatEngine(client, image_max_edge=768).choose(artwork)
+
+        assert choice.method is MatMethod.DOMINANT_COLOR_FALLBACK
+        assert "#1c1c1c" in choice.fallback_detail and "#141414" in choice.fallback_detail
+        assert choice.cost_usd == Decimal("0.0003")
+        assert rgb_to_lab(parse_hex(choice.hex_rgb)).l >= MAT_LIGHTNESS_FLOOR
+        assert len(requests) == 2
+
+    def test_an_unusable_second_answer_falls_back_with_both_costs(self, artwork):
+        requests: list = []
+        client = _answering_in_turn(
+            (200, _answered(DARK_ANSWER, cost=0.0001)),
+            (200, _answered("", finish_reason="length", cost=0.0002)),
+            recorder=requests,
+        )
+
+        choice = MatEngine(client, image_max_edge=768).choose(artwork)
+
+        assert choice.method is MatMethod.DOMINANT_COLOR_FALLBACK
+        assert "#1c1c1c" in choice.fallback_detail and "MAT_MAX_OUTPUT_TOKENS" in choice.fallback_detail
+        assert choice.cost_usd == Decimal("0.0003")
+
+    def test_a_refused_second_call_falls_back_with_the_first_cost(self, artwork):
+        requests: list = []
+        client = _answering_in_turn(
+            (200, _answered(DARK_ANSWER, cost=0.0001)),
+            (403, {"error": {"message": "Key limit exceeded"}}),
+            recorder=requests,
+        )
+
+        choice = MatEngine(client, image_max_edge=768).choose(artwork)
+
+        assert choice.method is MatMethod.DOMINANT_COLOR_FALLBACK
+        assert "asking again failed" in choice.fallback_detail
+        assert choice.cost_usd == Decimal("0.0001")

@@ -26,6 +26,7 @@ service method answers it, and the service method does the work.
 
 from typing import Final
 
+from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR
 from arrt.library.services.catalogue import MAX_LIST_LIMIT
 from arrt.library.services.review import MAX_REVIEW_LIMIT
 from arrt.mcp.registry import Action, Param, ToolRecord
@@ -135,7 +136,8 @@ _HEX_RGB = Param(
     name="hex_rgb",
     type="string",
     description=(
-        "The mat colour as a hex triplet, e.g. '#27285b'. Omit it to have the vision model choose one, which "
+        f"The mat colour as a hex triplet, e.g. '#27285b', no darker than CIE L* {MAT_LIGHTNESS_FLOOR:g} (a darker "
+        "one is refused). Omit it to have the vision model choose one, which "
         "spends a fraction of a cent. (action='regenerate' also chooses one, and pays, for a work that has "
         "never had a mat; both actions report cost_usd.)"
     ),

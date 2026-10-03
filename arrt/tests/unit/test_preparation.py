@@ -399,6 +399,27 @@ class TestACuratorsOwnColour:
 
         assert service.current_mat_color(work.id).hex_rgb == before
 
+    def test_a_colour_below_the_floor_is_refused_before_anything_is_written(self, prep, service, settings):
+        """A person's colour is held to the floor too (owner, 2026-10-03).
+        Accepted, it would be on the wall against the ruling, and the next
+        preparation would choose again over the person's head. `#252525` is
+        L* 14.7, the darkest grey just under the floor."""
+        work, _ = _work_with_original(service, settings)
+        prep.prepare(work.id)
+        before = service.current_mat_color(work.id).hex_rgb
+
+        with pytest.raises(ServiceError, match=r"darker than the mat floor of L\* 15"):
+            prep.set_mat(work.id, "#252525")
+
+        assert service.current_mat_color(work.id).hex_rgb == before
+
+    def test_the_darkest_colour_at_the_floor_is_accepted(self, prep, service, settings):
+        """The boundary's other side: `#262626` is L* 15.2."""
+        work, _ = _work_with_original(service, settings)
+        prep.prepare(work.id)
+
+        assert prep.set_mat(work.id, "#262626").mat_hex == "#262626"
+
 
 class TestWhatItRefuses:
     def test_a_work_with_no_original_is_refused_with_the_remedy(self, prep, service):
