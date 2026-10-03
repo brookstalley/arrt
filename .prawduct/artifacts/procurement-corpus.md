@@ -477,4 +477,69 @@ Before then, an Ask whose intent names the anchors approximates it, and spends.
 
 ## Results
 
-Nothing has been run.
+### Run 1 — Part A step 1, the first Get (2026-10-03)
+
+Run `a41ecc1b`, on the NAS, against the predictions as committed in `4134e9c`:
+
+- 50 QIDs chosen, none skipped (no item held, being got, or missing from the registry).
+- Finished in 20 seconds; spent $0.
+- **11 found, 2 below the floor, 37 not.**
+  - Of the 37: 34 were not held by any source.
+  - The other 3 were refused on identity.
+- **40 of the 50 predictions were right.**
+  - 36 of the 44 "none" predictions held.
+  - 4 of the 5 "found" held.
+  - The one "small" did not.
+
+| # | Work | Predicted | Outcome |
+|---|---|---|---|
+| 1 | *Windows* | found | **found**, Commons, 3168 × 3564, a reproduction |
+| 2 | *Homage to Blériot* | found | **found**, Commons, 3840 × 3805 |
+| 3 | *Rythme n°1* | found | **found**, Commons, 2985 × 2715 |
+| 9 | *City at Night* | found | **found**, Commons, 952 × 1200, matted small |
+| 12 | *Tête Dada* | none | **found**, Commons, 1044 × 2180: a photograph of the object in the museum, CC BY |
+| 13 | *Composition of Circles…* | found | **none**: the item names no Commons image |
+| 19 | *In the Third Sleep* | small | **found**, Art Institute, 8786 × 5798, in copyright |
+| 23 | *Lobster Telephone* | none | **found**, Commons, 1280 × 929: a photographer's own photograph, CC BY |
+| 24 | *Cirque Calder* | none | **below floor**, Commons, 400 × 400: a 1951 photograph of Calder with the circus |
+| 31 | *Campbell's Soup Cans* | none | **found**, Commons, 2604 × 1514: the 32 canvases photographed on MoMA's wall |
+| 33 | *Whaam!* | none | **found, and wrong**: Commons, 3648 × 2406, a 1967 photograph of Lichtenstein in front of "one of his paintings" at the Stedelijk |
+| 34 | *Drowning Girl* | none | **below floor**, Commons, 140 × 63, a crop of the speech balloon |
+| 35 | *Crak!* | none (impression unknown) | **found**, Art Institute's impression, 11073 × 7794, in copyright |
+| 41 | *Austin* | none, wrong-risk | **found**, Commons, 3200 × 1800: the building, photographed |
+| 10, 27, 36 | *Spanish Dancer*, *Monogram*, *Leda and the Swan* | none | **refused on identity**: a title match naming another artist was turned away |
+
+Every other row: none, as predicted.
+
+**What the misses say about each rule:**
+
+- **R1 was wrong in one specific way.** Commons does stop reproducing paintings at
+  the rights boundary. But the image a Wikidata item names is often not a
+  reproduction at all. It can be a *photograph*, freely licensed by whoever took
+  it, of:
+  - a 3D object (12, 23);
+  - an installation (24, 31);
+  - a building (41);
+  - and once, the artist rather than the work (33).
+
+  Past the boundary, Commons answers with photographs. Under gap 6's ruling those
+  are legitimate images of a work, judged at review, and the review is all that
+  stands between the owner and row 33. One find was missed the other way: row 13
+  is public domain, yet its item names no image.
+- **R2 was wrong.** The Art Institute serves full-resolution tiles for works it
+  holds *in copyright*, too. Measured: for both rows 19 and 35, a tile beyond
+  the first 843 pixels came back as image data (about 250 KB each). Its limit is
+  what it holds, not the rights.
+- **R3's harm did not appear.** Row 41, with no creator, got its own item's image,
+  which is the right one. Row 44 got nothing. Per gap 3's ruling, nothing is filed.
+  The wrong image came from a different place: an item whose chosen image is not
+  the work (row 33).
+- **The identity check worked.** Three title matches naming another artist were
+  refused rather than attached.
+
+**What this changes:**
+
+- **The Art Institute is a source past the boundary**, for what it holds. Step 3
+  starts with the cheapest probe there is: ask it for each anchor artist.
+- **The owner's review queue holds the 11 finds.** Reject row 33's photograph; it
+  is not *Whaam!*.

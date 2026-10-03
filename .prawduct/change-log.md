@@ -91,7 +91,15 @@ limit them." Which source to build first should be measured, not guessed.
   Magritte, Jasper Johns and Vasarely, all three already in the library. They came
   off the list for three artists from the reserve.
 
-Nothing has been run against the corpus yet.
+**Run 1, the first Get on the NAS:**
+- 11 of 50 found, at $0.
+- 40 of 50 predictions right.
+- The misses refined two rules:
+  - The Art Institute serves works it holds in copyright at full resolution.
+  - Commons answers past the rights boundary with photographs of works, once
+    with a photograph of the artist in place of *Whaam!*.
+
+The Supply Horizon section carries a dated note pointing at the measurement.
 
 ## 2026-10-03: No mat near black
 

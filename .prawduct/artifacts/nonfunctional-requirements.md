@@ -922,6 +922,19 @@ copyright. The measured break sat around 1929, and the boundary itself moves
 forward a year at a time, so it is the boundary that is the constant here and not
 the date.
 
+*(Refined 2026-10-03 by the first run against `procurement-corpus.md`, § Results.)*
+Two things continue past the boundary that this section's sweep did not see:
+
+- **The Art Institute serves works it holds in copyright at full resolution.**
+  Measured on two works: a tile past the first 843 pixels came back as image data
+  for both.
+- **A Wikidata item's image is often a freely licensed photograph of the work**:
+  an object in a gallery, an installation, a building. It is occasionally not of
+  the work at all.
+
+So what stops at the boundary is *open reproductions of paintings*. Holdings and
+photographs continue past it, and the Art Institute's limit is what it holds.
+
 **This sits against a recorded decision, and the collision is recorded rather than
 quietly resolved.** `project-state.yaml` § integrations commits discovery to museum
 collections *and* the contemporary web — gallery sites, prize announcements, artist
