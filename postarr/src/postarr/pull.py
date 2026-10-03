@@ -1,19 +1,20 @@
-"""HTTP mode: pull this wall's manifest and renders into a local cache, and report the heartbeat.
+"""Pull each wall's manifest and renders into its cache, report its heartbeat, and ask the server which walls this client drives.
 
 **The only module in this plane that speaks HTTP**, and
-`tests/preferences/test_plane_isolation.py` holds it to that. It spells two
-routes, the manifest and the heartbeat, as `contract/routes.json` spells them.
-Renders are fetched from the address each manifest entry's `media.url` gives,
-resolved against the manifest's own URL: today the same server's media route,
-after a Library/Programming split perhaps another host. The token is sent to the
-server's own origin only.
+`tests/preferences/test_plane_isolation.py` holds it to that. It spells four
+routes — the client document and the client heartbeat, a wall's manifest and a
+wall's heartbeat — as `contract/routes.json` spells them. Renders are fetched
+from the address each manifest entry's `media.url` gives, resolved against the
+manifest's own URL: today the same server's media route, after a
+Library/Programming split perhaps another host. The client's token is sent to
+the server's own origin only.
 
-**The cache is the only thing the wall renders from.** The daemon's watcher reads
-`CACHE_DIR/manifest.json` exactly as it reads the shared file in file mode, and
-this module writes that file only once every render it names is in the cache and
-has been checked against its hash. So rotation, directives and the label are the
-same code in both modes, and a server that goes away changes nothing about what
-is on the wall: the last good manifest stays, and so do its renders.
+**The cache is the only thing a wall renders from.** A worker's watcher reads
+`CACHE_DIR/<wall id>/manifest.json`, and this module writes that file only once
+every render it names is in the cache and has been checked against its hash. So
+a server that goes away changes nothing about what is on the wall: the last good
+manifest stays, and so do its renders. The client document is kept the same way,
+so a client restarted while the server is down still knows its walls.
 
 **Every failure keeps the cache** (`player-contract.md` § Transport). A transport
 error, a timeout or a `5xx` means the server is unreachable: back off and try
@@ -22,10 +23,10 @@ whose bytes do not match its hash, or that answers `404`, is left out of the
 cached manifest and the rest of the wall goes on. Each is said once in the
 journal when it starts and once when it ends. None names the token.
 
-**The heartbeat rides along.** The daemon goes on writing its heartbeat file,
-into the cache in HTTP mode (`Settings.heartbeat_root` says why), and this module
-POSTs it whenever it holds a report not yet sent, so the daemon needs no second
-way of reporting.
+**The heartbeat rides along.** Each worker goes on writing its wall's heartbeat
+file into the wall's cache (`WallSettings.heartbeat_root` says why there), and
+this module POSTs it whenever it holds a report not yet sent, so a worker needs
+no second way of reporting.
 """
 
 import asyncio
@@ -42,7 +43,8 @@ from urllib.parse import urljoin, urlsplit
 
 import aiohttp
 
-from postarr.config import CACHED_MANIFEST_FILENAME, Settings
+from postarr.client import ClientDocument, ClientDocumentUnreadable, parse_client_document
+from postarr.config import CACHED_MANIFEST_FILENAME, ClientSettings, WallSettings
 from postarr.episodes import ReportOnce
 from postarr.heartbeat import path_in as heartbeat_path_in
 from postarr.manifest import ManifestUnreadable, parse
@@ -50,12 +52,16 @@ from postarr.manifest import ManifestUnreadable, parse
 log = logging.getLogger(__name__)
 
 #: The routes this module requests, as `contract/routes.json` spells them.
+CLIENT_ROUTE: Final[str] = "/client"
+CLIENT_HEARTBEAT_ROUTE: Final[str] = "/client/heartbeat"
 MANIFEST_ROUTE: Final[str] = "/walls/{wall_id}/manifest"
 HEARTBEAT_ROUTE: Final[str] = "/walls/{wall_id}/heartbeat"
 
 #: Beside the cached manifest: the ETag it was served with, so a restarted Player
 #: asks "has it changed since this?" rather than downloading it again.
 ETAG_FILENAME: Final[str] = "manifest.etag"
+#: Beside the cached client document, for the same reason.
+CLIENT_ETAG_FILENAME: Final[str] = ".client.etag"
 #: Renders, named by the SHA-256 of their bytes.
 MEDIA_DIRNAME: Final[str] = "media"
 
@@ -81,16 +87,14 @@ class _Poll(Enum):
 
 
 class Pull:
-    """Keeps `CACHE_DIR` holding the newest manifest this Player can fully render."""
+    """Keeps one wall's directory holding the newest manifest this Player can fully render."""
 
-    def __init__(self, settings: Settings, *, interval_seconds: float | None = None) -> None:
-        if not settings.pulls_over_http or settings.server_url is None or settings.cache_dir is None:
-            raise ValueError("Pull needs a Player configured for HTTP mode")
+    def __init__(self, settings: WallSettings, *, interval_seconds: float | None = None) -> None:
         self._settings = settings
         self._server = settings.server_url
-        self._token = settings.wall_token or ""
-        self._cache = settings.cache_dir
-        self._media = settings.cache_dir / MEDIA_DIRNAME
+        self._token = settings.client_token
+        self._cache = settings.wall_dir
+        self._media = settings.wall_dir / MEDIA_DIRNAME
         self._manifest_url = self._server + MANIFEST_ROUTE.format(wall_id=settings.wall_id)
         self._heartbeat_url = self._server + HEARTBEAT_ROUTE.format(wall_id=settings.wall_id)
         self._interval = settings.poll_interval_seconds if interval_seconds is None else interval_seconds
@@ -112,10 +116,16 @@ class Pull:
         """Pull until asked to stop, backing off while the server cannot be reached."""
         self._media.mkdir(parents=True, exist_ok=True)
         log.info(
-            "pulling the manifest for this wall from %s into %s",
+            "pulling the manifest for wall %s from %s into %s",
+            self._settings.wall_id,
             self._server,
             self._cache,
-            extra={"event": "pull.started", "server_url": self._server, "cache_dir": str(self._cache)},
+            extra={
+                "event": "pull.started",
+                "wall_id": self._settings.wall_id,
+                "server_url": self._server,
+                "cache_dir": str(self._cache),
+            },
         )
         timeout = aiohttp.ClientTimeout(total=60, connect=10)
         async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -170,7 +180,7 @@ class Pull:
         if status not in (200, 304):
             self._report_refused(status)
             return _Poll.ANSWERED
-        # A 304 is the server accepting this wall's token for a manifest it has
+        # A 304 is the server accepting this client's token for a manifest it has
         # already sent, so it ends a refusal just as a 200 does.
         self._report_accepted()
         if status == 304:
@@ -253,7 +263,7 @@ class Pull:
             return relative
 
         address = urljoin(self._manifest_url, url)
-        # The token is this wall's credential on this server. A render named on
+        # The token is this client's credential on this server. A render named on
         # another host is fetched without it, so a manifest can never be used to
         # send the token somewhere else.
         headers = self._auth() if _same_origin(address, self._server) else {}
@@ -369,9 +379,9 @@ class Pull:
         episode = self._refused_status.setdefault(status, ReportOnce())
         if episode.begin():
             reason = {
-                401: "it does not accept this Player's token (WALL_TOKEN)",
-                403: "the token is for another wall (WALL_TOKEN does not match WALL_ID)",
-                404: "it has published nothing for this wall (WALL_ID), or no theme hangs there yet",
+                401: "it does not accept this client's token (CLIENT_TOKEN)",
+                403: "this wall is not assigned to this client, or the server holds no such wall",
+                404: "it has published nothing for this wall, or no theme hangs there yet",
             }.get(status, f"it answered {status}")
             log.error(
                 "the server refused this wall's manifest: %s; keeping the one already cached",
@@ -393,6 +403,180 @@ class Pull:
             return
         self._skipped.add(key)
         log.warning(message, work_id, extra={"event": "pull.work_skipped", "work_id": work_id})
+
+
+class ClientPull:
+    """`GET /client` and `POST /client/heartbeat`, with this client's token: the supervisor's `ClientLink`.
+
+    **Read with the same posture as a wall's manifest.** A document is cached,
+    with its ETag, only once it has been read and accepted, so the file a
+    restart starts from is always one this reader could act on. Every way the
+    server can fail to give a new one — unreachable, refusing the token, sending
+    something unreadable — answers None, which the supervisor reads as "keep the
+    walls you have", and each is said once when it starts and once when it ends.
+    """
+
+    def __init__(self, settings: ClientSettings) -> None:
+        self._server = settings.server_url
+        self._token = settings.client_token
+        self._document_path = settings.client_document_path
+        self._etag_path = settings.cache_dir / CLIENT_ETAG_FILENAME
+        self._client_url = self._server + CLIENT_ROUTE
+        self._heartbeat_url = self._server + CLIENT_HEARTBEAT_ROUTE
+        self._session: aiohttp.ClientSession | None = None
+        self._unreachable = ReportOnce()
+        self._refused_status: dict[int, ReportOnce] = {}
+        self._unreadable = ReportOnce()
+        self._uncacheable = ReportOnce()
+        self._heartbeat_failing = ReportOnce()
+
+    def cached(self) -> ClientDocument | None:
+        """The last document this client accepted, or None if there is none it can read."""
+        try:
+            return parse_client_document(self._document_path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return None
+        except (OSError, UnicodeDecodeError, ClientDocumentUnreadable) as exc:
+            log.warning(
+                "the cached client document at %s cannot be read (%s); starting with no walls until the server answers",
+                self._document_path,
+                exc,
+                extra={"event": "client.cache_unreadable"},
+            )
+            return None
+
+    async def fetch(self) -> ClientDocument | None:
+        """A new client document, or None to keep the walls already running."""
+        headers = self._auth()
+        etag = self._cached_etag()
+        if etag is not None:
+            headers["If-None-Match"] = etag
+        try:
+            async with self._client().get(self._client_url, headers=headers) as response:
+                status = response.status
+                body = await response.read() if status == 200 else b""
+                served_etag = response.headers.get("ETag")
+        except _UNREACHABLE as exc:
+            self._report_unreachable(f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__)
+            return None
+        if status >= 500:
+            self._report_unreachable(f"it answered {status}")
+            return None
+        if self._unreachable.end():
+            log.info("the server at %s answers this client again", self._server, extra={"event": "client.reachable"})
+        if status not in (200, 304):
+            episode = self._refused_status.setdefault(status, ReportOnce())
+            if episode.begin():
+                reason = {401: "it does not accept this client's token (CLIENT_TOKEN)"}.get(status, f"it answered {status}")
+                log.error(
+                    "the server would not say which walls this client drives: %s; the walls already running keep going",
+                    reason,
+                    extra={"event": "client.refused", "status": status},
+                )
+            return None
+        for refused, episode in self._refused_status.items():
+            if episode.end():
+                log.info(
+                    "the server answers this client's token again after %d",
+                    refused,
+                    extra={"event": "client.accepted", "status": refused},
+                )
+        if status == 304:
+            return None
+        try:
+            text = body.decode("utf-8")
+            document = parse_client_document(text)
+        except (UnicodeDecodeError, ClientDocumentUnreadable) as exc:
+            if self._unreadable.begin():
+                log.error(  # noqa: TRY400 -- the message is the finding
+                    "refusing the client document the server sent (%s); the walls already running keep going",
+                    exc,
+                    extra={"event": "client.document_refused"},
+                )
+            return None
+        if self._unreadable.end():
+            log.info("the server's client document can be read again", extra={"event": "client.document_readable"})
+        # **A cache that cannot be written costs the cache, not the walls.** The
+        # document is handed over all the same: a full disk would otherwise end
+        # the process, and every restart would meet the same disk.
+        try:
+            self._document_path.parent.mkdir(parents=True, exist_ok=True)
+            _write_atomically(self._document_path, text.encode("utf-8"))
+            if served_etag:
+                _write_atomically(self._etag_path, served_etag.encode("utf-8"))
+            else:
+                self._etag_path.unlink(missing_ok=True)
+        except OSError as exc:
+            if self._uncacheable.begin():
+                log.error(  # noqa: TRY400 -- the message is the finding
+                    "the client document cannot be cached at %s (%s); the walls follow it, and a restart "
+                    "while the server is down starts from the last one cached",
+                    self._document_path,
+                    exc,
+                    extra={"event": "client.cache_unwritable"},
+                )
+            return document
+        if self._uncacheable.end():
+            log.info("the client document is cached again", extra={"event": "client.cache_writable"})
+        return document
+
+    async def report(self, heartbeat: dict[str, Any]) -> bool:
+        """POST the client heartbeat. True when the server answered 204."""
+        try:
+            async with self._client().post(
+                self._heartbeat_url,
+                data=json.dumps(heartbeat).encode("utf-8"),
+                headers={**self._auth(), "Content-Type": "application/json"},
+            ) as response:
+                status = response.status
+        except _UNREACHABLE:
+            # Said by `fetch`, which runs on the same poll; a second line here
+            # would be the same outage told twice.
+            return False
+        if status == 204:
+            if self._heartbeat_failing.end():
+                log.info("the server is accepting this client's heartbeat again", extra={"event": "client.heartbeat_ok"})
+            return True
+        if self._heartbeat_failing.begin():
+            log.warning(
+                "the server refused this client's heartbeat with %d; it will be sent again",
+                status,
+                extra={"event": "client.heartbeat_refused", "status": status},
+            )
+        return False
+
+    async def close(self) -> None:
+        if self._session is not None:
+            await self._session.close()
+            self._session = None
+
+    def _client(self) -> aiohttp.ClientSession:
+        if self._session is None:
+            self._session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30, connect=10))
+        return self._session
+
+    def _cached_etag(self) -> str | None:
+        """The ETag to send, but only while the document it describes is still cached."""
+        if not self._document_path.is_file():
+            return None
+        try:
+            return self._etag_path.read_text(encoding="utf-8").strip() or None
+        except (OSError, UnicodeDecodeError):
+            # Missing or unreadable, the answer is the same: ask without one,
+            # and the server sends the whole document.
+            return None
+
+    def _auth(self) -> dict[str, str]:
+        return {"Authorization": f"Bearer {self._token}"}
+
+    def _report_unreachable(self, why: str) -> None:
+        if self._unreachable.begin():
+            log.warning(
+                "the server at %s cannot be reached (%s); this client keeps its walls as they are",
+                self._server,
+                why,
+                extra={"event": "client.unreachable", "server_url": self._server},
+            )
 
 
 @dataclass(frozen=True)

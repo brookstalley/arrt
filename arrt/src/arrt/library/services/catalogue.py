@@ -32,6 +32,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final
 
+from arrt.library.acquisition.color import parse_hex, rgb_to_lab
+from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR
 from arrt.library.events import LibraryEvents, WorkChange, WorkChanged, WorkChangedHandler
 from arrt.library.services.display_fit import ArtworkBox, FitAssessment, assess_display_fit
 from arrt.persistence.catalogue import CatalogueStore, WorkOrder, WorkQuery
@@ -889,6 +891,8 @@ class CatalogueService:
         target_width: int,
         target_height: int,
         path: str,
+        layout: str | None = None,
+        mat_hex: str | None = None,
     ) -> Rendition:
         """Record a derived output, stamped with the image it was made from.
 
@@ -925,6 +929,8 @@ class CatalogueService:
                 relative_path=relative_path(path, field="path"),
                 source_content_hash=original.content_hash,
                 generated_at=datetime.now(UTC),
+                layout=layout,
+                mat_hex=mat_hex,
             )
             # Hashed here from the file, never accepted from the caller, for the
             # reason the parent's hash is: the hash is what a Player checks the
@@ -1037,9 +1043,22 @@ class CatalogueService:
         history by a row per work per run. `method` is part of what "the same
         choice" means: the same hex arrived at by a vision model rather than by
         hand is a different fact about the colour, and worth keeping.
+
+        **A colour darker than `MAT_LIGHTNESS_FLOOR` is refused here, whoever
+        offers it** (owner, 2026-10-03): beside the screen's black it reads as the
+        panel failing. Checked once, at the one write every mat goes through, so
+        no new caller can forget it: the engine never answers below it, a person's
+        colour is refused by name, and the seed skips a 2024 colour below it.
         """
         self._require_artwork(artwork_id)
         resolved_hex = self._require_hex(hex_rgb)
+        lightness = rgb_to_lab(parse_hex(resolved_hex)).l
+        if lightness < MAT_LIGHTNESS_FLOOR:
+            raise ServiceError(
+                f"{resolved_hex} is L* {lightness:.1f}, darker than the mat floor of L* {MAT_LIGHTNESS_FLOOR:g}: "
+                "inside the screen's black, a mat that dark looks like the panel failing to show black. "
+                "Choose a lighter colour."
+            )
         resolved_method = require_member(method, enum=MatMethod, field="method")
         current = self.current_mat_color(artwork_id)
         if current is not None and current.hex_rgb == resolved_hex and current.method is resolved_method:

@@ -7,6 +7,7 @@ service that has one. The second is the wiring, and wiring is where a fully
 tested behaviour still ends up doing nothing.
 """
 
+import asyncio
 import threading
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -16,6 +17,7 @@ from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.discovery import DiscoveryService
 from arrt.library.services.sweep import SWEEP_THREAD_NAME, PreviewSweep
 from arrt.library.services.topic_sweep import TOPIC_SWEEP_THREAD_NAME
+from arrt.persistence.backup import BACKUP_RECEIPT_FILENAME, CatalogueBackup
 from arrt.persistence.discovery_records import InitiatedBy, RunStatus, Verdict
 from arrt.persistence.records import Theme
 from arrt.programming.display import DisplayService
@@ -241,3 +243,30 @@ async def test_an_application_given_no_interval_never_sweeps(services):
         pass
 
     assert spy.passes == 0
+
+
+def _backup_threads() -> list[threading.Thread]:
+    return [thread for thread in threading.enumerate() if thread.name == "catalogue-backup" and thread.is_alive()]
+
+
+async def test_the_application_backs_up_while_it_is_serving_and_stops_when_it_stops(services, settings, tmp_path):
+    """The backup runs only because the lifespan starts it, and must not outlive the application.
+
+    Every test of the writer calls `run` directly and passes with the lifespan's
+    call deleted, which is the silent failure the receipt exists to expose: a NAS
+    with `BACKUP_DIR` set that never backs up.
+    """
+    receipt = settings.art_root / BACKUP_RECEIPT_FILENAME
+    job = CatalogueBackup(catalogue_path=settings.catalogue_path, directory=tmp_path / "backups", receipt_path=receipt, keep=3)
+    app = create_app(services, backup=job, backup_interval_seconds=3600)
+
+    async with app.router.lifespan_context(app):
+        for _ in range(100):
+            if receipt.exists():
+                break
+            await asyncio.sleep(0.05)
+        assert receipt.exists(), "the application served without ever backing up"
+        assert list((tmp_path / "backups").glob("catalogue-*.sqlite"))
+        assert _backup_threads(), "no backup thread by that name was running, so the check below would pass vacuously"
+
+    assert not _backup_threads()

@@ -120,12 +120,12 @@ def test_archiving_keeps_the_record_and_its_mat_history(service):
     """
     work = service.add_artwork(title="Nighthawks")
     service.record_mat_color(artwork_id=work.id, hex_rgb="#27285b", method=MatMethod.VISION_MODEL)
-    service.record_mat_color(artwork_id=work.id, hex_rgb="#1a1a1a", method=MatMethod.MANUAL)
+    service.record_mat_color(artwork_id=work.id, hex_rgb="#3a3a3a", method=MatMethod.MANUAL)
 
     service.archive_artwork(work.id)
 
     assert len(service.mat_color_history(work.id)) == 2
-    assert service.current_mat_color(work.id).hex_rgb == "#1a1a1a"
+    assert service.current_mat_color(work.id).hex_rgb == "#3a3a3a"
 
 
 def test_an_archived_work_moves_between_the_status_listings(service):

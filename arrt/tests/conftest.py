@@ -7,6 +7,7 @@ the mounted MCP server work. A test that skipped it would pass against an
 application that fails every request in production.
 """
 
+import logging
 import random
 import struct
 import threading
@@ -25,6 +26,8 @@ from arrt.app import create_app
 from arrt.config import (
     CATALOGUE_FILENAME,
     DEFAULT_ACQUISITION_USER_AGENT,
+    DEFAULT_BACKUP_INTERVAL_SECONDS,
+    DEFAULT_BACKUP_KEEP,
     DEFAULT_DISCOVERY_APPROVAL_THRESHOLD,
     DEFAULT_DISCOVERY_MAX_OUTPUT_TOKENS,
     DEFAULT_DISCOVERY_MODEL,
@@ -88,6 +91,25 @@ from arrt.programming.display import DisplayService, DisplaySettings
 from arrt.services.container import Services
 
 _SEEDED_TITLES = ("I Saw the Figure 5 in Gold", "Nighthawks", "The Persistence of Memory")
+
+
+@pytest.fixture(autouse=True)
+def _root_logger_as_found() -> Iterator[None]:
+    """Undo whatever a test's `main()` does to the root logger.
+
+    `logs.configure()` sets the root level to INFO and attaches a handler on the
+    test's own stderr, which pytest closes when that test ends. Left in place,
+    every later test in the worker captures INFO lines it never asked for (a
+    caplog count that assumed WARNING then counts one more), and each line is
+    written to a closed stream ("I/O operation on closed file").
+    """
+    root = logging.getLogger()
+    level, handlers = root.level, list(root.handlers)
+    yield
+    for handler in list(root.handlers):
+        if handler not in handlers:
+            root.removeHandler(handler)
+    root.setLevel(level)
 
 
 @pytest.fixture
@@ -158,6 +180,9 @@ def settings(tmp_path) -> Settings:
         rotation_interval_seconds=DEFAULT_ROTATION_INTERVAL_SECONDS,
         rotation_shuffle=DEFAULT_ROTATION_SHUFFLE,
         preview_sweep_interval_seconds=DEFAULT_PREVIEW_SWEEP_INTERVAL_SECONDS,
+        backup_dir=None,
+        backup_interval_seconds=DEFAULT_BACKUP_INTERVAL_SECONDS,
+        backup_keep=DEFAULT_BACKUP_KEEP,
         tv_panel_width_px=DEFAULT_TV_PANEL_WIDTH_PX,
         tv_panel_height_px=DEFAULT_TV_PANEL_HEIGHT_PX,
         tv_panel_diagonal_inches=DEFAULT_TV_PANEL_DIAGONAL_INCHES,

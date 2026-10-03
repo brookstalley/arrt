@@ -40,8 +40,8 @@ class DisplayFit(StrEnum):
     #: The source is at least as large as the artwork box and is downscaled into it.
     NATIVE = "native"
     #: The source is smaller than the box and is pasted at native size, so the
-    #: mat is simply wider. On the real corpus this is the uncommon case and it
-    #: is not a defect.
+    #: matted work is smaller on the screen, with more black around it. On the
+    #: real corpus this is the uncommon case and it is not a defect.
     MATTED_SMALL = "matted_small"
     #: The source would render smaller on the wall than the configured floor.
     #: Not a rejection: the work is shown labelled with the size it would appear

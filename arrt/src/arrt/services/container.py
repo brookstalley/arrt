@@ -85,6 +85,7 @@ from arrt.persistence.catalogue import CatalogueStore
 from arrt.persistence.discovery import DiscoveryStore
 from arrt.persistence.kept import KeptAnswers
 from arrt.programming.access import PlayerAccess
+from arrt.programming.clients import ClientService
 from arrt.programming.display import DisplayService, DisplaySettings
 from arrt.programming.store import ProgrammingStore
 from arrt.services.errors import ServiceError
@@ -111,8 +112,10 @@ class Services:
     #: binding asking "can this work go on a wall" gets the answer the manifest
     #: build gets, from the same object.
     library: LibraryFacade
-    #: Which Player may read which wall, by the wall's token.
+    #: Which Player may read which wall, by its client's token.
     access: PlayerAccess
+    #: The installed Players the server knows, and which walls each shows.
+    clients: ClientService
     discovery: DiscoveryService
     display: DisplayService
     thumbnails: ThumbnailService
@@ -345,6 +348,7 @@ class Services:
             catalogue=catalogue_service,
             library=library,
             access=PlayerAccess(catalogue),
+            clients=ClientService(catalogue, display_settings),
             discovery=discovery_service,
             display=display_service,
             thumbnails=thumbnail_service,
@@ -418,6 +422,12 @@ class Services:
         next start rather than leaving it undone.
         """
         self.discovery.reconcile()
+        # Canvases drawn with another mat, panel or drawing rule are queued to be
+        # recomposed. Nothing is drawn here; the queue does it once serving.
+        self.acquisition_queue.owe_recomposition(self.preparation.layout)
+        # Mats darker than the floor, all of them older than it, are chosen
+        # again the same way: a queue row each, the queue's `prepare` choosing.
+        self.acquisition_queue.owe_mats_over_the_floor()
         # Before the walls, and outside their `OSError` guard: it writes no
         # manifest, only the catalogue, and a failure here is one to see.
         self.display.catch_up_offers()

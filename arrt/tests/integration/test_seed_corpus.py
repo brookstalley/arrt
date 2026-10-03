@@ -14,7 +14,9 @@ from pathlib import Path
 
 import pytest
 
+from arrt.library.acquisition.mat import below_the_floor
 from arrt.library.facade import UnplayableReason
+from arrt.persistence.records import MatMethod
 from arrt.seed.ingest import SeedNote, seed_catalogue
 from arrt.seed.legacy import read_index
 
@@ -54,6 +56,25 @@ def art_root(records, tmp_path, jpeg):
         jpeg(tmp_path / record.raw_path, width=6000, height=4000)
         jpeg(tmp_path / record.ready_path, width=3840, height=2160)
     return tmp_path
+
+
+def _titles_below_the_floor(records):
+    """The works whose 2024 mat is darker than the floor, from the index itself.
+    By the last record for each URL, since the last is the one seeding takes."""
+    last = {record.url: record for record in records}
+    return {record.title for record in last.values() if below_the_floor(record.mat_hex)}
+
+
+def _as_their_first_preparation_would(service, report):
+    """Give each work the seed left without a mat a colour above the floor.
+
+    Seeding does not carry a 2024 colour below the floor, and the work's first
+    preparation chooses one (the startup queue makes that happen). The tests
+    about labels are not about that, so they start from where it leaves them.
+    """
+    for work in report.works:
+        if service.current_mat_color(work.work_id) is None:
+            service.record_mat_color(artwork_id=work.work_id, hex_rgb="#2d2d3c", method=MatMethod.VISION_MODEL)
 
 
 def counted(report, note):
@@ -99,7 +120,10 @@ class TestSeedingIt:
         (collapsed,) = counted(report, SeedNote.DUPLICATE_RECORD_DISCARDED)
         (note,) = [entry for entry in collapsed.notes if entry.note is SeedNote.DUPLICATE_RECORD_DISCARDED]
         assert "#433735" in note.detail
-        assert service.current_mat_color(collapsed.work_id).hex_rgb == "#1c1818"
+        # The last record's colour, #1c1818, is below the floor, so the work
+        # arrives with none, and the report says so.
+        assert service.current_mat_color(collapsed.work_id) is None
+        assert SeedNote.MAT_BELOW_FLOOR in {entry.note for entry in collapsed.notes}
 
 
 class TestWhatTheReportSays:
@@ -126,6 +150,13 @@ class TestWhatTheReportSays:
         for work in counted(report, SeedNote.DIMENSIONS_ABSENT):
             assert service.get_artwork(work.work_id).artwork.dimensions is None
 
+    def test_it_names_every_work_whose_2024_mat_is_below_the_floor(self, report, records):
+        """The owner's floor of 2026-10-03, against the corpus: those colours are
+        not carried, and the report is where a person sees which works wait for
+        a mat."""
+        assert {work.title for work in counted(report, SeedNote.MAT_BELOW_FLOOR)} == _titles_below_the_floor(records)
+        assert _titles_below_the_floor(records), "the corpus has mats below the floor, or this test proves nothing"
+
     def test_a_complete_tree_leaves_no_work_short_of_an_image(self, report):
         assert counted(report, SeedNote.ORIGINAL_FILE_ABSENT) == []
         assert counted(report, SeedNote.RENDITION_FILE_ABSENT) == []
@@ -137,6 +168,7 @@ class TestPuttingThemOnTheWall:
     @pytest.fixture
     def built(self, records, service, display, art_root, wall_id):
         report = seed_catalogue(records, catalogue=service, art_root=art_root)
+        _as_their_first_preparation_would(service, report)
         theme = display.add_theme(name="Everything")
         for work in report.works:
             display.add_to_theme(theme_id=theme.id, artwork_id=work.work_id)
@@ -148,6 +180,21 @@ class TestPuttingThemOnTheWall:
     def test_a_seeded_work_with_all_four_requirements_reaches_the_wall(self, built):
         assert len(built.entries) == WORKS
         assert built.exclusions == []
+
+    def test_a_work_whose_2024_mat_is_below_the_floor_waits_for_its_first_preparation(
+        self, records, service, display, art_root, wall_id
+    ):
+        """Until preparation chooses it a mat, it is off the wall by name, not on it
+        in a mat the owner ruled out."""
+        report = seed_catalogue(records, catalogue=service, art_root=art_root)
+        theme = display.add_theme(name="Everything")
+        for work in report.works:
+            display.add_to_theme(theme_id=theme.id, artwork_id=work.work_id)
+        built = display.build_manifest(wall_id, theme.id)
+
+        assert {exclusion.title for exclusion in built.exclusions} == _titles_below_the_floor(records)
+        assert {exclusion.reason for exclusion in built.exclusions} == {UnplayableReason.NO_MAT_COLOR}
+        assert len(built.entries) == WORKS - len(built.exclusions)
 
     def test_a_work_with_no_physical_dimensions_still_reaches_it(self, built):
         """Readiness asks for an original, a mat and a current render — never a size in centimetres."""
@@ -180,6 +227,7 @@ class TestPuttingThemOnTheWall:
             jpeg(tmp_path / record.ready_path, width=3840, height=2160)
         report = seed_catalogue(records, catalogue=service, art_root=tmp_path)
         assert [work.title for work in counted(report, SeedNote.RENDITION_FILE_ABSENT)] == [records[0].title]
+        _as_their_first_preparation_would(service, report)
 
         theme = display.add_theme(name="Everything")
         for work in report.works:

@@ -1600,6 +1600,67 @@ section.wall {
   margin-bottom: var(--space-5);
 }
 
+/* Which client shows the wall, under its title: a fact about where the picture
+   goes, set with the title it qualifies rather than among the controls. */
+.wall-client {
+  margin: 0 0 var(--space-3);
+}
+
+/* -- clients ---------------------------------------------------------------- */
+
+/* One client's parts, spaced as the panel's own sections: what it reported,
+   what it shows, how to give it more, and the acts on the client itself. */
+.client > * + * {
+  margin-top: var(--space-4);
+}
+
+.client :is(.client-outputs, .client-walls, .client-assign) p {
+  margin: 0 0 var(--space-2);
+}
+
+/* A picker's options carry an output's state and the wall it shows, and are
+   longer than a phone is wide: the control shrinks to the panel instead. */
+.client .field,
+.client select {
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* A wall the client shows, with the control that takes it off, on one line
+   where there is room and wrapping beneath the name where there is not. */
+.client-wall-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.client-wall-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+
+/* The token, the one time it is shown: wide enough to read whole, and never
+   wider than the screen it is on. */
+.token-once .field {
+  max-width: 100%;
+}
+
+.token-once input {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+.token-once p {
+  margin: 0 0 var(--space-3);
+  overflow-wrap: anywhere;
+}
+
 /* One query's offered works, under the sentence that describes that query.
  *
  * The heading takes `.panel h3`'s type rather than a new size, because it is the

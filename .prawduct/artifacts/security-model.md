@@ -83,6 +83,15 @@ endpoint and the UI's HTTP API — are LAN-only, reached remotely over an overla
 network (Tailscale/VPN). The application performs no authentication, no
 authorisation, no TLS termination, and no rate limiting.
 
+> **Amended by the owner, 2026-10-02 (`build-plan-nas.md`):** on the NAS the
+> server is reached at a `.lan` name through the house's LAN-only reverse proxy,
+> with **no overlay network** — the homelab has none — and still no login, as
+> the owner's other apps there are. So "anyone on the overlay network" below
+> reads "anyone on the house's LAN". The worst case of a LAN client spending
+> model credit is bounded by the provider's $20/month cap
+> (`nonfunctional-requirements.md`). A login, and Tailscale for reaching it from
+> away, are backlog, not decided against.
+
 This is a recorded decision, not an omission
 (`technical_decisions.integrations`, 2026-07-19). For a single-principal household
 tool it is the proportionate answer, and it is what keeps this document short.
@@ -152,10 +161,10 @@ parity split MCP exists to prevent.
 | OpenRouter API key | curation plane | **Real money.** Bounded by the per-key credit limit, which is the same control that bounds a runaway agent |
 | Samsung TV pairing token | display plane | LAN-scoped. Lets a LAN-present attacker drive the TV |
 | Museum API keys, if any | curation plane | Negligible; the ARTIC API is free and public |
-| Wall Player token, one per wall | the Player serving that wall, in its environment file as `WALL_TOKEN`; the server keeps only its SHA-256 (`walls.token_verifier`) | LAN-scoped. Lets someone on the LAN read that wall's manifest and renders, and forge its heartbeat. It cannot change what hangs anywhere, and it opens no other wall's manifest or heartbeat. Rotated by issuing again from the Walls screen or `art_display(action='issue_token')`, which stops the old one at once |
+| Client token, one per client *(replaced the per-wall token 2026-10-02, `clients.md`)* | the installed Player (the client) on its host, in its environment file; the server keeps only its SHA-256 (`clients.token_verifier`) | LAN-scoped. Lets someone on the LAN read the manifests and renders of the walls assigned to that client, read which walls those are and on which outputs (`GET /client`), and forge those walls' heartbeats and the client's own. It cannot change what hangs anywhere or which client shows which wall, and it opens no wall assigned to another client. Rotated by issuing again (`POST /api/clients/{client_id}/token`), which stops the old one at once; removing the client stops it too |
 
 The display plane holds no credential except the TV pairing token and, once it
-pulls over HTTP, its own wall's Player token, and the curation plane holds no
+pulls over HTTP, its own client token, and the curation plane holds no
 device credentials. That falls out of the topology rather
 than being separately enforced.
 
@@ -175,6 +184,17 @@ than being separately enforced.
 >   refusal is logged by wall and status, once per wall per ten minutes. Media
 >   answers to any wall's token, because a render is shared by every wall that
 >   shows it.
+> - **Amended 2026-10-02 by the owner's ruling that clients are first-class
+>   (`clients.md`): the token is per client, not per wall.** One installed Player
+>   drives several walls with one credential, admitted to the walls assigned to
+>   it (`401` for no valid token, `403` for a wall not its client's); media
+>   answers to any client's token. Kind unchanged: 32 random bytes, shown once,
+>   SHA-256 verifier, constant-time compare, never logged. A refusal is logged
+>   by client name, or as "an unknown client", once per that subject per ten
+>   minutes. **Wall tokens are retired**: nothing admits one, and the server
+>   drops the stored wall verifiers on opening a catalogue that holds them
+>   (`migrations.retire_wall_tokens`). The credential is still the product's
+>   only one held by something other than the curator's processes.
 
 ### The repository is public
 
@@ -598,7 +618,8 @@ one-world search first.
   that plan's Chunk 01.
 - **Opened 2026-09-30:**
   - **Player authentication on the LAN.** Closed 2026-09-30: a per-wall token
-    (§ Trust Boundary, the note on the re-architecture).
+    (§ Trust Boundary, the note on the re-architecture); a per-client token
+    since 2026-10-02.
   - **The re-derivation of § Prompt Injection for Watches.** Owed by the plan
     that builds them, before any Watch runs unattended.
 

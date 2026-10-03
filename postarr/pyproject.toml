@@ -42,8 +42,8 @@ dependencies = [
     "python-dotenv",
     # **The panel driver's interchange format, and the only reason this is here.**
     # `panel/epaper.py` hands omni-epd a PIL image because that is what its
-    # `display()` takes; nothing else in this plane opens, decodes or composes an
-    # image, and the television is still handed a *path* it streams itself.
+    # `display()` takes. The HDMI output (`kms.py`) also decodes a render and fits
+    # it to its screen; the television is still handed a *path* it streams itself.
     #
     # It is a core dependency rather than a panel-only one on purpose, and the
     # purpose is testability: with Pillow always present, the whole of

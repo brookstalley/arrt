@@ -19,6 +19,8 @@ import arrt.__main__ as entry_point
 from arrt.art_root import MARKER_NAME, ArtRootError
 from arrt.config import (
     DEFAULT_ACQUISITION_USER_AGENT,
+    DEFAULT_BACKUP_INTERVAL_SECONDS,
+    DEFAULT_BACKUP_KEEP,
     DEFAULT_DISCOVERY_APPROVAL_THRESHOLD,
     DEFAULT_DISCOVERY_MAX_OUTPUT_TOKENS,
     DEFAULT_DISCOVERY_MODEL,
@@ -93,6 +95,9 @@ def _defaults(art_root, **overrides) -> Settings:
             rotation_interval_seconds=DEFAULT_ROTATION_INTERVAL_SECONDS,
             rotation_shuffle=DEFAULT_ROTATION_SHUFFLE,
             preview_sweep_interval_seconds=DEFAULT_PREVIEW_SWEEP_INTERVAL_SECONDS,
+            backup_dir=None,
+            backup_interval_seconds=DEFAULT_BACKUP_INTERVAL_SECONDS,
+            backup_keep=DEFAULT_BACKUP_KEEP,
             tv_panel_width_px=DEFAULT_TV_PANEL_WIDTH_PX,
             tv_panel_height_px=DEFAULT_TV_PANEL_HEIGHT_PX,
             tv_panel_diagonal_inches=DEFAULT_TV_PANEL_DIAGONAL_INCHES,
@@ -650,3 +655,43 @@ def test_the_registry_pages_answer_from_what_the_last_process_kept(tmp_path, mon
 
     assert [(view.state, view.people) for view in answered] == [(RegistryState.KNOWN, (rembrandt,))] * 2
     assert (art_root / "kept-answers.sqlite").is_file()
+
+
+def test_the_entry_point_backs_up_the_catalogue_when_a_backup_directory_is_set(tmp_path, monkeypatch):
+    """`BACKUP_DIR` set → a backup job reaches the application, writing to it, the receipt beside the catalogue."""
+    art_root = tmp_path / "art"
+    _stub_settings(monkeypatch, art_root, backup_dir=tmp_path / "backups", backup_interval_seconds=3600, backup_keep=7)
+    built: dict = {}
+
+    def capture(services, **kwargs):  # noqa: ANN001, ANN003 - the real signature
+        built.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(entry_point, "create_app", capture)
+    monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
+
+    entry_point.main()
+
+    job = built["backup"]
+    assert job is not None
+    assert built["backup_interval_seconds"] == 3600
+    result = job.run()
+    assert result.path.parent == tmp_path / "backups"
+    assert (art_root / "backup-status.json").is_file()
+
+
+def test_the_entry_point_takes_no_backup_when_no_directory_is_set(tmp_path, monkeypatch):
+    art_root = tmp_path / "art"
+    _stub_settings(monkeypatch, art_root)
+    built: dict = {}
+
+    def capture(services, **kwargs):  # noqa: ANN001, ANN003 - the real signature
+        built.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(entry_point, "create_app", capture)
+    monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
+
+    entry_point.main()
+
+    assert built["backup"] is None

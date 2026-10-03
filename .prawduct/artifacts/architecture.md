@@ -91,6 +91,17 @@ database. Adding a second channel is a departure requiring a recorded decision.
 > file channel is still the default and still works, so today both channels are
 > in force, and a Pi switches by configuration after a soak. Wave 3 retires the
 > file channel.
+>
+> **Amended 2026-10-02 (`clients.md`):** the per-wall token is replaced by a
+> per-client token, admitted for the walls assigned to that client, and the
+> server gains `GET /client` and `POST /client/heartbeat` (`player-contract.md`
+> § Transport). Wall tokens are retired. **The Player is a client from
+> `build-plan-clients.md` Chunk 03:** one process supervising one worker per wall
+> the server assigns it (`postarr/src/postarr/client.py`), each pulling into its
+> own `CACHE_DIR/<wall id>/`. `WALL_ID`, `WALL_TOKEN` and `MANIFEST_SOURCE` are
+> retired and refused by name, and the file channel is retired on the Player's
+> side: a client always pulls. `pull.py` stays the one module that opens an HTTP
+> client, and spells the two client routes besides the wall's.
 
 <!-- Ratified by the owner 2026-08-07, in the words they stated it: "The display
      device HAS to render the label. We may have multiple pi's with different
@@ -580,7 +591,9 @@ is no network between planes.
   of preference, asks each about a work at once, and keeps three answers apart:
   instances found, nothing held, and could not be asked. **The rule a source
   author most needs:** return an empty list only when the source looked and
-  holds nothing; raise `ImageSearchFailure` when it could not be asked, and
+  holds nothing; raise `ImageSearchFailure` when it could not be asked (for a
+  source that reads pages, that includes a page it does not recognise, such as a
+  site answering 200 with "unavailable": `procurement-corpus.md` § Gaps, 5), and
   `ImageQueryUnanswerable` when it cannot look a work like this up at all (Commons,
   for a work with no Wikidata item). Phase 2 settles a work only on an instance
   that clears the floor while any source was down, and no source answering is no
@@ -1002,12 +1015,21 @@ failure this whole arrangement removes: a television showing another room's
 pictures while every log line reads fine. The value is the id the curation
 catalogue minted, read off the Walls screen or `art_display(action='walls')`.
 
+*Direction changed 2026-10-02 (`clients.md`), built in `build-plan-clients.md`
+Chunk 03:* a Player no longer reads this file and is not told a wall. It learns
+its walls from `GET /client` and pulls each wall's manifest into its own
+directory, `CACHE_DIR/<wall id>/manifest.json`; the structural guarantee above
+holds by that directory instead — a wall's worker opens only the paths its id
+derives. The server's per-wall file is now read by nothing on the Player's side.
+
 **Built 2026-08-12** (`arrt/src/arrt/programming/manifest/builder.py`,
 `postarr/src/postarr/config.py`). The one-wall installation is the degenerate
 case: one wall, one manifest, one heartbeat, and behaviour identical to the
 single-file form apart from the filename. Neither filename may be imported across
-the planes — the isolation norm forbids it — so both are declared twice and held
-equal by `tests/preferences/test_heartbeat_contract.py`.
+the planes — the isolation norm forbids it — so both were declared twice and held
+equal by `tests/preferences/test_heartbeat_contract.py`; the manifest's left the
+display plane on 2026-10-02 with the file channel, and the guard compares the
+heartbeat's.
 
 ## Data Ownership & Consistency
 

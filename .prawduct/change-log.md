@@ -62,6 +62,200 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-03: A corpus to choose the next source by
+
+<!-- prawduct: scope=procurement-corpus -->
+
+**Why:** the owner ruled the contemporary-web half of procurement built, not
+retracted: "in-copyright count, users will add those and it's not our place to
+limit them." Which source to build first should be measured, not guessed.
+
+**What:**
+- `procurement-corpus.md`:
+  - **Part A:** 59 works by the owner's 19 anchors, each with a verified QID or
+    the search that found none, a rights band, the failures expected, and a
+    prediction for today's pool and for the source that would get it, written
+    before any run.
+  - **Part B:** a held-out list of 34 artists for discovery.
+  - **Gaps:** seven product gaps the research exposed.
+  - The researchers' notes, in `procurement-corpus-research/`.
+- The ruling recorded in `nonfunctional-requirements.md` § The Supply Horizon and
+  `project-state.yaml` § integrations, where the question was held open.
+
+- **The owner's rulings:**
+  - Small images are placeholders for better versions, so they are worth getting.
+  - Every work stays.
+  - The first Get runs on the NAS.
+  - The gaps were left to the agent to rule on. The agent ruled on each in the
+    artifact.
+- `tests/preferences/test_held_out_artists.py`: no Part B artist may be named
+  under `arrt/src` or be an artist in `all.json`. On its first run it failed on
+  Magritte, Jasper Johns and Vasarely, all three already in the library. They came
+  off the list for three artists from the reserve.
+
+**Run 1, the first Get on the NAS:**
+- 11 of 50 found, at $0.
+- 40 of 50 predictions right.
+- The misses refined two rules:
+  - The Art Institute serves works it holds in copyright at full resolution.
+    This was already recorded on 2026-08-04; my prediction rule contradicted it.
+  - Commons answers past the rights boundary with photographs of works, once
+    with a photograph of the artist in place of *Whaam!*.
+- Step 3a: the Art Institute holds about a thousand imaged works by 13 of the 19
+  anchors, nearly all above the floor.
+
+The Supply Horizon section carries a dated note pointing at the measurement.
+
+**Review:** 0 blocking and 1 warning, now fixed. The rulings that bind future
+code (gaps 4–6, and the held-out rule) now have rows in the norm index in
+`project-preferences.md`. `architecture.md`'s rule for source authors now points
+at the unrecognised-page trap.
+
+## 2026-10-03: No mat near black
+
+<!-- prawduct: scope=mat-floor -->
+
+**Why:** the owner's ruling on #183. With the mat inside pure black, a
+near-black mat "looks like a bad LCD". 10 of the 41 mats carried from 2024 are
+darker than L\* 15.
+
+**What:**
+- **No mat darker than L\* 15** (`MAT_LIGHTNESS_FLOOR`), on every screen. A
+  model answer below it is asked once more, naming the floor; two such answers
+  fall back to the mechanical colour. The fallback is lifted to the floor in its
+  own hue. A person's colour below it is refused by name.
+- **The prompt** says the display outside the mat is black, states the floor,
+  and asks for a faint warm or cool cast rather than a neutral grey, even for a
+  black-and-white work. It no longer says a grey is right for an achromatic
+  work. The cast is guidance only; the owner ruled out a chroma floor.
+- **Mats already below the floor are chosen again.** Preparation will not keep
+  one and redraws the canvas in the new colour; at startup each accepted work
+  with a canvas and such a mat gets a prepare-only queue row. The old colour
+  stays in the work's mat history. Each is a paid model call, counted in the
+  journal as `preparation.mat_rechoice_queued`.
+- **The regression bar** (`nonfunctional-requirements.md` § Output Quality) no
+  longer includes the 10 corpus mats below the floor, and the unbuilt `#222222`
+  preset is marked below it, left to #91.
+- **The floor is checked once**, in `CatalogueService.record_mat_color`. The
+  seed skips a 2024 colour below it (report note `mat_below_floor`) and no longer
+  re-carries a colour the work has worn before, so re-seeding cannot restore a
+  replaced mat. A changed index colour still supersedes.
+- **A canvas records the mat it was painted in** (`renditions.mat_hex`, added on
+  open). One painted in another colour, or recorded before the column, is not
+  current, so a mat recorded before its redraw cannot leave the old colour on
+  the wall.
+- **Test contracts changed by ruling:** the fallback is no longer always darker
+  than the work (a near-black work's mat is lifted; that case moved to its own
+  test). On a fresh seed, the works whose 2024 mat is below the floor arrive with
+  none and stay off the wall by name until their first preparation, so the
+  corpus manifest tests give those works a mat the way preparation would, and a
+  new test asserts the exclusion. Tests that used a dark colour as an arbitrary
+  input now use a 2024 colour above the floor.
+
+## 2026-10-02: The mat takes the work's shape
+
+<!-- prawduct: scope=mat-follows-work -->
+
+**Why:** the owner's ruling on #189: "the mat should match the work's aspect
+ratio, and everything outside should be pure black". A square or tall work sat
+in a 16:9 field of mat colour.
+
+**What:**
+- **The compositor** paints the canvas black, the mat as the work's rectangle
+  grown by the mat on the sides and top and the weighted bottom below, then the
+  work where the artwork box already put it. The matted work is centred and as
+  large as fits, on every screen.
+- **The default mat is 1.5"** (was 2.5"), bottom still 1.15x. A deployment that
+  sets `MAT_WIDTH_INCHES` explicitly keeps its own value.
+- **Canvases record the layout they were drawn with** (`renditions.layout`,
+  added on open). Preparation treats another layout as not current, and startup
+  queues a prepare-only row for each accepted work whose canvas is out of date,
+  so existing works are redrawn one at a time while the old canvas stays on the
+  wall. This also closes #74: a changed panel diagonal or mat now reaches
+  canvases already drawn.
+
+## 2026-10-02: A Pi is a client of the server
+
+<!-- prawduct: scope=clients -->
+
+**Why:** the owner's rulings in `clients.md`. One host drives any number of walls,
+each on one of its outputs. The server holds which client shows which wall where,
+and the host holds only the server's address and its own token.
+
+**What:**
+- **Clients on the server**: a client has a name, a token (issued once, rotated,
+  never shown again) and the walls assigned to its outputs by name. `GET /client`
+  tells a client its walls; `POST /client/heartbeat` takes its outputs. The
+  per-wall tokens are retired, and the catalogue drops their columns on open.
+- **Settings › Clients and the Walls screen**: add, rename, remove, issue a token,
+  see what a client last reported, and assign a wall to an output.
+- **The curator API and MCP**: `/api/clients` (list, add, rename, remove, issue a
+  token) and `POST`/`DELETE /api/walls/{wall_id}/client`; `art_display` gains the
+  same client actions and is now marked destructive (removing a client releases
+  its walls). **Removed**, breaking any caller: `POST /api/walls/{wall_id}/token`
+  and `art_display(action='issue_token')`, the per-wall tokens' routes.
+- **The Player as a client**: one process supervising one worker per assigned
+  wall, a last-good client document cached, the walls running on through a server
+  outage, and the old `WALL_ID`, `WALL_TOKEN` and `MANIFEST_SOURCE` refused by name.
+- **Deployed 2026-10-02**: the NAS runs this release, the Pi is the client
+  "Living room Pi", and the wall rotates on its HDMI monitor. The way back is in
+  `deploy/README.md`.
+- **Not in this plan**: the Frame (skipped while it is watched), and label
+  outputs (the owner's next direction, after #181).
+
+## 2026-10-02: An HDMI wall draws on its screen
+
+<!-- prawduct: scope=clients -->
+
+**Why:** a wall assigned to a Pi's HDMI connector rotated with nothing drawn.
+`clients.md` asks for the server's render fitted to the screen, with no desktop,
+as the service user.
+
+**What:**
+- **`postarr/src/postarr/kms.py`**: kernel mode setting through `libdrm` by
+  `ctypes`, legacy `SetCrtc` on two dumb buffers per connector, the card held
+  open for the process's life and shared between its connectors. The render is
+  fitted whole on black at the first mode the kernel lists, the size the client
+  heartbeat already reports.
+- **Screens coming and going**: an absent screen is said once and costs
+  nothing; the screen loop asks the output on every poll to draw again when a
+  screen arrives, returns or changes size (`ScreenOutput.refresh`). A failing
+  redraw is said once and tried on every poll.
+- `PendingOutput`, which drew nothing, is gone.
+- **Measured on the Pi and a 4K LG** (`hdmi-output-findings.md`): about half a
+  second per picture as `tvpi`, colour and black level confirmed by the owner,
+  the picture kept by the kernel through a replug, the console restored when the
+  program exits. `tvpi` was added to group `video` on the owner's yes.
+
+## 2026-10-02: Arrt on the NAS
+
+<!-- prawduct: scope=nas -->
+
+**Why:** the server ran on the Pi beside the Player. The owner chose to move it
+to the NAS now, ahead of the store split (`re-architecture.md` § Order of work).
+
+**What:**
+- **A container image** (`arrt/Dockerfile`): uv-managed Python 3.14 and the
+  `dezoomify-rs` binary, a memory limit in place of systemd's `MemoryMax`, no
+  Pango.
+- **The backup writer** (`arrt/src/arrt/persistence/backup.py`): the catalogue
+  copied with `VACUUM INTO` at start and then every `BACKUP_INTERVAL_SECONDS`
+  (default daily) into `BACKUP_DIR`, the newest `BACKUP_KEEP` (default 14)
+  kept, its last run shown on the panel. Only the catalogue: a restore also
+  needs the image tree, left to the storage's own snapshots, and each wall's
+  theme hung again (#180).
+- **`/healthz`** for the container's health check.
+- **The homelab half** lives in the operator's private repo: the app definition,
+  the seed and deploy script, the LAN-only `.lan` route with no login (a
+  recorded departure from the security model's overlay-network assumption).
+- **Deployed**: the dev library seeded onto the NAS and the app running there.
+- **The Pi was cut over to HTTP and then stood down**: its checkout moved to
+  released `main`, HTTP mode switched on and seen pulling from the NAS, its
+  `curation.service` stopped and disabled. The owner then skipped the Frame
+  (`build-plan-clients.md`, on `feature/clients`), so its Player was stopped and
+  disabled too, and the rest of this plan's Chunk 05 moved to that plan. Its open
+  faults are #181 (the label panel) and #182 (the television's art channel).
+
 ## 2026-10-02: The branch review's three bugs
 
 <!-- prawduct: scope=after-review -->

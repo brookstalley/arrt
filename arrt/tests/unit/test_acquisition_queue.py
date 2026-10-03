@@ -13,8 +13,9 @@ produces on demand and about days no test can wait.
 import logging
 import threading
 import time
+import uuid
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
 
@@ -22,7 +23,9 @@ import pytest
 from PIL import Image
 
 from arrt.app import create_app
+from arrt.library.acquisition.color import parse_hex, rgb_to_lab
 from arrt.library.acquisition.dezoomify import DezoomifyUnavailable
+from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR
 from arrt.library.acquisition.preparation import PreparationOutcome, PreparationResult
 from arrt.library.acquisition.queue import (
     ACQUISITION_QUEUE_THREAD_NAME,
@@ -39,7 +42,16 @@ from arrt.library.acquisition.space import NotEnoughSpace
 from arrt.library.events import WorkChange
 from arrt.library.readiness import PlayableWork
 from arrt.persistence.discovery_records import Verdict
-from arrt.persistence.records import AcquisitionMethod, FetchStatus, QueuedAcquisition, RightsStatus, SourceClass
+from arrt.persistence.records import (
+    AcquisitionMethod,
+    FetchStatus,
+    MatColor,
+    MatMethod,
+    QueuedAcquisition,
+    RenditionKind,
+    RightsStatus,
+    SourceClass,
+)
 from arrt.services.errors import ServiceError
 
 _A_MOMENT = datetime(2026, 10, 2, 9, 0, tzinfo=UTC)
@@ -134,6 +146,56 @@ class TestThroughTheApplication:
             assert not _queue_threads()
 
         assert open_stream.served == []
+
+    async def test_a_canvas_drawn_at_another_layout_is_recomposed_after_the_next_start(
+        self, services, discovery, run, open_stream, store
+    ):
+        """How the existing works reach a changed mat. The startup step queues the
+        work, the queue recomposes it, and the wall keeps the old canvas until the
+        new one is recorded."""
+        app = create_app(services, acquire_queue=True)
+        async with app.router.lifespan_context(app):
+            artwork_id = _accept_a_direct_work(discovery, run)
+            until(lambda: isinstance(services.library.playable([artwork_id])[artwork_id], PlayableWork))
+            until(lambda: services.acquisition_queue.state_of([artwork_id]) == {})
+        drawn = store.list_renditions(artwork_id)[0]
+        store.update_rendition(replace(drawn, layout="full-screen-mat panel=3840x2160 box=3316x1597"))
+
+        services.reconcile()
+
+        assert artwork_id in services.acquisition_queue.state_of([artwork_id])
+        assert isinstance(services.library.playable([artwork_id])[artwork_id], PlayableWork)
+        app = create_app(services, acquire_queue=True)
+        async with app.router.lifespan_context(app):
+            until(lambda: store.list_renditions(artwork_id)[0].layout == services.preparation.layout)
+            until(lambda: services.acquisition_queue.state_of([artwork_id]) == {})
+        assert store.list_renditions(artwork_id)[0].generated_at > drawn.generated_at
+        assert len(open_stream.served) == 1, "a recompose must not fetch the image again"
+
+    async def test_a_mat_below_the_floor_is_chosen_again_after_the_next_start(self, services, discovery, run, open_stream, store):
+        """How the 2024 mats reach the floor: the startup step queues the work, the
+        queue's preparation chooses a new mat and redraws the canvas, and the old
+        colour stays in the history. No key is configured, so the new colour is the
+        fallback's, which is lifted to the floor too."""
+        app = create_app(services, acquire_queue=True)
+        async with app.router.lifespan_context(app):
+            artwork_id = _accept_a_direct_work(discovery, run)
+            until(lambda: services.acquisition_queue.state_of([artwork_id]) == {})
+        _legacy_mat(store, artwork_id, "#1c1c1c")
+        # Painted in the 2024 colour, as the wall's canvases are.
+        drawn = replace(store.list_renditions(artwork_id)[0], mat_hex="#1c1c1c")
+        store.update_rendition(drawn)
+
+        services.reconcile()
+
+        assert artwork_id in services.acquisition_queue.state_of([artwork_id])
+        app = create_app(services, acquire_queue=True)
+        async with app.router.lifespan_context(app):
+            until(lambda: services.catalogue.current_mat_color(artwork_id).hex_rgb != "#1c1c1c")
+            until(lambda: services.acquisition_queue.state_of([artwork_id]) == {})
+        assert rgb_to_lab(parse_hex(services.catalogue.current_mat_color(artwork_id).hex_rgb)).l >= MAT_LIGHTNESS_FLOOR
+        assert store.list_renditions(artwork_id)[0].generated_at > drawn.generated_at
+        assert len(open_stream.served) == 1, "choosing a mat again must not fetch the image again"
 
     async def test_the_queue_stops_when_the_application_does(self, services):
         app = create_app(services, acquire_queue=True)
@@ -250,6 +312,154 @@ def work(service):
 
 def _phase(queue, artwork_id):
     return queue.state_of([artwork_id])[artwork_id].phase
+
+
+class TestOwingARecomposition:
+    """The startup step that takes a changed mat to canvases already drawn."""
+
+    @pytest.fixture
+    def drawn(self, queue, work, service):
+        """A work fetched and prepared, holding a canvas drawn at `layout`."""
+
+        def _drawn(layout, title="Nighthawks"):
+            artwork_id = work(title)
+            queue.run()
+            service.record_rendition(
+                artwork_id=artwork_id,
+                kind=RenditionKind.TV_DISPLAY,
+                target_width=3840,
+                target_height=2160,
+                path=f"ready/{artwork_id}.jpg",
+                layout=layout,
+            )
+            return artwork_id
+
+        return _drawn
+
+    def test_a_canvas_at_another_layout_is_prepared_again_without_a_fetch(self, queue, drawn, fetcher, preparer):
+        artwork_id = drawn("old")
+        fetches, preparations = len(fetcher.calls), len(preparer.calls)
+
+        assert queue.owe_recomposition("new") == 1
+        queue.run()
+
+        assert len(fetcher.calls) == fetches
+        assert preparer.calls[preparations:] == [artwork_id]
+        assert queue.state_of([artwork_id]) == {}
+
+    def test_a_canvas_at_the_current_layout_is_left_alone(self, queue, drawn, preparer):
+        drawn("new")
+        preparations = len(preparer.calls)
+
+        assert queue.owe_recomposition("new") == 0
+        queue.run()
+
+        assert len(preparer.calls) == preparations
+
+    def test_a_work_the_queue_already_holds_keeps_its_row(self, queue, drawn, store):
+        """Queueing a recompose must not reset a failure count the retry schedule
+        is reading."""
+        artwork_id = drawn("old")
+        store.set_queued_acquisition(QueuedAcquisition(artwork_id=artwork_id, failures=2, detail="the canvas would not encode"))
+
+        assert queue.owe_recomposition("new") == 0
+
+        assert store.get_queued_acquisition(artwork_id).failures == 2
+
+    def test_an_archived_work_is_not_queued(self, queue, drawn, service):
+        artwork_id = drawn("old")
+        service.archive_artwork(artwork_id)
+
+        assert queue.owe_recomposition("new") == 0
+
+
+def _legacy_mat(store, artwork_id, hex_rgb):
+    """Make `hex_rgb` the work's current mat, written to the store directly, as a
+    mat from before the floor arrived; the service refuses one below it."""
+    for colour in store.list_mat_colors(artwork_id):
+        if colour.is_current:
+            store.update_mat_color(replace(colour, is_current=False))
+    store.add_mat_color(
+        MatColor(
+            id=str(uuid.uuid4()), artwork_id=artwork_id, hex_rgb=hex_rgb, method=MatMethod.MANUAL, chosen_at=datetime.now(UTC)
+        )
+    )
+
+
+class TestOwingANewMat:
+    """The startup step that takes the mat floor to mats chosen before it."""
+
+    @pytest.fixture
+    def drawn(self, queue, work, service, store):
+        """A work fetched and prepared, holding a canvas in a mat of `hex_rgb`."""
+
+        def _drawn(hex_rgb, title="Nighthawks"):
+            artwork_id = work(title)
+            queue.run()
+            _legacy_mat(store, artwork_id, hex_rgb)
+            service.record_rendition(
+                artwork_id=artwork_id,
+                kind=RenditionKind.TV_DISPLAY,
+                target_width=3840,
+                target_height=2160,
+                path=f"ready/{artwork_id}.jpg",
+                layout="current",
+            )
+            return artwork_id
+
+        return _drawn
+
+    def test_only_a_mat_below_the_floor_is_queued_and_prepared_without_a_fetch(self, queue, drawn, fetcher, preparer):
+        """`#252525` is L* 14.7 and `#262626` L* 15.2, the two greys either side
+        of the floor."""
+        dark = drawn("#252525", title="Night")
+        drawn("#262626", title="Dusk")
+        fetches, preparations = len(fetcher.calls), len(preparer.calls)
+
+        assert queue.owe_mats_over_the_floor() == 1
+        queue.run()
+
+        assert len(fetcher.calls) == fetches
+        assert preparer.calls[preparations:] == [dark]
+
+    def test_a_work_with_no_canvas_is_not_queued(self, queue, work, store):
+        """It has nothing on a wall to correct, and its own first preparation
+        will choose the mat when it comes."""
+        artwork_id = work()
+        queue.run()
+        _legacy_mat(store, artwork_id, "#1c1c1c")
+
+        assert queue.owe_mats_over_the_floor() == 0
+
+    def test_a_work_with_a_canvas_and_no_mat_is_queued(self, queue, work, service, store):
+        """What a fresh seed leaves for a work whose 2024 mat is below the floor:
+        the 2024 canvas, and no mat it may keep. Preparing it chooses one."""
+        artwork_id = work()
+        queue.run()
+        service.record_rendition(
+            artwork_id=artwork_id,
+            kind=RenditionKind.TV_DISPLAY,
+            target_width=3840,
+            target_height=2160,
+            path=f"ready/{artwork_id}.jpg",
+        )
+        assert service.current_mat_color(artwork_id) is None
+
+        assert queue.owe_mats_over_the_floor() == 1
+
+    def test_a_work_the_queue_already_holds_keeps_its_row(self, queue, drawn, store):
+        artwork_id = drawn("#1c1c1c")
+        store.set_queued_acquisition(QueuedAcquisition(artwork_id=artwork_id, failures=2, detail="the canvas would not encode"))
+
+        assert queue.owe_mats_over_the_floor() == 0
+
+        assert store.get_queued_acquisition(artwork_id).failures == 2
+
+    def test_an_archived_work_is_not_queued(self, queue, drawn, service):
+        artwork_id = drawn("#1c1c1c")
+        service.archive_artwork(artwork_id)
+
+        assert queue.owe_mats_over_the_floor() == 0
 
 
 class TestAPass:

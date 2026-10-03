@@ -77,6 +77,7 @@ SCREEN_NAMES = {
     "topics": "Topics",
     "topic": "Topic",
     "taste": "Taste",
+    "clients": "Clients",
     "health": "Status",
 }
 
@@ -225,6 +226,7 @@ def test_the_route_table_parses():
         "history",
         "wanted",
         "taste",
+        "clients",
         "health",
     ], (
         f"the sidebar's pages are {pages}. § The *arr layout places each by its *arr precedent, "

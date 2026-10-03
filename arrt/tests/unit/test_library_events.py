@@ -67,7 +67,7 @@ def _new_render(service, ready_work) -> str:
 
 def _new_mat(service, ready_work) -> str:
     work = ready_work()
-    service.record_mat_color(artwork_id=work.id, hex_rgb="#112233", method=MatMethod.MANUAL)
+    service.record_mat_color(artwork_id=work.id, hex_rgb="#2a3a5e", method=MatMethod.MANUAL)
     return work.id
 
 

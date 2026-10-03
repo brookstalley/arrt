@@ -922,6 +922,18 @@ copyright. The measured break sat around 1929, and the boundary itself moves
 forward a year at a time, so it is the boundary that is the constant here and not
 the date.
 
+*(Refined 2026-10-03 by the first run against `procurement-corpus.md`, § Results.)*
+The partition holds for open *reproductions of paintings*, but two things continue
+past it:
+
+- **Holdings.** The Art Institute serves works it holds in copyright at full
+  resolution through the tiled path. That was already recorded in
+  `project-state.yaml` § integrations, 2026-08-04, and the corpus re-measured it.
+  It holds about a thousand imaged works by the owner's anchor artists.
+- **Photographs.** A Wikidata item's image is often a freely licensed photograph of
+  the work: an object in a gallery, an installation, a building. Occasionally it is
+  not of the work at all.
+
 **This sits against a recorded decision, and the collision is recorded rather than
 quietly resolved.** `project-state.yaml` § integrations commits discovery to museum
 collections *and* the contemporary web — gallery sites, prize announcements, artist
@@ -935,10 +947,13 @@ gets a run that spends money and returns nothing.
 oversight** (operator, 2026-08-04: *record rights, do not gate, do not filter*).
 Constraint 13 already holds rights to a quality weight and never an exclusion, and
 nothing measured here amends it — none of this is about whether a work may be
-shown. What is open, and is deliberately left open, is whether the contemporary-web
-half of that integrations decision gets built or gets retracted. Until one of those
-happens this section exists so the horizon is read rather than rediscovered, which
-so far has cost two runs.
+shown. Whether the contemporary-web half of that integrations decision gets built
+or retracted was left open here until **2026-10-03, when the owner ruled it built**:
+*"in-copyright count, users will add those and it's not our place to limit them."*
+Which source gets built first is a measurement, not a guess: the corpus for it, and
+each work's outcome predicted before any run, is `procurement-corpus.md`. Until a
+source lands this section still exists so the horizon is read rather than
+rediscovered, which so far has cost two runs.
 
 ## Output Quality
 
@@ -957,6 +972,20 @@ while producing visibly worse mats on those 41 has failed. The corpus's canonica
 record is `all.json` — replaced as a schema, but **retained, tracked, and read
 directly**: it is the only place the hand-tuned mat colours exist, so repo-hygiene
 work (issue #4 untracks its *backups*) must not delete the file itself.
+
+> **Amended by the owner's ruling of 2026-10-03 (#183): no mat darker than L\* 15,
+> on every screen.** Once the mat sat inside pure black (#189), the owner looked at
+> the wall and said a near-black mat "looks like a bad LCD": next to real black it
+> reads as the panel failing to show black. 10 of the corpus's 41 colours are below
+> L\* 15 (`#14141e` to `#222222`), and those 10 **are no longer the bar**. Above the
+> floor the corpus stays the bar it was. The floor is lightness only. The owner
+> ruled out a floor on chroma, though neutral greys "look accidental", so the
+> prompt asks for a faint warm or cool cast even on a black-and-white work and
+> nothing enforces it. The number, 15, is the owner's choice from a proposal, not a
+> measurement. The seascape mat they liked, `#22394b`, is L\* 22.9.
+> `MAT_LIGHTNESS_FLOOR` in `library/acquisition/mat.py` holds the number and
+> records where each way in enforces it. Mats already below it are chosen again by
+> the vision model, with the old colour kept in the work's history.
 
 > **Settled 2026-08-03: there is no extracted fixture, and this record is
 > permanent rather than interim.** This paragraph read "retained as a *test
@@ -1085,6 +1114,10 @@ above anything the corpus contains, on the emissive panel where that glares.
 Pure black was not chosen either, for the quieter reason that the corpus does not
 contain it: the darkest of the 41 is `#14141e` at L\* 6.7.
 
+> **`#222222` is below the floor of 2026-10-03** (above), so it cannot be a preset
+> as it stands; the floor refuses it. The presets are not built. Choosing the dark
+> one again belongs to #91, the curator's mat control.
+
 **Rendered size must be adequate, and the current pipeline has no floor.**
 `resize_file_with_matte` uses PIL's `image.thumbnail()`, which **never upscales** —
 so the de facto 2024 policy is "accept any resolution, never upscale, let the mat
@@ -1106,6 +1139,22 @@ inches, with the bottom margin weighted larger than the top — the conservator'
 convention, because a true-centred image reads as sitting low. This is what
 "museum-quality mat" has to mean if it means anything; the 2024 pipeline's mat was
 aspect-ratio residue, so a 16:9 source got no mat at all.
+
+**The mat takes the work's shape, and everything outside it is pure black**
+(the owner's ruling, 2026-10-02, backlog #189): "the mat should match the work's
+aspect ratio, and everything outside should be pure black". Until then the whole
+canvas was mat colour, so a square work on a 16:9 screen sat in 12" of mat at
+each side: the mat width held only where the work met the artwork box, and
+everywhere else the mat was still aspect-ratio residue. Now the mat is the work's
+rectangle grown by the mat width on the sides and top and by the weighted bottom
+below, and the rest of the screen is `#000000`. The work is fitted into the
+artwork box exactly as before, so the matted work comes out centred on the screen
+and is as large as fits; the mat meets the screen's edge in whichever dimension
+binds, and there is no minimum black margin. The rule holds on every screen, the
+Frame included. The same day the default mat became **1.5"** (it was 2.5"): with
+nothing beyond the mat but black, the mat is all of the border a viewer sees. The
+worked examples below keep 2.5" because they are arithmetic, asserted at that
+value.
 
 *(**The weighting was stated without a number until 2026-08-01**, when the first
 surface to judge a work against the artwork box needed a box height and so had to

@@ -41,6 +41,7 @@ from arrt.persistence.records import (
     Artwork,
     ArtworkPage,
     ArtworkStatus,
+    Client,
     Directive,
     FacetDerivation,
     FetchStatus,
@@ -184,16 +185,36 @@ CREATE TABLE IF NOT EXISTS themes (
 -- joins nothing.
 CREATE UNIQUE INDEX IF NOT EXISTS themes_one_default ON themes(is_default) WHERE is_default = 1;
 
--- A place where art hangs, and nothing about the device that serves it. The
--- forbidden columns are listed on the `Wall` record; the rule is that this table
--- must survive its television being replaced.
-CREATE TABLE IF NOT EXISTS walls (
+-- An installed Player, by name and the verifier of its one token. Nothing about
+-- the device: what outputs it has is what it reports in its heartbeat file.
+CREATE TABLE IF NOT EXISTS clients (
     id               TEXT PRIMARY KEY,
     name             TEXT NOT NULL UNIQUE,
     created_at       TEXT NOT NULL,
     token_verifier   TEXT,
     token_issued_at  TEXT
 );
+
+-- A place where art hangs, and which client shows it on which of its outputs,
+-- by name. The forbidden columns are listed on the `Wall` record; the rule is
+-- that this table must survive its television being replaced.
+--
+-- `client_id` and `output` arrived 2026-10-02 and reach an older file through
+-- the widening step, which carries the reference. The wall token columns that
+-- preceded them are dropped by `migrations.retire_wall_tokens`.
+CREATE TABLE IF NOT EXISTS walls (
+    id               TEXT PRIMARY KEY,
+    name             TEXT NOT NULL UNIQUE,
+    created_at       TEXT NOT NULL,
+    client_id        TEXT REFERENCES clients(id),
+    output           TEXT
+);
+
+-- One wall per output of a client, since one screen shows one picture. The
+-- service refuses a second by name first; this is the weaker statement of the
+-- same rule, for a path that forgets to. It also answers "which walls does this
+-- client drive", asked on every poll a client makes.
+CREATE UNIQUE INDEX IF NOT EXISTS walls_one_per_output ON walls(client_id, output) WHERE client_id IS NOT NULL;
 
 -- What is hanging on one wall. `wall_id` alone is the key, so "at most one theme
 -- per wall" is the key rather than a rule anything has to check: a second theme
@@ -255,7 +276,14 @@ CREATE TABLE IF NOT EXISTS renditions (
     source_content_hash  TEXT NOT NULL,
     generated_at         TEXT NOT NULL,
     content_sha256       TEXT,
-    byte_size            INTEGER
+    byte_size            INTEGER,
+    -- The geometry a television canvas was drawn with. Nullable because the
+    -- widening step can only add a column that allows NULL; null reads as out of
+    -- date, so a canvas drawn before this existed is recomposed.
+    layout               TEXT,
+    -- The mat colour a television canvas was painted in; null, like a null
+    -- layout, reads as out of date.
+    mat_hex              TEXT
 );
 
 -- Media is fetched by content hash, so the hash is how a render is found.
@@ -802,6 +830,30 @@ class SqliteCatalogue(TableAdapter):
             for row in rows
         ]
 
+    def works_with_canvas_outside_layout(self, layout: str) -> Sequence[str]:
+        # A work with a canvas at the current layout is left alone even if it
+        # also keeps an older one at another panel size: the old row is not what
+        # it shows, and queueing it would recompose nothing on every start.
+        rows = self._store.select_rows(
+            'SELECT a."id" AS work_id FROM artworks a WHERE a."status" = ? '
+            'AND EXISTS (SELECT 1 FROM renditions r WHERE r."artwork_id" = a."id" AND r."kind" = ?) '
+            'AND NOT EXISTS (SELECT 1 FROM renditions r WHERE r."artwork_id" = a."id" AND r."kind" = ? AND r."layout" = ?) '
+            'ORDER BY coalesce(a."accepted_at", a."created_at"), a.rowid',
+            (str(ArtworkStatus.ACCEPTED), str(RenditionKind.TV_DISPLAY), str(RenditionKind.TV_DISPLAY), layout),
+        )
+        return [row["work_id"] for row in rows]
+
+    def current_mats_of_works_with_canvas(self) -> Sequence[tuple[str, str | None]]:
+        rows = self._store.select_rows(
+            'SELECT a."id" AS work_id, m."hex_rgb" AS hex_rgb FROM artworks a '
+            'LEFT JOIN mat_colors m ON m."artwork_id" = a."id" AND m."is_current" = 1 '
+            'WHERE a."status" = ? '
+            'AND EXISTS (SELECT 1 FROM renditions r WHERE r."artwork_id" = a."id" AND r."kind" = ?) '
+            'ORDER BY coalesce(a."accepted_at", a."created_at"), a.rowid',
+            (str(ArtworkStatus.ACCEPTED), str(RenditionKind.TV_DISPLAY)),
+        )
+        return [(row["work_id"], row["hex_rgb"]) for row in rows]
+
     def get_queued_acquisition(self, artwork_id: str) -> QueuedAcquisition | None:
         return self._get("acquisition_queue", {"artwork_id": artwork_id}, _queued)
 
@@ -908,6 +960,24 @@ class SqliteCatalogue(TableAdapter):
 
     def update_wall(self, wall: Wall) -> None:
         self._update("walls", BY_ID, _wall_row(wall), subject=f"wall {wall.name!r}")
+
+    # -- clients --------------------------------------------------------------
+
+    def add_client(self, client: Client) -> None:
+        # Named rather than identified, for the reason `add_wall` gives.
+        self._add("clients", _client_row(client), subject=f"client {client.name!r}")
+
+    def get_client(self, client_id: str) -> Client | None:
+        return self._get("clients", {"id": client_id}, _client)
+
+    def update_client(self, client: Client) -> None:
+        self._update("clients", BY_ID, _client_row(client), subject=f"client {client.name!r}")
+
+    def list_clients(self) -> Sequence[Client]:
+        return self._list("clients", None, _BY_NAME, _client)
+
+    def remove_client(self, client_id: str) -> None:
+        self._store.delete("clients", {"id": client_id})
 
     # -- what is hanging ------------------------------------------------------
 
@@ -1056,6 +1126,8 @@ def _rendition_row(rendition: Rendition) -> dict[str, Any]:
         "generated_at": to_iso(rendition.generated_at),
         "content_sha256": rendition.content_sha256,
         "byte_size": rendition.byte_size,
+        "layout": rendition.layout,
+        "mat_hex": rendition.mat_hex,
     }
 
 
@@ -1100,13 +1172,23 @@ def _membership_row(membership: ThemeMembership) -> dict[str, Any]:
     }
 
 
+def _client_row(client: Client) -> dict[str, Any]:
+    return {
+        "id": client.id,
+        "name": client.name,
+        "created_at": to_iso(client.created_at),
+        "token_verifier": client.token_verifier,
+        "token_issued_at": to_iso(client.token_issued_at),
+    }
+
+
 def _wall_row(wall: Wall) -> dict[str, Any]:
     return {
         "id": wall.id,
         "name": wall.name,
         "created_at": to_iso(wall.created_at),
-        "token_verifier": wall.token_verifier,
-        "token_issued_at": to_iso(wall.token_issued_at),
+        "client_id": wall.client_id,
+        "output": wall.output,
     }
 
 
@@ -1238,6 +1320,10 @@ def _rendition(row: Mapping[str, Any]) -> Rendition:
         generated_at=require_datetime(row["generated_at"], "generated_at"),
         content_sha256=row["content_sha256"],
         byte_size=row["byte_size"],
+        # `.get` for the reason `fetch_status` uses it: a row read through a
+        # mapping built from an older file's columns has no such key.
+        layout=row.get("layout"),
+        mat_hex=row.get("mat_hex"),
     )
 
 
@@ -1271,6 +1357,16 @@ def _theme(row: Mapping[str, Any]) -> Theme:
 
 def _wall(row: Mapping[str, Any]) -> Wall:
     return Wall(
+        id=row["id"],
+        name=row["name"],
+        created_at=require_datetime(row["created_at"], "created_at"),
+        client_id=row["client_id"],
+        output=row["output"],
+    )
+
+
+def _client(row: Mapping[str, Any]) -> Client:
+    return Client(
         id=row["id"],
         name=row["name"],
         created_at=require_datetime(row["created_at"], "created_at"),

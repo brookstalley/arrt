@@ -439,3 +439,42 @@ class FakeSurface(LabelSurface):
         real type, in `tests/raster/test_pango.py`.
         """
         return [block.text for block in self.shown[-1].blocks] if self.shown else []
+
+
+class RecordingOutput:
+    """A screen that remembers every render it was asked to draw, in order.
+
+    Stands in for the HDMI output behind the `ScreenOutput` interface, which is
+    what lets a wall on a connector be tested on a machine that has none.
+    """
+
+    def __init__(self, *, connected: bool = True, screen: tuple[int, int] | None = (1920, 1080)) -> None:
+        self.shown: list[Path] = []
+        self.connected = connected
+        self.screen = screen
+        #: Armed to make `show` raise, as a driver that loses its device would.
+        self.fails: Exception | None = None
+        #: How many times the loop asked for a redraw, and what `refresh` raises when armed.
+        self.refreshed = 0
+        self.refresh_fails: Exception | None = None
+
+    def show(self, render: Path) -> None:
+        if self.fails is not None:
+            raise self.fails
+        self.shown.append(render)
+
+    def refresh(self) -> None:
+        self.refreshed += 1
+        if self.refresh_fails is not None:
+            raise self.refresh_fails
+
+
+def drm_tree(root: Path, connectors: dict[str, tuple[str, str]]) -> Path:
+    """A `/sys/class/drm` holding these connectors, as `{"card1-HDMI-A-1": ("connected", "1920x1080\\n")}`."""
+    root.mkdir(parents=True, exist_ok=True)
+    for name, (status, modes) in connectors.items():
+        connector = root / name
+        connector.mkdir()
+        (connector / "status").write_text(status + "\n")
+        (connector / "modes").write_text(modes)
+    return root

@@ -60,6 +60,11 @@ def _is_mat(pixel, *, tolerance: int = 12) -> bool:
     return all(abs(channel - expected) <= tolerance for channel, expected in zip(pixel, MAT_RGB, strict=True))
 
 
+def _is_black(pixel, *, tolerance: int = 6) -> bool:
+    """Whether a sampled pixel is the black surround, allowing for the JPEG round trip."""
+    return all(channel <= tolerance for channel in pixel)
+
+
 class TestTheCanvasGeometry:
     def test_the_canvas_is_exactly_the_panel(self, tmp_path):
         source = _source(tmp_path, 4000, 3000)
@@ -134,9 +139,116 @@ class TestTheCanvasGeometry:
             assert _is_mat(pixels[corner])
 
 
+class TestTheMatTakesTheWorksShape:
+    """The mat's outer edge has the work's aspect ratio, and everything outside it
+    is black. Today's 16:9 mat around a square work is a square work in a
+    rectangular frame, which no framer would make."""
+
+    @pytest.mark.parametrize(
+        ("width", "height"),
+        [
+            pytest.param(3000, 3000, id="square"),
+            pytest.param(2000, 3500, id="four-by-seven"),
+            pytest.param(6000, 2000, id="panorama"),
+            pytest.param(1600, 1200, id="smaller-than-the-box"),
+        ],
+    )
+    def test_the_mat_hugs_the_work_at_the_margins(self, tmp_path, width, height):
+        source = _source(tmp_path, width, height)
+
+        result, _ = _composed(tmp_path, source)
+
+        assert result.artwork_left - result.mat_left == SIDE_MAT
+        assert result.artwork_top - result.mat_top == SIDE_MAT
+        assert result.mat_left + result.mat_width - (result.artwork_left + result.rendered_width) == SIDE_MAT
+        assert result.mat_top + result.mat_height - (result.artwork_top + result.rendered_height) == BOTTOM_MAT
+
+    @pytest.mark.parametrize(
+        ("width", "height"),
+        [
+            pytest.param(3000, 3000, id="square"),
+            pytest.param(2000, 3500, id="four-by-seven"),
+            pytest.param(6000, 2000, id="panorama"),
+            pytest.param(1600, 1200, id="smaller-than-the-box"),
+        ],
+    )
+    def test_the_matted_work_is_centred_on_the_screen(self, tmp_path, width, height):
+        """The bottom weighting lives inside the mat. The matted work as a whole
+        sits in the middle of the screen, so the black is even on opposite sides."""
+        source = _source(tmp_path, width, height)
+
+        result, _ = _composed(tmp_path, source)
+
+        left_black = result.mat_left
+        right_black = PANEL_WIDTH - result.mat_left - result.mat_width
+        top_black = result.mat_top
+        bottom_black = PANEL_HEIGHT - result.mat_top - result.mat_height
+        assert abs(left_black - right_black) <= 1
+        assert abs(top_black - bottom_black) <= 1
+
+    def test_a_square_work_has_black_either_side_and_mat_top_and_bottom(self, tmp_path):
+        """The owner's case: a 1:1 work on a 16:9 screen. Its mat meets the top
+        and bottom of the screen, and the sides beyond the mat are black."""
+        source = _source(tmp_path, 3000, 3000)
+
+        result, canvas = _composed(tmp_path, source)
+        pixels = canvas.convert("RGB").load()
+
+        inset = 20
+        row = PANEL_HEIGHT // 2
+        assert (result.mat_top, result.mat_height) == (0, PANEL_HEIGHT)
+        assert _is_black(pixels[result.mat_left - inset, row])
+        assert _is_black(pixels[result.mat_left + result.mat_width + inset, row])
+        assert _is_mat(pixels[result.mat_left + inset, row])
+        assert _is_mat(pixels[result.mat_left + result.mat_width - inset, row])
+        for corner in [(0, 0), (PANEL_WIDTH - 1, 0), (0, PANEL_HEIGHT - 1), (PANEL_WIDTH - 1, PANEL_HEIGHT - 1)]:
+            assert _is_black(pixels[corner])
+
+    def test_a_panorama_has_black_above_and_below(self, tmp_path):
+        source = _source(tmp_path, 6000, 2000)
+
+        result, canvas = _composed(tmp_path, source)
+        pixels = canvas.convert("RGB").load()
+
+        inset = 20
+        column = PANEL_WIDTH // 2
+        assert (result.mat_left, result.mat_width) == (0, PANEL_WIDTH)
+        assert _is_black(pixels[column, result.mat_top - inset])
+        assert _is_black(pixels[column, result.mat_top + result.mat_height + inset])
+        assert _is_mat(pixels[column, result.mat_top + inset])
+        assert _is_mat(pixels[column, result.mat_top + result.mat_height - inset])
+
+    def test_a_work_with_the_boxs_shape_has_no_black_at_all(self, tmp_path):
+        """The only shape whose mat meets every edge of the screen."""
+        source = _source(tmp_path, 3316, 1597)
+
+        result, _ = _composed(tmp_path, source)
+
+        assert (result.mat_left, result.mat_top, result.mat_width, result.mat_height) == (0, 0, PANEL_WIDTH, PANEL_HEIGHT)
+
+    def test_nothing_outside_the_mat_is_anything_but_black(self, tmp_path):
+        """Sampled on a grid across the whole canvas, so a stray band of mat
+        colour anywhere outside the rectangle fails, not only at the four points a
+        reader thought to check."""
+        source = _source(tmp_path, 2000, 3500)
+
+        result, canvas = _composed(tmp_path, source)
+        pixels = canvas.convert("RGB").load()
+
+        margin = 20
+        outside = [
+            (x, y)
+            for x in range(0, PANEL_WIDTH, 40)
+            for y in range(0, PANEL_HEIGHT, 40)
+            if x < result.mat_left - margin or x > result.mat_left + result.mat_width + margin
+        ]
+        assert outside
+        assert all(_is_black(pixels[point]) for point in outside)
+
+
 class TestNoUpscaling:
     def test_a_source_smaller_than_the_box_is_pasted_at_its_own_size(self, tmp_path):
-        """Not a degraded path: the mat is simply wider. Upscaling is the one
+        """Not a degraded path: the work is simply smaller. Upscaling is the one
         option that turns an honest "this image is small" into an apparent
         rendering fault.
 
@@ -150,8 +262,11 @@ class TestNoUpscaling:
 
         assert (result.rendered_width, result.rendered_height) == (1600, 1200)
         assert result.fit is DisplayFit.MATTED_SMALL
-        # And the mat grew to absorb it, rather than the picture growing.
-        assert result.artwork_left > SIDE_MAT
+        # The picture did not grow, and neither did the mat: it keeps its own
+        # width around the small work, and black takes up the rest.
+        assert result.artwork_left - result.mat_left == SIDE_MAT
+        assert result.mat_width == 1600 + 2 * SIDE_MAT
+        assert result.mat_height == 1200 + SIDE_MAT + BOTTOM_MAT
 
     def test_a_source_larger_than_the_box_is_downscaled_to_fit(self, tmp_path):
         """4:3 against a wider box, so height is the binding constraint and the
@@ -334,6 +449,6 @@ class TestSourcesThatArriveOddly:
         path = tmp_path / "grey.jpg"
         Image.new("L", (2000, 1500), 90).save(path, format="JPEG")
 
-        _, canvas = _composed(tmp_path, path)
+        result, canvas = _composed(tmp_path, path)
 
-        assert _is_mat(canvas.convert("RGB").load()[0, 0])
+        assert _is_mat(canvas.convert("RGB").load()[result.mat_left + SIDE_MAT // 2, PANEL_HEIGHT // 2])

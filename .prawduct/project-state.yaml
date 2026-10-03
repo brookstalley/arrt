@@ -1772,6 +1772,11 @@ technical_decisions:
         operator deferred it ("let's address rights later; for now, content"). The
         measurement that forces it eventually is in
         nonfunctional-requirements.md § The Supply Horizon.
+
+        DECIDED 2026-10-03 by the owner: built, not retracted — "in-copyright
+        count, users will add those and it's not our place to limit them." Which
+        source is built first is chosen by measurement against
+        procurement-corpus.md, whose outcomes are predicted before any run.
       date: 2026-08-04
     - decision: "Discovery searches museum/public-domain collections AND the contemporary web (gallery sites, prize announcements, artist portfolios)."
       rationale: >
@@ -3103,6 +3108,8 @@ artifact_manifest:
       depends_on: [architecture, operational-spec]
     - file_path: .prawduct/artifacts/wikidata-findings.md
       depends_on: [data-model, architecture, security-model, observability-strategy]
+    - file_path: .prawduct/artifacts/procurement-corpus.md
+      depends_on: [nonfunctional-requirements, data-model, re-architecture, wikidata-findings]
   # Strategy-class artifacts still owed: test-specifications.md. The build plan
   # (Phase D) was authored 2026-07-20 and is registered above. The
   # structural-coverage advisory's named set was cleared 2026-07-20.
@@ -3313,7 +3320,7 @@ api_versioning_decided: "none — no version negotiation. MCP tool names frozen,
 # backlog_prefixes: []
 # backlog_external_imports: []
 
-backlog_last_groomed_at: 2026-08-10
+backlog_last_groomed_at: 2026-10-02
 
 # -----------------------------------------------------------------------------
 # BACKLOG SERVICE CUTOVER (API §2.4)
