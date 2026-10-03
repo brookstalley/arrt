@@ -83,6 +83,15 @@ endpoint and the UI's HTTP API — are LAN-only, reached remotely over an overla
 network (Tailscale/VPN). The application performs no authentication, no
 authorisation, no TLS termination, and no rate limiting.
 
+> **Amended by the owner, 2026-10-02 (`build-plan-nas.md`):** on the NAS the
+> server is reached at a `.lan` name through the house's LAN-only reverse proxy,
+> with **no overlay network** — the homelab has none — and still no login, as
+> the owner's other apps there are. So "anyone on the overlay network" below
+> reads "anyone on the house's LAN". The worst case of a LAN client spending
+> model credit is bounded by the provider's $20/month cap
+> (`nonfunctional-requirements.md`). A login, and Tailscale for reaching it from
+> away, are backlog, not decided against.
+
 This is a recorded decision, not an omission
 (`technical_decisions.integrations`, 2026-07-19). For a single-principal household
 tool it is the proportionate answer, and it is what keeps this document short.

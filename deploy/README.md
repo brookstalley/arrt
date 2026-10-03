@@ -30,6 +30,35 @@ on 2026-08-11; § The cutover below is what was run.
 installed, and it is kept here as recovered evidence until the legacy retirement —
 see the banner above its recipe further down before running anything from it.
 
+## The server on the NAS (2026-10-02, `build-plan-nas.md`)
+
+**The server is moving to the NAS as a container.** What is public lives here:
+
+- `arrt/Dockerfile` — the image, built from a commit with everything it
+  fetches pinned (base images by digest, Python by version, packages by
+  `uv.lock`, `dezoomify-rs` by release and checksum). It runs as an
+  unprivileged user, serves on 8770, writes under `/art` and, when
+  `BACKUP_DIR` is set, under `/backups` (both mounts must be writable by it), and answers
+  `/healthz` for the container's healthcheck. Build it for the NAS with
+  `docker buildx build --platform linux/amd64 -t arrt:<commit> arrt/`; run the
+  curation suite inside it with `--target test --build-context repo=.`.
+- `deploy/nas/compose.example.yaml` — the app's shape with placeholders.
+
+**What is not here, by the rule that this repository names no address:** the
+real compose file, the env file, the reverse proxy's route, the registry, and
+the build-and-push script. They are in the operator's homelab repository,
+beside the house's other apps.
+
+**Two facts a deployment needs, found while building the image:**
+
+- **The art root must carry `ready/` and `thumbs/`, not only `raw/` and the
+  catalogue.** The catalogue records each render; until readiness checks that a
+  render's *file* exists (backlog #180), a catalogue without its
+  renders publishes works whose files are missing, and a Player on HTTP skips
+  every one of them (no file, no hash, no media).
+- **Renders recorded before the media route existed carry no content hash.**
+  They are hashed the first time a manifest names them, which needs the file.
+
 ## The two new units, and where everything they name now lives
 
 `display.service` and `curation.service` are the planes this product is being

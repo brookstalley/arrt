@@ -1,0 +1,17 @@
+# The build context is code only. Never the house's configuration (`.env`), a
+# virtualenv built for another platform, or any data an art root might hold.
+.env
+.env.*
+.venv
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.ruff_cache
+*.sqlite
+*.sqlite-*
+raw/
+ready/
+thumbs/
+previews/
+tile-cache/
+test-results/

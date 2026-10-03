@@ -32,6 +32,7 @@ from arrt.library.registry import Registry
 from arrt.library.registry.wikidata import INTERACTIVE_TIMEOUT_SECONDS, WikidataRegistry
 from arrt.library.services.previews import PreviewSettings
 from arrt.library.services.thumbnails import ThumbnailSettings
+from arrt.persistence.backup import BACKUP_RECEIPT_FILENAME, CatalogueBackup
 from arrt.persistence.file import open_catalogue_file
 from arrt.persistence.kept import KeptAnswers
 from arrt.persistence.sqlite import SqliteCatalogue
@@ -393,6 +394,17 @@ def main(argv: Sequence[str] = ()) -> None:
                 preview_sweep_interval_seconds=settings.preview_sweep_interval_seconds,
                 sweep_topics=True,
                 acquire_queue=True,
+                backup=(
+                    None
+                    if settings.backup_dir is None
+                    else CatalogueBackup(
+                        catalogue_path=settings.catalogue_path,
+                        directory=settings.backup_dir,
+                        receipt_path=settings.art_root / BACKUP_RECEIPT_FILENAME,
+                        keep=settings.backup_keep,
+                    )
+                ),
+                backup_interval_seconds=settings.backup_interval_seconds,
             ),
             host=settings.host,
             port=settings.port,

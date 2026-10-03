@@ -24,16 +24,18 @@ from contextlib import asynccontextmanager
 from typing import Final
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from starlette.types import Receive, Scope, Send
 
+from arrt.config import DEFAULT_BACKUP_INTERVAL_SECONDS
 from arrt.http import api, pages, player
 from arrt.library.acquisition.queue import start_acquisition_queue
 from arrt.library.services.sweep import start_sweeping
 from arrt.library.services.topic_sweep import start_topic_sweep
 from arrt.mcp.server import build_server
+from arrt.persistence.backup import CatalogueBackup, start_backups
 from arrt.services.container import Services
 from arrt.services.errors import ServiceError
 
@@ -65,6 +67,8 @@ def create_app(
     preview_sweep_interval_seconds: int = 0,
     sweep_topics: bool = False,
     acquire_queue: bool = False,
+    backup: CatalogueBackup | None = None,
+    backup_interval_seconds: int = DEFAULT_BACKUP_INTERVAL_SECONDS,
 ) -> FastAPI:
     """Build the application around already-constructed services.
 
@@ -109,6 +113,11 @@ def create_app(
             log.info("sweeping candidate previews every %ds", preview_sweep_interval_seconds)
         halt_topics = start_topic_sweep(services.topic_sweep) if sweep_topics else None
         halt_queue = start_acquisition_queue(services.acquisition_queue) if acquire_queue else None
+        halt_backups = None if backup is None else start_backups(backup, interval_seconds=backup_interval_seconds)
+        if backup is None:
+            log.info("the catalogue will not be backed up; BACKUP_DIR is not set")
+        else:
+            log.info("backing up the catalogue every %ds", backup_interval_seconds)
         try:
             async with session_manager.run():
                 log.info("curation plane ready; MCP server mounted at %s", MCP_PATH)
@@ -120,6 +129,8 @@ def create_app(
                 halt_topics()
             if halt_queue is not None:
                 halt_queue()
+            if halt_backups is not None:
+                halt_backups()
 
     app = FastAPI(
         title="Curation",
@@ -148,6 +159,17 @@ def create_app(
         """
         log.info("refused: %s", error)
         return api.service_error_response(str(error))
+
+    @app.get("/healthz", include_in_schema=False)
+    def healthz() -> PlainTextResponse:
+        """Liveness for a container's healthcheck: the process is up and answering.
+
+        Deliberately not `/api/health`, which reads the whole health panel — the
+        wall's heartbeat, the backup's age, the queue — and so is the right page
+        for a person and the wrong probe for a supervisor that calls every few
+        seconds and restarts what does not answer. This touches nothing.
+        """
+        return PlainTextResponse("ok")
 
     app.include_router(api.router)
     app.include_router(player.router)

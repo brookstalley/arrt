@@ -53,6 +53,9 @@ def _clean_env(monkeypatch):
         "TV_PANEL_WIDTH_PX",
         "TV_PANEL_HEIGHT_PX",
         "TV_PANEL_DIAGONAL_INCHES",
+        "BACKUP_DIR",
+        "BACKUP_INTERVAL_SECONDS",
+        "BACKUP_KEEP",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -266,7 +269,7 @@ def test_a_flag_that_is_neither_is_refused_rather_than_guessed(monkeypatch, tmp_
 
 @pytest.mark.parametrize(
     "name",
-    ["ROTATION_INTERVAL_SECONDS", "TV_PANEL_WIDTH_PX", "TV_PANEL_HEIGHT_PX"],
+    ["ROTATION_INTERVAL_SECONDS", "TV_PANEL_WIDTH_PX", "TV_PANEL_HEIGHT_PX", "BACKUP_INTERVAL_SECONDS", "BACKUP_KEEP"],
 )
 def test_a_non_numeric_whole_number_setting_is_refused_with_the_offending_value(monkeypatch, tmp_path, name):
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
@@ -278,7 +281,7 @@ def test_a_non_numeric_whole_number_setting_is_refused_with_the_offending_value(
 
 @pytest.mark.parametrize(
     "name",
-    ["ROTATION_INTERVAL_SECONDS", "TV_PANEL_WIDTH_PX", "TV_PANEL_HEIGHT_PX"],
+    ["ROTATION_INTERVAL_SECONDS", "TV_PANEL_WIDTH_PX", "TV_PANEL_HEIGHT_PX", "BACKUP_INTERVAL_SECONDS", "BACKUP_KEEP"],
 )
 @pytest.mark.parametrize("value", ["0", "-1"])
 def test_a_setting_that_must_be_positive_refuses_zero_and_below(monkeypatch, tmp_path, name, value):
@@ -752,3 +755,26 @@ def test_the_api_key_never_appears_in_the_redacted_configuration(monkeypatch, tm
     assert "sk-or-v1-should-never-be-logged" not in str(redacted)
     assert redacted["openrouter_api_key"] == "<set>"
     assert set(redacted) == set(Settings.__dataclass_fields__), "every field is accounted for, secret or not"
+
+
+def test_no_backup_directory_means_no_backups(monkeypatch, tmp_path):
+    """Unset is a deployment that takes none; the health panel then says none was recorded."""
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+
+    settings = Settings.from_env()
+
+    assert settings.backup_dir is None
+    assert (settings.backup_interval_seconds, settings.backup_keep) == (24 * 60 * 60, 14)
+
+
+def test_the_backup_settings_are_read_by_their_names(monkeypatch, tmp_path):
+    """A misspelt name would switch backups off without a word, so each is read back."""
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    monkeypatch.setenv("BACKUP_DIR", str(tmp_path / "backups"))
+    monkeypatch.setenv("BACKUP_INTERVAL_SECONDS", "3600")
+    monkeypatch.setenv("BACKUP_KEEP", "3")
+
+    settings = Settings.from_env()
+
+    assert settings.backup_dir == tmp_path / "backups"
+    assert (settings.backup_interval_seconds, settings.backup_keep) == (3600, 3)
