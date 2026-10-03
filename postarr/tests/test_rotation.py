@@ -70,12 +70,12 @@ async def test_the_native_slideshow_is_disabled_once_and_survives_a_restart(
 
 
 async def test_a_work_whose_render_is_missing_is_skipped_and_the_rotation_continues(
-    daemon: Daemon, tv: FakeTv, publish, art_root, clock, caplog
+    daemon: Daemon, tv: FakeTv, publish, wall_dir, clock, caplog
 ):
     """Fatal-for-one-item. The wall going black is always worse than the wall
     being incomplete."""
     publish(["w1", "w2", "w3"], interval_seconds=10)
-    (art_root / "ready" / "w2.jpg").unlink()
+    (wall_dir / "ready" / "w2.jpg").unlink()
     await daemon.tick()
 
     clock.advance(10)
@@ -86,7 +86,7 @@ async def test_a_work_whose_render_is_missing_is_skipped_and_the_rotation_contin
     assert [r.__dict__.get("event") for r in caplog.records].count("rotation.render_missing") == 1
 
 
-async def test_a_theme_whose_every_render_is_missing_does_not_spin(daemon: Daemon, tv: FakeTv, publish, art_root, caplog):
+async def test_a_theme_whose_every_render_is_missing_does_not_spin(daemon: Daemon, tv: FakeTv, publish, wall_dir, caplog):
     """Bounded by the length of the list: a loop that can never succeed must end,
     or one pass never returns and the poll interval stops meaning anything."""
     publish(["w1", "w2"], renders=False)
@@ -128,7 +128,7 @@ async def test_a_theme_that_can_show_nothing_warns_once_an_interval_not_once_a_s
 
 
 async def test_a_new_manifest_is_tried_at_once_rather_than_waiting_out_the_interval(
-    daemon: Daemon, tv: FakeTv, publish, art_root, clock
+    daemon: Daemon, tv: FakeTv, publish, wall_dir, clock
 ):
     """So a wall with nothing to show recovers when the renders arrive.
 
@@ -140,7 +140,7 @@ async def test_a_new_manifest_is_tried_at_once_rather_than_waiting_out_the_inter
     await daemon.tick()
     assert tv.selected == []
 
-    (art_root / "ready" / "w1.jpg").write_bytes(b"a render, at last")
+    (wall_dir / "ready" / "w1.jpg").write_bytes(b"a render, at last")
     publish(["w1"], sequence=1, interval_seconds=180)
     await daemon.tick()
 

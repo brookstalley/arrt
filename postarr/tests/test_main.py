@@ -11,9 +11,12 @@ what is under test is the handling rather than the work.
 **And one thing that is emphatically not a refusal**: a label panel that will not
 open. The television is the product and the label annotates it, so that costs the
 label, says so in the journal, and reports itself on the heartbeat — driven
-through `_run`, because the claim is about the wiring between a raise and a
-constructor argument, and a test of either end alone leaves the line between them
-undefended.
+through `run_frame_wall`, the Frame's worker, because the claim is about the
+wiring between a raise and a constructor argument, and a test of either end alone
+leaves the line between them undefended.
+
+**And how a wall's worker holds its pull**: beside the Frame's loop, stopped with
+it, and ending the worker when it dies, so the supervisor starts both again.
 """
 
 import asyncio
@@ -43,8 +46,8 @@ def _raising(exc: Exception):
     ("exc", "what"),
     [
         pytest.param(
-            ConfigError("ART_ROOT is not set. Copy .env.example to .env and fill it in."),
-            "ART_ROOT",
+            ConfigError("CLIENT_TOKEN is not set. Copy .env.example to .env and fill it in."),
+            "CLIENT_TOKEN",
             id="a missing deployment value",
         ),
         pytest.param(
@@ -241,8 +244,8 @@ class TestWhetherThisDeviceHasALabelSurface:
         assert margin_for(scale) != 17, "the override happens to equal the derived value, so this proves nothing"
 
     async def test_a_broken_panel_does_not_stop_the_daemon_starting(self, monkeypatch, settings, tv, caplog):
-        """**Driven through `_run` rather than around it**, because the claim is
-        about the wiring and not about either end of it.
+        """**Driven through the Frame's worker rather than around it**, because the
+        claim is about the wiring and not about either end of it.
 
         `label_surface` raising and the daemon reporting `surface_error` were both
         tested while the line joining them — the `except` in the composition root —
@@ -273,13 +276,18 @@ class TestWhetherThisDeviceHasALabelSurface:
             # that joins the two ends, not about either end.
             raise SurfaceUnavailable("could not open the e-paper device 'waveshare_epd.it8951' (no SPI device)")
 
-        monkeypatch.setattr(entry, "load", lambda: dataclasses.replace(settings, epd_device="waveshare_epd.it8951"))
         monkeypatch.setattr(entry, "SamsungTv", lambda **kwargs: tv)
         monkeypatch.setattr(entry, "Daemon", Recorder)
+        monkeypatch.setattr(entry, "Pull", _PullRecorder)
         monkeypatch.setattr(entry, "label_surface", _no_panel)
 
         with caplog.at_level(logging.WARNING):
-            assert await entry._run() == 0, "a panel that would not open stopped a daemon whose television was fine"
+            # Returning at all is the assertion: a panel that would not open did
+            # not stop a worker whose television was fine.
+            await asyncio.wait_for(
+                entry.run_frame_wall(dataclasses.replace(settings, epd_device="waveshare_epd.it8951"), asyncio.Event()),
+                timeout=5,
+            )
 
         assert built["surface"] is None
         assert "no SPI device" in str(built["surface_error"]), "the reason was dropped on the way in"
@@ -356,7 +364,7 @@ class _PullRecorder:
         await stop.wait()
 
 
-def _wire(monkeypatch, settings, tv, *, daemon_run, pull_fails: Exception | None = None):
+def _wire(monkeypatch, tv, *, daemon_run, pull_fails: Exception | None = None):
     from postarr import daemon as daemon_module
 
     class QuickDaemon(daemon_module.Daemon):
@@ -366,53 +374,54 @@ def _wire(monkeypatch, settings, tv, *, daemon_run, pull_fails: Exception | None
     _PullRecorder.started = []
     # Set here on every wiring, so a test cannot inherit another's failure.
     monkeypatch.setattr(_PullRecorder, "failure", pull_fails)
-    monkeypatch.setattr(entry, "load", lambda: settings)
     monkeypatch.setattr(entry, "SamsungTv", lambda **kwargs: tv)
     monkeypatch.setattr(entry, "Daemon", QuickDaemon)
     monkeypatch.setattr(entry, "Pull", _PullRecorder)
 
 
-async def test_http_mode_runs_the_pull_beside_the_daemon_and_stops_them_together(monkeypatch, settings, tv, tmp_path):
-    import dataclasses
-
-    http = dataclasses.replace(
-        settings, manifest_source="http", server_url="http://s", wall_token="t", cache_dir=tmp_path / "cache"
-    )
-
+async def test_the_frames_worker_runs_its_walls_pull_beside_the_loop_and_stops_them_together(monkeypatch, settings, tv):
     async def runs_briefly(stop) -> None:
         await asyncio.sleep(0.01)
         stop.set()
 
-    _wire(monkeypatch, http, tv, daemon_run=runs_briefly)
+    _wire(monkeypatch, tv, daemon_run=runs_briefly)
 
-    assert await asyncio.wait_for(entry._run(), timeout=5) == 0
-    assert _PullRecorder.started == [http]
-
-
-async def test_file_mode_starts_no_pull(monkeypatch, settings, tv):
-    async def stops_at_once(stop) -> None:
-        stop.set()
-
-    _wire(monkeypatch, settings, tv, daemon_run=stops_at_once)
-
-    assert await entry._run() == 0
-    assert _PullRecorder.started == []
+    await asyncio.wait_for(entry.run_frame_wall(settings, asyncio.Event()), timeout=5)
+    assert _PullRecorder.started == [settings]
 
 
-async def test_a_pull_that_dies_stops_the_plane_at_once_and_says_why(monkeypatch, settings, tv, tmp_path, caplog):
-    """A dead pull is a wall that takes no updates; it becomes a restart instead of a silence."""
-    import dataclasses
-    import logging
-
-    http = dataclasses.replace(
-        settings, manifest_source="http", server_url="http://s", wall_token="t", cache_dir=tmp_path / "cache"
-    )
+async def test_the_supervisors_stop_reaches_the_loop_and_the_pull(monkeypatch, settings, tv):
+    """The wall taken away, or SIGTERM: both halves end, and the worker returns rather than raising."""
 
     async def runs_until_stopped(stop) -> None:
         await stop.wait()
 
-    _wire(monkeypatch, http, tv, daemon_run=runs_until_stopped, pull_fails=OSError("No space left on device"))
+    _wire(monkeypatch, tv, daemon_run=runs_until_stopped)
+    stop = asyncio.Event()
+    worker = asyncio.create_task(entry.run_frame_wall(settings, stop))
+    await asyncio.sleep(0.05)
+    assert not worker.done(), "the worker ended before it was asked to"
+
+    stop.set()
+    await asyncio.wait_for(worker, timeout=5)
+
+
+async def test_a_pull_that_dies_ends_its_walls_worker_at_once_and_says_why(monkeypatch, settings, tv, caplog):
+    """A dead pull is a wall that takes no updates; it becomes a restart instead of a silence.
+
+    The worker ends with the pull's error, so the supervisor logs it and starts the
+    wall again. **The supervisor's own stop event is left alone**: setting it would
+    read as the wall having been taken away, which is the one case not restarted.
+    """
+    import logging
+
+    async def runs_until_stopped(stop) -> None:
+        await stop.wait()
+
+    _wire(monkeypatch, tv, daemon_run=runs_until_stopped, pull_fails=OSError("No space left on device"))
+    supervisors_stop = asyncio.Event()
     with caplog.at_level(logging.ERROR), pytest.raises(OSError, match="No space"):
-        await asyncio.wait_for(entry._run(), timeout=5)
+        await asyncio.wait_for(entry.run_frame_wall(settings, supervisors_stop), timeout=5)
 
     assert [record.__dict__.get("event") for record in caplog.records if record.levelno >= logging.ERROR] == ["pull.crashed"]
+    assert not supervisors_stop.is_set(), "the pull's death was told to the supervisor as the wall being taken away"

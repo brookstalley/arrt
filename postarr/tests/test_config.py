@@ -4,306 +4,280 @@ The distinction is the whole point of this module. A value nobody typed gets a
 default when there is a right answer and a refusal when there is not; a value
 somebody typed *and got wrong* always refuses, because substituting a default
 there hides the typo behind behaviour that looks deliberate.
+
+**A Player is a client** (`clients.md`): it is told its server, its token and its
+cache, and learns its walls from the server. The Frame is an output it may or
+may not have, so the Frame's own required values are required only on a client
+configured with one.
 """
 
 from pathlib import Path
 
 import pytest
 
-from postarr.config import ConfigError, load
+from postarr.config import RETIRED_SETTINGS, ConfigError, WallIdUnusable, load
+
+FRAME = {
+    "TV_ADDRESS": "10.0.0.1",
+    "LATITUDE": "45.68",
+    "LONGITUDE": "-111.04",
+    "LOCATION_NAME": "Bozeman",
+}
 
 
-def an_environment(art_root: Path, **overrides: str) -> dict[str, str]:
+def an_environment(cache_dir: Path, *, frame: bool = True, **overrides: str) -> dict[str, str]:
     environment = {
-        "ART_ROOT": str(art_root),
-        "WALL_ID": "living-room",
-        "TV_ADDRESS": "10.0.0.1",
-        "LATITUDE": "45.68",
-        "LONGITUDE": "-111.04",
-        "LOCATION_NAME": "Bozeman",
+        "SERVER_URL": "http://127.0.0.1:8770/",
+        "CLIENT_TOKEN": "the-clients-token",
+        "CACHE_DIR": str(cache_dir),
+        **(FRAME if frame else {}),
     }
     environment.update(overrides)
     return environment
 
 
 class TestWhatMustBeSet:
-    @pytest.mark.parametrize("missing", ["ART_ROOT", "WALL_ID", "TV_ADDRESS", "LATITUDE", "LONGITUDE", "LOCATION_NAME"])
-    def test_a_missing_deployment_value_stops_the_process(self, art_root: Path, missing: str):
-        environment = an_environment(art_root)
+    @pytest.mark.parametrize("missing", ["SERVER_URL", "CLIENT_TOKEN", "CACHE_DIR"])
+    def test_a_client_without_its_server_its_token_or_its_cache_does_not_start(self, cache_dir: Path, missing: str):
+        environment = an_environment(cache_dir, frame=False)
         del environment[missing]
 
         with pytest.raises(ConfigError, match=missing):
             load(environment)
 
-    def test_the_refusal_over_a_missing_wall_says_where_a_wall_id_comes_from(self, art_root: Path):
-        """A wall id is the one required value an installer cannot invent.
+    @pytest.mark.parametrize("retired", sorted(RETIRED_SETTINGS))
+    def test_a_setting_a_one_wall_player_read_is_refused_by_name(self, cache_dir: Path, retired: str):
+        """A stale `.env` fails loudly rather than being half-read.
 
-        It is a UUID minted by the other plane, so "fill it in" without saying
-        where it comes from is where somebody starts guessing — and the
-        consequence of a guess is the failure per-wall manifests removed: a
-        television showing another room's pictures while every log line reads
-        fine.
+        Each of these was read once at start and never again, so a Player that
+        ignored one would start, pull nothing for the wall its operator believes
+        it serves, and say nothing about why.
         """
-        environment = an_environment(art_root)
-        del environment["WALL_ID"]
+        with pytest.raises(ConfigError, match=f"{retired} is retired") as refused:
+            load(an_environment(cache_dir, **{retired: "anything"}))
 
-        with pytest.raises(ConfigError, match="art_display"):
+        assert RETIRED_SETTINGS[retired] in str(refused.value)
+
+    @pytest.mark.parametrize(
+        ("retired", "replaced_by"),
+        [("WALL_ID", "Settings › Clients"), ("WALL_TOKEN", "CLIENT_TOKEN"), ("MANIFEST_SOURCE", "SERVER_URL")],
+    )
+    def test_the_refusal_says_what_replaced_it(self, cache_dir: Path, retired: str, replaced_by: str):
+        with pytest.raises(ConfigError, match=replaced_by):
+            load(an_environment(cache_dir, **{retired: "anything"}))
+
+    def test_a_retired_setting_left_empty_is_not_set(self, cache_dir: Path):
+        """`WALL_ID=` is a key nobody filled in, which is the same as no key."""
+        assert load(an_environment(cache_dir, WALL_ID="", WALL_TOKEN="", MANIFEST_SOURCE="")).server_url
+
+    @pytest.mark.parametrize("missing", ["LATITUDE", "LONGITUDE", "LOCATION_NAME"])
+    def test_a_frame_without_the_sun_it_follows_does_not_start(self, cache_dir: Path, missing: str):
+        environment = an_environment(cache_dir)
+        del environment[missing]
+
+        with pytest.raises(ConfigError, match=missing):
             load(environment)
 
-    def test_an_art_root_that_is_not_a_directory_is_refused(self, tmp_path: Path):
-        """A typo is invisible in `.env` and shows up as a manifest that never
-        arrives — which looks exactly like a curation plane that has not published
-        one yet. The daemon would wait politely forever."""
-        with pytest.raises(ConfigError, match="not an existing directory"):
-            load(an_environment(tmp_path / "a-typo"))
-
-    def test_a_number_that_is_not_one_is_refused_rather_than_defaulted(self, art_root: Path):
+    def test_a_number_that_is_not_one_is_refused_rather_than_defaulted(self, cache_dir: Path):
         with pytest.raises(ConfigError, match="TV_PORT"):
-            load(an_environment(art_root, TV_PORT="eight-thousand"))
+            load(an_environment(cache_dir, TV_PORT="eight-thousand"))
+
+    def test_a_label_panel_with_no_frame_to_caption_is_refused(self, cache_dir: Path):
+        """The panel captions the wall on the Frame; with no Frame it would caption nothing, silently."""
+        with pytest.raises(ConfigError, match="EPD_DEVICE"):
+            load(an_environment(cache_dir, frame=False, EPD_DEVICE="waveshare_epd.it8951"))
+
+
+class TestTheFrameIsAnOutputAClientMayHave:
+    def test_tv_address_present_is_a_frame(self, cache_dir: Path):
+        settings = load(an_environment(cache_dir))
+
+        assert settings.frame is not None
+        assert settings.frame.tv_address == "10.0.0.1"
+
+    def test_tv_address_absent_is_no_frame_and_needs_none_of_its_values(self, cache_dir: Path):
+        settings = load(an_environment(cache_dir, frame=False))
+
+        assert settings.frame is None
+        with pytest.raises(ValueError, match="no Frame"):
+            settings.frame_wall("living-room")
 
 
 class TestWhatDefaults:
-    def test_the_reference_deployment_needs_five_values(self, art_root: Path):
-        settings = load(an_environment(art_root))
+    def test_a_client_with_a_frame_needs_seven_values(self, cache_dir: Path):
+        settings = load(an_environment(cache_dir))
 
-        assert settings.tv_port == 8002
-        assert settings.epd_panel_width_px == 1448
-        assert settings.epd_panel_height_px == 1072
+        assert settings.server_url == "http://127.0.0.1:8770", "a trailing slash doubled every route's first one"
+        assert settings.client_token == "the-clients-token"
+        assert settings.cache_dir == cache_dir
         assert settings.poll_interval_seconds == 1.0
-        assert settings.tv_client_name == "tvpi"
-        assert settings.tv_token_file == art_root / "token_file"
+        assert settings.client_poll_seconds == 30.0
+        assert settings.frame.tv_port == 8002
+        assert settings.frame.epd_panel_width_px == 1448
+        assert settings.frame.epd_panel_height_px == 1072
+        assert settings.frame.tv_client_name == "tvpi"
+        assert settings.frame.tv_token_file == cache_dir / "token_file"
 
-    def test_the_panel_is_configurable_because_nothing_may_hardcode_one(self, art_root: Path):
+    def test_the_panel_is_configurable_because_nothing_may_hardcode_one(self, cache_dir: Path):
         """This deployment is a 1448×1072 IT8951; the product must run on any."""
-        settings = load(an_environment(art_root, EPD_PANEL_WIDTH_PX="800", EPD_PANEL_HEIGHT_PX="600"))
+        settings = load(an_environment(cache_dir, EPD_PANEL_WIDTH_PX="800", EPD_PANEL_HEIGHT_PX="600"))
 
-        assert (settings.epd_panel_width_px, settings.epd_panel_height_px) == (800, 600)
+        assert (settings.frame.epd_panel_width_px, settings.frame.epd_panel_height_px) == (800, 600)
 
-    def test_the_three_values_that_decide_whether_this_device_has_a_panel(self, art_root: Path):
+    def test_the_three_values_that_decide_whether_this_device_has_a_panel(self, cache_dir: Path):
         """**The names a misspelling makes invisible.**
 
         These three are the whole of what `.env` says about the label surface, and
-        every other test in this plane builds a `Settings` directly — so a misspelt
+        every other test in this plane builds its settings directly — so a misspelt
         key or a wrong default here would leave `epd_device` empty on a Pi that has
         a panel, `label_surface` would return None, and the heartbeat would report
         a device with no panel. That is the exact distinction this plane was built
         to draw, collapsed by a typo nothing else would catch.
         """
-        settings = load(
-            an_environment(
-                art_root,
-                EPD_DEVICE="waveshare_epd.it8951",
-                EPD_MARGIN_PX="64",
-                EPD_ROTATE_DEGREES="0",
-            )
-        )
+        frame = load(
+            an_environment(cache_dir, EPD_DEVICE="waveshare_epd.it8951", EPD_MARGIN_PX="64", EPD_ROTATE_DEGREES="0")
+        ).frame
 
-        assert settings.epd_device == "waveshare_epd.it8951"
-        assert settings.epd_margin_px == 64
-        assert settings.epd_rotate_degrees == 0
+        assert frame.epd_device == "waveshare_epd.it8951"
+        assert frame.epd_margin_px == 64
+        assert frame.epd_rotate_degrees == 0
 
-    def test_a_deployment_that_says_nothing_about_a_panel_has_none(self, art_root: Path):
-        """The other half, and the supported deployment rather than the degraded one.
+    def test_a_deployment_that_says_nothing_about_a_panel_has_none(self, cache_dir: Path):
+        """The supported deployment rather than the degraded one.
 
         The rotation still takes the reference deployment's default, because it
-        describes how a panel is used rather than whether there is one.
-
-        **The margin no longer does, and that is the change rather than an
-        oversight.** It used to ship 40 px on the same reasoning, but a border
-        trades directly against how many lines survive the drop rule, so it cannot
-        be picked independently of the type floor that decides how many lines
-        there are — and that floor is now derived per device from the viewing
-        distance. So the margin derives with it, and this value is an override
-        nobody has exercised rather than a default everybody inherits.
+        describes how a panel is used rather than whether there is one. The margin
+        does not: it derives from the type, so this value is an override nobody
+        has exercised rather than a default everybody inherits.
         """
-        settings = load(an_environment(art_root))
+        frame = load(an_environment(cache_dir)).frame
 
-        assert settings.epd_device == ""
-        assert settings.epd_margin_px is None
-        assert settings.epd_rotate_degrees == 180
+        assert frame.epd_device == ""
+        assert frame.epd_margin_px is None
+        assert frame.epd_rotate_degrees == 180
 
-    def test_the_viewing_conditions_have_no_defaults_and_must_not_acquire_any(self, art_root: Path):
+    def test_the_viewing_conditions_have_no_defaults_and_must_not_acquire_any(self, cache_dir: Path):
         """**The one pair in this module that may never be guessed.**
 
-        Every other unset value here takes the reference wall's number, which is
-        right: a wrong poll interval is visible, a wrong brightness is visible. A
-        wrong *viewing distance* is not visible at all — it produces type nobody
+        A wrong *viewing distance* is not visible at all — it produces type nobody
         can read from where they stand, while the daemon starts, the panel draws
-        and every test passes. That is not hypothetical; it is what shipped, at
-        half the size a letter has to reach to be resolvable, through a hardware
-        probe and a cutover. A default here would restore it.
+        and every test passes. That is not hypothetical; it is what shipped. A
+        default here would restore it.
         """
-        stated = load(an_environment(art_root, EPD_PANEL_DIAGONAL_INCHES="6", EPD_VIEWING_DISTANCE_INCHES="84"))
+        stated = load(an_environment(cache_dir, EPD_PANEL_DIAGONAL_INCHES="6", EPD_VIEWING_DISTANCE_INCHES="84")).frame
         assert (stated.epd_panel_diagonal_inches, stated.epd_viewing_distance_inches) == (6.0, 84.0)
 
-        unstated = load(an_environment(art_root))
+        unstated = load(an_environment(cache_dir)).frame
         assert unstated.epd_panel_diagonal_inches is None
         assert unstated.epd_viewing_distance_inches is None
 
-    def test_a_viewing_measurement_that_is_not_a_number_is_refused_rather_than_dropped(self, art_root: Path):
-        """Absent and mistyped stay different things: `None` is a deployment that
-        did not measure, and silently making a typo into one would hand it the
-        same outcome as a deliberate choice."""
+    def test_a_viewing_measurement_that_is_not_a_number_is_refused_rather_than_dropped(self, cache_dir: Path):
         with pytest.raises(ConfigError, match="EPD_VIEWING_DISTANCE_INCHES"):
-            load(an_environment(art_root, EPD_VIEWING_DISTANCE_INCHES="seven feet"))
-
-    def test_the_two_paths_under_the_art_root_are_not_configurable(self, art_root: Path):
-        """A setting is just a way for the writer and the reader to stop agreeing
-        about where the channel between them is.
-
-        **The wall is configurable and the naming is not**, and the two are
-        different things: which room this device serves is a deployment fact, and
-        where that room's manifest is written is a contract between the planes.
-        """
-        settings = load(an_environment(art_root))
-
-        assert settings.manifest_path == art_root / "theme-manifest-living-room.json"
-        assert settings.state_path == art_root / "display-state.sqlite"
-
-    def test_the_manifest_this_device_waits_on_is_the_one_for_its_own_wall(self, art_root: Path):
-        """The property one file per wall was chosen for.
-
-        A display cannot read a wall it does not serve, because the other room's
-        manifest is a path it never stats — not because it opens the file and
-        declines to act on it.
-        """
-        study = load(an_environment(art_root, WALL_ID="study"))
-
-        assert study.manifest_path == art_root / "theme-manifest-study.json"
-        assert study.manifest_path != load(an_environment(art_root)).manifest_path
+            load(an_environment(cache_dir, EPD_VIEWING_DISTANCE_INCHES="seven feet"))
 
     @pytest.mark.parametrize(
         ("raw", "expected"),
         [("false", False), ("FALSE", False), ("0", False), ("no", False), ("off", False), ("true", True), ("yes", True)],
     )
-    def test_the_shuffle_fallback_reads_the_spellings_people_write(self, art_root: Path, raw: str, expected: bool):
-        assert load(an_environment(art_root, ROTATION_SHUFFLE=raw)).rotation_shuffle_fallback is expected
+    def test_the_shuffle_fallback_reads_the_spellings_people_write(self, cache_dir: Path, raw: str, expected: bool):
+        assert load(an_environment(cache_dir, ROTATION_SHUFFLE=raw)).rotation_shuffle_fallback is expected
+
+
+class TestEachWallHasItsOwnDirectory:
+    """**The paths are derived, never configured**, and that is the whole mechanism
+    keeping two walls on one client apart: a wall's worker opens exactly the files
+    its id names, so another room's are files it never opens."""
+
+    def test_a_walls_files_are_under_its_own_directory_in_the_cache(self, cache_dir: Path):
+        wall = load(an_environment(cache_dir)).wall("study")
+
+        assert wall.wall_dir == cache_dir / "study"
+        assert wall.manifest_path == cache_dir / "study" / "manifest.json"
+        assert wall.render_root == wall.heartbeat_root == cache_dir / "study"
+        assert wall.state_path == cache_dir / "study" / "display-state.sqlite"
+
+    def test_two_walls_on_one_client_share_no_file(self, cache_dir: Path):
+        settings = load(an_environment(cache_dir))
+        study, hall = settings.wall("study"), settings.wall("hall")
+
+        assert {study.manifest_path, study.state_path, study.wall_dir}.isdisjoint(
+            {hall.manifest_path, hall.state_path, hall.wall_dir}
+        )
+
+    def test_a_wall_on_the_frame_carries_the_frame_and_the_wall(self, cache_dir: Path):
+        settings = load(an_environment(cache_dir, TV_PORT="8003"))
+        on_the_frame = settings.frame_wall("study")
+
+        assert on_the_frame.wall_dir == cache_dir / "study"
+        assert on_the_frame.tv_port == 8003
+        assert on_the_frame.client_token == "the-clients-token"
+
+    @pytest.mark.parametrize("unusable", ["..", ".", "a/b", "../elsewhere", ".client", "", "wall id", "x\x00y"])
+    def test_a_wall_id_that_is_not_a_plain_directory_name_is_refused(self, cache_dir: Path, unusable: str):
+        """The server mints UUIDs; an id that would put a wall's files outside its own directory is refused by name."""
+        with pytest.raises(WallIdUnusable):
+            load(an_environment(cache_dir)).wall(unusable)
+
+    @pytest.mark.parametrize("usable", ["3f2a9c1e-8b7d-4e6f-a1b2-c3d4e5f60718", "living-room", "w_1", "wall.v2"])
+    def test_ids_the_server_mints_are_accepted(self, cache_dir: Path, usable: str):
+        assert load(an_environment(cache_dir)).wall(usable).wall_dir == cache_dir / usable
 
 
 class TestTheStartupLine:
-    def test_it_names_the_art_root_and_this_plane_s_own_panel(self, art_root: Path):
-        """One journal line rather than a mystery, per the configuration spec.
+    def test_the_clients_line_names_its_server_and_cache_and_says_whether_it_has_a_frame(self, cache_dir: Path):
+        with_frame = load(an_environment(cache_dir)).startup_lines()
+        without = load(an_environment(cache_dir, frame=False)).startup_lines()
 
-        A wrong art root otherwise shows up as a manifest that never arrives, and a
-        wrong panel as a label rendering off an edge nobody is looking at closely.
-        """
-        lines = load(an_environment(art_root)).startup_lines()
+        assert with_frame["server_url"] == "http://127.0.0.1:8770"
+        assert with_frame["cache_dir"] == str(cache_dir)
+        assert with_frame["frame"]["tv_address"] == "10.0.0.1:8002"
+        assert "TV_ADDRESS is not set" in str(without["frame"])
 
-        assert lines["art_root"] == str(art_root)
-        assert lines["epd_panel_px"] == "1448x1072"
-
-    def test_it_names_the_wall_this_device_serves_and_both_files_that_follow_from_it(self, art_root: Path):
-        """**The value whose being wrong has no other symptom.**
-
-        A `WALL_ID` naming a wall nothing publishes for produces a manifest that
-        never arrives, which looks exactly like a curation plane that has not
-        published yet. A `WALL_ID` naming the *wrong* wall produces a television
-        showing another room's pictures while the daemon starts, the set answers,
-        the label draws and every suite passes. Neither is visible anywhere else,
-        so both are worth an assertion rather than resting on fields a refactor
-        can blank with nothing objecting.
-
-        Both derived paths as well as the id, because the id alone does not show a
-        reader that this is the file being waited on — and the heartbeat's path is
-        where an operator looks when the health panel says this wall is silent.
-        """
-        lines = load(an_environment(art_root, WALL_ID="study")).startup_lines()
+    def test_a_walls_line_names_the_wall_and_both_files_that_follow_from_it(self, cache_dir: Path):
+        """**The value whose being wrong has no other symptom.** The heartbeat's
+        path is where an operator looks when the health panel says a wall is
+        silent, and the manifest's is the file being waited on."""
+        lines = load(an_environment(cache_dir)).frame_wall("study").startup_lines()
 
         assert lines["wall_id"] == "study"
-        assert lines["manifest_path"] == str(art_root / "theme-manifest-study.json")
-        assert lines["heartbeat_path"] == str(art_root / "display-heartbeat-study.json")
+        assert lines["manifest_path"] == str(cache_dir / "study" / "manifest.json")
+        assert lines["heartbeat_path"] == str(cache_dir / "study" / "display-heartbeat-study.json")
+        assert lines["epd_panel_px"] == "1448x1072"
 
-    def test_it_names_the_viewing_conditions_the_type_was_sized_from(self, art_root: Path):
-        """**The line that would have caught the defect this pair exists for.**
+    def test_it_names_the_viewing_conditions_the_type_was_sized_from(self, cache_dir: Path):
+        lines = load(an_environment(cache_dir, EPD_PANEL_DIAGONAL_INCHES="6", EPD_VIEWING_DISTANCE_INCHES="84")).startup_lines()
 
-        A wrong viewing distance is invisible everywhere else — the daemon starts,
-        the panel draws, every suite passes, and the only symptom is type nobody
-        can read from where they stand. This puts both facts one `journalctl` away
-        from the person who typed them, so it is worth an assertion rather than
-        resting on a field a refactor can blank with nothing objecting.
-        """
-        lines = load(an_environment(art_root, EPD_PANEL_DIAGONAL_INCHES="6", EPD_VIEWING_DISTANCE_INCHES="84")).startup_lines()
+        assert "6.0" in str(lines["frame"]["epd_viewing"])
+        assert "84.0" in str(lines["frame"]["epd_viewing"])
 
-        assert "6.0" in str(lines["epd_viewing"])
-        assert "84.0" in str(lines["epd_viewing"])
-
-    def test_unstated_viewing_conditions_are_reported_as_what_they_cost(self, art_root: Path):
-        """The other branch, and it says the consequence rather than "unset" —
-        a reader who has not met this pair cannot tell from "unset" whether their
-        label is missing on purpose."""
-        line = str(load(an_environment(art_root)).startup_lines()["epd_viewing"])
+    def test_unstated_viewing_conditions_are_reported_as_what_they_cost(self, cache_dir: Path):
+        line = str(load(an_environment(cache_dir)).startup_lines()["frame"]["epd_viewing"])
 
         assert "not stated" in line
         assert "draws none" in line, f"the line does not say what the absence costs: {line}"
 
-    def test_it_holds_no_fact_about_the_television_s_physical_size(self, art_root: Path):
-        """Curation composes the mat into the render, so this plane never needs the
-        TV's size — and holding a copy is how the two panels' geometry came to be
-        confused in the first place."""
-        settings = load(an_environment(art_root, TV_PANEL_DIAGONAL_INCHES="50", TV_PANEL_WIDTH_PX="3840"))
+    def test_it_holds_no_fact_about_the_television_s_physical_size(self, cache_dir: Path):
+        """Curation composes the mat into the render, so this plane never needs the TV's size."""
+        settings = load(an_environment(cache_dir, TV_PANEL_DIAGONAL_INCHES="50", TV_PANEL_WIDTH_PX="3840"))
 
-        assert not hasattr(settings, "tv_panel_diagonal_inches")
-        assert not any("3840" in str(value) or "50" == str(value) for value in settings.startup_lines().values())
+        assert not hasattr(settings.frame, "tv_panel_diagonal_inches")
+        assert "3840" not in repr(settings.startup_lines())
 
-    def test_the_token_is_reported_as_a_path_and_never_as_its_contents(self, art_root: Path, tmp_path: Path):
-        """The repository is public and log excerpts are what gets pasted into an
-        issue. The pairing token is a secret; where it lives is not."""
+    def test_the_pairing_token_is_reported_as_a_path_and_never_as_its_contents(self, cache_dir: Path, tmp_path: Path):
         token = tmp_path / "token_file"
         token.write_text("a-real-pairing-token")
 
-        lines = load(an_environment(art_root, TV_TOKEN_FILE=str(token))).startup_lines()
+        lines = load(an_environment(cache_dir, TV_TOKEN_FILE=str(token))).startup_lines()
 
-        assert lines["tv_token_file"] == str(token)
-        assert "a-real-pairing-token" not in " ".join(str(value) for value in lines.values())
+        assert lines["frame"]["tv_token_file"] == str(token)
+        assert "a-real-pairing-token" not in repr(lines)
 
+    def test_the_client_token_is_in_no_repr_and_no_startup_line(self, cache_dir: Path):
+        settings = load(an_environment(cache_dir))
+        wall = settings.wall("study")
+        on_the_frame = settings.frame_wall("study")
 
-class TestHttpMode:
-    """Asked for, it needs all of its settings; not asked for, file mode is unchanged."""
-
-    HTTP = {
-        "MANIFEST_SOURCE": "http",
-        "SERVER_URL": "http://127.0.0.1:8770/",
-        "WALL_TOKEN": "the-walls-token",
-        "CACHE_DIR": "/var/cache/postarr",
-    }
-
-    def test_file_mode_is_the_default(self, art_root: Path):
-        settings = load(an_environment(art_root))
-
-        assert settings.manifest_source == "file"
-        assert not settings.pulls_over_http
-        assert (settings.server_url, settings.wall_token, settings.cache_dir) == (None, None, None)
-        assert settings.render_root == settings.heartbeat_root == art_root
-
-    def test_http_mode_reads_its_settings(self, art_root: Path):
-        settings = load(an_environment(art_root, **self.HTTP))
-
-        assert settings.pulls_over_http
-        assert settings.server_url == "http://127.0.0.1:8770", "a trailing slash doubled every route's first one"
-        assert settings.wall_token == "the-walls-token"
-        assert settings.cache_dir == Path("/var/cache/postarr")
-        assert settings.manifest_path == Path("/var/cache/postarr/manifest.json")
-        assert settings.render_root == settings.heartbeat_root == Path("/var/cache/postarr")
-        assert settings.state_path.parent == art_root, "the Player's own store moved with the mode"
-
-    @pytest.mark.parametrize("missing", ["SERVER_URL", "WALL_TOKEN", "CACHE_DIR"])
-    def test_http_mode_without_one_of_its_settings_refuses_by_name(self, art_root: Path, missing: str):
-        environment = an_environment(art_root, **self.HTTP)
-        del environment[missing]
-
-        with pytest.raises(ConfigError, match=missing):
-            load(environment)
-
-    def test_a_mode_that_is_neither_is_refused_rather_than_read_as_the_default(self, art_root: Path):
-        with pytest.raises(ConfigError, match="MANIFEST_SOURCE"):
-            load(an_environment(art_root, MANIFEST_SOURCE="htpp"))
-
-    def test_the_token_is_in_neither_the_settings_repr_nor_the_startup_line(self, art_root: Path):
-        settings = load(an_environment(art_root, **self.HTTP))
-        line = settings.startup_lines()
-
-        assert "the-walls-token" not in repr(settings)
-        assert "the-walls-token" not in repr(line)
-        assert line["manifest_source"] == "http"
-        assert line["server_url"] == "http://127.0.0.1:8770"
-        assert line["heartbeat_path"].startswith("/var/cache/postarr/")
+        for said in (repr(settings), repr(wall), repr(on_the_frame), repr(settings.startup_lines())):
+            assert "the-clients-token" not in said
+        assert "the-clients-token" not in repr(on_the_frame.startup_lines())
+        assert "the-clients-token" not in repr(wall.wall_lines())

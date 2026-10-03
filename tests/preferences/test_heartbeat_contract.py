@@ -8,12 +8,14 @@ product's defining failure mode, manufactured by the mechanism built to detect i
 The filename has the same shape: write to the wrong name and the reader reports,
 truthfully and uselessly, that the display plane has never reported at all.
 
-**The manifest's name is here for the same reason**, though its failure is the
-mirror image: curation publishing to one name while display waits on another is a
-wall that never changes and a journal that says, correctly, that no manifest has
-arrived. Both names became *templates* carrying a wall id on 2026-08-12, which is
-a second way for two literals to drift and the reason the manifest pair stopped
-being an unguarded duplication.
+**The manifest's name was here too, and left on 2026-10-02.** The display plane
+read each wall's manifest from a file curation wrote under a shared art root, so
+the two had to agree on its name. A Player is now a client that pulls each
+wall's manifest over HTTP into its own cache (`clients.md`), so the display plane
+declares no manifest filename and there is no pair left to compare. What
+replaced the file — the routes both sides spell — is agreed through
+`contract/routes.json`, which `test_plane_isolation.py` holds the pull to and
+each plane's own suite holds its routes to.
 
 Neither plane can import the other — the isolation norm forbids display reaching
 into curation, and they are separate projects with separate interpreters — so the
@@ -35,18 +37,11 @@ REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 WRITER = REPOSITORY_ROOT / "postarr" / "src" / "postarr" / "heartbeat.py"
 READER = REPOSITORY_ROOT / "arrt" / "src" / "arrt" / "programming" / "manifest" / "heartbeat.py"
 
-#: The manifest's two ends. It runs the other way — curation writes, display
-#: reads — so "writer" and "reader" are the heartbeat's roles, and these are
-#: named for the plane instead.
-MANIFEST_IN_DISPLAY = REPOSITORY_ROOT / "postarr" / "src" / "postarr" / "config.py"
-MANIFEST_IN_CURATION = REPOSITORY_ROOT / "arrt" / "src" / "arrt" / "programming" / "manifest" / "builder.py"
-
 #: Every declaration both planes make separately and must spell identically, as
 #: `(constant, display's copy, curation's copy)`.
 SHARED_CONSTANTS = (
     ("HEARTBEAT_FILENAME_TEMPLATE", WRITER, READER),
     ("REPORTED_AT_KEY", WRITER, READER),
-    ("MANIFEST_FILENAME_TEMPLATE", MANIFEST_IN_DISPLAY, MANIFEST_IN_CURATION),
 )
 
 
@@ -98,19 +93,17 @@ def test_the_agreed_values_are_the_ones_the_artifacts_name():
     """Pinned literally, because both sides moving together is still a break.
 
     `observability-strategy.md` § The Health Surface states the heartbeat's two
-    names as the contract, and `architecture.md` § One manifest per wall states
-    the manifest's. A rename that updated both planes would pass the comparison
-    above while silently orphaning every file already on disk and every artifact
-    that documents it.
+    names as the contract. A rename that updated both planes would pass the
+    comparison above while silently orphaning every file already on disk and
+    every artifact that documents it.
 
-    **Both filenames are templates carrying a wall id**, since 2026-08-12: one
-    manifest and one heartbeat per wall, so a display cannot open a wall it does
-    not serve and health can name which wall is silent. The placeholder is part
-    of the pin — a template that lost it would put every wall back in one file.
+    **The filename is a template carrying a wall id**, since 2026-08-12: one
+    heartbeat per wall, so health can name which wall is silent. The placeholder
+    is part of the pin — a template that lost it would put every wall back in one
+    file.
     """
     assert string_constants(WRITER)["HEARTBEAT_FILENAME_TEMPLATE"] == "display-heartbeat-{wall_id}.json"
     assert string_constants(WRITER)["REPORTED_AT_KEY"] == "reported_at"
-    assert string_constants(MANIFEST_IN_DISPLAY)["MANIFEST_FILENAME_TEMPLATE"] == "theme-manifest-{wall_id}.json"
 
 
 def _relative(path: pathlib.Path) -> str:
