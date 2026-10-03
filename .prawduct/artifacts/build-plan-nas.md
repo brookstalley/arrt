@@ -93,7 +93,7 @@ Open assumptions:
 - [x] Chunk 02: The backup writer
 - [x] Chunk 03: The homelab half
 - [ ] Chunk 04: Seed and deploy
-- [ ] Chunk 05: The Pi on HTTP
+- [x] Chunk 05: The Pi on HTTP *(re-scoped: the wall rotating moves to build-plan-clients.md)*
 
 ### Chunk 01: The container
 
@@ -231,6 +231,14 @@ determine Jetson model)" — the old environment opened it on this same kernel
 this morning, and the driver pins are identical, so the fresh environment
 differs somewhere not yet found. (3) The cache test (stop the NAS, the wall
 keeps rotating) waits for (1). Not ticked until the wall rotates from the NAS.
+
+*Chunk 05 re-scoped by the owner, later on 2026-10-02:* "Let's skip the frame,
+I'm watching stuff on it. Instead, let's get the rpi ready to show images over
+hdmi." The Pi's player was stopped and disabled so nothing reaches for the set.
+What this chunk proved stands — the Pi pulls the NAS's manifest and renders and
+the NAS sees its heartbeat — and the rest (a wall rotating from the NAS) moves
+to `build-plan-clients.md` Chunk 05, on HDMI. #182 (the TV's art channel) and
+#181 (the label panel) stay open for when the Frame returns.
 
 ## Verification strategy
 
