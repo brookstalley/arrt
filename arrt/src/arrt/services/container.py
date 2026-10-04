@@ -336,7 +336,7 @@ class Services:
             discovery_service,
             engine,
             discovery_settings,
-            images=None if pool is None else PhaseTwoEngine(pool, box=artwork_box),
+            images=None if pool is None else PhaseTwoEngine(pool, box=artwork_box, registry=registry),
             previews=None if pool is None or previews is None else PreviewCache(previews, pool.fetch_preview),
             # Independent of the phase-2 pair: a deployment may resolve images
             # without supplementing, and a run with no collection simply offers

@@ -15,3 +15,4 @@ paths:
 - Before advertising an action, build a real call using only shipped surfaces — because a test reaching past the surface for an argument hides that no caller can obtain it.
 - When a result gains a collection, write down what bounds it before deciding it needs no cap — because a gate is not a cap, and the false bound announces itself once written.
 - Before a UI or notice says 'do X to fix this', grep for the endpoint and control that let a user do X — because the wording ships as a promise.
+- When a repair keeps a stored derived value current, trigger it on the stored value differing from a fresh derivation, not on one input changing — because a change to the rule itself moves no input, and every row stays stale.
