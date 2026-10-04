@@ -732,3 +732,41 @@ refused.
   catalogue copy taken before the deploy, `pre-title-identity-20261004T223728Z`).
 
 **All nine open MoMA works are now found**, each at 2,000 px on its long edge.
+
+### The probe: SFMOMA, navigart.fr and Google Arts & Culture (2026-10-04)
+
+The owner chose the next sources after MoMA: SFMOMA and navigart.fr, the two
+holders run 2 counted after the Met. Each was probed by hand before any build,
+over plain HTTP. During the SFMOMA probe the owner asked whether anything larger
+than 2,048 px was available, which added Google Arts & Culture.
+
+- **SFMOMA: plain HTTP, no JavaScript challenge, and at most 2,048 px.** Its
+  pages sit behind Cloudflare, which screens user agents rather than browsers: a
+  bare `Mozilla/5.0` and httpx's default name get 403, while Arrt's default agent
+  gets 200. Each page names its image on a CloudFront host, with WordPress's
+  resized copies. The largest is the uploaded file. Every larger or `-scaled`
+  name tried answers 403, and the old collection API no longer resolves.
+  - *Margarethe* (row 48): 2,048 × 1,501. *Sulamith* (49): 2,048 × 1,609.
+    *256 Farben* (46): only an 850 × 476 `-web` file, under the floor.
+  - Its works link their page from Wikidata as "described at URL" (P973): 1,452
+    links across the 1,434 works Wikidata places in SFMOMA's collection (P195).
+  - Public-domain works carry no copyright line; one of five sampled had no image.
+- **navigart.fr: an open JSON API, and nothing over 1,000 px.** One host serves
+  three collections (`api.navigart.fr/14` for the CNAP, `/18` for the Musée
+  d'Art Moderne de Paris, `/6` for Grenoble). Every image is capped at 1,000 px,
+  under the floor, and larger sizes are refused. Row 6 has a 1,000 × 979 image and
+  row 14 a 777 × 1,000 one; row 7 has none. **Not worth a reader.**
+- **Google Arts & Culture: huge scans, but none of these works.** Its search
+  answers JSON without a browser, with each asset's holder and size, and an
+  asset's tile pyramid gives its full size (Kiefer's *Dragon* at the High Museum:
+  7,578 × 6,353). Searched for all 30 open works, by title with the artist, and
+  by title and artist apart: **none is there.** Every same-artist result was a
+  different work, and the one *Marilyn* is another impression of the Met's 1967
+  print. Where it holds a work its scans run 6,000 to 8,000 px, so it is a strong
+  *upgrade* source for works already held (`upgrades.md`, #177), not a finder
+  for this corpus. Arrt already reads its assets through `dezoomify-rs`; a finder
+  would add the search.
+
+**The owner's rulings (2026-10-04):** build the SFMOMA reader; it goes in the
+private plugin repository with MoMA's, because every reader of a museum's own
+pages lives there, challenged or not.
