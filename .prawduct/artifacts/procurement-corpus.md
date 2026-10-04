@@ -646,3 +646,59 @@ call). MoMA leads with 9 of the 39 open works. Then come the Met and navigart.fr
 navigart being one build for three holders. None of them has been probed for
 image size yet, and museum-page images were predicted to be small. That probe, by
 hand and per site, comes before any build.
+
+### The probe, and run 3: MoMA through a plugin (2026-10-04)
+
+**The probe, by hand.** The owner chose MoMA as the next reader. Measured before
+building it:
+
+- **Every HTML page on www.moma.org is behind a Cloudflare JavaScript
+  challenge.** A plain request gets 403, whatever user agent it sends. Images
+  under `/media/` are not challenged.
+- **MoMA's open data is too small.** Its GitHub collection (160,700 records,
+  95,702 with an image URL) caps every image at 1,024 px on the long edge, just
+  under the floor on the owner's panel (about 1,060). Eight of the nine open MoMA
+  works are in it, each at exactly 1,024.
+- **The work pages name the same file at up to 2,000 px**, under signed URLs that
+  cannot be resized by hand. They were read with a real browser on two works,
+  *Drowning Girl* (1,983 × 2,000) and *Colors for a Large Wall* (2,000 × 1,992).
+- **A work page with no image has no hero image and no `image` in its structured
+  data**, measured on three works MoMA shows no image of.
+- **The Met is out for now.** None of its four open works is public domain, so
+  its open API gives no image for any of them.
+
+The reader is a private source plugin, because it passes a bot challenge
+(`re-architecture.md` § Sources are plugins). Its design and measurements live
+in the private repository.
+
+**Run 3.** Run `acb5dc84`, on the NAS, on Arrt `eb2529e` with the plugin: a
+re-search of the nine open works whose item carries a MoMA ID (P2014), the same
+nine run 2 counted.
+
+- Finished in 71 seconds; spent $0.
+- **Seven are found through MoMA**, each at confidence 0.95, and all clear the
+  floor:
+
+  | Work | Pixels | Fit | Long edge on the panel |
+  |---|---|---|---|
+  | *Drowning Girl* (34) | 1,983 × 2,000 | native | 21.3 in |
+  | *Bed* (28) | 879 × 2,000 | native | 21.3 in |
+  | *Friendship* (42) | 2,000 × 1,998 | native | 21.3 in |
+  | *Leda and the Swan* (36) | 2,000 × 1,893 | native | 22.5 in |
+  | *Lobster Trap and Fish Tail* (25) | 2,000 × 1,333 | matted, small | 22.7 in |
+  | *The Persistence of Memory* (22) | 2,000 × 1,446 | matted, small | 22.7 in |
+  | *Colors for a Large Wall* (40) | 2,000 × 1,992 | native | 21.4 in |
+
+- **Two are recorded as held by nobody, though MoMA shows an image of each.**
+  The identity check's title gate (`title_key`, `phase_two.py`) compares
+  normalised titles before anything else, and both differ from MoMA's wording:
+  - row 43, "Tree" against MoMA's "The Tree";
+  - row 13, "Composition of Circles and Overlapping Angles" against MoMA's
+    "Composition".
+
+  Each was refused as a different work (`not_held`). Whether a leading article,
+  or a holder's shorter title, should pass is the owner's question; row 43's
+  identity note (a different *The Tree*, 1965, in Buffalo) is why it is not
+  obvious.
+- The rights line MoMA prints is recorded: six are in copyright, and *Drowning
+  Girl*'s page carries no line, so it is recorded as unknown, never as free.
