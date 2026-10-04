@@ -61,7 +61,7 @@ High for the rule, which the owner stated. The mechanism is the agent's:
 
 ## Status
 
-- [ ] Chunk 01: The article rule, the Wikidata link, and stored keys
+- [x] Chunk 01: The article rule, the Wikidata link, and stored keys
 - [ ] Chunk 02: Deploy and re-run
 
 ### Chunk 01: The article rule, the Wikidata link, and stored keys
