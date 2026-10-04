@@ -697,8 +697,38 @@ nine run 2 counted.
     "Composition".
 
   Each was refused as a different work (`not_held`). Whether a leading article,
-  or a holder's shorter title, should pass is the owner's question; row 43's
+  or a holder's shorter title, should pass is the owner's question (ruled the same day: run 4 below); row 43's
   identity note (a different *The Tree*, 1965, in Buffalo) is why it is not
   obvious.
 - The rights line MoMA prints is recorded: six are in copyright, and *Drowning
   Girl*'s page carries no line, so it is recorded as unknown, never as free.
+
+### The ruling, and run 4: the two refused on wording (2026-10-04)
+
+**The owner ruled** on run 3's title question: a leading article passes; a
+holder's shorter title does not pass on its own; a page the work's Wikidata item
+records does. Built on `fix/title-identity` (PR #200, `build-plan-title-identity.md`).
+
+**Run 4.** Run `c4ab8484`, on the NAS, on Arrt `5d3ff27` with the plugin (image
+`arrt-sources:5d3ff27-08b9baa`): a re-search of rows 13 and 43, the two run 3
+refused.
+
+- Finished in 16 seconds; spent $0.
+- **Both are found through MoMA**, each at confidence 0.95, and both clear the
+  floor:
+
+  | Work | Pixels | Fit | Long edge on the panel | Passed by |
+  |---|---|---|---|---|
+  | *Tree* (43) | 2,000 × 1,995 | native | 21.3 in | the article: MoMA's "The Tree" |
+  | *Composition of Circles and Overlapping Angles* (13) | 2,000 × 1,532 | matted, small | 22.7 in | the link: MoMA's "Composition", on the page the work's Wikidata item records |
+
+- **Row 43's identity note is settled by Wikidata, checked by hand:** its item
+  (Q19887701, 1964) records MoMA work 78361, the page found, so it is MoMA's
+  *Tree* and not the 1965 *The Tree* in Buffalo. Row 13's item (Q19884054)
+  records 80537, the page found.
+- Both are recorded as in copyright, from the line MoMA prints.
+- **The deploy re-keyed 7 stored rows**, each a title beginning with
+  "The" or "A", and no other key changed (all 83 rows' keys compared against the
+  catalogue copy taken before the deploy, `pre-title-identity-20261004T223728Z`).
+
+**All nine open MoMA works are now found**, each at 2,000 px on its long edge.
