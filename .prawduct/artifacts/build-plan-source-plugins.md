@@ -89,7 +89,7 @@ checked mechanically in Chunk 02 against every stored source row.
 - [x] Chunk 02: Readers
 - [x] Chunk 03: The Wikidata finder, and sightings
 - [x] Chunk 04: The author's guide, deployment, security model
-- [ ] Chunk 05: Deploy, and check against the corpus
+- [x] Chunk 05: Deploy, and check against the corpus
 
 ### Chunk 01: The plugin interface and loader
 

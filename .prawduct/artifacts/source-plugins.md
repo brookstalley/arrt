@@ -67,10 +67,14 @@ routes a stored source by its URL, never by the provider that recorded it:
 **One exception uses the provider.** A plugin that failed before Arrt got a
 `SourcePlugin` from it (an import error, an entry point naming something else, a
 name two distributions share) has no `claims` to ask. A row recorded under its
-name, and claimed by no other plugin, is then a deployment fault naming it, as a
-declined plugin's row is. *Mine,* 2026-10-03, after review found such a row
-going to the tile fetcher, which cannot read an object page, and being recorded
-as a failed source.
+name, and claimed by no other plugin, is then a deployment fault naming it.
+That is stricter than for a declined plugin, whose `claims` can be asked. A row
+recorded under a broken plugin that claims nothing, as Commons claims nothing,
+pauses too, though it would fetch as recorded. What a broken plugin claims cannot
+be known, and pausing names the fault, records nothing against the source, and
+clears once the plugin loads. *Mine,* 2026-10-03, after review found an Art
+Institute row going to the tile fetcher, which cannot read an object page, and
+being recorded as a failed source.
 
 A source whose provider is not installed at all cannot be told apart from a 2024
 seed provider (`google_arts_culture` was never a plugin), so it is fetched as
