@@ -583,3 +583,22 @@ def test_with_no_registry_only_the_title_identifies_a_work():
     resolution = linked_resolution(a_moma_page(), registry=None)
 
     assert resolution.instances == []
+
+
+@pytest.mark.parametrize(
+    ("asked_artist", "held_artist", "confidence", "said"),
+    [
+        ("Sophie Taeuber-Arp", "Sophie Taeuber-Arp", CONFIDENT, ", by the requested artist"),
+        (None, "Sophie Taeuber-Arp", TITLE_ONLY, "; the request named no artist"),
+        ("Sophie Taeuber-Arp", None, UNATTRIBUTED_RECORD, "; the record names no artist to confirm it"),
+    ],
+)
+def test_a_linked_record_is_kept_at_the_confidence_its_artists_allow(asked_artist, held_artist, confidence, said):
+    """The link settles the title only, so the artist tiers decide as they do for a
+    matching title, and the card says which half confirmed it."""
+    (entry,) = linked_resolution(
+        a_moma_page(artist=held_artist), registry=FakeRegistry(pages={"Q19884054": [MOMA_PAGE]}), artist=asked_artist
+    ).instances
+
+    assert entry.confidence == confidence
+    assert said in entry.rationale
