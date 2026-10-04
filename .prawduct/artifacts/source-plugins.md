@@ -104,6 +104,11 @@ The `FoundImage` rules hold unchanged for every plugin:
 - `title` and `artist` are **the holder's own words**, because they are the
   evidence the identity check judges. A finder that returns only URLs leaves
   nothing to check.
+- An image whose `url` is, exactly, a page the work's Wikidata item records
+  (`Registry.pages_about`) passes the title comparison under the holder's own
+  title; the artist comparison still runs. Added 2026-10-04 by the owner's ruling,
+  for MoMA's *Composition* (`data-model.md`, the phase-2 identity notes). The
+  MoMA plugin's page address is the P2014 formatter's, so it needs no change.
 - Dimensions are the **master's**, never a preview's.
 - Rights are recorded, never a reason to leave an image out.
 

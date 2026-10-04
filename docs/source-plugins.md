@@ -93,6 +93,11 @@ At most one of each, in `SourceParts`:
 - **`title` and `artist` are the holder's own words**, because the identity check
   judges them. Dimensions are the master's, never a preview's. Rights are
   recorded, never a reason to leave an image out.
+- **An image read from a page the work's Wikidata item records is identified by
+  that link**, under whatever title the holder gives it; the artist is still
+  checked. It holds only when the image's `url` is the page exactly as the item
+  spells it (`Registry.pages_about`), so a finder working from those pages records
+  that address, not one of its own spelling. Anything else falls back to the title.
 - `fetch_preview(url)` returns the preview's bytes or `None`, and **must stop
   reading at `context.preview_max_bytes`**: the URL and its redirects are a
   foreign service's choice.

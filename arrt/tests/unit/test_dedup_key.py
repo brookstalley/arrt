@@ -133,6 +133,47 @@ def test_a_cataloguing_clause_does_not_split_a_work():
     )
 
 
+@pytest.mark.parametrize(
+    ("variant", "plain"),
+    [
+        ("The Tree", "Tree"),
+        ("A Street", "Street"),
+        ("An Evening", "Evening"),
+        ("the tree", "Tree"),
+        ("The  Tree.", "Tree"),
+    ],
+)
+def test_a_leading_article_does_not_split_a_work(variant, plain):
+    """MoMA catalogues Agnes Martin's *The Tree*, and the work reached it as "Tree".
+
+    Not measured in the proposal corpus, where no work recurs with and without
+    its article: the evidence is a holder's wording against the request's, which
+    is where the title gate refused it.
+    """
+    assert work_dedup_key(title=variant, artist="Agnes Martin") == work_dedup_key(title=plain, artist="Agnes Martin")
+
+
+@pytest.mark.parametrize(
+    ("title", "other"),
+    [
+        ("The", "A"),
+        ("Theatre", "Atre"),
+        ("Another Place", "Other Place"),
+        ("Portrait of a Lady", "Portrait of Lady"),
+        ("Tree, The", "Tree"),
+    ],
+)
+def test_an_article_is_dropped_only_as_a_leading_word_before_another(title, other):
+    """A title that is only an article keeps it, since a key of nothing is every
+    such work; a word that starts with one is not one; and an article inside a
+    title, or catalogued after it, is part of the title."""
+    assert work_dedup_key(title=title, artist="Someone") != work_dedup_key(title=other, artist="Someone")
+
+
+def test_a_title_that_is_only_an_article_keys_as_that_word():
+    assert work_dedup_key(title="The", artist="Someone").endswith("::the")
+
+
 def test_a_bilingual_compound_is_left_alone_on_purpose():
     """A rule for this was written, measured, and removed.
 

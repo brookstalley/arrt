@@ -152,6 +152,15 @@ _NOISE = re.compile(r"[^\w\s]", re.UNICODE)
 
 _WHITESPACE = re.compile(r"\s+")
 
+#: A leading English article, matched on the normalised title. Holders and
+#: models disagree about it on the same work: MoMA catalogues Agnes Martin's *The
+#: Tree*, which reaches it as "Tree". The space is what keeps a title that is only
+#: an article, since normalising strips the trailing one and a key of nothing would
+#: be every such work. English only: the other languages' articles are also
+#: prepositions or pronouns often enough that dropping them would merge titles
+#: that differ.
+_LEADING_ARTICLE = re.compile(r"^(?:the|a|an) ")
+
 #: What an artist-less work is keyed under. The brackets are load-bearing rather
 #: than decorative: normalisation strips every non-word character, so no real
 #: artist name can produce this string — which is what stops a work by an artist
@@ -336,7 +345,7 @@ def title_key(title: str) -> str:
     artist still has to be recognisable in a museum record that names one, and a
     whole-key comparison would answer no to every such pair.
     """
-    return _normalise(_canonical_title(clean_name(title)))
+    return _LEADING_ARTICLE.sub("", _normalise(_canonical_title(clean_name(title))), count=1)
 
 
 def artist_key(artist: str) -> str:

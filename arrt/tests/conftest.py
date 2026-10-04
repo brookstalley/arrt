@@ -62,6 +62,7 @@ from arrt.config import (
 )
 from arrt.library.acquisition.direct import StreamOpener
 from arrt.library.acquisition.preparation import PreparationSettings
+from arrt.library.discovery.dedup import work_dedup_key
 from arrt.library.facade import LibraryFacade
 from arrt.library.registry import Registry
 from arrt.library.services.catalogue import CatalogueService
@@ -613,7 +614,9 @@ def propose(discovery: DiscoveryService, run: DiscoveryRun):
             run_id=run_id or run.id,
             proposed_title=title,
             rationale="The intent asked for Surrealism and this is its best-known example.",
-            work_dedup_key=dedup_key or title.lower(),
+            # The key every writer derives from the title and artist it stores,
+            # so a test that restarts the plane does not watch its rows re-keyed.
+            work_dedup_key=dedup_key or work_dedup_key(title=title, artist=fields.get("proposed_artist")),
             **fields,
         )
 
