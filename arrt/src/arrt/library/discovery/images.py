@@ -89,7 +89,9 @@ class FoundImage:
 
     **`title` and `artist` are what the provider calls this thing**, and they are
     the evidence confidence is judged from — not decoration, and not the same
-    strings as the query. A provider that returned only a URL would leave nothing
+    strings as the query. **`url` can be evidence too**: when it is, exactly, a
+    page the work's Wikidata item records, the title comparison is settled by
+    that, and the artist is still compared (`phase_two.py`). A provider that returned only a URL would leave nothing
     to check the identity against, which is the failure mode the whole
     near-match problem lives in.
 

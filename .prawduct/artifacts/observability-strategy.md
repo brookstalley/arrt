@@ -207,7 +207,9 @@ between planes.
 > |---|---|
 > | `phase_two.searched` | which collection was asked about which work, how many results came back, and how many were usable at all |
 > | `phase_two.judged` | how many instances were credible, how many of those are below the floor, and `refused_at` — the gates that turned the rest away, which is the per-work summary of the `not_the_work` and `size_unknown` lines below |
-> | `phase_two.not_the_work` | a result was discarded as a different painting, naming what the provider called it and who it says painted it |
+> | `phase_two.not_the_work` | a result was discarded as a different painting, naming what the provider called it and who it says painted it, its `found_url`, the work's `qid`, and `link`: why no Wikidata link settled a differing title (`no_registry`, `no_qid`, `registry_unavailable`, `not_recorded`), or how the title was settled before the artist refused it (`title_matched`, `linked`) |
+> | `phase_two.linked` | a result whose title differs was kept because the work's Wikidata item records its page, naming both titles, the page and the item |
+> | `phase_two.link_unavailable` | Wikidata could not be asked which pages describe a work, so its titles alone decided; at WARNING, once per work |
 > | `phase_two.size_unknown` | a result was discarded because the provider reported no dimensions |
 > | `phase_two.unreachable` | a provider could not be asked about a work, which leaves it pending rather than unresolved |
 > | `phase_two.unanswerable` | no wired image source can look a work like this one up (Commons alone, for a work named by title); the work stays pending. Kept apart from `phase_two.unreachable`, which says a source was down |

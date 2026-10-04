@@ -252,7 +252,8 @@ class PhaseTwoEngine:
         """
         linked = False
         if title_key(query.title) != title_key(found.title):
-            if not link.records(found.url):
+            unlinked = link.unlinked(found.url)
+            if unlinked is not None:
                 log.info(
                     "discarding a result whose title is a different work entirely",
                     extra={
@@ -260,6 +261,9 @@ class PhaseTwoEngine:
                         "work_title": query.title,
                         "found_title": found.title,
                         "found_artist": found.artist,
+                        "found_url": found.url,
+                        "qid": query.qid,
+                        "link": unlinked,
                     },
                 )
                 return UnresolvedReason.NOT_HELD
@@ -277,12 +281,15 @@ class PhaseTwoEngine:
         confidence = _confidence(query, found)
         if confidence is None:
             log.info(
-                "discarding a result whose title matches but whose artist does not",
+                "discarding a result identified by its title or its page, whose artist does not match",
                 extra={
                     "event": "phase_two.not_the_work",
                     "work_title": query.title,
                     "found_title": found.title,
                     "found_artist": found.artist,
+                    "found_url": found.url,
+                    "qid": query.qid,
+                    "link": "linked" if linked else "title_matched",
                 },
             )
             return UnresolvedReason.IDENTITY_REFUSED
@@ -328,11 +335,20 @@ class _WikidataLink:
         self._registry = registry
         self._query = query
         self._pages: frozenset[str] | None = None
+        self._unavailable = False
 
-    def records(self, url: str) -> bool:
-        """Whether the work's item records `url`, exactly as the item spells it."""
-        if self._registry is None or self._query.qid is None:
-            return False
+    def unlinked(self, url: str) -> str | None:
+        """`None` when the work's item records `url`, exactly as the item spells it; else why not.
+
+        The reason is a word for the journal, one per way of having no link, so a
+        refusal of a page somebody expected to pass says which it was: no
+        registry here, no item for the work, a registry that could not be asked,
+        or an item that names other pages.
+        """
+        if self._registry is None:
+            return "no_registry"
+        if self._query.qid is None:
+            return "no_qid"
         if self._pages is None:
             try:
                 self._pages = frozenset(self._registry.pages_about(self._query.qid))
@@ -342,8 +358,11 @@ class _WikidataLink:
                     exc,
                     extra={"event": "phase_two.link_unavailable", "work_title": self._query.title, "qid": self._query.qid},
                 )
+                self._unavailable = True
                 self._pages = frozenset()
-        return url in self._pages
+        if url in self._pages:
+            return None
+        return "registry_unavailable" if self._unavailable else "not_recorded"
 
 
 def _confidence(query: ImageQuery, found: FoundImage) -> float | None:

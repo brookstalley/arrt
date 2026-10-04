@@ -170,6 +170,27 @@ def test_an_article_is_dropped_only_as_a_leading_word_before_another(title, othe
     assert work_dedup_key(title=title, artist="Someone") != work_dedup_key(title=other, artist="Someone")
 
 
+@pytest.mark.parametrize(
+    ("title", "other"),
+    [
+        ("The Portrait (Hands)", "Portrait"),
+        ("A Study (Hands)", "A Study (Feet)"),
+        ("The Untitled (Blue)", "Untitled"),
+    ],
+)
+def test_an_article_does_not_carry_a_generic_title_past_its_guard(title, other):
+    """The guard keeps the parenthetical of a title that names nothing in particular.
+    Asked before the article is dropped, "The Portrait" is not generic, its
+    parenthetical goes, and it keys as every other portrait by that painter."""
+    assert work_dedup_key(title=title, artist="Someone") != work_dedup_key(title=other, artist="Someone")
+
+
+def test_an_initial_is_not_an_article():
+    """Normalising turns "A." into the "a " an article is, so the article is read
+    from the title as written."""
+    assert work_dedup_key(title="A. Lincoln", artist="Someone") != work_dedup_key(title="Lincoln", artist="Someone")
+
+
 def test_a_title_that_is_only_an_article_keys_as_that_word():
     assert work_dedup_key(title="The", artist="Someone").endswith("::the")
 

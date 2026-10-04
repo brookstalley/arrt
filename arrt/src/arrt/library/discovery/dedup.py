@@ -71,8 +71,8 @@ Keys already written under an older rule have to be recomputed when the rule
 changes, or suppression splits into two regimes and the same work is proposed
 twice — once under each. **That migration is paid by a mechanism rather than by
 each change:** `DiscoveryService.reconcile` re-cleans every stored title at
-startup and rewrites the key of any it changed, so a rule improved here reaches
-rows already on disk. It is idempotent and normally a no-op. The debt was real —
+startup and rewrites any key the current rules derive differently, so a rule
+improved here reaches rows already on disk. It is idempotent and normally a no-op. The debt was real —
 seven rows sat in a catalogue keyed under a citation this module now strips, and
 a rejection of any of them would not have suppressed the same painting proposed
 cleanly.
@@ -152,14 +152,16 @@ _NOISE = re.compile(r"[^\w\s]", re.UNICODE)
 
 _WHITESPACE = re.compile(r"\s+")
 
-#: A leading English article, matched on the normalised title. Holders and
-#: models disagree about it on the same work: MoMA catalogues Agnes Martin's *The
-#: Tree*, which reaches it as "Tree". The space is what keeps a title that is only
-#: an article, since normalising strips the trailing one and a key of nothing would
-#: be every such work. English only: the other languages' articles are also
-#: prepositions or pronouns often enough that dropping them would merge titles
-#: that differ.
-_LEADING_ARTICLE = re.compile(r"^(?:the|a|an) ")
+#: A leading English article. Holders and models disagree about it on the same
+#: work: MoMA catalogues Agnes Martin's *The Tree*, which reaches it as "Tree".
+#: Matched on the title as written, so whitespace must follow the word itself:
+#: "A. Lincoln" is an initial, and normalising would turn its full stop into the
+#: space an article is followed by. A title that is only an article keeps it,
+#: having nothing after it to be that whitespace once cleaned, since a key of
+#: nothing would be every such work. English
+#: only: the other languages' articles are also prepositions or pronouns often
+#: enough that dropping them would merge titles that differ.
+_LEADING_ARTICLE = re.compile(r"^(?:the|a|an)\s+", re.IGNORECASE)
 
 #: What an artist-less work is keyed under. The brackets are load-bearing rather
 #: than decorative: normalisation strips every non-word character, so no real
@@ -345,7 +347,18 @@ def title_key(title: str) -> str:
     artist still has to be recognisable in a museum record that names one, and a
     whole-key comparison would answer no to every such pair.
     """
-    return _LEADING_ARTICLE.sub("", _normalise(_canonical_title(clean_name(title))), count=1)
+    return _normalised_title(_canonical_title(clean_name(title)))
+
+
+def _normalised_title(title: str) -> str:
+    """A title normalised and without its leading article: the form every title comparison here uses.
+
+    One function for the key and for the generic-title guard below, because the
+    guard asks whether a title names nothing in particular, and asking it of the
+    title before its article is dropped answers no for "The Portrait (Hands)",
+    whose key would then be the bare "portrait" the guard exists to keep it from.
+    """
+    return _normalise(_LEADING_ARTICLE.sub("", title, count=1))
 
 
 def artist_key(artist: str) -> str:
@@ -402,7 +415,7 @@ def _drop_alternate_title(title: str) -> str:
     candidate = _TRAILING_WORD_PAREN.sub("", title).strip()
     if not candidate or candidate == title:
         return title
-    if _normalise(candidate) in _UNINFORMATIVE:
+    if _normalised_title(candidate) in _UNINFORMATIVE:
         return title
     return candidate
 

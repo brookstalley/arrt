@@ -1525,7 +1525,10 @@ artworks.
 > corpus holds no work recurring with and without its article, so the rule unites
 > nothing there and merges nothing there. Its merge direction is two works by one
 > artist whose titles differ only by a leading article, which was judged rare
-> enough to carry. Other languages' articles are left alone, being prepositions or
+> enough to carry. The guard on generic titles asks its question of the title
+> without its article, so "The Portrait (Hands)" keeps its parenthetical as
+> "Portrait (Hands)" does; and the article is read from the title as written, so
+> the initial in "A. Lincoln" is not one. Other languages' articles are left alone, being prepositions or
 > pronouns often enough to merge titles that differ. A change to the derivation
 > re-keys stored rows at the next start: `DiscoveryService.reconcile` re-derives
 > every key, not only those whose title it re-cleaned.)*

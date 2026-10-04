@@ -602,3 +602,35 @@ def test_a_linked_record_is_kept_at_the_confidence_its_artists_allow(asked_artis
 
     assert entry.confidence == confidence
     assert said in entry.rationale
+
+
+@pytest.mark.parametrize(
+    ("registry", "qid", "url", "link"),
+    [
+        (None, "Q19884054", MOMA_PAGE, "no_registry"),
+        (FakeRegistry(pages={"Q19884054": [MOMA_PAGE]}), None, MOMA_PAGE, "no_qid"),
+        (FakeRegistry(failing=True), "Q19884054", MOMA_PAGE, "registry_unavailable"),
+        (FakeRegistry(pages={"Q19884054": [MOMA_PAGE]}), "Q19884054", "https://www.moma.org/collection/works/9", "not_recorded"),
+    ],
+)
+def test_a_refusal_on_its_title_says_why_no_link_settled_it(registry, qid, url, link, caplog):
+    """Run 3's refusal of row 13 had one journal line for four different facts.
+    Each has its own word now, with the page and the item beside it."""
+    with caplog.at_level(logging.INFO):
+        linked_resolution(a_moma_page(url=url), registry=registry, qid=qid)
+
+    (refused,) = [record for record in caplog.records if getattr(record, "event", None) == "phase_two.not_the_work"]
+    assert (refused.link, refused.found_url, refused.qid) == (link, url, qid)
+
+
+def test_a_linked_page_refused_on_its_artist_says_it_was_linked(caplog):
+    with caplog.at_level(logging.INFO):
+        linked_resolution(a_moma_page(artist="Jean Arp"), registry=FakeRegistry(pages={"Q19884054": [MOMA_PAGE]}))
+
+    (refused,) = [record for record in caplog.records if getattr(record, "event", None) == "phase_two.not_the_work"]
+    assert refused.link == "linked"
+
+
+def test_a_holders_leading_article_passes_the_title_gate():
+    """Run 3's other refusal: MoMA's *The Tree*, asked for as "Tree", with no link to help."""
+    assert len(resolve(an_instance("The Tree", artist="Agnes Martin"), title="Tree", artist="Agnes Martin")) == 1

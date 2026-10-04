@@ -73,8 +73,13 @@ passes; a holder's shorter title does not pass on its own; a page the work's
 Wikidata item records does. Plan: `build-plan-title-identity.md`.
 
 **What:**
-- `title_key` drops one leading English article (`the`, `a`, `an`) with a word
-  after it. It is half of `work_dedup_key`, so the identity key changes with it.
+- `title_key` drops one leading English article (`the`, `a`, `an`) followed by
+  whitespace in the title as written, so "A. Lincoln" keeps its initial. It is
+  half of `work_dedup_key`, so the identity key changes with it. The generic-title
+  guard compares the title without its article, so "The Portrait (Hands)" keeps
+  its parenthetical.
+- `phase_two.not_the_work` names `found_url`, `qid` and `link`, the reason no
+  Wikidata link settled the title.
 - Phase two passes a result whose title differs when the work has a QID and the
   result's `url` is exactly one of `Registry.pages_about(qid)`. The artist check
   still runs. The registry is asked at most once per work, only on a differing
