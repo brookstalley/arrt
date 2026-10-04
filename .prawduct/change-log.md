@@ -238,8 +238,8 @@ repository. Contract: `source-plugins.md`. Plan: `build-plan-source-plugins.md`.
 - No tests changed.
 
 **What (Chunk 05):**
-- **Deployed to the NAS** as `e51adfb`, after a read-only survey of its stored
-  sources. 32 Art Institute object pages and 8 Google Arts & Culture assets
+- **Deployed to the NAS** as `e51adfb`, and again as `4042fd0` with the fixes
+  below, after a read-only survey of its stored sources. 32 Art Institute object pages and 8 Google Arts & Culture assets
   each route as designed, and both shapes were already in the suite. All three
   plugins load.
 - **Run 2** re-searched run 1's 39 unresolved works through the plugins, rather
@@ -266,6 +266,17 @@ repository. Contract: `source-plugins.md`. Plan: `build-plan-source-plugins.md`.
     `sources`.
 - Tests added, none changed. `test_acquisition_service.py`'s `_claims_nothing`
   takes the provider that `route` now accepts.
+
+**Operator notes:**
+- **A journal event is renamed:** `acquisition.tile_target_resolved` is now
+  `acquisition.source_read`. A search or alert keyed on the old name finds
+  nothing. New events: `acquisition.unclaimed`; `source.loading`,
+  `source.loaded`, `source.declined`, `source.failed`, `source.order_unknown`
+  and `source.plugin_fault`; `sightings.recorded`, `sightings.claimed` and
+  `sightings.no_item`. Each is described in `observability-strategy.md`.
+- **The `sightings` table is additive.** The way back is image `bb021bb` with
+  the catalogue restored from the copy taken before the migration
+  (`pre-source-plugins-<timestamp>.sqlite` in the backups directory).
 
 ## 2026-10-03: A corpus to choose the next source by
 

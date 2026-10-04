@@ -81,7 +81,8 @@ Medium. The shape is ruled and the seams are read; these are mine and unconfirme
 - [DECISION: the plugin interface is versioned `major.minor` from `1.0`; a different major is refused by name | an in-process interface that breaks silently fails inside a run | owner can veto]
 
 **What would raise it:** the owner confirming the first assumption. The second is
-checked mechanically in Chunk 02 against every stored source row.
+checked against every stored source row on the NAS, in Chunk 05's survey
+(moved there from Chunk 02, because the stored rows live on the NAS).
 
 ## Status
 
@@ -393,7 +394,8 @@ Type: doc-only.
   panel shows them. *Done 2026-10-03:* image `e51adfb`, after a catalogue copy
   (`pre-source-plugins-<timestamp>.sqlite` in the backups directory; the way
   back is `bb021bb`). `/api/health` reports all three plugins loaded, with no
-  faults. The startup log was not read, because the container's logs need root
+  faults. Redeployed 2026-10-04 as `4042fd0`, with the fixes from the cumulative
+  review. The startup log was not read, because the container's logs need root
   on the NAS.
 - Get the corpus's 50 QIDs again, through a run that writes nothing new for
   works already held. Record in `procurement-corpus.md` § Results, as run 2:
