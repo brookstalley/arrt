@@ -270,7 +270,7 @@ class Services:
         # cannot be evaluated without the panel geometry that converts one to the
         # other.
         sources = SourceRoster.empty() if sources is None else sources
-        pool = ImageSourcePool(sources.finders) if sources.finders else None
+        pool = ImageSourcePool(sources.finders) if sources.finds_images else None
         discovery_service = DiscoveryService(
             discovery, catalogue_service, artwork_box, precedence=None if pool is None else pool.precedence
         )

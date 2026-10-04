@@ -63,7 +63,7 @@ class SourceHealth:
         return (
             f"{reading.name} is loaded, with {reading.faults} {plural} since startup, the last "
             f"{self.last_fault_age_seconds:.0f} seconds ago ({reading.last_fault}). Each was recorded as the "
-            "source not being reachable, so works it would have answered may read as held by nobody."
+            "source not being reachable, so works it would have answered wait instead of being settled."
         )
 
 

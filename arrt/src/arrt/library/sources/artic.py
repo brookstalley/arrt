@@ -833,12 +833,12 @@ def build_image_search(
     client: httpx.Client | None = None,
     preview_max_bytes: int = DEFAULT_PREVIEW_MAX_BYTES,
 ) -> Finder:
-    """The image provider a deployment gets. One museum today, by name."""
+    """The Art Institute's finder: what this plugin's factory provides, and what the live tests build directly."""
     return ArticFinder(user_agent=user_agent, client=client, preview_max_bytes=preview_max_bytes)
 
 
 def build_collection_browse(*, user_agent: str, client: httpx.Client | None = None) -> CollectionBrowse:
-    """The collection a deployment supplements from. The same museum, asked differently."""
+    """The Art Institute's collection to browse, the same museum asked differently: for the factory and the live tests."""
     return ArticCollectionBrowse(user_agent=user_agent, client=client)
 
 

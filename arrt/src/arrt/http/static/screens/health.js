@@ -136,7 +136,7 @@ function sourcesPanel(health) {
       : sources.length === 0
         ? el("p", {
             class: "muted",
-            text: "No source plugin is installed, so no image can be found for a work. The Art Institute and Commons ship with Arrt; a missing pair means the package was installed without its entry points.",
+            text: "No source plugin is installed, so no image can be found for a work. Arrt ships with built-in plugins, so none listed means the package was installed without its entry points.",
           })
         : el("ul", { class: "source-readings" }, sources.map((source) =>
             el("li", {}, [

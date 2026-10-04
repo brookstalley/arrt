@@ -52,9 +52,11 @@ class NoSourceCanAnswer(ImageSearchFailure):
 class PoolAnswer:
     """What every source said about one work.
 
-    `unreachable` names the sources that could not be asked. It is empty when
-    every source answered, which is the only case in which an empty `images`
-    means no source holds the work.
+    `unreachable` names the sources of images that could not be asked. It is
+    empty when every one of them answered, which is the only case in which an
+    empty `images` means no source holds the work. A finder of pages that could
+    not be asked is never in it: it holds no image either way, so its silence
+    leaves nothing in doubt.
 
     `pages` are the pages the sources found and do not read, each once, kept apart
     from the images because nothing about them can be judged (`FoundPage`).
@@ -138,7 +140,11 @@ class ImageSourcePool:
                         exc,
                         extra={"event": "image_pool.unreachable", "provider": provider, "work_title": query.title},
                     )
-                    unreachable.append(provider)
+                    # Only a source of images leaves the work in doubt. A finder
+                    # of pages that could not be asked holds no image either way,
+                    # and counting it would keep a work waiting that every source
+                    # of images has answered for.
+                    (unreachable if offers_images(source) else pages_only).append(provider)
         if not answered:
             # No source of images answered. Nothing is known about the work, so
             # it is not recorded as held by nobody; it waits, as when every source

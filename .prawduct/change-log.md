@@ -250,6 +250,23 @@ repository. Contract: `source-plugins.md`. Plan: `build-plan-source-plugins.md`.
   same size, and *Drowning Girl*'s item still gives MoMA's page.
 - Tests added, none changed.
 
+**Fixed after the cumulative review:**
+- A finder of pages that could not be asked no longer keeps a work waiting, when
+  every source of images has answered for it.
+- A roster whose only finders find pages gives phase 2 no source
+  (`SourceRoster.finds_images`). The wiring, the previews setting and the
+  startup line all read it.
+- A finder of pages that answers an image is a contained fault.
+- A plugin that failed before its claims could be read still turns its own rows
+  into a deployment fault, recognised by the provider they record.
+- Corrected wording:
+  - the health panel's sentences about faults and the built-in plugins;
+  - the Art Institute's and `SourceParts`' docstrings;
+  - `api-contract.md`'s `GET /api/health` row and shape, which now carry
+    `sources`.
+- Tests added, none changed. `test_acquisition_service.py`'s `_claims_nothing`
+  takes the provider that `route` now accepts.
+
 ## 2026-10-03: A corpus to choose the next source by
 
 <!-- prawduct: scope=procurement-corpus -->

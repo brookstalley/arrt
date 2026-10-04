@@ -8,6 +8,7 @@ is about the join: a recorded URL, the plugin that claims it, and what acquisiti
 then fetches.
 """
 
+import importlib.metadata
 import logging
 from contextlib import contextmanager
 from io import BytesIO
@@ -315,6 +316,34 @@ class TestAClaimedUrlWhosePluginIsNotLoaded:
         assert "ARTIC_USER_AGENT is unset" in str(refusal.value)
         refreshed = next(s for s in service.list_sources(work.id) if s.id == source.id)
         assert refreshed.last_fetch_status is None, "a deployment fault must not be recorded against the source"
+
+    def test_a_plugin_that_could_not_be_imported_still_faults_its_own_rows(self, service, acq_settings):
+        """Its claims cannot be asked, so its rows are known by the provider they record.
+
+        Through the real loader, with an entry point whose module does not exist:
+        without this, an Art Institute object page would go to the tile fetcher,
+        which cannot read it, and be recorded as a failed source.
+        """
+        broken = importlib.metadata.EntryPoint(name="artic", value="no_such_plugin_module:PLUGIN", group="arrt.sources")
+        roster = load_sources(SourceContext(environ={}, user_agent="arrt (test)", preview_max_bytes=1000), entry_points=[broken])
+        work, source = _work(service, url=AN_OBJECT_PAGE)
+
+        with pytest.raises(SourcePluginUnavailable) as refusal:
+            _acquisition(service, acq_settings, roster).acquire(work.id)
+
+        assert "the artic source plugin is installed and could not be loaded" in str(refusal.value)
+        assert "could not be imported" in str(refusal.value)
+        refreshed = next(s for s in service.list_sources(work.id) if s.id == source.id)
+        assert refreshed.last_fetch_status is None, "a deployment fault must not be recorded against the source"
+
+    def test_a_row_another_provider_recorded_is_untouched_by_a_plugin_that_could_not_be_imported(self, service, acq_settings):
+        """The provider is only a fallback for the broken plugin's own rows; a 2024 seed row is fetched as recorded."""
+        broken = importlib.metadata.EntryPoint(name="artic", value="no_such_plugin_module:PLUGIN", group="arrt.sources")
+        roster = load_sources(SourceContext(environ={}, user_agent="arrt (test)", preview_max_bytes=1000), entry_points=[broken])
+        work, _ = _work(service, url=A_GOOGLE_PAGE, provider="google_arts_culture")
+
+        with pytest.raises(Exception, match="dezoomify"):
+            _acquisition(service, acq_settings, roster).acquire(work.id)
 
     def test_a_url_the_unloaded_plugin_does_not_claim_is_unaffected(self, service, acq_settings):
         """An IIIF service URL on the museum's host is read by the tile fetcher as it is."""

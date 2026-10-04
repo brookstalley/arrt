@@ -879,8 +879,9 @@ def test_every_old_address_opens_the_page_that_took_over(ui, seeded_service):
 def test_the_system_badge_counts_a_source_that_failed_or_faulted_and_not_one_that_declined(
     ui, a_health_reading, a_source_reading
 ):
-    """A failed or faulting plugin makes works read as held by nobody, which looks
-    like a fact about art; a declined one is configured off on purpose. Three
+    """A failed plugin makes works read as held by nobody, which looks like a fact
+    about art, and a faulting one leaves them waiting with nothing saying why; a
+    declined one is configured off on purpose. Three
     plugins, two problems, so a badge that counted every non-loaded plugin, or
     ignored faults, fails."""
     ui.serve(

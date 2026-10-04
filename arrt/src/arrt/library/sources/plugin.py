@@ -61,8 +61,9 @@ class SourceParts:
 
     **The finder's `provider` must be the plugin's name.** It is what every image
     the finder reports is recorded under, so a stored source row names the plugin
-    that found it, and a deployment that uninstalls that plugin can be told which
-    one its rows need.
+    that found it. A row whose plugin is installed and cannot be loaded is then a
+    deployment fault naming it, and one whose plugin was uninstalled is journalled
+    under that name when it is fetched as recorded.
     """
 
     finder: Finder | None = None

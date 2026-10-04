@@ -179,11 +179,15 @@ class _Faults:
             return self._count.get(plugin, 0), None if last is None else last[0], None if last is None else last[1]
 
 
-def _images(answer: object, plugin: str) -> tuple[FoundImage | FoundPage, ...]:
+def _images(answer: object, plugin: str, *, pages_only: bool = False) -> tuple[FoundImage | FoundPage, ...]:
     """A finder's answer, checked. Each image is recorded under its own `provider`,
     and previews and fetches are routed back by it, so an image under another
     plugin's name would be stored and fetched as that plugin's. A page carries no
-    name, because nothing is recorded under one."""
+    name, because nothing is recorded under one.
+
+    A finder that declared it offers pages only may not answer an image: the pool
+    does not count it as having answered, so its image would sit beside a work
+    left waiting as if no source could be asked."""
     if isinstance(answer, str | bytes) or not isinstance(answer, Iterable):
         raise _InterfaceBreach(f"find_images answered a {type(answer).__name__}, not a list of FoundImage")
     images = tuple(answer)
@@ -192,6 +196,8 @@ def _images(answer: object, plugin: str) -> tuple[FoundImage | FoundPage, ...]:
             continue
         if not isinstance(image, FoundImage):
             raise _InterfaceBreach(f"find_images answered a {type(image).__name__} among its images")
+        if pages_only:
+            raise _InterfaceBreach("find_images answered a FoundImage from a finder that declares offers_images = False")
         if image.provider != plugin:
             raise _InterfaceBreach(
                 f"find_images answered an image recorded under {image.provider!r}; a plugin's images "
@@ -241,7 +247,7 @@ class _ContainedFinder:
 
     def find_images(self, query: ImageQuery) -> Sequence[FoundImage | FoundPage]:
         try:
-            return _images(self._inner.find_images(query), self._plugin)
+            return _images(self._inner.find_images(query), self._plugin, pages_only=not self.offers_images)
         # Two of the interface's three answers, passed through as themselves with
         # their message scrubbed (`_reraise_scrubbed`). Two clauses rather than one
         # tuple, because the formatter writes a bare tuple in a form Python 3.12
@@ -323,12 +329,18 @@ class SourceRoster:
         claimants: Sequence[_Claimant],
         states: Sequence[tuple[str, PluginState, str | None]],
         faults: _Faults,
+        unknowable: Mapping[str, str] | None = None,
     ) -> None:
         self._finders = tuple(finders)
         self._collection = collection
         self._claimants = tuple(claimants)
         self._states = tuple(states)
         self._faults = faults
+        #: Installed plugins that failed before a `SourcePlugin` was got from them
+        #: (an import error, an entry point naming something else, a name two
+        #: distributions share), each with its reason. Which URLs they read cannot
+        #: be asked, so their own rows are recognised by the provider they record.
+        self._unknowable = dict(unknowable or {})
 
     @classmethod
     def empty(cls) -> SourceRoster:
@@ -343,6 +355,7 @@ class SourceRoster:
         collection: CollectionBrowse | None = None,
         readers: Mapping[str, tuple[Callable[[str], bool], Reader]] | None = None,
         unavailable: Mapping[str, tuple[Callable[[str], bool], str]] | None = None,
+        unknowable: Mapping[str, str] | None = None,
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> SourceRoster:
         """A roster from parts in hand, without entry points: for tests, and for hand-assembled sources.
@@ -350,7 +363,8 @@ class SourceRoster:
         Each part is named as a plugin of its own: a finder by its `provider`, a
         collection likewise, and a reader by its key, which carries the claims that
         route URLs to it. `unavailable` names plugins that claim URLs and declined,
-        each with its reason. Every part is contained exactly as a loaded plugin's is.
+        each with its reason, and `unknowable` plugins that failed before their
+        claims could be read. Every part is contained exactly as a loaded plugin's is.
         """
         faults = _Faults(now)
         readers = dict(readers or {})
@@ -375,8 +389,10 @@ class SourceRoster:
             states=[
                 *((name, PluginState.LOADED, None) for name in dict.fromkeys(names)),
                 *((name, PluginState.DECLINED, reason) for name, (_claims, reason) in unavailable.items()),
+                *((name, PluginState.FAILED, reason) for name, reason in (unknowable or {}).items()),
             ],
             faults=faults,
+            unknowable=unknowable,
         )
 
     @property
@@ -385,12 +401,29 @@ class SourceRoster:
         return self._finders
 
     @property
+    def finds_images(self) -> bool:
+        """Whether any loaded finder can answer with an image.
+
+        The one test of whether phase 2 has a source, read by the wiring, the
+        previews setting and the startup line alike. A roster holding only a finder
+        of pages has none: a pool built from it would accept every Get and leave
+        each work waiting, because no answer from it says whether an image exists.
+        """
+        return any(offers_images(finder) for finder in self._finders)
+
+    @property
     def collection(self) -> CollectionBrowse | None:
         """The collection a run supplements from: the most preferred plugin's that offers one."""
         return self._collection
 
-    def route(self, url: str) -> Route:
-        """Which plugin `url` needs, and whether it can be read here; the first claimant in preference order."""
+    def route(self, url: str, provider: str | None = None) -> Route:
+        """Which plugin `url` needs, and whether it can be read here; the first claimant in preference order.
+
+        `provider`, the name a stored source was recorded under, is consulted only
+        when no claimant claims the URL and that name is a plugin whose claims could
+        not be read. Its own rows are then a deployment fault naming it, as a
+        declined plugin's are, rather than a fetch of a page only it can read.
+        """
         for claimant in self._claimants:
             try:
                 claimed = bool(claimant.claims(url))
@@ -399,6 +432,11 @@ class SourceRoster:
                 claimed = False
             if claimed:
                 return Route(plugin=claimant.name, reader=claimant.reader, unavailable=claimant.unavailable)
+        if provider is not None and provider in self._unknowable:
+            return Route(
+                plugin=provider,
+                unavailable=f"the {provider} source plugin is installed and could not be loaded: {self._unknowable[provider]}",
+            )
         return Route()
 
     def observe(self) -> tuple[PluginReading, ...]:
@@ -493,6 +531,7 @@ def load_sources(
         claimants=claimants,
         states=[(name, *states[name]) for name in ranked],
         faults=faults,
+        unknowable={n: states[n][1] or "" for n in ranked if n not in plugins and states[n][0] is PluginState.FAILED},
     )
 
 

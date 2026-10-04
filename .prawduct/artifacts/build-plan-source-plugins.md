@@ -383,7 +383,7 @@ Type: doc-only.
 
 - A `live_museum` test over the corpus's rows found in run 1 (1, 2, 3, 9, 19, 35)
   gets the same source and size through the plugins. It runs by hand with `-n0`.
-  *Done:* `tests/live/test_corpus_finds_through_the_plugins.py`, passing
+  *Done:* `arrt/tests/live/test_corpus_finds_through_the_plugins.py`, passing
   2026-10-03, and seen failing on a wrong size.
 - **Carried from Chunk 03's review:** `pages_about` gets a live case in
   `arrt/tests/live/test_wikidata_shapes_are_still_real.py` (*Drowning Girl*

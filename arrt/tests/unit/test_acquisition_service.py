@@ -84,7 +84,7 @@ def _resolves_publicly(_host: str):
     return ["93.184.216.34"]
 
 
-def _claims_nothing(_url: str) -> Route:
+def _claims_nothing(_url: str, _provider: str | None = None) -> Route:
     return Route()
 
 

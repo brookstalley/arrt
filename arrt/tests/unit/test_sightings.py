@@ -13,7 +13,14 @@ import pytest
 from fakes import FakeFinder, FakeRegistry
 from plugin_fakes import StubFinder, claims_example
 
-from arrt.library.discovery.images import FoundImage, FoundPage, ImageQuery, ImageQueryUnanswerable, offers_images
+from arrt.library.discovery.images import (
+    FoundImage,
+    FoundPage,
+    ImageQuery,
+    ImageQueryUnanswerable,
+    ImageSearchFailure,
+    offers_images,
+)
 from arrt.library.discovery.phase_two import PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool, NoSourceCanAnswer
 from arrt.library.registry import ItemId
@@ -33,6 +40,7 @@ from arrt.persistence.discovery_records import (
 )
 from arrt.persistence.file import open_catalogue_file
 from arrt.persistence.sqlite_discovery import SqliteDiscovery
+from arrt.services.errors import ServiceError
 
 DROWNING_GIRL = "Q5308687"
 MOMA = "https://www.moma.org/collection/works/80249"
@@ -240,6 +248,73 @@ def test_the_loaded_wikidata_plugin_is_a_finder_of_pages_through_the_containment
     assert offers_images(finders["commons"]) is True
 
 
+def test_a_finder_of_pages_that_could_not_be_asked_leaves_no_image_in_doubt():
+    """It holds no image either way, so an image source's empty answer still stands as one."""
+    roster = SourceRoster.of(finders=[_Raw("artic", list), _pages_only(_Raw("wikidata", _unreachable))])
+
+    answer = ImageSourcePool(roster.finders).find_images(ImageQuery(title="Drowning Girl"))
+
+    assert (answer.images, answer.unreachable) == ((), ())
+
+
+def test_a_finder_of_pages_that_could_not_be_asked_alone_still_leaves_the_work_waiting():
+    roster = SourceRoster.of(finders=[_pages_only(_Raw("wikidata", _unreachable))])
+
+    with pytest.raises(NoSourceCanAnswer, match="wikidata finds pages only"):
+        ImageSourcePool(roster.finders).find_images(ImageQuery(title="Drowning Girl"))
+
+
+def test_phase_two_settles_a_work_every_image_source_answered_for_while_the_finder_of_pages_was_down(settings):
+    """The caller that read `unreachable`: it raised here, keeping the work waiting for a source that holds no image."""
+    roster = SourceRoster.of(finders=[_Raw("artic", list), _pages_only(_Raw("wikidata", _unreachable))])
+    engine = PhaseTwoEngine(ImageSourcePool(roster.finders), box=settings.tv_artwork_box)
+
+    resolution = engine.resolve(ImageQuery(title="Drowning Girl"))
+
+    assert resolution.instances == []
+
+
+@pytest.mark.plugin_fault_expected
+def test_a_finder_of_pages_that_answers_an_image_is_a_contained_fault(caplog):
+    """Declared pages only, so an image from it would sit beside a work left waiting as if nobody answered."""
+    image = StubFinder("wikidata").find_images(ImageQuery(title="Drowning Girl"))[0]
+    roster = SourceRoster.of(finders=[_Raw("artic", list), _pages_only(_Raw("wikidata", lambda: image))])
+
+    with caplog.at_level(logging.ERROR, logger=FAULT_LOGGER):
+        answer = ImageSourcePool(roster.finders).find_images(ImageQuery(title="Drowning Girl"))
+
+    assert answer.images == ()
+    assert [record.plugin for record in caplog.records if getattr(record, "event", None) == FAULT_EVENT] == ["wikidata"]
+
+
+def test_a_finder_of_pages_answering_pages_is_no_fault(caplog):
+    """The declaration refuses images only: its own answer, pages, passes."""
+    roster = SourceRoster.of(finders=[_Raw("artic", list), _pages_only(_Raw("wikidata", lambda: FoundPage(url=MOMA)))])
+
+    answer = ImageSourcePool(roster.finders).find_images(ImageQuery(title="Drowning Girl"))
+
+    assert answer.pages == (FoundPage(url=MOMA),)
+
+
+@pytest.mark.parametrize(("with_images", "finds"), [(False, False), (True, True)], ids=["pages only", "pages and images"])
+def test_a_roster_finds_images_only_with_a_finder_of_images(with_images, finds):
+    finders = [_Pages("wikidata", FoundPage(url=MOMA), offers_images=False), *([StubFinder("artic")] if with_images else [])]
+
+    assert SourceRoster.of(finders=finders).finds_images is finds
+
+
+class TestARosterOfPagesAloneGivesPhaseTwoNoSource:
+    """Through the container: the wiring reads the same answer, so no pool is built that would accept work and settle none."""
+
+    @pytest.fixture
+    def sources(self) -> SourceRoster:
+        return SourceRoster.of(finders=[_Pages("wikidata", FoundPage(url=MOMA), offers_images=False)])
+
+    def test_a_re_search_is_refused_as_with_no_source(self, services):
+        with pytest.raises(ServiceError, match="no image provider configured"):
+            services.runner.resolve_images(candidate_work_ids=["any"], initiated_by=InitiatedBy.WEB_UI)
+
+
 def test_phase_two_passes_the_pages_on_untouched(settings):
     engine = PhaseTwoEngine(
         ImageSourcePool(SourceRoster.of(finders=[_Pages("wikidata", _page(MOMA))]).finders),
@@ -369,3 +444,12 @@ class _Raw:
 
 def _declines():
     raise ImageQueryUnanswerable("this finder looks a work up by item")
+
+
+def _unreachable():
+    raise ImageSearchFailure("the query service did not answer")
+
+
+def _pages_only(finder):
+    finder.offers_images = False
+    return finder

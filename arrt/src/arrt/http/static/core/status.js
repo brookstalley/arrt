@@ -85,8 +85,9 @@ export function statusReading(health) {
   else if (backup.absent) troubles.push("The catalogue has never been backed up");
 
   // A plugin that declined is configured off on purpose and is not a trouble. One
-  // that failed to load, or that has faulted, is: either way works it would have
-  // answered read as held by nobody, which looks like a fact about art.
+  // that failed to load is: works it would have answered read as held by nobody,
+  // which looks like a fact about art. So is one that faults: works it would have
+  // answered wait, with nothing else saying why.
   if (!Array.isArray(health.sources)) {
     troubles.push("The health reading carries no image sources");
   } else {

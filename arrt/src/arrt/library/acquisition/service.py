@@ -41,8 +41,9 @@ from arrt.library.acquisition.urls import Resolver, UrlRefused, check_fetchable,
 from arrt.library.discovery.images import ImageSearchFailure
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.imaging import measure
-from arrt.library.sources.loading import Route, scrub
+from arrt.library.sources.loading import Route
 from arrt.library.sources.reading import FetchLocator, LocatorKind
+from arrt.logs import scrub
 from arrt.persistence.records import AcquisitionMethod, FetchStatus, Source
 from arrt.services.errors import ServiceError
 
@@ -221,7 +222,7 @@ class AcquisitionService:
         settings: AcquisitionSettings,
         *,
         open_stream: StreamOpener,
-        route: Callable[[str], Route],
+        route: Callable[[str, str | None], Route],
         resolve: Resolver = system_resolver,
     ) -> None:
         self._catalogue = catalogue
@@ -266,7 +267,9 @@ class AcquisitionService:
         require_free_space(self._settings.originals_path, required_bytes=self._settings.min_free_bytes)
 
         destination = self._settings.originals_path / _FILENAME.format(artwork_id=artwork_id)
-        route = self._route(source.url)
+        # The provider only helps name a plugin whose claims could not be read;
+        # every URL a loaded or declined plugin claims is routed by the URL alone.
+        route = self._route(source.url, source.provider)
         if route.plugin is not None and route.reader is None:
             # Raised rather than recorded, like a missing tile binary: the plugin
             # that reads this URL is installed and not loaded, no source is at

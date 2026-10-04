@@ -64,6 +64,14 @@ routes a stored source by its URL, never by the provider that recorded it:
   2024 seed's Google Arts & Culture rows and Commons' direct image URLs, which
   need no plugin.
 
+**One exception uses the provider.** A plugin that failed before Arrt got a
+`SourcePlugin` from it (an import error, an entry point naming something else, a
+name two distributions share) has no `claims` to ask. A row recorded under its
+name, and claimed by no other plugin, is then a deployment fault naming it, as a
+declined plugin's row is. *Mine,* 2026-10-03, after review found such a row
+going to the tile fetcher, which cannot read an object page, and being recorded
+as a failed source.
+
 A source whose provider is not installed at all cannot be told apart from a 2024
 seed provider (`google_arts_culture` was never a plugin), so it is fetched as
 recorded and journalled (`acquisition.unclaimed`). A claims check must be
@@ -146,8 +154,13 @@ Its class carries `offers_images = False` (a `bool`; a finder without one offers
 images, so one written before this needs no change). An answer from it says
 nothing about whether an image of the work exists, so a work only it answered
 for waits, as when no source can be asked (`NoSourceCanAnswer`), instead of
-being recorded as held by nobody. The startup line lists only the finders that
-offer images. *Mine,* 2026-10-03, after review found the gap: with the Art
+being recorded as held by nobody. **Nor is one that could not be asked counted
+as a source that might hold the image:** it holds none either way, so the image
+sources' answers stand. **A roster whose only finders find pages gives phase 2
+no source** (`SourceRoster.finds_images`). The wiring, the previews setting and
+the startup line all read that one property, so such a deployment refuses a
+re-search as one with no source does, instead of accepting work it can never
+settle. *Mine,* 2026-10-03, after review found the gap: with the Art
 Institute unconfigured and Commons not loaded, the Wikidata finder's answer alone
 would have recorded works as held by nobody.
 

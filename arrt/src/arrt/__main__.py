@@ -250,7 +250,7 @@ def main(argv: Sequence[str] = ()) -> None:
     log.info(
         "phase2 image_sources=%s previews=%s preview_sweep=%s",
         ",".join(source.provider for source in sources.finders if offers_images(source)) or _no_finder(sources),
-        settings.previews_path if any(offers_images(source) for source in sources.finders) else "disabled",
+        settings.previews_path if sources.finds_images else "disabled",
         # On this line rather than its own: the directory and the only thing
         # that reclaims it are one operational fact, and a deployment reading
         # `previews=<path>` with no sweep beside it is the state § Risks names.
@@ -331,7 +331,7 @@ def main(argv: Sequence[str] = ()) -> None:
             discovery_settings=settings.discovery_settings,
             sources=sources,
             previews=(
-                None if not sources.finders else PreviewSettings(art_root=settings.art_root, directory=settings.previews_path)
+                PreviewSettings(art_root=settings.art_root, directory=settings.previews_path) if sources.finds_images else None
             ),
             acquisition=AcquisitionSettings(
                 art_root=settings.art_root,

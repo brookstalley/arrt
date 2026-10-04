@@ -1305,7 +1305,7 @@ the client with them.
 | `POST`/`DELETE /api/themes/{id}/works[/{work_id}]`, `POST .../position` | Membership and order. Each returns the resulting order, so the surface repaints from the response. |
 | `POST /api/themes/{id}/activate` | Change the wall. Returns the manifest that was published, exclusions included. |
 | `GET /api/manifest` | What a theme *would* put on the wall, evaluated without writing. |
-| `GET /api/health` | Every observation the panel states: **one heartbeat per wall** with the document that wall's display reported, the backup's age, and this deployment's resolved artwork box. **Three observations and no fourth** — there is deliberately no budget balance, settled 2026-08-04. Shape below. |
+| `GET /api/health` | Every observation the panel states: **one heartbeat per wall** with the document that wall's display reported, the backup's age, this deployment's resolved artwork box, and **every installed source plugin** (`sources`, added 2026-10-03). There is deliberately no budget balance, settled 2026-08-04. Shape below. |
 
 Added 2026-08-05 with the run half of the browser surface, and exercised by
 `arrt/tests/integration/test_browser_discovery.py`:
@@ -1566,9 +1566,27 @@ response is:
   ],
   "description": "Every wall has reported; the least recent is 'The study', 4 minutes ago.",
   "backup": { "…": "unchanged" },
-  "artwork_box": { "…": "unchanged" }
+  "artwork_box": { "…": "unchanged" },
+  "sources": [
+    {
+      "name": "artic",
+      "state": "loaded",
+      "reason": null,
+      "faults": 0,
+      "last_fault_at": null,
+      "last_fault_age_seconds": null,
+      "last_fault": null,
+      "description": "artic is loaded, with no faults since startup."
+    }
+  ]
 }
 ```
+
+**`sources`** *(added 2026-10-03, `source-plugins.md` § Loading)* lists every
+installed plugin, most preferred first, and is empty when none is installed.
+`state` is `loaded`, `declined` (installed and not configured here) or `failed`
+(installed and could not be loaded), carried as itself. `reason` and `last_fault`
+are scrubbed of query strings (`security-model.md` § Source plugins).
 
 **`heartbeat` is gone from the top level and is not coming back**: one reading for
 an installation with two rooms is a reading that cannot name the room, which is
