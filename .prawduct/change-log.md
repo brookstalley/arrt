@@ -80,8 +80,8 @@ Wikidata item records does. Plan: `build-plan-title-identity.md`.
   half of `work_dedup_key`, so the identity key changes with it. The generic-title
   guard compares the title without its article, so "The Portrait (Hands)" keeps
   its parenthetical.
-- `phase_two.not_the_work` names `found_url`, `qid` and `link`, the reason no
-  Wikidata link settled the title.
+- `phase_two.not_the_work` names `found_url`, `qid` and `link`, how the title
+  gate was or was not settled.
 - Phase two passes a result whose title differs when the work has a QID and the
   result's `url` is exactly one of `Registry.pages_about(qid)`. The artist check
   still runs. The registry is asked at most once per work, only on a differing
@@ -91,6 +91,9 @@ Wikidata item records does. Plan: `build-plan-title-identity.md`.
 - The startup repair re-derives every stored key, not only those whose title it
   re-cleaned, and reports re-keyed rows apart (`works.rekeyed`, at INFO). Before
   this, a change to the derivation alone left stored keys under the old rule.
+  **A rollback does not undo it:** the previous build re-keys only re-cleaned
+  titles, so article-titled rows stay split from new proposals until this build
+  is redeployed or the pre-deploy catalogue copy is restored.
 
 **Tests changed, and why:**
 - `test_a_stored_title_the_rules_do_not_reach_is_left_exactly_as_it_is`: it

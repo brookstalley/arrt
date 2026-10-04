@@ -66,8 +66,8 @@ High for the rule, which the owner stated. The mechanism is the agent's:
 
 ### Chunk 01: The article rule, the Wikidata link, and stored keys
 
-- `dedup.py`: `title_key` drops one leading `the`, `a` or `an` after
-  normalising, when a word follows.
+- `dedup.py`: `title_key` drops one leading `the`, `a` or `an`, when a word
+  follows.
 - `phase_two.py`: `PhaseTwoEngine` takes an optional `registry`. A result whose
   title differs passes the gate when the query has a QID and the result's `url` is
   among `pages_about(qid)`; it is logged as identified by the link. The artist
@@ -91,6 +91,12 @@ High for the rule, which the owner stated. The mechanism is the agent's:
 
 - The owner's go to deploy. Then a run over rows 13 and 43; the result is recorded
   in `procurement-corpus.md` beside run 3.
+- **The deploy rewrites stored keys, and a rollback does not undo it.** The
+  first start re-keys every stored "The/A/An ..." row. The previous build's repair
+  re-keys only a row whose title it re-cleans, so after a rollback those rows keep
+  the new keys while new proposals derive keys with the article, and a rejection
+  stops suppressing its work. The way back is the catalogue copy taken before the
+  deploy, restored with the rollback; redeploying this build also re-joins them.
 
 ## Verification strategy
 
