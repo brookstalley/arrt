@@ -14,16 +14,15 @@ each entry, which is the durable form.
 
 **`build-plan-source-plugins.md` Chunk 01.** Visual change: yes.
 
-Checked by the builder on 2026-10-03 against the suites only, including the
-browser suite with canned readings: the panel's sentences and the System badge.
-Not on the NAS.
+Checked by the builder on 2026-10-03 against the suites, including the browser
+suite with canned readings: the panel's sentences and the System badge. **Deployed
+to the NAS on 2026-10-03 as image `e51adfb`** (Chunk 05): `/api/health` reports
+`commons`, `artic` and `wikidata` loaded, with no faults. The startup journal was
+not read, because the container's logs need root on the NAS.
 
-- **After deploying:** the startup journal carries `source plugin commons loaded`
-  and `source plugin artic loaded` (both user agents are set on the NAS), then
-  `phase2 image_sources=commons,artic`.
 - **Look at:** System › Status has an *Image sources* panel with one sentence per
-  plugin: "commons is loaded, with no faults since startup." and the same for
-  artic. The System badge shows no count for them.
+  plugin: "commons is loaded, with no faults since startup.", and the same for
+  artic and wikidata. The System badge shows no count for them.
 - **Worth an opinion:** whether a declined plugin belongs on this panel at all,
   or only failed and faulting ones. It is shown so that "why is the Art Institute
   missing" is answered where the operator looks.

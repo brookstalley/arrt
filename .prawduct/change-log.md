@@ -237,6 +237,19 @@ repository. Contract: `source-plugins.md`. Plan: `build-plan-source-plugins.md`.
   points to it, and no longer names the retired wall tokens.
 - No tests changed.
 
+**What (Chunk 05):**
+- **Deployed to the NAS** as `e51adfb`, after a read-only survey of its stored
+  sources. 32 Art Institute object pages and 8 Google Arts & Culture assets
+  each route as designed, and both shapes were already in the suite. All three
+  plugins load.
+- **Run 2** re-searched run 1's 39 unresolved works through the plugins, rather
+  than a Get of all 50, so no work was duplicated. No outcome changed. It
+  recorded 82 sightings, and the host count is in `procurement-corpus.md`
+  § Results: MoMA 9, the Met 4, navigart.fr 3, SFMOMA 3.
+- **Two live checks:** run 1's six finds come back from the same source at the
+  same size, and *Drowning Girl*'s item still gives MoMA's page.
+- Tests added, none changed.
+
 ## 2026-10-03: A corpus to choose the next source by
 
 <!-- prawduct: scope=procurement-corpus -->

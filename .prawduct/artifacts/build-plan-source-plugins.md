@@ -383,12 +383,18 @@ Type: doc-only.
 
 - A `live_museum` test over the corpus's rows found in run 1 (1, 2, 3, 9, 19, 35)
   gets the same source and size through the plugins. It runs by hand with `-n0`.
+  *Done:* `tests/live/test_corpus_finds_through_the_plugins.py`, passing
+  2026-10-03, and seen failing on a wrong size.
 - **Carried from Chunk 03's review:** `pages_about` gets a live case in
   `arrt/tests/live/test_wikidata_shapes_are_still_real.py` (*Drowning Girl*
   gives a `www.moma.org` page), so the 2026-10-03 measurement stays a check
-  rather than a fixture.
+  rather than a fixture. *Done, and seen failing on a wrong ID.*
 - Deploy to the NAS. The startup log names the loaded plugins, and the health
-  panel shows them.
+  panel shows them. *Done 2026-10-03:* image `e51adfb`, after a catalogue copy
+  (`pre-source-plugins-<timestamp>.sqlite` in the backups directory; the way
+  back is `bb021bb`). `/api/health` reports all three plugins loaded, with no
+  faults. The startup log was not read, because the container's logs need root
+  on the NAS.
 - Get the corpus's 50 QIDs again, through a run that writes nothing new for
   works already held. Record in `procurement-corpus.md` § Results, as run 2:
   - the sightings-by-host count;
@@ -396,6 +402,12 @@ Type: doc-only.
     Pompidou 3, SFMOMA 3).
 
   That count is step 3's first measurement, and the next plan's input.
+
+  *Changed, and done 2026-10-03* (mine): a re-search of run 1's 39 unresolved
+  works, not a Get of all 50. A Get would have put a second copy of the 11 finds
+  into To review, and the host count covers only open works, which the 11 are
+  not. The live test above re-checks them. Recorded as run 2: MoMA 9, the Met 4,
+  navigart.fr 3 (one platform, three collections), SFMOMA 3.
 - The owner looks at the health panel. That check is the
   `operator-verification.md` entry.
 
