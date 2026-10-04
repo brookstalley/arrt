@@ -402,3 +402,14 @@ it now produces exactly the inert seam the argument was meant to prevent. The
 elicitation half was kept and has already paid: two of the four answers above
 contradict what they would otherwise have specified. Nothing here waits on a build
 date, and their release gate never depended on this repo.
+
+**Update 2026-10-03, read at 3tears `origin/develop` `ffa128c0` (0.60.0).** The seam
+is built. `threetears.search.aggregate.aggregate()` takes `extra_candidates`, which
+its docstring names "the producer seam (D3)". `3tears-search` still depends only on
+`3tears-media-contracts`, `3tears-observe` and `pydantic`, and its import-cost test
+now covers the stage modules (`_STAGE_MODULES` in `tests/test_import_cost.py`). So
+the caveat above, "verified once, not a test that holds it", is closed upstream.
+Nothing here has been adopted. It bears on the discovery seam (phase 1's
+candidates), not on image sources. `3tears-scrape` was weighed for image sources
+the same day and not taken; the reasons are in `source-plugins.md` § Considered:
+3tears scrape.

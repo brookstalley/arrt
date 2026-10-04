@@ -62,6 +62,222 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-03: Image sources are plugins
+
+<!-- prawduct: scope=source-plugins -->
+
+**Why:** the owner ruled that sources are plugins, so that people can add paid,
+local or any other sources, and that the owner's own scrapers live in a private
+repository. Contract: `source-plugins.md`. Plan: `build-plan-source-plugins.md`.
+
+**What (Chunk 01):**
+- `arrt.library.sources`: the plugin interface, versioned `1.0`, and the only
+  import path a plugin may use.
+- `ImageSearch` is renamed `Finder` everywhere.
+- The Art Institute and Commons moved to `library/sources/`. They register as
+  `arrt.sources` entry points in `arrt/pyproject.toml`, and import nothing from
+  `arrt` but the interface.
+- The loader (`library/sources/loading.py`):
+  - A plugin that cannot load is left out and named, and Arrt starts without it.
+  - A fault in a loaded plugin is contained to the call, logged as
+    `source.plugin_fault`, and counted.
+- Each plugin reads its own variables from the environment. `ARTIC_USER_AGENT`
+  left `Settings`; the name and its meaning are unchanged.
+- New setting: `SOURCE_ORDER`.
+- System › Status has an *Image sources* panel, and the System badge counts a
+  failed or faulting plugin.
+
+**Tests changed, and why:**
+- `test_no_budget_balance_appears_anywhere_on_the_panel`: its exact set of the
+  health reading's keys gained `sources`. It is still exact, and the budget-word
+  check over every key, the new ones included, is unchanged.
+- `test_startup_names_every_image_source_it_wires_in_order`: it sets the user
+  agents in the environment rather than in `Settings`, which is now the only
+  place a plugin can read them from. The assertion is unchanged.
+- `test_startup_with_no_image_source_says_which_settings_would_add_one`: it
+  asserts each plugin's own reason, in order, where it asserted one hand-written
+  sentence that named both built-ins. The claim (the line says which settings
+  would add a source) is the same, and it is now derived from the plugins.
+- New suite-wide fixtures (`arrt/tests/conftest.py`): every test runs with the
+  plugins' variables cleared, and any test that logs a plugin fault fails unless
+  it is marked `plugin_fault_expected`.
+
+**What (Chunk 02):**
+- **Readers.**
+  - A plugin declares which URLs it `claims` (static, no I/O), and a loaded one
+    provides a `Reader` that turns a claimed URL into a `FetchLocator`: direct,
+    tiles, or none.
+  - Acquisition routes a stored source by its URL, through `SourceRoster.route`:
+    - claimed by a loaded plugin: its reader decides the fetch;
+    - claimed by a plugin that is installed and not loaded: a deployment fault,
+      `SourcePluginUnavailable`, naming the plugin and its reason;
+    - claimed by none: fetched as recorded.
+  - The Art Institute's `tile_url` became its reader, and it claims only the
+    museum's hosts.
+  - `tile_url`, `RESOLUTION_REQUIRED`, the pool's and the container's
+    `tile_targets`, and `library/acquisition/tiles.py` are gone.
+    `TileTargetUnavailable` became `SourcePluginUnavailable`.
+  - The Commons reader moved to Chunk 03, where its input first exists.
+- **The container's only source input is the roster** (`sources=`).
+  `image_sources` and `collection` are gone, so the finders, collection, readers
+  and health panel cannot disagree.
+- **Containment closed its holes** (carried from Chunk 01's final review):
+  - a part whose `provider` raises, or that is not a `Finder`, `Reader` or
+    `CollectionBrowse`, leaves the plugin out;
+  - a finder's answer of the wrong shape, or with an image under another
+    plugin's name, is a contained fault;
+  - a raising `claims` claims nothing and is counted;
+  - error text loses every URL's query string before the journal or the panel;
+  - each plugin is journalled before its factory runs;
+  - an unknown `SOURCE_ORDER` name is a warning.
+- **Renamed:** `ArticImageSearch` and `CommonsImageSearch` are now `ArticFinder`
+  and `CommonsFinder`.
+- **Fixed at the start of this chunk:** `SourceContext.user_agent`, added in
+  Chunk 01 at review, carries `ACQUISITION_USER_AGENT` to every plugin. No
+  built-in reads it yet: the Art Institute and Commons each require their own
+  identifying variable.
+
+**Tests changed in Chunk 02, and why:**
+- `test_acquisition_tiles.py` became `test_acquisition_reading.py`. Each of its
+  contracts is kept against the reader that replaced the resolver:
+  - the reader is asked about the recorded URL;
+  - a URL nobody claims keeps its URL;
+  - a claimed URL with its plugin not loaded is a deployment fault, now driven
+    through the real loader and the real declining Art Institute plugin;
+  - a reader's fault never falls through to the recorded URL;
+  - the Art Institute claims both of its URL shapes and not Google's.
+
+  The two tests of the `RESOLUTION_REQUIRED` declaration became tests of the
+  plugin's `claims`, which is the declaration now.
+- `test_image_pool.py::test_each_source_resolves_its_own_tiles` is retired. The
+  pool no longer resolves tiles. Its claim, that a source's tiles go to the code
+  that knows them, is `test_acquisition_reading.py`'s routing tests.
+- `test_artic_client.py`'s image-service tests call the reader, not
+  `tile_url`. "Publishes no image" is now a `none` locator, not a raise. It is
+  still distinct from a failed lookup, which the old test asserted.
+- `test_acquisition_service.py` and `test_catalogue_tool.py` route through
+  rosters, not provider-keyed maps, with every assertion kept. Two catalogue
+  tests now give their source an object page: their IIIF `info.json` URL needs
+  no plugin, so it is correctly no longer a fault.
+- `test_bindings.py`: the remedy table names `SourcePluginUnavailable`, and its
+  remedy still names `ARTIC_USER_AGENT`.
+- The suite-wide fault guard moved to `tests/fault_guard.py`, where it reads its
+  logger name from the loader. It is now tested (`test_fault_guard.py`).
+- **Added at review:**
+  - The tiled-source provenance test (a recorded URL whose host does not
+    resolve must not stop a claimed source being read) was dropped in the
+    rewrite, and is restored in `test_acquisition_reading.py`.
+  - The scrubbing now covers every way a plugin's words leave the containment:
+    its own failures, its decline reason, faults and browse failures. Each way
+    has a test through its caller.
+  - The Art Institute reader treats an answer that is not the object's own
+    record as could-not-be-asked, never as "no image" (gap 5).
+  - The plan's survey of the NAS `sources` table moved to Chunk 05, with the
+    shapes taken from the code that writes them meanwhile.
+  - The journal formatter (`logs.JsonFormatter`) cuts every URL's query string
+    from each finished line, covering every call site, the fetchers' own
+    warnings and tracebacks included. Every recorded acquisition failure is
+    scrubbed too, in `_record_failure`. The scrub was first added call site by
+    call site, and two verification rounds each found one more site.
+
+**What (Chunk 03):**
+- **The owner chose, at the start of the chunk, that Commons keeps its finder.**
+  The plan's Commons reader is descoped: a reader's answer carries no size, so a
+  P18 page read by it would never become an image. The design note in the plan
+  has the three options.
+- **A finder's answer may carry `FoundPage`s**: pages it found and does not read.
+  The pool keeps them apart from images and each once, phase 2 passes them on,
+  and the containment accepts them. The interface stays 1.0.
+- **A built-in `wikidata` plugin** offers every page a work's item records: each
+  external identifier put into its property's formatter URL, and each P973. It
+  needs the registry, and declines without one.
+- **`Registry.pages_about`**, and a new registry string kind, `WorkPage`: a URL
+  checked only as `http(s)` with a host, never sent to the browser.
+- **Sightings** (`sightings` table; `library/services/sightings.py`): a page no
+  installed plugin claims, stored once per item and URL. The runner records them
+  after each search attempt that answered. A claimed page is journalled and left
+  to its plugin.
+- **Question 1:** `GET /api/sightings/hosts` and
+  `art_review(action='sighting_hosts')` count open works by host, and return
+  host names only.
+
+**Tests changed in Chunk 03, and why:**
+- `test_startup.py`: the startup line names `wikidata` after the two the
+  default order names, and the no-source line carries its decline reason. Both
+  assertions are as exact as before.
+- `test_catalogue_tool.py`: `art_review`'s action list gained `sighting_hosts`,
+  still compared exactly.
+- `test_registry_strings.py`: the registry's kinds gained `WorkPage`, and the
+  hostile-registry test now checks `pages_about` as well. A work page is checked
+  only as an address, so the test now says it can be a stranger's URL, and
+  points to the test that keeps it out of every response.
+- `test_persistence_boundary.py`: `library/services/sightings.py` joins the
+  network allowlist, with its reason: it imports `urllib.parse` to read a host.
+- `test_source_plugins.py`: the built-ins' import guard reads its module list
+  from the installed entry points. It named `artic.py` and `commons.py` by hand,
+  so the new plugin would have gone unchecked.
+- `test_discovery_store.py`: the expected schema gained `sightings`.
+- **Fixed after review:** a finder of pages declares `offers_images = False`,
+  and the pool does not count it as a source that answered. Before the fix, the
+  Wikidata finder's answer alone, pages or none, recorded a work as held by
+  nobody. The startup line lists only finders of images, so
+  `test_startup_names_every_image_source_it_wires_in_order` is back to its
+  original assertion, plus a check that `wikidata` loaded.
+
+**What (Chunk 04):**
+- **`docs/source-plugins.md`**, the guide for writing a plugin: the entry point
+  and factory, the interface, the parts, the three answers and gap 5, what Arrt
+  checks and what it does not, and testing. Its example reader and tests were
+  run against an installed Arrt before they went in.
+- **`deploy/README.md` § A private source plugin**: the derived image, installed
+  with Arrt's lock as a constraint. Without one, a plugin requiring `httpx<0.28`
+  downgraded Arrt's httpx and built cleanly (measured on `arrt:0e10e6d`).
+- **`security-model.md` § Source plugins**, and an amendment to § Supply Chain.
+  What installing a plugin trusts now has one home. `source-plugins.md` § Trust
+  points to it, and no longer names the retired wall tokens.
+- No tests changed.
+
+**What (Chunk 05):**
+- **Deployed to the NAS** as `e51adfb`, and again as `4042fd0` with the fixes
+  below, after a read-only survey of its stored sources. 32 Art Institute object pages and 8 Google Arts & Culture assets
+  each route as designed, and both shapes were already in the suite. All three
+  plugins load.
+- **Run 2** re-searched run 1's 39 unresolved works through the plugins, rather
+  than a Get of all 50, so no work was duplicated. No outcome changed. It
+  recorded 82 sightings, and the host count is in `procurement-corpus.md`
+  § Results: MoMA 9, the Met 4, navigart.fr 3, SFMOMA 3.
+- **Two live checks:** run 1's six finds come back from the same source at the
+  same size, and *Drowning Girl*'s item still gives MoMA's page.
+- Tests added, none changed.
+
+**Fixed after the cumulative review:**
+- A finder of pages that could not be asked no longer keeps a work waiting, when
+  every source of images has answered for it.
+- A roster whose only finders find pages gives phase 2 no source
+  (`SourceRoster.finds_images`). The wiring, the previews setting and the
+  startup line all read it.
+- A finder of pages that answers an image is a contained fault.
+- A plugin that failed before its claims could be read still turns its own rows
+  into a deployment fault, recognised by the provider they record.
+- Corrected wording:
+  - the health panel's sentences about faults and the built-in plugins;
+  - the Art Institute's and `SourceParts`' docstrings;
+  - `api-contract.md`'s `GET /api/health` row and shape, which now carry
+    `sources`.
+- Tests added, none changed. `test_acquisition_service.py`'s `_claims_nothing`
+  takes the provider that `route` now accepts.
+
+**Operator notes:**
+- **A journal event is renamed:** `acquisition.tile_target_resolved` is now
+  `acquisition.source_read`. A search or alert keyed on the old name finds
+  nothing. New events: `acquisition.unclaimed`; `source.loading`,
+  `source.loaded`, `source.declined`, `source.failed`, `source.order_unknown`
+  and `source.plugin_fault`; `sightings.recorded`, `sightings.claimed` and
+  `sightings.no_item`. Each is described in `observability-strategy.md`.
+- **The `sightings` table is additive.** The way back is image `bb021bb` with
+  the catalogue restored from the copy taken before the migration
+  (`pre-source-plugins-<timestamp>.sqlite` in the backups directory).
+
 ## 2026-10-03: A corpus to choose the next source by
 
 <!-- prawduct: scope=procurement-corpus -->

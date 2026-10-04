@@ -792,3 +792,22 @@ def test_the_backup_settings_are_read_by_their_names(monkeypatch, tmp_path):
 
     assert settings.backup_dir == tmp_path / "backups"
     assert (settings.backup_interval_seconds, settings.backup_keep) == (3600, 3)
+
+
+def test_source_order_names_plugins_most_preferred_first(monkeypatch, tmp_path):
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    monkeypatch.setenv("SOURCE_ORDER", " artic, commons ,, gallery ")
+
+    assert Settings.from_env().source_order == ("artic", "commons", "gallery")
+
+
+@pytest.mark.parametrize("raw", [None, "", " , "])
+def test_source_order_defaults_to_commons_then_the_art_institute(monkeypatch, tmp_path, raw):
+    """The owner's ruling of 2026-10-01, when the deployment names no order."""
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    if raw is None:
+        monkeypatch.delenv("SOURCE_ORDER", raising=False)
+    else:
+        monkeypatch.setenv("SOURCE_ORDER", raw)
+
+    assert Settings.from_env().source_order == ("commons", "artic")

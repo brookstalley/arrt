@@ -510,6 +510,44 @@ the Watch:
 The UI may offer "also make a playlist from this watch" as a shortcut that
 creates both.
 
+### Sources are plugins (the owner, 2026-10-03)
+
+**The owner's ruling:** *"let's make acquisition through plugins, that way people
+can add paid or local or whatever they choose to; then build our own as a private
+repo."* So:
+
+- **Image sources are plugins.** A deployment adds a source without changing
+  Arrt, whether that source is paid, local, or a site Arrt's authors would never
+  ship.
+- **The owner's own scrapers live in a private repo**, not here. That settles
+  the terms-of-service question for sources that forbid scraping, such as Google
+  Arts & Culture and the auction houses: this public repo ships the plugin
+  contract, not those adapters.
+- **The seam already exists.** `ImageSearch` (`library/discovery/images.py`, renamed `Finder` when plugins were built) is
+  what the pool asks, and nothing above the pool knows how many sources there
+  are. A plugin is that protocol opened to code outside Arrt.
+
+**Decided later the same day, by the owner:**
+
+- **A plugin is a Python package loaded inside Arrt**, not a separate service.
+  The agent recommended a service, for isolation and for deployment as a sibling
+  container; the owner chose the package. So installing a plugin trusts it as
+  fully as Arrt's own code.
+- **The existing sources are the examples.** The Art Institute and Commons are
+  rebuilt on the plugin interface rather than kept as a special case beside it.
+- **Plugins are per protocol, not per institution** (IIIF, Google Arts &
+  Culture, Artlogic, and so on), so one plugin reaches every holder that serves
+  its protocol.
+
+**Not yet decided:**
+
+- where search lives: in each plugin, or in Arrt with plugins only reading what
+  it finds;
+- what a plugin must report for its spending to be capped;
+- how its untrusted text and bytes are bounded (`security-model.md`).
+
+The contract artifact settles these before any code.
+
 ## Player outputs
 
 There are two families of screen, behind one "show this work" interface:

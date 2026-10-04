@@ -19,7 +19,8 @@ from typing import Final
 
 import pytest
 import uvicorn
-from fakes import FakeConversationEngine, FakeEngine
+from fakes import FakeConversationEngine, FakeEngine, FakeReader
+from fault_guard import FaultRecords
 from PIL import Image
 
 from arrt.app import create_app
@@ -68,6 +69,8 @@ from arrt.library.services.conversation import ConversationService
 from arrt.library.services.discovery import DiscoveryService
 from arrt.library.services.runner import DiscoveryRunner
 from arrt.library.services.thumbnails import ThumbnailService, ThumbnailSettings
+from arrt.library.sources.artic import claims as artic_claims
+from arrt.library.sources.loading import SourceRoster
 from arrt.persistence.discovery_records import DiscoveryRun, InitiatedBy
 from arrt.persistence.durable import SqliteDurableStore
 from arrt.persistence.file import open_catalogue_file
@@ -110,6 +113,32 @@ def _root_logger_as_found() -> Iterator[None]:
         if handler not in handlers:
             root.removeHandler(handler)
     root.setLevel(level)
+
+
+#: The variables the built-in source plugins read for themselves. Cleared for
+#: every test, because startup now reads them from the process environment, and a
+#: developer whose shell carries one would otherwise run a different suite from CI.
+_SOURCE_PLUGIN_VARIABLES: Final[tuple[str, ...]] = ("ARTIC_USER_AGENT", "WIKIDATA_USER_AGENT", "SOURCE_ORDER")
+
+
+@pytest.fixture(autouse=True)
+def _no_source_plugin_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in _SOURCE_PLUGIN_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _no_plugin_fault_unless_expected(request: pytest.FixtureRequest) -> Iterator[None]:
+    """Fail any test in which a source plugin faulted, unless it means to (`fault_guard.py`)."""
+    records = FaultRecords()
+    records.attach()
+    try:
+        yield
+    finally:
+        records.detach()
+    complaint = records.complaint(expected=request.node.get_closest_marker("plugin_fault_expected") is not None)
+    if complaint is not None:
+        pytest.fail(complaint, pytrace=False)
 
 
 @pytest.fixture
@@ -259,6 +288,20 @@ def kept(settings: Settings) -> Iterator[KeptAnswers]:
 
 
 @pytest.fixture
+def sources() -> SourceRoster:
+    """The plugins the services are built over: the Art Institute's reader, with its real claims.
+
+    A museum source records the object's page; the tile fetcher needs the image
+    service, and only the plugin that claims the URL can say where that is. Wired
+    here even though these tests configure no image *search*, because a catalogue
+    holding artic works and a deployment able to fetch them is a real arrangement,
+    and without it every such fetch is a deployment fault before it reaches the
+    code the test is about. A test that needs other plugins overrides this fixture.
+    """
+    return SourceRoster.of(readers={"artic": (artic_claims, FakeReader())})
+
+
+@pytest.fixture
 def services(
     store: SqliteCatalogue,
     discovery_store: SqliteDiscovery,
@@ -270,6 +313,7 @@ def services(
     registry: Registry | None,
     kept: KeptAnswers,
     open_stream: StreamOpener | None,
+    sources: SourceRoster,
 ) -> Services:
     """Every service, wired the way the entry point wires them."""
     bound = Services.bind(
@@ -294,13 +338,6 @@ def services(
             panel_height=settings.tv_panel_height_px,
             box=settings.tv_artwork_box,
         ),
-        # A museum source records the object's page; the tile fetcher needs the
-        # image service, and only the provider can say where that is. Wired here
-        # even though these tests configure no image *search*, because a catalogue
-        # holding artic works and a deployment able to fetch them is a real
-        # arrangement — and without it every such fetch refuses before reaching
-        # the code the test is about.
-        tile_targets={"artic": lambda url: f"https://www.artic.edu/iiif/2/{abs(hash(url)) % 100000}"},
         # Stated rather than looked up, for every test that reaches acquisition. A
         # suite whose job is to be green cannot depend on the network — pyproject
         # says so and deselects the tests that deliberately do. Without this the
@@ -320,6 +357,7 @@ def services(
         registry=registry,
         kept=kept,
         open_stream=open_stream,
+        sources=sources,
     )
     return bound
 

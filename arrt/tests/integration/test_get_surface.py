@@ -12,7 +12,7 @@ from decimal import Decimal
 
 import httpx
 import pytest
-from fakes import FakeImageSearch, FakeRegistry, a_collection_holding, an_image
+from fakes import FakeFinder, FakeRegistry, a_collection_holding, a_roster, an_image
 
 from arrt.library.discovery.images import FoundImage, ImageQuery
 from arrt.library.registry import CommonsFile, ItemId, RegistryCreator, RegistryText, RegistryWork
@@ -63,9 +63,6 @@ class ItemSource:
     def fetch_preview(self, url: str) -> bytes | None:
         return b"\xff\xd8\xff\xe0 jpeg"
 
-    def tile_url(self, url: str) -> str:
-        return url
-
 
 def commons_image(title: str, *, width: int = 3840, height: int = 4640) -> FoundImage:
     return an_image(title, width=width, height=height, provider="commons", url=f"https://commons.example/{title}/{width}")
@@ -88,8 +85,8 @@ def commons() -> ItemSource:
 
 
 @pytest.fixture
-def museum() -> FakeImageSearch:
-    return FakeImageSearch()
+def museum() -> FakeFinder:
+    return FakeFinder()
 
 
 @pytest.fixture
@@ -103,12 +100,11 @@ def services(store, discovery_store, wall_settings, thumbnail_settings, settings
         artwork_box=settings.tv_artwork_box,
         engine=engine,
         discovery_settings=settings.discovery_settings,
-        image_sources=[commons, museum],
+        sources=a_roster(commons, museum, collection=a_collection_holding(**{"Salvador Dalí": ["Sleep"]})),
         previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
         registry=registry,
         # A collection holding the chosen works' artist, so a Get that left a work
         # unresolved would reach the supplement if nothing stopped it there.
-        collection=a_collection_holding(**{"Salvador Dalí": ["Sleep"]}),
     )
 
 
@@ -286,7 +282,7 @@ def test_a_get_with_no_registry_is_refused_and_starts_nothing(
         artwork_box=settings.tv_artwork_box,
         engine=engine,
         discovery_settings=settings.discovery_settings,
-        image_sources=[commons],
+        sources=a_roster(commons),
         previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
     )
 

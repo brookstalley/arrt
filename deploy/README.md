@@ -67,6 +67,48 @@ beside the house's other apps.
 - **Renders recorded before the media route existed carry no content hash.**
   They are hashed the first time a manifest names them, which needs the file.
 
+### A private source plugin
+
+**A plugin that is not in this repository reaches the server through an image
+built on top of Arrt's.** Its recipe lives beside the plugin, in the private
+repository. The shape, with the plugin's source as the build context:
+
+```dockerfile
+ARG ARRT_IMAGE
+FROM ${ARRT_IMAGE}
+USER root
+COPY . /tmp/plugin
+RUN uv pip freeze --python /opt/venv/bin/python --exclude-editable > /tmp/arrt-locked.txt \
+ && uv pip install --python /opt/venv/bin/python --constraint /tmp/arrt-locked.txt /tmp/plugin \
+ && rm -rf /tmp/plugin /tmp/arrt-locked.txt
+USER 568:568
+```
+
+Build it with `--build-arg ARRT_IMAGE=arrt:<commit>` and deploy that tag in
+place of Arrt's.
+
+- **The constraint is what keeps Arrt's locked versions.** Without it, the
+  installer changes whatever Arrt's dependencies the plugin asks it to. Measured
+  2026-10-03: a plugin requiring `httpx<0.28` downgraded Arrt's locked 0.28.1 to
+  0.27.2 and built cleanly. With the constraint, the same build fails and names
+  the conflict. Fix such a plugin, not the constraint.
+- **`USER root` for the install, then back.** Arrt's image runs as 568 and its
+  venv is root's. Change the last line if the compose file runs another user.
+- **The plugin names no `arrt` dependency** (`docs/source-plugins.md` § A plugin
+  is a distribution with one entry point), so nothing here can fetch an `arrt`
+  from PyPI.
+- **Rebuild it for every Arrt commit you deploy.** It carries Arrt's code
+  inside it, so a derived image left on an old tag holds the server back too.
+
+**How to tell it worked:** the startup log has `source plugin <name> loaded`, or
+the reason it declined, and the health panel lists it. Run once with
+`--entrypoint python` and the snippet in `docs/source-plugins.md` § Testing to
+see the same answer before deploying. Verified 2026-10-03 against `arrt:0e10e6d`,
+with the guide's example reader: the plugin read `loaded` beside
+the three built-ins, as uid 568.
+
+What installing a plugin trusts is `security-model.md` § Source plugins.
+
 ## The Player as a client of the NAS (2026-10-02, `build-plan-clients.md`)
 
 **A Pi is a client of the server.** The server knows which walls each client

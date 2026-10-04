@@ -31,12 +31,12 @@ from pathlib import Path
 
 import pytest
 
-from arrt.library.discovery.artic import build_image_search
 from arrt.library.discovery.dedup import clean_name
 from arrt.library.discovery.images import ImageQuery, ImageSearchFailure
 from arrt.library.discovery.phase_two import PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.services.display_fit import ArtworkBox
+from arrt.library.sources.artic import build_image_search
 
 pytestmark = pytest.mark.live_museum
 

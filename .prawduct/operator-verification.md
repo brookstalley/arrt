@@ -10,6 +10,23 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Image sources on System › Status — added 2026-10-03
+
+**`build-plan-source-plugins.md` Chunk 01.** Visual change: yes.
+
+Checked by the builder on 2026-10-03 against the suites, including the browser
+suite with canned readings: the panel's sentences and the System badge. **Deployed
+to the NAS on 2026-10-03 as image `e51adfb`, then `4042fd0` with the review's fixes** (Chunk 05): `/api/health` reports
+`commons`, `artic` and `wikidata` loaded, with no faults. The startup journal was
+not read, because the container's logs need root on the NAS.
+
+- **Look at:** System › Status has an *Image sources* panel with one sentence per
+  plugin: "commons is loaded, with no faults since startup.", and the same for
+  artic and wikidata. The System badge shows no count for them.
+- **Worth an opinion:** whether a declined plugin belongs on this panel at all,
+  or only failed and faulting ones. It is shown so that "why is the Art Institute
+  missing" is answered where the operator looks.
+
 ### ✅ No mat darker than L\* 15 — added 2026-10-03, VERIFIED 2026-10-03
 
 **`build-plan-mat-floor.md` Chunk 03.** Visual change: yes.

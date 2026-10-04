@@ -15,7 +15,7 @@ day a sixth tool or a new action arrives with nothing exercising it.
 from dataclasses import replace
 
 import pytest
-from fakes import a_museum_holding, a_work, a_work_list
+from fakes import a_museum_holding, a_roster, a_work, a_work_list
 from scenarios import ACCEPTANCE_ROUTE, DISCOVERY_ROUTE, REFERENCE_ROUTE, REVIEW_ROUTE, Call, Transcript, connect
 
 from arrt.library.discovery.engine import WorkList
@@ -381,7 +381,7 @@ class TestReviewingWhatDiscoveryFound:
             artwork_box=settings.tv_artwork_box,
             engine=engine,
             discovery_settings=settings.discovery_settings,
-            image_sources=[museum],
+            sources=a_roster(museum),
             previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
         )
 

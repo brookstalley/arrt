@@ -110,6 +110,28 @@ class FoundImage:
     rights_status: RightsStatus | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class FoundPage:
+    """A page about the work that a finder found and does not read itself.
+
+    Not an image: nothing here says the page shows one, how large, or under what
+    title, so phase 2 has nothing to judge, and a page is never an instance. Arrt
+    offers it to the installed plugins' readers instead, and records one that
+    none of them claims as a sighting, evidence of a holder no plugin here reads
+    yet (`source-plugins.md` § Sightings). A finder that knows a page only by its
+    address, as the Wikidata finder knows MoMA's from an identifier, answers with
+    this rather than a `FoundImage` with nothing in it.
+    """
+
+    url: str
+
+    def __post_init__(self) -> None:
+        # Only an address a reader could be given. The registry checks its own,
+        # and this is the check a finder outside this repository gets.
+        if not isinstance(self.url, str) or not self.url.startswith(("https://", "http://")):
+            raise ValueError(f"A found page is an http(s) URL, not {self.url!r}.")
+
+
 class ImageSearchFailure(Exception):
     """A provider could not be asked, or could not be understood.
 
@@ -133,7 +155,7 @@ class ImageQueryUnanswerable(Exception):
 
 
 @runtime_checkable
-class ImageSearch(Protocol):
+class Finder(Protocol):
     """Phase 2's providers, as everything above them sees them.
 
     **No `unavailable_reason` here, deliberately — the asymmetry with phase 1's
@@ -144,6 +166,14 @@ class ImageSearch(Protocol):
     `resolving_images`, and the wording a caller reads comes from whether the
     wiring is there. A refusing stand-in here would be a second way to express
     the same absence, and the two would eventually disagree.
+
+    **A finder that offers only pages says so**, with a class attribute
+    `offers_images = False` (a `bool`; a finder without one offers images). Its
+    answer says nothing about whether any image of the work exists, so the pool
+    never counts it as a source that answered: a work only it answered for waits,
+    as when no source can be asked, instead of being recorded as held by nobody.
+    An attribute rather than a member of this protocol, so a finder written
+    before it needs no change.
     """
 
     @property
@@ -156,8 +186,8 @@ class ImageSearch(Protocol):
         copy nobody would think to check.
         """
 
-    def find_images(self, query: ImageQuery) -> Sequence[FoundImage]:
-        """Every instance this provider holds for the work, unjudged and unranked.
+    def find_images(self, query: ImageQuery) -> Sequence[FoundImage | FoundPage]:
+        """Every instance this provider holds for the work, unjudged and unranked, and any page it found and cannot read.
 
         Raises `ImageSearchFailure` when the provider could not be asked, and
         `ImageQueryUnanswerable` when it cannot look a work like this one up.
@@ -184,15 +214,7 @@ class ImageSearch(Protocol):
         not arrive, and no curator could act on the distinction.
         """
 
-    def tile_url(self, url: str) -> str:
-        """Where the tiles of the object `url` names are actually served.
 
-        On this seam because the provider is the only thing that can answer it:
-        the URL a source records identifies the object, and for a provider serving
-        tiles the image service lives somewhere the object's own address does not
-        say. A provider whose recorded URLs the tile fetcher can already read
-        returns its argument.
-
-        Raises `ImageSearchFailure` when the provider could not be asked, or
-        answered without an image.
-        """
+def offers_images(finder: Finder) -> bool:
+    """Whether a finder's answer can hold an image, and so whether its answering says anything about one."""
+    return getattr(finder, "offers_images", True) is not False

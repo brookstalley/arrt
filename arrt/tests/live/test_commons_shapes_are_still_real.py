@@ -14,10 +14,10 @@ size that is not the size that arrives.
 import httpx
 import pytest
 
-from arrt.library.discovery.commons import DOWNLOAD_WIDTH, CommonsImageSearch
 from arrt.library.discovery.images import ImageQuery
 from arrt.library.registry import ItemId
 from arrt.library.registry.wikidata import WikidataRegistry
+from arrt.library.sources.commons import DOWNLOAD_WIDTH, CommonsFinder
 
 pytestmark = pytest.mark.live_museum
 
@@ -31,7 +31,7 @@ STARRY_NIGHT = ItemId("Q45585")
 @pytest.fixture(scope="module")
 def source():
     registry = WikidataRegistry(user_agent=USER_AGENT)
-    yield CommonsImageSearch(registry=registry, user_agent=USER_AGENT)
+    yield CommonsFinder(registry=registry, user_agent=USER_AGENT)
     registry.close()
 
 

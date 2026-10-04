@@ -2480,6 +2480,14 @@ design_decisions:
       list_tools returned.
     revisit_trigger: "RESOLVED — the MCP tool surface was designed 2026-07-19 and the envelope decided with it."
     date: 2026-07-19
+  # The source plugin interface (`arrt.library.sources`), a third programmatic
+  # surface: Python code from outside this repository, loaded in-process.
+  source_plugin_api:
+    versioning: "API_VERSION (major, minor), from (1, 0). A plugin declares the major it was written for; a different major is refused by name at startup and the plugin is left out. A minor adds optional capabilities only. `arrt.library.sources` is the only import path; anything else in `arrt` may change in any release."
+    error_model: "Three answers: an empty result (holds nothing), ImageSearchFailure (could not be asked, including a page that is not the page expected), ImageQueryUnanswerable (cannot answer this kind of work). Anything else a plugin raises is a fault: contained to the call by the loader, recorded as could not be asked, logged at error as source.plugin_fault, and counted on the health panel. A plugin that cannot load is left out and named; Arrt starts without it."
+    status: active
+    rationale: "The owner ruled 2026-10-03 that sources are plugins, loaded as Python packages. A versioned interface is what lets a plugin outside this repository break loudly rather than inside a run. Faults are contained because one bad package must not stop every run. Contract: .prawduct/artifacts/source-plugins.md."
+    date: 2026-10-03
   observability_approach: >
     The defining constraint is that failure is silent by construction — the only
     feedback channel is a picture on a wall, and a stalled loader is

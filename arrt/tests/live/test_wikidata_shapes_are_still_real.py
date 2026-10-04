@@ -104,3 +104,12 @@ def test_similar_artists_come_back_with_image_counts(registry):
 def test_an_item_that_exists_is_named_and_one_that_does_not_is_none(registry):
     assert registry.label_of("Q160149") == "Mark Rothko"
     assert registry.label_of("Q999999999999") is None
+
+
+def test_a_works_item_gives_its_holders_page(registry):
+    """*Drowning Girl*'s MoMA ID (P2014), put into its property's formatter URL: the recorded fixture's page, still real.
+
+    The Wikidata finder offers only what `pages_about` builds, so if this drifts
+    the sightings count loses its museum-page holders without any test noticing.
+    """
+    assert "https://www.moma.org/collection/works/80249" in registry.pages_about("Q5308687")

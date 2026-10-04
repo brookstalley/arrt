@@ -188,6 +188,9 @@ to serve, elicited from the Product Brief's core flows:
 | Q40 | Is this request from a client allowed this wall? Asked by every per-wall Player route. | Owner 2026-10-02 (clients) |
 | Q41 | What outputs did this client last report, and when? Asked by the curator choosing an output for a wall. | Owner 2026-10-02 (clients) |
 | Q42 | Was this television canvas drawn with the mat, panel and drawing rule this deployment composes with now? Asked by preparation before it calls a canvas current, and at startup to queue the ones that are not. | Owner 2026-10-02 (#189, #74) |
+| Q43 | Which hosts have pages for works still open (wanted, or unresolved with no verdict) that no installed source plugin reads, and for how many works each? Asked by `GET /api/sightings/hosts` and `art_review(action='sighting_hosts')`, to choose the next reader. | Agent 2026-10-03, in the owner's sources-are-plugins plan (`source-plugins.md` § Sightings) |
+| Q44 | When a source plugin is installed, which works' pages can it read now? Not asked yet: the upgrade loop will. | Agent 2026-10-03 (same) |
+| Q45 | Where else has this work been seen? Not asked yet: a work's page will. | Agent 2026-10-03 (same) |
 
 **Q22 to Q24 are answered by one column, `DiscoveryRun.destination_theme_id`**
 (`build-plan-topics-and-destinations.md` Chunk 01). A work reaches its run
@@ -381,7 +384,7 @@ re-parsing a blob, and so two works by the same artist agree.
 > than a person. Both are nullable and the two ways of being null are the same
 > fact downstream — the label falls back to `name`, unstyled. Supplied for the
 > seeded corpus by a written table (`arrt/src/arrt/seed/names.py`), never by a
-> heuristic; `library/discovery/artic.py` documents its own surname guess as unreliable.
+> heuristic; `library/sources/artic.py` documents its own surname guess as unreliable.
 > Nothing derives one part from the other, and nothing derives `name` from them.
 >
 > **`display_nationality` is the same decision one field over, added 2026-08-13.**
@@ -1924,6 +1927,29 @@ Which `CandidateWork`s a `kind='resolve'` run covers. A join, nothing more.
 > refused if any requested work already appears in a `ResolveRunWork` row whose run
 > is still `resolving_images`.
 
+### Sighting
+
+A page about a work that no installed source plugin reads: a holder seen, not yet
+reachable (`source-plugins.md` § Sightings). Written when a search finds a page
+(`FoundPage`) and no installed plugin claims it.
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `wikidata_qid` | string | required | The work's Wikidata item. |
+| `url` | string | required | The page. **Never sent to the browser**: it came from a registry anyone can edit (`security-model.md` § Direction). |
+| | | PK (`wikidata_qid`, `url`) | A page found again is the same sighting. |
+
+> **Two columns, because Q43 to Q45 need no more.** Q43 counts hosts, read from the
+> URL, over the works still open, read from `CandidateWork` and `Artwork` by item.
+> Q44 gives each URL to the installed plugins' claims, and Q45 is a read by item.
+> A host column would be a second copy of part of the URL. *Mine, 2026-10-03.*
+>
+> **Keyed by the item, not by a CandidateWork**, because a work is one item across
+> every run that proposed it, and the only finder that offers pages answers only by
+> item. A page found for a work with no item is not stored. Rows are never
+> deleted: a page seen stays seen, and a plugin installed later is what Q44 asks
+> about.
+
 ### TvBinding *(display plane only)*
 
 Everything about one specific television. **Not part of the catalogue** — this is
@@ -2044,6 +2070,8 @@ the catalogue.
   records which run is **re-searching** it. Overloading provenance to mean coverage
   would destroy the provenance, and `parent_run_id` cannot serve either, because a
   resolve run covers a *subset* of the parent's works.
+- A work's **Sightings** are matched to it by Wikidata item, not by a foreign key:
+  to every **CandidateWork** and **Artwork** carrying that `wikidata_qid`.
 - A **DiscoveryRun** accrues many **SpendRecords** (one-to-many).
 - A **Conversation** has many **ConversationTurns** (one-to-many, ordered by
   `ordinal`). A turn accrues **SpendRecords** exactly as a run does, and on its own

@@ -113,7 +113,7 @@ from a mapping that drops the maker.
 
 ## The consumer this product got wrong
 
-**`arrt/src/arrt/library/discovery/artic.py` reads `artist_title` and never
+**`arrt/src/arrt/library/sources/artic.py` reads `artist_title` and never
 `artist_display`.** For every object in the count above, the product records no
 maker and the culture is discarded entirely — it does not even survive as a
 nationality. The museum said the maker is `Japan`; the catalogue says the maker is

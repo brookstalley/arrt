@@ -11,14 +11,14 @@ from urllib.parse import quote
 
 import httpx
 import pytest
-from fakes import FakeImageSearch, FakeRegistry, an_image
+from fakes import FakeFinder, FakeRegistry, an_image
 
-from arrt.library.discovery.commons import DOWNLOAD_WIDTH, PREVIEW_WIDTH, CommonsImageSearch
 from arrt.library.discovery.images import ImageQuery, ImageQueryUnanswerable, ImageSearchFailure
 from arrt.library.discovery.phase_two import PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.registry import CommonsFile, ItemId, RegistryCreator, RegistryText, RegistryWork
 from arrt.library.services.display_fit import ArtworkBox
+from arrt.library.sources.commons import DOWNLOAD_WIDTH, PREVIEW_WIDTH, CommonsFinder
 from arrt.persistence.records import AcquisitionMethod, RightsStatus
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "commons"
@@ -58,13 +58,13 @@ def a_work(qid: str, file: str | None, *, title: str = "The Starry Night", creat
     )
 
 
-def a_source(registry: FakeRegistry, handler=recorded, *, asked: list | None = None) -> CommonsImageSearch:
+def a_source(registry: FakeRegistry, handler=recorded, *, asked: list | None = None) -> CommonsFinder:
     def recording(request: httpx.Request) -> httpx.Response:
         if asked is not None:
             asked.append(request)
         return handler(request)
 
-    return CommonsImageSearch(
+    return CommonsFinder(
         registry=registry,
         user_agent="arrt-tests/0",
         client=httpx.Client(transport=httpx.MockTransport(recording), follow_redirects=False),
@@ -165,7 +165,7 @@ def test_a_registry_that_cannot_be_asked_raises_rather_than_answering_empty():
 
 
 def test_a_preview_is_read_against_its_ceiling():
-    source = CommonsImageSearch(
+    source = CommonsFinder(
         registry=FakeRegistry(),
         user_agent="arrt-tests/0",
         preview_max_bytes=10,
@@ -181,7 +181,7 @@ def test_a_preview_at_the_ceiling_arrives_whole_from_several_chunks():
     def chunked(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, stream=_Chunks(body))
 
-    source = CommonsImageSearch(
+    source = CommonsFinder(
         registry=FakeRegistry(),
         user_agent="arrt-tests/0",
         preview_max_bytes=10,
@@ -254,7 +254,7 @@ BOX = ArtworkBox(width=3316, height=1597, pixels_per_inch=104.9, floor_inches=12
 def test_phase_two_picks_the_better_image_whichever_source_found_it(museum_size, winner):
     """Asked for one item, both sources answer, and resolution decides; neither source is preferred outright."""
     commons = a_source(FakeRegistry(works={"Q45585": a_work("Q45585", STARRY)}))
-    museum = FakeImageSearch(
+    museum = FakeFinder(
         holdings={
             "The Starry Night": (
                 an_image("The Starry Night", artist="Vincent van Gogh", width=museum_size[0], height=museum_size[1]),

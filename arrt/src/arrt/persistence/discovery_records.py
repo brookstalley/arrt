@@ -575,6 +575,21 @@ class ResolveRunWork:
     candidate_work_id: str
 
 
+@dataclass(frozen=True, slots=True)
+class Sighting:
+    """A page about a work that no installed plugin reads: a holder seen, and not yet reachable.
+
+    Keyed by the work's Wikidata item, the only key the finder that offers pages
+    has, and never by the page: two items can name one page, and one item many.
+    It stores what its three questions read (`source-plugins.md` § Sightings) and
+    nothing else: the host, for which reader to build next, comes from the URL,
+    and so does whether a reader installed since now claims it.
+    """
+
+    wikidata_qid: str
+    url: str
+
+
 class TurnRole(StrEnum):
     """Who spoke a turn — the product's own two words, not the provider's.
 

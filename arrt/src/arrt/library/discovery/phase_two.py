@@ -55,7 +55,7 @@ from dataclasses import dataclass
 from typing import Final
 
 from arrt.library.discovery.dedup import artist_key, title_key
-from arrt.library.discovery.images import FoundImage, ImageQuery, ImageSearchFailure
+from arrt.library.discovery.images import FoundImage, FoundPage, ImageQuery, ImageSearchFailure
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.services.display_fit import ArtworkBox, DisplayFit, FitAssessment, assess_display_fit
 from arrt.persistence.discovery_records import UnresolvedReason
@@ -154,6 +154,10 @@ class Resolution:
 
     instances: Sequence[JudgedImage]
     refusals: frozenset[UnresolvedReason]
+    #: Pages the sources found and do not read, passed on unjudged: there is
+    #: nothing in one to judge (`FoundPage`), and what becomes of it is decided
+    #: where the work's item is known.
+    pages: tuple[FoundPage, ...] = ()
 
 
 class PhaseTwoEngine:
@@ -217,7 +221,7 @@ class PhaseTwoEngine:
                 "unreachable": list(answer.unreachable),
             },
         )
-        return Resolution(instances=judged, refusals=frozenset(refusals))
+        return Resolution(instances=judged, refusals=frozenset(refusals), pages=answer.pages)
 
     def fetch_preview(self, provider: str, url: str) -> bytes | None:
         """The preview bytes for an instance, or `None` when they could not be got."""

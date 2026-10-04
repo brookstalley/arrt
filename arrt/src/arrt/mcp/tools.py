@@ -782,6 +782,18 @@ ART_REVIEW: Final = ToolRecord(
             ),
         ),
         Action(
+            name="sighting_hosts",
+            description="Count, by host, the open works with a page there that no installed source plugin reads.",
+            example="art_review(action='sighting_hosts')",
+            tips=(
+                "Open works are wanted, or unresolved with no verdict. Held works, and pages a plugin now reads, "
+                "are left out.",
+                "The pages come from a work's Wikidata item, so a work with no item has none. Hosts are names "
+                "only: no page's address is returned.",
+                "Not every host holds the work: encyclopedias and search links are counted too.",
+            ),
+        ),
+        Action(
             name="wikidata_matches",
             description="List Wikidata's items matching a work's title, the proposed artist's first, to pick from.",
             example="art_review(action='wikidata_matches', work_id='<a work_id from action=list_wanted>')",

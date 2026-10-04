@@ -731,6 +731,11 @@ def _list_wanted(services: Services, arguments: Mapping[str, Any]) -> dict[str, 
     return ok(works=works, count=len(works))
 
 
+def _sighting_hosts(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    hosts = [{"host": entry.host, "works": entry.works} for entry in services.sightings.hosts()]
+    return ok(hosts=hosts, count=len(hosts))
+
+
 def _wikidata_matches(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     found = services.wikidata_match.matches(arguments["work_id"])
     return ok(
@@ -1079,6 +1084,7 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_review", "reject_image"): _reject_image,
     ("art_review", "want"): _want,
     ("art_review", "list_wanted"): _list_wanted,
+    ("art_review", "sighting_hosts"): _sighting_hosts,
     ("art_catalogue", "list"): _list_artworks,
     ("art_catalogue", "get"): _get_artwork,
     ("art_catalogue", "sources"): _list_sources,

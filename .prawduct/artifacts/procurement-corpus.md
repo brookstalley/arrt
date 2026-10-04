@@ -158,7 +158,7 @@ Each is derived from one of these rules, so a wrong prediction says which rule
 was wrong:
 
 - **R1, Commons.** The pool asks Commons only for the image the item itself names
-  (P18), never by title (`library/discovery/commons.py`). I predict an item has
+  (P18), never by title (`library/sources/commons.py`). I predict an item has
   that image when the work is free in the US *and* in its home country, which
   Commons generally requires. The exception: works free at home and restored in
   the US (eu-open) usually stay on Commons too. For 3D works and for items created
@@ -386,6 +386,10 @@ the source is paywalled).
 4. **The gaps below are mine to rule on.** The owner asked; the rulings are mine
    (the agent's), each marked, and each the owner's to overturn.
 5. **The held-out rule is enforced by a test** (§ Part B).
+6. **Sources are plugins, and the owner's own are in a private repo** (ruled later
+   the same day). This changes what step 3 builds: a source in § Sources becomes
+   a plugin, not a module of Arrt. The ruling and what it leaves open are in
+   `re-architecture.md` § Sources are plugins.
 
 ## Gaps the corpus exposes
 
@@ -580,3 +584,65 @@ zero are exactly the ones that need another kind of source.
   hold.
 - **The owner's review queue holds the 11 finds.** Reject row 33's photograph; it
   is not *Whaam!*.
+
+### Run 2 — the open works again, through the plugins (2026-10-03)
+
+Run `0bc16928`, on the NAS, on image `e51adfb`: the first image with sources as
+plugins and the Wikidata finder (`build-plan-source-plugins.md` Chunk 05).
+
+**It is a re-search of run 1's 39 unresolved works, not a second Get of all 50.**
+*Mine.* A Get would have made 50 new works, putting a second copy of the 11 finds
+into To review. The count this run exists for, sightings by host, covers only
+open works, and none of the 11 is open. A re-search writes no new work. The 11
+finds were checked another way: a live test asks their questions again through
+the loaded plugins and gets the same source at the same size
+(`tests/live/test_corpus_finds_through_the_plugins.py`, passing 2026-10-03).
+
+- Finished in 14 seconds; spent $0.
+- **No outcome changed.** 34 are held by no source, 3 are refused on identity,
+  and 2 are below the floor, as in run 1. That is expected: the plugins are the
+  same two sources, and the Wikidata finder offers pages, never images.
+- **82 sightings, on 38 of the 39 works.** Each one is a page the work's item
+  records and no installed plugin reads.
+
+**Sightings by host, holders first.** Hosts with one work each are left out
+(`GET /api/sightings/hosts` lists them all):
+
+| Host | Open works | Rows | Is |
+|---|---|---|---|
+| www.moma.org | 9 | 13, 22, 25, 28, 34, 36, 40, 42, 43 | holder |
+| www.metmuseum.org | 4 | 8, 18, 32, 39 | holder |
+| www.navigart.fr | 3 | 6, 7, 14 | holder platform: one path per collection (`/fnac`, `/mamparis`, `/grenoble`) |
+| www.sfmoma.org | 3 | 46, 48, 49 | holder |
+| www.salvador-dali.org | 2 | 21, 22 | foundation |
+| www.google.com | 16 | | noise: a search link (Freebase, P646) |
+| web.archive.org | 3 | 4, 21, 22 | noise: the Athenaeum's formatter, archived |
+| babelnet.org, d-nb.info, historia-arte.com, britannica.com, wikiart.org | 2 each | | noise: references and reproductions |
+
+Holders with a page for one open work each: the Pompidou (row 4, on two hosts),
+Whitney (20), Tate (45), the NGA (44), the Smithsonian (26, on three hosts), the
+Reina Sofía (21), the Staatsgalerie (10), the Pinakothek (37), the Saint Louis Art
+Museum (47), Christie's (30) and Sotheby's (53), and the Lichtenstein catalogue
+raisonné (34). Rows 6 and 7 also have their holders' own sites beside
+navigart.fr: Lille's catalogue for row 6, and the Musée d'Art Moderne's two sites
+for row 7.
+
+**Against the museum-page prediction** (MoMA 8, the Pompidou 3, SFMOMA 3, counted
+over all 30 museum-page rows):
+
+- **MoMA: 9, which is 7 of the predicted 8 plus 2.** Row 31 is not open, because
+  Commons found it (a photograph on MoMA's wall). Rows 13 and 28 are MoMA's too,
+  though they were predicted to come from the pool and from a foundation.
+- **SFMOMA: 3, as predicted.**
+- **The Pompidou: 1.** Of the other two, row 5 has no item and row 12 was found
+  on Commons.
+- **The Met: 4, which the prediction did not count as one holder.**
+- **navigart.fr reaches three collections from one host.** A reader for it would
+  read the state's collection, the Musée d'Art Moderne de Paris and Grenoble at
+  once, as Artlogic would for galleries. This is new.
+
+**What this says about the next reader** (step 3's first measurement; the owner's
+call). MoMA leads with 9 of the 39 open works. Then come the Met and navigart.fr,
+navigart being one build for three holders. None of them has been probed for
+image size yet, and museum-page images were predicted to be small. That probe, by
+hand and per site, comes before any build.

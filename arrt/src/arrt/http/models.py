@@ -892,6 +892,22 @@ class WallHeartbeatOut(BaseModel):
     heartbeat: HeartbeatOut
 
 
+class SourcePluginOut(BaseModel):
+    """One installed source plugin: loaded, declined, or not loaded, and its faults since startup."""
+
+    name: str
+    #: `loaded`, `declined` (installed and not configured here) or `failed`
+    #: (installed and could not be loaded). Carried as itself, never as a flag.
+    state: str
+    #: Why it declined or failed; null when it loaded.
+    reason: str | None
+    faults: int
+    last_fault_at: str | None
+    last_fault_age_seconds: float | None
+    last_fault: str | None
+    description: str
+
+
 class HealthOut(BaseModel):
     """Observations about the walls, the backup, and this deployment's geometry.
 
@@ -916,6 +932,9 @@ class HealthOut(BaseModel):
     description: str
     backup: BackupOut
     artwork_box: ArtworkBoxOut
+    #: Every installed source plugin, most preferred first. Empty when none is
+    #: installed, which the panel says in words.
+    sources: list[SourcePluginOut]
 
 
 class RunOut(BaseModel):
@@ -1390,6 +1409,24 @@ class WantedListingOut(BaseModel):
     """
 
     works: list[WantedWorkOut]
+
+
+class SightingHostOut(BaseModel):
+    """A host with pages for open works that no installed source plugin reads.
+
+    A name, never an address: a sighting's URL came from a registry anyone can
+    edit, and none reaches the browser (`security-model.md` § Direction).
+    """
+
+    host: str
+    #: How many open works it has such a page for.
+    works: int
+
+
+class SightingHostsOut(BaseModel):
+    """Every such host, most works first. Named as `art_review(action='sighting_hosts')` names the same facts."""
+
+    hosts: list[SightingHostOut]
 
 
 class SelectImage(BaseModel):

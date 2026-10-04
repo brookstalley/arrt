@@ -482,11 +482,13 @@ class TestHealth:
         """
         named = _every_key(http.get("/api/health").json())
         assert not [key for key in named if any(word in key for word in ("limit", "credit", "balance", "budget"))]
-        # And the panel is three observations, not four. The check above would
+        # And the panel is these observations and no others. The check above would
         # pass for a balance carried under a name that dodges those four words.
-        # `description` is the walls' own summary rather than a fourth signal —
-        # it states nothing the readings beside it do not.
-        assert set(http.get("/api/health").json()) == {"walls", "description", "backup", "artwork_box"}
+        # `description` is the walls' own summary rather than another signal —
+        # it states nothing the readings beside it do not. `sources` is the
+        # installed source plugins, added with them; its own keys are covered by
+        # the word check above.
+        assert set(http.get("/api/health").json()) == {"walls", "description", "backup", "artwork_box", "sources"}
 
     def test_the_panel_shows_the_geometry_every_size_in_the_grid_is_judged_against(self, http):
         box = http.get("/api/health").json()["artwork_box"]

@@ -24,7 +24,8 @@ QID: Final[re.Pattern[str]] = re.compile(r"^Q[1-9][0-9]*$")
 
 # What each string a registry hands over is, so that none is a plain `str`
 # (`security-model.md` § Direction, held by `tests/unit/test_registry_strings.py`).
-# A new field has to pick one, and only a Commons file may become a URL.
+# A new field has to pick one. Only a Commons file may become a URL in the
+# curator's browser; a work page is a URL the server keeps and never sends there.
 
 #: An item id, matching `QID`.
 ItemId = NewType("ItemId", str)
@@ -41,6 +42,14 @@ MuseumIdentifier = NewType("MuseumIdentifier", str)
 #: and nothing else. It becomes an `img` source in the curator's browser, so the
 #: client drops anything else the registry offers as an image.
 CommonsFile = NewType("CommonsFile", str)
+
+#: A page about a work: an identifier put into its property's formatter URL, or a
+#: "described at URL" statement. Checked only as an `http(s)` URL with a host,
+#: because anyone can edit either, so it is **never sent to the browser**, as a
+#: link or as anything else. The server keeps it as a sighting, and reads it only
+#: through a plugin's reader and Arrt's own guarded fetch (`source-plugins.md`
+#: § The Wikidata finder).
+WorkPage = NewType("WorkPage", str)
 
 
 @dataclass(frozen=True, slots=True)
@@ -314,4 +323,13 @@ class Registry(Protocol):
 
     def topics_of(self, work_qids: Sequence[str], artist_qids: Sequence[str]) -> RegistryTopicsOf:
         """Each work's century, subjects and kind of work, and each artist's movements."""
+        ...
+
+    def pages_about(self, qid: str) -> Sequence[WorkPage]:
+        """Every page the registry records about this work, each once, in URL order; none for an item it does not have.
+
+        Holders' pages and anybody else's alike: a museum's, a catalogue
+        raisonné's, an encyclopedia's. Which of them anything can read is a
+        reader's question, not the registry's.
+        """
         ...

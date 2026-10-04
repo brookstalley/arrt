@@ -28,6 +28,7 @@ from arrt.persistence.discovery_records import (
     ResolveRunWork,
     RunKind,
     RunStatus,
+    Sighting,
     SpendRecord,
 )
 from arrt.persistence.records import VocabularyKind
@@ -267,5 +268,19 @@ class DiscoveryStore(Protocol):
 
         The read behind the double-spend guard: a work is refused to a new
         resolve run while any run covering it is still live.
+        """
+        ...
+
+    # -- sightings --------------------------------------------------------------
+
+    def add_sighting(self, sighting: Sighting) -> bool:
+        """Record a sighting once. True when it was new; False, and nothing written, when it was already there."""
+        ...
+
+    def list_open_sightings(self) -> Sequence[Sighting]:
+        """Every sighting of a work still open: wanted, or unresolved with no verdict yet.
+
+        Whether the catalogue holds the work is not this store's to say; the
+        caller asks the catalogue.
         """
         ...

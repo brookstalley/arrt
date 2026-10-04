@@ -454,8 +454,8 @@ is no network between planes.
         │  ├─ DiscoveryEngine (Protocol)      │          phase 1 — discovery's paid seam, reachable
         │  │    UnavailableEngine ships       │          by no other service. NOT the only paid edge
         │  │                                  │          any more: MatEngine is the second, below
-        │  ├─ ImageSourcePool                 │          phase 2 — every ImageSearch (Protocol)
-        │  │    Commons, ArticImageSearch     │          asked at once; free, behind a seam
+        │  ├─ ImageSourcePool                 │          phase 2 — every Finder (Protocol) a
+        │  │    commons, artic (plugins)      │          plugin offers, asked at once; free
         │  ├─ CollectionBrowse (Protocol)     │          what the collection HOLDS by an artist, as
         │  │                                  │          opposed to what it can find: the offer
         │  │                                  │          supplementing works phase 2 could not confirm
@@ -480,10 +480,10 @@ is no network between planes.
         │       │   AcquisitionService        │          fetches the master a work was accepted for.
         │       │    ├─ StreamOpener (seam)   │          the only service that runs a subprocess; all
         │       │    ├─ Resolver   (seam)     │          three edges are injected, so the policy above
-        │       │    └─ TileTarget  (seam)    │          them runs offline. TileTarget is the odd one:
+        │       │    └─ Route       (seam)    │          them runs offline. Route is the odd one:
         │       │              │              │          it reaches a MUSEUM, not a network primitive,
-        │       │              │              │          because only the provider knows where an
-        │       │              │              │          object's tiles are actually served
+        │       │              │              │          because only the plugin that claims a URL
+        │       │              │              │          knows where its image is actually served
         │       │   PreparationService        │          turns a held original into a mat and a 4K
         │       │    └─ MatEngine  (seam)     │          canvas. Its seam is the SECOND paid edge —
         │       │              │              │          a vision model, keyless deployments fall
@@ -497,15 +497,17 @@ is no network between planes.
 
   **`AcquisitionService` is the one service that leaves the machine to do its
   job**, and its three foreign edges are injected rather than reached for: an HTTP
-  stream opener, a name resolver, and — added 2026-08-04 — a per-provider tile-target
-  resolver, which is the one that reaches a *museum* rather than a network
-  primitive. It exists because the URL a `Source` records identifies the object
-  and is not always where the pixels are served; only the provider can close that
-  gap, and storing its answer would put a derived URL in a durable row. It is a
-  required constructor argument with no default, because an empty map is
-  indistinguishable from correct wiring until a museum source fails. That is the same
+  stream opener, a name resolver, and a route from a source's URL to the reader
+  of the plugin that claims it (`SourceRoster.route`, since 2026-10-03; a
+  per-provider tile-target resolver before that), which is the one that reaches a
+  *museum* rather than a network primitive. It exists because the URL a `Source`
+  records identifies the object and is not always where the pixels are served;
+  only the plugin can close that gap, and storing its answer would put a derived
+  URL in a durable row. It is a required constructor argument with no default,
+  because a route that claimed nothing is indistinguishable from correct wiring
+  until a museum source fails. That is the same
   arrangement `DiscoveryEngine`
-  and `ImageSearch` have one row up, for the same reason — the rules worth testing
+  and `Finder` have one row up, for the same reason — the rules worth testing
   exhaustively (which source is used, what a refusal is recorded as, whether a
   host may be fetched at all) then run with no network. The subprocess is not
   behind a Protocol: there is one binary, its contract is captured in
@@ -587,7 +589,7 @@ is no network between planes.
 
   **Phase 2 asks a pool of sources, since 2026-10-02** (`build-plan-get-and-ask.md`,
   the owner's ruling: no source special-cased, searched in parallel, open to
-  more). `library/discovery/pool.py` holds every wired `ImageSearch` in an order
+  more). `library/discovery/pool.py` holds every loaded plugin's `Finder` in an order
   of preference, asks each about a work at once, and keeps three answers apart:
   instances found, nothing held, and could not be asked. **The rule a source
   author most needs:** return an empty list only when the source looked and
@@ -598,12 +600,18 @@ is no network between planes.
   for a work with no Wikidata item). Phase 2 settles a work only on an instance
   that clears the floor while any source was down, and no source answering is no
   answer, so the work waits. The order breaks level ties, in phase 2 and in the
-  stored selection (`selection.py`, handed the pool's `precedence`). Previews and
-  tiles go back to the source an instance was recorded under. Wired today:
-  Commons (with `WIKIDATA_USER_AGENT`) first, the Art Institute (with
-  `ARTIC_USER_AGENT`) second.
+  stored selection (`selection.py`, handed the pool's `precedence`). Previews go
+  back to the source an instance was recorded under; a source's URL goes to the
+  reader of the plugin that claims it. **Since 2026-10-03 every source is a
+  plugin** (`source-plugins.md`), loaded through `arrt.sources` entry points, the
+  three built-ins included, and nothing in the wiring names one. `SOURCE_ORDER`
+  sets the order; its default is Commons (with `WIKIDATA_USER_AGENT`) first and
+  the Art Institute (with `ARTIC_USER_AGENT`) second, and a plugin it does not
+  name follows by name. The third built-in, `wikidata`, finds no image: it offers
+  the pages a work's item records, and a page no installed plugin claims is kept
+  as a sighting (`library/services/sightings.py`).
 
-  **`ImageSearch` is phase 2's seam, added 2026-08-02, and it is a seam despite
+  **`Finder` (named `ImageSearch` until 2026-10-03) is phase 2's seam, added 2026-08-02, and it is a seam despite
   costing nothing.** Museum APIs are open and unmetered, so the money argument
   that placed `DiscoveryEngine` does not apply — the reason here is the other
   one: everything above the seam (driving a run, ranking instances, caching
@@ -614,26 +622,23 @@ is no network between planes.
   test that guards the paid seam covers this one, as an allowlist over the whole
   package rather than a list of named files.
 
-  **It grew a fetch-path member on 2026-08-04, and that is a real widening worth
-  naming.** `tile_url` answers "where are this object's tiles actually served",
-  which acquisition asks and phase 2 never does — so the protocol now spans two
-  callers with different concerns. It went here anyway because the alternative is
-  worse: a second protocol over the same museum client, implemented by the same
-  class, wired from the same configuration, would be two names for one seam. The
-  cost is narrower than this entry first claimed, and the correction is worth
-  keeping because it changes what the coupling actually costs: **`AcquisitionService`
-  does not depend on the protocol at all.** It imports one *exception*
-  (`ImageSearchFailure`) and is handed `tile_url` by the container as a plain
-  callable keyed by provider. So the dependency is on a discovery-package error
-  vocabulary, not on a discovery-package interface, and the seam is looser than
-  "two callers share a protocol" suggests.
+  **It grew a fetch-path member on 2026-08-04, and lost it on 2026-10-03.**
+  `tile_url` answered "where are this object's tiles actually served", which
+  acquisition asks and phase 2 never does. It went on the search protocol while
+  one class served both, on the argument that a second protocol over the same
+  client would be two names for one seam. Plugins changed the premise: finding
+  depends on the holder and reading on the protocol, so they are now separate
+  parts of a plugin (`Finder` and `Reader`), and acquisition routes a source's
+  URL by the plugin that *claims* it rather than by the provider that recorded
+  it (`source-plugins.md` § Three layers). `AcquisitionService` still depends on
+  no discovery interface: it is handed a route as a plain callable.
 
   **The third concern arrived on 2026-08-04, and it was split rather than
   added.** Browsing a collection by artist is a different question from searching
   it for a work: a search is given a work and must judge whether what came back
   is it, while a browse is given a facet and everything matching is by
   construction a work the collection holds. `CollectionBrowse` is therefore its
-  own protocol beside `ImageSearch`, not a member on it. The rule this follows is
+  own protocol beside `Finder`, not a member on it. The rule this follows is
   the one stated above — split when a third concern arrives — and the test that
   decided it is whether a caller would ever want one without the other: a
   deployment can sensibly resolve images without offering adjacent works, and the

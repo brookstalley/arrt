@@ -69,6 +69,7 @@ from arrt.library.discovery.pool import NoSourceCanAnswer
 from arrt.library.registry import ItemId
 from arrt.library.services.discovery import ChosenWork, DiscoveryService
 from arrt.library.services.previews import PreviewCache
+from arrt.library.services.sightings import SightingService
 from arrt.logs import run_context
 from arrt.persistence.discovery_records import (
     CandidateWork,
@@ -455,9 +456,13 @@ class DiscoveryRunner:
         images: PhaseTwoEngine | None = None,
         previews: PreviewCache | None = None,
         collection: CollectionBrowse | None = None,
+        sightings: SightingService | None = None,
         spawn: Callable[[Callable[[], None]], None] = _daemon_thread,
     ) -> None:
         self._discovery = discovery
+        #: Where the pages a search found and nothing here reads are recorded.
+        #: Optional: without it they are found and dropped, as before sightings.
+        self._sightings = sightings
         self._engine = engine
         self._settings = settings
         #: The collection a run supplements from, if one is wired. Optional on its
@@ -1247,6 +1252,11 @@ class DiscoveryRunner:
                 },
             )
             return WorkOutcome.UNREACHABLE
+        if self._sightings is not None:
+            # Recorded from an attempt that answered, whatever it found. Phase 2
+            # raises for one that could not be asked, and that attempt's pages go
+            # with it; a later search of the work records them.
+            self._sightings.record(work.wikidata_qid, resolution.pages, work_title=work.proposed_title)
         for entry in resolution.instances:
             self._record_instance(work, entry, previews)
         # The refusals travel on because they cannot be recovered from the store:
