@@ -16,7 +16,7 @@ each entry, which is the durable form.
 
 Checked by the builder on 2026-10-03 against the suites, including the browser
 suite with canned readings: the panel's sentences and the System badge. **Deployed
-to the NAS on 2026-10-03 as image `e51adfb`** (Chunk 05): `/api/health` reports
+to the NAS on 2026-10-03 as image `e51adfb`, then `4042fd0` with the review's fixes** (Chunk 05): `/api/health` reports
 `commons`, `artic` and `wikidata` loaded, with no faults. The startup journal was
 not read, because the container's logs need root on the NAS.
 
