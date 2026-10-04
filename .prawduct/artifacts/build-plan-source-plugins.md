@@ -369,6 +369,18 @@ Type: doc-only.
   recorded, or a deployment fault. A shape the suite does not cover gets a test
   before the deploy.
 
+  *Done 2026-10-03, read-only.* 40 rows, two shapes, all `dezoomify`, none yet
+  fetched:
+
+  | Rows | Provider | Shape | Route, Art Institute configured | Route, unset |
+  |---|---|---|---|---|
+  | 32 | `artic` | `https://www.artic.edu/artworks/<n>/<slug>` | the `artic` reader | deployment fault naming `artic` |
+  | 8 | `google_arts_culture` | `https://artsandculture.google.com/asset/<slug>/<id>` | fetched as recorded | fetched as recorded |
+
+  Each URL was routed through the installed plugins, not the shape alone. Both
+  shapes were already in the suite (`test_acquisition_reading.py`), so no test
+  was owed. No Commons row is stored.
+
 - A `live_museum` test over the corpus's rows found in run 1 (1, 2, 3, 9, 19, 35)
   gets the same source and size through the plugins. It runs by hand with `-n0`.
 - **Carried from Chunk 03's review:** `pages_about` gets a live case in
