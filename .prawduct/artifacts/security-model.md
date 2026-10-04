@@ -573,6 +573,81 @@ chosen. No dependency pinning or provenance policy has been decided — for a
 single-principal LAN appliance that is a defensible position, but it is a position,
 not an oversight.
 
+> **Amended 2026-10-03: source plugins** (`source-plugins.md`, § Source plugins
+> below). An installed source plugin and its dependencies are the same trust
+> class as the PyPI wheels above, installed by the operator into the server's
+> venv. A private plugin adds a derived image (`deploy/README.md` § A private
+> source plugin) as a link after Arrt's own. That recipe constrains the install
+> to Arrt's locked versions, which keeps Arrt's dependencies as they were tested.
+> It does nothing for the plugin's own, and no pinning or provenance policy is
+> decided for them either. *The owner's ruling* is that plugins load in-process
+> (`re-architecture.md` § Sources are plugins). Classing them with the wheels is
+> mine.
+
+## Source plugins *(2026-10-03)*
+
+**Installing a source plugin trusts it with everything Arrt has.** A plugin is a
+Python package loaded into Arrt's process (`source-plugins.md` § Loading). Arrt
+neither vets nor sandboxes it. *The owner chose* this over a separate service,
+which would have isolated it, and accepted the trust that comes with it.
+
+**What installing one trusts, concretely:**
+
+- **Its code, and its dependencies' code, runs as Arrt**: same process, same
+  user, same container. It runs at startup, when the module is imported (before
+  its factory can decline), and on every call after.
+- **It reaches what Arrt reaches.** That is:
+  - the catalogue and the art tree, to read and to write;
+  - the whole environment, the OpenRouter key included (`SourceContext.environ`
+    is a read-only copy, and `os.environ` is there regardless);
+  - the clients' token verifiers, which are hashes in the catalogue, not the
+    tokens;
+  - the network from inside the container, the house's LAN included.
+  "A plugin writes nothing" is what the interface lets it say, not a barrier.
+- **Its own requests are unguarded.** `check_fetchable` and the redirect checks
+  (§ The fetch trigger fired) run on what Arrt fetches. A plugin's search,
+  preview and page reads are made by the plugin's own client, and nothing stops
+  one addressing the LAN.
+- **Its dependencies can replace Arrt's.** They install into the same venv.
+  Measured 2026-10-03: without a constraint, a plugin requiring `httpx<0.28`
+  downgraded Arrt's locked httpx, and the image built cleanly. The derived-image
+  recipe constrains the install to Arrt's lock, so such a plugin fails the build
+  by name.
+- **Its name.** Two installed distributions with one name load neither
+  (`library/sources/loading.py`). So a plugin cannot take over a built-in's rows
+  by taking its name, but installing one with a clashing name turns the
+  built-in off. The health panel says so.
+
+**What still holds, because Arrt keeps it rather than trusting a plugin to.**
+Against a well-behaved plugin these are the boundary, and against a malicious
+one, which has the access above, they are not:
+
+- **A plugin's text is outside text.** Titles, artists and descriptions reach the
+  page as text (§ Direction), and the model under § Prompt Injection's bounds,
+  the same as a museum's.
+- **Arrt fetches every locator a reader returns**, after bound 2 on the URL in
+  the locator (§ The fetch trigger fired). The Art Institute's reader also checks
+  that its advertised IIIF base is the museum's own host, and that check is the
+  plugin's. A third-party reader's locator gets bound 2 only: any public address.
+- **Arrt decides** a work's identity, its rights record, duplicates, review,
+  quality, spending and storage. A plugin answers "what images exist, and where".
+- **A plugin's error text is scrubbed** before the journal and the health panel.
+  Every URL's query string is cut, found by running to whitespace, `"`, `<` or
+  `>`, the characters an HTTP client always encodes. The scrub runs past `'` and
+  `\`, which httpx leaves in a path and a query as they are (`O'Keeffe`), and a
+  test checks every character httpx leaves unencoded, read from httpx itself. So
+  `?q=van gogh&key=…` written raw would keep everything after the space, while an
+  encoded URL, which is what an HTTP client's own error carries, has no space in
+  it. *Mine*, accepted at review rather than built: no plugin here logs a raw
+  URL, and `docs/source-plugins.md` tells authors not to.
+
+**Why this is accepted.** One principal, who installs the plugin, on a LAN
+appliance with no PII, tenancy or payment surface: the same reasons as
+§ Supply Chain. **What would reopen it** (mine): a plugin from someone the operator does
+not know, or a plugin that holds a credential of its own that it must not share
+with Arrt. Either calls for the separate service the owner declined, not for a
+check inside the process.
+
 ## Registry text *(2026-10-01)*
 
 **The exposure.** The Artist page shows what Wikidata says about an artist:

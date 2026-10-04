@@ -259,30 +259,11 @@ pages are lost with it; a later search of the work records them.
 
 ## Trust
 
-**A plugin is trusted code.** It runs inside Arrt with everything Arrt can reach:
-the catalogue, the OpenRouter key, the wall tokens. Arrt neither vets nor
-sandboxes it. Installing one is the operator's trust decision, of the same kind
-as accepting a PyPI wheel (`security-model.md` § Supply Chain). The owner chose
-this over a separate service, which would have isolated it.
-
-What still holds, because Arrt keeps it rather than trusting a plugin to:
-
-- **A plugin's text is outside text.** Titles, artists and descriptions reach the
-  page as text (`security-model.md` § Direction) and the model under the existing
-  prompt-injection bounds, the same as a museum's.
-- **Arrt fetches every locator**, through the address checks and read bounds.
-- **Arrt decides** a work's identity, its rights record, duplicates, review,
-  quality, spending and storage. A plugin answers "what images exist, and where",
-  and writes nothing.
-
-**A plugin logs URLs as it would send them, encoded.** The journal cuts every
-URL's query string, finding the URL and its query by running to whitespace,
-`"`, `<` or `>`, the characters an HTTP client always encodes. It runs past `'`
-and `\`, which httpx leaves in a path and a query as they are (`O'Keeffe`); a
-test checks every character httpx leaves unencoded, read from httpx itself. So `?q=van gogh&key=…` written raw would keep
-everything after the space; an encoded URL, which is what an HTTP client's own
-error carries, has no space in it. *Mine*, accepted at review rather than built:
-no plugin here logs a raw URL.
+**A plugin is trusted code.** It runs inside Arrt with everything Arrt can reach,
+and Arrt neither vets nor sandboxes it. The owner chose this over a separate
+service, which would have isolated it. What installing one trusts, what Arrt
+still keeps for itself, and how a plugin's error text is scrubbed are
+`security-model.md` § Source plugins, their one home.
 
 ## Versioning and errors
 
@@ -303,10 +284,12 @@ no plugin here logs a raw URL.
 
 On the NAS, Arrt is an image built from a commit (`arrt/Dockerfile`). A private
 plugin reaches it through an image built on top of that one: `FROM arrt:<commit>`,
-then the plugin installed into `/opt/venv`. The plugin's dependencies must
-resolve beside Arrt's locked ones, which is the cost of loading in-process. That
-derived image's recipe lives in the private repository, beside the plugin. This
-repository's `deploy/README.md` shows the shape.
+then the plugin installed into `/opt/venv`, constrained to Arrt's locked versions.
+The plugin's dependencies must resolve beside Arrt's locked ones, which is the cost
+of loading in-process; without the constraint, the installer would change Arrt's
+instead. That derived image's recipe lives in the private repository, beside the
+plugin. This repository's `deploy/README.md` § A private source plugin shows the
+shape, and `docs/source-plugins.md` is the guide for writing one.
 
 ## Considered: 3tears scrape (2026-10-03)
 

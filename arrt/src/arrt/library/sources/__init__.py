@@ -4,8 +4,8 @@ A plugin imports from here and nowhere else in `arrt`. Everything below is
 re-exported from where Arrt keeps it, and anything a plugin reaches for elsewhere
 in `arrt` is not part of the interface and may change in any release
 (`source-plugins.md` § Versioning and errors). The built-in plugins beside this
-file, `artic` and `commons`, are held to the same rule by a test, because they are
-the examples an author copies.
+file are held to the same rule by a test, because they are the examples an author
+copies; the guide for writing one is `docs/source-plugins.md`.
 
 The contracts each type carries are in its own docstring, not here: a copy here
 would be a second statement free to disagree with the first.

@@ -224,6 +224,19 @@ repository. Contract: `source-plugins.md`. Plan: `build-plan-source-plugins.md`.
   `test_startup_names_every_image_source_it_wires_in_order` is back to its
   original assertion, plus a check that `wikidata` loaded.
 
+**What (Chunk 04):**
+- **`docs/source-plugins.md`**, the guide for writing a plugin: the entry point
+  and factory, the interface, the parts, the three answers and gap 5, what Arrt
+  checks and what it does not, and testing. Its example reader and tests were
+  run against an installed Arrt before they went in.
+- **`deploy/README.md` § A private source plugin**: the derived image, installed
+  with Arrt's lock as a constraint. Without one, a plugin requiring `httpx<0.28`
+  downgraded Arrt's httpx and built cleanly (measured on `arrt:0e10e6d`).
+- **`security-model.md` § Source plugins**, and an amendment to § Supply Chain.
+  What installing a plugin trusts now has one home. `source-plugins.md` § Trust
+  points to it, and no longer names the retired wall tokens.
+- No tests changed.
+
 ## 2026-10-03: A corpus to choose the next source by
 
 <!-- prawduct: scope=procurement-corpus -->

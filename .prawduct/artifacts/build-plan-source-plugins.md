@@ -12,7 +12,7 @@ governed_by:
     dispositions:
       - "§ Direction, outside text reaches the page as text → conforms: plugin titles and artists reach the client by the same path as a museum's"
       - "§ Direction, an outside image or link only from a named host or a checked identifier → conforms, and the plan keeps it so: plugin URLs and Wikidata formatter URLs are fetched by the server and never sent to the client as links (source-plugins.md § The Wikidata finder)"
-      - "§ Supply Chain → amendment proposed (Chunk 04): an installed plugin is trusted code of the PyPI-wheel class; the owner chose in-process loading over isolation"
+      - "§ Supply Chain → amended (Chunk 04): an installed plugin is trusted code of the PyPI-wheel class, and § Source plugins says what installing one trusts; the owner chose in-process loading over isolation"
   - artifact: data-model
     dispositions:
       - "Identity is never a source URL → conforms: a sighting is keyed by the work, and its URL is an attribute"
@@ -88,7 +88,7 @@ checked mechanically in Chunk 02 against every stored source row.
 - [x] Chunk 01: The plugin interface and loader
 - [x] Chunk 02: Readers
 - [x] Chunk 03: The Wikidata finder, and sightings
-- [ ] Chunk 04: The author's guide, deployment, security model
+- [x] Chunk 04: The author's guide, deployment, security model
 - [ ] Chunk 05: Deploy, and check against the corpus
 
 ### Chunk 01: The plugin interface and loader
