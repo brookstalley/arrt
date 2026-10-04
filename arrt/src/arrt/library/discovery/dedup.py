@@ -156,12 +156,11 @@ _WHITESPACE = re.compile(r"\s+")
 #: work: MoMA catalogues Agnes Martin's *The Tree*, which reaches it as "Tree".
 #: Matched on the title as written, so whitespace must follow the word itself:
 #: "A. Lincoln" is an initial, and normalising would turn its full stop into the
-#: space an article is followed by. A title that is only an article keeps it,
-#: having nothing after it to be that whitespace once cleaned, since a key of
-#: nothing would be every such work. English
+#: space an article is followed by. Punctuation before it is passed over, since a
+#: quoted or emphasised title ("The Tree", *The Tree*) is the same title. English
 #: only: the other languages' articles are also prepositions or pronouns often
 #: enough that dropping them would merge titles that differ.
-_LEADING_ARTICLE = re.compile(r"^(?:the|a|an)\s+", re.IGNORECASE)
+_LEADING_ARTICLE = re.compile(r"^[^\w\s]*(?:the|a|an)\s+", re.IGNORECASE)
 
 #: What an artist-less work is keyed under. The brackets are load-bearing rather
 #: than decorative: normalisation strips every non-word character, so no real
@@ -357,8 +356,12 @@ def _normalised_title(title: str) -> str:
     guard asks whether a title names nothing in particular, and asking it of the
     title before its article is dropped answers no for "The Portrait (Hands)",
     whose key would then be the bare "portrait" the guard exists to keep it from.
+
+    **The article stays when nothing would be left after it**, as in "The" or
+    "The .": a key of nothing would be every such work by the painter.
     """
-    return _normalise(_LEADING_ARTICLE.sub("", title, count=1))
+    normalised = _normalise(_LEADING_ARTICLE.sub("", title, count=1))
+    return normalised or _normalise(title)
 
 
 def artist_key(artist: str) -> str:

@@ -1584,8 +1584,9 @@ artworks.
 > re-key" — true then, and false by the time the citation rules gained the bare
 > form, by which point the catalogue held rows and seven of them were keyed under
 > a citation the rules now strip. `DiscoveryService.reconcile` re-cleans
-> every stored title at startup and rewrites the key of any it changed, so the
-> obligation is discharged by each start rather than owed by each change. It is
+> every stored title at startup and rewrites any key the current rules derive
+> differently (since 2026-10-04; before, only the keys of titles it re-cleaned),
+> so the obligation is discharged by each start rather than owed by each change. It is
 > idempotent and normally a no-op. A title the cleaning empties is left exactly as
 > stored — `require_text` refuses an empty one on the way in, so writing one would
 > make the row unreadable and destroy the evidence of a rule that reached too far.

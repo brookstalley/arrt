@@ -74,7 +74,9 @@ Wikidata item records does. Plan: `build-plan-title-identity.md`.
 
 **What:**
 - `title_key` drops one leading English article (`the`, `a`, `an`) followed by
-  whitespace in the title as written, so "A. Lincoln" keeps its initial. It is
+  whitespace in the title as written, so "A. Lincoln" keeps its initial; quotes
+  or emphasis before it are passed over, and a title that would be left empty
+  keeps its article. It is
   half of `work_dedup_key`, so the identity key changes with it. The generic-title
   guard compares the title without its article, so "The Portrait (Hands)" keeps
   its parenthetical.

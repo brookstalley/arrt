@@ -623,12 +623,13 @@ def test_a_refusal_on_its_title_says_why_no_link_settled_it(registry, qid, url, 
     assert (refused.link, refused.found_url, refused.qid) == (link, url, qid)
 
 
-def test_a_linked_page_refused_on_its_artist_says_it_was_linked(caplog):
+@pytest.mark.parametrize(("title", "link"), [("Composition", "linked"), (LONG_TITLE, "title_matched")])
+def test_an_artist_refusal_says_how_the_title_was_settled(title, link, caplog):
     with caplog.at_level(logging.INFO):
-        linked_resolution(a_moma_page(artist="Jean Arp"), registry=FakeRegistry(pages={"Q19884054": [MOMA_PAGE]}))
+        linked_resolution(a_moma_page(title, artist="Jean Arp"), registry=FakeRegistry(pages={"Q19884054": [MOMA_PAGE]}))
 
     (refused,) = [record for record in caplog.records if getattr(record, "event", None) == "phase_two.not_the_work"]
-    assert refused.link == "linked"
+    assert refused.link == link
 
 
 def test_a_holders_leading_article_passes_the_title_gate():

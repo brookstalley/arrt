@@ -185,6 +185,18 @@ def test_an_article_does_not_carry_a_generic_title_past_its_guard(title, other):
     assert work_dedup_key(title=title, artist="Someone") != work_dedup_key(title=other, artist="Someone")
 
 
+@pytest.mark.parametrize("variant", ['"The Tree"', "*The Tree*", "'The Tree'"])
+def test_a_quoted_title_loses_its_article_as_the_bare_one_does(variant):
+    """Quotes and emphasis are punctuation, which normalising drops; reading the
+    article from the title as written must not let them hide it."""
+    assert work_dedup_key(title=variant, artist="Agnes Martin") == work_dedup_key(title="Tree", artist="Agnes Martin")
+
+
+def test_an_article_with_nothing_after_it_but_punctuation_is_kept():
+    """A key of nothing would be every such work by the painter."""
+    assert work_dedup_key(title="The .", artist="Someone").endswith("::the")
+
+
 def test_an_initial_is_not_an_article():
     """Normalising turns "A." into the "a " an article is, so the article is read
     from the title as written."""
