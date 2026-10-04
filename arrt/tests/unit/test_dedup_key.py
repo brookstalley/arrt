@@ -133,6 +133,80 @@ def test_a_cataloguing_clause_does_not_split_a_work():
     )
 
 
+@pytest.mark.parametrize(
+    ("variant", "plain"),
+    [
+        ("The Tree", "Tree"),
+        ("A Street", "Street"),
+        ("An Evening", "Evening"),
+        ("the tree", "Tree"),
+        ("The  Tree.", "Tree"),
+    ],
+)
+def test_a_leading_article_does_not_split_a_work(variant, plain):
+    """MoMA catalogues Agnes Martin's *The Tree*, and the work reached it as "Tree".
+
+    Not measured in the proposal corpus, where no work recurs with and without
+    its article: the evidence is a holder's wording against the request's, which
+    is where the title gate refused it.
+    """
+    assert work_dedup_key(title=variant, artist="Agnes Martin") == work_dedup_key(title=plain, artist="Agnes Martin")
+
+
+@pytest.mark.parametrize(
+    ("title", "other"),
+    [
+        ("The", "A"),
+        ("Theatre", "Atre"),
+        ("Another Place", "Other Place"),
+        ("Portrait of a Lady", "Portrait of Lady"),
+        ("Tree, The", "Tree"),
+    ],
+)
+def test_an_article_is_dropped_only_as_a_leading_word_before_another(title, other):
+    """A title that is only an article keeps it, since a key of nothing is every
+    such work; a word that starts with one is not one; and an article inside a
+    title, or catalogued after it, is part of the title."""
+    assert work_dedup_key(title=title, artist="Someone") != work_dedup_key(title=other, artist="Someone")
+
+
+@pytest.mark.parametrize(
+    ("title", "other"),
+    [
+        ("The Portrait (Hands)", "Portrait"),
+        ("A Study (Hands)", "A Study (Feet)"),
+        ("The Untitled (Blue)", "Untitled"),
+    ],
+)
+def test_an_article_does_not_carry_a_generic_title_past_its_guard(title, other):
+    """The guard keeps the parenthetical of a title that names nothing in particular.
+    Asked before the article is dropped, "The Portrait" is not generic, its
+    parenthetical goes, and it keys as every other portrait by that painter."""
+    assert work_dedup_key(title=title, artist="Someone") != work_dedup_key(title=other, artist="Someone")
+
+
+@pytest.mark.parametrize("variant", ['"The Tree"', "*The Tree*", "'The Tree'"])
+def test_a_quoted_title_loses_its_article_as_the_bare_one_does(variant):
+    """Quotes and emphasis are punctuation, which normalising drops; reading the
+    article from the title as written must not let them hide it."""
+    assert work_dedup_key(title=variant, artist="Agnes Martin") == work_dedup_key(title="Tree", artist="Agnes Martin")
+
+
+def test_an_article_with_nothing_after_it_but_punctuation_is_kept():
+    """A key of nothing would be every such work by the painter."""
+    assert work_dedup_key(title="The .", artist="Someone").endswith("::the")
+
+
+def test_an_initial_is_not_an_article():
+    """Normalising turns "A." into the "a " an article is, so the article is read
+    from the title as written."""
+    assert work_dedup_key(title="A. Lincoln", artist="Someone") != work_dedup_key(title="Lincoln", artist="Someone")
+
+
+def test_a_title_that_is_only_an_article_keys_as_that_word():
+    assert work_dedup_key(title="The", artist="Someone").endswith("::the")
+
+
 def test_a_bilingual_compound_is_left_alone_on_purpose():
     """A rule for this was written, measured, and removed.
 

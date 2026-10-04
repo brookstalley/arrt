@@ -11,7 +11,10 @@ So the tests below are mostly about refusal: what must *not* come back, and the
 `unresolved` outcome that must come back instead.
 """
 
+import logging
+
 import pytest
+from fakes import FakeRegistry
 
 from arrt.library.discovery.images import FoundImage, ImageQuery, ImageSearchFailure
 from arrt.library.discovery.phase_two import CONFIDENT, TITLE_ONLY, UNATTRIBUTED_RECORD, PhaseTwoEngine
@@ -454,3 +457,181 @@ def test_a_rationale_names_the_museums_own_title_so_a_substitution_would_be_visi
 
     assert "American Gothic (1930)" in judged[0].rationale
     assert "Grant Wood" in judged[0].rationale
+
+
+# -- a page the work's Wikidata item records ------------------------------------
+#
+# MoMA holds Taeuber-Arp's *Composition of Circles and Overlapping Angles* as
+# *Composition*. A shorter title alone would match every Composition she made, so
+# what identifies the record is the work's item recording its page.
+
+MOMA_PAGE = "https://www.moma.org/collection/works/37346"
+LONG_TITLE = "Composition of Circles and Overlapping Angles"
+
+
+def a_moma_page(title: str = "Composition", *, artist: str | None = "Sophie Taeuber-Arp", url: str = MOMA_PAGE) -> FoundImage:
+    return FoundImage(
+        url=url,
+        provider="artic",
+        source_class=SourceClass.INSTITUTIONAL,
+        acquisition_method=AcquisitionMethod.DIRECT_HTTP,
+        title=title,
+        artist=artist,
+        estimated_width=2000,
+        estimated_height=1992,
+    )
+
+
+def linked_resolution(*instances: FoundImage, registry, qid: str | None = "Q19884054", artist: str | None = "Sophie Taeuber-Arp"):
+    return PhaseTwoEngine(ImageSourcePool([StubSearch(*instances)]), box=BOX, registry=registry).resolve(
+        ImageQuery(title=LONG_TITLE, artist=artist, qid=qid)
+    )
+
+
+def test_a_page_the_works_item_records_is_the_work_under_its_holders_title():
+    """The case run 3 refused: the right record, under MoMA's shorter title."""
+    resolution = linked_resolution(a_moma_page(), registry=FakeRegistry(pages={"Q19884054": [MOMA_PAGE]}))
+
+    assert [entry.found.url for entry in resolution.instances] == [MOMA_PAGE]
+    assert resolution.instances[0].confidence == CONFIDENT
+    assert resolution.refusals == frozenset()
+
+
+def test_the_card_says_the_title_differs_and_what_identified_it():
+    """A curator reading "Composition" on a card for a longer title needs the reason it is there."""
+    rationale = linked_resolution(a_moma_page(), registry=FakeRegistry(pages={"Q19884054": [MOMA_PAGE]})).instances[0].rationale
+
+    assert "'Composition'" in rationale
+    assert "Wikidata item records" in rationale
+    assert "matching the requested title" not in rationale
+
+
+def test_a_page_the_works_item_does_not_record_is_refused_on_its_title():
+    """Another *Composition* page, which the item does not name, is one of the others."""
+    registry = FakeRegistry(pages={"Q19884054": [MOMA_PAGE]})
+    resolution = linked_resolution(a_moma_page(url="https://www.moma.org/collection/works/99999"), registry=registry)
+
+    assert resolution.instances == []
+    assert resolution.refusals == frozenset({UnresolvedReason.NOT_HELD})
+
+
+def test_a_recorded_page_by_another_artist_is_still_refused():
+    """The link settles the title, not the artist: an item recording a page whose
+    record names somebody else is a disagreement to refuse, not to resolve."""
+    resolution = linked_resolution(a_moma_page(artist="Jean Arp"), registry=FakeRegistry(pages={"Q19884054": [MOMA_PAGE]}))
+
+    assert resolution.instances == []
+    assert resolution.refusals == frozenset({UnresolvedReason.IDENTITY_REFUSED})
+
+
+def test_a_page_the_item_spells_differently_fails_closed():
+    """Matched exactly, as the item spells it: a guess at which spellings are one
+    address would be a second identity rule, and refusing is the direction a later
+    search can undo."""
+    resolution = linked_resolution(
+        a_moma_page(url="https://moma.org/collection/works/37346"), registry=FakeRegistry(pages={"Q19884054": [MOMA_PAGE]})
+    )
+
+    assert resolution.instances == []
+
+
+def test_a_work_with_no_item_never_asks_the_registry():
+    registry = FakeRegistry(pages={"Q19884054": [MOMA_PAGE]})
+
+    resolution = linked_resolution(a_moma_page(), registry=registry, qid=None)
+
+    assert resolution.instances == []
+    assert registry.pages_asked == []
+
+
+def test_a_work_whose_titles_all_match_never_asks_the_registry():
+    registry = FakeRegistry(pages={"Q19884054": [MOMA_PAGE]})
+
+    resolution = linked_resolution(a_moma_page(LONG_TITLE), registry=registry)
+
+    assert len(resolution.instances) == 1
+    assert registry.pages_asked == []
+
+
+def test_the_registry_is_asked_once_however_many_titles_differ():
+    """One question per work, not per result: a search answering a page of near-matches
+    would otherwise ask Wikidata once for each."""
+    registry = FakeRegistry(pages={"Q19884054": [MOMA_PAGE]})
+
+    linked_resolution(
+        a_moma_page(),
+        a_moma_page("Composition with Lines", url="https://www.moma.org/collection/works/2"),
+        a_moma_page("Untitled", url="https://www.moma.org/collection/works/3"),
+        registry=registry,
+    )
+
+    assert registry.pages_asked == ["Q19884054"]
+
+
+def test_a_registry_that_cannot_be_asked_leaves_the_titles_to_decide(caplog):
+    """No link is not a fault in the run: the work is refused on its title, as
+    before there was a link, and the reason is logged where it can be read."""
+    with caplog.at_level(logging.WARNING):
+        resolution = linked_resolution(a_moma_page(), registry=FakeRegistry(failing=True))
+
+    assert resolution.instances == []
+    assert resolution.refusals == frozenset({UnresolvedReason.NOT_HELD})
+    assert [getattr(record, "event", None) for record in caplog.records] == ["phase_two.link_unavailable"]
+
+
+def test_with_no_registry_only_the_title_identifies_a_work():
+    resolution = linked_resolution(a_moma_page(), registry=None)
+
+    assert resolution.instances == []
+
+
+@pytest.mark.parametrize(
+    ("asked_artist", "held_artist", "confidence", "said"),
+    [
+        ("Sophie Taeuber-Arp", "Sophie Taeuber-Arp", CONFIDENT, ", by the requested artist"),
+        (None, "Sophie Taeuber-Arp", TITLE_ONLY, "; the request named no artist"),
+        ("Sophie Taeuber-Arp", None, UNATTRIBUTED_RECORD, "; the record names no artist to confirm it"),
+    ],
+)
+def test_a_linked_record_is_kept_at_the_confidence_its_artists_allow(asked_artist, held_artist, confidence, said):
+    """The link settles the title only, so the artist tiers decide as they do for a
+    matching title, and the card says which half confirmed it."""
+    (entry,) = linked_resolution(
+        a_moma_page(artist=held_artist), registry=FakeRegistry(pages={"Q19884054": [MOMA_PAGE]}), artist=asked_artist
+    ).instances
+
+    assert entry.confidence == confidence
+    assert said in entry.rationale
+
+
+@pytest.mark.parametrize(
+    ("registry", "qid", "url", "link"),
+    [
+        (None, "Q19884054", MOMA_PAGE, "no_registry"),
+        (FakeRegistry(pages={"Q19884054": [MOMA_PAGE]}), None, MOMA_PAGE, "no_qid"),
+        (FakeRegistry(failing=True), "Q19884054", MOMA_PAGE, "registry_unavailable"),
+        (FakeRegistry(pages={"Q19884054": [MOMA_PAGE]}), "Q19884054", "https://www.moma.org/collection/works/9", "not_recorded"),
+    ],
+)
+def test_a_refusal_on_its_title_says_why_no_link_settled_it(registry, qid, url, link, caplog):
+    """Run 3's refusal of row 13 had one journal line for four different facts.
+    Each has its own word now, with the page and the item beside it."""
+    with caplog.at_level(logging.INFO):
+        linked_resolution(a_moma_page(url=url), registry=registry, qid=qid)
+
+    (refused,) = [record for record in caplog.records if getattr(record, "event", None) == "phase_two.not_the_work"]
+    assert (refused.link, refused.found_url, refused.qid) == (link, url, qid)
+
+
+@pytest.mark.parametrize(("title", "link"), [("Composition", "linked"), (LONG_TITLE, "title_matched")])
+def test_an_artist_refusal_says_how_the_title_was_settled(title, link, caplog):
+    with caplog.at_level(logging.INFO):
+        linked_resolution(a_moma_page(title, artist="Jean Arp"), registry=FakeRegistry(pages={"Q19884054": [MOMA_PAGE]}))
+
+    (refused,) = [record for record in caplog.records if getattr(record, "event", None) == "phase_two.not_the_work"]
+    assert refused.link == link
+
+
+def test_a_holders_leading_article_passes_the_title_gate():
+    """Run 3's other refusal: MoMA's *The Tree*, asked for as "Tree", with no link to help."""
+    assert len(resolve(an_instance("The Tree", artist="Agnes Martin"), title="Tree", artist="Agnes Martin")) == 1

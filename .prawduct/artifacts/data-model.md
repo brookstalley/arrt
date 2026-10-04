@@ -1517,6 +1517,22 @@ artworks.
 > trailing alternate title in parentheses dropped *unless the remainder names
 > nothing in particular*; a parenthesised alias dropped from the artist.
 >
+> *(Amended 2026-10-04, by the owner's ruling: **a leading English article is
+> dropped** — `the`, `a` or `an`, as the title's first word with another after it.
+> It answers a rewrite observed between a holder and a request rather than between
+> two proposals: MoMA catalogues Agnes Martin's "The Tree", which reached it as
+> "Tree", and the title gate refused it (`procurement-corpus.md` § Run 3). The
+> corpus holds no work recurring with and without its article, so the rule unites
+> nothing there and merges nothing there. Its merge direction is two works by one
+> artist whose titles differ only by a leading article, which was judged rare
+> enough to carry. The guard on generic titles asks its question of the title
+> without its article, so "The Portrait (Hands)" keeps its parenthetical as
+> "Portrait (Hands)" does; and the article is read from the title as written, so
+> the initial in "A. Lincoln" is not one. Other languages' articles are left alone, being prepositions or
+> pronouns often enough to merge titles that differ. A change to the derivation
+> re-keys stored rows at the next start: `DiscoveryService.reconcile` re-derives
+> every key, not only those whose title it re-cleaned.)*
+>
 > *(Amended 2026-08-02: this list also carried "a bilingual `Original / English`
 > compound reduced to its first half". That rule was removed from the code the same
 > day and the clause is struck here so the decision record does not go on
@@ -1568,8 +1584,9 @@ artworks.
 > re-key" — true then, and false by the time the citation rules gained the bare
 > form, by which point the catalogue held rows and seven of them were keyed under
 > a citation the rules now strip. `DiscoveryService.reconcile` re-cleans
-> every stored title at startup and rewrites the key of any it changed, so the
-> obligation is discharged by each start rather than owed by each change. It is
+> every stored title at startup and rewrites any key the current rules derive
+> differently (since 2026-10-04; before, only the keys of titles it re-cleaned),
+> so the obligation is discharged by each start rather than owed by each change. It is
 > idempotent and normally a no-op. A title the cleaning empties is left exactly as
 > stored — `require_text` refuses an empty one on the way in, so writing one would
 > make the row unreadable and destroy the evidence of a rule that reached too far.
@@ -1673,8 +1690,22 @@ selected. Produced by phase 2.
 > between two named artists is disqualifying, not a deduction** — this collection
 > holds *American Gothic* by Grant Wood and *American Gothic* by Elizabeth Layton,
 > so a scheme that merely ranked one above the other would attach the wrong one
-> whenever the right one was absent. Nothing that fails the comparison is recorded
-> at all: a near-match kept at low confidence is still selected the moment nothing
+> whenever the right one was absent.
+>
+> **A page the work's Wikidata item records passes the title comparison**
+> (2026-10-04, by the owner's ruling). A holder may catalogue a work under a
+> shorter title — MoMA holds Taeuber-Arp's *Composition of Circles and Overlapping
+> Angles* as *Composition* — and a shorter title accepted on its own would match
+> every *Composition* she made. So the shorter title does not pass; the item does.
+> When a result's title differs, the work has a QID, and the result's `url` is,
+> exactly, one of the pages `Registry.pages_about` gives for it, the record is the
+> work, and the artist comparison still decides. The registry is asked once per
+> work, only then; one that cannot be asked means no link. This is not identity
+> by source URL (§ Direction): the work's identity stays its key and its QID, and
+> the page is evidence in one resolution attempt, the mirror of the QID matcher
+> reading a holder's identifier from a source URL.
+>
+> Nothing that fails the comparison is recorded at all: a near-match kept at low confidence is still selected the moment nothing
 > better exists, which is precisely the case a work no museum holds produces, so
 > the only safe representation of "this is a different painting" is absence.
 >

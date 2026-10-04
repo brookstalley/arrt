@@ -62,6 +62,53 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-04: A title worded differently by its holder
+
+<!-- prawduct: scope=title-identity -->
+
+**Why:** run 3 found seven of the nine open MoMA works; phase two's title gate
+refused the other two on wording ("Tree" against MoMA's "The Tree"; Taeuber-Arp's
+long title against MoMA's "Composition"). The owner ruled: a leading article
+passes; a holder's shorter title does not pass on its own; a page the work's
+Wikidata item records does. Plan: `build-plan-title-identity.md`.
+
+**What:**
+- `title_key` drops one leading English article (`the`, `a`, `an`) followed by
+  whitespace in the title as written, so "A. Lincoln" keeps its initial; quotes
+  or emphasis before it are passed over, and a title that would be left empty
+  keeps its article. It is
+  half of `work_dedup_key`, so the identity key changes with it. The generic-title
+  guard compares the title without its article, so "The Portrait (Hands)" keeps
+  its parenthetical.
+- `phase_two.not_the_work` names `found_url`, `qid` and `link`, how the title
+  gate was or was not settled.
+- Phase two passes a result whose title differs when the work has a QID and the
+  result's `url` is exactly one of `Registry.pages_about(qid)`. The artist check
+  still runs. The registry is asked at most once per work, only on a differing
+  title; one that cannot be asked means no link (`phase_two.link_unavailable`).
+  The review card says the title differs and what identified it.
+- The container hands phase two the deployment's registry.
+- The startup repair re-derives every stored key, not only those whose title it
+  re-cleaned, and reports re-keyed rows apart (`works.rekeyed`, at INFO). Before
+  this, a change to the derivation alone left stored keys under the old rule.
+  **A rollback does not undo it:** the previous build re-keys only re-cleaned
+  titles, so article-titled rows stay split from new proposals until this build
+  is redeployed or the pre-deploy catalogue copy is restored.
+
+**Tests changed, and why:**
+- `test_a_stored_title_the_rules_do_not_reach_is_left_exactly_as_it_is`: it
+  seeded keys no writer produces (`title.lower()`) and asserted them unchanged.
+  The repair now rewrites any stale key, so the rows are seeded with the keys the
+  rules derive. It still asserts title and key unchanged, and now also that no
+  repair is logged.
+- `test_a_work_the_curator_already_rejected_is_not_proposed_again` and
+  `test_the_stored_estimate_counts_the_works_actually_proposed`: they wrote the
+  old derivation's key out by hand (`salvador dali::the elephants`). They now
+  seed the key the rules derive, with the artist the row would carry.
+- The shared `propose` fixture defaults a key to its title's derivation rather
+  than `title.lower()`, so a test that restarts the plane does not see its rows
+  re-keyed.
+
 ## 2026-10-03: Image sources are plugins
 
 <!-- prawduct: scope=source-plugins -->

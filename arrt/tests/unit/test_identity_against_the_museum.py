@@ -85,8 +85,9 @@ KNOWN_WRONG = {
         "`work_dedup_key`, so sorting its tokens changes the stored suppression key "
         "for most multi-token names — 'vincent van gogh' becomes 'gogh van vincent' "
         "— and every work a curator has already rejected would become proposable "
-        "again. That needs a migration and a ruling on whether two painters whose "
-        "names are anagrams may merge. Tracked separately."
+        "again, until the startup repair re-derives their keys, which it now does "
+        "for any change to the derivation. What remains is a ruling on whether two "
+        "painters whose names are anagrams may merge. Tracked separately (#79)."
     )
 }
 
