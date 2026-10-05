@@ -43,6 +43,14 @@ MuseumIdentifier = NewType("MuseumIdentifier", str)
 #: client drops anything else the registry offers as an image.
 CommonsFile = NewType("CommonsFile", str)
 
+#: The file types that are a picture at a size, as Commons names them. Commons
+#: also holds SVG, PDF, DjVu, GIF and video, whose stated width says nothing
+#: about how sharp they would hang. The registry sizes only these for a page;
+#: the Commons source keeps its own copy, since a plugin imports nothing outside
+#: `arrt.library.sources`, and `tests/unit/test_wikidata_client.py` holds the
+#: two equal, so a page cannot judge a file that a Get then refuses.
+RASTER_TYPES: frozenset[str] = frozenset({"image/jpeg", "image/png", "image/tiff", "image/webp"})
+
 #: A page about a work: an identifier put into its property's formatter URL, or a
 #: "described at URL" statement. Checked only as an `http(s)` URL with a host,
 #: because anyone can edit either, so it is **never sent to the browser**, as a

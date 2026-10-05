@@ -14,6 +14,9 @@ governed_by:
   - artifact: accessibility-spec
     dispositions:
       - "Glyph and word carry the state → conforms. The picture stays decorative (`aria-hidden`); nothing a picture adds is the only carrier"
+  - artifact: project-preferences
+    dispositions:
+      - "A work's size or date read from Wikidata is checked for plausibility before anything relies on it → conforms for sizes: `plausible_size` withholds one whose sides no work has or whose shape disagrees with its picture's, tested on corpus rows 12 and 33. Dates are not read by this plan (#215)"
   - artifact: security-model
     dispositions:
       - "§ Direction: outside text reaches the page as text → conforms. Sizes are numbers the server formats into nothing; the client renders them through `el`'s `text`"
@@ -54,7 +57,8 @@ session's notes):
 
 - [DECISION: no server-side copy of the registry pictures | the cause was the layout, not fetching; a cache would be a second thumbnail store with no lifecycle (#39) | owner approved 2026-10-05]
 - [DECISION: the registry lists' pictures show at every width, larger than today (3rem), from Commons' 250 px rendering | 3rem is what tells two works apart; 250 is the fixed width that stays sharp at 3rem on a 3× screen (Commons serves fixed widths only, `sources/commons.py`) | agent's; owner can correct]
-- [DECISION: physical size is the best-rank height and width with no *applies to part* qualifier, normalised by Wikidata to metres and shown in cm and inches; shown only when each has exactly one value | a frame's size is not the work's; two disagreeing sources have no right answer to pick, and saying nothing is better than saying the wrong one | agent's; owner can correct]
+- [DECISION: physical size is the best-rank height and width, leaving out any qualified with *applies to part* = frame, framed or mount, normalised by Wikidata to metres and shown in cm and inches; shown only when each has exactly one value | a frame's size is not the work's, but a canvas's is: Wikidata records most paintings' own size as the canvas's (`wikidata-findings.md` § A work's size), so leaving out every part would lose most sizes. Two disagreeing sources have no right answer to pick, and saying nothing is better than saying the wrong one | agent's; corrected at build when the first rule emptied Q11826533; owner can correct]
+- [DECISION: the size is checked for plausibility before it is shown (`plausible_size`): each side 0.5 cm to 120 m, no more than 50 : 1, and the shape within 1.25× of the picture's when its size is known; a failing size is unknown | the owner's ruling (`procurement-corpus.md` § Gaps, 4) binds the first reader of a size, which this is. Measured: good works within 1.034, the corpus's bad rows 2.27× and ~100× | agent's, under the owner's ruling; raised by the cumulative review]
 - [DECISION: the picture's pixel size is Commons' own for the P18 file, asked by the registry, and judged by `assess_display_fit` against this deployment's box, shown as the review grid's fit badge | one verdict function, one badge, as the review card shows (the owner's ruling of 2026-10-02 that the badge carries the verdict word only) | agent's; owner can correct]
 - [DECISION: the page says the picture is the one Wikidata names and that a Get asks every source | the owner read the picture as what Get would take; #221 adds Commons alternatives, the private scrapers already search | agent's]
 - [ASSUMPTION: the fit is judged on the file as Commons holds it, not on the 3,840 px rendering a Get fetches of a wider one | LOW: for a box no wider than 3,840 px both verdicts are native | owner can correct]
@@ -66,7 +70,7 @@ flat scan (#177); alternatives from the private scrapers (their own repo).
 ## Status
 
 - [x] Chunk 01: Pictures in the registry lists at every width
-- [ ] Chunk 02: A registry work's sizes, and what its picture is
+- [x] Chunk 02: A registry work's sizes, and what its picture is
 
 ### Chunk 01: Pictures in the registry lists at every width
 
@@ -90,7 +94,9 @@ Done when:
 Done when:
 
 - `Registry.work` reads the physical size by the rule above; `Registry.image_size`
-  asks Commons for a file's pixel size (raster only), with no redirect followed.
+  asks Commons for a file's pixel size (raster only), with no redirect followed
+  and a short wait. A held work does not ask it.
+- The size is checked for plausibility before it is shown (the decision above).
 - `RegistryWorkService` keeps the size per file for a week, as it keeps the work,
   and judges the fit against the deployment's box.
 - The work page shows *Size* among the facts, and under the picture its pixel

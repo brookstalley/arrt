@@ -24,15 +24,6 @@ const FIT_WORDS = {
   below_floor: "below floor",
 };
 
-/* How this would meet the panel — native, matted small, below the floor — or why that cannot be said.
- *
- * One function for a held work and for a candidate scan. Both carry the same
- * `fit`/`fit_note` pair and the same rule — a thing whose dimensions nobody
- * recorded must not read like a thing known to be small — so the only real
- * difference is what to call the absence, and that is the argument. Two copies
- * were written first, and their comment claimed "same rule, different shape"
- * when the shapes were identical; the size wording then lived in two places on
- * the one surface whose whole justification is stating it. */
 /* A picture's own size, in pixels, as the curator judges it: a scan on a
  * review card, a registry work's picture on its page.
  *
@@ -49,6 +40,15 @@ export function pixelSize(width, height) {
   return `${PIXELS.format(width)} × ${PIXELS.format(height)} px`;
 }
 
+/* How this would meet the panel — native, matted small, below the floor — or why that cannot be said.
+ *
+ * One function for a held work, a candidate scan and a registry work's picture. Both carry the same
+ * `fit`/`fit_note` pair and the same rule — a thing whose dimensions nobody
+ * recorded must not read like a thing known to be small — so the only real
+ * difference is what to call the absence, and that is the argument. Two copies
+ * were written first, and their comment claimed "same rule, different shape"
+ * when the shapes were identical; the size wording then lived in two places on
+ * the one surface whose whole justification is stating it. */
 export function fitBadge(sized, absentWord = "no size known") {
   if (!sized.fit) {
     return el("span", { class: "badge badge-unknown", title: sized.fit_note || "" }, [

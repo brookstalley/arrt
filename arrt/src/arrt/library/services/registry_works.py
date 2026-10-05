@@ -20,13 +20,21 @@ Commons can be down while the query service answers, so a failure to ask
 leaves the work known and its size unknown, and is not kept. The verdict is
 on the file as Commons holds it: a Get of a file wider than Commons' widest
 rendering fetches that rendering, which on a panel no wider than it judges
-the same.
+the same. A work the library holds is not asked about: its page goes to the
+library's own, and should not wait on Commons first.
+
+**The work's size is checked for plausibility before the page shows it**
+(`plausible_size`), as the owner ruled for anything that reads a size from the
+registry (`procurement-corpus.md` § Gaps, 4): Wikidata holds sizes swapped,
+wrong and mis-scaled. A size that fails is unknown, not shown with a doubt.
 """
 
 import logging
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
+from typing import Final
 
 from arrt.library.registry import CommonsFile, Registry, RegistryImageSize, RegistryUnavailable, RegistryWork
 from arrt.library.services.artists import REGISTRY_KEPT_FOR, WantedItems, artist_ids_by_qid
@@ -36,6 +44,23 @@ from arrt.persistence.catalogue import CatalogueStore
 from arrt.persistence.kept import JsonCodec, Kept, KeptAnswers
 
 log = logging.getLogger(__name__)
+
+#: How far a work's shape (height over width) may differ from its picture's
+#: before the size is doubted, as a factor either way. Measured 2026-10-05: 14
+#: well-recorded works, a photograph with its frame among them, were within
+#: 1.034; the corpus's two known-bad sizes were 2.27 (*Whaam!*, row 33) and about
+#: 100 (*Tête Dada*, row 12) off. A picture that is a detail or an installation
+#: view fails too, which costs a true size its showing, not a wrong one.
+SHAPE_TOLERANCE: Final[float] = 1.25
+
+#: The sides a work can have, in centimetres: a miniature's half centimetre to a
+#: panorama's 120 m (the Racławice Panorama is 114 m long).
+SMALLEST_CM: Final[float] = 0.5
+LARGEST_CM: Final[float] = 12_000.0
+
+#: How much longer than wide a work can be, either way. A Chinese handscroll
+#: runs to about 21 : 1; *Tête Dada* as Wikidata records it is 210 : 1.
+MOST_ELONGATED: Final[float] = 50.0
 
 
 class RegistryWorkState(StrEnum):
@@ -67,6 +92,10 @@ class RegistryWorkView:
     wanted: bool = False
     #: The library's artist for each creator it holds, by the creator's QID.
     artists: Mapping[str, str] = field(default_factory=dict)
+    #: The work's own size, where the registry gives it and it is plausible
+    #: (`plausible_size`): what the page may show, unlike `known`'s raw values.
+    height_cm: float | None = None
+    width_cm: float | None = None
     #: The pixel size of the work's picture, where it has one and Commons said.
     image_size: RegistryImageSize | None = None
     #: How that picture would meet this deployment's wall, beside its size.
@@ -119,13 +148,26 @@ class RegistryWorkService:
                 wanted=wanted,
             )
         ours = artist_ids_by_qid(self._store)
-        size = None if known.image is None else self._size(known.image, self._registry)
+        size = None if known.image is None or held else self._size(known.image, self._registry)
+        height_cm, width_cm = plausible_size(known.height_cm, known.width_cm, size)
+        if (height_cm, width_cm) != (known.height_cm, known.width_cm):
+            log.info(
+                "an implausible size from Wikidata is treated as unknown",
+                extra={
+                    "event": "registry.size_implausible",
+                    "qid": qid,
+                    "height_cm": known.height_cm,
+                    "width_cm": known.width_cm,
+                },
+            )
         return RegistryWorkView(
             state=RegistryWorkState.KNOWN,
             known=known,
             held=held,
             wanted=wanted,
             artists={creator.qid: ours[creator.qid] for creator in known.creators if creator.qid in ours},
+            height_cm=height_cm,
+            width_cm=width_cm,
             image_size=size,
             fit=None if size is None else assess_display_fit(width=size.width, height=size.height, box=self._box),
         )
@@ -157,3 +199,29 @@ class RegistryWorkService:
             return None
         self._kept.put(qid, known)
         return known
+
+
+def plausible_size(
+    height_cm: float | None, width_cm: float | None, picture: RegistryImageSize | None
+) -> tuple[float | None, float | None]:
+    """A registry's size for a work, or `(None, None)` when it is not believable.
+
+    Each side must be one a work can have (`SMALLEST_CM`, `LARGEST_CM`); with both,
+    the work no more elongated than any is (`MOST_ELONGATED`), and, where its
+    picture's size is known, its shape that picture's within `SHAPE_TOLERANCE`.
+    Swapped sides fail the last, and a side entered in the wrong unit fails one
+    of the first two. Doubt about either side withdraws both, since a height
+    beside a mis-scaled width would be read as the pair it was entered as.
+    """
+    sides = [side for side in (height_cm, width_cm) if side is not None]
+    if any(not SMALLEST_CM <= side <= LARGEST_CM for side in sides):
+        return None, None
+    if height_cm is None or width_cm is None:
+        return height_cm, width_cm
+    if max(height_cm, width_cm) / min(height_cm, width_cm) > MOST_ELONGATED:
+        return None, None
+    if picture is not None:
+        disagreement = abs(math.log((height_cm / width_cm) / (picture.height / picture.width)))
+        if disagreement > math.log(SHAPE_TOLERANCE):
+            return None, None
+    return height_cm, width_cm

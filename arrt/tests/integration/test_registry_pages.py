@@ -138,6 +138,24 @@ class TestAWorkByQid:
         assert (page["image_width"], page["image_height"], page["fit"]) == (None, None, None)
         assert registry.sizes_asked == []
 
+    def test_a_size_that_disagrees_with_its_picture_is_not_shown(self, http, registry):
+        """Wikidata's sides swapped, as corpus row 33's are: the picture is wider than tall, the size says taller."""
+        registry.works[HUNTERS] = replace(registry.works[HUNTERS], height_cm=162.0, width_cm=117.0)
+
+        page = http.get(f"/api/registry/works/{HUNTERS}").raise_for_status().json()
+
+        assert (page["height_cm"], page["width_cm"]) == (None, None)
+        assert page["image_width"] == 6000, "the picture's own size is not in doubt"
+
+    def test_a_held_work_does_not_wait_on_commons(self, http, held, registry):
+        """Its page goes to the library's own, so Commons is not asked how big Wikidata's picture is."""
+        registry.works[HELD_ROTHKO] = replace(registry.works[HUNTERS], qid=HELD_ROTHKO)
+
+        page = http.get(f"/api/registry/works/{HELD_ROTHKO}").raise_for_status().json()
+
+        assert page["held_artwork_ids"]
+        assert registry.sizes_asked == []
+
     def test_a_pictures_size_is_asked_once(self, http, registry):
         for _ in range(2):
             http.get(f"/api/registry/works/{HUNTERS}").raise_for_status()

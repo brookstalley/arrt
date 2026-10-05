@@ -15,7 +15,7 @@ import pytest
 
 from arrt.library.registry import RegistryUnavailable
 from arrt.library.registry.identifiers import IdentifierScheme
-from arrt.library.registry.wikidata import COMMONS_API, SPARQL_ENDPOINT, WikidataRegistry
+from arrt.library.registry.wikidata import COMMONS_API, COMMONS_TIMEOUT_SECONDS, SPARQL_ENDPOINT, WikidataRegistry
 
 UA = "arrt test (+https://example.org)"
 
@@ -594,3 +594,23 @@ def test_a_file_that_is_not_a_commons_path_is_refused_before_anything_is_sent():
     with pytest.raises(ValueError, match="not a Commons file"):
         _registry(lambda request: seen.append(request) or _commons()).image_size("https://elsewhere.example/x.jpg")
     assert seen == []
+
+
+def test_the_registry_sizes_exactly_the_files_a_get_can_take():
+    """The page judges a picture only if the Commons source would fetch it; the two sets are copies."""
+    from arrt.library.registry import RASTER_TYPES
+    from arrt.library.sources import commons
+
+    assert commons._RASTER == RASTER_TYPES
+
+
+def test_commons_is_given_a_short_wait_because_a_page_waits_on_it():
+    seen = []
+
+    def handler(request):
+        seen.append(request)
+        return _commons({"width": 1, "height": 1, "mime": "image/png"})
+
+    _registry(handler).image_size(COMMONS_FILE)
+
+    assert seen[0].extensions["timeout"]["read"] == COMMONS_TIMEOUT_SECONDS <= 5

@@ -907,7 +907,7 @@ is no network between planes.
 | 6 | E-paper | SPI | display → panel | sync | Foreign API |
 | 7 | Model + search | HTTPS | curation → OpenRouter | sync | Foreign API |
 | 8 | Sources | HTTPS | curation → museum APIs, GA&C | sync | Foreign API |
-| 9 | **Registry** *(2026-10-01)* | HTTPS POST to one constant endpoint, no redirects followed | curation → Wikidata's query service | sync | `wikidata-findings.md`; `library/registry/` |
+| 9 | **Registry** *(2026-10-01)* | HTTPS to two constant endpoints, no redirects followed: POST to the query service, and since 2026-10-05 GET to the Commons API for a picture's pixel size | curation → Wikidata's query service; Commons | sync | `wikidata-findings.md`; `library/registry/` |
 
 **Trust boundaries.** Channels 3 and 4 are the only inbound ones, and both are
 reached over an overlay network (Tailscale/VPN) rather than public exposure — the

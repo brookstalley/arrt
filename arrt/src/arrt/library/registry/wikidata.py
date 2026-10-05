@@ -35,6 +35,7 @@ import httpx
 
 from arrt.library.registry import (
     QID,
+    RASTER_TYPES,
     CommonsFile,
     ItemId,
     MuseumIdentifier,
@@ -72,14 +73,15 @@ SPARQL_ENDPOINT: Final[str] = "https://query.wikidata.org/sparql"
 COMMONS_API: Final[str] = "https://commons.wikimedia.org/w/api.php"
 
 #: The parts a measurement can be qualified with that surround a work rather
-#: than being it: frame, framed, mount. Measured 2026-10-05 over paintings'
-#: qualified heights: canvas 6,432 (two items), frame 2,097, painting 984,
-#: framed 13, mount 37; the rest are supports and panels, which are the work.
+#: than being it: frame, framed, mount. The others (canvas above all, then
+#: supports, panels, sheets) are the work itself, as measured in
+#: `wikidata-findings.md` § A work's size.
 _AROUND: Final[str] = "wd:Q860792, wd:Q101698846, wd:Q107105674"
 
-#: The file types that are a picture at a size. Commons also holds SVG, PDF and
-#: DjVu, whose stated width says nothing about how sharp they would hang.
-_RASTER: Final[frozenset[str]] = frozenset({"image/jpeg", "image/png", "image/tiff", "image/webp"})
+#: Seconds to wait for Commons to size a picture. It answers in a fraction of a
+#: second, and a page waits on it, so an outage costs a visit this rather than
+#: the query service's own allowance.
+COMMONS_TIMEOUT_SECONDS: Final[float] = 5.0
 
 #: Values per query. The service's limit is on the query's running time, not its
 #: text, and a batch this size of exact-identifier lookups measured well under a
@@ -410,7 +412,12 @@ class WikidataRegistry:
             "titles": f"File:{unquote(found.group(1))}",
         }
         try:
-            response = self._http.get(COMMONS_API, params=params, headers={**self._headers, "Accept": "application/json"})
+            response = self._http.get(
+                COMMONS_API,
+                params=params,
+                headers={**self._headers, "Accept": "application/json"},
+                timeout=httpx.Timeout(COMMONS_TIMEOUT_SECONDS),
+            )
         except httpx.HTTPError as exc:
             raise RegistryUnavailable(f"Commons could not be reached: {exc}") from exc
         if response.status_code != httpx.codes.OK:
@@ -426,7 +433,7 @@ class WikidataRegistry:
         info = infos[0] if isinstance(infos, list) and infos and isinstance(infos[0], Mapping) else None
         if info is None:
             raise RegistryUnavailable("Commons described the file in a shape it does not document.")
-        if info.get("mime") not in _RASTER:
+        if info.get("mime") not in RASTER_TYPES:
             return None
         width, height = info.get("width"), info.get("height")
         # Only `missing` says there is no such file; a picture Commons gives no
