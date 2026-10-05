@@ -49,11 +49,11 @@ sys.path.insert(0, str(_CURATION / "src"))
 # from the one the tests assert over.
 sys.path.insert(0, str(_CURATION / "tests"))
 
-from conftest import _open_seeded_catalogue  # noqa: E402
+from conftest import _open_seeded_catalogue  # noqa: E402 -- after the sys.path insert above
 
-from arrt.library.services.catalogue import CatalogueService  # noqa: E402
-from arrt.persistence.durable import SqliteDurableStore  # noqa: E402
-from arrt.persistence.folding import search_fold  # noqa: E402
+from arrt.library.services.catalogue import CatalogueService  # noqa: E402 -- after the sys.path insert above
+from arrt.persistence.durable import SqliteDurableStore  # noqa: E402 -- after the sys.path insert above
+from arrt.persistence.folding import search_fold  # noqa: E402 -- after the sys.path insert above
 
 #: Terms chosen to span selectivity, which is the whole axis the two strategies
 #: differ on: a full scan pays the same for every question, an index pays in
@@ -90,7 +90,7 @@ def _time(call: Callable[[], object], *, repeats: int) -> tuple[float, float, fl
 
 
 def _say(line: str = "") -> None:
-    print(line)  # noqa: T201 - this tool's output IS a printed report
+    print(line)
 
 
 def _heading(title: str) -> None:
@@ -173,7 +173,7 @@ def _measure(
     # Reached directly, which nothing else in this repository does: the index
     # being compared is one the product deliberately does not ship, so there is
     # no store method that could stand it up. A measurement tool, not a caller.
-    connection = catalogue_file._connection  # noqa: SLF001
+    connection = catalogue_file._connection  # noqa: SLF001 -- a measurement tool; see above
     _build_fts_index(connection, columns)
     like_clause = " OR ".join(f"a.{column} LIKE ? ESCAPE '\\'" for column in columns)
     # What the product runs: the columns joined and folded, so `dali` finds Dalí.

@@ -53,7 +53,7 @@ class ColorError(ValueError):
 class Lab:
     """A colour in CIE LAB, the space mat choices are reasoned in."""
 
-    l: float  # noqa: E741 - L* is the CIE's own name for this axis
+    l: float  # noqa: E741 -- L* is the CIE's own name for this axis
     a: float
     b: float
 

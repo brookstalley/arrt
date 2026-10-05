@@ -229,7 +229,8 @@ def test_the_model_actually_used_is_attributed_the_spend():
 
 
 def test_a_spent_key_is_reported_as_exhaustion():
-    handler = lambda request: httpx.Response(403, json={"error": {"message": "Key limit exceeded (total limit)."}})  # noqa: E731
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, json={"error": {"message": "Key limit exceeded (total limit)."}})
 
     with pytest.raises(BudgetExhausted):
         engine_over(handler).enumerate_works(asked())
@@ -239,9 +240,9 @@ def test_an_unaffordable_request_is_a_failure_but_never_exhaustion():
     """It arrives with credit still in the account. Reporting it as exhaustion
     would halt a run that can still pay, and halted-by-budget is the one state a
     curator reads as "stop asking"."""
-    handler = lambda request: httpx.Response(  # noqa: E731
-        402, json={"error": {"message": "This request requires more credits, or fewer max_tokens."}}
-    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(402, json={"error": {"message": "This request requires more credits, or fewer max_tokens."}})
 
     with pytest.raises(EngineFailure) as raised:
         engine_over(handler).enumerate_works(asked())
@@ -252,7 +253,9 @@ def test_an_unaffordable_request_is_a_failure_but_never_exhaustion():
 def test_a_refusal_before_generation_carries_no_spend():
     """Nothing was produced and nothing was billed, so recording a charge would
     invent one."""
-    handler = lambda request: httpx.Response(403, json={"error": {"message": "Key limit exceeded."}})  # noqa: E731
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, json={"error": {"message": "Key limit exceeded."}})
 
     with pytest.raises(BudgetExhausted) as raised:
         engine_over(handler).enumerate_works(asked())

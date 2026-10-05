@@ -319,7 +319,7 @@ class JsonCodec[V]:
     back with a default it never had.
     """
 
-    def __init__(self, shape: Any) -> None:  # noqa: ANN401 - a type form, which Python cannot annotate
+    def __init__(self, shape: Any) -> None:  # noqa: ANN401 -- a type form, which Python cannot annotate
         _check_shape(shape, set())
         self._shape = shape
 
@@ -333,18 +333,18 @@ class JsonCodec[V]:
 _SCALARS: Final[tuple[type, ...]] = (str, int, float, bool)
 
 
-def _parts(shape: Any) -> tuple[Any, tuple[Any, ...]]:  # noqa: ANN401 - a type form
+def _parts(shape: Any) -> tuple[Any, tuple[Any, ...]]:  # noqa: ANN401 -- a type form
     return typing.get_origin(shape), typing.get_args(shape)
 
 
-def _unaliased(shape: Any) -> Any:  # noqa: ANN401 - a type form
+def _unaliased(shape: Any) -> Any:  # noqa: ANN401 -- a type form
     """The type a `type X = ...` statement names, so an alias keeps what it stands for."""
     while isinstance(shape, typing.TypeAliasType):
         shape = shape.__value__
     return shape
 
 
-def _is_union(origin: Any) -> bool:  # noqa: ANN401 - a type form
+def _is_union(origin: Any) -> bool:  # noqa: ANN401 -- a type form
     return origin is typing.Union or origin is types.UnionType
 
 
@@ -381,7 +381,7 @@ def _check_shape(shape: Any, seen: set[type]) -> None:  # noqa: ANN401, C901, PL
     raise TypeError(f"{shape!r} cannot be kept as JSON.")
 
 
-def _scalar_of(shape: Any) -> Any:  # noqa: ANN401 - a type form
+def _scalar_of(shape: Any) -> Any:  # noqa: ANN401 -- a type form
     while isinstance(shape, typing.NewType):
         shape = shape.__supertype__
     return shape
@@ -481,7 +481,7 @@ def _items(args: tuple[Any, ...], length: int) -> Sequence[Any]:
     return args
 
 
-def _require_scalar(shape: type, value: Any) -> Any:  # noqa: ANN401 - JSON
+def _require_scalar(shape: type, value: Any) -> Any:  # noqa: ANN401 -- JSON
     # `bool` is an `int` to Python and never one to a page, and an `int` is a
     # fine `float`; nothing else crosses.
     if shape is float and type(value) in (int, float):

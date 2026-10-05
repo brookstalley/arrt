@@ -70,7 +70,7 @@ def _fetch(client: httpx.Client, url: str) -> bytes | None:
         image_id = meta["data"]["image_id"]
         return client.get(f"https://www.artic.edu/iiif/2/{image_id}/full/{IIIF_WIDTH},/0/default.jpg").content
     except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
-        print(f"    could not fetch: {type(exc).__name__}: {exc}")  # noqa: T201 - the report is this tool's output
+        print(f"    could not fetch: {type(exc).__name__}: {exc}")
         return None
 
 
@@ -106,7 +106,7 @@ def main() -> int:  # noqa: PLR0915 -- a script's main: argument parsing and one
 
     key = os.environ.get("OPENROUTER_API_KEY")
     if not key and not arguments.no_model:
-        print("OPENROUTER_API_KEY is not set. Set it, or pass --no-model to see the mechanical producer.")  # noqa: T201
+        print("OPENROUTER_API_KEY is not set. Set it, or pass --no-model to see the mechanical producer.")
         return 2
     client = (
         None
@@ -124,7 +124,7 @@ def main() -> int:  # noqa: PLR0915 -- a script's main: argument parsing and one
     tiles: list = []
     skipped: list[str] = []
     for index, record in enumerate(records):
-        print(f"[{index + 1}/{len(records)}] {record.title[:56]}")  # noqa: T201
+        print(f"[{index + 1}/{len(records)}] {record.title[:56]}")
         body = _fetch(http, record.url)
         if body is None:
             # Counted and named at the end rather than only printed here. A run
@@ -153,7 +153,7 @@ def main() -> int:  # noqa: PLR0915 -- a script's main: argument parsing and one
                 "cost_usd": str(choice.cost_usd),
             }
         )
-        print(f"    2024 {record.mat_hex}   now {choice.hex_rgb}  dE {distance:5.1f}  {choice.method.value}")  # noqa: T201
+        print(f"    2024 {record.mat_hex}   now {choice.hex_rgb}  dE {distance:5.1f}  {choice.method.value}")
 
         with Image.open(path) as source:
             work = source.convert("RGB")
@@ -172,11 +172,11 @@ def main() -> int:  # noqa: PLR0915 -- a script's main: argument parsing and one
             sheet.paste(right, (TILE + 24, top))
         sheet_path = arguments.out / "corpus.jpg"
         sheet.save(sheet_path, format="JPEG", quality=88, optimize=True)
-        print(f"\nsheet: {sheet_path}")  # noqa: T201
+        print(f"\nsheet: {sheet_path}")
 
     (arguments.out / "report.json").write_text(json.dumps({"compared": rows, "skipped": skipped}, indent=2))
     distances = sorted(row["delta_e"] for row in rows)
-    print(  # noqa: T201
+    print(
         f"\n{len(rows)} of {len(records)} works compared | mechanical fallbacks {fallbacks} | spent ${spent:.4f}\n"
         f"dE to the 2024 colour: min {distances[0] if distances else 0} "
         f"median {distances[len(distances) // 2] if distances else 0} max {distances[-1] if distances else 0}"
@@ -185,11 +185,11 @@ def main() -> int:  # noqa: PLR0915 -- a script's main: argument parsing and one
         # Named individually, not just counted: which works are missing decides
         # whether the sheet still covers the range of the corpus or has quietly
         # lost every work of one kind.
-        print(f"\n{len(skipped)} works could not be fetched and are NOT on the sheet:")  # noqa: T201
+        print(f"\n{len(skipped)} works could not be fetched and are NOT on the sheet:")
         for title in skipped:
-            print(f"  - {title}")  # noqa: T201
-        print("  (only artic.edu works resolve; the rest of the corpus is held elsewhere.)")  # noqa: T201
-    print(  # noqa: T201
+            print(f"  - {title}")
+        print("  (only artic.edu works resolve; the rest of the corpus is held elsewhere.)")
+    print(
         "\nThe numbers orient; they do not decide. Open the sheet and compare each pair —\n"
         "the requirement is 'at least as good as 2024', judged by eye."
     )

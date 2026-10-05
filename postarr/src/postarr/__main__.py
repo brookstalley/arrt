@@ -337,7 +337,7 @@ def main() -> int:
         # `.env`. A stack through `load()` points at this codebase, which is the
         # one place the problem is not.
         log.error("%s", exc, extra={"event": "daemon.misconfigured"})  # noqa: TRY400 -- the fix is in .env, not in a frame
-        print(f"display plane cannot start: {exc}", file=sys.stderr)  # noqa: T201 — the operator is at a terminal
+        print(f"display plane cannot start: {exc}", file=sys.stderr)  # noqa: T201 -- the operator is at a terminal
         return 2
 
 

@@ -68,7 +68,7 @@ def _say(line: str) -> None:
     generator that printed from a dozen sites would collect a dozen suppressions,
     and the next reader would have to check each one for whether it was considered.
     """
-    print(line)  # noqa: T201 - this tool's output IS a printed report
+    print(line)
 
 
 def _pairs(art_root: Path, corpus_path: Path) -> tuple[list[Pair], list[str]]:

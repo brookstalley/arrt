@@ -45,7 +45,7 @@ class FakeGh:
     def __call__(self, *args: str) -> str:
         self.calls.append(args)
         if args[:2] == ("issue", "list"):
-            import json  # noqa: PLC0415
+            import json  # noqa: PLC0415 -- only the stubbed issue list needs it
 
             return json.dumps(self.open_issues)
         return ""

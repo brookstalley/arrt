@@ -1119,7 +1119,7 @@ class DiscoveryRunner:
 
     def _offer_from_collection(self, run_id: str, previews: PreviewCache) -> None:
         """Browse for each unconfirmed artist, then record an even spread of what came back."""
-        assert self._collection is not None  # noqa: S101 - guarded by the caller, narrowing for the reader
+        assert self._collection is not None  # noqa: S101 -- guarded by the caller, narrowing for the reader
         bound = self._settings.offered_works_per_run
         artists = self._artists_needing_a_supplement(run_id)
         if not artists:

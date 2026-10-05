@@ -188,8 +188,9 @@ line-length = 130
 target-version = "py314"
 
 [tool.ruff.lint]
-# The strict set. Unlike the root project there is no legacy carve-out here:
-# this plane is new code and every one of these rules applies to all of it.
+# Unlike the root project there is no legacy carve-out here: this plane is new
+# code, and every rule below applies to all of it except where the per-file
+# list names the test tree.
 #
 # **Every rule ruff has, less a short list each named with its reason** (the
 # owner, 2026-10-05: "go big on ruff"). `ALL` brings the rules a ruff upgrade adds
@@ -236,6 +237,11 @@ ignore = [
 # do not read, reach into what they test, and pass flags positionally to helpers.
 # Tests hold fake tokens and seeded randomness by design.
 "tests/*" = ["ANN", "S101", "PLR2004", "ARG", "SLF001", "FBT", "S105", "S106", "S311"]
+# `T201` is banned in `src/` because the server runs unattended, where a `print()`
+# has no level and no timestamp. `tools/` is the inverse: run by hand at a
+# terminal by a person waiting for the report the printing is (as the display
+# plane's `tools/` carve-out says).
+"tools/*" = ["T201"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

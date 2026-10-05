@@ -42,7 +42,9 @@ def main(argv: list[str] | None = None) -> int:
     except RegistryUnavailable as exc:
         # Nothing half-written to explain: works are written in one transaction
         # after every answer is in, and each artist is written once decided.
-        print(f"Wikidata could not be asked: {exc} What was matched before this stands.", file=sys.stderr)  # noqa: T201
+        print(  # noqa: T201 -- a hand-run command; its operator reads stderr
+            f"Wikidata could not be asked: {exc} What was matched before this stands.", file=sys.stderr
+        )
         return 1
     finally:
         catalogue_file.close()

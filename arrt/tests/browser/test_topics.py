@@ -305,7 +305,10 @@ class TestTheTopicPage:
         _bruegel, hunters, corn = held
         waiting = []
         for section in ("works", "artists"):
-            ui.page.route(f"**/api/topics/{SIXTEENTH}/{section}", waiting.append)
+            ui.page.route(
+                f"**/api/topics/{SIXTEENTH}/{section}",
+                lambda route: waiting.append(route),  # noqa: PLW0108 -- Playwright passes a builtin method two arguments
+            )
         open_topic(ui)
 
         assert ui.page.locator(f"{HELD} h3").inner_text() == "In your library (2)"

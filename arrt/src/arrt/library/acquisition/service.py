@@ -650,7 +650,7 @@ def _hash_file(path: Path | None) -> str:
     """
     import hashlib
 
-    assert path is not None  # noqa: S101 - only called for a usable result
+    assert path is not None  # noqa: S101 -- only called for a usable result
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for block in iter(lambda: handle.read(1024 * 1024), b""):

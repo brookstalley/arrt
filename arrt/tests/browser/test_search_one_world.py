@@ -183,7 +183,10 @@ def test_choosing_an_unheld_work_opens_its_page_here(ui, matched):
 
 def test_arrow_keys_reach_wikidatas_rows_and_stay_put_when_they_arrive(ui, matched):
     held = []
-    ui.page.route("**/api/registry/search?*", held.append)
+    ui.page.route(
+        "**/api/registry/search?*",
+        lambda route: held.append(route),  # noqa: PLW0108 -- Playwright passes a builtin method two arguments
+    )
     _type(ui, "dali")
     ui.page.keyboard.press("ArrowDown")
     ui.page.keyboard.press("ArrowDown")
@@ -302,7 +305,9 @@ class TestEachOfWikidatasSearchesPaintsOnItsOwn:
 
     def _hold(self, ui, route_glob):
         held = []
-        ui.page.route(route_glob, held.append)
+        ui.page.route(
+            route_glob, lambda route: held.append(route)  # noqa: PLW0108 -- Playwright passes a builtin method two arguments
+        )
         return held
 
     def test_artists_and_works_are_shown_while_the_topic_search_is_held(self, ui, matched):
