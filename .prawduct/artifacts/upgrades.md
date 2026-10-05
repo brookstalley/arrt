@@ -245,17 +245,20 @@ Run now), and the observability re-derivation the re-architecture names
 
 ## What the stored data must answer
 
-Lock-in questions, added to `data-model.md` § What this data must answer as
-Q38–Q42 when Chunk 02 designs the fields:
+Lock-in questions, added to `data-model.md` § What this data must answer when
+Chunk 02 designs the fields. They are labelled U1–U6 here and take the next free
+Q numbers there when added: a Q number reserved ahead was taken first (Q38–Q43
+went to walls, clients, the television canvas and sightings), so none is
+reserved now:
 
-- **Q38** Which held works could have a bigger image, how big is each now, and
+- **U1** Which held works could have a bigger image, how big is each now, and
   when was each last searched?
-- **Q39** Which scans were found for a held work, and why was each taken or
+- **U2** Which scans were found for a held work, and why was each taken or
   refused (size, increment, constraint 16, which gate signal)?
-- **Q40** What was this work's image before, and can the swap be undone?
-- **Q41** Which scans are blocklisted for this work, why, when, and by whom?
-- **Q42** What happened to a work's image, in order?
-- *(Scheduler plan)* **Q43** When is each work next due for a search, given its
+- **U3** What was this work's image before, and can the swap be undone?
+- **U4** Which scans are blocklisted for this work, why, when, and by whom?
+- **U5** What happened to a work's image, in order?
+- *(Scheduler plan)* **U6** When is each work next due for a search, given its
   size tier and its last outcome?
 
 ## Open questions
