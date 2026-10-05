@@ -211,7 +211,7 @@ async def test_a_next_is_not_consumed_when_the_set_drops_mid_step(daemon: Daemon
 
 
 async def test_a_pin_whose_render_is_missing_is_still_consumed(
-    daemon: Daemon, tv: FakeTv, publish, state: DisplayState, art_root
+    daemon: Daemon, tv: FakeTv, publish, state: DisplayState, wall_dir
 ):
     """An attempt that completes and shows nothing is still an attempt.
 
@@ -220,7 +220,7 @@ async def test_a_pin_whose_render_is_missing_is_still_consumed(
     """
     publish(["w1", "w2"], sequence=1)
     await daemon.tick()
-    (art_root / "ready" / "w2.jpg").unlink()
+    (wall_dir / "ready" / "w2.jpg").unlink()
 
     publish(["w1", "w2"], sequence=2, pinned_work_id="w2", renders=False)
     await daemon.tick()
@@ -360,7 +360,7 @@ async def test_a_bare_next_is_not_consumed_by_a_wall_that_displays_nothing(
 
 
 async def test_a_next_against_an_unshowable_theme_is_still_consumed(
-    daemon: Daemon, tv: FakeTv, publish, state: DisplayState, art_root
+    daemon: Daemon, tv: FakeTv, publish, state: DisplayState, wall_dir
 ):
     """The other side of that distinction, and why it is not one boolean.
 
@@ -377,7 +377,7 @@ async def test_a_next_against_an_unshowable_theme_is_still_consumed(
     # test passed without ever reaching the branch it names.
     publish(["w1", "w2"], sequence=2, renders=False)
     for name in ("w1", "w2"):
-        (art_root / "ready" / f"{name}.jpg").unlink(missing_ok=True)
+        (wall_dir / "ready" / f"{name}.jpg").unlink(missing_ok=True)
     await daemon.tick()
 
     assert state.last_acted_sequence == 2, "a `next` at a theme that can show nothing was retried for ever"

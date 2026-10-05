@@ -33,6 +33,7 @@ from arrt.persistence.records import (
     ArtworkStatus,
     MatColor,
     Original,
+    QueuedAcquisition,
     Rendition,
     Source,
     VocabularyKind,
@@ -55,6 +56,31 @@ class WorkOrder(StrEnum):
     ARTIST = "artist"
     #: Most recently added first, by when the work entered the catalogue.
     NEWEST = "newest"
+
+
+@dataclass(frozen=True, slots=True)
+class TopicTally:
+    """One registry item the catalogue's facets name, under one kind, and how many works carry it."""
+
+    kind: VocabularyKind
+    #: The item, as `WorkFacet.value_qid` holds it.
+    qid: str
+    #: Its name, as the facet rows hold it.
+    label: str
+    works: int
+
+
+@dataclass(frozen=True, slots=True)
+class WorkToAcquire:
+    """One accepted work the acquisition queue may owe something: a fetch, or the preparation after one."""
+
+    artwork_id: str
+    #: Whether the work holds a master image already. True only for a work with a
+    #: queue row, which is one fetched and still owing its preparation, or one a
+    #: Retry named a source to fetch again from.
+    holds_original: bool
+    #: The queue's row for it, or None for a work it has not yet tried.
+    queued: QueuedAcquisition | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,6 +109,17 @@ class WorkQuery:
     #: person expects, and it is stated here because it is invisible at the call
     #: site.
     facets: Mapping[VocabularyKind, Sequence[str]] = field(default_factory=dict)
+    #: One artist's works, by the catalogue's own link rather than by the artist
+    #: facet: the facet is a derived claim a catalogue may not carry at all (the
+    #: owner's holds none), while every attributed work names its artist.
+    artist_id: str | None = None
+    #: Only these works, by id. A theme's members arrive this way: themes are
+    #: Programming's, so the Library is handed their ids as opaque references and
+    #: learns nothing about themes. **Empty selects nothing; `None` restricts
+    #: nothing** — an empty theme is an empty grid, never the whole catalogue. An
+    #: id the catalogue does not hold is passed over, since Programming's
+    #: references may fail to resolve.
+    within: frozenset[str] | None = None
 
     def without(self, kind: VocabularyKind) -> WorkQuery:
         """The same query with one facet kind's own selection dropped.
@@ -196,6 +233,31 @@ class CatalogueStore(Protocol):
         """Return a page of works matching `query` in `order`, stable across pages, with the unpaged total."""
         ...
 
+    def artwork_ids_matching(self, query: WorkQuery) -> frozenset[str]:
+        """Every work `query` selects, by id, unpaged and unordered.
+
+        For a caller that counts the selection against a grouping the catalogue
+        does not hold — a theme's members — and so needs the set, not a page.
+        """
+        ...
+
+    def held_artists(self) -> Sequence[tuple[Artist, int, str]]:
+        """Every artist with at least one work in circulation, how many, and the first accepted of them, by name.
+
+        The first accepted work is the one the Artists index pictures the artist
+        by: no artist has a picture of their own, and the earliest acquisition is
+        a stable choice that does not change as more works arrive.
+        """
+        ...
+
+    def circulating_ids_by_qid(self) -> Mapping[str, Sequence[str]]:
+        """Every work in circulation that carries a Wikidata QID, keyed by it; several where works share one."""
+        ...
+
+    def accepted_artwork_ids(self) -> Sequence[str]:
+        """Every work in circulation, by id, oldest first."""
+        ...
+
     # -- what a work is, and what a filter would select -----------------------
 
     def add_facet(self, facet: WorkFacet) -> None:
@@ -235,6 +297,19 @@ class CatalogueStore(Protocol):
         together is one statement instead of five, which is what keeps the
         collection's default screen from paying for six near-identical scans.
         """
+        ...
+
+    def topic_tallies(self, *, status: ArtworkStatus | None, qid: str | None = None) -> Sequence[TopicTally]:
+        """Every item a facet names by QID, per kind, with how many of the selected works carry it.
+
+        Only rows with a `value_qid` are counted: a value nobody tied to an item
+        has no page to open. `qid` narrows to that one item. Ordered by kind,
+        then label ignoring case, then QID.
+        """
+        ...
+
+    def works_with_topic(self, qid: str, *, status: ArtworkStatus | None, kinds: Sequence[VocabularyKind]) -> Sequence[str]:
+        """The ids of the selected works with a facet of one of `kinds` naming this item, each once, by title."""
         ...
 
     # -- sources --------------------------------------------------------------
@@ -301,6 +376,36 @@ class CatalogueStore(Protocol):
         """Return a work's mat colours newest first, which is its history."""
         ...
 
+    # -- the acquisition queue ------------------------------------------------
+
+    def works_to_acquire(self) -> Sequence[WorkToAcquire]:
+        """Every accepted work holding no original or holding a queue row, oldest acceptance first.
+
+        Archived works are left out whatever their row says: the queue fetches
+        only what is in circulation, and a restored work comes back with its row.
+        """
+        ...
+
+    def works_with_canvas_outside_layout(self, layout: str) -> Sequence[str]:
+        """Accepted works holding a television canvas, none of them drawn at `layout`, oldest acceptance first."""
+        ...
+
+    def current_mats_of_works_with_canvas(self) -> Sequence[tuple[str, str | None]]:
+        """(work, current mat hex or None) for every accepted work holding a television canvas, oldest acceptance first."""
+        ...
+
+    def get_queued_acquisition(self, artwork_id: str) -> QueuedAcquisition | None:
+        """Return the queue's row for this work, or None if it has none."""
+        ...
+
+    def set_queued_acquisition(self, entry: QueuedAcquisition) -> None:
+        """Write the queue's row for this work, replacing any it had."""
+        ...
+
+    def remove_queued_acquisition(self, artwork_id: str) -> None:
+        """Delete the queue's row for this work. A missing row is not an error."""
+        ...
+
 
 #: Re-exported, not declared here. Both live in `persistence/errors.py`, which
 #: neither domain owns — `durable.py` and `sqlite_discovery.py` need them and
@@ -308,4 +413,4 @@ class CatalogueStore(Protocol):
 #: the two domains it serves. They stay importable from here because
 #: `CatalogueStore`'s own methods raise them, and a caller holding a catalogue
 #: store should not have to know which module declared the class to catch it.
-__all__ = ["CatalogueStore", "StorageError", "StoreMisuseError", "WorkQuery"]
+__all__ = ["CatalogueStore", "StorageError", "StoreMisuseError", "WorkQuery", "WorkToAcquire"]

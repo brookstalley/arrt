@@ -57,6 +57,9 @@ _EXPECTED_SCHEMA = {
         "family_name",
         "given_name",
         "display_nationality",
+        # Widened 2026-10-01 with the registry identity (ruling 7).
+        "wikidata_qid",
+        "wikidata_qid_set_by",
     },
     # `commentary` is the line written for a wall label, which is not
     # `description` — that is the holding institution's paragraph.
@@ -73,6 +76,8 @@ _EXPECTED_SCHEMA = {
         "accepted_at",
         "created_at",
         "commentary",
+        "wikidata_qid",
+        "wikidata_qid_set_by",
     },
     # Widened 2026-07-31 with the per-theme rotation settings. This was the first
     # change to a table files already on disk carried, so it is also what the
@@ -80,9 +85,18 @@ _EXPECTED_SCHEMA = {
     # `is_active` was here until 2026-08-12, when hanging became an act against a
     # named wall. It is the first column this schema has *removed*, which the
     # widening step cannot do — `migrations.py` does, and the test below watches
-    # a legacy file lose it.
-    "themes": {"id", "name", "description", "created_at", "rotation_interval_seconds", "shuffle"},
-    "walls": {"id", "name", "created_at", "token_verifier", "token_issued_at"},
+    # a legacy file lose it. Widened 2026-10-01 with `is_default`, the theme new
+    # works join, under the partial index that allows at most one.
+    "themes": {"id", "name", "description", "created_at", "rotation_interval_seconds", "shuffle", "is_default"},
+    # Which works the default theme has been offered, so each is offered once.
+    "default_theme_offers": {"artwork_id", "offered_at"},
+    # The wall token columns went on 2026-10-02, when a Player became a client
+    # admitted by the client's token (`migrations.retire_wall_tokens`); the
+    # client that shows the wall, and on which output, arrived in their place.
+    "walls": {"id", "name", "created_at", "client_id", "output"},
+    # An installed Player: a name and the verifier of its one token, nothing
+    # about the device.
+    "clients": {"id", "name", "created_at", "token_verifier", "token_issued_at"},
     "theme_assignments": {"wall_id", "theme_id", "assigned_at"},
     "directives": {"wall_id", "sequence", "pinned_work_id"},
     "sources": {
@@ -124,6 +138,8 @@ _EXPECTED_SCHEMA = {
         "generated_at",
         "content_sha256",
         "byte_size",
+        "layout",
+        "mat_hex",
     },
     "mat_colors": {
         "id",
@@ -139,6 +155,10 @@ _EXPECTED_SCHEMA = {
         "chosen_at",
     },
     "theme_memberships": {"theme_id", "artwork_id", "position", "added_at"},
+    # The acquisition queue's memory of the works it owes a fetch or a
+    # preparation (2026-10-02). A new table, so it reaches an older file by
+    # `CREATE TABLE IF NOT EXISTS` and the legacy-file test below holds it to that.
+    "acquisition_queue": {"artwork_id", "failures", "next_try_at", "detail", "source_id"},
 }
 
 #: Columns no table may grow. `display_fit` was one once, computed at acquisition
@@ -700,6 +720,38 @@ def test_a_file_predating_a_column_opens_when_the_schema_indexes_that_column(tmp
         assert store.fetch_one("notes", {"id": "n1"}) == {"id": "n1", "turn_id": None}
         store.upsert("notes", {"id": "n1", "turn_id": "t1"}, pk=("id",))
         assert store.fetch_one("notes", {"id": "n1"})["turn_id"] == "t1"
+    finally:
+        store.close()
+
+
+def test_a_widened_column_keeps_the_reference_its_declaration_makes(tmp_path):
+    """A column added to an older file refers to what the schema says it refers to.
+
+    Rebuilt from `PRAGMA table_info` alone, the column arrived as bare `TEXT` and
+    the reference was dropped in silence: a new file refused a row naming a parent
+    that does not exist and an upgraded one stored it. `walls.client_id` was the
+    first widened column with a reference, and is the one this guards.
+    """
+    path = tmp_path / "catalogue.sqlite"
+    connection = sqlite3.connect(path)
+    try:
+        connection.executescript("CREATE TABLE IF NOT EXISTS notes (id TEXT PRIMARY KEY);")
+        connection.execute("INSERT INTO notes (id) VALUES ('n1')")
+        connection.commit()
+    finally:
+        connection.close()
+
+    widened = (
+        "CREATE TABLE IF NOT EXISTS owners (id TEXT PRIMARY KEY);"
+        "CREATE TABLE IF NOT EXISTS notes (id TEXT PRIMARY KEY, owner_id TEXT REFERENCES owners(id));"
+    )
+    store = SqliteDurableStore(path, widened)
+    try:
+        with pytest.raises(StorageError, match="refers to a record that is not stored"):
+            store.upsert("notes", {"id": "n1", "owner_id": "nobody"}, pk=("id",))
+        store.upsert("owners", {"id": "o1"}, pk=("id",), on_conflict="raise")
+        store.upsert("notes", {"id": "n1", "owner_id": "o1"}, pk=("id",))
+        assert store.fetch_one("notes", {"id": "n1"})["owner_id"] == "o1"
     finally:
         store.close()
 

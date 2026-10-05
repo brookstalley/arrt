@@ -13,8 +13,9 @@
  */
 
 import { api } from "./api.js";
-import { el } from "./render.js";
-import { go } from "./router.js";
+import { named, stateMark, topicKinds, topicName, workState } from "./registry.js";
+import { el, fill } from "./render.js";
+import { go, openedFrom } from "./router.js";
 import { state } from "./state.js";
 
 /* The field shows the search that is currently in the address bar.
@@ -33,32 +34,66 @@ export function paintSearch() {
  * meant; more is what Enter, which opens every match in Artworks, is for. */
 const SUGGESTIONS = 6;
 
+/* How many artists the dropdown offers, above the works. Few, because a name
+ * typed in full matches one, and a fragment that matches many is better served
+ * by Library › Artists than by a long list here. */
+const ARTISTS_SHOWN = 3;
+
 /* Wait this long after the last keystroke before asking, so typing a word asks
- * once rather than once a letter. */
+ * once rather than once a letter. The registry is asked at the same pause, and
+ * remembers each query, so typing back over a word asks it nothing. */
 const PAUSE_MS = 200;
+
+/* How many themes the dropdown offers, matched by name. */
+const THEMES_SHOWN = 3;
+
+/* How many of the library's topics the dropdown offers, matched by name, and
+ * how many of Wikidata's. Library › Topics lists them all. */
+const TOPICS_SHOWN = 3;
+
+/* Fewer letters than this and the registry is not asked: the server's own floor,
+ * repeated here only so the dropdown does not send a request the server would
+ * answer with `too_short`. */
+const REGISTRY_SHORTEST = 3;
+
+/* Case and accents, ignored, as the library's search ignores them. */
+export function fold(text) {
+  return text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+}
 
 /* The dropdown under the search box: Sonarr's two groups, in Arrt's words.
  *
  * `information-architecture.md` § The *arr layout records Sonarr's pattern from
  * its source: the box searches the library as you type, and the last row offers
- * the same words as a search of everything. Here that row goes to Add New with
- * the words filled in, and Add New does not start the search, because a
- * museum search is a paid run and nothing may spend on a keystroke.
+ * the same words as a search of everything. Here that row goes to Ask with
+ * the words filled in, and Ask does not start the search, because a search in
+ * words is a paid run and nothing may spend on a keystroke.
  *
  * **Enter with nothing highlighted opens Artworks filtered to the query**, as it
  * did before the dropdown existed. That departs from Sonarr, which opens the
  * first match, and the owner ruled it on 2026-09-30: an artist or a movement
  * matches many works where a series title matches one.
  *
+ * **One world** (ruling 2): below the library's matches, Wikidata's artists,
+ * works and topics, the artists and works each saying whether it is held. They
+ * arrive after the library's rows, which never wait for them, and the artists
+ * and works never wait for the topics either, each search painting when it
+ * answers, with *Asking Wikidata…* below while either is out; a match the
+ * library's rows already show is not shown twice; and their arrival is
+ * announced, not focused, so a curator arrowing through the list is not moved.
+ *
  * An ARIA combobox: the input keeps focus, arrow keys move
  * `aria-activedescendant` through the options, Escape closes the list, and the
- * two groups are named so a screen reader says which one an option is in. */
+ * groups are named so a screen reader says which one an option is in. */
 function installSuggestions(field) {
   // Its own class name: `.suggestions` is a conversation turn's block, and a
   // shared name gave every turn the dropdown's absolute positioning.
   const list = el("ul", { id: "search-suggestions", class: "search-suggestions", role: "listbox", "aria-label": "Suggestions" });
   list.hidden = true;
-  field.after(list);
+  // The registry's rows arrive after the list is open: said here, once, rather
+  // than by moving focus to them.
+  const arrived = el("p", { class: "visually-hidden", "aria-live": "polite" });
+  field.after(list, arrived);
   field.setAttribute("role", "combobox");
   field.setAttribute("aria-autocomplete", "list");
   field.setAttribute("aria-controls", "search-suggestions");
@@ -89,8 +124,12 @@ function installSuggestions(field) {
     option.act();
   };
 
-  const option = (id, text, act) => {
-    const node = el("li", { id, role: "option", "aria-selected": "false", text });
+  // `content` is the row's words, or its words and a state badge.
+  const option = (id, content, act) => {
+    const node =
+      typeof content === "string"
+        ? el("li", { id, role: "option", "aria-selected": "false", text: content })
+        : el("li", { id, role: "option", "aria-selected": "false" }, content);
     // Mousedown rather than click: a click lands after the field's blur, which
     // has already closed the list the click was aimed at.
     node.addEventListener("mousedown", (event) => {
@@ -109,16 +148,64 @@ function installSuggestions(field) {
       ]),
     ]);
 
-  const paint = (query, works, failed) => {
+  // `wikidata` is null when Wikidata is not asked, else its two answers so far:
+  // `found`, the artists and works, and `named`, the topics, each null until it
+  // arrives.
+  const paint = (query, works, artists, topics, themes, wikidata, failed, { keepHighlight = false } = {}) => {
+    // Kept only across the repaints the registry's answers cause, so a curator who
+    // has arrowed to a row stays on it. A new query starts with nothing
+    // highlighted: row ids are positions, and a highlight carried to a new query
+    // lands on whatever now sits there, which Enter would then open instead of
+    // searching Artworks.
+    const kept = keepHighlight && active >= 0 ? options[active].node.id : null;
+    // Artists first, as the IA ranks objects: an artist's name is most often
+    // what is typed, and their page is where the rest of the library is.
+    const shownArtists = artists.slice(0, ARTISTS_SHOWN);
+    const people = shownArtists.map((entry, at) =>
+      option(`suggestion-artist-${at}`, `${entry.artist.name} — artist`, () => go("artist", entry.artist.artist_id)),
+    );
     const held = works.map((work, at) =>
       option(`suggestion-work-${at}`, work.artist ? `${work.title} — ${work.artist.name}` : work.title, () =>
         go("work", work.artwork_id),
       ),
     );
-    const museums = option("suggestion-museums", `Search museums for “${query}”`, () =>
-      go("discover", null, { term: query }),
+    // Topics after works, as `ia-proposal.md` § Search orders the objects.
+    const ourTopics = topics.map((topic, at) =>
+      option(`suggestion-topic-${at}`, `${topicName(topic.label, topic.qid)} — ${topicKinds([topic.kind])}`, () => go("topic", topic.qid)),
     );
-    options = [...held, museums];
+    const matchedThemes = themes.map((placement, at) =>
+      option(`suggestion-theme-${at}`, `${placement.theme.name} — theme`, () => go("theme", placement.theme.theme_id)),
+    );
+    // What the library's rows already show is not offered again as Wikidata's.
+    const shownArtistIds = new Set(shownArtists.map((entry) => entry.artist.artist_id));
+    const shownWorkIds = new Set(works.map((work) => work.artwork_id));
+    const found = wikidata && wikidata.found;
+    const named = wikidata && wikidata.named;
+    const known = found && found.state === "known" ? found : { artists: [], works: [] };
+    const shownTopics = new Set(topics.map((topic) => topic.qid));
+    const foundTopics = named && named.state === "known" ? named.topics : [];
+    const theirPeople = known.artists
+      .filter((person) => !shownArtistIds.has(person.artist_id))
+      .map((person, at) => option(`suggestion-registry-artist-${at}`, registryPersonRow(person), () => go("artist", person.artist_id || person.qid)));
+    const theirWorks = known.works
+      .filter((work) => !work.held_artwork_ids.some((id) => shownWorkIds.has(id)))
+      .map((work, at) =>
+        option(`suggestion-registry-work-${at}`, registryWorkRow(work), () =>
+          work.held_artwork_ids.length ? go("work", work.held_artwork_ids[0]) : go("work", work.qid),
+        ),
+      );
+    const theirTopics = foundTopics
+      .filter((topic) => !shownTopics.has(topic.qid))
+      .slice(0, TOPICS_SHOWN)
+      .map((topic, at) => option(`suggestion-registry-topic-${at}`, registryTopicRow(topic), () => go("topic", topic.qid)));
+    // Ask, with the words filled in and nothing started: asking for something
+    // in words is a paid search, started only from its own page beside its price.
+    const ask = option("suggestion-ask", `Ask about “${query}”`, () => go("discover", null, { term: query }));
+    // The dropdown's last row: every match on a page of its own. Enter keeps
+    // opening Artworks filtered (the owner, 2026-10-01), so this is how the
+    // results page is reached.
+    const everything = option("suggestion-all-results", `All results for “${query}”`, () => go("search", null, { ...openedFrom("search"), q: query }));
+    options = [...people, ...held, ...ourTopics, ...matchedThemes, ...theirPeople, ...theirWorks, ...theirTopics, ask, everything];
     // A lookup that failed is not a library with no matches, and must not read as
     // one: the row below it spends money, on a work the curator may already own.
     const unsearched = failed
@@ -130,16 +217,40 @@ function installSuggestions(field) {
           }),
         ]
       : [];
-    list.replaceChildren(
+    // Wikidata off or down is said, once, where its rows would be: a library
+    // that matched nothing must not read as everything having been searched.
+    // One note however many of Wikidata's searches could not be made: the
+    // search's own when it has one, else the topic search's.
+    const unsaid = (found && found.note) || (named && named.note) || null;
+    const registryNote = unsaid
+      ? [el("li", { role: "presentation", class: "search-suggestions-registry-note", text: unsaid })]
+      : [];
+    // Said while either of Wikidata's searches is out, so rows still to come are
+    // not read as all there is. Presentation, not an option: nothing to choose,
+    // and arrow keys pass over it.
+    const asking =
+      wikidata && (!found || !named)
+        ? [el("li", { role: "presentation", class: "search-suggestions-pending", text: "Asking Wikidata…" })]
+        : [];
+    fill(list,
       ...unsearched,
+      ...(people.length ? [group("suggestions-artists", "Artists", people)] : []),
       ...(held.length ? [group("suggestions-held", "In your library", held)] : []),
+      ...(ourTopics.length ? [group("suggestions-topics", "Topics", ourTopics)] : []),
+      ...(matchedThemes.length ? [group("suggestions-themes", "Themes", matchedThemes)] : []),
+      ...(theirPeople.length ? [group("suggestions-registry-artists", "Wikidata: artists", theirPeople)] : []),
+      ...(theirWorks.length ? [group("suggestions-registry-works", "Wikidata: works", theirWorks)] : []),
+      ...(theirTopics.length ? [group("suggestions-registry-topics", "Wikidata: topics", theirTopics)] : []),
+      ...registryNote,
+      ...asking,
       // Named for the page the row opens, as Sonarr names its group "Add New
-      // Series": the *arr precedent decides what things are called here.
-      group("suggestions-add-new", "Add New", [museums]),
+      // Series" for its page. Here that page is Ask (ruling 3).
+      group("suggestions-ask", "Ask", [ask]),
+      group("suggestions-all-results", "Search", [everything]),
     );
     list.hidden = false;
     field.setAttribute("aria-expanded", "true");
-    highlight(-1);
+    highlight(options.findIndex((entry) => entry.node.id === kept));
   };
 
   const ask = async () => {
@@ -150,18 +261,82 @@ function installSuggestions(field) {
       return;
     }
     let works = [];
+    let artists = [];
+    let themes = [];
+    let topics = [];
     let failed = false;
-    try {
-      const page = await api(`/api/works?q=${encodeURIComponent(query)}&limit=${SUGGESTIONS}`);
-      works = page.works;
-    } catch (failure) {
-      // The dropdown is a shortcut; the search itself still works on Enter. So a
-      // failed lookup costs the matches, says so, and keeps the other row.
-      failed = true;
+    // Asked now and drawn after the library's rows: see above.
+    const letters = (query.match(/[\p{L}\p{N}]/gu) || []).length;
+    // The topic search beside it, each painted when it arrives: the topic search
+    // can take seconds where the other takes under one, and joined, the faster
+    // answer waited for the slower with nothing on screen saying so.
+    const fromRegistry =
+      letters >= REGISTRY_SHORTEST
+        ? {
+            found: api(`/api/registry/search?q=${encodeURIComponent(query)}&prefix=true`).catch(() => ({
+              state: "unavailable",
+              note: "Wikidata could not be searched just now.",
+            })),
+            named: api(`/api/registry/topics?q=${encodeURIComponent(query)}`).catch(() => ({
+              state: "unavailable",
+              note: "Wikidata's topics could not be searched just now.",
+              topics: [],
+            })),
+          }
+        : null;
+    // Settled separately: the artist and theme lookups are extras, and their
+    // failure must not cost the work matches. Only the works lookup failing says
+    // the library could not be searched, because that one guards a paid search
+    // below it.
+    const [page, people, placed, held] = await Promise.allSettled([
+      api(`/api/works?q=${encodeURIComponent(query)}&limit=${SUGGESTIONS}`),
+      api(`/api/artists?q=${encodeURIComponent(query)}`),
+      api("/api/themes"),
+      api("/api/topics"),
+    ]);
+    if (people.status === "fulfilled") artists = people.value.artists;
+    if (placed.status === "fulfilled") {
+      const wanted = fold(query);
+      themes = placed.value.themes.filter((placement) => fold(placement.theme.name).includes(wanted)).slice(0, THEMES_SHOWN);
     }
+    if (held.status === "fulfilled") {
+      const wanted = fold(query);
+      topics = held.value.kinds
+        .flatMap((group) => group.topics.map((topic) => ({ ...topic, kind: group.kind })))
+        .filter((topic) => fold(topic.label).includes(wanted))
+        .slice(0, TOPICS_SHOWN);
+    }
+    // The dropdown is a shortcut; the search itself still works on Enter. So a
+    // failed lookup costs the matches, says so, and keeps the other row.
+    if (page.status === "fulfilled") works = page.value.works;
+    else failed = true;
     // A slower answer to an earlier keystroke must not replace a later one.
     if (ticket !== asked || document.activeElement !== field) return;
-    paint(query, works, failed);
+    let wikidata = fromRegistry ? { found: null, named: null } : null;
+    paint(query, works, artists, topics, themes, wikidata, failed);
+    if (!fromRegistry) return;
+    // Each answer repaints on its own arrival, under the same two checks as the
+    // library's rows; both are drawn after them, since these handlers are
+    // attached only now.
+    const arrive = (part) => (answer) => {
+      if (ticket !== asked || document.activeElement !== field) return;
+      wikidata = { ...wikidata, [part]: answer };
+      paint(query, works, artists, topics, themes, wikidata, failed, { keepHighlight: true });
+      if (wikidata.found && wikidata.named) announce(wikidata);
+    };
+    fromRegistry.found.then(arrive("found"));
+    fromRegistry.named.then(arrive("named"));
+  };
+
+  // Announced once, when both of Wikidata's searches have answered, with what
+  // they found between them. Once rather than once per arrival: two polite
+  // updates close together can cut the first off before it is read, and a
+  // second count leaves the listener to work out whether it is a total or more.
+  // *Asking Wikidata…* on screen is what says the rest is coming.
+  const announce = ({ found, named }) => {
+    const topicsFound = named.state === "known" ? Math.min(named.topics.length, TOPICS_SHOWN) : 0;
+    const count = (found.state === "known" ? found.artists.length + found.works.length : 0) + topicsFound;
+    arrived.textContent = found.state === "known" ? `Wikidata: ${count} ${count === 1 ? "match" : "matches"}.` : found.note || "";
   };
 
   field.addEventListener("input", () => {
@@ -228,4 +403,30 @@ export function clearSearchLink(text = "Clear the search") {
     text,
     onclick: () => go("collection", null, { ...state.params, q: "" }),
   });
+}
+
+/* A registry artist as a row: the name and the years that tell two apart, and
+ * *Held* when the library holds them. */
+function registryPersonRow(person) {
+  const years = person.born || person.died ? ` (${person.born || "?"}–${person.died || ""})` : "";
+  return [
+    `${named(person.name, person.qid)}${years} — artist`,
+    stateMark({ held: Boolean(person.artist_id) }),
+  ];
+}
+
+/* A registry topic as a row: its name, its kinds, and Wikidata's description,
+ * which is what tells six *Impressionism*s apart. */
+function registryTopicRow(topic) {
+  return [
+    `${topicName(topic.label, topic.qid)} — ${topicKinds(topic.kinds)}`,
+    topic.description ? el("span", { class: "muted", text: ` · ${topic.description}` }) : null,
+  ];
+}
+
+/* A registry work as a row: title, maker, and its state as every badge here
+ * carries one, glyph and word and colour (`accessibility-spec.md`). */
+function registryWorkRow(work) {
+  const maker = work.creator ? ` — ${named(work.creator.name, work.creator.qid)}` : "";
+  return [`${named(work.title, work.qid)}${maker}`, workState(work, { opens: false })];
 }

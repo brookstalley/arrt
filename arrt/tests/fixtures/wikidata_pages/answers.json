@@ -1,0 +1,296 @@
+{
+ "pages Q5308687": [
+  {
+   "value": {
+    "type": "literal",
+    "value": "/m/03qqzvj"
+   },
+   "prop": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/P646"
+   },
+   "formatter": {
+    "type": "literal",
+    "value": "https://www.google.com/search?kgmid=$1"
+   }
+  },
+  {
+   "value": {
+    "type": "literal",
+    "value": "80249"
+   },
+   "prop": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/P2014"
+   },
+   "formatter": {
+    "type": "literal",
+    "value": "https://www.moma.org/collection/works/$1"
+   }
+  },
+  {
+   "value": {
+    "type": "literal",
+    "value": "452"
+   },
+   "prop": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/P11885"
+   },
+   "formatter": {
+    "type": "literal",
+    "value": "https://www.lichtensteincatalogue.org/catalogue/entry.php?id=$1"
+   }
+  }
+ ],
+ "pages Q25729": [
+  {
+   "value": {
+    "type": "literal",
+    "value": "la-persistencia-de-la-memoria"
+   },
+   "prop": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/P13023"
+   },
+   "formatter": {
+    "type": "literal",
+    "value": "https://historia-arte.com/obras/$1"
+   }
+  },
+  {
+   "value": {
+    "type": "literal",
+    "value": "/m/020f8z"
+   },
+   "prop": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/P646"
+   },
+   "formatter": {
+    "type": "literal",
+    "value": "https://www.google.com/search?kgmid=$1"
+   }
+  },
+  {
+   "value": {
+    "type": "literal",
+    "value": "topic/The-Persistence-of-Memory"
+   },
+   "prop": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/P1417"
+   },
+   "formatter": {
+    "type": "literal",
+    "value": "https://www.britannica.com/$1"
+   }
+  },
+  {
+   "value": {
+    "type": "literal",
+    "value": "79018"
+   },
+   "prop": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/P2014"
+   },
+   "formatter": {
+    "type": "literal",
+    "value": "https://www.moma.org/collection/works/$1"
+   }
+  },
+  {
+   "value": {
+    "type": "literal",
+    "value": "03071975n"
+   },
+   "prop": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/P2581"
+   },
+   "formatter": {
+    "type": "literal",
+    "value": "https://babelnet.org/synset?id=bn%$1&lang=EN"
+   }
+  },
+  {
+   "value": {
+    "type": "literal",
+    "value": "234901"
+   },
+   "prop": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/P4144"
+   },
+   "formatter": {
+    "type": "literal",
+    "value": "https://web.archive.org/web/*/https://www.the-athenaeum.org/art/detail.php?ID=$1"
+   }
+  },
+  {
+   "value": {
+    "type": "literal",
+    "value": "salvador-dali/the-persistence-of-memory-1931"
+   },
+   "prop": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/P6002"
+   },
+   "formatter": {
+    "type": "literal",
+    "value": "https://www.wikiart.org/en/$1"
+   }
+  },
+  {
+   "value": {
+    "type": "literal",
+    "value": "salvador-dali-the-persistence-of-memory"
+   },
+   "prop": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/P6405"
+   },
+   "formatter": {
+    "type": "literal",
+    "value": "https://smarthistory.org/$1/"
+   }
+  },
+  {
+   "value": {
+    "type": "literal",
+    "value": "265"
+   },
+   "prop": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/P6595"
+   },
+   "formatter": {
+    "type": "literal",
+    "value": "https://www.salvador-dali.org/en/artwork/catalogue-raisonne/obra/$1/"
+   }
+  },
+  {
+   "value": {
+    "type": "literal",
+    "value": "the_persistence_of_memory"
+   },
+   "prop": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/P11137"
+   },
+   "formatter": {
+    "type": "literal",
+    "value": "https://web.archive.org/web/20251006030159/https://www.reddit.com/t/$1/"
+   }
+  },
+  {
+   "value": {
+    "type": "literal",
+    "value": "fr:La_Persistance_de_la_mémoire"
+   },
+   "prop": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/P12800"
+   },
+   "formatter": {
+    "type": "literal",
+    "value": "https://central.vikidia.org/wiki/$1"
+   }
+  }
+ ],
+ "pages Q60144838": [
+  {
+   "value": {
+    "type": "literal",
+    "value": "217029"
+   },
+   "prop": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/P350"
+   },
+   "formatter": {
+    "type": "literal",
+    "value": "https://rkd.nl/images/$1"
+   }
+  },
+  {
+   "value": {
+    "type": "literal",
+    "value": "/g/11h2hdwfnt"
+   },
+   "prop": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/P2671"
+   },
+   "formatter": {
+    "type": "literal",
+    "value": "https://www.google.com/search?kgmid=$1"
+   }
+  },
+  {
+   "value": {
+    "type": "literal",
+    "value": "65393"
+   },
+   "prop": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/P4144"
+   },
+   "formatter": {
+    "type": "literal",
+    "value": "https://web.archive.org/web/*/https://www.the-athenaeum.org/art/detail.php?ID=$1"
+   }
+  },
+  {
+   "value": {
+    "type": "literal",
+    "value": "oeuvre/Prismes_électriques/181433"
+   },
+   "prop": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/P6058"
+   },
+   "formatter": {
+    "type": "literal",
+    "value": "https://www.larousse.fr/encyclopedie/$1"
+   }
+  },
+  {
+   "value": {
+    "type": "literal",
+    "value": "zS28bfR"
+   },
+   "prop": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/P6323"
+   },
+   "formatter": {
+    "type": "literal",
+    "value": "https://www.centrepompidou.fr/fr/id/$1"
+   }
+  },
+  {
+   "value": {
+    "type": "literal",
+    "value": "150000000029902"
+   },
+   "prop": {
+    "type": "uri",
+    "value": "http://www.wikidata.org/entity/P6355"
+   },
+   "formatter": {
+    "type": "literal",
+    "value": "https://collection.centrepompidou.fr/#/artwork/$1"
+   }
+  }
+ ],
+ "pages Q50321310": [
+  {
+   "described": {
+    "type": "uri",
+    "value": "https://www.sfmoma.org/artwork/FC.595"
+   }
+  }
+ ]
+}

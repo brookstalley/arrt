@@ -10,9 +10,11 @@ place regardless of which concern they belong to.
 **This is where the pipeline's rules are enforced, at write time.** Two state
 machines are closed here rather than described: a run cannot leave a terminal
 state, a resolve run cannot reach the phase-1 states it skipped, and the verdict
-`awaiting_better_image` has exactly one entry — the path that also suppresses the
-instance the curator turned down. A rule applied on the way out is a rule the
-data can already violate.
+`wanted` has one entry, `want`. Suppressing a scan has one entry too: turning it
+down, which `want` does when it names the scan and `reject_image` does when the
+scan was only an alternate. Wanting a work suppresses nothing it was not told to,
+and turning down a scan always suppresses it. A rule applied on the way out is a
+rule the data can already violate.
 
 **Discovery depends on the catalogue and never the other way round.** Acceptance
 is a promotion: a candidate work becomes an Artwork and its image instances
@@ -26,7 +28,8 @@ core keeps this logic testable without an event loop.
 
 import logging
 import uuid
-from collections.abc import Callable, Iterable, Sequence
+from collections import Counter
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
@@ -36,6 +39,7 @@ from arrt.library.discovery.dedup import clean_name, work_dedup_key
 from arrt.library.services import attribution, selection
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.display_fit import ArtworkBox, DisplayFit, assess_display_fit
+from arrt.library.services.remembered import checked_qid
 from arrt.persistence.discovery import DiscoveryStore
 from arrt.persistence.discovery_records import (
     CandidateImage,
@@ -58,6 +62,19 @@ from arrt.services.fields import relative_path, require_member, require_text
 from arrt.services.store import store_write
 
 log = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class WantedWork:
+    """A work the curator wants, and how many of its scans they turned down.
+
+    `scans_turned_down` is zero for a work wanted because nothing was found, and
+    counts every scan turned down otherwise, whichever call turned it down. Read
+    from the instances, not stored, so it cannot disagree with them.
+    """
+
+    work: CandidateWork
+    scans_turned_down: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,6 +151,20 @@ class ResolutionOutcome:
 
 
 @dataclass(frozen=True, slots=True)
+class ChosenWork:
+    """A work the curator chose from the registry, as a Get asks for it.
+
+    The title and maker are the registry's, so the image sources and phase 2's
+    identity check compare like with like when a source answers in the
+    registry's own words.
+    """
+
+    qid: str
+    title: str
+    artist: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class RunCost:
     """What a run spent on its own, and what asking for it cost altogether.
 
@@ -149,7 +180,14 @@ class RunCost:
 class DiscoveryService:
     """Read and write the pre-acceptance pipeline."""
 
-    def __init__(self, store: DiscoveryStore, catalogue: CatalogueService, artwork_box: ArtworkBox | None = None) -> None:
+    def __init__(
+        self,
+        store: DiscoveryStore,
+        catalogue: CatalogueService,
+        artwork_box: ArtworkBox | None = None,
+        *,
+        precedence: selection.Precedence | None = None,
+    ) -> None:
         self._store = store
         self._catalogue = catalogue
         #: The space a work is rendered into, which is what turns an instance's
@@ -159,6 +197,9 @@ class DiscoveryService:
         #: Optional so a caller with no deployment geometry gets the ranking
         #: without a floor rather than a constructor it cannot satisfy.
         self._artwork_box = artwork_box
+        #: The image sources' preference order, so a level tie between two
+        #: sources is settled here as phase 2 settled it. None with no sources.
+        self.precedence = precedence
 
     def transaction(self) -> AbstractContextManager[None]:
         """Apply a rule that spans several of this service's operations, atomically.
@@ -365,9 +406,9 @@ class DiscoveryService:
         parent, so there is no work list to approve or decline.
 
         **It refuses work ids already covered by a live resolve run, and names
-        them.** Double-submitting the same ids would spend twice for one result
-        on the only operation that spends at all, and a curator who did it by
-        accident should find out rather than be quietly corrected.
+        them.** Double-submitting the same ids would search twice for one result,
+        and spend twice if a paid image provider is ever added, and a curator who
+        did it by accident should find out rather than be quietly corrected.
 
         `price` is asked for the estimate rather than handed one, because the
         count it prices is the *deduplicated* one this method works out, and a
@@ -404,6 +445,95 @@ class DiscoveryService:
                 store_write(self._store.add_coverage, ResolveRunWork(resolve_run_id=run.id, candidate_work_id=work.id))
         return run
 
+    def start_get_run(
+        self,
+        *,
+        works: Sequence[ChosenWork],
+        initiated_by: InitiatedBy,
+        destination_theme_id: str | None = None,
+    ) -> DiscoveryRun:
+        """Begin a Get: phase 2 over works the curator chose from the registry.
+
+        It enters at phase 2, like a re-search, because there is no work list to
+        draw up or approve: the curator named every work, by its item. It is
+        priced at nothing, because phase 2 asks free sources and nothing here
+        asks a model.
+
+        **A work the curator rejected before is not suppressed here.** Suppression
+        stops phase 1 proposing a declined work again; choosing it by name is the
+        curator reconsidering it, which `propose_work` only allows when asked for
+        explicitly, and a Get is that request.
+
+        **`destination_theme_id` is where its accepted works go**, a theme in
+        place of the default, or None for the default. It is recorded and never
+        read here: a theme is Programming's, so the Library holds its id as an
+        opaque reference and does not check it. The binding asked Programming
+        whether the theme exists before calling this, and `destinations` is how
+        Programming learns it back.
+        """
+        if not works:
+            raise ServiceError("A Get needs at least one work.")
+        chosen = list({work.qid: work for work in works}.values())
+        with self._store.transaction():
+            run = DiscoveryRun(
+                id=str(uuid.uuid4()),
+                kind=RunKind.GET,
+                initiated_by=require_member(initiated_by, enum=InitiatedBy, field="initiated_by"),
+                status=RunStatus.RESOLVING_IMAGES,
+                approval_required=False,
+                started_at=datetime.now(UTC),
+                estimated_cost_usd=Decimal(0),
+                destination_theme_id=destination_theme_id,
+            )
+            store_write(self._store.add_run, run)
+            for work in chosen:
+                title = require_text(work.title, field="title")
+                store_write(
+                    self._store.add_candidate_work,
+                    CandidateWork(
+                        id=str(uuid.uuid4()),
+                        discovery_run_id=run.id,
+                        proposed_title=title,
+                        proposed_artist=work.artist,
+                        rationale=f"You chose this from Wikidata ({work.qid}).",
+                        work_dedup_key=work_dedup_key(title=title, artist=work.artist),
+                        provenance=WorkProvenance.CHOSEN,
+                        wikidata_qid=work.qid,
+                    ),
+                )
+        return run
+
+    def awaiting_verdict(self) -> Mapping[str, int]:
+        """How many works each run holds that found an image and await a verdict, by run id.
+
+        Counted on the run that owns each work, so a work a re-search looked at
+        again is counted once, on the run that first named it. Runs with nothing
+        waiting are absent.
+        """
+        return dict(Counter(work.discovery_run_id for work in self._store.list_works_awaiting_verdict()))
+
+    def destinations(self, artwork_ids: Iterable[str]) -> Mapping[str, str | None]:
+        """Where each artwork's acceptance asked it to go: a theme id, or None for the default.
+
+        Every id asked is answered. None is the answer for a work accepted from a
+        run that named no destination (an Ask, or a Get left at *All works*), for
+        one accepted before runs could name one, and for one no run minted
+        (seeded, or added by hand) or the catalogue does not hold.
+        """
+        wanted = list(dict.fromkeys(artwork_ids))
+        named = self._store.destinations_of_artworks(wanted)
+        return {artwork_id: named.get(artwork_id) for artwork_id in wanted}
+
+    def items_being_got(self) -> frozenset[str]:
+        """The Wikidata items a Get still under way is looking for."""
+        return frozenset(
+            work.wikidata_qid
+            for run in self._store.list_runs(kind=RunKind.GET)
+            if not run.status.is_terminal
+            for work in self._store.list_candidate_works(run.id)
+            if work.wikidata_qid is not None
+        )
+
     def covered_works(self, resolve_run_id: str) -> Sequence[CandidateWork]:
         """Which works a resolve run is re-searching — its scope, not its provenance."""
         run = self.get_run(resolve_run_id)
@@ -420,7 +550,7 @@ class DiscoveryService:
         of its other terminal states is written by the run's own process, which a
         crashed process by definition cannot do. Combined with the double-spend
         guard, a crash would leave the covered works permanently
-        un-re-searchable, silently, on the only operation that spends money.
+        un-re-searchable, silently.
 
         A run in a process-held state only advances while the curation process
         that owns it is alive, and there is exactly one such process. So if
@@ -457,7 +587,7 @@ class DiscoveryService:
             self._reclean_proposed_titles()
 
     def _reclean_proposed_titles(self) -> None:
-        """Re-clean every stored title, and re-key any the cleaning changed.
+        """Re-clean every stored title, and re-key any row whose key the current rules no longer give.
 
         **A stored title is a derived value, and this is what keeps it current.**
         `clean_name` runs at the engine seam, so a row records whatever that rule
@@ -473,6 +603,14 @@ class DiscoveryService:
         pays that debt once while this pays it every time. It is idempotent and
         almost always a no-op, which is what makes it safe to run at every start.
 
+        **The key is compared as well as the title**, because the derivation can
+        change where the cleaning does not: dropping a leading article left every
+        stored "The ..." title as it was and changed its key. Comparing only titles
+        would leave those rows keyed by the old rule, and a work rejected as *The
+        Tree* would stop suppressing *The Tree* proposed again. Every writer
+        derives the key from the title and artist it stores, so a stored key that
+        differs from that derivation is stale, never a choice to keep.
+
         The cost is one walk of a household's candidate rows, in the transaction
         the run repair above already opened — so a start either applies both
         repairs or neither, and a failure here is retried next start rather than
@@ -485,6 +623,7 @@ class DiscoveryService:
         curator's decision.
         """
         repaired = 0
+        rekeyed = 0
         for run in self._store.list_runs():
             for work in self._store.list_candidate_works(run.id):
                 title = clean_name(work.proposed_title)
@@ -498,9 +637,15 @@ class DiscoveryService:
                 # one on the way in, so a cleaning that emptied a title would be
                 # a rule reaching too far, and overwriting the row would destroy
                 # the evidence of it while making the row unreadable.
-                if not title or (title == work.proposed_title and artist == work.proposed_artist):
+                if not title:
                     continue
                 key = work_dedup_key(title=title, artist=artist)
+                if title == work.proposed_title and artist == work.proposed_artist:
+                    if key == work.work_dedup_key:
+                        continue
+                    store_write(self._store.update_candidate_work, replace(work, work_dedup_key=key))
+                    rekeyed += 1
+                    continue
                 log.info(
                     "re-cleaned a stored title the citation rules now reach",
                     extra={
@@ -525,6 +670,15 @@ class DiscoveryService:
                 "their work identities were recomputed to match.",
                 repaired,
                 extra={"event": "works.recleaned", "works_recleaned": repaired},
+            )
+        if rekeyed:
+            # Apart from the count above, and at INFO, because nothing a curator
+            # saw was wrong: the rule that derives the key changed, and these rows
+            # now carry the key that rule gives.
+            log.info(
+                "Re-keyed %d stored work(s) whose identity the current rules derive differently.",
+                rekeyed,
+                extra={"event": "works.rekeyed", "works_rekeyed": rekeyed},
             )
 
     # -- reads: proposed works ------------------------------------------------
@@ -559,8 +713,8 @@ class DiscoveryService:
         """Whether this work has already been proposed and declined.
 
         Work-scoped suppression, and only work-scoped: rejecting an *image* uses
-        a different key entirely, so asking for a better scan of a painting
-        leaves the painting eligible.
+        a different key entirely, so turning down a scan of a painting the
+        curator wants leaves the painting eligible.
         """
         return any(
             work.verdict is Verdict.REJECTED
@@ -623,10 +777,11 @@ class DiscoveryService:
             # Kind before status: a resolve run is never in `resolving_works`, so
             # the status refusal would reach it first and answer a question it did
             # not ask — and this guard would be a branch nothing could enter.
-            if self.get_run(run_id).kind is not RunKind.DISCOVERY:
+            kind = self.get_run(run_id).kind
+            if kind is not RunKind.DISCOVERY:
                 raise ServiceError(
-                    f"Run {run_id!r} is a resolve run, which re-searches works an earlier run proposed "
-                    "rather than proposing new ones."
+                    f"Run {run_id!r} is a {kind} run, whose works were named before it started; "
+                    "only a discovery run proposes works."
                 )
             self._require_status(run_id, RunStatus.RESOLVING_WORKS, doing="propose works")
             if not reconsider and self.is_work_suppressed(key):
@@ -677,10 +832,11 @@ class DiscoveryService:
         """
         key = require_text(work_dedup_key, field="work_dedup_key")
         with self._store.transaction():
-            if self.get_run(run_id).kind is not RunKind.DISCOVERY:
+            kind = self.get_run(run_id).kind
+            if kind is not RunKind.DISCOVERY:
                 raise ServiceError(
-                    f"Run {run_id!r} is a resolve run, which re-searches works an earlier run proposed rather "
-                    "than offering new ones."
+                    f"Run {run_id!r} is a {kind} run, whose works were named before it started; "
+                    "only a discovery run is offered works."
                 )
             self._require_status(run_id, RunStatus.RESOLVING_IMAGES, doing="offer works")
             if self.is_work_suppressed(key):
@@ -717,21 +873,21 @@ class DiscoveryService:
     def set_verdict(self, candidate_work_id: str, verdict: Verdict, *, reason: str | None = None) -> VerdictOutcome:
         """Record the curator's decision about a work: accepted or rejected.
 
-        **`awaiting_better_image` is refused here on purpose.** That verdict is a
-        judgement about an *instance*, and the path that sets it is the same path
-        that suppresses the instance being turned down — so the suppression can
-        never be skipped. Reaching it from here would let a re-search hand back
-        the very image the curator had just rejected.
+        **`wanted` is refused here on purpose**, and the refusal names `want`,
+        which is its one way in. `want` is where a scan being turned down on the
+        way is suppressed in the same transaction, so a work the curator wants
+        because its scan was not good enough can never reach that verdict with
+        the scan still offerable to a re-search.
 
         The constraint is on the target value only, never on the source state:
-        this is available from `awaiting_better_image` too, because a curator must
-        never be blocked waiting for a background job to finish.
+        this is available from `wanted` too, because a curator must never be
+        blocked waiting for a background job to finish.
         """
         target = require_member(verdict, enum=Verdict, field="verdict")
-        if target is Verdict.AWAITING_BETTER_IMAGE:
+        if target is Verdict.WANTED:
             raise ServiceError(
-                "A verdict of 'awaiting_better_image' is set by rejecting an image, not by set_verdict. "
-                "Use reject_image, which also suppresses the instance so a re-search cannot return it."
+                "A verdict of 'wanted' is set by want, not by set_verdict. Use want, naming the scan being turned "
+                "down if there is one, so that scan is suppressed and a re-search cannot return it."
             )
         if target is Verdict.PENDING:
             raise ServiceError("'pending' is where a work starts, not a decision. Valid verdicts are: accepted, rejected.")
@@ -911,45 +1067,154 @@ class DiscoveryService:
             store_write(self._store.update_candidate_image, forgotten)
         return forgotten
 
+    def set_wikidata_item(self, candidate_work_id: str, qid: str) -> CandidateWork:
+        """Record the Wikidata item the curator picked for a work still under review.
+
+        The curator's pick, never a match: `data-model.md` § Registry identity
+        forbids matching a work by title, and the QID set here becomes the
+        artwork's at acceptance, recorded as the curator's (`_accept`). A re-search
+        then asks Commons by it. Refused on a decided work, whose identity is the
+        catalogue's to change now (`IdentityService.set_work_identity`).
+        """
+        checked = checked_qid(qid)
+        with self._store.transaction():
+            work = self.get_candidate_work(candidate_work_id)
+            if work.verdict.is_terminal:
+                raise ServiceError(
+                    f"Candidate work {candidate_work_id!r} was already {work.verdict}; "
+                    "an accepted work's Wikidata item is changed on its Work page."
+                )
+            picked = replace(work, wikidata_qid=checked)
+            store_write(self._store.update_candidate_work, picked)
+        log.info(
+            "a wanted work's Wikidata item was picked",
+            extra={"event": "wanted.item_picked", "work_id": candidate_work_id, "qid": checked},
+        )
+        return picked
+
+    def want(self, candidate_work_id: str, *, turning_down: str | None = None) -> CandidateWork:
+        """Record that the curator wants this work and holds no scan of it they would accept.
+
+        The one way into `wanted`. It covers both reasons a work is wanted — the
+        scan on offer was not good enough, or none was found — because they are
+        one wish; which it was is read from the work's instances afterwards, never
+        stored.
+
+        **`turning_down` names a scan of this work to turn down on the way**, and
+        then this suppresses it and fills the vacancy exactly as `reject_image`
+        describes, in the same transaction as the verdict. Without it nothing is
+        suppressed: wanting a work is not a judgement about any scan, and a scan
+        the curator never turned down must stay offerable to the re-search that
+        looks for one. Turning a scan down is still the only way to suppress one.
+
+        Allowed on any work not yet decided, pending or already wanted, whatever
+        it holds; refused on an accepted or rejected work, whose verdict is final.
+        Wanting a work already wanted, naming no scan, changes nothing.
+        """
+        with self._store.transaction():
+            work = self.get_candidate_work(candidate_work_id)
+            if work.verdict.is_terminal:
+                raise ServiceError(f"Candidate work {work.id!r} was already {work.verdict}, and that is final.")
+            if turning_down is not None:
+                image = self.get_candidate_image(turning_down)
+                if image.candidate_work_id != work.id:
+                    raise ServiceError(
+                        f"Image {turning_down!r} was found for a different work, not {work.proposed_title!r}, "
+                        "so it cannot be turned down for this one."
+                    )
+                self._turn_down(image, work)
+            wanted = replace(work, verdict=Verdict.WANTED)
+            store_write(self._store.update_candidate_work, wanted)
+        return wanted
+
     def reject_image(self, candidate_image_id: str) -> CandidateWork:
-        """Turn down an instance and ask for a better one. The work stays wanted.
+        """Turn down one scan of a work. Returns the work as it now stands.
 
-        This is the only way into the `awaiting_better_image` verdict, and it is
-        the same call that sets the instance's suppression — one path, so the two
-        can never come apart. The work keeps its dedup key unsuppressed, because
-        the curator asked to keep the painting and only turned down the scan.
+        **What else happens depends on which scan it was.** The scan on offer —
+        the one a verdict would accept on — is the curator saying this one is not
+        good enough, so the work becomes `wanted`, through `want`. An alternate is
+        only turned down: the scan on offer stands, the verdict is unchanged, and
+        nothing has asked for a better one, because a curator who turned down a
+        poor alternate under a scan they like has not.
 
-        If the instance rejected was the one representing the work, the selection
-        falls through to the next survivor, so a work is never left representing
-        itself by an image its curator turned down. If it was an alternate, the
-        standing selection is left exactly where it was. If nothing survives, the
-        work holds no selection and re-enters phase 2 rather than sitting there.
+        Either way the scan is suppressed for this work, so no re-search can hand
+        it back, and the work keeps its dedup key unsuppressed, because only the
+        scan was turned down.
         """
         with self._store.transaction():
             image = self.get_candidate_image(candidate_image_id)
-            if image.rejected_at is not None:
-                raise ServiceError(f"Image {candidate_image_id!r} was already rejected for this work.")
             work = self.get_candidate_work(image.candidate_work_id)
-            if work.verdict.is_terminal:
-                raise ServiceError(
-                    f"Candidate work {work.id!r} was already {work.verdict}, so its images are no longer under review."
-                )
-            store_write(
-                self._store.update_candidate_image,
-                replace(image, is_selected=False, rejected_at=datetime.now(UTC)),
+            # Checked before choosing a path, so a refusal reads the same whichever
+            # scan it was: a decided work says its scans are closed.
+            self._require_turnable(image, work)
+            if image.is_selected:
+                return self.want(work.id, turning_down=image.id)
+            self._turn_down(image, work)
+        return work
+
+    def _turn_down(self, image: CandidateImage, work: CandidateWork) -> None:
+        """Suppress one scan for its work, and fill the selection if that left it empty.
+
+        Inside the caller's transaction. If the scan turned down was the one
+        representing the work, the selection falls through to the next survivor,
+        so a work is never left representing itself by an image its curator turned
+        down. If it was an alternate, the standing selection is left exactly where
+        it was. If nothing survives, the work holds no selection and re-enters
+        phase 2 rather than sitting there.
+        """
+        self._require_turnable(image, work)
+        store_write(
+            self._store.update_candidate_image,
+            replace(image, is_selected=False, rejected_at=datetime.now(UTC)),
+        )
+        # Only a vacancy is filled. Rejecting an alternate while the instance
+        # actually on offer still stands must not move the selection — a curator
+        # who chose the canonical instance did not ask for that, and the move
+        # would be silent.
+        survivors = self._store.list_candidate_images(work.id)
+        if not any(other.is_selected for other in survivors):
+            replacement = selection.best(survivors, box=self._artwork_box, precedence=self.precedence)
+            if replacement is not None:
+                self._select(replacement, rationale=None)
+
+    @staticmethod
+    def _require_turnable(image: CandidateImage, work: CandidateWork) -> None:
+        """Refuse to turn down a scan already turned down, or one whose work is decided."""
+        if image.rejected_at is not None:
+            raise ServiceError(f"Image {image.id!r} was already rejected for this work.")
+        if work.verdict.is_terminal:
+            raise ServiceError(
+                f"Candidate work {work.id!r} was already {work.verdict}, so its images are no longer under review."
             )
-            # Only a vacancy is filled. Rejecting an alternate while the instance
-            # actually on offer still stands must not move the selection —
-            # a curator who chose the canonical instance did not ask for that,
-            # and the move would be silent.
-            survivors = self._store.list_candidate_images(work.id)
-            if not any(other.is_selected for other in survivors):
-                replacement = selection.best(survivors, box=self._artwork_box)
-                if replacement is not None:
-                    self._select(replacement, rationale=None)
-            awaiting = replace(work, verdict=Verdict.AWAITING_BETTER_IMAGE)
-            store_write(self._store.update_candidate_work, awaiting)
-        return awaiting
+
+    def wanted_qids(self) -> frozenset[str]:
+        """The Wikidata items wanted works name, so a page listing registry works can mark them *Wanted*.
+
+        Only a wanted work matched to an item names one; a work wanted with no
+        item cannot be told apart from any other registry work, so it marks
+        nothing.
+        """
+        return frozenset(work.wikidata_qid for work in self._store.list_wanted_works() if work.wikidata_qid)
+
+    def list_wanted(self) -> Sequence[WantedWork]:
+        """Every wanted work across runs, newest run first, each with how many scans were turned down.
+
+        The read behind Activity › Wanted. Newest first by the run that proposed
+        the work, since the verdict carries no moment of its own; by title within
+        a run. `scans_turned_down` is counted from the work's instances, which is
+        what tells "wanted because its scan was turned down" from "wanted because
+        none was found" without a second stored fact that could disagree.
+        """
+        works = self._store.list_wanted_works()
+        started = {run_id: self.get_run(run_id).started_at for run_id in dict.fromkeys(work.discovery_run_id for work in works)}
+        ordered = sorted(works, key=lambda work: started[work.discovery_run_id], reverse=True)
+        return [
+            WantedWork(
+                work=work,
+                scans_turned_down=sum(1 for image in self._store.list_candidate_images(work.id) if image.rejected_at is not None),
+            )
+            for work in ordered
+        ]
 
     def record_resolution(
         self, candidate_work_id: str, *, refusals: frozenset[UnresolvedReason] = frozenset()
@@ -976,7 +1241,7 @@ class DiscoveryService:
         with self._store.transaction():
             work = self.get_candidate_work(candidate_work_id)
             held = self._store.list_candidate_images(work.id)
-            chosen = selection.best(held, box=self._artwork_box)
+            chosen = selection.best(held, box=self._artwork_box, precedence=self.precedence)
             status = ResolutionStatus.RESOLVED if chosen is not None else ResolutionStatus.UNRESOLVED
             reason = None if chosen is not None else self._unresolved_reason(held, refusals)
             if work.verdict.is_terminal:
@@ -987,8 +1252,8 @@ class DiscoveryService:
                 work,
                 resolution_status=status,
                 unresolved_reason=reason,
-                # A work the curator asked a better image for returns to review
-                # once one is on offer. It stays where it is when nothing was
+                # A wanted work returns to review once a scan is on offer, which
+                # is what a re-search is for. It stays where it is when nothing was
                 # found, which is what makes a dead end visible rather than a
                 # silent no-op.
                 verdict=Verdict.PENDING if chosen is not None else work.verdict,
@@ -1014,7 +1279,7 @@ class DiscoveryService:
         happened: no record came back whose title matched.
         """
         if held:
-            surviving = selection.surviving(held)
+            surviving = selection.surviving(held, precedence=self.precedence)
             return UnresolvedReason.BELOW_FLOOR if surviving else UnresolvedReason.ALL_REJECTED
         return max(refusals, key=lambda reason: reason.depth, default=UnresolvedReason.NOT_HELD)
 
@@ -1172,9 +1437,9 @@ class DiscoveryService:
             # above derives its own. The two situations reach this line and read
             # very differently to a curator: a work only ever found small, and one
             # whose good scan they turned down themselves — which is reachable
-            # because `set_verdict` is deliberately allowed from
-            # `awaiting_better_image`. Telling the second that every scan found
-            # was too small contradicts what they just did.
+            # because `set_verdict` is deliberately allowed from `wanted`.
+            # Telling the second that every scan found was too small contradicts
+            # what they just did.
             cause = (
                 "every scan found for it is below the size this deployment will show without being asked"
                 if all(self._below_floor(image) for image in images)
@@ -1194,7 +1459,13 @@ class DiscoveryService:
         if attributed.mint is not None:
             minted = self._catalogue.add_artist(name=attributed.mint)
         artist = attributed.matched if minted is None else minted
-        artwork = self._catalogue.add_artwork(title=work.proposed_title, artist_id=None if artist is None else artist.id)
+        artwork = self._catalogue.add_artwork(
+            title=work.proposed_title,
+            artist_id=None if artist is None else artist.id,
+            # The item the curator chose the work by. Works may share one (a
+            # duplicate the Artist page shows as *Held ×2*), so nothing is refused.
+            wikidata_qid=work.wikidata_qid,
+        )
         for image in images:
             self._catalogue.add_source(
                 artwork_id=artwork.id,
@@ -1276,7 +1547,7 @@ class DiscoveryService:
             titles = ", ".join(f"{work.proposed_title!r} ({work.id})" for work in busy)
             raise ServiceError(
                 f"A re-search is already running for {titles}. Wait for it to finish, or cancel it — "
-                "re-submitting would pay twice for one result."
+                "re-submitting would search twice for one result."
             )
 
     def _live_coverage(self, candidate_work_id: str) -> str | None:
@@ -1294,9 +1565,9 @@ class DiscoveryService:
         `discovery_run_id` is its provenance and never changes; coverage records
         which run is re-searching it, which changes every time one does.
         """
-        if run.kind is RunKind.DISCOVERY:
-            return self._store.list_candidate_works(run.id)
-        return [self.get_candidate_work(coverage.candidate_work_id) for coverage in self._store.list_coverage_by_run(run.id)]
+        if run.kind is RunKind.RESOLVE:
+            return [self.get_candidate_work(coverage.candidate_work_id) for coverage in self._store.list_coverage_by_run(run.id)]
+        return self._store.list_candidate_works(run.id)
 
     def _descendants(self, run_id: str) -> list[str]:
         """Every resolve run below this one, however deep the chain goes."""

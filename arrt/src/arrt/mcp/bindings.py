@@ -24,18 +24,16 @@ from datetime import datetime
 from typing import Any, Final
 
 from arrt.counting import agree, agree_partitive, counted
-from arrt.library.acquisition.dezoomify import DezoomifyUnavailable
 from arrt.library.acquisition.preparation import PreparationResult
-from arrt.library.acquisition.service import AcquisitionOutcome, AcquisitionResult
-from arrt.library.acquisition.space import NotEnoughSpace
-from arrt.library.acquisition.tiles import TileTargetUnavailable
+from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState
 from arrt.library.services.catalogue import MAX_LIST_LIMIT, ArtworkDetail, ArtworkListing, FacetGroup
-from arrt.library.services.discovery import VerdictOutcome
+from arrt.library.services.discovery import VerdictOutcome, WantedWork
 from arrt.library.services.display_fit import DisplayFit
 from arrt.library.services.previews import InlinePreview
 from arrt.library.services.review import MAX_REVIEW_LIMIT, CandidatePage, CandidateView, InstanceListing, InstanceView
 from arrt.library.services.runner import RunListing, RunView
 from arrt.library.services.taste import AffinityView
+from arrt.library.services.wikidata_match import WorkMatch
 from arrt.mcp.envelope import ImageBlock, ok, with_images
 from arrt.mcp.registry import HELP_ACTION, RegistryError
 from arrt.mcp.tools import TOOLS
@@ -46,12 +44,13 @@ from arrt.persistence.discovery_records import (
     InitiatedBy,
     RunKind,
     RunStatus,
+    Verdict,
 )
-from arrt.persistence.records import Artist, Artwork, Directive, Source, Theme, VocabularyKind, Wall
+from arrt.persistence.records import Artist, Artwork, Client, Directive, Source, Theme, VocabularyKind, Wall
+from arrt.programming.clients import ClientView
 from arrt.programming.display import UNSET, ThemePlacement, WallView, describe_wall_status
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.services.container import Services
-from arrt.services.errors import ServiceError
 
 #: A bound action: validated arguments in, a result payload out. Every binding
 #: takes the whole container rather than the one service it happens to need, so
@@ -92,13 +91,20 @@ log = logging.getLogger(__name__)
 
 
 def _list_artworks(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    # A theme's works are Programming's to name and the Library's to list: two
+    # calls composed, as `_get_theme` composes them.
+    theme = arguments.get("theme")
+    within = None if theme is None else services.display.theme_work_ids(theme)
+    facets = {kind: arguments[kind] for kind in _FACET_KINDS if arguments.get(kind)}
     listing = services.catalogue.list_artworks(
         status=arguments.get("status"),
         q=arguments.get("q"),
-        facets={kind: arguments[kind] for kind in _FACET_KINDS if arguments.get(kind)},
+        facets=facets,
         limit=arguments.get("limit"),
         offset=arguments.get("offset", 0),
         sort=arguments.get("sort"),
+        artist_id=arguments.get("artist_id"),
+        within=within,
     )
     return ok(
         artworks=[_summary(entry) for entry in listing.entries],
@@ -116,6 +122,26 @@ def _list_artworks(services: Services, arguments: Mapping[str, Any]) -> dict[str
         # a filter needs to see that a combination is empty rather than infer it
         # from an absence.
         facets=[_facet_group(group) for group in listing.facets],
+        # Every theme as a filter option, counted with the theme's own selection
+        # ignored, as the facets are and as the browser's rail gets them.
+        themes=[
+            {
+                "theme_id": option.theme.id,
+                "name": option.theme.name,
+                "count": option.count,
+                "selected": option.selected,
+                "disabled": option.disabled,
+            }
+            for option in services.display.theme_counts(
+                services.catalogue.matching_ids(
+                    status=arguments.get("status"),
+                    q=arguments.get("q"),
+                    facets=facets,
+                    artist_id=arguments.get("artist_id"),
+                ),
+                selected=theme,
+            )
+        ],
         notice=_truncation_notice(listing),
     )
 
@@ -133,7 +159,11 @@ def _facet_group(group: FacetGroup) -> dict[str, Any]:
 
 
 def _get_artwork(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    return ok(artwork=_full(services.catalogue.get_artwork(arguments["artwork_id"])))
+    artwork_id = arguments["artwork_id"]
+    return ok(
+        artwork=_full(services.catalogue.get_artwork(artwork_id)),
+        acquisition=_acquisition_fields(services.acquisition_queue.state_of([artwork_id]).get(artwork_id)),
+    )
 
 
 def _list_sources(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -145,6 +175,50 @@ def _list_sources(services: Services, arguments: Mapping[str, Any]) -> dict[str,
         count=len(sources),
         notice=_sources_notice(sources),
     )
+
+
+def _set_work_qid(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    artwork = services.identity.set_work_identity(arguments["artwork_id"], _stated_qid(arguments["qid"]))
+    return ok(artwork=_artwork_fields(artwork))
+
+
+def _set_artist_qid(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    artist = services.identity.set_artist_identity(arguments["artist_id"], _stated_qid(arguments["qid"]))
+    return ok(artist=_artist_fields(artist))
+
+
+def _list_topics(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    index = services.topics.index()
+    return ok(
+        state=str(index.state),
+        note=index.note,
+        kinds=[
+            {
+                "kind": group.kind.value,
+                "topics": [{"qid": topic.qid, "label": topic.label, "works": topic.works} for topic in group.topics],
+            }
+            for group in index.groups
+        ],
+    )
+
+
+def _get_topic(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    page = services.topics.page(arguments["qid"])
+    return ok(
+        state=str(page.state),
+        note=page.note,
+        qid=page.qid,
+        label=page.label,
+        kinds=[kind.value for kind in page.kinds],
+        # Two calls composed, as a theme's works are: the topic says which works,
+        # and the catalogue says what each is.
+        works=[_summary(entry) for entry in services.catalogue.resolve_details(page.work_ids)],
+    )
+
+
+def _stated_qid(value: str) -> str | None:
+    """`none`, in any case, is the curator saying there is no item; anything else is checked as a QID."""
+    return None if value.strip().lower() == "none" else value
 
 
 def _archive_artwork(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -164,56 +238,41 @@ def _restore_artwork(services: Services, arguments: Mapping[str, Any]) -> dict[s
 
 
 def _retry_acquisition(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    try:
-        result = services.acquisition.acquire(
-            arguments["artwork_id"],
-            source_id=arguments.get("source_id"),
-        )
-    # Translated rather than allowed to reach the generic handler. These are the
-    # conditions acquisition deliberately raises for instead of recording,
-    # because no source is at fault — and a caller told only that the call
-    # "failed unexpectedly" would go looking at the museum. What each clause adds
-    # is the **remedy**: the sentence naming what an operator changes to make the
-    # refusal stop. That is a tool-boundary concern and it belongs here.
-    #
-    # The journal line is *not* here, and that is the division. It follows the
-    # condition, so `AcquisitionService` emits it at the raise and every caller
-    # gets it — a browser route added later inherits the signal instead of
-    # inheriting silence. Adding a `_deployment_fault(...)` call back into these
-    # clauses would log every MCP refusal twice.
-    #
-    # **Every raise-rather-record condition needs a clause here.** Adding one to
-    # the service without one here is silent: the generic handler drops the
-    # exception text, so the deliberate refusal arrives as the very "failed
-    # unexpectedly" these clauses exist to prevent.
-    except NotEnoughSpace as exc:
-        raise ServiceError(
-            f"Acquisition did not start: {exc} Free space on the art tree's disk, or lower MIN_FREE_BYTES "
-            "if this deployment means to run closer to full."
-        ) from exc
-    except DezoomifyUnavailable as exc:
-        raise ServiceError(
-            f"Acquisition did not start: {exc} This is a deployment problem rather than a bad source — "
-            "install dezoomify-rs, or set DEZOOMIFY_PATH to where it lives. Every source using "
-            "acquisition_method='dezoomify' is affected, and no source is at fault."
-        ) from exc
-    except TileTargetUnavailable as exc:
-        raise ServiceError(
-            f"Acquisition did not start: {exc} Set ARTIC_USER_AGENT in .env to a string naming this "
-            "deployment and a contact address — the museum's API is open, but it asks callers to identify "
-            "themselves, and an object's image service can only be reached by asking. Every source from "
-            "that provider is affected, and no source is at fault."
-        ) from exc
-    return ok(
-        artwork_id=result.artwork_id,
-        source_id=result.source_id,
-        outcome=result.outcome.value,
-        detail=result.detail,
-        relative_path=result.relative_path,
-        byte_size=result.byte_size,
-        width=result.width,
-        height=result.height,
-        notice=_acquisition_notice(result),
+    # Through the queue, never a fetch in the call: a tiled fetch can run for
+    # half an hour, and a second fetch beside the queue's own would break the one
+    # fetch at a time the Pi's memory allows. Renamed in behaviour, not in name,
+    # 2026-10-02 (`api-contract.md` § Versioning: a description change is
+    # breaking, announced and annotated here and in the tool's text). The fetch's
+    # outcome, and a deployment fault's remedy, now arrive on `get`'s
+    # `acquisition` and on the work's sources.
+    state = services.acquisition_queue.retry(arguments["artwork_id"], source_id=arguments.get("source_id"))
+    return ok(acquisition=_acquisition_fields(state), notice=_retry_notice(state))
+
+
+def _acquisition_fields(state: AcquisitionState | None) -> dict[str, Any] | None:
+    if state is None:
+        return None
+    return {
+        "artwork_id": state.artwork_id,
+        "phase": str(state.phase),
+        "failures": state.failures,
+        "detail": state.detail,
+        "next_try_at": None if state.next_try_at is None else state.next_try_at.isoformat(),
+        "since": None if state.since is None else state.since.isoformat(),
+        "condition": state.condition,
+        "remedy": state.remedy,
+    }
+
+
+def _retry_notice(state: AcquisitionState) -> str:
+    """What happens next, since the call itself fetched nothing."""
+    if state.phase is AcquisitionPhase.PAUSED:
+        remedy = state.remedy or "The journal has the error (event acquisition.queue_error)."
+        return f"Queued, but the acquisition queue is paused: {state.detail} {remedy}"
+    return (
+        "Queued at the front of the acquisition queue; nothing was fetched in this call. "
+        "art_catalogue(action='get') shows its progress under `acquisition`, which is null once the image "
+        "is fetched and prepared."
     )
 
 
@@ -259,8 +318,8 @@ def _mat_notice(result: PreparationResult) -> str | None:
         return None
     return (
         f"The vision model did not choose this colour — it was derived from the artwork's own dominant "
-        f"colour and darkened, because {result.mat_fallback_detail}. Setting hex_rgb yourself overrides it, "
-        "and asking again may succeed if the cause was temporary."
+        f"colour, kept between the mat floor and ceiling, because {result.mat_fallback_detail}. Setting hex_rgb "
+        "yourself overrides it, and asking again may succeed if the cause was temporary."
     )
 
 
@@ -304,8 +363,9 @@ def _regenerate_notice(result: PreparationResult) -> str | None:
         # so the mat a work ends up wearing is usually the one chosen on the
         # `regenerate` that follows.
         notices.append(
-            f"This work had no mat, so one was chosen for it — but not by the vision model, because "
-            f"{result.mat_fallback_detail}. It was derived from the artwork's own dominant colour and darkened."
+            f"This work had no mat it could keep (none, or one below the floor), so one was chosen for it — but not "
+            f"by the vision model, because {result.mat_fallback_detail}. It was derived from the artwork's own "
+            "dominant colour, kept between the mat floor and ceiling."
         )
     if result.fit is DisplayFit.BELOW_FLOOR and result.rendered_long_edge_inches is not None:
         notices.append(
@@ -314,33 +374,6 @@ def _regenerate_notice(result: PreparationResult) -> str | None:
             "art_review's re-search finds a larger scan if one exists."
         )
     return " ".join(notices) or None
-
-
-def _acquisition_notice(result: AcquisitionResult) -> str | None:
-    """What the outcome means for the work, when the outcome alone understates it."""
-    if result.outcome is AcquisitionOutcome.PARTIAL:
-        # Said out loud because `partial` reads like a failure and is not one:
-        # the work is on the wall, with gaps, and asking again may close them.
-        return (
-            "The image is usable and the work holds it, but some tiles never arrived, so it has gaps. "
-            "Retrying re-uses the tiles already fetched, so a second attempt is cheap and may complete it."
-        )
-    if result.outcome is AcquisitionOutcome.FAILED:
-        return (
-            "The work holds whatever image it had before; a failed fetch replaces nothing. "
-            "art_catalogue(action='sources') shows the other sources this work has, if any."
-        )
-    if result.outcome is AcquisitionOutcome.KEPT_HELD:
-        # The one outcome where the source did nothing wrong and the work still
-        # changed nothing, so neither "acquired" nor "failed" describes it. Said in
-        # full because the obvious next move — retry again — has the same result
-        # until the tile server stops dropping tiles.
-        return (
-            "The fetch worked but came back with missing tiles, and the work already holds a better image, "
-            "so nothing was replaced. Retrying repeats this until the source returns every tile; "
-            "art_catalogue(action='sources') shows the work's other sources, if any."
-        )
-    return None
 
 
 def _sources_notice(sources: Sequence[Source]) -> str | None:
@@ -392,6 +425,10 @@ def _update_theme(services: Services, arguments: Mapping[str, Any]) -> dict[str,
         shuffle=arguments.get("shuffle", UNSET),
     )
     return ok(theme=_theme_fields(theme))
+
+
+def _make_default_theme(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    return ok(theme=_theme_fields(services.display.make_default(arguments["theme_id"])))
 
 
 def _delete_theme(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -494,15 +531,45 @@ def _resolve_images(services: Services, arguments: Mapping[str, Any]) -> dict[st
         notice=(
             "The re-search is under way; this is a handle, not a result. Call "
             f"art_discovery(action='status', run_id='{run.id}'), which holds until something changes. "
-            "What it spends is added to the run that first proposed these works."
+            "It costs nothing today; whatever a re-search spends is added to the run that first proposed these works."
+        ),
+    )
+
+
+def _start_get(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    # Two calls composed, with no branch on the first's answer: Programming says
+    # the theme exists (refusing an unknown one, so nothing starts), and the
+    # Library starts the Get.
+    theme_id = arguments.get("theme_id")
+    destination = None if theme_id is None else services.display.get_theme(theme_id).id
+    outcome = services.get.start(arguments["qids"], initiated_by=InitiatedBy.MCP_CLIENT, destination_theme_id=destination)
+    skipped = [{"qid": entry.qid, "reason": str(entry.reason)} for entry in outcome.skipped]
+    if outcome.run is None:
+        return ok(
+            run_id=None,
+            skipped=skipped,
+            notice="Every item was skipped, so no Get started; `skipped` says why for each.",
+        )
+    return ok(
+        **_run_fields(outcome.run),
+        skipped=skipped,
+        notice=(
+            "The Get is under way; this is a handle, not a result. Call "
+            f"art_discovery(action='status', run_id='{outcome.run.id}'), which holds until something changes."
         ),
     )
 
 
 def _list_runs(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    listing = services.runner.list_runs(status=arguments.get("status"), kind=arguments.get("kind"))
+    listing = services.runner.list_runs(
+        status=arguments.get("status"), kind=arguments.get("kind"), awaiting=bool(arguments.get("awaiting"))
+    )
     return ok(
         runs=[_run_summary(run) for run in listing.runs],
+        # What is left to review: works with an image and no verdict, in all and
+        # by listed run, as the HTTP listing carries them.
+        awaiting_works=listing.awaiting_works,
+        awaiting={run.id: listing.awaiting[run.id] for run in listing.runs if run.id in listing.awaiting},
         count=len(listing.runs),
         total=listing.total,
         truncated=listing.truncated,
@@ -643,23 +710,97 @@ def _set_verdict(services: Services, arguments: Mapping[str, Any]) -> dict[str, 
 
 def _reject_image(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     work = services.discovery.reject_image(arguments["image_id"])
+    # Which sentence follows depends on the work's verdict, which this call may or
+    # may not have changed: only the scan on offer makes a work wanted. Read from
+    # the work returned, so the notice cannot claim a wish the store does not hold.
+    then = (
+        _nothing_searching(work)
+        if work.verdict is Verdict.WANTED
+        else "It was an alternate, so the scan on offer stands and the work's verdict is unchanged."
+    )
     return ok(
         image_id=arguments["image_id"],
         work_id=work.id,
         title=work.proposed_title,
         verdict=str(work.verdict),
-        # The next move, in the payload rather than only in the tool's tips: a
-        # caller arrives here having decided the scan is not good enough, and
-        # the one thing that finds a better one is a different tool. Naming it
-        # at the moment of rejection is what keeps "reject" from reading as a
-        # request that something will act on.
-        notice=(
-            "The scan is turned down and cannot be offered for this work again. Nothing is searching for a "
-            "replacement: art_discovery(action='resolve_images', work_ids=['"
-            f"{work.id}']) is what looks, and it spends. Reject every scan you want re-searched first, then "
-            "ask once."
-        ),
+        notice=f"The scan is turned down and cannot be offered for this work again. {then}",
     )
+
+
+def _want(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    work = services.discovery.want(arguments["work_id"], turning_down=arguments.get("turning_down"))
+    return ok(
+        work_id=work.id,
+        title=work.proposed_title,
+        verdict=str(work.verdict),
+        notice=_nothing_searching(work),
+    )
+
+
+def _nothing_searching(work: CandidateWork) -> str:
+    """The next move for a wanted work, said at the moment it became one.
+
+    In the payload rather than only in the tool's tips: a caller arrives having
+    decided they want a scan they do not hold, and the one thing that finds one is a
+    different tool. Naming it here is what keeps wanting from reading as a request
+    that something will act on.
+    """
+    return (
+        "The work is wanted. Nothing is searching for a scan: art_discovery(action='resolve_images', "
+        f"work_ids=['{work.id}']) is what looks, and it costs nothing today. Gather every work you mean to "
+        "re-search, then ask once."
+    )
+
+
+def _list_wanted(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    works = [_wanted_fields(entry) for entry in services.discovery.list_wanted()]
+    return ok(works=works, count=len(works))
+
+
+def _sighting_hosts(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    hosts = [{"host": entry.host, "works": entry.works} for entry in services.sightings.hosts()]
+    return ok(hosts=hosts, count=len(hosts))
+
+
+def _wikidata_matches(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    found = services.wikidata_match.matches(arguments["work_id"])
+    return ok(
+        work_id=found.work.id,
+        title=found.work.proposed_title,
+        state=str(found.state),
+        note=found.note,
+        matches=[_match_fields(entry) for entry in found.matches],
+    )
+
+
+def _match_fields(entry: WorkMatch) -> dict[str, Any]:
+    """One registry item for a wanted work, named as `WorkMatchOut` names it (`test_surface_parity.py`)."""
+    match = entry.match
+    return {
+        "qid": str(match.qid),
+        "title": str(match.title),
+        "creator": None if match.creator is None else str(match.creator.name),
+        "sitelinks": match.sitelinks,
+        "has_image": match.image is not None,
+        "by_proposed_artist": entry.by_proposed_artist,
+    }
+
+
+def _set_wikidata_item(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    work = services.wikidata_match.pick(arguments["work_id"], arguments["qid"])
+    return ok(work=_work_summary(work), wikidata_qid=work.wikidata_qid)
+
+
+def _wanted_fields(entry: WantedWork) -> dict[str, Any]:
+    """One wanted work, named as `WantedWorkOut` names it (`test_surface_parity.py`)."""
+    return {
+        "work_id": entry.work.id,
+        "title": entry.work.proposed_title,
+        "artist": entry.work.proposed_artist,
+        "run_id": entry.work.discovery_run_id,
+        "wikidata_qid": entry.work.wikidata_qid,
+        "scans_turned_down": entry.scans_turned_down,
+    }
 
 
 def _verdict_notice(outcome: VerdictOutcome) -> str | None:
@@ -731,6 +872,113 @@ def _list_walls(services: Services, arguments: Mapping[str, Any]) -> dict[str, A
 
 def _add_wall(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     return ok(wall=_wall_fields(services.display.add_wall(name=arguments["name"])))
+
+
+def _list_clients(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    views = services.clients.list_clients()
+    return ok(clients=[_client_view_fields(view) for view in views], count=len(views))
+
+
+def _add_client(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    client = services.clients.add_client(name=arguments["name"])
+    return ok(
+        client=_client_fields(client),
+        notice=(
+            f"{client.name} is recorded with no token and no walls. Issue its token with "
+            "action='issue_client_token', and assign it walls with action='assign_wall'."
+        ),
+    )
+
+
+def _rename_client(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    return ok(client=_client_fields(services.clients.rename_client(arguments["client_id"], name=arguments["name"])))
+
+
+def _remove_client(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    released = services.clients.remove_client(arguments["client_id"])
+    names = ", ".join(repr(wall.name) for wall in released)
+    affected = (
+        f"{counted(len(released), 'wall')} it showed now {agree(len(released), 'has', 'have')} no client: {names}. "
+        "They keep their themes."
+        if released
+        else "It showed no wall, so no wall is affected."
+    )
+    return ok(
+        client_id=arguments["client_id"],
+        # Never omitted when empty, so "no wall was affected" is stated rather
+        # than left to be inferred from an absent key.
+        released_walls=[_wall_fields(wall) for wall in released],
+        notice=f"That client is forgotten and its token no longer works. {affected}",
+    )
+
+
+def _issue_client_token(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    issued = services.access.issue(arguments["client_id"])
+    return ok(
+        client_id=issued.client_id,
+        token=issued.token,
+        token_issued_at=_moment(issued.issued_at),
+        notice=(
+            "This is the only time this token is shown; only a verifier of it is kept. It goes in the Player's "
+            "settings as CLIENT_TOKEN, beside SERVER_URL, this server's address as that host reaches it. Any "
+            "token this client had before no longer works."
+        ),
+    )
+
+
+def _assign_wall(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    assignment = services.clients.assign_wall(arguments["wall_id"], client_id=arguments["client_id"], output=arguments["output"])
+    return ok(
+        wall=_wall_fields(assignment.wall),
+        client=_client_fields(assignment.client),
+        # The service's own sentence, or None when the client last reported an
+        # output by that name and nothing about the assignment needs saying.
+        notice=assignment.notice,
+    )
+
+
+def _unassign_wall(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    return ok(wall=_wall_fields(services.clients.unassign_wall(arguments["wall_id"])))
+
+
+def _client_fields(client: Client) -> dict[str, Any]:
+    """One client as a caller sees it, and never its token, which exists only in the answer that issued it.
+
+    Field names match `ClientOut` on the browser surface, for the reason
+    `_affinity_fields` gives.
+    """
+    return {
+        "client_id": client.id,
+        "name": client.name,
+        "created_at": _moment(client.created_at),
+        # Null while it has none, and then it is admitted to nothing.
+        "token_issued_at": _moment(client.token_issued_at),
+    }
+
+
+def _client_view_fields(view: ClientView) -> dict[str, Any]:
+    """A client with its walls and what it last reported, as `GET /api/clients` carries it."""
+    reading = view.heartbeat
+    return {
+        **_client_fields(view.client),
+        "walls": [{"wall_id": wall.id, "name": wall.name, "output": wall.output} for wall in view.walls],
+        "heartbeat": {
+            "reported_at": _moment(reading.reported_at),
+            "age_seconds": reading.age_seconds,
+            "absent": reading.absent,
+            "problem": reading.problem,
+            "description": reading.describe(),
+            "outputs": [
+                {
+                    "name": output.name,
+                    "kind": output.kind,
+                    "connected": output.connected,
+                    "screen": None if output.screen is None else list(output.screen),
+                }
+                for output in reading.outputs
+            ],
+        },
+    }
 
 
 def _list_taste(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -839,11 +1087,6 @@ def _next(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     return ok(**_directive_fields(services.display.step_display(arguments["wall_id"])))
 
 
-def _issue_token(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    issued = services.access.issue(arguments["wall_id"])
-    return ok(wall_id=issued.wall_id, token=issued.token, token_issued_at=_moment(issued.issued_at))
-
-
 #: Every built action, keyed by tool and action name. A tool absent from here
 #: answers `help` and nothing else, which is what its registry record says.
 BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
@@ -854,6 +1097,7 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_discovery", "decline"): _decline_run,
     ("art_discovery", "cancel"): _cancel_run,
     ("art_discovery", "resolve_images"): _resolve_images,
+    ("art_discovery", "get"): _start_get,
     ("art_discovery", "list_runs"): _list_runs,
     ("art_discovery", "spend"): _spend,
     ("art_review", "list_works"): _list_candidate_works,
@@ -861,7 +1105,12 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_review", "list_images"): _list_candidate_images,
     ("art_review", "set_canonical"): _set_canonical,
     ("art_review", "set_verdict"): _set_verdict,
+    ("art_review", "wikidata_matches"): _wikidata_matches,
+    ("art_review", "set_wikidata_item"): _set_wikidata_item,
     ("art_review", "reject_image"): _reject_image,
+    ("art_review", "want"): _want,
+    ("art_review", "list_wanted"): _list_wanted,
+    ("art_review", "sighting_hosts"): _sighting_hosts,
     ("art_catalogue", "list"): _list_artworks,
     ("art_catalogue", "get"): _get_artwork,
     ("art_catalogue", "sources"): _list_sources,
@@ -869,12 +1118,17 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_catalogue", "restore"): _restore_artwork,
     ("art_catalogue", "retry_acquisition"): _retry_acquisition,
     ("art_catalogue", "set_mat_color"): _set_mat_color,
+    ("art_catalogue", "set_work_qid"): _set_work_qid,
+    ("art_catalogue", "set_artist_qid"): _set_artist_qid,
     ("art_catalogue", "regenerate"): _regenerate,
+    ("art_catalogue", "topics"): _list_topics,
+    ("art_catalogue", "topic"): _get_topic,
     ("art_theme", "list"): _list_themes,
     ("art_theme", "get"): _get_theme,
     ("art_theme", "create"): _create_theme,
     ("art_theme", "update"): _update_theme,
     ("art_theme", "delete"): _delete_theme,
+    ("art_theme", "make_default"): _make_default_theme,
     ("art_theme", "add"): _add_to_theme,
     ("art_theme", "remove"): _remove_from_theme,
     ("art_theme", "reorder"): _reorder_in_theme,
@@ -886,7 +1140,13 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_display", "sync"): _sync,
     ("art_display", "show_now"): _show_now,
     ("art_display", "next"): _next,
-    ("art_display", "issue_token"): _issue_token,
+    ("art_display", "clients"): _list_clients,
+    ("art_display", "add_client"): _add_client,
+    ("art_display", "rename_client"): _rename_client,
+    ("art_display", "remove_client"): _remove_client,
+    ("art_display", "issue_client_token"): _issue_client_token,
+    ("art_display", "assign_wall"): _assign_wall,
+    ("art_display", "unassign_wall"): _unassign_wall,
     ("art_taste", "list"): _list_taste,
     ("art_taste", "set"): _set_taste,
     ("art_taste", "delete"): _delete_taste,
@@ -1005,6 +1265,10 @@ def _artwork_fields(artwork: Artwork) -> dict[str, Any]:
         "status": str(artwork.status),
         "accepted_at": _moment(artwork.accepted_at),
         "created_at": _moment(artwork.created_at),
+        # The Wikidata item, as the bare QID, and who set it: `matched` (by the
+        # holding museum's identifier, never a title) or `curator`.
+        "wikidata_qid": artwork.wikidata_qid,
+        "wikidata_qid_set_by": None if artwork.wikidata_qid_set_by is None else str(artwork.wikidata_qid_set_by),
     }
 
 
@@ -1026,6 +1290,8 @@ def _artist_fields(artist: Artist) -> dict[str, Any]:
         # rather than a demonym. Null means `nationality` is what reaches the
         # panel, which is the ordinary case.
         "display_nationality": artist.display_nationality,
+        "wikidata_qid": artist.wikidata_qid,
+        "wikidata_qid_set_by": None if artist.wikidata_qid_set_by is None else str(artist.wikidata_qid_set_by),
     }
 
 
@@ -1044,6 +1310,7 @@ def _theme_fields(theme: Theme) -> dict[str, Any]:
         "rotation_interval_seconds": theme.rotation_interval_seconds,
         "shuffle": theme.shuffle,
         "created_at": _moment(theme.created_at),
+        "is_default": theme.is_default,
     }
 
 
@@ -1053,9 +1320,10 @@ def _wall_fields(wall: Wall) -> dict[str, Any]:
         "wall_id": wall.id,
         "name": wall.name,
         "created_at": _moment(wall.created_at),
-        # When the Player token was issued, or None while the wall has none. The
-        # token itself is never read back: it exists only in the issuing answer.
-        "token_issued_at": None if wall.token_issued_at is None else _moment(wall.token_issued_at),
+        # The client that shows the wall and the name of its output, or None for
+        # both while no client does — an ordinary state, stated rather than omitted.
+        "client_id": wall.client_id,
+        "output": wall.output,
     }
 
 
@@ -1117,6 +1385,9 @@ def _run_fields(run: DiscoveryRun) -> dict[str, Any]:
         "parent_run_id": run.parent_run_id,
         "started_at": _moment(run.started_at),
         "completed_at": _moment(run.completed_at),
+        # Where a Get's accepted works go instead of the default theme, or null
+        # for the default. A theme id, which may name one deleted since.
+        "destination_theme_id": run.destination_theme_id,
     }
 
 
@@ -1215,6 +1486,9 @@ def _work_summary(work: CandidateWork) -> dict[str, Any]:
     """
     return {
         "work_id": work.id,
+        # The catalogue work an acceptance made, or null: what `art_catalogue`
+        # takes, so an accepted work's image and its fetch can be followed.
+        "artwork_id": work.artwork_id,
         "title": work.proposed_title,
         # As phase 1 wrote it, unparsed. Matching it to a catalogue artist is
         # acceptance's job and does not happen until a work is promoted. On an
@@ -1239,6 +1513,8 @@ def _work_summary(work: CandidateWork) -> dict[str, Any]:
         # prose was carrying, which is most of why they are facts now.
         "offered_for_artist": work.offered_for_artist,
         "offered_artist_matched": work.offered_artist_matched,
+        # The item a chosen work was asked for by; null on proposed and offered works.
+        "wikidata_qid": work.wikidata_qid,
         "verdict": str(work.verdict),
         "resolution_status": str(work.resolution_status),
         "unresolved_reason": _reason(work),
@@ -1394,8 +1670,8 @@ def _nothing_choosable_notice(listing: InstanceListing) -> str | None:
     return (
         f"None of the {counted(listing.held, 'scan')} found for this work "
         f"{agree_partitive(0, listing.held, 'is', 'are')} still open to you — every one has been "
-        "turned down. art_discovery(action='resolve_images') searches again for a better one; it spends, "
-        "and it is the only thing that changes this."
+        "turned down. art_discovery(action='resolve_images') searches again for a better one, at no cost "
+        "today, and it is the only thing that changes this."
     )
 
 
@@ -1559,6 +1835,8 @@ def _run_view(view: RunView) -> dict[str, Any]:
             # achieved (`product-brief.md` flow 2).
             "proposed": view.proposed_count,
             "offered": view.offered_count,
+            # A Get's works: the curator chose each, so neither count above holds them.
+            "chosen": view.chosen_count,
             "resolved": view.resolved,
             # The numerator any resolution rate is stated over, and it is here
             # because the notice beside it already quotes this figure. Without
@@ -1641,8 +1919,11 @@ def _run_notice(view: RunView) -> str:
             # supplement, so the two are the same number today — and two adjacent
             # lines counting differently read as a disagreement whichever one a
             # later change follows.
+            # A discovery run's works to find are the ones it proposed; a re-search's
+            # and a Get's are every work they hold.
+            waiting = view.proposed_count if view.run.kind is RunKind.DISCOVERY else view.work_count
             return (
-                f"There {agree(view.proposed_count, 'is', 'are')} {counted(view.proposed_count, 'work')} to find images for, "
+                f"There {agree(waiting, 'is', 'are')} {counted(waiting, 'work')} to find images for, "
                 "but no image provider is configured "
                 "in this deployment, so the run will stay here; cancel it when you are done reading it."
             )
@@ -1652,6 +1933,11 @@ def _run_notice(view: RunView) -> str:
         if view.run.kind is RunKind.RESOLVE:
             return (
                 f"This re-search is looking again for images of the {counted(view.work_count, 'work')} it covers. "
+                "Call status again to keep watching."
+            )
+        if view.run.kind is RunKind.GET:
+            return (
+                f"This Get is looking for images of the {counted(view.chosen_count, 'work')} you chose. "
                 "Call status again to keep watching."
             )
         return (
@@ -1677,6 +1963,11 @@ def _run_notice(view: RunView) -> str:
             settled = (
                 f"This re-search finished: {view.resolved} of the {counted(view.work_count, 'work')} "
                 f"it covers {agree_partitive(view.resolved, view.work_count, 'has', 'have')} an image."
+            )
+        elif view.run.kind is RunKind.GET:
+            settled = (
+                f"This Get finished: {view.resolved} of the {counted(view.chosen_count, 'work')} "
+                f"you chose {agree_partitive(view.resolved, view.chosen_count, 'has', 'have')} an image."
             )
         else:
             # Rated against what the model proposed, never against the total: the
@@ -1727,6 +2018,11 @@ def _run_notice(view: RunView) -> str:
         return (
             "The provider refused further spend, so this run stopped where it was. This is not a transient "
             "error: retrying will fail the same way until the credit limit resets or is raised."
+        )
+    if status is RunStatus.INTERRUPTED and view.run.kind is RunKind.GET:
+        return (
+            "The process working on this Get stopped underneath it — a restart or a crash, not a fault in the "
+            "Get. Get the same items again; there is nothing to investigate."
         )
     if status is RunStatus.INTERRUPTED:
         return (

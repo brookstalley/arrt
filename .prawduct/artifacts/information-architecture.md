@@ -30,6 +30,20 @@ those differ is marked **CHANGE** with the reasoning.
 > where each is expected to land. No table in this artifact changed, because no
 > screen was added or removed.
 
+> **Direction changed 2026-10-01 — see `ia-proposal.md` § Rulings.** The owner
+> ruled nine decisions on an IA derived from `user-scenarios.md`: one-world search
+> (held and unheld works together, each with its state), an Artist page as hub,
+> Topic pages, Add New dissolved into a *Get* action and *Ask*, a default *All
+> works* theme that ordinary acceptances join, registry IDs stored, and hanging
+> for a duration left to wave 4. *(2026-10-02: ruling 5a's "excursion" became a
+> **destination** on every Get, *All works* by default or any other theme, by the
+> owner's rulings in `build-plan-topics-and-destinations.md`, which also places
+> Topics under Library. *Topic pages* are built by that plan's Chunk 05: Library ›
+> Topics at `#topics` and one topic at `#topic/<qid>`, in the tables below.)* **This artifact still describes what runs**, and
+> its tables are guarded against the built client. Where the two differ,
+> `ia-proposal.md` wins for the target and this text wins for today, until the
+> build plan that lands each piece amends it.
+
 ## Direction
 
 <!-- Ratified by the owner 2026-08-11. Amended by the owner 2026-09-30. Enforcement row in project-preferences.md. -->
@@ -73,6 +87,13 @@ inside an existing section, not a section of its own.
 > **Retroactivity:** migrate, completed at birth: `build-plan-arr-navigation.md`
 > moved every page of the built surface into the sidebar, and there are no
 > residual sites.
+>
+> **Ruled departure, 2026-10-01: Add New is dissolved.** Every *arr app has an
+> Add New page, so the norm would keep one. The owner ruled it away
+> (`ia-proposal.md` ruling 3): acquiring becomes a *Get* action on any selection,
+> and the conversation becomes *Ask*, under Library where Add New stood. The rest
+> of the target sidebar keeps the norm (ruling 9): no new top-level section, and
+> *arr names where an *arr page exists (Queue, History, Wanted).
 
 **A working prototype of everything below is committed beside this file:**
 `prototypes/curation-ia-prototype.html` — one self-contained page, no build step,
@@ -116,16 +137,23 @@ Priority is **core** (on a stated core flow) or **supporting**.
 |---|---|---|---|
 | **Walls** | What is hanging right now on each display, the theme it is drawn from, and what is next. | The sidebar; after activating a theme | core (flow 6) |
 | **Artworks** | Everything acquired. Find, sort, filter, group, organise into themes, archive. The product's home. *(Collection until 2026-09-30.)* | Launch; the sidebar; search from anywhere; from a theme; after a run's accepted works land | core (flows 3, 5) |
-| **Work** | One work at full size, with its sources, renditions, mat history and theme membership. | A tile in Artworks; a tile on a Wall; a row in Review | core (flows 4, 5) |
-| **Add New** | Asking for something new: the direct intent box and the conversations, with a run's progress shown in the thread that started it. *(Discover until 2026-09-30, when it also listed every run.)* | The sidebar, under Artworks; "find something new" on the Walls and on an empty Artworks | core (flows 1, 2) |
-| **Queue** *(new)* | The searches that have not ended: working, or stopped at the approval gate. | The sidebar, under Activity | core (flow 2) |
+| **Work** | One work at full size, with its sources, renditions, mat history and theme membership. At `#work/Q…`, a work Wikidata knows that the library does not hold: its image found or none, its facts, its holder and number there, *Get this work*, and the rest of its artist's work; the library's own page replaces it, in place, when the library holds it. *(QID form built 2026-10-01, ruling 2.)* | A tile in Artworks; a tile on a Wall; a row in Review; a title in an artist's *Their work* or a work's *More by* | core (flows 4, 5) |
+| **Search results** | Everything a few words find, in one world (ruling 2): the library's artists and works first, then Wikidata's that the library does not already show, an artist marked ● *In your library* or ○ *Not held*, a work by § A work's mark; *All*, *In your library* and *Not held* narrow it; a top result when the words name one artist. Wikidata's works the library does not hold can be ticked and got (*Get N works*). *(Built 2026-10-01, `build-plan-one-world-search.md` Chunk 04; Get added 2026-10-02, `build-plan-get-and-ask.md` Chunk 04.)* | The dropdown's last row, *All results for "…"*; its own address (`#search?q=`) | core (S2, S3) |
+| **Ask** | Asking for something in words: the direct intent box on top, then the conversations, with a run's progress shown in the thread that started it. *(Discover until 2026-09-30, when it also listed every run; Add New until 2026-10-02, when ruling 3 made acquiring a Get action and this page Ask, at the same address `#discover`.)* | The sidebar, under Artworks; *Ask about "…"* in the search box and on an empty results page; an empty Artworks, Artists, Queue and Taste | core (flows 1, 2) |
+| **To review** | Every run holding works that found an image and wait for a verdict, newest first, each opening Review — a Get opening its own page, where it is reviewed (2026-10-02); the count is on its link and on Activity's. *(Built 2026-10-02, `build-plan-get-and-ask.md` Chunk 06.)* | The sidebar, under Activity, first | core (flow 3) |
+| **Queue** *(new)* | The searches that have not ended: working, or stopped at the approval gate. Beneath them, **Fetching images**: every accepted work still owed its image or its preparation, in the order the acquisition queue will try them, each queued, fetching, failed, given up on or paused, with Retry where it failed; a pause is said above them with its remedy *(the owner's decision on #167, 2026-10-02, `build-plan-after-review.md` Chunk 02)*. Not counted on Activity's link, which is To review's: a fetch needs time, not the curator. | The sidebar, under Activity | core (flow 2) |
 | **History** *(new)* | The searches that have ended, with how each ended. | The sidebar, under Activity | supporting |
-| **Run** | One discovery run while it works and after it stops: what it proposed, what it found images for, the gate where phase 2 is approved, and its work table. | Queue or History; Add New, as it starts; a re-search started on the review grid; its own address | core (flow 2) |
-| **Review** | Judging one run's candidates: accept, reject, choose a scan, ask for a better one. | A finished run, from History or its own page; the run's own notification | core (flow 3) |
-| **Themes** | The themes there are, and — at its own address — one of them: its members in curated order, its name, and the act of hanging it. | The sidebar, under Artworks; Artworks' theme rail; a wall's theme control; its own address | core (flows 5, 6) |
+| **Wanted** *(new 2026-10-02)* | Every work the curator wants and holds no acceptable scan of — wanted on a no-scan card, or by turning down the scan on offer — each saying which, with its Wikidata item or none, the search it came from, *Search again* and *Forget*; *Search all* above. Search again on a work with no item first offers Wikidata's matches to pick from (`build-plan-after-review.md` Chunks 04-05; the owner's ruling on #168). | The sidebar, under Activity, once something is wanted; a review card's *Want*; turning down a scan on offer | core (flow 3) |
+| **Run** | One run while it works and after it stops: what it proposed, what it found images for, the gate where phase 2 is approved, and its work table. **A Get's run page is its review**: the review cards in place of the work table, and no *Review these works* *(the owner's ruling, 2026-10-02, `build-plan-topics-and-destinations.md` Chunk 07)*. | Queue or History; Ask, as it starts; a Get's *Open the Get*; a Get's row in To review; a re-search started on the review grid; its own address | core (flow 2) |
+| **Review** | Judging one run's candidates: accept, reject, choose a scan, ask for a better one. One work to a row, the picture left and the facts and verdicts right (one column on a phone), the scan's pixels above the fold, *Scans* opening beneath as a table, one row a scan; clicking a picture enlarges it in place. The same cards are a Get's page; `#review/<run>` still answers for a Get. | A finished discovery run or re-search, from its own page or To review; the run's own notification | core (flow 3) |
+| **Artists** | The artists the library holds, by surname, as Lidarr's poster index — each a card pictured by their first accepted work, with life dates and how many works of theirs are in circulation — with a View menu to the table, kept in the address (`?view=table`) *(the owner's ruling on #173, 2026-10-02; the surname is the stored family name, else the last word once *the Elder* / *the Younger* / *Jr.* is set aside)*; and at its own address one artist as the hub: who they are, what the library holds of theirs, what Wikidata lists with the held ones marked and the rest tickable to get (*Get N works*), and which collections hold their work. At `#artist/Q…`, an artist Wikidata knows that the library does not hold: the registry half alone, saying nothing of theirs is held; the library's page replaces it, in place, when the library holds them. Below Holdings, *Similar artists*: visual artists sharing a movement, by renown, each with how many of their works have an image, and ● where the library holds them. Under the name, which Wikidata item this is and who set it, with one quiet *Edit* *(the owner's ruling on #174, 2026-10-02)* that reveals the control to change it (looked up and shown before it is stored) and to say there is none (confirmed). *(Built 2026-10-01, ruling 4; the QID form, Similar artists and the control the same day, `build-plan-one-world-search.md`.)* | The sidebar, under Artworks; an artist's name on a work card, a table row or the Work page (either form); the top-bar search's Artists group; its own address | core (S2, S3, S11) |
+| **Themes** | The themes there are, and — at its own address — one of them: its members in curated order, its name, the act of hanging it, and which theme is the default that accepted works join. | The sidebar, under Artworks; a wall's theme control; its own address *(Artworks' theme rail and its per-theme *Open* went on 2026-10-02, #169)* | core (flows 5, 6) |
+| **Topics** | The periods, movements, subjects and media the library's works are in, by kind, each kind in columns by name *(the owner's ruling on #175, 2026-10-02: one column on a phone)*, each with how many of them beside its name, each opening its page; and *Find a topic*, which asks Wikidata for any other (`#topics?find=`). *(Built 2026-10-02, `build-plan-topics-and-destinations.md` Chunk 05; topics come from Wikidata, so without `WIKIDATA_USER_AGENT` the page says they need it and offers no search.)* | The sidebar, under Artworks, after Themes | core (S12) |
+| **Topic** | One topic, browsed like a genre: its name, kind, Wikidata's description and a link to its item; *In your library*, your works in circulation in it; *Representative works*, the most renowned Wikidata lists, each by § A work's mark (○ reading *No image known*), the unheld tickable to get into a theme named after the topic (*Add to* defaults to it); and *Artists*, those whose works in it are best known first (the sum of those works' sitelinks), each opening their page. A period's works are headed with its years ("Works from 1501–1600"), since they are matched by date alone. *(Built 2026-10-02, `build-plan-topics-and-destinations.md` Chunk 05.)* | Library › Topics; *Find a topic*; the top bar's *Topics* and *Wikidata: topics* groups; its own address | core (S12) |
 | **Status** | The three observations the panel states, and the spend record. *(Health until 2026-09-30.)* | The sidebar, under System; the top bar's status indicator; a failure's own link | supporting |
-| **Conversation** *(new)* | One intent-forming thread, its samples, and what it committed to. | Add New; the conversation list; an affinity's provenance | core (flow 1) |
+| **Conversation** *(new)* | One intent-forming thread, its samples, and what it committed to. | Ask; the conversation list; an affinity's provenance | core (flow 1) |
 | **Taste** *(new)* | The affinities the product has accumulated, with their derivation, correctable. | The sidebar, under Settings; a suggestion's "why am I seeing this?" | supporting |
+| **Clients** *(new 2026-10-02)* | The installed Players the server knows (`clients.md`): each client's name, whether it has a token, what it last reported about its outputs and how long ago, and the walls it shows on which outputs. Add a client (its token issued with it and shown once, with what to put in the Player's settings), rename, rotate the token, remove, assign a wall to an output, unassign. *(Built 2026-10-02, `build-plan-clients.md` Chunk 02.)* | The sidebar, under Settings, after Taste; a wall's *Assign it in Settings › Clients* on the Walls screen | core (flow 6) |
 
 **One row here per screen the client routes.** Two are new and exist only because
 conversational intent-forming does (`product-brief.md` flow 1, amended
@@ -184,13 +212,14 @@ It becomes a rail inside Collection — a filter that is also editable — plus 
 This is the layout § Direction now requires, and everything below is built
 (`build-plan-arr-navigation.md`).
 
-> **A gap in Activity, recorded 2026-09-30 while building it.** Radarr's Queue
-> also holds what finished but needs the user, such as a manual import. Arrt's
-> equivalent is a run that finished with candidates nobody has judged, and it
-> belongs in Queue. The run listing carries no signal for it, so today it sits in
-> History with its state. Adding one is an API change: a count of unjudged
-> candidates per run, on `GET /api/runs` and its MCP twin. It is owed, and not
-> part of this plan.
+> **A gap in Activity, recorded 2026-09-30 while building it, closed 2026-10-02.**
+> Radarr's Queue also holds what finished but needs the user, such as a manual
+> import. Arrt's equivalent is a run that finished with candidates nobody has
+> judged. The run listing now counts them (`GET /api/runs` and `art_discovery
+> list_runs` carry `awaiting` by run and `awaiting_works` in all, and narrow to
+> them with `awaiting`), and they have a page of their own, **To review**, first
+> under Activity as `ia-proposal.md` § The map places it, rather than a row in
+> Queue (`build-plan-get-and-ask.md` Chunk 06).
 
 The owner chose the name, the home page and the scope on 2026-09-30. The
 placement of each page is the builder's reading of Radarr, and each placement is
@@ -201,14 +230,19 @@ listed below so it can be disputed.
 │ Arrt     │ [ Search artworks…                        ]  │
 ├──────────────┼──────────────────────────────────────────────┤
 │ ▣ Artworks   │  actions …                View ▾ Sort ▾ Filter ▾
-│   Add New    │                                              │
+│   Ask        │                                              │
 │   Themes     │                                              │
+│   Topics     │                                              │
+│   Artists    │                                              │
 │ ▢ Walls      │                                              │
-│ ↻ Activity   │                                              │
+│ ↻ Activity ③ │                                              │
+│   To review ③│                                              │
 │   Queue      │                                              │
 │   History    │                                              │
+│   Wanted  ⑦  │                                              │
 │ ⚙ Settings   │                                              │
 │   Taste      │                                              │
+│   Clients    │                                              │
 │ ♥ System  ②  │                                              │
 │   Status     │                                              │
 └──────────────┴──────────────────────────────────────────────┘
@@ -217,12 +251,17 @@ listed below so it can be disputed.
 | Sidebar entry | Was | The *arr page it follows |
 |---|---|---|
 | **Artworks** (home) | Collection, with Work as its detail page | Radarr's Movies index and movie page. Named with the plural noun of the item, as every *arr app names this section |
-| Artworks › **Add New** | Discover's intent box and its conversations | Radarr's Add New: search a source for something to add |
+| Artworks › **Ask** | Discover's intent box and its conversations (Add New until 2026-10-02) | Radarr's Add New's slot: an owner-ruled departure (ruling 3), since acquiring is the *Get* action on any selection and this page asks in words |
 | Artworks › **Themes** | Theme, index and one theme | Radarr's Collections: a named grouping of items in the library |
+| Artworks › **Topics** | New 2026-10-02 | None: no *arr page is a topic. The nearest idea is a music library's genre (`ia-proposal.md` § Objects), and ruling 9 placed it under the library, after Themes, with no section of its own. Its pages, one topic each (`#topic/<qid>`), are contextual and return to it |
+| Artworks › **Artists** | New 2026-10-01 | Lidarr's artist index and artist page, which are that app's library: the artist is the unit, and their page lists what is held and what is missing |
 | **Walls** | The Walls | No *arr page. It sits second, in Calendar's slot, because the wave-4 schedule (`re-architecture.md` § The manifest is a schedule) is the nearest *arr idea to "what is showing when" |
-| Activity › **Queue** | Discover's run list: runs that have not ended | Radarr's Queue: work in flight. Run opens from here |
+| Activity › **To review** | New 2026-10-02 | Radarr's Queue holds what finished but needs the user; here that is a page of its own, the one queue that needs the curator, counted on Activity's link as Sonarr counts its queue. Review opens from here |
+| Activity › **Queue** | Discover's run list: runs that have not ended; and, since 2026-10-02, the images being fetched | Radarr's Queue: work in flight, downloads included. Run and Work open from here |
 | Activity › **History** | Discover's run list: finished runs | Radarr's History |
+| Activity › **Wanted** | New 2026-10-02 | Lidarr's Wanted › Missing: what the library wants and does not have. Shown once something is in it. Cutoff Unmet (wave 4) and a Watch's Missing (wave 6) become its tabs when they exist |
 | Settings › **Taste** | Taste | Radarr's Profiles: the preferences that rank what it finds |
+| Settings › **Clients** | New 2026-10-02 (`clients.md`) | Radarr's Settings › Download Clients: the server's list of the external programs it works with, which here are the installed Players. Its *Assign a wall* is per client, as a download client carries its own settings there |
 | System › **Status** | Health, with the spend record | Radarr's System › Status, with health checks at the top |
 
 - **Sub-pages show only under the current section**, as in Sonarr and Radarr.
@@ -238,7 +277,9 @@ listed below so it can be disputed.
   familiarity where they meet, because the familiarity norm governs where things
   are and what they are called, not whether a state can be read. The owner can
   overrule it.)*
-- **One search box, two scopes, as in Sonarr.** Read from Sonarr's source on
+- **One search box, two scopes, as in Sonarr.** *(2026-10-01: `user-scenarios.md`
+  questions this from the scenarios side. A query can mean held, exists,
+  seeable or hangable. An unaccented `dali` found no held Dalí until 2026-10-01, when search began ignoring accents.)* Read from Sonarr's source on
   2026-09-30 (`frontend/src/Components/Page/Header/SeriesSearchInput.js` and
   `AddSeries/AddNewSeries/AddNewSeriesSearchResult.js`; Radarr shares the code):
   - The top-bar box searches **the library** as you type. Its dropdown has two
@@ -251,15 +292,36 @@ listed below so it can be disputed.
     marked *"Already in your library"*, and clicking it opens the library entry
     instead of the add dialog.
 
-  Arrt follows that shape. The groups are *In your library* and *Add New*,
-  named as Sonarr names its second group for the page it opens, and the Add
-  New row reads *Search museums for "{query}"*. Picking it goes to
+  **One world, since 2026-10-01** (ruling 2, `build-plan-one-world-search.md`
+  Chunk 03): the dropdown's groups are *Artists*, *In your library* and *Topics* (the
+  library's), *Themes* (by name), then *Wikidata: artists*, *Wikidata: works* and
+  *Wikidata: topics*, then *Ask*, then *Search*, whose one row, *All results for "…"*, opens
+  the Search results page. Wikidata's rows arrive after the library's and never hold them
+  back, are asked from the third letter, carry a mark of glyph, word and colour (an
+  artist's ● *In your library* or ○ *Not held*; a work's by § A work's mark), leave out what the library's rows already show, and open the library's
+  page for a held match and the page by QID otherwise. Their arrival is announced
+  in a polite live region and moves no highlight; a new query starts with none, so
+  Enter is never sent to a row the curator did not choose. Wikidata off or down is said
+  in a note where its rows would be, in its own class, apart from the library's
+  note. Enter is unchanged (the owner, 2026-10-01: Enter stays on Artworks).
+  *(Topics added 2026-10-02, `build-plan-topics-and-destinations.md` Chunk 05:
+  *Topics* is the topics your works are in whose names hold the words, after
+  works as `ia-proposal.md` § Search orders the objects, each naming its kind;
+  *Wikidata: topics* is the periods, movements, subjects and media Wikidata finds
+  for them that *Topics* does not already show, each with Wikidata's description,
+  which is what tells six *Impressionism*s apart. Both open the Topic page. The
+  topic search is asked beside Wikidata's other search and arrives with it, under
+  one note when Wikidata cannot be asked.)*
+
+  Arrt follows that shape. The groups are *In your library* and *Ask* (*Add
+  New* until 2026-10-02), named as Sonarr names its second group for the page it
+  opens, and the row reads *Ask about "{query}"*. Picking it goes to
   `#discover?term={query}`. A candidate that is already an accepted work is
   marked *Already in your library*, and its first control opens that work.
   **Three departures, each forced by a fact Sonarr does not face:**
-  - **Add New fills in the term and does not start the search.** Sonarr's lookup
+  - **Ask fills in the term and does not start the search.** Sonarr's lookup
     is free and instant. Arrt's is a discovery run, which takes minutes and
-    spends money, so Add New shows the free estimate beside the filled-in box
+    spends money, so Ask shows the free estimate beside the filled-in box
     and the curator presses Search. *(Builder's ruling: nothing may spend on a
     keystroke.)*
   - **Enter opens Artworks filtered to the query, not its first match.** A series
@@ -268,7 +330,9 @@ listed below so it can be disputed.
     keeps today's behaviour, where search is the main way to find things at
     thousands of works. The matches in the dropdown are still one arrow key
     away. *(Ruled by the owner 2026-09-30: "yes to filtered to the query". This is
-    a recorded departure from the *arr precedent, for the reason above.)*
+    a recorded departure from the *arr precedent, for the reason above. **Kept by
+    the owner 2026-10-01**, when one-world search offered a results page for
+    Enter instead: the page is reached from the dropdown's last row.)*
   - **A held work keeps a quieter *Accept anyway*.** Sonarr's card for a series
     already in the library offers no add at all, because a TVDB id makes
     "already held" certain. Arrt's is found by title and artist, which two
@@ -280,18 +344,22 @@ listed below so it can be disputed.
   View, Sort and Filter on the right. View offers Posters, Overview and Table
   (Posters was the contact sheet and Overview the catalogue; `?density=` keeps
   its spellings). Sort offers Title, Artist (unattributed last) and Recently
-  added, and is not offered while a theme is showing, since a theme comes in
-  its curated order. **Filter shows and hides the rails rather than replacing
+  added, and applies to a theme filtered here as to any filter (a theme's
+  curated order is its own page's; #169). **Filter shows and hides the rails rather than replacing
   them with a dropdown**, so the facet counts stay in view while browsing
   (ruled by the owner 2026-09-30, departing from Radarr's Filter menu). With
   the rails away, a facet or a theme still narrowing the works says so above
   them and offers the rails back, since the grid would otherwise read as the
   whole collection. Other list pages have no toolbar yet, because they have no
   actions or views to put in one.
-- **Wanted is not shown yet.** It is where *Cutoff Unmet* (works below the
-  quality profile's cutoff, `re-architecture.md` wave 4) and *Missing* (a Watch's
-  unmet wants, wave 6) land, and it appears when the first of those exists.
-  Watches themselves follow Radarr's Lists and go under Settings.
+- **Wanted holds the works the curator wants** *(shown since 2026-10-02, the
+  owner's ruling on #168, `build-plan-after-review.md` Chunk 05)*: a work wanted
+  on a no-scan review card, or whose scan on offer was turned down, which is one
+  state. Its link appears once something is in it, with its count. It is also
+  where *Cutoff Unmet* (works below the quality profile's cutoff,
+  `re-architecture.md` wave 4) and *Missing* (a Watch's unmet wants, wave 6)
+  land, as tabs beside today's list. Watches themselves follow Radarr's Lists and
+  go under Settings.
 - **On phones the sidebar becomes a drawer** behind a menu button, as it does in
   the *arr apps. This replaces the bottom bar in `design-direction.md`'s layout
   table.
@@ -304,8 +372,8 @@ rules that apply to all of them.
 
 - **Persistent:** the sidebar (a drawer behind the menu button below 40rem), the
   search box, and the status indicator, in the top bar on every page.
-- **Contextual:** everything that is not a sidebar page. Work, Run, Review and
-  Conversation are reached *from* a page and return to it. A page showing one
+- **Contextual:** everything that is not a sidebar page. Work, Run, Review,
+  Conversation, Topic and Search results are reached *from* a page and return to it. A page showing one
   of its own things — one theme, at `#theme/<id>` — is contextual in the same
   way, and returns to whichever page opened it.
 - **Status is a page under System**, with Sonarr's count badge on System. The
@@ -319,7 +387,9 @@ not to a fixed parent — a Work opened from Review returns to Review, the same 
 opened from Artworks returns to Artworks with scroll position intact. A sidebar
 page is named in `?from=` by itself; Review, a screen about one run, is named
 with its run (`?from=review/<id>`), and only for the Work it opens, so the hops
-between a run and its review record nothing (`core/router.js`, `returnFor`). Browser back
+between a run and its review record nothing (`core/router.js`, `returnFor`). A
+Get's page is its review, so a Work opened from one of its cards returns to it
+the same way (`?from=run/<id>`, *← The Get*; 2026-10-02). Browser back
 does this natively if each is a real URL, which is the reason they are. A sidebar
 page has no back link: the sidebar is its way out.
 
@@ -327,7 +397,7 @@ page has no back link: the sidebar is its way out.
 filter set, a run, a conversation) is addressable, so a curator can bookmark
 "unmatted works by Kandinsky" and an agent can link to one. **The fragments kept
 their spellings when the labels changed on 2026-09-30** — `#collection` is
-Artworks, `#discover` is Add New, `#health` is Status — because an address is
+Artworks, `#discover` is Ask, `#health` is Status — because an address is
 what a bookmark and an agent's link hold, and none of them should break over a
 word the curator never sees. Older fragments still resolve through
 `FRAGMENT_ALIASES` in `core/route.js`.
@@ -511,6 +581,28 @@ Two consequences the interface must show rather than hide:
   it.** The free text stays the evidence; the facet is only the index. A work shown
   as "Late 19th c." must still show "1888–89" on its own screen.
 
+### A work's mark
+
+*The owner's ruling on #172, 2026-10-02.* Wherever registry works are listed —
+the search typeahead, the Search results page, the Topic page's *Representative
+works*, the Artist page's *Their work* and a work's *More by* — each carries its
+picture in the image style of its state, then glyph and word:
+
+| State | Picture | Glyph and word |
+|---|---|---|
+| Held | The library's own thumbnail, in the held style; the mark opens the work | ● *Held* (*Held ×n* for a duplicate) |
+| Wanted (Activity › Wanted, matched to the item) | Wikidata's picture where it has one, in the wanted style | ◑ *Wanted* |
+| Not held, with a picture | Wikidata's picture, in the not-held style | ◐ *Not held · Image found* |
+| Not held, no picture | None | ○ *Not held* (*No image known* on the Topic page) |
+
+Held wins over wanted. **The three image styles are one block in `app.css`**,
+to be tuned against one another: the owner asked to "css style held, wanted,
+not held as image styles and then iterate on what's most clear". The first try
+is held plain with a quiet outline, wanted with a dashed accent outline, and not
+held under diagonal hatching. Glyph and word carry the state whatever the
+picture does, so a picture that fails to load, or none, leaves every state
+readable (`accessibility-spec.md`).
+
 ## User Flows
 
 Each core flow from the Product Brief, traced through screens. A flow that cannot
@@ -518,9 +610,9 @@ be traced means the inventory is wrong.
 
 ### Flow 1 — Express curatorial intent *(rewritten 2026-08-10)*
 
-`Artworks → Add New → Conversation → [commit] → Conversation (run inline)`
+`Artworks → Ask → Conversation → [commit] → Conversation (run inline)`
 
-1. Curator opens Add New and types, or picks up an existing thread.
+1. Curator opens Ask and types, or picks up an existing thread.
 2. Each turn answers from model knowledge and shows a few sample pictures. Reactions
    are captured both in prose and by direct control on each sample — a sample
    carries "more like this" / "not this" / "tell me more", which is what writes an
@@ -566,7 +658,7 @@ be traced means the inventory is wrong.
 
 ### Flow 2 — Discovery
 
-`Conversation (commit) or Add New (direct intent) → run → Review`
+`Conversation (commit) or Ask (direct intent) → run → Review`
 
 Unchanged from the built behaviour, and deliberately so: two phases, an estimate
 against a real work list once phase 1 settles, a trimmable list, then phase 2.
@@ -589,12 +681,45 @@ and neither is fully reversible, which drives two rules:
 
 ### Flow 5 — Organise into themes
 
-`Artworks → select → add to theme` *(and)* `Artworks → theme rail → Theme → reorder`
+`Artworks → Select → add to theme` *(and)* `Library › Themes → Theme → reorder`
 
 **CHANGE — organising happens in the collection, against the works being
-organised.** The theme rail filters the grid to a theme's members; membership is
-edited from the grid, in place, with multi-select. Reordering — which is genuinely
-about the theme rather than about the works — happens on the Theme screen.
+organised.** Membership is edited from the grid, in place, with multi-select.
+Reordering — which is genuinely about the theme rather than about the works —
+happens on the Theme screen.
+
+**Radarr's pattern, the owner's ruling of 2026-10-02 (#169).** The rail's theme
+list read as the way to add works to a theme, and the toolbar's theme picker as
+a filter; the two were redrawn apart:
+
+- **A theme is one more group in the *Filter* rail**, beside the facets, one
+  theme at a time. It composes with the facets and the search on the server
+  (`GET /api/works?theme=`), and each theme carries the count it would select
+  given every other filter, disabled at zero, as a facet value does
+  (§ A control never offers a dead end). A theme filtered here is in the Sort
+  menu's order, as any filter is; its curated order is its own page's. The
+  rail's separate theme list and its per-theme *Open* are gone: themes are
+  reached from Library › Themes.
+- **Adding and removing appear only in *Select* mode**, as Radarr's mass editor
+  does: a *Select* toggle in the toolbar (`aria-pressed`) shows ticks on the
+  tiles and an action bar whose buttons say the whole act — "Add 3 works to
+  Winter", with a visibly labelled *Theme* picker, and "Remove 3 from Baroque"
+  when a theme is in the filter. Outside the mode, nothing on the screen changes
+  a theme's members. Leaving it drops the ticks. With no themes at all, *Select*
+  is not offered.
+
+**One theme is the default, and acceptance fills it** *(the owner's ruling 8,
+built 2026-10-01)*. A work accepted from any route joins the default theme at the
+end of its order, once: taken out by hand, it stays out through a restart and a
+restore. A Get may name another theme as its destination: the Get control's *Add to*
+select, the API and MCP (`build-plan-topics-and-destinations.md` Chunks 01-02,
+2026-10-02). Its accepted works join that theme instead, and none if it was
+deleted meanwhile; Queue, the run page and Review say which. The Theme screen marks the default with a star, the word *default* and
+the accent colour, offers *Make default* on every other theme, and says so when
+no theme is the default. The default cannot be deleted until another theme is
+made the default. *(The 2026-08-12 "whether it is the active theme" status this
+screen once carried was retired with `is_active`; the hierarchy row now reads
+"which walls it hangs on".)*
 
 ### Flow 6 — Display and sync
 
@@ -638,17 +763,24 @@ who did not edit this table.
 
 | Screen | Primary | Secondary | Actions | Status |
 |---|---|---|---|---|
-| Walls | Each wall's hanging work, large | Title, artist, theme, which wall | Change theme, next, open work, issue or rotate the wall's Player token *(added 2026-09-30: the token is shown once, in place, and rotating asks first)* | Panel + TV health, quietly |
-| Artworks | The grid of images | Counts, active filters | Search, filter, select, add to theme, archive | Total, and what is filtered out |
-| Work | The image at full size | Artist, facets, mat colour, rendition size | Theme membership, re-mat, archive | Fit verdict, image state |
-| Add New | The intent box and the conversations | Samples inline | Type, react, commit, start direct | Run progress, spend |
-| Queue | The searches in flight | What each asked for, and when | Open a search | Which state each is in |
+| Walls | Each wall's hanging work, large | Title, artist, theme, which wall; which client shows it, on which output ("Shown by Hall Pi on hdmi-a-1"), or "No client shows this wall" with a link to Settings › Clients *(2026-10-02, `build-plan-clients.md` Chunk 02)* | Change theme, next, open work *(the wall token panel, added 2026-09-30, was retired 2026-10-02 with wall tokens; a wall is assigned to a client in Settings › Clients)* | Panel + TV health, quietly |
+| Artworks | The grid of images | Counts, active filters | Search; filter by facet and by theme, which compose; *Select* mode, whose action bar adds the ticked works to a theme or removes them from the theme being filtered; archive | Total, and what is filtered out |
+| Work | The image at full size; for a work not held, the image Wikidata found, or none | Artist, facets, mat colour, rendition size; for a work not held, its date, medium, and holder with number | Theme membership, re-mat, archive, change the Wikidata item or say there is none, Retry a failed fetch; for a work not held, *Get this work*, its artist, and the rest of their work | Fit verdict, image state, and while the acquisition queue owes it one, where it stands there; for a work not held, *Wanted* (◑), *Not held · Image found* (◐) or *Not held* (○) |
+| Search results | The artists and works the words find, artists first | Each artist's years; each work's maker; how many library works match beyond those listed | Open any result; switch *All*, *In your library*, *Not held*; open the library's matches in Artworks; *Ask about* when Wikidata has nothing | Each result's mark; whether Wikidata answered |
+| Ask | The intent box and the conversations | Samples inline | Type, react, commit, start direct | Run progress, spend |
+| To review | The runs with works waiting for a verdict | What each asked for, its kind, how many works wait, when | Review a run's works | The count, as a word and a number |
+| Queue | The searches in flight, then the images being fetched | What each asked for, and when; for a fetch, why it failed and when it tries again | Open a search; open a work, Retry a failed fetch | Which state each is in; a fetch's as glyph and word (◌ queued, ↻ fetching, ▲ failed, ✗ gave up, ‖ paused) |
 | History | The searches that ended | What each asked for, and when | Open a search | How each ended |
-| Run | The run's own sentence, and its work table | The tally behind the sentence, and the gate's price broken down | Approve, decline, cancel, open a work, go to the review | Which state the run is in, and whether the watch is still live |
+| Wanted | The works wanted | Why each is wanted, its Wikidata item, the search it came from | Search again (picking a Wikidata item first where it has none), Forget, Search all | No scan found, or *n* scans turned down, in words |
+| Run | The run's own sentence, and its work table; for a Get, its review cards in place of the table | The tally behind the sentence, and the gate's price broken down | Approve, decline, cancel, open a work, go to the review; for a Get, everything Review offers on its cards | Which state the run is in, and whether the watch is still live |
 | Conversation | The thread, newest exchange last | Each turn's suggestions, with their samples | Type, react to a sample, commit a direction, delete the thread | Whether a turn is in flight, and what the exchange cost |
 | Taste | The judgments, grouped by kind | Sentiment, openness, and how the claim was derived | React, correct, forget, follow a claim back to its turn | Which claims the product inferred rather than was told |
-| Review | The candidate picture | Title, artist, size on this wall | Accept, reject, choose scan, ask better | Verdict, provenance, resolution |
-| Themes | Members in wall order | Name, count | Reorder, rename, hang, delete | Whether it is the active theme |
+| Clients | Each client by name, with the walls it shows and on which outputs | When its token was issued; its last report's outputs (name, kind, connected, screen size) | Add (issuing its token, shown once), rename, rotate the token (asks first), issue a first token, remove (asks first, naming the walls left without a client), assign a wall to an output, unassign | The last report's age in words; no token, no report, an unreadable report and no outputs, each said |
+| Review | The candidate picture | Title, artist, the scan's pixels (*3,840 × 2,604 px*; inches on a wall dropped 2026-10-02, back with per-wall geometry in wave 4) | Accept, reject, choose scan, ask better, enlarge the picture in place | Verdict, provenance, resolution, fit verdict word |
+| Themes | Members in wall order | Name, count | Reorder, rename, hang, make default, delete | Which walls it hangs on; whether it is the default (★ default) |
+| Artists | The artist: on the index, every held artist by surname, as posters or a table; on one artist's page, their held works, then what Wikidata lists | Life dates, nationality, Wikidata's description and movements; each listed work's year; the collections holding their work | Open an artist; select held works and add them to a theme; react (*More like this*, *Not this*); open a held work from its *Held* mark, and any listed work from its title; open a similar artist; change the Wikidata item or say there is none | Each listed work marked by § A work's mark; whether Wikidata answered; for an artist not held, that nothing of theirs is held |
+| Topics | Your topics by kind, each by name, in columns | How many of your works are in each | Open a topic; find any other topic by name | Whether Wikidata is configured, said when it is not |
+| Topic | Your works in it, then the works Wikidata lists for it | Its kind, description and Wikidata item; each listed work's maker and year; each artist's life and how many of their works have an image | Open a held work, a listed work, a maker or an artist; tick unheld works and *Get* them, *Add to* defaulting to a theme named after the topic | Each listed work marked by § A work's mark (○ reading *No image known*); each artist ● where the library holds them; whether Wikidata answered, per section |
 | Status | The three observations | Spend history | — | The whole screen is status |
 
 **"Remove" is the wrong word for a *work*, and that control must not use it.**
@@ -760,17 +892,24 @@ almost no considered empty states.
 
 | Screen | Empty | Loading | Error |
 |---|---|---|---|
-| Walls | Nothing hanging on a wall: name the reason (no active theme / empty theme / display plane silent) and offer the fix for that reason specifically | The frame, then the image | Cannot reach the display plane — say which of the two planes answered |
-| Artworks | **Three different empties.** No works at all → an invitation into Add New. No works *matching the filter* → the filter, and how to clear it. **Filtered to one artist and holding none of them** → say so as a normal state and offer the search (see flow 1). Conflating the first two tells a curator with 3,000 works that they own nothing; conflating the third with the second reports the expected result of following a suggestion as a failed query | Skeleton tiles at the grid's real geometry, so nothing reflows | Partial page: show what arrived and say what did not |
-| Work | n/a | Image placeholder at the work's own aspect ratio | Named per missing part — a work with no rendition is not a failed page |
-| Queue | Nothing in flight → say so, say what would appear here, and offer Add New. Over a truncated listing it says what it checked, since an older search may still be at the gate | Nothing until the listing arrives, then the heading and the table together | The request's refusal, in the page's error banner |
+| Walls | Nothing hanging on a wall: name the reason (no active theme / empty theme / display plane silent) and offer the fix for that reason specifically. No client showing a wall → say so, with the link to Settings › Clients | The frame, then the image | Cannot reach the display plane — say which of the two planes answered. A client listing that does not arrive → each assigned wall says its output and that its client's name could not be read |
+| Artworks | **Three different empties.** No works at all → an invitation into Ask. No works *matching the filter* → the filter, and how to clear it. **Filtered to one artist and holding none of them** → say so as a normal state and offer the search (see flow 1). Conflating the first two tells a curator with 3,000 works that they own nothing; conflating the third with the second reports the expected result of following a suggestion as a failed query | Skeleton tiles at the grid's real geometry, so nothing reflows | Partial page: show what arrived and say what did not |
+| Work | n/a. For a work not held: Wikidata has no such item → "Wikidata has no such work", with the QID | Image placeholder at the work's own aspect ratio | Named per missing part — a work with no rendition is not a failed page. For a work not held, Wikidata not configured or not answering is said in a sentence, and its *More by* section says so on its own |
+| Search results | No words → a note to type in the search box. Nothing found in the library → its sections say "No artists." and "No works."; Wikidata found nothing → says so and offers *Ask about* (fills in Ask, starts nothing) | The library's sections first; *Asking Wikidata…* in a live region until Wikidata answers, nothing above it waiting | The library's refusal in the page's error banner; Wikidata off or down said in that live region, the library's results left standing |
+| To review | Nothing waiting → say so, and say what would appear here | Nothing until the listing arrives | The request's refusal, in the page's error banner |
+| Queue | No search in flight → say so, say what would appear here, and offer Ask. Over a truncated listing it says what it checked, since an older search may still be at the gate. No image owed → "Every accepted work holds its image" | Nothing until both listings arrive, then the headings and the tables together | The request's refusal, in the page's error banner; a paused acquisition queue is not an error, and is said above its works with its remedy |
 | History | No search has finished → say so | Nothing until the listing arrives, then the heading and the table together | The request's refusal, in the page's error banner |
-| Add New | No conversations → the intent box, prominent, with two or three worked examples | Per-turn, in the thread | A failed turn stays in the thread and is retryable; it never silently vanishes |
+| Wanted | Nothing wanted → say so, and say how a work comes to be here | Nothing until the listing arrives, then the heading and the table together | The request's refusal, in the page's error banner; Wikidata off or not answering is said in the picker, with *Search without an item* still offered |
+| Ask | No conversations → the intent box, prominent, with two or three worked examples | Per-turn, in the thread | A failed turn stays in the thread and is retryable; it never silently vanishes |
 | Run | n/a — a run always has a status, and "no works yet" is a populated run in `resolving_works` | The sentence first, then the work table filling in beneath it without moving it | **The watch says whether it is still watching.** A blip is reported and retried; after five consecutive failures it says it has given up and to reload, because a page that stopped polling silently is indistinguishable from a live one |
-| Conversation | A thread with no turns → the intent box, with the same worked examples Add New offers | Per-turn, in the thread, with the turn in flight named as such | A failed turn stays in the thread and is retryable; it never silently vanishes |
+| Conversation | A thread with no turns → the intent box, with the same worked examples Ask offers | Per-turn, in the thread, with the turn in flight named as such | A failed turn stays in the thread and is retryable; it never silently vanishes |
 | Review | No candidates: which of the four kinds of nothing (Q12) | Per-card | Per-card, so one bad candidate does not blank the grid |
 | Themes | A theme with no members → how to add from Artworks | Skeleton rows | Inline |
+| Artists | No artists → say that accepted works bring them, and offer Ask. On one artist's page: no work in circulation → say so; **Wikidata's half has four states** (answered; the artist is not matched; no registry configured; Wikidata could not be asked), each said in a sentence in that section | The library half first; the registry section says *Asking Wikidata…* until it answers, and nothing above it waits | The library half's refusal in the page's error banner; the registry's failure only in its own section, the library half left working. An address naming no artist → "That artist is not here", and a way to all artists. At `#artist/Q…` the registry half is the page, with the same states in its own section under the header |
+| Topics | No work in a topic yet → say that a work's topics are read from Wikidata once it or its artist is matched; a kind with none → say so under its heading. No `WIKIDATA_USER_AGENT` → say topics need it, list what an earlier configuration recorded, and offer no search. A search finding nothing → say Wikidata has no topic by that name | Nothing until the listing arrives; a search's section, above the listing, says *Asking Wikidata…* until it answers | The listing's refusal in the page's error banner; the search's failure in its own section |
+| Topic | None of your works in it → say so in *In your library*; Wikidata lists no works or no artists → said in that section | The head and *In your library* first; *Representative works* and *Artists* each say *Asking Wikidata…* until they answer, nothing above them waiting | An address that is not a QID → "That is not a topic's address", and a way to all topics; Wikidata not configured, without the item, or not answering → a sentence in the head and in each registry section, the library half left standing |
 | Taste | No affinities yet → what would create some | — | Inline |
+| Clients | No client → say so, under the add. Per client, each its own sentence: no token yet (admitted nowhere), outputs never reported, a report that cannot be read, no outputs reported, no wall shown. An output with no report is typed (placeholder `hdmi-a-1`) with a sentence saying why | Nothing until the listing arrives | The request's refusal in the page's error banner — an output already showing a wall among them — with the page left as it was. An assignment's server notice (output not reported) is said beside the result, not as an error |
 | Status | n/a — every observation has a value, and "never reported" is one of them | Per observation, so a slow plane does not hold the other two | **A plane that cannot be reached is an observation, not a failed page.** This screen's subject is failure, so rendering an error over it would hide the thing it was opened to show |
 
 **The loading state's job is to not move.** Skeletons occupy the final geometry.

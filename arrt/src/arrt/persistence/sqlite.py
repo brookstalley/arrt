@@ -24,27 +24,33 @@ if they could disagree — they cannot, because the index is strictly the weaker
 statement of the same rule.
 """
 
+import json
 import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Final
 
 from arrt.persistence.adapter import BY_ID, TableAdapter, from_iso, require_datetime, to_iso
-from arrt.persistence.catalogue import WorkOrder, WorkQuery
-from arrt.persistence.durable import OrderBy
+from arrt.persistence.catalogue import TopicTally, WorkOrder, WorkQuery, WorkToAcquire
+from arrt.persistence.durable import OrderBy, SqliteDurableStore
 from arrt.persistence.errors import StorageError
+from arrt.persistence.folding import search_fold
 from arrt.persistence.records import (
     AcquisitionMethod,
     Artist,
     Artwork,
     ArtworkPage,
     ArtworkStatus,
+    Client,
     Directive,
     FacetDerivation,
     FetchStatus,
+    IdentitySetBy,
     MatColor,
     MatMethod,
     Original,
+    QueuedAcquisition,
     Rendition,
     RenditionKind,
     RightsStatus,
@@ -82,7 +88,9 @@ CREATE TABLE IF NOT EXISTS artists (
     biography      TEXT,
     family_name    TEXT,
     given_name     TEXT,
-    display_nationality TEXT
+    display_nationality TEXT,
+    wikidata_qid   TEXT,
+    wikidata_qid_set_by TEXT
 );
 
 CREATE TABLE IF NOT EXISTS artworks (
@@ -97,7 +105,9 @@ CREATE TABLE IF NOT EXISTS artworks (
     status        TEXT NOT NULL,
     accepted_at   TEXT,
     created_at    TEXT NOT NULL,
-    commentary    TEXT
+    commentary    TEXT,
+    wikidata_qid  TEXT,
+    wikidata_qid_set_by TEXT
 );
 
 CREATE INDEX IF NOT EXISTS artworks_by_status ON artworks(status);
@@ -117,10 +127,11 @@ CREATE INDEX IF NOT EXISTS artworks_by_status ON artworks(status);
 -- they cannot disagree; declared per statement, the first one written without it
 -- splits a rail in two and halves both counts, silently and only on real data.
 --
--- Set here rather than deferred because nothing writes a facet yet: the path
--- that will is inference from museum text and a model's answer, which is the
--- documented source of inconsistent casing, and after the first row exists this
--- is a migration and a de-duplication rather than one word in the DDL.
+-- Set before the first row existed, because after it this is a migration and a
+-- de-duplication rather than one word in the DDL. The writers disagree about
+-- case by nature: the topic sweep writes Wikidata's labels ("painting",
+-- "Impressionism"), and inference from museum text and a model's answer, still
+-- to come, is the documented source of inconsistent casing.
 CREATE TABLE IF NOT EXISTS work_facets (
     id           TEXT PRIMARY KEY,
     artwork_id   TEXT NOT NULL REFERENCES artworks(id),
@@ -128,7 +139,8 @@ CREATE TABLE IF NOT EXISTS work_facets (
     value        TEXT NOT NULL COLLATE NOCASE,
     derivation   TEXT NOT NULL,
     source_note  TEXT,
-    created_at   TEXT NOT NULL
+    created_at   TEXT NOT NULL,
+    value_qid    TEXT
 );
 
 -- A work is Baroque once. Load-bearing rather than tidy: a facet's count is a
@@ -144,6 +156,13 @@ CREATE INDEX IF NOT EXISTS work_facets_by_value ON work_facets(kind, value);
 
 CREATE INDEX IF NOT EXISTS work_facets_by_artwork ON work_facets(artwork_id);
 
+-- `value_qid` is the Wikidata item a value names, where one does: the Topic page
+-- the value opens. Nullable, because an inferred facet may name no item, and
+-- because the widening step can only add a column that allows NULL to a file
+-- written before it existed. Indexed for the Topic page's one read, "which works
+-- carry this item"; it enforces nothing.
+CREATE INDEX IF NOT EXISTS work_facets_by_item ON work_facets(value_qid);
+
 -- `rotation_interval_seconds` and `shuffle` are nullable because null means
 -- "inherit the global default" rather than "unset": a theme that has never
 -- expressed a pace is a normal theme, not an incomplete one.
@@ -158,19 +177,45 @@ CREATE TABLE IF NOT EXISTS themes (
     description               TEXT,
     created_at                TEXT NOT NULL,
     rotation_interval_seconds INTEGER,
-    shuffle                   INTEGER
+    shuffle                   INTEGER,
+    is_default                INTEGER NOT NULL DEFAULT 0
 );
 
--- A place where art hangs, and nothing about the device that serves it. The
--- forbidden columns are listed on the `Wall` record; the rule is that this table
--- must survive its television being replaced.
-CREATE TABLE IF NOT EXISTS walls (
+-- New works join the default theme, and there is at most one. "At most", not
+-- "exactly": a catalogue with no theme marked is ordinary, and acceptance then
+-- joins nothing.
+CREATE UNIQUE INDEX IF NOT EXISTS themes_one_default ON themes(is_default) WHERE is_default = 1;
+
+-- An installed Player, by name and the verifier of its one token. Nothing about
+-- the device: what outputs it has is what it reports in its heartbeat file.
+CREATE TABLE IF NOT EXISTS clients (
     id               TEXT PRIMARY KEY,
     name             TEXT NOT NULL UNIQUE,
     created_at       TEXT NOT NULL,
     token_verifier   TEXT,
     token_issued_at  TEXT
 );
+
+-- A place where art hangs, and which client shows it on which of its outputs,
+-- by name. The forbidden columns are listed on the `Wall` record; the rule is
+-- that this table must survive its television being replaced.
+--
+-- `client_id` and `output` arrived 2026-10-02 and reach an older file through
+-- the widening step, which carries the reference. The wall token columns that
+-- preceded them are dropped by `migrations.retire_wall_tokens`.
+CREATE TABLE IF NOT EXISTS walls (
+    id               TEXT PRIMARY KEY,
+    name             TEXT NOT NULL UNIQUE,
+    created_at       TEXT NOT NULL,
+    client_id        TEXT REFERENCES clients(id),
+    output           TEXT
+);
+
+-- One wall per output of a client, since one screen shows one picture. The
+-- service refuses a second by name first; this is the weaker statement of the
+-- same rule, for a path that forgets to. It also answers "which walls does this
+-- client drive", asked on every poll a client makes.
+CREATE UNIQUE INDEX IF NOT EXISTS walls_one_per_output ON walls(client_id, output) WHERE client_id IS NOT NULL;
 
 -- What is hanging on one wall. `wall_id` alone is the key, so "at most one theme
 -- per wall" is the key rather than a rule anything has to check: a second theme
@@ -232,7 +277,14 @@ CREATE TABLE IF NOT EXISTS renditions (
     source_content_hash  TEXT NOT NULL,
     generated_at         TEXT NOT NULL,
     content_sha256       TEXT,
-    byte_size            INTEGER
+    byte_size            INTEGER,
+    -- The geometry a television canvas was drawn with. Nullable because the
+    -- widening step can only add a column that allows NULL; null reads as out of
+    -- date, so a canvas drawn before this existed is recomposed.
+    layout               TEXT,
+    -- The mat colour a television canvas was painted in; null, like a null
+    -- layout, reads as out of date.
+    mat_hex              TEXT
 );
 
 -- Media is fetched by content hash, so the hash is how a render is found.
@@ -273,6 +325,19 @@ CREATE TABLE IF NOT EXISTS theme_memberships (
 
 CREATE INDEX IF NOT EXISTS theme_memberships_by_artwork ON theme_memberships(artwork_id);
 
+-- Every work that has been offered the theme it was accepted into (the default,
+-- or the theme its Get named), joined or not, so that a work is offered once:
+-- neither a restore, which the Library announces as an acceptance, nor startup
+-- reconciliation puts back a work the curator took out. Named for the default
+-- because that was the only destination when the table was made, and renaming a
+-- table is a written migration that buys nothing.
+-- `artwork_id` is deliberately not a foreign key: it is Programming's reference
+-- to a Library work, which the seam keeps opaque.
+CREATE TABLE IF NOT EXISTS default_theme_offers (
+    artwork_id  TEXT PRIMARY KEY,
+    offered_at  TEXT NOT NULL
+);
+
 -- One row per wall, seeded when the wall is created so no caller ever has to
 -- make one. The standing directive is a property of the *wall* rather than of
 -- any theme, because the sequence has to survive every manifest rebuild and
@@ -285,7 +350,26 @@ CREATE TABLE IF NOT EXISTS directives (
 );
 
 CREATE INDEX IF NOT EXISTS directives_by_pin ON directives(pinned_work_id);
+
+-- The acquisition queue's memory of each work it has started on and not
+-- finished: how many attempts failed in a row, when the next may be made, why the
+-- last one failed, and a source someone named for the next. Deleted once the work
+-- is fetched and prepared, so the table holds only the works still owing
+-- something. "Gave up" is `failures` reaching the queue's limit, read rather than
+-- stored, and what is in flight or why the queue is paused is not stored at all.
+-- A new table, so `CREATE TABLE IF NOT EXISTS` reaches a file written before it
+-- and no migration is needed.
+CREATE TABLE IF NOT EXISTS acquisition_queue (
+    artwork_id   TEXT PRIMARY KEY REFERENCES artworks(id),
+    failures     INTEGER NOT NULL DEFAULT 0 CHECK (failures >= 0),
+    next_try_at  TEXT,
+    detail       TEXT,
+    source_id    TEXT REFERENCES sources(id)
+);
 """
+
+#: The queue's table is keyed by the work alone: one row per work it owes something.
+_BY_ARTWORK: Final[tuple[str, ...]] = ("artwork_id",)
 
 #: The join's own key. A work appears at most once in a theme.
 _MEMBERSHIP_KEY: Final[tuple[str, ...]] = ("theme_id", "artwork_id")
@@ -372,6 +456,15 @@ _SEARCHED: Final[tuple[str, ...]] = (
     "ar.name",
 )
 
+#: What SQL calls `search_fold` by, on both sides of every searched `LIKE`.
+_FOLD: Final[str] = "search_fold"
+
+#: The searched columns as one string, so the fold is one call and one
+#: remembered entry per work rather than six (see `_FOLDS_REMEMBERED` in `folding.py`). They are
+#: joined by the unit separator, which `str.split` treats as whitespace, so no
+#: term can contain it and no match can run from one column into the next.
+_SEARCHED_TEXT: Final[str] = " || char(31) || ".join(f"coalesce({column}, '')" for column in _SEARCHED)
+
 #: `LIKE`'s own wildcards, which have to survive a curator typing one. Escaped
 #: with a backslash declared per-clause as `ESCAPE '\'`; SQLite has no default
 #: escape character, so without the clause a searched `%` would match everything.
@@ -451,13 +544,29 @@ def _matching(query: WorkQuery) -> _Restriction:
         clauses.append('a."status" = ?')
         values.append(str(query.status))
 
+    if query.artist_id is not None:
+        clauses.append('a."artist_id" = ?')
+        values.append(query.artist_id)
+
+    # One bound JSON array rather than a placeholder per id: a theme may hold
+    # more works than SQLite will bind variables to one statement. `json_each`
+    # is JSON1, part of every SQLite build since 3.38 and optional before it.
+    # The server runs only on a uv-managed CPython (the Dockerfile's `uv python
+    # install`), which bundles its own SQLite: 3.53.1 under 3.14.6, 2026-10-04.
+    if query.within is not None:
+        clauses.append('a."id" IN (SELECT value FROM json_each(?))')
+        values.append(json.dumps(sorted(query.within)))
+
     # ANDed across terms, ORed across columns: "blue harbour" means both words
     # appear somewhere about the work, which is what a person typing two words
     # means. ORing the terms instead would make every extra word widen the
     # result, so a search would get less useful the more precisely it was asked.
+    #
+    # Folded on both sides by `search_fold`, and the term before its wildcards
+    # are escaped, so the escaping is the last thing done to it.
     for term in query.terms:
-        clauses.append("(" + " OR ".join(f"{column} LIKE ? ESCAPE '\\'" for column in _SEARCHED) + ")")
-        values.extend([_like_pattern(term)] * len(_SEARCHED))
+        clauses.append(f"{_FOLD}({_SEARCHED_TEXT}) LIKE ? ESCAPE '\\'")
+        values.append(_like_pattern(search_fold(term)))
 
     # ORed within a kind, ANDed across kinds — see `WorkQuery.facets`. A kind
     # present with nothing chosen narrows nothing, rather than selecting nothing:
@@ -479,6 +588,12 @@ def _matching(query: WorkQuery) -> _Restriction:
 
 class SqliteCatalogue(TableAdapter):
     """The catalogue's own tables, mapped to its records."""
+
+    def __init__(self, store: SqliteDurableStore) -> None:
+        super().__init__(store)
+        # Defined by the adapter whose search calls it rather than where the file
+        # is opened, so every way of reaching this adapter can search.
+        store.define_function(_FOLD, search_fold)
 
     # -- artists --------------------------------------------------------------
 
@@ -519,6 +634,43 @@ class SqliteCatalogue(TableAdapter):
             (*selects.values, limit, offset),
         )
         return ArtworkPage(artworks=[_artwork(row) for row in rows], total=total)
+
+    def artwork_ids_matching(self, query: WorkQuery) -> frozenset[str]:
+        selects = _matching(query)
+        rows = self._store.select_rows(f"SELECT a.id AS id {selects.source} WHERE {selects.where}", selects.values)
+        return frozenset(row["id"] for row in rows)
+
+    def held_artists(self) -> Sequence[tuple[Artist, int, str]]:
+        accepted = str(ArtworkStatus.ACCEPTED)
+        rows = self._store.select_rows(
+            'SELECT ar.*, COUNT(a."id") AS held, '
+            '(SELECT a2."id" FROM artworks a2 WHERE a2."artist_id" = ar."id" AND a2."status" = ? '
+            'ORDER BY coalesce(a2."accepted_at", a2."created_at"), a2.rowid LIMIT 1) AS pictured '
+            'FROM artists ar JOIN artworks a ON a."artist_id" = ar."id" '
+            'WHERE a."status" = ? GROUP BY ar."id" ORDER BY ar."name" COLLATE NOCASE, ar."id"',
+            (accepted, accepted),
+        )
+        return [(_artist(row), int(row["held"]), row["pictured"]) for row in rows]
+
+    def circulating_ids_by_qid(self) -> Mapping[str, Sequence[str]]:
+        rows = self._store.select_rows(
+            'SELECT a."wikidata_qid" AS qid, a."id" AS id FROM artworks a '
+            'WHERE a."wikidata_qid" IS NOT NULL AND a."status" = ? ORDER BY a."created_at", a.rowid',
+            (str(ArtworkStatus.ACCEPTED),),
+        )
+        found: dict[str, list[str]] = {}
+        for row in rows:
+            found.setdefault(row["qid"], []).append(row["id"])
+        return found
+
+    def accepted_artwork_ids(self) -> Sequence[str]:
+        # Oldest first, `rowid` breaking a tie within one clock tick, so a catch-up
+        # joins works to a theme in the order they arrived.
+        rows = self._store.select_rows(
+            'SELECT a."id" AS id FROM artworks a WHERE a."status" = ? ORDER BY a."created_at", a.rowid',
+            (str(ArtworkStatus.ACCEPTED),),
+        )
+        return [row["id"] for row in rows]
 
     # -- what a work is, and what a filter would select -----------------------
 
@@ -583,6 +735,41 @@ class SqliteCatalogue(TableAdapter):
                 counted[kind][row["value"]] = int(row["tally"])
         return counted
 
+    def topic_tallies(self, *, status: ArtworkStatus | None, qid: str | None = None) -> Sequence[TopicTally]:
+        selects = _matching(WorkQuery(status=status))
+        narrowed, bound = ("", ()) if qid is None else (" AND f.value_qid = ?", (qid,))
+        rows = self._store.select_rows(
+            # `COUNT(DISTINCT ...)` here, unlike `count_facet_values`: the
+            # uniqueness is per value, and two values on one work may name one
+            # item. `MIN` picks one label deterministically where two rows wrote
+            # the item's name differently.
+            f"SELECT f.kind AS kind, f.value_qid AS qid, MIN(f.value) AS label, COUNT(DISTINCT f.artwork_id) AS tally "
+            f"FROM work_facets f WHERE f.value_qid IS NOT NULL{narrowed}{selects.over_works(column='f.artwork_id')} "
+            f"GROUP BY f.kind, f.value_qid ORDER BY f.kind, label COLLATE NOCASE, f.value_qid",
+            (*bound, *selects.values),
+        )
+        tallies: list[TopicTally] = []
+        for row in rows:
+            # Skipped, as everywhere a facet kind is read: a later build's kind
+            # must not make the index unreadable.
+            kind = _known_kind(row["kind"])
+            if kind is not None:
+                tallies.append(TopicTally(kind=kind, qid=row["qid"], label=row["label"], works=int(row["tally"])))
+        return tallies
+
+    def works_with_topic(self, qid: str, *, status: ArtworkStatus | None, kinds: Sequence[VocabularyKind]) -> Sequence[str]:
+        if not kinds:
+            return []
+        selects = _matching(WorkQuery(status=status))
+        placeholders = ", ".join("?" for _ in kinds)
+        rows = self._store.select_rows(
+            f"SELECT a.id AS id {selects.source} WHERE {selects.where} "
+            f"AND a.id IN (SELECT artwork_id FROM work_facets WHERE value_qid = ? AND kind IN ({placeholders})) "
+            f"ORDER BY {_WORKS_ORDERS[WorkOrder.TITLE]}",
+            (*selects.values, qid, *(str(kind) for kind in kinds)),
+        )
+        return [row["id"] for row in rows]
+
     # -- sources --------------------------------------------------------------
 
     def add_source(self, source: Source) -> None:
@@ -636,6 +823,68 @@ class SqliteCatalogue(TableAdapter):
     def list_mat_colors(self, artwork_id: str) -> Sequence[MatColor]:
         return self._list("mat_colors", {"artwork_id": artwork_id}, _BY_RECENCY, _mat_color)
 
+    # -- the acquisition queue ------------------------------------------------
+
+    def works_to_acquire(self) -> Sequence[WorkToAcquire]:
+        # Oldest acceptance first, so a backlog is worked in the order it was
+        # asked for. `accepted_at` is null on rows written before it existed,
+        # which then fall back to when the work was catalogued; `rowid` breaks a
+        # tie within one clock tick.
+        rows = self._store.select_rows(
+            'SELECT a."id" AS work_id, o."id" IS NOT NULL AS held, q."artwork_id" AS queued_id, '
+            'q."failures", q."next_try_at", q."detail", q."source_id" '
+            "FROM artworks a "
+            'LEFT JOIN originals o ON o."artwork_id" = a."id" '
+            'LEFT JOIN acquisition_queue q ON q."artwork_id" = a."id" '
+            'WHERE a."status" = ? AND (o."id" IS NULL OR q."artwork_id" IS NOT NULL) '
+            'ORDER BY coalesce(a."accepted_at", a."created_at"), a.rowid',
+            (str(ArtworkStatus.ACCEPTED),),
+        )
+        return [
+            WorkToAcquire(
+                artwork_id=row["work_id"],
+                holds_original=bool(row["held"]),
+                queued=None if row["queued_id"] is None else _queued({**row, "artwork_id": row["queued_id"]}),
+            )
+            for row in rows
+        ]
+
+    def works_with_canvas_outside_layout(self, layout: str) -> Sequence[str]:
+        # A work with a canvas at the current layout is left alone even if it
+        # also keeps an older one at another panel size: the old row is not what
+        # it shows, and queueing it would recompose nothing on every start.
+        rows = self._store.select_rows(
+            'SELECT a."id" AS work_id FROM artworks a WHERE a."status" = ? '
+            'AND EXISTS (SELECT 1 FROM renditions r WHERE r."artwork_id" = a."id" AND r."kind" = ?) '
+            'AND NOT EXISTS (SELECT 1 FROM renditions r WHERE r."artwork_id" = a."id" AND r."kind" = ? AND r."layout" = ?) '
+            'ORDER BY coalesce(a."accepted_at", a."created_at"), a.rowid',
+            (str(ArtworkStatus.ACCEPTED), str(RenditionKind.TV_DISPLAY), str(RenditionKind.TV_DISPLAY), layout),
+        )
+        return [row["work_id"] for row in rows]
+
+    def current_mats_of_works_with_canvas(self) -> Sequence[tuple[str, str | None]]:
+        rows = self._store.select_rows(
+            'SELECT a."id" AS work_id, m."hex_rgb" AS hex_rgb FROM artworks a '
+            'LEFT JOIN mat_colors m ON m."artwork_id" = a."id" AND m."is_current" = 1 '
+            'WHERE a."status" = ? '
+            'AND EXISTS (SELECT 1 FROM renditions r WHERE r."artwork_id" = a."id" AND r."kind" = ?) '
+            'ORDER BY coalesce(a."accepted_at", a."created_at"), a.rowid',
+            (str(ArtworkStatus.ACCEPTED), str(RenditionKind.TV_DISPLAY)),
+        )
+        return [(row["work_id"], row["hex_rgb"]) for row in rows]
+
+    def get_queued_acquisition(self, artwork_id: str) -> QueuedAcquisition | None:
+        return self._get("acquisition_queue", {"artwork_id": artwork_id}, _queued)
+
+    def set_queued_acquisition(self, entry: QueuedAcquisition) -> None:
+        # `update` rather than `raise`: the row is the queue's working memory of
+        # one work, rewritten after every attempt, and there is no "add" that a
+        # second write could be a mistaken repeat of.
+        self._store.upsert("acquisition_queue", _queued_row(entry), pk=_BY_ARTWORK, on_conflict="update")
+
+    def remove_queued_acquisition(self, artwork_id: str) -> None:
+        self._delete("acquisition_queue", {"artwork_id": artwork_id})
+
     # -- themes ---------------------------------------------------------------
 
     def add_theme(self, theme: Theme) -> None:
@@ -680,6 +929,37 @@ class SqliteCatalogue(TableAdapter):
     def list_memberships(self, theme_id: str) -> Sequence[ThemeMembership]:
         return self._list("theme_memberships", {"theme_id": theme_id}, _BY_POSITION, _membership)
 
+    # -- the default theme ----------------------------------------------------
+
+    def get_default_theme(self) -> Theme | None:
+        marked = self._list("themes", {"is_default": 1}, _BY_NAME, _theme)
+        return marked[0] if marked else None
+
+    def mark_default_theme(self, theme_id: str) -> None:
+        # Cleared before set, in one transaction: the partial unique index
+        # refuses a second mark, so setting first would be refused, and a clear
+        # without its set would leave no default that anybody chose.
+        with self._store.transaction():
+            for theme in self._list("themes", {"is_default": 1}, _BY_NAME, _theme):
+                if theme.id != theme_id:
+                    self._update("themes", BY_ID, {**_theme_row(theme), "is_default": 0}, subject=f"theme {theme.id!r}")
+            theme = self.get_theme(theme_id)
+            if theme is None:
+                reason = "it is not stored."
+                raise StorageError(f"Could not mark theme {theme_id!r} the default: {reason}", reason=reason)
+            self._update("themes", BY_ID, {**_theme_row(theme), "is_default": 1}, subject=f"theme {theme_id!r}")
+
+    def record_offer(self, artwork_id: str, offered_at: datetime) -> None:
+        self._add(
+            "default_theme_offers",
+            {"artwork_id": artwork_id, "offered_at": to_iso(offered_at)},
+            subject=f"the default theme's offer of artwork {artwork_id!r}",
+            key=("artwork_id",),
+        )
+
+    def offered_work_ids(self) -> set[str]:
+        return {row["artwork_id"] for row in self._store.scan("default_theme_offers")}
+
     # -- walls ----------------------------------------------------------------
 
     def add_wall(self, wall: Wall) -> None:
@@ -699,6 +979,24 @@ class SqliteCatalogue(TableAdapter):
 
     def update_wall(self, wall: Wall) -> None:
         self._update("walls", BY_ID, _wall_row(wall), subject=f"wall {wall.name!r}")
+
+    # -- clients --------------------------------------------------------------
+
+    def add_client(self, client: Client) -> None:
+        # Named rather than identified, for the reason `add_wall` gives.
+        self._add("clients", _client_row(client), subject=f"client {client.name!r}")
+
+    def get_client(self, client_id: str) -> Client | None:
+        return self._get("clients", {"id": client_id}, _client)
+
+    def update_client(self, client: Client) -> None:
+        self._update("clients", BY_ID, _client_row(client), subject=f"client {client.name!r}")
+
+    def list_clients(self) -> Sequence[Client]:
+        return self._list("clients", None, _BY_NAME, _client)
+
+    def remove_client(self, client_id: str) -> None:
+        self._store.delete("clients", {"id": client_id})
 
     # -- what is hanging ------------------------------------------------------
 
@@ -757,6 +1055,8 @@ def _artist_row(artist: Artist) -> dict[str, Any]:
         "family_name": artist.family_name,
         "given_name": artist.given_name,
         "display_nationality": artist.display_nationality,
+        "wikidata_qid": artist.wikidata_qid,
+        "wikidata_qid_set_by": None if artist.wikidata_qid_set_by is None else str(artist.wikidata_qid_set_by),
     }
 
 
@@ -774,6 +1074,8 @@ def _artwork_row(artwork: Artwork) -> dict[str, Any]:
         "accepted_at": to_iso(artwork.accepted_at),
         "created_at": to_iso(artwork.created_at),
         "commentary": artwork.commentary,
+        "wikidata_qid": artwork.wikidata_qid,
+        "wikidata_qid_set_by": None if artwork.wikidata_qid_set_by is None else str(artwork.wikidata_qid_set_by),
     }
 
 
@@ -786,6 +1088,7 @@ def _facet_row(facet: WorkFacet) -> dict[str, Any]:
         "derivation": str(facet.derivation),
         "source_note": facet.source_note,
         "created_at": to_iso(facet.created_at),
+        "value_qid": facet.value_qid,
     }
 
 
@@ -820,6 +1123,16 @@ def _original_row(original: Original) -> dict[str, Any]:
     }
 
 
+def _queued_row(entry: QueuedAcquisition) -> dict[str, Any]:
+    return {
+        "artwork_id": entry.artwork_id,
+        "failures": entry.failures,
+        "next_try_at": to_iso(entry.next_try_at),
+        "detail": entry.detail,
+        "source_id": entry.source_id,
+    }
+
+
 def _rendition_row(rendition: Rendition) -> dict[str, Any]:
     return {
         "id": rendition.id,
@@ -832,6 +1145,8 @@ def _rendition_row(rendition: Rendition) -> dict[str, Any]:
         "generated_at": to_iso(rendition.generated_at),
         "content_sha256": rendition.content_sha256,
         "byte_size": rendition.byte_size,
+        "layout": rendition.layout,
+        "mat_hex": rendition.mat_hex,
     }
 
 
@@ -862,6 +1177,8 @@ def _theme_row(theme: Theme) -> dict[str, Any]:
         # would raise and bool(None) would silently write a decision the curator
         # never made.
         "shuffle": None if theme.shuffle is None else int(theme.shuffle),
+        # `is_default` is not written from the record: only `mark_default_theme`
+        # writes it, so saving a theme leaves the mark where it is.
     }
 
 
@@ -874,13 +1191,23 @@ def _membership_row(membership: ThemeMembership) -> dict[str, Any]:
     }
 
 
+def _client_row(client: Client) -> dict[str, Any]:
+    return {
+        "id": client.id,
+        "name": client.name,
+        "created_at": to_iso(client.created_at),
+        "token_verifier": client.token_verifier,
+        "token_issued_at": to_iso(client.token_issued_at),
+    }
+
+
 def _wall_row(wall: Wall) -> dict[str, Any]:
     return {
         "id": wall.id,
         "name": wall.name,
         "created_at": to_iso(wall.created_at),
-        "token_verifier": wall.token_verifier,
-        "token_issued_at": to_iso(wall.token_issued_at),
+        "client_id": wall.client_id,
+        "output": wall.output,
     }
 
 
@@ -915,6 +1242,8 @@ def _artist(row: Mapping[str, Any]) -> Artist:
         family_name=row["family_name"],
         given_name=row["given_name"],
         display_nationality=row["display_nationality"],
+        wikidata_qid=row["wikidata_qid"],
+        wikidata_qid_set_by=_set_by(row["wikidata_qid_set_by"]),
     )
 
 
@@ -932,7 +1261,13 @@ def _artwork(row: Mapping[str, Any]) -> Artwork:
         rights=row["rights"],
         accepted_at=from_iso(row["accepted_at"]),
         commentary=row["commentary"],
+        wikidata_qid=row["wikidata_qid"],
+        wikidata_qid_set_by=_set_by(row["wikidata_qid_set_by"]),
     )
+
+
+def _set_by(value: str | None) -> IdentitySetBy | None:
+    return None if value is None else IdentitySetBy(value)
 
 
 def _facet(row: Mapping[str, Any]) -> WorkFacet:
@@ -944,6 +1279,7 @@ def _facet(row: Mapping[str, Any]) -> WorkFacet:
         derivation=FacetDerivation(row["derivation"]),
         created_at=require_datetime(row["created_at"], "created_at"),
         source_note=row["source_note"],
+        value_qid=row["value_qid"],
     )
 
 
@@ -981,6 +1317,16 @@ def _original(row: Mapping[str, Any]) -> Original:
     )
 
 
+def _queued(row: Mapping[str, Any]) -> QueuedAcquisition:
+    return QueuedAcquisition(
+        artwork_id=row["artwork_id"],
+        failures=row["failures"],
+        next_try_at=from_iso(row["next_try_at"]),
+        detail=row["detail"],
+        source_id=row["source_id"],
+    )
+
+
 def _rendition(row: Mapping[str, Any]) -> Rendition:
     return Rendition(
         id=row["id"],
@@ -993,6 +1339,10 @@ def _rendition(row: Mapping[str, Any]) -> Rendition:
         generated_at=require_datetime(row["generated_at"], "generated_at"),
         content_sha256=row["content_sha256"],
         byte_size=row["byte_size"],
+        # `.get` for the reason `fetch_status` uses it: a row read through a
+        # mapping built from an older file's columns has no such key.
+        layout=row.get("layout"),
+        mat_hex=row.get("mat_hex"),
     )
 
 
@@ -1020,11 +1370,22 @@ def _theme(row: Mapping[str, Any]) -> Theme:
         description=row["description"],
         rotation_interval_seconds=row["rotation_interval_seconds"],
         shuffle=None if row["shuffle"] is None else bool(row["shuffle"]),
+        is_default=bool(row["is_default"]),
     )
 
 
 def _wall(row: Mapping[str, Any]) -> Wall:
     return Wall(
+        id=row["id"],
+        name=row["name"],
+        created_at=require_datetime(row["created_at"], "created_at"),
+        client_id=row["client_id"],
+        output=row["output"],
+    )
+
+
+def _client(row: Mapping[str, Any]) -> Client:
+    return Client(
         id=row["id"],
         name=row["name"],
         created_at=require_datetime(row["created_at"], "created_at"),

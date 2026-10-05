@@ -1,6 +1,7 @@
 """The persistence contract over Programming's tables.
 
-Themes, what each holds, walls, what hangs on each, and each wall's directive.
+Themes, what each holds, walls, what hangs on each, each wall's directive, and
+the clients that show walls.
 Programming reaches its storage only through this protocol and never through
 `persistence.catalogue.CatalogueStore`, which is the Library's. Today one SQLite
 file serves both and one object implements both protocols. The split is
@@ -15,9 +16,10 @@ the service, which is the only caller.
 
 from collections.abc import Sequence
 from contextlib import AbstractContextManager
+from datetime import datetime
 from typing import Protocol
 
-from arrt.persistence.records import Directive, Theme, ThemeAssignment, ThemeMembership, Wall
+from arrt.persistence.records import Client, Directive, Theme, ThemeAssignment, ThemeMembership, Wall
 
 
 class ProgrammingStore(Protocol):
@@ -81,6 +83,28 @@ class ProgrammingStore(Protocol):
         """Return a theme's entries in curated order, unordered entries last."""
         ...
 
+    # -- the default theme ----------------------------------------------------
+
+    def get_default_theme(self) -> Theme | None:
+        """Return the theme new works join, or None while no theme is marked."""
+        ...
+
+    def mark_default_theme(self, theme_id: str) -> None:
+        """Make this theme the default, taking the mark off any other. Raises if it is absent."""
+        ...
+
+    def record_offer(self, artwork_id: str, offered_at: datetime) -> None:
+        """Record that this work has been offered the theme it was accepted into. Raises if it already has.
+
+        The default theme, or the theme its Get named; the record does not say
+        which, because nothing asks and membership says where the work is.
+        """
+        ...
+
+    def offered_work_ids(self) -> set[str]:
+        """Every work that has been offered its theme, whether or not it joined."""
+        ...
+
     # -- walls ----------------------------------------------------------------
 
     def add_wall(self, wall: Wall) -> None:
@@ -100,6 +124,28 @@ class ProgrammingStore(Protocol):
 
         Unpaged: a household has as many walls as it has displays.
         """
+        ...
+
+    # -- clients --------------------------------------------------------------
+
+    def add_client(self, client: Client) -> None:
+        """Persist a client. Raises if the id or the name is already present."""
+        ...
+
+    def get_client(self, client_id: str) -> Client | None:
+        """Return the client, or None if no such id is stored."""
+        ...
+
+    def update_client(self, client: Client) -> None:
+        """Overwrite a stored client with this one. Raises if the id is absent."""
+        ...
+
+    def list_clients(self) -> Sequence[Client]:
+        """Return every client in a stable order. Unpaged: a household has a few."""
+        ...
+
+    def remove_client(self, client_id: str) -> None:
+        """Delete a client. No wall may still name it; removing an absent one is not an error."""
         ...
 
     # -- what is hanging ------------------------------------------------------

@@ -1,35 +1,54 @@
-"""Start the display plane: `uv run python -m postarr`.
+"""Start the Player: `uv run python -m postarr`.
 
 The composition root, and the only module that knows a real television exists —
 everything above the seam is written against `TvClient`, so this is where the
-`samsungtvws` fork is named and where it stays.
+`samsungtvws` fork is named and where it stays. It is also the only module that
+imports the pull, which holds this plane's one HTTP client.
+
+**One process per client, one worker per wall** (`clients.md` § The Player). The
+supervisor (`client.Supervisor`) asks the server which walls this client drives
+and runs a worker for each on its output: `run_frame_wall` for the Frame, which
+is the Frame's loop and its pull exactly as they ran when a Player served one
+wall, and `run_screen_wall` for a screen this host draws on.
+
+**A dead pull ends its own wall's worker, and the supervisor starts it again.**
+A pull that stops leaves its wall rotating its cache, taking no updates and
+sending no heartbeat, which is invisible from the wall. So the worker stops with
+the pull's error, which the supervisor logs at ERROR and answers with a restart.
+That used to be the whole process stopping so systemd restarted it; with several
+walls in one process, that would blank every other wall over one wall's fault.
 
 **Shutdown is deliberate rather than abrupt.** systemd sends SIGTERM and then
-waits a bounded time before SIGKILL; a daemon that ignored the first would be
-killed with its websocket open, and the set holds a half-closed art channel until
-it times out on its own. The stop event unblocks the loop's own wait, so the
-process closes in about as long as whatever call is in flight.
+waits a bounded time before SIGKILL; a process that ignored the first would be
+killed with the Frame's websocket open, and the set holds a half-closed art
+channel until it times out on its own. The stop event reaches every worker, and
+the supervisor waits for each to close what it holds.
 """
 
 import asyncio
 import logging
 import signal
 import sys
+from collections.abc import Awaitable, Callable
+from functools import partial
 
 from postarr import logs
-from postarr.config import ConfigError, Settings, load
+from postarr.client import FRAME_KIND, OutputReport, Supervisor, client_outputs
+from postarr.config import ClientSettings, ConfigError, FrameSettings, Settings, WallSettings, load
 from postarr.daemon import Clock, Daemon
+from postarr.kms import KmsOutput
 from postarr.manifest import Watcher
 from postarr.panel import Geometry, LabelSurface, SurfaceUnavailable
 from postarr.panel.legibility import TypeScale, ViewingConditionsUnknown, margin_for, type_scale_for
-from postarr.pull import Pull
+from postarr.pull import ClientPull, Pull
+from postarr.screen import ScreenOutput, ScreenWall
 from postarr.state import DisplayState, StateSchemaTooNew
 from postarr.tv.samsung import SamsungTv
 
 log = logging.getLogger(__name__)
 
 
-def label_surface(settings: Settings) -> LabelSurface | None:
+def label_surface(settings: FrameSettings) -> LabelSurface | None:
     """This device's label surface, None when it has none, raising when it has a broken one.
 
     **The three outcomes are three different things and the daemon reports them
@@ -109,7 +128,7 @@ def label_surface(settings: Settings) -> LabelSurface | None:
     )
 
 
-def label_geometry(settings: Settings, scale: TypeScale) -> Geometry:
+def label_geometry(settings: FrameSettings, scale: TypeScale) -> Geometry:
     """This panel's usable area, with a border derived from the type on it.
 
     **Separate from `label_surface` because it is the only part of that function
@@ -133,8 +152,13 @@ def label_geometry(settings: Settings, scale: TypeScale) -> Geometry:
     )
 
 
-async def _run() -> int:
-    settings = load()
+async def run_frame_wall(settings: Settings, stop: asyncio.Event, *, clock: Clock | None = None) -> None:
+    """One wall on the Frame: the Frame's loop and the wall's pull, until stopped.
+
+    The label panel is opened here, because it belongs to the wall on the Frame:
+    one worker decides both the picture and its label, so they cannot disagree.
+    """
+    settings.wall_dir.mkdir(parents=True, exist_ok=True)
     watcher = Watcher(
         settings.manifest_path,
         rotation_interval_fallback=settings.rotation_interval_fallback_seconds,
@@ -150,15 +174,6 @@ async def _run() -> int:
         select_confirm_seconds=settings.select_confirm_seconds,
     )
 
-    stop = asyncio.Event()
-    loop = asyncio.get_running_loop()
-    for received in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(received, stop.set)
-
-    # One clock for both, because the daemon measures an upload's retry wait
-    # against a timestamp the store wrote. Two sources here would be two answers
-    # to the same question, and the store's is the one that has to survive a
-    # restart.
     # **A panel that will not open is reported, not fatal.** The television is the
     # product and the label annotates it, so a broken panel costs the label and
     # nothing else — but it is carried into the daemon rather than logged and
@@ -178,8 +193,28 @@ async def _run() -> int:
             extra={"event": "panel.unavailable"},
         )
 
-    clock = Clock.system()
-    with DisplayState(settings.state_path, now=clock.now) as state:
+    # One clock for both, because the daemon measures an upload's retry wait
+    # against a timestamp the store wrote. Two sources here would be two answers
+    # to the same question, and the store's is the one that has to survive a
+    # restart.
+    clock = clock if clock is not None else Clock.system()
+    # **A store from a newer plane parks this wall, and only this wall.** Opening
+    # it would guess at a shape this code does not know, and restarting cannot
+    # change the answer — the fix is a rollout — so the worker says so once and
+    # waits to be stopped, rather than crash-looping a traceback per backoff step
+    # or ending the process and blanking every other wall this client drives.
+    try:
+        state = DisplayState(settings.state_path, now=clock.now)
+    except StateSchemaTooNew as exc:
+        log.error(  # noqa: TRY400 -- the fix is a rollout, not a frame
+            "wall %s is not shown: %s",
+            settings.wall_id,
+            exc,
+            extra={"event": "daemon.state_too_new", "wall_id": settings.wall_id},
+        )
+        await stop.wait()
+        return
+    with state:
         daemon = Daemon(
             settings=settings,
             tv=tv,
@@ -189,39 +224,101 @@ async def _run() -> int:
             surface=surface,
             surface_error=surface_error,
         )
-        if not settings.pulls_over_http:
-            await daemon.run(stop)
-            return 0
-        # HTTP mode: the pull fills the cache the watcher reads, beside the
-        # daemon and stopped by the same signal.
-        pulling = asyncio.create_task(Pull(settings).run(stop), name="pull")
-        pulling.add_done_callback(lambda task: _pull_ended(task, stop))
-        try:
-            await daemon.run(stop)
-        finally:
-            stop.set()
-            # Re-raises a pull that crashed, so the unit exits failed and
-            # systemd restarts the Player and its pull together.
-            await pulling
-    return 0
+        await _beside_its_pull(settings, stop, daemon.run)
 
 
-def _pull_ended(task: asyncio.Task[None], stop: asyncio.Event) -> None:
-    """Say at once that the pull died, and stop the plane so it restarts.
+async def run_screen_wall(wall: WallSettings, output: str, stop: asyncio.Event, *, clock: Clock | None = None) -> None:
+    """One wall on a screen this host draws on: the screen loop and the wall's pull, until stopped."""
+    wall.wall_dir.mkdir(parents=True, exist_ok=True)
+    watcher = Watcher(
+        wall.manifest_path,
+        rotation_interval_fallback=wall.rotation_interval_fallback_seconds,
+        shuffle_fallback=wall.rotation_shuffle_fallback,
+    )
+    screen = ScreenWall(
+        wall=wall,
+        output=screen_output(wall, output),
+        watcher=watcher,
+        clock=clock if clock is not None else Clock.system(),
+    )
+    await _beside_its_pull(wall, stop, screen.run)
+
+
+def screen_output(wall: WallSettings, output: str) -> ScreenOutput:
+    """What a wall on an HDMI connector draws on: the connector, through kernel mode setting."""
+    return KmsOutput(output)
+
+
+async def run_wall(settings: ClientSettings, wall: WallSettings, output: OutputReport, stop: asyncio.Event) -> None:
+    """The supervisor's worker: the Frame's loop for the Frame, the screen loop for anything else."""
+    if output.kind == FRAME_KIND:
+        await run_frame_wall(settings.frame_wall(wall.wall_id), stop)
+    else:
+        await run_screen_wall(wall, output.name, stop)
+
+
+async def _beside_its_pull(wall: WallSettings, stop: asyncio.Event, loop: Callable[[asyncio.Event], Awaitable[None]]) -> None:
+    """Run a wall's loop with its pull beside it, stopped together.
+
+    **Their own stop event, not the supervisor's.** A dead pull must end this
+    worker, and setting the supervisor's event to do that would read to it as
+    "this wall was taken away" — the one case it does not restart.
+    """
+    ending = asyncio.Event()
+    relay = asyncio.create_task(_relay(stop, ending), name=f"stop:{wall.wall_id}")
+    pulling = asyncio.create_task(Pull(wall).run(ending), name=f"pull:{wall.wall_id}")
+    pulling.add_done_callback(lambda task: _pull_ended(task, ending, wall.wall_id))
+    try:
+        await loop(ending)
+    finally:
+        ending.set()
+        relay.cancel()
+        # Re-raises a pull that crashed, so the worker ends failed and the
+        # supervisor starts the wall and its pull again together.
+        await pulling
+
+
+async def _relay(stop: asyncio.Event, ending: asyncio.Event) -> None:
+    await stop.wait()
+    ending.set()
+
+
+def _pull_ended(task: asyncio.Task[None], ending: asyncio.Event, wall_id: str) -> None:
+    """Say at once that the pull died, and end the wall's worker so it starts again.
 
     A dead pull leaves the wall rotating its cache and taking no updates and
     sending no heartbeat, which is invisible from the wall and would stay
-    invisible until somebody stopped the daemon. Stopping it instead turns the
-    fault into a restart systemd performs and the journal records.
+    invisible until somebody stopped the process.
     """
     if task.cancelled() or task.exception() is None:
         return
     log.error(
-        "the pull stopped on an error; stopping the display plane so it restarts and pulls again",
+        "the pull for wall %s stopped on an error; stopping the wall's worker so it starts again",
+        wall_id,
         exc_info=task.exception(),
-        extra={"event": "pull.crashed"},
+        extra={"event": "pull.crashed", "wall_id": wall_id},
     )
-    stop.set()
+    ending.set()
+
+
+async def _run() -> int:
+    settings = load()
+    stop = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for received in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(received, stop.set)
+
+    clock = Clock.system()
+    supervisor = Supervisor(
+        settings=settings,
+        link=ClientPull(settings),
+        worker=partial(run_wall, settings),
+        outputs=partial(client_outputs, settings),
+        now=clock.now,
+        monotonic=clock.monotonic,
+    )
+    await supervisor.run(stop)
+    return 0
 
 
 def main() -> int:
@@ -233,14 +330,10 @@ def main() -> int:
         # this failure is a person who has just run the command by hand and a
         # JSON line is the harder of the two to read at a terminal.
         #
-        # No traceback on either of these: both say a *deployment value* is wrong,
-        # and the fix is in `.env` or in the rollout. A stack through `load()`
-        # points at this codebase, which is the one place the problem is not.
+        # No traceback: it says a *deployment value* is wrong, and the fix is in
+        # `.env`. A stack through `load()` points at this codebase, which is the
+        # one place the problem is not.
         log.error("%s", exc, extra={"event": "daemon.misconfigured"})  # noqa: TRY400 -- the fix is in .env, not in a frame
-        print(f"display plane cannot start: {exc}", file=sys.stderr)  # noqa: T201 — the operator is at a terminal
-        return 2
-    except StateSchemaTooNew as exc:
-        log.error("%s", exc, extra={"event": "daemon.state_too_new"})  # noqa: TRY400 -- the fix is a rollout, not a frame
         print(f"display plane cannot start: {exc}", file=sys.stderr)  # noqa: T201 — the operator is at a terminal
         return 2
 

@@ -13,11 +13,14 @@ from dataclasses import replace
 from decimal import Decimal
 
 import pytest
+from fakes import FakeRegistry
 
 import arrt.__main__ as entry_point
 from arrt.art_root import MARKER_NAME, ArtRootError
 from arrt.config import (
     DEFAULT_ACQUISITION_USER_AGENT,
+    DEFAULT_BACKUP_INTERVAL_SECONDS,
+    DEFAULT_BACKUP_KEEP,
     DEFAULT_DISCOVERY_APPROVAL_THRESHOLD,
     DEFAULT_DISCOVERY_MAX_OUTPUT_TOKENS,
     DEFAULT_DISCOVERY_MODEL,
@@ -49,10 +52,14 @@ from arrt.config import (
 )
 from arrt.library.discovery.phase_one import OpenRouterEngine
 from arrt.library.facade import LibraryFacade
+from arrt.library.registry import RegistrySimilar
+from arrt.library.services.artists import RegistryState
 from arrt.library.services.catalogue import CatalogueService
+from arrt.library.services.discovery import DiscoveryService
 from arrt.persistence.file import open_catalogue_file
 from arrt.persistence.migrations import DEFAULT_WALL_NAME
 from arrt.persistence.sqlite import SqliteCatalogue
+from arrt.persistence.sqlite_discovery import SqliteDiscovery
 from arrt.programming.display import DisplayService, DisplaySettings
 
 #: A key shaped like the real thing, so a naive redaction that only hides values
@@ -88,6 +95,9 @@ def _defaults(art_root, **overrides) -> Settings:
             rotation_interval_seconds=DEFAULT_ROTATION_INTERVAL_SECONDS,
             rotation_shuffle=DEFAULT_ROTATION_SHUFFLE,
             preview_sweep_interval_seconds=DEFAULT_PREVIEW_SWEEP_INTERVAL_SECONDS,
+            backup_dir=None,
+            backup_interval_seconds=DEFAULT_BACKUP_INTERVAL_SECONDS,
+            backup_keep=DEFAULT_BACKUP_KEEP,
             tv_panel_width_px=DEFAULT_TV_PANEL_WIDTH_PX,
             tv_panel_height_px=DEFAULT_TV_PANEL_HEIGHT_PX,
             tv_panel_diagonal_inches=DEFAULT_TV_PANEL_DIAGONAL_INCHES,
@@ -170,11 +180,13 @@ def test_the_plane_moves_the_catalogue_onto_walls_before_it_serves(tmp_path, mon
     def capture(app, **kwargs) -> None:  # noqa: ANN001, ANN003 - uvicorn's own signature
         # Read through a second connection to the same file, so this observes what
         # a request arriving at this moment would observe.
-        observer = SqliteCatalogue(open_catalogue_file(path))
+        opened = open_catalogue_file(path)
+        observer = SqliteCatalogue(opened)
         try:
+            catalogue = CatalogueService(observer)
             display = DisplayService(
                 observer,
-                LibraryFacade(CatalogueService(observer)),
+                LibraryFacade(catalogue, DiscoveryService(SqliteDiscovery(opened), catalogue)),
                 DisplaySettings(art_root=art_root, rotation_interval_seconds=180, shuffle=True),
             )
             wall = observer.list_walls()[0]
@@ -459,6 +471,52 @@ def test_the_configured_sweep_interval_reaches_the_application(tmp_path, monkeyp
     assert built["preview_sweep_interval_seconds"] == 900
 
 
+def test_the_entry_point_asks_for_the_topic_sweep(tmp_path, monkeypatch):
+    """`create_app` sweeps topics only when asked, and this entry point is the one that asks.
+
+    Without that one argument a deployment never gives its works topics, and
+    every test of the sweep still passes.
+    """
+    art_root = tmp_path / "art"
+    art_root.mkdir()
+    _stub_settings(monkeypatch, art_root)
+    built: dict = {}
+
+    def capture(services, **kwargs):  # noqa: ANN001, ANN003 - the real signature
+        built.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(entry_point, "create_app", capture)
+    monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
+
+    entry_point.main()
+
+    assert built["sweep_topics"] is True
+
+
+def test_the_entry_point_asks_for_the_acquisition_queue(tmp_path, monkeypatch):
+    """`create_app` starts the acquisition queue only when asked, and this entry point is the one that asks.
+
+    Without that one argument an accepted work is never fetched or prepared on
+    a deployment, and every test of the queue still passes.
+    """
+    art_root = tmp_path / "art"
+    art_root.mkdir()
+    _stub_settings(monkeypatch, art_root)
+    built: dict = {}
+
+    def capture(services, **kwargs):  # noqa: ANN001, ANN003 - the real signature
+        built.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(entry_point, "create_app", capture)
+    monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
+
+    entry_point.main()
+
+    assert built["acquire_queue"] is True
+
+
 def test_uvicorns_own_default_is_what_makes_that_argument_necessary():
     """Read from uvicorn itself, so the reason cannot outlive the behaviour.
 
@@ -542,3 +600,166 @@ def test_startup_with_init_creates_the_root_and_serves(tmp_path, monkeypatch):
     entry_point.main(["--init"])
 
     assert (art_root / MARKER_NAME).is_file()
+
+
+def test_startup_names_every_image_source_it_wires_in_order(tmp_path, monkeypatch, caplog):
+    """Commons first, then the Art Institute: the order breaks ties, so it is worth reading.
+
+    The Wikidata plugin loads too, with the same user agent, and is not named:
+    it finds pages, not images, and the line says which sources can supply one.
+    """
+    art_root = tmp_path / "art"
+    art_root.mkdir()
+    _stub_settings(monkeypatch, art_root, wikidata_user_agent="arrt-tests/0")
+    # Each plugin reads its own setting from the environment, as a plugin from
+    # outside this repository has to: `Settings` cannot carry a field for it.
+    monkeypatch.setenv("ARTIC_USER_AGENT", "arrt-tests/0")
+    monkeypatch.setenv("WIKIDATA_USER_AGENT", "arrt-tests/0")
+    monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
+
+    with caplog.at_level("INFO"):
+        entry_point.main()
+
+    assert "phase2 image_sources=commons,artic " in caplog.text
+    assert "source plugin wikidata loaded" in caplog.text
+
+
+def test_startup_with_no_image_source_says_which_settings_would_add_one(tmp_path, monkeypatch, caplog):
+    art_root = tmp_path / "art"
+    art_root.mkdir()
+    _stub_settings(monkeypatch, art_root)
+    monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
+
+    with caplog.at_level("INFO"):
+        entry_point.main()
+
+    # Each plugin's own reason, in preference order, rather than a sentence that
+    # knows which plugins exist: a third plugin's reason would be missing from that.
+    assert (
+        "phase2 image_sources=none (commons: WIKIDATA_USER_AGENT is unset, and Commons is reached only through a "
+        "work's Wikidata item; artic: ARTIC_USER_AGENT is unset, and the Art Institute is never asked anonymously; "
+        "wikidata: no registry is configured (WIKIDATA_USER_AGENT is unset), and pages are read from a work's item) "
+        "previews=disabled"
+    ) in caplog.text
+
+
+def test_the_registry_pages_answer_from_what_the_last_process_kept(tmp_path, monkeypatch):
+    """The kept answers file is opened by `main` and reaches the registry pages.
+
+    Two processes over one art root: the first is asked about an artist's
+    similar artists with the registry up, the second with it down. Every
+    service test passes a file of its own, so without this a `main` that
+    wired none would leave every page keeping answers for the process alone.
+    """
+    art_root = tmp_path / "art"
+    _stub_settings(monkeypatch, art_root)
+    rembrandt = RegistrySimilar(qid="Q5598", name="Rembrandt", sitelinks=200, images=900)
+    answered: list = []
+
+    def run(registry) -> None:
+        def capture(services, **kwargs):  # noqa: ANN001, ANN003 - the real signature
+            answered.append(services.artists.similar("Q43270"))
+            return object()
+
+        monkeypatch.setattr(entry_point, "_registry", lambda settings: registry)
+        monkeypatch.setattr(entry_point, "create_app", capture)
+        monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
+        entry_point.main()
+
+    run(FakeRegistry(similar={"Q43270": [rembrandt]}))
+    run(FakeRegistry(failing=True))
+
+    assert [(view.state, view.people) for view in answered] == [(RegistryState.KNOWN, (rembrandt,))] * 2
+    assert (art_root / "kept-answers.sqlite").is_file()
+
+
+def test_the_entry_point_backs_up_the_catalogue_when_a_backup_directory_is_set(tmp_path, monkeypatch):
+    """`BACKUP_DIR` set → a backup job reaches the application, writing to it, the receipt beside the catalogue."""
+    art_root = tmp_path / "art"
+    _stub_settings(monkeypatch, art_root, backup_dir=tmp_path / "backups", backup_interval_seconds=3600, backup_keep=7)
+    built: dict = {}
+
+    def capture(services, **kwargs):  # noqa: ANN001, ANN003 - the real signature
+        built.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(entry_point, "create_app", capture)
+    monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
+
+    entry_point.main()
+
+    job = built["backup"]
+    assert job is not None
+    assert built["backup_interval_seconds"] == 3600
+    result = job.run()
+    assert result.path.parent == tmp_path / "backups"
+    assert (art_root / "backup-status.json").is_file()
+
+
+def test_the_entry_point_takes_no_backup_when_no_directory_is_set(tmp_path, monkeypatch):
+    art_root = tmp_path / "art"
+    _stub_settings(monkeypatch, art_root)
+    built: dict = {}
+
+    def capture(services, **kwargs):  # noqa: ANN001, ANN003 - the real signature
+        built.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(entry_point, "create_app", capture)
+    monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
+
+    entry_point.main()
+
+    assert built["backup"] is None
+
+
+def test_startup_gives_each_source_plugin_the_deployments_user_agent(tmp_path, monkeypatch):
+    """Through `main`, with a value that is not the default, so a wiring that passed
+    the default or nothing at all would fail here rather than pass by coincidence."""
+    art_root = tmp_path / "art"
+    _stub_settings(monkeypatch, art_root, acquisition_user_agent="arrt-tests (+https://example.org/house)")
+    given = []
+    real = entry_point.load_sources
+    monkeypatch.setattr(entry_point, "load_sources", lambda context, **kw: given.append(context) or real(context, **kw))
+    monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
+
+    entry_point.main()
+
+    assert [context.user_agent for context in given] == ["arrt-tests (+https://example.org/house)"]
+
+
+def test_startup_builds_the_services_over_the_plugins_it_loaded(tmp_path, monkeypatch):
+    """Through `main`, with every source setting at a value that is not its default.
+
+    Each line of the wiring has to show here: the order, the preview ceiling, the
+    collection and the roster itself. Without this test each of them could be
+    deleted with every suite green.
+    """
+    art_root = tmp_path / "art"
+    _stub_settings(
+        monkeypatch, art_root, wikidata_user_agent="arrt-tests/0", source_order=("artic", "commons"), preview_max_bytes=4321
+    )
+    monkeypatch.setenv("ARTIC_USER_AGENT", "arrt-tests/0")
+    monkeypatch.setenv("WIKIDATA_USER_AGENT", "arrt-tests/0")
+    contexts, seen = [], {}
+    real = entry_point.load_sources
+
+    def capture(services, **kwargs):  # noqa: ANN001, ANN003 - the real signature
+        # Read here, while the catalogue is open: `main` closes it on the way out.
+        seen["loaded"] = [
+            health.reading.name for health in services.health.observe().sources if health.reading.state.value == "loaded"
+        ]
+        seen["route"] = services.acquisition._route("https://www.artic.edu/artworks/91194").plugin
+        seen["collection"] = services.conversation._collection.provider
+        return object()
+
+    monkeypatch.setattr(entry_point, "load_sources", lambda context, **kw: contexts.append(context) or real(context, **kw))
+    monkeypatch.setattr(entry_point, "create_app", capture)
+    monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
+
+    entry_point.main()
+
+    assert seen["loaded"][:2] == ["artic", "commons"], "SOURCE_ORDER did not reach the loader"
+    assert contexts[0].preview_max_bytes == 4321
+    assert seen["route"] == "artic", "the roster did not reach acquisition"
+    assert seen["collection"] == "artic", "the roster's collection did not reach the conversation"

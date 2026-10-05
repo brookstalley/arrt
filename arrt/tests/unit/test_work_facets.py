@@ -614,10 +614,11 @@ class TestTheFacetValueIsCaseInsensitiveInEveryReadThatTouchesIt:
     disagree; declared per statement, the first read written without it splits a
     rail in two and halves both counts, silently and only on real data.
 
-    Nothing writes a facet on its own account yet, which is exactly why this is
-    settled now: the path that will is inference from museum text and a model's
-    answer, the documented source of inconsistent casing, and after the first row
-    exists this is a migration and a de-duplication rather than one word of DDL.
+    It was settled before the first row existed, because after it this is a
+    migration and a de-duplication rather than one word of DDL. The topic sweep
+    writes Wikidata's labels as they come ("painting" beside "Impressionism"),
+    and inference from museum text and a model's answer, still to come, is the
+    documented source of inconsistent casing.
     """
 
     def test_the_same_value_in_another_case_is_the_same_facet(self, service: CatalogueService):

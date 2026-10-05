@@ -13,10 +13,11 @@ import logging
 from dataclasses import replace
 
 import pytest
-from fakes import FakeCollectionBrowse, FakeImageSearch, a_collection_holding, a_work, an_image
+from fakes import FakeCollectionBrowse, FakeFinder, a_collection_holding, a_work, an_image
 
 from arrt.library.discovery.engine import WorkList
 from arrt.library.discovery.phase_two import PhaseTwoEngine
+from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.services.previews import PreviewCache, PreviewSettings
 from arrt.library.services.runner import DiscoveryRunner
 from arrt.persistence.discovery_records import (
@@ -34,9 +35,9 @@ def a_list(*works: tuple[str, str]) -> WorkList:
 
 
 @pytest.fixture
-def museum() -> FakeImageSearch:
+def museum() -> FakeFinder:
     """A museum that holds nothing anyone asks for: every work comes back unresolved."""
-    return FakeImageSearch()
+    return FakeFinder()
 
 
 @pytest.fixture
@@ -46,7 +47,9 @@ def collection() -> FakeCollectionBrowse:
 
 @pytest.fixture
 def previews(settings, museum) -> PreviewCache:
-    return PreviewCache(PreviewSettings(art_root=settings.art_root, directory=settings.previews_path), museum.fetch_preview)
+    return PreviewCache(
+        PreviewSettings(art_root=settings.art_root, directory=settings.previews_path), ImageSourcePool([museum]).fetch_preview
+    )
 
 
 @pytest.fixture
@@ -55,7 +58,7 @@ def runner(services, engine, settings, museum, previews, collection) -> Discover
         services.discovery,
         engine,
         settings.discovery_settings,
-        images=PhaseTwoEngine(museum, box=settings.tv_artwork_box),
+        images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
         previews=previews,
         collection=collection,
         spawn=lambda work: work(),
@@ -351,7 +354,7 @@ def test_a_deployment_with_no_collection_wired_simply_offers_nothing(services, e
         services.discovery,
         engine,
         settings.discovery_settings,
-        images=PhaseTwoEngine(museum, box=settings.tv_artwork_box),
+        images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
         previews=previews,
         spawn=lambda work: work(),
     )
@@ -378,7 +381,7 @@ def test_a_bound_of_zero_switches_the_supplement_off_without_unwiring_it(
         services.discovery,
         engine,
         replace(settings.discovery_settings, offered_works_per_run=0),
-        images=PhaseTwoEngine(museum, box=settings.tv_artwork_box),
+        images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
         previews=previews,
         collection=collection,
         spawn=lambda work: work(),
@@ -449,7 +452,7 @@ def test_the_approval_gate_is_sized_by_the_models_list_alone(services, engine, s
         services.discovery,
         engine,
         tight,
-        images=PhaseTwoEngine(museum, box=settings.tv_artwork_box),
+        images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
         previews=previews,
         collection=collection,
         spawn=lambda work: work(),

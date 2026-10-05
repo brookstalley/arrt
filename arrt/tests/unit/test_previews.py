@@ -7,6 +7,7 @@ same instance, and a write interrupted partway.
 
 import pytest
 
+from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.services.previews import PreviewCache, PreviewSettings
 from arrt.services.errors import ServiceError
 
@@ -20,12 +21,26 @@ def cache_dir(tmp_path):
 
 
 def a_cache(tmp_path, cache_dir, fetch) -> PreviewCache:
-    return PreviewCache(PreviewSettings(art_root=tmp_path, directory=cache_dir), fetch)
+    """A cache over a fetch that takes only the URL, for tests the source does not matter to."""
+    return PreviewCache(PreviewSettings(art_root=tmp_path, directory=cache_dir), lambda _provider, url: fetch(url))
+
+
+def test_the_fetch_is_told_which_source_found_the_preview(tmp_path, cache_dir):
+    """Only the source that found an instance can fetch its preview, so its name travels with the URL."""
+    asked: list[tuple[str, str]] = []
+
+    def fetch(provider: str, url: str) -> bytes:
+        asked.append((provider, url))
+        return JPEG
+
+    PreviewCache(PreviewSettings(art_root=tmp_path, directory=cache_dir), fetch).store("commons", URL)
+
+    assert asked == [("commons", URL)]
 
 
 def test_a_fetched_preview_lands_inside_art_root_at_a_relative_path(tmp_path, cache_dir):
     """Every catalogue path is relative to ART_ROOT, so a preview has to be too."""
-    path = a_cache(tmp_path, cache_dir, lambda url: JPEG).store(URL)
+    path = a_cache(tmp_path, cache_dir, lambda url: JPEG).store("artic", URL)
 
     assert path is not None
     assert not path.startswith("/")
@@ -45,8 +60,8 @@ def test_the_same_url_is_fetched_once_however_often_it_is_asked_for(tmp_path, ca
         return JPEG
 
     cache = a_cache(tmp_path, cache_dir, fetch)
-    first = cache.store(URL)
-    second = cache.store(URL)
+    first = cache.store("artic", URL)
+    second = cache.store("artic", URL)
 
     assert first == second
     assert calls == [URL], "the museum was asked exactly once"
@@ -54,8 +69,8 @@ def test_the_same_url_is_fetched_once_however_often_it_is_asked_for(tmp_path, ca
 
 def test_two_different_urls_do_not_collide(tmp_path, cache_dir):
     cache = a_cache(tmp_path, cache_dir, lambda url: url.encode())
-    one = cache.store(URL)
-    two = cache.store(URL.replace("b272df73", "ce38cdf4"))
+    one = cache.store("artic", URL)
+    two = cache.store("artic", URL.replace("b272df73", "ce38cdf4"))
 
     assert one != two
     assert (tmp_path / one).read_bytes() != (tmp_path / two).read_bytes()
@@ -63,7 +78,7 @@ def test_two_different_urls_do_not_collide(tmp_path, cache_dir):
 
 def test_a_fetch_that_returns_nothing_reports_absence_rather_than_writing_an_empty_file(tmp_path, cache_dir):
     """An empty file would be indistinguishable from a cached preview on the next run."""
-    path = a_cache(tmp_path, cache_dir, lambda url: None).store(URL)
+    path = a_cache(tmp_path, cache_dir, lambda url: None).store("artic", URL)
 
     assert path is None
     assert not cache_dir.exists() or not any(cache_dir.iterdir())
@@ -80,10 +95,10 @@ def test_a_zero_byte_file_left_by_an_earlier_run_is_re_fetched(tmp_path, cache_d
     cache = a_cache(tmp_path, cache_dir, fetch)
     # Cache it, then truncate it where it landed — which finds the real path
     # without reaching into how the name is derived.
-    path = cache.store(URL)
+    path = cache.store("artic", URL)
     (tmp_path / path).write_bytes(b"")
 
-    again = cache.store(URL)
+    again = cache.store("artic", URL)
 
     assert again == path
     assert (tmp_path / again).read_bytes() == JPEG
@@ -92,14 +107,14 @@ def test_a_zero_byte_file_left_by_an_earlier_run_is_re_fetched(tmp_path, cache_d
 
 def test_nothing_partial_is_left_behind_after_a_successful_write(tmp_path, cache_dir):
     """The staging file is renamed into place, not left beside the real one."""
-    a_cache(tmp_path, cache_dir, lambda url: JPEG).store(URL)
+    a_cache(tmp_path, cache_dir, lambda url: JPEG).store("artic", URL)
 
     assert [path.name for path in cache_dir.iterdir() if path.name.endswith(".partial")] == []
 
 
 def test_a_url_without_a_recognised_extension_still_gets_an_image_suffix(tmp_path, cache_dir):
     """The filename is ours; a suffix copied unchecked from a URL is a path component."""
-    path = a_cache(tmp_path, cache_dir, lambda url: JPEG).store("https://example.org/image?id=7")
+    path = a_cache(tmp_path, cache_dir, lambda url: JPEG).store("artic", "https://example.org/image?id=7")
 
     assert path is not None
     assert path.endswith(".jpg")
@@ -123,7 +138,7 @@ def test_a_provider_that_raises_something_other_than_a_transport_error_is_absorb
     def fetch(url: str) -> bytes:
         raise ValueError("not a valid URL")
 
-    assert a_cache(tmp_path, cache_dir, fetch).store(URL) is None
+    assert a_cache(tmp_path, cache_dir, fetch).store("artic", URL) is None
 
 
 def test_a_provider_raising_an_oserror_is_reported_as_the_provider_not_the_cache(tmp_path, cache_dir, caplog):
@@ -137,7 +152,7 @@ def test_a_provider_raising_an_oserror_is_reported_as_the_provider_not_the_cache
         raise OSError("connection reset by peer")
 
     with caplog.at_level("INFO"):
-        assert a_cache(tmp_path, cache_dir, fetch).store(URL) is None
+        assert a_cache(tmp_path, cache_dir, fetch).store("artic", URL) is None
 
     reasons = [record.reason for record in caplog.records if hasattr(record, "reason")]
     assert any("the provider raised" in reason for reason in reasons)
@@ -152,7 +167,7 @@ def test_an_unreadable_cache_directory_degrades_the_card_rather_than_failing_the
 
     monkeypatch.setattr("pathlib.Path.exists", explode)
 
-    assert a_cache(tmp_path, cache_dir, lambda url: JPEG).store(URL) is None
+    assert a_cache(tmp_path, cache_dir, lambda url: JPEG).store("artic", URL) is None
 
 
 def test_bytes_that_cannot_be_written_degrade_the_card_rather_than_failing_the_run(tmp_path, cache_dir, monkeypatch):
@@ -167,7 +182,7 @@ def test_bytes_that_cannot_be_written_degrade_the_card_rather_than_failing_the_r
 
     monkeypatch.setattr("pathlib.Path.write_bytes", explode)
 
-    assert a_cache(tmp_path, cache_dir, lambda url: JPEG).store(URL) is None
+    assert a_cache(tmp_path, cache_dir, lambda url: JPEG).store("artic", URL) is None
 
 
 def test_a_publish_that_fails_after_writing_leaves_no_partial_behind(tmp_path, cache_dir, monkeypatch):
@@ -189,7 +204,7 @@ def test_a_publish_that_fails_after_writing_leaves_no_partial_behind(tmp_path, c
     monkeypatch.setattr("pathlib.Path.replace", explode)
     cache = a_cache(tmp_path, cache_dir, lambda url: JPEG)
 
-    assert cache.store(URL) is None
+    assert cache.store("artic", URL) is None
     assert list((tmp_path / cache_dir).glob("*.partial")) == []
 
 
@@ -201,7 +216,7 @@ def test_a_run_completes_when_no_preview_can_be_written(services, settings, engi
     rather than calling the engine and the cache side by side, which would prove
     each half works and nothing about the seam between them.
     """
-    from fakes import FakeImageSearch, a_work, an_image
+    from fakes import FakeFinder, a_work, an_image
 
     from arrt.library.discovery.engine import WorkList
     from arrt.library.discovery.phase_two import PhaseTwoEngine
@@ -212,16 +227,16 @@ def test_a_run_completes_when_no_preview_can_be_written(services, settings, engi
         raise OSError("no space left on device")
 
     monkeypatch.setattr("pathlib.Path.write_bytes", explode)
-    museum = FakeImageSearch(holdings={"The Elephants": (an_image("The Elephants"),)})
+    museum = FakeFinder(holdings={"The Elephants": (an_image("The Elephants"),)})
     engine.result = WorkList(works=(a_work("The Elephants"),))
     runner = DiscoveryRunner(
         services.discovery,
         engine,
         settings.discovery_settings,
-        images=PhaseTwoEngine(museum, box=settings.tv_artwork_box),
+        images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
         previews=PreviewCache(
             PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
-            museum.fetch_preview,
+            ImageSourcePool([museum]).fetch_preview,
         ),
         spawn=lambda work: work(),
     )

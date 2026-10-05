@@ -17,10 +17,11 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
-from fakes import FakeImageSearch, a_work, an_image
+from fakes import FakeFinder, a_work, an_image
 
 from arrt.library.discovery.engine import WorkList
 from arrt.library.discovery.phase_two import PhaseTwoEngine
+from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.services.previews import PreviewCache, PreviewSettings
 from arrt.library.services.runner import MAX_RUNS_LISTED, DiscoveryRunner
 from arrt.persistence.discovery_records import (
@@ -36,13 +37,15 @@ from arrt.services.errors import ServiceError
 
 
 @pytest.fixture
-def museum() -> FakeImageSearch:
-    return FakeImageSearch()
+def museum() -> FakeFinder:
+    return FakeFinder()
 
 
 @pytest.fixture
 def previews(settings, museum) -> PreviewCache:
-    return PreviewCache(PreviewSettings(art_root=settings.art_root, directory=settings.previews_path), museum.fetch_preview)
+    return PreviewCache(
+        PreviewSettings(art_root=settings.art_root, directory=settings.previews_path), ImageSourcePool([museum]).fetch_preview
+    )
 
 
 @pytest.fixture
@@ -51,7 +54,7 @@ def runner(services, engine, settings, museum, previews) -> DiscoveryRunner:
         services.discovery,
         engine,
         settings.discovery_settings,
-        images=PhaseTwoEngine(museum, box=settings.tv_artwork_box),
+        images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
         previews=previews,
         spawn=lambda work: work(),
     )
@@ -142,8 +145,26 @@ def test_a_re_search_that_finds_nothing_new_leaves_the_work_asking(services, run
 
     assert services.discovery.get_run(resolve.id).status is RunStatus.COMPLETED
     settled = services.discovery.get_candidate_work(work.id)
-    assert settled.verdict is Verdict.AWAITING_BETTER_IMAGE
+    assert settled.verdict is Verdict.WANTED
     assert settled.resolution_status is ResolutionStatus.UNRESOLVED
+
+
+def test_a_work_wanted_with_no_scan_returns_to_review_when_a_re_search_finds_one(services, runner, reviewed, museum):
+    """The other way into `wanted`: nothing was found, and the curator wants it anyway."""
+    _, works = reviewed("The Elephants", holdings={})
+    work = works["The Elephants"]
+    assert services.discovery.list_candidate_images(work.id) == []
+    services.discovery.want(work.id)
+    assert services.discovery.get_candidate_work(work.id).verdict is Verdict.WANTED
+    museum.holdings = {"The Elephants": (an_image("The Elephants", url="https://artic.edu/found-at-last"),)}
+
+    re_search(runner, work)
+
+    settled = services.discovery.get_candidate_work(work.id)
+    assert settled.verdict is Verdict.PENDING, "the work is back in front of the curator"
+    assert settled.resolution_status is ResolutionStatus.RESOLVED
+    selected = [image for image in services.discovery.list_candidate_images(work.id) if image.is_selected]
+    assert [image.url for image in selected] == ["https://artic.edu/found-at-last"]
 
 
 def test_a_re_search_asks_about_every_work_it_covers(services, runner, reviewed, museum):
@@ -427,7 +448,7 @@ def test_a_curator_who_rejected_a_scan_is_never_handed_it_back(services, runner,
     offered = [image for image in services.discovery.list_candidate_images(work.id) if image.rejected_at is None]
     assert [image.url for image in offered] == [], "the only instance on offer was the rejected one"
     settled = services.discovery.get_candidate_work(work.id)
-    assert settled.verdict is Verdict.AWAITING_BETTER_IMAGE
+    assert settled.verdict is Verdict.WANTED
     assert settled.resolution_status is ResolutionStatus.UNRESOLVED
 
 
@@ -500,7 +521,7 @@ def test_status_on_a_re_search_holds_while_the_work_is_actually_happening(servic
         services.discovery,
         engine,
         settings.discovery_settings,
-        images=PhaseTwoEngine(museum, box=settings.tv_artwork_box),
+        images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
         previews=previews,
     )
     run = threaded.start(intent_text="Surrealist paintings", initiated_by=InitiatedBy.MCP_CLIENT)
@@ -561,7 +582,7 @@ def test_a_re_search_over_a_work_a_live_one_covers_is_refused_and_names_it(servi
 
     assert "The Elephants" in str(refusal.value)
     assert work.id in str(refusal.value)
-    assert "pay twice" in str(refusal.value)
+    assert "search twice" in str(refusal.value), "a re-search costs nothing; the refusal says what doubling does"
 
 
 def test_works_from_two_different_runs_cannot_share_one_re_search(services, runner, reviewed):

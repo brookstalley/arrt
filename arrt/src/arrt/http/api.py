@@ -29,21 +29,31 @@ that safe.
 """
 
 import logging
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Query, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 
 from arrt.http.models import (
+    AcquisitionQueueOut,
+    AcquisitionStateOut,
     AddWork,
     AffinityListOut,
     AffinityOut,
+    ArtistListOut,
     ArtistOut,
+    ArtistRegistryOut,
     ArtworkBoxOut,
+    AssignWall,
     BackupOut,
     CandidateCardOut,
     CandidatePageOut,
     CandidateWorkOut,
+    ClientHeartbeatOut,
+    ClientListOut,
+    ClientOut,
+    ClientTokenOut,
+    ClientWallOut,
     CommitDirection,
     ConversationDeletionOut,
     ConversationListOut,
@@ -58,9 +68,12 @@ from arrt.http.models import (
     FacetGroupOut,
     FacetOptionOut,
     FitOut,
+    GetOut,
     HangTheme,
     HealthOut,
     HeartbeatOut,
+    HeldArtistOut,
+    HeldTopicOut,
     ImageOut,
     InstanceListingOut,
     InstanceOut,
@@ -68,10 +81,22 @@ from arrt.http.models import (
     ManifestOut,
     MatColorOut,
     MoveWork,
+    NameClient,
     OriginalOut,
-    PlayerTokenOut,
+    PickItem,
+    QueuedWorkOut,
+    QueuePauseOut,
+    RegistryCreatorOut,
+    RegistryHolderOut,
+    RegistryHoldingOut,
+    RegistryPersonFoundOut,
+    RegistrySearchOut,
+    RegistryWorkFoundOut,
+    RegistryWorkOut,
+    RegistryWorkPageOut,
     RenameTheme,
     RenditionOut,
+    ReportedOutputOut,
     RunListOut,
     RunOut,
     RunTallyOut,
@@ -81,36 +106,63 @@ from arrt.http.models import (
     SelectedImageOut,
     SelectImage,
     SetAffinity,
+    SetIdentity,
     SetVerdict,
+    SightingHostOut,
+    SightingHostsOut,
+    SimilarArtistOut,
+    SimilarArtistsOut,
+    SkippedOut,
     SourceOut,
+    SourcePluginOut,
     Speak,
     SpendOut,
+    StartGet,
     StartResolve,
     StartRun,
     StepDisplay,
     SuggestionOut,
     ThemeDetailOut,
     ThemeListOut,
+    ThemeOptionOut,
     ThemeOut,
     ThemePlacementOut,
+    TopicArtistsOut,
+    TopicFoundOut,
+    TopicKindOut,
+    TopicPageOut,
+    TopicRegistryOut,
+    TopicSearchOut,
+    TopicsOut,
+    TopicWorkOut,
+    TopicWorksOut,
     VerdictOut,
+    WallAssignmentOut,
     WallHeartbeatOut,
     WallListOut,
     WallOut,
     WallRefOut,
+    WantedListingOut,
+    WantedWorkOut,
+    WantWork,
     WorkDetailOut,
     WorkFacetOut,
+    WorkMatchesOut,
+    WorkMatchOut,
     WorkOut,
     WorkPageOut,
 )
+from arrt.library.acquisition.queue import AcquisitionState, QueueListing, QueuePause
+from arrt.library.services.artists import HeldArtist, RegistryView
 from arrt.library.services.catalogue import FacetGroup, RenditionView
 from arrt.library.services.conversation import ConversationDeletion, ConversationView, TurnView
-from arrt.library.services.discovery import VerdictOutcome
+from arrt.library.services.discovery import VerdictOutcome, WantedWork
 from arrt.library.services.display_fit import ArtworkBox
 from arrt.library.services.review import CandidatePage, CandidateView, InstanceListing, InstanceView
 from arrt.library.services.runner import Estimate, RunView, SpendReport
 from arrt.library.services.survey import WorkDossier, WorkSurvey
 from arrt.library.services.taste import AffinityView
+from arrt.library.services.topics import TopicIndex, TopicPage
 from arrt.persistence.backup import BackupReading
 from arrt.persistence.discovery_records import (
     CandidateImage,
@@ -119,12 +171,13 @@ from arrt.persistence.discovery_records import (
     DiscoveryRun,
     InitiatedBy,
 )
-from arrt.persistence.records import Artist, Directive, MatColor, Original, Source, Theme, WorkFacet
-from arrt.programming.display import ThemePlacement, WallView
+from arrt.persistence.records import Artist, Directive, IdentitySetBy, MatColor, Original, Source, Theme, WorkFacet
+from arrt.programming.clients import ClientView
+from arrt.programming.display import ThemeCount, ThemePlacement, WallView
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.programming.manifest.heartbeat import HeartbeatReading
 from arrt.services.container import Services
-from arrt.services.health import HealthReading
+from arrt.services.health import HealthReading, SourceHealth
 
 log = logging.getLogger(__name__)
 
@@ -180,6 +233,8 @@ def list_works(
     limit: Annotated[int | None, Query()] = None,
     offset: Annotated[int, Query()] = 0,
     sort: Annotated[str | None, Query()] = None,
+    artist_id: Annotated[str | None, Query()] = None,
+    theme: Annotated[str | None, Query()] = None,
 ) -> WorkPageOut:
     """A page of works with the facet controls for exactly this filter.
 
@@ -194,16 +249,31 @@ def list_works(
     FastAPI generates this route's schema from the signature, so a named
     parameter is what makes the filter set discoverable and an unknown one a
     stated refusal instead of a silent no-op.
+
+    `theme` narrows to one theme's works, and every other filter and every facet
+    count narrows within it. Two calls composed, as `_theme_detail` composes
+    them: Programming names the theme's works, and the Library lists them. An
+    unknown theme is refused by name rather than ignored, because ignoring it
+    would answer with the whole catalogue labelled as the theme's.
     """
+    services = _services(request)
+    within = None if theme is None else services.display.theme_work_ids(theme)
     chosen = {"artist": artist, "movement": movement, "era": era, "subject": subject, "medium": medium, "palette": palette}
-    page = _services(request).survey.list_works(
+    facets = {kind: values for kind, values in chosen.items() if values}
+    page = services.survey.list_works(
         status=status,
         q=q,
-        facets={kind: values for kind, values in chosen.items() if values},
+        facets=facets,
         limit=limit,
         offset=offset,
         sort=sort,
+        artist_id=artist_id,
+        within=within,
     )
+    # The theme options, counted as the facets are, with the theme's own
+    # selection ignored: the Library names what the other filters select, and
+    # Programming counts each theme's members among them.
+    others = services.catalogue.matching_ids(status=status, q=q, facets=facets, artist_id=artist_id)
     return WorkPageOut(
         works=[_work(entry) for entry in page.entries],
         total=page.total,
@@ -211,6 +281,7 @@ def list_works(
         offset=page.offset,
         truncated=page.truncated,
         facets=[_facet_group(group) for group in page.facets],
+        themes=[_theme_option(option) for option in services.display.theme_counts(others, selected=theme)],
     )
 
 
@@ -218,6 +289,360 @@ def list_works(
 def get_work(request: Request, artwork_id: str) -> WorkDetailOut:
     """One work in full — metadata, artist, sources, renditions and mats."""
     return _dossier(_services(request).survey.get_work(artwork_id))
+
+
+@router.post("/works/{artwork_id}/acquisition/retry")
+def retry_acquisition(request: Request, artwork_id: str) -> AcquisitionStateOut:
+    """Forget the work's failures and put it at the front of the acquisition queue.
+
+    Fetches nothing in the request: a tiled fetch may take half an hour, and the
+    queue fetches one work at a time. Answers with where the work now stands.
+    """
+    return _acquisition(_services(request).acquisition_queue.retry(artwork_id))
+
+
+@router.get("/acquisitions")
+def list_acquisitions(request: Request) -> AcquisitionQueueOut:
+    """Every work the acquisition queue owes something, in the order it will try them, and its pause if any."""
+    return _acquisition_queue(_services(request).acquisition_queue.listing())
+
+
+@router.post("/works/{artwork_id}/wikidata")
+def set_work_identity(request: Request, artwork_id: str, body: SetIdentity) -> WorkDetailOut:
+    """Say which Wikidata item this work is, or that there is none.
+
+    Answers with the dossier, the shape every act on the Work screen repaints
+    from. The matcher never overwrites what is set here (`identity.py`).
+    """
+    services = _services(request)
+    services.identity.set_work_identity(artwork_id, body.qid)
+    return _dossier(services.survey.get_work(artwork_id))
+
+
+@router.get("/artists")
+def list_artists(request: Request, q: Annotated[str | None, Query()] = None) -> ArtistListOut:
+    """Library › Artists: every artist with a work in circulation, by surname (`surname_key`).
+
+    `q` narrows to names containing it, ignoring case and accents, which is what
+    the top-bar search asks when it offers artists.
+
+    **Not capped, and what bounds it is the catalogue**: one row per artist with a
+    work in circulation, so never more rows than works, and an artist's row is a
+    name, a count and one work id. At the NFR's thousands of works that is a few
+    hundred rows.
+    If it is ever paged, the typeahead's `q` lookup is the caller that needs it.
+    """
+    return ArtistListOut(artists=[_held_artist(entry) for entry in _services(request).artists.index(q)])
+
+
+@router.get("/artists/{artist_id}")
+def get_artist(request: Request, artist_id: str) -> HeldArtistOut:
+    """One artist, from the library alone: answerable whatever the registry is doing."""
+    return _held_artist(_services(request).artists.get(artist_id))
+
+
+@router.get("/artists/{artist_id}/registry")
+def get_artist_registry(request: Request, artist_id: str) -> ArtistRegistryOut:
+    """What Wikidata knows about this artist, asked separately so a slow or absent registry delays nothing else.
+
+    Always a 200 for an artist the catalogue holds: a registry that is not
+    configured, cannot be asked, or has nothing for this artist is a state the
+    page shows, named in `state` and said in `note`.
+    """
+    return _artist_registry(_services(request).artists.registry_view(artist_id))
+
+
+@router.get("/registry/artists/{qid}")
+def get_registry_artist(request: Request, qid: str) -> ArtistRegistryOut:
+    """What Wikidata knows about an artist reached by QID, whether or not the library holds them.
+
+    The same shape and states as an artist's `/registry`, but `no_identity` cannot
+    occur. When the library holds an artist with this QID, `state` is `held`,
+    `artist_id` names them, the page goes there instead, and the registry is not
+    asked. A malformed QID is a 400.
+    """
+    held, view = _services(request).artists.registry_view_by_qid(qid)
+    return _artist_registry(view, artist_id=held)
+
+
+@router.get("/registry/search")
+def search_registry(
+    request: Request,
+    q: Annotated[str, Query()] = "",
+    prefix: Annotated[bool, Query()] = False,
+    wide: Annotated[bool, Query()] = False,
+) -> RegistrySearchOut:
+    """Wikidata's artists and works for a few typed words, the other half of the top-bar search.
+
+    `prefix=true` reads the last word as the start of one, as the typeahead does
+    mid-word; `wide=true` returns the results page's longer lists. Always a 200:
+    `state` says whether anything was asked and what the registry did.
+    Kept per query for a week, across restarts; a failure is not.
+    """
+    found = _services(request).registry_search.search(q, prefix=prefix, wide=wide)
+    held_artists, held_works = found.held_artists, found.held_works
+    return RegistrySearchOut(
+        state=str(found.state),
+        note=found.note,
+        artists=[
+            RegistryPersonFoundOut(qid=p.qid, name=p.label, born=p.born, died=p.died, artist_id=held_artists.get(p.qid))
+            for p in found.artists
+        ],
+        works=[
+            RegistryWorkFoundOut(
+                qid=w.qid,
+                title=w.title,
+                sitelinks=w.sitelinks,
+                image=w.image,
+                creator=(
+                    None
+                    if w.creator is None
+                    else RegistryCreatorOut(qid=w.creator.qid, name=w.creator.name, artist_id=held_artists.get(w.creator.qid))
+                ),
+                held_artwork_ids=list(held_works.get(w.qid, ())),
+                wanted=w.qid in found.wanted_works,
+            )
+            for w in found.works
+        ],
+    )
+
+
+@router.get("/registry/artists/{qid}/similar")
+def get_similar_artists(request: Request, qid: str) -> SimilarArtistsOut:
+    """*Similar artists* for the Artist page, by the artist's QID, held or not.
+
+    Asked after the page is drawn: the query takes one to seven seconds. Always a
+    200 for a well-formed QID; a malformed one is a 400.
+    """
+    view = _services(request).artists.similar(qid)
+    return SimilarArtistsOut(
+        state=str(view.state),
+        note=view.note,
+        artists=[
+            SimilarArtistOut(qid=p.qid, name=p.name, born=p.born, died=p.died, images=p.images, artist_id=view.held.get(p.qid))
+            for p in view.people
+        ],
+    )
+
+
+@router.get("/registry/works/{qid}")
+def get_registry_work(request: Request, qid: str) -> RegistryWorkPageOut:
+    """One work as Wikidata knows it, and the library's works that are it, for the Work page by QID.
+
+    Always a 200 for a well-formed QID: `state` says what the registry did, and
+    `held_artwork_ids` is filled whatever it did. A malformed QID is a 400.
+    """
+    view = _services(request).registry_works.view(qid)
+    known = view.known
+    return RegistryWorkPageOut(
+        state=str(view.state),
+        note=view.note,
+        qid=qid,
+        title=None if known is None else known.title,
+        year=None if known is None else known.year,
+        sitelinks=None if known is None else known.sitelinks,
+        image=None if known is None else known.image,
+        creators=(
+            []
+            if known is None
+            else [RegistryCreatorOut(qid=c.qid, name=c.name, artist_id=view.artists.get(c.qid)) for c in known.creators]
+        ),
+        media=[] if known is None else list(known.media),
+        holders=(
+            [] if known is None else [RegistryHolderOut(qid=h.qid, name=h.name, inventory=h.inventory) for h in known.holders]
+        ),
+        held_artwork_ids=list(view.held),
+        wanted=view.wanted,
+    )
+
+
+# -- topics -------------------------------------------------------------------
+
+
+@router.get("/topics")
+def list_topics(request: Request) -> TopicsOut:
+    """Library › Topics: every topic the library's works in circulation are in, by kind, with counts.
+
+    Read from the facet rows the topic sweep writes, so it never waits on
+    Wikidata. Always a 200.
+    """
+    return _topics(_services(request).topics.index())
+
+
+@router.get("/registry/topics")
+def search_topics(request: Request, q: Annotated[str, Query()] = "") -> TopicSearchOut:
+    """Topics Wikidata finds for a typed name: periods, movements, kinds of work, and subjects.
+
+    Always a 200: `state` says whether the registry was asked and what it did.
+    Kept for `REGISTRY_KEPT_FOR`, like every registry answer: a typeahead asks with
+    every word, and the same word asked again is answered from disk.
+    """
+    found = _services(request).topics.named(q)
+    return TopicSearchOut(
+        state=str(found.state),
+        note=found.note,
+        topics=[
+            TopicFoundOut(
+                qid=topic.qid,
+                label=topic.label,
+                kinds=[kind.value for kind in topic.kinds],
+                description=topic.description,
+                start=topic.start,
+                end=topic.end,
+            )
+            for topic in found.topics
+        ],
+    )
+
+
+@router.get("/topics/{qid}")
+def get_topic(request: Request, qid: str) -> TopicPageOut:
+    """The library's half of a Topic page: the topic as its works carry it, and those works. No network.
+
+    A topic none of the library's works is in answers with no label and no
+    works rather than a 404: a Topic page reached by search is ordinary. A
+    malformed QID is a 400.
+    """
+    services = _services(request)
+    page = services.topics.page(qid)
+    # Two calls composed, as a theme's works are: the topic says which works,
+    # and the survey says what each is as a card.
+    return _topic_page(page, [_work(entry) for entry in services.survey.survey_works(page.work_ids)])
+
+
+@router.get("/topics/{qid}/registry")
+def get_topic_registry(request: Request, qid: str) -> TopicRegistryOut:
+    """The topic as Wikidata knows it, the page's head, asked separately so it delays nothing.
+
+    Always a 200 for a well-formed QID; a malformed one is a 400. Kept per topic
+    for a week, across restarts; a missing item and a failure are not.
+    """
+    view = _services(request).topics.topic(qid)
+    known = view.known
+    return TopicRegistryOut(
+        state=str(view.state),
+        note=view.note,
+        qid=qid,
+        label=None if known is None else known.label,
+        kinds=[] if known is None else [kind.value for kind in known.kinds],
+        description=None if known is None else known.description,
+        start=None if known is None else known.start,
+        end=None if known is None else known.end,
+    )
+
+
+@router.get("/topics/{qid}/works")
+def get_topic_works(request: Request, qid: str) -> TopicWorksOut:
+    """*Representative works*: the topic's most renowned works, each with what marks it: held, wanted, its image.
+
+    Asked after the page is drawn: a period's works took 7 to 26 seconds to
+    ask for. Always a 200 for a well-formed QID; a malformed one is a 400.
+    """
+    view = _services(request).topics.works(qid)
+    return TopicWorksOut(
+        state=str(view.state),
+        note=view.note,
+        works=[
+            TopicWorkOut(
+                qid=entry.work.qid,
+                title=entry.work.title,
+                sitelinks=entry.work.sitelinks,
+                year=entry.work.year,
+                image=entry.work.image,
+                creators=[
+                    RegistryCreatorOut(qid=creator.qid, name=creator.name, artist_id=view.artists.get(creator.qid))
+                    for creator in entry.work.creators
+                ],
+                creator_unknown=entry.work.creator_unknown,
+                state=str(entry.state),
+                held_artwork_ids=list(entry.held),
+                wanted=entry.wanted,
+            )
+            for entry in view.works
+        ],
+    )
+
+
+@router.get("/topics/{qid}/artists")
+def get_topic_artists(request: Request, qid: str) -> TopicArtistsOut:
+    """The topic's *Artists*, the most renowned first, each with the library's artist where held.
+
+    Asked after the page is drawn, as *Representative works* is. Always a 200
+    for a well-formed QID; a malformed one is a 400.
+    """
+    view = _services(request).topics.artists(qid)
+    return TopicArtistsOut(
+        state=str(view.state),
+        note=view.note,
+        artists=[
+            SimilarArtistOut(qid=p.qid, name=p.name, born=p.born, died=p.died, images=p.images, artist_id=view.held.get(p.qid))
+            for p in view.people
+        ],
+    )
+
+
+def _topics(index: TopicIndex) -> TopicsOut:
+    return TopicsOut(
+        state=str(index.state),
+        note=index.note,
+        kinds=[
+            TopicKindOut(
+                kind=group.kind.value,
+                topics=[HeldTopicOut(qid=topic.qid, label=topic.label, works=topic.works) for topic in group.topics],
+            )
+            for group in index.groups
+        ],
+    )
+
+
+def _topic_page(page: TopicPage, works: list[WorkOut]) -> TopicPageOut:
+    return TopicPageOut(
+        state=str(page.state),
+        note=page.note,
+        qid=page.qid,
+        label=page.label,
+        kinds=[kind.value for kind in page.kinds],
+        works=works,
+    )
+
+
+def _artist_registry(view: RegistryView, *, artist_id: str | None = None) -> ArtistRegistryOut:
+    known = view.known
+    return ArtistRegistryOut(
+        state=str(view.state),
+        note=view.note,
+        qid=None if known is None else known.qid,
+        name=None if known is None else known.name,
+        born=None if known is None else known.born,
+        died=None if known is None else known.died,
+        artist_id=artist_id,
+        description=None if known is None else known.description,
+        movements=[] if known is None else list(known.movements),
+        works=(
+            []
+            if known is None
+            else [
+                RegistryWorkOut(
+                    qid=entry.qid,
+                    title=entry.title,
+                    year=entry.year,
+                    sitelinks=entry.sitelinks,
+                    image=entry.image,
+                    held_artwork_ids=list(view.held.get(entry.qid, ())),
+                    wanted=entry.qid in view.wanted,
+                )
+                for entry in known.works
+            ]
+        ),
+        works_total=0 if known is None else known.works_total,
+        holdings=([] if known is None else [RegistryHoldingOut(qid=h.qid, name=h.name, works=h.works) for h in known.holdings]),
+    )
+
+
+@router.post("/artists/{artist_id}/wikidata")
+def set_artist_identity(request: Request, artist_id: str, body: SetIdentity) -> ArtistOut:
+    """Say which Wikidata item this artist is, or that there is none."""
+    return _artist(_services(request).identity.set_artist_identity(artist_id, body.qid))
 
 
 @router.post("/works/{artwork_id}/archive")
@@ -316,6 +741,18 @@ def delete_theme(request: Request, theme_id: str) -> ThemeListOut:
     return ThemeListOut(themes=[_placement(placement) for placement in services.display.survey_themes()])
 
 
+@router.post("/themes/{theme_id}/default")
+def make_default_theme(request: Request, theme_id: str) -> ThemeListOut:
+    """Make this the theme new works join, taking the mark off whichever had it.
+
+    Answers with every theme, because the act changes two of them: the one
+    marked and the one that stopped being.
+    """
+    services = _services(request)
+    services.display.make_default(theme_id)
+    return ThemeListOut(themes=[_placement(placement) for placement in services.display.survey_themes()])
+
+
 @router.post("/themes/{theme_id}/works")
 def add_to_theme(request: Request, theme_id: str, body: AddWork) -> ThemeDetailOut:
     """Place a work in a theme, and return the order that results.
@@ -370,27 +807,36 @@ def list_walls(request: Request) -> WallListOut:
 def create_wall(request: Request, body: CreateWall) -> WallOut:
     """Record a wall. It arrives with nothing hanging on it.
 
-    **A wall recorded here lights up once a display plane is pointed at it.**
+    **A wall recorded here lights up once a client is assigned to show it.**
     Hanging a theme writes that wall's own manifest, named by the id this route
-    returns, and a display serves the one wall its `WALL_ID` names — so a second
-    room needs a second device configured with that id, and nothing about it
-    disturbs the first. Until 2026-08-12 there was one manifest for the
-    installation and a second wall overwrote it silently.
+    returns, and a client is admitted only to the walls assigned to it — so a
+    second room needs a client output of its own, and nothing about it disturbs
+    the first. Until 2026-08-12 there was one manifest for the installation and
+    a second wall overwrote it silently.
     """
     services = _services(request)
     return _wall(services.display.get_wall_view(services.display.add_wall(name=body.name).id))
 
 
-@router.post("/walls/{wall_id}/token")
-def issue_token(request: Request, wall_id: str) -> PlayerTokenOut:
-    """Issue the wall's Player token, replacing any it had. It is shown here once.
+@router.post("/walls/{wall_id}/client")
+def assign_wall(request: Request, wall_id: str, body: AssignWall) -> WallAssignmentOut:
+    """Show this wall on one of a client's outputs, by the output's name.
 
-    The Walls screen's "Issue token" and "Rotate token", and
-    `art_display(action='issue_token')`. Nothing can read it back afterwards,
-    because only a verifier is kept.
+    Read-back-after-mutate, for the reason `clear_wall` gives: the answer is the
+    wall as it now stands, with a notice when the output could not be checked
+    against what the client last reported.
     """
-    issued = _services(request).access.issue(wall_id)
-    return PlayerTokenOut(wall_id=issued.wall_id, token=issued.token, token_issued_at=issued.issued_at.isoformat())
+    services = _services(request)
+    assignment = services.clients.assign_wall(wall_id, client_id=body.client_id, output=body.output)
+    return WallAssignmentOut(wall=_wall(services.display.get_wall_view(wall_id)), notice=assignment.notice)
+
+
+@router.delete("/walls/{wall_id}/client")
+def unassign_wall(request: Request, wall_id: str) -> WallOut:
+    """Take the wall off whichever client showed it. Its theme stays hung."""
+    services = _services(request)
+    services.clients.unassign_wall(wall_id)
+    return _wall(services.display.get_wall_view(wall_id))
 
 
 @router.delete("/walls/{wall_id}/theme")
@@ -408,6 +854,49 @@ def clear_wall(request: Request, wall_id: str) -> WallOut:
     services = _services(request)
     services.display.clear_wall(wall_id)
     return _wall(services.display.get_wall_view(wall_id))
+
+
+# -- clients ------------------------------------------------------------------
+
+
+@router.get("/clients")
+def list_clients(request: Request) -> ClientListOut:
+    """Every client, with its walls and what it last reported about its outputs."""
+    return ClientListOut(clients=[_client(view) for view in _services(request).clients.list_clients()])
+
+
+@router.post("/clients")
+def add_client(request: Request, body: NameClient) -> ClientOut:
+    """Record a client. It has no token until one is issued."""
+    services = _services(request)
+    return _client(services.clients.get_client_view(services.clients.add_client(name=body.name).id))
+
+
+@router.post("/clients/{client_id}")
+def rename_client(request: Request, client_id: str, body: NameClient) -> ClientOut:
+    """Rename a client. Its token and its walls are unchanged."""
+    services = _services(request)
+    services.clients.rename_client(client_id, name=body.name)
+    return _client(services.clients.get_client_view(client_id))
+
+
+@router.delete("/clients/{client_id}")
+def remove_client(request: Request, client_id: str) -> ClientListOut:
+    """Forget a client. Its token stops working and its walls become unassigned."""
+    services = _services(request)
+    services.clients.remove_client(client_id)
+    return ClientListOut(clients=[_client(view) for view in services.clients.list_clients()])
+
+
+@router.post("/clients/{client_id}/token")
+def issue_client_token(request: Request, client_id: str) -> ClientTokenOut:
+    """Issue the client's token, replacing any it had. It is shown here once.
+
+    Nothing can read it back afterwards, because only a verifier is kept. The
+    host puts it in the Player's environment file.
+    """
+    issued = _services(request).access.issue(client_id)
+    return ClientTokenOut(client_id=issued.client_id, token=issued.token, token_issued_at=issued.issued_at.isoformat())
 
 
 @router.post("/directives")
@@ -497,11 +986,34 @@ def start_run(request: Request, body: StartRun) -> RunOut:
     )
 
 
+@router.post("/gets")
+def start_get(request: Request, body: StartGet) -> GetOut:
+    """Get the works these Wikidata items name, and say which were skipped.
+
+    Returns at once with the run, which looks for images behind the response as
+    any run does. Held items, items a Get is already looking for, and items the
+    registry does not have are skipped and listed rather than refused.
+
+    With a `theme_id`, the accepted works join that theme instead of the
+    default. Two calls composed, with no branch on the first's answer:
+    Programming says the theme exists (refusing an unknown one, so nothing
+    starts), and the Library starts the Get.
+    """
+    services = _services(request)
+    destination = None if body.theme_id is None else services.display.get_theme(body.theme_id).id
+    outcome = services.get.start(body.qids, initiated_by=InitiatedBy.WEB_UI, destination_theme_id=destination)
+    return GetOut(
+        run=None if outcome.run is None else _run(outcome.run),
+        skipped=[SkippedOut(qid=entry.qid, reason=str(entry.reason)) for entry in outcome.skipped],
+    )
+
+
 @router.get("/runs")
 def list_runs(
     request: Request,
     status: Annotated[str | None, Query()] = None,
     kind: Annotated[str | None, Query()] = None,
+    awaiting: Annotated[bool, Query()] = False,
 ) -> RunListOut:
     """The newest runs, optionally narrowed, capped in the service layer.
 
@@ -522,9 +1034,11 @@ def list_runs(
     a caller reaches it. A `limit`/`offset` pair would change the contract of a
     shipped surface and earns its own review rather than riding along here.
     """
-    listing = _services(request).runner.list_runs(status=status, kind=kind)
+    listing = _services(request).runner.list_runs(status=status, kind=kind, awaiting=awaiting)
     return RunListOut(
         runs=[_run(run) for run in listing.runs],
+        awaiting_works=listing.awaiting_works,
+        awaiting={run.id: listing.awaiting[run.id] for run in listing.runs if run.id in listing.awaiting},
         count=len(listing.runs),
         total=listing.total,
         truncated=listing.truncated,
@@ -640,6 +1154,59 @@ def set_verdict(request: Request, work_id: str, body: SetVerdict) -> VerdictOut:
     return _verdict(_services(request).discovery.set_verdict(work_id, body.verdict, reason=body.reason))
 
 
+@router.post("/candidates/{work_id}/want")
+def want_candidate(request: Request, work_id: str, body: WantWork) -> CandidateWorkOut:
+    """Want this work, turning down the named scan on the way if there is one. The one way into `wanted`.
+
+    Nothing looks for a scan until a re-search is asked for, which is a separate call (free today:
+    `RunnerSettings.phase2_estimate_usd`).
+    """
+    return _candidate_work(_services(request).discovery.want(work_id, turning_down=body.turning_down))
+
+
+@router.get("/wanted")
+def list_wanted(request: Request) -> WantedListingOut:
+    """Every work the curator wants, across runs, newest run first."""
+    return WantedListingOut(works=[_wanted_work(entry) for entry in _services(request).discovery.list_wanted()])
+
+
+@router.get("/sightings/hosts")
+def sighting_hosts(request: Request) -> SightingHostsOut:
+    """Which hosts have pages for open works that no installed source plugin reads, by how many works. Names only."""
+    return SightingHostsOut(
+        hosts=[SightingHostOut(host=entry.host, works=entry.works) for entry in _services(request).sightings.hosts()]
+    )
+
+
+@router.get("/candidates/{work_id}/wikidata-matches")
+def wikidata_matches(request: Request, work_id: str) -> WorkMatchesOut:
+    """Wikidata's items matching a wanted work's title, the proposed artist's first. Stores nothing."""
+    found = _services(request).wikidata_match.matches(work_id)
+    return WorkMatchesOut(
+        work_id=found.work.id,
+        title=found.work.proposed_title,
+        state=str(found.state),
+        note=found.note,
+        matches=[
+            WorkMatchOut(
+                qid=str(entry.match.qid),
+                title=str(entry.match.title),
+                creator=None if entry.match.creator is None else str(entry.match.creator.name),
+                sitelinks=entry.match.sitelinks,
+                has_image=entry.match.image is not None,
+                by_proposed_artist=entry.by_proposed_artist,
+            )
+            for entry in found.matches
+        ],
+    )
+
+
+@router.put("/candidates/{work_id}/wikidata-item")
+def pick_wikidata_item(request: Request, work_id: str, body: PickItem) -> CandidateWorkOut:
+    """Record the item the curator picked; a re-search then asks Commons by it."""
+    return _candidate_work(_services(request).wikidata_match.pick(work_id, body.qid))
+
+
 @router.post("/candidate-images/{image_id}/select")
 def select_candidate_image(request: Request, image_id: str, body: SelectImage) -> SelectedImageOut:
     """Make this the scan the work stands on, over the one the pipeline chose."""
@@ -650,17 +1217,27 @@ def select_candidate_image(request: Request, image_id: str, body: SelectImage) -
 def reject_candidate_image(request: Request, image_id: str) -> CandidateWorkOut:
     """Turn down a scan and keep the work. Nothing looks again until asked.
 
-    Returns the work rather than the instance, because the interesting change is
-    the work's: it moves to `awaiting_better_image`, which is the verdict an
-    accept/reject binary cannot express — "I want this painting; this scan is not
-    good enough". The card repaints from that.
+    Returns the work rather than the instance, because the work may be what
+    changed: turning down the scan on offer makes it `wanted` — "I want this
+    painting; this scan is not good enough" — while turning down an alternate
+    leaves its verdict where it was. The card repaints from whichever it is.
     """
     return _candidate_work(_services(request).discovery.reject_image(image_id))
 
 
 @router.get("/candidate-images/{image_id}/preview", response_class=Response)
-def get_candidate_preview(request: Request, image_id: str) -> Response:
+def get_candidate_preview(
+    request: Request,
+    image_id: str,
+    size: Annotated[Literal["card", "large"], Query()] = "card",
+) -> Response:
     """The picture for one instance, re-encoded for a browser.
+
+    `size=large` is the picture a review card opens in place when it is
+    clicked: the largest preview the server holds, at its own size
+    (`ENLARGED_MAX_EDGE_PX` bounds it). The default is the card's own, small
+    enough for a page of them. Any other value is refused rather than read as
+    the default, so a misspelt request is not quietly answered small.
 
     Not a `FileResponse` over the cached file, and not for want of trying to keep
     this thin. A cached preview's *name* is derived from its URL and falls back to
@@ -675,7 +1252,7 @@ def get_candidate_preview(request: Request, image_id: str) -> Response:
     is the grid: a card asks once, and only for the works whose alternates a
     curator opens.
     """
-    rendered = _services(request).review.preview_image(image_id)
+    rendered = _services(request).review.preview_image(image_id, enlarged=size == "large")
     return Response(content=rendered.data, media_type=rendered.media_type, headers={"Cache-Control": PREVIEW_CACHE_CONTROL})
 
 
@@ -755,6 +1332,16 @@ def _theme_detail(services: Services, theme_id: str) -> ThemeDetailOut:
     )
 
 
+def _theme_option(option: ThemeCount) -> ThemeOptionOut:
+    return ThemeOptionOut(
+        theme_id=option.theme.id,
+        name=option.theme.name,
+        count=option.count,
+        selected=option.selected,
+        disabled=option.disabled,
+    )
+
+
 def _work(survey: WorkSurvey) -> WorkOut:
     artwork = survey.detail.artwork
     return WorkOut(
@@ -768,6 +1355,8 @@ def _work(survey: WorkSurvey) -> WorkOut:
         commentary=artwork.commentary,
         rights=artwork.rights,
         status=str(artwork.status),
+        wikidata_qid=artwork.wikidata_qid,
+        wikidata_qid_set_by=_set_by(artwork.wikidata_qid_set_by),
         fit=(
             None
             if survey.fit is None
@@ -795,6 +1384,31 @@ def _dossier(dossier: WorkDossier) -> WorkDetailOut:
         renditions=[_rendition(view) for view in dossier.renditions],
         mat_colors=[_mat_color(mat) for mat in dossier.mat_colors],
         facets=[_facet(facet) for facet in dossier.facets],
+        acquisition=None if dossier.acquisition is None else _acquisition(dossier.acquisition),
+    )
+
+
+def _acquisition(state: AcquisitionState) -> AcquisitionStateOut:
+    return AcquisitionStateOut(
+        artwork_id=state.artwork_id,
+        phase=str(state.phase),
+        failures=state.failures,
+        detail=state.detail,
+        next_try_at=None if state.next_try_at is None else state.next_try_at.isoformat(),
+        since=None if state.since is None else state.since.isoformat(),
+        condition=state.condition,
+        remedy=state.remedy,
+    )
+
+
+def _queue_pause(pause: QueuePause) -> QueuePauseOut:
+    return QueuePauseOut(condition=pause.condition, detail=pause.detail, since=pause.since.isoformat(), remedy=pause.remedy)
+
+
+def _acquisition_queue(listing: QueueListing) -> AcquisitionQueueOut:
+    return AcquisitionQueueOut(
+        pause=None if listing.pause is None else _queue_pause(listing.pause),
+        works=[QueuedWorkOut(title=entry.title, acquisition=_acquisition(entry.state)) for entry in listing.entries],
     )
 
 
@@ -805,6 +1419,7 @@ def _facet(facet: WorkFacet) -> WorkFacetOut:
         value=facet.value,
         derivation=str(facet.derivation),
         source_note=facet.source_note,
+        value_qid=facet.value_qid,
     )
 
 
@@ -835,7 +1450,17 @@ def _artist(artist: Artist) -> ArtistOut:
         family_name=artist.family_name,
         given_name=artist.given_name,
         display_nationality=artist.display_nationality,
+        wikidata_qid=artist.wikidata_qid,
+        wikidata_qid_set_by=_set_by(artist.wikidata_qid_set_by),
     )
+
+
+def _held_artist(entry: HeldArtist) -> HeldArtistOut:
+    return HeldArtistOut(artist=_artist(entry.artist), held=entry.held, pictured_artwork_id=entry.pictured)
+
+
+def _set_by(value: IdentitySetBy | None) -> str | None:
+    return None if value is None else str(value)
 
 
 def _original(original: Original) -> OriginalOut:
@@ -894,6 +1519,7 @@ def _theme(theme: Theme) -> ThemeOut:
         rotation_interval_seconds=theme.rotation_interval_seconds,
         shuffle=theme.shuffle,
         created_at=theme.created_at.isoformat(),
+        is_default=theme.is_default,
     )
 
 
@@ -905,7 +1531,37 @@ def _wall(view: WallView) -> WallOut:
         theme=None if view.hanging is None else _theme(view.hanging),
         directive_sequence=view.directive.sequence,
         pinned_work_id=view.directive.pinned_work_id,
-        token_issued_at=None if view.wall.token_issued_at is None else view.wall.token_issued_at.isoformat(),
+        client_id=view.wall.client_id,
+        output=view.wall.output,
+    )
+
+
+def _client(view: ClientView) -> ClientOut:
+    client = view.client
+    reading = view.heartbeat
+    return ClientOut(
+        client_id=client.id,
+        name=client.name,
+        created_at=client.created_at.isoformat(),
+        token_issued_at=None if client.token_issued_at is None else client.token_issued_at.isoformat(),
+        # Every wall a client listing holds is assigned, so it has an output.
+        walls=[ClientWallOut(wall_id=wall.id, name=wall.name, output=wall.output or "") for wall in view.walls],
+        heartbeat=ClientHeartbeatOut(
+            reported_at=None if reading.reported_at is None else reading.reported_at.isoformat(),
+            age_seconds=reading.age_seconds,
+            absent=reading.absent,
+            problem=reading.problem,
+            description=reading.describe(),
+            outputs=[
+                ReportedOutputOut(
+                    name=output.name,
+                    kind=output.kind,
+                    connected=output.connected,
+                    screen=None if output.screen is None else list(output.screen),
+                )
+                for output in reading.outputs
+            ],
+        ),
     )
 
 
@@ -974,6 +1630,7 @@ def _run(run: DiscoveryRun) -> RunOut:
         parent_run_id=run.parent_run_id,
         started_at=run.started_at.isoformat(),
         completed_at=None if run.completed_at is None else run.completed_at.isoformat(),
+        destination_theme_id=run.destination_theme_id,
     )
 
 
@@ -992,6 +1649,7 @@ def _run_view(view: RunView) -> RunViewOut:
             total=view.work_count,
             proposed=view.proposed_count,
             offered=view.offered_count,
+            chosen=view.chosen_count,
             resolved=view.resolved,
             resolved_proposals=view.resolved_proposals,
             unresolved=view.unresolved,
@@ -1010,15 +1668,29 @@ def _run_view(view: RunView) -> RunViewOut:
 def _candidate_work(work: CandidateWork) -> CandidateWorkOut:
     return CandidateWorkOut(
         work_id=work.id,
+        artwork_id=work.artwork_id,
         title=work.proposed_title,
         artist=work.proposed_artist,
         rationale=work.rationale,
         provenance=str(work.provenance),
         offered_for_artist=work.offered_for_artist,
         offered_artist_matched=work.offered_artist_matched,
+        wikidata_qid=work.wikidata_qid,
         verdict=str(work.verdict),
         resolution_status=str(work.resolution_status),
         unresolved_reason=None if work.unresolved_reason is None else str(work.unresolved_reason),
+    )
+
+
+def _wanted_work(entry: WantedWork) -> WantedWorkOut:
+    work = entry.work
+    return WantedWorkOut(
+        work_id=work.id,
+        title=work.proposed_title,
+        artist=work.proposed_artist,
+        run_id=work.discovery_run_id,
+        wikidata_qid=work.wikidata_qid,
+        scans_turned_down=entry.scans_turned_down,
     )
 
 
@@ -1070,6 +1742,8 @@ def _instance(view: InstanceView) -> InstanceOut:
         rejected=view.rejected,
         rights_status=None if image.rights_status is None else str(image.rights_status),
         selection_rationale=image.selection_rationale,
+        width=image.estimated_width,
+        height=image.estimated_height,
         fit=(
             None
             if view.fit is None
@@ -1181,6 +1855,21 @@ def _health(reading: HealthReading) -> HealthOut:
         description=reading.describe(),
         backup=_backup(reading.backup),
         artwork_box=_artwork_box(reading.artwork_box),
+        sources=[_source_plugin(each) for each in reading.sources],
+    )
+
+
+def _source_plugin(health: SourceHealth) -> SourcePluginOut:
+    reading = health.reading
+    return SourcePluginOut(
+        name=reading.name,
+        state=reading.state.value,
+        reason=reading.reason,
+        faults=reading.faults,
+        last_fault_at=None if reading.last_fault_at is None else reading.last_fault_at.isoformat(),
+        last_fault_age_seconds=health.last_fault_age_seconds,
+        last_fault=reading.last_fault,
+        description=health.describe(),
     )
 
 

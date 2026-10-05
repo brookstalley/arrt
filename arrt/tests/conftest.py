@@ -7,6 +7,7 @@ the mounted MCP server work. A test that skipped it would pass against an
 application that fails every request in production.
 """
 
+import logging
 import random
 import struct
 import threading
@@ -18,13 +19,16 @@ from typing import Final
 
 import pytest
 import uvicorn
-from fakes import FakeConversationEngine, FakeEngine
+from fakes import FakeConversationEngine, FakeEngine, FakeReader
+from fault_guard import FaultRecords
 from PIL import Image
 
 from arrt.app import create_app
 from arrt.config import (
     CATALOGUE_FILENAME,
     DEFAULT_ACQUISITION_USER_AGENT,
+    DEFAULT_BACKUP_INTERVAL_SECONDS,
+    DEFAULT_BACKUP_KEEP,
     DEFAULT_DISCOVERY_APPROVAL_THRESHOLD,
     DEFAULT_DISCOVERY_MAX_OUTPUT_TOKENS,
     DEFAULT_DISCOVERY_MODEL,
@@ -56,16 +60,22 @@ from arrt.config import (
     DEFAULT_TV_PANEL_WIDTH_PX,
     Settings,
 )
+from arrt.library.acquisition.direct import StreamOpener
 from arrt.library.acquisition.preparation import PreparationSettings
+from arrt.library.discovery.dedup import work_dedup_key
 from arrt.library.facade import LibraryFacade
+from arrt.library.registry import Registry
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.conversation import ConversationService
 from arrt.library.services.discovery import DiscoveryService
 from arrt.library.services.runner import DiscoveryRunner
 from arrt.library.services.thumbnails import ThumbnailService, ThumbnailSettings
+from arrt.library.sources.artic import claims as artic_claims
+from arrt.library.sources.loading import SourceRoster
 from arrt.persistence.discovery_records import DiscoveryRun, InitiatedBy
 from arrt.persistence.durable import SqliteDurableStore
 from arrt.persistence.file import open_catalogue_file
+from arrt.persistence.kept import KeptAnswers
 from arrt.persistence.migrations import DEFAULT_WALL_NAME
 from arrt.persistence.records import (
     AcquisitionMethod,
@@ -85,6 +95,51 @@ from arrt.programming.display import DisplayService, DisplaySettings
 from arrt.services.container import Services
 
 _SEEDED_TITLES = ("I Saw the Figure 5 in Gold", "Nighthawks", "The Persistence of Memory")
+
+
+@pytest.fixture(autouse=True)
+def _root_logger_as_found() -> Iterator[None]:
+    """Undo whatever a test's `main()` does to the root logger.
+
+    `logs.configure()` sets the root level to INFO and attaches a handler on the
+    test's own stderr, which pytest closes when that test ends. Left in place,
+    every later test in the worker captures INFO lines it never asked for (a
+    caplog count that assumed WARNING then counts one more), and each line is
+    written to a closed stream ("I/O operation on closed file").
+    """
+    root = logging.getLogger()
+    level, handlers = root.level, list(root.handlers)
+    yield
+    for handler in list(root.handlers):
+        if handler not in handlers:
+            root.removeHandler(handler)
+    root.setLevel(level)
+
+
+#: The variables the built-in source plugins read for themselves. Cleared for
+#: every test, because startup now reads them from the process environment, and a
+#: developer whose shell carries one would otherwise run a different suite from CI.
+_SOURCE_PLUGIN_VARIABLES: Final[tuple[str, ...]] = ("ARTIC_USER_AGENT", "WIKIDATA_USER_AGENT", "SOURCE_ORDER")
+
+
+@pytest.fixture(autouse=True)
+def _no_source_plugin_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in _SOURCE_PLUGIN_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _no_plugin_fault_unless_expected(request: pytest.FixtureRequest) -> Iterator[None]:
+    """Fail any test in which a source plugin faulted, unless it means to (`fault_guard.py`)."""
+    records = FaultRecords()
+    records.attach()
+    try:
+        yield
+    finally:
+        records.detach()
+    complaint = records.complaint(expected=request.node.get_closest_marker("plugin_fault_expected") is not None)
+    if complaint is not None:
+        pytest.fail(complaint, pytrace=False)
 
 
 @pytest.fixture
@@ -155,6 +210,9 @@ def settings(tmp_path) -> Settings:
         rotation_interval_seconds=DEFAULT_ROTATION_INTERVAL_SECONDS,
         rotation_shuffle=DEFAULT_ROTATION_SHUFFLE,
         preview_sweep_interval_seconds=DEFAULT_PREVIEW_SWEEP_INTERVAL_SECONDS,
+        backup_dir=None,
+        backup_interval_seconds=DEFAULT_BACKUP_INTERVAL_SECONDS,
+        backup_keep=DEFAULT_BACKUP_KEEP,
         tv_panel_width_px=DEFAULT_TV_PANEL_WIDTH_PX,
         tv_panel_height_px=DEFAULT_TV_PANEL_HEIGHT_PX,
         tv_panel_diagonal_inches=DEFAULT_TV_PANEL_DIAGONAL_INCHES,
@@ -223,6 +281,28 @@ def conversation_engine() -> FakeConversationEngine:
 
 
 @pytest.fixture
+def kept(settings: Settings) -> Iterator[KeptAnswers]:
+    """The kept answers file, where the entry point opens it: under this test's own art root."""
+    answers = KeptAnswers(settings.kept_answers_path)
+    yield answers
+    answers.close()
+
+
+@pytest.fixture
+def sources() -> SourceRoster:
+    """The plugins the services are built over: the Art Institute's reader, with its real claims.
+
+    A museum source records the object's page; the tile fetcher needs the image
+    service, and only the plugin that claims the URL can say where that is. Wired
+    here even though these tests configure no image *search*, because a catalogue
+    holding artic works and a deployment able to fetch them is a real arrangement,
+    and without it every such fetch is a deployment fault before it reaches the
+    code the test is about. A test that needs other plugins overrides this fixture.
+    """
+    return SourceRoster.of(readers={"artic": (artic_claims, FakeReader())})
+
+
+@pytest.fixture
 def services(
     store: SqliteCatalogue,
     discovery_store: SqliteDiscovery,
@@ -231,6 +311,10 @@ def services(
     settings: Settings,
     engine: FakeEngine,
     conversation_engine: FakeConversationEngine,
+    registry: Registry | None,
+    kept: KeptAnswers,
+    open_stream: StreamOpener | None,
+    sources: SourceRoster,
 ) -> Services:
     """Every service, wired the way the entry point wires them."""
     bound = Services.bind(
@@ -255,13 +339,6 @@ def services(
             panel_height=settings.tv_panel_height_px,
             box=settings.tv_artwork_box,
         ),
-        # A museum source records the object's page; the tile fetcher needs the
-        # image service, and only the provider can say where that is. Wired here
-        # even though these tests configure no image *search*, because a catalogue
-        # holding artic works and a deployment able to fetch them is a real
-        # arrangement — and without it every such fetch refuses before reaching
-        # the code the test is about.
-        tile_targets={"artic": lambda url: f"https://www.artic.edu/iiif/2/{abs(hash(url)) % 100000}"},
         # Stated rather than looked up, for every test that reaches acquisition. A
         # suite whose job is to be green cannot depend on the network — pyproject
         # says so and deselects the tests that deliberately do. Without this the
@@ -278,8 +355,32 @@ def services(
         # refuses every turn, which is the keyless deployment and is right for
         # it — and would make every conversation test assert against a refusal.
         conversation_engine=conversation_engine,
+        registry=registry,
+        kept=kept,
+        open_stream=open_stream,
+        sources=sources,
     )
     return bound
+
+
+@pytest.fixture
+def open_stream() -> StreamOpener | None:
+    """No transport: the container's default, which refuses every direct fetch.
+
+    A module that fetches overrides this with one serving canned bytes, so no
+    test reaches a museum through the container.
+    """
+    return None
+
+
+@pytest.fixture
+def registry() -> Registry | None:
+    """No registry: the deployment that has not set WIKIDATA_USER_AGENT.
+
+    A module that tests what the registry answers overrides this with a
+    `FakeRegistry`, so no test reaches Wikidata through the container.
+    """
+    return None
 
 
 @pytest.fixture
@@ -513,7 +614,9 @@ def propose(discovery: DiscoveryService, run: DiscoveryRun):
             run_id=run_id or run.id,
             proposed_title=title,
             rationale="The intent asked for Surrealism and this is its best-known example.",
-            work_dedup_key=dedup_key or title.lower(),
+            # The key every writer derives from the title and artist it stores,
+            # so a test that restarts the plane does not watch its rows re-keyed.
+            work_dedup_key=dedup_key or work_dedup_key(title=title, artist=fields.get("proposed_artist")),
             **fields,
         )
 

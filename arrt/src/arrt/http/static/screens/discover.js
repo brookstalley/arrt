@@ -1,11 +1,11 @@
-/* Add New — asking for something new.
+/* Ask — asking for something in words.
  *
- * Radarr's Add New, under Artworks (`information-architecture.md` § The *arr
- * layout), at the address `#discover` it had before the rename. It holds the
- * direct intent box and the conversations. The searches they start are listed
- * under Activity — Queue while they work, History once they end — as Radarr
- * lists its downloads there rather than on Add New.
- */
+ * Where Radarr's Add New stood, under Artworks, at the address `#discover` it
+ * has had since before the *arr labels; ruling 3 of `ia-proposal.md` dissolved
+ * Add New into Get, an action on a selection, and this page, where a direction is
+ * asked for or talked through. It holds the direct intent box, on top as the
+ * owner ruled, and the conversations. The searches they start are listed under
+ * Activity — Queue while they work, History once they end. */
 
 import { api } from "../core/api.js";
 import { table } from "../core/badges.js";
@@ -20,8 +20,8 @@ export async function viewDiscover(generation) {
   const [estimate, conversations] = await Promise.all([api("/api/estimate"), api("/api/conversations")]);
 
   const intent = el("textarea", { id: "intent", rows: 3, required: true });
-  // A search handed over from the top bar's "Search museums for …" row, as
-  // Sonarr hands its term to Add New. Filled in and never started: a search here
+  // A search handed over from the top bar's "Ask about …" row, as Sonarr hands
+  // its term to Add New. Filled in and never started: a search here
   // is a paid run, and the curator presses the button beside its price.
   intent.value = state.params.term || "";
   const start = el("button", {
@@ -82,7 +82,7 @@ export async function viewDiscover(generation) {
     el("div", { class: "row" }, [start, talk, taste]),
   ]);
 
-  const panels = [el("h2", { text: "Add New" }), entry];
+  const panels = [el("h2", { text: "Ask" }), entry];
 
   // The conversations, where the searches listed under Activity come from.
   // Every row opens the thread it names — there is no summary line yet, because

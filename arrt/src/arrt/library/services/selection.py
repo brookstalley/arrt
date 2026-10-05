@@ -22,26 +22,31 @@ engine that ranks instances at discovery time. What is fixed here is that there
 is exactly one ordering, and that a caller never invents its own.
 """
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 
 from arrt.library.services.display_fit import ArtworkBox, DisplayFit, assess_display_fit
 from arrt.persistence.discovery_records import CandidateImage
 
+#: Where a source stands in the deployment's preference order, lower preferred:
+#: the image-source pool's `precedence`. Breaks a tie between instances that rank
+#: level before the id does, so the stored selection agrees with phase 2's.
+Precedence = Callable[[str], int]
 
-def surviving(images: Iterable[CandidateImage]) -> list[CandidateImage]:
+
+def surviving(images: Iterable[CandidateImage], *, precedence: Precedence | None = None) -> list[CandidateImage]:
     """The instances still eligible, best first.
 
     A rejected instance is excluded from re-selection for its work — and only
     from that. The work itself stays eligible, which is the whole point of
     keeping instance suppression on a different key from work suppression:
-    asking for a better scan must never blacklist the painting.
+    turning down a scan must never blacklist the painting.
 
     **Below-floor instances are included here.** They are the alternates a review
     card offers, labelled with the size they would appear at, and a curator may
     choose one. What they are excluded from is being chosen *for* the curator —
     see `best`.
     """
-    return sorted((image for image in images if image.rejected_at is None), key=_rank)
+    return sorted((image for image in images if image.rejected_at is None), key=lambda image: _rank(image, precedence))
 
 
 def below_floor(image: CandidateImage, box: ArtworkBox) -> bool:
@@ -59,22 +64,36 @@ def below_floor(image: CandidateImage, box: ArtworkBox) -> bool:
     return fit.fit is DisplayFit.BELOW_FLOOR
 
 
-def _rank(image: CandidateImage) -> tuple[float, int, float, str]:
-    """Sort key: confidence first, then quality, unscored last, id to break ties.
+def _rank(image: CandidateImage, precedence: Precedence | None = None) -> tuple[float, int, float, int, str]:
+    """Sort key: confidence first, then quality, unscored last, then the source's preference, id to break ties.
 
     Unscored is a separate term rather than a stand-in number, so the ordering
-    does not quietly depend on what range quality scores happen to use. The id
-    is last so the same set never comes back in two different orders.
+    does not quietly depend on what range quality scores happen to use. A source
+    the order does not name ranks after every named one. The id is last so the
+    same set never comes back in two different orders.
     """
     return (
         -image.confidence,
         0 if image.quality_score is not None else 1,
         -(image.quality_score or 0.0),
+        _preference(image.provider, precedence),
         image.id,
     )
 
 
-def best(images: Iterable[CandidateImage], *, box: ArtworkBox | None = None) -> CandidateImage | None:
+def _preference(provider: str, precedence: Precedence | None) -> int:
+    if precedence is None:
+        return 0
+    try:
+        return precedence(provider)
+    except ValueError:
+        # A source no longer wired, on a row recorded when it was.
+        return 1_000_000
+
+
+def best(
+    images: Iterable[CandidateImage], *, box: ArtworkBox | None = None, precedence: Precedence | None = None
+) -> CandidateImage | None:
     """The instance that should represent the work, or None if none may be chosen.
 
     **A below-floor instance is never chosen automatically**, which is why the
@@ -89,6 +108,6 @@ def best(images: Iterable[CandidateImage], *, box: ArtworkBox | None = None) -> 
     silently while leaving every instance on the card for a curator who wants one
     anyway.
     """
-    ranked = surviving(images)
+    ranked = surviving(images, precedence=precedence)
     eligible = [image for image in ranked if not below_floor(image, box)] if box is not None else ranked
     return eligible[0] if eligible else None

@@ -62,7 +62,7 @@ function heartbeatPanel(wall) {
     el("h3", { text: name }),
     // An observation with its age, never a verdict. A green dot computed from
     // a file that may simply be young is how a health surface starts lying.
-    el("p", { text: reading.description }),
+    el("p", { class: "reading-sentence", text: reading.description }),
     facts([
       ["Heartbeat file", reading.path],
       ["Last reported", reading.reported_at],
@@ -122,6 +122,35 @@ function heartbeatPanels(health) {
   return health.walls.map(heartbeatPanel);
 }
 
+/* Every installed source plugin, in order of preference, as its own sentence.
+ *
+ * Declined is shown as plainly as loaded: a plugin this deployment has not
+ * configured is a choice, and the sentence says which setting would change it.
+ * The state is a word in the sentence and a fact below it, never a colour. */
+function sourcesPanel(health) {
+  const sources = Array.isArray(health.sources) ? health.sources : null;
+  return el("div", { class: "panel" }, [
+    el("h3", { text: "Image sources" }),
+    sources === null
+      ? el("p", { class: "note", text: "This health reading carries no image sources. That is a fault in the reading, not in any source." })
+      : sources.length === 0
+        ? el("p", {
+            class: "muted",
+            text: "No source plugin is installed, so no image can be found for a work. Arrt ships with built-in plugins, so none listed means the package was installed without its entry points.",
+          })
+        : el("ul", { class: "source-readings" }, sources.map((source) =>
+            el("li", {}, [
+              el("p", { class: "reading-sentence", text: source.description }),
+              facts([
+                ["State", source.state],
+                ["Faults since startup", String(source.faults)],
+                ["Last fault", source.last_fault],
+              ]),
+            ]),
+          )),
+  ]);
+}
+
 export async function viewHealth(generation) {
   const health = await api("/api/health");
   const box = health.artwork_box;
@@ -135,9 +164,10 @@ export async function viewHealth(generation) {
     // deliberately declined to make.
     health.description ? el("p", { class: "note", text: health.description }) : null,
     ...heartbeatPanels(health),
+    sourcesPanel(health),
     el("div", { class: "panel" }, [
       el("h3", { text: "The backup" }),
-      el("p", { text: health.backup.description }),
+      el("p", { class: "reading-sentence", text: health.backup.description }),
       facts([
         ["Backup record", health.backup.path],
         ["Last completed", health.backup.completed_at],

@@ -53,6 +53,7 @@ from arrt.persistence.discovery_records import (
     ResolveRunWork,
     RunKind,
     RunStatus,
+    Sighting,
     SpendCategory,
     SpendRecord,
     TurnRole,
@@ -62,6 +63,10 @@ from arrt.persistence.discovery_records import (
 )
 from arrt.persistence.durable import OrderBy
 from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass, VocabularyKind
+
+#: How many ids one `IN (...)` binds. Well under SQLite's bound on a statement's
+#: parameters, which is 999 on builds older than 3.32.
+_IDS_PER_STATEMENT: Final[int] = 500
 
 DISCOVERY_SCHEMA = """
 CREATE TABLE IF NOT EXISTS discovery_runs (
@@ -80,7 +85,13 @@ CREATE TABLE IF NOT EXISTS discovery_runs (
     approval_required      INTEGER NOT NULL,
     unresolved_work_count  INTEGER,
     started_at             TEXT NOT NULL,
-    completed_at           TEXT
+    completed_at           TEXT,
+    -- The theme a Get's accepted works join instead of the default. Programming's
+    -- id, so deliberately no REFERENCES clause: it is an opaque reference across
+    -- the Library/Programming seam that may fail to resolve once the theme is
+    -- deleted. Null means the default, and is what every run before Gets could
+    -- name a theme reads as; nullable so widening reaches older files.
+    destination_theme_id   TEXT
 );
 
 -- Startup reconciliation reads runs by status, on every process start.
@@ -110,6 +121,9 @@ CREATE TABLE IF NOT EXISTS candidate_works (
     -- comparison the requirement exists for.
     offered_for_artist     TEXT,
     offered_artist_matched INTEGER,
+    -- The Wikidata item a chosen work was asked for by. Null on proposed and
+    -- offered works, which no item named; nullable so widening reaches older files.
+    wikidata_qid           TEXT,
     resolution_status  TEXT NOT NULL,
     unresolved_reason  TEXT,
     verdict            TEXT NOT NULL,
@@ -262,10 +276,24 @@ CREATE TABLE IF NOT EXISTS resolve_run_works (
 );
 
 CREATE INDEX IF NOT EXISTS resolve_run_works_by_work ON resolve_run_works(candidate_work_id);
+
+-- Pages about a work that no installed plugin reads (`Sighting`). A new table, so
+-- `CREATE TABLE IF NOT EXISTS` reaches a file written before it. Keyed by the
+-- item and the page together: the same page found again is the same sighting.
+-- Not tied to a candidate work, because a work is one item across every run that
+-- proposed it; rows are never deleted, since a page seen stays seen.
+CREATE TABLE IF NOT EXISTS sightings (
+    wikidata_qid  TEXT NOT NULL,
+    url           TEXT NOT NULL,
+    PRIMARY KEY (wikidata_qid, url)
+);
 """
 
 #: The join's own key. A work appears at most once per resolve run.
 _COVERAGE_KEY: Final[tuple[str, ...]] = ("resolve_run_id", "candidate_work_id")
+
+#: The table's own key: one row per page per item.
+_SIGHTING_KEY: Final[tuple[str, ...]] = ("wikidata_qid", "url")
 
 #: Newest first: a run list is a history, and the run someone is asking about is
 #: almost always the last one.
@@ -338,8 +366,35 @@ class SqliteDiscovery(TableAdapter):
     def list_candidate_works(self, run_id: str) -> Sequence[CandidateWork]:
         return self._list("candidate_works", {"discovery_run_id": run_id}, _BY_TITLE, _candidate_work)
 
+    def list_works_awaiting_verdict(self) -> Sequence[CandidateWork]:
+        return self._list(
+            "candidate_works",
+            {"verdict": str(Verdict.PENDING), "resolution_status": str(ResolutionStatus.RESOLVED)},
+            _BY_TITLE,
+            _candidate_work,
+        )
+
+    def list_wanted_works(self) -> Sequence[CandidateWork]:
+        return self._list("candidate_works", {"verdict": str(Verdict.WANTED)}, _BY_TITLE, _candidate_work)
+
     def list_candidate_works_by_dedup_key(self, work_dedup_key: str) -> Sequence[CandidateWork]:
         return self._list("candidate_works", {"work_dedup_key": work_dedup_key}, _BY_TITLE, _candidate_work)
+
+    def destinations_of_artworks(self, artwork_ids: Sequence[str]) -> Mapping[str, str]:
+        found: dict[str, str] = {}
+        wanted = list(dict.fromkeys(artwork_ids))
+        # In slices, because the catch-up at start may ask about every work the
+        # catalogue holds and SQLite bounds how many values one statement binds.
+        for start in range(0, len(wanted), _IDS_PER_STATEMENT):
+            chunk = wanted[start : start + _IDS_PER_STATEMENT]
+            rows = self._store.select_rows(
+                'SELECT cw."artwork_id" AS artwork_id, r."destination_theme_id" AS theme_id '
+                'FROM candidate_works cw JOIN discovery_runs r ON r."id" = cw."discovery_run_id" '
+                f'WHERE r."destination_theme_id" IS NOT NULL AND cw."artwork_id" IN ({", ".join("?" * len(chunk))})',
+                chunk,
+            )
+            found.update({row["artwork_id"]: row["theme_id"] for row in rows})
+        return found
 
     # -- candidate images -----------------------------------------------------
 
@@ -494,6 +549,21 @@ class SqliteDiscovery(TableAdapter):
     def list_coverage_by_work(self, candidate_work_id: str) -> Sequence[ResolveRunWork]:
         return self._list("resolve_run_works", {"candidate_work_id": candidate_work_id}, _BY_COVERAGE, _coverage)
 
+    # -- sightings --------------------------------------------------------------
+
+    def add_sighting(self, sighting: Sighting) -> bool:
+        row = {"wikidata_qid": sighting.wikidata_qid, "url": sighting.url}
+        return self._store.upsert("sightings", row, pk=_SIGHTING_KEY, on_conflict="ignore") == 1
+
+    def list_open_sightings(self) -> Sequence[Sighting]:
+        rows = self._store.select_rows(
+            'SELECT s."wikidata_qid" AS wikidata_qid, s."url" AS url FROM sightings s WHERE s."wikidata_qid" IN '
+            '(SELECT cw."wikidata_qid" FROM candidate_works cw WHERE cw."verdict" = ? '
+            'OR (cw."resolution_status" = ? AND cw."verdict" = ?)) ORDER BY s."wikidata_qid", s."url"',
+            (str(Verdict.WANTED), str(ResolutionStatus.UNRESOLVED), str(Verdict.PENDING)),
+        )
+        return [Sighting(wikidata_qid=row["wikidata_qid"], url=row["url"]) for row in rows]
+
 
 # -- record to row ------------------------------------------------------------
 
@@ -513,6 +583,7 @@ def _run_row(run: DiscoveryRun) -> dict[str, Any]:
         "unresolved_work_count": run.unresolved_work_count,
         "started_at": to_iso(run.started_at),
         "completed_at": to_iso(run.completed_at),
+        "destination_theme_id": run.destination_theme_id,
     }
 
 
@@ -528,6 +599,7 @@ def _candidate_work_row(work: CandidateWork) -> dict[str, Any]:
         "provenance": str(work.provenance),
         "offered_for_artist": work.offered_for_artist,
         "offered_artist_matched": work.offered_artist_matched,
+        "wikidata_qid": work.wikidata_qid,
         "resolution_status": str(work.resolution_status),
         "unresolved_reason": str(work.unresolved_reason) if work.unresolved_reason else None,
         "verdict": str(work.verdict),
@@ -636,6 +708,7 @@ def _run(row: Mapping[str, Any]) -> DiscoveryRun:
         actual_cost_usd=from_money(row["actual_cost_usd"]),
         unresolved_work_count=row["unresolved_work_count"],
         completed_at=from_iso(row["completed_at"]),
+        destination_theme_id=row["destination_theme_id"],
     )
 
 
@@ -655,6 +728,7 @@ def _candidate_work(row: Mapping[str, Any]) -> CandidateWork:
         # both cases — no query produced them — so no default is invented here.
         offered_for_artist=row["offered_for_artist"],
         offered_artist_matched=row["offered_artist_matched"],
+        wikidata_qid=row["wikidata_qid"],
         resolution_status=ResolutionStatus(row["resolution_status"]),
         unresolved_reason=UnresolvedReason(row["unresolved_reason"]) if row["unresolved_reason"] else None,
         verdict=Verdict(row["verdict"]),

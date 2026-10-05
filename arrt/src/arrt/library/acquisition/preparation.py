@@ -16,8 +16,10 @@ nothing at all in model spend.
 that has never had a mat cannot be rendered without choosing one, and `acquire()`
 does not prepare — so the first call on a freshly acquired work is a paid vision
 call, which is the normal case rather than an edge. `PreparationResult.cost_usd`
-carries it and the tool surface reports it. The tempting sentence was "regenerate
-never spends"; it is false on exactly the call a curator makes first.
+carries it, the tool surface reports it, and a `mat_color_vision` spend row records
+it against the work, so the month's total includes what the acquisition queue
+spends unattended. The tempting sentence was "regenerate never spends"; it is
+false on exactly the call a curator makes first.
 
 **Staleness is a comparison, not a flag.** A rendition records the
 `content_hash` of the original it was drawn from, so "is this current" is
@@ -32,13 +34,14 @@ from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
-from typing import Final
+from typing import Final, Protocol
 
 from arrt.library.acquisition.color import ColorError, format_hex, parse_hex
-from arrt.library.acquisition.compose import compose
-from arrt.library.acquisition.mat import MatChoice, MatEngine
+from arrt.library.acquisition.compose import compose, layout
+from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR, MatChoice, MatEngine, below_the_floor
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.display_fit import ArtworkBox, DisplayFit
+from arrt.persistence.discovery_records import SpendCategory
 from arrt.persistence.records import MatColor, MatMethod, RenditionKind
 from arrt.services.errors import ServiceError
 
@@ -133,14 +136,49 @@ class PreparationSettings:
                 "different deployments."
             )
 
+    @property
+    def layout(self) -> str:
+        """What a canvas composed against these settings records, and is compared against."""
+        return layout(panel_width=self.panel_width, panel_height=self.panel_height, box=self.box)
+
+
+class SpendLedger(Protocol):
+    """Where a paid mat choice is recorded: the one method preparation needs of the ledger.
+
+    `DiscoveryService` is the ledger today. Taken through this one method rather
+    than whole, so preparation reaches accounting without reaching discovery, and
+    moving the ledger out of discovery changes the wiring and nothing here.
+    """
+
+    def record_spend(
+        self,
+        *,
+        category: SpendCategory,
+        cost_usd: Decimal,
+        artwork_id: str | None = None,
+        model_id: str | None = None,
+        units: int | None = None,
+    ) -> object: ...
+
 
 class PreparationService:
     """Give a work a mat and a television canvas."""
 
-    def __init__(self, catalogue: CatalogueService, mat_engine: MatEngine, settings: PreparationSettings) -> None:
+    def __init__(
+        self, catalogue: CatalogueService, mat_engine: MatEngine, settings: PreparationSettings, *, spend: SpendLedger
+    ) -> None:
         self._catalogue = catalogue
         self._mat = mat_engine
         self._settings = settings
+        #: Required rather than defaulted to a ledger that records nothing: a
+        #: default that silently drops spend looks exactly like working wiring,
+        #: and the month total would omit every mat call without anything failing.
+        self._spend = spend
+
+    @property
+    def layout(self) -> str:
+        """The layout every canvas this service composes now records."""
+        return self._settings.layout
 
     def prepare(self, artwork_id: str, *, force: bool = False) -> PreparationResult:
         """Make this work ready for the wall, doing only what is not already done.
@@ -151,7 +189,10 @@ class PreparationService:
         decision they did not mention. Choosing again is `choose_mat` — a separate
         request, because it is a separate intent.
 
-        **This is free for a work that already has a mat, and only for one.** A
+        **This is free for a work that already has a mat it may keep, and only
+        for one.** A mat below `MAT_LIGHTNESS_FLOOR` is not one it may keep: it
+        predates the floor, and is chosen again here, and the canvas painted in it
+        is then not current. A
         work that has never had a mat cannot be rendered without choosing one, so
         the first preparation of a freshly acquired work asks the vision model —
         and `acquire()` does not prepare, so that first call is the normal case
@@ -176,7 +217,7 @@ class PreparationService:
             )
 
         mat, chosen = self._current_or_chosen_mat(artwork_id, source=source)
-        current = self._current_tv_rendition(artwork_id)
+        current = self._current_tv_rendition(artwork_id, mat_hex=mat.hex_rgb)
         if current is not None and not force:
             return PreparationResult(
                 artwork_id=artwork_id,
@@ -216,6 +257,8 @@ class PreparationService:
             target_width=composition.canvas_width,
             target_height=composition.canvas_height,
             path=relative,
+            layout=self._settings.layout,
+            mat_hex=mat.hex_rgb,
         )
         return PreparationResult(
             artwork_id=artwork_id,
@@ -259,10 +302,10 @@ class PreparationService:
             reason=choice.reason or None,
             model_id=choice.model_id,
         )
-        # Forced, because the canvas that exists was painted in the old colour and
-        # is current by the only test the catalogue applies — the original has not
-        # changed. Without this the work would keep showing the superseded mat
-        # while the catalogue reported the new one.
+        self._record_spend(artwork_id, choice)
+        # Forced, so asking again always redraws. A new colour would make the
+        # canvas not current anyway (it records the colour it was painted in);
+        # the force is for the answer that repeats the colour in force.
         result = self.prepare(artwork_id, force=True)
         return PreparationResult(
             artwork_id=result.artwork_id,
@@ -299,6 +342,11 @@ class PreparationService:
         with a message fit to return into an unhandled error at the surface. Only
         the parse is wrapped — a `ServiceError` from the write below must reach the
         caller as itself.
+
+        **A colour darker than `MAT_LIGHTNESS_FLOOR` is refused**, a person's as
+        much as the engine's, by `record_mat_color`. Accepting it would put a mat
+        on the wall that the owner's ruling forbids, and preparation would then
+        choose it again over the person's head.
         """
         try:
             normalised = format_hex(parse_hex(hex_rgb))
@@ -308,7 +356,7 @@ class PreparationService:
         return self.prepare(artwork_id, force=True)
 
     def _current_or_chosen_mat(self, artwork_id: str, *, source: Path) -> tuple[MatColor, MatChoice | None]:
-        """The mat in force, choosing one only if the work has never had one.
+        """The mat in force, choosing one only if the work has none it may keep.
 
         **The reason a re-render is free for a work that already has a mat.** A
         mat is a judgement, and re-asking a model for one the work already has
@@ -321,10 +369,22 @@ class PreparationService:
         answered. Without it the caller cannot tell a free call from a paid one,
         and would have to either report every preparation as free — which is
         false on a work's first — or report a cost it never incurred.
+
+        **A mat below the floor is not kept**, whoever chose it: nothing can record
+        one now (`CatalogueService.record_mat_color` refuses it), so it is a
+        colour from before the owner's ruling, and it is chosen again.
         """
         current = self._catalogue.current_mat_color(artwork_id)
-        if current is not None:
+        if current is not None and not below_the_floor(current.hex_rgb):
             return current, None
+        if current is not None:
+            log.info(
+                "the mat of %s, %s, is below the floor of L* %g; choosing again",
+                artwork_id,
+                current.hex_rgb,
+                MAT_LIGHTNESS_FLOOR,
+                extra={"event": "preparation.mat_below_floor", "artwork_id": artwork_id, "hex_rgb": current.hex_rgb},
+            )
         choice = self._mat.choose(source)
         recorded = self._catalogue.record_mat_color(
             artwork_id=artwork_id,
@@ -336,16 +396,47 @@ class PreparationService:
             reason=choice.reason or None,
             model_id=choice.model_id,
         )
+        self._record_spend(artwork_id, choice)
         return recorded, choice
 
-    def _current_tv_rendition(self, artwork_id: str) -> str | None:
+    def _record_spend(self, artwork_id: str, choice: MatChoice) -> None:
+        """Record what asking the model for this work's mat cost, when the model answered or billed.
+
+        **Here, beside the choice, so the record follows the call and not the
+        route in.** Every path that asks — a first preparation, from the
+        acquisition queue or from MCP's `regenerate`, and `choose_mat` — passes
+        through one of the two methods that call this.
+
+        A fallback can be billed: the model answered with something unusable, and
+        `cost_usd` carries what that answer cost while `model_id` is None, because
+        no model chose the colour. The row names the model that was asked all the
+        same, since that is who billed it. A call that never reached the model
+        (no key, or a refused request) cost nothing and records nothing.
+        """
+        if choice.method is not MatMethod.VISION_MODEL and choice.cost_usd == 0:
+            return
+        self._spend.record_spend(
+            category=SpendCategory.MAT_COLOR_VISION,
+            cost_usd=choice.cost_usd,
+            artwork_id=artwork_id,
+            model_id=choice.model_id or self._mat.model_id,
+            units=1,
+        )
+
+    def _current_tv_rendition(self, artwork_id: str, *, mat_hex: str) -> str | None:
         """The path of a television canvas that is current and actually on disk.
 
-        Three conditions, and none is redundant. The hash test is the catalogue's
+        Five conditions, and none is redundant. The hash test is the catalogue's
         — `list_renditions` derives it by comparing each rendition's recorded
         parent against the original the work holds now. The panel test catches a
         canvas composed for a television this deployment no longer has, which the
-        hash cannot see because the *original* did not change. And the file test
+        hash cannot see because the *original* did not change. The layout test
+        catches a canvas at the right pixel size drawn with another mat or another
+        drawing rule, which neither of those can see. The mat test catches a
+        canvas painted in a colour that is no longer the work's mat: a mat is
+        recorded before its canvas is redrawn, so a crash or a failed redraw in
+        between would otherwise leave the old colour on the wall for good, every
+        later preparation finding the canvas current. And the file test
         catches a row that is current by both and whose file has been deleted,
         which is exactly the state a restored catalogue or a cleared `ready/`
         leaves — trusting the row alone would report a work ready for a wall it
@@ -361,6 +452,15 @@ class PreparationService:
                 # and the panel is a deployment value that can change under a
                 # catalogue that outlives the television.
                 continue
+            if rendition.layout != self._settings.layout:
+                # Drawn with another mat, panel or drawing rule. Its pixels are
+                # not what this deployment composes, and nothing else would
+                # notice: the original and the panel's pixel size can both be
+                # unchanged while every margin moved.
+                continue
+            if rendition.mat_hex != mat_hex:
+                # Painted in another colour, or before canvases recorded theirs.
+                continue
             if (self._settings.art_root / rendition.relative_path).is_file():
                 return rendition.relative_path
             log.info(
@@ -372,6 +472,7 @@ class PreparationService:
 
 
 __all__ = [
+    "SpendLedger",
     "PreparationOutcome",
     "PreparationResult",
     "PreparationService",

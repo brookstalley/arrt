@@ -22,6 +22,7 @@ import pytest
 
 from arrt.library.discovery.images import FoundImage, ImageQuery
 from arrt.library.discovery.phase_two import PhaseTwoEngine
+from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.services.display_fit import ArtworkBox
 from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
 
@@ -65,13 +66,10 @@ class OneRecord:
     def fetch_preview(self, url: str):
         return b""
 
-    def tile_url(self, url: str) -> str:
-        return url
-
 
 def resolves(pair) -> bool:
     """Whether the pipeline would accept this museum record as the work asked for."""
-    engine = PhaseTwoEngine(OneRecord(pair["found_title"], pair["found_artist"]), box=BOX)
+    engine = PhaseTwoEngine(ImageSourcePool([OneRecord(pair["found_title"], pair["found_artist"])]), box=BOX)
     resolution = engine.resolve(ImageQuery(title=pair["asked_title"], artist=pair["asked_artist"]))
     return bool(resolution.instances)
 
@@ -87,8 +85,9 @@ KNOWN_WRONG = {
         "`work_dedup_key`, so sorting its tokens changes the stored suppression key "
         "for most multi-token names — 'vincent van gogh' becomes 'gogh van vincent' "
         "— and every work a curator has already rejected would become proposable "
-        "again. That needs a migration and a ruling on whether two painters whose "
-        "names are anagrams may merge. Tracked separately."
+        "again, until the startup repair re-derives their keys, which it now does "
+        "for any change to the derivation. What remains is a ruling on whether two "
+        "painters whose names are anagrams may merge. Tracked separately (#79)."
     )
 }
 

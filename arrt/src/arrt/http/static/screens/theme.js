@@ -35,7 +35,7 @@ import { api, fetchAllWorks } from "../core/api.js";
 import { fitBadge, shortfallNote, table } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
 import { hangTheme } from "../core/hanging.js";
-import { el, guard, render } from "../core/render.js";
+import { el, fill, guard, render } from "../core/render.js";
 import { backLink, backRow, go, refresh } from "../core/router.js";
 
 export async function viewTheme(themeId, generation) {
@@ -51,6 +51,17 @@ export async function viewTheme(themeId, generation) {
   const notes = [];
   const shortfall = shortfallNote(works);
   if (shortfall) notes.push(shortfall);
+  // Said on both paths, because it is about where acceptances go rather than
+  // about the index: a curator on one theme's page who could make it the
+  // default should know that nothing is the default now.
+  if (themes.themes.length && !themes.themes.some((entry) => entry.theme.is_default)) {
+    notes.push(
+      el("p", {
+        class: "note",
+        text: "No theme is the default, so works you accept join no theme. Make one the default to have them land there.",
+      }),
+    );
+  }
   if (!walls.walls.length) {
     notes.push(
       el("p", { class: "note", text: "There are no walls, so nothing can be hung. A wall is created when the plane first opens the catalogue." }),
@@ -88,7 +99,7 @@ export async function viewTheme(themeId, generation) {
    * so no wall's state can move, and no work is touched. */
   const list = el("div", { class: "stack" });
   const paintThemes = (placements) => {
-    list.replaceChildren(
+    fill(list,
       ...(placements.length
         ? placements.map((placement) => themePanel(placement, walls.walls, works.works, paintThemes))
         : [el("p", { class: "muted", text: "No themes yet. Create one, then add works to it." })]),
@@ -176,7 +187,7 @@ function themePanel(placement, walls, allWorks, repaintThemes, { heading: headin
   const paintMembers = (works) => {
     members = works;
     count.textContent = members.length === 1 ? "1 work" : `${members.length} works`;
-    body.replaceChildren(memberList(theme.theme_id, currentName, members, paintMembers));
+    fill(body, memberList(theme.theme_id, currentName, members, paintMembers));
   };
   // The one read here that is a read: nothing has answered with this theme's
   // works yet, because the listing this panel was built from does not carry them.
@@ -217,6 +228,25 @@ function themePanel(placement, walls, allWorks, repaintThemes, { heading: headin
     "aria-label": `Delete ${currentName}`,
     onclick: () => guard(() => remove(theme.theme_id, currentName, repaintThemes)),
   });
+  /* **Unconfirmed, like taking a theme down**: it moves a mark, changes no wall
+   * and touches no work already in any theme, and the undo is the same button on
+   * the theme that had it. The whole screen repaints, because the act changes two
+   * panels — the one marked and the one that stopped being — and on a theme's
+   * own page the other one is not drawn. Absent on the default itself, whose
+   * delete the server refuses with the reason. */
+  const defaultButton = theme.is_default
+    ? null
+    : el("button", {
+        class: "action quiet",
+        type: "button",
+        text: "Make default",
+        "aria-label": `Make default: ${currentName}`,
+        onclick: () =>
+          guard(async () => {
+            await api(`/api/themes/${encodeURIComponent(theme.theme_id)}/default`, { method: "POST" });
+            await refresh();
+          }),
+      });
   /* **Every theme on this screen renders the same three controls, so the visible
    * words cannot tell them apart.** A curator reading the panel has the heading
    * above to go on; somebody moving through the form controls one at a time hears
@@ -231,6 +261,7 @@ function themePanel(placement, walls, allWorks, repaintThemes, { heading: headin
     rename.setAttribute("aria-label", `Name of ${currentName}`);
     renameButton.setAttribute("aria-label", `Rename ${currentName}`);
     deleteButton.setAttribute("aria-label", `Delete ${currentName}`);
+    defaultButton?.setAttribute("aria-label", `Make default: ${currentName}`);
   };
   const renameRow = el("div", { class: "row" }, [
     el("div", { class: "field" }, [
@@ -238,12 +269,21 @@ function themePanel(placement, walls, allWorks, repaintThemes, { heading: headin
       rename,
     ]),
     renameButton,
+    defaultButton,
     deleteButton,
   ]);
 
   return el("div", { class: "panel" }, [
     el(headingTag, {}, [
       heading,
+      // Glyph, word and the accent colour, in that order of importance: the
+      // colour is the third signal, as on every badge here.
+      theme.is_default
+        ? el("span", { class: "badge badge-default", style: "margin-left: 0.5rem" }, [
+            el("span", { class: "glyph", text: "★", "aria-hidden": true }),
+            el("span", { text: "default" }),
+          ])
+        : null,
       // Hanging carries a glyph and the words beside any colour — and the words
       // name the walls, because "on the wall" reads correctly today only while
       // there is one of them.
@@ -258,6 +298,7 @@ function themePanel(placement, walls, allWorks, repaintThemes, { heading: headin
     // and a count spliced into it becomes part of the name everywhere a heading
     // is read back — including by anything listing the themes on this screen.
     el("p", { class: "muted" }, [count]),
+    theme.is_default ? el("p", { class: "muted", text: "Works you accept join this theme, at the end." }) : null,
     theme.description ? el("p", { class: "muted", text: theme.description }) : null,
     renameRow,
     el("div", { class: "row" }, [

@@ -47,6 +47,10 @@ class ArtistOut(BaseModel):
     #: recorded value being overwritten, because what an institution printed
     #: about a person is not this product's to edit.
     display_nationality: str | None
+    #: The Wikidata item for this person, as the bare QID, or null when none is
+    #: known; and who set it: `matched`, `curator`, or null when never set.
+    wikidata_qid: str | None
+    wikidata_qid_set_by: str | None
 
 
 class FitOut(BaseModel):
@@ -76,6 +80,290 @@ class ImageOut(BaseModel):
     note: str | None
 
 
+class HeldArtistOut(BaseModel):
+    """An artist the library holds, and how many of their works are in circulation."""
+
+    artist: ArtistOut
+    held: int
+    #: The work the Artists index pictures them by, their first accepted work in
+    #: circulation; its thumbnail is `/api/works/{id}/thumbnail`. None only for
+    #: an artist with nothing in circulation.
+    pictured_artwork_id: str | None
+
+
+class ArtistListOut(BaseModel):
+    """Library › Artists: every artist with a work in circulation, by surname (`surname_key`)."""
+
+    artists: list[HeldArtistOut]
+
+
+class RegistryWorkOut(BaseModel):
+    """One work the registry lists for an artist. `title` is registry text: show it as text."""
+
+    qid: str
+    title: str
+    year: int | None
+    #: How many Wikipedias cover it, which is what the list is sorted by.
+    sitelinks: int
+    #: A Commons file URL, and only ever one: anything else the registry
+    #: offered was dropped before it got here.
+    image: str | None
+    #: The library's works in circulation that are this one (matched by QID).
+    #: Empty when not held; more than one is a duplicate for the curator to see.
+    held_artwork_ids: list[str]
+    #: A wanted work names this item (Activity › Wanted). Reported beside
+    #: `held_artwork_ids` rather than instead of it: the page decides which mark
+    #: wins (held), and both are true when a wanted work has since been acquired.
+    wanted: bool
+
+
+class RegistryHoldingOut(BaseModel):
+    qid: str
+    name: str
+    works: int
+
+
+class ArtistRegistryOut(BaseModel):
+    """What Wikidata knows about an artist, or why there is nothing to show.
+
+    `state` is `known`, `no_identity` (the artist has no QID), `not_configured`
+    (no registry on this server) or `unavailable` (it could not be asked), and
+    `note` says which in a sentence whenever it is not `known`. Every string from
+    the registry is untrusted text.
+    """
+
+    state: str
+    note: str | None
+    qid: str | None
+    #: The registry's name for them, and their years: what heads the page of an
+    #: artist the library does not hold.
+    name: str | None = None
+    born: int | None = None
+    died: int | None = None
+    #: The library's artist with this QID, when one is asked for by QID: the page
+    #: to send the curator to instead. Always null on the library artist's own route.
+    artist_id: str | None = None
+    description: str | None
+    movements: list[str]
+    works: list[RegistryWorkOut]
+    #: How many works the registry lists in all; `works` is the most renowned of them.
+    works_total: int
+    holdings: list[RegistryHoldingOut]
+
+
+class RegistryCreatorOut(BaseModel):
+    qid: str
+    name: str
+    #: The library's artist with this QID, where it holds one.
+    artist_id: str | None
+
+
+class RegistryHolderOut(BaseModel):
+    qid: str
+    name: str
+    #: The collection's own number for the work, where the registry pairs one with it.
+    inventory: str | None
+
+
+class RegistryWorkPageOut(BaseModel):
+    """One work as Wikidata knows it, for the page of a work the library may not hold.
+
+    `state` is `known`, `not_found` (Wikidata has no such item), `not_configured`
+    or `unavailable`, and `note` says which in a sentence whenever it is not
+    `known`. `held_artwork_ids` is the library's answer and is filled whatever the
+    registry did: a non-empty one sends the page to the library's own work. Every
+    string from the registry is untrusted text.
+    """
+
+    state: str
+    note: str | None
+    qid: str
+    title: str | None
+    year: int | None
+    sitelinks: int | None
+    #: A Commons file URL, and only ever one.
+    image: str | None
+    creators: list[RegistryCreatorOut]
+    media: list[str]
+    holders: list[RegistryHolderOut]
+    held_artwork_ids: list[str]
+    #: A wanted work names this item (Activity › Wanted). Reported beside
+    #: `held_artwork_ids` rather than instead of it: the page decides which mark
+    #: wins (held), and both are true when a wanted work has since been acquired.
+    wanted: bool
+
+
+class RegistryPersonFoundOut(BaseModel):
+    qid: str
+    name: str
+    born: int | None
+    died: int | None
+    #: The library's artist with this QID, where it holds one.
+    artist_id: str | None
+
+
+class RegistryWorkFoundOut(BaseModel):
+    qid: str
+    title: str
+    sitelinks: int
+    #: A Commons file URL, and only ever one.
+    image: str | None
+    creator: RegistryCreatorOut | None
+    #: The library's works in circulation that are this one, by QID.
+    held_artwork_ids: list[str]
+    #: A wanted work names this item (Activity › Wanted). Reported beside
+    #: `held_artwork_ids` rather than instead of it: the page decides which mark
+    #: wins (held), and both are true when a wanted work has since been acquired.
+    wanted: bool
+
+
+class RegistrySearchOut(BaseModel):
+    """The registry's half of a search: artists and works, each marked where the library holds it.
+
+    `state` is `known`, `too_short` (fewer than three letters: nothing asked),
+    `not_configured` or `unavailable`, with a `note` sentence for the last two.
+    Every string from the registry is untrusted text.
+    """
+
+    state: str
+    note: str | None
+    artists: list[RegistryPersonFoundOut]
+    works: list[RegistryWorkFoundOut]
+
+
+class SimilarArtistOut(BaseModel):
+    qid: str
+    name: str
+    born: int | None
+    died: int | None
+    #: Their works with a free image on Wikidata.
+    images: int
+    #: The library's artist with this QID, where it holds one.
+    artist_id: str | None
+
+
+class SimilarArtistsOut(BaseModel):
+    """*Similar artists*: visual artists sharing a movement, by renown, or why there are none.
+
+    `state` is `known`, `not_configured` or `unavailable`, with a `note` for the
+    last two. Every string from the registry is untrusted text.
+    """
+
+    state: str
+    note: str | None
+    artists: list[SimilarArtistOut]
+
+
+class HeldTopicOut(BaseModel):
+    """A topic the library's works are in. `label` is registry text: show it as text."""
+
+    qid: str
+    label: str
+    #: The library's works in circulation in it.
+    works: int
+
+
+class TopicKindOut(BaseModel):
+    """Every topic of one kind the library's works are in, by name."""
+
+    #: `period`, `movement`, `subject` or `medium`.
+    kind: str
+    topics: list[HeldTopicOut]
+
+
+class TopicsOut(BaseModel):
+    """Library › Topics: one group per kind, period first, each topic with its count. Read from the facets alone.
+
+    `state` is `known`, or `not_configured` with a `note` saying topics need
+    `WIKIDATA_USER_AGENT`; then the groups hold only what an earlier
+    configuration recorded.
+    """
+
+    state: str
+    note: str | None
+    kinds: list[TopicKindOut]
+
+
+class TopicRegistryOut(BaseModel):
+    """A topic as Wikidata knows it: the head of a Topic page, or why there is none.
+
+    `state` is `known`, `not_found`, `not_configured` or `unavailable`, with a
+    `note` for every state but `known`. Every string is registry text.
+    """
+
+    state: str
+    note: str | None
+    qid: str
+    label: str | None
+    #: Every kind Wikidata's classes give it, the one its works are found by first.
+    kinds: list[str]
+    description: str | None
+    #: A period's first and last years.
+    start: int | None
+    end: int | None
+
+
+class TopicWorkOut(BaseModel):
+    """One of a topic's works, as Wikidata lists it, with what the library holds of it."""
+
+    qid: str
+    title: str
+    sitelinks: int
+    year: int | None
+    #: A Commons file URL, and only ever one.
+    image: str | None
+    creators: list[RegistryCreatorOut]
+    #: A maker recorded as unknown: somebody made it and nobody knows who.
+    creator_unknown: bool
+    #: `held`, `image_found` or `no_image`.
+    state: str
+    #: The library's works in circulation that are it, by QID.
+    held_artwork_ids: list[str]
+    #: A wanted work names this item (Activity › Wanted). Reported beside
+    #: `held_artwork_ids` rather than instead of it: the page decides which mark
+    #: wins (held), and both are true when a wanted work has since been acquired.
+    wanted: bool
+
+
+class TopicWorksOut(BaseModel):
+    """*Representative works*: up to 50, the most renowned first, or why there are none.
+
+    `state` is `known`, `not_found`, `not_configured` or `unavailable`, with a
+    `note` for every state but `known`.
+    """
+
+    state: str
+    note: str | None
+    works: list[TopicWorkOut]
+
+
+class TopicArtistsOut(BaseModel):
+    """A topic's *Artists*: up to 12, the most renowned first, or why there are none. States as `TopicWorksOut`."""
+
+    state: str
+    note: str | None
+    artists: list[SimilarArtistOut]
+
+
+class TopicFoundOut(BaseModel):
+    """A topic a typed name finds. Every string is registry text."""
+
+    qid: str
+    label: str
+    kinds: list[str]
+    description: str | None
+    start: int | None
+    end: int | None
+
+
+class TopicSearchOut(BaseModel):
+    """Topics Wikidata finds for a typed name. `state` is `known`, `not_configured` or `unavailable`."""
+
+    state: str
+    note: str | None
+    topics: list[TopicFoundOut]
+
+
 class WorkOut(BaseModel):
     """One work as a grid card shows it."""
 
@@ -92,6 +380,10 @@ class WorkOut(BaseModel):
     commentary: str | None
     rights: str | None
     status: str
+    #: The Wikidata item for this work, as the bare QID, and who set it. Matched
+    #: only through the holding museum's own identifier, never a title.
+    wikidata_qid: str | None
+    wikidata_qid_set_by: str | None
     fit: FitOut | None
     #: Present exactly when `fit` is null, saying why there is no verdict. A card
     #: with no size must not read like a card whose work is small.
@@ -114,6 +406,8 @@ class WorkFacetOut(BaseModel):
     derivation: str
     #: Which field of which provider, or which model. Null where nobody recorded it.
     source_note: str | None
+    #: The Wikidata item the value names, the Topic page it opens; null where none.
+    value_qid: str | None
 
 
 class FacetOptionOut(BaseModel):
@@ -146,6 +440,19 @@ class FacetGroupOut(BaseModel):
     truncated: bool
 
 
+class ThemeOptionOut(BaseModel):
+    """One theme as the *Filter* rail offers it, beside the facets."""
+
+    theme_id: str
+    name: str
+    #: Works this theme would select **given every other filter but the theme**,
+    #: as a facet option's count ignores its own kind.
+    count: int
+    selected: bool
+    #: True for a theme that would select nothing; never for the selected one.
+    disabled: bool
+
+
 class WorkPageOut(BaseModel):
     """A page of works that describes its own place in the set."""
 
@@ -159,6 +466,11 @@ class WorkPageOut(BaseModel):
     #: the grid answers, and two routes would give a curator two answers to it
     #: with a write free to land in between.
     facets: list[FacetGroupOut] = []
+    #: Every theme, by name, as a filter option counted against this filter.
+    #: Uncapped, and repeated on every page: themes are made by hand, one at a
+    #: time, so there are tens of them. If that stops being true, so does the
+    #: case for sending them whole with each page.
+    themes: list[ThemeOptionOut] = []
 
 
 class SourceOut(BaseModel):
@@ -217,6 +529,65 @@ class MatColorOut(BaseModel):
     chosen_at: str
 
 
+class TopicPageOut(BaseModel):
+    """The library's half of a Topic page, read from the facets alone: it never waits on Wikidata.
+
+    `label` and `kinds` are what the library's works carry the topic as, and are
+    null and empty for a topic none of them is in; the registry's own head is
+    `/api/topics/{qid}/registry`. `works` are the library's works in circulation
+    in it, by title. `state` and `note` as `TopicsOut`.
+    """
+
+    state: str
+    note: str | None
+    qid: str
+    label: str | None
+    kinds: list[str]
+    works: list[WorkOut]
+
+
+class AcquisitionStateOut(BaseModel):
+    """Where one work stands in the acquisition queue.
+
+    `phase` is one of `queued`, `fetching`, `failed`, `gave_up` and `paused`,
+    each said in words by the client beside its glyph. `detail` is why the last
+    attempt failed, or why the queue is paused; `remedy` is what an operator
+    changes to end a pause, when the condition has one.
+    """
+
+    artwork_id: str
+    phase: str
+    failures: int
+    detail: str | None
+    next_try_at: str | None
+    since: str | None
+    condition: str | None
+    remedy: str | None
+
+
+class QueuePauseOut(BaseModel):
+    """Why the acquisition queue is paused: a condition that is the deployment's, not any work's."""
+
+    condition: str
+    detail: str
+    since: str
+    remedy: str | None
+
+
+class QueuedWorkOut(BaseModel):
+    """One work the acquisition queue owes something, named for a person."""
+
+    title: str
+    acquisition: AcquisitionStateOut
+
+
+class AcquisitionQueueOut(BaseModel):
+    """Activity › Queue's acquisitions: the pause, if any, then every work owed, in the order tried."""
+
+    pause: QueuePauseOut | None
+    works: list[QueuedWorkOut]
+
+
 class WorkDetailOut(BaseModel):
     """One work in full."""
 
@@ -229,6 +600,9 @@ class WorkDetailOut(BaseModel):
     #: detail rather than on `WorkOut`, because the grid shows the collection's
     #: counts and the Work screen shows one work's facts.
     facets: list[WorkFacetOut] = []
+    #: Where the work stands in the acquisition queue; null when the queue owes
+    #: it nothing (its image is held and prepared, or it is archived).
+    acquisition: AcquisitionStateOut | None = None
 
 
 class ThemeOut(BaseModel):
@@ -249,6 +623,8 @@ class ThemeOut(BaseModel):
     rotation_interval_seconds: int | None
     shuffle: bool | None
     created_at: str
+    #: Whether works the curator accepts join this theme. At most one is.
+    is_default: bool
 
 
 class WallRefOut(BaseModel):
@@ -304,17 +680,84 @@ class WallOut(BaseModel):
     #: the thing a reader has to be able to see is per-wall.
     directive_sequence: int
     pinned_work_id: str | None
-    #: When the wall's Player token was issued, or null while it has none. The
-    #: token itself is never here: it exists only in the answer that issued it.
-    token_issued_at: str | None
+    #: The client that shows this wall, or null while none does — an ordinary
+    #: state, like a wall with nothing hanging.
+    client_id: str | None
+    #: The name of that client's output the wall is shown on. Null exactly when
+    #: `client_id` is.
+    output: str | None
 
 
-class PlayerTokenOut(BaseModel):
-    """A wall's new Player token. The only time it is ever shown."""
+class ClientWallOut(BaseModel):
+    """A wall as a client listing names it: which wall, and on which of the client's outputs."""
 
     wall_id: str
+    name: str
+    output: str
+
+
+class ReportedOutputOut(BaseModel):
+    """One output as the client last reported it."""
+
+    name: str
+    #: `frame` or `framebuffer`.
+    kind: str
+    connected: bool
+    #: [width, height] in pixels, or null when the client does not know it.
+    screen: list[int] | None
+
+
+class ClientHeartbeatOut(BaseModel):
+    """What a client last said about its outputs, as an observation with an age."""
+
+    reported_at: str | None
+    age_seconds: float | None
+    #: True when the client has never reported. Not the same as `problem`.
+    absent: bool
+    #: Set when a report is present and could not be read.
+    problem: str | None
+    #: The reading as one sentence — never reported, unreadable, or its age —
+    #: so the page and the tool surface say it in the same words.
+    description: str
+    outputs: list[ReportedOutputOut]
+
+
+class ClientOut(BaseModel):
+    """An installed Player: its name, when its token was issued, its walls and its last report.
+
+    The token itself is never here: it exists only in the answer that issued it.
+    """
+
+    client_id: str
+    name: str
+    created_at: str
+    #: Null while the client has no token, and is admitted nowhere.
+    token_issued_at: str | None
+    walls: list[ClientWallOut]
+    heartbeat: ClientHeartbeatOut
+
+
+class ClientListOut(BaseModel):
+    """Every client the server knows."""
+
+    clients: list[ClientOut]
+
+
+class ClientTokenOut(BaseModel):
+    """A client's new token. The only time it is ever shown."""
+
+    client_id: str
     token: str
     token_issued_at: str
+
+
+class WallAssignmentOut(BaseModel):
+    """A wall just placed on a client's output, and anything the curator should know about it."""
+
+    wall: WallOut
+    #: Set when the output could not be confirmed against the client's last
+    #: report; the assignment is made either way.
+    notice: str | None
 
 
 class WallListOut(BaseModel):
@@ -487,6 +930,22 @@ class WallHeartbeatOut(BaseModel):
     heartbeat: HeartbeatOut
 
 
+class SourcePluginOut(BaseModel):
+    """One installed source plugin: loaded, declined, or not loaded, and its faults since startup."""
+
+    name: str
+    #: `loaded`, `declined` (installed and not configured here) or `failed`
+    #: (installed and could not be loaded). Carried as itself, never as a flag.
+    state: str
+    #: Why it declined or failed; null when it loaded.
+    reason: str | None
+    faults: int
+    last_fault_at: str | None
+    last_fault_age_seconds: float | None
+    last_fault: str | None
+    description: str
+
+
 class HealthOut(BaseModel):
     """Observations about the walls, the backup, and this deployment's geometry.
 
@@ -511,6 +970,9 @@ class HealthOut(BaseModel):
     description: str
     backup: BackupOut
     artwork_box: ArtworkBoxOut
+    #: Every installed source plugin, most preferred first. Empty when none is
+    #: installed, which the panel says in words.
+    sources: list[SourcePluginOut]
 
 
 class RunOut(BaseModel):
@@ -523,8 +985,9 @@ class RunOut(BaseModel):
     """
 
     run_id: str
-    #: `discovery` or `resolve`. A re-search is a run, which is what lets one
-    #: screen follow either without knowing which it is looking at.
+    #: `discovery`, `resolve` or `get`. A re-search and a Get are runs, which
+    #: is what lets one screen follow any of them without knowing which it is
+    #: looking at.
     kind: str
     status: str
     #: Whether this run has ended. Carried rather than left for the client to
@@ -549,6 +1012,11 @@ class RunOut(BaseModel):
     parent_run_id: str | None
     started_at: str
     completed_at: str | None
+    #: The theme a Get's accepted works join instead of the default, or null for
+    #: the default. An id, which may name a theme deleted since: the run records
+    #: where the curator asked the works to go, and the theme is looked up by
+    #: whoever shows it.
+    destination_theme_id: str | None
 
 
 class CandidateWorkOut(BaseModel):
@@ -562,15 +1030,21 @@ class CandidateWorkOut(BaseModel):
     """
 
     work_id: str
+    #: The catalogue work acceptance made of it; null until it is accepted. What
+    #: a review card follows to say how the work's image is coming along.
+    artwork_id: str | None = None
     title: str
     artist: str | None
     #: Why the engine named this work. Shown because a curator judging a work
     #: list is judging the reasoning as much as the titles.
     rationale: str
-    #: `proposed` — the model named it — or `offered`, meaning a wired collection
-    #: volunteered it on top of the list. Never merged into one count: the
-    #: curator authorised a list of a stated size and the supplement adds to it.
+    #: `proposed` — the model named it — `offered`, meaning a wired collection
+    #: volunteered it on top of the list, or `chosen`, meaning the curator chose
+    #: it from Wikidata for a Get. Never merged into one count: the curator
+    #: authorised a list of a stated size and the supplement adds to it.
     provenance: str
+    #: The Wikidata item a chosen work was asked for by; null otherwise.
+    wikidata_qid: str | None
     #: For an offered work, the browse query that produced it and how many works
     #: that query matched in the collection; null on both for a proposed work.
     #:
@@ -604,6 +1078,8 @@ class RunTallyOut(BaseModel):
     total: int
     proposed: int
     offered: int
+    #: A Get's works, which the curator chose; zero on every other kind of run.
+    chosen: int
     resolved: int
     #: How many of the model's own works ended up with an image — the numerator
     #: any resolution rate is stated over. Counted directly rather than derived
@@ -665,6 +1141,13 @@ class RunListOut(BaseModel):
     count: int
     total: int
     truncated: bool
+    #: Works with an image and no verdict yet, across every run and not only the
+    #: listed ones: what *To review* counts.
+    awaiting_works: int
+    #: The same, by run id, for the listed runs that hold any; a run with none is
+    #: absent. Beside the runs rather than on each, because a run read on its own
+    #: has its works to say it.
+    awaiting: dict[str, int]
 
 
 class EstimateOut(BaseModel):
@@ -735,6 +1218,13 @@ class InstanceOut(BaseModel):
     rejected: bool
     rights_status: str | None
     selection_rationale: str | None
+    #: The scan's own size in pixels, as its provider reported it, or null when
+    #: nobody recorded it. What the browser shows a curator as the scan's
+    #: resolution: pixels are a fact about the scan, where the fit below is a
+    #: fact about the one panel this server is configured for. Each is null when
+    #: the provider did not report it, and `fit` is null whenever either is.
+    width: int | None
+    height: int | None
     fit: FitOut | None
     #: Present exactly when `fit` is null. An instance whose dimensions nobody
     #: recorded must not read like one known to be small: the first is a fact
@@ -845,13 +1335,37 @@ class StartResolve(BaseModel):
     work_ids: list[str]
 
 
-class SetVerdict(BaseModel):
-    """A curator's decision about a proposed work.
+class StartGet(BaseModel):
+    """The Wikidata items of the works to get, and where the accepted ones go."""
 
-    `awaiting_better_image` is deliberately not settable here: that verdict is
-    what rejecting an *image* means, and it is set by that call so the verdict and
-    the instance's suppression can never come apart. The service refuses it, and
-    the refusal says which call does set it.
+    qids: list[str]
+    #: The theme the accepted works join instead of the default, or null for the
+    #: default. An unknown theme refuses the Get and starts nothing. Creating a
+    #: new theme is an earlier `POST /api/themes`, never something this does.
+    theme_id: str | None = None
+
+
+class SkippedOut(BaseModel):
+    """An item a Get left out, and why: `held`, `being_got` or `not_found`."""
+
+    qid: str
+    reason: str
+
+
+class GetOut(BaseModel):
+    """The run a Get started, or null when every item was skipped, and what it skipped."""
+
+    run: RunOut | None
+    skipped: list[SkippedOut]
+
+
+class SetVerdict(BaseModel):
+    """A curator's decision about a proposed work: `accepted` or `rejected`.
+
+    `wanted` is deliberately not settable here: its one way in is
+    `POST /api/candidates/{id}/want`, which is also where a scan being turned
+    down on the way is suppressed, so the two can never come apart. The service
+    refuses it, and the refusal names `want`.
     """
 
     verdict: str
@@ -859,6 +1373,98 @@ class SetVerdict(BaseModel):
     #: "rejected because it is a studio copy" are the same row to the pipeline and
     #: different evidence to whoever reads it later.
     reason: str | None = None
+
+
+class WantWork(BaseModel):
+    """That the curator wants a work, and which scan of it, if any, they are turning down.
+
+    `turning_down` is a scan of this work. Named, it is suppressed and the
+    selection falls through, as turning it down on its own row does; omitted,
+    nothing is suppressed, because wanting a work found with no scan is not a
+    judgement about any scan.
+    """
+
+    turning_down: str | None = None
+
+
+class WorkMatchOut(BaseModel):
+    """One Wikidata item matching a wanted work's title, for the curator to pick from.
+
+    Registry text, shown as text. `has_image` says whether Commons holds a file
+    for it, which is what a re-search by this item could find.
+    """
+
+    qid: str
+    title: str
+    creator: str | None
+    sitelinks: int
+    has_image: bool
+    #: Whether its creator is the artist the run proposed: what puts it first.
+    by_proposed_artist: bool
+
+
+class WorkMatchesOut(BaseModel):
+    """Wikidata's items for a wanted work, and why there are or are not any."""
+
+    work_id: str
+    title: str
+    #: `known`, `not_configured` (no `WIKIDATA_USER_AGENT`) or `unavailable`.
+    state: str
+    note: str | None
+    matches: list[WorkMatchOut]
+
+
+class PickItem(BaseModel):
+    """The Wikidata item the curator picked for a wanted work."""
+
+    qid: str
+
+
+class WantedWorkOut(BaseModel):
+    """A work the curator wants and holds no scan of they would accept.
+
+    Named as `art_review(action='list_wanted')` names the same facts.
+    """
+
+    work_id: str
+    title: str
+    artist: str | None
+    #: The run that proposed the work, which is where its card lives.
+    run_id: str
+    #: The Wikidata item the work is known by, or null when none is.
+    wikidata_qid: str | None
+    #: How many of its scans the curator turned down: zero for a work wanted
+    #: because nothing was found. Counted from its scans, not stored.
+    scans_turned_down: int
+
+
+class WantedListingOut(BaseModel):
+    """Every wanted work, newest run first.
+
+    Uncapped, and what bounds it is the curator: each row is a work somebody
+    wanted by name, one call per work, so the list grows no faster than works are
+    judged, and a row is a few short strings with no picture.
+    """
+
+    works: list[WantedWorkOut]
+
+
+class SightingHostOut(BaseModel):
+    """A host with pages for open works that no installed source plugin reads.
+
+    A name, never an address: a sighting's URL came from a registry anyone can
+    edit, and none reaches the browser (`security-model.md` § Direction).
+    """
+
+    host: str
+    #: How many open works it has such a page for.
+    works: int
+
+
+class SightingHostsOut(BaseModel):
+    """Every such host, most works first. Named as `art_review(action='sighting_hosts')` names the same facts."""
+
+    hosts: list[SightingHostOut]
 
 
 class SelectImage(BaseModel):
@@ -894,6 +1500,19 @@ class CreateWall(BaseModel):
     name: str
 
 
+class NameClient(BaseModel):
+    """A client's name, to record it or to rename it. Nothing device-shaped."""
+
+    name: str
+
+
+class AssignWall(BaseModel):
+    """Which client shows the wall, and on which of its outputs, by the name the client reports."""
+
+    client_id: str
+    output: str
+
+
 class HangTheme(BaseModel):
     """Which wall a theme is being hung on.
 
@@ -915,6 +1534,16 @@ class StepDisplay(BaseModel):
     """
 
     wall_id: str
+
+
+class SetIdentity(BaseModel):
+    """The curator's word on which Wikidata item this is.
+
+    A QID (`Q160149`) sets it; null says there is none, which the matcher then
+    leaves alone. Either way the curator's word outlasts every matching pass.
+    """
+
+    qid: str | None
 
 
 class AddWork(BaseModel):

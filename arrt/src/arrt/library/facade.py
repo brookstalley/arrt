@@ -14,7 +14,7 @@ reaches nothing in Programming.
 """
 
 import logging
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import replace
 
 from arrt.library.events import WorkChange, WorkChanged, WorkChangedHandler
@@ -30,6 +30,7 @@ from arrt.library.readiness import (
     tv_rendition_of,
 )
 from arrt.library.services.catalogue import CatalogueService
+from arrt.library.services.discovery import DiscoveryService
 
 log = logging.getLogger(__name__)
 
@@ -52,8 +53,9 @@ __all__ = [
 class LibraryFacade:
     """What Programming may ask the Library."""
 
-    def __init__(self, catalogue: CatalogueService) -> None:
+    def __init__(self, catalogue: CatalogueService, discovery: DiscoveryService) -> None:
         self._catalogue = catalogue
+        self._discovery = discovery
 
     def playable(self, work_ids: Iterable[str]) -> dict[str, Playability]:
         """Whether each work can go on a wall, keyed by id, in the order asked.
@@ -65,6 +67,28 @@ class LibraryFacade:
         dangling reference unbuildable. An id asked twice is answered once.
         """
         return {work_id: self._answer(work_id) for work_id in dict.fromkeys(work_ids)}
+
+    def accepted_work_ids(self) -> Sequence[str]:
+        """Every work in circulation, oldest first.
+
+        For a startup catch-up of an announcement a crash lost: Programming asks
+        which works exist, here, rather than reading the Library's tables.
+        """
+        return self._catalogue.accepted_work_ids()
+
+    def destinations(self, work_ids: Iterable[str]) -> dict[str, str | None]:
+        """Where each accepted work was sent: a theme id, or None for the default theme.
+
+        A Get may name the theme its accepted works join instead of the default,
+        and this is how Programming learns it, for a work announced as accepted
+        and for one a startup catch-up finds, so the two land a work in the same
+        theme. **Every id asked about is answered**, None included for a work
+        whose run named no theme, one no run minted, and one the catalogue does
+        not hold. The id is Programming's own, carried opaquely: the Library does
+        not know whether that theme still exists, and Programming decides what a
+        deleted one means.
+        """
+        return dict(self._discovery.destinations(work_ids))
 
     def subscribe(self, handler: WorkChangedHandler) -> None:
         """Be told which work changed, after each change commits.

@@ -32,6 +32,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final
 
+from arrt.library.acquisition.color import parse_hex, rgb_to_lab
+from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR
 from arrt.library.events import LibraryEvents, WorkChange, WorkChanged, WorkChangedHandler
 from arrt.library.services.display_fit import ArtworkBox, FitAssessment, assess_display_fit
 from arrt.persistence.catalogue import CatalogueStore, WorkOrder, WorkQuery
@@ -42,6 +44,7 @@ from arrt.persistence.records import (
     ArtworkStatus,
     FacetDerivation,
     FetchStatus,
+    IdentitySetBy,
     MatColor,
     MatMethod,
     Original,
@@ -80,10 +83,31 @@ MAX_FACET_VALUES: Final[int] = 50
 
 #: How many words one search may carry. Terms narrow rather than widen, so
 #: dropping the surplus would silently *broaden* the result — the refusal names
-#: the cap instead. The bound exists because each term adds a `LIKE` against every
-#: searched column, and a pasted paragraph would compose a statement in the
-#: hundreds of clauses against a request nobody meant to make.
+#: the cap instead. The bound exists because each term adds a clause that folds
+#: and scans every work's searched text, and a pasted paragraph would compose a
+#: statement of dozens of them against a request nobody meant to make.
 MAX_SEARCH_TERMS: Final[int] = 8
+
+
+@dataclass(frozen=True, slots=True)
+class FacetClaim:
+    """One thing a source says a work is, before it is recorded."""
+
+    kind: VocabularyKind
+    value: str
+    #: The registry item the value names, where the source gave one.
+    value_qid: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class FacetReplacement:
+    """What replacing one source's facets on a work changed."""
+
+    #: The source's earlier rows taken away.
+    withdrawn: int
+    #: Its rows the work now carries. Fewer than the claims where a claim
+    #: repeated another, or the work already carried it from elsewhere.
+    written: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -173,6 +197,11 @@ class RenditionView:
     stale: bool
 
 
+def _from(facet: WorkFacet, source_note: str) -> bool:
+    """Whether this row is what one source published, and so what its next answer replaces."""
+    return facet.derivation is FacetDerivation.SOURCED and facet.source_note == source_note
+
+
 def _offered(options: Sequence[FacetOption]) -> Sequence[FacetOption]:
     """Order a kind's options and cut the tail, keeping every selected one.
 
@@ -225,6 +254,8 @@ class CatalogueService:
         limit: int | None = None,
         offset: int = 0,
         sort: str | None = None,
+        artist_id: str | None = None,
+        within: Sequence[str] | None = None,
     ) -> ArtworkListing:
         """Page through the catalogue, narrowed by text and by facet.
 
@@ -237,6 +268,11 @@ class CatalogueService:
         several kinds mean *both*. `sort` is a `WorkOrder` value (`title`, the
         default; `artist`; `newest`) and changes only how the page is ordered,
         never which works the total and the facet counts describe.
+
+        `within` restricts the listing to those work ids, and everything else
+        narrows within it, counts included: it is how a theme's slice is listed
+        without the Library knowing what a theme is. Empty selects nothing;
+        `None` restricts nothing.
 
         **The facet counts come back with the page rather than from a second
         route**, because they answer the same question the grid answers — what
@@ -254,7 +290,13 @@ class CatalogueService:
         if offset < 0:
             raise ServiceError(f"offset cannot be negative, got {offset}.")
 
-        query = WorkQuery(status=resolved_status, terms=self._parse_terms(q), facets=self._parse_facets(facets))
+        query = WorkQuery(
+            status=resolved_status,
+            terms=self._parse_terms(q),
+            facets=self._parse_facets(facets),
+            artist_id=artist_id,
+            within=None if within is None else frozenset(within),
+        )
         # **One read scope over the page, the total and every facet count.**
         # These are four statements or more, and the response asserts they agree:
         # the counts are offered as what the grid *would* hold, so a write
@@ -287,6 +329,30 @@ class CatalogueService:
             offset=offset,
             facets=groups,
         )
+
+    def matching_ids(
+        self,
+        *,
+        status: str | None = None,
+        q: str | None = None,
+        facets: Mapping[str, Sequence[str]] | None = None,
+        artist_id: str | None = None,
+    ) -> frozenset[str]:
+        """The ids of every work these narrowings select, unpaged.
+
+        The same narrowings `list_artworks` takes, read the same way, less the
+        id restriction: this is the set a theme option's count is taken over,
+        and a theme's count ignores the theme's own selection as a facet's
+        ignores its own (`_facet_groups`). Programming counts each theme's
+        members among these ids, so the Library never learns what a theme is.
+        """
+        query = WorkQuery(
+            status=self._parse_status(status),
+            terms=self._parse_terms(q),
+            facets=self._parse_facets(facets),
+            artist_id=artist_id,
+        )
+        return self._store.artwork_ids_matching(query)
 
     def _facet_groups(self, query: WorkQuery) -> Sequence[FacetGroup]:
         """Every facet kind, with each value's count and whether it is chosen.
@@ -340,6 +406,10 @@ class CatalogueService:
         """Return one work in full, with its artist resolved."""
         artwork = self._require_artwork(artwork_id)
         return ArtworkDetail(artwork=artwork, artist=self._resolve_artist(artwork.artist_id, {}))
+
+    def accepted_work_ids(self) -> Sequence[str]:
+        """Every work in circulation, by id, oldest first: what Programming reconciles against."""
+        return self._store.accepted_artwork_ids()
 
     def find_artwork(self, artwork_id: str) -> ArtworkDetail | None:
         """`get_artwork` for a caller to whom an unknown id is an answer, not a mistake.
@@ -518,8 +588,12 @@ class CatalogueService:
         description: str | None = None,
         rights: str | None = None,
         commentary: str | None = None,
+        wikidata_qid: str | None = None,
     ) -> Artwork:
         """Record a work in the catalogue and return it.
+
+        `wikidata_qid` is the item the curator chose the work by, when they did,
+        and is recorded as theirs so the matcher never replaces it.
 
         A work enters the catalogue already accepted — there is no other way
         in. Everything before acceptance is a candidate, which is a separate
@@ -548,6 +622,8 @@ class CatalogueService:
             # written for a wall label rather than fetched from anywhere, so
             # there is no markup to take out of it.
             commentary=commentary,
+            wikidata_qid=wikidata_qid,
+            wikidata_qid_set_by=None if wikidata_qid is None else IdentitySetBy.CURATOR,
         )
         store_write(self._store.add_artwork, artwork)
         self._announce(WorkChange.ACCEPTED, artwork.id)
@@ -596,6 +672,7 @@ class CatalogueService:
         value: str,
         derivation: FacetDerivation | str,
         source_note: str | None = None,
+        value_qid: str | None = None,
     ) -> WorkFacet:
         """Say that a work is one more thing, and where that claim came from.
 
@@ -642,9 +719,38 @@ class CatalogueService:
             derivation=resolved_derivation,
             created_at=datetime.now(UTC),
             source_note=source_note,
+            value_qid=value_qid,
         )
         store_write(self._store.add_facet, facet)
         return facet
+
+    def replace_sourced_facets(self, artwork_id: str, *, source_note: str, claims: Sequence[FacetClaim]) -> FacetReplacement:
+        """Make `claims` the work's whole set of `sourced` facets from this one source, in one transaction.
+
+        **Only rows that are `sourced` and carry exactly this `source_note` are
+        withdrawn**: they are the source's own earlier answer, which the new one
+        supersedes. An `inferred` row is never touched, and neither is a row
+        another source published. A claim the work already carries under any
+        derivation (compared ignoring case, as the column compares) is left as it
+        stands, which is `record_facet`'s rule: the first recording of a claim
+        keeps its provenance, so an inferred value is not relabelled as sourced.
+        """
+        self._require_artwork(artwork_id)
+        with self._store.transaction():
+            withdrawn = [facet for facet in self._store.list_facets(artwork_id) if _from(facet, source_note)]
+            for facet in withdrawn:
+                store_write(self._store.remove_facet, facet.id)
+            for claim in claims:
+                self.record_facet(
+                    artwork_id=artwork_id,
+                    kind=claim.kind,
+                    value=claim.value,
+                    derivation=FacetDerivation.SOURCED,
+                    source_note=source_note,
+                    value_qid=claim.value_qid,
+                )
+            written = sum(1 for facet in self._store.list_facets(artwork_id) if _from(facet, source_note))
+        return FacetReplacement(withdrawn=len(withdrawn), written=written)
 
     def remove_facet(self, artwork_id: str, *, facet_id: str) -> None:
         """Withdraw a claim about a work.
@@ -819,6 +925,8 @@ class CatalogueService:
         target_width: int,
         target_height: int,
         path: str,
+        layout: str | None = None,
+        mat_hex: str | None = None,
     ) -> Rendition:
         """Record a derived output, stamped with the image it was made from.
 
@@ -855,6 +963,8 @@ class CatalogueService:
                 relative_path=relative_path(path, field="path"),
                 source_content_hash=original.content_hash,
                 generated_at=datetime.now(UTC),
+                layout=layout,
+                mat_hex=mat_hex,
             )
             # Hashed here from the file, never accepted from the caller, for the
             # reason the parent's hash is: the hash is what a Player checks the
@@ -967,9 +1077,22 @@ class CatalogueService:
         history by a row per work per run. `method` is part of what "the same
         choice" means: the same hex arrived at by a vision model rather than by
         hand is a different fact about the colour, and worth keeping.
+
+        **A colour darker than `MAT_LIGHTNESS_FLOOR` is refused here, whoever
+        offers it** (owner, 2026-10-03): beside the screen's black it reads as the
+        panel failing. Checked once, at the one write every mat goes through, so
+        no new caller can forget it: the engine never answers below it, a person's
+        colour is refused by name, and the seed skips a 2024 colour below it.
         """
         self._require_artwork(artwork_id)
         resolved_hex = self._require_hex(hex_rgb)
+        lightness = rgb_to_lab(parse_hex(resolved_hex)).l
+        if lightness < MAT_LIGHTNESS_FLOOR:
+            raise ServiceError(
+                f"{resolved_hex} is L* {lightness:.1f}, darker than the mat floor of L* {MAT_LIGHTNESS_FLOOR:g}: "
+                "inside the screen's black, a mat that dark looks like the panel failing to show black. "
+                "Choose a lighter colour."
+            )
         resolved_method = require_member(method, enum=MatMethod, field="method")
         current = self.current_mat_color(artwork_id)
         if current is not None and current.hex_rgb == resolved_hex and current.method is resolved_method:

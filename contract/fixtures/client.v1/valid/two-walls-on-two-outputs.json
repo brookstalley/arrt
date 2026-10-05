@@ -1,0 +1,16 @@
+{
+  "client_id": "c-pi-hall",
+  "name": "The Pi in the hall",
+  "walls": [
+    {
+      "wall_id": "w-hall",
+      "name": "Hall",
+      "output": "hdmi-a-1"
+    },
+    {
+      "wall_id": "w-living",
+      "name": "Living room",
+      "output": "frame"
+    }
+  ]
+}

@@ -39,22 +39,26 @@ SECTIONS = ["Artworks", "Walls", "Activity", "Settings", "System"]
 #: The pages each section lists beneath its own name, when it is the current one.
 #: A page named like its section *is* the section's link and is not repeated.
 PAGES = {
-    "Artworks": ["Add New", "Themes"],
+    "Artworks": ["Ask", "Themes", "Topics", "Artists"],
     "Walls": [],
-    "Activity": ["Queue", "History"],
-    "Settings": ["Taste"],
+    "Activity": ["To review", "Queue", "History"],
+    "Settings": ["Taste", "Clients"],
     "System": ["Status"],
 }
 
 #: Every sidebar page: its route, and a heading that proves it painted.
 SIDEBAR_PAGES = [
     ("collection", "works"),
-    ("discover", "Add New"),
+    ("discover", "Ask"),
     ("theme", "Themes"),
+    ("topics", "Topics"),
+    ("artist", "Artists"),
     ("walls", "Walls"),
+    ("to_review", "To review"),
     ("queue", "Queue"),
     ("history", "History"),
     ("taste", "What this product thinks you like"),
+    ("clients", "Clients"),
     ("health", "Status"),
 ]
 
@@ -73,7 +77,7 @@ def visible_pages(ui) -> dict[str, list[str]]:
           section.querySelector('a.section-link .label').textContent,
           [...section.querySelectorAll('ul.pages a')]
             .filter((a) => a.checkVisibility())
-            .map((a) => a.textContent),
+            .map((a) => (a.querySelector('.label') || a).textContent),
         ]))""")
 
 
@@ -92,6 +96,22 @@ def test_the_sidebar_is_the_arr_sections_and_nothing_else(ui, seeded_service):
     ui.page.wait_for_selector(SECTION_LINKS)
 
     assert ui.page.locator(f"{SECTION_LINKS} .label").all_inner_texts() == SECTIONS
+
+
+#: The page each section's own link opens: its first page in the route table.
+OPENS = {"Artworks": "collection", "Walls": "walls", "Activity": "to_review", "Settings": "taste", "System": "health"}
+
+
+@pytest.mark.parametrize("section", SECTIONS)
+def test_each_section_lists_exactly_its_pages(ui, seeded_service, section):
+    """Every section, so a page added to or dropped from any one of them fails by name."""
+    ui.open(f"#{OPENS[section]}")
+    # The links exist before the router opens the current section, so waiting
+    # on them alone reads the pages too early under load. `lightSidebar` opens
+    # the section and marks `aria-current` in one step: wait for the mark.
+    ui.page.wait_for_selector("nav.sidebar li.section[data-open] [aria-current='page']")
+
+    assert visible_pages(ui)[section] == PAGES[section]
 
 
 def test_pages_show_only_under_the_current_section(ui, seeded_service):
@@ -857,3 +877,31 @@ def test_every_old_address_opens_the_page_that_took_over(ui, seeded_service):
         # The address bar is corrected, so what a curator copies is what this
         # surface would produce, and the page that took over is the one lit.
         assert lit(ui, now).count() == 1, old
+
+
+def test_the_system_badge_counts_a_source_that_failed_or_faulted_and_not_one_that_declined(
+    ui, a_health_reading, a_source_reading
+):
+    """A failed plugin makes works read as held by nobody, which looks like a fact
+    about art, and a faulting one leaves them waiting with nothing saying why; a
+    declined one is configured off on purpose. Three
+    plugins, two problems, so a badge that counted every non-loaded plugin, or
+    ignored faults, fails."""
+    ui.serve(
+        "**/api/health",
+        a_health_reading(
+            sources=[
+                a_source_reading(name="commons", state="declined", reason="WIKIDATA_USER_AGENT is unset"),
+                a_source_reading(name="artic", faults=3),
+                a_source_reading(name="gallery", state="failed", reason="it could not be imported"),
+            ]
+        ),
+    )
+    ui.open("#collection")
+    ui.page.wait_for_selector("#status[data-state='unwell']")
+
+    assert system_link(ui).get_attribute("aria-label") == "System: 2 problems"
+    words = ui.page.locator("#status").inner_text()
+    assert "The gallery source could not be loaded" in words
+    assert "The artic source has faulted since startup" in words
+    assert "commons" not in words

@@ -110,6 +110,19 @@ BROWSER_MAX_EDGE_PX: Final[int] = 480
 #: bytes land on a screen a curator is looking at rather than in a context window.
 BROWSER_JPEG_QUALITY: Final[int] = 82
 
+#: The box an *enlarged* preview is fitted into: the picture a review card opens
+#: in place when it is clicked, which is meant to be the largest preview the
+#: server holds.
+#:
+#: **A bound, not a size.** What the server holds is the provider's preview —
+#: ARTIC's is 843 px wide (`artic._PREVIEW_WIDTH`) and Commons' 960
+#: (`commons.PREVIEW_WIDTH`) — so the enlarged copy is that file at its own size
+#: and nothing is scaled up or down. The bound is there for the provider that one
+#: day caches something enormous: the decode is `draft`-reduced to it, so a large
+#: file never becomes a large bitmap in memory on the smallest machine in the
+#: deployment. Not the master: a work under review has none yet.
+ENLARGED_MAX_EDGE_PX: Final[int] = 2048
+
 #: What a re-encoded preview is declared as on the wire, whichever reader asked.
 #: Everything becomes JPEG on the way out — museums serve JPEG, PNG and the
 #: occasional TIFF — and one media type for both is not merely tidy. For a model,
@@ -150,15 +163,17 @@ class PreviewSettings:
 class PreviewCache:
     """Fetch a preview once and hand back the path the catalogue should record."""
 
-    def __init__(self, settings: PreviewSettings, fetch: Callable[[str], bytes | None]) -> None:
+    def __init__(self, settings: PreviewSettings, fetch: Callable[[str, str], bytes | None]) -> None:
         self._settings = settings
         #: Injected rather than reached for, because the transport belongs behind
         #: the image seam: this class writes files and computes paths, and a
         #: service that also made HTTP requests could not be tested without one.
+        #: Called with the source's name and the URL, because only the source
+        #: that found an instance can fetch its preview.
         self._fetch = fetch
 
-    def store(self, url: str) -> str | None:
-        """Cache the bytes at `url`, returning the path relative to `ART_ROOT`.
+    def store(self, provider: str, url: str) -> str | None:
+        """Cache the bytes at `url` from `provider`, returning the path relative to `ART_ROOT`.
 
         `None` means no local copy exists — the fetch failed, or returned
         nothing. The caller records the instance regardless, with its source-side
@@ -181,7 +196,7 @@ class PreviewCache:
         except OSError as exc:
             return self._absent(url, f"the cache could not be read: {exc}")
         try:
-            payload = self._fetch(url)
+            payload = self._fetch(provider, url)
         except Exception as exc:  # prawduct:allow prawduct/broad-except -- a provider fault must not fail the work
             # The seam promises `None` for a preview it cannot get, and a
             # provider that raises something else instead — an httpx URL error is
@@ -318,6 +333,16 @@ def browser_preview(path: Path) -> RenderedPreview | None:
     narrow race where the file went away between the listing and the request.
     """
     frame = _rendered(path, max_edge=BROWSER_MAX_EDGE_PX, quality=BROWSER_JPEG_QUALITY)
+    return None if frame is None else RenderedPreview(data=frame.data, media_type=PREVIEW_MEDIA_TYPE)
+
+
+def enlarged_preview(path: Path) -> RenderedPreview | None:
+    """A cached preview at its own size, for the picture a card enlarges in place.
+
+    `browser_preview`'s twin with the larger box, and absent for the same
+    reasons in the same way.
+    """
+    frame = _rendered(path, max_edge=ENLARGED_MAX_EDGE_PX, quality=BROWSER_JPEG_QUALITY)
     return None if frame is None else RenderedPreview(data=frame.data, media_type=PREVIEW_MEDIA_TYPE)
 
 

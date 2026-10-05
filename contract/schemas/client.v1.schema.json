@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/brookstalley/arrt/contract/schemas/client.v1.schema.json",
+  "title": "Client document, major 1",
+  "description": "What GET /client answers: the client the presented token belongs to, and the walls assigned to it, each with the name of the client's output it is shown on. A client polls it about every 30 seconds with If-None-Match and starts or stops a worker per wall from it. Only walls assigned to this client are listed. Additive keys are allowed. Semantics are in .prawduct/artifacts/player-contract.md § Transport and clients.md.",
+  "type": "object",
+  "required": [
+    "client_id",
+    "name",
+    "walls"
+  ],
+  "properties": {
+    "client_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "name": {
+      "description": "The curator's name for this client.",
+      "type": "string",
+      "minLength": 1
+    },
+    "walls": {
+      "description": "Every wall assigned to this client, in the order the server lists walls. Empty is an ordinary state: a client nobody has given a wall to yet.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "wall_id",
+          "name",
+          "output"
+        ],
+        "properties": {
+          "wall_id": {
+            "description": "The id the per-wall routes take.",
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "output": {
+            "description": "The name of the client's output this wall is shown on, as the client reported it in its heartbeat (hdmi-a-1, frame). The server holds only the name.",
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

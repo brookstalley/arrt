@@ -43,19 +43,29 @@ import logging
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any, Final
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 import httpx
 
-from arrt.library.discovery.browse import BrowseQuery, CollectionBrowse, CollectionBrowseFailure, OfferedGroup
-from arrt.library.discovery.images import (
+from arrt.library.sources import (
     DEFAULT_PREVIEW_MAX_BYTES,
+    AcquisitionMethod,
+    BrowseQuery,
+    CollectionBrowse,
+    CollectionBrowseFailure,
+    Declined,
+    FetchLocator,
+    Finder,
     FoundImage,
     ImageQuery,
-    ImageSearch,
     ImageSearchFailure,
+    OfferedGroup,
+    RightsStatus,
+    SourceClass,
+    SourceContext,
+    SourceParts,
+    SourcePlugin,
 )
-from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
 
 log = logging.getLogger(__name__)
 
@@ -207,7 +217,7 @@ def _museum_client(user_agent: str, client: httpx.Client | None) -> tuple[httpx.
     return http, {"AIC-User-Agent": user_agent}
 
 
-class ArticImageSearch:
+class ArticFinder:
     """Search the Art Institute's collection and fetch previews from it."""
 
     def __init__(
@@ -273,43 +283,6 @@ class ArticImageSearch:
             },
         )
         return found
-
-    def tile_url(self, url: str) -> str:
-        """The IIIF image service for the object `url` names.
-
-        The recorded URL is the object's identity — either the museum's own page
-        or its API link — and neither is something a tile fetcher can read. What
-        it needs is `{iiif_base}/{image_id}`, and `image_id` is a fact only the
-        collection holds, so this asks for it rather than deriving it.
-
-        The base comes from the same response, checked the same way previews'
-        does: a service move needs no release here, but the response cannot
-        redirect the fetcher off the museum's own host.
-
-        Failure is `ImageSearchFailure` — the same kind every other question this
-        client asks reports — so that reaching the museum stays this module's
-        vocabulary and the fetch path translates it into its own.
-        """
-        object_id = _object_id(url)
-        if object_id is None:
-            raise ImageSearchFailure(
-                f"{url!r} does not name an Art Institute object, so there is no collection record to ask for its image service."
-            )
-        payload = self._get(
-            f"{_OBJECT_URL}/{object_id}?fields=id,image_id",
-            what=f"look up the image service for object {object_id}",
-        )
-        data = payload.get("data")
-        image_id = _text(data.get("image_id")) if isinstance(data, dict) else ""
-        if not image_id:
-            # A real answer that carries no image: the museum holds the object and
-            # publishes no picture of it. Distinct from a failed lookup, and the
-            # difference matters to whoever reads the recorded failure.
-            raise ImageSearchFailure(
-                f"The Art Institute's record for object {object_id} carries no image_id, so the collection "
-                "publishes no image of it."
-            )
-        return f"{_iiif_base(payload.get('config')).rstrip('/')}/{image_id}"
 
     def fetch_preview(self, url: str) -> bytes | None:
         """The preview bytes, or `None` when they could not be got.
@@ -395,6 +368,75 @@ def _request(
     if not isinstance(payload, dict):
         raise failure(f"Could not {what}: the response was {type(payload).__name__}, not an object.")
     return payload
+
+
+class ArticReader:
+    """Read an Art Institute object's URL into its IIIF image service, for the tile fetcher.
+
+    The recorded URL is the object's identity, either the museum's own page or its
+    API link, and neither is something a tile fetcher can read. What it needs is
+    `{iiif_base}/{image_id}`, and `image_id` is a fact only the collection holds,
+    so this asks for it rather than deriving it.
+
+    The base comes from the same response, checked the same way previews' does: a
+    service move needs no release here, but the response cannot redirect the
+    fetcher off the museum's own host.
+    """
+
+    def __init__(self, *, user_agent: str, client: httpx.Client | None = None) -> None:
+        self._http, self._headers = _museum_client(user_agent, client)
+
+    def read(self, url: str) -> FetchLocator:
+        object_id = _object_id(url)
+        if object_id is None or not claims(url):
+            raise ImageSearchFailure(
+                f"{url!r} does not name an Art Institute object, so there is no collection record to ask for its image service."
+            )
+        payload = _request(
+            self._http,
+            self._headers,
+            "GET",
+            f"{_OBJECT_URL}/{object_id}?fields=id,image_id",
+            what=f"look up the image service for object {object_id}",
+            failure=ImageSearchFailure,
+        )
+        data = payload.get("data")
+        if not isinstance(data, dict) or str(data.get("id")) != object_id:
+            # Not the answer this asks for: no object record, or another object's.
+            # That is "could not be asked", never "no image", because a page that
+            # is not the page expected says nothing about what the museum holds.
+            raise ImageSearchFailure(
+                f"The Art Institute answered the lookup for object {object_id} without that object's record."
+            )
+        image_id = _text(data.get("image_id"))
+        if not image_id:
+            # A real answer that carries no image: the museum holds the object and
+            # publishes no picture of it. Distinct from a failed lookup, and the
+            # difference matters to whoever reads the recorded failure.
+            return FetchLocator.none(
+                f"The Art Institute's record for object {object_id} carries no image_id, so the collection "
+                "publishes no image of it."
+            )
+        return FetchLocator.tiles(f"{_iiif_base(payload.get('config')).rstrip('/')}/{image_id}")
+
+
+#: The hosts an Art Institute object URL is recorded under: the museum's own page,
+#: and its API link.
+_HOSTS: Final[frozenset[str]] = frozenset({"www.artic.edu", "artic.edu", "api.artic.edu"})
+
+
+def claims(url: str) -> bool:
+    """Whether `url` names an Art Institute object: its host is the museum's, and its path an artwork's.
+
+    The host is checked as well as the path, because `/artworks/123` is a path
+    any gallery site might use, and claiming another site's page would send its
+    fetch to the museum.
+    """
+    try:
+        host = (urlsplit(url).hostname or "").lower()
+    except ValueError:
+        return False
+    return host in _HOSTS and _object_id(url) is not None
 
 
 class ArticCollectionBrowse:
@@ -739,7 +781,7 @@ def _iiif_base(config: object) -> str:
     """Where this museum's image service lives, taken from the response but not blindly.
 
     Three callers now, which is why this no longer says "previews": a per-work
-    search and a browse both build preview URLs from it, and `tile_url` builds the
+    search and a browse both build preview URLs from it, and the reader builds the
     image service a tiled acquisition walks. All three fetch what it addresses, so
     the check below guards all three.
 
@@ -790,11 +832,34 @@ def build_image_search(
     user_agent: str,
     client: httpx.Client | None = None,
     preview_max_bytes: int = DEFAULT_PREVIEW_MAX_BYTES,
-) -> ImageSearch:
-    """The image provider a deployment gets. One museum today, by name."""
-    return ArticImageSearch(user_agent=user_agent, client=client, preview_max_bytes=preview_max_bytes)
+) -> Finder:
+    """The Art Institute's finder: what this plugin's factory provides, and what the live tests build directly."""
+    return ArticFinder(user_agent=user_agent, client=client, preview_max_bytes=preview_max_bytes)
 
 
 def build_collection_browse(*, user_agent: str, client: httpx.Client | None = None) -> CollectionBrowse:
-    """The collection a deployment supplements from. The same museum, asked differently."""
+    """The Art Institute's collection to browse, the same museum asked differently: for the factory and the live tests."""
     return ArticCollectionBrowse(user_agent=user_agent, client=client)
+
+
+def _create(context: SourceContext) -> SourceParts | Declined:
+    """The Art Institute's finder and collection, or why this deployment has neither.
+
+    `ARTIC_USER_AGENT` has no default: the API is open but asks callers to name
+    themselves and give a contact address, and sending someone else's identifier,
+    or a default pretending to be one, would misrepresent whoever runs this to a
+    third party. A deployment that has not set it never asks the museum.
+    """
+    user_agent = context.environ.get("ARTIC_USER_AGENT") or None
+    if user_agent is None:
+        return Declined("ARTIC_USER_AGENT is unset, and the Art Institute is never asked anonymously")
+    return SourceParts(
+        finder=build_image_search(user_agent=user_agent, preview_max_bytes=context.preview_max_bytes),
+        reader=ArticReader(user_agent=user_agent),
+        collection=build_collection_browse(user_agent=user_agent),
+    )
+
+
+#: What the `artic` entry point names. Written for interface major 1 as a
+#: literal, as a plugin outside this repository would write it.
+PLUGIN: Final[SourcePlugin] = SourcePlugin(api_major=1, create=_create, claims=claims)

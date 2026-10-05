@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import threading
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import Decimal
 
 from arrt.library.discovery.browse import BrowseQuery, CollectionBrowseFailure, OfferedGroup
@@ -35,6 +35,10 @@ from arrt.library.discovery.engine import (
     WorkListRequest,
 )
 from arrt.library.discovery.images import FoundImage, ImageQuery, ImageSearchFailure
+from arrt.library.registry import RegistryArtist, RegistryTopicsOf, RegistryUnavailable
+from arrt.library.sources.artic import claims as artic_claims
+from arrt.library.sources.loading import SourceRoster
+from arrt.library.sources.reading import FetchLocator
 from arrt.persistence.discovery_records import SpendCategory
 from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
 
@@ -170,7 +174,7 @@ def an_image(
 
 
 @dataclass
-class FakeImageSearch:
+class FakeFinder:
     """A museum that holds whatever it was built to hold.
 
     Keyed by the title asked for rather than answering one fixed list, because
@@ -188,25 +192,11 @@ class FakeImageSearch:
     fails_for: set[str] = field(default_factory=set)
     asked: list[str] = field(default_factory=list)
     fetched: list[str] = field(default_factory=list)
-    resolved: list[str] = field(default_factory=list)
     preview_bytes: bytes | None = b"\xff\xd8\xff\xe0 jpeg"
 
     @property
     def provider(self) -> str:
         return "artic"
-
-    def tile_url(self, url: str) -> str:
-        """The image service for an object, as the real client derives one.
-
-        Mirrors the real shape rather than echoing the argument: the whole point
-        of this seam is that the URL a source records and the URL the tiles come
-        from are *different strings*, and a stand-in that returned its input
-        would make a caller that skipped the resolution step pass.
-        """
-        self.resolved.append(url)
-        if self.unreachable:
-            raise ImageSearchFailure(f"could not reach the collection to resolve {url!r}")
-        return f"https://www.artic.edu/iiif/2/{abs(hash(url)) % 100000}"
 
     def find_images(self, query: ImageQuery) -> Sequence[FoundImage]:
         self.asked.append(query.title)
@@ -224,10 +214,32 @@ class FakeImageSearch:
         return self.preview_bytes
 
 
+@dataclass
+class FakeReader:
+    """A reader that answers as the Art Institute's does: an object URL to its image service.
+
+    Mirrors the real shape rather than echoing the argument: the whole point of a
+    reader is that the URL a source records and the URL the tiles come from are
+    *different strings*, and a stand-in that returned its input would make a
+    caller that skipped the reading step pass. `answer` replaces the tiles locator
+    when a test needs a direct image, or a page that shows none.
+    """
+
+    unreachable: bool = False
+    answer: FetchLocator | None = None
+    asked: list[str] = field(default_factory=list)
+
+    def read(self, url: str) -> FetchLocator:
+        self.asked.append(url)
+        if self.unreachable:
+            raise ImageSearchFailure(f"could not reach the collection to read {url!r}")
+        return self.answer or FetchLocator.tiles(f"https://www.artic.edu/iiif/2/{abs(hash(url)) % 100000}")
+
+
 def a_decodable_jpeg(width: int = 1200, height: int = 900) -> bytes:
     """Preview bytes a museum could really have served, and that Pillow can open.
 
-    `FakeImageSearch.preview_bytes` defaults to a stub that is *not* decodable,
+    `FakeFinder.preview_bytes` defaults to a stub that is *not* decodable,
     which is right for tests about caching bytes and wrong for every test about
     showing them: a preview that will not decode produces no image block, so a
     review surface would look broken for a reason that is the fixture's.
@@ -245,7 +257,7 @@ def a_museum_holding(
     *titles: str,
     sizes: dict[str, tuple[int, int]] | None = None,
     held_as: dict[str, str] | None = None,
-) -> FakeImageSearch:
+) -> FakeFinder:
     """A provider holding one instance of each named work, with showable previews.
 
     Sizes default to a gallery-grade scan, because most tests want a work that
@@ -266,7 +278,7 @@ def a_museum_holding(
         width, height = measured.get(title, (6000, 4500))
         slug = title.lower().replace(" ", "-")
         holdings[title] = (an_image(spelled.get(title, title), url=f"https://artic.edu/{slug}", width=width, height=height),)
-    found = FakeImageSearch(holdings=holdings)
+    found = FakeFinder(holdings=holdings)
     found.preview_bytes = a_decodable_jpeg()
     return found
 
@@ -394,3 +406,171 @@ def a_billed_failure(message: str = "The model returned no usable answer.") -> C
             ),
         ),
     )
+
+
+class FakeRegistry:
+    """A `Registry` answering from tables, which remembers what it was asked.
+
+    `artists` maps a QID to the `RegistryArtist` `artist()` returns, and `works` a
+    QID to the `RegistryWork` `work()` returns; `failing` makes every question
+    raise `RegistryUnavailable`, which is how an outage reaches the page.
+    """
+
+    def __init__(
+        self,
+        *,
+        items=None,
+        creators=None,
+        people=None,
+        artists=None,
+        extra_works=None,
+        works=None,
+        matches=None,
+        similar=None,
+        missing=None,
+        failing=False,
+        topics=None,
+        topic_works=None,
+        topic_artists=None,
+        topics_found=None,
+        work_topics=None,
+        artist_topics=None,
+        pages=None,
+    ):
+        self.items = items or {}
+        #: QID → the work pages `pages_about` answers; an absent QID has none.
+        self.pages = pages or {}
+        self.pages_asked: list[str] = []
+        self.creators = creators or {}
+        self.people = people or {}
+        self.artists = artists or {}
+        #: Works `artist()` lists only when asked to include them by QID: the
+        #: held ones beyond the most renowned.
+        self.extra_works = extra_works or {}
+        #: QID → `RegistryWork`, what `work()` answers; an absent QID is an item
+        #: the registry does not have.
+        self.works = works or {}
+        #: The words searched, joined by a space → the `RegistryWorkMatch`es
+        #: `works_matching` answers; anything else finds nothing.
+        self.matches = matches or {}
+        #: QID → the `RegistrySimilar`s `similar_to` answers.
+        self.similar = similar or {}
+        self.similar_asked: list[str] = []
+        #: QIDs `label_of` answers None for: items the registry does not have.
+        #: Every other QID exists, named by whatever table here knows it.
+        self.missing = set(missing or ())
+        self.matched: list[tuple[str, bool]] = []
+        self.limits: list[int] = []
+        self.failing = failing
+        self.searched: list[str] = []
+        self.asked_about: list[str] = []
+        self.works_asked: list[str] = []
+        #: QID → the `RegistryTopic` `topic()` answers; absent is no such item.
+        self.topics = topics or {}
+        #: Topic QID → its `RegistryTopicWork`s, and → its `RegistrySimilar` artists.
+        self.topic_works_of = topic_works or {}
+        self.topic_artists_of = topic_artists or {}
+        #: Typed text → the `RegistryTopic`s `topics_named` finds.
+        self.topics_found = topics_found or {}
+        #: Work QID, and artist QID → the `RegistryTopicRef`s `topics_of` answers.
+        #: Mutable, so a test can change the registry's mind between sweeps.
+        self.work_topics = work_topics or {}
+        self.artist_topics = artist_topics or {}
+        #: Each `topics_of` call: the work QIDs and the artist QIDs asked about.
+        self.topics_asked: list[tuple[tuple[str, ...], tuple[str, ...]]] = []
+        self.topic_sections_asked: list[tuple[str, str]] = []
+
+    def _check(self):
+        if self.failing:
+            raise RegistryUnavailable("Wikidata answered HTTP 503.")
+
+    def works_by_identifier(self, scheme, values):
+        self._check()
+        return {value: frozenset(self.items[(scheme, value)]) for value in values if (scheme, value) in self.items}
+
+    def creators_of(self, work_qids):
+        self._check()
+        return {qid: frozenset(self.creators[qid]) for qid in work_qids if qid in self.creators}
+
+    def people_named(self, name):
+        self._check()
+        self.searched.append(name)
+        return self.people.get(name, [])
+
+    def artist(self, qid, *, works, holdings, include=()):
+        """The configured artist, with any `extra_works` the caller asked to include appended."""
+        self._check()
+        self.asked_about.append(qid)
+        known = self.artists.get(qid, RegistryArtist(qid=qid))
+        listed = {entry.qid for entry in known.works}
+        added = tuple(self.extra_works[extra] for extra in include if extra in self.extra_works and extra not in listed)
+        return replace(known, works=known.works + added)
+
+    def works_matching(self, words, *, prefix, limit):
+        self._check()
+        self.matched.append((" ".join(words), prefix))
+        self.limits.append(limit)
+        return self.matches.get(" ".join(words), [])[:limit]
+
+    def label_of(self, qid):
+        self._check()
+        if qid in self.missing:
+            return None
+        known = self.artists.get(qid) or self.works.get(qid)
+        return getattr(known, "name", None) or getattr(known, "title", None) or qid
+
+    def similar_to(self, qid, *, limit):
+        self._check()
+        self.similar_asked.append(qid)
+        return self.similar.get(qid, [])[:limit]
+
+    def work(self, qid):
+        self._check()
+        self.works_asked.append(qid)
+        return self.works.get(qid)
+
+    def topic(self, qid):
+        self._check()
+        self.topic_sections_asked.append(("topic", qid))
+        return self.topics.get(qid)
+
+    def topic_works(self, topic, *, limit):
+        self._check()
+        self.topic_sections_asked.append(("works", topic.qid))
+        return self.topic_works_of.get(topic.qid, [])[:limit]
+
+    def topic_artists(self, topic, *, limit):
+        self._check()
+        self.topic_sections_asked.append(("artists", topic.qid))
+        return self.topic_artists_of.get(topic.qid, [])[:limit]
+
+    def topics_named(self, text):
+        self._check()
+        return self.topics_found.get(text, [])
+
+    def topics_of(self, work_qids, artist_qids):
+        """Each QID asked about that the tables give topics, as the real client answers: one with none is absent."""
+        self._check()
+        self.topics_asked.append((tuple(work_qids), tuple(artist_qids)))
+        return RegistryTopicsOf(
+            works={qid: tuple(self.work_topics[qid]) for qid in work_qids if self.work_topics.get(qid)},
+            artists={qid: tuple(self.artist_topics[qid]) for qid in artist_qids if self.artist_topics.get(qid)},
+        )
+
+    def pages_about(self, qid):
+        self._check()
+        self.pages_asked.append(qid)
+        return sorted(set(self.pages.get(qid, ())))
+
+
+class NothingWanted:
+    """A `WantedItems` for a test about something else: no wanted work names any item."""
+
+    def wanted_qids(self) -> frozenset[str]:
+        return frozenset()
+
+
+def a_roster(*finders, collection=None) -> SourceRoster:
+    """The plugins a test's services are built over: these finders, this collection,
+    and the Art Institute's reader, as the shared `sources` fixture has it."""
+    return SourceRoster.of(finders=finders, collection=collection, readers={"artic": (artic_claims, FakeReader())})

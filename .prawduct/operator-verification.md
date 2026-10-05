@@ -10,6 +10,556 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Image sources on System › Status — added 2026-10-03
+
+**`build-plan-source-plugins.md` Chunk 01.** Visual change: yes.
+
+Checked by the builder on 2026-10-03 against the suites, including the browser
+suite with canned readings: the panel's sentences and the System badge. **Deployed
+to the NAS on 2026-10-03 as image `e51adfb`, then `4042fd0` with the review's fixes** (Chunk 05): `/api/health` reports
+`commons`, `artic` and `wikidata` loaded, with no faults. The startup journal was
+not read, because the container's logs need root on the NAS.
+
+- **Look at:** System › Status has an *Image sources* panel with one sentence per
+  plugin: "commons is loaded, with no faults since startup.", and the same for
+  artic and wikidata. The System badge shows no count for them.
+- **Worth an opinion:** whether a declined plugin belongs on this panel at all,
+  or only failed and faulting ones. It is shown so that "why is the Art Institute
+  missing" is answered where the operator looks.
+
+### ✅ No mat darker than L\* 15 — added 2026-10-03, VERIFIED 2026-10-03
+
+**`build-plan-mat-floor.md` Chunk 03.** Visual change: yes.
+
+**Looked at by the owner on 2026-10-03** on the deployed wall (image `bb021bb`):
+"Yep all good". At startup 10 works were queued and all 10 were re-chosen by the
+vision model, with no fallback. Afterwards every current mat (40) was at or above
+L\* 15, computed from its hex; the darkest was Albers's *Full*, `#1a2252` at
+L\* 15.3. The owner did not say which works they looked at.
+
+Checked by the builder on 2026-10-03 against the suite only: the floor in the
+engine, the re-choice through the queue, and the corpus seed with its 10 works
+below the floor. Not on your catalogue or your wall.
+
+- **Before deploying:** the NAS's OpenRouter key is set and has credit. Without
+  it, the works below the floor get the mechanical colour (lifted to L\* 15), and
+  a mat at the floor is never chosen again by itself.
+- **After deploying:** the startup journal carries `preparation.mat_rechoice_queued`
+  with the number of works queued (10 in the 2024 corpus), then queue passes
+  choosing each one's mat, one paid call each (two when the model answers below
+  the floor first). Every other canvas is redrawn once, free, the next time its
+  work is prepared, because canvases now record the colour they were painted in.
+- **Look at:** the works that had near-black mats: Kelly's *Red Yellow Blue
+  White and Black II*, Hokusai's *Cranes*, Rothko's *Untitled (Purple, White, and
+  Red)*, Albers's *Full*, Johns's *Corpse and Mirror II* and *Target*, Vasarely's
+  *ION 11*, Kline's *Painting*, Egreja's still life, Still's *PH-129*. No mat should
+  read as the screen failing to show black.
+- **Rolling back:** the old image and a re-seed would put the dark 2024 colours
+  back. Without a re-seed the re-chosen mats stay, under either image.
+
+### ✅ The mat takes the work's shape, with black beyond it — added 2026-10-02, VERIFIED 2026-10-03
+
+**`build-plan-mat-follows-work.md` Chunk 03.** Visual change: yes.
+
+**Looked at by the owner on 2026-10-03** on the deployed wall (image `5469c8b`,
+all 40 canvases recomposed at startup): "Mat looks good". The owner did not say
+which works they looked at. The grey and near-black mats that are now inside
+black are #183, not this entry.
+
+Checked by the builder on 2026-10-02 against four synthetic sources composed at
+the 50" panel's geometry (1.5" mat: 132 px top and sides, 152 px bottom): a
+square, a 4:7, a 3:1 panorama and a 16:9. Each mat hugs its work and the rest is
+black, centred; a 16:9 work gets about 1.4" of black at each side, because its
+matted shape is a little narrower than the screen. Not on your catalogue.
+
+- **Before deploying:** set `MAT_WIDTH_INCHES=1.5` in the NAS's environment, or
+  remove the line. The `.env` was copied from `.env.example`, which set 2.5
+  explicitly, and an explicit value overrides the new default.
+- **After deploying:** the startup journal carries `preparation.recompose_queued`
+  with the number of canvases queued, then queue passes recomposing them one at a
+  time. The old canvas stays on the wall until each is redrawn.
+- **Look at:** a square and a tall work on the HDMI monitor. The mat is the
+  work's shape and 1.5" wide (deeper below), and everything else is black.
+
+### ✅ Wikidata identity's one *Edit*; Library › Topics in columns — added 2026-10-02, VERIFIED 2026-10-04
+
+**`build-plan-library-screens.md` Chunk 05 (#174, #175).** Visual change: yes.
+
+**Looked at by the owner on 2026-10-04** on a server over a copy of the dev
+catalogue, with pictures: "Screens are good". The owner gave no answer to the
+questions marked *worth an opinion* below, so the built choices stand.
+
+Checked by the builder on 2026-10-02 in the browser suite's own server, and on
+a copy of the dev catalogue at 1440 px and 390 px.
+
+- **An Artist or Work page** shows "Wikidata: Q… (matched)" and one quiet
+  **Edit**. Edit reveals the Q… field, *Look up* and *There is none*; nothing
+  else shows at rest.
+- **Library › Topics** lays each kind out in columns, by name, each count beside
+  its name: several columns at desktop width, one on a phone.
+
+### ✅ Library › Artists: surname order, posters and a table — added 2026-10-02, VERIFIED 2026-10-04
+
+**`build-plan-library-screens.md` Chunk 04 (#173).** Visual change: yes.
+
+**Looked at by the owner on 2026-10-04** on a server over a copy of the dev
+catalogue, with pictures: "Screens are good". The owner gave no answer to the
+questions marked *worth an opinion* below, so the built choices stand.
+
+Checked by the builder on 2026-10-02 at 1440 px and 390 px against a copy of
+the dev catalogue (31 artists, no masters, so every card says *No picture*),
+and in the browser suite with pictures served.
+
+- **Order:** Albers, Andrieu, Brancusi, Calder, Callahan, Curry, Dalí, Demuth…
+  by surname, the stored family name where the catalogue has one, else the last
+  word once *the Elder* / *the Younger* / *Jr.* is set aside. *Moche* sorts under
+  M. **Worth an opinion:** *Katsushika Hokusai* sorts under H, as Western
+  catalogues shelve him, though Katsushika is the family name; a stored family
+  name would move him.
+- **Posters** (the default): a card per artist pictured by their first accepted
+  work, uncropped, with life dates and how many works; several to a row on a
+  desktop, two on a phone. **View → Table** shows the old table in the same
+  order, and the choice stays in the address (`#artist?view=table`).
+- **Worth an opinion:** whether the first accepted work is the right picture
+  (the alternative is the most-shown or most-renowned one).
+
+### ✅ A work's mark: held, wanted and not held as image styles — added 2026-10-02, VERIFIED 2026-10-04
+
+**`build-plan-library-screens.md` Chunk 03 (#172).** Visual change: yes.
+
+**Looked at by the owner on 2026-10-04** on a server over a copy of the dev
+catalogue, with pictures: "Screens are good". The owner gave no answer to the
+questions marked *worth an opinion* below, so the built choices stand.
+
+Checked by the builder on 2026-10-02 in the browser suite's own server, with
+one work wanted and real pictures served: the Topic page (1280 px and 390 px),
+the search dropdown and the Artist page's *Their work* (1280 px). The Search
+results page and a work's *More by* were checked by the browser tests only, not
+by eye.
+On your catalogue: want a work in Review, pick its Wikidata item in Activity ›
+Wanted, then open a Topic, Artist or search that lists it.
+
+- **Wherever registry works are listed** (the typeahead, Search results, a
+  Topic's *Representative works*, an Artist's *Their work*, a work's *More
+  by*): ● *Held* with the library's own thumbnail; ◑ *Wanted*, with Wikidata's
+  picture under a dashed accent outline where there is one; ◐ *Not held · Image
+  found*, Wikidata's picture under diagonal hatching; ○ *Not held* (*No image
+  known* on a Topic) with none. A picture that fails to load is dropped, leaving
+  glyph and word.
+- **This is a first try, to iterate on**, as you asked: the three styles are one
+  block in `app.css` (`.work-pic-held`, `-wanted`, `-not-held`). Say which reads
+  clearest and what to change.
+- **Worth an opinion:** the hatching is strong (it reads at a glance, and hides
+  more of the picture); in the search dropdown a pictured row is taller than
+  its neighbours; and on a phone the Topic and Artist tables scroll sideways
+  and the state column starts off screen (it did before this change; the Artist
+  page hides the pictures on a phone, the Topic page does not).
+
+### ✅ Artworks: Theme in the Filter rail, and Select mode — added 2026-10-02, VERIFIED 2026-10-04
+
+**`build-plan-library-screens.md` Chunk 02 (#169).** Visual change: yes.
+
+**Looked at by the owner on 2026-10-04** on a server over a copy of the dev
+catalogue, with pictures: "Screens are good". The owner gave no answer to the
+questions marked *worth an opinion* below, so the built choices stand.
+
+Checked by the builder on 2026-10-02 at 1440 px and 390 px against a copy of
+the dev catalogue (no masters, so tiles show the missing-image sentence), with
+a second theme, *Winter*, of four works added to the copy. Regenerate with a
+server on a copy (`ART_ROOT=<copy> CURATION_PORT=18767 OPENROUTER_API_KEY=
+uv run python -m arrt` in `arrt/`) and `page.screenshot` of `#collection`, with
+*Select* pressed, and of `#collection?theme=<id>`.
+
+- **The rail** opens with a *Theme* group: every theme with its count, as the
+  facets carry theirs. The chosen theme is pressed; a theme the other filters
+  empty is greyed and still listed. The old *Themes* list, its *Open* buttons
+  and *Manage themes* are gone (themes are reached from Library › Themes).
+- **A theme and a facet together** narrow the grid together; the heading reads
+  "*n* works in “Winter”", and the facet counts are about Winter's works.
+- **Outside *Select*,** no tick and no theme picker anywhere. **Select** shows
+  ticks on every tile and an action bar: "*n* selected", a labelled *Theme*
+  picker, **Add 2 works to All works**, and, with a theme filtered, **Remove 1
+  work from Winter**. Pressing Select again hides the ticks and drops them.
+- **Worth an opinion:** the Select toggle's pressed state is only a bolder
+  border, which may be too quiet; on a phone the Theme group scrolls sideways
+  like the facet groups, so a long theme name runs off the edge; and with a
+  theme filtered, the facet groups list every zero-count value disabled — the
+  rail's rule, but a long list of zeros under a small theme.
+
+### An HDMI wall on its screen — added 2026-10-02
+
+**`build-plan-clients.md` Chunk 04.** Visual change: yes.
+
+Checked by the builder and the owner on 2026-10-02, on the Pi's HDMI-A-1 and a
+4K LG, with the built output run by hand as `tvpi` against three renders (two
+3840×2160 Frame renders and a 1200×2000 portrait); the measurements are in
+`hdmi-output-findings.md`. **Looked at by the owner on 2026-10-02 with the
+deployed Player** ("wall is showing"): the wall rotating from the NAS on the
+monitor. The owner's look raised the mat's shape (#189) and grey mats (#183),
+not the output. **Not yet looked at:** a real wall rotating on the monitor, fitted whole with nothing
+cropped, a portrait work with bars at the sides; the monitor switched off and on
+(or its cable pulled) and the picture back within a poll; and, with the Player
+stopped, the text console in its place.
+
+### Settings › Clients, and which client shows each wall — added 2026-10-02
+
+**`build-plan-clients.md` Chunk 02.** Visual change: yes.
+
+Checked by the builder on 2026-10-02 at 1280 px and 390 px in the browser
+suite's own server: no client; a client that had reported two outputs and
+showed one wall beside one with no token and no report; the token shown once
+after an add; and the Walls screen with one wall assigned and two not. Not on
+your catalogue. Regenerate with
+`cd arrt && uv run pytest -m browser -n0 tests/browser/test_the_clients.py tests/browser/test_the_walls.py -k client`
+and a `page.screenshot` of your own.
+
+- **Settings › Clients** is under Settings, after Taste. *Add a client* takes a
+  name and issues its token in the same act: the token appears once, selected in
+  a read-only field, with a sentence saying it is the only time and to set
+  `CLIENT_TOKEN` and `SERVER_URL` in the Player's settings (the address is the
+  one your browser used — check it is the one the Pi reaches). Reload, and it is
+  gone.
+- **Each client** says when its token was issued (or that it has none), its last
+  report's age, its outputs as a table (Output, Kind, Connected, Screen), the
+  walls it shows with **Unassign**, an **Assign a wall** row (a picker of reported
+  outputs, the free one first; a text field with `hdmi-a-1` as placeholder when
+  nothing is reported), and **Rename**, **Rotate the token** / **Issue a token**,
+  **Remove**. Rotate and Remove ask first; Remove names the walls left without a
+  client.
+- **The Walls screen** says under each wall's title "Shown by pi4 on hdmi-a-1",
+  or "No client shows this wall." with a link to Settings › Clients.
+- **To look at:** whether the outputs table, which scrolls sideways inside its
+  panel on a phone, reads well enough there; and whether adding a client and
+  issuing its token in one act is what you want, rather than two steps.
+
+### Want and Forget, Activity › Wanted, and the Wikidata picker — added 2026-10-02
+
+**`build-plan-after-review.md` Chunk 05.** Visual change: yes.
+
+Checked by the builder on 2026-10-02 at 1280 px and 390 px in the browser
+suite's own server, with two works wanted through the service and the picker's
+matches stubbed from the live answer for *Lobster Telephone*. Regenerate with
+`cd arrt && uv run pytest -m browser -n0 tests/browser/test_wanted.py` and a
+`page.screenshot` of your own.
+
+- **A review card whose search found nothing** shows **Want** and **Forget**
+  where Accept and Reject were. Want repaints the card `◑ wanted`, says "It
+  waits in Activity › Wanted…", and leaves only Forget.
+- **Activity › Wanted** appears in the sidebar, with its count, once a work is
+  wanted. The page: "*n* works wanted", a sentence that searching spends nothing
+  and why a work with no item is offered a pick, **Search all**, then a table of
+  Work — Artist, Why (*No scan found* or *1 scan turned down*), Wikidata (the
+  item, or *No item*), From (*The search*), and **Search again** / **Forget**.
+- **Search again on a work with no item** opens *Which is <title>?* above the
+  table: each match as **This one**, title, maker, item, and whether Wikidata
+  has a picture; then *None of these — search without an item*.
+- **To look at on your catalogue:** the seven no-scan works from the 16 August Dalí run. Want them, then
+  pick *Lobster Telephone*'s item (Q2990594) and search again; and whether the
+  picker's bulleted list reads well on a phone.
+
+
+### Where an accepted work's image stands: the Work page, Review, Activity › Queue — added 2026-10-02
+
+**`build-plan-after-review.md` Chunk 02.** Visual change: yes.
+
+Checked by the builder on 2026-10-02 at 1280 px and 390 px in the browser
+suite's own server (the seeded works plus two written into the queue's table),
+not on your catalogue, and with no worker running. Regenerate with
+`cd arrt && uv run pytest -m browser -n0 tests/browser/test_acquisition_states.py`
+and a `page.screenshot` of your own.
+
+- **Work page, *The master image*:** a work with no image says
+  `◌ queued` and "Waiting its turn to be fetched…", with no button; one the
+  queue gave up on says `✗ gave up`, "Gave up after 4 tries: <why>. Nothing tries
+  again until you retry.", and **Retry**, which repaints it to queued. A failed
+  try says "Try 1 of 4 failed: <why> It tries again at <date, time>." with
+  **Retry now**. On a phone the sentence wraps beside the badge and Retry sits
+  beneath.
+- **Activity › Queue:** below the searches, *Fetching images (n)* is a table of
+  Work, State, What happened, in the order the queue will try them. A paused
+  queue says "Every fetch is paused: <why> <remedy>" above the table.
+- **Review:** an accepted card says the same line under its badges.
+- **To look at on your catalogue:** whether the repeated "Waiting its turn…"
+  sentence on every queued row of the Queue reads as noise with a long backlog,
+  and how *fetching* reads while a real tiled fetch runs (no test drives a live
+  fetch).
+
+
+### A Get reviewed on its own page, wide, with its scans readable — added 2026-10-02
+
+**`build-plan-topics-and-destinations.md` Chunk 07.** Visual change: yes.
+
+Checked by the builder on 2026-10-02 in the browser suite's own server, with
+stubbed payloads and stand-in pictures (flat colour), not on your catalogue.
+Regenerate the same views with
+`cd arrt && uv run pytest -m browser -n0 tests/browser/test_reviewing_a_get.py`
+and a `page.screenshot` in a test of your own; no images are committed.
+
+- **1280 px.** A finished Get of *The Magpie*: the run's sentence and costs,
+  then *Works (1)* and "1 work you chose.", then the card — the picture in the
+  left two-fifths, and on the right the title, artist, **3,840 × 2,604 px**, the
+  badges (◇ you chose · ● the run found an image · ● native, no inches), the
+  Wikidata item, *Why*, *Accept*, *Reject*. No *Review these works* and no work
+  table. With *Scans* open, a table across the card's full width: Scan,
+  Resolution, Provider, Rights, Confidence, Chosen, Actions, one row a scan, and
+  under each its *Why this one* and *Where it lives*. No label or button wraps;
+  the card measured 811 px tall with two scans open (the owner's was about
+  7,000). Nothing wider than the screen. Clicking the picture opened it over the
+  page in a dialog with *Close*; Escape, *Close* and a click outside each shut it
+  and left the address alone.
+- **375 px.** One column: the picture above the facts. The Scans table scrolls
+  sideways inside the card, and the sentences under each scan stay on screen
+  while it does. Nothing wider than the screen.
+- Artworks, a work's page and a theme's page show the fit verdict's word alone.
+
+For you:
+
+1. **On your catalogue, a Get with a few works**: is one work to a row right, or
+   too tall to judge many in a sitting? (`#review/<get>` shows the same cards.)
+2. **The enlarged picture** is the largest preview the server holds: 843 px wide
+   from the Art Institute, 960 from Commons. Big enough to judge a scan by?
+3. **The sentence a run writes about a scan** now says "It is 3,840 × 2,604 px,
+   enough to fill the artwork box" rather than inches, for runs from now on.
+   Older runs keep the sentence they wrote.
+
+### Library › Topics and the Topic page — added 2026-10-02
+
+**`build-plan-topics-and-destinations.md` Chunk 05.** Needs `WIKIDATA_USER_AGENT`
+set; without it both pages say topics need it.
+
+Checked by the builder on 2026-10-02 in the browser suite's own server, with a
+fake Wikidata, not on your catalogue, at 1280 px and 375 px, nothing wider than
+the screen. Topics, under Artworks after Themes, read *Find a topic*, then
+Periods (*16th century · 2 works*), Movements, Subjects (*winter · 1 work*) and
+Media, each kind with none saying so. Finding `impressionism` listed two
+*Impressionism*s told apart by Wikidata's description. The *16th century* page
+showed its kind, description and Wikidata link, *In your library (2)* as cards,
+then *Works from 1501–1600* (● Held, ◐ Image found, ○ No image known; no box on
+the held row), *Add to* already on *16th century (new theme)* with no name field showing (since Chunk 06), and
+*Artists*. At 375 px the works table scrolls sideways inside its panel, as the
+Artist page's does. S12's path was driven through the API on a copy of your
+catalogue on 2026-10-02 (16th century, three works into a new theme *16th
+century*, accepted: in it and not in *All works*), so what is left is the look.
+For you:
+
+1. **A period's heading.** Its works are headed *Works from 1501–1600* rather
+   than *Representative works*, because they are matched by date alone. Every
+   period, centuries included. Right?
+2. **The typeahead.** Typing a topic's name offers *Topics* (yours) after your
+   works, and *Wikidata: topics* after Wikidata's works, each with Wikidata's
+   description. Useful, or too much in the dropdown?
+3. **The titles look like buttons** in the works table and the topic lists, as
+   they do on the Artist page and the results page. Restyle them all as links?
+
+### Add to: where a Get's works go — added 2026-10-02
+
+**`build-plan-topics-and-destinations.md` Chunk 02.** Every Get control (the
+Artist page's *Their work*, the results page, a work's own page) gains *Add to*,
+and Queue, History, the run page and Review say where a run's accepted works go.
+
+Checked by the builder on 2026-10-02 in the browser suite's own server, not on
+your catalogue, at 1280 px and 375 px, nothing wider than the screen: *Add to*
+read *All works*, *Winter*, *New theme…*; choosing *New theme…* showed a *New
+theme's name* field, and a Get into *16th century* said "Getting 1 work into
+16th century. Open the Get" and left *16th century* chosen. At 375 px the select
+and *Get* sit on one line and the sentence wraps beneath. Driving a Get into a
+new theme on a copy of your catalogue was done through the API on 2026-10-02 (in
+that theme, not in *All works*, still not after a restart), so what is left is
+the look. For you:
+
+1. **The label.** *Add to* sits beside *Get*, and on the Artist page a second
+   select, *Theme*, adds works you already hold. Are the two told apart?
+2. **A name you type that is already a theme joins it**, ignoring capitals and
+   spaces, as a name a Topic page suggests will. Right for a typed name too?
+3. **With no default theme**, the first choice reads *No theme (none is the
+   default)* and the sentence says "into no theme". Clear enough?
+4. **History says *Into* for Ask runs too**, naming today's default, which may
+   not be the theme they joined if you have moved the default since.
+
+### To review, and its count in the sidebar — added 2026-10-02
+
+**`build-plan-get-and-ask.md` Chunk 06.** Activity's first page lists the runs
+holding works that found an image and wait for your verdict.
+
+Checked by the builder on 2026-10-02, on a copy of your catalogue at 1280 px and
+375 px, nothing wider than the screen: **your catalogue already had 16 works
+waiting**, 12 from the August "salvador dali" search and 4 from "robert
+delaunay's rhythm", plus the builder's 2-work Get, so To review listed three
+runs and the sidebar read *Activity 18 to review* and *To review 18*. For you:
+
+1. **Activity now opens To review**, not Queue, because it is first in the
+   section. Sonarr's Activity opens its Queue. Which would you rather land on?
+2. **The count's wording.** *18 to review* beside Activity and *18* beside To
+   review. Clear, or too much in the sidebar?
+3. ~~**The 16 old works.**~~ Answered 2026-10-02: leave them waiting, so To
+   review has real works to show while it is developed.
+
+### Ask, where Add New was — added 2026-10-02
+
+**`build-plan-get-and-ask.md` Chunk 05.** Ruling 3 dissolved Add New: acquiring
+is *Get* on a selection, and asking in words is *Ask*.
+
+Checked by the builder on 2026-10-02, on a copy of your catalogue at 1280 px and
+375 px, nothing wider than the screen: the sidebar reads Artworks › Ask, Themes,
+Artists; typing `seurat` in the search box offered *Ask about "seurat"*, which
+opened Ask with the words filled in and nothing started. The address is still
+`#discover`, as `#collection` is still Artworks, so bookmarks keep working. For you:
+
+1. **The name.** *Ask* for the intent box and the conversations, under Artworks.
+   Does it read as the place to ask for a direction?
+2. **The buttons.** They still say *Start the search* and *Talk it through first*;
+   the plan had proposed *Search now* and *Talk it through*. Keep or change?
+
+### Get, from the Artist page, the results page and a work's page — added 2026-10-02
+
+**`build-plan-get-and-ask.md` Chunk 04.** Needs `WIKIDATA_USER_AGENT` and
+`ARTIC_USER_AGENT` set. A Get fetches real images, so try it on a copy of your
+catalogue first if you would rather not add works to the real one by accident.
+
+Checked by the builder on 2026-10-02, on a copy of your catalogue at 1280 px and
+375 px, nothing wider than the screen: on Renoir's page, *Their work* offered a
+tick box on each of the 50 works you do not hold and none on *Seascape*, which you
+do. Ticking *Bal du moulin de la Galette* and *Luncheon of the Boating Party* and
+pressing *Get 2 works* said "Getting 2 works. Open the Get"; the run finished "2 of
+the 2 works you chose have an image", both from Commons at 3840 px, and Review
+showed each marked *◇ you chose* with its Wikidata item linked. For you:
+
+1. **Where the tick boxes are.** A *Get* column on the left of *Their work* and a
+   box beside each Wikidata work on the results page. Is ticking in a table the
+   right gesture, or would you rather select from cards with pictures?
+2. **No box on a held row.** The plan considered "Get 2 works (1 held, skipped)";
+   leaving held rows unticked seemed plainer. Agree?
+3. **What happens after.** The page stays put and says what started, with *Open
+   the Get*. Would you rather be taken to the run?
+
+### Similar artists, and setting a Wikidata item by hand — added 2026-10-01
+
+**`build-plan-one-world-search.md` Chunk 05.** Needs `WIKIDATA_USER_AGENT` set.
+
+Checked by the builder on 2026-10-01, on a copy of your catalogue at 1280 px and
+375 px, with no page errors and nothing wider than the screen: Rothko's *Similar
+artists* lead with Jackson Pollock (0 works with an image), then Bourgeois, de
+Kooning, Appel and Gorky; Dalí's list Picasso, Kahlo, Miró (● in your library),
+Lynch and Klee (●). On your held Rothko's Work page, looking up `q500985` named
+*The Hunters in the Snow* and offered *Use Q500985*, which was not pressed. For you:
+
+1. **Similar artists.** Wikidata calls some non-painters painters too (Captain
+   Beefheart for Rothko, André Breton for Dalí). Is the list useful as it is, or
+   should it wait for taste (plan 4)?
+2. **The image count.** Does "0 works with an image" beside Pollock tell you what
+   you need before you commit to him?
+3. **The control.** Edit → type an id → Look up → *Use Q…*. Is showing the item
+   first enough to stop a wrong one, and is *There is none* worded right?
+
+### The search results page — added 2026-10-01
+
+**`build-plan-one-world-search.md` Chunk 04.** Reached from the search box's last
+row, *All results for "…"*; Enter still opens Artworks.
+
+Checked by the builder on 2026-10-01, on a copy of your catalogue at 1280 px and
+375 px, with no page errors and nothing wider than the screen: `rothko` led with
+Mark Rothko as the top result, then your two Rothkos (● *In your library*), then
+twenty more from Wikidata; `salvador dali` the same for Dalí; `hunters` led with
+*The Hunters in the Snow*. For you:
+
+1. **Is the row the right way in?** You kept Enter on Artworks; this page is one
+   arrow-key and Enter away. Is that enough, or should it be more visible?
+2. **The three views.** Do *All*, *In your library* and *Not held* answer "do I
+   have it?" and "what exists?" without making you scroll?
+3. **The top result** appears only when the words name exactly one artist.
+
+### The search box covers Wikidata too — added 2026-10-01
+
+**`build-plan-one-world-search.md` Chunk 03.** Needs `WIKIDATA_USER_AGENT` set.
+
+Checked by the builder on 2026-10-01, on a copy of your catalogue with Playwright
+at 1280 px and 375 px, with no page errors and nothing wider than the screen:
+`dali` gave your Dalí and *Untitled (Desert Landscape)* first, then Wikidata's
+*Dalibor Chatrný* and five Dalí works, with *Image found* where there is one;
+`the persistence` gave *The Persistence of Memory* first; `hunters` gave Bruegel's
+*The Hunters in the Snow* first. Wikidata's rows arrived about half a second
+after the library's. For you:
+
+1. **Type the way you search.** Do Wikidata's rows help, or crowd the library's?
+   Five works and three artists is the cap; is it the right size?
+2. **What a row says.** *in your library*, *Image found*, or nothing. Enough to
+   choose by?
+3. **Enter** still opens Artworks filtered, as you ruled. Does that still feel
+   right with Wikidata in the list?
+
+### Pages for works and artists you do not hold — added 2026-10-01
+
+**`build-plan-one-world-search.md` Chunk 02.** Needs `WIKIDATA_USER_AGENT` set, as
+the Artist page entry below does. Nothing here migrates the catalogue.
+
+Checked by the builder on 2026-10-01, on a copy of your catalogue with Playwright
+at 1280 px and 375 px, with no page errors and nothing wider than the screen:
+`#work/Q500985` (*The Hunters in the Snow*) showed its picture, Bruegel, 1565, oil
+on panel, the Kunsthistorisches Museum with its number GG_1838, *Search museums
+for this work*, and 49 more of Bruegel's works below; `#artist/Q43270` showed
+Bruegel's dates and what Wikidata lists; your Rothko's QID (`#work/Q20270685`)
+and Rothko's (`#artist/Q160149`) were replaced by the library's own pages, and
+Back skipped them; *Rothko Chapel*, from Rothko's *Their work*, opened as a
+work you do not hold. Your held Rothko's own Work page was 333 px wider than a
+phone before this chunk (a source URL in a table); it now scrolls the table
+instead. For you:
+
+1. **From an artist you hold, open a work you don't** (Rothko › *Their work* ›
+   *Rothko Chapel*), then its artist, then back. Does it read as one world?
+2. **The page of a work you don't hold.** Is *Search museums for this work* the
+   right offer until *Get* exists (plan 2), and is *Not held · Image found* clear?
+3. **An artist you don't hold** (`#artist/Q43270`, Bruegel). It says nothing of
+   theirs is in your library; is that the first thing you want to know?
+
+### The Artist page, against your own catalogue — added 2026-10-01
+
+**`build-plan-ia-foundations.md` Chunks 03 and 04.** First, copy `catalogue.sqlite`
+somewhere safe: this branch's first start migrates it (new columns, a new table,
+*All works* marked the default), and a rollback across a migration is a restore
+from that copy. Set `WIKIDATA_USER_AGENT` in
+`.env` (`.env.example` says what Wikimedia asks for), stop the server, run
+`cd arrt && uv run python -m arrt.identify` once, then start the server again.
+On a copy of the catalogue this matched 22 of 40 works and 24 of 31 artists.
+
+Checked by the builder on 2026-10-01, on a copy, with Playwright at 1280 px and
+375 px: Library › Artists listed all 31; Rothko's page showed both held works,
+*Held* on both in *Their work* (listed after the 50 most renowned, which neither
+is among), *Image found* on the Rothko Chapel, and his holdings; Dalí's showed
+his one work and four *Image found*; typing `dali` offered *Salvador Dalí —
+artist* first; no page errors at either width. Screenshots are not committed;
+the command above regenerates the state they show. For you:
+
+1. **Rothko and Dalí, at desktop width and on a phone.** Do *In your library*,
+   *Their work* and *Holdings* answer "what is their work, and what do I have
+   of it?" The scenario is S11 (`user-scenarios.md`).
+2. **Pictures.** *Image found* is almost empty for both, because Wikidata
+   images are Commons files and both are in copyright. Is the page still worth
+   its place for them, or should *Their work* lead with what can be seen?
+3. **The titles Wikidata gives.** Your *Untitled (Desert Landscape)* is
+   "Atmospheric Chair" on Wikidata, and about a fifth of Rothko's top fifty
+   have no English title at all (shown as *No English title (Q…)*).
+4. **An unmatched artist** (Clyfford Still, Josef Albers): the page should say
+   Wikidata knows nothing for them yet, and the rest should work.
+
+### The default theme, and search without accents — added 2026-10-01
+
+**`build-plan-ia-foundations.md` Chunks 01 and 02.** Run it against your own
+catalogue (`cd arrt && uv run python -m arrt`). The first start marks your *All
+works* theme the default and records your 40 works as already placed, so nothing
+moves on its own.
+
+1. **Themes:** *All works* should carry ★ *default* in the accent colour, and
+   every other theme a *Make default* button. Make another the default and back:
+   the mark should move each time. Does the badge read as a role rather than a
+   warning?
+2. **Delete *All works*:** it should be refused, saying to make another theme
+   the default first.
+3. **Accept a work from a search:** it should appear at the end of *All works*.
+   Take it out of *All works*, restart the server, and archive and restore it:
+   it should stay out.
+4. **Search without accents:** type `dali` in the top bar. Your Dalí should be
+   offered before *Search museums*.
+
 ### The *arr sidebar, at desktop width and on a phone — added 2026-09-30
 
 **`build-plan-arr-navigation.md` Chunk 02.** The three tabs are now a Sonarr-style
@@ -40,7 +590,22 @@ arrt`) and open it in a browser.
    and Filter to put the rails away. Does the Table earn its place, and does
    hiding the rails give the grid enough back to be worth a button?
 
-### Switch the Pi to HTTP mode, and let it soak — added 2026-09-30
+### ~~Switch the Pi to HTTP mode, and let it soak~~ — retired 2026-10-02
+
+> **Retired 2026-10-02.** The Player it describes (`MANIFEST_SOURCE`,
+> `WALL_TOKEN`, rolling back with `MANIFEST_SOURCE=file`) is refused at start by
+> the client Player. Its checks were run on the client Player instead: the wall
+> pulls from the NAS, the server stopped across a rotation and the wall rotated on
+> from its cache (`build-plan-clients.md` Chunk 05; `deploy/README.md` § The
+> Player as a client of the NAS). Kept below as the record.
+
+> **Partly done, and changed, 2026-10-02.** The Pi pulled from the NAS in HTTP
+> mode on 2026-10-02 (`build-plan-nas.md` Chunk 05: manifest and 40 renders
+> cached, heartbeat seen on the NAS); the soak below did not run, because the
+> owner skipped the Frame and the Pi's player is stopped. Steps 1, 2 and 5 name
+> the retired wall token: a Player now connects as a client
+> (`CLIENT_TOKEN`, from Settings › Clients), and `build-plan-clients.md`
+> Chunk 05 replaces this soak on the Pi's HDMI output.
 
 **Wave 2b Chunk 04.** Postarr can now pull its wall from Arrt instead of
 reading the shared file. The file channel stays the default, and wave 3 retires
@@ -68,22 +633,12 @@ it only after this has run on the real wall. After wave 2b reaches the Pi:
 7. Let it run for a few days, then record here what the journal showed. To go
    back, set `MANIFEST_SOURCE=file` and restart.
 
-### The Player token panel on the Walls screen — added 2026-09-30
+### ~~The Player token panel on the Walls screen~~ — retired 2026-10-02
 
-**Wave 2b Chunk 03.** Each wall's section on the Walls screen ends with a
-**Player token** panel. Run `cd arrt && uv run python -m arrt` and open
-the Walls.
-
-1. **A wall with no token** says so and offers "Issue a Player token for …".
-2. **Issuing** shows the token once, in a read-only field with focus on it, and
-   says it is the only time. Reload the page: the token is gone, and the panel
-   says when one was issued. Is "shown once, in place" clear enough that nobody
-   reloads before copying it?
-3. **Rotating** asks first, naming the wall and the consequence (the current
-   Player stops until it has the new token). Cancel keeps the old token working.
-4. The panel sits below the manifest's three panels on every wall. Does a token
-   belong on the home screen at all, or on a wall's own settings once one
-   exists? It's here because the Walls screen is where walls are managed today.
+The per-wall token and its panel were retired by `build-plan-clients.md`
+Chunk 01: a Player now connects as a **client** with one token, issued on
+Settings › Clients (Chunk 02). Nothing here is left to check; the clients
+entry replaces it when Chunk 02 lands.
 
 ### Next and show_now move the wall without a sync — added 2026-09-30
 
@@ -928,7 +1483,8 @@ pleasant or a chore.
 **Free to look at if a run already exists**, which it will if you looked at the
 run half. Nothing on this screen spends — accepting, rejecting and choosing a
 scan are all local — with one exception named on the screen itself: "Look again
-for these" starts a re-search, which does spend.
+for these" starts a re-search, which reaches the museums but costs nothing (corrected
+2026-10-02: the screen said "it spends" until `build-plan-after-review.md` Chunk 05b).
 
 ```sh
 cd arrt

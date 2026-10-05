@@ -140,6 +140,16 @@
   box-sizing: border-box;
 }
 
+/* `hidden` means hidden, whatever display a class gives the element. The
+   browser's own rule for the attribute is the weakest there is, so `.stack`,
+   `.field` or any flex or grid class silently outranked it: the Artist page's
+   Wikidata form showed before its button was pressed, and the Get dialog's name
+   field needed a patch of its own. One rule here, rather than a patch per
+   class that is found the same way. */
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   background: var(--surface-0);
@@ -225,7 +235,7 @@ header.topbar {
 }
 
 /* The dropdown under the search box: library matches, then the row that hands
-   the words to Add New. `aria-selected` marks the highlighted option, and is
+   the words to Ask. `aria-selected` marks the highlighted option, and is
    what the styling follows, so the highlight a sighted reader sees is the one a
    screen reader announces. */
 .search-suggestions {
@@ -259,10 +269,23 @@ header.topbar {
   letter-spacing: 0.04em;
 }
 
-.search-suggestions-note {
+/* The library's note and the registry's look alike and are not alike: the first
+   says the library was not searched, which guards a paid search; the second only
+   that Wikidata was not, so tests and readers tell them apart by class. The
+   third, *Asking Wikidata…*, says only that more is coming. */
+.search-suggestions-note,
+.search-suggestions-registry-note,
+.search-suggestions-pending {
   padding: var(--space-2) var(--space-3);
   color: var(--text-muted);
   font: var(--text-sm) / 1.4 var(--font-ui);
+}
+
+/* A state mark after a row's words, in the dropdown and on the results page: set
+   apart from the title, and not a button, since the whole row is the choice. */
+.state-mark {
+  margin-left: var(--space-2);
+  cursor: inherit;
 }
 
 .search-suggestions [role="option"] {
@@ -410,6 +433,24 @@ nav.sidebar a[aria-current="page"] {
    sighted reader scans for. */
 .status-slot {
   margin-left: auto;
+}
+
+/* What waits for a verdict, beside Activity and To review. Neutral rather than the
+   warning colour System's badge uses: works to judge are the curator's next job,
+   not a fault. One line, so the words never wrap under the section's name. */
+.count-slot {
+  margin-left: auto;
+}
+
+.awaiting-count {
+  display: inline-block;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--text-strong);
+  font: 600 var(--text-xs) / 1.5 var(--font-ui);
+  white-space: nowrap;
 }
 
 .status-count {
@@ -578,6 +619,22 @@ h2 {
   text-decoration: underline;
 }
 
+/* A name that leads to its own page: an artist's, wherever a work names one.
+   Underlined, because unlike a card's title nothing else on its line says it
+   can be pressed. */
+button.link {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+}
+
 .card-artist,
 .card-meta {
   font-size: var(--text-sm);
@@ -643,8 +700,7 @@ h2 {
   color: var(--text-muted);
 }
 
-.facet-option,
-.theme-chip {
+.facet-option {
   appearance: none;
   font: var(--text-sm) / 1.3 var(--font-ui);
   color: var(--text);
@@ -660,8 +716,7 @@ h2 {
   width: 100%;
 }
 
-.facet-option:hover:enabled,
-.theme-chip:hover:enabled {
+.facet-option:hover:enabled {
   background: var(--surface-2);
   color: var(--text-strong);
 }
@@ -669,8 +724,7 @@ h2 {
 /* What is chosen is marked three ways — a boundary, a weight and
    `aria-pressed` — so the rail reads in greyscale and to a screen reader, not
    only to someone who can see the ground change. */
-.facet-option[aria-pressed="true"],
-.theme-chip[aria-pressed="true"] {
+.facet-option[aria-pressed="true"] {
   border-color: var(--border-strong);
   background: var(--surface-2);
   color: var(--text-strong);
@@ -684,36 +738,6 @@ h2 {
 .facet-option:disabled {
   color: var(--text-muted);
   cursor: not-allowed;
-}
-
-.theme-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-}
-
-.theme-chip {
-  border-color: var(--border);
-}
-
-/* The filter and the opener travel together and wrap together. A theme whose
-   name broke across the rail with its "Open" left on the line above would read
-   as belonging to the theme below it, and this is the one place two controls
-   share a subject. */
-.theme-chip-pair {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-/* Quieter than the chip beside it, because the chip is the act a curator
-   performs constantly and this is the one they perform occasionally. Never
-   hidden until hover: a control that appears on hover does not exist to a
-   keyboard, and this is the only route to a theme's own address. */
-.theme-chip-open {
-  font-size: var(--text-xs);
-  padding: 0 var(--space-1);
-  color: var(--text-muted);
 }
 
 /* The *arr page toolbar (`core/toolbar.js`): actions left, View, Sort and
@@ -830,6 +854,27 @@ h2 {
   gap: var(--space-2);
 }
 
+.selection-field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* Ticks show only in *Select* mode, Radarr's mass editor: outside it,
+   nothing on a tile reads as a way to change a theme. `display: none` takes
+   them out of the tab order too, so a keyboard meets them only once asked. */
+.collection:not(.selecting) .tile-select,
+.collection:not(.selecting) .row-select {
+  display: none;
+}
+
+.select-toggle[aria-pressed="true"] {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
 .selection-status {
   margin: 0;
   /* Reserved rather than sized to its words. The sentence changes as works are
@@ -864,6 +909,14 @@ h2 {
 /* The contact sheet: image only, uniform tiles, the words behind hover AND
    focus. A keyboard has no hover, so `:focus-within` is the rule and not a
    refinement of it. */
+
+/* Library › Artists' posters: narrower than a work's card, since a card here
+   is a name and a picture rather than a work to judge — two to a row on a
+   phone, as Lidarr's poster index is, rather than one card per screen. */
+.grid.artist-posters {
+  grid-template-columns: repeat(auto-fill, minmax(min(9rem, 100%), 1fr));
+  gap: var(--space-3);
+}
 
 .grid.contact-sheet,
 .grid-skeleton.contact-sheet {
@@ -1003,6 +1056,35 @@ h2 {
   }
 }
 
+/* The Artist page's list of what Wikidata holds. It scrolls sideways rather
+   than run past its panel, and on a phone the state badges wrap and drop their
+   thumbnail: the glyph and the word carry the state, as on every badge. */
+.artist-works {
+  overflow-x: auto;
+}
+
+/* Registry titles include single words longer than a phone is wide
+   (Dalí's *Galacidalacidesoxyribonucleicacid*). */
+.artist-works td:first-child {
+  overflow-wrap: anywhere;
+}
+
+/* A health reading's sentence names the file it read, and a path is one word
+   wider than a phone: broken only where the line would otherwise overflow. */
+.reading-sentence {
+  overflow-wrap: break-word;
+}
+
+@media (max-width: 40rem) {
+  .artist-works .badge {
+    white-space: normal;
+  }
+
+  .artist-works .work-pic {
+    display: none;
+  }
+}
+
 /* -- state indicators ------------------------------------------------------
    Every badge carries a glyph AND a word. The colour is the third signal, never
    the first. */
@@ -1023,6 +1105,86 @@ h2 {
 .badge .glyph {
   font-size: var(--text-sm);
   line-height: 1;
+}
+
+/* A registry work the library holds, and one Wikidata has a free image of. The
+   held one is a button to the work, so it reads as the stronger mark; both lead
+   with glyph and word, as every badge here does. */
+.badge-held {
+  background: var(--good-quiet);
+  border-color: var(--good);
+  color: var(--text-strong);
+  cursor: pointer;
+}
+
+.badge-image-found {
+  border-style: dashed;
+}
+
+.badge-wanted {
+  border-style: dashed;
+  border-color: var(--accent);
+}
+
+/* The Wikidata identity at rest: the item and one quiet Edit on a line. */
+.identity-now {
+  align-items: baseline;
+}
+
+.identity-now p {
+  margin: 0;
+}
+
+/* -- a work's state, as an image style ----------------------------------------
+   The owner's ruling on issue 172: held, wanted and not held are told apart first
+   by how the picture is drawn, then by glyph and word (`workState` in
+   `core/registry.js`). The three are defined together so they can be tuned
+   against one another, which is what the owner asked to iterate on. First
+   try: held plain, wanted with a dashed accent outline, not held under
+   diagonal hatching — recognisable, and never mistakable for held. */
+.work-pic {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.work-pic img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.work-pic-held {
+  outline: 1px solid var(--good);
+}
+
+.work-pic-wanted {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+}
+
+.work-pic-not-held::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--surface-1) 70%, transparent) 0 2px,
+    transparent 2px 5px
+  );
+}
+
+/* The theme new works join. Solid accent, because it is a standing role rather
+   than a state a curator is warned about; the star and the word carry it first. */
+.badge-default {
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: var(--accent);
 }
 
 .badge-native {
@@ -1066,6 +1228,15 @@ h2 {
   background: var(--surface-0);
 }
 
+/* A work the curator chose from Wikidata for a Get. Not asked of a model and not
+   offered by a collection, so it paints like neither: a double border, by weight
+   rather than colour, for the same reason as the pair above. */
+.badge-chosen {
+  border-style: double;
+  border-width: 3px;
+  background: var(--surface-0);
+}
+
 /* Whether a work ended up with an image. Its own axis again: a work can be
    offered and unresolved, and the two badges sit side by side on one row. */
 .badge-resolved {
@@ -1102,10 +1273,42 @@ h2 {
   background: var(--surface-0);
 }
 
-.badge-awaiting_better_image {
+.badge-wanted {
   border-style: dashed;
   border-width: 2px;
   background: var(--surface-2);
+}
+
+/* Where a work stands in the acquisition queue. The glyph and the word carry
+   the phase; the border only separates the ones a curator acts on (failed,
+   gave up) and the one an operator does (paused) from the ones that need time. */
+.badge-acquisition-failed {
+  border-style: solid;
+  border-width: 2px;
+}
+
+.badge-acquisition-gave_up {
+  border-style: double;
+  border-width: 3px;
+  font-weight: 600;
+}
+
+.badge-acquisition-paused {
+  border-style: dashed;
+  border-width: 2px;
+  font-weight: 600;
+}
+
+/* The badge and its sentence read as one line, and Retry follows them. */
+.acquisition-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.acquisition-line p {
+  margin: 0;
 }
 
 /* Whether a scan is the one a verdict would accept on, and whether it has been
@@ -1124,55 +1327,156 @@ h2 {
   background: var(--surface-0);
 }
 
-/* -- the alternates behind a card ------------------------------------------
+/* -- the review cards --------------------------------------------------------
 
-   A work's other scans, revealed from the card rather than on a screen of their
-   own: the choice is between this picture and those, and a curator who had to
-   navigate away to see them would be choosing from memory. */
+   One work to a row, the picture on the left and what is decided about it on
+   the right, with its scans opening beneath both as a table. Judging is reading:
+   a column of tiles a quarter of the page wide wrapped every fact on a card a
+   few characters at a time, and a card with its scans open ran to thousands of
+   pixels. Its own classes rather than `.grid`'s, which Artworks shares. */
 
-.alternates {
+.review-grid {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-5);
 }
 
-.alternate {
+.review-card {
   display: grid;
-  /* The picture at a fixed width so the rows line up and the eye can compare
-     them, which is the whole reason they are stacked rather than tiled. */
-  grid-template-columns: 12rem 1fr;
-  gap: var(--space-4);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--border);
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  align-items: start;
 }
 
-.alternate:first-child {
-  border-top: none;
-  padding-top: 0;
+.review-card > .card-body {
+  padding: var(--space-4) var(--space-5);
 }
 
-.alternate .card-image {
-  aspect-ratio: 4 / 3;
+/* The scans span both columns: the table needs the card's whole width. */
+.review-card > .scans-disclosure {
+  grid-column: 1 / -1;
+  padding: 0 var(--space-5) var(--space-4);
+}
+
+.card-resolution {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A picture that enlarges is a button, and shows it can be pressed. */
+button.card-image.enlargeable {
+  cursor: zoom-in;
+}
+
+/* -- the scans behind a card ------------------------------------------------
+
+   A work's scans, revealed from the card rather than on a screen of their own:
+   the choice is between this picture and those, and a curator who had to
+   navigate away to see them would be choosing from memory. A table, one row a
+   scan, as an *arr app lists the releases its interactive search found. */
+
+.scans .scan-preview {
+  width: 8rem;
+}
+
+.scans .scan-preview .card-image {
+  width: 8rem;
   border-radius: var(--radius-sm);
 }
 
-.alternate-body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  min-width: 0;
+/* The facts compared down a column never wrap, and nor do the actions' labels:
+   a fact or a label broken a word to a line is unreadable in a table. The
+   actions stack, each label whole, and the table scrolls sideways inside its
+   card on a screen too narrow for it. */
+.scans th,
+.scans .scan-fact,
+.scans .scan-actions {
+  white-space: nowrap;
+}
+
+/* The first row of a scan carries no rule beneath it: it and its sentences are
+   one scan, and the rule belongs after both. */
+.scans tr.alternate td {
+  border-bottom: none;
+}
+
+.alternate-detail td {
+  padding-top: 0;
+  color: var(--text-muted);
+}
+
+.scan-pixels {
+  font-variant-numeric: tabular-nums;
 }
 
 /* Narrow screens stack the picture above its facts rather than squeezing both:
-   a 12rem image beside a column of labels is unreadable on a phone, and this
-   surface is opened on one whenever the curator is standing at the wall. */
+   this surface is opened on a phone whenever the curator is standing at the
+   wall. */
 @media (max-width: 40rem) {
-  .alternate {
-    grid-template-columns: 1fr;
+  .review-card {
+    grid-template-columns: minmax(0, 1fr);
   }
+
+  .review-card > .card-body,
+  .review-card > .scans-disclosure {
+    padding-inline: var(--space-4);
+  }
+
+  /* The table scrolls sideways here, and the sentences under each scan span all
+     of it — so they would scroll out of sight with it. Held to the screen's
+     width and to its left edge, they stay readable while the row scrolls. */
+  .alternate-detail td > * {
+    position: sticky;
+    left: var(--space-3);
+    max-width: calc(100vw - 6rem);
+  }
+}
+
+/* -- a picture, enlarged ------------------------------------------------------
+
+   `core/enlarge.js`: the largest preview the server holds, over the page, with
+   nothing navigated. The dialog itself has no padding, so a click on it is a
+   click on the backdrop — the frame inside carries the spacing. */
+
+dialog.enlarged {
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  color: var(--text);
+  box-shadow: var(--shadow-2);
+  max-width: calc(100vw - 2 * var(--space-4));
+  max-height: calc(100vh - 2 * var(--space-4));
+}
+
+dialog.enlarged::backdrop {
+  background: var(--scrim);
+}
+
+.enlarged-frame {
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Letterboxed inside the viewport, never cropped: the whole picture, as large
+   as the screen allows and no larger than the file. */
+.enlarged-frame img {
+  display: block;
+  max-width: calc(100vw - 4 * var(--space-4));
+  max-height: calc(100vh - 8 * var(--space-4));
+  object-fit: contain;
+  margin: 0 auto;
+}
+
+.enlarged-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 details > summary {
@@ -1182,13 +1486,39 @@ details > summary {
   padding: var(--space-2) 0;
 }
 
-/* Two badges stacked inside one table cell, closer than `.stack` sets things —
-   they are one statement about a work, not two sections. */
+/* Things stacked inside one table cell, closer than `.stack` sets them: a
+   scan's pixels and its fit, or its two actions. Each is one statement about
+   one scan, not two sections. */
 .stack-tight {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
   align-items: flex-start;
+}
+
+/* The results page's lists: one artist or work a row, its state mark after it. */
+.results-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.results-list li {
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+
+/* Library › Topics: each kind in columns, by name, each count beside its name.
+   The column width decides how many fit, so a phone gets one. A topic never
+   breaks across two columns. */
+.topic-columns {
+  columns: 14rem;
+  column-gap: var(--space-6);
+}
+
+.topic-columns li {
+  break-inside: avoid;
 }
 
 /* -- tables ---------------------------------------------------------------- */
@@ -1197,6 +1527,10 @@ table {
   width: 100%;
   border-collapse: collapse;
   font-size: var(--text-sm);
+}
+
+.table-scroll {
+  overflow-x: auto;
 }
 
 caption {
@@ -1325,6 +1659,67 @@ section.wall {
   margin-bottom: var(--space-5);
 }
 
+/* Which client shows the wall, under its title: a fact about where the picture
+   goes, set with the title it qualifies rather than among the controls. */
+.wall-client {
+  margin: 0 0 var(--space-3);
+}
+
+/* -- clients ---------------------------------------------------------------- */
+
+/* One client's parts, spaced as the panel's own sections: what it reported,
+   what it shows, how to give it more, and the acts on the client itself. */
+.client > * + * {
+  margin-top: var(--space-4);
+}
+
+.client :is(.client-outputs, .client-walls, .client-assign) p {
+  margin: 0 0 var(--space-2);
+}
+
+/* A picker's options carry an output's state and the wall it shows, and are
+   longer than a phone is wide: the control shrinks to the panel instead. */
+.client .field,
+.client select {
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* A wall the client shows, with the control that takes it off, on one line
+   where there is room and wrapping beneath the name where there is not. */
+.client-wall-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.client-wall-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+
+/* The token, the one time it is shown: wide enough to read whole, and never
+   wider than the screen it is on. */
+.token-once .field {
+  max-width: 100%;
+}
+
+.token-once input {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+.token-once p {
+  margin: 0 0 var(--space-3);
+  overflow-wrap: anywhere;
+}
+
 /* One query's offered works, under the sentence that describes that query.
  *
  * The heading takes `.panel h3`'s type rather than a new size, because it is the
@@ -1409,6 +1804,33 @@ button.action:hover {
   align-items: flex-end;
 }
 
+/* A labelled field beside its button: the field's own bottom margin would hold
+   the input above the row's bottom edge while the button sat on it, so every
+   "Create", "Rename" or "Look up" landed a margin lower than the box it acts
+   on. Inside a row the row's gap spaces things, and the margin goes. */
+.row > .field {
+  margin-bottom: 0;
+}
+
+/* Get, and what it said, under a list of works: set apart from the heading that
+   follows, with the sentence beside the button rather than below its baseline. */
+.get-control {
+  align-items: center;
+  margin-block: var(--space-4);
+}
+
+/* Add to, beside the Get it names a destination for. Its fields carry no margin
+   of their own here, so the row's gap is the only spacing between them. */
+.get-into .field {
+  margin-bottom: 0;
+}
+
+/* The fields carry labels above them, so the button lines up with the
+   controls' bottom edge rather than the middle of label and control. */
+.get-control:has(.get-into) {
+  align-items: flex-end;
+}
+
 .muted {
   color: var(--text-muted);
   font-size: var(--text-sm);
@@ -1444,9 +1866,14 @@ button.action:hover {
   gap: var(--space-4);
 }
 
+/* The label column is as wide as its longest label up to two fifths of the
+   list, and wraps between words past that; the value takes the rest. A label
+   held to one line on a phone ("Spent including every re-search") left the
+   value a column too narrow for "allowance", and `overflow-wrap: anywhere`
+   below then broke the word itself. */
 dl.facts {
   display: grid;
-  grid-template-columns: max-content 1fr;
+  grid-template-columns: fit-content(40%) 1fr;
   gap: var(--space-2) var(--space-4);
   margin: 0;
   font-size: var(--text-sm);

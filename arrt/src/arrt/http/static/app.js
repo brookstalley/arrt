@@ -25,16 +25,21 @@ import { OPTIONAL_ID } from "./core/route.js";
 import { install, go, refresh } from "./core/router.js";
 import { installSearch, paintSearch } from "./core/search.js";
 import { installStatus, paintStatus } from "./core/status.js";
+import { paintAwaiting, paintWanted } from "./core/awaiting.js";
 import { state } from "./core/state.js";
-import { viewHistory, viewQueue } from "./screens/activity.js";
+import { viewHistory, viewQueue, viewToReview, viewWanted } from "./screens/activity.js";
+import { viewArtists } from "./screens/artists.js";
+import { viewClients } from "./screens/clients.js";
 import { viewCollection } from "./screens/collection.js";
 import { viewConversation } from "./screens/conversation.js";
 import { viewDiscover } from "./screens/discover.js";
 import { viewHealth } from "./screens/health.js";
 import { viewReview } from "./screens/review.js";
 import { RUN_POLL_MAX_FAILURES, viewRun } from "./screens/run.js";
+import { viewSearch } from "./screens/search.js";
 import { viewTaste } from "./screens/taste.js";
 import { viewTheme } from "./screens/theme.js";
+import { viewTopic, viewTopics } from "./screens/topics.js";
 import { viewWalls } from "./screens/walls.js";
 import { viewWork } from "./screens/work.js";
 
@@ -45,12 +50,13 @@ import { viewWork } from "./screens/work.js";
  * **A new section needs an *arr precedent or an owner ruling** — § Direction's
  * last sentence, and the one clause of the old navigation norm that survived
  * its amendment. A subsystem that gains a UI gets a page in an existing section.
- * Wanted is the precedent waiting: it appears when there is a quality cutoff or
- * a Watch to be unmet. */
+ * Wanted is a page in Activity, as in Lidarr: the works the curator wants and
+ * holds no acceptable scan of (the owner's ruling on #168, 2026-10-02). */
 const SECTIONS = [
   { key: "artworks", label: "Artworks", glyph: "▣" },
   { key: "walls", label: "Walls", glyph: "▢" },
-  { key: "activity", label: "Activity", glyph: "↻" },
+  // `badge` names the count `core/awaiting.js` writes beside the label.
+  { key: "activity", label: "Activity", glyph: "↻", badge: "awaiting" },
   { key: "settings", label: "Settings", glyph: "⚙" },
   // `status` marks the section whose link carries the health badge.
   { key: "system", label: "System", glyph: "♥", status: true },
@@ -65,7 +71,7 @@ const SECTIONS = [
  * app, so its order is not cosmetic for that one line.
  *
  * **The keys are addresses, and they keep the spellings they had before the
- * labels changed** — `#collection` is Artworks, `#discover` is Add New,
+ * labels changed** — `#collection` is Artworks, `#discover` is Ask,
  * `#health` is Status. A bookmark or an agent's link is an address, and every
  * one of them would otherwise break for a word the curator never sees.
  *
@@ -76,31 +82,61 @@ const SECTIONS = [
  */
 const ROUTES = {
   collection: { render: viewCollection, section: "artworks", page: "Artworks" },
-  // Radarr's Add New: where a curator goes to bring in something the library
-  // does not hold. The intent box and the conversations; the searches they
-  // start are listed under Activity.
-  discover: { render: viewDiscover, section: "artworks", page: "Add New" },
+  // Ask, in the slot Radarr's Add New holds (ruling 3 dissolved Add New into
+  // Get): the intent box and the conversations. Keyed `discover`, the address it
+  // has always had; the searches it starts are listed under Activity.
+  discover: { render: viewDiscover, section: "artworks", page: "Ask" },
   // An index *and* an addressable detail, which is what the optional id buys:
   // `#theme` is every theme, `#theme/<id>` is one. § Navigation Structure
   // requires every consequential state to be addressable and one theme is one —
   // it is what a wall's theme control points at and what a curator bookmarks.
   // Radarr's Collections: a named grouping of what the library holds.
   theme: { render: viewTheme, detail: OPTIONAL_ID, section: "artworks", page: "Themes" },
+  // The periods, movements, subjects and media the library's works are in. No
+  // *arr page is one; the nearest idea is a music app's genre (`ia-proposal.md`
+  // § Objects), and ruling 9 put it under the library, after Themes.
+  topics: { render: viewTopics, section: "artworks", page: "Topics" },
+  // Lidarr's artist index, which is that app's library: every held artist, and
+  // at `#artist/<id>` one of them as the hub (ruling 4).
+  artist: { render: viewArtists, detail: OPTIONAL_ID, section: "artworks", page: "Artists" },
   walls: { render: viewWalls, section: "walls", page: "Walls" },
+  // What waits for the curator's verdict, first under Activity because it is
+  // the one queue that needs them (`ia-proposal.md` § The map), with its count.
+  to_review: { render: viewToReview, section: "activity", page: "To review", badge: "awaiting" },
   // Radarr's Activity: the searches in flight, and the ones that ended.
   queue: { render: viewQueue, section: "activity", page: "Queue" },
   history: { render: viewHistory, section: "activity", page: "History" },
+  // Lidarr's Wanted: works the curator wants and holds no acceptable scan of.
+  // Its link appears once one is wanted (`core/awaiting.js`).
+  wanted: { render: viewWanted, section: "activity", page: "Wanted", badge: "wanted" },
   // Radarr's Profiles: the preferences that rank what it finds.
   taste: { render: viewTaste, section: "settings", page: "Taste" },
+  // Radarr's Settings › Download Clients: the external programs the server
+  // works with, which here are the installed Players (`clients.md` ruling 1).
+  clients: { render: viewClients, section: "settings", page: "Clients" },
   health: { render: viewHealth, section: "system", page: "Status" },
   work: { render: viewWork, detail: true, opensFrom: "collection" },
+  // Everything a few words find, the library's and Wikidata's (ruling 2), as
+  // Sonarr's search results are a page of their own. Reached from the
+  // dropdown's last row; Enter still opens Artworks filtered, so it returns
+  // there by default.
+  search: { render: viewSearch, opensFrom: "collection" },
+  // One topic, browsed like a genre, reached from Library › Topics, the top
+  // bar's dropdown, or a search on the Topics page, and returned to Topics by a
+  // bookmark. Its own route rather than an id on `topics`, as the plan
+  // addresses it (`#topic/<qid>`).
+  topic: { render: viewTopic, detail: true, opensFrom: "topics" },
   // A search is listed under Activity, so a bookmark to one returns to Queue.
   // Run and Review share that default because they are one search's two pages:
   // each opens the other, and with different defaults every hop between them
   // would record an opener the curator never chose.
-  run: { render: viewRun, detail: true, opensFrom: "queue" },
+  //
+  // A Get's page is its review, so a Work opened from one of its cards returns
+  // to it, as one opened from Review returns to Review. Labelled for a Get
+  // because a Get's page is the only run page that opens a Work.
+  run: { render: viewRun, detail: true, opensFrom: "queue", returnLabel: "The Get", returnFor: ["work"] },
   // Contextual rather than a page: a conversation is something a curator does
-  // *within* Add New, and returns there.
+  // *within* Ask, and returns there.
   conversation: { render: viewConversation, detail: true, opensFrom: "discover" },
   // Keyed by the run whose works are being judged, not by a work: a curator
   // reviews a run's output as a set, and a per-work address would make the grid
@@ -117,6 +153,8 @@ install(ROUTES, {
   onNavigate: () => {
     paintSearch();
     paintStatus();
+    paintAwaiting();
+    paintWanted();
   },
 });
 

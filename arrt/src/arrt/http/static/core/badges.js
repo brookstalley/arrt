@@ -24,7 +24,7 @@ const FIT_WORDS = {
   below_floor: "below floor",
 };
 
-/* How large this would hang, or why that cannot be said.
+/* How this would meet the panel — native, matted small, below the floor — or why that cannot be said.
  *
  * One function for a held work and for a candidate scan. Both carry the same
  * `fit`/`fit_note` pair and the same rule — a thing whose dimensions nobody
@@ -41,12 +41,15 @@ export function fitBadge(sized, absentWord = "no size known") {
     ]);
   }
   const verdict = sized.fit.verdict;
-  const inches = sized.fit.rendered_long_edge_inches.toFixed(1);
   return el("span", { class: `badge badge-${verdict}` }, [
     el("span", { class: "glyph", text: FIT_GLYPHS[verdict] || "●", "aria-hidden": true }),
-    // The number is the point: a thumbnail cannot convey resolution, so the size
-    // it would actually appear at on the wall is what a curator judges.
-    el("span", { text: `${FIT_WORDS[verdict] || verdict} — would show at ${inches}″` }),
+    // The verdict word alone. It carried "would show at 28.2″" until the owner
+    // ruled it out (2026-10-02): that is the long edge on the one panel this
+    // server is configured for, after the mat, and read beside a picture it
+    // looked like a fact about the picture. Where a size is wanted it is the
+    // scan's own pixels, which the review card states; a size on a wall comes
+    // back with per-wall geometry (re-architecture wave 4).
+    el("span", { text: FIT_WORDS[verdict] || verdict }),
   ]);
 }
 
@@ -82,18 +85,22 @@ export function facts(pairs) {
   const list = el("dl", { class: "facts" });
   for (const [term, value] of pairs) {
     if (value === null || value === undefined || value === "") continue;
-    list.append(el("dt", { text: term }), el("dd", { text: String(value) }));
+    // A node is placed as it is, so a value can be a link; anything else is text.
+    list.append(el("dt", { text: term }), value instanceof Node ? el("dd", {}, [value]) : el("dd", { text: String(value) }));
   }
   return list;
 }
 
+/* A table that scrolls sideways inside its panel rather than widening the page.
+ * Its cells hold file paths and museum URLs with no break in them, which on a
+ * phone made the whole Work page wider than the screen. */
 export function table(caption, headers, rows) {
-  return el("table", {}, [
+  return el("div", { class: "table-scroll" }, [el("table", {}, [
     el("caption", { text: caption }),
     el("thead", {}, [el("tr", {}, headers.map((h) => el("th", { scope: "col", text: h })))]),
     el("tbody", {}, rows.map((cells) => el("tr", {}, cells.map((c) => (c instanceof Node ? el("td", {}, [c]) : el("td", { text: c === null || c === undefined ? "—" : String(c) }))))),
     ),
-  ]);
+  ])]);
 }
 
 /* Only ever shown when the runaway guard actually bit. Named rather than

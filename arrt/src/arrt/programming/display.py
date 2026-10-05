@@ -21,6 +21,7 @@ Methods are synchronous, for the reason `catalogue.py` gives.
 
 import logging
 import uuid
+from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
@@ -28,7 +29,7 @@ from pathlib import Path
 from typing import Any, Final
 
 from arrt import observations
-from arrt.library.facade import LibraryFacade, PlayableWork, Unplayable, UnplayableReason, WorkChanged
+from arrt.library.facade import LibraryFacade, PlayableWork, Unplayable, UnplayableReason, WorkChange, WorkChanged
 from arrt.persistence.records import Directive, Theme, ThemeAssignment, ThemeMembership, Wall
 from arrt.programming.manifest import heartbeat
 from arrt.programming.manifest.builder import (
@@ -60,6 +61,25 @@ class Unset:
 
 
 UNSET: Final[Unset] = Unset()
+
+
+@dataclass(frozen=True, slots=True)
+class ThemeCount:
+    """A theme as a filter option: how many of a given set of works it holds."""
+
+    theme: Theme
+    count: int
+    #: The theme the listing is filtered by.
+    selected: bool
+
+    @property
+    def disabled(self) -> bool:
+        """True for a theme that would select nothing, unless it is the one chosen.
+
+        The facet rule, applied to themes: a chosen option is never disabled,
+        because the option itself is the control that turns it off.
+        """
+        return self.count == 0 and not self.selected
 
 
 @dataclass(frozen=True, slots=True)
@@ -223,6 +243,10 @@ class DisplayService:
             raise ServiceError(f"No theme with id {theme_id!r} is in the catalogue.")
         return theme
 
+    def default_theme(self) -> Theme | None:
+        """The theme new works join, or None while the curator has marked none."""
+        return self._store.get_default_theme()
+
     # -- reads: walls and what hangs on them -----------------------------------
 
     def get_wall(self, wall_id: str) -> Wall:
@@ -323,6 +347,27 @@ class DisplayService:
         theme_id = hanging.get(wall.id)
         return WallView(wall=wall, hanging=None if theme_id is None else themes[theme_id], directive=directive)
 
+    def theme_counts(self, work_ids: Iterable[str], *, selected: str | None = None) -> Sequence[ThemeCount]:
+        """Every theme, by name, with how many of `work_ids` it holds.
+
+        The ids are the Library's answer to "which works does this filter
+        select", taken as opaque references: Artworks' *Filter* rail prints each
+        theme's count beside it and disables a theme that would select nothing,
+        as it does a facet value. One read scope, so the counts agree with one
+        another; they cannot share a scope with the Library's read that produced
+        the ids, which is the price of the seam.
+        """
+        among = set(work_ids)
+        with self._store.reading():
+            return [
+                ThemeCount(
+                    theme=theme,
+                    count=sum(1 for membership in self._store.list_memberships(theme.id) if membership.artwork_id in among),
+                    selected=theme.id == selected,
+                )
+                for theme in self._store.list_themes()
+            ]
+
     def theme_work_ids(self, theme_id: str) -> Sequence[str]:
         """The ids of the theme's works, in curated order.
 
@@ -358,14 +403,14 @@ class DisplayService:
         belongs on a wall the curator has not hung anything on, and the empty
         state is a designed one.
 
-        **A wall recorded here shows nothing until a display plane is configured
-        to serve it**, and that is a deployment step rather than a gap. Each wall
-        gets its own manifest, named by the wall's id, and a display reads the one
-        wall its `WALL_ID` names — so a second wall's manifest exists from the
-        moment a theme is hung on it and is read by whichever device is pointed at
-        it. Nothing is overwritten and no display can open a wall it does not
-        serve; until 2026-08-12 both were false, and a second wall was a thing an
-        operator could record and be told would not light up.
+        **A wall recorded here shows nothing until a client is assigned to show
+        it** (`clients.ClientService.assign_wall`), and that is a curatorial step
+        rather than a gap. Each wall gets its own manifest, named by the wall's
+        id, from the moment a theme is hung on it, and a client is admitted only
+        to the walls assigned to it. Nothing is overwritten and no client can
+        open a wall it does not show; until 2026-08-12 both were false, and a
+        second wall was a thing an operator could record and be told would not
+        light up.
         """
         with self._store.transaction():
             wall = Wall(id=str(uuid.uuid4()), name=require_text(name, field="name"), created_at=datetime.now(UTC))
@@ -392,6 +437,98 @@ class DisplayService:
         )
         store_write(self._store.add_theme, theme)
         return theme
+
+    def make_default(self, theme_id: str) -> Theme:
+        """Make this the theme new works join, taking the mark off whichever had it.
+
+        **Only works accepted from now on join it.** Every work already in the
+        catalogue has been offered to the default once, whatever was the default
+        then, and marking a theme is not a request to fill it with everything
+        accepted before; a curator who wants that adds them from Library › Works.
+        """
+        self.get_theme(theme_id)
+        store_write(self._store.mark_default_theme, theme_id)
+        return self.get_theme(theme_id)
+
+    def offer_destinations(self, work_ids: Iterable[str]) -> Sequence[str]:
+        """Offer each work the theme it was accepted into, once, and return the ones that joined.
+
+        **Where a work goes is the Library's to say and this service's to
+        apply.** The facade answers, for each work, the theme its Get named, or
+        None. None means the default theme, the owner's ruling 8: what is
+        accepted lands there, at the end of its order. A named theme takes the
+        default's place, so a work the curator sent somewhere else never enters
+        the everyday rotation (ruling 5a, as the owner recast it on 2026-10-02).
+
+        **A named theme that has since been deleted is joined by nothing.** The
+        curator chose "not the rotation" when they started the Get, and deleting
+        the theme does not reverse that. The work is recorded as offered all the
+        same, so the next start does not sweep it into the default either, and
+        the log says which work and which theme.
+
+        **Once per work, ever**, and that is what the offer record is for: the
+        Library announces a restored work as accepted, exactly as it announces a
+        new one, and startup offers every accepted work with no offer recorded.
+        Without the record either would put back a work the curator took out of
+        its theme by hand. A work offered while no theme was the default is
+        recorded too, so marking one later does not sweep in everything accepted
+        before it.
+
+        A work already in its theme, placed there by hand before its
+        announcement arrived, is recorded and left where the curator put it.
+        Offer and membership commit together, so a work is never recorded as
+        offered without having joined, or joined without the record that stops a
+        second join.
+        """
+        already = self._store.offered_work_ids()
+        unoffered = [work_id for work_id in dict.fromkeys(work_ids) if work_id not in already]
+        if not unoffered:
+            return []
+        # Asked before the transaction, and once for every work: the facade is
+        # written as if remote, so it is one coarse question, never one per work
+        # and never with this plane's lock held.
+        destinations = self._library.destinations(unoffered)
+        joined: list[str] = []
+        joined_by_theme: Counter[str] = Counter()
+        vanished: list[tuple[str, str]] = []
+        with self._store.transaction():
+            default = self._store.get_default_theme()
+            offered = self._store.offered_work_ids()
+            for work_id in unoffered:
+                if work_id in offered:
+                    continue
+                named = destinations[work_id]
+                target = default if named is None else self._store.get_theme(named)
+                if named is not None and target is None:
+                    vanished.append((work_id, named))
+                if target is not None and self._store.get_membership(target.id, work_id) is None:
+                    self.add_to_theme(theme_id=target.id, artwork_id=work_id)
+                    joined.append(work_id)
+                    joined_by_theme[target.name] += 1
+                store_write(self._store.record_offer, work_id, datetime.now(UTC))
+        for name, count in joined_by_theme.items():
+            log.info("Added %d newly accepted work(s) to theme %r.", count, name)
+        for work_id, theme_id in vanished:
+            # Said out loud, because the work is now in no theme at all, which is
+            # exactly what the curator would come looking for.
+            log.warning(
+                "Work %s was accepted from a Get that named theme %s, which has since been deleted. "
+                "It joins no theme, and not the default either; add it to one from Library › Works.",
+                work_id,
+                theme_id,
+            )
+        return joined
+
+    def catch_up_offers(self) -> Sequence[str]:
+        """Offer every accepted work that was never offered the theme it was accepted into. Run at start.
+
+        For an announcement lost between the Library's commit and this plane's
+        handler. It goes through `offer_destinations`, so a work whose
+        announcement was lost lands where a delivered one would. Every work the
+        catalogue held before the default existed was recorded as offered when
+        the file was migrated, so this finds only what a crash dropped.
+        """
+        return self.offer_destinations(self._library.accepted_work_ids())
 
     def activate_theme(self, theme_id: str, *, wall_id: str) -> ManifestBuild:
         """Hang this theme on this wall, and publish what follows.
@@ -644,6 +781,11 @@ class DisplayService:
         a side effect of tidying up the catalogue.
         """
         theme = self.get_theme(theme_id)
+        if theme.is_default:
+            raise ServiceError(
+                f"Theme {theme.name!r} is the default, which new works join, so it cannot be deleted. "
+                "Make another theme the default first, and then delete this one."
+            )
         hanging = self.walls_hanging(theme_id)
         if hanging:
             where = ", ".join(repr(wall.name) for wall in hanging)
@@ -841,13 +983,16 @@ class DisplayService:
     # -- keeping published manifests true to the Library ---------------------
 
     def on_work_changed(self, event: WorkChanged) -> None:
-        """The Library changed a work: take it off any wall it can no longer go on.
+        """The Library changed a work: take it off any wall it can no longer go on, and offer a new one its theme.
 
-        Subscribed to the Library's announcements. The rule is the one startup
-        reconciliation applies, narrowed to the one work, so the running server
-        and a restarted one cannot disagree.
+        Subscribed to the Library's announcements. Both rules are the ones startup
+        applies, narrowed to the one work, so the running server and a restarted
+        one cannot disagree. The offer is made once per work, so an acceptance
+        announced for a restore offers nothing (`offer_destinations`).
         """
         self.reconcile([event.work_id], cause=event.change.value)
+        if event.change is WorkChange.ACCEPTED:
+            self.offer_destinations([event.work_id])
 
     def reconcile(self, work_ids: Iterable[str] | None = None, *, cause: str = "startup") -> Reconciliation:
         """Make every published manifest and pin agree with what the Library will still show.

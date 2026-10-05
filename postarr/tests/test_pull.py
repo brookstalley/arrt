@@ -1,9 +1,10 @@
-"""HTTP mode: pulling a wall into a local cache, and rendering only from it.
+"""Pulling a wall into its own cache, and rendering only from it.
 
-Against a local stub server that serves the contract's own documents on the
-contract's own routes (`contract/routes.json`), so these tests pin the client to
-the contract rather than to Arrt's code, which a Player in another repository
-will not have. `player-contract.md` § Transport is the specification.
+Against the server double (`server_double.py`), which serves the contract's own
+documents on the contract's own routes (`contract/routes.json`), so these tests
+pin the client to the contract rather than to Arrt's code, which a Player in
+another repository will not have. `player-contract.md` § Transport is the
+specification.
 
 **The test this chunk exists for is the one that stops the server while the wall
 runs**: the cache is the only thing the wall renders from, so a server that goes
@@ -20,100 +21,23 @@ from pathlib import Path
 
 import aiohttp
 import pytest
-from aiohttp import web
 from aiohttp.test_utils import TestServer
 from conftest import WALL_ID
+from server_double import CONTRACT, ROUTES, TOKEN
+from server_double import MANIFEST_FIXTURE as FIXTURE
+from server_double import ServerDouble as Stub
 
 from postarr.daemon import Daemon
 from postarr.manifest import Watcher
-from postarr.pull import ETAG_FILENAME, HEARTBEAT_ROUTE, MANIFEST_ROUTE, MEDIA_DIRNAME, Pull
-
-CONTRACT = Path(__file__).resolve().parents[2] / "contract"
-ROUTES = json.loads((CONTRACT / "routes.json").read_text(encoding="utf-8"))["routes"]
-FIXTURE = json.loads((CONTRACT / "fixtures" / "manifest.v1" / "valid" / "minor-2-with-media.json").read_text())
-TOKEN = "this-walls-token"
-
-
-class Stub:
-    """Arrt's Player surface, as the contract describes it, and nothing more."""
-
-    def __init__(self) -> None:
-        self.manifest: dict | None = None
-        self.media: dict[str, bytes] = {}
-        self.tokens = {TOKEN: WALL_ID}
-        self.heartbeats: list[bytes] = []
-        self.media_status: int | None = None
-        self.authorizations: list[str | None] = []
-        self.echo_heartbeats_to: Path | None = None
-
-    def app(self) -> web.Application:
-        application = web.Application()
-        application.router.add_route(ROUTES["manifest"]["method"], ROUTES["manifest"]["path"], self.serve_manifest)
-        application.router.add_route(ROUTES["media"]["method"], ROUTES["media"]["path"], self.serve_media)
-        application.router.add_route(ROUTES["heartbeat"]["method"], ROUTES["heartbeat"]["path"], self.receive_heartbeat)
-        return application
-
-    def _admit(self, request: web.Request, wall_id: str | None) -> web.Response | None:
-        header = request.headers.get("Authorization")
-        self.authorizations.append(header)
-        holder = self.tokens.get((header or "").removeprefix("Bearer "))
-        if holder is None:
-            return web.json_response({"error": "A valid wall token is required."}, status=401)
-        if wall_id is not None and holder != wall_id:
-            return web.json_response({"error": "That token is for another wall."}, status=403)
-        return None
-
-    async def serve_manifest(self, request: web.Request) -> web.Response:
-        refused = self._admit(request, request.match_info["wall_id"])
-        if refused is not None:
-            return refused
-        if self.manifest is None:
-            return web.json_response({"error": "Nothing has been published for this wall yet."}, status=404)
-        body = json.dumps(self.manifest).encode()
-        etag = f'"{hashlib.sha256(body).hexdigest()}"'
-        if request.headers.get("If-None-Match") == etag:
-            return web.Response(status=304, headers={"ETag": etag})
-        return web.Response(body=body, content_type="application/json", headers={"ETag": etag})
-
-    async def serve_media(self, request: web.Request) -> web.Response:
-        refused = self._admit(request, None)
-        if refused is not None:
-            return refused
-        if self.media_status is not None:
-            return web.Response(status=self.media_status)
-        data = self.media.get(request.match_info["sha256"])
-        if data is None:
-            return web.json_response({"error": "No render with that hash is held."}, status=404)
-        return web.Response(body=data, content_type="image/jpeg")
-
-    async def receive_heartbeat(self, request: web.Request) -> web.Response:
-        refused = self._admit(request, request.match_info["wall_id"])
-        if refused is not None:
-            return refused
-        body = await request.read()
-        self.heartbeats.append(body)
-        if self.echo_heartbeats_to is not None:
-            # What Arrt does with a POSTed heartbeat on a host it shares.
-            self.echo_heartbeats_to.write_bytes(body)
-        return web.Response(status=204)
-
-    def publish(self, *work_ids: str, sequence: int = 4, renders: dict[str, bytes] | None = None) -> dict:
-        """The contract's minor 2 fixture, carrying these works with real bytes behind their hashes."""
-        document = copy.deepcopy(FIXTURE)
-        template = document["entries"][0]
-        document["entries"] = []
-        document["directive"]["sequence"] = sequence
-        for work_id in work_ids:
-            data = (renders or {}).get(work_id, f"the render of {work_id}".encode())
-            sha = hashlib.sha256(data).hexdigest()
-            self.media[sha] = data
-            entry = copy.deepcopy(template)
-            entry["work_id"] = work_id
-            entry["label"] = {**entry["label"], "title": f"Title of {work_id}"}
-            entry["media"] = {"url": f"/media/sha256-{sha}", "sha256": sha, "bytes": len(data), "content_type": "image/jpeg"}
-            document["entries"].append(entry)
-        self.manifest = document
-        return document
+from postarr.pull import (
+    CLIENT_HEARTBEAT_ROUTE,
+    CLIENT_ROUTE,
+    ETAG_FILENAME,
+    HEARTBEAT_ROUTE,
+    MANIFEST_ROUTE,
+    MEDIA_DIRNAME,
+    Pull,
+)
 
 
 @pytest.fixture
@@ -128,13 +52,14 @@ async def stub():
 
 
 @pytest.fixture
-def http_settings(settings, stub, tmp_path):
-    return replace(settings, manifest_source="http", server_url=stub.url, wall_token=TOKEN, cache_dir=tmp_path / "cache")
+def http_settings(settings, stub):
+    """The fixture wall on the Frame, pointed at the double."""
+    return replace(settings, server_url=stub.url)
 
 
 @pytest.fixture
 def pull(http_settings):
-    (http_settings.cache_dir / MEDIA_DIRNAME).mkdir(parents=True)
+    (http_settings.wall_dir / MEDIA_DIRNAME).mkdir(parents=True)
     return Pull(http_settings)
 
 
@@ -158,7 +83,7 @@ def _cached(settings) -> dict | None:
 
 
 def _held(settings) -> set[str]:
-    return {path.name for path in (settings.cache_dir / MEDIA_DIRNAME).iterdir()}
+    return {path.name for path in (settings.wall_dir / MEDIA_DIRNAME).iterdir()}
 
 
 # -- the contract's routes ------------------------------------------------------------
@@ -167,17 +92,15 @@ def _held(settings) -> set[str]:
 def test_the_client_requests_the_routes_the_contract_names():
     assert MANIFEST_ROUTE == ROUTES["manifest"]["path"]
     assert HEARTBEAT_ROUTE == ROUTES["heartbeat"]["path"]
+    assert CLIENT_ROUTE == ROUTES["client"]["path"]
+    assert CLIENT_HEARTBEAT_ROUTE == ROUTES["client_heartbeat"]["path"]
     assert ROUTES["manifest"]["method"] == "GET" and ROUTES["heartbeat"]["method"] == "POST"
+    assert ROUTES["client"]["method"] == "GET" and ROUTES["client_heartbeat"]["method"] == "POST"
 
 
-def test_http_mode_reads_the_cache_and_renders_from_it(http_settings):
-    assert http_settings.manifest_path == http_settings.cache_dir / "manifest.json"
-    assert http_settings.render_root == http_settings.cache_dir
-
-
-def test_file_mode_is_unchanged(settings):
-    assert settings.manifest_path == settings.art_root / f"theme-manifest-{WALL_ID}.json"
-    assert settings.render_root == settings.art_root
+def test_a_wall_reads_and_renders_from_its_own_directory_in_the_cache(http_settings, cache_dir):
+    assert http_settings.manifest_path == cache_dir / WALL_ID / "manifest.json"
+    assert http_settings.render_root == cache_dir / WALL_ID
 
 
 # -- adopting ------------------------------------------------------------------------------
@@ -217,12 +140,12 @@ async def test_nothing_is_cached_while_a_render_cannot_be_fetched(pull, stub, se
 async def test_an_unchanged_manifest_is_not_downloaded_again(pull, stub, session, http_settings):
     stub.publish("w1")
     await pull.cycle(session)
-    etag = (http_settings.cache_dir / ETAG_FILENAME).read_text()
+    etag = (http_settings.wall_dir / ETAG_FILENAME).read_text()
 
     before = http_settings.manifest_path.stat().st_mtime_ns
     await pull.cycle(session)
 
-    assert (http_settings.cache_dir / ETAG_FILENAME).read_text() == etag
+    assert (http_settings.wall_dir / ETAG_FILENAME).read_text() == etag
     assert http_settings.manifest_path.stat().st_mtime_ns == before
 
 
@@ -290,7 +213,7 @@ async def test_eviction_removes_a_render_once_two_manifests_in_a_row_have_not_na
 
 
 async def test_a_stray_file_in_the_media_cache_is_evicted(pull, stub, session, http_settings):
-    stray = http_settings.cache_dir / MEDIA_DIRNAME / "sha256-left-over"
+    stray = http_settings.wall_dir / MEDIA_DIRNAME / "sha256-left-over"
     stray.write_bytes(b"from a crash mid-write")
     stub.publish("w1")
 
@@ -341,7 +264,7 @@ async def test_the_server_stopped_while_the_wall_runs_and_rotation_continues_fro
     await daemon.tick()
 
     assert tv.on_the_wall != first, "the rotation stopped with the server"
-    assert tv.on_the_wall.parent == http_settings.cache_dir / MEDIA_DIRNAME
+    assert tv.on_the_wall.parent == http_settings.wall_dir / MEDIA_DIRNAME
     assert _cached(http_settings) is not None
 
 
@@ -362,7 +285,7 @@ async def test_a_player_restarted_with_the_server_down_starts_from_its_cache(stu
 async def test_an_unreachable_server_is_reported_once_and_its_return_once(stub, session, http_settings, caplog):
     stub.publish("w1")
     pull = Pull(http_settings)
-    (http_settings.cache_dir / MEDIA_DIRNAME).mkdir(parents=True)
+    (http_settings.wall_dir / MEDIA_DIRNAME).mkdir(parents=True)
     port = stub.server.port
     await stub.server.close()
 
@@ -504,7 +427,7 @@ async def test_the_token_is_not_sent_to_another_host(pull, stub, session, http_s
 
 async def test_the_heartbeat_file_is_posted_when_it_holds_a_new_report_and_not_otherwise(pull, stub, session, http_settings):
     heartbeat = http_settings.heartbeat_root / f"display-heartbeat-{WALL_ID}.json"
-    assert heartbeat.parent == http_settings.cache_dir, "in HTTP mode the Player's heartbeat file is its own"
+    assert heartbeat.parent == http_settings.wall_dir, "the wall's heartbeat file is in its own directory"
     stub.publish("w1")
     heartbeat.write_text(json.dumps({"reported_at": "2026-09-30T12:00:00+00:00"}))
 
@@ -523,9 +446,12 @@ async def test_the_heartbeat_file_is_posted_when_it_holds_a_new_report_and_not_o
     assert json.loads(stub.heartbeats[-1])["reported_at"] == "2026-09-30T12:01:00+00:00"
 
 
-async def test_a_server_that_writes_the_heartbeat_into_the_shared_tree_causes_no_loop(pull, stub, session, http_settings):
-    """The Pi runs both: the server keeps each POSTed heartbeat in ART_ROOT, where its health panel reads it."""
-    shared = http_settings.art_root / f"display-heartbeat-{WALL_ID}.json"
+async def test_a_server_that_writes_the_heartbeat_into_the_shared_tree_causes_no_loop(
+    pull, stub, session, http_settings, tmp_path
+):
+    """A host running both: the server keeps each POSTed heartbeat in its ART_ROOT, where its health panel reads it."""
+    (tmp_path / "art").mkdir()
+    shared = tmp_path / "art" / f"display-heartbeat-{WALL_ID}.json"
     stub.echo_heartbeats_to = shared
     stub.publish("w1")
     (http_settings.heartbeat_root / f"display-heartbeat-{WALL_ID}.json").write_text(
@@ -550,16 +476,15 @@ async def test_the_pull_stops_when_asked(stub, http_settings):
     assert _cached(http_settings) is not None
 
 
-async def test_in_http_mode_the_daemon_writes_its_heartbeat_into_the_cache_and_not_the_shared_tree(
+async def test_the_daemon_writes_its_heartbeat_into_the_walls_directory_where_the_pull_looks(
     pull, stub, session, http_settings, tv, state, clock
 ):
-    """Where the pull looks for it, and nowhere the server writes."""
-    assert http_settings.cache_dir != http_settings.art_root, "the two directories coincide, so this checks nothing"
     stub.publish("w1")
     await pull.cycle(session)
     daemon = Daemon(settings=http_settings, tv=tv, state=state, watcher=_watcher(http_settings), clock=clock.as_clock())
 
     await daemon.tick()
+    await pull.cycle(session)
 
-    assert (http_settings.cache_dir / f"display-heartbeat-{WALL_ID}.json").is_file()
-    assert not (http_settings.art_root / f"display-heartbeat-{WALL_ID}.json").exists()
+    assert (http_settings.wall_dir / f"display-heartbeat-{WALL_ID}.json").is_file()
+    assert [heartbeat["current_work_id"] for heartbeat in stub.heartbeats_by_wall[WALL_ID]] == ["w1"]

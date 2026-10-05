@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/brookstalley/arrt/contract/schemas/client-heartbeat.v1.schema.json",
+  "title": "Client heartbeat, major 1",
+  "description": "What a client reports about its outputs to POST /client/heartbeat, as facts rather than a verdict: which outputs exist, of what kind, whether each is connected and at what size. The server keeps it as a file beside the wall heartbeats so a curator can place a wall on an output by name; it stores nothing else about the device. Additive keys are allowed. One rule a schema cannot state: no two outputs share a name, because the name is how a wall is placed on one. Semantics are in .prawduct/artifacts/player-contract.md § Transport.",
+  "type": "object",
+  "required": [
+    "reported_at",
+    "outputs"
+  ],
+  "properties": {
+    "reported_at": {
+      "description": "The instant of the report, RFC 3339 with an offset. The pattern is what enforces the offset; 'format' alone is not checked by every validator.",
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
+    },
+    "outputs": {
+      "description": "Every output the client can drive, connected or not. Empty is allowed: a client that has found nothing to draw on says so.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "kind",
+          "connected",
+          "screen"
+        ],
+        "properties": {
+          "name": {
+            "description": "The client's name for the output, stable across restarts: a DRM connector name (hdmi-a-1) or frame.",
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "description": "frame: a Samsung Frame's own art store, over its network API. framebuffer: a screen this client draws to itself.",
+            "enum": [
+              "frame",
+              "framebuffer"
+            ]
+          },
+          "connected": {
+            "description": "Whether a screen is present on the output now. An unplugged or switched-off screen is false, and the output is still listed.",
+            "type": "boolean"
+          },
+          "screen": {
+            "description": "[width, height] in pixels, or null when the client does not know it.",
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "minItems": 2,
+            "maxItems": 2
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,16 +1,23 @@
-/* One discovery run, watched while it works.
+/* One run, watched while it works.
  *
- * Contextual: opened from Activity's Queue or History, from Add New as it
+ * Contextual: opened from Activity's Queue or History, from Ask as it
  * starts, or from a re-search started on the review grid — and it returns to
  * the page it was opened from.
+ *
+ * **A Get's page is its review.** A Get's works were chosen by the curator, so
+ * the review cards stand where a discovery run's work table stands, and there
+ * is no second page to go to (the owner's ruling, 2026-10-02).
  */
 
-import { api } from "../core/api.js";
+import { api, fetchAllCandidates } from "../core/api.js";
 import { facts, reasonBadge, resolutionBadge, table } from "../core/badges.js";
 import { agree, agreePartitive, counted } from "../core/counting.js";
+import { destinationOf, destinationSentence, readThemes } from "../core/destination.js";
 import { claimPoll, pollIsCurrent, schedulePollUnlessDone } from "../core/poll.js";
 import { el, guard, render } from "../core/render.js";
+import { reviewSection } from "../core/reviewing.js";
 import { backLink, go, refresh } from "../core/router.js";
+import { runTitle } from "../core/runs.js";
 import { state } from "../core/state.js";
 
 /* What this run's state means, in a sentence.
@@ -45,10 +52,16 @@ export function runSentence(view) {
   }
   if (run.status === "resolving_images") {
     if (!view.image_resolution_available) {
-      return `There ${agree(tally.proposed, "is", "are")} ${counted(tally.proposed, "work")} to find images for, but no image provider is configured in this deployment, so the run will stay here. Cancel it when you are done reading it.`;
+      // A discovery run's works to find are the ones it proposed; a re-search's
+      // and a Get's are every work they hold.
+      const waiting = run.kind === "discovery" ? tally.proposed : tally.total;
+      return `There ${agree(waiting, "is", "are")} ${counted(waiting, "work")} to find images for, but no image provider is configured in this deployment, so the run will stay here. Cancel it when you are done reading it.`;
     }
     if (run.kind === "resolve") {
       return `Looking again for images of the ${counted(tally.total, "work")} this re-search covers.`;
+    }
+    if (run.kind === "get") {
+      return `Looking for images of the ${counted(tally.chosen, "work")} you chose.`;
     }
     return `The work list of ${counted(tally.proposed, "work")} is settled, and the run is looking for an image of each.`;
   }
@@ -62,8 +75,10 @@ export function runSentence(view) {
     let sentence =
       run.kind === "resolve"
         ? `This re-search finished: ${tally.resolved} of the ${counted(tally.total, "work")} it covers ${agreePartitive(tally.resolved, tally.total, "has", "have")} an image.`
-        : `This run finished: ${tally.resolved_proposals} of ${counted(tally.proposed, "work")} it was asked for ${agreePartitive(tally.resolved_proposals, tally.proposed, "has", "have")} an image.`;
-    if (run.kind !== "resolve" && tally.offered) {
+        : run.kind === "get"
+          ? `This Get finished: ${tally.resolved} of the ${counted(tally.chosen, "work")} you chose ${agreePartitive(tally.resolved, tally.chosen, "has", "have")} an image.`
+          : `This run finished: ${tally.resolved_proposals} of ${counted(tally.proposed, "work")} it was asked for ${agreePartitive(tally.resolved_proposals, tally.proposed, "has", "have")} an image.`;
+    if (run.kind === "discovery" && tally.offered) {
       // "found no image for" rather than "could not confirm". The run did name
       // works for those artists — they are in the table directly below this
       // sentence, badged `not held` — so a word that reads as "named nothing for"
@@ -158,6 +173,16 @@ function scheduleRunPoll(runId, generation, { done }) {
   schedulePollUnlessDone({ view: "run", detailId: runId, generation, intervalMs: RUN_POLL_MS, done });
 }
 
+/* The Get's works section this screen last painted, and under which navigation.
+ *
+ * Handed to the next paint of the same page so the cards whose works have not
+ * changed are kept rather than rebuilt (`core/reviewing.js`). Keyed by the
+ * navigation alone, because every navigation moves it — to another run, or
+ * back to this one later — and a section from an earlier visit is not one the
+ * curator is still working in. Module scope rather than `state`, as that file
+ * asks of one screen's own bookkeeping. */
+let shownReview = null;
+
 export async function viewRun(runId, generation) {
   // Claimed at the top and checked after every await. This paint supersedes any
   // earlier one, and an earlier one still in flight must not paint over it or
@@ -218,6 +243,12 @@ export async function viewRun(runId, generation) {
     return;
   }
 
+  // Read only when the page is about to be painted, so an unchanged poll costs
+  // no second request. A failure is said in the sentence rather than thrown:
+  // the watch must not end because a theme's name could not be read.
+  const themes = await readThemes();
+  if (!pollIsCurrent(pollGeneration)) return;
+
   // The gate is the point of decision for phase 2, so its price and what that
   // price is made of belong beside the buttons rather than on a costs panel
   // further down. Asked for only at the gate: every other state either has no
@@ -261,6 +292,34 @@ export async function viewRun(runId, generation) {
     if (!pollIsCurrent(pollGeneration)) return;
   }
 
+  /* A Get's works as review cards, read only when the page is about to be
+   * painted, like the themes above. A failure is said where the cards would be
+   * rather than thrown: the watch, the sentence and the costs are still worth
+   * having, and a Get page that went blank because one listing failed would
+   * hide that the Get itself is fine. */
+  let reviewPage = null;
+  let reviewProblem = null;
+  if (run.kind === "get" && view.works.length) {
+    try {
+      reviewPage = await fetchAllCandidates(runId);
+    } catch (failure) {
+      // A Get still looking asks again on its next look, because this paint is
+      // not recorded as one to leave alone (below). A finished one is not
+      // watched, so nothing on the page will ask again and the curator is told
+      // what will.
+      reviewProblem = `This Get's works could not be read: ${failure.message}`;
+      if (run.is_terminal) reviewProblem += " Reload the page to try again.";
+    }
+    if (!pollIsCurrent(pollGeneration)) return;
+  }
+
+  /* What the keyboard is standing on, read before anything below is built.
+   * Keeping a card means lifting it out of the page into the new one, and the
+   * browser drops focus from anything lifted out — so it is read here and given
+   * back once the paint lands, where it is still on the page. */
+  const focused = document.activeElement;
+  const keptFrom = shownReview !== null && shownReview.generation === generation ? shownReview.section : null;
+
   const decisions = el("div", { class: "row" }, [
     run.status === "awaiting_approval"
       ? el("button", {
@@ -299,13 +358,14 @@ export async function viewRun(runId, generation) {
 
   const panels = [
     el("p", {}, [backLink()]),
-    el("h2", { text: run.intent || "Re-search" }),
+    el("h2", { text: runTitle(run) }),
     el("div", { class: "panel" }, [
       el("p", { class: "note", text: runSentence(view) }),
       // The engine's own reading of the request, beside the request. A work list
       // is judged against how the intent was read rather than against its
       // wording, which is what makes a surprising list explicable.
       run.strategy ? el("p", { class: "muted", text: `How it read the request: ${run.strategy}` }) : null,
+      el("p", { class: "muted run-destination", text: destinationSentence(destinationOf(run, themes)) }),
       // What approving commits to, in the place the commitment is made. The
       // basis is the load-bearing half: the figure is currently zero because
       // phase 2 asks museum APIs, and a bare "$0" beside an approve button
@@ -350,7 +410,19 @@ export async function viewRun(runId, generation) {
     ]),
   ];
 
-  panels.push(
+  // A Get's works were chosen, so neither the asked-for nor the offered count
+  // applies to them, and the cards are the table.
+  let section = null;
+  if (run.kind === "get") {
+    section = el("section", { class: "get-review", "aria-label": "This Get's works" }, [
+      el("h3", { text: `Works (${tally.total})` }),
+      el("p", { class: "muted", text: `${counted(tally.chosen, "work")} you chose.` }),
+      reviewProblem ? el("p", { class: "note", text: reviewProblem }) : null,
+      ...(reviewPage ? reviewSection(reviewPage, { keptFrom }) : []),
+      view.works.length ? null : el("p", { class: "muted", text: "This Get holds no works." }),
+    ]);
+    panels.push(section);
+  } else panels.push(
     el("div", { class: "panel" }, [
       el("h3", { text: `Works (${tally.total})` }),
       // The way from watching a run to judging what it brought back. Offered
@@ -411,6 +483,8 @@ export async function viewRun(runId, generation) {
   );
 
   render(generation, ...panels);
+  shownReview = { generation, section };
+  if (focused !== document.activeElement && focused.isConnected) focused.focus({ preventScroll: true });
 
   // Recorded only when the paint is one worth leaving alone. A gate whose price
   // could not be read is not: the run itself is unchanged, so every later poll
@@ -423,7 +497,13 @@ export async function viewRun(runId, generation) {
   // a run that has stopped, and a stopped run schedules no further poll, so
   // there is no next attempt for withholding the signature to enable. The
   // sentence in the panel is the whole of that remedy.
-  if (gateEstimateProblem === null) state.painted = { runId, body };
+  //
+  // A destination that could not be looked up is held out for the same reason
+  // as the gate's price: the run is unchanged, so the next poll would match and
+  // leave the sentence saying so.
+  //
+  // A Get's cards that could not be read are held out for the same reason.
+  if (gateEstimateProblem === null && themes !== null && reviewProblem === null) state.painted = { runId, body };
 
   // Poll only while there is something still to wait for. `is_terminal` comes
   // from the server rather than from a list of finished states written here,

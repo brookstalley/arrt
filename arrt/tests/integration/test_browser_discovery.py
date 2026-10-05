@@ -23,8 +23,9 @@ from decimal import Decimal
 import httpx
 import pytest
 from fakes import (
-    FakeImageSearch,
+    FakeFinder,
     a_collection_holding,
+    a_roster,
     a_work,
     a_work_list,
     an_image,
@@ -376,9 +377,9 @@ class TestWhatTheRunBroughtBack:
     """A deployment wired for phase 2, so the tallies have something to count."""
 
     @pytest.fixture
-    def museum(self) -> FakeImageSearch:
+    def museum(self) -> FakeFinder:
         """Holds one of the three works the run proposes."""
-        return FakeImageSearch(holdings={"The Elephants": (an_image("The Elephants", width=6949, height=8400),)})
+        return FakeFinder(holdings={"The Elephants": (an_image("The Elephants", width=6949, height=8400),)})
 
     @pytest.fixture
     def collection(self):
@@ -405,8 +406,7 @@ class TestWhatTheRunBroughtBack:
             artwork_box=settings.tv_artwork_box,
             engine=engine,
             discovery_settings=settings.discovery_settings,
-            image_search=museum,
-            collection=collection,
+            sources=a_roster(museum, collection=collection),
             previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
         )
 

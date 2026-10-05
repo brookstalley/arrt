@@ -11,7 +11,7 @@ values, no state-machine opinion. Every rule about what a valid run or candidate
 looks like belongs to the service layer, which is the only caller.
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from contextlib import AbstractContextManager
 from datetime import datetime
 from typing import Protocol
@@ -28,6 +28,7 @@ from arrt.persistence.discovery_records import (
     ResolveRunWork,
     RunKind,
     RunStatus,
+    Sighting,
     SpendRecord,
 )
 from arrt.persistence.records import VocabularyKind
@@ -88,11 +89,39 @@ class DiscoveryStore(Protocol):
         """Return a run's proposals in a stable order."""
         ...
 
+    def list_works_awaiting_verdict(self) -> Sequence[CandidateWork]:
+        """Every work, across runs, that found an image and has no verdict yet.
+
+        The read behind *To review*: what a curator has still to judge, wherever
+        it came from. A work with no image has nothing to accept, so it is not
+        waiting on a verdict in the same sense and is left out.
+        """
+        ...
+
+    def list_wanted_works(self) -> Sequence[CandidateWork]:
+        """Every work, across runs, whose verdict is `wanted`.
+
+        The read behind Activity › Wanted: what the curator wants and does not yet
+        hold a scan of, wherever it came from. Ordered by title; the newest-first
+        order a page shows is the service's, since it is decided by the runs.
+        """
+        ...
+
     def list_candidate_works_by_dedup_key(self, work_dedup_key: str) -> Sequence[CandidateWork]:
         """Return every proposal ever made for this work identity, across runs.
 
         This is the read behind work-scoped suppression, so it deliberately spans
         runs: a work declined in March must not come back in April.
+        """
+        ...
+
+    def destinations_of_artworks(self, artwork_ids: Sequence[str]) -> Mapping[str, str]:
+        """Each artwork's run's destination theme id, for the artworks whose run named one.
+
+        Joined artwork → the candidate work acceptance minted it from
+        (`candidate_works.artwork_id`) → that work's run. An artwork no
+        candidate work became, and one whose run named no destination, is
+        absent rather than mapped to None: the caller answers every id it asked.
         """
         ...
 
@@ -239,5 +268,19 @@ class DiscoveryStore(Protocol):
 
         The read behind the double-spend guard: a work is refused to a new
         resolve run while any run covering it is still live.
+        """
+        ...
+
+    # -- sightings --------------------------------------------------------------
+
+    def add_sighting(self, sighting: Sighting) -> bool:
+        """Record a sighting once. True when it was new; False, and nothing written, when it was already there."""
+        ...
+
+    def list_open_sightings(self) -> Sequence[Sighting]:
+        """Every sighting of a work still open: wanted, or unresolved with no verdict yet.
+
+        Whether the catalogue holds the work is not this store's to say; the
+        caller asks the catalogue.
         """
         ...

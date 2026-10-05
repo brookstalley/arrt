@@ -48,6 +48,7 @@ _EXPECTED_SCHEMA = {
         "unresolved_work_count",
         "started_at",
         "completed_at",
+        "destination_theme_id",
     },
     "candidate_works": {
         "id",
@@ -60,6 +61,7 @@ _EXPECTED_SCHEMA = {
         "provenance",
         "offered_for_artist",
         "offered_artist_matched",
+        "wikidata_qid",
         "resolution_status",
         "unresolved_reason",
         "verdict",
@@ -98,6 +100,7 @@ _EXPECTED_SCHEMA = {
         "occurred_at",
     },
     "resolve_run_works": {"resolve_run_id", "candidate_work_id"},
+    "sightings": {"wikidata_qid", "url"},
     "conversations": {"id", "started_at", "last_turn_at", "summary"},
     "conversation_turns": {
         "id",
@@ -219,6 +222,8 @@ def test_the_pipeline_survives_the_process_that_wrote_it(tmp_path):
         )
     )
     writer.add_coverage(ResolveRunWork(resolve_run_id="r2", candidate_work_id="c1"))
+    writer.add_run(_run(id="r3", kind=RunKind.GET, status=RunStatus.RESOLVING_IMAGES))
+    writer.add_candidate_work(_work(id="c2", discovery_run_id="r3", provenance=WorkProvenance.CHOSEN, wikidata_qid="Q45585"))
     first.close()
 
     reopened = open_catalogue_file(path)
@@ -246,6 +251,13 @@ def test_the_pipeline_survives_the_process_that_wrote_it(tmp_path):
         assert (work.rationale, work.work_dedup_key) == ("The best-known Surrealist painting.", "dali::persistence-of-memory")
         assert (work.resolution_status, work.verdict) == (ResolutionStatus.RESOLVED, Verdict.REJECTED)
         assert (work.rejected_reason, work.decided_at, work.artwork_id) == ("Too well known.", _FINISHED, None)
+        assert work.wikidata_qid is None, "a proposed work names no item"
+        chosen = store.get_candidate_work("c2")
+        assert (store.get_run("r3").kind, chosen.provenance, chosen.wikidata_qid) == (
+            RunKind.GET,
+            WorkProvenance.CHOSEN,
+            "Q45585",
+        )
 
         image = store.list_candidate_images("c1")[0]
         assert (image.url, image.provider, image.source_class) == (
@@ -413,5 +425,72 @@ def test_a_work_written_before_provenance_existed_reads_as_proposed(tmp_path):
         # And the widened file takes a write that names the column.
         store.update_candidate_work(replace(held, provenance=WorkProvenance.OFFERED))
         assert store.get_candidate_work("c1").provenance is WorkProvenance.OFFERED
+    finally:
+        store.close()
+
+
+def test_a_file_from_before_gets_opens_and_takes_a_chosen_work(tmp_path):
+    """A catalogue written before a Get could name an item gains the column and keeps its works.
+
+    Made by removing the column from a real file, as the provenance test above
+    does, so the rest of the table is exactly what the code creates.
+    """
+    path = tmp_path / "catalogue.sqlite"
+    open_catalogue_file(path).close()
+
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute("ALTER TABLE candidate_works DROP COLUMN wikidata_qid")
+        connection.execute(
+            "INSERT INTO discovery_runs (id, kind, initiated_by, status, approval_required, started_at) "
+            "VALUES ('r1', 'discovery', 'mcp_client', 'resolving_works', 0, '2026-01-01T00:00:00+00:00')"
+        )
+        connection.execute(
+            "INSERT INTO candidate_works (id, discovery_run_id, proposed_title, rationale, work_dedup_key, "
+            "resolution_status, verdict) VALUES ('c1', 'r1', 'The Night Watch', 'A famous work.', 'k', "
+            "'pending', 'pending')"
+        )
+        connection.commit()
+        assert "wikidata_qid" not in {row[1] for row in connection.execute("PRAGMA table_info(candidate_works)")}
+    finally:
+        connection.close()
+
+    store = SqliteDiscovery(open_catalogue_file(path))
+    try:
+        assert store.get_candidate_work("c1").wikidata_qid is None, "an older work names no item"
+        store.add_run(_run(id="r2", kind=RunKind.GET, status=RunStatus.RESOLVING_IMAGES))
+        store.add_candidate_work(_work(id="c2", discovery_run_id="r2", provenance=WorkProvenance.CHOSEN, wikidata_qid="Q45585"))
+        assert store.get_candidate_work("c2").wikidata_qid == "Q45585"
+    finally:
+        store.close()
+
+
+def test_a_file_from_before_destinations_opens_and_takes_a_run_that_names_one(tmp_path):
+    """A catalogue written before a Get could name a theme gains the column; its runs name none.
+
+    Made by removing the column from a real file, as the tests above do. The
+    null an older run reads back means the default theme, which is where every
+    acceptance went before a run could say otherwise.
+    """
+    path = tmp_path / "catalogue.sqlite"
+    open_catalogue_file(path).close()
+
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute("ALTER TABLE discovery_runs DROP COLUMN destination_theme_id")
+        connection.execute(
+            "INSERT INTO discovery_runs (id, kind, initiated_by, status, approval_required, started_at) "
+            "VALUES ('r1', 'get', 'mcp_client', 'resolving_images', 0, '2026-01-01T00:00:00+00:00')"
+        )
+        connection.commit()
+        assert "destination_theme_id" not in {row[1] for row in connection.execute("PRAGMA table_info(discovery_runs)")}
+    finally:
+        connection.close()
+
+    store = SqliteDiscovery(open_catalogue_file(path))
+    try:
+        assert store.get_run("r1").destination_theme_id is None, "an older run names no theme"
+        store.add_run(_run(id="r2", kind=RunKind.GET, status=RunStatus.RESOLVING_IMAGES, destination_theme_id="t-1"))
+        assert store.get_run("r2").destination_theme_id == "t-1"
     finally:
         store.close()

@@ -168,7 +168,7 @@ def test_going_to_an_artists_work_lands_on_the_normal_empty_state(talking):
 
     assert "artist=Agnes" in talking.page.url
     assert "That is the normal answer, not a failed search" in talking.text()
-    assert talking.page.locator("button:has-text('Look for some in Add New')").count() == 1
+    assert talking.page.locator("button:has-text('Ask for some')").count() == 1
 
 
 # -- the Taste screen ---------------------------------------------------------
@@ -375,7 +375,7 @@ def test_a_taste_nobody_has_expressed_says_what_would_create_one(ui):
     ui.page.wait_for_selector(".empty")
 
     assert "Nothing is known about your taste yet." in ui.text()
-    assert ui.page.locator("button:has-text('Start a conversation in Add New')").count() == 1
+    assert ui.page.locator("button:has-text('Start a conversation in Ask')").count() == 1
 
 
 def test_discover_offers_the_way_into_taste(ui):

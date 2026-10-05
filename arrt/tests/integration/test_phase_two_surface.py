@@ -15,7 +15,7 @@ business departing from.
 import json
 
 import pytest
-from fakes import FakeImageSearch, a_work, an_image
+from fakes import FakeFinder, a_roster, a_work, an_image
 
 from arrt.library.discovery.engine import WorkList
 from arrt.library.services.previews import PreviewSettings
@@ -48,9 +48,9 @@ async def finished(server_url: str, run_id: str) -> dict:
 
 
 @pytest.fixture
-def museum() -> FakeImageSearch:
+def museum() -> FakeFinder:
     """A collection holding one of the two works the run proposes."""
-    return FakeImageSearch(
+    return FakeFinder(
         holdings={
             "The Elephants": (
                 an_image("The Elephants", width=6949, height=8400),
@@ -79,7 +79,7 @@ def services(store, discovery_store, wall_settings, thumbnail_settings, settings
         artwork_box=settings.tv_artwork_box,
         engine=engine,
         discovery_settings=settings.discovery_settings,
-        image_search=museum,
+        sources=a_roster(museum),
         previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
     )
 

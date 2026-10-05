@@ -68,6 +68,8 @@ def a_catalogue_work(**overrides) -> WorkOut:
         "dimensions": None,
         "description": None,
         "commentary": None,
+        "wikidata_qid": None,
+        "wikidata_qid_set_by": None,
         "rights": None,
         "status": ArtworkStatus.ACCEPTED.value,
         "fit": None,
@@ -140,6 +142,7 @@ def a_run(**overrides) -> RunOut:
         "parent_run_id": None,
         "started_at": "2026-08-05T10:00:00+00:00",
         "completed_at": None,
+        "destination_theme_id": None,
     }
     return RunOut(**(fields | overrides))
 
@@ -158,6 +161,8 @@ def a_candidate(**overrides) -> CandidateWorkOut:
         # service will not write.
         "offered_for_artist": None,
         "offered_artist_matched": None,
+        # Null for the same reason: only a work chosen for a Get names an item.
+        "wikidata_qid": None,
         "verdict": Verdict.PENDING.value,
         "resolution_status": ResolutionStatus.RESOLVED.value,
         "unresolved_reason": None,
@@ -179,7 +184,8 @@ def a_run_view(run: RunOut | None = None, works: list[CandidateWorkOut] | None =
     tally = RunTallyOut(
         total=len(works),
         proposed=len(proposed),
-        offered=len(works) - len(proposed),
+        offered=len([w for w in works if w.provenance == WorkProvenance.OFFERED.value]),
+        chosen=len([w for w in works if w.provenance == WorkProvenance.CHOSEN.value]),
         resolved=len(resolved),
         resolved_proposals=len([w for w in proposed if w.resolution_status == ResolutionStatus.RESOLVED.value]),
         unresolved=len([w for w in works if w.resolution_status == ResolutionStatus.UNRESOLVED.value]),
@@ -209,6 +215,10 @@ def an_instance(**overrides) -> InstanceOut:
         "rejected": False,
         "rights_status": "public_domain",
         "selection_rationale": None,
+        # The scan's own pixels, which the card states as its resolution. Not
+        # the rendered size below: that is the scan fitted to one panel.
+        "width": 3840,
+        "height": 2604,
         "fit": FitOut(
             verdict=DisplayFit.NATIVE.value,
             rendered_width=3316,
@@ -314,6 +324,8 @@ def an_artist(**overrides) -> ArtistOut:
         # omits one rather than inventing a null. That is what caught this
         # fixture when the field landed.
         "display_nationality": None,
+        "wikidata_qid": None,
+        "wikidata_qid_set_by": None,
     }
     return ArtistOut(**(fields | overrides))
 
@@ -326,6 +338,7 @@ def a_theme(**overrides) -> ThemeOut:
         "rotation_interval_seconds": None,
         "shuffle": None,
         "created_at": "2026-08-12T09:00:00+00:00",
+        "is_default": False,
     }
     return ThemeOut(**(fields | overrides))
 

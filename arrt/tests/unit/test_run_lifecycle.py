@@ -388,26 +388,81 @@ def test_a_rejection_recorded_after_the_repair_suppresses_the_clean_proposal(dis
     assert discovery.is_work_suppressed(work_dedup_key(title="Lobster Telephone")) is True
 
 
-def test_a_stored_title_the_rules_do_not_reach_is_left_exactly_as_it_is(discovery, run, propose):
+def test_a_stored_title_the_rules_do_not_reach_is_left_exactly_as_it_is(discovery, run, propose, caplog):
     """The no-op case, which is what makes running this at every start safe.
 
     `The Source` ends in a word that introduces a citation, and `Composition
     No.5` ends in something any loose hostname pattern matches. Both are titles,
     neither carries a citation, and a repair that touched them would merge them
     with `The` and `Composition`.
+
+    Each is stored with the key the current rules derive, as every writer stores
+    it: a row whose key is stale is one the rules do reach (below).
     """
-    kept = [propose(title, dedup_key=title.lower()) for title in ("The Source", "Composition No.5")]
+    titles = ("The Source", "Composition No.5")
+    kept = [propose(title, dedup_key=work_dedup_key(title=title)) for title in titles]
+
+    with caplog.at_level(logging.INFO):
+        discovery.reconcile()
+
+    assert [discovery.get_candidate_work(work.id).proposed_title for work in kept] == list(titles)
+    assert [discovery.get_candidate_work(work.id).work_dedup_key for work in kept] == [
+        "(unattributed)::source",
+        "(unattributed)::composition no 5",
+    ]
+    events = {getattr(record, "event", None) for record in caplog.records}
+    assert not events & {"work.recleaned", "works.recleaned", "works.rekeyed"}, events
+
+
+#: A row as an earlier derivation keyed it, before a leading article was
+#: cataloguing variation: its title needs no cleaning, and only its key is stale.
+OLD_KEY_TREE = "agnes martin::the tree"
+
+
+def test_a_key_an_earlier_derivation_gave_is_rederived_at_startup(discovery, run, propose):
+    """The title is clean and stays exactly as it is; the key follows the rule."""
+    work = propose("The Tree", dedup_key=OLD_KEY_TREE, proposed_artist="Agnes Martin")
 
     discovery.reconcile()
 
-    assert [discovery.get_candidate_work(work.id).proposed_title for work in kept] == [
-        "The Source",
-        "Composition No.5",
-    ]
-    assert [discovery.get_candidate_work(work.id).work_dedup_key for work in kept] == [
-        "the source",
-        "composition no.5",
-    ]
+    stored = discovery.get_candidate_work(work.id)
+    assert (stored.proposed_title, stored.proposed_artist) == ("The Tree", "Agnes Martin")
+    assert stored.work_dedup_key == work_dedup_key(title="Tree", artist="Agnes Martin")
+
+
+def test_a_rejection_under_an_earlier_derivation_still_suppresses_after_the_rederivation(discovery, run, propose):
+    """What the re-key is for, one hop on: the curator turned down *The Tree* under
+    the old rule, and the next run proposing it as "Tree" must still be told no."""
+    work = propose("The Tree", dedup_key=OLD_KEY_TREE, proposed_artist="Agnes Martin")
+    discovery.set_verdict(work.id, Verdict.REJECTED, reason="Not for this wall.")
+
+    discovery.reconcile()
+
+    assert discovery.is_work_suppressed(work_dedup_key(title="Tree", artist="Agnes Martin")) is True
+
+
+def test_a_rederived_key_is_reported_apart_from_a_recleaned_title(discovery, run, propose, caplog):
+    """Nothing a curator saw was wrong, so it is not counted as a title they were shown with markup."""
+    propose("The Tree", dedup_key=OLD_KEY_TREE, proposed_artist="Agnes Martin")
+
+    with caplog.at_level(logging.INFO):
+        discovery.reconcile()
+
+    by_event = {getattr(record, "event", None): record for record in caplog.records}
+    assert by_event["works.rekeyed"].works_rekeyed == 1
+    assert by_event["works.rekeyed"].levelno == logging.INFO
+    assert "works.recleaned" not in by_event and "work.recleaned" not in by_event
+
+
+def test_rederiving_keys_is_done_after_the_first_start(discovery, run, propose, caplog):
+    propose("The Tree", dedup_key=OLD_KEY_TREE, proposed_artist="Agnes Martin")
+    discovery.reconcile()
+    caplog.clear()
+
+    with caplog.at_level(logging.INFO):
+        discovery.reconcile()
+
+    assert [record for record in caplog.records if getattr(record, "event", None) == "works.rekeyed"] == []
 
 
 def test_a_stored_title_that_was_nothing_but_a_citation_is_left_to_be_read(discovery, run, propose):
@@ -502,8 +557,8 @@ def test_a_run_waiting_for_the_curator_cannot_break_or_be_halted(discovery, run,
 
     Both are things that happen to a run *while it works*. Leaving them reachable
     from `awaiting_approval` would put two edges in the machine that the model
-    does not draw — the state the artifact already had to correct once for
-    `awaiting_better_image`.
+    does not draw — the mistake the artifact already had to correct once for
+    the verdict machine's `wanted`.
     """
     propose()
     discovery.finish_work_list(run.id, approval_threshold=0)

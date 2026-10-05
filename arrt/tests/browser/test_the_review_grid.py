@@ -107,15 +107,20 @@ def test_the_alternates_do_arrive_when_opened(grid):
     grid.open(f"#review/{RUN_ID}")
     grid.page.click("summary")
 
-    grid.page.wait_for_selector("li.alternate")
+    grid.page.wait_for_selector("tr.alternate")
     assert grid.requests_matching("/api/candidates/work-1/images")
 
 
 def test_opening_the_alternates_shows_what_a_curator_chooses_between(grid):
-    """The size on the wall is the whole reason the alternates are worth opening.
+    """The size is the whole reason the alternates are worth opening.
 
-    Two scans of one painting look identical at card size; the inches are what
-    separates a wall-filling scan from a postage stamp.
+    Two scans of one painting look identical at card size; the pixels are what
+    separates a wall-filling scan from a postage stamp. This asserted "would show
+    at 27.4″" until the owner ruled the inches out (2026-10-02): they are the
+    long edge on the one panel this server is configured for, after the mat. The
+    claim it guards is unchanged — each scan says its own size, and which one is
+    on offer — so the pixels are asserted per row, and the fit verdict beside
+    them, where the inches were.
     """
     grid.serve(
         "**/api/candidates/work-1/images",
@@ -125,6 +130,8 @@ def test_opening_the_alternates_shows_what_a_curator_chooses_between(grid):
                 an_instance(
                     image_id="image-2",
                     is_selected=False,
+                    width=1100,
+                    height=856,
                     fit={
                         "verdict": "below_floor",
                         "rendered_width": 900,
@@ -137,12 +144,13 @@ def test_opening_the_alternates_shows_what_a_curator_chooses_between(grid):
     )
     grid.open(f"#review/{RUN_ID}")
     grid.page.click("summary")
-    grid.page.wait_for_selector("li.alternate")
+    grid.page.wait_for_selector("tr.alternate")
 
-    shown = grid.text()
-    assert "would show at 27.4″" in shown
-    assert "would show at 7.4″" in shown
-    assert "on offer" in shown
+    rows = [" ".join(row.split()) for row in grid.page.locator("tr.alternate").all_inner_texts()]
+    assert "3,840 × 2,604 px" in rows[0] and "native" in rows[0] and "on offer" in rows[0], rows[0]
+    assert "1,100 × 856 px" in rows[1] and "below floor" in rows[1], rows[1]
+    assert "on offer" not in rows[1], rows[1]
+    assert "″" not in grid.text()
 
 
 def test_turning_a_scan_down_leaves_the_alternates_open(grid):
@@ -160,15 +168,15 @@ def test_turning_a_scan_down_leaves_the_alternates_open(grid):
     exactly that. The verdict badge is the signal that the new card has landed,
     so it is waited for first and the disclosure is asserted after.
     """
-    wanting = a_candidate(verdict=Verdict.AWAITING_BETTER_IMAGE.value)
+    wanting = a_candidate(verdict=Verdict.WANTED.value)
     grid.serve("**/api/candidate-images/image-1/reject", wanting.model_dump(mode="json"))
     grid.serve("**/api/candidates/work-1", a_card(work=wanting).model_dump(mode="json"))
     grid.open(f"#review/{RUN_ID}")
     grid.page.click("summary")
-    grid.page.wait_for_selector("li.alternate")
+    grid.page.wait_for_selector("tr.alternate")
 
     grid.page.click("button:has-text('Turn it down')")
-    grid.page.wait_for_selector(".badge:has-text('wants a better scan')")
+    grid.page.wait_for_selector(".badge-wanted:has-text('wanted')")
 
     # The card that is on the page now is the new one, so this reads the state
     # that was carried over rather than the one being replaced. The rows are
@@ -176,7 +184,7 @@ def test_turning_a_scan_down_leaves_the_alternates_open(grid):
     # listener never fires again shows "Loading the other scans…" for ever, which
     # is open and empty and looks exactly like a request that never came back.
     assert grid.page.locator("details[open]").count() == 1
-    grid.page.wait_for_selector("details[open] li.alternate")
+    grid.page.wait_for_selector("details[open] tr.alternate")
 
 
 def test_the_alternates_of_an_untouched_card_start_closed(grid):
@@ -210,9 +218,12 @@ def test_an_alternate_s_buttons_name_the_work_rather_than_its_id(grid):
     )
     grid.open(f"#review/{RUN_ID}")
     grid.page.click("summary")
-    grid.page.wait_for_selector("li.alternate")
+    grid.page.wait_for_selector("tr.alternate")
 
-    labels = grid.page.locator("li.alternate button").evaluate_all("nodes => nodes.map(n => n.getAttribute('aria-label'))")
+    # `button.action`, the scan's two actions: each row's picture is a button
+    # too now, the one that enlarges it, and its own name is asserted where the
+    # enlarging is.
+    labels = grid.page.locator("tr.alternate button.action").evaluate_all("nodes => nodes.map(n => n.getAttribute('aria-label'))")
     assert len(labels) == 3, f"expected both actions on the choosable scan and one on the selected one: {labels}"
     for label in labels:
         assert "The Persistence of Memory" in label, label
@@ -342,15 +353,15 @@ def test_a_work_standing_on_a_scan_says_nothing_of_the_kind(grid):
 # -- the re-search --------------------------------------------------------
 
 
-def test_nothing_offers_to_spend_when_no_scan_has_been_turned_down(grid):
-    """A button that spends and would do nothing is worse than no button."""
+def test_nothing_offers_a_re_search_when_no_work_is_wanted(grid):
+    """A button that starts a run over nothing is worse than no button."""
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
 
     assert "Look again for these" not in grid.text()
 
 
-def test_a_work_waiting_for_a_better_scan_is_offered_a_re_search(grid):
+def test_a_wanted_work_is_offered_a_re_search(grid):
     """The dead end this binding exists to close, at the point a curator hits it.
 
     Rejecting a scan records a judgement and starts no search. A page that stayed
@@ -358,29 +369,31 @@ def test_a_work_waiting_for_a_better_scan_is_offered_a_re_search(grid):
     """
     grid.serve(
         f"**/api/runs/{RUN_ID}/candidates*",
-        a_candidate_page([a_card(work=a_candidate(verdict=Verdict.AWAITING_BETTER_IMAGE.value))]),
+        a_candidate_page([a_card(work=a_candidate(verdict=Verdict.WANTED.value))]),
     )
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
 
     shown = grid.text()
-    assert "1 work is waiting for a better scan" in shown
-    assert "Nothing is looking for one" in shown
-    assert "it spends" in shown
+    assert "1 work is wanted." in shown
+    assert "Nothing is looking for a scan" in shown
+    # Says what it costs, which is nothing: phase 2 asks open museum and
+    # Commons APIs (`phase2_estimate_usd`). It said "it spends" until 2026-10-02.
+    assert "it costs nothing" in shown
 
 
 def test_the_re_search_asks_only_for_the_works_that_are_waiting(grid):
-    """A re-search over works nobody turned down spends on answers already held.
+    """A re-search over works nobody turned down searches again for answers already held.
 
-    The list is what the button sends, so a filter written wrongly is money —
-    and it is invisible in any assertion about what the page displays.
+    The list is what the button sends, so a filter written wrongly searches for
+    the wrong works — and it is invisible in any assertion about what the page displays.
     """
     grid.serve(
         f"**/api/runs/{RUN_ID}/candidates*",
         a_candidate_page(
             [
                 a_card(work=a_candidate(work_id="settled", verdict=Verdict.PENDING.value)),
-                a_card(work=a_candidate(work_id="wanting", verdict=Verdict.AWAITING_BETTER_IMAGE.value)),
+                a_card(work=a_candidate(work_id="wanting", verdict=Verdict.WANTED.value)),
             ]
         ),
     )
@@ -421,7 +434,7 @@ def test_the_offer_to_re_search_appears_when_a_scan_is_turned_down(grid):
     test states: it is the signal that the replacement card has landed, so
     asserting on it first keeps this from matching against the pre-repaint page.
     """
-    wanting = a_candidate(verdict=Verdict.AWAITING_BETTER_IMAGE.value)
+    wanting = a_candidate(verdict=Verdict.WANTED.value)
     grid.serve("**/api/candidate-images/image-1/reject", wanting.model_dump(mode="json"))
     grid.serve("**/api/candidates/work-1", a_card(work=wanting).model_dump(mode="json"))
     grid.open(f"#review/{RUN_ID}")
@@ -429,20 +442,20 @@ def test_the_offer_to_re_search_appears_when_a_scan_is_turned_down(grid):
     assert "Look again for these" not in grid.text()
 
     grid.page.click("summary")
-    grid.page.wait_for_selector("li.alternate")
+    grid.page.wait_for_selector("tr.alternate")
     grid.page.click("button:has-text('Turn it down')")
-    grid.page.wait_for_selector(".badge:has-text('wants a better scan')")
+    grid.page.wait_for_selector(".badge-wanted:has-text('wanted')")
 
     shown = grid.text()
-    assert "1 work is waiting for a better scan" in shown
+    assert "1 work is wanted." in shown
     assert "Look again for these" in shown
 
 
-def test_the_re_search_spends_on_a_work_turned_down_after_the_page_loaded(grid):
-    """The half of this that costs money rather than credibility.
+def test_the_re_search_covers_a_work_turned_down_after_the_page_loaded(grid):
+    """The half of this that acts rather than only displays.
 
     A stale panel under-*counts*, and the count is the visible symptom — but the
-    list the button posts is the same stale array, so the curator pays for a run
+    list the button posts is the same stale array, so the curator starts a run
     covering fewer works than they just marked and gets back a run that is not
     the one they asked for. No assertion about rendered text reaches it.
 
@@ -450,8 +463,8 @@ def test_the_re_search_spends_on_a_work_turned_down_after_the_page_loaded(grid):
     re-derived the list from the newly-turned-down card alone would send one id
     and satisfy every count on screen.
     """
-    already = a_candidate(work_id="work-2", title="The Elephants", verdict=Verdict.AWAITING_BETTER_IMAGE.value)
-    turned_down = a_candidate(verdict=Verdict.AWAITING_BETTER_IMAGE.value)
+    already = a_candidate(work_id="work-2", title="The Elephants", verdict=Verdict.WANTED.value)
+    turned_down = a_candidate(verdict=Verdict.WANTED.value)
     grid.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([a_card(), a_card(work=already)]))
     grid.serve("**/api/candidate-images/image-1/reject", turned_down.model_dump(mode="json"))
     grid.serve("**/api/candidates/work-1", a_card(work=turned_down).model_dump(mode="json"))
@@ -465,14 +478,14 @@ def test_the_re_search_spends_on_a_work_turned_down_after_the_page_loaded(grid):
 
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
-    assert "1 work is waiting for a better scan" in grid.text()
+    assert "1 work is wanted." in grid.text()
 
     grid.page.click("li.card[data-work='work-1'] summary")
-    grid.page.wait_for_selector("li.alternate")
+    grid.page.wait_for_selector("tr.alternate")
     grid.page.click("li.card[data-work='work-1'] button:has-text('Turn it down')")
-    grid.page.wait_for_selector("li.card[data-work='work-1'] .badge:has-text('wants a better scan')")
+    grid.page.wait_for_selector("li.card[data-work='work-1'] .badge-wanted:has-text('wanted')")
 
-    assert "2 works are waiting for a better scan" in grid.text()
+    assert "2 works are wanted." in grid.text()
 
     grid.page.click("button:has-text('Look again for these')")
     grid.page.wait_for_url("**/#run/resolve-run")
@@ -485,7 +498,7 @@ def test_the_offer_is_announced_to_a_curator_who_cannot_see_it_appear(grid):
     """Appearing silently is the sighted-only half of this binding.
 
     The offer's whole job is to tell a curator that nothing is looking for a
-    better scan. A curator working by screen reader turns a scan down, the panel
+    scan of a work they want. A curator working by screen reader turns a scan down, the panel
     appears below the heading they are nowhere near, and without a live region
     they are told nothing at all — the same dead end this exists to close, for
     the people least able to spot it.
@@ -496,7 +509,7 @@ def test_the_offer_is_announced_to_a_curator_who_cannot_see_it_appear(grid):
     nothing. `status` rather than `alert` — polite, since an offer is news
     rather than an emergency.
     """
-    wanting = a_candidate(verdict=Verdict.AWAITING_BETTER_IMAGE.value)
+    wanting = a_candidate(verdict=Verdict.WANTED.value)
     grid.serve("**/api/candidate-images/image-1/reject", wanting.model_dump(mode="json"))
     grid.serve("**/api/candidates/work-1", a_card(work=wanting).model_dump(mode="json"))
     grid.open(f"#review/{RUN_ID}")
@@ -507,11 +520,11 @@ def test_the_offer_is_announced_to_a_curator_who_cannot_see_it_appear(grid):
     assert region.inner_text().strip() == ""
 
     grid.page.click("summary")
-    grid.page.wait_for_selector("li.alternate")
+    grid.page.wait_for_selector("tr.alternate")
     grid.page.click("button:has-text('Turn it down')")
-    grid.page.wait_for_selector(".badge:has-text('wants a better scan')")
+    grid.page.wait_for_selector(".badge-wanted:has-text('wanted')")
 
-    assert "waiting for a better scan" in region.inner_text()
+    assert "is wanted." in region.inner_text()
 
 
 def test_the_offer_is_not_re_announced_when_no_verdict_moved(grid):
@@ -527,7 +540,7 @@ def test_the_offer_is_not_re_announced_when_no_verdict_moved(grid):
         f"**/api/runs/{RUN_ID}/candidates*",
         a_candidate_page(
             [
-                a_card(work=a_candidate(work_id="waiting", verdict=Verdict.AWAITING_BETTER_IMAGE.value)),
+                a_card(work=a_candidate(work_id="waiting", verdict=Verdict.WANTED.value)),
                 a_card(work=a_candidate(work_id="other")),
             ]
         ),
@@ -550,21 +563,21 @@ def test_the_offer_is_not_re_announced_when_no_verdict_moved(grid):
     grid.page.wait_for_selector("li.card[data-work='other'] .badge:has-text('accepted')")
 
     assert handle.evaluate("node => node.isConnected") is True, "the offer was rebuilt though nothing it describes changed"
-    assert "1 work is waiting for a better scan" in grid.text()
+    assert "1 work is wanted." in grid.text()
 
 
 def test_the_offer_withdraws_when_the_last_waiting_work_is_settled(grid):
     """The paired negative, and the other way a verdict reaches the panel.
 
-    A work leaves `awaiting_better_image` through the card's own buttons, not
+    A work leaves `wanted` through the card's own buttons, not
     through the alternates — so this covers the second caller of the repaint the
-    panel listens to. Leaving the offer standing would invite a curator to spend
-    on a work they had just settled, which is the same defect facing the other
-    way: a button that spends and would do nothing.
+    panel listens to. Leaving the offer standing would invite a curator to
+    re-search a work they had just settled, which is the same defect facing the
+    other way: a button that starts a run and would do nothing.
     """
     grid.serve(
         f"**/api/runs/{RUN_ID}/candidates*",
-        a_candidate_page([a_card(work=a_candidate(verdict=Verdict.AWAITING_BETTER_IMAGE.value))]),
+        a_candidate_page([a_card(work=a_candidate(verdict=Verdict.WANTED.value))]),
     )
     grid.serve("**/api/candidates/work-1/verdict", a_verdict())
     grid.serve("**/api/candidates/work-1", a_card(work=a_candidate(verdict=Verdict.ACCEPTED.value)).model_dump(mode="json"))
@@ -618,10 +631,11 @@ def test_a_page_that_says_there_is_more_and_carries_nothing_is_not_asked_again(u
     ui.serve_image("**/api/candidate-images/*/preview")
     ui.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([], total=5, truncated=True))
     ui.open(f"#review/{RUN_ID}")
-    ui.page.wait_for_selector("#view p.muted")
+    # Waits on the sentence rather than on `p.muted`, which the catalogue's
+    # loading line matches too: under load the assertions read that instead.
+    ui.page.wait_for_selector("#view p.muted:has-text('settled on no works')")
 
     assert len(ui.requests_matching(f"/api/runs/{RUN_ID}/candidates")) == 1
-    assert "settled on no works" in ui.text()
 
 
 def test_a_listing_that_keeps_insisting_there_is_more_still_terminates(ui):
@@ -986,7 +1000,7 @@ def test_a_card_truncated_by_one_scan_says_so_in_the_singular(grid):
     grid.serve("**/api/candidates/work-1/images", an_instance_listing([an_instance(image_id="image-1")], held=2))
     grid.open(f"#review/{RUN_ID}")
     grid.page.click("summary")
-    grid.page.wait_for_selector("li.alternate")
+    grid.page.wait_for_selector("tr.alternate")
 
     said = grid.text()
     assert "This work holds 2 scans; 1 already turned down is not shown" in said
@@ -1015,7 +1029,7 @@ def test_a_card_withholding_one_choosable_scan_says_so_in_the_singular(grid):
     )
     grid.open(f"#review/{RUN_ID}")
     grid.page.click("summary")
-    grid.page.wait_for_selector("li.alternate")
+    grid.page.wait_for_selector("tr.alternate")
 
     said = grid.text()
     assert "This work holds 13 scans and 1 is not shown, including some you could still choose" in said
@@ -1289,3 +1303,36 @@ def test_a_work_opened_from_a_review_card_returns_to_that_review(ui, service):
     ui.page.click("#view button:has-text('← The review')")
     ui.page.wait_for_selector("li.card")
     assert ui.page.evaluate("() => window.location.hash") == f"#review/{RUN_ID}"
+
+
+# -- a work chosen for a Get says so ---------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("provenance", "glyph", "word", "styled"),
+    [
+        pytest.param(WorkProvenance.CHOSEN.value, "◇", "you chose", "badge-chosen", id="chosen"),
+        pytest.param(WorkProvenance.OFFERED.value, "◈", "offered", "badge-offered", id="offered"),
+        pytest.param(WorkProvenance.PROPOSED.value, "◆", "asked for", None, id="proposed"),
+    ],
+)
+def test_each_provenance_is_drawn_as_itself(grid, provenance, glyph, word, styled):
+    """Glyph, word and its own badge for each, so no work is drawn as another kind."""
+    card = a_card(
+        work=a_candidate(
+            provenance=provenance,
+            offered_for_artist="Salvador Dalí" if provenance == "offered" else None,
+            offered_artist_matched=1 if provenance == "offered" else None,
+        )
+    )
+    grid.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([card]))
+    grid.open(f"#review/{RUN_ID}")
+    grid.page.wait_for_selector("li.card")
+
+    badge = grid.page.locator("li.card .badge", has_text=word).first
+    assert badge.inner_text().replace("\n", " ").strip() == f"{glyph} {word}"
+    classes = badge.get_attribute("class").split()
+    if styled is None:
+        assert classes == ["badge"], classes
+    else:
+        assert styled in classes, classes

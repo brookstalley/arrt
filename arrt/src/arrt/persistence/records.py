@@ -31,6 +31,17 @@ class ArtworkStatus(StrEnum):
     ARCHIVED = "archived"
 
 
+class IdentitySetBy(StrEnum):
+    """Who set a registry identity (`wikidata_qid`), and so whether a matcher may fill it.
+
+    `CURATOR` with no QID is the curator saying there is none, which is why the
+    matcher reads this rather than the QID's absence to decide what it may fill.
+    """
+
+    MATCHED = "matched"
+    CURATOR = "curator"
+
+
 class SourceClass(StrEnum):
     """Which kind of place a work was obtained from.
 
@@ -179,7 +190,7 @@ class Artist:
     label leads with the family name and sets it apart, which needs to know which
     part of the name that is — and no rule over `name` can say. "Titian (Tiziano
     Vecellio)", "van Gogh" and "Frank Lloyd Wright" each break a different
-    last-word heuristic, and the heuristic in `library/discovery/artic.py` documents its
+    last-word heuristic, and the heuristic in `library/sources/artic.py` documents its
     own unreliability. So the parts are stored facts, supplied by whoever knows,
     and an artist who has neither is set unstyled under `name` rather than split
     by a guess. Both parts are optional because the corpus holds records that are
@@ -201,6 +212,10 @@ class Artist:
     #: recorded string is the provenance and stays whatever the institution
     #: printed.
     display_nationality: str | None = None
+    #: The Wikidata item for this person, as the bare QID (`Q160149`), and who set
+    #: it (`data-model.md` § Artwork, Registry identity).
+    wikidata_qid: str | None = None
+    wikidata_qid_set_by: IdentitySetBy | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -235,6 +250,11 @@ class Artwork:
     rights: str | None = None
     accepted_at: datetime | None = None
     commentary: str | None = None
+    #: The Wikidata item for this work, as the bare QID, and who set it. Matched
+    #: only through the holding museum's own identifier, never a title
+    #: (`data-model.md` § Artwork, Registry identity).
+    wikidata_qid: str | None = None
+    wikidata_qid_set_by: IdentitySetBy | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -265,6 +285,11 @@ class WorkFacet:
     #: For `INFERRED`, the model id. Null where nobody recorded it, which is
     #: honest rather than tidy.
     source_note: str | None = None
+    #: The Wikidata item the value names, where one does: the Topic page this
+    #: value opens. Null for a value nobody tied to an item, which an inferred
+    #: facet usually is. The label beside it is `value`, as the registry wrote it
+    #: when the row was recorded.
+    value_qid: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -328,6 +353,36 @@ class Original:
 
 
 @dataclass(frozen=True, slots=True)
+class QueuedAcquisition:
+    """The acquisition queue's memory of one work it has started on and not finished.
+
+    A row exists from the queue's first attempt at a work, or a Retry of it, until
+    the work is fetched and prepared; then it is deleted. So a work holding no
+    original and no row is simply waiting its first turn, and a work holding an
+    original *and* a row was fetched and still owes a preparation — which is what
+    lets a preparation that failed, or a process that died between the fetch and
+    the preparation, be finished without fetching again.
+
+    What is in flight, and why the queue is paused, are deliberately not here:
+    both are facts about this process, and a restart re-derives them by trying.
+    """
+
+    artwork_id: str
+    #: Attempts that failed in a row since the last success or Retry. The retry
+    #: schedule and "gave up" are read from it, so neither is a second field that
+    #: could disagree with it.
+    failures: int = 0
+    #: When the work may next be tried. None means now (no failure yet, or a
+    #: Retry) or never (the queue gave up); `failures` says which.
+    next_try_at: datetime | None = None
+    #: Why the last attempt failed, in the words acquisition or preparation gave.
+    detail: str | None = None
+    #: The source the next fetch must use, when someone named one. Cleared once a
+    #: fetch from it has been made.
+    source_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Rendition:
     """A derived output, regenerated rather than transported.
 
@@ -352,6 +407,19 @@ class Rendition:
     content_sha256: str | None = None
     #: The file's size, recorded with the hash so a manifest can state it.
     byte_size: int | None = None
+    #: The geometry and drawing rule a television canvas was composed with
+    #: (`compose.layout`). A canvas whose layout is not the one this deployment
+    #: composes with now is recomposed, which is how a changed mat or panel
+    #: reaches canvases already drawn. None for a thumbnail, and for a canvas
+    #: recorded before this was, which counts as out of date.
+    layout: str | None = None
+    #: The mat colour a television canvas was painted in. A canvas painted in a
+    #: colour that is no longer the work's current mat is recomposed, so a mat
+    #: recorded before its canvas was redrawn (a crash between the two, or a
+    #: redraw that failed) cannot leave the old colour on the wall. None for a
+    #: thumbnail, and for a canvas recorded before this was, which counts as out
+    #: of date.
+    mat_hex: str | None = None
 
 
 def is_current(rendition: Rendition, original: Original | None) -> bool:
@@ -476,20 +544,57 @@ class Theme:
     description: str | None = None
     rotation_interval_seconds: int | None = None
     shuffle: bool | None = None
+    #: Whether works the Library accepts join this theme. At most one theme
+    #: carries it. Read from the store and written only by marking a theme the
+    #: default, never by saving a theme, so a rename built from a stale copy
+    #: cannot move or clear it.
+    is_default: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class Client:
+    """An installed Player, known to the server by a name and one credential.
+
+    `clients.md` § The model. A client drives any number of walls, each on one of
+    its outputs, and learns which from the server; the host is configured with
+    the server's address and this client's token and nothing else.
+
+    **Nothing about the device**, for the reason the `Wall` record gives: no
+    address, no geometry, no model. What outputs a client has, and whether each
+    is connected, is what the client *reports* in its heartbeat, a file beside
+    the wall heartbeats rather than a column here.
+    """
+
+    id: str
+    #: The curator's word for the host ("The Pi in the hall"). Unique, because
+    #: every confirmation about a client names it.
+    name: str
+    created_at: datetime
+    #: The SHA-256 hex digest of the client's token, never the token. None until
+    #: one is issued, and such a client is admitted nowhere.
+    token_verifier: str | None = None
+    #: When the current token was issued, so a curator can tell which host still
+    #: holds the old one after a rotation.
+    token_issued_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class Wall:
-    """A place where art hangs. One display serves one wall.
+    """A place where art hangs, and which client shows it on which output.
 
     **Few fields, and the shortness is the design.** A wall is an identity, a
-    name, and the verifier of the one credential that lets a Player serve it; it
-    is not a device. Geometry, network address, panel model, TV
-    content ids, upload state, reachability and last-heartbeat are all per-device
-    runtime state and are permanently forbidden here — they belong to the display
-    plane's own store or to the configuration both planes read. Which display
-    serves which wall is display-plane configuration, exactly as `TV_ADDRESS`
-    already is.
+    name, and its assignment: the client that drives it and the name of the
+    output that client shows it on. It is not a device. Geometry, network
+    address, panel model, TV content ids, upload state, reachability and
+    last-heartbeat are all per-device runtime state and are permanently
+    forbidden here — they belong to the client, which reports what it can drive
+    in its own heartbeat.
+
+    **The assignment is the one fact about the display the catalogue holds**,
+    by the owner's ruling of 2026-10-02 (`clients.md`): the server has to tell a
+    client its walls, and an output's *name* (`hdmi-a-1`, `frame`) is the
+    smallest fact that lets a curator place a wall on a screen without the
+    device's geometry or address entering the catalogue.
 
     That this record lives in the catalogue at all is a ruling against
     `data-model.md`'s "per-device runtime state never lives in the catalogue"
@@ -504,14 +609,12 @@ class Wall:
     id: str
     name: str
     created_at: datetime
-    #: The SHA-256 hex digest of the wall's Player token, never the token. None
-    #: until a token is issued, which the Walls screen shows as "no token yet".
-    #: Whichever device holds the token serves this wall, so replacing the
-    #: television does not change it; rotating does.
-    token_verifier: str | None = None
-    #: When the current token was issued, so a curator can tell which Player
-    #: still holds the old one after a rotation.
-    token_issued_at: datetime | None = None
+    #: The client that drives this wall, or None while none does — an ordinary
+    #: state, like a wall with nothing hanging. Set together with `output`.
+    client_id: str | None = None
+    #: The name of the client's output this wall is shown on, as the client
+    #: reported it. None exactly when `client_id` is.
+    output: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

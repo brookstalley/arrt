@@ -36,12 +36,65 @@ genuinely live:
 > The four live concerns listed above do not change. The notes below sit at each
 > affected section. None of them is built yet.
 
+## Direction
+
+<!-- Ratified by the owner 2026-10-01, as written. Enforcement row in project-preferences.md. -->
+
+**Text from outside Arrt (a registry, a museum, a model) reaches the page as
+text and is never parsed as markup. An image or link from outside is used only
+when its host is one this repository names, or is built here from a checked
+identifier.**
+
+> **Why:** anyone can edit Wikidata, a museum's catalogue text is the museum's,
+> and a model repeats what it read. Every one of them arrives in the curator's
+> browser by a channel no model reads (`architecture.md` channel 9), so the
+> prompt-injection bounds below do not cover it. A title carrying `<img
+> onerror>` is the whole of the text attack, and an `img` source or link the
+> registry chose is the whole of the URL one: it tells a stranger's server
+> that the curator is looking, and it can send the curator anywhere. One page
+> was bounded by its own tests (§ Registry text). A norm is what binds the next
+> page, and one-world search is that page.
+
+**What holds it:**
+- **Markup is never parsed in the client.** No script under
+  `arrt/src/arrt/http/static/` uses a sink that parses markup or compiles a
+  string (`innerHTML`, `document.write`, `srcdoc`, `eval`, a timer handed a
+  string, and the rest the test lists), and no page there carries script of its
+  own. Nodes are built with `el` (`core/render.js`), which sets text through
+  `textContent`.
+- **A registry's strings say what they are.** Every string a registry hands the
+  Library, in a type or in a question's answer, is typed as registry text, an
+  item id, a museum identifier the caller asked about, a Commons file, or a work
+  page. A plain string fails a test, so a new field or question has to choose. A
+  Commons file is the only kind that may become a URL in the browser, and the
+  client keeps one only when its host is `commons.wikimedia.org`. **A work page**
+  (added 2026-10-03, `source-plugins.md` § The Wikidata finder) is a URL the
+  server keeps as a sighting and never sends to the browser, as a link or as
+  text: the sightings route and its MCP twin return its host as a name, which
+  `tests/integration/test_sightings_api.py` holds.
+- **Links out are built from an item id**, never from a URL the registry
+  supplied. No test sees this half, which is the Critic's.
+
+**Retroactive:** yes. Every page the client has today already conforms, which
+the sink test confirms on the day it lands. The museum clients' text (titles,
+descriptions, provider names) reached the page under `core/render.js`'s rule
+before this norm, and this norm is that rule made binding.
+
 ## Trust Boundary
 
 **The network layer carries the entire trust boundary.** Both surfaces — the MCP
 endpoint and the UI's HTTP API — are LAN-only, reached remotely over an overlay
 network (Tailscale/VPN). The application performs no authentication, no
 authorisation, no TLS termination, and no rate limiting.
+
+> **Amended by the owner, 2026-10-02 (`build-plan-nas.md`):** on the NAS the
+> server is reached at a `.lan` name through the house's LAN-only reverse proxy,
+> with **no overlay network** — the homelab has none — and still no login, as
+> the owner's other apps there are. So "anyone on the overlay network" below
+> reads "anyone on the house's LAN". The worst case of a LAN client spending
+> model credit is bounded by the provider's $20/month cap
+> (`nonfunctional-requirements.md`). A login, and Tailscale for reaching it from
+> away, are backlog, not decided against.
 
 This is a recorded decision, not an omission
 (`technical_decisions.integrations`, 2026-07-19). For a single-principal household
@@ -112,10 +165,10 @@ parity split MCP exists to prevent.
 | OpenRouter API key | curation plane | **Real money.** Bounded by the per-key credit limit, which is the same control that bounds a runaway agent |
 | Samsung TV pairing token | display plane | LAN-scoped. Lets a LAN-present attacker drive the TV |
 | Museum API keys, if any | curation plane | Negligible; the ARTIC API is free and public |
-| Wall Player token, one per wall | the Player serving that wall, in its environment file as `WALL_TOKEN`; the server keeps only its SHA-256 (`walls.token_verifier`) | LAN-scoped. Lets someone on the LAN read that wall's manifest and renders, and forge its heartbeat. It cannot change what hangs anywhere, and it opens no other wall's manifest or heartbeat. Rotated by issuing again from the Walls screen or `art_display(action='issue_token')`, which stops the old one at once |
+| Client token, one per client *(replaced the per-wall token 2026-10-02, `clients.md`)* | the installed Player (the client) on its host, in its environment file; the server keeps only its SHA-256 (`clients.token_verifier`) | LAN-scoped. Lets someone on the LAN read the manifests and renders of the walls assigned to that client, read which walls those are and on which outputs (`GET /client`), and forge those walls' heartbeats and the client's own. It cannot change what hangs anywhere or which client shows which wall, and it opens no wall assigned to another client. Rotated by issuing again (`POST /api/clients/{client_id}/token`), which stops the old one at once; removing the client stops it too |
 
 The display plane holds no credential except the TV pairing token and, once it
-pulls over HTTP, its own wall's Player token, and the curation plane holds no
+pulls over HTTP, its own client token, and the curation plane holds no
 device credentials. That falls out of the topology rather
 than being separately enforced.
 
@@ -135,6 +188,17 @@ than being separately enforced.
 >   refusal is logged by wall and status, once per wall per ten minutes. Media
 >   answers to any wall's token, because a render is shared by every wall that
 >   shows it.
+> - **Amended 2026-10-02 by the owner's ruling that clients are first-class
+>   (`clients.md`): the token is per client, not per wall.** One installed Player
+>   drives several walls with one credential, admitted to the walls assigned to
+>   it (`401` for no valid token, `403` for a wall not its client's); media
+>   answers to any client's token. Kind unchanged: 32 random bytes, shown once,
+>   SHA-256 verifier, constant-time compare, never logged. A refusal is logged
+>   by client name, or as "an unknown client", once per that subject per ten
+>   minutes. **Wall tokens are retired**: nothing admits one, and the server
+>   drops the stored wall verifiers on opening a catalogue that holds them
+>   (`migrations.retire_wall_tokens`). The credential is still the product's
+>   only one held by something other than the curator's processes.
 
 ### The repository is public
 
@@ -303,7 +367,7 @@ properties, and each is weaker than "the tool cannot do this":
    >
    > What carries the weight instead is two checks, both in code and both tested:
    > the advertised IIIF base must start with the museum's own `https` host before
-   > it is used (`library/discovery/artic.py`, and the mutation sweep kills a version that
+   > it is used (`library/sources/artic.py`, and the mutation sweep kills a version that
    > trusts whatever is advertised), and **bound 2 below runs on the resolved URL
    > rather than on the recorded one** — so scheme and routability are checked on
    > the address actually fetched. *(It read "re-runs … rather than only on the
@@ -509,6 +573,108 @@ chosen. No dependency pinning or provenance policy has been decided — for a
 single-principal LAN appliance that is a defensible position, but it is a position,
 not an oversight.
 
+> **Amended 2026-10-03: source plugins** (`source-plugins.md`, § Source plugins
+> below). An installed source plugin and its dependencies are the same trust
+> class as the PyPI wheels above, installed by the operator into the server's
+> venv. A private plugin adds a derived image (`deploy/README.md` § A private
+> source plugin) as a link after Arrt's own. That recipe constrains the install
+> to Arrt's locked versions, which keeps Arrt's dependencies as they were tested.
+> It does nothing for the plugin's own, and no pinning or provenance policy is
+> decided for them either. *The owner's ruling* is that plugins load in-process
+> (`re-architecture.md` § Sources are plugins). Classing them with the wheels is
+> mine.
+
+## Source plugins *(2026-10-03)*
+
+**Installing a source plugin trusts it with everything Arrt has.** A plugin is a
+Python package loaded into Arrt's process (`source-plugins.md` § Loading). Arrt
+neither vets nor sandboxes it. *The owner chose* this over a separate service,
+which would have isolated it, and accepted the trust that comes with it.
+
+**What installing one trusts, concretely:**
+
+- **Its code, and its dependencies' code, runs as Arrt**: same process, same
+  user, same container. It runs at startup, when the module is imported (before
+  its factory can decline), and on every call after.
+- **It reaches what Arrt reaches.** That is:
+  - the catalogue and the art tree, to read and to write;
+  - the whole environment, the OpenRouter key included (`SourceContext.environ`
+    is a read-only copy, and `os.environ` is there regardless);
+  - the clients' token verifiers, which are hashes in the catalogue, not the
+    tokens;
+  - the network from inside the container, the house's LAN included.
+  "A plugin writes nothing" is what the interface lets it say, not a barrier.
+- **Its own requests are unguarded.** `check_fetchable` and the redirect checks
+  (§ The fetch trigger fired) run on what Arrt fetches. A plugin's search,
+  preview and page reads are made by the plugin's own client, and nothing stops
+  one addressing the LAN.
+- **Its dependencies can replace Arrt's.** They install into the same venv.
+  Measured 2026-10-03: without a constraint, a plugin requiring `httpx<0.28`
+  downgraded Arrt's locked httpx, and the image built cleanly. The derived-image
+  recipe constrains the install to Arrt's lock, so such a plugin fails the build
+  by name.
+- **Its name.** Two installed distributions with one name load neither
+  (`library/sources/loading.py`). So a plugin cannot take over a built-in's rows
+  by taking its name, but installing one with a clashing name turns the
+  built-in off. The health panel says so.
+
+**What still holds, because Arrt keeps it rather than trusting a plugin to.**
+Against a well-behaved plugin these are the boundary, and against a malicious
+one, which has the access above, they are not:
+
+- **A plugin's text is outside text.** Titles, artists and descriptions reach the
+  page as text (§ Direction), and the model under § Prompt Injection's bounds,
+  the same as a museum's.
+- **Arrt fetches every locator a reader returns**, after bound 2 on the URL in
+  the locator (§ The fetch trigger fired). The Art Institute's reader also checks
+  that its advertised IIIF base is the museum's own host, and that check is the
+  plugin's. A third-party reader's locator gets bound 2 only: any public address.
+- **Arrt decides** a work's identity, its rights record, duplicates, review,
+  quality, spending and storage. A plugin answers "what images exist, and where".
+- **A plugin's error text is scrubbed** before the journal and the health panel.
+  Every URL's query string is cut, found by running to whitespace, `"`, `<` or
+  `>`, the characters an HTTP client always encodes. The scrub runs past `'` and
+  `\`, which httpx leaves in a path and a query as they are (`O'Keeffe`), and a
+  test checks every character httpx leaves unencoded, read from httpx itself. So
+  `?q=van gogh&key=…` written raw would keep everything after the space, while an
+  encoded URL, which is what an HTTP client's own error carries, has no space in
+  it. *Mine*, accepted at review rather than built: no plugin here logs a raw
+  URL, and `docs/source-plugins.md` tells authors not to.
+
+**Why this is accepted.** One principal, who installs the plugin, on a LAN
+appliance with no PII, tenancy or payment surface: the same reasons as
+§ Supply Chain. **What would reopen it** (mine): a plugin from someone the operator does
+not know, or a plugin that holds a credential of its own that it must not share
+with Arrt. Either calls for the separate service the owner declined, not for a
+check inside the process.
+
+## Registry text *(2026-10-01)*
+
+**The exposure.** The Artist page shows what Wikidata says about an artist:
+descriptions, movement and work titles, collection names, and image URLs.
+Anyone can edit Wikidata, so every one of those is attacker-influenceable text
+arriving in the curator's browser, by a channel (`architecture.md` channel 9)
+that no model reads, so the prompt-injection bounds above do not cover it.
+
+**What bounds it, as built** (`build-plan-ia-foundations.md` Chunk 04):
+
+- **Text is rendered as text, never as markup.** Every registry string reaches
+  the page through `el`'s `text`, which sets `textContent`; a browser test feeds
+  the page a description carrying an `<img onerror>` and asserts it arrives as
+  words and runs nothing (`tests/browser/test_the_artist_page.py`).
+- **An image URL is a Commons file or nothing.** The client keeps only
+  `https://commons.wikimedia.org/wiki/Special:FilePath/…` and drops anything
+  else the registry offers as an image, before it reaches an `img` source
+  (`tests/unit/test_wikidata_client.py`); the page loads it with no referrer.
+- **Links out are built from a checked QID**, never from a URL the registry
+  supplied.
+- **The server asks one constant endpoint and follows no redirect**, so nothing
+  the registry says can steer a request at the operator's network.
+
+**Now a norm.** These were properties of one page, enforced by its tests. Since
+2026-10-01 they are § Direction, which binds every page that shows outside text,
+one-world search first.
+
 ## Open
 
 - **Licence and rights enforcement — no longer open; this entry had gone stale.**
@@ -525,9 +691,14 @@ not an oversight.
   fact about this television is firmware-scoped. Reasoning, consequences and the
   re-verification path live in `operational-spec.md` § Risks — not restated here,
   because the version numbers will move and one home for them is enough.
+- ~~**Opened 2026-10-01: a norm for showing external text in the browser.**~~
+  **Closed 2026-10-01: ratified by the owner, and written as § Direction.** It was
+  owed before one-world search (`build-plan-one-world-search.md`) ships, and is
+  that plan's Chunk 01.
 - **Opened 2026-09-30:**
   - **Player authentication on the LAN.** Closed 2026-09-30: a per-wall token
-    (§ Trust Boundary, the note on the re-architecture).
+    (§ Trust Boundary, the note on the re-architecture); a per-client token
+    since 2026-10-02.
   - **The re-derivation of § Prompt Injection for Watches.** Owed by the plan
     that builds them, before any Watch runs unattended.
 

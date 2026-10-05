@@ -1772,6 +1772,11 @@ technical_decisions:
         operator deferred it ("let's address rights later; for now, content"). The
         measurement that forces it eventually is in
         nonfunctional-requirements.md § The Supply Horizon.
+
+        DECIDED 2026-10-03 by the owner: built, not retracted — "in-copyright
+        count, users will add those and it's not our place to limit them." Which
+        source is built first is chosen by measurement against
+        procurement-corpus.md, whose outcomes are predicted before any run.
       date: 2026-08-04
     - decision: "Discovery searches museum/public-domain collections AND the contemporary web (gallery sites, prize announcements, artist portfolios)."
       rationale: >
@@ -2475,6 +2480,14 @@ design_decisions:
       list_tools returned.
     revisit_trigger: "RESOLVED — the MCP tool surface was designed 2026-07-19 and the envelope decided with it."
     date: 2026-07-19
+  # The source plugin interface (`arrt.library.sources`), a third programmatic
+  # surface: Python code from outside this repository, loaded in-process.
+  source_plugin_api:
+    versioning: "API_VERSION (major, minor), from (1, 0). A plugin declares the major it was written for; a different major is refused by name at startup and the plugin is left out. A minor adds optional capabilities only. `arrt.library.sources` is the only import path; anything else in `arrt` may change in any release."
+    error_model: "Three answers: an empty result (holds nothing), ImageSearchFailure (could not be asked, including a page that is not the page expected), ImageQueryUnanswerable (cannot answer this kind of work). Anything else a plugin raises is a fault: contained to the call by the loader, recorded as could not be asked, logged at error as source.plugin_fault, and counted on the health panel. A plugin that cannot load is left out and named; Arrt starts without it."
+    status: active
+    rationale: "The owner ruled 2026-10-03 that sources are plugins, loaded as Python packages. A versioned interface is what lets a plugin outside this repository break loudly rather than inside a run. Faults are contained because one bad package must not stop every run. Contract: .prawduct/artifacts/source-plugins.md."
+    date: 2026-10-03
   observability_approach: >
     The defining constraint is that failure is silent by construction — the only
     feedback channel is a picture on a wall, and a stalled loader is
@@ -2553,8 +2566,8 @@ open_questions:
   # notes carried were added. Three more closed the same day by the operator:
   # the names (then Curatarr and Arrt; since 2026-10-01 Arrt and Postarr),
   # Player auth (a token per wall), and the v1 open chunks (abandoned; their requirements are rebuilt in later waves).
-  - question: "Re-architecture open questions (artifacts/re-architecture.md § Open questions is the full text): the Player cache's location (wave 2); the server image's provenance (before wave 3); the schedule horizon and a scene's default preview lifetime (before wave 4; the fields exist in the major 2 draft); the compositing budget on a Pi 4 (before wave 4); the quality profile's numbers (wave 4); the presentation master's size cap and encoding; directive latency (ETag poll or server-sent events); the smart-playlist rule language; mat colour per aspect ratio; facet editing in the UI; the Watch questions (prompt-injection re-derivation, whether auto-accept is offered, initiated_by, push alerts); filing the program as backlog issues."
-    blocking: "Waves 1–4 of re-architecture.md. The compositing budget blocks planning wave 4."
+  - question: "Re-architecture open questions (artifacts/re-architecture.md § Open questions is the full text): the Player cache's location (wave 2); the server image's provenance (before wave 3); the schedule horizon and a scene's default preview lifetime (before wave 4; the fields exist in the major 2 draft); the quality profile's numbers (wave 4); the presentation master's size cap and encoding; directive latency (ETag poll or server-sent events); the smart-playlist rule language; mat colour per aspect ratio; facet editing in the UI; the Watch questions (prompt-injection re-derivation, whether auto-accept is offered, initiated_by, push alerts); filing the program as backlog issues."
+    blocking: "Waves 1–4 of re-architecture.md. (The compositing budget, which blocked planning wave 4, was measured 2026-10-04.)"
     waiting_on: operator
     priority: high
   # RESOLVED 2026-08-11 by the operator: RATIFIED, with an amendment that is
@@ -3088,6 +3101,23 @@ artifact_manifest:
       depends_on: [operational-spec, architecture, project-preferences]
     - file_path: .prawduct/artifacts/3tears-integration-findings.md
       depends_on: [architecture, operational-spec, project-preferences]
+    # The five below were unregistered until 2026-10-01 (backlog #147), and the
+    # sixth arrived that day; an unregistered findings file is invisible to a
+    # dependency walk.
+    - file_path: .prawduct/artifacts/artic-api-findings.md
+      depends_on: [architecture, data-model]
+    - file_path: .prawduct/artifacts/dezoomify-cli-findings.md
+      depends_on: [architecture, operational-spec]
+    - file_path: .prawduct/artifacts/museum-label-findings.md
+      depends_on: [data-model, accessibility-spec]
+    - file_path: .prawduct/artifacts/openrouter-api-findings.md
+      depends_on: [architecture, nonfunctional-requirements]
+    - file_path: .prawduct/artifacts/samsung-tv-state-findings.md
+      depends_on: [architecture, operational-spec]
+    - file_path: .prawduct/artifacts/wikidata-findings.md
+      depends_on: [data-model, architecture, security-model, observability-strategy]
+    - file_path: .prawduct/artifacts/procurement-corpus.md
+      depends_on: [nonfunctional-requirements, data-model, re-architecture, wikidata-findings]
   # Strategy-class artifacts still owed: test-specifications.md. The build plan
   # (Phase D) was authored 2026-07-20 and is registered above. The
   # structural-coverage advisory's named set was cleared 2026-07-20.
@@ -3298,7 +3328,7 @@ api_versioning_decided: "none — no version negotiation. MCP tool names frozen,
 # backlog_prefixes: []
 # backlog_external_imports: []
 
-backlog_last_groomed_at: 2026-08-10
+backlog_last_groomed_at: 2026-10-02
 
 # -----------------------------------------------------------------------------
 # BACKLOG SERVICE CUTOVER (API §2.4)

@@ -15,10 +15,12 @@ import json
 import httpx
 import pytest
 
-from arrt.library.discovery.artic import PROVIDER, ArticImageSearch
 from arrt.library.discovery.images import ImageQuery, ImageSearchFailure
 from arrt.library.discovery.phase_two import PhaseTwoEngine
+from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.services.display_fit import ArtworkBox
+from arrt.library.sources.artic import PROVIDER, ArticFinder, ArticReader
+from arrt.library.sources.reading import FetchLocator, LocatorKind
 from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
 
 USER_AGENT = "arrt (test@example.org)"
@@ -104,9 +106,13 @@ def _body(*records):
     }
 
 
-def _client(handler, *, preview_max_bytes: int | None = None) -> ArticImageSearch:
+def _reader(handler) -> ArticReader:
+    return ArticReader(user_agent=USER_AGENT, client=httpx.Client(transport=httpx.MockTransport(handler)))
+
+
+def _client(handler, *, preview_max_bytes: int | None = None) -> ArticFinder:
     ceiling = {} if preview_max_bytes is None else {"preview_max_bytes": preview_max_bytes}
-    return ArticImageSearch(user_agent=USER_AGENT, client=httpx.Client(transport=httpx.MockTransport(handler)), **ceiling)
+    return ArticFinder(user_agent=USER_AGENT, client=httpx.Client(transport=httpx.MockTransport(handler)), **ceiling)
 
 
 def _serving(*records, capture: list | None = None):
@@ -265,7 +271,7 @@ def test_the_artist_still_reaches_the_judgement_that_refuses_a_near_match():
     """
     layton = {**AMERICAN_GOTHIC, "artist_title": "Elizabeth Layton"}
     box = ArtworkBox(width=3400, height=1687, pixels_per_inch=88.12, floor_inches=12.0)
-    engine = PhaseTwoEngine(_client(_serving(layton)), box=box)
+    engine = PhaseTwoEngine(ImageSourcePool([_client(_serving(layton))]), box=box)
 
     assert engine.resolve(ImageQuery(title="American Gothic", artist="Grant Wood")).instances == []
 
@@ -281,7 +287,7 @@ def test_the_museum_is_told_who_is_calling():
 def test_a_client_cannot_be_built_without_an_identifier():
     """No default, because a default would misrepresent whoever runs this to a third party."""
     with pytest.raises(ValueError, match="ARTIC_USER_AGENT"):
-        ArticImageSearch(user_agent="")
+        ArticFinder(user_agent="")
 
 
 @pytest.mark.parametrize(
@@ -415,8 +421,8 @@ GOLDEN_BIRD_OBJECT = {
 }
 
 
-class TestResolvingAnObjectsImageService:
-    """The step whose absence meant no artic work could ever be fetched.
+class TestReadingAnObjectsImageService:
+    """The step whose absence meant no artic work could ever be fetched, now the plugin's reader.
 
     A source records where a curator goes to check provenance; the tile fetcher
     needs where the pixels are served. These are the tests that the client can
@@ -425,19 +431,19 @@ class TestResolvingAnObjectsImageService:
 
     def test_an_api_link_resolves_to_the_iiif_base_for_its_image(self):
         """The shape discovery records on every instance it accepts."""
-        client = _client(lambda request: httpx.Response(200, json=GOLDEN_BIRD_OBJECT))
+        reader = _reader(lambda request: httpx.Response(200, json=GOLDEN_BIRD_OBJECT))
 
-        target = client.tile_url("https://api.artic.edu/api/v1/artworks/91194")
+        target = reader.read("https://api.artic.edu/api/v1/artworks/91194")
 
-        assert target == "https://www.artic.edu/iiif/2/c8024369-fa0a-6438-0072-f9b9929a800b"
+        assert target == FetchLocator.tiles("https://www.artic.edu/iiif/2/c8024369-fa0a-6438-0072-f9b9929a800b")
 
     def test_a_museum_page_url_resolves_to_the_same_place(self):
         """The shape the 2024 index carries, which seeding wrote onto 32 sources."""
-        client = _client(lambda request: httpx.Response(200, json=GOLDEN_BIRD_OBJECT))
+        reader = _reader(lambda request: httpx.Response(200, json=GOLDEN_BIRD_OBJECT))
 
-        target = client.tile_url("https://www.artic.edu/artworks/91194/golden-bird")
+        target = reader.read("https://www.artic.edu/artworks/91194/golden-bird")
 
-        assert target == "https://www.artic.edu/iiif/2/c8024369-fa0a-6438-0072-f9b9929a800b"
+        assert target == FetchLocator.tiles("https://www.artic.edu/iiif/2/c8024369-fa0a-6438-0072-f9b9929a800b")
 
     def test_the_object_is_asked_for_by_id_and_only_for_what_is_needed(self):
         captured: list[httpx.Request] = []
@@ -446,7 +452,7 @@ class TestResolvingAnObjectsImageService:
             captured.append(request)
             return httpx.Response(200, json=GOLDEN_BIRD_OBJECT)
 
-        _client(handler).tile_url("https://www.artic.edu/artworks/91194/golden-bird")
+        _reader(handler).read("https://www.artic.edu/artworks/91194/golden-bird")
 
         assert captured[0].url.path == "/api/v1/artworks/91194"
         assert captured[0].url.params["fields"] == "id,image_id"
@@ -459,7 +465,7 @@ class TestResolvingAnObjectsImageService:
             captured.append(request)
             return httpx.Response(200, json=GOLDEN_BIRD_OBJECT)
 
-        _client(handler).tile_url("https://api.artic.edu/api/v1/artworks/91194")
+        _reader(handler).read("https://api.artic.edu/api/v1/artworks/91194")
 
         assert captured[0].headers["AIC-User-Agent"] == USER_AGENT
 
@@ -467,19 +473,17 @@ class TestResolvingAnObjectsImageService:
         """Reading the base from the response is why a service move needs no release."""
         moved = {**GOLDEN_BIRD_OBJECT, "config": {"iiif_url": "https://www.artic.edu/iiif/3"}}
 
-        target = _client(lambda request: httpx.Response(200, json=moved)).tile_url("https://api.artic.edu/api/v1/artworks/91194")
+        target = _reader(lambda request: httpx.Response(200, json=moved)).read("https://api.artic.edu/api/v1/artworks/91194")
 
-        assert target == "https://www.artic.edu/iiif/3/c8024369-fa0a-6438-0072-f9b9929a800b"
+        assert target == FetchLocator.tiles("https://www.artic.edu/iiif/3/c8024369-fa0a-6438-0072-f9b9929a800b")
 
     def test_an_advertised_base_on_another_host_is_refused(self):
         """The response builds a URL this process fetches and writes to disk."""
         hijacked = {**GOLDEN_BIRD_OBJECT, "config": {"iiif_url": "https://evil.example.com/iiif/2"}}
 
-        target = _client(lambda request: httpx.Response(200, json=hijacked)).tile_url(
-            "https://api.artic.edu/api/v1/artworks/91194"
-        )
+        target = _reader(lambda request: httpx.Response(200, json=hijacked)).read("https://api.artic.edu/api/v1/artworks/91194")
 
-        assert target.startswith("https://www.artic.edu/iiif/2/")
+        assert target.url.startswith("https://www.artic.edu/iiif/2/")
 
     def test_a_url_that_names_no_object_is_refused_without_asking_the_museum(self):
         asked: list[httpx.Request] = []
@@ -489,28 +493,57 @@ class TestResolvingAnObjectsImageService:
             return httpx.Response(200, json=GOLDEN_BIRD_OBJECT)
 
         with pytest.raises(ImageSearchFailure, match="does not name an Art Institute object"):
-            _client(handler).tile_url("https://artsandculture.google.com/asset/golden-bird/abc")
+            _reader(handler).read("https://artsandculture.google.com/asset/golden-bird/abc")
+
+        assert asked == []
+
+    def test_an_artwork_path_on_another_host_is_refused_without_asking_the_museum(self):
+        """The plugin claims the museum's hosts only, and the reader holds the same line."""
+        asked: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            asked.append(request)
+            return httpx.Response(200, json=GOLDEN_BIRD_OBJECT)
+
+        with pytest.raises(ImageSearchFailure, match="does not name an Art Institute object"):
+            _reader(handler).read("https://gallery.example.com/artworks/91194")
 
         assert asked == []
 
     def test_a_number_outside_the_object_path_is_not_read_as_an_id(self):
         """`/artworks/<id>` is a path segment, not any digits in the URL."""
         with pytest.raises(ImageSearchFailure):
-            _client(lambda request: httpx.Response(200, json=GOLDEN_BIRD_OBJECT)).tile_url(
+            _reader(lambda request: httpx.Response(200, json=GOLDEN_BIRD_OBJECT)).read(
                 "https://www.artic.edu/collection?page=91194"
             )
 
     def test_an_object_the_museum_publishes_no_image_of_is_named_as_that(self):
-        """Distinct from a failed lookup: the record is real and carries no picture."""
+        """Distinct from a failed lookup: the record is real and carries no picture, so it is a page with none."""
         imageless = {**GOLDEN_BIRD_OBJECT, "data": {"id": 91194, "title": "Golden Bird", "image_id": None}}
 
-        with pytest.raises(ImageSearchFailure, match="publishes no image"):
-            _client(lambda request: httpx.Response(200, json=imageless)).tile_url("https://api.artic.edu/api/v1/artworks/91194")
+        answer = _reader(lambda request: httpx.Response(200, json=imageless)).read("https://api.artic.edu/api/v1/artworks/91194")
+
+        assert answer.kind is LocatorKind.NONE
+        assert "publishes no image" in answer.reason
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"config": GOLDEN_BIRD_OBJECT["config"]},
+            {**GOLDEN_BIRD_OBJECT, "data": [GOLDEN_BIRD_OBJECT["data"]]},
+            {**GOLDEN_BIRD_OBJECT, "data": {"id": 12345, "image_id": "someone-elses"}},
+        ],
+        ids=["no record", "a list where the record belongs", "another object's record"],
+    )
+    def test_an_answer_that_is_not_the_objects_record_is_could_not_be_asked_never_no_image(self, payload):
+        """Gap 5 of the procurement corpus: a page that is not the page expected says nothing about holdings."""
+        with pytest.raises(ImageSearchFailure, match="without that object's record"):
+            _reader(lambda request: httpx.Response(200, json=payload)).read("https://api.artic.edu/api/v1/artworks/91194")
 
     def test_a_museum_that_cannot_be_reached_is_a_failure_not_a_guess(self):
         with pytest.raises(ImageSearchFailure):
-            _client(lambda request: httpx.Response(503)).tile_url("https://api.artic.edu/api/v1/artworks/91194")
+            _reader(lambda request: httpx.Response(503)).read("https://api.artic.edu/api/v1/artworks/91194")
 
     def test_the_client_reports_the_provider_its_instances_are_recorded_under(self):
-        """Wiring keys resolvers by this rather than repeating the name."""
+        """Wiring names the plugin by this rather than repeating the name."""
         assert _client(lambda request: httpx.Response(200, json=GOLDEN_BIRD_OBJECT)).provider == PROVIDER

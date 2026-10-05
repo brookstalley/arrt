@@ -17,7 +17,7 @@ from decimal import Decimal
 
 import httpx
 import pytest
-from fakes import a_collection_holding
+from fakes import a_collection_holding, a_roster
 
 from arrt.library.discovery.conversation import ConversationFailure, Suggestion
 from arrt.persistence.discovery_records import InitiatedBy, SpendCategory
@@ -85,7 +85,7 @@ def test_a_turn_shows_the_pictures_the_collection_holds(
         artwork_box=settings.tv_artwork_box,
         engine=engine,
         discovery_settings=settings.discovery_settings,
-        collection=a_collection_holding(**{"Agnes Martin": ["Untitled No. 5", "Friendship"]}),
+        sources=a_roster(collection=a_collection_holding(**{"Agnes Martin": ["Untitled No. 5", "Friendship"]})),
         conversation_engine=conversation_engine,
     )
     view = services.conversation.speak(services.conversation.start().conversation.id, "Something calm.")

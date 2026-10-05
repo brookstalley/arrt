@@ -7,6 +7,7 @@ service that has one. The second is the wiring, and wiring is where a fully
 tested behaviour still ends up doing nothing.
 """
 
+import asyncio
 import threading
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -15,6 +16,8 @@ from arrt.app import MCP_PATH, MCP_SESSION_IDLE_TIMEOUT_SECONDS, create_app
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.discovery import DiscoveryService
 from arrt.library.services.sweep import SWEEP_THREAD_NAME, PreviewSweep
+from arrt.library.services.topic_sweep import TOPIC_SWEEP_THREAD_NAME
+from arrt.persistence.backup import BACKUP_RECEIPT_FILENAME, CatalogueBackup
 from arrt.persistence.discovery_records import InitiatedBy, RunStatus, Verdict
 from arrt.persistence.records import Theme
 from arrt.programming.display import DisplayService
@@ -36,6 +39,32 @@ class _SweepSpy:
     def run(self) -> None:
         self.passes += 1
         self.swept.set()
+
+
+class _TopicSweepSpy:
+    """A topic sweep with a registry, counting passes; waits briefly between them rather than a day."""
+
+    configured = True
+
+    def __init__(self) -> None:
+        self.passes = 0
+        self.swept = threading.Event()
+        self._wake = threading.Event()
+
+    def run(self) -> None:
+        self.passes += 1
+        self.swept.set()
+
+    def nudge(self) -> None:
+        self._wake.set()
+
+    def wait_for_work(self) -> None:
+        self._wake.wait(0.05)
+        self._wake.clear()
+
+
+def _topic_sweep_threads() -> list[threading.Thread]:
+    return [thread for thread in threading.enumerate() if thread.name == TOPIC_SWEEP_THREAD_NAME and thread.is_alive()]
 
 
 def _sweep_threads() -> list[threading.Thread]:
@@ -159,6 +188,47 @@ async def test_the_application_stops_sweeping_when_it_stops_serving(services):
     assert not _sweep_threads()
 
 
+async def test_the_application_sweeps_topics_while_it_is_serving(services):
+    """The topic sweep, like the preview sweep, runs only because the lifespan starts it.
+
+    Every test of the sweep itself calls `run` directly, so with the lifespan's
+    call deleted Library › Topics and the Artworks rail stay empty forever while
+    the suite stays green.
+    """
+    spy = _TopicSweepSpy()
+    app = create_app(replace(services, topic_sweep=spy), sweep_topics=True)
+
+    async with app.router.lifespan_context(app):
+        assert spy.swept.wait(timeout=5), "the application served without ever sweeping topics"
+
+    assert spy.passes >= 1
+
+
+async def test_the_application_stops_sweeping_topics_when_it_stops_serving(services):
+    """A topic sweep that outlives the lifespan writes facet rows into a catalogue the application is finished with."""
+    spy = _TopicSweepSpy()
+    app = create_app(replace(services, topic_sweep=spy), sweep_topics=True)
+
+    async with app.router.lifespan_context(app):
+        assert spy.swept.wait(timeout=5)
+        # Pinned from both sides, as the preview sweep's twin is: a renamed
+        # thread would make the check after the block pass vacuously.
+        assert _topic_sweep_threads(), "no thread by that name was running, so the assertion below would pass vacuously"
+
+    assert not _topic_sweep_threads()
+
+
+async def test_an_application_not_asked_to_never_sweeps_topics(services):
+    """Off by default, so a test harness never acquires a thread writing facet rows behind it."""
+    spy = _TopicSweepSpy()
+    app = create_app(replace(services, topic_sweep=spy))
+
+    async with app.router.lifespan_context(app):
+        pass
+
+    assert spy.passes == 0
+
+
 async def test_an_application_given_no_interval_never_sweeps(services):
     """The default is off, so constructing the app does not acquire a file-deleting thread.
 
@@ -173,3 +243,30 @@ async def test_an_application_given_no_interval_never_sweeps(services):
         pass
 
     assert spy.passes == 0
+
+
+def _backup_threads() -> list[threading.Thread]:
+    return [thread for thread in threading.enumerate() if thread.name == "catalogue-backup" and thread.is_alive()]
+
+
+async def test_the_application_backs_up_while_it_is_serving_and_stops_when_it_stops(services, settings, tmp_path):
+    """The backup runs only because the lifespan starts it, and must not outlive the application.
+
+    Every test of the writer calls `run` directly and passes with the lifespan's
+    call deleted, which is the silent failure the receipt exists to expose: a NAS
+    with `BACKUP_DIR` set that never backs up.
+    """
+    receipt = settings.art_root / BACKUP_RECEIPT_FILENAME
+    job = CatalogueBackup(catalogue_path=settings.catalogue_path, directory=tmp_path / "backups", receipt_path=receipt, keep=3)
+    app = create_app(services, backup=job, backup_interval_seconds=3600)
+
+    async with app.router.lifespan_context(app):
+        for _ in range(100):
+            if receipt.exists():
+                break
+            await asyncio.sleep(0.05)
+        assert receipt.exists(), "the application served without ever backing up"
+        assert list((tmp_path / "backups").glob("catalogue-*.sqlite"))
+        assert _backup_threads(), "no backup thread by that name was running, so the check below would pass vacuously"
+
+    assert not _backup_threads()

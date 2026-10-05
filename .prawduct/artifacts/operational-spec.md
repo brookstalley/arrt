@@ -71,7 +71,7 @@ machine:
 | Login | None. `--system`, no password, shell `/usr/sbin/nologin` |
 | Home | `/var/lib/tvpi`, for tool state only — see below |
 | Privilege | No sudo. Nothing either plane does needs root |
-| Groups | `spi` and `gpio` — the e-paper HAT is reached through both |
+| Groups | `spi` and `gpio` — the e-paper HAT is reached through both; `video` — an HDMI wall opens the display card (`/dev/dri/card*`) |
 | Owns | `/srv/art` (`ART_ROOT`) and `/opt/samsung-frame-art-loader` (the checkout the units execute from) |
 
 **Create it as part of the systemd-unit cutover, not before.** The account, its
@@ -426,7 +426,10 @@ Panel geometry was briefly listed as a second shared value; it is not, because
 > the `EPD_MARGIN_PX` note above anticipated.
 >
 > In wave 2 the shared `.env` stops being shared. The Player gains the server's
-> base URL and a cache directory, and keeps the `WALL_ID` it already has. The server keeps its own configuration, delivered as
+> base URL and a cache directory, and keeps the `WALL_ID` it already has.
+> *(2026-10-02, `clients.md`: the Player is now a client. It holds
+> `SERVER_URL`, `CLIENT_TOKEN` and `CACHE_DIR`, learns its walls from the
+> server, and refuses `WALL_ID`, `WALL_TOKEN` and `MANIFEST_SOURCE` by name.)* The server keeps its own configuration, delivered as
 > container environment on the NAS. The single root `.env` read by both planes is
 > a property of co-location and retires with it.
 
@@ -468,6 +471,18 @@ every judgement they have already made.
 > earlier wording implied. The **judgements** made against those previews — which
 > instance was selected, the rationale, which images were rejected — are catalogue
 > rows and are backed up.
+
+> **`kept-answers.sqlite` is not backed up either, and a backup may skip it**
+> (2026-10-02, `build-plan-topics-and-destinations.md` Chunk 03c). It holds
+> answers from slow foreign sources, Wikidata's first, kept for a week so a
+> restart does not put the next page view behind a query of several seconds
+> (`data-model.md` § KeptAnswer). Here **disposable does mean "it comes back"**:
+> deleting the file, or restoring without it, costs each page section one more
+> question of its source and loses no record. So it is a file apart from the
+> catalogue, and its `-wal` and `-shm` companions go with it. The plane replaces
+> it by itself when it is damaged or of another format (`kept.replaced` in the
+> journal), so deleting it by hand is never a repair step, only a way to make
+> every registry page ask again.
 
 **Destination: another machine on the network** (desktop or NAS, over LAN or the
 overlay network). Decided 2026-07-20. No third party, no cost, no credential on
@@ -520,6 +535,40 @@ that will actually get run rather than skipped.
 > - **The self-healing walk-through above changes shape in wave 4.** "No current
 >   render" becomes "no presentation master", and a Player whose cache is empty
 >   re-pulls once the server has regenerated the masters.
+
+> **The backup writer is built, and a restore is not self-healing (2026-10-02,
+> `build-plan-nas.md` Chunk 02).** With `BACKUP_DIR` set, the server takes a
+> generation with `VACUUM INTO` at every start and then every
+> `BACKUP_INTERVAL_SECONDS` (default daily), checks it with `PRAGMA
+> integrity_check` before naming it, keeps the newest `BACKUP_KEEP` (default
+> 14), and writes `backup-status.json` beside the catalogue only when all of that
+> succeeded, which is what the health panel's age reads. Each pass logs
+> `backup.completed` or `backup.failed`. **What a restore does, measured:** the
+> walk-through above ("excludes them all and reports why", "re-acquisition
+> refills the tree") is not what the code does today. Readiness checks a
+> render's row, not its file, so a catalogue restored without its image tree
+> publishes works whose renders are missing; and nothing re-fetches a master
+> whose row survives its file. So a restore is **the catalogue plus the image
+> tree**: the newest generation from `BACKUP_DIR` as `catalogue.sqlite`, and
+> `raw/`, `ready/` and `thumbs/` from the art root's own snapshot. Making the
+> partial restore self-heal is backlog. The exercise:
+>
+>     # into a scratch art root, never the live one
+>     mkdir -p /tmp/restore && cp "$(ls -1 "$BACKUP_DIR"/catalogue-*Z.sqlite | tail -1)" /tmp/restore/catalogue.sqlite
+>     cp -R "$ART_ROOT"/raw "$ART_ROOT"/ready "$ART_ROOT"/thumbs /tmp/restore/
+>     # BACKUP_DIR emptied: the scratch server's start-up backup would otherwise
+>     # land in the live set and prune its oldest real generation
+>     ART_ROOT=/tmp/restore BACKUP_DIR= CURATION_PORT=18790 uv run python -m arrt   # in arrt/
+>
+> **Then hang each wall's theme again** (Walls screen, or `POST
+> /api/themes/{id}/activate`): a wall's published manifest is a file beside the
+> catalogue, not a row in it, so a restored server answers "nothing has been
+> published for this wall yet" until it is re-hung, while the wall keeps playing
+> from its cache. Run on the Mac on 2026-10-02 against a copy of the dev
+> library: the backup at start wrote its generation and receipt (the panel read
+> "last backed up 2 seconds ago"); the restored server answered 404 for the
+> wall's manifest until the theme was re-hung, then served 40 works, all 40 with
+> media.
 
 ## Routine Operations
 

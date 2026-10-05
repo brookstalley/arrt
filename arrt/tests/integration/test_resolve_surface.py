@@ -15,7 +15,7 @@ import json
 from decimal import Decimal
 
 import pytest
-from fakes import FakeImageSearch, a_work, an_image
+from fakes import FakeFinder, a_roster, a_work, an_image
 
 from arrt.library.discovery.engine import WorkList
 from arrt.library.services.previews import PreviewSettings
@@ -44,8 +44,8 @@ async def finished(server_url: str, run_id: str) -> dict:
 
 
 @pytest.fixture
-def museum() -> FakeImageSearch:
-    return FakeImageSearch(holdings={"The Elephants": (an_image("The Elephants", url="https://artic.edu/first-scan"),)})
+def museum() -> FakeFinder:
+    return FakeFinder(holdings={"The Elephants": (an_image("The Elephants", url="https://artic.edu/first-scan"),)})
 
 
 @pytest.fixture
@@ -60,7 +60,7 @@ def services(store, discovery_store, wall_settings, thumbnail_settings, settings
         artwork_box=settings.tv_artwork_box,
         engine=engine,
         discovery_settings=settings.discovery_settings,
-        image_search=museum,
+        sources=a_roster(museum),
         previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
     )
 
@@ -177,7 +177,7 @@ async def test_an_interrupted_re_search_frees_the_works_it_was_covering(server_u
 
     Every terminal state but `interrupted` is written by the run's own process,
     which a killed process cannot do — so without the repair these ids stay
-    refused for the life of the catalogue, on the only operation that spends.
+    refused for the life of the catalogue.
     """
     _, work = await a_work_needing_a_better_scan(server_url, services)
     abandoned = services.discovery.start_resolve_run(candidate_work_ids=[work.id], initiated_by="web_ui")
@@ -251,4 +251,7 @@ async def test_every_reason_resolve_images_can_refuse_for_is_named_in_its_tips(s
     services.discovery.start_resolve_run(candidate_work_ids=[work.id], initiated_by="web_ui")
     covered, errored = await call(server_url, "art_discovery", action="resolve_images", work_ids=[work.id])
     assert errored is True
-    assert "pay twice" in covered["error"] and "pay twice" in tips
+    # "search twice", not "pay twice" (until 2026-10-02): a re-search costs
+    # nothing today, and the refusal says what re-submitting would actually do.
+    assert "search twice" in covered["error"] and "search twice" in tips
+    assert "pay" not in covered["error"] and "pay twice" not in tips

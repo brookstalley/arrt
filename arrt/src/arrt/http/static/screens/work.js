@@ -20,13 +20,23 @@
  * still in every theme that held it, and one click from being back on the wall —
  * and a curator who learns that a confirmation overstates will read the next one
  * less carefully.
+ *
+ * **A work the library does not hold has a page here too**, at `#work/Q…`
+ * (ruling 2): what Wikidata says of it, the one way to acquire it that exists
+ * until *Get* does, and the rest of its artist's work below. A QID the library
+ * holds is sent to the library's own page, in place. Every string on it is
+ * registry text, shown as text.
  */
 
+import { acquisitionLine } from "../core/acquiring.js";
 import { api } from "../core/api.js";
 import { facts, fitBadge, sourceBadge, statusBadge, table } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
-import { el, guard, render } from "../core/render.js";
-import { backLink } from "../core/router.js";
+import { getOne } from "../core/getting.js";
+import { identityControl } from "../core/identity.js";
+import { el, fill, guard, render } from "../core/render.js";
+import { isQid, named, personLink, stateMark, wikidataLink, workLink, workState } from "../core/registry.js";
+import { backLink, go, redirect } from "../core/router.js";
 
 /* The typed vocabulary a work is filed under, in the words a label uses.
  *
@@ -87,7 +97,100 @@ function workPath(artworkId) {
 }
 
 export async function viewWork(artworkId, generation) {
+  if (isQid(artworkId)) {
+    await viewRegistryWork(artworkId, generation);
+    return;
+  }
   paint(await api(workPath(artworkId)), generation);
+}
+
+/* What the registry knows of a work the library does not hold, or why it cannot say. */
+async function viewRegistryWork(qid, generation) {
+  const page = await api(`/api/registry/works/${encodeURIComponent(qid)}`);
+  if (page.held_artwork_ids.length) {
+    redirect("work", page.held_artwork_ids[0]);
+    return;
+  }
+  if (page.state !== "known") {
+    render(
+      generation,
+      el("p", {}, [backLink()]),
+      el("h2", { text: page.state === "not_found" ? "Wikidata has no such work" : `Wikidata ${qid}` }),
+      el("p", { class: "note", text: page.note }),
+    );
+    return;
+  }
+  const title = named(page.title, qid);
+  const maker = page.creators[0];
+  const picture = page.image
+    ? el("img", {
+        class: "detail-image",
+        src: `${page.image}?width=1200`,
+        alt: maker ? `${title}, by ${named(maker.name, maker.qid)}` : title,
+        referrerpolicy: "no-referrer",
+      })
+    : el("p", { class: "note", text: "No free image of this work is known." });
+  const theirWork = el("section", { class: "panel", "aria-labelledby": "more-by" });
+  render(
+    generation,
+    el("p", {}, [backLink()]),
+    el("div", { class: "panel" }, [
+      picture,
+      el("div", { class: "card-footer" }, [stateMark({ wanted: page.wanted, image: Boolean(page.image) })]),
+    ]),
+    el("div", { class: "panel" }, [
+      el("h2", { text: title }),
+      facts([
+        ["Artist", page.creators.length ? el("span", {}, page.creators.flatMap((person, at) => (at ? [", ", personLink(person)] : [personLink(person)]))) : null],
+        ["Date", page.year],
+        ["Medium", page.media.join(", ")],
+        ["Held by", page.holders.length ? page.holders.map(holderLine).join("; ") : null],
+      ]),
+      el("p", { class: "muted" }, [wikidataLink(qid, `Wikidata ${qid}`)]),
+      getOne(qid),
+      el("p", { class: "muted", text: "Not in your library. Getting it looks for an image of it, and spends nothing." }),
+    ]),
+    maker ? theirWork : null,
+  );
+  if (maker) await paintTheirWork(theirWork, maker, qid);
+}
+
+function holderLine(holder) {
+  return holder.inventory ? `${holder.name} (${holder.inventory})` : holder.name;
+}
+
+/* The rest of the artist's work, the next thing to look at: what the Artist
+ * page lists, without this one, asked after the page is drawn. */
+async function paintTheirWork(section, maker, qid) {
+  const heading = el("h3", { id: "more-by", text: `More by ${named(maker.name, maker.qid)}` });
+  fill(section, heading, el("p", { class: "muted", "aria-live": "polite", text: "Asking Wikidata…" }));
+  let view;
+  try {
+    view = await api(maker.artist_id ? `/api/artists/${encodeURIComponent(maker.artist_id)}/registry` : `/api/registry/artists/${encodeURIComponent(maker.qid)}`);
+  } catch (failure) {
+    view = { state: "unavailable", note: "Wikidata could not be asked just now." };
+  }
+  if (!section.isConnected) return;
+  if (view.state !== "known") {
+    fill(section, heading, el("p", { class: "note", text: view.note }));
+    return;
+  }
+  const others = view.works.filter((work) => work.qid !== qid);
+  fill(section,
+    heading,
+    others.length
+      ? el("div", { class: "artist-works" }, [
+          el("table", {}, [
+            el("thead", {}, [el("tr", {}, ["Work", "Year", "State"].map((h) => el("th", { scope: "col", text: h })))]),
+            el("tbody", {}, others.map((work) => el("tr", {}, [
+              el("td", {}, [workLink(work)]),
+              el("td", { text: work.year ? String(work.year) : "—" }),
+              el("td", {}, [workState(work)]),
+            ]))),
+          ]),
+        ])
+      : el("p", { class: "muted", text: "Wikidata lists nothing else by them." }),
+  );
 }
 
 /* Draw the whole screen from one dossier.
@@ -123,7 +226,7 @@ function paint(detail, generation, focusAction = false) {
     el("div", { class: "panel" }, [
       el("h2", { text: work.title }),
       facts([
-        ["Artist", work.artist ? work.artist.name : null],
+        ["Artist", work.artist ? artistLink(work.artist) : null],
         ["Nationality", work.artist ? work.artist.nationality : null],
         ["Lifespan", work.artist ? work.artist.lifespan_text : null],
         ["Date", work.date_created],
@@ -139,6 +242,9 @@ function paint(detail, generation, focusAction = false) {
         ["Description", work.description],
       ]),
       el("div", { class: "row" }, [action]),
+      // The control repaints from the dossier the route answers with, as
+      // archive and restore do.
+      identityControl("work", work, (answer) => paint(answer, generation)),
     ]),
     facetPanel(detail.facets),
   ];
@@ -153,7 +259,17 @@ function paint(detail, generation, focusAction = false) {
             ["Size", `${(detail.original.byte_size / 1048576).toFixed(1)} MB`],
             ["Content hash", detail.original.content_hash],
           ])
-        : el("p", { class: "muted", text: "No master image has been acquired for this work yet." }),
+        : detail.acquisition
+          ? null
+          : el("p", { class: "muted", text: "No master image has been acquired for this work yet." }),
+      // Where the work stands in the acquisition queue, while it owes one: a
+      // work held with no image is queued, fetching, failed or paused, and a
+      // page that only said "not acquired yet" read the same in every case.
+      detail.acquisition
+        ? acquisitionLine(detail.acquisition, work.title, async () =>
+            paint(await api(`/api/works/${encodeURIComponent(work.artwork_id)}`), generation),
+          )
+        : null,
     ]),
   );
 
@@ -377,4 +493,9 @@ function wallConsequence(names) {
   const showing = names.length === 1 ? "is showing" : "are showing";
   const losing = names.length === 1 ? "loses" : "lose";
   return `${walls} ${showing} this work, and ${losing} it at the next manifest build. Re-hanging a wall's current theme builds one. It stays in the theme, and Restore brings it back.`;
+}
+
+/* The artist's name as the way to their page, `#artist/<id>`. */
+function artistLink(artist) {
+  return el("button", { class: "link", type: "button", text: artist.name, onclick: () => go("artist", artist.artist_id) });
 }

@@ -162,13 +162,107 @@ def _drop_what_the_wall_replaced(connection: sqlite3.Connection) -> None:
     connection.commit()
 
 
-def _require_drop_column() -> None:
-    # Takes nothing: the capability is the interpreter's, not this file's, and a
-    # connection parameter here would suggest the answer could differ per file.
+def _require_drop_column(*, predates: str = "per-wall hanging") -> None:
+    # Takes no connection: the capability is the interpreter's, not this file's,
+    # and a connection parameter here would suggest the answer could differ per
+    # file. `predates` names the change, so the refusal says which migration needs it.
     version = tuple(int(part) for part in sqlite3.sqlite_version.split("."))
     if version < _DROP_COLUMN_SINCE:
         raise RuntimeError(
-            f"This catalogue file predates per-wall hanging and migrating it needs SQLite "
+            f"This catalogue file predates {predates} and migrating it needs SQLite "
             f"{'.'.join(str(part) for part in _DROP_COLUMN_SINCE)} or newer to drop a column; "
             f"this interpreter is linked against {sqlite3.sqlite_version}."
         )
+
+
+#: The theme the owner's catalogue already holds every work in, and so the one
+#: made the default when the default arrived. Matched ignoring case.
+DEFAULT_THEME_NAME: Final[str] = "All works"
+
+
+def mark_the_default_theme(connection: sqlite3.Connection) -> None:
+    """Bring a file written before the default theme onto it, once.
+
+    Two things, guarded together by what the file holds: **works present and no
+    offers recorded**, which is a file this code has never opened, because from
+    then on every work is offered as it arrives. On such a file:
+
+    - the theme named *All works* becomes the default, unless some theme already
+      is; a catalogue with no theme of that name gets no default until the curator
+      makes one;
+    - every work already held is recorded as offered, because the curator placed
+      those works by hand before the default existed, and startup would otherwise
+      offer all of them at once.
+
+    An empty file is left alone, because nothing on it predates the default. Run
+    a second time, the guard is false whatever themes exist by then, so a theme
+    the curator later names *All works* is not marked behind their back.
+
+    This crosses the Library/Programming seam, reading `artworks` to write
+    Programming's offers. It is allowed here as a migration over the one file
+    both still share; when Programming's tables get a file of their own, the
+    back-fill becomes a one-off against the facade.
+    """
+    if connection.execute("SELECT 1 FROM default_theme_offers LIMIT 1").fetchone() is not None:
+        return
+    if connection.execute("SELECT 1 FROM artworks LIMIT 1").fetchone() is None:
+        return
+    if connection.execute("SELECT 1 FROM themes WHERE is_default = 1").fetchone() is None:
+        named = connection.execute(
+            "SELECT id FROM themes WHERE name = ? COLLATE NOCASE ORDER BY created_at LIMIT 1", (DEFAULT_THEME_NAME,)
+        ).fetchone()
+        if named is not None:
+            connection.execute("UPDATE themes SET is_default = 1 WHERE id = ?", (named[0],))
+            log.info("Made the theme %r the default: works accepted from now on join it.", DEFAULT_THEME_NAME)
+    connection.execute(
+        "INSERT INTO default_theme_offers (artwork_id, offered_at) SELECT id, ? FROM artworks",
+        (datetime.now(UTC).isoformat(),),
+    )
+
+
+def rename_awaiting_to_wanted(connection: sqlite3.Connection) -> None:
+    """Rewrite the verdict `awaiting_better_image` as `wanted`, wherever a row still holds it.
+
+    The verdict was renamed because its old name was false of a work that never
+    had a scan, and the curator now wants such works too. Nothing reads the old
+    spelling any more — `Verdict` has no member for it, so a row left holding it
+    would fail to load rather than be read as something else.
+
+    Guarded by the rows themselves: the statement touches only rows still holding
+    the old value, so a second open finds none and does nothing. It is one
+    statement, so an interrupted open leaves every row either rewritten or not,
+    and the next open finishes the rest.
+    """
+    rewritten = connection.execute(
+        "UPDATE candidate_works SET verdict = 'wanted' WHERE verdict = 'awaiting_better_image'"
+    ).rowcount
+    connection.commit()
+    if rewritten:
+        log.info("Rewrote %d candidate works from 'awaiting_better_image' to 'wanted'.", rewritten)
+
+
+#: The wall token columns, which clients replaced on 2026-10-02 (`clients.md`).
+_RETIRED_WALL_TOKEN_COLUMNS: Final[tuple[str, ...]] = ("token_verifier", "token_issued_at")
+
+
+def retire_wall_tokens(connection: sqlite3.Connection) -> None:
+    """Drop the per-wall token columns, so a wall's old token is not kept anywhere.
+
+    A Player is now admitted by its *client's* token, and a wall token admits
+    nothing. Dropping the verifiers rather than leaving them unread makes that
+    true of the file as well as of the code: there is no stored verifier left for
+    a later change to start honouring again by mistake. No transition is kept,
+    by the plan's ruling: there is one Player, and it moves to a client token in
+    the same change.
+
+    Guarded by the file: a column already gone is skipped, so a second open, or
+    one after an interrupted first, does what is left and nothing more.
+    """
+    retired = [column for column in _RETIRED_WALL_TOKEN_COLUMNS if _has_column(connection, "walls", column)]
+    if not retired:
+        return
+    _require_drop_column(predates="client tokens")
+    for column in retired:
+        connection.execute(f'ALTER TABLE walls DROP COLUMN "{column}"')
+    connection.commit()
+    log.info("Dropped walls.%s: Players are admitted by their client's token now.", " and walls.".join(retired))

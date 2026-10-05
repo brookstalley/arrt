@@ -21,9 +21,10 @@ Two things are timed, and they are separate questions:
    per kind — through `CatalogueService.list_artworks`, which is what a curator
    actually waits for. This is the number `api-contract.md`'s revisit trigger for
    recomputing counts per page is about.
-2. **The search clause alone**, as `LIKE` and as an FTS5 `MATCH` over the same
-   columns, so the FTS5 question is answered on its own rather than through the
-   noise of the counts.
+2. **The search clause alone**, as a plain `LIKE`, as the folded `LIKE` the
+   product runs (accents and case dropped on both sides), and as an FTS5 `MATCH`
+   over the same columns, so the FTS5 question is answered on its own rather than
+   through the noise of the counts.
 
 **The recorded result is in `api-contract.md` § `GET /api/works`.** Re-run this
 after any change to how the collection is queried, and move the number there if
@@ -52,6 +53,7 @@ from conftest import _open_seeded_catalogue  # noqa: E402
 
 from arrt.library.services.catalogue import CatalogueService  # noqa: E402
 from arrt.persistence.durable import SqliteDurableStore  # noqa: E402
+from arrt.persistence.folding import search_fold  # noqa: E402
 
 #: Terms chosen to span selectivity, which is the whole axis the two strategies
 #: differ on: a full scan pays the same for every question, an index pays in
@@ -174,8 +176,16 @@ def _measure(
     connection = catalogue_file._connection  # noqa: SLF001
     _build_fts_index(connection, columns)
     like_clause = " OR ".join(f"a.{column} LIKE ? ESCAPE '\\'" for column in columns)
+    # What the product runs: the columns joined and folded, so `dali` finds Dalí.
+    # `search_fold` is already defined on this connection by the catalogue the
+    # service opened, and it remembers what it folded, so these figures are warm.
+    folded_statement = (
+        "SELECT COUNT(*) FROM artworks a WHERE search_fold("
+        + " || char(31) || ".join(f"coalesce(a.{column}, '')" for column in columns)
+        + ") LIKE ? ESCAPE '\\'"
+    )
 
-    _heading("The search clause alone — the same term, the same columns, two strategies:")
+    _heading("The search clause alone — the same term, the same columns, three strategies:")
     like_statement = f"SELECT COUNT(*) FROM artworks a WHERE {like_clause}"
     for _, term in _TERMS:
         like_values = tuple(f"%{term}%" for _ in columns)
@@ -186,6 +196,15 @@ def _measure(
                 repeats=repeats,
             ),
             f"{connection.execute(like_statement, like_values).fetchone()[0]} rows",
+        )
+        folded_values = (f"%{search_fold(term)}%",)
+        _report(
+            f"LIKE, folded  {term!r}",
+            _time(
+                lambda values=folded_values: connection.execute(folded_statement, values).fetchone(),
+                repeats=repeats,
+            ),
+            f"{connection.execute(folded_statement, folded_values).fetchone()[0]} rows",
         )
         # `term*` and not `term`: FTS5 matches whole tokens, so the closest it
         # comes to a contains-match is a prefix one. That difference is the
@@ -203,7 +222,7 @@ def _measure(
     _say(
         "\nRead the second table with the row counts beside it: FTS5 matches whole tokens,\n"
         "so 'harb' finds nothing there and 'harbour' inside 'harbourside' is a prefix query\n"
-        "away. The two columns are not the same search, which is half of the answer."
+        "away. The LIKE and FTS5 rows are not the same search, which is half of the answer."
     )
 
 

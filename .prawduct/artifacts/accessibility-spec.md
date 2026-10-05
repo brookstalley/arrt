@@ -701,7 +701,7 @@ how an arrangement that measured correctly everywhere it was checked reached the
 panel wrong. Every figure in this amendment is from the panel's own machine.
 
 - **This needs a real field, not a heuristic. Built 2026-08-11.** `Artist`
-  carries `name` as one string; the surname heuristic in `library/discovery/artic.py` is
+  carries `name` as one string; the surname heuristic in `library/sources/artic.py` is
   documented there as unreliable, and it is wrong for "Titian (Tiziano
   Vecellio)", for "van Gogh", and for every name whose family part is not the
   last word. The catalogue gained `family_name` and `given_name`; the manifest
@@ -1241,6 +1241,27 @@ when it is wrong:
   focus to whatever held it before `showModal()`, and the dialog is removed in the
   `close` handler — after that restoration, which is the ordering that makes it
   work. Nothing tests it, and it would break without a symptom a suite would see.
+
+### A picture enlarged in place is a second `<dialog>`, and it answers nothing
+
+*Added 2026-10-02 (`build-plan-topics-and-destinations.md` Chunk 07).* Clicking a
+picture on a review card opens it larger in `core/enlarge.js`, the same platform
+`<dialog>` with `showModal()`. It is not a confirmation, so two of the rules above
+differ, on purpose: **a click outside the picture closes it**, because there is
+no question for a stray click to answer and "done looking" is what a click away
+means; and **focus returns to the picture's button explicitly** rather than by
+inheritance, since a pointer press does not focus a button in every browser.
+Escape and a *Close* button close it too, initial focus is *Close*, the address
+never changes, and it leaves the DOM once closed. The picture is a `<button>`
+named for the work ("Enlarge the picture of …"), so a keyboard reaches it. **The
+dialog and the picture in it are named for the picture, never for the button**:
+the work's title and artist, and for a scan opened from the *Scans* table which
+scan it is — its provider and its pixels — since the enlarged picture stands
+alone without the row that said so. All of
+this is asserted in `tests/browser/test_reviewing_a_get.py` — except that the
+explicit focus call survives a mutation sweep, because Chromium's own restoration
+lands in the same place; the suite asserts the outcome, and the call is what
+holds it in Safari, whose pointer press does not focus a button.
 
 ### What the IA adds that is not yet practised
 

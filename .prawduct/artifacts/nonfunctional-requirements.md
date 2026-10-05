@@ -176,6 +176,7 @@ latency numbers in the product, and they are inherited, not chosen.
 | E-paper label matches the displayed artwork, after a TV image change | within 15 s | `[ASSUMPTION: 15 s | LOW impact | user can correct]` — chosen so the label is right before a viewer who noticed the image change has walked over to read it. The panel refresh is most of it |
 | Art on the wall is correct after a display-plane restart | within 60 s | `[ASSUMPTION: 60 s | LOW impact | user can correct]` — bounds systemd restart plus reconnecting the TV websocket |
 | Image preparation on the Pi | unbudgeted, but it stays on the Pi | **Corrected 2026-07-20**, hours after this table was written. It said "moved off entirely"; the operator then decided both planes run on the Pi. Measured: largest corpus work is 49 MP (~148 MB loaded), and the colour work downsizes to 2048² first (~100 MB), against 8 GB. Comfortable. The exposure is a true 1–2 gigapixel scan — see `architecture.md` § Scaling Model |
+| Composing a wall image on the Player (wave 4) from a presentation master capped at 7680 px | ≤ 5 s and ≤ 1 GB per composition, on a Pi 4 | `[ASSUMPTION: 5 s, 1 GB | LOW impact | user can correct]` — it runs once per work and geometry, ahead of the work's slot, so it is a background cost rather than a wait. **Measured 2026-10-04** on the wall's Pi 4 (8 GB, idle display daemon, one core under `nice`, no throttling), with the server's `compose()` called unchanged on 3840×2160 output: 7680 masters 1.3–2.9 s at 200–795 MB, real 47–49 MP originals 2.7–3.2 s at about 650 MB, and every real master ≤ 0.9 s for a 1920×1200 screen. Decode and resize are almost all of it. Not measured: the caption set into the mat, and a busy daemon |
 
 > **Direction changed 2026-09-30. See `re-architecture.md`.** Image preparation
 > leaves the Pi in wave 3, when the server moves to the NAS. That covers
@@ -183,10 +184,10 @@ latency numbers in the product, and they are inherited, not chosen.
 > master, which does not exist before then. In wave 4
 > the Pi takes on a **new** preparation cost: compositing the mat around a
 > presentation master (long edge capped at about 8K, to be measured) at its own
-> screen's geometry, and, in caption mode, setting the label into the mat. That
-> cost is unmeasured. It needs a row here with a budget before wave 4 is planned,
-> because it runs on the Player at every new work or geometry change, not once
-> upstream. The label timings above carry over unchanged, and apply to a caption
+> screen's geometry, and, in caption mode, setting the label into the mat. It
+> runs on the Player at every new work or geometry change, not once upstream.
+> **Measured and budgeted 2026-10-04** in the table above; the caption in the mat
+> is not yet measured. The label timings above carry over unchanged, and apply to a caption
 > in the mat as well as to the e-ink panel.
 
 ## Scalability and Capacity
@@ -922,6 +923,18 @@ copyright. The measured break sat around 1929, and the boundary itself moves
 forward a year at a time, so it is the boundary that is the constant here and not
 the date.
 
+*(Refined 2026-10-03 by the first run against `procurement-corpus.md`, § Results.)*
+The partition holds for open *reproductions of paintings*, but two things continue
+past it:
+
+- **Holdings.** The Art Institute serves works it holds in copyright at full
+  resolution through the tiled path. That was already recorded in
+  `project-state.yaml` § integrations, 2026-08-04, and the corpus re-measured it.
+  It holds about a thousand imaged works by the owner's anchor artists.
+- **Photographs.** A Wikidata item's image is often a freely licensed photograph of
+  the work: an object in a gallery, an installation, a building. Occasionally it is
+  not of the work at all.
+
 **This sits against a recorded decision, and the collision is recorded rather than
 quietly resolved.** `project-state.yaml` § integrations commits discovery to museum
 collections *and* the contemporary web — gallery sites, prize announcements, artist
@@ -935,10 +948,13 @@ gets a run that spends money and returns nothing.
 oversight** (operator, 2026-08-04: *record rights, do not gate, do not filter*).
 Constraint 13 already holds rights to a quality weight and never an exclusion, and
 nothing measured here amends it — none of this is about whether a work may be
-shown. What is open, and is deliberately left open, is whether the contemporary-web
-half of that integrations decision gets built or gets retracted. Until one of those
-happens this section exists so the horizon is read rather than rediscovered, which
-so far has cost two runs.
+shown. Whether the contemporary-web half of that integrations decision gets built
+or retracted was left open here until **2026-10-03, when the owner ruled it built**:
+*"in-copyright count, users will add those and it's not our place to limit them."*
+Which source gets built first is a measurement, not a guess: the corpus for it, and
+each work's outcome predicted before any run, is `procurement-corpus.md`. Until a
+source lands this section still exists so the horizon is read rather than
+rediscovered, which so far has cost two runs.
 
 ## Output Quality
 
@@ -957,6 +973,20 @@ while producing visibly worse mats on those 41 has failed. The corpus's canonica
 record is `all.json` — replaced as a schema, but **retained, tracked, and read
 directly**: it is the only place the hand-tuned mat colours exist, so repo-hygiene
 work (issue #4 untracks its *backups*) must not delete the file itself.
+
+> **Amended by the owner's ruling of 2026-10-03 (#183): no mat darker than L\* 15,
+> on every screen.** Once the mat sat inside pure black (#189), the owner looked at
+> the wall and said a near-black mat "looks like a bad LCD": next to real black it
+> reads as the panel failing to show black. 10 of the corpus's 41 colours are below
+> L\* 15 (`#14141e` to `#222222`), and those 10 **are no longer the bar**. Above the
+> floor the corpus stays the bar it was. The floor is lightness only. The owner
+> ruled out a floor on chroma, though neutral greys "look accidental", so the
+> prompt asks for a faint warm or cool cast even on a black-and-white work and
+> nothing enforces it. The number, 15, is the owner's choice from a proposal, not a
+> measurement. The seascape mat they liked, `#22394b`, is L\* 22.9.
+> `MAT_LIGHTNESS_FLOOR` in `library/acquisition/mat.py` holds the number and
+> records where each way in enforces it. Mats already below it are chosen again by
+> the vision model, with the old colour kept in the work's history.
 
 > **Settled 2026-08-03: there is no extracted fixture, and this record is
 > permanent rather than interim.** This paragraph read "retained as a *test
@@ -1085,6 +1115,10 @@ above anything the corpus contains, on the emissive panel where that glares.
 Pure black was not chosen either, for the quieter reason that the corpus does not
 contain it: the darkest of the 41 is `#14141e` at L\* 6.7.
 
+> **`#222222` is below the floor of 2026-10-03** (above), so it cannot be a preset
+> as it stands; the floor refuses it. The presets are not built. Choosing the dark
+> one again belongs to #91, the curator's mat control.
+
 **Rendered size must be adequate, and the current pipeline has no floor.**
 `resize_file_with_matte` uses PIL's `image.thumbnail()`, which **never upscales** —
 so the de facto 2024 policy is "accept any resolution, never upscale, let the mat
@@ -1106,6 +1140,22 @@ inches, with the bottom margin weighted larger than the top — the conservator'
 convention, because a true-centred image reads as sitting low. This is what
 "museum-quality mat" has to mean if it means anything; the 2024 pipeline's mat was
 aspect-ratio residue, so a 16:9 source got no mat at all.
+
+**The mat takes the work's shape, and everything outside it is pure black**
+(the owner's ruling, 2026-10-02, backlog #189): "the mat should match the work's
+aspect ratio, and everything outside should be pure black". Until then the whole
+canvas was mat colour, so a square work on a 16:9 screen sat in 12" of mat at
+each side: the mat width held only where the work met the artwork box, and
+everywhere else the mat was still aspect-ratio residue. Now the mat is the work's
+rectangle grown by the mat width on the sides and top and by the weighted bottom
+below, and the rest of the screen is `#000000`. The work is fitted into the
+artwork box exactly as before, so the matted work comes out centred on the screen
+and is as large as fits; the mat meets the screen's edge in whichever dimension
+binds, and there is no minimum black margin. The rule holds on every screen, the
+Frame included. The same day the default mat became **1.5"** (it was 2.5"): with
+nothing beyond the mat but black, the mat is all of the border a viewer sees. The
+worked examples below keep 2.5" because they are arithmetic, asserted at that
+value.
 
 *(**The weighting was stated without a number until 2026-08-01**, when the first
 surface to judge a work against the artwork box needed a box height and so had to
@@ -1181,7 +1231,11 @@ the long edge.
 **Below the floor, the work is not rejected and the image is not hidden.** Phase 2
 does not *auto-select* a below-floor instance; the review grid shows it labelled
 with its rendered physical size ("would show at 8.6 inches") and the curator may
-select it anyway. If every instance is below floor the work lands at
+select it anyway. *(Since 2026-10-02 the browser shows the scan's own pixels and
+the fit verdict's word instead of the inches — the owner's ruling,
+`build-plan-topics-and-destinations.md` Chunk 07: the inches are the long edge on
+the one panel this server is configured for, and read as a fact about the scan.
+The floor itself is unchanged, and still in inches.)* If every instance is below floor the work lands at
 `resolution_status = unresolved`, which is already a first-class outcome that may
 never be silently omitted (`data-model.md` constraint 9), and the work stays
 eligible for re-search. Nothing is silently dropped and nothing is silently
@@ -1236,4 +1290,4 @@ one — see `design_decisions.accessibility_approach`.
 | Acquisition pipeline design | The minimum-resolution floor — **resolved 2026-07-20**: a minimum rendered size in inches, derived from panel geometry and mat width, both deployment values |
 | `operational-spec.md` | Panel geometry joins `ART_ROOT` as configuration both planes must agree on |
 | Build plan | The search-engine spike, with its stated comparison constraint |
-| `re-architecture.md` *(added 2026-09-30)* | Four things this artifact now owes a wave plan: a Player compositing-cost budget (wave 4); the resolution floor, settled later on 2026-09-30 as a Library quality profile in pixels, whose numbers wave 4 states; backing up two catalogue files as a pair (wave 3); detection for server-side scheduled jobs such as Watches and upgrades (wave 6) |
+| `re-architecture.md` *(added 2026-09-30)* | Four things this artifact now owes a wave plan: a Player compositing-cost budget (wave 4; budgeted 2026-10-04, § Performance); the resolution floor, settled later on 2026-09-30 as a Library quality profile in pixels, whose numbers wave 4 states; backing up two catalogue files as a pair (wave 3); detection for server-side scheduled jobs such as Watches and upgrades (wave 6) |

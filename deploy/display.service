@@ -32,8 +32,9 @@ Type=simple
 User=tvpi
 Group=tvpi
 
-# The e-paper HAT is reached through both, over SPI and GPIO.
-SupplementaryGroups=spi gpio
+# The e-paper HAT is reached through SPI and GPIO; an HDMI screen through the
+# display card (`/dev/dri/card*`, group `video`).
+SupplementaryGroups=spi gpio video
 
 WorkingDirectory=/opt/samsung-frame-art-loader/postarr
 

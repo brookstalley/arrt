@@ -138,7 +138,7 @@ export function backRow() {
  *
  * Opening a contextual screen records the page it was opened from, and that is
  * the whole of the return path. Arriving at a page carries nothing over: a
- * search made in Artworks is not a search Add New is running, and inheriting it
+ * search made in Artworks is not a search Ask is running, and inheriting it
  * would put a filter on a screen that never offered one.
  *
  * **Omitted when it is the screen's own default**, which is the ordinary case:
@@ -156,6 +156,13 @@ function inherited(view, detailId) {
   }
   const from = pageFor();
   return from && from !== defaultReturn(view) ? { from } : {};
+}
+
+/* What a contextual screen opened with parameters of its own must still carry:
+ * its opener. `go` with parameters uses exactly those, so a caller that has a
+ * query to pass and a return path to keep merges this in. */
+export function openedFrom(view, detailId = null) {
+  return inherited(view, detailId);
 }
 
 export function go(view, detailId = null, params = null) {
@@ -184,6 +191,21 @@ export function go(view, detailId = null, params = null) {
     return; // hashchange re-enters here
   }
   refresh(true);
+}
+
+/* Replace the screen being drawn with another, in place: the address is
+ * rewritten rather than added to, so Back skips the one that only forwarded.
+ *
+ * For a page that learns, once it has asked, that it is the wrong page: a work
+ * reached by its Wikidata id that the library holds belongs on the library's own
+ * Work page. `go` would leave the forwarding address in the history, and Back
+ * would land on it and be sent forward again. The opener (`?from=`) is kept, so
+ * the page that replaces it returns where this one would have. */
+export function redirect(view, detailId) {
+  const entry = table[view];
+  window.history.replaceState(null, "", formatRoute(view, entry && entry.detail ? detailId : null, state.params));
+  readHash();
+  return refresh(true);
 }
 
 /* Change some of the addressable state of the screen that is showing.

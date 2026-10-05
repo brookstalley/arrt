@@ -161,6 +161,94 @@ to serve, elicited from the Product Brief's core flows:
 | Q13 | What has the curator reacted warmly or coolly to — by artist, movement, era or subject — so a later conversation opens knowing it and discovery can weight what it proposes? | 1, 2 |
 | Q14 | How was each of those judgments arrived at, so it can be revisited, corrected, or rebuilt if the way we derive them changes? | 1 |
 | Q15 | What is this work — its movement, period and subject — so a catalogue of thousands can be filtered down to the handful worth looking at, and so taste can be matched against it? | 5 |
+| Q16 | Which theme do new works join, if any, so that what the curator accepts lands somewhere it can be hung? At most one, enforced by the store. | Ruling 8 |
+| Q17 | Has this work already been offered to the default theme, so that neither a restart nor a restore puts back a work the curator took out? | Ruling 8 |
+| Q18 | Is this registry result a work the library holds, so a list of an artist's works can mark the ones held without matching on titles? | Ruling 7 |
+| Q19 | Which registry artist is this library artist, so the Artist page can show what the registry knows? | Ruling 7 |
+| Q20 | Which held works and artists have no registry identity yet, so a later matching pass knows what to try? | Ruling 7 |
+| Q21 | How was each identity set, and can it be trusted: matched automatically and unambiguously, or set by the curator, including set to *none*, so a correction survives the next pass? | Ruling 7 |
+| Q22 | Which theme does a work accepted from this Get join? Asked by Programming at acceptance and at every start, so a lost announcement lands the work where a delivered one would. | Owner 2026-10-02 (destinations) |
+| Q23 | Did this acceptance go into the everyday rotation? No destination means it did. Asked by plan 4's taste reader. | Owner 2026-10-02 (destinations) |
+| Q24 | Which Gets were sent somewhere other than the rotation, so Queue and Review can say where a Get's works go? | Owner 2026-10-02 (destinations) |
+| Q25 | Which topics does my library touch, and how many works in each? Asked by Library › Topics and by the Artworks rail. | Owner 2026-10-02 (topics) |
+| Q26 | Which of my works are in this topic? A Topic page's first section, answered with no network. | Owner 2026-10-02 (topics) |
+| Q27 | Where did this claim about a work come from, so a curator correcting it knows what they are arguing with? | Owner 2026-10-02 (topics) |
+| Q28 | Which Topic page does this facet value open? | Owner 2026-10-02 (topics) |
+| Q29 | Do I already have this answer from a slow foreign source, and is it fresh enough to use? Asked by every page section that asks one (the registry's first). | Owner 2026-10-02 (kept answers) |
+| Q30 | How much is kept, and what can be thrown away first? Asked by the store itself on every write and at every open. | Owner 2026-10-02 (kept answers) |
+| Q31 | Which accepted works hold no master image, or owe the preparation after one, and are due an attempt now? Asked by the acquisition queue at start and on every wake. | Owner 2026-10-02 (#167) |
+| Q32 | How many times in a row has a work's fetch or preparation failed, and when may it next be tried? Asked by the queue's retry schedule: 1 hour, 1 day, 3 days. | Owner 2026-10-02 (#167) |
+| Q33 | Why did the last attempt fail, in words a curator can act on? Asked by the Work page and Activity › Queue. | Owner 2026-10-02 (#167) |
+| Q34 | Has the queue given up on this work? Asked by the Retry button. | Owner 2026-10-02 (#167) |
+| Q35 | Which source should the next attempt use, when someone named one? Asked by MCP's `retry_acquisition`. | Owner 2026-10-02 (#167) |
+| Q36 | Which works does the curator want and not yet hold a scan of, across every run? Asked by Activity › Wanted and `art_review(action='list_wanted')`. | Owner 2026-10-02 (#168) |
+| Q37 | Was this work wanted because a scan was turned down, or because none was found? | Owner 2026-10-02 (#168) |
+| Q38 | Which client drives this wall, and on which of its outputs? Asked by the Walls screen and by every listing of walls. | Owner 2026-10-02 (clients) |
+| Q39 | Which walls does this client drive? The client's own question, asked over HTTP about every 30 seconds (`GET /client`). | Owner 2026-10-02 (clients) |
+| Q40 | Is this request from a client allowed this wall? Asked by every per-wall Player route. | Owner 2026-10-02 (clients) |
+| Q41 | What outputs did this client last report, and when? Asked by the curator choosing an output for a wall. | Owner 2026-10-02 (clients) |
+| Q42 | Was this television canvas drawn with the mat, panel and drawing rule this deployment composes with now? Asked by preparation before it calls a canvas current, and at startup to queue the ones that are not. | Owner 2026-10-02 (#189, #74) |
+| Q43 | Which hosts have pages for works still open (wanted, or unresolved with no verdict) that no installed source plugin reads, and for how many works each? Asked by `GET /api/sightings/hosts` and `art_review(action='sighting_hosts')`, to choose the next reader. | Agent 2026-10-03, in the owner's sources-are-plugins plan (`source-plugins.md` § Sightings) |
+| Q44 | When a source plugin is installed, which works' pages can it read now? Not asked yet: the upgrade loop will. | Agent 2026-10-03 (same) |
+| Q45 | Where else has this work been seen? Not asked yet: a work's page will. | Agent 2026-10-03 (same) |
+
+**Q22 to Q24 are answered by one column, `DiscoveryRun.destination_theme_id`**
+(`build-plan-topics-and-destinations.md` Chunk 01). A work reaches its run
+through the candidate acceptance minted it from (`CandidateWork.artwork_id`), so
+Q22 and Q23 are a join, and Q24 is the column read directly. The column is a
+theme id held opaquely, with no foreign key (`architecture.md` seam rule 3): a
+theme deleted since the Get still reads back, which is what lets Q24 say "a
+theme that has been deleted" rather than nothing, and what tells Programming the
+curator chose "not the rotation" for a work accepted after the deletion.
+
+**Q25 to Q28 are answered by `WorkFacet` rows the topic sweep writes, and one
+column, `WorkFacet.value_qid`** (`build-plan-topics-and-destinations.md` Chunk
+04). Q25 is a count of works in circulation per (`kind`, `value_qid`); Q26 is the
+works carrying a `value_qid` under a topic kind (`era`, `movement`, `subject`,
+`medium`), so a palette value that names an item opens no Topic page; Q27 is
+`derivation` and `source_note`, already there, which the sweep fills as `sourced`
+and "Wikidata"; Q28 is the column. The label is `value`, as Wikidata wrote it when
+the row was recorded, so the rail and the index read without asking anything. A
+facet that names no item, as an inferred one usually will, has a null
+`value_qid` and is a rail value with no page.
+
+**Q29 and Q30 are answered by `KeptAnswer`, in a file of its own and
+disposable** (`build-plan-topics-and-destinations.md` Chunk 03c). Nothing in the
+catalogue refers to it and nothing in it is a record: deleting the file costs
+each page section one more question of its source. That is why it is not part of
+the catalogue, why a backup skips it, and why its format changes by being
+replaced rather than migrated.
+
+**Q31 to Q35 are answered by `AcquisitionQueue`, one table in the catalogue
+file** (`build-plan-after-review.md` Chunk 01). Q31 is a join: accepted works with
+no `Original`, or with a queue row, whose row is absent, or has no
+`next_try_at`, or one that has passed, and whose `failures` is under the limit.
+Q32 is `failures` and `next_try_at`; Q33 is `detail`; Q35 is `source_id`. Q34 is
+`failures` reaching four (the first try and three retries), read rather than
+stored, so a "gave up" flag cannot disagree with the count. What is being fetched
+right now, and why the queue is paused, are not stored: both are facts about the
+running process, and a restart finds them out again by trying.
+
+**Q36 and Q37 are answered by `CandidateWork.verdict` and the work's instances,
+with nothing new stored** (`build-plan-after-review.md` Chunk 03). Q36 is every
+work whose verdict is `wanted`, across runs (`DiscoveryStore.list_wanted_works`);
+the service orders it newest run first, since the verdict carries no moment of its
+own. Q37 is whether a wanted work holds any instance with `rejected_at` set — a
+count read at the listing, so it cannot disagree with the rows it counts. Storing
+the reason beside the verdict would be a second truth about the same instances.
+
+**Q38 to Q41 are answered by `Client` and two columns on `Wall`, `client_id` and
+`output`** (`build-plan-clients.md` Chunk 01, `clients.md`). Q38 is the two
+columns read directly. Q39 is the walls whose `client_id` is the client's, served
+by the partial unique index `walls_one_per_output (client_id, output)`, which also
+holds that one output of one client shows at most one wall. Q40 is the client the
+presented token's verifier matches (`Client.token_verifier`) compared with the
+wall's `client_id`. **Q41 is deliberately not in the catalogue**: what outputs a
+client has, whether each is connected and its size are the device's runtime
+state, reported in `client-heartbeat-{client_id}.json` under `ART_ROOT` beside
+the wall heartbeats and read as an observation with an age. The server stores
+only the output's *name* on the wall, the one device fact the owner's ruling
+needs it to hold.
 
 **Q15 is what makes the collection navigable at the amended scale**
 (`nonfunctional-requirements.md`, thousands of works). At 41 works a curator
@@ -189,8 +277,8 @@ the product feels broken in a way no single component is responsible for.
 
 **Q11 is Q3's trap.** The two look like the same question and must not share a
 mechanism. Rejecting a *work* suppresses the work; rejecting an *image* must
-suppress only that image and explicitly leave the work eligible — otherwise asking
-for a better scan of a painting silently blacklists the painting. One suppression
+suppress only that image and explicitly leave the work eligible — otherwise turning
+down a scan of a painting the curator wants silently blacklists the painting. One suppression
 key for both is the bug, and it is invisible until a curator wonders why a work
 they asked to keep never came back.
 
@@ -246,6 +334,25 @@ only entity the curator thinks of as "a piece of art".
 > flag it. Pre-acceptance state lives on `CandidateWork`; the catalogue holds only
 > works that made it.
 
+> **Registry identity** *(the owner's ruling 7, built 2026-10-01; `wikidata-findings.md`)*.
+> Two fields, on Artwork and on Artist alike:
+>
+> | Field | Type | Constraints | Description |
+> |---|---|---|---|
+> | `wikidata_qid` | string | nullable; `Q` followed by digits | The Wikidata item, stored as the QID itself (`Q160149`), never as a URL (identity is never a source URL). Null ⇒ none known (Q20). |
+> | `wikidata_qid_set_by` | enum `matched` \| `curator` | nullable | Null ⇒ never set. `matched`: the matcher found exactly one candidate. `curator`: set by hand, **including set to none** (a null QID with `curator` is the curator saying "there is none", and the matcher never fills it) (Q21). |
+>
+> **A work's QID is matched only by the holding museum's identifier** on
+> Wikidata (the Art Institute's `P4610`, Google Arts & Culture's `P4701`), read
+> from the work's source URLs, never by title: a generic title cannot be told
+> from another work with the same name. Two sources naming different items is
+> ambiguous and stores nothing. **An artist's QID** is the creator (`P170`) of
+> their matched works when that is one item; otherwise a name search whose
+> candidates are narrowed by agreeing birth and death years, accepted only when
+> exactly one remains. **The matcher fills only empty, never-curated identities**,
+> so it is idempotent and a correction stands. No uniqueness is enforced: two held
+> works naming one item is a duplicate for the curator to see, not a write to refuse.
+
 ### Artist
 
 Separated from Artwork so the label can render nationality and lifespan without
@@ -277,7 +384,7 @@ re-parsing a blob, and so two works by the same artist agree.
 > than a person. Both are nullable and the two ways of being null are the same
 > fact downstream — the label falls back to `name`, unstyled. Supplied for the
 > seeded corpus by a written table (`arrt/src/arrt/seed/names.py`), never by a
-> heuristic; `library/discovery/artic.py` documents its own surname guess as unreliable.
+> heuristic; `library/sources/artic.py` documents its own surname guess as unreliable.
 > Nothing derives one part from the other, and nothing derives `name` from them.
 >
 > **`display_nationality` is the same decision one field over, added 2026-08-13.**
@@ -428,6 +535,39 @@ the art tree that rsync carries and git does not.
 > and names no device. The Library keeps only `width` and `height`, as this
 > section already requires.
 
+### AcquisitionQueue
+
+> **Library-owned, in the catalogue file** (table `acquisition_queue`, added
+> 2026-10-02 for #167). A new table, so `CREATE TABLE IF NOT EXISTS` reaches a
+> file written before it and no migration was needed.
+
+The acquisition queue's memory of each accepted work it has started on and not
+finished (Q31 to Q35). A row is written when the queue first attempts a work, or
+when a curator asks for a Retry, and deleted when the work has been fetched and
+prepared. So the table holds only the works still owing something:
+
+- **No `Original` and no row**: the work has not had its first turn.
+- **No `Original` and a row**: it has been tried and failed, or the queue gave up.
+- **An `Original` and a row**: it was fetched and still owes its preparation
+  (which failed, or the process stopped between the two), or a Retry named a
+  source to fetch it again from. The next attempt prepares without fetching,
+  unless a source was named.
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `artwork_id` | UUID | PK, FK → Artwork | One row per work. |
+| `failures` | integer | required, default 0, ≥ 0 | Attempts that failed in a row since the last success or Retry. The retry schedule and "gave up" (four) are read from it (Q32, Q34). |
+| `next_try_at` | datetime | nullable | When the work may next be tried (Q32). Null means now, or never once the queue has given up; `failures` says which. |
+| `detail` | string | nullable | Why the last attempt failed, in the words acquisition or preparation gave (Q33). |
+| `source_id` | UUID | FK → Source, nullable | The source the next fetch must use, when a Retry named one (Q35). Cleared once a fetch from it has been made. |
+
+> **What counts as a failure.** A fetch that records one (`Source.last_fetch_status
+> = failed`), a refusal about the work itself (no source, or several and none
+> primary), or a preparation that refuses. A fetch that comes back with gaps
+> (`partial_tiles`) is an image and counts as acquired. A deployment fault (a
+> short disk, no dezoomify-rs, a provider with no resolver) is not a failure of
+> the work: the queue pauses and the row is unchanged.
+
 ### Rendition
 
 A derived, device-specific output. **Regenerated, never transported.**
@@ -444,6 +584,8 @@ A derived, device-specific output. **Regenerated, never transported.**
 | `generated_at` | datetime | auto | Refreshed on upsert, so a recomposed canvas is newer than it was. Load-bearing rather than bookkeeping: it is the only column that moves when a canvas is redrawn at the same path from the same Original, which is what makes a stale `thumbnail` of it detectable (invariant 4). |
 | `content_sha256` | string | optional, indexed | *(Added 2026-09-30, wave 2b.)* The SHA-256 of the file's bytes: the render's identity once it is served, at `/media/sha256-<hex>`. The catalogue service hashes the file itself when the rendition is recorded, never taking it from the caller, for the reason `source_content_hash` is read rather than accepted. Null for a render recorded before the column existed, or whose file was not there to read, and filled in the first time the Library is asked to offer it as media. |
 | `byte_size` | integer | optional | *(Added 2026-09-30.)* The file's size, recorded with the hash so a manifest can state it. |
+| `layout` | string | optional | *(Added 2026-10-02, #189.)* For a `tv_display` canvas, the geometry and drawing rule it was composed with: the panel and artwork box in pixels and the compositor's rule name (`compose.layout`). Answers Q42. A canvas whose layout is not the one this deployment composes with now is recomposed, and at startup the acquisition queue is given a preparation for each such work; the old canvas stays on the wall until the new one is recorded. Null for a thumbnail, and for a canvas recorded before the column existed, which counts as out of date. Goes with `tv_display` in wave 4. |
+| `mat_hex` | string | optional | *(Added 2026-10-03, #183.)* For a `tv_display` canvas, the mat colour it was painted in. A canvas whose `mat_hex` is not the work's current mat is not current and is recomposed by the next preparation, so a mat recorded before its canvas was redrawn (a crash or failed redraw between the two) cannot leave the old colour on the wall. Null for a thumbnail, and for a canvas recorded before the column existed, which counts as out of date. Goes with `tv_display` in wave 4. |
 
 > **Q8.** Geometry is *columns*, not a filename suffix. The 2024 design encoded
 > it as `_w648_h480` in the filename, which is why the recovered catalogue points
@@ -488,7 +630,7 @@ regenerating it costs money.
 |---|---|---|---|
 | `id` | UUID | PK | |
 | `artwork_id` | UUID | FK → Artwork, required | |
-| `hex_rgb` | string | required | e.g. `#27285b`. |
+| `hex_rgb` | string | required | e.g. `#27285b`. *(Floor added 2026-10-03, #183.)* No darker than CIE L\* 15 (`MAT_LIGHTNESS_FLOOR`). `CatalogueService.record_mat_color` refuses one; the store itself does not check, so rows written before the floor remain. The seed does not carry a 2024 colour below it, or one the work has worn before. A current colour below it predates the floor: preparing the work chooses again and redraws the canvas, and at startup the acquisition queue gets a preparation for each accepted work holding a canvas with such a mat, or with none. |
 | `lab_l`, `lab_a`, `lab_b` | float | nullable | Preserved when the model returns them. |
 | `reason` | text | nullable | The model's stated rationale. |
 | `method` | enum | required | `vision_model` \| `dominant_color_fallback` \| `manual`. |
@@ -523,6 +665,18 @@ naming and grouping concept, not an accounts concept.
 | `name` | string | required, unique | e.g. "American Modernists". |
 | `description` | text | nullable | |
 | `created_at` | datetime | auto | |
+| `is_default` | boolean | not null, default false; at most one true (partial unique index `themes_one_default`) | Whether new works join this theme (Q16). Written only by *make default*, which moves the mark in one transaction, so a rename or any other update cannot clear it. A theme carrying it cannot be deleted; renaming it keeps it. *Built 2026-10-01.* |
+
+> **The default theme** *(the owner's ruling 8, 2026-10-01: "There should be a
+> default 'all works' theme")*. Every work the Library announces as accepted joins
+> it, at the end of its order, once (see **DefaultThemeOffer**), unless the Get it
+> came from named another theme (`DiscoveryRun.destination_theme_id`, 2026-10-02),
+> which it joins instead. With no theme
+> marked, an acceptance joins nothing and still succeeds. The owner's existing
+> *All works* is marked by migration: on a file holding works but no offers (one
+> written before this field), the theme named *All works*, ignoring case, is
+> marked if no theme already is. A catalogue without one gets no default until
+> the curator makes one, from the Theme screen or `art_theme(action='make_default')`.
 
 > **A theme is global, and hanging it is a separate act** *(ruled by the operator
 > 2026-08-12)*. This entity carried `is_active` until that ruling — a boolean that
@@ -572,6 +726,41 @@ Join entity. Explicit rather than implicit so ordering can be curated.
 > and as something no add produces. Reasoning is in `api-contract.md` § the theme
 > routes.
 
+### DefaultThemeOffer
+
+> **Programming-owned.** `artwork_id` is an opaque work id with no foreign key,
+> the shape `architecture.md` seam rule 3 asks of every new reference across the
+> seam.
+
+> **Since 2026-10-02 the offer is of the work's destination**, the theme its Get
+> named (`DiscoveryRun.destination_theme_id`) or the default when none was named.
+> The table keeps its name: renaming one is a written migration that buys
+> nothing. A work whose named theme was deleted before it was accepted joins no
+> theme and is recorded as offered all the same, so no start sweeps it into the
+> default; the log names the work and the theme.
+
+One row per work the default theme has been offered, whether or not one existed
+to join (Q17). It is what makes the join happen once: the `work.accepted` event
+is published for a restored work as well as a new one, and startup
+reconciliation offers every accepted work that has no row, so without this record
+a work the curator took out of the default theme would be put back by the next
+restore or restart.
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `artwork_id` | UUID | PK; not a foreign key | The work offered. |
+| `offered_at` | datetime | auto | When. |
+
+> **Recorded even when no theme is the default**, so that marking one later does
+> not sweep in every work accepted before it. The theme a work was offered to is
+> not recorded here: where the curator asked it to go is the run's
+> `destination_theme_id` (Q22), and membership says where the work is now.
+>
+> **Back-filled once.** The migration that marks *All works* also records an offer
+> for every work already in the catalogue, because those works predate the
+> default and were placed by hand. The guard is what the file holds, as for every
+> migration here: works present and no offers at all.
+
 ### Wall
 
 > **Programming-owned from 2026-09-30** (`re-architecture.md`). The forbidden list below holds harder in the target. A Player may report its geometry as a heartbeat *observation*, held by Programming. The Library never sees it, and a Wall row still never stores it.
@@ -584,13 +773,17 @@ operator's ruling that themes are created globally and assigned per wall.)*
 | `id` | UUID | PK | Stable identity, referenced across the plane boundary **by id only**, exactly as `TvBinding` already references an Artwork. |
 | `name` | string | required, unique | "Living room". The curator's own word, and the noun every confirmation names — "Hang Winter in the living room". |
 | `created_at` | datetime | auto | |
-| `token_verifier` | string | optional | *(Added 2026-09-30, wave 2b.)* The SHA-256 hex digest of the wall's Player token, never the token. Null until one is issued. `security-model.md` § Inventory has the credential. |
-| `token_issued_at` | datetime | optional | *(Added 2026-09-30.)* When the current token was issued, shown on the Walls screen so a curator can tell which Player is still on an old one after a rotation. |
+| `client_id` | UUID | optional, FK → Client | *(Added 2026-10-02, `clients.md`.)* The client that shows this wall. Null while none does, which is an ordinary state. Set together with `output`. |
+| `output` | string | optional | *(Added 2026-10-02.)* The name of that client's output the wall is shown on, as the client reported it (`hdmi-a-1`, `frame`). Null exactly when `client_id` is. At most one wall per (`client_id`, `output`), held by a partial unique index. |
+
+*Removed 2026-10-02:* `token_verifier` and `token_issued_at`, the per-wall Player
+token (added 2026-09-30). Clients replaced it; `migrations.retire_wall_tokens`
+drops both columns from a catalogue that has them.
 
 **Few fields, and the shortness is the design.** A Wall is an identity, a name,
-and the verifier of the one credential that lets a Player serve it; it is not a
-device. The token belongs to the wall and not to a device: replace the television
-and the token stays, rotate it and every device holding the old one is refused.
+and its assignment: which client shows it, on which output by name. It is not a
+device. The credential now belongs to the client (§ Client), and the output's
+name is the one device fact the wall holds, by the owner's ruling of 2026-10-02.
 
 > **This entity sits inside the catalogue, and that is a ruling against the third
 > Direction norm rather than an oversight.** "Per-device runtime state never lives
@@ -615,10 +808,40 @@ and the token stays, rotate it and every device holding the old one is refused.
 > renders, the same way it is already configured with `TV_ADDRESS`. The catalogue
 > never learns what kind of device is on the other end.
 >
+> **Amended 2026-10-02 by the owner (`clients.md`):** which *client* shows a
+> wall, and on which of its outputs *by name*, is now held here, because the
+> server has to tell a client its walls. Everything else on the forbidden list
+> stays forbidden: the output's kind, connection and size are reported by the
+> client in its heartbeat file, never stored on this table.
+> `[DECISION: the server records which client drives each wall and on which of
+> its outputs, by name | owner's ruling 1 in clients.md | owner can veto]`
+>
 > `[DECISION: a Wall entity in the curation store, holding identity and name only |
 > theme assignment is a curatorial act and has to be reachable from the curation
 > surface, while everything device-shaped stays behind the plane boundary the third
 > Direction norm draws | user can veto/override]`
+
+### Client
+
+> **Programming-owned, added 2026-10-02** (`clients.md`, `build-plan-clients.md` Chunk 01).
+
+An installed Player, known to the server by a name and one credential. A client
+drives any number of walls, each on one of its outputs, and learns which from
+`GET /client`; its host is configured with the server's address and this
+client's token and nothing else.
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `id` | UUID | PK | |
+| `name` | string | required, unique | The curator's word for the host ("The Pi in the hall"). Every confirmation about a client names it. |
+| `created_at` | datetime | auto | |
+| `token_verifier` | string | optional | The SHA-256 hex digest of the client's token, never the token. Null until one is issued; such a client is admitted nowhere. `security-model.md` § Inventory has the credential. |
+| `token_issued_at` | datetime | optional | When the current token was issued, so a curator can tell which host still holds an old one after a rotation. |
+
+**Nothing about the device**: no address, no geometry, no model. What outputs a
+client has is what it reports in `client-heartbeat-{client_id}.json` (Q41).
+Removing a client unassigns its walls (they keep their themes) and drops its
+heartbeat file.
 
 ### ThemeAssignment
 
@@ -750,8 +973,9 @@ Answers Q15. Added 2026-08-10 with the collection's retrieval surface
 | `kind` | enum | required | The same closed set as `Affinity.kind` — `artist` \| `movement` \| `era` \| `subject` \| `medium` \| `palette`. One vocabulary, two sides; see below. |
 | `value` | string | required | "Baroque", "Late 19th c.", "Seascape". |
 | `derivation` | enum | required | `sourced` (the institution published it) \| `inferred` (a model assigned it). Never absent — an unlabelled facet is a guess wearing a citation. |
-| `source_note` | string | nullable | For `sourced`, which field of which provider — e.g. `artic:classification_title`. For `inferred`, the model id. |
+| `source_note` | string | nullable | For `sourced`, which field of which provider — e.g. `artic:classification_title`, or `Wikidata` for the topic sweep's rows. For `inferred`, the model id. |
 | `created_at` | datetime | auto | |
+| `value_qid` | string | nullable | The Wikidata item the value names: the Topic page it opens (Q28). Null for a value nobody tied to an item. Added 2026-10-02 by widening (nullable, no written migration), with an index for "which works carry this item". |
 
 **Unique on (`artwork_id`, `kind`, `value`).** A work is Baroque once.
 
@@ -829,13 +1053,30 @@ Answers Q15. Added 2026-08-10 with the collection's retrieval surface
 > version, no step and nothing to interrupt. `test_work_facets.py` opens exactly
 > such a file rather than leaving the claim to be read.
 >
-> **What is not built: nothing writes a facet on its own account yet.**
-> `CatalogueService.record_facet` and `remove_facet` exist and are how a facet
-> reaches the catalogue; no discovery path calls them, and neither the HTTP surface
-> nor the tool surface offers a write. So a real catalogue's facet vocabulary is
-> empty until inference lands, and the collection's rail is correspondingly empty —
-> which the retrieval treats as an ordinary state rather than an error, and which
-> the paid-path rule above still governs when it is filled.
+> **What is not built: inference.** Until 2026-10-02 nothing wrote a facet on
+> its own account. Since then the topic sweep does (below); no discovery path
+> calls `record_facet`, neither surface offers a write, and the paid-path rule
+> above still governs inference when it lands.
+
+> **The topic sweep writes `sourced` rows from Wikidata, 2026-10-02**
+> (`library/services/topic_sweep.py`; `build-plan-topics-and-destinations.md`
+> Chunk 04). For every work, it asks `topics_of` for the work's QID (its
+> Gregorian century as an `era`, what it depicts or its genre as `subject`s, the
+> kind of work it is as a `medium`) and its artist's QID (their `movement`s). A
+> work with neither gets none. It writes them with `source_note` "Wikidata" and
+> `value_qid`, and **replaces rather than adds**: in one transaction,
+> `CatalogueService.replace_sourced_facets` withdraws the work's rows that are
+> `sourced` with that note and records the new answer. An `inferred` row is never
+> withdrawn, and a claim the work already carries under any derivation is left as
+> it stands, so an inferred value is not relabelled as sourced; another source's
+> `sourced` rows are left alone. A work whose QIDs were cleared loses its
+> Wikidata rows with nothing asked. The sweep runs at start, when a work is
+> accepted or restored, when a QID is set, cleared or matched in the server
+> (the hand-run `python -m arrt.identify` is another process, seen at the next
+> pass), and otherwise daily; which works it asks about is kept in the process's memory, so a start
+> asks about every work once. A period facet is the century only, because
+> `topics_of` gives works no other period. Archived works are swept too: a facet
+> says what a work is, and the rail filters by status.
 
 ### Affinity
 
@@ -988,7 +1229,7 @@ candidates provenance.
 | Field | Type | Constraints | Description |
 |---|---|---|---|
 | `id` | UUID | PK | |
-| `kind` | enum | required | `discovery` \| `resolve`. A `resolve` run is phase 2 only — the re-search behind `resolve_images`. See below. |
+| `kind` | enum | required | `discovery` \| `resolve` \| `get`. A `resolve` run is phase 2 only — the re-search behind `resolve_images`. A `get` run is phase 2 only over works the curator chose by their Wikidata items (`build-plan-get-and-ask.md` Chunk 03); it has no parent and no intent, is priced at nothing, and is never supplemented. See below. |
 | `parent_run_id` | UUID | nullable, FK → DiscoveryRun | Set on `resolve` runs: the run that originally proposed these works. Null on `discovery` runs. |
 | `intent_text` | text | required for `kind='discovery'`, else nullable | The curator's natural-language intent, verbatim. A `resolve` run has no intent of its own — it inherits the parent's. |
 | `strategy` | text | nullable | The interpreted plan, for explaining results. **Written by the phase-1 engine when the work list settles (2026-08-02)** — it is the model's own account of how the intent was read, so it cannot exist before the intent has been read, and a run still in `resolving_works` honestly has none. Deliberately not composed from configuration, which would describe the deployment rather than the reading. |
@@ -1000,6 +1241,7 @@ candidates provenance.
 | `unresolved_work_count` | integer | nullable | Works from phase 1 for which no credible instance was found. **Q12.** |
 | `started_at` | datetime | required | **Narrowed from nullable 2026-07-27.** A run row is only created by starting one, and both entry states (`resolving_works` for a discovery run, `resolving_images` for a resolve run) are active — there is no state in which a row exists and the run has not started. Nullable would have made every reader handle an absence that cannot occur. |
 | `completed_at` | datetime | nullable | Written by whichever transition ends the run. On `interrupted` it records when the death was *observed* at startup, not when it happened: the process that died could not write one, and a terminal run with no end time silently drops out of any window a report asks for. |
+| `destination_theme_id` | UUID | nullable; **not** a foreign key | The theme a `get` run's accepted works join instead of the default, or null for the default (**Q22-Q24**). Programming's id, held opaquely across the seam (rule 3), so it may name a theme deleted since. Written once, when the Get starts; the surface asks Programming that the theme exists first. Null on `discovery` and `resolve` runs, which keep joining the default (`build-plan-topics-and-destinations.md` § Requirements Confidence), and on every run written before the column. *Built 2026-10-02.* |
 
 > **The re-search is a run, not a side effect (decided 2026-07-20).** `resolve_images`
 > is a paid, minutes-long operation, and it previously created no row at all — so the
@@ -1080,10 +1322,11 @@ artworks.
 | `offered_for_artist` | string | nullable | The browse query that produced an offered work — the **run's** spelling of the artist, which is what `proposed_artist` carries on the works the run named, so the two halves of a group can be counted against each other. Null on a proposed work, which no query produced. **Null does not mean proposed**: an offered row written before this column carries null too, and `provenance` remains the only thing that says which a work is. |
 | `offered_artist_matched` | integer | nullable | How many works that query matched in the collection. **The collection's holdings, never capped by `offered_works_per_run`** — the per-run bound is what a reader reconciles it against, so capping it here would collapse the comparison `product-brief.md` requires (telling one-of-four-hundred from one-of-one). Null under the same conditions as `offered_for_artist`. |
 | `work_dedup_key` | string | required, indexed | Normalised work identity for cross-run suppression. **Q3.** |
-| `provenance` | enum | required, defaults `proposed` | `proposed` \| `offered`. Who put this work in front of the curator: the model named it, or a wired collection volunteered it. Nullable *on disk* only so the column can be added to files written before collections were browsable — a null reads as `proposed`, that being the only thing which could have written a row then. |
+| `wikidata_qid` | string | nullable | The Wikidata item a `chosen` work was asked for by, or, on any undecided work, the item the curator picked from Wikidata's matches for its title (`DiscoveryService.set_wikidata_item`, since 2026-10-02, `build-plan-after-review.md` Chunk 04; never matched by title on its own, § Registry identity). Null otherwise. Handed to the image sources, so a source that looks a work up by item (Commons) can, and stored on the artwork at acceptance, set by the curator. Nullable so widening adds it to older files. |
+| `provenance` | enum | required, defaults `proposed` | `proposed` \| `offered` \| `chosen`. Who put this work in front of the curator: the model named it, a wired collection volunteered it, or the curator chose it from Wikidata for a Get. Nullable *on disk* only so the column can be added to files written before collections were browsable — a null reads as `proposed`, that being the only thing which could have written a row then. |
 | `resolution_status` | enum | required | `pending` \| `resolved` \| `unresolved`. Reflects the **latest** resolution attempt, whether that was the original phase 2 or a later re-search. `unresolved` ⇒ that attempt found no credible instance the curator has not already rejected. **Q12.** |
 | `unresolved_reason` | enum | nullable | Which kind of nothing: `not_held` \| `identity_refused` \| `size_unknown` \| `below_floor` \| `all_rejected`. Set whenever `resolution_status = unresolved`, null otherwise — **with one honest exception: a row whose attempt predates the column reads null beside `unresolved`.** The column was added nullable and existing files are widened without backfill, so the two runs that motivated it are themselves in that state. A null beside `unresolved` therefore means "this attempt happened before the reason was recorded", never "no reason applies". **Q12.** |
-| `verdict` | enum | required | `pending` \| `accepted` \| `rejected` \| `awaiting_better_image`. See State Machines. |
+| `verdict` | enum | required | `pending` \| `accepted` \| `rejected` \| `wanted`. See State Machines. `wanted` was `awaiting_better_image` until 2026-10-02 (`build-plan-after-review.md` Chunk 03); a migration on open rewrites stored rows, and nothing reads the old spelling. **Q36, Q37.** |
 | `rejected_reason` | text | nullable | Optional curator note. |
 | `decided_at` | datetime | nullable | |
 
@@ -1113,12 +1356,16 @@ artworks.
 > therefore before anything could have been offered — an offer exists only to
 > supplement what phase 2 failed to confirm.
 
-> **`awaiting_better_image` is the verdict an accept/reject binary cannot express**
-> — "I want this work; this instance is not good enough; find another." It is not
-> an edge case, and it is not terminal: the work returns to review once a new
-> instance is selected. Modelling it as a rejection would suppress the work via
-> `work_dedup_key` and silently lose a painting the curator explicitly asked to
-> keep (**Q11**).
+> **`wanted` is the verdict an accept/reject binary cannot express** — "I want this
+> work, and I hold no scan of it I would accept; find one." It covers a work whose
+> scan on offer the curator turned down and a work no scan was found for at all,
+> because those are one wish (the owner's #168, 2026-10-02: "'want a better scan'
+> is not that different from 'want any scan at all'"). Which it was is read from
+> the work's instances — a wanted work holding a turned-down instance was turned
+> down — and never stored (**Q37**). It is not an edge case, and it is not
+> terminal: the work returns to review once a new instance is selected. Modelling
+> it as a rejection would suppress the work via `work_dedup_key` and silently lose
+> a painting the curator explicitly asked to keep (**Q11**).
 >
 > **`resolution_status = unresolved` is a first-class outcome, not an absent row.**
 > Phase 2 failing to find any credible instance is one of the signals that phase 1
@@ -1144,7 +1391,7 @@ artworks.
 > > **`all_rejected` was added on 2026-08-04 after the list had been written at
 > > four, and the correction is kept rather than smoothed over** because the reason
 > > it was missed is reusable. It was ruled unreachable on the grounds that
-> > rejecting every instance sets the *verdict* to `awaiting_better_image` rather
+> > rejecting every instance sets the *verdict* to `awaiting_better_image` (now `wanted`) rather
 > > than the resolution status — true at the rejection, and irrelevant, because the
 > > write that matters happens later: the re-search that finds nothing then lands
 > > the same work at `unresolved`, which this document already said in as many
@@ -1193,7 +1440,7 @@ artworks.
 > meant "phase 2 found no credible instance" — an outcome of the original run only.
 > It now tracks the *latest* resolution attempt, which is what gives a failed
 > re-search a terminal representation without adding a verdict value for it. A work
-> in `awaiting_better_image` whose re-search comes back empty lands at
+> that is `wanted` and whose re-search comes back empty lands at
 > `unresolved`, and constraint 9 already forbids presenting it as accepted-able or
 > silently omitting it — so the dead end reports itself.
 >
@@ -1270,6 +1517,22 @@ artworks.
 > trailing alternate title in parentheses dropped *unless the remainder names
 > nothing in particular*; a parenthesised alias dropped from the artist.
 >
+> *(Amended 2026-10-04, by the owner's ruling: **a leading English article is
+> dropped** — `the`, `a` or `an`, as the title's first word with another after it.
+> It answers a rewrite observed between a holder and a request rather than between
+> two proposals: MoMA catalogues Agnes Martin's "The Tree", which reached it as
+> "Tree", and the title gate refused it (`procurement-corpus.md` § Run 3). The
+> corpus holds no work recurring with and without its article, so the rule unites
+> nothing there and merges nothing there. Its merge direction is two works by one
+> artist whose titles differ only by a leading article, which was judged rare
+> enough to carry. The guard on generic titles asks its question of the title
+> without its article, so "The Portrait (Hands)" keeps its parenthetical as
+> "Portrait (Hands)" does; and the article is read from the title as written, so
+> the initial in "A. Lincoln" is not one. Other languages' articles are left alone, being prepositions or
+> pronouns often enough to merge titles that differ. A change to the derivation
+> re-keys stored rows at the next start: `DiscoveryService.reconcile` re-derives
+> every key, not only those whose title it re-cleaned.)*
+>
 > *(Amended 2026-08-02: this list also carried "a bilingual `Original / English`
 > compound reduced to its first half". That rule was removed from the code the same
 > day and the clause is struck here so the decision record does not go on
@@ -1321,8 +1584,9 @@ artworks.
 > re-key" — true then, and false by the time the citation rules gained the bare
 > form, by which point the catalogue held rows and seven of them were keyed under
 > a citation the rules now strip. `DiscoveryService.reconcile` re-cleans
-> every stored title at startup and rewrites the key of any it changed, so the
-> obligation is discharged by each start rather than owed by each change. It is
+> every stored title at startup and rewrites any key the current rules derive
+> differently (since 2026-10-04; before, only the keys of titles it re-cleaned),
+> so the obligation is discharged by each start rather than owed by each change. It is
 > idempotent and normally a no-op. A title the cleaning empties is left exactly as
 > stored — `require_text` refuses an empty one on the way in, so writing one would
 > make the row unreadable and destroy the evidence of a rule that reached too far.
@@ -1390,6 +1654,20 @@ selected. Produced by phase 2.
 > institution itself and is not one once a second provider offers copies of the
 > same work. **The chunk that adds a non-museum provider owns this**, and should
 > reopen this paragraph rather than inherit it.
+>
+> **Reopened 2026-10-02, when Commons became a source** (`build-plan-get-and-ask.md`
+> Chunk 02). The owner ruled that no source is special-cased: every source is
+> asked at once, and *"Commons then Chicago"* is an order of preference. So
+> canonicity is still decided by resolution and rights, and the order sources are
+> listed in breaks a tie between instances that rank level. A Commons copy that
+> is larger than the holding museum's own scan wins; a museum scan that is larger
+> wins. Commons instances are recorded `institutional`, because they arrive
+> with structured metadata, stated rights and published limits, and are reached
+> through the work's own Wikidata item rather than a title search. Their
+> identity is therefore at least as strong as a museum's title match, and the
+> `contemporary_web` risk of a wrong image does not arise the same way. What
+> remains unbuilt is a preference for the holding institution's own file over an
+> equally sized copy, which nothing has yet asked for.
 > **How both scores are derived (settled 2026-08-02, when phase 2 was built).**
 > The two fields existed with their meanings recorded and their *derivations*
 > open. Both are now decided, and the first one was decided by measurement rather
@@ -1412,8 +1690,22 @@ selected. Produced by phase 2.
 > between two named artists is disqualifying, not a deduction** — this collection
 > holds *American Gothic* by Grant Wood and *American Gothic* by Elizabeth Layton,
 > so a scheme that merely ranked one above the other would attach the wrong one
-> whenever the right one was absent. Nothing that fails the comparison is recorded
-> at all: a near-match kept at low confidence is still selected the moment nothing
+> whenever the right one was absent.
+>
+> **A page the work's Wikidata item records passes the title comparison**
+> (2026-10-04, by the owner's ruling). A holder may catalogue a work under a
+> shorter title — MoMA holds Taeuber-Arp's *Composition of Circles and Overlapping
+> Angles* as *Composition* — and a shorter title accepted on its own would match
+> every *Composition* she made. So the shorter title does not pass; the item does.
+> When a result's title differs, the work has a QID, and the result's `url` is,
+> exactly, one of the pages `Registry.pages_about` gives for it, the record is the
+> work, and the artist comparison still decides. The registry is asked once per
+> work, only then; one that cannot be asked means no link. This is not identity
+> by source URL (§ Direction): the work's identity stays its key and its QID, and
+> the page is evidence in one resolution attempt, the mirror of the QID matcher
+> reading a holder's identifier from a source URL.
+>
+> Nothing that fails the comparison is recorded at all: a near-match kept at low confidence is still selected the moment nothing
 > better exists, which is precisely the case a work no museum holds produces, so
 > the only safe representation of "this is a different painting" is absence.
 >
@@ -1563,7 +1855,7 @@ path consults it before spending.
 | `discovery_run_id` | UUID | FK → DiscoveryRun, nullable | Null for non-discovery spend, e.g. mat colour. |
 | `artwork_id` | UUID | FK → Artwork, nullable | Set for per-artwork spend. |
 | `conversation_turn_id` | UUID | FK → ConversationTurn, nullable | Set for intent-forming spend. Added 2026-08-10 — see below. **Nulled, never cascaded, when the conversation is deleted** (2026-08-12): the money was spent whatever became of the thread, and a ledger whose totals fall when someone tidies a transcript is the failure the `conversation_tokens` rule below exists to prevent. |
-| `category` | enum | required | `discovery_tokens` \| `web_search` \| `image_research` \| `mat_color_vision` \| `conversation_tokens` — **`mat_color_vision` has a producer but writes no row today; see the deferral below.** |
+| `category` | enum | required | `discovery_tokens` \| `web_search` \| `image_research` \| `mat_color_vision` \| `conversation_tokens` — **`mat_color_vision` is written since 2026-10-02; see the note below.** |
 | `model_id` | string | nullable | |
 | `input_tokens`, `output_tokens` | integer | nullable | Null where the unit is not tokens. |
 | `units` | integer | nullable | e.g. number of web searches. |
@@ -1597,26 +1889,24 @@ path consults it before spending.
 > after-the-fact "what did this run cost", and monthly reporting. Those are real
 > needs and none of them is enforcement.
 >
-> **`mat_color_vision` is declared and unwritten, recorded here so the row does not
-> read as implemented (2026-08-04).** The category and its two nullable-key columns
-> predate any producer. Chunk 18B shipped the producer — a vision call per accepted
-> work through `MatEngine` — and it writes no SpendRecord: the cost is returned to
-> the caller on `cost_usd`, reported in the tool result, and then discarded. So the
-> monthly total from `art_discovery(action='spend')` omits every mat call. The
-> figures are small (about $0.000063 a call, one per accepted work) and the ceiling
-> is unaffected either way, because the ceiling is the provider's and this table
-> never enforced it — but a month total that silently excludes a whole paid path is
-> the wrong kind of small.
+> **`mat_color_vision` is written, with the work's `artwork_id`, since 2026-10-02**
+> (`build-plan-after-review.md` Chunk 01). It was declared and unwritten from
+> 2026-08-04: the producer (a vision call per work through `MatEngine`) returned its
+> cost on `cost_usd` and nothing kept it, so the month total omitted every mat call.
+> The acquisition queue prepares every accepted work unattended, which turns an
+> occasional cost into a routine one, so the row is now written by
+> `PreparationService` wherever it asks the model: a first preparation (from the
+> queue or MCP's `regenerate`) and `choose_mat`. A row is written when the model
+> answered, or billed for an answer it could not use; a call that never reached
+> the model costs nothing and writes nothing. `model_id` names the model asked even
+> when the colour fell back, since that is who billed.
 >
-> **It is deferred rather than merely missing, and the reason is where the writer
-> would have to live.** `record_spend` belongs to `DiscoveryService`, so recording
-> mat spend today means `PreparationService` taking a dependency on the discovery
-> service to reach an accounting concern that has nothing to do with discovery —
-> deepening precisely the coupling that is already filed for removal. Spend
-> accounting is separable on its own records and its own aggregation, and the mat
-> path is the second caller that proves it. The writer lands with that split, and
-> both are tracked in the backlog.
->
+> **The coupling the earlier deferral named is contained, not removed.**
+> `record_spend` still lives on `DiscoveryService`, and preparation reaches it
+> through a one-method protocol (`SpendLedger`), as the conversation service does.
+> Moving the ledger out of discovery, which the backlog tracks, changes the wiring
+> in the container and nothing in preparation.
+
 > **Q4.** `category` separates `web_search` because it is billed per search rather
 > than per token, so a token-only breakdown would misattribute cost. The earlier
 > claim that it "may dominate token spend entirely — an unresolved open question"
@@ -1632,9 +1922,11 @@ path consults it before spending.
 > because there was no other row to attribute it to. Still true, and unchanged: the
 > originating run never reopens, and its `status` stays `completed`.
 >
-> The paid re-search is `art_discovery(action='resolve_images')` — deliberately not
-> a side effect of `art_review(action='reject_image')`, so that exactly one tool
-> spends. See `api-contract.md`.
+> The re-search is `art_discovery(action='resolve_images')` — deliberately not
+> a side effect of `art_review(action='reject_image')`, so that searching stays out
+> of the review tool. It costs nothing today, so `image_research` rows are written by
+> nothing yet; they are where a paid image provider's cost would land (corrected
+> 2026-10-02, `build-plan-after-review.md` Chunk 05b). See `api-contract.md`.
 
 ### ResolveRunWork
 
@@ -1665,6 +1957,29 @@ Which `CandidateWork`s a `kind='resolve'` run covers. A join, nothing more.
 > Constraint 14 is enforced against this table: at creation, a resolve run is
 > refused if any requested work already appears in a `ResolveRunWork` row whose run
 > is still `resolving_images`.
+
+### Sighting
+
+A page about a work that no installed source plugin reads: a holder seen, not yet
+reachable (`source-plugins.md` § Sightings). Written when a search finds a page
+(`FoundPage`) and no installed plugin claims it.
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `wikidata_qid` | string | required | The work's Wikidata item. |
+| `url` | string | required | The page. **Never sent to the browser**: it came from a registry anyone can edit (`security-model.md` § Direction). |
+| | | PK (`wikidata_qid`, `url`) | A page found again is the same sighting. |
+
+> **Two columns, because Q43 to Q45 need no more.** Q43 counts hosts, read from the
+> URL, over the works still open, read from `CandidateWork` and `Artwork` by item.
+> Q44 gives each URL to the installed plugins' claims, and Q45 is a read by item.
+> A host column would be a second copy of part of the URL. *Mine, 2026-10-03.*
+>
+> **Keyed by the item, not by a CandidateWork**, because a work is one item across
+> every run that proposed it, and the only finder that offers pages answers only by
+> item. A page found for a work with no item is not stored. Rows are never
+> deleted: a page seen stays seen, and a plugin installed later is what Q44 asks
+> about.
 
 ### TvBinding *(display plane only)*
 
@@ -1714,6 +2029,51 @@ the entity that enforces the second Direction norm.
 > rather than merely avoided. The absence of a row still means "never tried",
 > which is the third state and the reason a failure keeps its row.
 
+### KeptAnswer *(curation plane, `kept-answers.sqlite`; disposable)*
+
+One answer a slow foreign source gave, kept so the next visit, and the next
+process, need not ask again (`arrt/src/arrt/persistence/kept.py`). **Not part of
+the catalogue**: a file of its own under `ART_ROOT`, holding no record and
+referred to by none. General purpose: the store names no source; each use
+registers a namespace with its own maximum age, size and codec. The registry's
+page sections are its first users (namespaces `registry.artist`,
+`registry.similar`, `registry.work`, `registry.search`, each 7 days and 512
+answers).
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `namespace` | string | PK part | The use the answer belongs to. Two uses never read each other's answers, and a name is registered once per open file. |
+| `key` | string | PK part | The question, as JSON of the caller's key (a QID, or a tuple of words and flags). |
+| `value` | string | required | The answer, as the namespace's codec wrote it. The registry's are JSON of their answer dataclasses, read back strictly: a field added, removed or retyped since makes it unreadable. |
+| `written` | float | required | When it was kept, in seconds since the epoch. **Q29**: an answer is used while `0 <= now - written < max_age`, the maximum age the namespace sets today; otherwise it is a miss and is deleted. |
+| `expires` | float | required | `written` plus the maximum age it was kept for. Read only at open, to throw away the answers of a namespace nobody registers any more. |
+| `used` | integer | required | A counter, larger for more recent use: a `put` and every hit raise it. Resumed from the file's largest at open. |
+
+**What the store enforces, Q30.** On every `put`, the namespace's answers older
+than its maximum age go first, then those beyond its size, least recently used
+first: so each namespace holds **at most** its size, and a burst in one (a
+typed search) never evicts another (an artist's page). At open, every answer
+past its `expires` goes, whichever namespace. Nothing bounds the file as a whole
+beyond the sum of the registered sizes and the expiry of the unregistered.
+
+**What is never kept, which is the callers' rule and not the store's.** A
+failure: callers `put` only what answered. A registry's "no such item": an item
+can be created. The library's own marks (*Held*), which are read fresh on every
+call and never stored with the answer.
+
+**Once open, every failure is a miss.** An entry its codec cannot read is
+deleted and asked again; a read or write the disk refuses is logged and the page
+goes on without it. At open, a file that is not a database, is damaged, or is of
+another format (`PRAGMA user_version` other than `FORMAT`) is replaced; a file
+that cannot be created at all stops the start, as an unwritable `ART_ROOT` stops
+the catalogue.
+
+> **Trust.** A registry answer read back from this file is the client's own
+> earlier output, with its image URLs already narrowed to Commons files
+> (`security-model.md` § Registry text). The file sits beside the catalogue
+> under `ART_ROOT` and is no easier to write than it is, so it adds no path for
+> outside text that the catalogue does not already have.
+
 ## Relationships
 
 - An **Artist** has many **Artworks** (one-to-many, optional — anonymous works
@@ -1741,6 +2101,8 @@ the entity that enforces the second Direction norm.
   records which run is **re-searching** it. Overloading provenance to mean coverage
   would destroy the provenance, and `parent_run_id` cannot serve either, because a
   resolve run covers a *subset* of the parent's works.
+- A work's **Sightings** are matched to it by Wikidata item, not by a foreign key:
+  to every **CandidateWork** and **Artwork** carrying that `wikidata_qid`.
 - A **DiscoveryRun** accrues many **SpendRecords** (one-to-many).
 - A **Conversation** has many **ConversationTurns** (one-to-many, ordered by
   `ordinal`). A turn accrues **SpendRecords** exactly as a run does, and on its own
@@ -1775,9 +2137,13 @@ the entity that enforces the second Direction norm.
   share a database. This is why `wall_id` on that table carries no FK while the
   identical column on **ThemeAssignment** does: the catalogue can enforce what it
   owns, and the display plane holds a copy of an id it was configured with.
+- A **Client** shows many **Walls** (one-to-many, optional both ways, via
+  `Wall.client_id`), each on one of its outputs by name, and an output of a
+  client shows at most one wall. A wall nobody shows and a client with no walls
+  are both ordinary.
 - **Nothing in the catalogue points at a device.** A Wall is a place; which
-  television or panel serves it is display-plane configuration, and the catalogue
-  is rebuildable without knowing it.
+  television or panel serves it is the client's, and the catalogue holds only
+  which client and the output's name, and is rebuildable without knowing more.
 
 ## State Machines
 
@@ -1895,7 +2261,9 @@ coverage — which is what makes the works re-searchable again.
 
 A `resolve` run enters at `resolving_images` and can never reach `resolving_works`,
 `awaiting_approval`, or `declined` — phase 1 already happened on the parent, so
-there is no work list to approve or decline. Every other state behaves identically,
+there is no work list to approve or decline. A `get` run enters the same way and
+for the same reason: the curator named every work, by its item, so there is no
+list to draw up. Every other state behaves identically,
 which is the point of reusing the entity: `status`, `cancel`, `halted_by_budget`,
 and spend attribution all work on a re-search without a line of new machinery.
 
@@ -1938,16 +2306,17 @@ of 40 works succeeded partially; it did not fail.
    ▼                                             │
 pending ──┬──▶ accepted  (mints an Artwork)      │
           ├──▶ rejected  (terminal; suppresses)  │
-          └──▶ awaiting_better_image ────────────┘
-               entered ONLY via art_review(reject_image)
+          └──▶ wanted ───────────────────────────┘
+               entered ONLY via want — directly, or
+               through reject_image on the scan on offer
                     │
                     ├──▶ accepted   via set_verdict
                     └──▶ rejected   via set_verdict
 ```
 
-`awaiting_better_image` is **not terminal**. It returns to `pending` once a
-resolution attempt selects a fresh instance, and it must not write
-`work_dedup_key` suppression — that is reserved for `rejected` (**Q11**).
+`wanted` is **not terminal**. It returns to `pending` once a resolution attempt
+selects a fresh instance, and it must not write `work_dedup_key` suppression —
+that is reserved for `rejected` (**Q11**).
 **The curator may also leave it directly** via `set_verdict` — accepting the best
 instance on offer, or giving up on the work — which is why the two edges above
 exist (added 2026-07-20; the diagram previously drew no exit but `set_verdict`
@@ -1956,7 +2325,7 @@ constrains only its *target* value, so the transition was reachable and unmodell
 **Terminal verdicts are never overwritten by a resolve run (decided 2026-07-20).**
 `verdict` has two writers — the curator through `art_review`, and a resolve run
 completing — and only the curator's is authoritative. A resolve run writes
-`pending` **only if the work is still `awaiting_better_image` when it finishes**;
+`pending` **only if the work is still undecided (`pending` or `wanted`) when it finishes**;
 if the curator has since accepted or rejected it, the run's result is **reported,
 not applied**, and the verdict stands. Without this rule a resolve completing after
 an accept writes `pending` over `accepted`, leaving a work with an `artwork_id` and
@@ -1974,13 +2343,13 @@ more enum values — it is to stop conflating curator *intent* with job *state*:
 
 | Situation | How it is known |
 |---|---|
-| Curator asked for better; nothing running | `awaiting_better_image`, and no `ResolveRunWork` row for it on a run in `resolving_images` |
+| Curator wants it; nothing running | `wanted`, and no `ResolveRunWork` row for it on a run in `resolving_images` |
 | Re-search in flight | A `ResolveRunWork` row for this work whose run is in `resolving_images` |
 | Re-search found nothing | `resolution_status = unresolved` — see above |
 
-`awaiting_better_image` therefore means exactly one thing: *the curator wants this
-work and the current instance is not good enough*. It is a statement of intent, and
-intent does not change when a job starts or finishes.
+`wanted` therefore means exactly one thing: *the curator wants this work and holds
+no scan of it they would accept*. It is a statement of intent, and intent does not
+change when a job starts or finishes.
 
 **This follows the readiness decision rather than re-litigating it.** Storing
 "re-search running" as a verdict value would create a second truth beside the run
@@ -1988,14 +2357,20 @@ row, and the two can disagree — a crashed resolve run would leave the work rea
 `resolving` forever with nothing to correct it. Derived state cannot drift from the
 thing it is derived from. See `architecture.md` § readiness.
 
-**Entry is single-path by construction (decided 2026-07-20).** `set_verdict` does
-**not** accept `awaiting_better_image`; `reject_image` is the only way in. Both
-previously reached it and only `reject_image` set `rejected_at`, so a re-search
+**Entry is single-path by construction (decided 2026-07-20, amended 2026-10-02).**
+`set_verdict` does **not** accept `wanted`; `want` is the only way in. On
+2026-07-20 the way in was `reject_image`, because two paths had reached the old
+`awaiting_better_image` and only `reject_image` set `rejected_at`, so a re-search
 could legitimately return the image the curator had just rejected — the exact
 suppression failure **Q11** exists to prevent, reappearing on the instance scope.
-Narrowing the entry makes that impossible rather than defended against, and it
-matches the scope boundary the tools already have: `awaiting_better_image` is a
-judgement about the *instance*, and `set_verdict` is work-scoped.
+On 2026-10-02 (#168) the verdict became `wanted` and its entry became `want`, which
+takes the scan being turned down as an optional argument and suppresses it in the
+same transaction as the verdict. The reason survives the move: **turning a scan
+down is still the only way to suppress one**, and a verdict reached by naming a
+scan always suppresses it. `want` naming no scan suppresses nothing, because a
+work found with no scan has nothing to turn down. `reject_image` makes a work
+`wanted` only when the scan was the one on offer; turning down an alternate
+suppresses it and leaves the verdict where it was.
 
 ## Constraints
 
@@ -2057,7 +2432,7 @@ judgement about the *instance*, and `set_verdict` is work-scoped.
       future proposals, unless the curator explicitly reconsiders it.
    b. A **CandidateImage** with `rejected_at` set is excluded from re-selection for
       its work, and this must leave the work itself eligible.
-   Enforcing (b) through (a) is the failure mode: asking for a better scan would
+   Enforcing (b) through (a) is the failure mode: turning down a scan would
    blacklist the painting. **Q11.**
    **(b) is scoped to the URL, not to the row that holds it** *(added 2026-08-03,
    when the re-search was first built and immediately defeated it)*. A work holds
@@ -2136,8 +2511,8 @@ judgement about the *instance*, and `set_verdict` is work-scoped.
     run-creation time by checking that table — `resolve_images` refuses any work id
     appearing in a `ResolveRunWork` row whose run is in a **non-terminal** status,
     and names the offending ids in the refusal rather than silently deduplicating.
-    Without this, double-submitting the same ids spends twice for one result on the
-    only tool that spends money at all.
+    Without this, double-submitting the same ids searches twice for one result,
+    and would spend twice if a paid image provider is ever added.
     **"Non-terminal" is safe to key on only because of startup reconciliation** (see
     State Machines). Every terminal state *except* `interrupted` is written by the
     run's own process — which is precisely why `interrupted` had to exist: without
@@ -2154,10 +2529,16 @@ judgement about the *instance*, and `set_verdict` is work-scoped.
     So the two halves of this artifact disagreed, and the dead half had reached
     `operational-spec.md` as a remedy telling an operator to approve a run that
     cannot exist. A live coverage-holding run is always `resolving_images`.
-15. **`awaiting_better_image` is reachable only through `art_review(reject_image)`.**
-    The path that sets `rejected_at` and the path that sets the verdict are the same
-    path, so instance suppression can never be skipped. `set_verdict` rejects the
-    value with an error naming `reject_image` — see `api-contract.md`.
+15. **`wanted` is reachable only through `want`** *(amended 2026-10-02; it read
+    "`awaiting_better_image` is reachable only through `art_review(reject_image)`")*.
+    When `want` names a scan being turned down, the path that sets `rejected_at` and
+    the path that sets the verdict are the same transaction, so instance suppression
+    can never be skipped; naming none suppresses nothing. `reject_image` reaches
+    `wanted` only through `want`, and only for the scan on offer. `set_verdict`
+    rejects the value with an error naming `want` — see `api-contract.md`
+    § `set_verdict` cannot set `wanted`. Enforced by the service (the store's
+    `verdict` column holds any string; nothing below the service refuses one), and
+    pinned by `arrt/tests/unit/test_discovery_constraints.py` § 15.
 16. **A re-fetch never lowers the quality of the image a work already holds: a
     `partial_tiles` result does not replace a held Original unless that Original is
     itself recorded as `partial_tiles`.** *(Added 2026-08-04.)* Re-acquisition is an
@@ -2340,7 +2721,7 @@ an open question.
 
 The memory of what a Watch has already seen is the existing dedup and
 rejected-candidate records, not a new table. Upgrade monitoring (re-searching
-works whose verdict is `awaiting_better_image`) runs on the same scheduler.
+works whose verdict is `wanted`) runs on the same scheduler.
 
 ### Player observation *(Programming)*
 

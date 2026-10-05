@@ -31,11 +31,12 @@ from pathlib import Path
 
 import pytest
 
-from arrt.library.discovery.artic import build_image_search
 from arrt.library.discovery.dedup import clean_name
 from arrt.library.discovery.images import ImageQuery, ImageSearchFailure
 from arrt.library.discovery.phase_two import PhaseTwoEngine
+from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.services.display_fit import ArtworkBox
+from arrt.library.sources.artic import build_image_search
 
 pytestmark = pytest.mark.live_museum
 
@@ -102,7 +103,7 @@ def test_the_pipeline_still_resolves_at_least_the_floor():
     a network fault must not read as the pipeline getting worse, which is the
     same distinction phase 2 draws between `unresolved` and unreachable.
     """
-    engine = PhaseTwoEngine(build_image_search(user_agent=USER_AGENT), box=BOX)
+    engine = PhaseTwoEngine(ImageSourcePool([build_image_search(user_agent=USER_AGENT)]), box=BOX)
     works = distinct_works()
     resolved, unreachable = [], []
     for title, artist in works:

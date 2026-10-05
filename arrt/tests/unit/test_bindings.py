@@ -11,24 +11,21 @@ scattering its tests into a file that disclaims it is how that boundary stops
 being legible.
 """
 
-import logging
 from dataclasses import replace
 from datetime import UTC, datetime
-from types import SimpleNamespace
 
 import pytest
 
 from arrt.library.acquisition.dezoomify import DezoomifyUnavailable
-from arrt.library.acquisition.service import _DEPLOYMENT_FAULTS, AcquisitionOutcome, AcquisitionResult
+from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState
+from arrt.library.acquisition.service import DEPLOYMENT_FAULTS, DEPLOYMENT_REMEDIES, SourcePluginUnavailable, remedy_for
 from arrt.library.acquisition.space import NotEnoughSpace
-from arrt.library.acquisition.tiles import TileTargetUnavailable
 from arrt.library.services.catalogue import MAX_LIST_LIMIT
 from arrt.library.services.runner import MAX_RUNS_LISTED, RunListing, RunView
 from arrt.mcp.bindings import (
     _RUN_DETAIL_ONLY,
     MAX_WORKS_LISTED,
-    _acquisition_notice,
-    _retry_acquisition,
+    _retry_notice,
     _run_fields,
     _run_notice,
     _run_summary,
@@ -36,8 +33,15 @@ from arrt.mcp.bindings import (
     _runs_truncation_notice,
     _truncation_notice,
 )
-from arrt.persistence.discovery_records import CandidateWork, DiscoveryRun, InitiatedBy, ResolutionStatus, RunKind, RunStatus
-from arrt.services.errors import ServiceError
+from arrt.persistence.discovery_records import (
+    CandidateWork,
+    DiscoveryRun,
+    InitiatedBy,
+    ResolutionStatus,
+    RunKind,
+    RunStatus,
+    WorkProvenance,
+)
 
 
 def test_a_complete_page_gets_no_notice(seeded_service):
@@ -254,6 +258,33 @@ def test_a_re_search_is_not_told_its_work_list_has_settled():
     assert "2 works it covers" in resolve_notice
 
 
+def _a_get(status: RunStatus = RunStatus.RESOLVING_IMAGES) -> RunView:
+    view = _resolving(RunKind.GET)
+    chosen = tuple(replace(work, provenance=WorkProvenance.CHOSEN, wikidata_qid="Q1") for work in view.works)
+    return replace(view, run=replace(view.run, status=status), works=chosen)
+
+
+def test_a_get_is_told_it_is_finding_the_works_chosen():
+    """A Get proposed nothing, so neither the work-list sentence nor a proposed count fits it."""
+    notice = _run_notice(_a_get())
+
+    assert "work list" not in notice
+    assert "2 works you chose" in notice
+
+
+def test_a_get_with_no_provider_counts_the_works_it_holds():
+    notice = _run_notice(replace(_a_get(), image_resolution_available=False))
+
+    assert "are 2 works to find images for" in notice
+
+
+def test_an_interrupted_get_is_told_to_get_its_items_again_not_to_repeat_an_intent():
+    notice = _run_notice(_a_get(RunStatus.INTERRUPTED))
+
+    assert "Get the same items again" in notice
+    assert "intent" not in notice
+
+
 def test_a_deployment_with_no_provider_says_so_whichever_kind_of_run_is_asking():
     """The absent capability outranks the run kind: neither can advance, for one reason."""
     for kind in RunKind:
@@ -263,118 +294,81 @@ def test_a_deployment_with_no_provider_says_so_whichever_kind_of_run_is_asking()
         assert "no image provider is configured" in notice
 
 
-# -- what an acquisition outcome means, when the outcome word understates it ----
+# -- what a retry says, now that it fetches nothing in the call ----------------
+#
+# `retry_acquisition` queues the work and returns (2026-10-02, `api-contract.md`
+# § Versioning). What the fetch came to is read afterwards, on `get`'s
+# `acquisition` and on `sources`; what the call itself owes is a sentence saying
+# nothing was fetched, or that the queue is paused and what ends the pause.
 
 
-def _acquisition(outcome):
-    return AcquisitionResult(artwork_id="w1", source_id="s1", outcome=outcome, detail="whatever the service said")
+def _state(phase, **fields):
+    return AcquisitionState("w1", phase, **fields)
 
 
-def test_a_clean_acquisition_needs_no_explaining():
-    assert _acquisition_notice(_acquisition(AcquisitionOutcome.ACQUIRED)) is None
+def test_a_retry_says_nothing_was_fetched_and_where_to_watch():
+    notice = _retry_notice(_state(AcquisitionPhase.QUEUED))
+
+    assert "nothing was fetched in this call" in notice
+    assert "action='get'" in notice
 
 
-def test_a_partial_result_says_the_work_is_on_the_wall_anyway():
-    """`partial` reads like a failure and is not one."""
-    notice = _acquisition_notice(_acquisition(AcquisitionOutcome.PARTIAL))
+@pytest.mark.parametrize("condition", DEPLOYMENT_FAULTS, ids=lambda c: c.__name__)
+def test_a_retry_into_a_paused_queue_names_the_pause_and_its_remedy(condition):
+    notice = _retry_notice(_state(AcquisitionPhase.PAUSED, detail="the deployment refused", condition=condition.__name__))
 
-    assert "the work holds it" in notice
-    assert "Retrying" in notice
-
-
-def test_a_refused_promotion_is_told_apart_from_a_failure():
-    """The two outcomes that both leave the work unchanged say different things,
-    because the next move differs: a failure invites a retry, and a refusal is
-    what a retry already produced."""
-    kept = _acquisition_notice(_acquisition(AcquisitionOutcome.KEPT_HELD))
-    failed = _acquisition_notice(_acquisition(AcquisitionOutcome.FAILED))
-
-    assert kept != failed
-    # Says the fetch worked, so nobody goes looking for a broken source.
-    assert "The fetch worked" in kept
-    assert "nothing was replaced" in kept
-    # And does not repeat the advice that produced this outcome in the first place.
-    assert "Retrying repeats this" in kept
+    assert "paused" in notice
+    assert _REMEDY_FOR[condition] in notice, "the caller is told nothing it can act on"
 
 
-def test_every_acquisition_outcome_is_accounted_for():
-    """A new outcome with no branch here returns `None`, which reads to a caller
-    as "nothing worth saying" rather than as an unhandled case."""
-    explained = {AcquisitionOutcome.PARTIAL, AcquisitionOutcome.FAILED, AcquisitionOutcome.KEPT_HELD}
-    for outcome in AcquisitionOutcome:
-        notice = _acquisition_notice(_acquisition(outcome))
-        assert (notice is not None) == (outcome in explained), f"{outcome} lost or gained its notice"
+def test_a_retry_into_a_queue_paused_by_a_surprise_points_at_the_journal():
+    notice = _retry_notice(_state(AcquisitionPhase.PAUSED, detail="database disk image is malformed", condition="OSError"))
+
+    assert "acquisition.queue_error" in notice
 
 
 # -- the deployment faults, which the caller cannot fix ------------------------
 #
 # Three conditions refuse acquisition before it starts, and none of them is the
 # caller's doing: a full disk, a missing binary, an unset user agent. Each breaks
-# EVERY acquisition in the deployment. What this binding owes them is the
-# **remedy** — the sentence naming what an operator changes — and nothing else.
+# EVERY acquisition in the deployment. What every surface owes them is the
+# **remedy** — the sentence naming what an operator changes — held once, beside
+# the conditions, in `DEPLOYMENT_REMEDIES`.
 #
 # The journal line is owed by `AcquisitionService`, and is asserted there
-# (`test_acquisition_service.py`) by driving `acquire()` with no binding in the
-# picture. It was emitted here until 2026-08-05, which meant the signal followed
-# the route in rather than the condition: the first browser acquisition route
-# would have inherited the refusal and not the line. A test at this layer cannot
-# fail for a non-MCP caller, so this one no longer tries to cover it.
-
+# (`test_acquisition_service.py`) by driving `acquire()` with no surface in the
+# picture.
 
 #: The environment variable each condition's remedy must name, keyed by the
 #: condition. A table rather than three literals in the parametrisation, so the
-#: test below can be driven from `_DEPLOYMENT_FAULTS` itself while still
+#: test below can be driven from `DEPLOYMENT_FAULTS` itself while still
 #: asserting the one thing that differs per condition — what an operator changes.
 _REMEDY_FOR = {
     NotEnoughSpace: "MIN_FREE_BYTES",
     DezoomifyUnavailable: "DEZOOMIFY_PATH",
-    TileTargetUnavailable: "ARTIC_USER_AGENT",
+    SourcePluginUnavailable: "ARTIC_USER_AGENT",
 }
 
 
 def test_every_raise_rather_than_record_condition_has_a_remedy_of_its_own():
-    """The invariant both modules state in prose, asserted instead of promised.
+    """`service.py` says a new raise-rather-record condition needs a remedy; this asserts it.
 
-    `service.py` says a new raise-rather-record condition belongs in
-    `_DEPLOYMENT_FAULTS`; `bindings.py` says every one of them needs an `except`
-    clause here, and that adding one to the service without one here is
-    **silent** — the generic handler drops the exception text, so the deliberate
-    refusal arrives as the very "failed unexpectedly" those clauses exist to
-    prevent. Nothing enforced either sentence, so a fourth member added to the
-    tuple shipped that outcome with a green suite.
-
-    This closes the gap at the table, and the parametrised test below closes it
-    at the clause: a condition with no entry fails here, and a condition with an
-    entry but no `except` clause fails there by raising something that is not a
-    `ServiceError`.
+    A condition with no entry would pause the queue with nothing to say about
+    what ends the pause, and the Work page, Activity › Queue and MCP would all
+    show a detail with no remedy beside it.
     """
-    assert set(_DEPLOYMENT_FAULTS) == set(
-        _REMEDY_FOR
-    ), "a raise-rather-record condition was added or removed without its operator remedy"
+    assert set(_REMEDY_FOR) == set(DEPLOYMENT_FAULTS), "a condition was added or removed without its operator remedy"
+    assert set(DEPLOYMENT_REMEDIES) == {condition.__name__ for condition in DEPLOYMENT_FAULTS}
 
 
-@pytest.mark.parametrize("condition", _DEPLOYMENT_FAULTS, ids=lambda c: c.__name__)
-def test_a_deployment_fault_is_translated_into_a_remedy(condition, caplog):
-    """The caller gets something it can act on rather than "failed unexpectedly".
+@pytest.mark.parametrize("condition", DEPLOYMENT_FAULTS, ids=lambda c: c.__name__)
+def test_each_remedy_names_what_an_operator_changes(condition):
+    """Driven from `DEPLOYMENT_FAULTS`, so the coverage cannot fall behind the set it covers."""
+    assert _REMEDY_FOR[condition] in remedy_for(condition.__name__)
 
-    Driven from `_DEPLOYMENT_FAULTS` rather than a hand-written list, so the
-    coverage cannot fall behind the set it is covering — the clauses are separate
-    `except` branches, a test over one says nothing about the others, and that is
-    how the third came to exist with no coverage in the first place.
-    """
 
-    class _Refusing:
-        def acquire(self, artwork_id, *, source_id=None):
-            raise condition("the deployment is not in a state that allows this.")
-
-    services = SimpleNamespace(acquisition=_Refusing())
-
-    with caplog.at_level(logging.ERROR), pytest.raises(ServiceError) as failure:
-        _retry_acquisition(services, {"artwork_id": "art-1"})
-
-    assert _REMEDY_FOR[condition] in str(failure.value), "the caller is told nothing it can act on"
-    events = [record for record in caplog.records if getattr(record, "event", None) == "acquisition.deployment_fault"]
-    assert events == [], "the binding journalled a fault the service already journals; an MCP refusal would be logged twice"
+def test_an_error_nothing_anticipated_has_no_remedy_to_invent():
+    assert remedy_for("OSError") is None
 
 
 # -- the run listing's cap -------------------------------------------------------

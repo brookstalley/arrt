@@ -26,6 +26,7 @@ service method answers it, and the service method does the work.
 
 from typing import Final
 
+from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR
 from arrt.library.services.catalogue import MAX_LIST_LIMIT
 from arrt.library.services.review import MAX_REVIEW_LIMIT
 from arrt.mcp.registry import Action, Param, ToolRecord
@@ -109,6 +110,18 @@ _ARTWORK_ID = Param(
     required=True,
 )
 
+_QID = Param(
+    name="qid",
+    type="string",
+    #: One description for every action taking it, because the wire schema
+    #: publishes only the first: the topic action takes an item and never 'none'.
+    description=(
+        "A Wikidata item id such as Q160149. set_work_qid and set_artist_qid also take 'none', "
+        "to record that there is no item."
+    ),
+    required=True,
+)
+
 _SOURCE_ID = Param(
     name="source_id",
     type="string",
@@ -123,7 +136,8 @@ _HEX_RGB = Param(
     name="hex_rgb",
     type="string",
     description=(
-        "The mat colour as a hex triplet, e.g. '#27285b'. Omit it to have the vision model choose one, which "
+        f"The mat colour as a hex triplet, e.g. '#27285b', no darker than CIE L* {MAT_LIGHTNESS_FLOOR:g} (a darker "
+        "one is refused). Omit it to have the vision model choose one, which "
         "spends a fraction of a cent. (action='regenerate' also chooses one, and pays, for a work that has "
         "never had a mat; both actions report cost_usd.)"
     ),
@@ -140,7 +154,7 @@ ART_CATALOGUE: Final = ToolRecord(
     title="Art catalogue",
     summary=(
         "Read and manage the works already accepted into the collection. Two actions reach outside the machine: "
-        "retry_acquisition fetches from a museum, and set_mat_color asks a vision model when given no colour."
+        "retry_acquisition queues a fetch from a museum, and set_mat_color asks a vision model when given no colour."
     ),
     read_only=False,
     destructive=False,
@@ -159,7 +173,26 @@ ART_CATALOGUE: Final = ToolRecord(
             name="list",
             description="Search and filter catalogued works, with the counts each further filter would select.",
             example="art_catalogue(action='list', q='harbour', movement=['Impressionism'], limit=20)",
-            params=(_STATUS, _QUERY, *_FACET_PARAMS, _SORT, _LIMIT, _OFFSET),
+            params=(
+                _STATUS,
+                _QUERY,
+                *_FACET_PARAMS,
+                Param(
+                    name="artist_id",
+                    type="string",
+                    description="Only this artist's works, by the catalogue id a work's artist carries.",
+                ),
+                Param(
+                    name="theme",
+                    type="string",
+                    description=(
+                        "Only this theme's works, by theme_id; every other filter and every facet count " "narrows within it."
+                    ),
+                ),
+                _SORT,
+                _LIMIT,
+                _OFFSET,
+            ),
             tips=(
                 "A truncated result says so and reports the total, so a short list is never mistaken for a complete one.",
                 "Listings carry the fields needed to choose; use action='get' for the whole record.",
@@ -167,14 +200,21 @@ ART_CATALOGUE: Final = ToolRecord(
                 "there is to filter by.",
                 "A facet's counts are computed with its OWN selection ignored, so an option showing 0 with another "
                 "facet chosen is an empty intersection rather than an empty catalogue.",
+                "Every result also lists each theme with the count it would select, counted the same way, so "
+                "theme=… can be chosen without a separate art_theme call.",
             ),
         ),
         Action(
             name="get",
-            description="Return one work in full, with its artist resolved.",
+            description="Return one work in full, with its artist resolved and where it stands in the acquisition queue.",
             example="art_catalogue(action='get', artwork_id='<an artwork_id from action=list>')",
             params=(_ARTWORK_ID,),
-            tips=("Ids are stable internal identities, never source URLs, so they survive a museum reorganising its site.",),
+            tips=(
+                "Ids are stable internal identities, never source URLs, so they survive a museum reorganising its site.",
+                "`acquisition` is null once the work's image is fetched and prepared; otherwise its phase is queued, "
+                "fetching, failed (with the next try), gave_up (waits for retry_acquisition) or paused (with the "
+                "remedy an operator applies).",
+            ),
         ),
         Action(
             name="sources",
@@ -206,12 +246,18 @@ ART_CATALOGUE: Final = ToolRecord(
         ),
         Action(
             name="retry_acquisition",
-            description="Fetch the work's master image again from one of its sources.",
+            # Changed 2026-10-02 from fetching in the call to queueing: a breaking
+            # description change by `api-contract.md` § Versioning, announced
+            # with the plan that made it (`build-plan-after-review.md` Chunk 02).
+            description="Queue the work's master image to be fetched again, first in line, and return at once.",
             example="art_catalogue(action='retry_acquisition', artwork_id='<an artwork_id from action=list>')",
             params=(_ARTWORK_ID, _SOURCE_ID),
             tips=(
-                "Use it after a failed or partial fetch; action='sources' shows which, and what went wrong last time.",
-                "Omitting source_id uses the work's primary source.",
+                "Nothing is fetched in the call: the acquisition queue fetches one work at a time, and a tiled fetch "
+                "can take half an hour. action='get' shows its progress under `acquisition`.",
+                "It forgets the work's failures, so a work the queue gave up on is tried again.",
+                "Omitting source_id finishes what the work is owed; naming one fetches from it even when the work "
+                "already holds an image, which is how to ask for a complete scan after a partial one.",
                 "Retrying cannot cost the work its image: an attempt that fails replaces nothing, and one that "
                 "comes back with missing tiles is refused outright when the work already holds a complete image.",
             ),
@@ -232,6 +278,36 @@ ART_CATALOGUE: Final = ToolRecord(
             ),
         ),
         Action(
+            name="set_work_qid",
+            description="Say which Wikidata item a work is, or that there is none.",
+            example="art_catalogue(action='set_work_qid', artwork_id='<an artwork_id>', qid='Q20270685')",
+            params=(_ARTWORK_ID, _QID),
+            tips=(
+                "A work's wikidata_qid is otherwise matched only through its museum's own identifier, never its "
+                "title, so a work with a generic title or an unfamiliar source may have none until you set it.",
+                "What you set is never overwritten by matching, and qid='none' stops matching from filling it; "
+                "a later set_work_qid replaces either.",
+            ),
+        ),
+        Action(
+            name="set_artist_qid",
+            description="Say which Wikidata item an artist is, or that there is none.",
+            example="art_catalogue(action='set_artist_qid', artist_id='<an artist_id from a work>', qid='Q160149')",
+            params=(
+                Param(
+                    name="artist_id",
+                    type="string",
+                    description="The artist's catalogue id, as a work's artist carries it.",
+                    required=True,
+                ),
+                _QID,
+            ),
+            tips=(
+                "What you set is never overwritten by matching, and qid='none' stops matching from filling it; "
+                "a later set_artist_qid replaces either.",
+            ),
+        ),
+        Action(
             name="regenerate",
             description="Re-render a work's television canvas from the image it holds, in the mat colour already in force.",
             example="art_catalogue(action='regenerate', artwork_id='<an artwork_id from action=list>')",
@@ -245,6 +321,29 @@ ART_CATALOGUE: Final = ToolRecord(
                 "Use force=true after changing the panel geometry or clearing the rendered tree.",
                 "A work whose master image is missing from disk is refused rather than rendered blank; "
                 "action='retry_acquisition' fetches it again.",
+            ),
+        ),
+        Action(
+            name="topics",
+            description="List every topic the catalogue's works in circulation are in, by kind, with how many works.",
+            example="art_catalogue(action='topics')",
+            params=(),
+            tips=(
+                "Topics are periods (centuries), movements, subjects and kinds of work, as Wikidata gives them for "
+                "works and artists with a Wikidata item; a work with neither has none.",
+                "Read from the catalogue alone, so it never waits on Wikidata. Each topic's qid is what " "action='topic' takes.",
+                "state='not_configured' means WIKIDATA_USER_AGENT is unset, so nothing keeps topics up to date.",
+            ),
+        ),
+        Action(
+            name="topic",
+            description="Return one topic as the catalogue's works carry it, and its works in circulation.",
+            example="art_catalogue(action='topic', qid='Q40415')",
+            params=(_QID,),
+            tips=(
+                "A topic none of the catalogue's works is in returns no label and no works rather than an error.",
+                "The same values filter action='list': a movement topic's label is a movement facet value, a "
+                "period's an era value.",
             ),
         ),
     ),
@@ -355,8 +454,10 @@ ART_DISCOVERY: Final = ToolRecord(
         ),
         Action(
             name="resolve_images",
-            description="Look again for images of works whose instances the curator turned down. Returns a handle at once.",
-            example="art_discovery(action='resolve_images', work_ids=['<a work_id awaiting a better image>'])",
+            # Changed 2026-10-02: wanted works include works with no scan at all,
+            # which `art_review(action='want')` sends here (`api-contract.md`).
+            description="Look again for images of wanted works, with or without a scan. Returns a handle at once.",
+            example="art_discovery(action='resolve_images', work_ids=['<a work_id from art_review action=list_wanted>'])",
             params=(
                 Param(
                     name="work_ids",
@@ -370,13 +471,46 @@ ART_DISCOVERY: Final = ToolRecord(
                 "This is a run like any other: it returns a run_id, and action='status', action='cancel' and "
                 "action='spend' all take it.",
                 "A work already being re-searched by a running re-search is refused, and the refusal names it — "
-                "submitting the same ids twice would pay twice for one result.",
+                "submitting the same ids twice would search twice for one result.",
                 "The works must all come from one discovery run, because a re-search hangs its cost on the "
                 "intent that proposed them. Start one re-search per originating run.",
                 "What this costs rolls up into the originating run's figure, so action='spend' on that run "
                 "still answers what asking for it cost altogether.",
                 "A verdict you reach while this is running wins: a re-search finishing against a work you have "
                 "since accepted or rejected reports what it found and leaves your decision alone.",
+            ),
+        ),
+        Action(
+            name="get",
+            description="Get works chosen by their Wikidata items, as one run that looks for their images. Returns at once.",
+            example="art_discovery(action='get', qids=['Q45585'])",
+            params=(
+                Param(
+                    name="qids",
+                    type="array",
+                    items="string",
+                    description="The Wikidata items of the works to get, such as Q45585.",
+                    required=True,
+                ),
+                Param(
+                    name="theme_id",
+                    type="string",
+                    description=(
+                        "The theme the accepted works join instead of the default theme. Omit to send them to "
+                        "the default, which is the everyday rotation."
+                    ),
+                ),
+            ),
+            tips=(
+                "This spends nothing: a Get has no phase 1, and the image sources it asks are free.",
+                "An item the library already holds, one a Get under way is already looking for, and one "
+                "Wikidata has no work for are skipped and listed under `skipped`, not refused. When every "
+                "item is skipped no run starts and `run_id` is null.",
+                "The run is like any other: action='status' and action='cancel' take its run_id, and its works "
+                "are judged with art_review. Accepting one records the item on the new work.",
+                "To send the works to a new theme, create it first with art_theme(action='create') and pass its "
+                "theme_id. An unknown theme_id refuses the Get and starts nothing. A theme deleted before a work "
+                "is accepted leaves that work in no theme, not in the default.",
             ),
         ),
         Action(
@@ -393,8 +527,13 @@ ART_DISCOVERY: Final = ToolRecord(
                 Param(
                     name="kind",
                     type="string",
-                    description="Restrict to first-time discovery runs or to re-searches. Omit for both.",
+                    description="Restrict to first-time discovery runs, re-searches or Gets. Omit for all.",
                     choices=tuple(member.value for member in RunKind),
+                ),
+                Param(
+                    name="awaiting",
+                    type="boolean",
+                    description="Only runs holding works that found an image and await a verdict: what is left to review.",
                 ),
             ),
             tips=("Listings carry the fields needed to choose; use action='status' for one run in full.",),
@@ -582,18 +721,16 @@ ART_REVIEW: Final = ToolRecord(
                     description="'accepted' puts the work in the catalogue; 'rejected' closes it. Both are final.",
                     required=True,
                     choices=("accepted", "rejected"),
-                    # `api-contract.md` § set_verdict cannot set
-                    # `awaiting_better_image` requires the refusal to name
-                    # `reject_image`, and it is the schema that refuses it — the
-                    # service's own teaching error is unreachable from here,
-                    # because validation runs first by design. A caller asking
-                    # for that verdict has not mistyped; they want the thing a
-                    # different action does, and an enumeration alone would send
-                    # them away without it.
+                    # `api-contract.md` § set_verdict cannot set `wanted` requires
+                    # the refusal to name `want`, and it is the schema that
+                    # refuses it — the service's own teaching error is unreachable
+                    # from here, because validation runs first by design. A caller
+                    # asking for that verdict has not mistyped; they want the
+                    # thing a different action does, and an enumeration alone
+                    # would send them away without it.
                     refused_hint=(
-                        "To ask for a better scan instead, use action='reject_image' with the image_id — that is "
-                        "the only way to awaiting_better_image, and it also suppresses the scan so a re-search "
-                        "cannot return it."
+                        "To want the work instead, use action='want' with the work_id, adding turning_down with "
+                        "the image_id of a scan you are turning down so a re-search cannot return it."
                     ),
                 ),
                 Param(
@@ -612,27 +749,92 @@ ART_REVIEW: Final = ToolRecord(
                 "minted_artist says a new artist row was created. Where it arrives with "
                 "possible_duplicate_artists, the catalogue may now hold the same painter twice under different "
                 "spellings — visible and mergeable, which a wrong merge would not be.",
-                "'awaiting_better_image' is not settable here. Turning down a scan is "
-                "action='reject_image', which is also what suppresses it.",
+                "'wanted' is not settable here: action='want' is its one way in.",
                 "Both verdicts are final: a work already accepted or rejected cannot be re-judged.",
             ),
         ),
+        # BREAKING, 2026-10-02 (`api-contract.md` § Versioning): the verdict
+        # `awaiting_better_image` is now `wanted`, and no old spelling is
+        # accepted; `want` is its one way in; and `reject_image` makes a work
+        # wanted only when the scan turned down was the one on offer. Turning
+        # down an alternate used to make the work wanted too, which asked for a
+        # better scan the curator had not asked for.
+        Action(
+            name="want",
+            description="Want a work you hold no acceptable scan of, turning down its scan on offer if named.",
+            example="art_review(action='want', work_id='<a work_id from action=list_works>')",
+            params=(
+                _WORK_ID,
+                Param(
+                    name="turning_down",
+                    type="string",
+                    description=(
+                        "A scan of this work being turned down on the way, as an image_id from "
+                        "action='list_images'. Omit when no scan was found."
+                    ),
+                ),
+            ),
+            tips=(
+                "The work's verdict becomes wanted. Nothing searches for a scan: "
+                "art_discovery(action='resolve_images') does, and it costs nothing today.",
+                "A named scan is suppressed so no re-search can return it. Naming none suppresses nothing.",
+                "Refused on a work already accepted or rejected. action='set_verdict' still works from wanted.",
+            ),
+        ),
+        Action(
+            name="list_wanted",
+            description="List every wanted work across runs, newest run first.",
+            example="art_review(action='list_wanted')",
+            tips=(
+                "scans_turned_down is 0 for a work wanted because nothing was found. wikidata_qid is null "
+                "when no item is known.",
+            ),
+        ),
+        Action(
+            name="sighting_hosts",
+            description="Count, by host, the open works with a page there that no installed source plugin reads.",
+            example="art_review(action='sighting_hosts')",
+            tips=(
+                "Open works are wanted, or unresolved with no verdict. Held works, and pages a plugin now reads, "
+                "are left out.",
+                "The pages come from a work's Wikidata item, so a work with no item has none. Hosts are names "
+                "only: no page's address is returned.",
+                "Not every host holds the work: encyclopedias and search links are counted too.",
+            ),
+        ),
+        Action(
+            name="wikidata_matches",
+            description="List Wikidata's items matching a work's title, the proposed artist's first, to pick from.",
+            example="art_review(action='wikidata_matches', work_id='<a work_id from action=list_wanted>')",
+            params=(_WORK_ID,),
+            tips=(
+                "Nothing is stored: a work is never matched by title alone. Pick one with action='set_wikidata_item'.",
+                "A re-search asks Commons only by item, so a wanted work with no item finds no Commons scan.",
+            ),
+        ),
+        Action(
+            name="set_wikidata_item",
+            description="Record the Wikidata item you picked for a work still under review.",
+            example="art_review(action='set_wikidata_item', work_id='<a work_id>', qid='Q2990594')",
+            params=(
+                _WORK_ID,
+                Param(name="qid", type="string", description="The item, as Q followed by digits.", required=True),
+            ),
+            tips=("It becomes the artwork's item, as yours, if the work is accepted.",),
+        ),
         Action(
             name="reject_image",
-            description="Turn down one scan and ask for a better one. The work stays wanted.",
+            description="Turn down one scan. Turning down the scan on offer makes the work wanted.",
             example="art_review(action='reject_image', image_id='<an image_id from action=list_images>')",
             params=(_IMAGE_ID,),
             tips=(
-                "This does not go looking for a replacement — art_discovery(action='resolve_images') does, and "
-                "it is the call that spends money. Reject the scans you want re-searched, then re-search them "
-                "in one batch.",
-                "The work moves to awaiting_better_image and the scan is suppressed, so a later search cannot "
-                "hand back the one just turned down. The suppression is the reason this is the only way into "
-                "that state.",
-                "Rejecting the scan on offer falls the selection through to the next survivor; rejecting an "
-                "alternate leaves the standing choice alone.",
-                "You are never blocked on a re-search: action='set_verdict' works from awaiting_better_image "
-                "too, so a curator can accept the best scan on offer or give up on the work at any point.",
+                "This does not go looking for a replacement — art_discovery(action='resolve_images') does, "
+                "at no cost today. Turn down the scans you want re-searched, then re-search them in one batch.",
+                "The scan is suppressed either way, so a later search cannot hand back the one just turned "
+                "down. The scan on offer moves the work to wanted and the selection to the next survivor; an "
+                "alternate leaves the verdict and the standing choice alone.",
+                "You are never blocked on a re-search: action='set_verdict' works from wanted too, so a "
+                "curator can accept the best scan on offer or give up on the work at any point.",
             ),
         ),
     ),
@@ -746,6 +948,19 @@ ART_THEME: Final = ToolRecord(
             ),
         ),
         Action(
+            name="make_default",
+            description="Make this the theme that newly accepted works join, taking the mark off whichever had it.",
+            example="art_theme(action='make_default', theme_id='<a theme_id>')",
+            params=(_THEME_ID,),
+            tips=(
+                "At most one theme is the default; action='list' shows which, as is_default. Each work joins it "
+                "once, when it is accepted, at the end of the order, unless the Get it came from named another "
+                "theme_id, which it joins instead. Works already in the catalogue are not added by this, and a "
+                "work taken out of the default by hand is not put back.",
+                "The default cannot be deleted. Make another theme the default first.",
+            ),
+        ),
+        Action(
             name="add",
             description="Put a work into a theme.",
             example="art_theme(action='add', theme_id='<a theme_id>', artwork_id='<an artwork_id>', position=0)",
@@ -809,6 +1024,32 @@ ART_THEME: Final = ToolRecord(
     ),
 )
 
+#: Shared by `add_wall`, `add_client` and `rename_client`, and described for all
+#: three because the wire schema publishes one description per name.
+_NAME = Param(
+    name="name",
+    type="string",
+    description="What to call the wall or the client. Walls have names no other wall has, and clients likewise.",
+    required=True,
+)
+
+_CLIENT_ID = Param(
+    name="client_id",
+    type="string",
+    description="Which client — an installed Player — to act on, as returned by art_display(action='clients').",
+    required=True,
+)
+
+_OUTPUT = Param(
+    name="output",
+    type="string",
+    description=(
+        "Which of the client's outputs shows the wall, by the name the client reports for it — 'hdmi-a-1', "
+        "'frame'. art_display(action='clients') lists what each client last reported."
+    ),
+    required=True,
+)
+
 _SYNC_THEME_ID = Param(
     name="theme_id",
     type="string",
@@ -818,9 +1059,15 @@ _SYNC_THEME_ID = Param(
 ART_DISPLAY: Final = ToolRecord(
     name="art_display",
     title="Art display",
-    summary="Report what the wall is doing and ask it to change. Every action writes desired state, never a command.",
+    summary=(
+        "Report what each wall is doing and ask it to change, and keep the clients that show the walls. "
+        "Every action writes desired state, never a command."
+    ),
     read_only=False,
-    destructive=False,
+    # Destructive since the client actions arrived: `remove_client` forgets a
+    # client and `issue_client_token` replaces its token, and neither can be
+    # undone — the reason `art_taste` gives for its own flag.
+    destructive=True,
     open_world=False,
     actions=(
         Action(
@@ -837,14 +1084,14 @@ ART_DISPLAY: Final = ToolRecord(
             name="add_wall",
             description="Record a wall — a place where art hangs. It arrives with nothing on it.",
             example="art_display(action='add_wall', name='Living room')",
-            params=(Param(name="name", type="string", description="What to call the wall. Must be unique.", required=True),),
+            params=(_NAME,),
             tips=(
                 "A wall is a place and a name, never a device: which display serves it is that display's own "
                 "configuration, and nothing about a television is recorded here.",
                 "Refuses a name that is empty or already taken.",
-                "A new wall shows nothing until a display device is configured with the wall_id this "
-                "returns — each wall has its own manifest file, and a display serves the one wall it is "
-                "pointed at. Hanging a theme on a new wall disturbs no other wall.",
+                "A new wall shows nothing until it is assigned to a client — an installed Player — on one of "
+                "that client's outputs. Each wall has its own manifest, and a client is admitted only to the "
+                "walls assigned to it. Hanging a theme on a new wall disturbs no other wall.",
             ),
         ),
         Action(
@@ -899,17 +1146,79 @@ ART_DISPLAY: Final = ToolRecord(
             ),
         ),
         Action(
-            name="issue_token",
-            description="Issue a new token for the Player that serves a named wall, replacing any it had.",
-            example="art_display(action='issue_token', wall_id='<a wall_id>')",
-            params=(_WALL_ID,),
+            name="clients",
+            description="Return every client, with its walls and outputs and when it last reported them.",
+            example="art_display(action='clients')",
             tips=(
-                "The token is returned once and never again: only a verifier is kept. It belongs in the "
-                "Player's environment file as WALL_TOKEN, and nowhere a transcript is kept for longer.",
-                "Issuing again is how a token is rotated: the old one stops working at once, so the Player "
-                "holding it is refused until it is given the new one.",
-                "Every Player request for this wall's manifest, its heartbeat and any render needs it.",
+                "A client is an installed Player: one token, and the walls assigned to it, each on one of its "
+                "outputs. This is where client_id and the output names assign_wall takes come from.",
+                "The token is never listed. token_issued_at is null while the client has none, and then it is "
+                "admitted nowhere: issue one with action='issue_client_token'.",
+                "heartbeat is an observation with an age, never a verdict: a client that has not reported may "
+                "simply not be running yet.",
             ),
+        ),
+        Action(
+            name="add_client",
+            description="Record a client. It has no token and shows no wall until given them.",
+            example="art_display(action='add_client', name='Hall Pi')",
+            params=(_NAME,),
+            tips=(
+                "Next, action='issue_client_token' for the token its host needs, and action='assign_wall' for "
+                "what it shows. Its host learns its walls from this server, so assigning needs no edit there.",
+                "Refuses a name that is empty or already a client's.",
+            ),
+        ),
+        Action(
+            name="rename_client",
+            description="Give a client a new name. Its token and its walls are unchanged.",
+            example="art_display(action='rename_client', client_id='<a client_id>', name='Study Pi')",
+            params=(_CLIENT_ID, _NAME),
+        ),
+        Action(
+            name="remove_client",
+            description="Forget a client. Its token stops working and the walls it showed are left without one.",
+            example="art_display(action='remove_client', client_id='<a client_id>')",
+            params=(_CLIENT_ID,),
+            tips=(
+                "The answer names every wall released, so you can say which rooms now have nothing showing "
+                "them. They keep their themes; assign them to another client to show them again.",
+                "Not undoable: a client added again under the same name is a new client, needing a new token.",
+            ),
+        ),
+        Action(
+            name="issue_client_token",
+            description="Issue a client's token, replacing any it had. The answer is the only place it ever appears.",
+            example="art_display(action='issue_client_token', client_id='<a client_id>')",
+            params=(_CLIENT_ID,),
+            tips=(
+                "Give the token to whoever sets up the host: it goes in the Player's settings as CLIENT_TOKEN, "
+                "beside SERVER_URL, this server's address as that host reaches it.",
+                "Rotating is issuing again, and the earlier token stops working at once: the client's Player is "
+                "refused until its settings carry the new one. Say so before rotating a client in use.",
+                "Only a verifier is kept, so a lost token cannot be shown again; issue another.",
+            ),
+        ),
+        Action(
+            name="assign_wall",
+            description="Show a named wall on one of a client's outputs, by the output's name.",
+            example="art_display(action='assign_wall', wall_id='<a wall_id>', client_id='<a client_id>', output='hdmi-a-1')",
+            params=(_WALL_ID, _CLIENT_ID, _OUTPUT),
+            tips=(
+                "Get wall ids from action='walls', and client ids and output names from action='clients'.",
+                "The answer's notice says when the output is not among those the client last reported, or the "
+                "client has not reported yet. The assignment is kept either way, so a client can be set up "
+                "before it first runs.",
+                "One output shows one wall: refused when that output already shows another. A wall is shown by "
+                "one client, so assigning it elsewhere moves it.",
+            ),
+        ),
+        Action(
+            name="unassign_wall",
+            description="Take a named wall off whichever client showed it. Its theme stays hung.",
+            example="art_display(action='unassign_wall', wall_id='<a wall_id>')",
+            params=(_WALL_ID,),
+            tips=("Unassigning a wall no client shows is not an error. Get wall ids from action='walls'.",),
         ),
     ),
 )

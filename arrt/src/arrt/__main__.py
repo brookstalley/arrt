@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+import os
 import shutil
 import sys
 from collections.abc import Sequence
@@ -15,8 +16,6 @@ from arrt.library.acquisition.mat import MatEngine
 from arrt.library.acquisition.preparation import PreparationSettings
 from arrt.library.acquisition.service import AcquisitionSettings
 from arrt.library.acquisition.transport import http_stream
-from arrt.library.discovery.artic import build_collection_browse, build_image_search
-from arrt.library.discovery.browse import CollectionBrowse
 from arrt.library.discovery.conversation import (
     NO_CONVERSATION_KEY,
     ConversationEngine,
@@ -24,12 +23,18 @@ from arrt.library.discovery.conversation import (
     build_conversation_engine,
 )
 from arrt.library.discovery.engine import DiscoveryEngine, unavailable_engine
-from arrt.library.discovery.images import ImageSearch
+from arrt.library.discovery.images import offers_images
 from arrt.library.discovery.openrouter import OpenRouterClient
 from arrt.library.discovery.phase_one import build_engine
+from arrt.library.registry import Registry
+from arrt.library.registry.wikidata import INTERACTIVE_TIMEOUT_SECONDS, WikidataRegistry
 from arrt.library.services.previews import PreviewSettings
 from arrt.library.services.thumbnails import ThumbnailSettings
+from arrt.library.sources import SourceContext
+from arrt.library.sources.loading import SourceRoster, environment_of, load_sources
+from arrt.persistence.backup import BACKUP_RECEIPT_FILENAME, CatalogueBackup
 from arrt.persistence.file import open_catalogue_file
+from arrt.persistence.kept import KeptAnswers
 from arrt.persistence.sqlite import SqliteCatalogue
 from arrt.persistence.sqlite_discovery import SqliteDiscovery
 from arrt.programming.display import DisplaySettings
@@ -102,35 +107,47 @@ def _conversation_engine(settings: Settings) -> ConversationEngine:
     )
 
 
-def _image_search(settings: Settings) -> ImageSearch | None:
-    """The museum provider phase 2 asks, or nothing when none is configured.
+def _sources(settings: Settings, registry: Registry | None) -> SourceRoster:
+    """Every installed source plugin, loaded against this deployment, in its order of preference.
 
-    `None` rather than a refusing stand-in, because the two say different things
-    at different times. Phase 1 refuses at `start`, where a run does not yet
-    exist and refusing creates no record. Phase 2 has a run in hand by the time
-    it would refuse, and failing it would record a run that broke when in fact a
-    capability is simply not configured — so the honest arrangement is to leave
-    the run where it is and let `status` say so in words.
+    Nothing here names a plugin: the Art Institute and Commons register as entry
+    points like any other (`arrt/pyproject.toml`), so this is the same path a
+    plugin from outside this repository takes. Each plugin reads its own settings
+    from the environment, because a plugin nobody here has written cannot have a
+    field in `Settings`.
+
+    **Called after `Settings.from_env`**, which is what loads `.env` into the
+    process environment. A plugin's variable set in `.env` reaches it only
+    because of that order.
     """
-    if not settings.artic_user_agent:
-        return None
-    return build_image_search(
-        user_agent=settings.artic_user_agent,
-        preview_max_bytes=settings.preview_max_bytes,
+    return load_sources(
+        SourceContext(
+            environ=environment_of(os.environ),
+            user_agent=settings.acquisition_user_agent,
+            preview_max_bytes=settings.preview_max_bytes,
+            registry=registry,
+        ),
+        order=settings.source_order,
     )
 
 
-def _collection(settings: Settings) -> CollectionBrowse | None:
-    """The collection a run supplements from, or nothing when none is configured.
+def _no_finder(sources: SourceRoster) -> str:
+    """Why no finder loaded, from each plugin's own answer, for the startup line.
 
-    Gated on the same identifier as phase 2 and for the same reason: it is the
-    same museum, asked a second kind of question, and that museum asks callers to
-    say who they are. A deployment that has not said so browses nothing rather
-    than browsing anonymously.
+    A loaded plugin that finds no image (one that only reads, only offers a
+    collection, or only finds pages) is named as such, so the line never says
+    nothing is installed while something is.
     """
-    if not settings.artic_user_agent:
+    reasons = [f"{reading.name}: {reading.reason or 'loaded, and finds no image'}" for reading in sources.observe()]
+    return f"none ({'; '.join(reasons)})" if reasons else "none (no source plugin is installed)"
+
+
+def _registry(settings: Settings) -> WikidataRegistry | None:
+    """Wikidata, or nothing while this deployment has not named itself to it."""
+    if not settings.wikidata_user_agent:
         return None
-    return build_collection_browse(user_agent=settings.artic_user_agent)
+    # The pages' timeout, not the matcher's: see INTERACTIVE_TIMEOUT_SECONDS.
+    return WikidataRegistry(user_agent=settings.wikidata_user_agent, timeout=INTERACTIVE_TIMEOUT_SECONDS)
 
 
 def main(argv: Sequence[str] = ()) -> None:
@@ -228,11 +245,12 @@ def main(argv: Sequence[str] = ()) -> None:
     # Which museum phase 2 asks, and whether it can be asked at all. Logged for
     # the same reason the key's presence is: "is it even configured" is the first
     # question a run stuck at `resolving_images` raises.
-    image_search = _image_search(settings)
+    registry = _registry(settings)
+    sources = _sources(settings, registry)
     log.info(
-        "phase2 image_provider=%s previews=%s preview_sweep=%s",
-        "artic" if image_search is not None else "none (ARTIC_USER_AGENT unset)",
-        settings.previews_path if image_search is not None else "disabled",
+        "phase2 image_sources=%s previews=%s preview_sweep=%s",
+        ",".join(source.provider for source in sources.finders if offers_images(source)) or _no_finder(sources),
+        settings.previews_path if sources.finds_images else "disabled",
         # On this line rather than its own: the directory and the only thing
         # that reclaims it are one operational fact, and a deployment reading
         # `previews=<path>` with no sweep beside it is the state § Risks names.
@@ -276,7 +294,15 @@ def main(argv: Sequence[str] = ()) -> None:
         # The sample pictures are the collection's, over the same free seam the
         # run's supplement uses — so a deployment that has not named itself to
         # the museum gets names without pictures, and says so here.
-        "artic" if settings.artic_user_agent else "none (ARTIC_USER_AGENT unset; names carry no pictures)",
+        (
+            sources.collection.provider
+            if sources.collection
+            else "none (no source plugin offers a collection; names carry no pictures)"
+        ),
+    )
+    log.info(
+        "registry=%s",
+        "wikidata" if settings.wikidata_user_agent else "none (WIKIDATA_USER_AGENT unset; works and artists are not matched)",
     )
 
     # Before anything is created, and before the catalogue is opened. The two
@@ -288,6 +314,8 @@ def main(argv: Sequence[str] = ()) -> None:
     # candidate's image instances into a work's sources, and that has to commit
     # once or not at all.
     catalogue_file = open_catalogue_file(settings.catalogue_path, wall_name=settings.wall_name)
+    # After `prepare`, so a mistyped root refuses before anything is written to it.
+    kept = KeptAnswers(settings.kept_answers_path)
     try:
         services = Services.bind(
             catalogue=SqliteCatalogue(catalogue_file),
@@ -301,10 +329,9 @@ def main(argv: Sequence[str] = ()) -> None:
             artwork_box=box,
             engine=_engine(settings),
             discovery_settings=settings.discovery_settings,
-            image_search=image_search,
-            collection=_collection(settings),
+            sources=sources,
             previews=(
-                None if image_search is None else PreviewSettings(art_root=settings.art_root, directory=settings.previews_path)
+                PreviewSettings(art_root=settings.art_root, directory=settings.previews_path) if sources.finds_images else None
             ),
             acquisition=AcquisitionSettings(
                 art_root=settings.art_root,
@@ -335,6 +362,8 @@ def main(argv: Sequence[str] = ()) -> None:
             ),
             mat_engine=_mat_engine(settings),
             conversation_engine=_conversation_engine(settings),
+            registry=registry,
+            kept=kept,
         )
         # The catalogue file outlives any single version of this code, so rules
         # added since it was written are brought to it here rather than assumed
@@ -351,12 +380,29 @@ def main(argv: Sequence[str] = ()) -> None:
         # reconstructing a run quietly not working. With no config of its own,
         # uvicorn's loggers propagate to the root handler installed above.
         uvicorn.run(
-            create_app(services, preview_sweep_interval_seconds=settings.preview_sweep_interval_seconds),
+            create_app(
+                services,
+                preview_sweep_interval_seconds=settings.preview_sweep_interval_seconds,
+                sweep_topics=True,
+                acquire_queue=True,
+                backup=(
+                    None
+                    if settings.backup_dir is None
+                    else CatalogueBackup(
+                        catalogue_path=settings.catalogue_path,
+                        directory=settings.backup_dir,
+                        receipt_path=settings.art_root / BACKUP_RECEIPT_FILENAME,
+                        keep=settings.backup_keep,
+                    )
+                ),
+                backup_interval_seconds=settings.backup_interval_seconds,
+            ),
             host=settings.host,
             port=settings.port,
             log_config=None,
         )
     finally:
+        kept.close()
         catalogue_file.close()
 
 

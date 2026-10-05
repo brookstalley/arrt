@@ -26,17 +26,22 @@ from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClas
 
 
 class RunKind(StrEnum):
-    """Which of the two phases a run performs.
+    """Which phases a run performs, and where its works came from.
 
     A `RESOLVE` run is the re-search behind `resolve_images` — phase 2 on its
     own, over works some earlier run proposed. It is the same entity rather than
     a weaker handle beside it, which is what gives a paid, minutes-long operation
     a status to poll, a cancel, a cost of its own, and a guard against the same
     work being submitted to two of them at once.
+
+    A `GET` run is phase 2 over works the curator chose from the registry, each
+    by its Wikidata item. It has no phase 1 and spends nothing, and it is a run
+    for the same reasons a re-search is.
     """
 
     DISCOVERY = "discovery"
     RESOLVE = "resolve"
+    GET = "get"
 
 
 class InitiatedBy(StrEnum):
@@ -149,6 +154,9 @@ class WorkProvenance(StrEnum):
 
     PROPOSED = "proposed"
     OFFERED = "offered"
+    #: The curator chose this work from the registry, by its Wikidata item. Its
+    #: title and maker are the registry's, and nothing proposed or offered it.
+    CHOSEN = "chosen"
 
 
 class UnresolvedReason(StrEnum):
@@ -208,18 +216,28 @@ _REFUSAL_DEPTH: Final[dict[UnresolvedReason, int]] = {
 class Verdict(StrEnum):
     """What the curator decided about a proposed work.
 
-    `AWAITING_BETTER_IMAGE` is the verdict an accept/reject binary cannot express
-    — "I want this work; this instance is not good enough; find another". It is
-    not terminal, and it must never write dedup-key suppression: modelling it as
-    a rejection would silently lose a painting the curator explicitly asked to
-    keep. It means exactly one thing, a statement of intent, and intent does not
-    change when a re-search starts or finishes.
+    `WANTED` is the verdict an accept/reject binary cannot express — "I want this
+    work, and I do not hold a scan of it I would accept". It covers a work whose
+    scan on offer the curator turned down and a work no scan was found for at
+    all, because those are one wish: the difference is read from the work's
+    instances (a wanted work with a turned-down instance was turned down), not
+    stored. It is not terminal, and it must never write dedup-key suppression:
+    modelling it as a rejection would silently lose a painting the curator
+    explicitly asked to keep. It means exactly one thing, a statement of intent,
+    and intent does not change when a re-search starts or finishes.
+
+    The one way in is `DiscoveryService.want`; `set_verdict` refuses it.
+
+    Renamed from `awaiting_better_image` (2026-10-02), which was false of a work
+    that never had a scan. Stored rows are rewritten by
+    `migrations.rename_awaiting_to_wanted`, and no surface accepts the old
+    spelling (`api-contract.md` § Versioning).
     """
 
     PENDING = "pending"
     ACCEPTED = "accepted"
     REJECTED = "rejected"
-    AWAITING_BETTER_IMAGE = "awaiting_better_image"
+    WANTED = "wanted"
 
     @property
     def is_terminal(self) -> bool:
@@ -291,6 +309,11 @@ class DiscoveryRun:
     actual_cost_usd: Decimal | None = None
     unresolved_work_count: int | None = None
     completed_at: datetime | None = None
+    #: The theme a Get's accepted works join instead of the default, by id, or
+    #: None for the default. Programming's id, held here as an opaque reference
+    #: that may fail to resolve (`architecture.md` seam rule 3): the Library
+    #: records where the curator asked the works to go and never reads a theme.
+    destination_theme_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -350,6 +373,10 @@ class CandidateWork:
     #: requirement exists for.
     offered_for_artist: str | None = None
     offered_artist_matched: int | None = None
+    #: The Wikidata item the curator chose this work by. Set only on a `CHOSEN`
+    #: work. Phase 2 hands it to the image sources, and acceptance stores it on
+    #: the artwork, so the work is *Held* wherever the registry shows it.
+    wikidata_qid: str | None = None
     #: Which kind of nothing, when `resolution_status` is `UNRESOLVED`; `None`
     #: otherwise. The two travel together on every write, so a work can never
     #: report that it found nothing without saying what kind of nothing it was.
@@ -546,6 +573,21 @@ class ResolveRunWork:
 
     resolve_run_id: str
     candidate_work_id: str
+
+
+@dataclass(frozen=True, slots=True)
+class Sighting:
+    """A page about a work that no installed plugin reads: a holder seen, and not yet reachable.
+
+    Keyed by the work's Wikidata item, the only key the finder that offers pages
+    has, and never by the page: two items can name one page, and one item many.
+    It stores what its three questions read (`source-plugins.md` § Sightings) and
+    nothing else: the host, for which reader to build next, comes from the URL,
+    and so does whether a reader installed since now claims it.
+    """
+
+    wikidata_qid: str
+    url: str
 
 
 class TurnRole(StrEnum):

@@ -167,13 +167,28 @@ def _describe(connection: sqlite3.Connection) -> dict[str, dict[str, sqlite3.Row
     return described
 
 
-def _column_declaration(column: sqlite3.Row) -> str:
-    """Rebuild one column's DDL from what `PRAGMA table_info` reports of it.
+def _references(connection: sqlite3.Connection, table: str) -> dict[str, tuple[str, str]]:
+    """Each single-column foreign key a table declares: column → (parent table, parent column).
 
-    Enough of a declaration for `ADD COLUMN` and no more: type, nullability and
-    default. A primary key, a foreign key or a check cannot be added to an
-    existing column by this route in SQLite, so reconstructing them here would
-    write a promise the statement does not keep.
+    A composite key is left out, because no single added column can carry it.
+    """
+    rows = connection.execute(f'PRAGMA foreign_key_list("{table}")').fetchall()
+    widths: dict[int, int] = {}
+    for row in rows:
+        widths[row["id"]] = widths.get(row["id"], 0) + 1
+    return {row["from"]: (row["table"], row["to"]) for row in rows if widths[row["id"]] == 1 and row["to"] is not None}
+
+
+def _column_declaration(column: sqlite3.Row, reference: tuple[str, str] | None = None) -> str:
+    """Rebuild one column's DDL from what `PRAGMA table_info` reports of it, and its reference.
+
+    Enough of a declaration for `ADD COLUMN` and no more: type, nullability,
+    default and the foreign key it declares. A primary key, a uniqueness or a
+    check cannot be added to an existing table by this route in SQLite, so
+    reconstructing them here would write a promise the statement does not keep.
+    **A reference can be, and is carried**: without it a column added to an
+    older file stored a row naming a parent that does not exist, which a new
+    file refuses.
     """
     parts = [f'"{column["name"]}"']
     if column["type"]:
@@ -182,6 +197,9 @@ def _column_declaration(column: sqlite3.Row) -> str:
         parts.append("NOT NULL")
     if column["dflt_value"] is not None:
         parts.append(f"DEFAULT {column['dflt_value']}")
+    if reference is not None:
+        parent, parent_column = reference
+        parts.append(f'REFERENCES "{parent}"("{parent_column}")')
     return " ".join(parts)
 
 
@@ -445,6 +463,19 @@ class SqliteDurableStore:
             rows = self._connection.execute(statement, tuple(values)).fetchall()
         return [dict(row) for row in rows]
 
+    def define_function(self, name: str, function: Callable[[Any], Any]) -> None:
+        """Make a one-argument Python function callable from SQL on this file.
+
+        For the adapter whose statements call it, under the same reasoning as
+        `select_rows`: the name and the SQL that uses it are written in one module,
+        so this store needs to know neither. Declared deterministic, which is the
+        promise that the same argument always gives the same answer, and it is the
+        caller's to keep. Defining a name twice replaces it, so two adapters over
+        one file may each define what they call.
+        """
+        with self._lock:
+            self._connection.create_function(name, 1, function, deterministic=True)
+
     def close(self) -> None:
         """Release the underlying resources."""
         with self._lock:
@@ -496,6 +527,7 @@ class SqliteDurableStore:
             intended.row_factory = sqlite3.Row
             intended.executescript(schema)
             wanted = _describe(intended)
+            references = {table: _references(intended, table) for table in wanted}
         finally:
             intended.close()
 
@@ -522,7 +554,8 @@ class SqliteDurableStore:
                         f"Cannot add column {name!r} to existing table {table!r}: it is NOT NULL with no default, "
                         "which SQLite cannot add to a table that already has rows. This needs a written migration."
                     )
-                self._connection.execute(f'ALTER TABLE "{table}" ADD COLUMN {_column_declaration(column)}')
+                declaration = _column_declaration(column, references[table].get(name))
+                self._connection.execute(f'ALTER TABLE "{table}" ADD COLUMN {declaration}')
                 log.info("Added column %r to table %r, which this catalogue file predated.", name, table)
 
     def _read_schema(self) -> dict[str, _TableInfo]:

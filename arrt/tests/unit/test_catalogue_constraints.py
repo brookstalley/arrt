@@ -57,6 +57,30 @@ def _original(service, artwork_id, source_id, *, content_hash="sha256:aaa", byte
     )
 
 
+# -- At most one theme is the default -----------------------------------------
+#
+# Enforced by the store, not by convention: the partial unique index
+# `themes_one_default`. `mark_default_theme` clears before it sets, so nothing
+# the service does ever meets the index; this writes a second mark around it,
+# which is the case the index exists for.
+
+
+def test_the_store_refuses_a_second_default_written_around_the_service(display, catalogue_file):
+    first = display.add_theme(name="All works")
+    second = display.add_theme(name="Winter")
+    display.make_default(first.id)
+
+    with pytest.raises(StorageError):
+        catalogue_file.upsert(
+            "themes",
+            {"id": second.id, "name": second.name, "created_at": second.created_at.isoformat(), "is_default": 1},
+            pk=("id",),
+            on_conflict="update",
+        )
+
+    assert display.default_theme().id == first.id
+
+
 # -- 1. At most one theme hangs on a wall -------------------------------------
 #
 # Enforced by `ThemeAssignment.wall_id` being the whole primary key: a second
@@ -151,7 +175,7 @@ def test_taking_down_from_a_wall_holding_nothing_is_refused(display, wall_id):
 def test_choosing_a_mat_colour_supersedes_the_previous_choice_without_deleting_it(service):
     work = _work(service)
     first = service.record_mat_color(artwork_id=work.id, hex_rgb="#27285B", method=MatMethod.VISION_MODEL)
-    second = service.record_mat_color(artwork_id=work.id, hex_rgb="#1a1a1a", method=MatMethod.MANUAL)
+    second = service.record_mat_color(artwork_id=work.id, hex_rgb="#3a3a3a", method=MatMethod.MANUAL)
 
     history = service.mat_color_history(work.id)
 
@@ -199,7 +223,7 @@ def test_two_works_each_keep_their_own_current_mat_colour(service):
     first = _work(service, "Nighthawks")
     second = _work(service, "Chop Suey")
     service.record_mat_color(artwork_id=first.id, hex_rgb="#27285b", method=MatMethod.VISION_MODEL)
-    service.record_mat_color(artwork_id=second.id, hex_rgb="#1a1a1a", method=MatMethod.VISION_MODEL)
+    service.record_mat_color(artwork_id=second.id, hex_rgb="#3a3a3a", method=MatMethod.VISION_MODEL)
 
     assert service.current_mat_color(first.id) is not None
     assert service.current_mat_color(second.id) is not None
@@ -217,6 +241,19 @@ def test_a_mat_colour_that_is_not_a_hex_triplet_is_refused(service):
     work = _work(service)
     with pytest.raises(ServiceError, match="hex triplet"):
         service.record_mat_color(artwork_id=work.id, hex_rgb="dark blue", method=MatMethod.MANUAL)
+
+
+@pytest.mark.parametrize("method", list(MatMethod))
+def test_a_mat_colour_below_the_floor_is_refused_whoever_offers_it(service, method):
+    """The one write every mat goes through holds the owner's floor of
+    2026-10-03, so no producer can bypass it. `#252525` is L* 14.7."""
+    work = _work(service)
+    held = service.record_mat_color(artwork_id=work.id, hex_rgb="#262626", method=MatMethod.MANUAL)
+
+    with pytest.raises(ServiceError, match=r"darker than the mat floor"):
+        service.record_mat_color(artwork_id=work.id, hex_rgb="#252525", method=method)
+
+    assert service.current_mat_color(work.id).id == held.id
 
 
 # -- 3. At most one source per work is primary --------------------------------
@@ -679,7 +716,7 @@ def test_a_failed_mat_choice_leaves_the_previous_one_current(service, store, mon
     monkeypatch.setattr(store, "add_mat_color", refuse)
 
     with pytest.raises(ServiceError):
-        service.record_mat_color(artwork_id=work.id, hex_rgb="#1a1a1a", method=MatMethod.MANUAL)
+        service.record_mat_color(artwork_id=work.id, hex_rgb="#3a3a3a", method=MatMethod.MANUAL)
 
     assert service.current_mat_color(work.id).id == held.id
     assert len(service.mat_color_history(work.id)) == 1
