@@ -320,7 +320,7 @@ async def get_dezoomify_file(
     if p.returncode != 0:
         if p.returncode == 1:
             # We got some tiles but not all of them
-            # the out message will look like b"\x1b[38;5;11mOnly 332 tiles out of 441 could be downloaded. The resulting image was still created in '/home/brooks/art/raw/Jasper Johns - Target.jpg'.\n
+            # the out message will look like b"\x1b[38;5;11mOnly 332 tiles out of 441 could be downloaded. The resulting image was still created in '/home/<user>/art/raw/Jasper Johns - Target.jpg'.\n
             # Parse the X of Y part and present it nicely
             match = re.search(r"Only (\d+) tiles out of (\d+) could be downloaded", out.decode("utf-8"))
             if match:

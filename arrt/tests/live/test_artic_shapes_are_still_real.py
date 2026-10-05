@@ -44,9 +44,9 @@ from arrt.persistence.records import AcquisitionMethod, SourceClass
 
 pytestmark = pytest.mark.live_museum
 
-#: A real identifier, as the API asks for. The suite identifies itself honestly
+#: A real identifier, as the API asks for: the project, never a person. The suite identifies itself honestly
 #: rather than borrowing a string, which is the same reason there is no default.
-USER_AGENT = "arrt test suite (brooks@noun.band)"
+USER_AGENT = "arrt test suite (+https://github.com/brookstalley/arrt)"
 
 #: A work the Art Institute genuinely holds, and one it genuinely does not — *The
 #: Persistence of Memory* is MoMA's. The second is the whole reason the identity

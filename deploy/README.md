@@ -221,7 +221,7 @@ which outlives every plan — cannot rest its procedure on one.)*
 
 ## The cutover
 
-Performed 2026-08-11 on `pi4-tv` (Debian 13 trixie, aarch64). This is the record
+Performed 2026-08-11 on the wall Pi (Debian 13 trixie, aarch64). This is the record
 of what was run, in order, and it is the procedure for doing it again.
 
     # uv where any account can reach it, and the account itself.

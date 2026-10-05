@@ -40,7 +40,7 @@ from arrt.library.sources.artic import build_image_search
 
 pytestmark = pytest.mark.live_museum
 
-USER_AGENT = "arrt test suite (brooks@noun.band)"
+USER_AGENT = "arrt test suite (+https://github.com/brookstalley/arrt)"
 
 #: How many of the corpus's distinct works the pipeline resolves to a usable
 #: image. **Measured, and to be re-measured rather than reasoned about.**
