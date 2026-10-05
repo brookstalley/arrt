@@ -68,7 +68,7 @@ export function personLink(person) {
  * image style of its state, then glyph and word.
  *
  *   ● *Held*: the library's own thumbnail, and a button to the work.
- *   ◑ *Wanted*: Wikidata's picture, where it has one (Activity › Wanted).
+ *   ◑ *Wanted*: Wikidata's picture, where it has one (the Wanted section).
  *   ◐ *Not held · Image found*: Wikidata's picture.
  *   ○ *Not held* (or `noImage`'s words): no picture.
  *

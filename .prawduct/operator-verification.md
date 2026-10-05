@@ -10,6 +10,22 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Wanted as a section of its own — added 2026-10-05
+
+**`build-plan-norm-sweep-2026-10.md` Chunk 06.** Visual change: yes.
+
+Checked by the builder against the browser suite, including the sidebar's sections
+and pages, Wanted's count, and the section held hidden until its count arrives. Not
+yet deployed.
+
+- **Look at:** after the next deploy, with something wanted, the sidebar reads
+  Artworks, Walls, Activity, **Wanted ◑ n**, Settings, System, and Activity lists
+  To review, Queue and History only. With nothing wanted, there is no Wanted
+  section at all, and it does not flash in on load. A review card's *Want* now says
+  the work "waits in Wanted".
+- **Worth an opinion:** whether Wanted should show even when empty, as Sonarr's
+  does. This build keeps the #168 rule that it appears once something is wanted.
+
 ### Why a run stopped, on the run page — added 2026-10-05
 
 **`build-plan-run-end-reason.md` Chunk 01.** Visual change: yes.
@@ -259,8 +275,8 @@ matches stubbed from the live answer for *Lobster Telephone*. Regenerate with
 
 - **A review card whose search found nothing** shows **Want** and **Forget**
   where Accept and Reject were. Want repaints the card `◑ wanted`, says "It
-  waits in Activity › Wanted…", and leaves only Forget.
-- **Activity › Wanted** appears in the sidebar, with its count, once a work is
+  waits in Wanted…" (it said Activity › Wanted until the 2026-10-05 section move), and leaves only Forget.
+- **Wanted** appears in the sidebar, as a section of its own since 2026-10-05 (it was a page under Activity), with its count, once a work is
   wanted. The page: "*n* works wanted", a sentence that searching spends nothing
   and why a work with no item is offered a pick, **Search all**, then a table of
   Work — Artist, Why (*No scan found* or *1 scan turned down*), Wikidata (the

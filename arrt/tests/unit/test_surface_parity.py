@@ -173,7 +173,7 @@ def test_the_candidate_work_projections_agree_but_for_one_named_field():
 
 
 def test_the_wanted_work_projections_carry_the_same_field_names():
-    """Activity › Wanted and `art_review(action='list_wanted')` read one listing."""
+    """Wanted and `art_review(action='list_wanted')` read one listing."""
     entry = WantedWork(work=_work(), scans_turned_down=2)
 
     check_parity("WantedWork", set(bindings._wanted_fields(entry)), _fields(http_models.WantedWorkOut))

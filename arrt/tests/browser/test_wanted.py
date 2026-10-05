@@ -1,8 +1,8 @@
-"""Wanting a work, and Activity › Wanted, in a real browser.
+"""Wanting a work, and the Wanted section, in a real browser.
 
 The owner's ruling on #168 (2026-10-02): a work its search found no scan for
 offers **Want** and **Forget** in place of Accept and Reject; wanted works, with
-or without a scan, wait in **Activity › Wanted**, each with *Search again* and
+or without a scan, wait in **Wanted**, each with *Search again* and
 *Forget*, and *Search all*; Search again on a work with no Wikidata item first
 offers Wikidata's matches to pick from (`build-plan-after-review.md` Chunks 03-05).
 
@@ -86,7 +86,7 @@ def test_want_records_the_verdict_and_the_card_says_where_the_work_went(ui):
 
     ui.open(f"#review/{RUN_ID}")
     ui.page.click("li.card button:text-is('Want')")
-    ui.page.wait_for_selector("li.card:has-text('It waits in Activity › Wanted')")
+    ui.page.wait_for_selector("li.card:has-text('It waits in Wanted')")
 
     assert [method for method, _, _ in requests] == ["POST"]
     # Already wanted, so Want is not offered again; Forget still is.
@@ -127,10 +127,10 @@ def test_turning_down_the_scan_on_offer_says_the_work_waits_in_wanted_and_an_alt
     assert "Wanted" not in names[1], "turning down an alternate does not make the work wanted"
 
     ui.page.locator("tr.alternate button:text-is('Turn it down')").first.click()
-    ui.page.wait_for_selector("li.card:has-text('it waits in Activity › Wanted for a better scan')")
+    ui.page.wait_for_selector("li.card:has-text('it waits in Wanted for a better scan')")
 
 
-# -- Activity › Wanted, over the real listing -------------------------------------
+# -- Wanted, over the real listing -------------------------------------
 
 
 @pytest.fixture
@@ -165,21 +165,61 @@ def test_wanted_lists_both_kinds_saying_which(ui, wanted):
     assert "spends nothing" in ui.text()
 
 
-def test_the_wanted_link_appears_with_its_count_once_something_is_wanted(ui, wanted):
+def test_the_wanted_section_appears_with_its_count_once_something_is_wanted(ui, wanted):
     open_wanted(ui)
     ui.page.wait_for_function("() => document.querySelector(\"[data-count-slot='wanted']\").textContent === '2'")
 
-    assert ui.page.locator("#sidebar ul.pages li:has([data-count-slot='wanted'])").is_visible()
+    assert ui.page.locator("#sidebar li.section:has([data-count-slot='wanted'])").is_visible()
 
 
-def test_with_nothing_wanted_the_link_is_hidden_and_the_page_says_how_a_work_gets_here(ui):
+def test_with_nothing_wanted_the_section_is_hidden_and_the_page_says_how_a_work_gets_here(ui):
     open_wanted(ui)
     ui.page.wait_for_selector(".panel.empty")
 
     assert "Nothing is wanted." in ui.text()
-    ui.page.wait_for_function("() => document.querySelector(\"#sidebar ul.pages li:has([data-count-slot='wanted'])\").hidden")
+    ui.page.wait_for_function("() => document.querySelector(\"#sidebar li.section:has([data-count-slot='wanted'])\").hidden")
     # Not only marked hidden: a stylesheet giving the item a display would show it anyway.
-    assert ui.page.locator("#sidebar ul.pages li:has([data-count-slot='wanted'])").is_hidden()
+    assert ui.page.locator("#sidebar li.section:has([data-count-slot='wanted'])").is_hidden()
+
+
+def test_the_wanted_section_is_not_shown_before_its_count_arrives(ui, wanted):
+    """Hidden from the first paint, not shown and then hidden.
+
+    Drawn visible and hidden only once `/api/wanted` answered, the section flashed
+    on every load with nothing wanted, and a test reading the sidebar in between
+    saw a section that was not there. Held here so the in-between is certain.
+    """
+    held = []
+
+    def hold(route) -> None:
+        held.append(route)
+
+    ui.page.route("**/api/wanted", hold)
+    ui.open("#collection")
+    ui.page.wait_for_selector("nav.sidebar a.section-link")
+    ui.page.wait_for_function("() => document.querySelector('nav.sidebar [data-count-slot=wanted]') !== null")
+
+    assert ui.page.locator("#sidebar li.section:has([data-count-slot='wanted'])").is_hidden()
+    for route in held:
+        route.continue_()
+    ui.page.wait_for_function("() => document.querySelector(\"[data-count-slot='wanted']\").textContent === '2'")
+    assert ui.page.locator("#sidebar li.section:has([data-count-slot='wanted'])").is_visible()
+
+
+def test_on_wanted_its_section_is_lit_as_where_the_curator_is(ui, wanted):
+    open_wanted(ui)
+
+    assert ui.page.locator("nav.sidebar a[data-view='wanted'][aria-current='page']").is_visible()
+
+
+def test_a_count_that_cannot_be_read_shows_the_section_rather_than_hiding_it(ui, wanted):
+    """Hiding on a failed read would say "nothing is wanted", which the client does not know."""
+    ui.page.route("**/api/wanted", lambda route: route.fulfill(status=503, body="unwell"))
+    ui.open("#collection")
+    ui.page.wait_for_selector("nav.sidebar a.section-link")
+
+    ui.page.wait_for_function("() => !document.querySelector(\"#sidebar li.section:has([data-count-slot='wanted'])\").hidden")
+    assert ui.page.locator("#sidebar li.section:has([data-count-slot='wanted'])").is_visible()
 
 
 def test_forget_takes_a_work_off_the_list(ui, wanted, discovery):

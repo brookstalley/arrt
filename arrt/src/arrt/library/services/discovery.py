@@ -1228,7 +1228,7 @@ class DiscoveryService:
     def list_wanted(self) -> Sequence[WantedWork]:
         """Every wanted work across runs, newest run first, each with how many scans were turned down.
 
-        The read behind Activity › Wanted. Newest first by the run that proposed
+        The read behind Wanted. Newest first by the run that proposed
         the work, since the verdict carries no moment of its own; by title within
         a run. `scans_turned_down` is counted from the work's instances, which is
         what tells "wanted because its scan was turned down" from "wanted because

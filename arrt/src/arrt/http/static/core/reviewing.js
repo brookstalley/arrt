@@ -42,9 +42,9 @@ const VERDICT_WORDS = {
 
 /* What a card says once a work becomes wanted, so a curator knows where it went
  * and that nothing is looking for it yet. */
-const WANTED_NO_SCAN = "Wanted. It waits in Activity › Wanted, where Search again looks for a scan when you ask.";
+const WANTED_NO_SCAN = "Wanted. It waits in Wanted, where Search again looks for a scan when you ask.";
 const WANTED_AFTER_TURNING_DOWN =
-  "Turned down, and the work is wanted: it waits in Activity › Wanted for a better scan, and nothing looks until you ask there.";
+  "Turned down, and the work is wanted: it waits in Wanted for a better scan, and nothing looks until you ask there.";
 
 function verdictBadge(work) {
   const glyph = VERDICT_GLYPHS[work.verdict];
@@ -553,7 +553,7 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
         // Accept and Reject: accepting it would mint a work with no image, and
         // rejecting it is "forget it for good", which is said as such. Want is
         // the one way to say "I want this painting; no scan exists yet", and it
-        // waits in Activity › Wanted (the owner's ruling on #168, 2026-10-02).
+        // waits in Wanted (the owner's ruling on #168, 2026-10-02).
         ...(noScan ? wantOrForget() : acceptOrReject()),
       ]),
     ]),

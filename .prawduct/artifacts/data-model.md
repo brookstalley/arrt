@@ -196,7 +196,7 @@ to serve, elicited from the Product Brief's core flows:
 | Q33 | Why did the last attempt fail, in words a curator can act on? Asked by the Work page and Activity › Queue. | Owner 2026-10-02 (#167) |
 | Q34 | Has the queue given up on this work? Asked by the Retry button. | Owner 2026-10-02 (#167) |
 | Q35 | Which source should the next attempt use, when someone named one? Asked by MCP's `retry_acquisition`. | Owner 2026-10-02 (#167) |
-| Q36 | Which works does the curator want and not yet hold a scan of, across every run? Asked by Activity › Wanted and `art_review(action='list_wanted')`. | Owner 2026-10-02 (#168) |
+| Q36 | Which works does the curator want and not yet hold a scan of, across every run? Asked by Wanted and `art_review(action='list_wanted')`. | Owner 2026-10-02 (#168) |
 | Q37 | Was this work wanted because a scan was turned down, or because none was found? | Owner 2026-10-02 (#168) |
 | Q38 | Which client drives this wall, and on which of its outputs? Asked by the Walls screen and by every listing of walls. | Owner 2026-10-02 (clients) |
 | Q39 | Which walls does this client drive? The client's own question, asked over HTTP about every 30 seconds (`GET /client`). | Owner 2026-10-02 (clients) |
