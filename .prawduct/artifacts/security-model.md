@@ -296,7 +296,7 @@ ones labelled as weak**:
 | # | Bound | Strength |
 |---|---|---|
 | 1 | **The spend cap fails closed**, enforced by OpenRouter server-side rather than by our code | **Strong.** A poisoned page cannot run up an unbounded bill, and it cannot be bypassed by a bug in our metering |
-| 2 | **Tool authority is narrow** — no filesystem access, no shell, and **no fetch a curator did not first accept**. Blast radius stays inside the catalogue | **Strong, and narrower than it was.** Structural, but see the re-derivation below: acquisition fetches, and what bounds it is the URL policy rather than the absence of the capability |
+| 2 | **Tool authority is narrow** — no filesystem access, no shell, and **no fetch by Arrt a curator did not first accept**. Blast radius stays inside the catalogue | **Strong, and narrower than it was.** Structural, but see the re-derivations below: acquisition fetches, and what bounds it is the URL policy rather than the absence of the capability; and a source plugin may read a page the run's search cited before anything is accepted (§ Plugins read pages a search cited) |
 | 3 | **A per-run search cap** bounds a single runaway run, not just the month | **Moderate.** Bounds cost and loop length, not content |
 | 4 | **Acceptance is visible and fully reversible** — it changes the wall, the most conspicuous surface the product has, and archive restores | **Weak as prevention.** It is detection and recovery, not prevention |
 | 5 | **`set_verdict` requires explicit ids**, so the accepted set is enumerated in the transcript | **Weak.** An agent can enumerate first. It buys visibility, not refusal |
@@ -414,6 +414,54 @@ reason the rest of this section does — one principal, a private overlay networ
 no PII, no tenancy, no payment surface — and it is recorded here rather than
 implied so that a future reader weighing a fourth trigger starts from the real
 baseline.
+
+### Plugins read pages a search cited — re-derived 2026-10-05
+
+The fetch trigger has a second, narrower form. Phase 2 now hands every finder the
+pages the run's web search read (`ImageQuery.pages`, `source-plugins.md` § Pages
+a search read), so a plugin may read a page **before any curator has accepted
+anything**, at an address the open web chose. Before this, a plugin read only
+addresses it built itself: its own host, from a work's title or Wikidata item.
+The owner approved this on 2026-10-05, for gallery works, which have no other
+route (`build-plan-ask-pages.md`).
+
+**Bound 2's first property no longer covers plugin reads.** "A fetch is
+reachable only through a URL a curator already accepted" still holds for every
+fetch Arrt itself makes, acquisition included. It never covered a plugin's own
+requests, which are unguarded (§ Source plugins), and now those requests can
+reach an address taken from search results. What bounds them instead:
+
+1. **Only the search's citations.** The pages are what the search engine read,
+   never an address in the model's answer (`phase_one.py`, `_cited_pages`), so an
+   injected instruction to *name* an address reaches nothing. An attacker has to
+   get their page into the search's results, and then the page they control is
+   the one read, which they could have served to anyone.
+2. **Arrt checks each address before a plugin sees it**, with property 2 above
+   (`check_fetchable`, in the runner): http(s), publicly routable, no `.local`
+   name. A citation naming the operator's LAN never reaches a plugin. A plugin's
+   redirects and later requests are its own, and unguarded. So is its own lookup
+   of the name: an attacker who controls a cited host's DNS can answer Arrt's
+   check with a public address and the plugin's connection with a LAN one (DNS
+   rebinding). The read is a GET whose answer is parsed for a gallery's markup and
+   never returned to the attacker, so it can reach a LAN service but not read it
+   back; accepted on the same grounds as § The fetch trigger fired's residual.
+3. **A plugin reads only pages of a shape it recognises**, on that page's own
+   host (`docs/source-plugins.md` § A finder). This is the plugin's property, not
+   Arrt's: it holds for the plugins in this deployment and is what their reviews
+   check.
+4. **What a plugin reports still stops at review.** Its title, artist and image
+   address are outside text (§ Source plugins), judged by the identity check, and
+   nothing is fetched by Arrt until a curator accepts the work. The Artlogic
+   plugin reports images only on Artlogic's asset host, so an injected page cannot
+   name an arbitrary image to fetch.
+
+**The honest residual.** An attacker who gets a page into an Ask's search
+results can have a plugin GET that public page (or, through rebinding, a LAN
+address, blind), and, if it is shaped like a page
+the plugin reads, steer which image is offered for review. That is the realistic
+worst case § Prompt Injection already names, now reachable one step earlier, and
+it still stops at the curator. Each Ask is started by a person, so bound 6 is
+unchanged; Watches would remove it, and their plan must re-derive this.
 
 ## Content Appropriateness
 
@@ -607,7 +655,9 @@ which would have isolated it, and accepted the trust that comes with it.
 - **Its own requests are unguarded.** `check_fetchable` and the redirect checks
   (§ The fetch trigger fired) run on what Arrt fetches. A plugin's search,
   preview and page reads are made by the plugin's own client, and nothing stops
-  one addressing the LAN.
+  one addressing the LAN. The one exception is the addresses Arrt hands it: the
+  pages a run's search cited are checked before a plugin sees them (§ Plugins
+  read pages a search cited).
 - **Its dependencies can replace Arrt's.** They install into the same venv.
   Measured 2026-10-03: without a constraint, a plugin requiring `httpx<0.28`
   downgraded Arrt's locked httpx, and the image built cleanly. The derived-image

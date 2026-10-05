@@ -650,7 +650,8 @@ the other way round.
 ## Open questions
 
 - **The presentation master's size cap and encoding.** About 8K long edge is a
-  starting guess, to be measured against the corpus and the Pi's decode time.
+  starting guess, to be measured against the corpus. The Pi needs no reduction
+  for its own sake (the compositing-budget question below, answered).
 - **Directive latency:** an ETag poll at about 1 s, or server-sent events.
   Polling matches today and is the default. Scenes are the test of whether it is
   fast enough (§ Scenes).

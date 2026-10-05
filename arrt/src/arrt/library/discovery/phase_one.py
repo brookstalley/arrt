@@ -27,7 +27,7 @@ run rather than a setting nothing honours.
 
 import json
 import logging
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any, Final
 
 from arrt.library.discovery.dedup import clean_name
@@ -39,7 +39,7 @@ from arrt.library.discovery.engine import (
     WorkList,
     WorkListRequest,
 )
-from arrt.library.discovery.openrouter import Completion, KeyExhausted, OpenRouterClient, OpenRouterError
+from arrt.library.discovery.openrouter import Citation, Completion, KeyExhausted, OpenRouterClient, OpenRouterError
 from arrt.persistence.discovery_records import SpendCategory
 
 log = logging.getLogger(__name__)
@@ -179,7 +179,27 @@ class OpenRouterEngine:
                 "output_tokens": completion.output_tokens,
             },
         )
-        return WorkList(works=works, spend=spend, strategy=_read_strategy(parsed.get("strategy")))
+        return WorkList(
+            works=works,
+            spend=spend,
+            strategy=_read_strategy(parsed.get("strategy")),
+            citations=_cited_pages(completion.citations),
+        )
+
+
+def _cited_pages(citations: Sequence[Citation]) -> tuple[str, ...]:
+    """The search's citations as pages: in its order, each once, and only http(s).
+
+    A citation is an address the search engine read, which is why these and not
+    URLs from the model's answer are what phase 2 hands the finders. The scheme
+    is checked here because a finder is promised a web page; whether the host is
+    one Arrt may reach is decided where the pages are handed over, at phase 2.
+    """
+    pages: dict[str, None] = {}
+    for citation in citations:
+        if citation.url.lower().startswith(("https://", "http://")):
+            pages.setdefault(citation.url, None)
+    return tuple(pages)
 
 
 def _spend_of(completion: Completion) -> tuple[EngineSpend, ...]:

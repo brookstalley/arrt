@@ -281,6 +281,7 @@ class DiscoveryService:
         approval_threshold: int,
         estimated_cost_usd: Decimal | None = None,
         strategy: str | None = None,
+        citations: Sequence[str] = (),
     ) -> DiscoveryRun:
         """Close phase 1 and either stop for approval or go straight to phase 2.
 
@@ -300,6 +301,10 @@ class DiscoveryService:
         list this transition closes. This is its only writer: the transition runs
         once per run, out of `resolving_works`, so there is no earlier value to
         preserve and no second chance to overwrite one.
+
+        `citations` are the pages phase 1's search read, and land here for the
+        same reason and with the same single writer. Phase 2 hands them to the
+        finders (`run_citations`).
         """
         if approval_threshold < 0:
             raise ServiceError(f"An approval threshold cannot be negative, got {approval_threshold}.")
@@ -314,7 +319,12 @@ class DiscoveryService:
                 strategy=strategy,
             )
             store_write(self._store.update_run, advanced)
+            store_write(self._store.add_run_citations, run_id, citations)
         return advanced
+
+    def run_citations(self, run_id: str) -> Sequence[str]:
+        """The pages a run's phase-1 search read, in the search's order; empty for a Get or an older run."""
+        return self._store.list_run_citations(run_id)
 
     def approve_run(self, run_id: str) -> DiscoveryRun:
         """Accept the work list and its price; phase 2 may proceed."""

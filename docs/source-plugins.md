@@ -62,9 +62,9 @@ configured the plugin.
   Wikidata, or `None` when the deployment has not named itself to it.
 
 `api_major` is the interface major the plugin was written for. Today that is
-`1` (`API_VERSION` is `(1, 0)`). Arrt refuses a plugin written for another major,
+`1` (`API_VERSION` is `(1, 1)`). Arrt refuses a plugin written for another major,
 by name, and loads one written for an older minor, because a minor only adds
-optional capabilities.
+optional capabilities. 1.1 added `ImageQuery.pages`.
 
 ## Import from `arrt.library.sources` and nothing else
 
@@ -90,6 +90,14 @@ At most one of each, in `SourceParts`:
   not loaded, and an image reported under another name is a fault.
 - `find_images(query)` returns `FoundImage`s, and `FoundPage`s for pages it found
   and does not read. `query.qid` is the work's Wikidata item when there is one.
+- **`query.pages` (1.1) are the pages the run's web search read**, in its order.
+  They are about the run's intent, not this one work: a search for an artist's
+  paintings cites their gallery's artist page, so a finder that recognises a
+  page looks for the work on it, and ignores every page it does not recognise.
+  Arrt has checked each was a public http(s) address, and nothing more: what a
+  page says is outside text. Read only pages of a shape you recognise, on that
+  page's own host, and treat a page that is not the one expected as could not be
+  asked. Empty for a Get.
 - **`title` and `artist` are the holder's own words**, because the identity check
   judges them. Dimensions are the master's, never a preview's. Rights are
   recorded, never a reason to leave an image out.
@@ -144,6 +152,9 @@ call reads as a broken plugin on the panel.
   size bounds and the tile cache. A direct fetch re-checks every redirect hop.
   A tiled fetch hands the checked URL to `dezoomify-rs`, which fetches the tiles
   that URL names itself;
+- check the address of every page in `query.pages` before your finder sees it
+  (the same check: http or https, a public address, no `.local` name), and drop
+  one it refuses. That is one check, of the address as cited, at that moment;
 - decide a work's identity, its rights record, duplicates, review, quality,
   spending and storage, so a plugin writes nothing;
 - cut the query string from every URL in its log and on the health panel,
@@ -154,7 +165,11 @@ call reads as a broken plugin on the panel.
 code runs inside Arrt, with Arrt's network. So:
 
 - ask only the hosts your plugin is about, and in `read`, only hosts `claims`
-  accepts;
+  accepts. A page in `query.pages` widens that to the page's own host, and no
+  further: a redirect from it, and anything you read after it, are your requests
+  and unchecked, so keep them on that host and bound them. The host's name can also answer differently when you look it up
+  than when Arrt checked it, so a plugin that must never reach the LAN checks
+  the address it connects to;
 - bound every read;
 - send `context.user_agent`, or your own setting where the site asks callers to
   identify themselves;

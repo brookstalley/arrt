@@ -795,3 +795,114 @@ an SFMOMA page.
   the link check compares. The first review found the plugin reporting its own
   spelling instead, which would have refused *256 Farben* as a different work.
 - All three carry SFMOMA's copyright line and are recorded as in copyright.
+
+### The probe: Artlogic, and what Ask's search cites (2026-10-05)
+
+The owner chose Artlogic as the next source, found through Ask's web search
+(2026-10-05). Probed before building.
+
+**The citations.** Ask's phase 1 prompt and schema as built, on the deployed
+model (`deepseek/deepseek-v4-flash`, 10 results, the default engine), for two
+intents. About half a cent each.
+
+- *"Peter Stephens's geometric paintings, such as Mambo Jumbo and Quadrivium
+  77"*: 10 citations. Two are Markel's works listing for him
+  (`/artists/422-peter-stephens/works` and `/artists/422/works`, which redirects
+  to it). The rest are his own site, Artsy, a museum profile, and noise. Seven
+  works were proposed, both named works among them.
+- *"Lucy Bull's paintings, such as The Bottoms and 3:13"*: 10 citations, the
+  first Kordansky's artist page (`/artist/lucy-bull`). The rest are ICA Miami,
+  press, Wikipedia and video. Four works were proposed, neither of the named
+  ones among them.
+
+**So the search cites a gallery's artist page, not a work's page.** That shaped
+`build-plan-ask-pages.md`: the run's citations are the pages handed to the
+plugins.
+
+**The galleries**, by hand over plain HTTP with Arrt's own user agent:
+
+- **The asset host serves the stored original** when asked with an empty
+  transform (`https://static-assets.artlogic.net//<path>`), on both templates:
+  - Lucy Bull, *The Bottoms* (Kordansky, exhibit-E): **10,446 × 7,970**. The
+    corpus measured 3,600 × 2,747, the largest transform the page asks for.
+  - Peter Stephens, *Mambo Jumbo* (Markel, Artlogic CMS): 2,885 × 3,173, the
+    same as the page's `w_4000` transform.
+  - Peter Stephens, *Big Top* (Nüart, Artlogic CMS): 2,839 × 2,838, where the
+    page stops at 2,400.
+  - A larger transform than the original upscales it (`w_8000` gave 8,000 ×
+    6,104 for *The Bottoms*), so a transform is never how the master is fetched.
+- **A ranged read works** (`Range: bytes=0-65535` → 206), so an original's size
+  can come from its JPEG header without downloading it, as the MoMA plugin does
+  (`arrt_sources/jpeg.py`).
+- **Artlogic CMS's works listing** (`/artists/<n>-<slug>/works/`) carries every
+  work on one page, unpaginated (Stephens's: 13). Each item is an `li` with
+  `data-width` and `data-height` (2,885 × 3,173 for *Mambo Jumbo*, the original's
+  size), a link to the work's page (`/works/<n>/`), the asset-host image, and a
+  caption: artist, title, year, medium, size, price. The work's page has
+  `og:title` "Peter Stephens, Mambo Jumbo, 2023". The footer says "Site by
+  Artlogic".
+- **exhibit-E has no page per work.** The artist's works are slides on one page
+  (`/artist/lucy-bull/featured-works?view=slider`). Each slide's `img` carries
+  `alt='Lucy Bull, The Bottoms, 2021'` and the asset-host image, and its
+  `figcaption` carries the artist, the title in `<em>`, the year, the medium and
+  the size. The page names `collageplatform` and no Artlogic credit.
+
+### Run 6: the gallery rows through Ask and the Artlogic plugin (2026-10-05)
+
+Arrt `3e2f273` (`feature/ask-pages`: an Ask's citations reach the plugins,
+interface 1.1) with `arrt-sources` `eedae73` (the `artlogic` plugin), deployed as
+`arrt-sources:3e2f273-eedae73`. A catalogue copy was taken first:
+`pre-ask-pages-20261005T143221Z` (integrity ok, 40 artworks). All six plugins
+loaded with no faults.
+
+Two Asks, naming rows 54–59 (Bull and Stephens are anchors, not held out):
+
+- **Lucy Bull** ("Lucy Bull's paintings, such as 3:13, The Bottoms and 13:13"):
+  the first run (`4756cdee`) **failed in phase 1** after 4 minutes, spending
+  $0.0184, three times a normal run's tokens. Its reason was logged only, so it
+  is not known; the same intent run locally a moment later succeeded. The second
+  run (`bd44c4b3`, $0.0053) proposed the three, its search cited Kordansky's artist
+  page, and **all three were found through Artlogic at the gallery's stored
+  original**, each at confidence 0.95:
+
+  | Row | Work | Found | The page's largest, measured 2026-10-03 |
+  |---|---|---|---|
+  | 55 | *The Bottoms* | **10,446 × 7,970** | 3,600 × 2,747 |
+  | 54 | *3:13* | **6,500 × 2,257** | 3,200 × 1,111 |
+  | 56 | *13:13* | **2,800 × 4,200** | 1,200 × 1,800, an installation view |
+
+- **Peter Stephens**: the first run (`15f10c1e`, $0.0051) **proposed no works.**
+  Its search cited Markel's works listing first, but the excerpt the model was
+  given was Markel's cookie banner, and the other nine citations were geometric
+  wall-art shops; the model declined to name titles it could not see. The
+  plugin had nothing to look for. A second run (`831c61c7`, $0.0081) named the
+  galleries in the intent; its search cited Nüart's page for one work and
+  Markel's listing, and **all three were found through Artlogic**, at 0.95:
+
+  | Row | Work | Found | Gallery |
+  |---|---|---|---|
+  | 57 | *Mambo Jumbo* | 2,885 × 3,173 | Markel |
+  | 58 | *Quadrivium 77* | 3,024 × 3,024 | Markel |
+  | 59 | *Big Top* | 2,839 × 2,838 | Nüart, whose page stops at 2,400 |
+
+  The same search also cited Artsy and MutualArt's `/Artist/…`, which the plugin
+  correctly did not read.
+
+**All six gallery rows are now found**, at the originals the galleries uploaded,
+recorded as rights unknown (no caption printed a copyright line). They wait in
+To review. Total spent across the four Asks: $0.037.
+
+**What this says.**
+
+- **The plugin works; phase 1 is now the limit.** Both misses were phase 1's: a
+  failure whose reason nobody can read, and a model that will not name works it
+  only knows from a cookie banner. Naming the gallery in the intent got Stephens
+  through. Whether phase 1 should be asked to propose works from a gallery page
+  it cannot see into is a question for the owner, not answered here.
+- **A failed run keeps no reason.** `fail_run` stores nothing but the status, so
+  the screen says "failed" with nothing to act on, and the only record is the
+  container's log. Filed as #207.
+- **Row 56 is larger, and still not the work's shape.** Kordansky's original of
+  *13:13* is 2,800 × 4,200 (2 : 3), where the work is 8.7 : 1, so it is still a
+  view of the stairwell commission, not a reproduction of the canvas. Gap 6's
+  ruling applies: it is judged at review like any other image.

@@ -284,3 +284,17 @@ class DiscoveryStore(Protocol):
         caller asks the catalogue.
         """
         ...
+
+    # -- citations --------------------------------------------------------------
+
+    def add_run_citations(self, run_id: str, urls: Sequence[str]) -> None:
+        """Record the pages a run's phase-1 search read, in the order given.
+
+        A URL already recorded for the run keeps its first position: the search
+        read it once, however often it was cited.
+        """
+        ...
+
+    def list_run_citations(self, run_id: str) -> Sequence[str]:
+        """The pages a run's phase-1 search read, in the search's order; empty for a run with none."""
+        ...

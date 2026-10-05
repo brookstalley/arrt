@@ -191,6 +191,8 @@ to serve, elicited from the Product Brief's core flows:
 | Q43 | Which hosts have pages for works still open (wanted, or unresolved with no verdict) that no installed source plugin reads, and for how many works each? Asked by `GET /api/sightings/hosts` and `art_review(action='sighting_hosts')`, to choose the next reader. | Agent 2026-10-03, in the owner's sources-are-plugins plan (`source-plugins.md` § Sightings) |
 | Q44 | When a source plugin is installed, which works' pages can it read now? Not asked yet: the upgrade loop will. | Agent 2026-10-03 (same) |
 | Q45 | Where else has this work been seen? Not asked yet: a work's page will. | Agent 2026-10-03 (same) |
+| Q46 | Which pages did this run's web search read, in its order? Asked by phase 2 whenever it searches a work the run proposed: on approval, on a re-search, and after a restart. | Owner 2026-10-05 (gallery works found through Ask's search, `build-plan-ask-pages.md`) |
+| Q47 | Which hosts do the citations of runs with unresolved works name? Not asked yet: sightings for works with no Wikidata item would. | Agent 2026-10-05 (same) |
 
 **Q22 to Q24 are answered by one column, `DiscoveryRun.destination_theme_id`**
 (`build-plan-topics-and-destinations.md` Chunk 01). A work reaches its run
@@ -1980,6 +1982,30 @@ reachable (`source-plugins.md` § Sightings). Written when a search finds a page
 > item. A page found for a work with no item is not stored. Rows are never
 > deleted: a page seen stays seen, and a plugin installed later is what Q44 asks
 > about.
+
+### RunCitation
+
+A page a discovery run's phase-1 web search read (`source-plugins.md` § Pages a
+search read). Written once, when phase 1 closes, and never changed. Table
+`run_citations`.
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `discovery_run_id` | UUID | FK → DiscoveryRun, required | The run whose search read it. |
+| `url` | string | required | The page, as the search cited it. **Never sent to the browser**: it is a page from the open web (`security-model.md` § Direction). |
+| `position` | integer | required | Its place in the search's order, from 0. A page cited twice keeps its first. |
+| | | PK (`discovery_run_id`, `url`) | The search read a page once, however often it cited it. |
+
+> **Keyed by the run, not by a CandidateWork**, because the search answered the
+> run's intent, not one work: a search for an artist's paintings cites the
+> gallery's artist page, which is about every work the run proposed. Q46 reads by
+> run; a work reaches its pages through `CandidateWork.discovery_run_id`, which a
+> re-search does not change. *Mine, 2026-10-05.*
+>
+> **Only what the search engine read**, never an address from the model's answer
+> (`source-plugins.md` § Pages a search read). Nothing here says whether a page
+> is reachable: phase 2 checks each one when it hands it over, since a name's
+> answer can change between the run and a re-search.
 
 ### TvBinding *(display plane only)*
 
