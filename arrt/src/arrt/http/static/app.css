@@ -1064,9 +1064,13 @@ button.link {
 }
 
 /* Registry titles include single words longer than a phone is wide
-   (Dalí's *Galacidalacidesoxyribonucleicacid*). */
-.artist-works td:first-child {
+   (Dalí's *Galacidalacidesoxyribonucleicacid*). On the title cell by class:
+   two of the three lists lead with the Get column. */
+.artist-works td.work-title {
   overflow-wrap: anywhere;
+  /* Breaking anywhere also lets the table squeeze the column to a letter's
+     width, which it does to the title first; this is the floor. */
+  min-width: 7rem;
 }
 
 /* A health reading's sentence names the file it read, and a path is one word
@@ -1084,8 +1088,10 @@ button.link {
   height: 3rem;
 }
 
-/* A listed work's year under its title, for a phone, where the Year column is
-   folded away to leave the picture room (`workCell` in `core/registry.js`). */
+/* A listed work's makers and year under its title, for a phone, where the By
+   and Year columns are folded away to leave the picture room (`workCell` in
+   `core/registry.js`). */
+.by-under,
 .year-under {
   display: none;
 }
@@ -1103,10 +1109,12 @@ button.link {
     margin-bottom: var(--space-1);
   }
 
+  .artist-works .by-col,
   .artist-works .year-col {
     display: none;
   }
 
+  .artist-works .by-under,
   .artist-works .year-under {
     display: block;
     margin-top: var(--space-1);
@@ -1935,6 +1943,13 @@ dl.facts dd {
 .panel .card-footer {
   justify-content: center;
   padding-top: 0;
+}
+
+/* A registry picture's own pixels and fit, under its state, centred with it. */
+.panel .picture-size {
+  justify-content: center;
+  align-items: center;
+  margin-top: var(--space-2);
 }
 
 /* -- confirmation ---------------------------------------------------------- */

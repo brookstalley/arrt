@@ -436,8 +436,15 @@ class FakeRegistry:
         work_topics=None,
         artist_topics=None,
         pages=None,
+        image_sizes=None,
     ):
         self.items = items or {}
+        #: Commons file → the `RegistryImageSize` `image_size` answers; an
+        #: absent file is one Commons does not have. `sizes_failing` fails only
+        #: these, as Commons can be down while the query service answers.
+        self.image_sizes = image_sizes or {}
+        self.sizes_asked: list[str] = []
+        self.sizes_failing = False
         #: QID → the work pages `pages_about` answers; an absent QID has none.
         self.pages = pages or {}
         self.pages_asked: list[str] = []
@@ -528,6 +535,13 @@ class FakeRegistry:
         self._check()
         self.works_asked.append(qid)
         return self.works.get(qid)
+
+    def image_size(self, image):
+        self._check()
+        self.sizes_asked.append(image)
+        if self.sizes_failing:
+            raise RegistryUnavailable("Commons answered HTTP 503.")
+        return self.image_sizes.get(image)
 
     def topic(self, qid):
         self._check()

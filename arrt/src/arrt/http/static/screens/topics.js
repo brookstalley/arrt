@@ -33,6 +33,7 @@ import {
   topicKinds,
   topicName,
   topicYears,
+  byCell,
   listHeadings,
   wikidataLink,
   workCell,
@@ -272,8 +273,8 @@ function paintWorks(section, known, view, name) {
   const rows = view.works.map((work) =>
     el("tr", {}, [
       el("td", {}, [work.held_artwork_ids.length ? null : getting.box(work.qid, named(work.title, work.qid))]),
-      workCell(work),
-      el("td", {}, makers(work)),
+      workCell(work, { by: makers(work) }),
+      byCell(makers(work)),
       yearCell(work),
       el("td", {}, [stateOf(work)]),
     ]),

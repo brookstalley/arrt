@@ -140,6 +140,19 @@ class RegistryWork:
     creators: tuple[RegistryCreator, ...] = ()
     media: tuple[RegistryText, ...] = ()
     holders: tuple[RegistryHolder, ...] = ()
+    #: The work's own height and width in centimetres, each only where the
+    #: registry gives it exactly one: a frame's or a mount's is not the work's,
+    #: and two sources that disagree have no answer to pick.
+    height_cm: float | None = None
+    width_cm: float | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RegistryImageSize:
+    """A registry file's pixel size, as the file host reports it."""
+
+    width: int
+    height: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -279,6 +292,10 @@ class Registry(Protocol):
 
     def work(self, qid: str) -> RegistryWork | None:
         """What the registry knows about this work, or None when it has no such item."""
+        ...
+
+    def image_size(self, image: CommonsFile) -> RegistryImageSize | None:
+        """The file's pixel size, or None when there is no such file or it is not a raster picture."""
         ...
 
     def label_of(self, qid: str) -> RegistryText | None:

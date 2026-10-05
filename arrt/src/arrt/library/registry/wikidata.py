@@ -29,7 +29,7 @@ import logging
 import re
 from collections.abc import Iterator, Mapping, Sequence
 from typing import Any, Final
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote, unquote, urlsplit
 
 import httpx
 
@@ -42,6 +42,7 @@ from arrt.library.registry import (
     RegistryCreator,
     RegistryHolder,
     RegistryHolding,
+    RegistryImageSize,
     RegistryPerson,
     RegistrySimilar,
     RegistryText,
@@ -62,6 +63,23 @@ log = logging.getLogger(__name__)
 
 #: The query service. A constant: see the module docstring on redirects.
 SPARQL_ENDPOINT: Final[str] = "https://query.wikidata.org/sparql"
+
+#: Where a Commons file's own facts are asked: the registry names the file, and
+#: only Commons knows how big it is. A constant, asked with no redirect followed,
+#: for the same reason as the query service (see the module docstring). The
+#: Commons image source asks the same endpoint; a source may read the registry,
+#: never the reverse, so each holds its own copy of the address.
+COMMONS_API: Final[str] = "https://commons.wikimedia.org/w/api.php"
+
+#: The parts a measurement can be qualified with that surround a work rather
+#: than being it: frame, framed, mount. Measured 2026-10-05 over paintings'
+#: qualified heights: canvas 6,432 (two items), frame 2,097, painting 984,
+#: framed 13, mount 37; the rest are supports and panels, which are the work.
+_AROUND: Final[str] = "wd:Q860792, wd:Q101698846, wd:Q107105674"
+
+#: The file types that are a picture at a size. Commons also holds SVG, PDF and
+#: DjVu, whose stated width says nothing about how sharp they would hang.
+_RASTER: Final[frozenset[str]] = frozenset({"image/jpeg", "image/png", "image/tiff", "image/webp"})
 
 #: Values per query. The service's limit is on the query's running time, not its
 #: text, and a batch this size of exact-identifier lookups measured well under a
@@ -323,7 +341,7 @@ class WikidataRegistry:
         # media, collections and inventory numbers: a single work has few of each,
         # and one round trip beats four. Read back into sets below.
         rows = self._select(f"""SELECT ?workLabel ?links ?year ?img ?creator ?creatorLabel ?mediumLabel
-                   ?collection ?collectionLabel ?inventory ?inventoryAt WHERE {{
+                   ?collection ?collectionLabel ?inventory ?inventoryAt ?height ?width WHERE {{
               VALUES ?work {{ wd:{item} }}
               ?work wikibase:sitelinks ?links .
               OPTIONAL {{ ?work wdt:P571 ?inception . BIND(YEAR(?inception) AS ?year) }}
@@ -333,6 +351,8 @@ class WikidataRegistry:
               OPTIONAL {{ ?work wdt:P195 ?collection }}
               OPTIONAL {{ ?work p:P217 ?numbered . ?numbered ps:P217 ?inventory .
                          OPTIONAL {{ ?numbered pq:P195 ?inventoryAt }} }}
+              {_measured("P2048", "height")}
+              {_measured("P2049", "width")}
               SERVICE wikibase:label {{ bd:serviceParam wikibase:language "{_LABELS}". }}
             }} LIMIT {_WORK_ROWS}""")
         if not rows:
@@ -373,7 +393,47 @@ class WikidataRegistry:
                 RegistryHolder(qid=qid, name=name, inventory=_inventory(qid, numbers, single=len(collections) == 1))
                 for qid, name in sorted(collections.items(), key=lambda pair: pair[1])
             ),
+            height_cm=_centimetres(rows, "height"),
+            width_cm=_centimetres(rows, "width"),
         )
+
+    def image_size(self, image: CommonsFile) -> RegistryImageSize | None:
+        found = _COMMONS_FILE.match(image)
+        if found is None:
+            raise ValueError(f"{image!r} is not a Commons file path.")
+        params = {
+            "action": "query",
+            "format": "json",
+            "formatversion": "2",
+            "prop": "imageinfo",
+            "iiprop": "size|mime",
+            "titles": f"File:{unquote(found.group(1))}",
+        }
+        try:
+            response = self._http.get(COMMONS_API, params=params, headers={**self._headers, "Accept": "application/json"})
+        except httpx.HTTPError as exc:
+            raise RegistryUnavailable(f"Commons could not be reached: {exc}") from exc
+        if response.status_code != httpx.codes.OK:
+            # A redirect lands here too, as it does for the query service.
+            raise RegistryUnavailable(f"Commons answered HTTP {response.status_code}.")
+        try:
+            page = response.json()["query"]["pages"][0]
+        except (json.JSONDecodeError, KeyError, IndexError, TypeError) as exc:
+            raise RegistryUnavailable("Commons' answer was not the imageinfo shape it documents.") from exc
+        if isinstance(page, Mapping) and page.get("missing"):
+            return None
+        infos = page.get("imageinfo") if isinstance(page, Mapping) else None
+        info = infos[0] if isinstance(infos, list) and infos and isinstance(infos[0], Mapping) else None
+        if info is None:
+            raise RegistryUnavailable("Commons described the file in a shape it does not document.")
+        if info.get("mime") not in _RASTER:
+            return None
+        width, height = info.get("width"), info.get("height")
+        # Only `missing` says there is no such file; a picture Commons gives no
+        # size for is an answer not understood, not a file without one.
+        if not isinstance(width, int) or not isinstance(height, int) or width <= 0 or height <= 0:
+            raise RegistryUnavailable("Commons described a picture without its size.")
+        return RegistryImageSize(width=width, height=height)
 
     def works_matching(self, words: Sequence[str], *, prefix: bool, limit: int) -> Sequence[RegistryWorkMatch]:
         plain = [word.lower() for word in words if _WORD.match(word)]
@@ -902,6 +962,43 @@ def _commons_file(url: str | None) -> CommonsFile | None:
     """A Commons file URL, made `https`, or None for anything else the registry offered as an image."""
     found = _COMMONS_FILE.match(url or "")
     return None if found is None else CommonsFile(f"https://commons.wikimedia.org/wiki/Special:FilePath/{found.group(1)}")
+
+
+def _measured(prop: str, name: str) -> str:
+    """The clause reading one dimension of a work as `?name`, in metres.
+
+    Only the best-ranked statements (`wikibase:BestRank`, which is what `wdt:`
+    reads), and none whose *applies to part* (`P518`) is what surrounds the work
+    (`_AROUND`). Other parts are the work's own: a painting's height is most
+    often recorded as the canvas's. `psn:` is the value Wikidata has already
+    normalised to metres, so no unit is read here; a value in a unit with no
+    metric equivalent has none and is left out.
+    """
+    return f"""OPTIONAL {{ ?work p:{prop} ?{name}Said . ?{name}Said a wikibase:BestRank ;
+                           psn:{prop}/wikibase:quantityAmount ?{name} .
+                         FILTER NOT EXISTS {{ ?{name}Said pq:P518 ?{name}Part . FILTER(?{name}Part IN ({_AROUND})) }} }}"""
+
+
+def _centimetres(rows: Sequence[Mapping[str, Any]], name: str) -> float | None:
+    """The one measurement `?name` holds across a work's rows, in centimetres to the millimetre.
+
+    None when there is none, or more than one: the rows repeat a measurement once
+    per combination of the work's other facts, so it is the distinct values that
+    count, and two of them disagree.
+    """
+    metres: set[float] = set()
+    for row in rows:
+        if name not in row:
+            continue
+        try:
+            value = float(_value(row, name))
+        except ValueError:
+            continue
+        if value > 0:
+            metres.add(value)
+    if len(metres) != 1:
+        return None
+    return round(next(iter(metres)) * 100, 1)
 
 
 def _integer(row: Mapping[str, Any], name: str) -> int | None:

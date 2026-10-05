@@ -10,6 +10,20 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Pictures in the registry lists, and sizes on a work's page — added 2026-10-05
+
+**`build-plan-work-pictures-and-sizes.md` Chunks 01–02.** Visual change: yes.
+
+Checked by the builder against the browser suite at 390 px and 1280 px, with
+stand-in pictures. Not yet deployed.
+
+- **Look at:** on a phone, an artist's *Their work* shows each work's picture
+  (3rem) above glyph and word, the year sits under the title, and the table does
+  not scroll sideways. *Rhythms* (`#work/Q19861769`) lists Size 145 × 113 cm
+  (57.1 × 44.5 in), and under its picture 2,081 × 2,668 px with a fit badge.
+- **Worth an opinion:** whether 3rem is large enough to choose by, and whether
+  the desktop lists want the larger picture too (they have it now).
+
 ### Wanted as a section of its own — added 2026-10-05
 
 **`build-plan-norm-sweep-2026-10.md` Chunk 06.** Visual change: yes.

@@ -33,6 +33,22 @@ const FIT_WORDS = {
  * were written first, and their comment claimed "same rule, different shape"
  * when the shapes were identical; the size wording then lived in two places on
  * the one surface whose whole justification is stating it. */
+/* A picture's own size, in pixels, as the curator judges it: a scan on a
+ * review card, a registry work's picture on its page.
+ *
+ * **Pixels, and no inches** (the owner's ruling, 2026-10-02). The size on the
+ * wall depends on which panel the work hangs on, and the one figure this server
+ * could give — the long edge on the single panel it is configured for, after
+ * the mat — read as a fact about the picture to somebody who did not know that.
+ * A per-wall fit comes back with per-wall geometry (re-architecture wave 4).
+ * `null` when either dimension is unknown. */
+const PIXELS = new Intl.NumberFormat("en-US");
+
+export function pixelSize(width, height) {
+  if (width === null || width === undefined || height === null || height === undefined) return null;
+  return `${PIXELS.format(width)} × ${PIXELS.format(height)} px`;
+}
+
 export function fitBadge(sized, absentWord = "no size known") {
   if (!sized.fit) {
     return el("span", { class: "badge badge-unknown", title: sized.fit_note || "" }, [

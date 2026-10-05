@@ -10,6 +10,8 @@ an artist the library has not matched.
 carrying markup and asserts it arrives as words, not as an element.
 """
 
+from dataclasses import replace
+
 import pytest
 
 pytest.importorskip(
@@ -223,9 +225,19 @@ class TestTheArtistPage:
         ui.page.wait_for_selector(f"#view h2:has-text('{work.title}')")
 
     @pytest.mark.parametrize("width", [1280, 390], ids=["desktop", "phone"])
-    def test_their_work_shows_each_picture_large_enough_to_choose_by(self, ui, rothko, pictures_load, width):
+    def test_their_work_shows_each_picture_large_enough_to_choose_by(self, ui, rothko, registry, pictures_load, width):
         """The picture is what a curator picks a work to Get by, so a phone shows it too
-        (`information-architecture.md` § A work's mark), and the table still fits the panel."""
+        (`information-architecture.md` § A work's mark), and the table still fits the panel:
+        with a title longer than a phone is wide, as Dalí has, and a year before the common era."""
+        listed = registry.artists[ROTHKO]
+        registry.artists[ROTHKO] = replace(
+            listed,
+            works=(
+                *listed.works,
+                RegistryWorkEntry(qid="Q1", title="Galacidalacidesoxyribonucleicacid", sitelinks=0, year=1963),
+                RegistryWorkEntry(qid="Q2", title="A fresco", sitelinks=0, year=-50),
+            ),
+        )
         ui.page.set_viewport_size({"width": width, "height": 900})
         artist, _work = rothko
         _page(ui, artist)
@@ -250,6 +262,8 @@ class TestTheArtistPage:
         assert shown.is_visible()
         assert shown.inner_text() == "1971"
         assert not folded.is_visible()
+        fresco = ui.page.locator(f"{section} tbody tr", has_text="A fresco")
+        assert fresco.locator(".year-under" if width < 640 else "td.year-col").inner_text() == "50 BCE"
 
     def test_an_image_found_is_a_commons_thumbnail_that_sends_no_referrer(self, ui, rothko):
         artist, _work = rothko
@@ -257,8 +271,7 @@ class TestTheArtistPage:
         _registry_answered(ui)
 
         thumb = ui.page.locator(".badge-image-found img")
-        # 250 is the fixed Commons width that stays sharp at the picture's 3rem
-        # on a 3x screen; Commons answers any other width with the next fixed one.
+        # Why 250: `FOUND_WIDTH` in `core/registry.js`.
         assert thumb.get_attribute("src") == f"{COMMONS}?width=250"
         assert thumb.get_attribute("referrerpolicy") == "no-referrer"
 

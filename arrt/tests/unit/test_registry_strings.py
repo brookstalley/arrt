@@ -76,7 +76,14 @@ CALLS = {
     "topics_named": lambda registry: registry.topics_named("anything"),
     "topics_of": lambda registry: registry.topics_of(["Q1"], ["Q2"]),
     "pages_about": lambda registry: registry.pages_about("Q1"),
+    "image_size": lambda registry: registry.image_size(CommonsFile(f"{COMMONS}A.jpg")),
 }
+
+#: Questions whose answer can hold no string at all, so a hostile answer has
+#: nothing to put in one and the hostile test below would check nothing. Held to
+#: that by `test_an_answer_that_can_hold_no_string_has_no_string_field`, which
+#: fails the day one gains a field that could carry one.
+NO_STRINGS = {"image_size"}
 
 
 def _seam_types() -> list[type]:
@@ -197,7 +204,28 @@ def _answer(question: str) -> list[tuple[object, object]]:
     return found
 
 
-@pytest.mark.parametrize("question", sorted(CALLS))
+def _can_hold_a_string(kind: object) -> bool:
+    """Whether a value of `kind` could carry a string anywhere inside it, a dataclass's fields included."""
+    kind = getattr(kind, "__supertype__", kind)
+    if kind is str:
+        return True
+    if dataclasses.is_dataclass(kind):
+        hints = typing.get_type_hints(kind)
+        return any(_can_hold_a_string(hints[field.name]) for field in dataclasses.fields(kind))
+    return any(_can_hold_a_string(argument) for argument in typing.get_args(kind))
+
+
+@pytest.mark.parametrize("question", sorted(NO_STRINGS))
+def test_an_answer_that_can_hold_no_string_has_no_string_field(question):
+    assert not _can_hold_a_string(_answer_type(question)), f"Registry.{question} can now carry a string: check it below."
+
+
+def test_the_string_check_sees_a_string_inside_a_dataclass():
+    """`_can_hold_a_string` saying no about everything would exempt every question."""
+    assert _can_hold_a_string(_answer_type("work"))
+
+
+@pytest.mark.parametrize("question", sorted(set(CALLS) - NO_STRINGS))
 def test_a_hostile_registry_reaches_no_image_id_or_key(question):
     found = _answer(question)
 

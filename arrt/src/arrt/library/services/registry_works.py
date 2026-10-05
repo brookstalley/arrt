@@ -11,6 +11,16 @@ creator it holds, so the page can link there rather than out.
 work's facts change rarely and a curator going back and forth between a work
 and its artist should not wait on the network each time. A failure is not
 kept, so the next visit asks again.
+
+**Its picture's pixel size is asked of the registry too, and judged against
+the wall** by `assess_display_fit`, the function the review grid's verdict
+comes from, so the page and the review cannot disagree about one file. The
+size is kept per file, as the work is per QID. Only Commons knows it, and
+Commons can be down while the query service answers, so a failure to ask
+leaves the work known and its size unknown, and is not kept. The verdict is
+on the file as Commons holds it: a Get of a file wider than Commons' widest
+rendering fetches that rendering, which on a panel no wider than it judges
+the same.
 """
 
 import logging
@@ -18,8 +28,9 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 
-from arrt.library.registry import Registry, RegistryUnavailable, RegistryWork
+from arrt.library.registry import CommonsFile, Registry, RegistryImageSize, RegistryUnavailable, RegistryWork
 from arrt.library.services.artists import REGISTRY_KEPT_FOR, WantedItems, artist_ids_by_qid
+from arrt.library.services.display_fit import ArtworkBox, FitAssessment, assess_display_fit
 from arrt.library.services.remembered import NOT_CONFIGURED_NOTE, REMEMBERED, checked_qid
 from arrt.persistence.catalogue import CatalogueStore
 from arrt.persistence.kept import JsonCodec, Kept, KeptAnswers
@@ -56,17 +67,27 @@ class RegistryWorkView:
     wanted: bool = False
     #: The library's artist for each creator it holds, by the creator's QID.
     artists: Mapping[str, str] = field(default_factory=dict)
+    #: The pixel size of the work's picture, where it has one and Commons said.
+    image_size: RegistryImageSize | None = None
+    #: How that picture would meet this deployment's wall, beside its size.
+    fit: FitAssessment | None = None
 
 
 class RegistryWorkService:
     """Ask the registry about one work, and say what the library holds of it."""
 
-    def __init__(self, store: CatalogueStore, registry: Registry | None, *, kept: KeptAnswers, wanted: WantedItems) -> None:
+    def __init__(
+        self, store: CatalogueStore, registry: Registry | None, *, kept: KeptAnswers, wanted: WantedItems, box: ArtworkBox
+    ) -> None:
         self._store = store
         self._registry = registry
         self._wanted = wanted
+        self._box = box
         self._kept: Kept[str, RegistryWork] = kept.namespace(
             "registry.work", codec=JsonCodec(RegistryWork), max_age=REGISTRY_KEPT_FOR, size=REMEMBERED
+        )
+        self._sizes: Kept[str, RegistryImageSize] = kept.namespace(
+            "registry.image_size", codec=JsonCodec(RegistryImageSize), max_age=REGISTRY_KEPT_FOR, size=REMEMBERED
         )
 
     def view(self, qid: str) -> RegistryWorkView:
@@ -98,13 +119,30 @@ class RegistryWorkService:
                 wanted=wanted,
             )
         ours = artist_ids_by_qid(self._store)
+        size = None if known.image is None else self._size(known.image, self._registry)
         return RegistryWorkView(
             state=RegistryWorkState.KNOWN,
             known=known,
             held=held,
             wanted=wanted,
             artists={creator.qid: ours[creator.qid] for creator in known.creators if creator.qid in ours},
+            image_size=size,
+            fit=None if size is None else assess_display_fit(width=size.width, height=size.height, box=self._box),
         )
+
+    def _size(self, image: CommonsFile, registry: Registry) -> RegistryImageSize | None:
+        kept = self._sizes.get(image)
+        if kept is not None:
+            return kept
+        try:
+            size = registry.image_size(image)
+        except RegistryUnavailable as exc:
+            log.warning("Could not ask Commons how big %s is: %s", image, exc)
+            return None
+        if size is not None:
+            # A missing file is not kept, as a missing item is not: it can be uploaded.
+            self._sizes.put(image, size)
+        return size
 
     def _known(self, qid: str, registry: Registry) -> RegistryWork | None:
         kept = self._kept.get(qid)
