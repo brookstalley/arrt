@@ -677,17 +677,84 @@ class WallOut(BaseModel):
     #: the thing a reader has to be able to see is per-wall.
     directive_sequence: int
     pinned_work_id: str | None
-    #: When the wall's Player token was issued, or null while it has none. The
-    #: token itself is never here: it exists only in the answer that issued it.
-    token_issued_at: str | None
+    #: The client that shows this wall, or null while none does — an ordinary
+    #: state, like a wall with nothing hanging.
+    client_id: str | None
+    #: The name of that client's output the wall is shown on. Null exactly when
+    #: `client_id` is.
+    output: str | None
 
 
-class PlayerTokenOut(BaseModel):
-    """A wall's new Player token. The only time it is ever shown."""
+class ClientWallOut(BaseModel):
+    """A wall as a client listing names it: which wall, and on which of the client's outputs."""
 
     wall_id: str
+    name: str
+    output: str
+
+
+class ReportedOutputOut(BaseModel):
+    """One output as the client last reported it."""
+
+    name: str
+    #: `frame` or `framebuffer`.
+    kind: str
+    connected: bool
+    #: [width, height] in pixels, or null when the client does not know it.
+    screen: list[int] | None
+
+
+class ClientHeartbeatOut(BaseModel):
+    """What a client last said about its outputs, as an observation with an age."""
+
+    reported_at: str | None
+    age_seconds: float | None
+    #: True when the client has never reported. Not the same as `problem`.
+    absent: bool
+    #: Set when a report is present and could not be read.
+    problem: str | None
+    #: The reading as one sentence — never reported, unreadable, or its age —
+    #: so the page and the tool surface say it in the same words.
+    description: str
+    outputs: list[ReportedOutputOut]
+
+
+class ClientOut(BaseModel):
+    """An installed Player: its name, when its token was issued, its walls and its last report.
+
+    The token itself is never here: it exists only in the answer that issued it.
+    """
+
+    client_id: str
+    name: str
+    created_at: str
+    #: Null while the client has no token, and is admitted nowhere.
+    token_issued_at: str | None
+    walls: list[ClientWallOut]
+    heartbeat: ClientHeartbeatOut
+
+
+class ClientListOut(BaseModel):
+    """Every client the server knows."""
+
+    clients: list[ClientOut]
+
+
+class ClientTokenOut(BaseModel):
+    """A client's new token. The only time it is ever shown."""
+
+    client_id: str
     token: str
     token_issued_at: str
+
+
+class WallAssignmentOut(BaseModel):
+    """A wall just placed on a client's output, and anything the curator should know about it."""
+
+    wall: WallOut
+    #: Set when the output could not be confirmed against the client's last
+    #: report; the assignment is made either way.
+    notice: str | None
 
 
 class WallListOut(BaseModel):
@@ -860,6 +927,22 @@ class WallHeartbeatOut(BaseModel):
     heartbeat: HeartbeatOut
 
 
+class SourcePluginOut(BaseModel):
+    """One installed source plugin: loaded, declined, or not loaded, and its faults since startup."""
+
+    name: str
+    #: `loaded`, `declined` (installed and not configured here) or `failed`
+    #: (installed and could not be loaded). Carried as itself, never as a flag.
+    state: str
+    #: Why it declined or failed; null when it loaded.
+    reason: str | None
+    faults: int
+    last_fault_at: str | None
+    last_fault_age_seconds: float | None
+    last_fault: str | None
+    description: str
+
+
 class HealthOut(BaseModel):
     """Observations about the walls, the backup, and this deployment's geometry.
 
@@ -884,6 +967,9 @@ class HealthOut(BaseModel):
     description: str
     backup: BackupOut
     artwork_box: ArtworkBoxOut
+    #: Every installed source plugin, most preferred first. Empty when none is
+    #: installed, which the panel says in words.
+    sources: list[SourcePluginOut]
 
 
 class RunOut(BaseModel):
@@ -1360,6 +1446,24 @@ class WantedListingOut(BaseModel):
     works: list[WantedWorkOut]
 
 
+class SightingHostOut(BaseModel):
+    """A host with pages for open works that no installed source plugin reads.
+
+    A name, never an address: a sighting's URL came from a registry anyone can
+    edit, and none reaches the browser (`security-model.md` § Direction).
+    """
+
+    host: str
+    #: How many open works it has such a page for.
+    works: int
+
+
+class SightingHostsOut(BaseModel):
+    """Every such host, most works first. Named as `art_review(action='sighting_hosts')` names the same facts."""
+
+    hosts: list[SightingHostOut]
+
+
 class SelectImage(BaseModel):
     """Why this scan rather than the one the pipeline picked."""
 
@@ -1391,6 +1495,19 @@ class CreateWall(BaseModel):
     """Everything needed to record a wall: a name, and nothing device-shaped."""
 
     name: str
+
+
+class NameClient(BaseModel):
+    """A client's name, to record it or to rename it. Nothing device-shaped."""
+
+    name: str
+
+
+class AssignWall(BaseModel):
+    """Which client shows the wall, and on which of its outputs, by the name the client reports."""
+
+    client_id: str
+    output: str
 
 
 class HangTheme(BaseModel):

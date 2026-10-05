@@ -161,10 +161,10 @@ lesson from a different count, which is why this one is stated as a shape.*
 | Tool | Actions | Notes |
 |---|---|---|
 | `art_discovery` | `estimate`, `start`, `status`, `approve`, `decline`, `cancel`, `resolve_images`, `get`, `list_runs`, `spend`, `help` | **The only tool that spends money in amounts worth authorising** — see the correction below. |
-| `art_review` | `list_works`, `get_work`, `list_images`, `set_canonical`, `set_verdict`, `reject_image`, `want`, `list_wanted`, `wikidata_matches`, `set_wikidata_item`, `help` | Returns thumbnails; see Inputs & Outputs. Never spends. `want` and `list_wanted` (added 2026-10-02, `build-plan-after-review.md` Chunk 03) are the one way into `wanted` and Activity › Wanted's listing; see § `set_verdict` cannot set `wanted`. `wikidata_matches` offers Wikidata's items for a work's title and stores nothing; `set_wikidata_item` records the curator's pick, refused on a decided work (added 2026-10-02, `build-plan-after-review.md` Chunk 04). |
+| `art_review` | `list_works`, `get_work`, `list_images`, `set_canonical`, `set_verdict`, `reject_image`, `want`, `list_wanted`, `sighting_hosts`, `wikidata_matches`, `set_wikidata_item`, `help` | Returns thumbnails; see Inputs & Outputs. Never spends. `want` and `list_wanted` (added 2026-10-02, `build-plan-after-review.md` Chunk 03) are the one way into `wanted` and Activity › Wanted's listing; see § `set_verdict` cannot set `wanted`. `wikidata_matches` offers Wikidata's items for a work's title and stores nothing; `set_wikidata_item` records the curator's pick, refused on a decided work (added 2026-10-02, `build-plan-after-review.md` Chunk 04). `sighting_hosts` counts, by host, the open works with a page there that no installed source plugin reads, and returns no address (added 2026-10-03, `build-plan-source-plugins.md` Chunk 03). |
 | `art_catalogue` | `list`, `get`, `sources`, `archive`, `restore`, `retry_acquisition`, `set_mat_color`, `set_work_qid`, `set_artist_qid`, `regenerate`, `topics`, `topic`, `help` | `sources` is the provenance read; see below. `set_work_qid` and `set_artist_qid` (added 2026-10-01) are the curator's word on a Wikidata identity; matching itself is the hand-run `python -m arrt.identify`, not a tool. `topics` and `topic` (added 2026-10-02) are `GET /api/topics` and `GET /api/topics/{qid}`, the library's half only. `retry_acquisition` **queues** the work and returns at once (changed 2026-10-02, `build-plan-after-review.md` Chunk 02; breaking, see § Versioning): it fetched in the call until then, for up to half an hour, beside the acquisition queue's own fetch. `get` carries the work's `acquisition` state. |
 | `art_theme` | `list`, `get`, `create`, `update`, `delete`, `make_default`, `add`, `remove`, `reorder`, `activate`, `unhang`, `help` | `activate` changes the wall immediately; `unhang` leaves the wall showing what it was showing. `make_default` (added 2026-10-01) moves the mark new works join, and changes no wall. |
-| `art_display` | `walls`, `add_wall`, `status`, `sync`, `show_now`, `next`, `help` | Every action goes through the theme manifest — see below. `walls` is where every other action's `wall_id` comes from. |
+| `art_display` | `walls`, `add_wall`, `status`, `sync`, `show_now`, `next`, `clients`, `add_client`, `rename_client`, `remove_client`, `issue_client_token`, `assign_wall`, `unassign_wall`, `help` | Every wall action goes through the theme manifest — see below. `walls` is where every other action's `wall_id` comes from, and `clients` every `client_id` and output name. The client actions (added 2026-10-02, `build-plan-clients.md` Chunk 02) are § Clients' routes on this surface; `issue_client_token` answers the token once. Destructive since then, because `remove_client` and `issue_client_token` cannot be undone. |
 | `art_taste` | `list`, `set`, `delete`, `help` | The curator's standing judgments about artists, movements and subjects. Never spends. Added 2026-08-11 by operator decision — see below, and § The routes the interface design requires. |
 
 **This table is the surface as designed, and no row states what is built.** That
@@ -1305,7 +1305,7 @@ the client with them.
 | `POST`/`DELETE /api/themes/{id}/works[/{work_id}]`, `POST .../position` | Membership and order. Each returns the resulting order, so the surface repaints from the response. |
 | `POST /api/themes/{id}/activate` | Change the wall. Returns the manifest that was published, exclusions included. |
 | `GET /api/manifest` | What a theme *would* put on the wall, evaluated without writing. |
-| `GET /api/health` | Every observation the panel states: **one heartbeat per wall** with the document that wall's display reported, the backup's age, and this deployment's resolved artwork box. **Three observations and no fourth** — there is deliberately no budget balance, settled 2026-08-04. Shape below. |
+| `GET /api/health` | Every observation the panel states: **one heartbeat per wall** with the document that wall's display reported, the backup's age, this deployment's resolved artwork box, and **every installed source plugin** (`sources`, added 2026-10-03). There is deliberately no budget balance, settled 2026-08-04. Shape below. |
 
 Added 2026-08-05 with the run half of the browser surface, and exercised by
 `arrt/tests/integration/test_browser_discovery.py`:
@@ -1330,6 +1330,7 @@ Added 2026-08-05 with the review half, and exercised by
 | `POST /api/candidates/{work_id}/verdict` | Accept or reject. Carries the minted artist and any held painter it may duplicate, which is the one part of a promotion a curator can neither see nor undo from the work. `wanted` is refused here — `want` is its only entry. |
 | `POST /api/candidates/{work_id}/want` | Want the work, `{turning_down?}` (added 2026-10-02, `build-plan-after-review.md` Chunk 03). Returns the work. Naming a scan suppresses it; naming none suppresses nothing. Refused on a decided work. Twin: `art_review(action='want')`. |
 | `GET /api/wanted` | Every wanted work across runs, newest run first: `work_id`, `title`, `artist`, `run_id`, `wikidata_qid`, `scans_turned_down` (added 2026-10-02, Chunk 03). Uncapped, because each row is a work somebody wanted by name. Twin: `art_review(action='list_wanted')`. |
+| `GET /api/sightings/hosts` | Each host with a page for an open work (wanted, or unresolved with no verdict) that no installed source plugin reads: `host`, `works`, most works first (added 2026-10-03, `build-plan-source-plugins.md` Chunk 03). **A host is a name; no page's address is returned**, because a sighting's URL came from a registry anyone can edit (`security-model.md` § Direction). Uncapped, and bounded by the distinct hosts the open works' items name, which they mostly share (MoMA, Google, WikiArt): a row per host, never per page. Twin: `art_review(action='sighting_hosts')`. |
 | `GET /api/candidates/{work_id}/wikidata-matches` | Wikidata's items matching the work's title, the proposed artist's first: `state` (`known`, `not_configured`, `unavailable`), `note`, and `matches` of `qid`, `title`, `creator`, `sitelinks`, `has_image`, `by_proposed_artist`. Stores nothing (added 2026-10-02, Chunk 04). |
 | `PUT /api/candidates/{work_id}/wikidata-item` | Record the item the curator picked, `{qid}`. Returns the work. Refused on a decided work and on anything but an item id (added 2026-10-02, Chunk 04). |
 | `POST /api/candidate-images/{id}/select`, `/reject` | Choose a scan, or turn one down. Rejecting returns the *work*, because turning down the scan on offer moves it to `wanted`; turning down an alternate leaves its verdict where it was. |
@@ -1567,9 +1568,27 @@ response is:
   ],
   "description": "Every wall has reported; the least recent is 'The study', 4 minutes ago.",
   "backup": { "…": "unchanged" },
-  "artwork_box": { "…": "unchanged" }
+  "artwork_box": { "…": "unchanged" },
+  "sources": [
+    {
+      "name": "artic",
+      "state": "loaded",
+      "reason": null,
+      "faults": 0,
+      "last_fault_at": null,
+      "last_fault_age_seconds": null,
+      "last_fault": null,
+      "description": "artic is loaded, with no faults since startup."
+    }
+  ]
 }
 ```
+
+**`sources`** *(added 2026-10-03, `source-plugins.md` § Loading)* lists every
+installed plugin, most preferred first, and is empty when none is installed.
+`state` is `loaded`, `declined` (installed and not configured here) or `failed`
+(installed and could not be loaded), carried as itself. `reason` and `last_fault`
+are scrubbed of query strings (`security-model.md` § Source plugins).
 
 **`heartbeat` is gone from the top level and is not coming back**: one reading for
 an installation with two rooms is a reading that cannot name the room, which is
@@ -1962,12 +1981,44 @@ plus honest `readOnlyHint` / `destructiveHint`.
 > published. The media route hashes the bytes it is about to send and refuses
 > (`404`) if they no longer match. The heartbeat POST accepts exactly what the
 > health panel can read and answers `400` otherwise, in the error shape `/api`
-> already uses. Tokens are issued from `POST /api/walls/{wall_id}/token` (the
-> Walls screen's Player token panel) and `art_display(action='issue_token')`.
-> Both return the token once, and the wall's `token_issued_at` is on both
-> surfaces' wall shapes. The Player's side is `postarr/src/postarr/pull.py` (Chunk 04):
+> already uses. Tokens were issued per wall from `POST /api/walls/{wall_id}/token`
+> and `art_display(action='issue_token')` until 2026-10-02, when clients replaced
+> them (below). The Player's side is `postarr/src/postarr/pull.py` (Chunk 04):
 > `MANIFEST_SOURCE=http` pulls into `CACHE_DIR` and renders only from there. What follows is the design as recorded before the build, and where it
 > disagrees with the code or with `player-contract.md`, those win.
+
+### Clients — BUILT 2026-10-02 (`build-plan-clients.md` Chunk 01)
+
+`clients.md` is the requirement: a **client** is an installed Player with one
+token, driving any number of walls, each on one of its outputs by name. The
+Player routes take the client's token (`player-contract.md` § Transport is the
+specification); the curator's routes below bind `programming/clients.py` and
+`programming/access.py`. **The MCP twins arrived with Settings › Clients
+(Chunk 02, 2026-10-02)** as `art_display` actions, thin bindings over the same
+two services: until then these routes were HTTP-only, a recorded gap in parity.
+`art_display` became `destructiveHint: true` with them, because
+`remove_client` and `issue_client_token` cannot be undone (the reason
+`art_taste` gives for its own flag).
+
+| Route | Tool | What it is for |
+|---|---|---|
+| `GET /client` *(Player)* | — | The presenting client and its walls with their outputs, `ETag`/`304`. `401` without a valid client token |
+| `POST /client/heartbeat` *(Player)* | — | The client's outputs (name, kind, connected, screen), kept as `client-heartbeat-{client_id}.json` under `ART_ROOT` beside the wall heartbeats. `204`; `400` naming the problem |
+| `GET /api/clients` | `art_display(action='clients')` | Every client, with `token_issued_at` (never the token), its walls and outputs, and its last heartbeat's outputs, age and `description` (the reading as one sentence, the same on both surfaces; added Chunk 02) |
+| `POST /api/clients` `{name}` | `art_display(action='add_client', name)` | Record a client. No token, no walls |
+| `POST /api/clients/{client_id}` `{name}` | `art_display(action='rename_client', client_id, name)` | Rename. Token and walls unchanged |
+| `DELETE /api/clients/{client_id}` | `art_display(action='remove_client', client_id)` | Forget a client: its token stops working, its walls become unassigned and keep their themes, its heartbeat file goes. Answers the remaining list; the tool answers the walls released (`released_walls`), named in its notice |
+| `POST /api/clients/{client_id}/token` | `art_display(action='issue_client_token', client_id)` | Issue or rotate; answers `{client_id, token, token_issued_at}` once. The tool adds a notice naming `CLIENT_TOKEN` and `SERVER_URL` |
+| `POST /api/walls/{wall_id}/client` `{client_id, output}` | `art_display(action='assign_wall', wall_id, client_id, output)` | Show the wall on that client's output. Answers `{wall, notice}`: `notice` says when the output is not among the client's last reported outputs, or it has not reported; the assignment is made either way. Refused when that output already shows another wall |
+| `DELETE /api/walls/{wall_id}/client` | `art_display(action='unassign_wall', wall_id)` | Unassign. Idempotent |
+
+`WallOut` and the MCP wall shape lose `token_issued_at` and gain `client_id` and
+`output` (both null while no client shows the wall).
+
+**Retired 2026-10-02:** `POST /api/walls/{wall_id}/token` and
+`art_display(action='issue_token')`, with the Walls screen's Player token panel.
+A wall token admits nothing. This is breaking for a Player configured with
+`WALL_TOKEN`, by the plan's ruling that no transition is kept.
 
 **Before 2026-09-30 nothing in this section existed in code.** It records the target that
 `re-architecture.md` § Seam 2 sets. **The contract artifact now exists:
@@ -1991,7 +2042,9 @@ recorded in `architecture.md` § Direction.
 
 **Every route carries the wall's token** (decided 2026-09-30,
 `re-architecture.md` § Seam 2) as a bearer credential. A missing or wrong token
-is `401`, and a token for another wall is `403`. The Player treats either as a
+is `401`, and a token for another wall is `403`. *(Amended 2026-10-02: the
+client's token, admitted for the walls assigned to that client; `403` for a wall
+that is not its client's. § Clients above.)* The Player treats either as a
 configuration error, stated once in the journal, and keeps its cache, like a
 `404` on its wall.
 

@@ -29,6 +29,7 @@ import { paintAwaiting, paintWanted } from "./core/awaiting.js";
 import { state } from "./core/state.js";
 import { viewHistory, viewQueue, viewToReview, viewWanted } from "./screens/activity.js";
 import { viewArtists } from "./screens/artists.js";
+import { viewClients } from "./screens/clients.js";
 import { viewCollection } from "./screens/collection.js";
 import { viewConversation } from "./screens/conversation.js";
 import { viewDiscover } from "./screens/discover.js";
@@ -110,6 +111,9 @@ const ROUTES = {
   wanted: { render: viewWanted, section: "activity", page: "Wanted", badge: "wanted" },
   // Radarr's Profiles: the preferences that rank what it finds.
   taste: { render: viewTaste, section: "settings", page: "Taste" },
+  // Radarr's Settings › Download Clients: the external programs the server
+  // works with, which here are the installed Players (`clients.md` ruling 1).
+  clients: { render: viewClients, section: "settings", page: "Clients" },
   health: { render: viewHealth, section: "system", page: "Status" },
   work: { render: viewWork, detail: true, opensFrom: "collection" },
   // Everything a few words find, the library's and Wikidata's (ruling 2), as

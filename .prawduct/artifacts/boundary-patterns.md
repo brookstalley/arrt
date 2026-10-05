@@ -275,7 +275,11 @@
   and rewrites the key of any it changed, so the recompute is paid automatically
   by each later change instead of being owed by it. A future change to the
   derivation still crosses the boundary — it is the repair that is no longer
-  each change's to write.
+  each change's to write. **Until 2026-10-04 that held only for a change to the
+  cleaning**: the repair re-keyed a row only when it re-cleaned the title, so a
+  change to the derivation alone (dropping a leading article) would have left
+  every stored key under the old rule. It now re-derives every key and rewrites
+  any that differ, reported apart as `works.rekeyed`.
 - **Producer:** the persistence layer. **Currently stdlib `sqlite3` behind a
   Protocol**, not 3tears collections — see the build plan's deferral note. The
   Protocol is what keeps that swap a one-module change.

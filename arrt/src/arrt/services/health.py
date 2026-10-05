@@ -30,14 +30,41 @@ and its rules are testable without HTTP, and so the surface stays the thin
 binding the architecture requires.
 """
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
 from arrt.library.services.display_fit import ArtworkBox
+from arrt.library.sources.loading import PluginReading, PluginState, SourceRoster
 from arrt.persistence import backup
 from arrt.persistence.backup import BackupReading
 from arrt.programming.display import DisplayService, WallHeartbeat, describe_wall_status
+
+
+@dataclass(frozen=True, slots=True)
+class SourceHealth:
+    """One installed source plugin, with the age of its last fault."""
+
+    reading: PluginReading
+    #: Seconds since the last contained fault, or `None` when there was none.
+    last_fault_age_seconds: float | None
+
+    def describe(self) -> str:
+        """What happened to this plugin, in a sentence: an observation, never a verdict."""
+        reading = self.reading
+        if reading.state is PluginState.DECLINED:
+            return f"{reading.name} is installed and not configured here: {reading.reason}."
+        if reading.state is PluginState.FAILED:
+            return f"{reading.name} is installed and was not loaded: {reading.reason}."
+        if reading.faults == 0:
+            return f"{reading.name} is loaded, with no faults since startup."
+        plural = "fault" if reading.faults == 1 else "faults"
+        return (
+            f"{reading.name} is loaded, with {reading.faults} {plural} since startup, the last "
+            f"{self.last_fault_age_seconds:.0f} seconds ago ({reading.last_fault}). Each was recorded as the "
+            "source not being reachable, so works it would have answered wait instead of being settled."
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,6 +87,11 @@ class HealthReading:
     #: the grid, which reads as a catalogue problem rather than a configuration
     #: one.
     artwork_box: ArtworkBox
+    #: Every installed source plugin: loaded, declined or failed, with the faults
+    #: a loaded one has had. Here because a plugin missing or failing in silence
+    #: looks like works nobody holds, which reads as a fact about art rather than
+    #: about this deployment.
+    sources: Sequence[SourceHealth] = ()
 
     def describe(self) -> str:
         """One sentence across every wall, from the readings this panel holds.
@@ -75,8 +107,18 @@ class HealthReading:
 class HealthService:
     """Gather what the panel states. Decides nothing about any of it."""
 
-    def __init__(self, display: DisplayService, *, backup_receipt_path: Path, box: ArtworkBox) -> None:
+    def __init__(
+        self,
+        display: DisplayService,
+        *,
+        backup_receipt_path: Path,
+        box: ArtworkBox,
+        sources: SourceRoster,
+        now: Callable[[], datetime] = lambda: datetime.now(UTC),
+    ) -> None:
         self._display = display
+        self._sources = sources
+        self._now = now
         #: Where the backup job records that it succeeded. Passed in rather than
         #: resolved here, for the reason every settings object in this layer
         #: gives: a service that read its own configuration could not be tested
@@ -96,4 +138,15 @@ class HealthService:
             walls=self._display.survey_wall_status(),
             backup=backup.read(self._backup_receipt_path),
             artwork_box=self._box,
+            sources=tuple(self._source_health()),
         )
+
+    def _source_health(self) -> list[SourceHealth]:
+        now = self._now()
+        return [
+            SourceHealth(
+                reading=reading,
+                last_fault_age_seconds=(None if reading.last_fault_at is None else (now - reading.last_fault_at).total_seconds()),
+            )
+            for reading in self._sources.observe()
+        ]

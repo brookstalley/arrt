@@ -223,9 +223,8 @@ def test_an_empty_theme_still_states_the_walls_standing_facts(ui, services, a_th
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
-    # The manifest's three panels. The Player token panel sits beside them on
-    # every wall whatever it shows, so it is not one of the facts this is about.
-    assert ui.page.locator("section.wall .panel:not(.player-token) h4").count() == 3
+    # The manifest's three panels, and nothing else.
+    assert ui.page.locator("section.wall .panel h4").count() == 3
     assert "Showing (0)" in ui.text()
 
 
@@ -636,71 +635,82 @@ def test_a_repaint_this_screen_did_not_navigate_to_does_not_send_focus_to_the_vi
     assert ui.focused() != "view"
 
 
-# -- the Player token -----------------------------------------------------------------
+# -- which client shows each wall ------------------------------------------------------
 
 
-def _token_panel(ui, wall):
-    return ui.page.locator("section.wall .player-token")
+def test_the_walls_screen_issues_no_wall_token_and_says_which_client_shows_each_wall(ui, services, the_wall):
+    """Wall tokens are retired: no panel, no button, no route behind one.
 
-
-def test_a_wall_with_no_token_says_so_and_offers_to_issue_one(ui, the_wall):
+    Rewritten from *…and says where players connect*, which held the interim note
+    ("Settings › Clients, where they are managed, is not built yet") that stood in
+    for Settings › Clients. That page now exists, so the one global note became a
+    line per wall saying which client shows it; the no-token half is kept as it
+    was, and the per-wall lines have tests of their own below.
+    """
+    hall = services.clients.add_client(name="Hall Pi")
+    services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
+    study = services.display.add_wall(name="Study")
     ui.open("#walls")
-    ui.page.wait_for_selector("section.wall .player-token")
+    ui.page.wait_for_selector("section.wall p.wall-client")
 
-    panel = _token_panel(ui, the_wall)
-    assert f"{the_wall.name} has no Player token yet." in panel.inner_text()
-    assert panel.locator("button", has_text=f"Issue a Player token for {the_wall.name}").count() == 1
-    assert panel.locator("input.token").count() == 0
+    assert ui.page.locator("section.wall").count() == 2
+    assert ui.page.locator(".player-token").count() == 0
+    assert ui.page.locator("button", has_text="Player token").count() == 0
+    assert "Player token" not in ui.text()
+    assert "WALL_TOKEN" not in ui.text()
+    assert "is not built yet" not in ui.text()
+    # One line inside each wall's own section, and none outside them.
+    assert ui.page.locator("section.wall p.wall-client").count() == 2
+    assert ui.page.locator("#view > p.wall-client").count() == 0
+    assert study.name in ui.text()
 
 
-def test_issuing_shows_the_token_once_and_it_opens_the_wall(ui, services, the_wall, store):
-    """The token on screen is the one the server verifies, and a repaint never shows it again."""
+def _client_line(ui, wall_name):
+    section = ui.page.locator("section.wall", has=ui.page.locator(f"h3.wall-title:has-text('{wall_name}')"))
+    return section.locator("p.wall-client")
+
+
+def test_an_assigned_wall_says_which_client_shows_it_and_on_which_output(ui, services, the_wall):
+    hall = services.clients.add_client(name="Hall Pi")
+    services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-2")
+    services.display.add_wall(name="Study")
     ui.open("#walls")
-    ui.page.wait_for_selector("section.wall .player-token")
-    panel = _token_panel(ui, the_wall)
+    ui.page.wait_for_selector("section.wall p.wall-client")
 
-    panel.locator("button", has_text=f"Issue a Player token for {the_wall.name}").click()
-    ui.page.wait_for_selector("section.wall .player-token input.token")
-
-    shown = panel.locator("input.token").input_value()
-    assert services.access.admit(the_wall.id, shown).value == "admitted"
-    assert "only time it is shown" in panel.inner_text()
-    assert f"Rotate the Player token for {the_wall.name}" in panel.inner_text()
-    # Focus goes to the token, so a keyboard user lands on the thing to copy.
-    assert ui.page.evaluate("document.activeElement.classList.contains('token')")
-
-    ui.page.reload()
-    ui.page.wait_for_selector("section.wall .player-token")
-    assert _token_panel(ui, the_wall).locator("input.token").count() == 0
-    assert shown not in ui.page.content()
-    assert "was issued" in _token_panel(ui, the_wall).inner_text()
+    assert _client_line(ui, the_wall.name).inner_text() == "Shown by Hall Pi on hdmi-a-2"
+    # The other wall's line is its own: an assignment painted under every wall
+    # would read correctly with one wall and be wrong with two.
+    assert _client_line(ui, "Study").inner_text().startswith("No client shows this wall.")
 
 
-def test_rotating_asks_first_and_a_cancel_keeps_the_token(ui, services, the_wall):
-    first = services.access.issue(the_wall.id).token
+def test_an_unassigned_wall_says_no_client_shows_it_and_links_to_where_one_is_assigned(ui, services, the_wall):
+    services.clients.add_client(name="Hall Pi")
     ui.open("#walls")
-    ui.page.wait_for_selector("section.wall .player-token")
+    ui.page.wait_for_selector("section.wall p.wall-client")
 
-    _token_panel(ui, the_wall).locator("button", has_text=f"Rotate the Player token for {the_wall.name}").click()
-    ui.page.wait_for_selector("dialog.confirm[open]")
-    assert the_wall.name in ui.page.locator("dialog.confirm").inner_text()
-    ui.page.click(".confirm-actions button:has-text('Cancel')")
-    ui.page.wait_for_selector("dialog.confirm", state="detached")
+    line = _client_line(ui, the_wall.name)
+    assert line.inner_text() == "No client shows this wall. Assign it in Settings › Clients"
+    link = line.get_by_role("link", name="Assign it in Settings › Clients")
+    assert link.get_attribute("href") == "#clients"
 
-    assert services.access.admit(the_wall.id, first).value == "admitted"
+    link.click()
+    ui.page.wait_for_selector("#view h2:has-text('Clients')")
+    assert ui.page.locator("nav.sidebar a[data-view='clients'][aria-current='page']").count() == 1
 
 
-def test_rotating_replaces_the_token(ui, services, the_wall):
-    first = services.access.issue(the_wall.id).token
+def test_a_client_listing_that_never_arrives_still_says_which_output_shows_the_wall(ui, services, the_wall):
+    """The listing is where a client's name is; without it the wall still knows its output.
+
+    Stubbed, for the reason the unreachable-plane tests are: a server cannot be
+    asked to fail on purpose. Nothing else on the screen may go with it.
+    """
+    hall = services.clients.add_client(name="Hall Pi")
+    services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
+    ui.serve("**/api/clients", (503, {"error": "the client listing is down"}))
     ui.open("#walls")
-    ui.page.wait_for_selector("section.wall .player-token")
+    ui.page.wait_for_selector("section.wall p.wall-client")
 
-    _token_panel(ui, the_wall).locator("button", has_text=f"Rotate the Player token for {the_wall.name}").click()
-    ui.page.wait_for_selector("dialog.confirm[open]")
-    ui.page.click(".confirm-actions button:has-text('Rotate token')")
-    ui.page.wait_for_selector("section.wall .player-token input.token")
-
-    second = _token_panel(ui, the_wall).locator("input.token").input_value()
-    assert second != first
-    assert services.access.admit(the_wall.id, first).value == "unknown"
-    assert services.access.admit(the_wall.id, second).value == "admitted"
+    line = _client_line(ui, the_wall.name).inner_text()
+    assert line == "Shown on hdmi-a-1 by a client whose name could not be read — the client listing is down"
+    assert ui.page.locator("#error").is_hidden()
+    assert "Nothing is hanging on" in ui.text()

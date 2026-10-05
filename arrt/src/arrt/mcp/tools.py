@@ -26,6 +26,7 @@ service method answers it, and the service method does the work.
 
 from typing import Final
 
+from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR
 from arrt.library.services.catalogue import MAX_LIST_LIMIT
 from arrt.library.services.review import MAX_REVIEW_LIMIT
 from arrt.mcp.registry import Action, Param, ToolRecord
@@ -135,7 +136,8 @@ _HEX_RGB = Param(
     name="hex_rgb",
     type="string",
     description=(
-        "The mat colour as a hex triplet, e.g. '#27285b'. Omit it to have the vision model choose one, which "
+        f"The mat colour as a hex triplet, e.g. '#27285b', no darker than CIE L* {MAT_LIGHTNESS_FLOOR:g} (a darker "
+        "one is refused). Omit it to have the vision model choose one, which "
         "spends a fraction of a cent. (action='regenerate' also chooses one, and pays, for a work that has "
         "never had a mat; both actions report cost_usd.)"
     ),
@@ -789,6 +791,18 @@ ART_REVIEW: Final = ToolRecord(
             ),
         ),
         Action(
+            name="sighting_hosts",
+            description="Count, by host, the open works with a page there that no installed source plugin reads.",
+            example="art_review(action='sighting_hosts')",
+            tips=(
+                "Open works are wanted, or unresolved with no verdict. Held works, and pages a plugin now reads, "
+                "are left out.",
+                "The pages come from a work's Wikidata item, so a work with no item has none. Hosts are names "
+                "only: no page's address is returned.",
+                "Not every host holds the work: encyclopedias and search links are counted too.",
+            ),
+        ),
+        Action(
             name="wikidata_matches",
             description="List Wikidata's items matching a work's title, the proposed artist's first, to pick from.",
             example="art_review(action='wikidata_matches', work_id='<a work_id from action=list_wanted>')",
@@ -1010,6 +1024,32 @@ ART_THEME: Final = ToolRecord(
     ),
 )
 
+#: Shared by `add_wall`, `add_client` and `rename_client`, and described for all
+#: three because the wire schema publishes one description per name.
+_NAME = Param(
+    name="name",
+    type="string",
+    description="What to call the wall or the client. Walls have names no other wall has, and clients likewise.",
+    required=True,
+)
+
+_CLIENT_ID = Param(
+    name="client_id",
+    type="string",
+    description="Which client — an installed Player — to act on, as returned by art_display(action='clients').",
+    required=True,
+)
+
+_OUTPUT = Param(
+    name="output",
+    type="string",
+    description=(
+        "Which of the client's outputs shows the wall, by the name the client reports for it — 'hdmi-a-1', "
+        "'frame'. art_display(action='clients') lists what each client last reported."
+    ),
+    required=True,
+)
+
 _SYNC_THEME_ID = Param(
     name="theme_id",
     type="string",
@@ -1019,9 +1059,15 @@ _SYNC_THEME_ID = Param(
 ART_DISPLAY: Final = ToolRecord(
     name="art_display",
     title="Art display",
-    summary="Report what the wall is doing and ask it to change. Every action writes desired state, never a command.",
+    summary=(
+        "Report what each wall is doing and ask it to change, and keep the clients that show the walls. "
+        "Every action writes desired state, never a command."
+    ),
     read_only=False,
-    destructive=False,
+    # Destructive since the client actions arrived: `remove_client` forgets a
+    # client and `issue_client_token` replaces its token, and neither can be
+    # undone — the reason `art_taste` gives for its own flag.
+    destructive=True,
     open_world=False,
     actions=(
         Action(
@@ -1038,14 +1084,14 @@ ART_DISPLAY: Final = ToolRecord(
             name="add_wall",
             description="Record a wall — a place where art hangs. It arrives with nothing on it.",
             example="art_display(action='add_wall', name='Living room')",
-            params=(Param(name="name", type="string", description="What to call the wall. Must be unique.", required=True),),
+            params=(_NAME,),
             tips=(
                 "A wall is a place and a name, never a device: which display serves it is that display's own "
                 "configuration, and nothing about a television is recorded here.",
                 "Refuses a name that is empty or already taken.",
-                "A new wall shows nothing until a display device is configured with the wall_id this "
-                "returns — each wall has its own manifest file, and a display serves the one wall it is "
-                "pointed at. Hanging a theme on a new wall disturbs no other wall.",
+                "A new wall shows nothing until it is assigned to a client — an installed Player — on one of "
+                "that client's outputs. Each wall has its own manifest, and a client is admitted only to the "
+                "walls assigned to it. Hanging a theme on a new wall disturbs no other wall.",
             ),
         ),
         Action(
@@ -1100,17 +1146,79 @@ ART_DISPLAY: Final = ToolRecord(
             ),
         ),
         Action(
-            name="issue_token",
-            description="Issue a new token for the Player that serves a named wall, replacing any it had.",
-            example="art_display(action='issue_token', wall_id='<a wall_id>')",
-            params=(_WALL_ID,),
+            name="clients",
+            description="Return every client, with its walls and outputs and when it last reported them.",
+            example="art_display(action='clients')",
             tips=(
-                "The token is returned once and never again: only a verifier is kept. It belongs in the "
-                "Player's environment file as WALL_TOKEN, and nowhere a transcript is kept for longer.",
-                "Issuing again is how a token is rotated: the old one stops working at once, so the Player "
-                "holding it is refused until it is given the new one.",
-                "Every Player request for this wall's manifest, its heartbeat and any render needs it.",
+                "A client is an installed Player: one token, and the walls assigned to it, each on one of its "
+                "outputs. This is where client_id and the output names assign_wall takes come from.",
+                "The token is never listed. token_issued_at is null while the client has none, and then it is "
+                "admitted nowhere: issue one with action='issue_client_token'.",
+                "heartbeat is an observation with an age, never a verdict: a client that has not reported may "
+                "simply not be running yet.",
             ),
+        ),
+        Action(
+            name="add_client",
+            description="Record a client. It has no token and shows no wall until given them.",
+            example="art_display(action='add_client', name='Hall Pi')",
+            params=(_NAME,),
+            tips=(
+                "Next, action='issue_client_token' for the token its host needs, and action='assign_wall' for "
+                "what it shows. Its host learns its walls from this server, so assigning needs no edit there.",
+                "Refuses a name that is empty or already a client's.",
+            ),
+        ),
+        Action(
+            name="rename_client",
+            description="Give a client a new name. Its token and its walls are unchanged.",
+            example="art_display(action='rename_client', client_id='<a client_id>', name='Study Pi')",
+            params=(_CLIENT_ID, _NAME),
+        ),
+        Action(
+            name="remove_client",
+            description="Forget a client. Its token stops working and the walls it showed are left without one.",
+            example="art_display(action='remove_client', client_id='<a client_id>')",
+            params=(_CLIENT_ID,),
+            tips=(
+                "The answer names every wall released, so you can say which rooms now have nothing showing "
+                "them. They keep their themes; assign them to another client to show them again.",
+                "Not undoable: a client added again under the same name is a new client, needing a new token.",
+            ),
+        ),
+        Action(
+            name="issue_client_token",
+            description="Issue a client's token, replacing any it had. The answer is the only place it ever appears.",
+            example="art_display(action='issue_client_token', client_id='<a client_id>')",
+            params=(_CLIENT_ID,),
+            tips=(
+                "Give the token to whoever sets up the host: it goes in the Player's settings as CLIENT_TOKEN, "
+                "beside SERVER_URL, this server's address as that host reaches it.",
+                "Rotating is issuing again, and the earlier token stops working at once: the client's Player is "
+                "refused until its settings carry the new one. Say so before rotating a client in use.",
+                "Only a verifier is kept, so a lost token cannot be shown again; issue another.",
+            ),
+        ),
+        Action(
+            name="assign_wall",
+            description="Show a named wall on one of a client's outputs, by the output's name.",
+            example="art_display(action='assign_wall', wall_id='<a wall_id>', client_id='<a client_id>', output='hdmi-a-1')",
+            params=(_WALL_ID, _CLIENT_ID, _OUTPUT),
+            tips=(
+                "Get wall ids from action='walls', and client ids and output names from action='clients'.",
+                "The answer's notice says when the output is not among those the client last reported, or the "
+                "client has not reported yet. The assignment is kept either way, so a client can be set up "
+                "before it first runs.",
+                "One output shows one wall: refused when that output already shows another. A wall is shown by "
+                "one client, so assigning it elsewhere moves it.",
+            ),
+        ),
+        Action(
+            name="unassign_wall",
+            description="Take a named wall off whichever client showed it. Its theme stays hung.",
+            example="art_display(action='unassign_wall', wall_id='<a wall_id>')",
+            params=(_WALL_ID,),
+            tips=("Unassigning a wall no client shows is not an error. Get wall ids from action='walls'.",),
         ),
     ),
 )

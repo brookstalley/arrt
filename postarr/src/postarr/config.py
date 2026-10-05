@@ -1,10 +1,19 @@
-"""Deployment configuration for the display plane.
+"""Deployment configuration for the Player.
 
 Every value here differs between the dev Mac and the Pi, so none of them may be a
 literal in source. A fresh checkout runs by copying `.env.example` to `.env` and
-filling it in — never by editing a module. Both planes read that one file: the
-value they must agree on is `ART_ROOT`, and two files are precisely how two
-planes come to disagree about it.
+filling it in — never by editing a module.
+
+**A Player is a client** (`clients.md`): one install, one token, driving any
+number of walls. The host is told three things — the server, its token and where
+to keep its cache — and learns its walls from the server. So nothing here names a
+wall. What a wall needs on this host (its manifest, its renders, its heartbeat,
+the Frame's store) is derived from `CACHE_DIR` and the wall's id by `wall()`, so
+two walls on one client can never share a file.
+
+**The Frame is an output this client may or may not have.** `TV_ADDRESS` present
+means it has one, named `frame`, and the television's and the label panel's
+settings are read; absent means it has none, and none of them are required.
 
 Resolution is a function rather than module-level constants, so importing this
 module does not require an environment — otherwise the test suite and every tool
@@ -18,39 +27,56 @@ would be the cross-plane drift `operational-spec.md` § Configuration warns abou
 """
 
 import os
-from dataclasses import dataclass, field
+import re
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Final
 
 from dotenv import load_dotenv
 
-# The heartbeat's own module owns where it is written; this only reports it in
-# the startup line. It imports nothing from here, so there is no cycle, and
-# naming the file a second time in this module is exactly the duplication the
-# per-wall channel already has one copy of too many of.
+# The heartbeat's own module owns what its file is called; this only reports it
+# in the startup line.
 from postarr.heartbeat import path_in as heartbeat_path_in
 
-#: The manifest's filename under `ART_ROOT`, **one file per wall**. The name is
-#: **not configurable, deliberately**: this is the only channel between the
-#: planes, and a setting is just a way for the writer and the reader to stop
-#: agreeing about where it is. Which *wall* this process serves is configuration
-#: — see `WALL_ID` below — and that is a different thing from where a wall's file
-#: is.
-#:
-#: Written here as a literal rather than imported from the plane that writes it,
-#: because importing that plane is the thing the isolation norm forbids. The
-#: duplication is the price of the norm, and it is safe only because
-#: `tests/preferences/test_heartbeat_contract.py` compares the two copies —
-#: without it, a rename on one side is a display plane that waits for ever for a
-#: file that is already there under another name.
-MANIFEST_FILENAME_TEMPLATE: Final[str] = "theme-manifest-{wall_id}.json"
-
-#: This plane's own store, under `ART_ROOT` beside the manifest it reads. Display
-#: is its sole writer and nothing else ever opens it.
+#: The Frame's own store, in the wall's directory beside the manifest it reads.
+#: The Frame worker is its sole writer and nothing else ever opens it.
 STATE_FILENAME: Final[str] = "display-state.sqlite"
 
-#: The last good pulled manifest, under `CACHE_DIR` in HTTP mode.
+#: The last good pulled manifest, in the wall's directory.
 CACHED_MANIFEST_FILENAME: Final[str] = "manifest.json"
+
+#: The last good client document (`GET /client`), directly under `CACHE_DIR`, so
+#: a client that starts while the server is down still knows its walls. **A
+#: leading dot, and that is what keeps it apart from the walls' directories**: a
+#: wall id may not begin with one (`wall()`), so no wall's directory can be named
+#: this.
+CLIENT_DOCUMENT_FILENAME: Final[str] = ".client.json"
+
+#: The name of this client's Frame output, as it reports it and as a curator
+#: assigns a wall to it. One per client: a client drives at most one television.
+FRAME_OUTPUT: Final[str] = "frame"
+
+#: How often the client asks the server which walls it drives. Assigning a wall
+#: therefore reaches the screen within about this long; it is a curatorial act,
+#: not a `next`, and half a minute of latency is nothing beside it.
+DEFAULT_CLIENT_POLL_SECONDS: Final[float] = 30.0
+
+#: The settings a Player configured for one wall used, each with what replaced
+#: it. **Refused by name rather than ignored**, because a stale `.env` that was
+#: half-read would start a Player that pulls nothing for the wall its operator
+#: thinks it serves — and says nothing, since every one of these was read once
+#: and never consulted again.
+RETIRED_SETTINGS: Final[dict[str, str]] = {
+    "WALL_ID": (
+        "a client learns its walls from the server: assign the wall to this client on Settings › Clients "
+        "and remove WALL_ID from .env"
+    ),
+    "WALL_TOKEN": "the per-wall token is replaced by this client's token: set CLIENT_TOKEN and remove WALL_TOKEN",
+    "MANIFEST_SOURCE": (
+        "a client always pulls from SERVER_URL into CACHE_DIR; the file channel is retired, "
+        "so remove MANIFEST_SOURCE from .env"
+    ),
+}
 
 #: The name this process pairs to the television under. **Changing it costs a
 #: pairing prompt somebody has to walk over and accept**: the set issues a token
@@ -152,20 +178,100 @@ class ConfigError(RuntimeError):
     """A deployment value is missing or unusable, and starting would be worse."""
 
 
-@dataclass(frozen=True)
-class Settings:
-    """Everything this plane needs from its environment, resolved once."""
+class WallIdUnusable(ValueError):
+    """A wall id this client will not make a directory of.
 
-    art_root: Path
-    #: **Which wall this process serves**, as the curation catalogue ids it. It
-    #: has no default for the reason `TV_ADDRESS` has none: there is no wall a
-    #: second device could be guessed onto, and a guess here is the failure this
-    #: whole per-wall channel was built to remove — a display showing another
-    #: room's pictures while every log line says it is working.
-    #:
-    #: A wall id is a UUID minted by the curation plane. `art_display(action=
-    #: 'walls')`, or the Walls screen, is where to read it off.
+    Ids are minted by the server, and every one it mints today is a UUID. The id
+    names a directory under `CACHE_DIR`, so one that is not a single plain path
+    component (`..`, `a/b`, a leading dot) would put a wall's files somewhere
+    other than its own directory — beside another wall's, or outside the cache.
+    Refused by name rather than cleaned, because a cleaned id is a second wall's
+    directory waiting to happen.
+    """
+
+
+_PLAIN_COMPONENT: Final = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+)*")
+
+
+@dataclass(frozen=True)
+class WallSettings:
+    """One wall as this client serves it: where its files live and how it is reached.
+
+    Every worker has one, whatever output it draws on. **The paths are derived,
+    never configured**: the wall's directory is `CACHE_DIR/<wall id>`, and its
+    manifest, renders and heartbeat are fixed names inside it. That is the whole
+    mechanism keeping two walls on one client apart — there is no listing, no
+    glob and no wall id read from a document to choose a file.
+    """
+
     wall_id: str
+    #: `CACHE_DIR/<wall id>`: the pulled manifest, the renders it names, the
+    #: wall's heartbeat and, on the Frame, the wall's store.
+    wall_dir: Path
+    #: The server's base URL, with no trailing slash.
+    server_url: str
+    #: This client's token. Kept out of `repr` and out of every startup line,
+    #: because both reach the journal.
+    client_token: str = field(repr=False)
+    poll_interval_seconds: float
+    rotation_interval_fallback_seconds: int
+    rotation_shuffle_fallback: bool
+
+    @property
+    def manifest_path(self) -> Path:
+        """The last good manifest the pull cached, and the only file the wall waits on.
+
+        Written only once every render it names is cached and verified, so the
+        watcher reads a document whose every picture is already here.
+        """
+        return self.wall_dir / CACHED_MANIFEST_FILENAME
+
+    @property
+    def render_root(self) -> Path:
+        """What an entry's `render_path` is relative to: this wall's own cache."""
+        return self.wall_dir
+
+    @property
+    def heartbeat_root(self) -> Path:
+        """Where this wall's heartbeat file is written, for the pull to forward.
+
+        **Never a directory the server writes into.** A server sharing this host
+        keeps each heartbeat it is POSTed under its own `ART_ROOT`, and a Player
+        that wrote there too would see the server's write as a new heartbeat, post
+        it again, and loop once a poll. In the wall's own cache the file is this
+        wall's alone.
+        """
+        return self.wall_dir
+
+    @property
+    def state_path(self) -> Path:
+        """The Frame's store for this wall. The Frame worker is its sole writer."""
+        return self.wall_dir / STATE_FILENAME
+
+    def wall_lines(self) -> dict[str, object]:
+        """The wall's part of a worker's startup line. Never the token."""
+        return {
+            # **The wall, first among the paths it decides.** A wall the server
+            # has published nothing for produces a manifest that never arrives;
+            # this puts which wall, and which directory, one `journalctl` away.
+            "wall_id": self.wall_id,
+            "wall_dir": str(self.wall_dir),
+            "manifest_path": str(self.manifest_path),
+            "heartbeat_path": str(heartbeat_path_in(self.heartbeat_root, self.wall_id)),
+            "server_url": self.server_url,
+        }
+
+
+@dataclass(frozen=True)
+class FrameSettings:
+    """The Frame output: the television, the sun it follows, and the label panel beside it.
+
+    Present only on a client configured with `TV_ADDRESS`. **The label panel is
+    here rather than on the client**, because it annotates the picture on the
+    Frame and belongs to the wall shown there: one worker decides both, so they
+    can never disagree.
+    """
+
     tv_address: str
     tv_port: int
     tv_token_file: Path
@@ -221,7 +327,6 @@ class Settings:
     tv_min_brightness: int
     tv_max_brightness: int
 
-    poll_interval_seconds: float
     brightness_interval_seconds: float
     upload_timeout_seconds: float
     upload_retry_seconds: float
@@ -229,68 +334,6 @@ class Settings:
     tv_connect_timeout_seconds: float
     tv_retry_min_seconds: float
     tv_retry_max_seconds: float
-
-    rotation_interval_fallback_seconds: int
-    rotation_shuffle_fallback: bool
-
-    #: Where the manifest comes from: `file`, the shared `ART_ROOT` (the default
-    #: through wave 2), or `http`, pulled from Arrt into `cache_dir`. The file
-    #: channel stays the default until wave 3 retires it, once HTTP has soaked on
-    #: the real wall.
-    manifest_source: str = "file"
-    #: Arrt's base URL, in HTTP mode. Unset in file mode.
-    server_url: str | None = None
-    #: This wall's Player token, in HTTP mode. Kept out of `repr` and out of the
-    #: startup line, because both reach the journal.
-    wall_token: str | None = field(default=None, repr=False)
-    #: Where HTTP mode keeps the last good manifest and the renders it names, so a
-    #: Player that starts while the server is down still shows the wall.
-    cache_dir: Path | None = None
-
-    @property
-    def pulls_over_http(self) -> bool:
-        return self.manifest_source == "http"
-
-    @property
-    def render_root(self) -> Path:
-        """What an entry's `render_path` is relative to: the shared tree, or this Player's own cache."""
-        return self.cache_dir if self.pulls_over_http and self.cache_dir is not None else self.art_root
-
-    @property
-    def heartbeat_root(self) -> Path:
-        """Where this Player writes its heartbeat file: the shared tree, or its own cache.
-
-        **In HTTP mode, never the shared tree.** The server writes each heartbeat
-        it is POSTed into `ART_ROOT`, where its health panel reads it, and on a Pi
-        running both that is the same directory. A Player that wrote there too
-        would see the server's write as a new heartbeat, post it again, and loop
-        once a poll, wearing the card and able to overwrite a newer report with
-        an older one. In its own cache the file is the Player's alone, and the
-        pull forwards it.
-        """
-        return self.cache_dir if self.pulls_over_http and self.cache_dir is not None else self.art_root
-
-    @property
-    def manifest_path(self) -> Path:
-        """The one channel from curation, and the only file this plane waits on.
-
-        **One path, resolved once from the wall this process serves.** That is
-        the whole mechanism keeping a display out of a wall it does not serve:
-        there is no listing, no glob and no wall id read from a document — the
-        manifests for every other room are files this process never opens.
-        """
-        if self.pulls_over_http and self.cache_dir is not None:
-            # The cache's copy, written only once every render it names is cached
-            # and verified. The watcher reads it exactly as it reads the shared
-            # file, so rotation, directives and the label cannot tell the modes
-            # apart.
-            return self.cache_dir / CACHED_MANIFEST_FILENAME
-        return self.art_root / MANIFEST_FILENAME_TEMPLATE.format(wall_id=self.wall_id)
-
-    @property
-    def state_path(self) -> Path:
-        """This plane's own store. Display is its sole writer."""
-        return self.art_root / STATE_FILENAME
 
     def _viewing_conditions(self) -> str:
         """The panel's diagonal and its reading distance, or what their absence costs.
@@ -303,31 +346,17 @@ class Settings:
             return "(not stated — no label can be sized, so this device draws none)"
         return f'{self.epd_panel_diagonal_inches}" panel read from {self.epd_viewing_distance_inches}"'
 
-    def startup_lines(self) -> dict[str, object]:
-        """What goes in the startup log line, so a misconfiguration is one line away.
+    def frame_lines(self) -> dict[str, object]:
+        """The Frame's part of a startup line, so a misconfiguration is one line away.
 
-        `ART_ROOT` and this plane's own panel geometry, per
-        `operational-spec.md` § Configuration — a wrong art root otherwise shows
-        up as a manifest that never arrives, and a wrong panel as a label that
-        renders off the edge of a display nobody is looking at closely.
+        This plane's own panel geometry, per `operational-spec.md`
+        § Configuration — a wrong panel otherwise shows up as a label that renders
+        off the edge of a display nobody is looking at closely.
 
-        No secret is resolvable from these, and none is added: this plane reaches
-        no paid API and holds no paid key. The pairing token is a **path** here,
-        never its contents, and in HTTP mode the wall's Player token is left out
-        altogether.
+        No secret is resolvable from these. The pairing token is a **path** here,
+        never its contents.
         """
         return {
-            "art_root": str(self.art_root),
-            # **The wall, first among the paths it decides.** A `WALL_ID` naming
-            # a wall the catalogue does not hold produces a manifest that never
-            # arrives, which is indistinguishable from a curation plane that has
-            # not published — and one naming the *wrong* wall produces a display
-            # that works perfectly and shows the wrong room. Neither is visible
-            # anywhere else, so both are one `journalctl` away from here.
-            "wall_id": self.wall_id,
-            "manifest_path": str(self.manifest_path),
-            "heartbeat_path": str(heartbeat_path_in(self.heartbeat_root, self.wall_id)),
-            "state_path": str(self.state_path),
             "epd_panel_px": f"{self.epd_panel_width_px}x{self.epd_panel_height_px}",
             # **The line that would have caught the defect this pair exists for.**
             # A wrong viewing distance is invisible everywhere else: the daemon
@@ -343,44 +372,130 @@ class Settings:
             "tv_address": f"{self.tv_address}:{self.tv_port}",
             "tv_token_file": str(self.tv_token_file),
             "tv_client_name": self.tv_client_name,
-            # The channel and where it points. Never the token: this line goes to
-            # the journal, and a journal is what gets pasted into an issue.
-            "manifest_source": self.manifest_source,
-            **({"server_url": self.server_url, "cache_dir": str(self.cache_dir)} if self.pulls_over_http else {}),
         }
 
 
-def load(environ: dict[str, str] | None = None) -> Settings:
-    """Resolve the environment into `Settings`, or refuse to start.
+@dataclass(frozen=True)
+class Settings(WallSettings, FrameSettings):
+    """One wall on the Frame: what the Frame's loop (`Daemon`) is built from.
+
+    **Both halves, as one object, because the loop reads both.** It is a
+    `WallSettings`, so the same pull that serves a wall on any output serves this
+    one, and a `FrameSettings`, so the label surface is built from it as it was
+    when a Player served one wall. Made by `ClientSettings.frame_wall`.
+    """
+
+    def startup_lines(self) -> dict[str, object]:
+        return {**self.wall_lines(), "state_path": str(self.state_path), **self.frame_lines()}
+
+
+@dataclass(frozen=True)
+class ClientSettings:
+    """Everything this Player needs from its environment, resolved once."""
+
+    server_url: str
+    client_token: str = field(repr=False)
+    #: Local disk, not a network mount: the point of the cache is that it is
+    #: there when the server is not.
+    cache_dir: Path
+    poll_interval_seconds: float
+    rotation_interval_fallback_seconds: int
+    rotation_shuffle_fallback: bool
+    #: The Frame output, or None for a client that has none.
+    frame: FrameSettings | None
+    client_poll_seconds: float = DEFAULT_CLIENT_POLL_SECONDS
+
+    @property
+    def client_document_path(self) -> Path:
+        return self.cache_dir / CLIENT_DOCUMENT_FILENAME
+
+    def wall(self, wall_id: str) -> WallSettings:
+        """One wall's settings, its directory derived from its id. Raises `WallIdUnusable`."""
+        if not _PLAIN_COMPONENT.fullmatch(wall_id):
+            raise WallIdUnusable(
+                f"the server named a wall {wall_id!r}, which is not a plain directory name; "
+                "this client keeps each wall's files in a directory named by its id, so it will not serve it"
+            )
+        return WallSettings(
+            wall_id=wall_id,
+            wall_dir=self.cache_dir / wall_id,
+            server_url=self.server_url,
+            client_token=self.client_token,
+            poll_interval_seconds=self.poll_interval_seconds,
+            rotation_interval_fallback_seconds=self.rotation_interval_fallback_seconds,
+            rotation_shuffle_fallback=self.rotation_shuffle_fallback,
+        )
+
+    def frame_wall(self, wall_id: str) -> Settings:
+        """One wall on this client's Frame. Raises `ValueError` on a client with no Frame."""
+        if self.frame is None:
+            raise ValueError("this client has no Frame output (TV_ADDRESS is not set)")
+        wall = self.wall(wall_id)
+        return Settings(**_fields_of(wall), **_fields_of(self.frame))
+
+    def startup_lines(self) -> dict[str, object]:
+        """The client's startup line. Never the token: a journal is what gets pasted into an issue."""
+        return {
+            "server_url": self.server_url,
+            "cache_dir": str(self.cache_dir),
+            "frame": self.frame.frame_lines() if self.frame is not None else "(none — TV_ADDRESS is not set)",
+        }
+
+
+def _fields_of(instance: object) -> dict[str, object]:
+    """A dataclass's fields as keyword arguments, shallowly — `asdict` would copy the paths."""
+    return {item.name: getattr(instance, item.name) for item in fields(instance)}  # type: ignore[arg-type]
+
+
+def load(environ: dict[str, str] | None = None) -> ClientSettings:
+    """Resolve the environment into `ClientSettings`, or refuse to start.
 
     `environ` is injectable so tests do not have to mutate the process's own — a
-    test that set `ART_ROOT` globally would leak it into every test after it.
+    test that set a value globally would leak it into every test after it.
     """
     load_dotenv()
     env = dict(os.environ) if environ is None else environ
 
-    art_root = Path(_require(env, "ART_ROOT")).expanduser()
-    if not art_root.is_dir():
-        # A typo is invisible in `.env` and obvious the moment something reads it
-        # back. Refusing here rather than at first use matters because the
-        # alternative failure is *silence*: a mistyped root means a manifest that
-        # never appears, which is indistinguishable from a curation plane that
-        # has not published one yet — the daemon would wait politely forever.
-        raise ConfigError(
-            f"ART_ROOT is {art_root}, which is not an existing directory. "
-            "Fix ART_ROOT in .env; a typo here shows up as a manifest that never arrives, "
-            "which looks exactly like a curation plane that has not published one yet."
-        )
+    for name, replaced_by in RETIRED_SETTINGS.items():
+        if env.get(name):
+            raise ConfigError(f"{name} is retired: {replaced_by}.")
+
+    cache_dir = Path(_require(env, "CACHE_DIR")).expanduser()
+    return ClientSettings(
+        server_url=_require(env, "SERVER_URL").rstrip("/"),
+        client_token=_require(env, "CLIENT_TOKEN"),
+        cache_dir=cache_dir,
+        poll_interval_seconds=_float(env, "MANIFEST_POLL_SECONDS", DEFAULT_POLL_INTERVAL_SECONDS),
+        rotation_interval_fallback_seconds=_int(env, "ROTATION_INTERVAL_SECONDS", DEFAULT_ROTATION_INTERVAL_SECONDS),
+        rotation_shuffle_fallback=_bool(env, "ROTATION_SHUFFLE", DEFAULT_ROTATION_SHUFFLE),
+        frame=_frame(env, cache_dir),
+    )
+
+
+def _frame(env: dict[str, str], cache_dir: Path) -> FrameSettings | None:
+    """The Frame output when `TV_ADDRESS` is set, and None when it is not.
+
+    **Its own required values are required only once it is asked for.** The sun
+    drives the television's brightness and nothing else, so a client with no
+    Frame has no use for a location; requiring one anyway is how an installer
+    learns to type plausible values into keys that do nothing.
+
+    A label panel with no Frame is refused rather than dropped: it is configured
+    to caption the picture on a television this client does not drive.
+    """
+    if not env.get("TV_ADDRESS"):
+        if (env.get("EPD_DEVICE") or "").strip():
+            raise ConfigError(
+                "EPD_DEVICE is set and TV_ADDRESS is not. The label panel captions the wall on this client's Frame, "
+                "and without TV_ADDRESS this client has no Frame; set TV_ADDRESS or empty EPD_DEVICE."
+            )
+        return None
 
     token_file = env.get("TV_TOKEN_FILE") or ""
-    return Settings(
-        art_root=art_root,
-        # Required, like `TV_ADDRESS` and for the same class of reason: this
-        # process serves one named room, and nothing may guess which.
-        wall_id=_require_wall(env),
+    return FrameSettings(
         tv_address=_require(env, "TV_ADDRESS"),
         tv_port=_int(env, "TV_PORT", 8002),
-        tv_token_file=Path(token_file).expanduser() if token_file else art_root / "token_file",
+        tv_token_file=Path(token_file).expanduser() if token_file else cache_dir / "token_file",
         tv_client_name=env.get("TV_CLIENT_NAME") or DEFAULT_TV_CLIENT_NAME,
         epd_panel_width_px=_int(env, "EPD_PANEL_WIDTH_PX", DEFAULT_EPD_PANEL_WIDTH_PX),
         epd_panel_height_px=_int(env, "EPD_PANEL_HEIGHT_PX", DEFAULT_EPD_PANEL_HEIGHT_PX),
@@ -395,7 +510,6 @@ def load(environ: dict[str, str] | None = None) -> Settings:
         location_region=env.get("LOCATION_REGION") or "",
         tv_min_brightness=_int(env, "TV_MIN_BRIGHTNESS", DEFAULT_TV_MIN_BRIGHTNESS),
         tv_max_brightness=_int(env, "TV_MAX_BRIGHTNESS", DEFAULT_TV_MAX_BRIGHTNESS),
-        poll_interval_seconds=_float(env, "MANIFEST_POLL_SECONDS", DEFAULT_POLL_INTERVAL_SECONDS),
         brightness_interval_seconds=_float(env, "BRIGHTNESS_INTERVAL_SECONDS", DEFAULT_BRIGHTNESS_INTERVAL_SECONDS),
         upload_timeout_seconds=_float(env, "TV_UPLOAD_TIMEOUT_SECONDS", DEFAULT_UPLOAD_TIMEOUT_SECONDS),
         upload_retry_seconds=_float(env, "TV_UPLOAD_RETRY_SECONDS", DEFAULT_UPLOAD_RETRY_SECONDS),
@@ -403,53 +517,7 @@ def load(environ: dict[str, str] | None = None) -> Settings:
         tv_connect_timeout_seconds=_float(env, "TV_CONNECT_TIMEOUT_SECONDS", DEFAULT_TV_CONNECT_TIMEOUT_SECONDS),
         tv_retry_min_seconds=_float(env, "TV_RETRY_MIN_SECONDS", DEFAULT_TV_RETRY_MIN_SECONDS),
         tv_retry_max_seconds=_float(env, "TV_RETRY_MAX_SECONDS", DEFAULT_TV_RETRY_MAX_SECONDS),
-        rotation_interval_fallback_seconds=_int(env, "ROTATION_INTERVAL_SECONDS", DEFAULT_ROTATION_INTERVAL_SECONDS),
-        rotation_shuffle_fallback=_bool(env, "ROTATION_SHUFFLE", DEFAULT_ROTATION_SHUFFLE),
-        **_manifest_source(env),
     )
-
-
-def _manifest_source(env: dict[str, str]) -> dict[str, object]:
-    """File mode, or HTTP mode with everything it needs, refused rather than half-set.
-
-    HTTP mode with no token or no cache would start, poll, and show nothing, which
-    reads as a server that has not published. So every one of its settings is
-    required once the mode is asked for, and a mode that is neither is refused
-    rather than read as the default.
-    """
-    source = (env.get("MANIFEST_SOURCE") or "file").strip().lower()
-    if source == "file":
-        return {"manifest_source": "file"}
-    if source != "http":
-        raise ConfigError(f"MANIFEST_SOURCE is {source!r}; it is either 'file' (the default) or 'http'.")
-    cache_dir = Path(_require(env, "CACHE_DIR")).expanduser()
-    return {
-        "manifest_source": "http",
-        "server_url": _require(env, "SERVER_URL").rstrip("/"),
-        "wall_token": _require(env, "WALL_TOKEN"),
-        "cache_dir": cache_dir,
-    }
-
-
-def _require_wall(env: dict[str, str]) -> str:
-    """The wall this process serves, refused rather than guessed.
-
-    Its own message rather than `_require`'s, because a wall id is the one
-    required value a fresh installer cannot invent or look up in a manual: it is
-    a UUID minted by the other plane, and being told to "fill it in" without
-    being told where it comes from is where an installer starts guessing. The
-    consequence of a guess is the failure this whole per-wall channel removed —
-    a display showing the wrong room's pictures while every log line reads fine.
-    """
-    value = env.get("WALL_ID")
-    if not value:
-        raise ConfigError(
-            "WALL_ID is not set, and there is no wall this display could be guessed onto. It is the id of "
-            "the wall in the curation catalogue that this device serves — read it from the Walls screen or "
-            "from art_display(action='walls'), and put it in .env. Each wall has its own manifest, so a "
-            "display with the wrong id shows another room's pictures without anything reporting a fault."
-        )
-    return value
 
 
 def _require(env: dict[str, str], name: str) -> str:

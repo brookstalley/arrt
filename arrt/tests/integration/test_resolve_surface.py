@@ -15,7 +15,7 @@ import json
 from decimal import Decimal
 
 import pytest
-from fakes import FakeImageSearch, a_work, an_image
+from fakes import FakeFinder, a_roster, a_work, an_image
 
 from arrt.library.discovery.engine import WorkList
 from arrt.library.services.previews import PreviewSettings
@@ -44,8 +44,8 @@ async def finished(server_url: str, run_id: str) -> dict:
 
 
 @pytest.fixture
-def museum() -> FakeImageSearch:
-    return FakeImageSearch(holdings={"The Elephants": (an_image("The Elephants", url="https://artic.edu/first-scan"),)})
+def museum() -> FakeFinder:
+    return FakeFinder(holdings={"The Elephants": (an_image("The Elephants", url="https://artic.edu/first-scan"),)})
 
 
 @pytest.fixture
@@ -60,7 +60,7 @@ def services(store, discovery_store, wall_settings, thumbnail_settings, settings
         artwork_box=settings.tv_artwork_box,
         engine=engine,
         discovery_settings=settings.discovery_settings,
-        image_sources=[museum],
+        sources=a_roster(museum),
         previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
     )
 

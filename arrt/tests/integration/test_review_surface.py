@@ -21,7 +21,7 @@ import json
 from io import BytesIO
 
 import pytest
-from fakes import FakeImageSearch, a_decodable_jpeg, a_work, an_image
+from fakes import FakeFinder, a_decodable_jpeg, a_roster, a_work, an_image
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 from PIL import Image
@@ -99,14 +99,14 @@ def preview_file(settings):
 
 
 @pytest.fixture
-def museum() -> FakeImageSearch:
+def museum() -> FakeFinder:
     holdings = {
         "The Elephants": (an_image("The Elephants", url="https://artic.edu/elephants", width=6949, height=8400),),
         "Swans Reflecting Elephants": (
             an_image("Swans Reflecting Elephants", url="https://artic.edu/swans", width=900, height=700),
         ),
     }
-    found = FakeImageSearch(holdings=holdings)
+    found = FakeFinder(holdings=holdings)
     found.preview_bytes = a_decodable_jpeg()
     return found
 
@@ -123,7 +123,7 @@ def services(store, discovery_store, wall_settings, thumbnail_settings, settings
         artwork_box=settings.tv_artwork_box,
         engine=engine,
         discovery_settings=settings.discovery_settings,
-        image_sources=[museum],
+        sources=a_roster(museum),
         previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
     )
 

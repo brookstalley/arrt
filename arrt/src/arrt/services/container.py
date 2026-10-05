@@ -17,7 +17,6 @@ they are settled in one place instead of per constructor.
 """
 
 import logging
-from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -49,13 +48,10 @@ from arrt.library.acquisition.mat import MatEngine
 from arrt.library.acquisition.preparation import PreparationService, PreparationSettings
 from arrt.library.acquisition.queue import AcquisitionQueue
 from arrt.library.acquisition.service import AcquisitionService, AcquisitionSettings
-from arrt.library.acquisition.tiles import TileTargetResolver
 from arrt.library.acquisition.transport import no_transport
 from arrt.library.acquisition.urls import Resolver
-from arrt.library.discovery.browse import CollectionBrowse
 from arrt.library.discovery.conversation import NO_CONVERSATION_KEY, ConversationEngine, UnavailableConversation
 from arrt.library.discovery.engine import DiscoveryEngine
-from arrt.library.discovery.images import ImageSearch
 from arrt.library.discovery.phase_two import PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.events import WorkChange
@@ -73,6 +69,7 @@ from arrt.library.services.registry_search import RegistrySearchService
 from arrt.library.services.registry_works import RegistryWorkService
 from arrt.library.services.review import ReviewService
 from arrt.library.services.runner import DiscoveryRunner, DiscoverySettings
+from arrt.library.services.sightings import SightingService
 from arrt.library.services.survey import SurveyService
 from arrt.library.services.sweep import PreviewSweep
 from arrt.library.services.taste import TasteService
@@ -80,11 +77,13 @@ from arrt.library.services.thumbnails import ThumbnailService, ThumbnailSettings
 from arrt.library.services.topic_sweep import TopicSweep
 from arrt.library.services.topics import TopicService
 from arrt.library.services.wikidata_match import WikidataMatchService
+from arrt.library.sources.loading import SourceRoster
 from arrt.persistence.backup import BACKUP_RECEIPT_FILENAME
 from arrt.persistence.catalogue import CatalogueStore
 from arrt.persistence.discovery import DiscoveryStore
 from arrt.persistence.kept import KeptAnswers
 from arrt.programming.access import PlayerAccess
+from arrt.programming.clients import ClientService
 from arrt.programming.display import DisplayService, DisplaySettings
 from arrt.programming.store import ProgrammingStore
 from arrt.services.errors import ServiceError
@@ -111,8 +110,10 @@ class Services:
     #: binding asking "can this work go on a wall" gets the answer the manifest
     #: build gets, from the same object.
     library: LibraryFacade
-    #: Which Player may read which wall, by the wall's token.
+    #: Which Player may read which wall, by its client's token.
     access: PlayerAccess
+    #: The installed Players the server knows, and which walls each shows.
+    clients: ClientService
     discovery: DiscoveryService
     display: DisplayService
     thumbnails: ThumbnailService
@@ -200,6 +201,9 @@ class Services:
     #: Wikidata's items for a wanted work, for the curator to pick from. Over the
     #: same registry as `identity`; says it is off without one.
     wikidata_match: WikidataMatchService
+    #: The pages found for works that no installed plugin reads, by host. Over
+    #: the same routing acquisition uses, so a page a plugin claims is not one.
+    sightings: SightingService
 
     @classmethod
     def bind(
@@ -212,12 +216,9 @@ class Services:
         artwork_box: ArtworkBox,
         engine: DiscoveryEngine,
         discovery_settings: DiscoverySettings,
-        image_sources: Sequence[ImageSearch] = (),
-        collection: CollectionBrowse | None = None,
         previews: PreviewSettings | None = None,
         acquisition: AcquisitionSettings | None = None,
         open_stream: StreamOpener | None = None,
-        tile_targets: Mapping[str, TileTargetResolver] | None = None,
         #: How a hostname becomes addresses for the fetch policy. Defaults to the
         #: system resolver, which is what a deployment wants and what a test suite
         #: must not have — a suite whose job is to be green cannot depend on DNS.
@@ -234,13 +235,20 @@ class Services:
         #: fabricating it.
         conversation_engine: ConversationEngine | None = None,
         #: Wikidata, or None while `WIKIDATA_USER_AGENT` is unset. Never a default
-        #: client, for the reason `image_sources` has none: a test suite must not
+        #: client, for the reason `sources` has none: a test suite must not
         #: be able to reach a foreign API through a wiring default.
         registry: Registry | None = None,
         #: Where the registry pages keep answers across restarts. Defaults to
         #: keeping them for the life of the process, which is a real deployment
         #: and not a stub: it is what every registry page did before the file.
         kept: KeptAnswers | None = None,
+        #: Every installed source plugin: the finders phase 2 asks, the collection
+        #: a run supplements from, the readers acquisition routes a source's URL
+        #: to, and what the health panel states. **The only source input**, so the
+        #: four cannot disagree: a process assembled with finders and no roster
+        #: would search while the panel said no plugin is installed. `None` is a
+        #: process with no plugins, which is what most tests are.
+        sources: SourceRoster | None = None,
     ) -> Services:
         """Assemble the services over an already-open file.
 
@@ -250,7 +258,7 @@ class Services:
         foreign API" impossible to arrange, and that is the arrangement most of
         this product's tests need.
 
-        `image_sources` and `previews` are optional together. Without them the
+        A roster with no finder and no `previews` go together. Without either the
         plane runs phase 1 and stops, which is a coherent deployment — and the
         one every test that has no business reaching a museum uses.
         """
@@ -261,7 +269,8 @@ class Services:
         # floor is a size on the wall rather than a pixel count — so the rule
         # cannot be evaluated without the panel geometry that converts one to the
         # other.
-        pool = ImageSourcePool(image_sources) if image_sources else None
+        sources = SourceRoster.empty() if sources is None else sources
+        pool = ImageSourcePool(sources.finders) if sources.finds_images else None
         discovery_service = DiscoveryService(
             discovery, catalogue_service, artwork_box, precedence=None if pool is None else pool.precedence
         )
@@ -299,18 +308,10 @@ class Services:
             # a real client here would let that mistake reach a museum from a
             # test suite instead of failing where it was made.
             open_stream=open_stream or no_transport,
-            # Only a provider whose recorded URL is an identity needs one, and
-            # the source's own client is the thing that can answer — so by
-            # default these are the configured image sources. A deployment with
-            # none configured therefore has no resolver either, and an artic
-            # fetch refuses by name rather than handing the tile fetcher a URL
-            # it cannot read: without credentials to ask the collection for an
-            # object's image service, there is genuinely no way to reach it.
-            #
-            # Overridable because resolving one object and searching a whole
-            # collection are separate capabilities that each source today
-            # happens to serve both of.
-            tile_targets=(tile_targets if tile_targets is not None else ({} if pool is None else pool.tile_targets())),
+            # A source's URL reaches the reader of the plugin that claims it. A
+            # plugin that claims it and is not loaded is a deployment fault named
+            # by that plugin; a URL nobody claims is fetched as recorded.
+            route=sources.route,
             **({} if resolve is None else {"resolve": resolve}),
         )
         preparation_service = PreparationService(
@@ -330,21 +331,24 @@ class Services:
         # sweep: the work is fetched now rather than at the next pass. A lost
         # announcement delays the fetch until the next start, which catches up.
         catalogue_service.subscribe(lambda event: acquisition_queue.nudge() if event.change is WorkChange.ACCEPTED else None)
+        sighting_service = SightingService(discovery, catalogue, route=sources.route)
         runner_service = DiscoveryRunner(
             discovery_service,
             engine,
             discovery_settings,
-            images=None if pool is None else PhaseTwoEngine(pool, box=artwork_box),
+            images=None if pool is None else PhaseTwoEngine(pool, box=artwork_box, registry=registry),
             previews=None if pool is None or previews is None else PreviewCache(previews, pool.fetch_preview),
             # Independent of the phase-2 pair: a deployment may resolve images
             # without supplementing, and a run with no collection simply offers
             # nothing.
-            collection=collection,
+            collection=sources.collection,
+            sightings=sighting_service,
         )
         return cls(
             catalogue=catalogue_service,
             library=library,
             access=PlayerAccess(catalogue),
+            clients=ClientService(catalogue, display_settings),
             discovery=discovery_service,
             display=display_service,
             thumbnails=thumbnail_service,
@@ -364,6 +368,7 @@ class Services:
                 display_service,
                 backup_receipt_path=thumbnails.art_root / BACKUP_RECEIPT_FILENAME,
                 box=artwork_box,
+                sources=sources,
             ),
             runner=runner_service,
             # `art_root` off the thumbnail settings for the same reason `review`
@@ -382,7 +387,7 @@ class Services:
                 # coupling the accounting split is filed to remove.
                 discovery_service,
                 runner_service,
-                collection=collection,
+                collection=sources.collection,
             ),
             # Over the same store the conversations live in, because a judgment's
             # citation and the turn it cites have to be detachable in one
@@ -397,6 +402,7 @@ class Services:
             topics=TopicService(catalogue, registry, kept=kept, wanted=discovery_service),
             topic_sweep=topic_sweep,
             wikidata_match=WikidataMatchService(discovery_service, registry),
+            sightings=sighting_service,
         )
 
     def reconcile(self) -> None:
@@ -418,6 +424,12 @@ class Services:
         next start rather than leaving it undone.
         """
         self.discovery.reconcile()
+        # Canvases drawn with another mat, panel or drawing rule are queued to be
+        # recomposed. Nothing is drawn here; the queue does it once serving.
+        self.acquisition_queue.owe_recomposition(self.preparation.layout)
+        # Mats darker than the floor, all of them older than it, are chosen
+        # again the same way: a queue row each, the queue's `prepare` choosing.
+        self.acquisition_queue.owe_mats_over_the_floor()
         # Before the walls, and outside their `OSError` guard: it writes no
         # manifest, only the catalogue, and a failure here is one to see.
         self.display.catch_up_offers()

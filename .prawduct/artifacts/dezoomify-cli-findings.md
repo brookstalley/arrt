@@ -38,7 +38,7 @@ that works. That is what the 2024 pipeline did at `image_utils.py:393-394`, and 
 still works — verified the same day against the same object.
 
 **This matters because the URL a source carries is deliberately not a fetchable
-one.** `library/discovery/artic.py` sets `FoundImage.url` to the museum's object link and
+one.** `library/sources/artic.py` sets `FoundImage.url` to the museum's object link and
 says so in a comment: it is the instance's *identity*, "the bytes are reached
 through `acquisition_method`". So a fetch path that hands `source.url` straight to
 this binary is reading that field as something it was never meant to be. The

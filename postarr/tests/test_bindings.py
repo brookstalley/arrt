@@ -165,7 +165,7 @@ class TestUploading:
         assert state.binding_for("w1").is_on_the_television
 
     async def test_a_re_rendered_work_is_sent_again(
-        self, daemon: Daemon, tv: FakeTv, publish, art_root, state: DisplayState, clock
+        self, daemon: Daemon, tv: FakeTv, publish, wall_dir, state: DisplayState, clock
     ):
         """**The wall showing a composition the catalogue no longer holds.**
 
@@ -180,7 +180,7 @@ class TestUploading:
         await daemon.tick()
         first = state.binding_for("w1").tv_content_id
 
-        (art_root / "ready" / "w1.jpg").write_bytes(b"a different composition entirely")
+        (wall_dir / "ready" / "w1.jpg").write_bytes(b"a different composition entirely")
         clock.advance(10)
         await daemon.tick()
 

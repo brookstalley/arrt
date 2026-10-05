@@ -14,7 +14,7 @@ from postarr.daemon import Daemon
 from postarr.state import DisplayState
 
 
-async def test_killing_curation_changes_nothing(daemon: Daemon, tv: FakeTv, publish, clock, art_root, caplog):
+async def test_killing_curation_changes_nothing(daemon: Daemon, tv: FakeTv, publish, clock, wall_dir, caplog):
     """The acceptance criterion, made mechanical.
 
     Nothing here stands in for the curation process, and that is the test: with

@@ -207,7 +207,9 @@ between planes.
 > |---|---|
 > | `phase_two.searched` | which collection was asked about which work, how many results came back, and how many were usable at all |
 > | `phase_two.judged` | how many instances were credible, how many of those are below the floor, and `refused_at` — the gates that turned the rest away, which is the per-work summary of the `not_the_work` and `size_unknown` lines below |
-> | `phase_two.not_the_work` | a result was discarded as a different painting, naming what the provider called it and who it says painted it |
+> | `phase_two.not_the_work` | a result was discarded as a different painting, naming what the provider called it and who it says painted it, its `found_url`, the work's `qid`, and `link`: why no Wikidata link settled a differing title (`no_registry`, `no_qid`, `registry_unavailable`, `not_recorded`), or how the title was settled before the artist refused it (`title_matched`, `linked`) |
+> | `phase_two.linked` | a result whose title differs was kept because the work's Wikidata item records its page, naming both titles, the page and the item |
+> | `phase_two.link_unavailable` | Wikidata could not be asked which pages describe a work, so its titles alone decided; at WARNING, once per work |
 > | `phase_two.size_unknown` | a result was discarded because the provider reported no dimensions |
 > | `phase_two.unreachable` | a provider could not be asked about a work, which leaves it pending rather than unresolved |
 > | `phase_two.unanswerable` | no wired image source can look a work like this one up (Commons alone, for a work named by title); the work stays pending. Kept apart from `phase_two.unreachable`, which says a source was down |
@@ -235,16 +237,18 @@ between planes.
 > | `browse.below_floor` | a work was not offered because it would render too small. **Systemic rather than per-work**: one wrong artwork-box setting makes every browse result fall below the floor, and without this line the supplement offers nothing for ever while reporting only `works_offered: 0` |
 > | `work.suppressed` / `work.already_present` | an offer was declined because the curator rejected that work earlier, or because the run already carries it |
 >
-> **Acquisition's events, which start here.** `acquisition.tile_target_resolved`
-> is the product's first, and it exists because the fetch that follows it is
+> **Acquisition's events, which start here.** `acquisition.source_read` (named
+> `acquisition.tile_target_resolved` until 2026-10-03, when readers became
+> plugins) is the product's first, and it exists because the fetch that follows it is
 > against an address no record holds — without the line, a failed tile fetch
 > cannot be told apart from a museum that went away, and the recorded failure
 > names only the URL the source carries, which was never the one fetched.
 >
 > | Event | Says |
 > |---|---|
-> | `acquisition.tile_target_resolved` | a source's image service was resolved before fetching, naming both the recorded URL and the one actually used |
-> | `acquisition.deployment_fault` | acquisition refused before it started for a reason no source is at fault for — a full disk, a missing binary, an unwired provider. **At ERROR, and for these three conditions it is the only journal signal there is**: unlike a failed fetch, which is recorded against the source and readable afterwards, these reach the caller as a refusal the tool boundary answers without logging — and the person who can fix them is not the one holding the tool result. **Emitted by `AcquisitionService` at the raise, so the signal follows the condition and not the route in** — every caller gets it, and a surface added later inherits it rather than inheriting silence. The operator-facing *remedy* is held once beside the conditions, in `DEPLOYMENT_REMEDIES` (`library/acquisition/service.py`): the acquisition queue pauses on these conditions (`acquisition.queue_paused`, naming the condition), and the Work page, Activity › Queue and MCP's `get` all show the pause with that remedy (since 2026-10-02, `build-plan-after-review.md` Chunk 02; until then `retry_acquisition`'s three `except` clauses wrote it). (Until 2026-08-05 the line was emitted by that binding instead, so it existed only where acquisition was driven over MCP. Harmless while MCP was the only caller and a trap the moment it was not.) |
+> | `acquisition.source_read` | a plugin's reader turned a source's URL into what to fetch, naming the plugin, the recorded URL, the URL actually fetched, and whether it was tiles or a direct image |
+> | `acquisition.unclaimed` | a source was fetched as recorded because no installed plugin claims its URL. Ordinary for a 2024 seed row or a Commons image URL; the line that traces a source whose plugin was uninstalled, since nothing else can tell that case apart |
+> | `acquisition.deployment_fault` | acquisition refused before it started for a reason no source is at fault for — a full disk, a missing binary, a source whose plugin is installed and not loaded (`SourcePluginUnavailable`). **At ERROR, and for these three conditions it is the only journal signal there is**: unlike a failed fetch, which is recorded against the source and readable afterwards, these reach the caller as a refusal the tool boundary answers without logging — and the person who can fix them is not the one holding the tool result. **Emitted by `AcquisitionService` at the raise, so the signal follows the condition and not the route in** — every caller gets it, and a surface added later inherits it rather than inheriting silence. The operator-facing *remedy* is held once beside the conditions, in `DEPLOYMENT_REMEDIES` (`library/acquisition/service.py`): the acquisition queue pauses on these conditions (`acquisition.queue_paused`, naming the condition), and the Work page, Activity › Queue and MCP's `get` all show the pause with that remedy (since 2026-10-02, `build-plan-after-review.md` Chunk 02; until then `retry_acquisition`'s three `except` clauses wrote it). (Until 2026-08-05 the line was emitted by that binding instead, so it existed only where acquisition was driven over MCP. Harmless while MCP was the only caller and a trap the moment it was not.) |
 >
 > **`phase_two.not_the_work` is the one to read first when a run comes back
 > emptier than expected.** It carries the museum's own title and artist beside the
@@ -411,8 +415,10 @@ writer's to shape: the reader hands the whole object through untouched.
 
 **One heartbeat per wall, since 2026-08-12**, matching the manifest
 (`architecture.md` § One manifest per wall). The wall id is the one the curation
-catalogue minted, and the display plane takes it from `WALL_ID` in its
-environment exactly as it takes `TV_ADDRESS`. The reason is this section's own
+catalogue minted. Until 2026-10-02 the display plane took it from `WALL_ID` in its
+environment, exactly as it takes `TV_ADDRESS`. The client Player
+(`clients.md`) learns its walls from the server's client document and refuses
+`WALL_ID`, and one process now writes one heartbeat per wall it shows. The reason is this section's own
 requirement read across two rooms: `information-architecture.md` asks health to
 name *which* wall is silent, and one shared file cannot — a second display would
 overwrite the first's report every minute, so a wall that had gone dark would
@@ -481,6 +487,32 @@ and a writer that spelled one of them differently would drop off the panel in
 silence — the failure the one named key exists to prevent, reintroduced for every
 other field.
 
+### A client, and a wall on its screen (2026-10-02, `clients.md`)
+
+**Two levels of report, kept apart.** The **client heartbeat** (`POST
+/client/heartbeat`) says which outputs a client has, whether each is connected,
+and at what size. Settings › Clients shows it with its age. **Each wall's
+heartbeat** stays what it was: the work on the screen and the last error. A
+screen that is unplugged shows up in the first as `connected: false`, while the
+wall's own heartbeat keeps beating, because its worker keeps rotating.
+
+The Player's journal events for a client and an HDMI wall:
+
+| Event | Level | Means |
+|---|---|---|
+| `client.started` | INFO | The process is up, naming its server and cache, and whether it has a Frame |
+| `client.wall_started` / `client.wall_stopped` | INFO | The server assigned or took away a wall on an output |
+| `client.unreachable` / `client.reachable` | WARNING / INFO | The server cannot be reached; the walls run on from the cache |
+| `client.refused` | ERROR | The server refuses this client's token (`CLIENT_TOKEN`) |
+| `screen.absent` / `screen.returned` | WARNING / INFO | No screen on the wall's connector, then one again (drawn at once) |
+| `screen.draw_failed` / `screen.draw_recovered` | WARNING / INFO | The output refused a picture, said once per episode. The commonest cause is a service user outside group `video` |
+| `screen.refresh_failed` / `screen.refresh_recovered` | WARNING / INFO | The same, for the redraw tried on every poll |
+
+**A Player that has stopped leaves the text console on an HDMI screen**: the
+kernel gives the screen back when the process lets go of the display card. On
+the wall, that is how an outage looks, and Settings › Clients shows the client
+heartbeat ageing.
+
 ### The backup records that it succeeded, and the panel reads its age
 
 `operational-spec.md` promises backup age on this panel in absolute terms — "last
@@ -506,6 +538,50 @@ Both ends of this one are ours, unlike the heartbeat's, so the key cannot drift
 across planes. It can still drift in time — the reader is built and the writing
 job is separate, later work — which is why the name is written here rather than
 left in the code that reads it.
+
+### Source plugins: what loaded, and what faulted (2026-10-03, `source-plugins.md`)
+
+Image sources are plugins, so a source can now be missing or broken for reasons
+outside this repository. Either way the symptom is works that read as held by
+nobody, which looks like a fact about art rather than about this deployment. So
+the panel names every installed plugin and what became of it.
+
+- **At startup, each plugin is loaded, declined or failed.** A declined plugin is
+  installed and not configured here (the Art Institute without
+  `ARTIC_USER_AGENT`), and says which setting would change it. A failed one could
+  not be imported, was written for another interface major, raised in its
+  factory, or broke the interface's rules, and says which. Logged as
+  `source.loading` (INFO, before each factory runs, so a factory that hangs
+  leaves its name), `source.loaded`, `source.declined` (INFO) and `source.failed`
+  (ERROR). A `SOURCE_ORDER` name no installed plugin has is
+  `source.order_unknown` (WARNING), because a misspelling would otherwise
+  reorder the sources in silence.
+- **While running, a loaded plugin's faults are counted.** A fault is anything a
+  plugin raises outside its three answers. It is contained to the call, logged at
+  ERROR as `source.plugin_fault` with the traceback's frames, and the panel shows the count
+  since startup and the age of the last one. Counts reset with the process,
+  because the count is about the code running now. A fault includes answering in
+  a shape the interface forbids: an image under another plugin's name, or a
+  `None` where a list belongs.
+- **Every URL's query string is cut from every journal line**, by the formatter
+  (`logs.JsonFormatter`): message, fields and traceback alike. An HTTP client's
+  error names the URL it asked, a reader may answer a URL with a key in it, and a
+  paid source's key usually travels in the query, so this is the "no secret in a
+  log line" rule (`project-preferences.md`) applied at the one place every line
+  passes. What leaves by other routes is scrubbed where it leaves: a plugin's
+  failures and decline reason at the containment (they reach the health panel),
+  and a recorded acquisition failure in `_record_failure` (it reaches the Work
+  page and MCP).
+- **The System badge counts a failed plugin and a faulting one**, never a
+  declined one, which is a choice and not a problem.
+- **Pages a search found are journalled by what became of them** (2026-10-03,
+  `source-plugins.md` § Sightings), all at INFO, since none is a problem:
+  `sightings.recorded` (how many pages, and how many were new sightings),
+  `sightings.claimed` (a page an installed plugin claims, naming the plugin and
+  the host, and left to it), and `sightings.no_item` (pages for a work with no
+  Wikidata item, which have no key to be kept under). The count by host is a
+  query (`GET /api/sightings/hosts`), not a panel signal: it chooses the next
+  reader, and is read when that choice is being made.
 
 ### The panel shows staleness in absolute terms
 
@@ -655,10 +731,11 @@ rather than retry.
 
 **No secret may ever reach a log line.** This has unusual force here because the
 repository is **public** and log excerpts are exactly what gets pasted into a
-GitHub issue. Concretely: no OpenRouter API key, no TV pairing token, no wall
-Player token, no full `Authorization` header, no `.env` dump on startup. A refused
-Player request is logged by wall and by status (`Refused a Player request for …`),
-once per wall per ten minutes, and never with the token it presented;
+GitHub issue. Concretely: no OpenRouter API key, no TV pairing token, no
+client token, no full `Authorization` header, no `.env` dump on startup. A refused
+Player request is logged by the client it came from, or as "an unknown client",
+with the reason (`Refused a Player request from …`), once per that subject per
+ten minutes, and never with the token it presented or the wall id it asked for;
 `arrt/tests/contract/test_player_surface.py` holds that.
 
 **Programming's reconciliation says what it changed** (from 2026-09-30): `Wall

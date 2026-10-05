@@ -1,7 +1,7 @@
 """Every wired image source, asked at once, and the answers kept apart by source.
 
 Phase 2 used to reach one museum. The owner asked for a pool instead, with no
-source special-cased: each source is an `ImageSearch`, every one of them is asked
+source special-cased: each source is a `Finder`, every one of them is asked
 for every work in parallel, and adding one is a line in the wiring. Nothing above
 the pool learns how many sources there are.
 
@@ -21,16 +21,18 @@ because one server was down would tell a curator the painting is not out there.
 
 import contextvars
 import logging
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 from arrt.library.discovery.images import (
+    Finder,
     FoundImage,
+    FoundPage,
     ImageQuery,
     ImageQueryUnanswerable,
-    ImageSearch,
     ImageSearchFailure,
+    offers_images,
 )
 
 log = logging.getLogger(__name__)
@@ -50,19 +52,25 @@ class NoSourceCanAnswer(ImageSearchFailure):
 class PoolAnswer:
     """What every source said about one work.
 
-    `unreachable` names the sources that could not be asked. It is empty when
-    every source answered, which is the only case in which an empty `images`
-    means no source holds the work.
+    `unreachable` names the sources of images that could not be asked. It is
+    empty when every one of them answered, which is the only case in which an
+    empty `images` means no source holds the work. A finder of pages that could
+    not be asked is never in it: it holds no image either way, so its silence
+    leaves nothing in doubt.
+
+    `pages` are the pages the sources found and do not read, each once, kept apart
+    from the images because nothing about them can be judged (`FoundPage`).
     """
 
     images: Sequence[FoundImage]
     unreachable: tuple[str, ...]
+    pages: tuple[FoundPage, ...] = ()
 
 
 class ImageSourcePool:
     """The image sources phase 2 asks, in order of preference."""
 
-    def __init__(self, sources: Sequence[ImageSearch]) -> None:
+    def __init__(self, sources: Sequence[Finder]) -> None:
         if not sources:
             # An empty pool would answer every work with nothing, which reads as
             # "no source holds it". A deployment with no source has no pool at
@@ -75,8 +83,8 @@ class ImageSourcePool:
             # tiles are routed back by it. Two sources sharing a name would send
             # one source's URLs to the other.
             raise ValueError(f"Two image sources share a name: {', '.join(duplicated)}.")
-        self._sources: tuple[ImageSearch, ...] = tuple(sources)
-        self._by_name: dict[str, ImageSearch] = dict(zip(names, self._sources, strict=True))
+        self._sources: tuple[Finder, ...] = tuple(sources)
+        self._by_name: dict[str, Finder] = dict(zip(names, self._sources, strict=True))
 
     @property
     def providers(self) -> tuple[str, ...]:
@@ -94,7 +102,10 @@ class ImageSourcePool:
         A source that cannot look a work like this up is left out, as if not
         wired. Raises `ImageSearchFailure` only when no source answered, because
         then there is no answer at all. A source raising anything other than
-        `ImageSearchFailure` is a fault in that source and propagates.
+        `ImageSearchFailure` is a fault in that source and propagates. A plugin's
+        finder never gets that far: the loader wraps it so that a fault arrives
+        here as `ImageSearchFailure` (`library/sources/loading.py`). A finder
+        handed to the pool directly, as in most tests, still propagates.
         """
         with ThreadPoolExecutor(max_workers=len(self._sources), thread_name_prefix="image-source") as workers:
             # Each call runs in a copy of the caller's context, so what a source
@@ -104,11 +115,21 @@ class ImageSourcePool:
                 for source in self._sources
             ]
             images: list[FoundImage] = []
+            pages: dict[FoundPage, None] = {}
+            answered: list[str] = []
+            pages_only: list[str] = []
             unreachable: list[str] = []
             declined: list[str] = []
-            for provider, future in pending:
+            for source, (provider, future) in zip(self._sources, pending, strict=True):
                 try:
-                    images.extend(future.result())
+                    for found in future.result():
+                        if isinstance(found, FoundPage):
+                            pages[found] = None
+                        else:
+                            images.append(found)
+                    # A finder of pages answering says nothing about whether an
+                    # image exists, so it is not a source that answered.
+                    (answered if offers_images(source) else pages_only).append(provider)
                 except ImageQueryUnanswerable:
                     # Not asked, in effect: this source has nothing to say about
                     # works like this one, which is neither "holds none" nor "down".
@@ -119,24 +140,27 @@ class ImageSourcePool:
                         exc,
                         extra={"event": "image_pool.unreachable", "provider": provider, "work_title": query.title},
                     )
-                    unreachable.append(provider)
-        if len(unreachable) + len(declined) == len(self._sources):
-            # No source answered. Nothing is known about the work, so it is not
-            # recorded as held by nobody; it waits, as when every source is down.
+                    # Only a source of images leaves the work in doubt. A finder
+                    # of pages that could not be asked holds no image either way,
+                    # and counting it would keep a work waiting that every source
+                    # of images has answered for.
+                    (unreachable if offers_images(source) else pages_only).append(provider)
+        if not answered:
+            # No source of images answered. Nothing is known about the work, so
+            # it is not recorded as held by nobody; it waits, as when every source
+            # is down. The pages found are dropped with the answer, and a later
+            # search of the work finds them again.
             if unreachable:
                 raise ImageSearchFailure(f"No image source could be asked: {', '.join(unreachable)}.")
-            raise NoSourceCanAnswer(f"No image source can look this work up: {', '.join(declined)} cannot.")
-        return PoolAnswer(images=tuple(images), unreachable=tuple(unreachable))
+            cannot = [*(f"{name} cannot" for name in declined), *(f"{name} finds pages only" for name in pages_only)]
+            raise NoSourceCanAnswer(f"No image source can look this work up: {'; '.join(cannot)}.")
+        return PoolAnswer(images=tuple(images), unreachable=tuple(unreachable), pages=tuple(pages))
 
     def fetch_preview(self, provider: str, url: str) -> bytes | None:
         """The preview bytes, from the source the instance was recorded under."""
         return self._source(provider).fetch_preview(url)
 
-    def tile_targets(self) -> Mapping[str, Callable[[str], str]]:
-        """Each source's tile resolver, keyed by the name its instances carry."""
-        return {name: source.tile_url for name, source in self._by_name.items()}
-
-    def _source(self, provider: str) -> ImageSearch:
+    def _source(self, provider: str) -> Finder:
         try:
             return self._by_name[provider]
         except KeyError:

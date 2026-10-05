@@ -15,6 +15,8 @@ import json
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
+from arrt.library.sources.artic import claims as artic_claims
+from arrt.library.sources.loading import SourceRoster
 from arrt.mcp.server import SERVER_NAME
 from arrt.persistence.records import FetchStatus
 
@@ -141,6 +143,7 @@ async def test_help_reports_exactly_the_actions_a_tool_actually_serves(server_ur
         "set_verdict",
         "want",
         "list_wanted",
+        "sighting_hosts",
         "wikidata_matches",
         "set_wikidata_item",
         "reject_image",
@@ -257,7 +260,7 @@ async def test_an_unknown_tool_is_reported_with_the_names_that_do_exist(server_u
 # -- provenance and the acquisition actions, over the wire ---------------------
 
 
-def _a_work_with_sources(services):
+def _a_work_with_sources(services, *, primary_url: str = "https://www.artic.edu/iiif/2/abc/info.json"):
     """A catalogued work with two sources, one of them primary and fetched.
 
     Built through the service the surface itself uses, so the test's setup cannot
@@ -269,7 +272,7 @@ def _a_work_with_sources(services):
     work = catalogue.add_artwork(title="Fog Horn")
     primary = catalogue.add_source(
         artwork_id=work.id,
-        url="https://www.artic.edu/iiif/2/abc/info.json",
+        url=primary_url,
         provider="artic",
         source_class=SourceClass.INSTITUTIONAL,
         acquisition_method=AcquisitionMethod.DEZOOMIFY,
@@ -459,11 +462,12 @@ async def test_an_unresolvable_provider_pauses_the_queue_and_names_its_remedy(se
 
     A catalogue holding Art Institute works with no ARTIC_USER_AGENT configured
     is an ordinary deployment, not a contrived one — it is what every seeded
-    install starts as.
+    install starts as. Its sources record the museum's object pages, which only
+    the Art Institute's plugin can read.
     """
-    work, primary = _a_work_with_sources(services)
-    # Exactly what the container builds when no image provider is configured.
-    monkeypatch.setattr(services.acquisition, "_tile_targets", {})
+    work, primary = _a_work_with_sources(services, primary_url=_AN_OBJECT_PAGE)
+    # The Art Institute's plugin installed and declined, as on a keyless deployment.
+    monkeypatch.setattr(services.acquisition, "_route", _artic_declined().route)
 
     state = await _paused_on(server_url, services, work, primary)
 
@@ -475,8 +479,8 @@ async def test_an_unresolvable_provider_pauses_the_queue_and_names_its_remedy(se
 
 async def test_an_unresolvable_provider_records_nothing_against_the_source(server_url, services, monkeypatch):
     """A wiring fault must leave no `failed` row on a source that is perfectly good."""
-    work, primary = _a_work_with_sources(services)
-    monkeypatch.setattr(services.acquisition, "_tile_targets", {})
+    work, primary = _a_work_with_sources(services, primary_url=_AN_OBJECT_PAGE)
+    monkeypatch.setattr(services.acquisition, "_route", _artic_declined().route)
 
     await _paused_on(server_url, services, work, primary)
 
@@ -616,7 +620,9 @@ async def test_a_colour_a_person_spells_loosely_is_accepted_like_the_models_own(
 
 
 async def test_regenerate_composes_the_canvas_and_reports_where_it_went(server_url, services, settings):
-    work = _a_work_with_an_original(services, settings)
+    # Larger than the artwork box both ways, so the fit is `native` whatever the
+    # configured mat leaves.
+    work = _a_work_with_an_original(services, settings, width=3200, height=2400)
 
     payload, errored = await call(server_url, "art_catalogue", action="regenerate", artwork_id=work.id)
 
@@ -814,3 +820,11 @@ async def test_an_order_nobody_offers_is_refused_under_the_name_the_caller_sent(
 
     assert error or payload.get("ok") is False
     assert "sort" in json.dumps(payload)
+
+
+#: How the 2024 seed records an Art Institute work: the museum's own page for it.
+_AN_OBJECT_PAGE = "https://www.artic.edu/artworks/91194/golden-bird"
+
+
+def _artic_declined() -> SourceRoster:
+    return SourceRoster.of(unavailable={"artic": (artic_claims, "ARTIC_USER_AGENT is unset")})

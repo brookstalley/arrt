@@ -216,7 +216,7 @@ def test_a_run_completes_when_no_preview_can_be_written(services, settings, engi
     rather than calling the engine and the cache side by side, which would prove
     each half works and nothing about the seam between them.
     """
-    from fakes import FakeImageSearch, a_work, an_image
+    from fakes import FakeFinder, a_work, an_image
 
     from arrt.library.discovery.engine import WorkList
     from arrt.library.discovery.phase_two import PhaseTwoEngine
@@ -227,7 +227,7 @@ def test_a_run_completes_when_no_preview_can_be_written(services, settings, engi
         raise OSError("no space left on device")
 
     monkeypatch.setattr("pathlib.Path.write_bytes", explode)
-    museum = FakeImageSearch(holdings={"The Elephants": (an_image("The Elephants"),)})
+    museum = FakeFinder(holdings={"The Elephants": (an_image("The Elephants"),)})
     engine.result = WorkList(works=(a_work("The Elephants"),))
     runner = DiscoveryRunner(
         services.discovery,

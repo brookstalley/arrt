@@ -22,6 +22,7 @@ from dotenv import load_dotenv
 from arrt.library.discovery.images import DEFAULT_PREVIEW_MAX_BYTES
 from arrt.library.services.display_fit import ArtworkBox
 from arrt.library.services.runner import DiscoverySettings
+from arrt.library.sources.loading import DEFAULT_SOURCE_ORDER
 from arrt.persistence.migrations import DEFAULT_WALL_NAME
 from arrt.programming.manifest.builder import MANIFEST_FILENAME_TEMPLATE, manifest_path_in
 from arrt.programming.manifest.heartbeat import heartbeat_path_in
@@ -75,8 +76,9 @@ TILE_CACHE_DIRNAME: Final[str] = "tile-cache"
 #: **Truthful by default, which is a change from the 2024 pipeline.** That code
 #: sent a hardcoded Chrome-on-Windows string — a claim to be software it is not,
 #: made to servers whose operators use it to decide how to treat traffic. The
-#: same reasoning already governs `ARTIC_USER_AGENT`, whose absence leaves the
-#: Art Institute out rather than let this product misrepresent whoever runs it:
+#: same reasoning already governs `ARTIC_USER_AGENT` (read by the Art Institute
+#: plugin, `library/sources/artic.py`), whose absence leaves the Art Institute
+#: out rather than let this product misrepresent whoever runs it:
 #: a default is acceptable here only because this one misrepresents nobody.
 #: Deployments that want a contact address in it should set their own.
 DEFAULT_ACQUISITION_USER_AGENT: Final[str] = "arrt (+https://github.com/brookstalley/arrt)"
@@ -116,6 +118,12 @@ DEFAULT_MAX_IMAGE_BYTES: Final[int] = 512 * 1024 * 1024
 #: with ordinary headroom.
 DEFAULT_MIN_FREE_BYTES: Final[int] = 2 * 1024 * 1024 * 1024
 
+#: Loopback unless a deployment says otherwise. On the Pi the plane was reached
+#: over the operator's network rather than published on it; in the NAS container
+#: the image sets `CURATION_HOST=0.0.0.0` and the house's LAN-only reverse proxy
+#: is the boundary (the owner's ruling of 2026-10-02, `security-model.md`
+#: § Trust Boundary). A default that binds every interface would be a decision
+#: no one made.
 DEFAULT_HOST: Final[str] = "127.0.0.1"
 DEFAULT_PORT: Final[int] = 8770
 
@@ -140,6 +148,13 @@ DEFAULT_ROTATION_SHUFFLE: Final[bool] = True
 #: this directory is the only one under `ART_ROOT` that nothing else reclaims.
 DEFAULT_PREVIEW_SWEEP_INTERVAL_SECONDS: Final[int] = 3600
 
+#: How often the catalogue is backed up when `BACKUP_DIR` is set: daily, as
+#: `operational-spec.md` § Backup and Restore plans, plus once at every start.
+DEFAULT_BACKUP_INTERVAL_SECONDS: Final[int] = 24 * 60 * 60
+#: Generations kept. Two weeks of dailies: a backup that quietly stopped is
+#: seen on the health panel long before the last good one ages out.
+DEFAULT_BACKUP_KEEP: Final[int] = 14
+
 #: These defaults describe a 42" Frame at 4K. That is a REFERENCE, not this
 #: deployment — the operator's set is 50", and a stale diagonal produces a running
 #: system that quietly mis-sizes every judgement rather than failing. Nothing may hardcode a
@@ -151,8 +166,10 @@ DEFAULT_TV_PANEL_HEIGHT_PX: Final[int] = 2160
 DEFAULT_TV_PANEL_DIAGONAL_INCHES: Final[float] = 42.0
 
 #: The mat's width on the sides and top, in inches on the wall. Physical units
-#: rather than pixels or a ratio, so it means the same thing on any panel.
-DEFAULT_MAT_WIDTH_INCHES: Final[float] = 2.5
+#: rather than pixels or a ratio, so it means the same thing on any panel. The mat
+#: hugs the work, with black beyond it, so this is the whole of the mat a viewer
+#: sees on every side, not a minimum the screen's shape adds to.
+DEFAULT_MAT_WIDTH_INCHES: Final[float] = 1.5
 
 #: How much deeper the bottom margin is than the top. A true-centred image reads
 #: as sitting low, so conservators weight the bottom — the convention this
@@ -367,6 +384,12 @@ class Settings:
     #: decided. Zero disables sweeping, which is a coherent choice for a
     #: deployment with disk to spare — previews are harmless, only numerous.
     preview_sweep_interval_seconds: int
+    #: Where the catalogue's backups go, or None when this deployment takes none
+    #: (the health panel then says no backup has been recorded). A directory on
+    #: storage other than the art root's, so losing one does not lose the other.
+    backup_dir: Path | None
+    backup_interval_seconds: int
+    backup_keep: int
     #: The **television's** panel, never the e-paper one. Curation composes the
     #: mat and judges whether a source is large enough for the wall, so it needs
     #: the TV's physical size; it must hold no fact about the label panel, which
@@ -433,21 +456,17 @@ class Settings:
     #: serves the whole catalogue and refuses only to *start* a discovery run,
     #: which is a far better failure than refusing to boot.
     openrouter_api_key: str | None = None
-    #: How this deployment identifies itself to the Art Institute's API.
-    #: **Optional, and its absence leaves the Art Institute out**: of phase 2's
-    #: image sources, of a run's supplement and of a conversation's sample
-    #: pictures. Phase 2 still runs on Commons when Wikidata is configured, and
-    #: is off only when neither is. The API is open but asks callers to name
-    #: themselves and give a contact address, and sending someone else's
-    #: identifier — or a default pretending to be one — would be this product
-    #: misrepresenting whoever runs it to a third party. So there is no default,
-    #: and a deployment that has not set one never asks the Art Institute
-    #: anonymously.
-    artic_user_agent: str | None = None
+    #: Source plugins by name, most preferred first; plugins it does not name
+    #: follow, by name. Order only breaks a tie between images ranked level,
+    #: because every finder is asked at once. The default is the owner's ruling of
+    #: 2026-10-01: Commons, then the Art Institute.
+    source_order: tuple[str, ...] = DEFAULT_SOURCE_ORDER
     #: How this deployment identifies itself to Wikidata's query service, which
     #: refuses or blocks callers without a descriptive agent and contact details
-    #: (`wikidata-findings.md`). **No default, for `artic_user_agent`'s reason**:
-    #: unset switches matching off, and the registry features say so.
+    #: (`wikidata-findings.md`). **No default**: sending someone else's
+    #: identifier, or a default pretending to be one, would misrepresent whoever
+    #: runs this to a third party. Unset switches matching off, and the registry
+    #: features say so.
     wikidata_user_agent: str | None = None
 
     @property
@@ -521,10 +540,10 @@ class Settings:
     def originals_path(self) -> Path:
         """Where acquired master images live.
 
-        Upstream rather than derived: nothing regenerates these, so this is the
-        directory a backup would have to carry if the image tree were backed up
-        at all — and the recorded decision is that it is not, because
-        re-acquisition refills it from the catalogue.
+        Upstream rather than derived: nothing regenerates these. The backup
+        carries the catalogue alone, so these are the storage's own snapshots'
+        to keep; a master whose row survives its file is not re-fetched today
+        (#180).
         """
         return self.art_root / ORIGINALS_DIRNAME
 
@@ -532,9 +551,9 @@ class Settings:
     def ready_path(self) -> Path:
         """Where composed television canvases live.
 
-        Derived and regenerable, so a lost `ready/` costs a re-render rather than
-        a re-acquisition — which is why the backup carries neither this nor the
-        originals beside it. Specific to the television in a way `thumbs/` is
+        Derived and regenerable by a re-render, but nothing re-renders a missing
+        file on its own today (#180), so a restore carries `ready/` with the
+        originals beside it; the backup itself carries neither. Specific to the television in a way `thumbs/` is
         not: the mat is drawn to this panel's physical size.
         """
         return self.art_root / READY_DIRNAME
@@ -621,9 +640,7 @@ class Settings:
         return cls(
             art_root=art_root,
             catalogue_path=art_root / CATALOGUE_FILENAME,
-            # Loopback by default: the plane is reached over an overlay network
-            # rather than by being exposed on the LAN, and a default that binds
-            # every interface is a decision no one made.
+            # Loopback by default; see `DEFAULT_HOST`.
             host=os.environ.get("CURATION_HOST") or DEFAULT_HOST,
             port=_port("CURATION_PORT", DEFAULT_PORT),
             wall_name=os.environ.get("WALL_NAME") or DEFAULT_WALL_NAME,
@@ -633,6 +650,9 @@ class Settings:
             # which is a deployment's to choose, where a rotation interval of
             # zero is simply broken.
             preview_sweep_interval_seconds=_counted("PREVIEW_SWEEP_INTERVAL_SECONDS", DEFAULT_PREVIEW_SWEEP_INTERVAL_SECONDS),
+            backup_dir=Path(os.environ["BACKUP_DIR"]) if os.environ.get("BACKUP_DIR") else None,
+            backup_interval_seconds=_positive_int("BACKUP_INTERVAL_SECONDS", DEFAULT_BACKUP_INTERVAL_SECONDS),
+            backup_keep=_positive_int("BACKUP_KEEP", DEFAULT_BACKUP_KEEP),
             tv_panel_width_px=_positive_int("TV_PANEL_WIDTH_PX", DEFAULT_TV_PANEL_WIDTH_PX),
             tv_panel_height_px=_positive_int("TV_PANEL_HEIGHT_PX", DEFAULT_TV_PANEL_HEIGHT_PX),
             tv_panel_diagonal_inches=_positive_float("TV_PANEL_DIAGONAL_INCHES", DEFAULT_TV_PANEL_DIAGONAL_INCHES),
@@ -687,7 +707,7 @@ class Settings:
                 "CONVERSATION_MAX_OUTPUT_TOKENS", DEFAULT_CONVERSATION_MAX_OUTPUT_TOKENS
             ),
             openrouter_api_key=os.environ.get("OPENROUTER_API_KEY") or None,
-            artic_user_agent=os.environ.get("ARTIC_USER_AGENT") or None,
+            source_order=_names("SOURCE_ORDER", DEFAULT_SOURCE_ORDER),
             wikidata_user_agent=os.environ.get("WIKIDATA_USER_AGENT") or None,
         )
 
@@ -703,6 +723,13 @@ class Settings:
             name: ("<set>" if getattr(self, name) else "<unset>") if name in _SECRET_FIELDS else getattr(self, name)
             for name in self.__dataclass_fields__
         }
+
+
+def _names(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    """A comma-separated list of names, blanks dropped; the default when unset or empty."""
+    raw = os.environ.get(name, "")
+    names = tuple(part.strip() for part in raw.split(",") if part.strip())
+    return names or default
 
 
 def _require(name: str) -> str:

@@ -231,6 +231,11 @@ token in the UI, then update the Player. A leaked token lets someone read one
 wall's schedule and forge its health, and nothing more. It never reaches the
 catalogue or the curator's surfaces. It lands in wave 2, with the routes.
 
+> **Amended 2026-10-02 by the owner's ruling that clients are first-class
+> (`clients.md`).** The token is per **client**, an installed Player driving
+> any number of walls, and opens the walls assigned to that client; wall
+> tokens are retired. `player-contract.md` § Transport is the as-built rule.
+
 `[DECISION: per-wall bearer tokens, checked on every wall route and on media;
 the server stores only a verifier | the operator's ruling "each wall gets a
 token". Checking the GETs as well as the POST is the advisor's addition: one rule
@@ -348,7 +353,10 @@ caption drawn in the mat, which needs the mat *sized for the caption*.
 - **The Library keeps** the Original, the mat colour and its reasoning, and the
   label text. It **produces** the presentation master.
 - **The Player composes** the mat for its own geometry, and (for caption mode)
-  sets the label in the mat area.
+  sets the label in the mat area. The mat takes the **work's** shape and the
+  rest of the screen is black (`nonfunctional-requirements.md` § The mat is
+  geometric, ruled 2026-10-02 and built in the server's compositor ahead of this
+  move); the Player's compositor inherits that rule.
 - **On a Samsung Frame, a caption can only exist burned into the image before
   upload.** That is a second reason compositing belongs where the label is
   decided.
@@ -375,9 +383,9 @@ caption drawn in the mat, which needs the mat *sized for the caption*.
   from the largest screen any Player reports, which would put device geometry
   in the Library. The other was judging only at hang time, which would let
   review accept scans no wall could use.
-- **Compositing on a Pi 4 has no measured cost.** Composing from an 8K-class
-  master whenever a new work arrives or the geometry changes needs a budget in
-  `nonfunctional-requirements.md` before wave 4 is planned.
+- **Compositing on a Pi 4 is measured and budgeted** (2026-10-04,
+  `nonfunctional-requirements.md` § Performance): composing from a 7680 master
+  takes at most about 3 s and 800 MB, against a budget of 5 s and 1 GB.
 - **The presentation master is transported, and that conforms.** It is
   rendered for no geometry, so the data-model norm "derived artifacts are
   regenerated, never transported" does not reach it. The ruling is recorded in
@@ -391,6 +399,11 @@ names a monitor that draws the label in the mat area, and that is only possible
 if the device composes the mat. Keeping compositing upstream would force the
 catalogue to learn every screen's geometry, which is the data-model norm's cited
 anti-pattern | user can veto/override]`
+
+> **Direction changed 2026-10-02 (the owner's ruling, `upgrades.md`):** "No
+> cutoff, but back off searches. At 3840, maybe once a month. At 7680, every six
+> months." The minimum stays; the cutoff becomes a search cadence by size tier,
+> and upgrades never stop looking.
 
 `[DECISION: the resolution floor is a Library quality profile in pixels, with a
 minimum and an upgrade cutoff; per-wall adequacy is Programming's comparison
@@ -502,6 +515,44 @@ the Watch:
 The UI may offer "also make a playlist from this watch" as a shortcut that
 creates both.
 
+### Sources are plugins (the owner, 2026-10-03)
+
+**The owner's ruling:** *"let's make acquisition through plugins, that way people
+can add paid or local or whatever they choose to; then build our own as a private
+repo."* So:
+
+- **Image sources are plugins.** A deployment adds a source without changing
+  Arrt, whether that source is paid, local, or a site Arrt's authors would never
+  ship.
+- **The owner's own scrapers live in a private repo**, not here. That settles
+  the terms-of-service question for sources that forbid scraping, such as Google
+  Arts & Culture and the auction houses: this public repo ships the plugin
+  contract, not those adapters.
+- **The seam already exists.** `ImageSearch` (`library/discovery/images.py`, renamed `Finder` when plugins were built) is
+  what the pool asks, and nothing above the pool knows how many sources there
+  are. A plugin is that protocol opened to code outside Arrt.
+
+**Decided later the same day, by the owner:**
+
+- **A plugin is a Python package loaded inside Arrt**, not a separate service.
+  The agent recommended a service, for isolation and for deployment as a sibling
+  container; the owner chose the package. So installing a plugin trusts it as
+  fully as Arrt's own code.
+- **The existing sources are the examples.** The Art Institute and Commons are
+  rebuilt on the plugin interface rather than kept as a special case beside it.
+- **Plugins are per protocol, not per institution** (IIIF, Google Arts &
+  Culture, Artlogic, and so on), so one plugin reaches every holder that serves
+  its protocol.
+
+**Not yet decided:**
+
+- where search lives: in each plugin, or in Arrt with plugins only reading what
+  it finds;
+- what a plugin must report for its spending to be capped;
+- how its untrusted text and bytes are bounded (`security-model.md`).
+
+The contract artifact settles these before any code.
+
 ## Player outputs
 
 There are two families of screen, behind one "show this work" interface:
@@ -566,8 +617,10 @@ plan: each wave gets its own `build-plan-<scope>.md` when it starts, per
 | **0: clear the decks** *(closed 2026-09-30)* | Park round 2. ~~Reconcile the v1 plan's open chunks.~~ | Round 2 is **parked, not abandoned**, on branch `curation-ui/rulings-and-plan`. It is curation-UI work that remains valid for the server; revisit after wave 2. **The operator closed the rest of this wave: "wave 0 -- abandon. We'll rebuild with this new plan."** The v1 plan's open chunks (13A, 13B, 20, 24–27) are abandoned, not carried; § Where the v1 open chunks' requirements went records what each one served and where it is rebuilt. Retiring the 2024 root modules moves to wave 5, when this repo becomes Arrt. |
 | **1: plan** *(closed 2026-09-30)* | Amend the artifacts (this change started that). Write the Player contract artifact with a JSON Schema and fixtures. Write the wave-2 build plan. | Planned as doc-only; it shipped code as well. The contract's schemas and fixtures are tested from all three suites, which each declare `jsonschema` in their `dev` group. The amendments were drafted 2026-09-30; see § Artifacts touched. Wave 2 is two plans: `build-plan-wave-2a-rename.md`, then `build-plan-wave-2b-seams-and-http.md`. |
 | **2: seams and the HTTP channel, alongside the file** *(closed 2026-09-30)* | Split curation into Library and Programming packages with one-way imports and the `playable()` facade. Move the manifest's readiness logic behind the facade. Add the events, and Programming's reconciliation at startup (§ Seam 1). Then serve manifest, media and heartbeat over HTTP, with Programming's manifest endpoint as the facade's first consumer. Display gains a pull-to-local-cache mode behind configuration. Schema minor bump. | The package split comes first because the manifest endpoint is built on exactly the readiness logic rule 2 moves; building it before the split means building it twice. The static import guard for rule 1 lands here. The wall never goes dark: the file channel keeps working until wave 3 retires it. `tests/preferences/test_plane_isolation.py` forbade any HTTP client in display. It was narrowed in the chunk that added the pull, and now allows one only in `postarr/src/postarr/pull.py`, whose routes must be ones `contract/routes.json` names. **The per-wall tokens land with the routes** (§ Seam 2), because the server on the Pi is already reachable on the LAN. The cache claim gets a test that stops the server while the wall runs. |
+| *(2026-10-02, the owner's direction)* **Upgrades, pulled forward** | Manual upgrades of held works (`build-plan-upgrades.md`), then the scheduler that runs them, ahead of wave 3 and out of wave 6+. The presentation master stays in wave 4; Watches stay in wave 6+. | "let's move from UI to discovery, acquisition, retry and upgrade following the *arr and ../tacularr's patterns". Requirements: `upgrades.md`. *Parked the same day as a research spike (next row, and `upgrades.md` § Status).* |
+| *(2026-10-02, the owner's direction)* **Wave 3 now, without the store split** | "NAS now": the server goes to the NAS beside the owner's other apps (`build-plan-nas.md`) and the backup writer lands; the Pi was cut over to HTTP, then stood down when the owner skipped the Frame, and returns as a client of the server (`build-plan-clients.md`). The store split is skipped for now, accepting one more data migration when it lands. Upgrades were pulled forward the same day and then parked as a research spike (#177, #178). | The owner asked for "what's needed to really get the system usable day to day". |
 | **3: server to the NAS** | First, split the store: Programming's tables move to their own SQLite file, and the two cross-seam foreign keys become opaque references (rule 3), so the data moves once. Then containerize the server, deploy it on the NAS, point the Pi at HTTP and retire the file channel. Move the backup and restore exercise to NAS storage, with `VACUUM INTO` and the two catalogue files backed up as a pair. | The deployment side lives in the operator's homelab repo. The image needs what the Pi's install has today: a uv-managed Python 3.14, the `dezoomify-rs` binary, and a memory limit in place of `MemoryMax`. It does not need Pango unless the server ever typesets. The schema test for rule 3 lands here. |
-| **4: schema major 2** | Add the presentation master and the quality profile. Remove the `tv_display` rendition and `TV_PANEL_*` from the server, and turn `MAT_*` into per-wall settings. Display composes, with the wall's mat proportions. The manifest becomes the schedule, with scenes, staging and wall settings. The heartbeat reports capabilities, and Programming judges per-wall adequacy from them. | The largest built-code change, and the only breaking one. Mat-colour regression corpus: `arrt/tools/mat_masters.py`. Blocked on a compositing budget measured on a Pi 4 (§ Compositing moves to the Player). Rotation logic moves from the display plane to Programming, along with the wake/sleep window from the v1 plan's Chunk 26. |
+| **4: schema major 2** | Add the presentation master and the quality profile. Remove the `tv_display` rendition and `TV_PANEL_*` from the server, and turn `MAT_*` into per-wall settings. Display composes, with the wall's mat proportions. The manifest becomes the schedule, with scenes, staging and wall settings. The heartbeat reports capabilities, and Programming judges per-wall adequacy from them. | The largest built-code change, and the only breaking one. Mat-colour regression corpus: `arrt/tools/mat_masters.py`. Its compositing budget on a Pi 4 was measured 2026-10-04 (§ Compositing moves to the Player). Rotation logic moves from the display plane to Programming, along with the wake/sleep window from the v1 plan's Chunk 26. |
 | **5: split the repos** | Extract the player with `git filter-repo` in **two passes**. Its history spans three paths: `display/` until wave 2a, `arrt/` until the rename of 2026-10-01, and `postarr/` since, and filter-repo does not follow renames. From the commit that renamed the server Curatarr to Arrt (`c1c31255a4e47e0116c088950325d62dd9b46d63`, landed on develop by the merge `1194e1e0ea546b8effc385e70794d782189b4d47`), `arrt/` holds the server instead. filter-repo rewrites every ref, so that commit and every commit descending from it on any branch are `c1c3125` plus `git rev-list --all --ancestry-path=c1c3125 ^c1c3125`. A set taken from one tip (`--ancestry-path c1c3125..<tip>`) misses a branch cut after the rename and not merged into that tip, which keeps the server under `arrt/` and collides in pass 2; either use the all-refs set or run both passes with `--refs <tip>`. Measured 2026-10-01: the all-refs set held 6 commits, the 4 on develop plus 2 on an unmerged branch. **Pass 1** works on the original paths: a `--commit-callback` turns every change under `arrt/` into a deletion in that commit and in every commit descending from it, the merge that landed it included (`FileChange(b"D", ch.filename)` for each `ch` whose filename starts `b"arrt/"`, when `commit.original_id` is in that set). **Pass 2** is `git filter-repo --path display/ --path arrt/ --path postarr/ --path-rename display/: --path-rename arrt/: --path-rename postarr/:`. It cannot be one pass: filter-repo applies the renames before the callback runs, so server and player files collide on shared names, and fast-import crashed on `uv.lock`. **Measured 2026-10-01** on a scratch clone, with the branch merged `--no-ff` into develop: the one-pass form crashed, and the two-pass form gave a tip tree identical to the original `postarr/`, and a tree at the player rename's parent identical to the original `arrt/` there. Rerun both checks on the real split. `/prawduct:onboard` there. Carry the player's artifacts. Pin `contract/` together with `player-contract.md` and the major 2 semantic validator (today in `tests/preferences/test_player_contract.py`), because the schemas alone do not carry the rules a schema cannot state. The new repo is **Postarr**, and this repo is renamed **Arrt**. Remove the 2024 root modules as this repo becomes Arrt. | GitHub keeps redirects on rename. |
 | **6+: in parallel** | Server: Watches, the scheduler and upgrades to the quality profile's cutoff; **facet population**, then Programming tags and smart playlists. Player: a framebuffer backend, caption in the mat, and **power control** (the television's power read, the guardrails, and acting on the schedule's dark hours). | Independent streams after the split. Watches carry the security and observability re-derivations above. Facet population needs its own requirements cycle (§ Two layers of tags), and smart playlists wait for it. |
 
@@ -605,9 +658,9 @@ the other way round.
   and about twenty minutes, are starting proposals. The wave 1 contract wrote
   the fields that carry them (`player-contract.md` § Major 2). The values are
   settled before wave 4 builds major 2.
-- **The compositing budget on a Pi 4.** Measure it before wave 4 is planned. An
-  image is composed once per work and geometry, ahead of its slot, and cached,
-  so the risk is judged low but unmeasured.
+- ~~**The compositing budget on a Pi 4.**~~ *Answered 2026-10-04:* measured and
+  budgeted in `nonfunctional-requirements.md` § Performance. A 7680 cap needs no
+  reduction for the Pi's sake, which bears on the master's size cap above.
 - **The quality profile's numbers:** the minimum and the upgrade cutoff, in
   pixels. The floor the code derives from today's panel is the starting point.
 - **The smart-playlist rule language:** how rich, and whether the facade's

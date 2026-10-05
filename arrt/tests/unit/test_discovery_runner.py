@@ -18,6 +18,7 @@ from decimal import Decimal
 import pytest
 from fakes import a_work, a_work_list, spent, works
 
+from arrt.library.discovery.dedup import work_dedup_key
 from arrt.library.discovery.engine import BudgetExhausted, EngineFailure, ProposedWork, WorkList, unavailable_engine
 from arrt.library.services.runner import DiscoveryRunner
 from arrt.persistence.discovery_records import InitiatedBy, RunStatus, SpendCategory, Verdict
@@ -266,7 +267,13 @@ def test_a_work_the_curator_already_rejected_is_not_proposed_again(services, eng
     proposing it again would ask the curator to decline the same painting
     forever.
     """
-    already = propose("The Elephants", dedup_key="salvador dali::the elephants")
+    # The key a run derives, rather than a spelling of it: written out, it is a
+    # copy of the derivation that goes stale when the derivation changes.
+    already = propose(
+        "The Elephants",
+        dedup_key=work_dedup_key(title="The Elephants", artist="Salvador Dalí"),
+        proposed_artist="Salvador Dalí",
+    )
     services.discovery.set_verdict(already.id, Verdict.REJECTED)
 
     engine.result = WorkList(works=(a_work("The Elephants"), a_work("Galatea of the Spheres")), spend=spent())
@@ -293,7 +300,11 @@ def test_a_work_the_engine_names_twice_is_recorded_once(services, engine, settin
 
 def test_the_stored_estimate_counts_the_works_actually_proposed(services, engine, settings, propose):
     """Not what the engine said. A skipped work costs nothing to resolve."""
-    already = propose("The Elephants", dedup_key="salvador dali::the elephants")
+    already = propose(
+        "The Elephants",
+        dedup_key=work_dedup_key(title="The Elephants", artist="Salvador Dalí"),
+        proposed_artist="Salvador Dalí",
+    )
     services.discovery.set_verdict(already.id, Verdict.REJECTED)
     engine.result = WorkList(works=(a_work("The Elephants"), a_work("Galatea of the Spheres")), spend=spent())
     runner = DiscoveryRunner(services.discovery, engine, settings.discovery_settings, spawn=lambda work: work())

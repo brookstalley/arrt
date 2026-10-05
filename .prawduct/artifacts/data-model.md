@@ -183,6 +183,14 @@ to serve, elicited from the Product Brief's core flows:
 | Q35 | Which source should the next attempt use, when someone named one? Asked by MCP's `retry_acquisition`. | Owner 2026-10-02 (#167) |
 | Q36 | Which works does the curator want and not yet hold a scan of, across every run? Asked by Activity › Wanted and `art_review(action='list_wanted')`. | Owner 2026-10-02 (#168) |
 | Q37 | Was this work wanted because a scan was turned down, or because none was found? | Owner 2026-10-02 (#168) |
+| Q38 | Which client drives this wall, and on which of its outputs? Asked by the Walls screen and by every listing of walls. | Owner 2026-10-02 (clients) |
+| Q39 | Which walls does this client drive? The client's own question, asked over HTTP about every 30 seconds (`GET /client`). | Owner 2026-10-02 (clients) |
+| Q40 | Is this request from a client allowed this wall? Asked by every per-wall Player route. | Owner 2026-10-02 (clients) |
+| Q41 | What outputs did this client last report, and when? Asked by the curator choosing an output for a wall. | Owner 2026-10-02 (clients) |
+| Q42 | Was this television canvas drawn with the mat, panel and drawing rule this deployment composes with now? Asked by preparation before it calls a canvas current, and at startup to queue the ones that are not. | Owner 2026-10-02 (#189, #74) |
+| Q43 | Which hosts have pages for works still open (wanted, or unresolved with no verdict) that no installed source plugin reads, and for how many works each? Asked by `GET /api/sightings/hosts` and `art_review(action='sighting_hosts')`, to choose the next reader. | Agent 2026-10-03, in the owner's sources-are-plugins plan (`source-plugins.md` § Sightings) |
+| Q44 | When a source plugin is installed, which works' pages can it read now? Not asked yet: the upgrade loop will. | Agent 2026-10-03 (same) |
+| Q45 | Where else has this work been seen? Not asked yet: a work's page will. | Agent 2026-10-03 (same) |
 
 **Q22 to Q24 are answered by one column, `DiscoveryRun.destination_theme_id`**
 (`build-plan-topics-and-destinations.md` Chunk 01). A work reaches its run
@@ -228,6 +236,19 @@ the service orders it newest run first, since the verdict carries no moment of i
 own. Q37 is whether a wanted work holds any instance with `rejected_at` set — a
 count read at the listing, so it cannot disagree with the rows it counts. Storing
 the reason beside the verdict would be a second truth about the same instances.
+
+**Q38 to Q41 are answered by `Client` and two columns on `Wall`, `client_id` and
+`output`** (`build-plan-clients.md` Chunk 01, `clients.md`). Q38 is the two
+columns read directly. Q39 is the walls whose `client_id` is the client's, served
+by the partial unique index `walls_one_per_output (client_id, output)`, which also
+holds that one output of one client shows at most one wall. Q40 is the client the
+presented token's verifier matches (`Client.token_verifier`) compared with the
+wall's `client_id`. **Q41 is deliberately not in the catalogue**: what outputs a
+client has, whether each is connected and its size are the device's runtime
+state, reported in `client-heartbeat-{client_id}.json` under `ART_ROOT` beside
+the wall heartbeats and read as an observation with an age. The server stores
+only the output's *name* on the wall, the one device fact the owner's ruling
+needs it to hold.
 
 **Q15 is what makes the collection navigable at the amended scale**
 (`nonfunctional-requirements.md`, thousands of works). At 41 works a curator
@@ -363,7 +384,7 @@ re-parsing a blob, and so two works by the same artist agree.
 > than a person. Both are nullable and the two ways of being null are the same
 > fact downstream — the label falls back to `name`, unstyled. Supplied for the
 > seeded corpus by a written table (`arrt/src/arrt/seed/names.py`), never by a
-> heuristic; `library/discovery/artic.py` documents its own surname guess as unreliable.
+> heuristic; `library/sources/artic.py` documents its own surname guess as unreliable.
 > Nothing derives one part from the other, and nothing derives `name` from them.
 >
 > **`display_nationality` is the same decision one field over, added 2026-08-13.**
@@ -563,6 +584,8 @@ A derived, device-specific output. **Regenerated, never transported.**
 | `generated_at` | datetime | auto | Refreshed on upsert, so a recomposed canvas is newer than it was. Load-bearing rather than bookkeeping: it is the only column that moves when a canvas is redrawn at the same path from the same Original, which is what makes a stale `thumbnail` of it detectable (invariant 4). |
 | `content_sha256` | string | optional, indexed | *(Added 2026-09-30, wave 2b.)* The SHA-256 of the file's bytes: the render's identity once it is served, at `/media/sha256-<hex>`. The catalogue service hashes the file itself when the rendition is recorded, never taking it from the caller, for the reason `source_content_hash` is read rather than accepted. Null for a render recorded before the column existed, or whose file was not there to read, and filled in the first time the Library is asked to offer it as media. |
 | `byte_size` | integer | optional | *(Added 2026-09-30.)* The file's size, recorded with the hash so a manifest can state it. |
+| `layout` | string | optional | *(Added 2026-10-02, #189.)* For a `tv_display` canvas, the geometry and drawing rule it was composed with: the panel and artwork box in pixels and the compositor's rule name (`compose.layout`). Answers Q42. A canvas whose layout is not the one this deployment composes with now is recomposed, and at startup the acquisition queue is given a preparation for each such work; the old canvas stays on the wall until the new one is recorded. Null for a thumbnail, and for a canvas recorded before the column existed, which counts as out of date. Goes with `tv_display` in wave 4. |
+| `mat_hex` | string | optional | *(Added 2026-10-03, #183.)* For a `tv_display` canvas, the mat colour it was painted in. A canvas whose `mat_hex` is not the work's current mat is not current and is recomposed by the next preparation, so a mat recorded before its canvas was redrawn (a crash or failed redraw between the two) cannot leave the old colour on the wall. Null for a thumbnail, and for a canvas recorded before the column existed, which counts as out of date. Goes with `tv_display` in wave 4. |
 
 > **Q8.** Geometry is *columns*, not a filename suffix. The 2024 design encoded
 > it as `_w648_h480` in the filename, which is why the recovered catalogue points
@@ -607,7 +630,7 @@ regenerating it costs money.
 |---|---|---|---|
 | `id` | UUID | PK | |
 | `artwork_id` | UUID | FK → Artwork, required | |
-| `hex_rgb` | string | required | e.g. `#27285b`. |
+| `hex_rgb` | string | required | e.g. `#27285b`. *(Floor added 2026-10-03, #183.)* No darker than CIE L\* 15 (`MAT_LIGHTNESS_FLOOR`). `CatalogueService.record_mat_color` refuses one; the store itself does not check, so rows written before the floor remain. The seed does not carry a 2024 colour below it, or one the work has worn before. A current colour below it predates the floor: preparing the work chooses again and redraws the canvas, and at startup the acquisition queue gets a preparation for each accepted work holding a canvas with such a mat, or with none. |
 | `lab_l`, `lab_a`, `lab_b` | float | nullable | Preserved when the model returns them. |
 | `reason` | text | nullable | The model's stated rationale. |
 | `method` | enum | required | `vision_model` \| `dominant_color_fallback` \| `manual`. |
@@ -750,13 +773,17 @@ operator's ruling that themes are created globally and assigned per wall.)*
 | `id` | UUID | PK | Stable identity, referenced across the plane boundary **by id only**, exactly as `TvBinding` already references an Artwork. |
 | `name` | string | required, unique | "Living room". The curator's own word, and the noun every confirmation names — "Hang Winter in the living room". |
 | `created_at` | datetime | auto | |
-| `token_verifier` | string | optional | *(Added 2026-09-30, wave 2b.)* The SHA-256 hex digest of the wall's Player token, never the token. Null until one is issued. `security-model.md` § Inventory has the credential. |
-| `token_issued_at` | datetime | optional | *(Added 2026-09-30.)* When the current token was issued, shown on the Walls screen so a curator can tell which Player is still on an old one after a rotation. |
+| `client_id` | UUID | optional, FK → Client | *(Added 2026-10-02, `clients.md`.)* The client that shows this wall. Null while none does, which is an ordinary state. Set together with `output`. |
+| `output` | string | optional | *(Added 2026-10-02.)* The name of that client's output the wall is shown on, as the client reported it (`hdmi-a-1`, `frame`). Null exactly when `client_id` is. At most one wall per (`client_id`, `output`), held by a partial unique index. |
+
+*Removed 2026-10-02:* `token_verifier` and `token_issued_at`, the per-wall Player
+token (added 2026-09-30). Clients replaced it; `migrations.retire_wall_tokens`
+drops both columns from a catalogue that has them.
 
 **Few fields, and the shortness is the design.** A Wall is an identity, a name,
-and the verifier of the one credential that lets a Player serve it; it is not a
-device. The token belongs to the wall and not to a device: replace the television
-and the token stays, rotate it and every device holding the old one is refused.
+and its assignment: which client shows it, on which output by name. It is not a
+device. The credential now belongs to the client (§ Client), and the output's
+name is the one device fact the wall holds, by the owner's ruling of 2026-10-02.
 
 > **This entity sits inside the catalogue, and that is a ruling against the third
 > Direction norm rather than an oversight.** "Per-device runtime state never lives
@@ -781,10 +808,40 @@ and the token stays, rotate it and every device holding the old one is refused.
 > renders, the same way it is already configured with `TV_ADDRESS`. The catalogue
 > never learns what kind of device is on the other end.
 >
+> **Amended 2026-10-02 by the owner (`clients.md`):** which *client* shows a
+> wall, and on which of its outputs *by name*, is now held here, because the
+> server has to tell a client its walls. Everything else on the forbidden list
+> stays forbidden: the output's kind, connection and size are reported by the
+> client in its heartbeat file, never stored on this table.
+> `[DECISION: the server records which client drives each wall and on which of
+> its outputs, by name | owner's ruling 1 in clients.md | owner can veto]`
+>
 > `[DECISION: a Wall entity in the curation store, holding identity and name only |
 > theme assignment is a curatorial act and has to be reachable from the curation
 > surface, while everything device-shaped stays behind the plane boundary the third
 > Direction norm draws | user can veto/override]`
+
+### Client
+
+> **Programming-owned, added 2026-10-02** (`clients.md`, `build-plan-clients.md` Chunk 01).
+
+An installed Player, known to the server by a name and one credential. A client
+drives any number of walls, each on one of its outputs, and learns which from
+`GET /client`; its host is configured with the server's address and this
+client's token and nothing else.
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `id` | UUID | PK | |
+| `name` | string | required, unique | The curator's word for the host ("The Pi in the hall"). Every confirmation about a client names it. |
+| `created_at` | datetime | auto | |
+| `token_verifier` | string | optional | The SHA-256 hex digest of the client's token, never the token. Null until one is issued; such a client is admitted nowhere. `security-model.md` § Inventory has the credential. |
+| `token_issued_at` | datetime | optional | When the current token was issued, so a curator can tell which host still holds an old one after a rotation. |
+
+**Nothing about the device**: no address, no geometry, no model. What outputs a
+client has is what it reports in `client-heartbeat-{client_id}.json` (Q41).
+Removing a client unassigns its walls (they keep their themes) and drops its
+heartbeat file.
 
 ### ThemeAssignment
 
@@ -1460,6 +1517,22 @@ artworks.
 > trailing alternate title in parentheses dropped *unless the remainder names
 > nothing in particular*; a parenthesised alias dropped from the artist.
 >
+> *(Amended 2026-10-04, by the owner's ruling: **a leading English article is
+> dropped** — `the`, `a` or `an`, as the title's first word with another after it.
+> It answers a rewrite observed between a holder and a request rather than between
+> two proposals: MoMA catalogues Agnes Martin's "The Tree", which reached it as
+> "Tree", and the title gate refused it (`procurement-corpus.md` § Run 3). The
+> corpus holds no work recurring with and without its article, so the rule unites
+> nothing there and merges nothing there. Its merge direction is two works by one
+> artist whose titles differ only by a leading article, which was judged rare
+> enough to carry. The guard on generic titles asks its question of the title
+> without its article, so "The Portrait (Hands)" keeps its parenthetical as
+> "Portrait (Hands)" does; and the article is read from the title as written, so
+> the initial in "A. Lincoln" is not one. Other languages' articles are left alone, being prepositions or
+> pronouns often enough to merge titles that differ. A change to the derivation
+> re-keys stored rows at the next start: `DiscoveryService.reconcile` re-derives
+> every key, not only those whose title it re-cleaned.)*
+>
 > *(Amended 2026-08-02: this list also carried "a bilingual `Original / English`
 > compound reduced to its first half". That rule was removed from the code the same
 > day and the clause is struck here so the decision record does not go on
@@ -1511,8 +1584,9 @@ artworks.
 > re-key" — true then, and false by the time the citation rules gained the bare
 > form, by which point the catalogue held rows and seven of them were keyed under
 > a citation the rules now strip. `DiscoveryService.reconcile` re-cleans
-> every stored title at startup and rewrites the key of any it changed, so the
-> obligation is discharged by each start rather than owed by each change. It is
+> every stored title at startup and rewrites any key the current rules derive
+> differently (since 2026-10-04; before, only the keys of titles it re-cleaned),
+> so the obligation is discharged by each start rather than owed by each change. It is
 > idempotent and normally a no-op. A title the cleaning empties is left exactly as
 > stored — `require_text` refuses an empty one on the way in, so writing one would
 > make the row unreadable and destroy the evidence of a rule that reached too far.
@@ -1616,8 +1690,22 @@ selected. Produced by phase 2.
 > between two named artists is disqualifying, not a deduction** — this collection
 > holds *American Gothic* by Grant Wood and *American Gothic* by Elizabeth Layton,
 > so a scheme that merely ranked one above the other would attach the wrong one
-> whenever the right one was absent. Nothing that fails the comparison is recorded
-> at all: a near-match kept at low confidence is still selected the moment nothing
+> whenever the right one was absent.
+>
+> **A page the work's Wikidata item records passes the title comparison**
+> (2026-10-04, by the owner's ruling). A holder may catalogue a work under a
+> shorter title — MoMA holds Taeuber-Arp's *Composition of Circles and Overlapping
+> Angles* as *Composition* — and a shorter title accepted on its own would match
+> every *Composition* she made. So the shorter title does not pass; the item does.
+> When a result's title differs, the work has a QID, and the result's `url` is,
+> exactly, one of the pages `Registry.pages_about` gives for it, the record is the
+> work, and the artist comparison still decides. The registry is asked once per
+> work, only then; one that cannot be asked means no link. This is not identity
+> by source URL (§ Direction): the work's identity stays its key and its QID, and
+> the page is evidence in one resolution attempt, the mirror of the QID matcher
+> reading a holder's identifier from a source URL.
+>
+> Nothing that fails the comparison is recorded at all: a near-match kept at low confidence is still selected the moment nothing
 > better exists, which is precisely the case a work no museum holds produces, so
 > the only safe representation of "this is a different painting" is absence.
 >
@@ -1870,6 +1958,29 @@ Which `CandidateWork`s a `kind='resolve'` run covers. A join, nothing more.
 > refused if any requested work already appears in a `ResolveRunWork` row whose run
 > is still `resolving_images`.
 
+### Sighting
+
+A page about a work that no installed source plugin reads: a holder seen, not yet
+reachable (`source-plugins.md` § Sightings). Written when a search finds a page
+(`FoundPage`) and no installed plugin claims it.
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `wikidata_qid` | string | required | The work's Wikidata item. |
+| `url` | string | required | The page. **Never sent to the browser**: it came from a registry anyone can edit (`security-model.md` § Direction). |
+| | | PK (`wikidata_qid`, `url`) | A page found again is the same sighting. |
+
+> **Two columns, because Q43 to Q45 need no more.** Q43 counts hosts, read from the
+> URL, over the works still open, read from `CandidateWork` and `Artwork` by item.
+> Q44 gives each URL to the installed plugins' claims, and Q45 is a read by item.
+> A host column would be a second copy of part of the URL. *Mine, 2026-10-03.*
+>
+> **Keyed by the item, not by a CandidateWork**, because a work is one item across
+> every run that proposed it, and the only finder that offers pages answers only by
+> item. A page found for a work with no item is not stored. Rows are never
+> deleted: a page seen stays seen, and a plugin installed later is what Q44 asks
+> about.
+
 ### TvBinding *(display plane only)*
 
 Everything about one specific television. **Not part of the catalogue** — this is
@@ -1990,6 +2101,8 @@ the catalogue.
   records which run is **re-searching** it. Overloading provenance to mean coverage
   would destroy the provenance, and `parent_run_id` cannot serve either, because a
   resolve run covers a *subset* of the parent's works.
+- A work's **Sightings** are matched to it by Wikidata item, not by a foreign key:
+  to every **CandidateWork** and **Artwork** carrying that `wikidata_qid`.
 - A **DiscoveryRun** accrues many **SpendRecords** (one-to-many).
 - A **Conversation** has many **ConversationTurns** (one-to-many, ordered by
   `ordinal`). A turn accrues **SpendRecords** exactly as a run does, and on its own
@@ -2024,9 +2137,13 @@ the catalogue.
   share a database. This is why `wall_id` on that table carries no FK while the
   identical column on **ThemeAssignment** does: the catalogue can enforce what it
   owns, and the display plane holds a copy of an id it was configured with.
+- A **Client** shows many **Walls** (one-to-many, optional both ways, via
+  `Wall.client_id`), each on one of its outputs by name, and an output of a
+  client shows at most one wall. A wall nobody shows and a client with no walls
+  are both ordinary.
 - **Nothing in the catalogue points at a device.** A Wall is a place; which
-  television or panel serves it is display-plane configuration, and the catalogue
-  is rebuildable without knowing it.
+  television or panel serves it is the client's, and the catalogue holds only
+  which client and the output's name, and is rebuildable without knowing more.
 
 ## State Machines
 

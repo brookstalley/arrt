@@ -1,16 +1,17 @@
 """What this plane says about itself, for anyone who cares to look.
 
-**The only thing that runs display → curation**, and deliberately not a
-dependency in either direction: this writes the file and never checks whether
-anybody read it. Curation being absent, or present and ignoring it, changes
+**What runs display → curation about a wall**, and deliberately not a
+dependency in either direction: this writes the file, the pull forwards it, and
+nothing here checks whether anybody read it. Curation being absent, or present and ignoring it, changes
 nothing here. That is what keeps the availability norm true — the display plane's
 ability to show art never depends on the curation plane being reachable — while
 still giving a health surface something real to read.
 
 **Two names in this document are a contract rather than a preference, because the
-reader was built first.** The file is `display-heartbeat-<wall id>.json` under
-`ART_ROOT` — one per wall, so a health surface can name which wall is silent —
-and the instant is spelled `reported_at`. `arrt/src/arrt/programming/manifest/heartbeat.py` treats
+reader was built first.** The file is `display-heartbeat-<wall id>.json` — one
+per wall, so a health surface can name which wall is silent; the Player writes it
+in the wall's own cache and the server keeps what it is sent under the same name
+— and the instant is spelled `reported_at`. `arrt/src/arrt/programming/manifest/heartbeat.py` treats
 any other spelling as an unreadable heartbeat and says so — so a writer that
 called the field `timestamp` would produce a plane that looks *down* to curation
 while running perfectly. That is this product's defining failure mode
@@ -45,10 +46,9 @@ from typing import Any, Final
 
 log = logging.getLogger(__name__)
 
-#: Where curation looks, **one file per wall**. Not configurable, for the same
-#: reason the manifest's name is not: both planes have to agree, and a setting is
-#: a way for them to disagree. Which wall this process serves *is* configuration
-#: — `WALL_ID` — and that is a different thing from where a wall's file is.
+#: **One file per wall.** Not configurable: both planes name it, and a setting
+#: is a way for them to disagree. Which walls this client serves is the server's
+#: to say, and that is a different thing from what a wall's file is called.
 #:
 #: Per wall so that health can name which wall is silent. One shared file could
 #: not: the second display would overwrite the first's report every minute, and a
@@ -124,17 +124,17 @@ class Health:
         }
 
 
-def path_in(art_root: Path, wall_id: str) -> Path:
-    """Where one wall's heartbeat lives under a given art root.
+def path_in(root: Path, wall_id: str) -> Path:
+    """Where one wall's heartbeat lives under a given directory.
 
     The one place the template is filled in on this side, so this plane cannot
     spell the name two ways — and so curation's copy of the template has exactly
     one thing to agree with.
     """
-    return art_root / HEARTBEAT_FILENAME_TEMPLATE.format(wall_id=wall_id)
+    return root / HEARTBEAT_FILENAME_TEMPLATE.format(wall_id=wall_id)
 
 
-def write(art_root: Path, health: Health, *, wall_id: str, reported_at: datetime) -> None:
+def write(root: Path, health: Health, *, wall_id: str, reported_at: datetime) -> None:
     """Put the heartbeat on disk, atomically, replacing whatever was there.
 
     **Temp-and-rename, and the same discipline as the manifest builder's
@@ -166,7 +166,7 @@ def write(art_root: Path, health: Health, *, wall_id: str, reported_at: datetime
     heartbeat is an annotation and not the product, and it is the caller that
     holds the report-once machinery to say so at most once per episode.
     """
-    destination = path_in(art_root, wall_id)
+    destination = path_in(root, wall_id)
     temporary = destination.with_name(f"{destination.name}.tmp")
     payload = json.dumps(health.document(reported_at=reported_at), indent=2, ensure_ascii=False)
     try:

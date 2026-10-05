@@ -62,6 +62,463 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-04: A title worded differently by its holder
+
+<!-- prawduct: scope=title-identity -->
+
+**Why:** run 3 found seven of the nine open MoMA works; phase two's title gate
+refused the other two on wording ("Tree" against MoMA's "The Tree"; Taeuber-Arp's
+long title against MoMA's "Composition"). The owner ruled: a leading article
+passes; a holder's shorter title does not pass on its own; a page the work's
+Wikidata item records does. Plan: `build-plan-title-identity.md`.
+
+**What:**
+- `title_key` drops one leading English article (`the`, `a`, `an`) followed by
+  whitespace in the title as written, so "A. Lincoln" keeps its initial; quotes
+  or emphasis before it are passed over, and a title that would be left empty
+  keeps its article. It is
+  half of `work_dedup_key`, so the identity key changes with it. The generic-title
+  guard compares the title without its article, so "The Portrait (Hands)" keeps
+  its parenthetical.
+- `phase_two.not_the_work` names `found_url`, `qid` and `link`, how the title
+  gate was or was not settled.
+- Phase two passes a result whose title differs when the work has a QID and the
+  result's `url` is exactly one of `Registry.pages_about(qid)`. The artist check
+  still runs. The registry is asked at most once per work, only on a differing
+  title; one that cannot be asked means no link (`phase_two.link_unavailable`).
+  The review card says the title differs and what identified it.
+- The container hands phase two the deployment's registry.
+- The startup repair re-derives every stored key, not only those whose title it
+  re-cleaned, and reports re-keyed rows apart (`works.rekeyed`, at INFO). Before
+  this, a change to the derivation alone left stored keys under the old rule.
+  **A rollback does not undo it:** the previous build re-keys only re-cleaned
+  titles, so article-titled rows stay split from new proposals until this build
+  is redeployed or the pre-deploy catalogue copy is restored.
+
+**Tests changed, and why:**
+- `test_a_stored_title_the_rules_do_not_reach_is_left_exactly_as_it_is`: it
+  seeded keys no writer produces (`title.lower()`) and asserted them unchanged.
+  The repair now rewrites any stale key, so the rows are seeded with the keys the
+  rules derive. It still asserts title and key unchanged, and now also that no
+  repair is logged.
+- `test_a_work_the_curator_already_rejected_is_not_proposed_again` and
+  `test_the_stored_estimate_counts_the_works_actually_proposed`: they wrote the
+  old derivation's key out by hand (`salvador dali::the elephants`). They now
+  seed the key the rules derive, with the artist the row would carry.
+- The shared `propose` fixture defaults a key to its title's derivation rather
+  than `title.lower()`, so a test that restarts the plane does not see its rows
+  re-keyed.
+
+## 2026-10-03: Image sources are plugins
+
+<!-- prawduct: scope=source-plugins -->
+
+**Why:** the owner ruled that sources are plugins, so that people can add paid,
+local or any other sources, and that the owner's own scrapers live in a private
+repository. Contract: `source-plugins.md`. Plan: `build-plan-source-plugins.md`.
+
+**What (Chunk 01):**
+- `arrt.library.sources`: the plugin interface, versioned `1.0`, and the only
+  import path a plugin may use.
+- `ImageSearch` is renamed `Finder` everywhere.
+- The Art Institute and Commons moved to `library/sources/`. They register as
+  `arrt.sources` entry points in `arrt/pyproject.toml`, and import nothing from
+  `arrt` but the interface.
+- The loader (`library/sources/loading.py`):
+  - A plugin that cannot load is left out and named, and Arrt starts without it.
+  - A fault in a loaded plugin is contained to the call, logged as
+    `source.plugin_fault`, and counted.
+- Each plugin reads its own variables from the environment. `ARTIC_USER_AGENT`
+  left `Settings`; the name and its meaning are unchanged.
+- New setting: `SOURCE_ORDER`.
+- System › Status has an *Image sources* panel, and the System badge counts a
+  failed or faulting plugin.
+
+**Tests changed, and why:**
+- `test_no_budget_balance_appears_anywhere_on_the_panel`: its exact set of the
+  health reading's keys gained `sources`. It is still exact, and the budget-word
+  check over every key, the new ones included, is unchanged.
+- `test_startup_names_every_image_source_it_wires_in_order`: it sets the user
+  agents in the environment rather than in `Settings`, which is now the only
+  place a plugin can read them from. The assertion is unchanged.
+- `test_startup_with_no_image_source_says_which_settings_would_add_one`: it
+  asserts each plugin's own reason, in order, where it asserted one hand-written
+  sentence that named both built-ins. The claim (the line says which settings
+  would add a source) is the same, and it is now derived from the plugins.
+- New suite-wide fixtures (`arrt/tests/conftest.py`): every test runs with the
+  plugins' variables cleared, and any test that logs a plugin fault fails unless
+  it is marked `plugin_fault_expected`.
+
+**What (Chunk 02):**
+- **Readers.**
+  - A plugin declares which URLs it `claims` (static, no I/O), and a loaded one
+    provides a `Reader` that turns a claimed URL into a `FetchLocator`: direct,
+    tiles, or none.
+  - Acquisition routes a stored source by its URL, through `SourceRoster.route`:
+    - claimed by a loaded plugin: its reader decides the fetch;
+    - claimed by a plugin that is installed and not loaded: a deployment fault,
+      `SourcePluginUnavailable`, naming the plugin and its reason;
+    - claimed by none: fetched as recorded.
+  - The Art Institute's `tile_url` became its reader, and it claims only the
+    museum's hosts.
+  - `tile_url`, `RESOLUTION_REQUIRED`, the pool's and the container's
+    `tile_targets`, and `library/acquisition/tiles.py` are gone.
+    `TileTargetUnavailable` became `SourcePluginUnavailable`.
+  - The Commons reader moved to Chunk 03, where its input first exists.
+- **The container's only source input is the roster** (`sources=`).
+  `image_sources` and `collection` are gone, so the finders, collection, readers
+  and health panel cannot disagree.
+- **Containment closed its holes** (carried from Chunk 01's final review):
+  - a part whose `provider` raises, or that is not a `Finder`, `Reader` or
+    `CollectionBrowse`, leaves the plugin out;
+  - a finder's answer of the wrong shape, or with an image under another
+    plugin's name, is a contained fault;
+  - a raising `claims` claims nothing and is counted;
+  - error text loses every URL's query string before the journal or the panel;
+  - each plugin is journalled before its factory runs;
+  - an unknown `SOURCE_ORDER` name is a warning.
+- **Renamed:** `ArticImageSearch` and `CommonsImageSearch` are now `ArticFinder`
+  and `CommonsFinder`.
+- **Fixed at the start of this chunk:** `SourceContext.user_agent`, added in
+  Chunk 01 at review, carries `ACQUISITION_USER_AGENT` to every plugin. No
+  built-in reads it yet: the Art Institute and Commons each require their own
+  identifying variable.
+
+**Tests changed in Chunk 02, and why:**
+- `test_acquisition_tiles.py` became `test_acquisition_reading.py`. Each of its
+  contracts is kept against the reader that replaced the resolver:
+  - the reader is asked about the recorded URL;
+  - a URL nobody claims keeps its URL;
+  - a claimed URL with its plugin not loaded is a deployment fault, now driven
+    through the real loader and the real declining Art Institute plugin;
+  - a reader's fault never falls through to the recorded URL;
+  - the Art Institute claims both of its URL shapes and not Google's.
+
+  The two tests of the `RESOLUTION_REQUIRED` declaration became tests of the
+  plugin's `claims`, which is the declaration now.
+- `test_image_pool.py::test_each_source_resolves_its_own_tiles` is retired. The
+  pool no longer resolves tiles. Its claim, that a source's tiles go to the code
+  that knows them, is `test_acquisition_reading.py`'s routing tests.
+- `test_artic_client.py`'s image-service tests call the reader, not
+  `tile_url`. "Publishes no image" is now a `none` locator, not a raise. It is
+  still distinct from a failed lookup, which the old test asserted.
+- `test_acquisition_service.py` and `test_catalogue_tool.py` route through
+  rosters, not provider-keyed maps, with every assertion kept. Two catalogue
+  tests now give their source an object page: their IIIF `info.json` URL needs
+  no plugin, so it is correctly no longer a fault.
+- `test_bindings.py`: the remedy table names `SourcePluginUnavailable`, and its
+  remedy still names `ARTIC_USER_AGENT`.
+- The suite-wide fault guard moved to `tests/fault_guard.py`, where it reads its
+  logger name from the loader. It is now tested (`test_fault_guard.py`).
+- **Added at review:**
+  - The tiled-source provenance test (a recorded URL whose host does not
+    resolve must not stop a claimed source being read) was dropped in the
+    rewrite, and is restored in `test_acquisition_reading.py`.
+  - The scrubbing now covers every way a plugin's words leave the containment:
+    its own failures, its decline reason, faults and browse failures. Each way
+    has a test through its caller.
+  - The Art Institute reader treats an answer that is not the object's own
+    record as could-not-be-asked, never as "no image" (gap 5).
+  - The plan's survey of the NAS `sources` table moved to Chunk 05, with the
+    shapes taken from the code that writes them meanwhile.
+  - The journal formatter (`logs.JsonFormatter`) cuts every URL's query string
+    from each finished line, covering every call site, the fetchers' own
+    warnings and tracebacks included. Every recorded acquisition failure is
+    scrubbed too, in `_record_failure`. The scrub was first added call site by
+    call site, and two verification rounds each found one more site.
+
+**What (Chunk 03):**
+- **The owner chose, at the start of the chunk, that Commons keeps its finder.**
+  The plan's Commons reader is descoped: a reader's answer carries no size, so a
+  P18 page read by it would never become an image. The design note in the plan
+  has the three options.
+- **A finder's answer may carry `FoundPage`s**: pages it found and does not read.
+  The pool keeps them apart from images and each once, phase 2 passes them on,
+  and the containment accepts them. The interface stays 1.0.
+- **A built-in `wikidata` plugin** offers every page a work's item records: each
+  external identifier put into its property's formatter URL, and each P973. It
+  needs the registry, and declines without one.
+- **`Registry.pages_about`**, and a new registry string kind, `WorkPage`: a URL
+  checked only as `http(s)` with a host, never sent to the browser.
+- **Sightings** (`sightings` table; `library/services/sightings.py`): a page no
+  installed plugin claims, stored once per item and URL. The runner records them
+  after each search attempt that answered. A claimed page is journalled and left
+  to its plugin.
+- **Question 1:** `GET /api/sightings/hosts` and
+  `art_review(action='sighting_hosts')` count open works by host, and return
+  host names only.
+
+**Tests changed in Chunk 03, and why:**
+- `test_startup.py`: the startup line names `wikidata` after the two the
+  default order names, and the no-source line carries its decline reason. Both
+  assertions are as exact as before.
+- `test_catalogue_tool.py`: `art_review`'s action list gained `sighting_hosts`,
+  still compared exactly.
+- `test_registry_strings.py`: the registry's kinds gained `WorkPage`, and the
+  hostile-registry test now checks `pages_about` as well. A work page is checked
+  only as an address, so the test now says it can be a stranger's URL, and
+  points to the test that keeps it out of every response.
+- `test_persistence_boundary.py`: `library/services/sightings.py` joins the
+  network allowlist, with its reason: it imports `urllib.parse` to read a host.
+- `test_source_plugins.py`: the built-ins' import guard reads its module list
+  from the installed entry points. It named `artic.py` and `commons.py` by hand,
+  so the new plugin would have gone unchecked.
+- `test_discovery_store.py`: the expected schema gained `sightings`.
+- **Fixed after review:** a finder of pages declares `offers_images = False`,
+  and the pool does not count it as a source that answered. Before the fix, the
+  Wikidata finder's answer alone, pages or none, recorded a work as held by
+  nobody. The startup line lists only finders of images, so
+  `test_startup_names_every_image_source_it_wires_in_order` is back to its
+  original assertion, plus a check that `wikidata` loaded.
+
+**What (Chunk 04):**
+- **`docs/source-plugins.md`**, the guide for writing a plugin: the entry point
+  and factory, the interface, the parts, the three answers and gap 5, what Arrt
+  checks and what it does not, and testing. Its example reader and tests were
+  run against an installed Arrt before they went in.
+- **`deploy/README.md` § A private source plugin**: the derived image, installed
+  with Arrt's lock as a constraint. Without one, a plugin requiring `httpx<0.28`
+  downgraded Arrt's httpx and built cleanly (measured on `arrt:0e10e6d`).
+- **`security-model.md` § Source plugins**, and an amendment to § Supply Chain.
+  What installing a plugin trusts now has one home. `source-plugins.md` § Trust
+  points to it, and no longer names the retired wall tokens.
+- No tests changed.
+
+**What (Chunk 05):**
+- **Deployed to the NAS** as `e51adfb`, and again as `4042fd0` with the fixes
+  below, after a read-only survey of its stored sources. 32 Art Institute object pages and 8 Google Arts & Culture assets
+  each route as designed, and both shapes were already in the suite. All three
+  plugins load.
+- **Run 2** re-searched run 1's 39 unresolved works through the plugins, rather
+  than a Get of all 50, so no work was duplicated. No outcome changed. It
+  recorded 82 sightings, and the host count is in `procurement-corpus.md`
+  § Results: MoMA 9, the Met 4, navigart.fr 3, SFMOMA 3.
+- **Two live checks:** run 1's six finds come back from the same source at the
+  same size, and *Drowning Girl*'s item still gives MoMA's page.
+- Tests added, none changed.
+
+**Fixed after the cumulative review:**
+- A finder of pages that could not be asked no longer keeps a work waiting, when
+  every source of images has answered for it.
+- A roster whose only finders find pages gives phase 2 no source
+  (`SourceRoster.finds_images`). The wiring, the previews setting and the
+  startup line all read it.
+- A finder of pages that answers an image is a contained fault.
+- A plugin that failed before its claims could be read still turns its own rows
+  into a deployment fault, recognised by the provider they record.
+- Corrected wording:
+  - the health panel's sentences about faults and the built-in plugins;
+  - the Art Institute's and `SourceParts`' docstrings;
+  - `api-contract.md`'s `GET /api/health` row and shape, which now carry
+    `sources`.
+- Tests added, none changed. `test_acquisition_service.py`'s `_claims_nothing`
+  takes the provider that `route` now accepts.
+
+**Operator notes:**
+- **A journal event is renamed:** `acquisition.tile_target_resolved` is now
+  `acquisition.source_read`. A search or alert keyed on the old name finds
+  nothing. New events: `acquisition.unclaimed`; `source.loading`,
+  `source.loaded`, `source.declined`, `source.failed`, `source.order_unknown`
+  and `source.plugin_fault`; `sightings.recorded`, `sightings.claimed` and
+  `sightings.no_item`. Each is described in `observability-strategy.md`.
+- **The `sightings` table is additive.** The way back is image `bb021bb` with
+  the catalogue restored from the copy taken before the migration
+  (`pre-source-plugins-<timestamp>.sqlite` in the backups directory).
+
+## 2026-10-03: A corpus to choose the next source by
+
+<!-- prawduct: scope=procurement-corpus -->
+
+**Why:** the owner ruled the contemporary-web half of procurement built, not
+retracted: "in-copyright count, users will add those and it's not our place to
+limit them." Which source to build first should be measured, not guessed.
+
+**What:**
+- `procurement-corpus.md`:
+  - **Part A:** 59 works by the owner's 19 anchors, each with a verified QID or
+    the search that found none, a rights band, the failures expected, and a
+    prediction for today's pool and for the source that would get it, written
+    before any run.
+  - **Part B:** a held-out list of 34 artists for discovery.
+  - **Gaps:** seven product gaps the research exposed.
+  - The researchers' notes, in `procurement-corpus-research/`.
+- The ruling recorded in `nonfunctional-requirements.md` § The Supply Horizon and
+  `project-state.yaml` § integrations, where the question was held open.
+
+- **The owner's rulings:**
+  - Small images are placeholders for better versions, so they are worth getting.
+  - Every work stays.
+  - The first Get runs on the NAS.
+  - The gaps were left to the agent to rule on. The agent ruled on each in the
+    artifact.
+- `tests/preferences/test_held_out_artists.py`: no Part B artist may be named
+  under `arrt/src` or be an artist in `all.json`. On its first run it failed on
+  Magritte, Jasper Johns and Vasarely, all three already in the library. They came
+  off the list for three artists from the reserve.
+
+**Run 1, the first Get on the NAS:**
+- 11 of 50 found, at $0.
+- 40 of 50 predictions right.
+- The misses refined two rules:
+  - The Art Institute serves works it holds in copyright at full resolution.
+    This was already recorded on 2026-08-04; my prediction rule contradicted it.
+  - Commons answers past the rights boundary with photographs of works, once
+    with a photograph of the artist in place of *Whaam!*.
+- Step 3a: the Art Institute holds about a thousand imaged works by 13 of the 19
+  anchors, nearly all above the floor.
+
+The Supply Horizon section carries a dated note pointing at the measurement.
+
+**Review:** 0 blocking and 1 warning, now fixed. The rulings that bind future
+code (gaps 4–6, and the held-out rule) now have rows in the norm index in
+`project-preferences.md`. `architecture.md`'s rule for source authors now points
+at the unrecognised-page trap.
+
+## 2026-10-03: No mat near black
+
+<!-- prawduct: scope=mat-floor -->
+
+**Why:** the owner's ruling on #183. With the mat inside pure black, a
+near-black mat "looks like a bad LCD". 10 of the 41 mats carried from 2024 are
+darker than L\* 15.
+
+**What:**
+- **No mat darker than L\* 15** (`MAT_LIGHTNESS_FLOOR`), on every screen. A
+  model answer below it is asked once more, naming the floor; two such answers
+  fall back to the mechanical colour. The fallback is lifted to the floor in its
+  own hue. A person's colour below it is refused by name.
+- **The prompt** says the display outside the mat is black, states the floor,
+  and asks for a faint warm or cool cast rather than a neutral grey, even for a
+  black-and-white work. It no longer says a grey is right for an achromatic
+  work. The cast is guidance only; the owner ruled out a chroma floor.
+- **Mats already below the floor are chosen again.** Preparation will not keep
+  one and redraws the canvas in the new colour; at startup each accepted work
+  with a canvas and such a mat gets a prepare-only queue row. The old colour
+  stays in the work's mat history. Each is a paid model call, counted in the
+  journal as `preparation.mat_rechoice_queued`.
+- **The regression bar** (`nonfunctional-requirements.md` § Output Quality) no
+  longer includes the 10 corpus mats below the floor, and the unbuilt `#222222`
+  preset is marked below it, left to #91.
+- **The floor is checked once**, in `CatalogueService.record_mat_color`. The
+  seed skips a 2024 colour below it (report note `mat_below_floor`) and no longer
+  re-carries a colour the work has worn before, so re-seeding cannot restore a
+  replaced mat. A changed index colour still supersedes.
+- **A canvas records the mat it was painted in** (`renditions.mat_hex`, added on
+  open). One painted in another colour, or recorded before the column, is not
+  current, so a mat recorded before its redraw cannot leave the old colour on
+  the wall.
+- **Test contracts changed by ruling:** the fallback is no longer always darker
+  than the work (a near-black work's mat is lifted; that case moved to its own
+  test). On a fresh seed, the works whose 2024 mat is below the floor arrive with
+  none and stay off the wall by name until their first preparation, so the
+  corpus manifest tests give those works a mat the way preparation would, and a
+  new test asserts the exclusion. Tests that used a dark colour as an arbitrary
+  input now use a 2024 colour above the floor.
+
+## 2026-10-02: The mat takes the work's shape
+
+<!-- prawduct: scope=mat-follows-work -->
+
+**Why:** the owner's ruling on #189: "the mat should match the work's aspect
+ratio, and everything outside should be pure black". A square or tall work sat
+in a 16:9 field of mat colour.
+
+**What:**
+- **The compositor** paints the canvas black, the mat as the work's rectangle
+  grown by the mat on the sides and top and the weighted bottom below, then the
+  work where the artwork box already put it. The matted work is centred and as
+  large as fits, on every screen.
+- **The default mat is 1.5"** (was 2.5"), bottom still 1.15x. A deployment that
+  sets `MAT_WIDTH_INCHES` explicitly keeps its own value.
+- **Canvases record the layout they were drawn with** (`renditions.layout`,
+  added on open). Preparation treats another layout as not current, and startup
+  queues a prepare-only row for each accepted work whose canvas is out of date,
+  so existing works are redrawn one at a time while the old canvas stays on the
+  wall. This also closes #74: a changed panel diagonal or mat now reaches
+  canvases already drawn.
+
+## 2026-10-02: A Pi is a client of the server
+
+<!-- prawduct: scope=clients -->
+
+**Why:** the owner's rulings in `clients.md`. One host drives any number of walls,
+each on one of its outputs. The server holds which client shows which wall where,
+and the host holds only the server's address and its own token.
+
+**What:**
+- **Clients on the server**: a client has a name, a token (issued once, rotated,
+  never shown again) and the walls assigned to its outputs by name. `GET /client`
+  tells a client its walls; `POST /client/heartbeat` takes its outputs. The
+  per-wall tokens are retired, and the catalogue drops their columns on open.
+- **Settings › Clients and the Walls screen**: add, rename, remove, issue a token,
+  see what a client last reported, and assign a wall to an output.
+- **The curator API and MCP**: `/api/clients` (list, add, rename, remove, issue a
+  token) and `POST`/`DELETE /api/walls/{wall_id}/client`; `art_display` gains the
+  same client actions and is now marked destructive (removing a client releases
+  its walls). **Removed**, breaking any caller: `POST /api/walls/{wall_id}/token`
+  and `art_display(action='issue_token')`, the per-wall tokens' routes.
+- **The Player as a client**: one process supervising one worker per assigned
+  wall, a last-good client document cached, the walls running on through a server
+  outage, and the old `WALL_ID`, `WALL_TOKEN` and `MANIFEST_SOURCE` refused by name.
+- **Deployed 2026-10-02**: the NAS runs this release, the Pi is the client
+  "Living room Pi", and the wall rotates on its HDMI monitor. The way back is in
+  `deploy/README.md`.
+- **Not in this plan**: the Frame (skipped while it is watched), and label
+  outputs (the owner's next direction, after #181).
+
+## 2026-10-02: An HDMI wall draws on its screen
+
+<!-- prawduct: scope=clients -->
+
+**Why:** a wall assigned to a Pi's HDMI connector rotated with nothing drawn.
+`clients.md` asks for the server's render fitted to the screen, with no desktop,
+as the service user.
+
+**What:**
+- **`postarr/src/postarr/kms.py`**: kernel mode setting through `libdrm` by
+  `ctypes`, legacy `SetCrtc` on two dumb buffers per connector, the card held
+  open for the process's life and shared between its connectors. The render is
+  fitted whole on black at the first mode the kernel lists, the size the client
+  heartbeat already reports.
+- **Screens coming and going**: an absent screen is said once and costs
+  nothing; the screen loop asks the output on every poll to draw again when a
+  screen arrives, returns or changes size (`ScreenOutput.refresh`). A failing
+  redraw is said once and tried on every poll.
+- `PendingOutput`, which drew nothing, is gone.
+- **Measured on the Pi and a 4K LG** (`hdmi-output-findings.md`): about half a
+  second per picture as `tvpi`, colour and black level confirmed by the owner,
+  the picture kept by the kernel through a replug, the console restored when the
+  program exits. `tvpi` was added to group `video` on the owner's yes.
+
+## 2026-10-02: Arrt on the NAS
+
+<!-- prawduct: scope=nas -->
+
+**Why:** the server ran on the Pi beside the Player. The owner chose to move it
+to the NAS now, ahead of the store split (`re-architecture.md` § Order of work).
+
+**What:**
+- **A container image** (`arrt/Dockerfile`): uv-managed Python 3.14 and the
+  `dezoomify-rs` binary, a memory limit in place of systemd's `MemoryMax`, no
+  Pango.
+- **The backup writer** (`arrt/src/arrt/persistence/backup.py`): the catalogue
+  copied with `VACUUM INTO` at start and then every `BACKUP_INTERVAL_SECONDS`
+  (default daily) into `BACKUP_DIR`, the newest `BACKUP_KEEP` (default 14)
+  kept, its last run shown on the panel. Only the catalogue: a restore also
+  needs the image tree, left to the storage's own snapshots, and each wall's
+  theme hung again (#180).
+- **`/healthz`** for the container's health check.
+- **The homelab half** lives in the operator's private repo: the app definition,
+  the seed and deploy script, the LAN-only `.lan` route with no login (a
+  recorded departure from the security model's overlay-network assumption).
+- **Deployed**: the dev library seeded onto the NAS and the app running there.
+- **The Pi was cut over to HTTP and then stood down**: its checkout moved to
+  released `main`, HTTP mode switched on and seen pulling from the NAS, its
+  `curation.service` stopped and disabled. The owner then skipped the Frame
+  (`build-plan-clients.md`, on `feature/clients`), so its Player was stopped and
+  disabled too, and the rest of this plan's Chunk 05 moved to that plan. Its open
+  faults are #181 (the label panel) and #182 (the television's art channel).
+
 ## 2026-10-02: The branch review's three bugs
 
 <!-- prawduct: scope=after-review -->

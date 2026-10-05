@@ -100,6 +100,7 @@ _EXPECTED_SCHEMA = {
         "occurred_at",
     },
     "resolve_run_works": {"resolve_run_id", "candidate_work_id"},
+    "sightings": {"wikidata_qid", "url"},
     "conversations": {"id", "started_at", "last_turn_at", "summary"},
     "conversation_turns": {
         "id",

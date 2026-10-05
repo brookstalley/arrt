@@ -10,7 +10,9 @@ stale looks exactly like one that is correct, on every surface, until someone
 walks past the television.
 """
 
+import uuid
 from dataclasses import replace
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -28,6 +30,7 @@ from arrt.persistence.discovery_records import SpendCategory
 from arrt.persistence.records import (
     AcquisitionMethod,
     FetchStatus,
+    MatColor,
     MatMethod,
     RenditionKind,
     RightsStatus,
@@ -272,6 +275,46 @@ class TestStaleness:
             assert canvas.size == (1920, 1080)
 
 
+class TestTheLayout:
+    """A canvas records the geometry it was drawn with, so a changed mat reaches
+    canvases already drawn. The panel test cannot see a mat change: the canvas
+    stays the panel's pixel size while every margin moves."""
+
+    def test_the_canvas_records_the_layout_it_was_drawn_with(self, prep, service, settings):
+        work, _ = _work_with_original(service, settings)
+
+        prep.prepare(work.id)
+
+        assert service.list_renditions(work.id)[0].rendition.layout == prep.layout
+
+    def test_a_canvas_drawn_with_another_mat_is_re_rendered(self, service, discovery, settings, prep_settings, store):
+        work, _ = _work_with_original(service, settings)
+        engine = MatEngine(None, image_max_edge=256)
+        PreparationService(service, engine, prep_settings, spend=discovery).prepare(work.id)
+
+        # The same panel with a narrower mat: a box 100 px wider and taller.
+        box = prep_settings.box
+        narrower_mat = replace(prep_settings, box=replace(box, width=box.width + 100, height=box.height + 100))
+        result = PreparationService(service, engine, narrower_mat, spend=discovery).prepare(work.id)
+
+        assert result.outcome is PreparationOutcome.PREPARED
+        assert service.list_renditions(work.id)[0].rendition.layout == narrower_mat.layout
+        assert narrower_mat.layout != prep_settings.layout
+
+    def test_a_canvas_recorded_before_layouts_were_is_re_rendered(self, prep, service, settings, store):
+        """Every canvas drawn before this existed has no layout, and every one of
+        them has the full-screen mat. Unknown reads as out of date."""
+        work, _ = _work_with_original(service, settings)
+        prep.prepare(work.id)
+        recorded = store.list_renditions(work.id)[0]
+        store.update_rendition(replace(recorded, layout=None))
+
+        result = prep.prepare(work.id)
+
+        assert result.outcome is PreparationOutcome.PREPARED
+        assert store.list_renditions(work.id)[0].layout == prep.layout
+
+
 class TestChoosingTheMatAgain:
     def test_it_supersedes_without_discarding_the_previous_choice(self, prep, service, settings):
         """Mat quality is this product's subjective bar, so "the new model picked
@@ -319,9 +362,14 @@ class TestACuratorsOwnColour:
 
         assert result.mat_hex == "#27285b"
         assert service.current_mat_color(work.id).method is MatMethod.MANUAL
+        # Read along the middle row rather than at a corner: the mat takes the
+        # work's shape, so a corner of a 4:3 work's canvas is black.
         with Image.open(settings.art_root / result.relative_path) as canvas:
-            pixel = canvas.convert("RGB").load()[0, 0]
-        assert all(abs(channel - expected) <= 12 for channel, expected in zip(pixel, (39, 40, 91), strict=True))
+            rgb = canvas.convert("RGB")
+            row = [rgb.getpixel((x, rgb.height // 2)) for x in range(rgb.width)]
+        mat = (39, 40, 91)
+        painted = [p for p in row if all(abs(channel - expected) <= 12 for channel, expected in zip(p, mat, strict=True))]
+        assert len(painted) > 100
 
     @pytest.mark.parametrize("spelling", ["#27285B", "27285b", "#abc"])
     def test_a_person_may_spell_a_colour_the_way_the_model_is_allowed_to(self, prep, service, settings, spelling):
@@ -353,6 +401,27 @@ class TestACuratorsOwnColour:
             prep.set_mat(work.id, "octarine")
 
         assert service.current_mat_color(work.id).hex_rgb == before
+
+    def test_a_colour_below_the_floor_is_refused_before_anything_is_written(self, prep, service, settings):
+        """A person's colour is held to the floor too (owner, 2026-10-03).
+        Accepted, it would be on the wall against the ruling, and the next
+        preparation would choose again over the person's head. `#252525` is
+        L* 14.7, the darkest grey just under the floor."""
+        work, _ = _work_with_original(service, settings)
+        prep.prepare(work.id)
+        before = service.current_mat_color(work.id).hex_rgb
+
+        with pytest.raises(ServiceError, match=r"darker than the mat floor of L\* 15"):
+            prep.set_mat(work.id, "#252525")
+
+        assert service.current_mat_color(work.id).hex_rgb == before
+
+    def test_the_darkest_colour_at_the_floor_is_accepted(self, prep, service, settings):
+        """The boundary's other side: `#262626` is L* 15.2."""
+        work, _ = _work_with_original(service, settings)
+        prep.prepare(work.id)
+
+        assert prep.set_mat(work.id, "#262626").mat_hex == "#262626"
 
 
 class TestWhatItRefuses:
@@ -555,7 +624,7 @@ class TestWhatItSpendsIsRecorded:
 
             def choose(self, image_path):  # noqa: ARG002 - a canned answer
                 return MatChoice(
-                    hex_rgb="#202020",
+                    hex_rgb="#2d2d2d",
                     method=MatMethod.DOMINANT_COLOR_FALLBACK,
                     reason="derived",
                     cost_usd=Decimal("0.00004"),
@@ -615,3 +684,107 @@ class TestAnUndecodableOriginal:
 
         with pytest.raises(ServiceError, match="could not be read"):
             prep.prepare(work.id)
+
+
+def _legacy_mat(service, artwork_id, hex_rgb):
+    """Make `hex_rgb` the work's current mat, written to the store directly.
+
+    The service refuses a colour below the floor, so a mat from before the floor
+    (the 2024 index's) can only be set up the way it arrived: as a row already in
+    the file.
+    """
+    for colour in service.mat_color_history(artwork_id):
+        if colour.is_current:
+            service._store.update_mat_color(replace(colour, is_current=False))
+    service._store.add_mat_color(
+        MatColor(
+            id=str(uuid.uuid4()),
+            artwork_id=artwork_id,
+            hex_rgb=hex_rgb,
+            method=MatMethod.MANUAL,
+            chosen_at=datetime.now(UTC),
+            reason="Carried from 2024.",
+        )
+    )
+
+
+class TestAMatBelowTheFloor:
+    """A mat darker than the floor predates the owner's ruling of 2026-10-03, and
+    preparing the work chooses it again and redraws the canvas."""
+
+    def _prepared_in(self, service, settings, prep_settings, discovery, hex_rgb):
+        """A work with a current canvas whose mat is now `hex_rgb`, and a service
+        whose engine answers `#27285b`. The canvas is drawn in `#6e4848` first, so
+        a redraw in the engine's colour changes its bytes."""
+        work, _ = _work_with_original(service, settings)
+        first = PreparationService(service, _spending_engine("#6e4848", Decimal(0)), prep_settings, spend=discovery)
+        first.prepare(work.id)
+        _legacy_mat(service, work.id, hex_rgb)
+        prep = PreparationService(service, _spending_engine("#27285b", Decimal("0.0001")), prep_settings, spend=discovery)
+        return work, prep
+
+    def test_it_is_chosen_again_and_the_canvas_redrawn(self, service, settings, prep_settings, discovery):
+        work, prep = self._prepared_in(service, settings, prep_settings, discovery, "#1c1c1c")
+        canvas = settings.art_root / f"ready/{work.id}.jpg"
+        before = canvas.read_bytes()
+
+        result = prep.prepare(work.id)
+
+        assert result.outcome is PreparationOutcome.PREPARED
+        assert result.mat_hex == "#27285b"
+        assert result.cost_usd == Decimal("0.0001")
+        assert canvas.read_bytes() != before
+        # The old colour is history, not gone.
+        assert "#1c1c1c" in {colour.hex_rgb for colour in service.mat_color_history(work.id) if not colour.is_current}
+
+    def test_a_mat_at_the_floor_is_kept_and_costs_nothing(self, service, settings, prep_settings, discovery):
+        """The guard's other side: `#262626` is L* 15.2, and re-choosing it would
+        pay to replace a legal colour on every preparation."""
+        work, prep = self._prepared_in(service, settings, prep_settings, discovery, "#262626")
+        history = len(service.mat_color_history(work.id))
+
+        result = prep.prepare(work.id)
+
+        assert result.mat_hex == "#262626"
+        assert result.cost_usd == Decimal(0)
+        assert len(service.mat_color_history(work.id)) == history
+        # The fixture's canvas was painted in another colour, so this first
+        # preparation redraws it; the next finds it current and does nothing.
+        assert prep.prepare(work.id).outcome is PreparationOutcome.UNCHANGED
+
+
+class TestACanvasRecordsItsMat:
+    """A canvas painted in a colour that is no longer the work's mat is not current.
+
+    A mat is recorded before its canvas is redrawn, so a crash or a failed redraw
+    between the two would otherwise leave the old colour on the wall, with every
+    later preparation finding the canvas current."""
+
+    def test_a_mat_recorded_without_its_redraw_is_redrawn_on_the_next_preparation(self, prep, service, settings):
+        work, _ = _work_with_original(service, settings)
+        prep.prepare(work.id)
+        canvas = settings.art_root / f"ready/{work.id}.jpg"
+        before = canvas.read_bytes()
+        # The interrupted half of `set_mat`: the colour recorded, the canvas not.
+        service.record_mat_color(artwork_id=work.id, hex_rgb="#6e4848", method=MatMethod.MANUAL)
+
+        result = prep.prepare(work.id)
+
+        assert result.outcome is PreparationOutcome.PREPARED
+        assert canvas.read_bytes() != before
+        assert service.list_renditions(work.id)[0].rendition.mat_hex == "#6e4848"
+
+    def test_a_canvas_from_before_canvases_recorded_their_mat_is_redrawn(self, prep, service, settings):
+        work, _ = _work_with_original(service, settings)
+        prep.prepare(work.id)
+        (view,) = service.list_renditions(work.id)
+        service._store.update_rendition(replace(view.rendition, mat_hex=None))
+
+        assert prep.prepare(work.id).outcome is PreparationOutcome.PREPARED
+
+    def test_a_canvas_in_the_current_mat_is_left_alone(self, prep, service, settings):
+        """The guard's other side, which every test of `unchanged` above also holds."""
+        work, _ = _work_with_original(service, settings)
+        prep.prepare(work.id)
+
+        assert prep.prepare(work.id).outcome is PreparationOutcome.UNCHANGED

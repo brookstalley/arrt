@@ -49,7 +49,7 @@ import pathlib
 import pytest
 from PIL import Image
 
-from arrt.http.models import ArtworkBoxOut, BackupOut, HealthOut, WallHeartbeatOut
+from arrt.http.models import ArtworkBoxOut, BackupOut, HealthOut, SourcePluginOut, WallHeartbeatOut
 from arrt.persistence.records import (
     AcquisitionMethod,
     FetchStatus,
@@ -163,8 +163,9 @@ def a_health_reading():
     observation is wrong.
     """
 
-    def _reading(*, walls=None, backup=None, description="Every wall has reported.", artwork_box=None):
+    def _reading(*, walls=None, backup=None, description="Every wall has reported.", artwork_box=None, sources=None):
         return HealthOut(
+            sources=[SourcePluginOut(**source) for source in ([_a_source()] if sources is None else sources)],
             walls=[WallHeartbeatOut(**wall) for wall in ([_a_wall()] if walls is None else walls)],
             description=description,
             backup=BackupOut(**(_a_backup() if backup is None else backup)),
@@ -206,6 +207,32 @@ def _a_backup(*, absent=False, problem=None):
         "description": "No backup has been recorded." if absent else "The catalogue was last backed up 6 hours ago.",
         "reported": None if absent else {"completed_at": "2026-08-12T03:00:00+00:00"},
     }
+
+
+def _a_source(*, name="artic", state="loaded", reason=None, faults=0):
+    if state == "declined":
+        description = f"{name} is installed and not configured here: {reason}."
+    elif state == "failed":
+        description = f"{name} is installed and was not loaded: {reason}."
+    elif faults:
+        description = f"{name} is loaded, with {faults} faults since startup, the last 12 seconds ago (KeyError: 'x')."
+    else:
+        description = f"{name} is loaded, with no faults since startup."
+    return {
+        "name": name,
+        "state": state,
+        "reason": reason,
+        "faults": faults,
+        "last_fault_at": "2026-10-03T12:00:00+00:00" if faults else None,
+        "last_fault_age_seconds": 12.0 if faults else None,
+        "last_fault": "KeyError: 'x'" if faults else None,
+        "description": description,
+    }
+
+
+@pytest.fixture
+def a_source_reading():
+    return _a_source
 
 
 @pytest.fixture

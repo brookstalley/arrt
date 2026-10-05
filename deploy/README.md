@@ -22,13 +22,162 @@
 > cutover record, the power-key measurements and the e-paper pin are hardware
 > facts about the wall, and they travel with the Player.
 
-**`display.service` and `curation.service` run the wall**, as the `tvpi` service
+> **As of 2026-10-02 the Pi runs only `display.service`, as a client of the
+> server on the NAS** (§ The Player as a client of the NAS, below). Its
+> `curation.service` is stopped and disabled. The sections after that one
+> describe the one-wall Player of released v0.1.0, with `WALL_ID`,
+> `MANIFEST_SOURCE` and the file channel. The current Player refuses all three.
+> Those sections stay as the record of how the wall got here, and as hardware facts
+> about the Frame, which comes back as a client's `frame` output.
+
+**`display.service` and `curation.service` ran the wall**, as the `tvpi` service
 account on the Raspberry Pi driving the Frame TV. They were installed and enabled
 on 2026-08-11; § The cutover below is what was run.
 
 `samsung-frame-art-loader.service` is the **2024** unit. It is retired, it is not
 installed, and it is kept here as recovered evidence until the legacy retirement —
 see the banner above its recipe further down before running anything from it.
+
+## The server on the NAS (2026-10-02, `build-plan-nas.md`)
+
+**The server is moving to the NAS as a container.** What is public lives here:
+
+- `arrt/Dockerfile` — the image, built from a commit with everything it
+  fetches pinned (base images by digest, Python by version, packages by
+  `uv.lock`, `dezoomify-rs` by release and checksum). It runs as an
+  unprivileged user, serves on 8770, writes under `/art` and, when
+  `BACKUP_DIR` is set, under `/backups` (both mounts must be writable by it), and answers
+  `/healthz` for the container's healthcheck. Build it for the NAS with
+  `docker buildx build --platform linux/amd64 -t arrt:<commit> arrt/`; run the
+  curation suite inside it with `--target test --build-context repo=.`.
+- `deploy/nas/compose.example.yaml` — the app's shape with placeholders.
+
+**What is not here, by the rule that this repository names no address:** the
+real compose file, the env file, the reverse proxy's route, the registry, and
+the build-and-push script. They are in the operator's homelab repository,
+beside the house's other apps.
+
+**Two facts a deployment needs, found while building the image:**
+
+- **The art root must carry `ready/` and `thumbs/`, not only `raw/` and the
+  catalogue.** The catalogue records each render; until readiness checks that a
+  render's *file* exists (backlog #180), a catalogue without its
+  renders publishes works whose files are missing, and a Player on HTTP skips
+  every one of them (no file, no hash, no media).
+- **Renders recorded before the media route existed carry no content hash.**
+  They are hashed the first time a manifest names them, which needs the file.
+
+### A private source plugin
+
+**A plugin that is not in this repository reaches the server through an image
+built on top of Arrt's.** Its recipe lives beside the plugin, in the private
+repository. The shape, with the plugin's source as the build context:
+
+```dockerfile
+ARG ARRT_IMAGE
+FROM ${ARRT_IMAGE}
+USER root
+COPY . /tmp/plugin
+RUN uv pip freeze --python /opt/venv/bin/python --exclude-editable > /tmp/arrt-locked.txt \
+ && uv pip install --python /opt/venv/bin/python --constraint /tmp/arrt-locked.txt /tmp/plugin \
+ && rm -rf /tmp/plugin /tmp/arrt-locked.txt
+USER 568:568
+```
+
+Build it with `--build-arg ARRT_IMAGE=arrt:<commit>` and deploy that tag in
+place of Arrt's.
+
+- **The constraint is what keeps Arrt's locked versions.** Without it, the
+  installer changes whatever Arrt's dependencies the plugin asks it to. Measured
+  2026-10-03: a plugin requiring `httpx<0.28` downgraded Arrt's locked 0.28.1 to
+  0.27.2 and built cleanly. With the constraint, the same build fails and names
+  the conflict. Fix such a plugin, not the constraint.
+- **`USER root` for the install, then back.** Arrt's image runs as 568 and its
+  venv is root's. Change the last line if the compose file runs another user.
+- **The plugin names no `arrt` dependency** (`docs/source-plugins.md` § A plugin
+  is a distribution with one entry point), so nothing here can fetch an `arrt`
+  from PyPI.
+- **Rebuild it for every Arrt commit you deploy.** It carries Arrt's code
+  inside it, so a derived image left on an old tag holds the server back too.
+
+**How to tell it worked:** the startup log has `source plugin <name> loaded`, or
+the reason it declined, and the health panel lists it. Run once with
+`--entrypoint python` and the snippet in `docs/source-plugins.md` § Testing to
+see the same answer before deploying. Verified 2026-10-03 against `arrt:0e10e6d`,
+with the guide's example reader: the plugin read `loaded` beside
+the three built-ins, as uid 568.
+
+What installing a plugin trusts is `security-model.md` § Source plugins.
+
+## The Player as a client of the NAS (2026-10-02, `build-plan-clients.md`)
+
+**A Pi is a client of the server.** The server knows which walls each client
+shows and on which of its outputs. The Pi is configured with the server's
+address and its own token, and learns everything else from `GET /client`.
+`clients.md` is the authority. This is what was run on 2026-10-02.
+
+**Before deploying the clients release to the server, copy the catalogue.** The
+release drops the per-wall token columns when it opens the catalogue, so the way
+back below needs a copy taken first, outside the backup writer's rotation:
+
+    sqlite3 <art root>/catalogue.sqlite ".backup <backups dir>/pre-clients-<timestamp>.sqlite"
+
+Then deploy (`bin/arrt-app.sh` in the homelab repo) and confirm `/healthz`.
+
+**On the server** (Settings › Clients, or the same routes from a shell):
+
+    curl -s -X POST -H 'content-type: application/json' -d '{"name":"Living room Pi"}' "$SERVER_URL"/api/clients
+    curl -s -X POST "$SERVER_URL"/api/clients/<client_id>/token        # shown once; keep it out of shell history
+
+**On the Pi**, with `display.service` stopped:
+
+    cd /opt/samsung-frame-art-loader
+    sudo -u tvpi git fetch origin <branch or tag> && sudo -u tvpi git checkout -B <branch> FETCH_HEAD
+    cd postarr && sudo -u tvpi /usr/local/bin/uv sync --group raster --group epaper
+    sudo cp -p ../.env ../.env.pre-clients-<date>      # the way back starts here
+    # in .env: set SERVER_URL, CLIENT_TOKEN and CACHE_DIR; remove WALL_ID,
+    # WALL_TOKEN and MANIFEST_SOURCE, which the client Player refuses by name
+    sudo adduser tvpi video                            # an HDMI wall opens the display card
+    sudo cp ../deploy/display.service /etc/systemd/system/ && sudo systemctl daemon-reload
+    sudo systemctl enable --now display.service
+
+**Then assign a wall** to one of the outputs the client reported, on Settings ›
+Clients or with `POST /api/walls/<wall_id>/client {client_id, output}`. The
+Player starts that wall within a poll (about 30 s).
+
+**The Frame is optional, and was left off on 2026-10-02.** `TV_ADDRESS` gives the
+client a `frame` output, and `EPD_DEVICE` (the label panel) is refused without
+it. Both are commented out in the Pi's `.env` while the set is being watched, so
+the client reports only its HDMI connectors and nothing on the Pi can reach for
+the television.
+
+**How to tell it worked:**
+- Settings › Clients shows the client's outputs (`hdmi-a-1` connected at its
+  screen's size) and how long ago it reported.
+- The Player's journal shows `client.started`, then `client.wall_started`,
+  `pull.adopted` and `rotation.selected` for each work.
+- On an HDMI wall, `screen.absent` means the Pi sees no screen on that
+  connector. Unless the cable has been pulled, `sudo vclog --msg` is where to
+  look (`hdmi-output-findings.md`).
+- **A stopped Player leaves the text console on the screen.** The Player holds
+  the display card while it runs, and the kernel hands the screen back to the
+  console when it exits.
+- With the server stopped, the wall keeps rotating from `CACHE_DIR`
+  (`client.unreachable` and `pull.unreachable` are logged, and nothing else
+  changes). This was checked on 2026-10-02 with the NAS app stopped for two
+  minutes across a rotation.
+
+**The way back**, to the one-wall Player of v0.1.0 pulling over HTTP:
+1. On the NAS, take a catalogue copy, then roll the app back with
+   `TAG=<the previous image> bin/arrt-app.sh app` in the homelab repo. **The
+   clients release drops the per-wall token columns on open**, so the old image
+   needs the catalogue backup taken before the clients deploy
+   (`pre-clients-<timestamp>.sqlite` in the backups directory). It cannot use
+   the migrated catalogue.
+2. On the Pi: `sudo systemctl stop display.service`, check out the release the
+   Pi ran before (`7e211f1`), `uv sync` as above, restore
+   `.env.pre-clients-<date>`, install that revision's `deploy/display.service`,
+   and start it again.
 
 ## The two new units, and where everything they name now lives
 
@@ -49,7 +198,7 @@ existing checkout and its only `uv` both sat under a home directory at mode `070
 which such an account cannot traverse at all. A path the service account cannot
 reach is not a detail to leave to whoever reads a unit file next.
 
-Creating that account, giving it the `spi` and `gpio` groups, moving the art tree
+Creating that account, giving it the `spi`, `gpio` and `video` groups, moving the art tree
 to `/srv/art`, placing the checkout at `/opt`, and enabling these two units are
 **one change, not five** — any of them landing alone leaves a machine that is
 neither the old arrangement nor the new one. `operational-spec.md` § The Service
@@ -82,6 +231,7 @@ of what was run, in order, and it is the procedure for doing it again.
     sudo install -m 0755 -o root -g root ~/.local/bin/uv /usr/local/bin/uv
     sudo adduser --system --group --no-create-home --shell /usr/sbin/nologin tvpi
     sudo adduser tvpi spi && sudo adduser tvpi gpio
+    sudo adduser tvpi video                         # an HDMI wall: the display card; added 2026-10-02
     sudo install -d -m 0750 -o tvpi -g tvpi /var/lib/tvpi
     sudo usermod --home /var/lib/tvpi tvpi          # see the note below
 

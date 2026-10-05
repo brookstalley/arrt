@@ -160,7 +160,7 @@ guard each turned a test red, and so did the runner passing a fixed source name.
 
 **Foreign API:** Wikimedia Commons (MediaWiki action API), Wikidata (P18)
 
-- **New `arrt/src/arrt/library/discovery/commons.py`**: an `ImageSearch` named `commons`. For a
+- **New `arrt/src/arrt/library/sources/commons.py`**: an `ImageSearch` named `commons`. For a
   query with a Wikidata item, it reads the item's image (P18) through the registry
   client's endpoint and rules, then asks Commons for the file's size, type and
   licence. It reports one instance: the master's dimensions, the item's label as

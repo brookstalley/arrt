@@ -587,7 +587,7 @@ class DiscoveryService:
             self._reclean_proposed_titles()
 
     def _reclean_proposed_titles(self) -> None:
-        """Re-clean every stored title, and re-key any the cleaning changed.
+        """Re-clean every stored title, and re-key any row whose key the current rules no longer give.
 
         **A stored title is a derived value, and this is what keeps it current.**
         `clean_name` runs at the engine seam, so a row records whatever that rule
@@ -603,6 +603,14 @@ class DiscoveryService:
         pays that debt once while this pays it every time. It is idempotent and
         almost always a no-op, which is what makes it safe to run at every start.
 
+        **The key is compared as well as the title**, because the derivation can
+        change where the cleaning does not: dropping a leading article left every
+        stored "The ..." title as it was and changed its key. Comparing only titles
+        would leave those rows keyed by the old rule, and a work rejected as *The
+        Tree* would stop suppressing *The Tree* proposed again. Every writer
+        derives the key from the title and artist it stores, so a stored key that
+        differs from that derivation is stale, never a choice to keep.
+
         The cost is one walk of a household's candidate rows, in the transaction
         the run repair above already opened — so a start either applies both
         repairs or neither, and a failure here is retried next start rather than
@@ -615,6 +623,7 @@ class DiscoveryService:
         curator's decision.
         """
         repaired = 0
+        rekeyed = 0
         for run in self._store.list_runs():
             for work in self._store.list_candidate_works(run.id):
                 title = clean_name(work.proposed_title)
@@ -628,9 +637,15 @@ class DiscoveryService:
                 # one on the way in, so a cleaning that emptied a title would be
                 # a rule reaching too far, and overwriting the row would destroy
                 # the evidence of it while making the row unreadable.
-                if not title or (title == work.proposed_title and artist == work.proposed_artist):
+                if not title:
                     continue
                 key = work_dedup_key(title=title, artist=artist)
+                if title == work.proposed_title and artist == work.proposed_artist:
+                    if key == work.work_dedup_key:
+                        continue
+                    store_write(self._store.update_candidate_work, replace(work, work_dedup_key=key))
+                    rekeyed += 1
+                    continue
                 log.info(
                     "re-cleaned a stored title the citation rules now reach",
                     extra={
@@ -655,6 +670,15 @@ class DiscoveryService:
                 "their work identities were recomputed to match.",
                 repaired,
                 extra={"event": "works.recleaned", "works_recleaned": repaired},
+            )
+        if rekeyed:
+            # Apart from the count above, and at INFO, because nothing a curator
+            # saw was wrong: the rule that derives the key changed, and these rows
+            # now carry the key that rule gives.
+            log.info(
+                "Re-keyed %d stored work(s) whose identity the current rules derive differently.",
+                rekeyed,
+                extra={"event": "works.rekeyed", "works_rekeyed": rekeyed},
             )
 
     # -- reads: proposed works ------------------------------------------------

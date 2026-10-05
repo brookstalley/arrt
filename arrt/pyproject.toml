@@ -83,6 +83,15 @@ dependencies = [
 #     used it. The OpenRouter client imports it directly now, so it moved into
 #     the declared set above — see the note beside it there.)
 
+# The source plugins this distribution provides. Registered exactly as a plugin
+# from outside this repository would be, so the wiring imports neither by name and
+# these are the proof that the loader works (`source-plugins.md` § Loading).
+# A new entry here is read only after the project is installed again (`uv sync`).
+[project.entry-points."arrt.sources"]
+commons = "arrt.library.sources.commons:PLUGIN"
+artic = "arrt.library.sources.artic:PLUGIN"
+wikidata = "arrt.library.sources.wikidata:PLUGIN"
+
 [dependency-groups]
 # httpx appears here *and* in `[project].dependencies`, deliberately. It is a
 # runtime import (the OpenRouter client's transport — see the note beside it
@@ -195,6 +204,7 @@ markers = [
     "live_api: re-verifies OpenRouter's recorded response shapes and prices against the live API. Costs money, needs OPENROUTER_API_KEY — deselected by default, run with `-m live_api`.",
     "live_museum: re-verifies a museum API's recorded response shapes against the live API. Costs nothing and needs no key — the museum APIs are open — but needs the network, so it is deselected by default. Run with `-m live_museum`.",
     "live_binary: drives the real dezoomify-rs against a live museum, checking the CLI behaviours the wrapper is written against. Costs nothing and needs no key, but needs the binary installed and the network. Deselected by default; run with `-m live_binary`.",
+    "plugin_fault_expected: the test makes a source plugin fault on purpose, so the suite-wide guard that fails any test logging `source.plugin_fault` lets it pass.",
     "browser: drives the shipped browser client in a real Chromium against a real booted server. Costs nothing and reaches no foreign API, but needs the `browser` dependency group and a downloaded browser — deselected by default, run with `-m browser`.",
 ]
 # All three live suites are off unless asked for, but for two different reasons

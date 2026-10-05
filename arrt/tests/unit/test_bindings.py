@@ -18,9 +18,8 @@ import pytest
 
 from arrt.library.acquisition.dezoomify import DezoomifyUnavailable
 from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState
-from arrt.library.acquisition.service import DEPLOYMENT_FAULTS, DEPLOYMENT_REMEDIES, remedy_for
+from arrt.library.acquisition.service import DEPLOYMENT_FAULTS, DEPLOYMENT_REMEDIES, SourcePluginUnavailable, remedy_for
 from arrt.library.acquisition.space import NotEnoughSpace
-from arrt.library.acquisition.tiles import TileTargetUnavailable
 from arrt.library.services.catalogue import MAX_LIST_LIMIT
 from arrt.library.services.runner import MAX_RUNS_LISTED, RunListing, RunView
 from arrt.mcp.bindings import (
@@ -347,7 +346,7 @@ def test_a_retry_into_a_queue_paused_by_a_surprise_points_at_the_journal():
 _REMEDY_FOR = {
     NotEnoughSpace: "MIN_FREE_BYTES",
     DezoomifyUnavailable: "DEZOOMIFY_PATH",
-    TileTargetUnavailable: "ARTIC_USER_AGENT",
+    SourcePluginUnavailable: "ARTIC_USER_AGENT",
 }
 
 

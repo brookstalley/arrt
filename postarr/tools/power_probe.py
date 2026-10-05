@@ -789,7 +789,7 @@ def _settings_into(args: argparse.Namespace, parser: argparse.ArgumentParser) ->
 
     settings = None
     try:
-        settings = load()
+        settings = load().frame
     # prawduct:allow prawduct/broad-except -- every way an .env can be unreadable
     # arrives here, and one printed line plus the refusal below answers all of
     # them. Not swallowed: the reason is printed, and a run with no other source

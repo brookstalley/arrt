@@ -29,6 +29,12 @@ _MAY_IMPORT_SQLITE = {
     # disk that refuses a write), which the durable store lets through. Inside
     # the persistence package, the line this guard draws.
     "arrt.persistence.kept",
+    # The catalogue's backup: `VACUUM INTO` a generation, then `PRAGMA
+    # integrity_check` on the copy before it is named. Both are operations on the
+    # file as a file, which the record contract exists not to know about, on a
+    # connection of its own that never writes the catalogue. Inside the
+    # persistence package, the line this guard draws.
+    "arrt.persistence.backup",
 }
 
 _DRIVER = "sqlite3"
@@ -79,11 +85,11 @@ _MAY_REACH_THE_NETWORK = {
     # The Art Institute client — the far side of the *image* seam, the same
     # arrangement one phase down. `urllib.parse` comes with it, for percent-
     # encoding a search term into a query string; no request is made through it.
-    "arrt.library.discovery.artic",
+    "arrt.library.sources.artic",
     # The Commons client — the far side of the image seam beside the Art
     # Institute's. `urllib.parse` comes with it, to read a file name out of the
     # registry's file URL and strip tracking parameters; no request goes through it.
-    "arrt.library.discovery.commons",
+    "arrt.library.sources.commons",
     # The Wikidata client — the far side of the registry seam
     # (`library/registry/__init__.py`), the same arrangement as the museum
     # clients. The identity service above it takes a `Registry`, so the matching
@@ -110,6 +116,9 @@ _MAY_REACH_THE_NETWORK = {
     # *that* wrong merges two works under one identity. Standard parsing rather
     # than a hand-rolled split for exactly that reason. No request is made.
     "arrt.library.discovery.dedup",
+    # `urllib.parse` only, to read the host a sighting's page is on: the count by
+    # host is the whole answer, and the page itself is never fetched here.
+    "arrt.library.services.sightings",
 }
 
 _REACHES_THE_NETWORK = {"httpx", "requests", "urllib", "urllib3", "http", "socket", "aiohttp", "openai", "anthropic"}

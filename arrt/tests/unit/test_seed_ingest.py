@@ -67,7 +67,7 @@ class TestTheReportsVocabulary:
     #: Every value a note's sentence is allowed to ask for, and something to put
     #: there. A sentence naming anything else could not be filled at the site
     #: that raises it, and would reach a curator as a formatting error.
-    CONTEXT = {"path": "raw/a.jpg", "count": 2, "discarded": "#433735", "name": "Piet Mondrian"}
+    CONTEXT = {"path": "raw/a.jpg", "count": 2, "discarded": "#433735", "name": "Piet Mondrian", "colour": "#1c1818"}
 
     def test_every_cause_has_a_sentence(self):
         """A cause added without one reaches a curator as a bare enum value."""
@@ -200,11 +200,45 @@ class TestSeedingTwice:
         first_entry = record(mat="#433735")
         root = tree(first_entry)
         first = seed([first_entry], service, root)
-        seed([record(mat="#1c1818")], service, root)
+        seed([record(mat="#2d2d3c")], service, root)
 
         history = service.mat_color_history(first.works[0].work_id)
-        assert [mat.hex_rgb for mat in history] == ["#1c1818", "#433735"]
-        assert service.current_mat_color(first.works[0].work_id).hex_rgb == "#1c1818"
+        assert [mat.hex_rgb for mat in history] == ["#2d2d3c", "#433735"]
+        assert service.current_mat_color(first.works[0].work_id).hex_rgb == "#2d2d3c"
+
+    def test_a_re_seed_does_not_put_a_carried_colour_back_over_a_later_choice(self, service, record, tree):
+        """Re-seeding is how the catalogue gains new fields, and the mats chosen
+        again under the floor, or set by a curator, must survive it."""
+        entry = record(mat="#433735")
+        root = tree(entry)
+        first = seed([entry], service, root)
+        work_id = first.works[0].work_id
+        service.record_mat_color(artwork_id=work_id, hex_rgb="#27285b", method=MatMethod.VISION_MODEL)
+
+        seed([entry], service, root)
+
+        assert service.current_mat_color(work_id).hex_rgb == "#27285b"
+        assert len(service.mat_color_history(work_id)) == 2
+
+    def test_a_colour_below_the_floor_is_not_carried_and_says_why(self, service, record, tree):
+        """`#1c1818` is L* 8.7. The work arrives with no mat, and its first
+        preparation chooses one."""
+        entry = record(mat="#1c1818")
+        report = seed([entry], service, tree(entry))
+
+        (work,) = report.works
+        assert service.current_mat_color(work.work_id) is None
+        (note,) = [item for item in work.notes if item.note is SeedNote.MAT_BELOW_FLOOR]
+        assert "#1c1818" in note.detail
+
+    def test_a_colour_at_the_floor_is_carried_without_a_note(self, service, record, tree):
+        """The guard's other side: `#262626` is L* 15.2."""
+        entry = record(mat="#262626")
+        report = seed([entry], service, tree(entry))
+
+        (work,) = report.works
+        assert service.current_mat_color(work.work_id).hex_rgb == "#262626"
+        assert SeedNote.MAT_BELOW_FLOOR not in {item.note for item in work.notes}
 
     def test_a_replaced_master_leaves_its_old_render_reading_stale(self, service, record, tree, jpeg):
         """Re-stamping here would declare a superseded acquisition current, and the
@@ -248,7 +282,7 @@ class TestSeedingTwice:
 
 class TestRecordsDescribingOneWork:
     def test_two_records_for_one_url_become_one_work(self, service, record, tree):
-        entries = [record(mat="#433735"), record(mat="#1c1818")]
+        entries = [record(mat="#433735"), record(mat="#2d2d3c")]
         report = seed(entries, service, tree(*entries))
 
         assert len(report.works) == 1
@@ -256,19 +290,19 @@ class TestRecordsDescribingOneWork:
         assert report.records_collapsed == 1
 
     def test_the_last_record_wins_and_the_dropped_colour_is_named(self, service, record, tree):
-        entries = [record(mat="#433735"), record(mat="#1c1818")]
+        entries = [record(mat="#433735"), record(mat="#2d2d3c")]
         report = seed(entries, service, tree(*entries))
 
         (work,) = report.works
-        assert service.current_mat_color(work.work_id).hex_rgb == "#1c1818"
+        assert service.current_mat_color(work.work_id).hex_rgb == "#2d2d3c"
         (note,) = [entry for entry in work.notes if entry.note is SeedNote.DUPLICATE_RECORD_DISCARDED]
         assert "#433735" in note.detail
 
     def test_the_dropped_colour_is_not_in_the_catalogue_at_all(self, service, record, tree):
-        entries = [record(mat="#433735"), record(mat="#1c1818")]
+        entries = [record(mat="#433735"), record(mat="#2d2d3c")]
         report = seed(entries, service, tree(*entries))
 
-        assert [mat.hex_rgb for mat in service.mat_color_history(report.works[0].work_id)] == ["#1c1818"]
+        assert [mat.hex_rgb for mat in service.mat_color_history(report.works[0].work_id)] == ["#2d2d3c"]
 
     def test_every_record_read_is_accounted_for(self, service, record, tree):
         entries = [record("A"), record("B"), record("B")]

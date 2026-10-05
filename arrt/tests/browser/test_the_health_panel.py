@@ -106,3 +106,34 @@ def test_a_wall_that_has_never_reported_says_so_without_a_verdict(ui, settings, 
     # four days is alarming depends on whether that television was switched off on
     # purpose, which this plane does not know.
     assert not {"healthy", "degraded", "OK"} & set(page.split())
+
+
+def test_the_panel_states_every_installed_source_plugin_in_words(ui, a_health_reading, a_source_reading):
+    """Declined, failed and loaded each as its own sentence, the state a word and never only a colour."""
+    ui.serve(
+        "**/api/health",
+        a_health_reading(
+            sources=[
+                a_source_reading(name="commons", state="declined", reason="WIKIDATA_USER_AGENT is unset"),
+                a_source_reading(name="artic", faults=3),
+                a_source_reading(name="gallery", state="failed", reason="it could not be imported"),
+            ]
+        ),
+    )
+    ui.open("#health")
+    ui.page.wait_for_selector("h3:has-text('Image sources')")
+
+    sentences = ui.page.locator("ul.source-readings .reading-sentence").all_inner_texts()
+    assert sentences == [
+        "commons is installed and not configured here: WIKIDATA_USER_AGENT is unset.",
+        "artic is loaded, with 3 faults since startup, the last 12 seconds ago (KeyError: 'x').",
+        "gallery is installed and was not loaded: it could not be imported.",
+    ]
+
+
+def test_the_panel_says_when_no_source_plugin_is_installed(ui, a_health_reading):
+    ui.serve("**/api/health", a_health_reading(sources=[]))
+    ui.open("#health")
+    ui.page.wait_for_selector("h3:has-text('Image sources')")
+
+    assert "No source plugin is installed" in ui.text()

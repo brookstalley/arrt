@@ -10,6 +10,77 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Image sources on System › Status — added 2026-10-03
+
+**`build-plan-source-plugins.md` Chunk 01.** Visual change: yes.
+
+Checked by the builder on 2026-10-03 against the suites, including the browser
+suite with canned readings: the panel's sentences and the System badge. **Deployed
+to the NAS on 2026-10-03 as image `e51adfb`, then `4042fd0` with the review's fixes** (Chunk 05): `/api/health` reports
+`commons`, `artic` and `wikidata` loaded, with no faults. The startup journal was
+not read, because the container's logs need root on the NAS.
+
+- **Look at:** System › Status has an *Image sources* panel with one sentence per
+  plugin: "commons is loaded, with no faults since startup.", and the same for
+  artic and wikidata. The System badge shows no count for them.
+- **Worth an opinion:** whether a declined plugin belongs on this panel at all,
+  or only failed and faulting ones. It is shown so that "why is the Art Institute
+  missing" is answered where the operator looks.
+
+### ✅ No mat darker than L\* 15 — added 2026-10-03, VERIFIED 2026-10-03
+
+**`build-plan-mat-floor.md` Chunk 03.** Visual change: yes.
+
+**Looked at by the owner on 2026-10-03** on the deployed wall (image `bb021bb`):
+"Yep all good". At startup 10 works were queued and all 10 were re-chosen by the
+vision model, with no fallback. Afterwards every current mat (40) was at or above
+L\* 15, computed from its hex; the darkest was Albers's *Full*, `#1a2252` at
+L\* 15.3. The owner did not say which works they looked at.
+
+Checked by the builder on 2026-10-03 against the suite only: the floor in the
+engine, the re-choice through the queue, and the corpus seed with its 10 works
+below the floor. Not on your catalogue or your wall.
+
+- **Before deploying:** the NAS's OpenRouter key is set and has credit. Without
+  it, the works below the floor get the mechanical colour (lifted to L\* 15), and
+  a mat at the floor is never chosen again by itself.
+- **After deploying:** the startup journal carries `preparation.mat_rechoice_queued`
+  with the number of works queued (10 in the 2024 corpus), then queue passes
+  choosing each one's mat, one paid call each (two when the model answers below
+  the floor first). Every other canvas is redrawn once, free, the next time its
+  work is prepared, because canvases now record the colour they were painted in.
+- **Look at:** the works that had near-black mats: Kelly's *Red Yellow Blue
+  White and Black II*, Hokusai's *Cranes*, Rothko's *Untitled (Purple, White, and
+  Red)*, Albers's *Full*, Johns's *Corpse and Mirror II* and *Target*, Vasarely's
+  *ION 11*, Kline's *Painting*, Egreja's still life, Still's *PH-129*. No mat should
+  read as the screen failing to show black.
+- **Rolling back:** the old image and a re-seed would put the dark 2024 colours
+  back. Without a re-seed the re-chosen mats stay, under either image.
+
+### ✅ The mat takes the work's shape, with black beyond it — added 2026-10-02, VERIFIED 2026-10-03
+
+**`build-plan-mat-follows-work.md` Chunk 03.** Visual change: yes.
+
+**Looked at by the owner on 2026-10-03** on the deployed wall (image `5469c8b`,
+all 40 canvases recomposed at startup): "Mat looks good". The owner did not say
+which works they looked at. The grey and near-black mats that are now inside
+black are #183, not this entry.
+
+Checked by the builder on 2026-10-02 against four synthetic sources composed at
+the 50" panel's geometry (1.5" mat: 132 px top and sides, 152 px bottom): a
+square, a 4:7, a 3:1 panorama and a 16:9. Each mat hugs its work and the rest is
+black, centred; a 16:9 work gets about 1.4" of black at each side, because its
+matted shape is a little narrower than the screen. Not on your catalogue.
+
+- **Before deploying:** set `MAT_WIDTH_INCHES=1.5` in the NAS's environment, or
+  remove the line. The `.env` was copied from `.env.example`, which set 2.5
+  explicitly, and an explicit value overrides the new default.
+- **After deploying:** the startup journal carries `preparation.recompose_queued`
+  with the number of canvases queued, then queue passes recomposing them one at a
+  time. The old canvas stays on the wall until each is redrawn.
+- **Look at:** a square and a tall work on the HDMI monitor. The mat is the
+  work's shape and 1.5" wide (deeper below), and everything else is black.
+
 ### Wikidata identity's one *Edit*; Library › Topics in columns — added 2026-10-02
 
 **`build-plan-library-screens.md` Chunk 05 (#174, #175).** Visual change: yes.
@@ -98,6 +169,52 @@ uv run python -m arrt` in `arrt/`) and `page.screenshot` of `#collection`, with
   like the facet groups, so a long theme name runs off the edge; and with a
   theme filtered, the facet groups list every zero-count value disabled — the
   rail's rule, but a long list of zeros under a small theme.
+
+### An HDMI wall on its screen — added 2026-10-02
+
+**`build-plan-clients.md` Chunk 04.** Visual change: yes.
+
+Checked by the builder and the owner on 2026-10-02, on the Pi's HDMI-A-1 and a
+4K LG, with the built output run by hand as `tvpi` against three renders (two
+3840×2160 Frame renders and a 1200×2000 portrait); the measurements are in
+`hdmi-output-findings.md`. **Looked at by the owner on 2026-10-02 with the
+deployed Player** ("wall is showing"): the wall rotating from the NAS on the
+monitor. The owner's look raised the mat's shape (#189) and grey mats (#183),
+not the output. **Not yet looked at:** a real wall rotating on the monitor, fitted whole with nothing
+cropped, a portrait work with bars at the sides; the monitor switched off and on
+(or its cable pulled) and the picture back within a poll; and, with the Player
+stopped, the text console in its place.
+
+### Settings › Clients, and which client shows each wall — added 2026-10-02
+
+**`build-plan-clients.md` Chunk 02.** Visual change: yes.
+
+Checked by the builder on 2026-10-02 at 1280 px and 390 px in the browser
+suite's own server: no client; a client that had reported two outputs and
+showed one wall beside one with no token and no report; the token shown once
+after an add; and the Walls screen with one wall assigned and two not. Not on
+your catalogue. Regenerate with
+`cd arrt && uv run pytest -m browser -n0 tests/browser/test_the_clients.py tests/browser/test_the_walls.py -k client`
+and a `page.screenshot` of your own.
+
+- **Settings › Clients** is under Settings, after Taste. *Add a client* takes a
+  name and issues its token in the same act: the token appears once, selected in
+  a read-only field, with a sentence saying it is the only time and to set
+  `CLIENT_TOKEN` and `SERVER_URL` in the Player's settings (the address is the
+  one your browser used — check it is the one the Pi reaches). Reload, and it is
+  gone.
+- **Each client** says when its token was issued (or that it has none), its last
+  report's age, its outputs as a table (Output, Kind, Connected, Screen), the
+  walls it shows with **Unassign**, an **Assign a wall** row (a picker of reported
+  outputs, the free one first; a text field with `hdmi-a-1` as placeholder when
+  nothing is reported), and **Rename**, **Rotate the token** / **Issue a token**,
+  **Remove**. Rotate and Remove ask first; Remove names the walls left without a
+  client.
+- **The Walls screen** says under each wall's title "Shown by pi4 on hdmi-a-1",
+  or "No client shows this wall." with a link to Settings › Clients.
+- **To look at:** whether the outputs table, which scrolls sideways inside its
+  panel on a phone, reads well enough there; and whether adding a client and
+  issuing its token in one act is what you want, rather than two steps.
 
 ### Want and Forget, Activity › Wanted, and the Wikidata picker — added 2026-10-02
 
@@ -457,7 +574,22 @@ arrt`) and open it in a browser.
    and Filter to put the rails away. Does the Table earn its place, and does
    hiding the rails give the grid enough back to be worth a button?
 
-### Switch the Pi to HTTP mode, and let it soak — added 2026-09-30
+### ~~Switch the Pi to HTTP mode, and let it soak~~ — retired 2026-10-02
+
+> **Retired 2026-10-02.** The Player it describes (`MANIFEST_SOURCE`,
+> `WALL_TOKEN`, rolling back with `MANIFEST_SOURCE=file`) is refused at start by
+> the client Player. Its checks were run on the client Player instead: the wall
+> pulls from the NAS, the server stopped across a rotation and the wall rotated on
+> from its cache (`build-plan-clients.md` Chunk 05; `deploy/README.md` § The
+> Player as a client of the NAS). Kept below as the record.
+
+> **Partly done, and changed, 2026-10-02.** The Pi pulled from the NAS in HTTP
+> mode on 2026-10-02 (`build-plan-nas.md` Chunk 05: manifest and 40 renders
+> cached, heartbeat seen on the NAS); the soak below did not run, because the
+> owner skipped the Frame and the Pi's player is stopped. Steps 1, 2 and 5 name
+> the retired wall token: a Player now connects as a client
+> (`CLIENT_TOKEN`, from Settings › Clients), and `build-plan-clients.md`
+> Chunk 05 replaces this soak on the Pi's HDMI output.
 
 **Wave 2b Chunk 04.** Postarr can now pull its wall from Arrt instead of
 reading the shared file. The file channel stays the default, and wave 3 retires
@@ -485,22 +617,12 @@ it only after this has run on the real wall. After wave 2b reaches the Pi:
 7. Let it run for a few days, then record here what the journal showed. To go
    back, set `MANIFEST_SOURCE=file` and restart.
 
-### The Player token panel on the Walls screen — added 2026-09-30
+### ~~The Player token panel on the Walls screen~~ — retired 2026-10-02
 
-**Wave 2b Chunk 03.** Each wall's section on the Walls screen ends with a
-**Player token** panel. Run `cd arrt && uv run python -m arrt` and open
-the Walls.
-
-1. **A wall with no token** says so and offers "Issue a Player token for …".
-2. **Issuing** shows the token once, in a read-only field with focus on it, and
-   says it is the only time. Reload the page: the token is gone, and the panel
-   says when one was issued. Is "shown once, in place" clear enough that nobody
-   reloads before copying it?
-3. **Rotating** asks first, naming the wall and the consequence (the current
-   Player stops until it has the new token). Cancel keeps the old token working.
-4. The panel sits below the manifest's three panels on every wall. Does a token
-   belong on the home screen at all, or on a wall's own settings once one
-   exists? It's here because the Walls screen is where walls are managed today.
+The per-wall token and its panel were retired by `build-plan-clients.md`
+Chunk 01: a Player now connects as a **client** with one token, issued on
+Settings › Clients (Chunk 02). Nothing here is left to check; the clients
+entry replaces it when Chunk 02 lands.
 
 ### Next and show_now move the wall without a sync — added 2026-09-30
 

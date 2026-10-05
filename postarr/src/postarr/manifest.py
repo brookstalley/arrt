@@ -2,9 +2,9 @@
 
 The manifest is **desired display state**, not a list: it carries the ordered
 entries, the pace to show them at, and a directive block through which a curator's
-`next` and `show_now` reach this plane. Curation writes it atomically — a temp
-file in the same directory, then `os.replace` — so a reader never observes a
-partial document and no lock is needed on either side.
+`next` and `show_now` reach this plane. The pull caches each wall's copy
+atomically — a temp file in the same directory, then `os.replace` — so a reader
+never observes a partial document and no lock is needed on either side.
 
 **Change is detected by polling the mtime**, roughly once a second, rather than by
 inotify. A poll is a mechanism that cannot silently unsubscribe; a watch is one
@@ -66,10 +66,10 @@ class Entry:
     """One work on the wall: what to show, and what a label would say about it."""
 
     work_id: str
-    #: Relative to the render root, never absolute: `ART_ROOT` in file mode, and in
-    #: HTTP mode this Player's cache, where the pull names each render by its
-    #: hash. The path crossing as a relative one is what keeps where the tree is
-    #: mounted from being load-bearing.
+    #: Relative to the render root, never absolute: the wall's own directory in
+    #: this Player's cache, where the pull names each render by its hash. The
+    #: path crossing as a relative one is what keeps where the cache is from
+    #: being load-bearing.
     render_path: str
     #: Label *text* crosses the channel; label *rendering* does not. Nothing in
     #: this chunk reads it, and it is carried rather than dropped because the

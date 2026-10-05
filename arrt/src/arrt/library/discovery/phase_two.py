@@ -15,6 +15,16 @@ artists agree — derived from `dedup`, which is where this product's answer to
 normalisation here would be a second answer free to drift from the one the dedup
 key is built with.
 
+**A page the work's Wikidata item records is about the work, whatever its title
+says.** A holder may catalogue a work under a shorter or another title — MoMA
+holds Taeuber-Arp's *Composition of Circles and Overlapping Angles* as
+*Composition* — and accepting a shorter title on its own would match every
+*Composition* by that painter. The item naming the page settles which one it is,
+so a result whose `url` is such a page passes the title comparison, and the
+artist comparison still runs. The registry is asked here, not read from the pages
+the sources answered, because any finder may answer a page, one found by a search
+included, and a search's page is no evidence of identity.
+
 **An artist disagreement is disqualifying, not a deduction.** The same collection
 holds *American Gothic* by Grant Wood and *American Gothic* by Elizabeth Layton.
 A scheme that scored the wrong one slightly lower would still select it whenever
@@ -55,8 +65,9 @@ from dataclasses import dataclass
 from typing import Final
 
 from arrt.library.discovery.dedup import artist_key, title_key
-from arrt.library.discovery.images import FoundImage, ImageQuery, ImageSearchFailure
+from arrt.library.discovery.images import FoundImage, FoundPage, ImageQuery, ImageSearchFailure
 from arrt.library.discovery.pool import ImageSourcePool
+from arrt.library.registry import Registry, RegistryUnavailable
 from arrt.library.services.display_fit import ArtworkBox, DisplayFit, FitAssessment, assess_display_fit
 from arrt.persistence.discovery_records import UnresolvedReason
 from arrt.persistence.records import RightsStatus
@@ -154,14 +165,21 @@ class Resolution:
 
     instances: Sequence[JudgedImage]
     refusals: frozenset[UnresolvedReason]
+    #: Pages the sources found and do not read, passed on unjudged: there is
+    #: nothing in one to judge (`FoundPage`), and what becomes of it is decided
+    #: where the work's item is known.
+    pages: tuple[FoundPage, ...] = ()
 
 
 class PhaseTwoEngine:
     """Turn one work into the instances that are credibly it, best first."""
 
-    def __init__(self, sources: ImageSourcePool, *, box: ArtworkBox) -> None:
+    def __init__(self, sources: ImageSourcePool, *, box: ArtworkBox, registry: Registry | None = None) -> None:
         self._sources = sources
         self._box = box
+        #: Where a work's item says it is described. `None` is a deployment with
+        #: no registry, where only the title comparison identifies a work.
+        self._registry = registry
 
     def resolve(self, query: ImageQuery) -> Resolution:
         """Every credible instance for this work, most confident first, and the refusals.
@@ -186,8 +204,9 @@ class PhaseTwoEngine:
         answer = self._sources.find_images(query)
         judged: list[JudgedImage] = []
         refusals: set[UnresolvedReason] = set()
+        link = _WikidataLink(self._registry, query)
         for found in answer.images:
-            outcome = self._judge(query, found)
+            outcome = self._judge(query, found, link)
             if isinstance(outcome, UnresolvedReason):
                 refusals.add(outcome)
             else:
@@ -217,13 +236,13 @@ class PhaseTwoEngine:
                 "unreachable": list(answer.unreachable),
             },
         )
-        return Resolution(instances=judged, refusals=frozenset(refusals))
+        return Resolution(instances=judged, refusals=frozenset(refusals), pages=answer.pages)
 
     def fetch_preview(self, provider: str, url: str) -> bytes | None:
         """The preview bytes for an instance, or `None` when they could not be got."""
         return self._sources.fetch_preview(provider, url)
 
-    def _judge(self, query: ImageQuery, found: FoundImage) -> JudgedImage | UnresolvedReason:
+    def _judge(self, query: ImageQuery, found: FoundImage, link: _WikidataLink) -> JudgedImage | UnresolvedReason:
         """Score one instance, or name the gate that refused it.
 
         The gate is returned rather than a bare `None` because the three refusals
@@ -231,26 +250,46 @@ class PhaseTwoEngine:
         spellings of a name, and about the record — and collapsing them is what
         left a run that resolved nothing unable to say anything about why.
         """
+        linked = False
         if title_key(query.title) != title_key(found.title):
+            unlinked = link.unlinked(found.url)
+            if unlinked is not None:
+                log.info(
+                    "discarding a result whose title is a different work entirely",
+                    extra={
+                        "event": "phase_two.not_the_work",
+                        "work_title": query.title,
+                        "found_title": found.title,
+                        "found_artist": found.artist,
+                        "found_url": found.url,
+                        "qid": query.qid,
+                        "link": unlinked,
+                    },
+                )
+                return UnresolvedReason.NOT_HELD
+            linked = True
             log.info(
-                "discarding a result whose title is a different work entirely",
+                "keeping a result whose title differs, because the work's Wikidata item records its page",
                 extra={
-                    "event": "phase_two.not_the_work",
+                    "event": "phase_two.linked",
                     "work_title": query.title,
                     "found_title": found.title,
-                    "found_artist": found.artist,
+                    "found_url": found.url,
+                    "qid": query.qid,
                 },
             )
-            return UnresolvedReason.NOT_HELD
         confidence = _confidence(query, found)
         if confidence is None:
             log.info(
-                "discarding a result whose title matches but whose artist does not",
+                "discarding a result identified by its title or its page, whose artist does not match",
                 extra={
                     "event": "phase_two.not_the_work",
                     "work_title": query.title,
                     "found_title": found.title,
                     "found_artist": found.artist,
+                    "found_url": found.url,
+                    "qid": query.qid,
+                    "link": "linked" if linked else "title_matched",
                 },
             )
             return UnresolvedReason.IDENTITY_REFUSED
@@ -278,17 +317,61 @@ class PhaseTwoEngine:
             found=found,
             confidence=confidence,
             quality_score=quality,
-            rationale=_rationale(found, confidence=confidence, fit=fit),
+            rationale=_rationale(found, confidence=confidence, fit=fit, linked=linked),
             fit=fit,
         )
+
+
+class _WikidataLink:
+    """The pages a work's Wikidata item records, asked for once, and only if needed.
+
+    Asked only when a result's title differs, so a work every source names alike
+    costs the registry nothing. A registry that cannot be asked means no link, and
+    the title comparison decides as it would without one: refusing is the
+    direction a later search can undo.
+    """
+
+    def __init__(self, registry: Registry | None, query: ImageQuery) -> None:
+        self._registry = registry
+        self._query = query
+        self._pages: frozenset[str] | None = None
+        self._unavailable = False
+
+    def unlinked(self, url: str) -> str | None:
+        """`None` when the work's item records `url`, exactly as the item spells it; else why not.
+
+        The reason is a word for the journal, one per way of having no link, so a
+        refusal of a page somebody expected to pass says which it was: no
+        registry here, no item for the work, a registry that could not be asked,
+        or an item that names other pages.
+        """
+        if self._registry is None:
+            return "no_registry"
+        if self._query.qid is None:
+            return "no_qid"
+        if self._pages is None:
+            try:
+                self._pages = frozenset(self._registry.pages_about(self._query.qid))
+            except RegistryUnavailable as exc:
+                log.warning(
+                    "could not ask Wikidata which pages describe a work, so its titles alone decide: %s",
+                    exc,
+                    extra={"event": "phase_two.link_unavailable", "work_title": self._query.title, "qid": self._query.qid},
+                )
+                self._unavailable = True
+                self._pages = frozenset()
+        if url in self._pages:
+            return None
+        return "registry_unavailable" if self._unavailable else "not_recorded"
 
 
 def _confidence(query: ImageQuery, found: FoundImage) -> float | None:
     """How sure we are this is that work, or `None` when the artist disagrees.
 
-    **Called only for a record whose title already matches** — the caller checks
-    that first so it can tell a title nobody holds apart from a title held under
-    another name, which are different facts about the collection. So the `None`
+    **Called only for a record whose title already matches**, or whose page the
+    work's Wikidata item records — the caller checks that first so it can tell a
+    title nobody holds apart from a title held under another name, which are
+    different facts about the collection. So the `None`
     here means exactly one thing: the two names disagree.
 
     `None` is deliberately not a low score. A near-match kept at low confidence
@@ -347,7 +430,7 @@ def _within_band(fit: FitAssessment, *, width: int, height: int, box: ArtworkBox
     return min(1.0, coverage / _NATIVE_SATURATION)
 
 
-def _rationale(found: FoundImage, *, confidence: float, fit: FitAssessment) -> str:
+def _rationale(found: FoundImage, *, confidence: float, fit: FitAssessment, linked: bool = False) -> str:
     """Why this instance was chosen, in the words a curator asking gets back.
 
     Written for the review card rather than for a log: it names what the museum
@@ -364,7 +447,17 @@ def _rationale(found: FoundImage, *, confidence: float, fit: FitAssessment) -> s
     """
     holder = f"{found.provider} holds this as {found.title!r}"
     holder += f" by {found.artist}" if found.artist else ", with no artist recorded"
-    if confidence >= CONFIDENT:
+    if linked:
+        # The title differs, so the sentence says what identified it instead:
+        # a curator reading another title on the card needs the reason it is here.
+        identity = "a different title, on the page the work's Wikidata item records"
+        if confidence >= CONFIDENT:
+            identity += ", by the requested artist"
+        elif confidence >= TITLE_ONLY:
+            identity += "; the request named no artist"
+        else:
+            identity += "; the record names no artist to confirm it"
+    elif confidence >= CONFIDENT:
         identity = "matching the requested title and artist"
     elif confidence >= TITLE_ONLY:
         identity = "matching the requested title; the request named no artist"

@@ -14,7 +14,7 @@ import logging
 from dataclasses import replace
 
 import pytest
-from fakes import FakeImageSearch, a_work, an_image
+from fakes import FakeFinder, a_roster, a_work, an_image
 
 from arrt.library.discovery.engine import WorkList
 from arrt.library.discovery.phase_two import PhaseTwoEngine
@@ -32,8 +32,8 @@ def a_list(*titles: str, artist: str | None = "Salvador Dalí") -> WorkList:
 
 
 @pytest.fixture
-def museum() -> FakeImageSearch:
-    return FakeImageSearch()
+def museum() -> FakeFinder:
+    return FakeFinder()
 
 
 @pytest.fixture
@@ -271,7 +271,7 @@ def test_the_floor_is_deployment_geometry_rather_than_a_pixel_count(
             artwork_box=geometry.tv_artwork_box,
             engine=engine,
             discovery_settings=geometry.discovery_settings,
-            image_sources=[museum],
+            sources=a_roster(museum),
             previews=PreviewSettings(art_root=geometry.art_root, directory=geometry.previews_path),
         )
         runner = DiscoveryRunner(
@@ -545,9 +545,6 @@ class SecondSource:
         self.fetched.append(url)
         return b"\xff\xd8\xff\xe0 second"
 
-    def tile_url(self, url: str) -> str:
-        return url
-
 
 def test_an_instance_from_a_second_source_is_selected_and_its_preview_fetched_from_it(services, engine, settings, museum):
     """The runner hands each instance's own source name to the preview cache."""
@@ -613,7 +610,7 @@ def test_a_level_tie_between_sources_is_stored_for_the_source_listed_first(
         artwork_box=settings.tv_artwork_box,
         engine=engine,
         discovery_settings=settings.discovery_settings,
-        image_sources=[second, museum],
+        sources=a_roster(second, museum),
         previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
     )
     plane.runner._spawn = lambda work: work()  # noqa: SLF001 - phase 2 on this thread
@@ -633,12 +630,12 @@ def test_with_commons_the_only_source_a_work_named_by_title_is_not_called_unheld
     import httpx
     from fakes import FakeRegistry
 
-    from arrt.library.discovery.commons import CommonsImageSearch
+    from arrt.library.sources.commons import CommonsFinder
 
     def no_request(request):
         raise AssertionError(f"Commons was asked about a work it cannot look up: {request.url}")
 
-    commons = CommonsImageSearch(
+    commons = CommonsFinder(
         registry=FakeRegistry(),
         user_agent="arrt-tests/0",
         client=httpx.Client(transport=httpx.MockTransport(no_request)),
@@ -651,7 +648,7 @@ def test_with_commons_the_only_source_a_work_named_by_title_is_not_called_unheld
         artwork_box=settings.tv_artwork_box,
         engine=engine,
         discovery_settings=settings.discovery_settings,
-        image_sources=[commons],
+        sources=a_roster(commons),
         previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
     )
     plane.runner._spawn = lambda work: work()  # noqa: SLF001 - phase 2 on this thread
@@ -694,3 +691,50 @@ def test_a_row_from_a_source_no_longer_wired_ranks_after_the_wired_ones(services
     outcome = services.discovery.record_resolution(work.id)
 
     assert outcome.selected is not None and outcome.selected.provider == "second"
+
+
+# -- the Wikidata link, as the container wires it -------------------------------
+
+
+def test_a_holders_other_title_resolves_through_the_deployments_registry(
+    store, discovery_store, wall_settings, thumbnail_settings, engine, settings
+):
+    """The registry the deployment configures is the one phase 2 asks.
+
+    Built by `Services.bind`, because the link is only as good as its wiring: an
+    engine assembled without the registry refuses MoMA's *Composition* on its
+    title, which is what run 3 recorded, and every engine-level test still passes.
+    """
+    from fakes import FakeRegistry
+
+    from arrt.library.services.discovery import ChosenWork
+
+    qid, page = "Q19884054", "https://www.moma.org/collection/works/37346"
+    long_title = "Composition of Circles and Overlapping Angles"
+    museum = FakeFinder(
+        holdings={long_title: (an_image("Composition", artist="Sophie Taeuber-Arp", width=2000, height=1992, url=page),)}
+    )
+    registry = FakeRegistry(pages={qid: [page]})
+    plane = Services.bind(
+        catalogue=store,
+        discovery=discovery_store,
+        display_settings=wall_settings,
+        thumbnails=thumbnail_settings,
+        artwork_box=settings.tv_artwork_box,
+        engine=engine,
+        discovery_settings=settings.discovery_settings,
+        registry=registry,
+        sources=a_roster(museum),
+        previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
+    )
+    plane.runner._spawn = lambda work: work()  # noqa: SLF001 - phase 2 on this thread
+
+    run = plane.runner.get(
+        works=[ChosenWork(qid=qid, title=long_title, artist="Sophie Taeuber-Arp")],
+        initiated_by=InitiatedBy.MCP_CLIENT,
+    )
+
+    (work,) = plane.discovery.list_candidate_works(run.id)
+    assert work.resolution_status is ResolutionStatus.RESOLVED
+    assert [image.url for image in plane.discovery.list_candidate_images(work.id)] == [page]
+    assert registry.pages_asked == [qid]

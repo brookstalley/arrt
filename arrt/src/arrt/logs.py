@@ -23,12 +23,17 @@ are the ones logged from deep inside a failure, which are the ones worth having.
 **No secret may ever reach a line here.** This repository is public and log
 excerpts are what gets pasted into an issue. Nothing in this module reads the
 environment or renders a configuration object; what is logged is what a call site
-passed. Prompts, intents and model output are not secrets and may be logged
+passed. **Every URL's query string is cut from the finished line**, message,
+fields and traceback alike, because that is where a paid source's key travels,
+and a source plugin's URLs and error text reach lines this repository's authors
+never wrote (`source-plugins.md`). Cutting it here, once, covers every call site,
+including the next one. Prompts, intents and model output are not secrets and may be logged
 freely — they carry artwork metadata and curatorial intent, nothing personal.
 """
 
 import json
 import logging
+import re
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -53,6 +58,22 @@ _ALWAYS: Final[tuple[str, ...]] = ("time", "level", "logger", "message")
 _BUILT_IN: Final[frozenset[str]] = frozenset(
     vars(logging.LogRecord(name="", level=0, pathname="", lineno=0, msg="", args=(), exc_info=None))
 ) | {"message", "asctime", "taskName"}
+
+
+#: A URL's query string, which is where a paid source's key usually travels.
+#: The address and the query each run to whitespace, `"`, `<` or `>`, the
+#: characters an HTTP client always encodes; the address also stops at `?` and
+#: `#`. Neither stops at `'` or `\\`, which httpx leaves in a path and a query as
+#: they are (`/artists/O'Keeffe`, `?q=O'Keeffe&key=…`): a cut that ended there
+#: kept the rest of the URL, key and all. Running past a closing quote costs only
+#: that quote. `tests/unit/test_logs.py` checks every character httpx leaves
+#: unencoded, read from httpx itself.
+_QUERY: Final[re.Pattern[str]] = re.compile(r"(https?://[^\s?#\"<>]+)\?[^\s\"<>]*")
+
+
+def scrub(text: str) -> str:
+    """`text` with every URL's query string cut, leaving the address it was asked of."""
+    return _QUERY.sub(r"\1?…", text)
 
 
 @contextmanager
@@ -117,7 +138,28 @@ class JsonFormatter(logging.Formatter):
             # field rather than trailing lines so a multi-line traceback cannot
             # break the one-line-one-object rule the whole shape rests on.
             payload["exception"] = self.formatException(record.exc_info)
-        return json.dumps(payload, default=str)
+        # Scrubbed value by value, before the line is JSON: encoding first turns
+        # an accented letter into an escape, and a cut that stopped there left the
+        # rest of the query, key and all. Every value is scrubbed, so a key cannot
+        # arrive by a route this line did not think of: a field, an argument, or
+        # the message a traceback repeats.
+        return json.dumps(_scrubbed(payload), default=str)
+
+
+def _scrubbed(value: object) -> object:
+    """`value` with every string in it scrubbed; anything JSON cannot hold becomes its scrubbed `str`."""
+    if value is None or isinstance(value, bool | int | float):
+        return value
+    if isinstance(value, str):
+        return scrub(value)
+    if isinstance(value, dict):
+        return {scrub(str(key)): _scrubbed(item) for key, item in value.items()}
+    if isinstance(value, list | tuple | set | frozenset):
+        return [_scrubbed(item) for item in value]
+    # Rendered here rather than by `json.dumps(default=str)`, which would render
+    # it after the scrub: an `httpx.URL` or an exception in a field carries its
+    # query string in its `str`.
+    return scrub(str(value))
 
 
 #: Marks the handler this module installed, so a second call can replace its own
