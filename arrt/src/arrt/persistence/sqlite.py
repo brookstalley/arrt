@@ -549,7 +549,10 @@ def _matching(query: WorkQuery) -> _Restriction:
         values.append(query.artist_id)
 
     # One bound JSON array rather than a placeholder per id: a theme may hold
-    # more works than SQLite will bind variables to one statement.
+    # more works than SQLite will bind variables to one statement. `json_each`
+    # is JSON1, part of every SQLite build since 3.38 and optional before it.
+    # The server runs only on a uv-managed CPython (the Dockerfile's `uv python
+    # install`), which bundles its own SQLite: 3.53.1 under 3.14.6, 2026-10-04.
     if query.within is not None:
         clauses.append('a."id" IN (SELECT value FROM json_each(?))')
         values.append(json.dumps(sorted(query.within)))

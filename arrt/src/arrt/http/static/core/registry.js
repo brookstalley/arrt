@@ -1,7 +1,8 @@
 /* What a registry says, as every page shows it.
  *
  * Shared by the Artist page and the Work page, which both show works Wikidata
- * lists, so a work's mark (*Held*, *Image found*) and the words for an item with
+ * lists, so a work's mark (`workState`; `information-architecture.md` § A work's
+ * mark) and the words for an item with
  * no readable name are the same wherever it appears.
  *
  * **Every string from the registry is untrusted text** (`security-model.md` §

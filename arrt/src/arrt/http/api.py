@@ -533,7 +533,7 @@ def get_topic_registry(request: Request, qid: str) -> TopicRegistryOut:
 
 @router.get("/topics/{qid}/works")
 def get_topic_works(request: Request, qid: str) -> TopicWorksOut:
-    """*Representative works*: the topic's most renowned works, each Held, Image found or no image known.
+    """*Representative works*: the topic's most renowned works, each with what marks it: held, wanted, its image.
 
     Asked after the page is drawn: a period's works took 7 to 26 seconds to
     ask for. Always a 200 for a well-formed QID; a malformed one is a 400.

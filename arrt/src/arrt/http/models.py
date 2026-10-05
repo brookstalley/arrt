@@ -467,6 +467,9 @@ class WorkPageOut(BaseModel):
     #: with a write free to land in between.
     facets: list[FacetGroupOut] = []
     #: Every theme, by name, as a filter option counted against this filter.
+    #: Uncapped, and repeated on every page: themes are made by hand, one at a
+    #: time, so there are tens of them. If that stops being true, so does the
+    #: case for sending them whole with each page.
     themes: list[ThemeOptionOut] = []
 
 

@@ -104,7 +104,7 @@ Open assumptions:
 - [x] Chunk 03: A work's mark
 - [x] Chunk 04: Artists: surname order and cards
 - [x] Chunk 05: Identity's *Edit*; Topics in columns
-- [ ] Chunk 06: The owner's review
+- [x] Chunk 06: The owner’s review
 
 ### Chunk 01: The works listing filters by theme
 
@@ -205,8 +205,11 @@ Done when: API tests that each of the four producers reports wanted (with a
 fixture holding a wanted candidate for a different QID, which must not mark
 this one) and that held wins over wanted; browser tests on each of the four
 screens for all four states, each asserting the glyph and word, the picture's
-presence or absence, and which image style it carries, plus one with pictures
-failing to load that still tells the states apart; before/after screenshots of
+presence or absence, and which image style it carries
+*(built as the full matrix on the Topic page only: one helper, `workState`,
+decides every screen's mark and style, so the typeahead, Artist and Work pages
+each test their wiring of `wanted` and some styles rather than the matrix again)*,
+plus one with pictures failing to load that still tells the states apart; before/after screenshots of
 all four screens; an operator-verification entry.
 
 ### Chunk 04: Artists: surname order and cards
@@ -224,7 +227,9 @@ all four screens; an operator-verification entry.
 - `information-architecture.md`'s Artists row records the ruling.
 
 Done when: store/service tests for the order; browser tests for both views,
-the toggle's state, keyboard reach, and an artist with no held work; a layout
+the toggle's state, keyboard reach, and an artist with no held work
+*(built as a picture that fails to load: the index lists only artists with a
+work in circulation, so an artist with no held work cannot appear on it)*; a layout
 test that the cards fill the width at desktop and stack at phone width
 *(built as two to a row on a phone: one card per screen made 31 artists a
 31-screen scroll; Lidarr's poster index pairs them)*;

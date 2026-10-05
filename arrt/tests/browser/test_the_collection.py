@@ -605,6 +605,49 @@ def test_a_theme_composes_with_a_facet_and_counts_like_one(ui, display, seeded_s
     assert ui.page.locator(".page-toolbar button", has_text="Sort").count() == 1
 
 
+STALE_THEME = "The theme this address names is not in the catalogue"
+
+
+def test_an_address_naming_a_deleted_theme_shows_the_works_and_says_so(ui, a_theme_holding_one_work):
+    """A bookmark outlives the theme it names, and the home page must survive it.
+
+    The listing refuses an unknown theme, rightly: answering with the whole
+    catalogue under the theme's name would be a lie. The screen must not pass that
+    refusal on as a dead page, though. It shows what the address's other filters
+    select, with its rail, and says the theme is gone.
+    """
+    theme, _ = a_theme_holding_one_work
+    ui.open("#collection?theme=no-such-theme")
+    ui.page.wait_for_selector("ul.grid li.card")
+
+    assert ui.page.locator("ul.grid li.card").count() == 3
+    assert STALE_THEME in ui.text()
+    assert theme_option(ui, theme).inner_text() == "Baroque (1)"
+    assert theme_option(ui, theme).get_attribute("aria-pressed") == "false"
+    assert ui.page.locator("#error:not([hidden])").count() == 0
+
+
+def test_a_deleted_theme_beside_a_facet_keeps_the_facet(ui, seeded_service, a_theme_holding_one_work):
+    theme, works = a_theme_holding_one_work
+    seeded_service.record_facet(
+        artwork_id=works[2].id, kind=VocabularyKind.MOVEMENT, value="Realism", derivation=FacetDerivation.INFERRED
+    )
+    ui.open("#collection?theme=no-such-theme&movement=Realism")
+    ui.page.wait_for_selector("ul.grid li.card")
+
+    assert ui.page.locator("ul.grid li.card").count() == 1
+    assert STALE_THEME in ui.text()
+    assert ui.page.locator("button.facet-option[aria-pressed='true']", has_text="Realism").count() == 1
+
+
+def test_a_theme_that_exists_draws_no_stale_theme_sentence(ui, a_theme_holding_one_work):
+    theme, _ = a_theme_holding_one_work
+    ui.open(f"#collection?theme={theme.id}")
+    ui.page.wait_for_function("() => document.querySelectorAll('ul.grid li.card').length === 1")
+
+    assert STALE_THEME not in ui.text()
+
+
 def test_adding_moves_the_rails_count_without_a_repaint(ui, display, a_theme_holding_one_work):
     """Nothing repaints, so the count beside the rail has to move where it stands."""
     theme, works = a_theme_holding_one_work
@@ -678,7 +721,10 @@ def test_removing_from_a_theme_takes_the_tiles_out_and_says_what_is_left(ui, dis
     ui.page.wait_for_function("() => document.querySelectorAll('ul.grid li.card').length === 1")
 
     assert ui.page.inner_text("h2") == "1 work in “Baroque”"
-    assert theme_option(ui, theme).inner_text() == "Baroque (1)"
+    # The rail is recounted by the server after the tile goes, so its count is
+    # waited for: read at once, it races the recount and can see the old one.
+    # A rail that never recounts still fails here, by timing out.
+    ui.page.wait_for_selector(f"button.facet-option[data-theme='{theme.id}']:text-is('Baroque (1)')")
     assert len(display.theme_work_ids(theme.id)) == 1
 
 
@@ -863,6 +909,9 @@ def test_a_refusal_partway_through_leaves_exactly_the_works_that_did_not_go(ui, 
     assert ui.page.locator(f"li.card[data-artwork='{works[2].id}'] input.tile-select").is_checked()
     assert writes == [works[1].id, works[2].id]
     assert set(display.theme_work_ids(theme.id)) == {works[0].id, works[1].id}
+    # The rail's count moved by the one that landed, not by the two asked for and
+    # not by none: the stale count its handler exists to refuse.
+    assert theme_option(ui, theme).inner_text() == "Baroque (2)"
 
     # The retry is pressing the same button, so it has to still be pressable.
     assert ui.page.is_enabled("button.selection-add")
@@ -878,6 +927,7 @@ def test_a_refusal_partway_through_leaves_exactly_the_works_that_did_not_go(ui, 
     assert ui.page.inner_text(".selection-status") == "Added 1 work to Baroque."
     assert ui.page.locator("input.tile-select:checked").count() == 0
     assert set(display.theme_work_ids(theme.id)) == {work.id for work in works}
+    assert theme_option(ui, theme).inner_text() == "Baroque (3)"
 
 
 def test_removing_a_theme_s_last_member_leaves_a_sentence_not_a_blank(ui, a_theme_holding_one_work):

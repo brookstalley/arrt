@@ -691,6 +691,9 @@ function membershipControls({ themes, shownTheme, grid, heading, recount, recoun
             await recountRail();
           } catch (failure) {
             if (!refused) throw failure;
+            // Its own trace, since the banner is the refusal's: the rail's
+            // counts are now stale, and nothing on the page says so.
+            console.warn("The filter rail could not be recounted after the refused removal:", failure);
           }
         };
         try {
@@ -860,18 +863,38 @@ export async function viewCollection(generation) {
   // The search, the facets and the theme go to the server, which is what makes
   // the count in the heading a statement about the catalogue rather than about
   // this screen's first page — and what lets the three compose.
-  const page = await fetchAllWorks(
-    query,
-    chosen,
-    (first) => {
-      // Only when there is more to come. A collection that arrives whole in
-      // one round trip has nothing to wait through, and the tiles it would
-      // stand in for are already on their way.
-      if (first.truncated) render(generation, ...skeletonScreen(resolveDensity(first.total)));
-    },
-    offeredSort(),
-    { theme: state.params.theme || null },
-  );
+  const fetchPage = (theme) =>
+    fetchAllWorks(
+      query,
+      chosen,
+      (first) => {
+        // Only when there is more to come. A collection that arrives whole in
+        // one round trip has nothing to wait through, and the tiles it would
+        // stand in for are already on their way.
+        if (first.truncated) render(generation, ...skeletonScreen(resolveDensity(first.total)));
+      },
+      offeredSort(),
+      { theme },
+    );
+  // A bookmark can outlive the theme it names. The server refuses an unknown
+  // theme, rightly, since answering with the whole catalogue under its name
+  // would be a lie; but passing that refusal on would take the home page down,
+  // where a stale sort or density falls back. So the works the address's other
+  // filters select are shown, and `staleThemeNote` says the theme is gone. Only
+  // when the listing without the theme answers: a refusal that survives dropping
+  // the theme was never about it, and is the error.
+  let theme = state.params.theme || null;
+  let page;
+  let themeGone = false;
+  try {
+    page = await fetchPage(theme);
+  } catch (failure) {
+    if (!theme || failure.status !== 400) throw failure;
+    page = await fetchPage(null);
+    theme = null;
+    themeGone = true;
+  }
+  const staleTheme = themeGone ? staleThemeNote() : null;
 
   const themes = page.themes;
   const shownTheme = themes.find((option) => option.selected) || null;
@@ -884,7 +907,7 @@ export async function viewCollection(generation) {
     render(
       generation,
       heading,
-      collectionLayout(page, chosen, shownTheme, density, null, [emptyState(query, chosen, shownTheme)]),
+      collectionLayout(page, chosen, shownTheme, density, null, [staleTheme, emptyState(query, chosen, shownTheme)]),
     );
     return;
   }
@@ -901,7 +924,7 @@ export async function viewCollection(generation) {
     recountRail: async () => {
       const rail = document.querySelector("aside.rails");
       if (!rail) return;
-      const counts = await fetchFilterCounts(query, chosen, { theme: state.params.theme || null });
+      const counts = await fetchFilterCounts(query, chosen, { theme });
       fill(rail, ...railContents(counts, chosen));
     },
     whenEmpty: () => (grid.closest("table") || grid).replaceWith(emptyState(query, chosen, shownTheme)),
@@ -912,8 +935,18 @@ export async function viewCollection(generation) {
   render(
     generation,
     heading,
-    collectionLayout(page, chosen, shownTheme, density, selection, [shortfallNote(page), shown]),
+    collectionLayout(page, chosen, shownTheme, density, selection, [staleTheme, shortfallNote(page), shown]),
   );
+}
+
+/* Said where the works are rather than in the rail, so it is seen with the
+ * rails put away too. The theme's id is not repeated: it names nothing now, and
+ * the way back to a theme that does exist is the rail beside it. */
+function staleThemeNote() {
+  return el("p", {
+    class: "note stale-theme-note",
+    text: "The theme this address names is not in the catalogue — it may have been deleted — so these are the works the other filters select.",
+  });
 }
 
 /* What the rails hold: the Theme group, then the facets. Said rather than

@@ -288,7 +288,7 @@ class TopicService:
         return TopicView(state=TopicState.KNOWN, known=known)
 
     def works(self, qid: str) -> TopicWorksView:
-        """The topic's most renowned works of visual art, each marked Held, Image found or no image known."""
+        """The topic's most renowned works of visual art, each with what marks it: held, wanted, its image."""
         qid = checked_qid(qid)
         if self._registry is None:
             return TopicWorksView(state=TopicState.NOT_CONFIGURED, note=TOPICS_NOT_CONFIGURED_NOTE)

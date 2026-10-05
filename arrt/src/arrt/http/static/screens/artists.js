@@ -371,8 +371,8 @@ function heldCard(work, chosen, settle) {
 }
 
 /* The registry half, once it has answered: what Wikidata lists, most renowned
- * first, each marked *Held* where the library holds it (by QID, never by title)
- * or *Image found* where Wikidata has a free image; then the collections.
+ * first, each with a work's mark (`workState`; held is matched by QID, never by
+ * title); then the collections.
  *
  * Every work the library does not hold can be ticked and got, image found or not:
  * a museum may hold one Wikidata has no picture of. A held row has no tick box. */
