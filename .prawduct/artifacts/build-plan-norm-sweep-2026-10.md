@@ -49,7 +49,7 @@ history (the owner ruled fix forward).
 ## Status
 
 - [x] Chunk 01: Records: amendments, index rows, stale references
-- [ ] Chunk 02: The deployment guard stops publishing the deployment
+- [x] Chunk 02: The deployment guard stops publishing the deployment
 - [ ] Chunk 03: Guards and small fixes the sweep found
 - [ ] Chunk 04: Ruff ALL on the display plane; N and BLE001 at the root
 - [ ] Chunk 05: Ruff ALL on the curation plane
