@@ -31,10 +31,9 @@ async def call(server_url: str, tool: str, **arguments) -> tuple[dict, bool]:
     from mcp import ClientSession
     from mcp.client.streamable_http import streamable_http_client
 
-    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            result = await session.call_tool(tool, arguments)
+    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _), ClientSession(read, write) as session:
+        await session.initialize()
+        result = await session.call_tool(tool, arguments)
     return json.loads("".join(block.text for block in result.content if block.type == "text")), bool(result.isError)
 
 
@@ -368,7 +367,7 @@ async def test_a_curator_can_choose_a_scan_the_floor_withheld(server_url, servic
 
 
 async def test_a_scan_already_turned_down_cannot_be_chosen_again(server_url, reviewable):
-    work, images = reviewable(instances=2)
+    _work, images = reviewable(instances=2)
     await call(server_url, "art_review", action="reject_image", image_id=images[0].id)
 
     payload, errored = await call(server_url, "art_review", action="set_canonical", image_id=images[0].id)

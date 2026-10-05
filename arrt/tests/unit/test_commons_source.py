@@ -159,6 +159,29 @@ def test_a_commons_that_cannot_be_asked_raises_rather_than_answering_empty(answe
         find(FakeRegistry(works={"Q45585": a_work("Q45585", STARRY)}), handler=answer)
 
 
+@pytest.mark.parametrize(
+    "page",
+    [
+        pytest.param({"title": "File:Starry.jpg"}, id="a page with no imageinfo and no missing flag"),
+        pytest.param({"title": "File:Starry.jpg", "imageinfo": []}, id="an empty imageinfo"),
+        pytest.param({"title": "File:Starry.jpg", "imageinfo": ["not a record"]}, id="an imageinfo that is not a record"),
+        pytest.param("not a record", id="a page that is not a record"),
+    ],
+)
+def test_a_page_commons_does_not_describe_could_not_be_asked_rather_than_holds_nothing(page):
+    """Only Commons' own `missing` says it has no such file. A page record in any
+    other unexpected shape is a page this source does not recognise, which the
+    corpus rules "could not be asked", never "holds nothing" (`procurement-corpus.md`
+    § Gaps, 5): read as empty, it would report a work absent because the answer
+    changed shape."""
+
+    def unrecognised(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"batchcomplete": True, "query": {"pages": [page]}})
+
+    with pytest.raises(ImageSearchFailure):
+        find(FakeRegistry(works={"Q45585": a_work("Q45585", STARRY)}), handler=unrecognised)
+
+
 def test_a_registry_that_cannot_be_asked_raises_rather_than_answering_empty():
     with pytest.raises(ImageSearchFailure):
         find(FakeRegistry(failing=True))
@@ -265,5 +288,5 @@ def test_phase_two_picks_the_better_image_whichever_source_found_it(museum_size,
 
     resolution = engine.resolve(ImageQuery(title="The Starry Night", artist="Vincent van Gogh", qid=ItemId("Q45585")))
 
-    assert [entry.found.provider for entry in resolution.instances][0] == winner
+    assert next(entry.found.provider for entry in resolution.instances) == winner
     assert {entry.found.provider for entry in resolution.instances} == {"commons", "artic"}

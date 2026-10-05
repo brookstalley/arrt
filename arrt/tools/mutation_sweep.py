@@ -142,7 +142,7 @@ def serial_flags() -> tuple[str, ...]:
     own environment — they are different interpreters with different lockfiles.
     """
     probe = subprocess.run(
-        ["uv", "run", "python", "-c", "import xdist"],
+        ["uv", "run", "python", "-c", "import xdist"],  # noqa: S607 -- uv from the developer's PATH, like every dev command
         cwd=ROOT,
         capture_output=True,
         text=True,
@@ -157,7 +157,7 @@ def run_tests(targets: list[str]) -> subprocess.CompletedProcess[str]:
     They must be the identical invocation: a baseline that ran a different command
     from the mutated runs would vouch for a suite the sweep never executes.
     """
-    return subprocess.run(
+    return subprocess.run(  # noqa: S603 -- argv is the developer's own command line
         # `-n0` FIRST, so a caller's own `-n` in the passthrough still wins.
         #
         # It is not an optimisation, it is what makes the verdict readable. With
@@ -171,7 +171,18 @@ def run_tests(targets: list[str]) -> subprocess.CompletedProcess[str]:
         # slice `(mutations + 1)` times, where per-run worker startup is most of
         # the bill — measured at 67s serial against 65s parallel for ten
         # mutations over two files.
-        ["uv", "run", "pytest", *serial_flags(), *targets, "-q", "-x", "--no-header", "-p", "no:cacheprovider"],
+        [  # noqa: S607 -- uv from the developer's PATH, like every dev command
+            "uv",
+            "run",
+            "pytest",
+            *serial_flags(),
+            *targets,
+            "-q",
+            "-x",
+            "--no-header",
+            "-p",
+            "no:cacheprovider",
+        ],
         cwd=ROOT,
         capture_output=True,
         text=True,
@@ -279,7 +290,7 @@ def say(message: str = "", *, error: bool = False) -> None:
     lines are progress, not a summary — buffered, they would all arrive at the
     end and the operator would have no way to tell a slow run from a hung one.
     """
-    print(message, file=sys.stderr if error else sys.stdout, flush=True)  # noqa: T201 -- this tool's report IS its output
+    print(message, file=sys.stderr if error else sys.stdout, flush=True)
 
 
 def sweep(mutations: list[Mutation], targets: list[str]) -> int:
@@ -302,9 +313,9 @@ def sweep(mutations: list[Mutation], targets: list[str]) -> int:
 
 
 def main(argv: list[str]) -> int:
-    global ROOT
+    global ROOT  # noqa: PLW0603 -- --project re-roots every path the sweep derives
     if argv and argv[0] == "--project":
-        if len(argv) < 2:
+        if len(argv) < 2:  # noqa: PLR2004 -- the flag and its directory
             say("--project needs a directory", error=True)
             return 2
         ROOT = pathlib.Path(argv[1]).resolve()
@@ -315,7 +326,7 @@ def main(argv: list[str]) -> int:
             say(f"the sweep is misconfigured: {ROOT} is not a project — it holds no pyproject.toml", error=True)
             return 2
         argv = argv[2:]
-    if len(argv) < 2:
+    if len(argv) < 2:  # noqa: PLR2004 -- the two positional arguments: mutations and tests
         say(__doc__ or "")
         return 2
     # Everything after a `--` goes to pytest verbatim, which is how an opt-in

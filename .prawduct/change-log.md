@@ -62,6 +62,126 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-05: Norm Health sweep: the rules re-measured, and the owner's rulings built
+
+<!-- prawduct: scope=norm-sweep-2026-10 | release=v0.3.0 -->
+
+**Why:** the sweep was 64 days overdue, and the first since the 2026-09-30
+re-architecture, the display plane and the paid discovery path. Measurements and
+the owner's rulings are in `project-state.yaml` (`norm_health`, 2026-10-05). Plan:
+`build-plan-norm-sweep-2026-10.md`.
+
+**What:**
+- **Records.** The service-layer norm amended (bindings compose, never branch on
+  a result); the manifest norm says the Player makes only the requests
+  `contract/routes.json` names; the broad-except norm exempts a catch that always
+  re-raises, superseding the 2026-08-02 ruling, because ruff `BLE001` now audits
+  it. Four `data-model.md` norms indexed; four unassigned preferences assigned;
+  stale chunk references, departures and counts brought to the tree. Issues
+  #215–#218 filed; ten older items given their filing reason. Also on this
+  branch: `upgrades.md`'s reserved questions relabelled U1–U6 (Q38–Q43 had been
+  given to others), the owner keeping the exhibit-E skip rule, the stats
+  contribution preference (`always`), and two learnings (a core rule amended, a
+  new `learnings/tooling.md`).
+- **The deployment guard no longer publishes the deployment.** It checks shapes
+  (a private address, a named home directory) and this checkout's own `.env`
+  values, never the values themselves. A home path in a legacy comment, the Pi's
+  hostname and login, and an email in two live tests' User-Agent are scrubbed.
+  History is not rewritten (the owner's ruling).
+- **Guards and fixes.** Commons reads an unrecognised page as "could not be
+  asked"; the scrim text pair is computed; the startup secret test covers every
+  declared secret; the surfaces import persistence records and never a store
+  (#24, `WorkOrder` and `BackupReading` moved to `records.py`); the Player's token
+  check is a dependency, with its refusal shape now tested on all five routes;
+  the root's module set may only shrink, and tests live in their plane's
+  `tests/`; the mat fallback's stored reason names its case (#212); a run's
+  threads are joined before its test's store closes (#198); the heartbeat guard
+  compares the key both bodies carry and pins it to the contract.
+- **Ruff, gone big** (the owner's ruling). Both planes select every rule ruff has,
+  less a short ignore list each with its reason; the root adds `N` and `BLE`, its
+  2024 modules leaving at wave 5. The residual was fixed, or waived per line with
+  a reason, and `tests/preferences/test_waivers.py` now refuses a waiver without
+  one. The curation plane's half was built by a delegate in its own worktree and
+  merged here; its one behaviour slip (Playwright route handlers as bound
+  methods) was caught by the browser suite and reverted.
+- **Wanted is a section of its own**, after Activity, as in Sonarr, Radarr and
+  Lidarr (the owner's ruling, against IA ruling 9). It is drawn hidden and shown
+  once its count says something is wanted, which also ends a sidebar race the
+  browser suite tripped on once in six runs. Cards now say a work "waits in
+  Wanted".
+- **Tests changed, none weakened:** composite asserts split, three assigned
+  lambdas made functions, blocking HTTP in async tests moved off the loop, and the
+  sidebar tests rewritten to the new section list.
+
+## 2026-10-05: A run keeps why it ended
+
+<!-- prawduct: scope=run-end-reason | release=v0.3.0 -->
+
+**Why:** a run that failed kept no record of why. The runner composed a reason
+at every failure site and only logged it, so the API, the MCP `status` action and
+the run page all said "failed". Seen on an Ask for Lucy Bull (run `4756cdee`),
+whose reason could not be recovered without the container's log (#207). Plan:
+`build-plan-run-end-reason.md`.
+
+**What:**
+- New nullable column `discovery_runs.end_reason`, added in place by widening.
+  `fail_run` and `halt_run_for_budget` require a non-blank `reason` and store it
+  with the ending; every other ending stores null (`data-model.md`).
+- The runner passes the reason it already logged. A fault nothing anticipated
+  stores "Phase N failed unexpectedly. The server log has the details." and never
+  the exception's text.
+- `end_reason` on every HTTP and MCP run shape, listings included
+  (`api-contract.md`). The MCP notice for a failed run names it when it is set.
+- The run page shows "Why it stopped: …" under a failed or halted run's sentence,
+  as text. A failed run from before the column keeps the log pointer.
+
+**Review:** cumulative, 0 blocking, two warnings. The new
+blank-reason refusal, raised inside the worker's handlers, would have stranded a
+run whose engine error had an empty message; `_end` now replaces a blank reason.
+A halt's reason was described as carrying a 402's arithmetic; a halt is a 403,
+and the records now say so. Both verified in a second pass.
+
+## 2026-10-05: An Ask's search hands the pages it read to the source plugins
+
+<!-- prawduct: scope=ask-pages | release=v0.3.0 -->
+
+**Why:** the owner chose Artlogic, the gallery platform, as the next source, found
+through Ask's web search rather than a list of galleries. Gallery works have no
+Wikidata item, so no plugin could be told where to look. Measured: a search for an
+artist's paintings cites the gallery's artist page (`procurement-corpus.md` § The
+probe: Artlogic, and what Ask's search cites). Plan: `build-plan-ask-pages.md`.
+
+**What:**
+- Phase 1 keeps its search's citations (`WorkList.citations`): in the search's
+  order, each once, http(s) only. Never an address from the model's answer.
+- New table `run_citations`, written when phase 1 closes (`data-model.md`
+  § RunCitation, Q46–Q47).
+- Phase 2 hands every work the run proposed its run's citations as
+  `ImageQuery.pages`, on approval, on a re-search and after a restart. Each passes
+  `check_fetchable` first, once per run per pass; a refused one is dropped and
+  logged (`phase_two.page_refused`). A Get has none. The container hands the
+  check the same resolver acquisition uses, so a suite's stated DNS answers
+  reach it too.
+- The plugin interface is 1.1. A plugin written for 1.0 loads unchanged.
+- `check_fetchable` refuses a URL it cannot parse (`http://[x/`) and a name the
+  resolver cannot encode (`a..b`, a label over 63 characters) instead of raising
+  a parser's error. A stored citation of either shape would otherwise have failed
+  its run's phase 2 on every re-search; acquisition's three callers gain the same.
+- `security-model.md`: bound 2 re-derived for plugin reads of cited pages
+  (§ Plugins read pages a search cited), with the owner's approval.
+- **The gallery source itself is a private plugin**, `artlogic` in `arrt-sources`
+  (`eedae73`), which this repository does not ship. With it, run 6 found all six
+  of the corpus's gallery rows through Ask, at the galleries' stored originals
+  (`procurement-corpus.md` § Run 6). A failed run keeping no reason was filed as
+  #207.
+- **Shipping and rolling back.** `run_citations` is additive: an older build
+  opens the file and ignores it. Arrt and the plugin image are built together
+  (`arrt-sources:<arrt>-<plugin>`), so roll them back together; the `artlogic`
+  plugin under an Arrt before 1.1 answers every work "not answerable" rather
+  than failing.
+- Also carried: two wording fixes owed from PR #203's review (`re-architecture.md`'s
+  master-size-cap question; `project-state.yaml`'s blocking line).
+
 ## 2026-10-04: Library screens — Artworks' theme filter and Select mode, a work's mark, Artists by surname
 
 <!-- prawduct: scope=library-screens | release=v0.2.0 -->

@@ -8,7 +8,7 @@ from arrt.library.acquisition.urls import UrlRefused, check_fetchable
 def _resolves_to(*addresses: str):
     """A resolver that answers with exactly these addresses, whatever it is asked."""
 
-    def resolve(host: str):  # noqa: ARG001 - the answer is the point, not the question
+    def resolve(host: str):
         return list(addresses)
 
     return resolve
@@ -69,7 +69,7 @@ class TestPrivateAddresses:
             "192.168.1.1",
             "172.16.0.1",
             "169.254.169.254",
-            "0.0.0.0",
+            "0.0.0.0",  # noqa: S104 -- a literal the guard must refuse, not a bind
         ],
     )
     def test_private_and_loopback_literals_are_refused(self, literal):
@@ -156,3 +156,19 @@ class TestResolutionFailures:
         # address had passed.
         with pytest.raises(UrlRefused, match="no addresses"):
             check_fetchable("https://empty.example.com/x.jpg", resolve=_resolves_to())
+
+
+class TestUrlsThatAreNotUrls:
+    """Refused by name, never raised as a parser's error: a caller handles refusals,
+    and anything else from here fails whatever was asking (a run's whole phase 2,
+    for a citation stored with the run)."""
+
+    def test_a_bracketed_host_that_is_no_address_is_refused(self):
+        with pytest.raises(UrlRefused, match="cannot be parsed"):
+            check_fetchable("http://[x/", resolve=PUBLIC)
+
+    @pytest.mark.parametrize("url", ["http://a..b/", "http://" + "a" * 64 + ".example/"])
+    def test_a_name_with_an_empty_or_overlong_label_is_refused_before_any_lookup(self, url):
+        """The system resolver's own IDNA step raises; no network is involved."""
+        with pytest.raises(UrlRefused, match="not a name that can be looked up"):
+            check_fetchable(url)

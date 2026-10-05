@@ -81,6 +81,15 @@ class ImageQuery:
     #: from the registry. A source that can look a work up by item uses it; one
     #: that cannot ignores it and searches by title as before.
     qid: ItemId | None = None
+    #: Pages the run's web search read, in its order (interface 1.1). They are
+    #: about the run's intent, not this one work: a search for "Peter Stephens's
+    #: paintings" cites his gallery's artist page, and a finder that recognises
+    #: such a page looks for this work on it. Each was a public http(s) address
+    #: when Arrt checked it, which is the only check made: what a page says is
+    #: outside text, written by whoever controls it, and a finder reads only
+    #: pages of a shape it recognises. Empty for a Get, and for a run with no
+    #: search.
+    pages: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

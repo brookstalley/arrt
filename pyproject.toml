@@ -1,6 +1,6 @@
 [project]
 name = "samsung-frame-art-loader-legacy"
-version = "0.2.0"
+version = "0.3.0"
 description = "The 2024 modules that run the wall today, plus repo-wide tool config."
 requires-python = ">=3.12"
 dependencies = ["python-dotenv"]
@@ -51,8 +51,13 @@ extend-exclude = ["arrt", "postarr"]
 #   B    bugbear — mutable defaults, shadowed loop vars
 #   T20  no print(); this project logs
 #   TRY  no bare `raise Exception`, no swallowed context
-select = ["E", "F", "I", "UP", "B", "T20", "TRY"]
+# `N` and `BLE` since 2026-10-05 (the owner, at the Norm Health sweep). The root
+# takes only these two of the planes' `ALL`, because its 2024 modules leave at the
+# legacy retirement (wave 5) and fixing them for every rule buys nothing; `N818`
+# is ignored for the reason the planes give.
+select = ["E", "F", "I", "UP", "B", "T20", "TRY", "N", "BLE"]
 ignore = [
+    "N818",
     # f-strings in logging calls are pervasive in the 2024 modules and are not
     # worth a mass rewrite of code scheduled for deletion.
     "TRY400",
@@ -79,14 +84,16 @@ ignore = [
 # these modules and is a tidiness rule, not a correctness one.
 # `config.py` is excluded from this list: it was rewritten and is held to the
 # strict set, as is everything under `arrt/` and `tests/`.
+# `BLE001` on four of these: their unwaived broad catches are the broad-except
+# norm's dated departure, and leave with the modules at the legacy retirement.
 "ai.py" = ["T20", "E501", "F841", "TRY002", "TRY201", "TRY300", "B007"]
 "art.py" = ["T20", "E501", "F841", "TRY002", "TRY201", "TRY300", "B007", "E402"]
 "display.py" = ["T20", "E501", "F841", "TRY002", "TRY201", "TRY300", "B007", "E402"]
-"image_utils.py" = ["T20", "E501", "F841", "TRY002", "TRY201", "TRY300", "B007"]
+"image_utils.py" = ["T20", "E501", "F841", "TRY002", "TRY201", "TRY300", "B007", "BLE001"]
 "local.py" = ["T20", "E501", "F841", "TRY002", "TRY201", "TRY300", "B007"]
-"metadata.py" = ["T20", "E501", "F841", "TRY002", "TRY201", "TRY300", "B007"]
-"source_utils.py" = ["T20", "E501", "F841", "TRY002", "TRY201", "TRY300", "B007"]
-"tvart.py" = ["T20", "E501", "F841", "TRY002", "TRY201", "TRY300", "B007"]
+"metadata.py" = ["T20", "E501", "F841", "TRY002", "TRY201", "TRY300", "B007", "BLE001"]
+"source_utils.py" = ["T20", "E501", "F841", "TRY002", "TRY201", "TRY300", "B007", "BLE001"]
+"tvart.py" = ["T20", "E501", "F841", "TRY002", "TRY201", "TRY300", "B007", "BLE001"]
 # Operator tools run by hand; print() is their output, not logging.
 #
 # THIS GROUP IS READ AS A LIST. The `logging` only / `print()` norm in

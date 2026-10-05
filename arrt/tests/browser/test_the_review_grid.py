@@ -147,8 +147,11 @@ def test_opening_the_alternates_shows_what_a_curator_chooses_between(grid):
     grid.page.wait_for_selector("tr.alternate")
 
     rows = [" ".join(row.split()) for row in grid.page.locator("tr.alternate").all_inner_texts()]
-    assert "3,840 × 2,604 px" in rows[0] and "native" in rows[0] and "on offer" in rows[0], rows[0]
-    assert "1,100 × 856 px" in rows[1] and "below floor" in rows[1], rows[1]
+    assert "3,840 × 2,604 px" in rows[0], rows[0]
+    assert "native" in rows[0], rows[0]
+    assert "on offer" in rows[0], rows[0]
+    assert "1,100 × 856 px" in rows[1], rows[1]
+    assert "below floor" in rows[1], rows[1]
     assert "on offer" not in rows[1], rows[1]
     assert "″" not in grid.text()
 
@@ -1082,7 +1085,8 @@ def test_two_queries_are_two_groups_rather_than_one_run_of_cards(grid):
     # card's artist line. The attribute is the only unambiguous handle.
     dali = grid.page.locator("section.offer-group[data-offer-artist='Salvador Dalí']")
     kelly = grid.page.locator("section.offer-group[data-offer-artist='Ellsworth Kelly']")
-    assert dali.count() == 1 and kelly.count() == 1
+    assert dali.count() == 1
+    assert kelly.count() == 1
 
     # The visible heading, not only the attribute. Rescoping these assertions to
     # `data-offer-artist` removed the last assertion on rendered heading text —

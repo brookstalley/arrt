@@ -90,12 +90,14 @@ def _held(settings) -> set[str]:
 
 
 def test_the_client_requests_the_routes_the_contract_names():
-    assert MANIFEST_ROUTE == ROUTES["manifest"]["path"]
-    assert HEARTBEAT_ROUTE == ROUTES["heartbeat"]["path"]
-    assert CLIENT_ROUTE == ROUTES["client"]["path"]
-    assert CLIENT_HEARTBEAT_ROUTE == ROUTES["client_heartbeat"]["path"]
-    assert ROUTES["manifest"]["method"] == "GET" and ROUTES["heartbeat"]["method"] == "POST"
-    assert ROUTES["client"]["method"] == "GET" and ROUTES["client_heartbeat"]["method"] == "POST"
+    assert ROUTES["manifest"]["path"] == MANIFEST_ROUTE
+    assert ROUTES["heartbeat"]["path"] == HEARTBEAT_ROUTE
+    assert ROUTES["client"]["path"] == CLIENT_ROUTE
+    assert ROUTES["client_heartbeat"]["path"] == CLIENT_HEARTBEAT_ROUTE
+    assert ROUTES["manifest"]["method"] == "GET"
+    assert ROUTES["heartbeat"]["method"] == "POST"
+    assert ROUTES["client"]["method"] == "GET"
+    assert ROUTES["client_heartbeat"]["method"] == "POST"
 
 
 def test_a_wall_reads_and_renders_from_its_own_directory_in_the_cache(http_settings, cache_dir):

@@ -151,14 +151,18 @@ def test_every_invalid_client_heartbeat_in_the_contract_is_refused_with_400_and_
         (b"[1, 2]", "JSON object"),
         (b'{"reported_at": "2026-10-02T14:00:05", "outputs": []}', "reported_at"),
         (
-            b'{"reported_at": "2026-10-02T14:00:05Z", "outputs": ['
-            b'{"name": "hdmi-a-1", "kind": "framebuffer", "connected": true, "screen": null},'
-            b'{"name": "hdmi-a-1", "kind": "framebuffer", "connected": false, "screen": null}]}',
+            (
+                b'{"reported_at": "2026-10-02T14:00:05Z", "outputs": ['
+                b'{"name": "hdmi-a-1", "kind": "framebuffer", "connected": true, "screen": null},'
+                b'{"name": "hdmi-a-1", "kind": "framebuffer", "connected": false, "screen": null}]}'
+            ),
             "both called 'hdmi-a-1'",
         ),
         (
-            b'{"reported_at": "2026-10-02T14:00:05Z", "outputs": ['
-            b'{"name": "hdmi-a-1", "kind": "framebuffer", "connected": true, "screen": [true, 1080]}]}',
+            (
+                b'{"reported_at": "2026-10-02T14:00:05Z", "outputs": ['
+                b'{"name": "hdmi-a-1", "kind": "framebuffer", "connected": true, "screen": [true, 1080]}]}'
+            ),
             "'screen'",
         ),
     ],

@@ -97,7 +97,7 @@ said the account owns "the checkout the units execute from" and never said where
 it was; both unit files said `/home/tvpi/source/samsung-frame-art-loader`, which
 is not a location anyone chose so much as the path the 2024 card happened to
 have. It surfaced at the cutover as a hard blocker rather than a preference: the
-only checkout on the machine sat at `/home/brooks/source/…` under a home
+only checkout on the machine sat at `/home/<login>/source/…` under a home
 directory at mode `0700`, which `tvpi` cannot traverse at all. A path a service
 account cannot reach is not a configuration detail, so the answer is recorded
 here rather than left to whoever next reads a unit file.
@@ -126,7 +126,7 @@ is disposable and rebuilt by a sync, `/srv/art` is the thing that must never be
 lost, and no backup should ever have to tell them apart.
 
 **`uv` lives at `/usr/local/bin/uv`, and both units name it absolutely.** Same
-failure, same shape: the machine's only `uv` was at `/home/brooks/.local/bin/uv`,
+failure, same shape: the machine's only `uv` was at `/home/<login>/.local/bin/uv`,
 behind the same `0700`. `deploy/README.md` had flagged the `PATH` question as
 settle-at-install and offered two fixes — an absolute `ExecStart=` or an
 `Environment=PATH=` line. The absolute path wins because the other one is how the

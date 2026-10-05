@@ -211,7 +211,9 @@ class Watcher:
         """The last manifest that was good, or None if none ever has been."""
         return self._current
 
-    def poll(self) -> Manifest | None:
+    def poll(  # noqa: C901, PLR0911 -- each way a manifest file can be refused keeps the loaded one, said where it happens
+        self,
+    ) -> Manifest | None:
         """Read the file if it changed; return the new manifest, or None.
 
         None means "nothing to do" in every case that is not a fresh, valid

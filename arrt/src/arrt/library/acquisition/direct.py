@@ -73,22 +73,21 @@ def direct_fetch(
     over_ceiling = False
 
     try:
-        with open_stream(url) as chunks:
-            with staging.open("wb") as handle:
-                for chunk in chunks:
-                    if not chunk:
-                        continue
-                    written += len(chunk)
-                    if written > max_bytes:
-                        # Refused rather than truncated: a half-image recorded as
-                        # an original is a worse outcome than no image, because
-                        # nothing downstream can tell it is half. Stopping here
-                        # also stops reading, so an endless body costs the
-                        # ceiling and not the disk.
-                        over_ceiling = True
-                        break
-                    digest.update(chunk)
-                    handle.write(chunk)
+        with open_stream(url) as chunks, staging.open("wb") as handle:
+            for chunk in chunks:
+                if not chunk:
+                    continue
+                written += len(chunk)
+                if written > max_bytes:
+                    # Refused rather than truncated: a half-image recorded as
+                    # an original is a worse outcome than no image, because
+                    # nothing downstream can tell it is half. Stopping here
+                    # also stops reading, so an endless body costs the
+                    # ceiling and not the disk.
+                    over_ceiling = True
+                    break
+                digest.update(chunk)
+                handle.write(chunk)
     except OSError as exc:
         # Covers both ends: a disk that cannot be written and a transport that
         # raises while streaming. Both mean no image, and the message says which.

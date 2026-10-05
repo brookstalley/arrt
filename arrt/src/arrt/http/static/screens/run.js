@@ -106,7 +106,11 @@ export function runSentence(view) {
     return "The process working on this run stopped underneath it — a restart or a crash, not a fault in the run. Start it again with the same intent.";
   }
   if (run.status === "failed") {
-    return "This run hit an error and stopped. The server log has the details.";
+    // The reason itself is the line beneath this one. Only a run that failed
+    // before reasons were kept has nothing but the log to send a curator to.
+    return run.end_reason
+      ? "This run hit an error and stopped."
+      : "This run hit an error and stopped. The server log has the details.";
   }
   if (run.status === "declined") {
     return "The work list was declined, so no images were looked for and nothing further was spent.";
@@ -361,6 +365,10 @@ export async function viewRun(runId, generation) {
     el("h2", { text: runTitle(run) }),
     el("div", { class: "panel" }, [
       el("p", { class: "note", text: runSentence(view) }),
+      // Why the worker ended it, in its own words, under the sentence saying
+      // what that ending means. Text, never markup: a halt's reason quotes the
+      // provider.
+      run.end_reason ? el("p", { class: "muted run-end-reason", text: `Why it stopped: ${run.end_reason}` }) : null,
       // The engine's own reading of the request, beside the request. A work list
       // is judged against how the intent was read rather than against its
       // wording, which is what makes a surprising list explicable.

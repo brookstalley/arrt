@@ -257,7 +257,9 @@ def test_the_loading_state_does_not_guess_a_geometry_it_cannot_know(ui):
     twelve small tiles to N wide cards on the commonest path there is.
     """
     held = []
-    ui.page.route("**/api/works?*", lambda route: held.append(route))
+    ui.page.route(
+        "**/api/works?*", lambda route: held.append(route)  # noqa: PLW0108 -- Playwright passes a builtin method two arguments
+    )
 
     ui.open("#collection")
     ui.page.wait_for_selector("#view h2")
@@ -628,7 +630,7 @@ def test_an_address_naming_a_deleted_theme_shows_the_works_and_says_so(ui, a_the
 
 
 def test_a_deleted_theme_beside_a_facet_keeps_the_facet(ui, seeded_service, a_theme_holding_one_work):
-    theme, works = a_theme_holding_one_work
+    _theme, works = a_theme_holding_one_work
     seeded_service.record_facet(
         artwork_id=works[2].id, kind=VocabularyKind.MOVEMENT, value="Realism", derivation=FacetDerivation.INFERRED
     )

@@ -257,7 +257,9 @@ def test_a_slow_view_does_not_paint_over_the_one_navigated_to(ui):
     to win one would report a green meaning only that the machine was fast.
     """
     held = []
-    ui.page.route("**/api/works?*", lambda route: held.append(route))
+    ui.page.route(
+        "**/api/works?*", lambda route: held.append(route)  # noqa: PLW0108 -- Playwright passes a builtin method two arguments
+    )
 
     ui.open("#health")
     ui.page.wait_for_selector("h2:has-text('Status')")

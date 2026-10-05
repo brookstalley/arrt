@@ -624,7 +624,8 @@ the findings recovered from the old one are now false *about the machine* while
 remaining true about the card they were read from. Recorded 2026-08-04, measured
 over SSH:
 
-- **Access is `brooks@pi4-tv.local`** (uid 1000, sudo, already in `spi` and
+- **Access is the operator's own login on the Pi** (its host and user name are in
+  the operator's private homelab repo, since this one is public; uid 1000, sudo, already in `spi` and
   `gpio`). ~~There is no `tvpi` user on the rebuilt card at all~~ — **resolved
   2026-08-11 at the cutover**: `tvpi` was created (uid 102, `--system`, `nologin`,
   groups `spi` and `gpio`, home `/var/lib/tvpi` for tool state), and the
@@ -637,7 +638,7 @@ over SSH:
   files for 40 distinct works and `ready/` holds 41.
 - ~~**The checkout is behind.**~~ The deployment checkout is now
   `/opt/samsung-frame-art-loader`, owned by `tvpi` and tracking the branch it was
-  deployed from. The old `/home/brooks/source/…` checkout is **left in place on
+  deployed from. The old `/home/<login>/source/…` checkout is **left in place on
   purpose**: nothing runs it, and it holds an uncommitted `all.json` whose
   `tv_content_id`s the 2026-08-07 run wrote.
 

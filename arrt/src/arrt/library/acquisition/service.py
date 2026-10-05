@@ -463,7 +463,8 @@ class AcquisitionService:
         compared here, and a result that would lower it is discarded with the held
         image untouched.
         """
-        assert staged is not None and content_hash is not None  # noqa: S101 - guarded by `usable` above
+        assert staged is not None  # noqa: S101 -- guarded by `usable` above
+        assert content_hash is not None  # noqa: S101 -- guarded by `usable` above
         # Derived rather than passed alongside `status`. Both call sites computed
         # it from `status` by the same rule, and taking the pair made the
         # disagreement representable — `status=OK` with `outcome=PARTIAL` would
@@ -637,7 +638,7 @@ class AcquisitionService:
             # Not a guess: one source is the only source, so naming it changes
             # nothing a curator decided.
             return sources[0]
-        raise ServiceError(f"Artwork {artwork_id!r} has {len(sources)} sources and none is primary; " "name one with source_id.")
+        raise ServiceError(f"Artwork {artwork_id!r} has {len(sources)} sources and none is primary; name one with source_id.")
 
 
 def _hash_file(path: Path | None) -> str:
@@ -649,7 +650,7 @@ def _hash_file(path: Path | None) -> str:
     """
     import hashlib
 
-    assert path is not None  # noqa: S101 - only called for a usable result
+    assert path is not None  # noqa: S101 -- only called for a usable result
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for block in iter(lambda: handle.read(1024 * 1024), b""):

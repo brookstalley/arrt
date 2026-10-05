@@ -11,7 +11,7 @@ Each rule is one line of at most 250 characters. This file is capped, so a new r
 - When a mutation's verdict flips between identical runs, apply it by hand and search for the rare input, then pin it with an example test — because a property finding the case by luck defends nothing.
 - When a mutation survives, find why: unreachable (build the case first), inert or rescued by a sibling guard (delete, or one case per guard), or undefended (test it) — because all look alike from outside.
 - When you drop or rewrite a test's assertion, replace a badly-shaped guard in the same commit, re-read the test's name against it and record why — because a dropped contract looks like adjusted wording.
-- When an artifact records a decision as open, grep the code for it before asking the owner and put the built behaviour, sub-cases included, in the question — because code may have settled it already.
+- Before asking the owner to rule, grep the code and the records for that shape and put the built behaviour and any earlier ruling in the question — because code or the owner may have settled it already.
 - When you write or cite 'exactly one', 'always' or 'never', state what the store or guard actually enforces — because a partial index enforcing 'at most one' gets read as 'exactly one'.
 - When building an inventory of routes, operations or requirements, derive it from the thing itself and use debt lists only as a check — because a debt list answers the smaller 'what do we owe?'.
 - When you fix a defect, make inputs the fix does not know fail by name, and grep the commit for the same shape — because the fix removes today's instance and leaves the silent mechanism and its siblings.

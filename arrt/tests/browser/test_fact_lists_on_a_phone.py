@@ -14,7 +14,7 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
-from arrt.persistence.discovery_records import RunStatus, WorkProvenance  # noqa: E402
+from arrt.persistence.discovery_records import RunStatus, WorkProvenance
 
 #: Every word of every fact list's labels and values whose line boxes sit on more
 #: than one line. Words are split at spaces, hyphens and slashes, which are where

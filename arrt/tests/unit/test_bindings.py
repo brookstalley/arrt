@@ -1,7 +1,7 @@
 """The MCP bindings' own behaviour — the formatting a binding is allowed to do.
 
-A binding unpacks arguments, calls one service method, and shapes the result for
-a model to read. The shaping is the part worth testing here, because it is the
+A binding unpacks arguments, composes service calls without branching on their
+answers, and shapes the result for a model to read. The shaping is the part worth testing here, because it is the
 only part a binding decides, and because a message that gives a caller advice it
 cannot act on is a defect the service layer cannot see.
 
@@ -190,6 +190,43 @@ def test_the_three_endings_an_agent_must_tell_apart_each_say_what_to_do_next(sta
     )
 
     assert must_say in _run_notice(view)
+
+
+@pytest.mark.parametrize(
+    ("end_reason", "must_say", "must_not_say"),
+    [
+        ("Phase 1 returned an empty answer.", "`end_reason` says why", "server log"),
+        (None, "server log", "end_reason"),
+    ],
+)
+def test_a_failed_run_s_notice_sends_the_agent_where_the_reason_actually_is(end_reason, must_say, must_not_say):
+    """To the run's own reason when it kept one, and to the log only for a run from before reasons were kept.
+
+    An agent told to read a log it cannot reach, while the reason sits in the
+    same result, stops at the notice; one told to read a field that is null has
+    nowhere to go.
+    """
+    view = RunView(
+        run=DiscoveryRun(
+            id="r1",
+            kind=RunKind.DISCOVERY,
+            initiated_by=InitiatedBy.MCP_CLIENT,
+            status=RunStatus.FAILED,
+            approval_required=False,
+            started_at=datetime(2026, 8, 2, 9, 0, tzinfo=UTC),
+            end_reason=end_reason,
+        ),
+        works=(),
+        searches_used=0,
+        search_allowance=10,
+        image_resolution_available=True,
+    )
+
+    notice = _run_notice(view)
+
+    assert must_say in notice
+    assert must_not_say not in notice
+    assert "worth investigating" in notice
 
 
 def _resolving(kind: RunKind) -> RunView:
@@ -433,7 +470,8 @@ def test_the_notice_steers_to_the_filters_because_this_action_has_no_offset():
     """
     notice = _runs_truncation_notice(_listing(MAX_RUNS_LISTED + 1))
 
-    assert "status=" in notice and "kind=" in notice
+    assert "status=" in notice
+    assert "kind=" in notice
     assert "no paging" in notice
     assert "offset" not in notice, "there is no offset on this action; naming one sends a caller to a refusal"
 

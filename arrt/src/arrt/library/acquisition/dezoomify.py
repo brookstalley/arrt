@@ -164,7 +164,7 @@ def tile_fetch(
     argv += ["--", url, str(staged)]
 
     try:
-        completed = subprocess.run(  # noqa: S603 - argv list, no shell, resolved binary
+        completed = subprocess.run(  # noqa: S603 -- argv list, no shell, resolved binary
             argv,
             stdin=subprocess.DEVNULL,
             capture_output=True,

@@ -15,10 +15,9 @@ from mcp.client.streamable_http import streamable_http_client
 
 
 async def call(server_url: str, tool: str, **arguments) -> tuple[dict, bool]:
-    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            result = await session.call_tool(tool, arguments)
+    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _), ClientSession(read, write) as session:
+        await session.initialize()
+        result = await session.call_tool(tool, arguments)
     return json.loads("".join(block.text for block in result.content if block.type == "text")), bool(result.isError)
 
 

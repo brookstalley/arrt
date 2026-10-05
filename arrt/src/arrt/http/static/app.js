@@ -50,13 +50,17 @@ import { viewWork } from "./screens/work.js";
  * **A new section needs an *arr precedent or an owner ruling** — § Direction's
  * last sentence, and the one clause of the old navigation norm that survived
  * its amendment. A subsystem that gains a UI gets a page in an existing section.
- * Wanted is a page in Activity, as in Lidarr: the works the curator wants and
- * holds no acceptable scan of (the owner's ruling on #168, 2026-10-02). */
+ * Wanted is a section of its own, as in Sonarr, Radarr and Lidarr (the owner's
+ * ruling of 2026-10-05): the works the curator wants and holds no acceptable
+ * scan of (#168). `untilCounted` draws it hidden, and `paintWanted` shows it
+ * once its count says something is wanted (or once the count cannot be read),
+ * rather than drawing it and then hiding it. */
 const SECTIONS = [
   { key: "artworks", label: "Artworks", glyph: "▣" },
   { key: "walls", label: "Walls", glyph: "▢" },
   // `badge` names the count `core/awaiting.js` writes beside the label.
   { key: "activity", label: "Activity", glyph: "↻", badge: "awaiting" },
+  { key: "wanted", label: "Wanted", glyph: "◑", badge: "wanted", untilCounted: true },
   { key: "settings", label: "Settings", glyph: "⚙" },
   // `status` marks the section whose link carries the health badge.
   { key: "system", label: "System", glyph: "♥", status: true },
@@ -107,8 +111,8 @@ const ROUTES = {
   queue: { render: viewQueue, section: "activity", page: "Queue" },
   history: { render: viewHistory, section: "activity", page: "History" },
   // Lidarr's Wanted: works the curator wants and holds no acceptable scan of.
-  // Its link appears once one is wanted (`core/awaiting.js`).
-  wanted: { render: viewWanted, section: "activity", page: "Wanted", badge: "wanted" },
+  // Its section appears once one is wanted (`core/awaiting.js`).
+  wanted: { render: viewWanted, section: "wanted", page: "Wanted" },
   // Radarr's Profiles: the preferences that rank what it finds.
   taste: { render: viewTaste, section: "settings", page: "Taste" },
   // Radarr's Settings › Download Clients: the external programs the server

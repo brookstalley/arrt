@@ -38,10 +38,10 @@ from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from arrt.config import CATALOGUE_FILENAME, DEFAULT_MAT_IMAGE_MAX_EDGE  # noqa: E402
-from arrt.library.acquisition.color import format_hex, hex_distance, parse_hex, rgb_to_lab  # noqa: E402
-from arrt.library.acquisition.mat import CORPUS_MAX_LIGHTNESS, MatChoice, MatEngine, dominant_color  # noqa: E402
-from arrt.seed.legacy import read_index  # noqa: E402
+from arrt.config import CATALOGUE_FILENAME, DEFAULT_MAT_IMAGE_MAX_EDGE
+from arrt.library.acquisition.color import format_hex, hex_distance, parse_hex, rgb_to_lab
+from arrt.library.acquisition.mat import CORPUS_MAX_LIGHTNESS, MatChoice, MatEngine, dominant_color
+from arrt.seed.legacy import read_index
 
 #: One work as this tool pairs it: its title, its master on disk, and the colour a
 #: human chose for it in 2024.
@@ -68,7 +68,7 @@ def _say(line: str) -> None:
     generator that printed from a dozen sites would collect a dozen suppressions,
     and the next reader would have to check each one for whether it was considered.
     """
-    print(line)  # noqa: T201 - this tool's output IS a printed report
+    print(line)
 
 
 def _pairs(art_root: Path, corpus_path: Path) -> tuple[list[Pair], list[str]]:
@@ -196,7 +196,7 @@ def main() -> int:
     parser.add_argument(
         "--scratch",
         type=Path,
-        default=Path("/tmp/mat-masters"),
+        default=Path("/tmp/mat-masters"),  # noqa: S108 -- a hand-run tool's scratch default; --scratch moves it
         help="Where the re-encoded copies are written. Nothing under ART_ROOT is touched.",
     )
     arguments = parser.parse_args()

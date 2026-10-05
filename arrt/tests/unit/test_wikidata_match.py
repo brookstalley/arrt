@@ -141,7 +141,8 @@ def test_a_word_touching_punctuation_is_still_searched_for(discovery, propose):
     service_over(discovery, registry).matches(work.id)
 
     asked, _ = registry.matched[0]
-    assert "Premonition" in asked.split() and "War" in asked.split()
+    assert "Premonition" in asked.split()
+    assert "War" in asked.split()
 
 
 def test_a_wanted_work_s_item_can_be_picked(discovery, propose):

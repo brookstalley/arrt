@@ -308,7 +308,7 @@ def test_a_re_search_never_hands_back_the_instance_that_was_turned_down(discover
 
 # -- Q36 and Q37: which works does the curator want, and why? ----------------
 #
-# Activity › Wanted's two questions. Why a work is wanted — its scan was turned
+# Wanted's two questions. Why a work is wanted — its scan was turned
 # down, or nothing was found — is read from its instances rather than stored, so
 # the listing carries the count of scans turned down and the verdict carries
 # nothing more than the wish.

@@ -116,7 +116,8 @@ def test_the_schema_the_conversation_asks_for_is_still_honoured(client):
     )
 
     parsed = json.loads(completion.content)
-    assert isinstance(parsed["reply"], str) and parsed["reply"].strip()
+    assert isinstance(parsed["reply"], str)
+    assert parsed["reply"].strip()
     assert isinstance(parsed["suggested"], list)
 
 

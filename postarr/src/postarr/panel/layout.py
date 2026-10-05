@@ -901,7 +901,11 @@ def _family_name_holds_its_own_line(lines: Sequence[_ComposedLine], identifying_
     The shrink path is excluded by the same reasoning and by construction: it calls
     `_sizes_for` at the default single identifying line.
     """
-    return identifying_lines >= 2 and len(lines) > 1 and lines[1].continues_the_line_above
+    return (
+        identifying_lines >= 2  # noqa: PLR2004 -- two identifying lines is the case this names
+        and len(lines) > 1
+        and lines[1].continues_the_line_above
+    )
 
 
 def _placed(

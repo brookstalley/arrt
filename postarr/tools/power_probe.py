@@ -278,16 +278,16 @@ class Probe:
             if closing is not None:
                 try:
                     await closing.close()
-                # prawduct:allow prawduct/broad-except -- every way a websocket close can
+                # Every way a websocket close can
                 # fail arrives here, and the report is the same for all of them; raising
                 # would replace the real failure with the failed attempt to tidy up.
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- see above
                     print(f"warning: closing the {label} channel raised {_named(exc)}")
         if self._session is not None:
             try:
                 await self._session.close()
-            # prawduct:allow prawduct/broad-except -- as above, for the HTTP session.
-            except Exception as exc:
+            # As above, for the HTTP session.
+            except Exception as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- see above
                 print(f"warning: closing the HTTP session raised {_named(exc)}")
 
     async def device_info(self) -> dict[str, Any]:
@@ -375,10 +375,10 @@ class Probe:
             power_state = raw if isinstance(raw, str) else None
             if power_state is None:
                 power_error = "no PowerState in reply"
-        # prawduct:allow prawduct/broad-except -- every transport failure is a datum
+        # Every transport failure is a datum
         # here rather than a crash: an unreachable set is one of the states this tool
         # exists to describe, and raising would report nothing about it.
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- see above
             power_error = _named(exc)
         power_seconds = time.monotonic() - started
 
@@ -401,10 +401,10 @@ class Probe:
                 art_mode = raw if isinstance(raw, str) else None
                 if art_mode is None:
                     art_error = "unreadable reply"
-            # prawduct:allow prawduct/broad-except -- every transport failure is a datum
+            # Every transport failure is a datum
             # here rather than a crash; a probe that raised would report nothing about
             # the state it was asked to describe.
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- see above
                 art_error = _named(exc)
         else:
             art_error = "not asked"
@@ -561,7 +561,7 @@ def _name_the_likely_contention(before: Reading) -> None:
         print("    Confirm `systemctl stop display.service` completed before recording this as a state finding.")
 
 
-async def run(args: argparse.Namespace) -> int:
+async def run(args: argparse.Namespace) -> int:  # noqa: PLR0915 -- one measurement script, read top to bottom at the set
     probe = Probe(args)
     try:
         await probe.open()
@@ -618,9 +618,9 @@ async def run(args: argparse.Namespace) -> int:
         # when the set refused this client, `ConnectionFailure` when the connect timed
         # out on a prompt nobody accepted. Reported rather than raised, because a
         # traceback would take the readings above with it and those are the run's
-        # evidence. prawduct:allow prawduct/broad-except -- the report is the same for
+        # evidence. The report is the same for
         # any way a press can fail, and the exception's own name carries the difference.
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- see above
             print(f"\nthe press FAILED: {_named(exc)}")
             print("  Record which of these it was — the two are different operator actions:")
             print("    UnauthorizedError  the set refused this client. Accept the pairing prompt on screen.")
@@ -785,7 +785,7 @@ def _settings_into(args: argparse.Namespace, parser: argparse.ArgumentParser) ->
     # Imported here rather than at module scope, like label_preview.py: reading a
     # deployment's settings is not something a tool should do merely by being
     # imported, and the suite drives `main` without an `.env` in front of it.
-    from postarr.config import load  # noqa: PLC0415
+    from postarr.config import load
 
     settings = None
     try:
@@ -794,7 +794,7 @@ def _settings_into(args: argparse.Namespace, parser: argparse.ArgumentParser) ->
     # arrives here, and one printed line plus the refusal below answers all of
     # them. Not swallowed: the reason is printed, and a run with no other source
     # for the address still refuses rather than guessing one.
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- see above
         print(f"could not read this deployment's settings: {exc}")
 
     if settings is not None:

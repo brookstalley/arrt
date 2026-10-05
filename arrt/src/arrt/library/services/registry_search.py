@@ -121,7 +121,7 @@ class RegistrySearchService:
                 note=f"{NOT_CONFIGURED_NOTE.removesuffix('.')}, so only your library is searched.",
             )
         try:
-            artists, works = self._found(words, prefix, wide, self._registry)
+            artists, works = self._found(words, self._registry, prefix=prefix, wide=wide)
         except RegistryUnavailable as exc:
             log.warning("Could not search Wikidata for %r: %s", query, exc)
             return RegistrySearch(state=RegistrySearchState.UNAVAILABLE, note="Wikidata could not be searched just now.")
@@ -143,7 +143,7 @@ class RegistrySearchService:
             wanted_works=frozenset(work.qid for work in works if work.qid in wanted),
         )
 
-    def _found(self, words: Sequence[str], prefix: bool, wide: bool, registry: Registry) -> _Found:
+    def _found(self, words: Sequence[str], registry: Registry, *, prefix: bool, wide: bool) -> _Found:
         key = (search_fold(" ".join(words)), prefix, wide)
         artists_found, works_found = (ARTISTS_FOUND_WIDE, WORKS_FOUND_WIDE) if wide else (ARTISTS_FOUND, WORKS_FOUND)
         kept = self._kept.get(key)

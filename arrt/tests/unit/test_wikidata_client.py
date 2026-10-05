@@ -198,7 +198,8 @@ def test_held_works_beyond_the_most_renowned_are_asked_for_by_id():
 
     assert [work.title for work in known.works] == ["Famous", "Held, obscure"]
     by_id = next(query for query in asked if "VALUES ?work" in query)
-    assert "wd:Q2" in by_id and "wd:Q1 " not in by_id
+    assert "wd:Q2" in by_id
+    assert "wd:Q1 " not in by_id
 
 
 def test_no_held_works_means_no_extra_question():
@@ -237,7 +238,8 @@ def test_names_are_asked_for_in_the_language_neutral_label_too():
     # A maker's name from the label service, not from a filter accepting `en` or
     # `mul`, which let SAMPLE pick either: "Pieter Bruegel" one run, "Pieter
     # Brueghel the Elder" the next (measured live, 2026-10-01).
-    assert "?maker rdfs:label ?makerLabel" in asked[-1] and "LANG(?makerLabel)" not in asked[-1]
+    assert "?maker rdfs:label ?makerLabel" in asked[-1]
+    assert "LANG(?makerLabel)" not in asked[-1]
 
 
 def test_an_artist_comes_back_named_and_dated():
@@ -307,7 +309,7 @@ def test_an_item_the_registry_does_not_have_is_none():
 
 
 def test_a_work_qid_is_checked_before_it_reaches_a_query():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="is not a Wikidata item id"):
         _registry(lambda request: _results()).work("Q1 } UNION {")
 
 
@@ -322,7 +324,8 @@ def test_a_work_search_asks_the_index_for_artworks_and_caps_its_paging():
     _registry(handler).works_matching(["hunters", "snow"], prefix=False, limit=5)
 
     assert 'mwapi:srsearch "hunters snow haswbstatement:P31=Q3305213|' in asked[0]
-    assert "wikibase:limit 50" in asked[0] and "LIMIT 5" in asked[0]
+    assert "wikibase:limit 50" in asked[0]
+    assert "LIMIT 5" in asked[0]
 
 
 def test_only_the_last_word_is_a_prefix_and_only_when_asked():
@@ -428,8 +431,10 @@ def test_similar_artists_come_back_ranked_with_their_image_counts():
     found = _registry(handler).similar_to("Q160149", limit=12)
 
     assert [(p.name, p.born, p.images) for p in found] == [("Jackson Pollock", 1912, 0), ("Arshile Gorky", None, 35)]
-    assert "ORDER BY DESC(?links)" in asked[0] and "SELECT ?other ?otherLabel ?links " in asked[0]
-    assert "wdt:P106/wdt:P279* wd:Q3391743" in asked[0] and "LIMIT 12" in asked[0]
+    assert "ORDER BY DESC(?links)" in asked[0]
+    assert "SELECT ?other ?otherLabel ?links " in asked[0]
+    assert "wdt:P106/wdt:P279* wd:Q3391743" in asked[0]
+    assert "LIMIT 12" in asked[0]
     assert "wd:Q37571 wd:Q153739" in asked[1]
 
 
@@ -445,7 +450,7 @@ def test_no_similar_artists_asks_no_second_question():
 
 
 def test_a_similar_artists_qid_is_checked_before_it_reaches_a_query():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="is not a Wikidata item id"):
         _registry(lambda request: _results()).similar_to("Q1 } UNION {", limit=1)
 
 

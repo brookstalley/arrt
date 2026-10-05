@@ -43,7 +43,12 @@ CONNECTORS = {
 }
 
 
-async def eventually(predicate, *, timeout: float = 5.0, what: str = "the condition") -> None:
+async def eventually(
+    predicate,
+    *,
+    timeout: float = 5.0,  # noqa: ASYNC109 -- a test helper's own deadline, not a cancellation scope
+    what: str = "the condition",
+) -> None:
     """Wait for something the running process will make true, or fail saying what."""
     deadline = asyncio.get_running_loop().time() + timeout
     while not predicate():
@@ -240,7 +245,8 @@ async def test_a_wall_on_an_output_this_client_lacks_is_reported_once_and_not_st
 
     reports = [record for record in caplog.records if record.__dict__.get("event") == "client.wall_unplaceable"]
     assert len(reports) == 1, f"an unplaceable wall was reported {len(reports)} times"
-    assert reports[0].wall_id == "study" and reports[0].output == "hdmi-a-3"
+    assert reports[0].wall_id == "study"
+    assert reports[0].output == "hdmi-a-3"
 
 
 async def test_a_client_with_no_frame_does_not_start_a_wall_assigned_to_one(client, server, drm, caplog):

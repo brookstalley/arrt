@@ -131,7 +131,8 @@ def test_each_ending_records_the_thing_that_actually_happened(discovery, run, en
     declined is not a cap that fired. Folding any two together would need a
     free-text reason field to tell them apart again.
     """
-    ended = getattr(discovery, ending)(run.id)
+    reason = {"reason": "Something happened."} if ending != "cancel_run" else {}
+    ended = getattr(discovery, ending)(run.id, **reason)
 
     assert ended.status is expected
     assert ended.completed_at is not None
@@ -139,7 +140,7 @@ def test_each_ending_records_the_thing_that_actually_happened(discovery, run, en
 
 def test_a_cancelled_run_keeps_what_it_already_spent(discovery, run):
     """The spend happened, whatever the curator decided afterwards."""
-    discovery.fail_run(run.id, actual_cost_usd=Decimal("0.19"))
+    discovery.fail_run(run.id, reason="The model call broke.", actual_cost_usd=Decimal("0.19"))
 
     assert discovery.get_run(run.id).actual_cost_usd == Decimal("0.19")
 
@@ -158,7 +159,7 @@ def test_a_finished_run_cannot_be_finished_again(discovery, run):
     discovery.cancel_run(run.id)
 
     with pytest.raises(ServiceError, match="already ended as cancelled"):
-        discovery.fail_run(run.id)
+        discovery.fail_run(run.id, reason="The model call broke.")
 
 
 def test_a_finished_run_cannot_be_reopened_for_approval(discovery, run, propose):
@@ -292,11 +293,12 @@ def test_a_run_waiting_for_the_curator_survives_a_restart(discovery, run, propos
 
 
 def test_reconciliation_leaves_finished_runs_exactly_as_they_finished(discovery, run):
-    discovery.fail_run(run.id)
+    discovery.fail_run(run.id, reason="The model call broke.")
 
     discovery.reconcile()
 
     assert discovery.get_run(run.id).status is RunStatus.FAILED
+    assert discovery.get_run(run.id).end_reason == "The model call broke."
 
 
 def test_reconciliation_says_so_because_nothing_else_ever_will(discovery, run, caplog):
@@ -451,7 +453,8 @@ def test_a_rederived_key_is_reported_apart_from_a_recleaned_title(discovery, run
     by_event = {getattr(record, "event", None): record for record in caplog.records}
     assert by_event["works.rekeyed"].works_rekeyed == 1
     assert by_event["works.rekeyed"].levelno == logging.INFO
-    assert "works.recleaned" not in by_event and "work.recleaned" not in by_event
+    assert "works.recleaned" not in by_event
+    assert "work.recleaned" not in by_event
 
 
 def test_rederiving_keys_is_done_after_the_first_start(discovery, run, propose, caplog):
@@ -564,7 +567,7 @@ def test_a_run_waiting_for_the_curator_cannot_break_or_be_halted(discovery, run,
     discovery.finish_work_list(run.id, approval_threshold=0)
 
     with pytest.raises(ServiceError, match="nothing is running"):
-        getattr(discovery, ending)(run.id)
+        getattr(discovery, ending)(run.id, reason="Something happened.")
 
 
 @pytest.mark.parametrize(
@@ -577,7 +580,66 @@ def test_phase_one_can_break_and_can_be_refused_by_the_provider(discovery, run, 
     no ending that says so, which is the absorption the six terminal states exist
     to prevent.
     """
-    ended = getattr(discovery, ending)(run.id)
+    ended = getattr(discovery, ending)(run.id, reason="Something happened.")
 
     assert ended.status is expected
     assert ended.completed_at is not None
+
+
+# -- why a run ended ------------------------------------------------------------
+
+
+@pytest.mark.parametrize("ending", ["fail_run", "halt_run_for_budget"])
+def test_a_run_that_broke_or_was_refused_keeps_why(discovery, run, ending):
+    """The reason is stored with the ending, so it outlives the process that wrote it.
+
+    Read back through the store rather than off the returned record, because the
+    returned record is the one place a reason could exist without having been
+    written: a curator reads the run long after the worker that ended it is gone.
+    """
+    getattr(discovery, ending)(run.id, reason="Phase 1's answer was cut off at the output reservation.")
+
+    assert discovery.get_run(run.id).end_reason == "Phase 1's answer was cut off at the output reservation."
+
+
+@pytest.mark.parametrize("ending", ["fail_run", "halt_run_for_budget"])
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_an_ending_that_explains_nothing_is_refused_by_name(discovery, run, ending, blank):
+    """A blank reason is the defect this field exists to end, arriving by another door.
+
+    It would store a run that failed "because" of nothing and paint an empty line
+    under the sentence on the run page, which says less than the null of a run
+    from before the field.
+    """
+    with pytest.raises(ValueError, match="reason"):
+        getattr(discovery, ending)(run.id, reason=blank)
+
+    assert discovery.get_run(run.id).status is RunStatus.RESOLVING_WORKS
+
+
+def test_a_cancelled_run_has_no_reason_but_the_curator_s_own(discovery, run):
+    assert discovery.cancel_run(run.id).end_reason is None
+    assert discovery.get_run(run.id).end_reason is None
+
+
+def test_a_declined_run_has_no_reason_but_the_curator_s_own(discovery, run, propose):
+    propose()
+    discovery.finish_work_list(run.id, approval_threshold=0)
+    discovery.decline_run(run.id)
+
+    assert discovery.get_run(run.id).end_reason is None
+
+
+def test_a_completed_run_has_no_reason_to_give(discovery, run, propose):
+    propose()
+    discovery.finish_work_list(run.id, approval_threshold=5)
+    discovery.complete_run(run.id)
+
+    assert discovery.get_run(run.id).end_reason is None
+
+
+def test_an_interrupted_run_has_no_reason_beyond_its_status(discovery, run):
+    """Reconciliation knows only that a process died, which `interrupted` already says."""
+    discovery.reconcile()
+
+    assert discovery.get_run(run.id).end_reason is None

@@ -14,9 +14,9 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
-from fakes import FakeRegistry  # noqa: E402  (after the skip guard)
+from fakes import FakeRegistry
 
-from arrt.library.registry import (  # noqa: E402
+from arrt.library.registry import (
     RegistryArtist,
     RegistryCreator,
     RegistrySimilar,

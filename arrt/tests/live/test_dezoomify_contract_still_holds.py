@@ -68,7 +68,8 @@ def test_a_real_tiled_fetch_produces_a_readable_image(tmp_path):
     # process can open and measure. A path whose extension the binary cannot
     # classify fails here and nowhere else.
     width, height = measure(result.path)
-    assert width > 0 and height > 0
+    assert width > 0
+    assert height > 0
 
 
 def test_the_staged_name_keeps_an_extension_the_binary_can_encode_to(tmp_path):

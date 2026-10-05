@@ -101,7 +101,7 @@ class DiscoveryStore(Protocol):
     def list_wanted_works(self) -> Sequence[CandidateWork]:
         """Every work, across runs, whose verdict is `wanted`.
 
-        The read behind Activity › Wanted: what the curator wants and does not yet
+        The read behind Wanted: what the curator wants and does not yet
         hold a scan of, wherever it came from. Ordered by title; the newest-first
         order a page shows is the service's, since it is decided by the runs.
         """
@@ -283,4 +283,18 @@ class DiscoveryStore(Protocol):
         Whether the catalogue holds the work is not this store's to say; the
         caller asks the catalogue.
         """
+        ...
+
+    # -- citations --------------------------------------------------------------
+
+    def add_run_citations(self, run_id: str, urls: Sequence[str]) -> None:
+        """Record the pages a run's phase-1 search read, in the order given.
+
+        A URL already recorded for the run keeps its first position: the search
+        read it once, however often it was cited.
+        """
+        ...
+
+    def list_run_citations(self, run_id: str) -> Sequence[str]:
+        """The pages a run's phase-1 search read, in the search's order; empty for a run with none."""
         ...

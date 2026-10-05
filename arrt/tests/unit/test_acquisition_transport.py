@@ -35,6 +35,8 @@ class _Response:
 
 
 class _Url(str):
+    __slots__ = ()
+
     def join(self, other):
         from urllib.parse import urljoin
 
@@ -123,9 +125,8 @@ def test_a_redirect_to_a_private_host_is_refused_before_it_is_requested(patched)
             ),
         }
     )
-    with pytest.raises(UrlRefused):
-        with http_stream("ua", check=_checks_everything([]))("https://m.example.com/a.jpg") as chunks:
-            b"".join(chunks)
+    with pytest.raises(UrlRefused), http_stream("ua", check=_checks_everything([]))("https://m.example.com/a.jpg") as chunks:
+        b"".join(chunks)
     assert client.requested == ["https://m.example.com/a.jpg"], "the private target must never be requested"
 
 
@@ -146,22 +147,28 @@ def test_a_relative_location_is_resolved_before_it_is_checked(patched):
 
 def test_a_redirect_with_no_location_is_a_refusal(patched):
     patched({"https://m.example.com/a.jpg": _Response(302, url="https://m.example.com/a.jpg")})
-    with pytest.raises(ServiceError, match="no location"):
-        with http_stream("ua", check=_checks_everything([]))("https://m.example.com/a.jpg") as chunks:
-            b"".join(chunks)
+    with (
+        pytest.raises(ServiceError, match="no location"),
+        http_stream("ua", check=_checks_everything([]))("https://m.example.com/a.jpg") as chunks,
+    ):
+        b"".join(chunks)
 
 
 def test_an_endless_redirect_chain_is_bounded(patched):
     patched(
         {"https://m.example.com/a.jpg": _Response(302, url="https://m.example.com/a.jpg", location="https://m.example.com/a.jpg")}
     )
-    with pytest.raises(ServiceError, match=f"more than {MAX_REDIRECTS}"):
-        with http_stream("ua", check=_checks_everything([]))("https://m.example.com/a.jpg") as chunks:
-            b"".join(chunks)
+    with (
+        pytest.raises(ServiceError, match=f"more than {MAX_REDIRECTS}"),
+        http_stream("ua", check=_checks_everything([]))("https://m.example.com/a.jpg") as chunks,
+    ):
+        b"".join(chunks)
 
 
 def test_an_error_status_is_reported_as_a_refusal(patched):
     patched({"https://m.example.com/a.jpg": _Response(404, url="https://m.example.com/a.jpg")})
-    with pytest.raises(ServiceError, match="HTTP 404"):
-        with http_stream("ua", check=_checks_everything([]))("https://m.example.com/a.jpg") as chunks:
-            b"".join(chunks)
+    with (
+        pytest.raises(ServiceError, match="HTTP 404"),
+        http_stream("ua", check=_checks_everything([]))("https://m.example.com/a.jpg") as chunks,
+    ):
+        b"".join(chunks)

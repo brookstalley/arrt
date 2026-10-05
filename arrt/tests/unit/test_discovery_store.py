@@ -49,6 +49,7 @@ _EXPECTED_SCHEMA = {
         "started_at",
         "completed_at",
         "destination_theme_id",
+        "end_reason",
     },
     "candidate_works": {
         "id",
@@ -101,6 +102,7 @@ _EXPECTED_SCHEMA = {
     },
     "resolve_run_works": {"resolve_run_id", "candidate_work_id"},
     "sightings": {"wikidata_qid", "url"},
+    "run_citations": {"discovery_run_id", "url", "position"},
     "conversations": {"id", "started_at", "last_turn_at", "summary"},
     "conversation_turns": {
         "id",
@@ -492,5 +494,37 @@ def test_a_file_from_before_destinations_opens_and_takes_a_run_that_names_one(tm
         assert store.get_run("r1").destination_theme_id is None, "an older run names no theme"
         store.add_run(_run(id="r2", kind=RunKind.GET, status=RunStatus.RESOLVING_IMAGES, destination_theme_id="t-1"))
         assert store.get_run("r2").destination_theme_id == "t-1"
+    finally:
+        store.close()
+
+
+def test_a_file_from_before_end_reasons_opens_and_its_failed_runs_give_none(tmp_path):
+    """A catalogue written before a run kept why it ended gains the column; its old runs read null.
+
+    Made by removing the column from a real file, as the tests above do. The old
+    run is a *failed* one, because that is the row a reader would most expect to
+    carry a reason, and the null is what the run page falls back on.
+    """
+    path = tmp_path / "catalogue.sqlite"
+    open_catalogue_file(path).close()
+
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute("ALTER TABLE discovery_runs DROP COLUMN end_reason")
+        connection.execute(
+            "INSERT INTO discovery_runs (id, kind, intent_text, initiated_by, status, approval_required, started_at) "
+            "VALUES ('r1', 'discovery', 'Lucy Bull', 'web_ui', 'failed', 0, '2026-10-05T00:00:00+00:00')"
+        )
+        connection.commit()
+        assert "end_reason" not in {row[1] for row in connection.execute("PRAGMA table_info(discovery_runs)")}
+    finally:
+        connection.close()
+
+    store = SqliteDiscovery(open_catalogue_file(path))
+    try:
+        assert store.get_run("r1").status is RunStatus.FAILED
+        assert store.get_run("r1").end_reason is None, "a run that failed before the column gives no reason"
+        store.add_run(_run(id="r2", status=RunStatus.FAILED, end_reason="Phase 1 returned an empty answer."))
+        assert store.get_run("r2").end_reason == "Phase 1 returned an empty answer."
     finally:
         store.close()

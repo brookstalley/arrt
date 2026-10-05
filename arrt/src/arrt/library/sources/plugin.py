@@ -26,7 +26,9 @@ from arrt.library.sources.reading import Reader
 #: refused by name rather than loaded: an in-process interface that changed shape
 #: under a plugin fails inside a run, where nobody is looking. A minor release
 #: only adds optional capabilities, so a plugin written for an older minor loads.
-API_VERSION: Final[tuple[int, int]] = (1, 0)
+#:
+#: 1.1 added `ImageQuery.pages`, the pages a run's web search read.
+API_VERSION: Final[tuple[int, int]] = (1, 1)
 
 
 @dataclass(frozen=True, slots=True)

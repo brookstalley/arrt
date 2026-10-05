@@ -26,14 +26,21 @@ ANSWER = {
 }
 
 
-def responding(answer: dict, *, searched: bool = True, cost: str = "0.00523535", inference: str = "0.00023535"):
-    """A provider that returns `answer` with the measured cost decomposition."""
+def responding(
+    answer: dict,
+    *,
+    searched: bool = True,
+    cost: str = "0.00523535",
+    inference: str = "0.00023535",
+    cited: tuple[str, ...] = ("https://example.org/p",),
+):
+    """A provider that returns `answer` with the measured cost decomposition, citing `cited` when it searched."""
 
     def handler(request: httpx.Request) -> httpx.Response:
         message: dict = {"content": json.dumps(answer)}
         if searched:
             message["annotations"] = [
-                {"type": "url_citation", "url_citation": {"url": "https://example.org/p", "title": "t", "content": "c"}}
+                {"type": "url_citation", "url_citation": {"url": url, "title": "t", "content": "c"}} for url in cited
             ]
         return httpx.Response(
             200,
@@ -100,6 +107,56 @@ def test_an_unattributed_work_carries_no_artist_rather_than_an_empty_name():
     produced = engine_over(responding(answer)).enumerate_works(asked())
 
     assert produced.works[0].artist is None
+
+
+# -- the pages the search read -----------------------------------------------------
+
+
+def test_the_search_s_citations_come_back_as_pages_in_its_order_each_once():
+    """Measured 2026-10-05: a search for an artist cites their gallery's artist
+    page, and phase 2 hands these to the finders. Order is the search's; a page it
+    cited twice it read once."""
+    cited = (
+        "https://www.markelfinearts.com/artists/422-peter-stephens/works",
+        "https://www.artsy.net/artist/peter-stephens",
+        "https://www.markelfinearts.com/artists/422-peter-stephens/works",
+        "https://www.markelfinearts.com/artists/422/works",
+    )
+
+    produced = engine_over(responding(ANSWER, cited=cited)).enumerate_works(asked())
+
+    assert produced.citations == (
+        "https://www.markelfinearts.com/artists/422-peter-stephens/works",
+        "https://www.artsy.net/artist/peter-stephens",
+        "https://www.markelfinearts.com/artists/422/works",
+    )
+
+
+def test_a_citation_that_is_not_a_web_page_is_not_a_page():
+    cited = ("ftp://example.org/a", "javascript:alert(1)", "HTTPS://Example.org/b", "file:///etc/passwd")
+
+    produced = engine_over(responding(ANSWER, cited=cited)).enumerate_works(asked())
+
+    assert produced.citations == ("HTTPS://Example.org/b",)
+
+
+def test_an_address_in_the_model_s_answer_is_never_a_page():
+    """Only what the search engine read is handed on. A structured answer can name
+    an address nobody served, or one an injected page asked it to name."""
+    answer = {
+        "strategy": "Searched https://attacker.example/steer for the list.",
+        "works": [{"title": "Mambo Jumbo", "artist": "Peter Stephens", "rationale": "See http://10.0.0.5/admin."}],
+    }
+
+    produced = engine_over(responding(answer, cited=("https://example.org/p",))).enumerate_works(asked())
+
+    assert produced.citations == ("https://example.org/p",)
+
+
+def test_a_run_that_did_not_search_has_no_pages():
+    produced = engine_over(responding(ANSWER, searched=False)).enumerate_works(asked(allowance=0))
+
+    assert produced.citations == ()
 
 
 # -- searching ------------------------------------------------------------------
@@ -172,7 +229,8 @@ def test_the_model_actually_used_is_attributed_the_spend():
 
 
 def test_a_spent_key_is_reported_as_exhaustion():
-    handler = lambda request: httpx.Response(403, json={"error": {"message": "Key limit exceeded (total limit)."}})  # noqa: E731
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, json={"error": {"message": "Key limit exceeded (total limit)."}})
 
     with pytest.raises(BudgetExhausted):
         engine_over(handler).enumerate_works(asked())
@@ -182,9 +240,9 @@ def test_an_unaffordable_request_is_a_failure_but_never_exhaustion():
     """It arrives with credit still in the account. Reporting it as exhaustion
     would halt a run that can still pay, and halted-by-budget is the one state a
     curator reads as "stop asking"."""
-    handler = lambda request: httpx.Response(  # noqa: E731
-        402, json={"error": {"message": "This request requires more credits, or fewer max_tokens."}}
-    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(402, json={"error": {"message": "This request requires more credits, or fewer max_tokens."}})
 
     with pytest.raises(EngineFailure) as raised:
         engine_over(handler).enumerate_works(asked())
@@ -195,7 +253,9 @@ def test_an_unaffordable_request_is_a_failure_but_never_exhaustion():
 def test_a_refusal_before_generation_carries_no_spend():
     """Nothing was produced and nothing was billed, so recording a charge would
     invent one."""
-    handler = lambda request: httpx.Response(403, json={"error": {"message": "Key limit exceeded."}})  # noqa: E731
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, json={"error": {"message": "Key limit exceeded."}})
 
     with pytest.raises(BudgetExhausted) as raised:
         engine_over(handler).enumerate_works(asked())

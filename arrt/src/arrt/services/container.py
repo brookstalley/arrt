@@ -17,7 +17,9 @@ they are settled in one place instead of per constructor.
 """
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Protocol
 
@@ -49,7 +51,7 @@ from arrt.library.acquisition.preparation import PreparationService, Preparation
 from arrt.library.acquisition.queue import AcquisitionQueue
 from arrt.library.acquisition.service import AcquisitionService, AcquisitionSettings
 from arrt.library.acquisition.transport import no_transport
-from arrt.library.acquisition.urls import Resolver
+from arrt.library.acquisition.urls import Resolver, check_fetchable
 from arrt.library.discovery.conversation import NO_CONVERSATION_KEY, ConversationEngine, UnavailableConversation
 from arrt.library.discovery.engine import DiscoveryEngine
 from arrt.library.discovery.phase_two import PhaseTwoEngine
@@ -226,6 +228,11 @@ class Services:
         #: caller reaching past this to write `acquisition._resolve` gets no error
         #: when the attribute is renamed, it just silently resolves for real again.
         resolve: Resolver | None = None,
+        #: How a run's background work is started. None is the runner's own daemon
+        #: thread, which a deployment wants. A test suite passes one that records
+        #: its threads, so a test can wait for a run's last write before the store
+        #: it writes to is closed.
+        spawn: Callable[[Callable[[], None]], None] | None = None,
         preparation: PreparationSettings | None = None,
         mat_engine: MatEngine | None = None,
         #: Defaults to an engine that refuses and says why, exactly as phase 1's
@@ -343,6 +350,11 @@ class Services:
             # nothing.
             collection=sources.collection,
             sightings=sighting_service,
+            # The pages a run's search cited reach a plugin only past the fetch
+            # policy, resolving names the way acquisition does: a suite's stated
+            # answers, or the system's.
+            **({} if resolve is None else {"check_page": partial(check_fetchable, resolve=resolve)}),
+            **({} if spawn is None else {"spawn": spawn}),
         )
         return cls(
             catalogue=catalogue_service,

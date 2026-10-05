@@ -452,7 +452,7 @@ class TestChoosingTheSource:
 
     def test_a_source_belonging_to_another_work_is_refused(self, service, acq_settings):
         work, _ = _work_with_source(service)
-        other_work, other_source = _work_with_source(service, url="https://elsewhere.example.com/c.jpg")
+        _other_work, other_source = _work_with_source(service, url="https://elsewhere.example.com/c.jpg")
 
         with pytest.raises(ServiceError, match="does not belong"):
             _acquisition(service, acq_settings, _serves(b"")).acquire(work.id, source_id=other_source.id)

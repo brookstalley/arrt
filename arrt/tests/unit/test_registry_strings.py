@@ -106,7 +106,7 @@ def _answer_type(question: str) -> object:
 
 def test_the_seam_has_types_and_questions_to_check():
     """A rename that emptied either list would leave the tests below passing on nothing."""
-    assert KINDS == {ItemId, RegistryText, CommonsFile, MuseumIdentifier, WorkPage}
+    assert {ItemId, RegistryText, CommonsFile, MuseumIdentifier, WorkPage} == KINDS
     assert {kind.__name__ for kind in _seam_types()} >= {"RegistryArtist", "RegistryWorkEntry"}
     assert "artist" in _questions()
 

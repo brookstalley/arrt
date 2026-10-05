@@ -148,7 +148,9 @@ def test_showing_everything_keeps_how_the_page_is_shown(ui, seeded_service):
 
     hash_now = ui.page.evaluate("() => window.location.hash")
     assert "q=" not in hash_now
-    assert "density=table" in hash_now and "sort=artist" in hash_now and "filters=hidden" in hash_now
+    assert "density=table" in hash_now
+    assert "sort=artist" in hash_now
+    assert "filters=hidden" in hash_now
 
 
 def test_a_theme_filtered_here_is_in_the_sort_menus_order(ui, services, seeded_service):

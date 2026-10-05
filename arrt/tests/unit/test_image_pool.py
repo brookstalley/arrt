@@ -124,7 +124,7 @@ def test_two_sources_may_not_share_a_name():
 
 
 def test_a_pool_needs_a_source():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="at least one source"):
         ImageSourcePool([])
 
 

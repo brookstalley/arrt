@@ -63,6 +63,11 @@ def system_resolver(host: str) -> Sequence[str]:
         infos = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
     except socket.gaierror as exc:
         raise UrlRefused(f"{host!r} does not resolve: {exc}") from exc
+    except UnicodeError as exc:
+        # A name that is not one (an empty label, `a..b`, or a label over 63
+        # characters) fails in the IDNA encoding before any lookup. It cannot be
+        # fetched, which is a refusal, not a fault in the process.
+        raise UrlRefused(f"{host!r} is not a name that can be looked up: {exc}") from exc
     return [info[4][0] for info in infos]
 
 
@@ -76,7 +81,12 @@ def check_fetchable(url: str, *, resolve: Resolver = system_resolver) -> str:
     if not url or not url.strip():
         raise UrlRefused("A source URL is empty, so there is nothing to fetch.")
 
-    parts = urlsplit(url)
+    try:
+        parts = urlsplit(url)
+    except ValueError as exc:
+        # `http://[x/`: a bracketed host that is no address. Unparseable is
+        # unfetchable, and callers handle refusals, not parser errors.
+        raise UrlRefused(f"{url!r} cannot be parsed as a URL: {exc}") from exc
     if parts.scheme.lower() not in ALLOWED_SCHEMES:
         allowed = ", ".join(sorted(ALLOWED_SCHEMES))
         # Named rather than generic: `file:` is the case worth being loud about,

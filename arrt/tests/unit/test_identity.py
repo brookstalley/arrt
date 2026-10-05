@@ -161,7 +161,8 @@ class TestArtists:
         report = identity(store, registry).match()
 
         qids = [store.get_artist(artist.id).wikidata_qid for artist in (first, second)]
-        assert qids.count("Q152384") == 1 and qids.count(None) == 1
+        assert qids.count("Q152384") == 1
+        assert qids.count(None) == 1
         assert report.artists_ambiguous == ("Joan Miró",)
 
     def test_an_item_a_curator_gave_one_artist_is_not_matched_to_another(self, store, service):

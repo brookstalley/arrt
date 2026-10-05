@@ -14,9 +14,9 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
-from fakes import FakeRegistry  # noqa: E402  (after the skip guard)
+from fakes import FakeRegistry
 
-from arrt.library.registry import (  # noqa: E402
+from arrt.library.registry import (
     ItemId,
     RegistryCreator,
     RegistryPerson,
@@ -183,7 +183,10 @@ def test_choosing_an_unheld_work_opens_its_page_here(ui, matched):
 
 def test_arrow_keys_reach_wikidatas_rows_and_stay_put_when_they_arrive(ui, matched):
     held = []
-    ui.page.route("**/api/registry/search?*", lambda route: held.append(route))
+    ui.page.route(
+        "**/api/registry/search?*",
+        lambda route: held.append(route),  # noqa: PLW0108 -- Playwright passes a builtin method two arguments
+    )
     _type(ui, "dali")
     ui.page.keyboard.press("ArrowDown")
     ui.page.keyboard.press("ArrowDown")
@@ -232,7 +235,8 @@ def test_two_letters_ask_wikidata_nothing(ui, matched, registry):
     _type(ui, "da")
     ui.page.wait_for_timeout(500)
 
-    assert registry.searched == [] and registry.matched == []
+    assert registry.searched == []
+    assert registry.matched == []
     assert ui.page.locator(f"{LISTBOX} .search-suggestions-registry-note").count() == 0
 
 
@@ -301,7 +305,9 @@ class TestEachOfWikidatasSearchesPaintsOnItsOwn:
 
     def _hold(self, ui, route_glob):
         held = []
-        ui.page.route(route_glob, lambda route: held.append(route))
+        ui.page.route(
+            route_glob, lambda route: held.append(route)  # noqa: PLW0108 -- Playwright passes a builtin method two arguments
+        )
         return held
 
     def test_artists_and_works_are_shown_while_the_topic_search_is_held(self, ui, matched):
@@ -384,5 +390,6 @@ class TestEachOfWikidatasSearchesPaintsOnItsOwn:
 
         texts = " ".join(_options(ui))
         assert "Dalmatian" not in texts, "the earlier keystroke's topics replaced the later one's"
-        assert "Surrealism" in texts and "Ask about “dali”" in texts
+        assert "Surrealism" in texts
+        assert "Ask about “dali”" in texts
         assert ui.page.locator(ANNOUNCED).inner_text() == "Wikidata: 6 matches."

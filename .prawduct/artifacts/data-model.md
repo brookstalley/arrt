@@ -78,7 +78,16 @@ entities owned by the plane that talks to that device.
 > carrying one television's state along with it — and it is why the recovered
 > catalogue's label references point at the wrong panel.
 >
-> **Status:** steady-state.
+> **Status:** `in-transition` (since the 2026-10-05 Norm Health sweep, which
+> found the built code departing). The `tv_display` renditions hold one panel's
+> geometry and layout in the catalogue (`persistence/sqlite.py`, the `renditions`
+> table), beside `TV_PANEL_*` in `arrt/config.py`. Tracking ref:
+> `re-architecture.md` § Order of work, wave 4, which moves compositing to the
+> Player. **Interim rule:** no new per-device column or table in the catalogue.
+>
+> **Rulings:** the Wall entity, and which client drives it on which named output,
+> conform — a wall is a place and its assignment a curatorial act (§ Wall, ruled
+> 2026-10-02 and amended by `clients.md`).
 
 **Derived artifacts are regenerated, never transported.** Anything rendered for a
 specific output geometry is reproducible from upstream inputs and is never
@@ -126,7 +135,7 @@ synced between machines.
 > produces either wrong output or a cache that cannot be trusted. Regenerating on
 > the target is cheap and correct.
 >
-> **Status:** steady-state.
+> **Status:** `in-transition` (corrected below).
 >
 > **RULING 2026-09-30: a presentation master is not a derived artifact in this
 > norm's sense, and caching it on a Player conforms.** The norm covers
@@ -137,6 +146,12 @@ synced between machines.
 > changed master has a different hash. What *is* geometry-specific, the composed
 > and matted canvas, is regenerated on the Player that owns the screen, which is
 > this norm applied more strictly than the built code applies it.
+>
+> **Status corrected 2026-10-05 by the Norm Health sweep:** `in-transition`, not
+> steady-state, because the ruling above admits the built code departs:
+> `http/player.py` serves the matted, geometry-specific `tv_display` canvas and the
+> Player caches it. Tracking ref: `re-architecture.md` § Order of work, wave 4.
+> **Interim rule:** no new geometry-specific render is served to a Player.
 
 ## What this data must answer
 
@@ -181,7 +196,7 @@ to serve, elicited from the Product Brief's core flows:
 | Q33 | Why did the last attempt fail, in words a curator can act on? Asked by the Work page and Activity › Queue. | Owner 2026-10-02 (#167) |
 | Q34 | Has the queue given up on this work? Asked by the Retry button. | Owner 2026-10-02 (#167) |
 | Q35 | Which source should the next attempt use, when someone named one? Asked by MCP's `retry_acquisition`. | Owner 2026-10-02 (#167) |
-| Q36 | Which works does the curator want and not yet hold a scan of, across every run? Asked by Activity › Wanted and `art_review(action='list_wanted')`. | Owner 2026-10-02 (#168) |
+| Q36 | Which works does the curator want and not yet hold a scan of, across every run? Asked by Wanted and `art_review(action='list_wanted')`. | Owner 2026-10-02 (#168) |
 | Q37 | Was this work wanted because a scan was turned down, or because none was found? | Owner 2026-10-02 (#168) |
 | Q38 | Which client drives this wall, and on which of its outputs? Asked by the Walls screen and by every listing of walls. | Owner 2026-10-02 (clients) |
 | Q39 | Which walls does this client drive? The client's own question, asked over HTTP about every 30 seconds (`GET /client`). | Owner 2026-10-02 (clients) |
@@ -191,6 +206,8 @@ to serve, elicited from the Product Brief's core flows:
 | Q43 | Which hosts have pages for works still open (wanted, or unresolved with no verdict) that no installed source plugin reads, and for how many works each? Asked by `GET /api/sightings/hosts` and `art_review(action='sighting_hosts')`, to choose the next reader. | Agent 2026-10-03, in the owner's sources-are-plugins plan (`source-plugins.md` § Sightings) |
 | Q44 | When a source plugin is installed, which works' pages can it read now? Not asked yet: the upgrade loop will. | Agent 2026-10-03 (same) |
 | Q45 | Where else has this work been seen? Not asked yet: a work's page will. | Agent 2026-10-03 (same) |
+| Q46 | Which pages did this run's web search read, in its order? Asked by phase 2 whenever it searches a work the run proposed: on approval, on a re-search, and after a restart. | Owner 2026-10-05 (gallery works found through Ask's search, `build-plan-ask-pages.md`) |
+| Q47 | Which hosts do the citations of runs with unresolved works name? Not asked yet: sightings for works with no Wikidata item would. | Agent 2026-10-05 (same) |
 
 **Q22 to Q24 are answered by one column, `DiscoveryRun.destination_theme_id`**
 (`build-plan-topics-and-destinations.md` Chunk 01). A work reaches its run
@@ -1242,6 +1259,7 @@ candidates provenance.
 | `started_at` | datetime | required | **Narrowed from nullable 2026-07-27.** A run row is only created by starting one, and both entry states (`resolving_works` for a discovery run, `resolving_images` for a resolve run) are active — there is no state in which a row exists and the run has not started. Nullable would have made every reader handle an absence that cannot occur. |
 | `completed_at` | datetime | nullable | Written by whichever transition ends the run. On `interrupted` it records when the death was *observed* at startup, not when it happened: the process that died could not write one, and a terminal run with no end time silently drops out of any window a report asks for. |
 | `destination_theme_id` | UUID | nullable; **not** a foreign key | The theme a `get` run's accepted works join instead of the default, or null for the default (**Q22-Q24**). Programming's id, held opaquely across the seam (rule 3), so it may name a theme deleted since. Written once, when the Get starts; the surface asks Programming that the theme exists first. Null on `discovery` and `resolve` runs, which keep joining the default (`build-plan-topics-and-destinations.md` § Requirements Confidence), and on every run written before the column. *Built 2026-10-02.* |
+| `end_reason` | text | nullable | Why the run's own worker ended it, in the sentence it composed. **Written only by `failed` and `halted_by_budget`**, the two endings nobody asked for, in the same write as the status; required and non-blank on both (`DiscoveryService.fail_run`, `halt_run_for_budget`). Null on `completed`, `declined`, `cancelled` and `interrupted`: the first three need no explaining beyond the curator's own act or the tallies, and reconciliation knows only what `interrupted` already says. Null too on every run that ended before the column, which widening adds in place. A fault nothing anticipated stores a fixed sentence pointing at the server log, never the exception's text. *Built 2026-10-05 (#207).* |
 
 > **The re-search is a run, not a side effect (decided 2026-07-20).** `resolve_images`
 > is a paid, minutes-long operation, and it previously created no row at all — so the
@@ -1980,6 +1998,30 @@ reachable (`source-plugins.md` § Sightings). Written when a search finds a page
 > item. A page found for a work with no item is not stored. Rows are never
 > deleted: a page seen stays seen, and a plugin installed later is what Q44 asks
 > about.
+
+### RunCitation
+
+A page a discovery run's phase-1 web search read (`source-plugins.md` § Pages a
+search read). Written once, when phase 1 closes, and never changed. Table
+`run_citations`.
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `discovery_run_id` | UUID | FK → DiscoveryRun, required | The run whose search read it. |
+| `url` | string | required | The page, as the search cited it. **Never sent to the browser**: it is a page from the open web (`security-model.md` § Direction). |
+| `position` | integer | required | Its place in the search's order, from 0. A page cited twice keeps its first. |
+| | | PK (`discovery_run_id`, `url`) | The search read a page once, however often it cited it. |
+
+> **Keyed by the run, not by a CandidateWork**, because the search answered the
+> run's intent, not one work: a search for an artist's paintings cites the
+> gallery's artist page, which is about every work the run proposed. Q46 reads by
+> run; a work reaches its pages through `CandidateWork.discovery_run_id`, which a
+> re-search does not change. *Mine, 2026-10-05.*
+>
+> **Only what the search engine read**, never an address from the model's answer
+> (`source-plugins.md` § Pages a search read). Nothing here says whether a page
+> is reachable: phase 2 checks each one when it hands it over, since a name's
+> answer can change between the run and a re-search.
 
 ### TvBinding *(display plane only)*
 

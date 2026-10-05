@@ -190,7 +190,8 @@ def test_a_failure_is_not_remembered_so_the_next_visit_asks_again():
     registry.failing = False
     view = service.works("Q1311")
 
-    assert view.state is TopicState.KNOWN and [entry.work for entry in view.works] == [HUNTERS]
+    assert view.state is TopicState.KNOWN
+    assert [entry.work for entry in view.works] == [HUNTERS]
 
 
 def test_an_item_the_registry_does_not_have_is_not_found_and_asked_about_again():
@@ -276,7 +277,8 @@ def test_a_search_is_kept_by_what_was_typed_ignoring_case_and_a_failure_is_not()
 def test_a_failed_search_says_so_rather_than_finding_nothing():
     view = _service(TopicRegistry(failing=True)).named("winter")
 
-    assert view.state is TopicState.UNAVAILABLE and view.topics == ()
+    assert view.state is TopicState.UNAVAILABLE
+    assert view.topics == ()
 
 
 @pytest.mark.parametrize("section", ["topic", "works", "artists"])

@@ -52,7 +52,7 @@ class TestTheCurve:
 
     def test_a_naive_datetime_is_refused_rather_than_answered_for_the_wrong_hour(self):
         with pytest.raises(TypeError):
-            sun_state(datetime(2026, 6, 21, 12), **BOZEMAN)
+            sun_state(datetime(2026, 6, 21, 12), **BOZEMAN)  # noqa: DTZ001 -- the naive datetime is what is refused
 
 
 def _first_lit_moment() -> object:

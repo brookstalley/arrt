@@ -253,7 +253,7 @@ def test_a_name_is_registered_once_per_file(path, clock):
 
 @pytest.mark.parametrize(("max_age", "size"), [(timedelta(0), 1), (DAY, 0)])
 def test_a_namespace_must_keep_something_for_some_time(path, clock, max_age, size):
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="at least one answer for some time"):
         KeptAnswers(path, clock=clock).namespace("n", codec=Text(), max_age=max_age, size=size)
 
 
@@ -428,7 +428,7 @@ def _seam_dataclasses() -> list[type]:
     ]
 
 
-def _filled(shape, depth=0):
+def _filled(shape, depth=0):  # noqa: C901, PLR0911 -- one branch per kind of type form the codec accepts
     """A value of `shape` with nothing left at a default: every optional set, every sequence two long."""
     while isinstance(shape, typing.NewType):
         shape = shape.__supertype__

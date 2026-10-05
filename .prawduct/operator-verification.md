@@ -10,6 +10,37 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Wanted as a section of its own — added 2026-10-05
+
+**`build-plan-norm-sweep-2026-10.md` Chunk 06.** Visual change: yes.
+
+Checked by the builder against the browser suite, including the sidebar's sections
+and pages, Wanted's count, and the section held hidden until its count arrives. Not
+yet deployed.
+
+- **Look at:** after the next deploy, with something wanted, the sidebar reads
+  Artworks, Walls, Activity, **Wanted ◑ n**, Settings, System, and Activity lists
+  To review, Queue and History only. With nothing wanted, there is no Wanted
+  section at all, and it does not flash in on load. A review card's *Want* now says
+  the work "waits in Wanted".
+- **Worth an opinion:** whether Wanted should show even when empty, as Sonarr's
+  does. This build keeps the #168 rule that it appears once something is wanted.
+
+### Why a run stopped, on the run page — added 2026-10-05
+
+**`build-plan-run-end-reason.md` Chunk 01.** Visual change: yes.
+
+Checked by the builder against the suites, including the browser suite with canned
+runs (failed with a reason, failed without one, halted, and three endings that
+carry none). Not yet deployed.
+
+- **Look at:** after the next deploy, a run that fails or is halted shows "Why it
+  stopped: …" in muted text under the run's sentence. A run that failed before the
+  deploy (run `4756cdee`, the Lucy Bull Ask) still reads "The server log has the
+  details." and has no such line.
+- **Worth an opinion:** whether the reason belongs on Activity's run rows too.
+  This build shows it only on the run's own page.
+
 ### Image sources on System › Status — added 2026-10-03
 
 **`build-plan-source-plugins.md` Chunk 01.** Visual change: yes.
@@ -232,7 +263,7 @@ and a `page.screenshot` of your own.
   panel on a phone, reads well enough there; and whether adding a client and
   issuing its token in one act is what you want, rather than two steps.
 
-### Want and Forget, Activity › Wanted, and the Wikidata picker — added 2026-10-02
+### Want and Forget, Wanted, and the Wikidata picker — added 2026-10-02
 
 **`build-plan-after-review.md` Chunk 05.** Visual change: yes.
 
@@ -244,8 +275,8 @@ matches stubbed from the live answer for *Lobster Telephone*. Regenerate with
 
 - **A review card whose search found nothing** shows **Want** and **Forget**
   where Accept and Reject were. Want repaints the card `◑ wanted`, says "It
-  waits in Activity › Wanted…", and leaves only Forget.
-- **Activity › Wanted** appears in the sidebar, with its count, once a work is
+  waits in Wanted…", and leaves only Forget.
+- **Wanted** appears in the sidebar, with its count, once a work is
   wanted. The page: "*n* works wanted", a sentence that searching spends nothing
   and why a work with no item is offered a pick, **Search all**, then a table of
   Work — Artist, Why (*No scan found* or *1 scan turned down*), Wikidata (the

@@ -79,7 +79,7 @@ def _digest(stream: BinaryIO) -> str:
     return f"{_ALGORITHM}:{digest.hexdigest()}"
 
 
-def _jpeg_dimensions(stream: BinaryIO) -> tuple[int, int] | None:
+def _jpeg_dimensions(stream: BinaryIO) -> tuple[int, int] | None:  # noqa: PLR0911 -- each malformed header is its own answer
     """Walk the segment headers to the frame that states the image's size."""
     if stream.read(2) != b"\xff\xd8":
         return None
@@ -89,20 +89,20 @@ def _jpeg_dimensions(stream: BinaryIO) -> tuple[int, int] | None:
             return None
         if marker in _SIZE_FRAMES:
             # Length, then one byte of sample precision, then height and width.
-            if len(stream.read(3)) != 3:
+            if len(stream.read(3)) != 3:  # noqa: PLR2004 -- a JPEG field's fixed size in bytes
                 return None
             payload = stream.read(4)
-            if len(payload) != 4:
+            if len(payload) != 4:  # noqa: PLR2004 -- a JPEG field's fixed size in bytes
                 return None
             height, width = struct.unpack(">HH", payload)
             return (width, height) if width and height else None
         if marker in _STANDALONE:
             continue
         header = stream.read(2)
-        if len(header) != 2:
+        if len(header) != 2:  # noqa: PLR2004 -- a JPEG field's fixed size in bytes
             return None
         length = struct.unpack(">H", header)[0]
-        if length < 2:
+        if length < 2:  # noqa: PLR2004 -- a JPEG field's fixed size in bytes
             return None
         stream.seek(length - 2, 1)
 

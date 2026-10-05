@@ -32,7 +32,7 @@ from collections import Counter
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from datetime import MAXYEAR, MINYEAR, UTC, datetime
 from decimal import Decimal
 
 from arrt.library.discovery.dedup import clean_name, work_dedup_key
@@ -62,6 +62,9 @@ from arrt.services.fields import relative_path, require_member, require_text
 from arrt.services.store import store_write
 
 log = logging.getLogger(__name__)
+
+#: The last month of a calendar year, where a month's end wraps into the next year.
+_DECEMBER = 12
 
 
 @dataclass(frozen=True, slots=True)
@@ -281,6 +284,7 @@ class DiscoveryService:
         approval_threshold: int,
         estimated_cost_usd: Decimal | None = None,
         strategy: str | None = None,
+        citations: Sequence[str] = (),
     ) -> DiscoveryRun:
         """Close phase 1 and either stop for approval or go straight to phase 2.
 
@@ -300,6 +304,10 @@ class DiscoveryService:
         list this transition closes. This is its only writer: the transition runs
         once per run, out of `resolving_works`, so there is no earlier value to
         preserve and no second chance to overwrite one.
+
+        `citations` are the pages phase 1's search read, and land here for the
+        same reason and with the same single writer. Phase 2 hands them to the
+        finders (`run_citations`).
         """
         if approval_threshold < 0:
             raise ServiceError(f"An approval threshold cannot be negative, got {approval_threshold}.")
@@ -314,7 +322,12 @@ class DiscoveryService:
                 strategy=strategy,
             )
             store_write(self._store.update_run, advanced)
+            store_write(self._store.add_run_citations, run_id, citations)
         return advanced
+
+    def run_citations(self, run_id: str) -> Sequence[str]:
+        """The pages a run's phase-1 search read, in the search's order; empty for a Get or an older run."""
+        return self._store.list_run_citations(run_id)
 
     def approve_run(self, run_id: str) -> DiscoveryRun:
         """Accept the work list and its price; phase 2 may proceed."""
@@ -351,17 +364,23 @@ class DiscoveryService:
             store_write(self._store.update_run, completed)
         return completed
 
-    def fail_run(self, run_id: str, *, actual_cost_usd: Decimal | None = None) -> DiscoveryRun:
-        """End a run because something broke. Distinct from every other ending.
+    def fail_run(self, run_id: str, *, reason: str, actual_cost_usd: Decimal | None = None) -> DiscoveryRun:
+        """End a run because something broke, and keep why. Distinct from every other ending.
 
         Only a run whose process is working on it can break, which is why this is
         refused from `awaiting_approval`: nothing is executing there, and a run
         that "failed" while waiting for a curator would be describing something
         that did not happen.
-        """
-        return self._end_active(run_id, RunStatus.FAILED, doing="fail", actual_cost_usd=actual_cost_usd, from_working=True)
 
-    def halt_run_for_budget(self, run_id: str, *, actual_cost_usd: Decimal | None = None) -> DiscoveryRun:
+        **`reason` is required, and is what a curator reads on the run.** A
+        failure that kept no reason is what this argument exists to end, so it is
+        not optional and a blank one is refused.
+        """
+        return self._end_active(
+            run_id, RunStatus.FAILED, doing="fail", actual_cost_usd=actual_cost_usd, from_working=True, reason=reason
+        )
+
+    def halt_run_for_budget(self, run_id: str, *, reason: str, actual_cost_usd: Decimal | None = None) -> DiscoveryRun:
         """End a run because the provider refused to spend more.
 
         **The caller reaches this from the provider refusing to spend, and from
@@ -376,9 +395,20 @@ class DiscoveryService:
         parked for the curator is not spending, so it cannot be the one the
         provider refused. Phase 1 *can* be — it makes model calls and can search
         the web — so this is reachable from both working states, not only phase 2.
+
+        `reason` is required as failure's is. It quotes the provider's refusal,
+        which names the limit that refused, and the page's fixed sentence about a
+        halt cannot. (The refusal carrying what was asked for against what was
+        left is a 402, which fails the run rather than halting it, so that
+        arithmetic reaches a *failed* run's reason.)
         """
         return self._end_active(
-            run_id, RunStatus.HALTED_BY_BUDGET, doing="halt", actual_cost_usd=actual_cost_usd, from_working=True
+            run_id,
+            RunStatus.HALTED_BY_BUDGET,
+            doing="halt",
+            actual_cost_usd=actual_cost_usd,
+            from_working=True,
+            reason=reason,
         )
 
     def cancel_run(self, run_id: str, *, actual_cost_usd: Decimal | None = None) -> DiscoveryRun:
@@ -1030,8 +1060,7 @@ class DiscoveryService:
             image = self.get_candidate_image(candidate_image_id)
             if image.rejected_at is not None:
                 raise ServiceError(f"Image {candidate_image_id!r} was rejected for this work, so it cannot be selected again.")
-            chosen = self._select(image, rationale=rationale)
-        return chosen
+            return self._select(image, rationale=rationale)
 
     def forget_preview(self, candidate_image_id: str) -> CandidateImage:
         """Record that this instance no longer has a local copy of its picture.
@@ -1199,7 +1228,7 @@ class DiscoveryService:
     def list_wanted(self) -> Sequence[WantedWork]:
         """Every wanted work across runs, newest run first, each with how many scans were turned down.
 
-        The read behind Activity › Wanted. Newest first by the run that proposed
+        The read behind Wanted. Newest first by the run that proposed
         the work, since the verdict carries no moment of its own; by title within
         a run. `scans_turned_down` is counted from the work's instances, which is
         what tells "wanted because its scan was turned down" from "wanted because
@@ -1376,15 +1405,15 @@ class DiscoveryService:
         report on a different boundary would disagree with the only figure that
         can actually stop spending.
         """
-        if not 1 <= month <= 12:
+        if not 1 <= month <= _DECEMBER:
             raise ServiceError(f"A month is 1 to 12, got {month}.")
         # The year is bounded too, so that the only input this method cannot
         # phrase a refusal for stops being the one that reaches a caller as a bare
         # stdlib ValueError through a tool boundary's "failed unexpectedly".
-        if not datetime.min.year <= year < datetime.max.year:
-            raise ServiceError(f"A year is {datetime.min.year} to {datetime.max.year - 1}, got {year}.")
+        if not MINYEAR <= year < MAXYEAR:
+            raise ServiceError(f"A year is {MINYEAR} to {MAXYEAR - 1}, got {year}.")
         since = datetime(year, month, 1, tzinfo=UTC)
-        until = datetime(year + (month == 12), month % 12 + 1, 1, tzinfo=UTC)
+        until = datetime(year + (month == _DECEMBER), month % _DECEMBER + 1, 1, tzinfo=UTC)
         return sum((record.cost_usd for record in self._store.list_spend_records(since=since, until=until)), Decimal(0))
 
     # -- internals ------------------------------------------------------------
@@ -1598,6 +1627,7 @@ class DiscoveryService:
         doing: str,
         actual_cost_usd: Decimal | None,
         from_working: bool = False,
+        reason: str | None = None,
     ) -> DiscoveryRun:
         """End a run that is still running. A finished run stays as it finished.
 
@@ -1606,7 +1636,13 @@ class DiscoveryService:
         a run *while it works*; offering them from `awaiting_approval` would leave
         two edges reachable that the state machine does not draw, and a state
         machine with edges nobody modelled is one nobody can reason about.
+
+        `reason` is written in the same write as the status it explains, so the
+        two cannot disagree. Refused when blank, before anything is read: a run
+        stored as failing "because" of nothing is the defect the field ends.
         """
+        if reason is not None and not reason.strip():
+            raise ValueError(f"A run cannot {doing} without a reason; the reason is what a curator reads on it.")
         with self._store.transaction():
             run = self.get_run(run_id)
             if run.status.is_terminal:
@@ -1616,7 +1652,7 @@ class DiscoveryService:
                     f"Run {run_id!r} is {run.status}, so nothing is running that could {doing}; "
                     "approve, decline, or cancel it instead."
                 )
-            ended = self._ended(run, ending, actual_cost_usd=actual_cost_usd)
+            ended = replace(self._ended(run, ending, actual_cost_usd=actual_cost_usd), end_reason=reason)
             store_write(self._store.update_run, ended)
         return ended
 

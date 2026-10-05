@@ -28,10 +28,9 @@ async def call(server_url: str, tool: str, **arguments) -> tuple[dict, bool]:
     from mcp import ClientSession
     from mcp.client.streamable_http import streamable_http_client
 
-    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            result = await session.call_tool(tool, arguments)
+    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _), ClientSession(read, write) as session:
+        await session.initialize()
+        result = await session.call_tool(tool, arguments)
     return json.loads(result.content[0].text), bool(result.isError)
 
 
@@ -118,7 +117,7 @@ async def test_status_holds_while_a_run_is_being_worked_on_and_answers_when_it_c
         engine.gate.set()
 
     began = time.monotonic()
-    held, released = await asyncio.gather(
+    held, _released = await asyncio.gather(
         call(server_url, "art_discovery", action="status", run_id=run_id),
         release_shortly(),
     )
@@ -283,6 +282,16 @@ async def test_the_three_bad_endings_are_distinguishable_by_returned_state_alone
     assert payload["status"] == expected
     assert payload["success"] is True, "a run that ended badly is still a successful read of that run"
     assert must_say in payload["notice"]
+    # Why it ended, in the worker's words where it composed some: the provider's
+    # for a halt, a pointer to the log for a fault whose own text stays there,
+    # and nothing for a death only reconciliation saw.
+    if outcome == "halted":
+        assert payload["end_reason"] == "Key limit exceeded (total limit)."
+    elif outcome == "failed":
+        assert "unparseable" not in payload["end_reason"]
+        assert "server log" in payload["end_reason"]
+    else:
+        assert payload["end_reason"] is None
 
 
 # -- estimate and spend -----------------------------------------------------------

@@ -52,10 +52,9 @@ def _imports_driver(tree: ast.AST) -> bool:
         if isinstance(node, ast.Import):
             if any(alias.name.split(".")[0] == _DRIVER for alias in node.names):
                 return True
-        elif isinstance(node, ast.ImportFrom):
-            # `node.module` is None for a relative import, which cannot be stdlib.
-            if node.module is not None and node.module.split(".")[0] == _DRIVER:
-                return True
+        # `node.module` is None for a relative import, which cannot be stdlib.
+        elif isinstance(node, ast.ImportFrom) and node.module is not None and node.module.split(".")[0] == _DRIVER:
+            return True
     return False
 
 
@@ -69,6 +68,45 @@ def test_only_the_durable_store_imports_the_storage_driver():
         f"{_DRIVER!r} is imported outside the durable store by: {', '.join(sorted(set(offenders) - _MAY_IMPORT_SQLITE))}. "
         "Reach storage through the CatalogueStore contract, or add the module here with a reason."
     )
+
+
+# -- the surfaces name records, never a store ------------------------------------
+
+
+#: The persistence modules a surface (`arrt.http`, `arrt.mcp`) may import from:
+#: the record types and enums its answers are shaped from. A store, the backup
+#: writer or the driver is reached through a service, by the boundary the owner
+#: drew on 2026-10-05 (issue #24): records yes, stores no.
+_SURFACES_MAY_IMPORT = {"arrt.persistence.records", "arrt.persistence.discovery_records"}
+_SURFACES = ("arrt.http", "arrt.mcp")
+
+
+def _persistence_imports(tree: ast.AST) -> set[str]:
+    """Every `arrt.persistence…` module this module imports, at any level."""
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            found.update(alias.name for alias in node.names if alias.name.startswith("arrt.persistence"))
+        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+            if node.module == "arrt.persistence":
+                found.update(f"arrt.persistence.{alias.name}" for alias in node.names)
+            elif node.module.startswith("arrt.persistence."):
+                found.add(node.module)
+    return found
+
+
+def test_the_surfaces_import_persistence_records_and_never_a_store():
+    surfaces = [path for path in sorted(_SOURCE_ROOT.rglob("*.py")) if _module_name(path).startswith(_SURFACES)]
+    assert {_module_name(path).split(".")[1] for path in surfaces} == {"http", "mcp"}, "a surface package moved"
+
+    offenders = {
+        f"{_module_name(path)} imports {module}"
+        for path in surfaces
+        for module in _persistence_imports(ast.parse(path.read_text(encoding="utf-8")))
+        if module not in _SURFACES_MAY_IMPORT
+    }
+
+    assert not offenders, "a surface reaches past the records into persistence:\n" + "\n".join(sorted(offenders))
 
 
 # -- discovery reaches nothing, and that is structural --------------------------
@@ -404,7 +442,7 @@ def test_the_catalogue_still_re_exports_the_shared_error_types():
     The re-export is deliberate and permanent rather than a transitional shim, so
     it is asserted rather than left to be tidied away by someone reading it as one.
     """
-    from arrt.persistence import catalogue, errors  # noqa: PLC0415
+    from arrt.persistence import catalogue, errors
 
     assert catalogue.StorageError is errors.StorageError
     assert catalogue.StoreMisuseError is errors.StoreMisuseError

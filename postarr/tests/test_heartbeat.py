@@ -176,7 +176,7 @@ class TestWritingItSafely:
         """The caller knows a heartbeat is an annotation; this module does not."""
         missing = tmp_path / "no-such-directory"
 
-        with pytest.raises(OSError):
+        with pytest.raises(OSError):  # noqa: PT011 -- the claim is that the OSError reaches the caller, whichever errno
             write(missing, Health(), wall_id=WALL, reported_at=WHEN)
 
     def test_a_failed_write_leaves_no_temporary_file_in_a_live_root(self, tmp_path: Path):
@@ -187,7 +187,7 @@ class TestWritingItSafely:
         blocked.mkdir()
         (blocked / HEARTBEAT_FILENAME).mkdir()
 
-        with pytest.raises(OSError):
+        with pytest.raises(OSError):  # noqa: PT011 -- the claim is that the OSError reaches the caller, whichever errno
             write(blocked, Health(), wall_id=WALL, reported_at=WHEN)
 
         assert not (blocked / f"{HEARTBEAT_FILENAME}.tmp").exists()

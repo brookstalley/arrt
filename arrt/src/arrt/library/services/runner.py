@@ -47,6 +47,7 @@ from time import monotonic
 from typing import Final
 
 from arrt.counting import agree, counted, noun
+from arrt.library.acquisition.urls import UrlRefused, check_fetchable
 from arrt.library.discovery.browse import (
     OFFERED_CONFIDENCE,
     BrowseQuery,
@@ -94,6 +95,16 @@ STATUS_HOLD_SECONDS: Final[float] = 45.0
 #: normally woken by the change itself; this only bounds how long a change made
 #: by something outside this process could go unnoticed.
 _RECHECK_SECONDS: Final[float] = 5.0
+
+#: What a run records when its worker raised something nothing anticipated. A
+#: fixed sentence and never the exception's text, which can carry paths and
+#: addresses and which a curator cannot act on; the traceback is logged at the
+#: same moment, which is where this sends them.
+_UNEXPECTED: Final[str] = "{phase} failed unexpectedly. The server log has the details."
+
+#: What a run records when the error that ended it carried no message. Says so
+#: rather than pointing at the log, which holds the same empty message.
+_NO_REASON: Final[str] = "The run stopped without saying why: the error that ended it carried no message."
 
 #: How many runs one listing may carry. **Nothing else bounds this list**, and it
 #: is the only listing in the product that grows with what people *typed*: a run
@@ -203,7 +214,7 @@ class DiscoverySettings:
         """
         return self._model_call_usd + self.phase1_search_allowance * self.search_cost_usd
 
-    def phase2_estimate_usd(self, work_count: int) -> Decimal:
+    def phase2_estimate_usd(self, work_count: int) -> Decimal:  # noqa: ARG002 -- free at any count; callers say how many
         """What resolving a known work list costs. Nothing, on museum APIs.
 
         **Zero is measured, not assumed** (2026-08-02). Phase 2 asks museum APIs,
@@ -458,8 +469,15 @@ class DiscoveryRunner:
         collection: CollectionBrowse | None = None,
         sightings: SightingService | None = None,
         spawn: Callable[[Callable[[], None]], None] = _daemon_thread,
+        check_page: Callable[[str], str] = check_fetchable,
     ) -> None:
         self._discovery = discovery
+        #: Decides whether a page a run's search cited may reach a finder: the
+        #: acquisition fetch policy, raising `UrlRefused` for a LAN address or a
+        #: `.local` name. A plugin's own requests are unguarded, so this is the
+        #: one check those addresses get. An argument so tests can state what a
+        #: name resolves to.
+        self._check_page = check_page
         #: Where the pages a search found and nothing here reads are recorded.
         #: Optional: without it they are found and dropped, as before sightings.
         self._sightings = sightings
@@ -821,7 +839,7 @@ class DiscoveryRunner:
             self._end(run_id, self._discovery.fail_run, "run.failed", str(exc))
         except Exception:  # prawduct:allow prawduct/broad-except -- worker boundary: a fault must end the run, not hang it
             log.exception("phase 1 raised an unexpected error", extra={"event": "run.failed"})
-            self._end(run_id, self._discovery.fail_run, "run.failed", "Phase 1 failed unexpectedly.")
+            self._end(run_id, self._discovery.fail_run, "run.failed", _UNEXPECTED.format(phase="Phase 1"))
 
     def _settle(self, run_id: str, produced: WorkList) -> None:
         """Turn an engine's answer into proposed works and close phase 1."""
@@ -848,6 +866,7 @@ class DiscoveryRunner:
                 approval_threshold=self._settings.approval_threshold,
                 estimated_cost_usd=estimate,
                 strategy=produced.strategy,
+                citations=produced.citations,
             )
         except ServiceError as exc:
             self._could_not_settle(run_id, exc)
@@ -1001,7 +1020,7 @@ class DiscoveryRunner:
             self._end(run_id, self._discovery.fail_run, "run.failed", f"Phase 2 could not record what it found: {exc}")
         except Exception:  # prawduct:allow prawduct/broad-except -- worker boundary: a fault must end the run, not hang it
             log.exception("phase 2 raised an unexpected error", extra={"event": "run.failed"})
-            self._end(run_id, self._discovery.fail_run, "run.failed", "Phase 2 failed unexpectedly.")
+            self._end(run_id, self._discovery.fail_run, "run.failed", _UNEXPECTED.format(phase="Phase 2"))
 
     def _works_to_resolve(self, run_id: str) -> Sequence[CandidateWork]:
         """Which works this run should be asking about, which depends on its kind.
@@ -1026,6 +1045,11 @@ class DiscoveryRunner:
         """Ask the provider about each work this run is responsible for."""
         works = self._works_to_resolve(run_id)
         tally: Counter[WorkOutcome] = Counter()
+        #: The proposing run's pages, checked once for this pass and shared by its
+        #: works. Keyed by the proposing run because a re-search is a run of its
+        #: own, with no search: its works' pages are the run that proposed them
+        #: (the record layer keeps a re-search to one such run).
+        pages: dict[str, tuple[str, ...]] = {}
         for work in works:
             # Re-read each time round rather than once before the loop: a curator
             # cancelling partway through must stop the run there, and a decision
@@ -1037,7 +1061,9 @@ class DiscoveryRunner:
                     extra={"event": "run.discarded", "works_remaining": len(works) - sum(tally.values())},
                 )
                 return
-            tally[self._resolve_work(work, images, previews)] += 1
+            if work.discovery_run_id not in pages:
+                pages[work.discovery_run_id] = self._fetchable_citations(work.discovery_run_id)
+            tally[self._resolve_work(work, images, previews, pages=pages[work.discovery_run_id])] += 1
         self._supplement(run_id, previews)
         self._close_phase_two(run_id, tally=tally, works=len(works))
 
@@ -1093,7 +1119,7 @@ class DiscoveryRunner:
 
     def _offer_from_collection(self, run_id: str, previews: PreviewCache) -> None:
         """Browse for each unconfirmed artist, then record an even spread of what came back."""
-        assert self._collection is not None  # noqa: S101 - guarded by the caller, narrowing for the reader
+        assert self._collection is not None  # noqa: S101 -- guarded by the caller, narrowing for the reader
         bound = self._settings.offered_works_per_run
         artists = self._artists_needing_a_supplement(run_id)
         if not artists:
@@ -1190,7 +1216,27 @@ class DiscoveryRunner:
         self._discovery.record_resolution(work.id)
         return True
 
-    def _resolve_work(self, work: CandidateWork, images: PhaseTwoEngine, previews: PreviewCache) -> WorkOutcome:
+    def _fetchable_citations(self, run_id: str) -> tuple[str, ...]:
+        """The pages a run's search read that may reach a finder, in the search's order.
+
+        A refused page is dropped and logged with the fetch policy's reason, and the
+        rest go on: one unreachable citation says nothing about the others.
+        """
+        kept: list[str] = []
+        for url in self._discovery.run_citations(run_id):
+            try:
+                kept.append(self._check_page(url))
+            except UrlRefused as exc:
+                log.info(
+                    "not handing a cited page to the finders: %s",
+                    exc,
+                    extra={"event": "phase_two.page_refused", "run_id": run_id},
+                )
+        return tuple(kept)
+
+    def _resolve_work(
+        self, work: CandidateWork, images: PhaseTwoEngine, previews: PreviewCache, *, pages: tuple[str, ...] = ()
+    ) -> WorkOutcome:
         """Find and record one work's instances.
 
         Four outcomes, and they are genuinely different — which is why this
@@ -1233,6 +1279,7 @@ class DiscoveryRunner:
                     title=work.proposed_title,
                     artist=work.proposed_artist,
                     qid=None if work.wikidata_qid is None else ItemId(work.wikidata_qid),
+                    pages=pages,
                 )
             )
         except ImageSearchFailure as exc:
@@ -1397,9 +1444,19 @@ class DiscoveryRunner:
         that is an ordinary outcome rather than a second failure — so it is
         logged and dropped rather than raised into a worker that has nobody to
         raise to.
+
+        The reason is stored on the run as well as logged, because the run is
+        what a curator reads, and the log is out of their reach.
+
+        **A blank reason is replaced here, not passed on.** The service refuses
+        one, and this runs inside the worker's exception handlers: a refusal
+        raised from here would escape them and leave the run in a process-held
+        state with nothing working on it. An engine error with an empty message
+        is the way a blank one arrives.
         """
+        reason = reason.strip() or _NO_REASON
         try:
-            ending(run_id, actual_cost_usd=self._discovery.run_cost(run_id).direct)
+            ending(run_id, reason=reason, actual_cost_usd=self._discovery.run_cost(run_id).direct)
         except ServiceError as exc:
             log.info("could not end the run; it had already ended: %s", exc, extra={"event": "run.already_ended"})
             return

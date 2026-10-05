@@ -64,7 +64,8 @@ def _topic(qid, *kinds, start=None, end=None):
 def test_a_topics_kind_is_read_from_the_classes_above_it(qid, kinds):
     topic = _answering(ANSWERS[f"topic {qid}"]).topic(qid)
 
-    assert topic.kinds == kinds and topic.kind is kinds[0]
+    assert topic.kinds == kinds
+    assert topic.kind is kinds[0]
 
 
 @pytest.mark.parametrize(
@@ -107,7 +108,8 @@ def test_the_kind_roots_are_asked_for_from_the_item_upwards():
     asked = []
     _answering([], asked=asked).topic("Q1311")
 
-    assert "?item wdt:P31/wdt:P279* ?root" in asked[0] and "?item wdt:P279* ?root" in asked[0]
+    assert "?item wdt:P31/wdt:P279* ?root" in asked[0]
+    assert "?item wdt:P279* ?root" in asked[0]
     assert "FILTER(?root IN (" in asked[0]
     assert not re.search(r"wdt:P279\* wd:Q", asked[0])
 
@@ -130,7 +132,8 @@ def test_a_topics_works_are_found_by_its_kind(topic, pattern):
     _answering([], asked=asked).topic_works(topic, limit=50)
 
     assert pattern in asked[0]
-    assert "ORDER BY DESC(?links)" in asked[0] and "LIMIT 50" in asked[0]
+    assert "ORDER BY DESC(?links)" in asked[0]
+    assert "LIMIT 50" in asked[0]
 
 
 def test_a_period_is_read_as_a_range_of_the_inception_index():
@@ -138,14 +141,16 @@ def test_a_period_is_read_as_a_range_of_the_inception_index():
     asked = []
     _answering([], asked=asked).topic_works(_topic("Q7017", TopicKind.PERIOD, start=1501, end=1600), limit=50)
 
-    assert "hint:Prior hint:rangeSafe true" in asked[0] and "YEAR(?made)" not in asked[0]
+    assert "hint:Prior hint:rangeSafe true" in asked[0]
+    assert "YEAR(?made)" not in asked[0]
 
 
 def test_an_item_with_two_kinds_finds_its_works_as_its_first():
     asked = []
     _answering([], asked=asked).topic_works(_topic("Q37853", TopicKind.MOVEMENT, TopicKind.PERIOD, start=1590, end=1750), limit=5)
 
-    assert "wdt:P135 wd:Q37853" in asked[0] and "rangeSafe" not in asked[0]
+    assert "wdt:P135 wd:Q37853" in asked[0]
+    assert "rangeSafe" not in asked[0]
 
 
 def test_one_entry_per_work_however_many_made_it():
@@ -200,9 +205,11 @@ def test_a_movements_artists_are_its_own_and_anyone_elses_are_the_makers_of_its_
     registry.topic_artists(_topic("Q40415", TopicKind.MOVEMENT), limit=12)
     registry.topic_artists(_topic("Q1311", TopicKind.SUBJECT), limit=12)
 
-    assert "?artist wdt:P135 wd:Q40415" in asked[0] and "wdt:P106/wdt:P279* wd:Q3391743" in asked[0]
+    assert "?artist wdt:P135 wd:Q40415" in asked[0]
+    assert "wdt:P106/wdt:P279* wd:Q3391743" in asked[0]
     assert "OPTIONAL { ?work wdt:P170 ?artist . ?work wdt:P31 ?class . VALUES ?class {" in asked[0]
-    assert "?work wdt:P180 wd:Q1311" in asked[1] and "?work wdt:P170 ?artist" in asked[1]
+    assert "?work wdt:P180 wd:Q1311" in asked[1]
+    assert "?work wdt:P170 ?artist" in asked[1]
     # Each work's fame is summed once per artist, however many routes reach it.
     assert all(
         "SELECT DISTINCT ?artist ?links ?work ?workLinks" in query
@@ -254,7 +261,8 @@ def test_an_artist_with_many_obscure_works_ranks_below_one_with_a_few_famous_one
 
     ensor = people.index("Q158840")
     assert works["Q158840"] == max(works.values())
-    assert people[0] == "Q5598" and works["Q5598"] < works["Q158840"]
+    assert people[0] == "Q5598"
+    assert works["Q5598"] < works["Q158840"]
     assert all(works[qid] < works["Q158840"] for qid in people[:ensor])
 
 
@@ -267,14 +275,16 @@ def test_a_topic_search_offers_the_movement_and_not_the_political_party():
     assert ANSWERS["renaissance party"] not in by_qid
     # A movement only: its years made it a period too, and years alone no longer do.
     assert by_qid["Q4692"].kinds == (TopicKind.MOVEMENT,)
-    assert 'mwapi:search "renaissance"' in asked[0] and "wikibase:limit 20" in asked[0]
+    assert 'mwapi:search "renaissance"' in asked[0]
+    assert "wikibase:limit 20" in asked[0]
 
 
 def test_a_movement_no_work_of_visual_art_was_made_in_is_not_offered():
     """`impressionism`: *impressionism in music* is a movement, and no maker of a work of visual art belongs to it."""
     rows = ANSWERS["named impressionism"]
     music = [row for row in rows if row["item"]["value"].endswith("/Q837182")]
-    assert music and all(row["followed"]["value"] == "false" for row in music)
+    assert music
+    assert all(row["followed"]["value"] == "false" for row in music)
 
     found = {topic.qid: topic for topic in _answering(rows).topics_named("impressionism")}
 
@@ -381,4 +391,5 @@ def test_a_topics_works_and_artists_are_given_the_services_own_limit_and_nothing
 
     assert reads[0] == ("?work", 60.0)
     assert reads[1] == ("?artist", 60.0)
-    assert all(read == 20.0 for _, read in reads[2:]) and reads[2:]
+    assert all(read == 20.0 for _, read in reads[2:])
+    assert reads[2:]

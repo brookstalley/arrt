@@ -22,10 +22,10 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
-from fakes import FakeRegistry  # noqa: E402  (after the skip guard)
-from payloads import a_run  # noqa: E402
+from fakes import FakeRegistry
+from payloads import a_run
 
-from arrt.library.registry import (  # noqa: E402
+from arrt.library.registry import (
     CommonsFile,
     ItemId,
     RegistryCreator,
@@ -36,7 +36,7 @@ from arrt.library.registry import (  # noqa: E402
     RegistryTopicWork,
     TopicKind,
 )
-from arrt.persistence.discovery_records import RunStatus  # noqa: E402
+from arrt.persistence.discovery_records import RunStatus
 
 SIXTEENTH = "Q7017"
 WINTER = "Q1311"
@@ -305,7 +305,10 @@ class TestTheTopicPage:
         _bruegel, hunters, corn = held
         waiting = []
         for section in ("works", "artists"):
-            ui.page.route(f"**/api/topics/{SIXTEENTH}/{section}", lambda route: waiting.append(route))
+            ui.page.route(
+                f"**/api/topics/{SIXTEENTH}/{section}",
+                lambda route: waiting.append(route),  # noqa: PLW0108 -- Playwright passes a builtin method two arguments
+            )
         open_topic(ui)
 
         assert ui.page.locator(f"{HELD} h3").inner_text() == "In your library (2)"
@@ -476,7 +479,7 @@ class TestTheTopicPage:
         assert link.get_attribute("href") == f"https://www.wikidata.org/wiki/{SIXTEENTH}"
 
     def test_an_outage_leaves_the_library_half_standing(self, ui, held, registry):
-        _bruegel, hunters, corn = held
+        _bruegel, _hunters, _corn = held
         registry.failing = True
         open_topic(ui)
         works_answered(ui)

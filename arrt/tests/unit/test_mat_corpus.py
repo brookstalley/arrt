@@ -20,7 +20,7 @@ single failure that glares on an emissive panel.
 
 import json
 import logging
-from itertools import permutations
+from itertools import pairwise, permutations
 from pathlib import Path
 
 import pytest
@@ -511,7 +511,7 @@ def test_the_distance_metric_discriminates_across_the_real_corpus(corpus):
     operator's ΔE column useless while passing every unit test written against
     invented pairs. The corpus's own spread is the check."""
     hexes = [record.mat_hex for record in corpus]
-    distances = [hex_distance(one, two) for one, two in zip(hexes, hexes[1:], strict=False)]
+    distances = [hex_distance(one, two) for one, two in pairwise(hexes)]
 
     assert max(distances) > 15
     assert min(distances) >= 0

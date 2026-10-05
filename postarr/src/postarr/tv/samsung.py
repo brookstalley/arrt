@@ -421,7 +421,7 @@ class SamsungTv(TvClient):
         need a finer marker than the second-resolution timestamp the protocol
         carries.
         """
-        marker = datetime.now().strftime("%Y:%m:%d %H:%M:%S")
+        marker = datetime.now().strftime("%Y:%m:%d %H:%M:%S")  # noqa: DTZ005 -- the set stamps its list in its own local time
         before = await self.listed_content_ids()
 
         reported: Exception | None = None

@@ -110,8 +110,8 @@ def label_surface(settings: FrameSettings) -> LabelSurface | None:
     )
 
     try:
-        from postarr.panel.epaper import EpaperSurface, open_panel  # noqa: PLC0415 -- see the docstring
-        from postarr.panel.pango import PangoRasterizer  # noqa: PLC0415 -- see the docstring
+        from postarr.panel.epaper import EpaperSurface, open_panel
+        from postarr.panel.pango import PangoRasterizer
     except ImportError as exc:
         # The text stack being absent lands in the same place as the panel being
         # absent, and it is a provisioning mistake somebody can fix while the wall
@@ -244,7 +244,10 @@ async def run_screen_wall(wall: WallSettings, output: str, stop: asyncio.Event, 
     await _beside_its_pull(wall, stop, screen.run)
 
 
-def screen_output(wall: WallSettings, output: str) -> ScreenOutput:
+def screen_output(
+    wall: WallSettings,  # noqa: ARG001 -- every output builder takes the wall; a screen needs only its connector
+    output: str,
+) -> ScreenOutput:
     """What a wall on an HDMI connector draws on: the connector, through kernel mode setting."""
     return KmsOutput(output)
 
@@ -334,7 +337,7 @@ def main() -> int:
         # `.env`. A stack through `load()` points at this codebase, which is the
         # one place the problem is not.
         log.error("%s", exc, extra={"event": "daemon.misconfigured"})  # noqa: TRY400 -- the fix is in .env, not in a frame
-        print(f"display plane cannot start: {exc}", file=sys.stderr)  # noqa: T201 — the operator is at a terminal
+        print(f"display plane cannot start: {exc}", file=sys.stderr)  # noqa: T201 -- the operator is at a terminal
         return 2
 
 

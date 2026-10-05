@@ -111,7 +111,7 @@ class RegistryWorkOut(BaseModel):
     #: The library's works in circulation that are this one (matched by QID).
     #: Empty when not held; more than one is a duplicate for the curator to see.
     held_artwork_ids: list[str]
-    #: A wanted work names this item (Activity › Wanted). Reported beside
+    #: A wanted work names this item (Wanted). Reported beside
     #: `held_artwork_ids` rather than instead of it: the page decides which mark
     #: wins (held), and both are true when a wanted work has since been acquired.
     wanted: bool
@@ -187,7 +187,7 @@ class RegistryWorkPageOut(BaseModel):
     media: list[str]
     holders: list[RegistryHolderOut]
     held_artwork_ids: list[str]
-    #: A wanted work names this item (Activity › Wanted). Reported beside
+    #: A wanted work names this item (Wanted). Reported beside
     #: `held_artwork_ids` rather than instead of it: the page decides which mark
     #: wins (held), and both are true when a wanted work has since been acquired.
     wanted: bool
@@ -211,7 +211,7 @@ class RegistryWorkFoundOut(BaseModel):
     creator: RegistryCreatorOut | None
     #: The library's works in circulation that are this one, by QID.
     held_artwork_ids: list[str]
-    #: A wanted work names this item (Activity › Wanted). Reported beside
+    #: A wanted work names this item (Wanted). Reported beside
     #: `held_artwork_ids` rather than instead of it: the page decides which mark
     #: wins (held), and both are true when a wanted work has since been acquired.
     wanted: bool
@@ -319,7 +319,7 @@ class TopicWorkOut(BaseModel):
     state: str
     #: The library's works in circulation that are it, by QID.
     held_artwork_ids: list[str]
-    #: A wanted work names this item (Activity › Wanted). Reported beside
+    #: A wanted work names this item (Wanted). Reported beside
     #: `held_artwork_ids` rather than instead of it: the page decides which mark
     #: wins (held), and both are true when a wanted work has since been acquired.
     wanted: bool
@@ -1017,6 +1017,11 @@ class RunOut(BaseModel):
     #: where the curator asked the works to go, and the theme is looked up by
     #: whoever shows it.
     destination_theme_id: str | None
+    #: Why the run's worker ended it, in its own words: present on `failed` and
+    #: `halted_by_budget`, null on every other ending and on a run that ended
+    #: before reasons were kept. Prose for a curator to read, never a code to
+    #: branch on; `status` is what says which ending this was.
+    end_reason: str | None
 
 
 class CandidateWorkOut(BaseModel):
