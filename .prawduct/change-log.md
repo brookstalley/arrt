@@ -90,6 +90,18 @@ probe: Artlogic, and what Ask's search cites). Plan: `build-plan-ask-pages.md`.
   its run's phase 2 on every re-search; acquisition's three callers gain the same.
 - `security-model.md`: bound 2 re-derived for plugin reads of cited pages
   (§ Plugins read pages a search cited), with the owner's approval.
+- **The gallery source itself is a private plugin**, `artlogic` in `arrt-sources`
+  (`eedae73`), which this repository does not ship. With it, run 6 found all six
+  of the corpus's gallery rows through Ask, at the galleries' stored originals
+  (`procurement-corpus.md` § Run 6). A failed run keeping no reason was filed as
+  #207.
+- **Shipping and rolling back.** `run_citations` is additive: an older build
+  opens the file and ignores it. Arrt and the plugin image are built together
+  (`arrt-sources:<arrt>-<plugin>`), so roll them back together; the `artlogic`
+  plugin under an Arrt before 1.1 answers every work "not answerable" rather
+  than failing.
+- Also carried: two wording fixes owed from PR #203's review (`re-architecture.md`'s
+  master-size-cap question; `project-state.yaml`'s blocking line).
 
 ## 2026-10-04: Library screens — Artworks' theme filter and Select mode, a work's mark, Artists by surname
 
