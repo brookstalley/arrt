@@ -1902,8 +1902,8 @@ the conversation would have been a second way to write one entity.
 
 **What each of these owes the chunk that builds it.** Field-level request and
 response shapes are deliberately not here. `architecture.md` § Direction binds
-that work — each route unpacks arguments, calls one service method, and formats
-the result — and a response shape written before the service method exists is a
+that work — each route unpacks arguments, composes service calls without
+branching on their results, and formats the result (as amended 2026-10-05) — and a response shape written before the service method exists is a
 shape written against a guess. What this section fixes is the *set*: which
 operations exist, what they stand on, and the rules above that a shape must not
 violate. Everything else in this artifact still binds them, in particular the

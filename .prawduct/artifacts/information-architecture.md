@@ -94,6 +94,14 @@ inside an existing section, not a section of its own.
 > and the conversation becomes *Ask*, under Library where Add New stood. The rest
 > of the target sidebar keeps the norm (ruling 9): no new top-level section, and
 > *arr names where an *arr page exists (Queue, History, Wanted).
+>
+> **Ruling 2026-10-05 (the owner, at the Norm Health sweep): Wanted becomes a
+> top-level section.** Ruling 9 placed it under Activity, which the paragraph
+> above described as keeping the norm. It did not: Sonarr, Radarr and Lidarr all
+> give Wanted its own section, and this statement names Wanted as the precedent
+> for one. The owner chose the precedent over ruling 9 for this page. Activity
+> keeps Queue and History. Built by `build-plan-norm-sweep-2026-10.md`, which
+> brings the tables below to match.
 
 **A working prototype of everything below is committed beside this file:**
 `prototypes/curation-ia-prototype.html` — one self-contained page, no build step,

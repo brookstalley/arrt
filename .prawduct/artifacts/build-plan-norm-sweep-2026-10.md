@@ -64,8 +64,7 @@ Done when:
 - `architecture.md` § Direction: the service-layer norm reads as amended (compose,
   never branch on results; transport-only shapes named; a shared composition lives
   in a service or is pinned by a test both surfaces run); the manifest norm says
-  "the routes `contract/routes.json` names" and is steady-state; the heartbeat row
-  is re-scoped to the posted payload's key and schema. The departures row for
+  "the routes `contract/routes.json` names" and is steady-state. The departures row for
   handlers is retired, and the docstrings that cite it (`http/api.py`,
   `mcp/bindings.py` module heads) are left for Chunk 03, which changes that code.
 - `project-preferences.md`: rows corrected for every plane (black, I, T20 with
@@ -117,13 +116,18 @@ Done when:
 - `mcp/tools.py` stops importing `persistence.catalogue`; a test holds that the
   surface layers (`http/`, `mcp/`) import no persistence store or driver module.
 - The Player routes' token check is a FastAPI dependency, so the handlers no
-  longer branch on its answer; the module heads of `http/api.py` and
-  `mcp/bindings.py` describe the amended norm.
+  longer branch on its answer; the module heads of `http/api.py`,
+  `mcp/bindings.py` and `arrt/tests/unit/test_bindings.py` describe the amended norm.
 - Root module set frozen by a test (File organization); each plane's tests live
   under its own `tests/` (Test location).
 - #212: the mat fallback's stored reason and MCP tip name the
   twice-below-the-floor case; tested through the stored reason.
 - #198: the discovery-run thread no longer outlives its test's database.
+- The heartbeat row is re-scoped to the posted payload's key and schema, and
+  its guard follows: the filename half retires, and the third `REPORTED_AT_KEY`
+  (`arrt/programming/client_heartbeat.py`) is compared or shown to be covered.
+- Index rows for File organization and Test location name their new tests; the
+  stylesheet row records that its scrim trigger fired.
 - Every declared suite green; browser suite green.
 
 ### Chunk 04: Ruff ALL on the display plane; N and BLE001 at the root
@@ -136,6 +140,9 @@ Done when:
   re-raise catches pass BLE001 without pragmas; the off-line pragmas move to the
   `except` line.
 - No-op and reasonless waivers removed or given reasons.
+- A catch that swallows carries `# noqa: BLE001` beside its pragma, both on the
+  `except` line; the naming and broad-except index rows move to Linter in the
+  commit that selects the rules.
 - postarr suite (with `--group raster`) and root suite green; `ruff check` and
   `black --check` clean on both.
 

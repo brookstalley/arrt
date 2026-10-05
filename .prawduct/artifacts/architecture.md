@@ -102,6 +102,16 @@ database. Adding a second channel is a departure requiring a recorded decision.
 > retired and refused by name, and the file channel is retired on the Player's
 > side: a client always pulls. `pull.py` stays the one module that opens an HTTP
 > client, and spells the two client routes besides the wall's.
+>
+> **AMENDED 2026-10-05 (the owner, at the Norm Health sweep).** The target
+> statement's "exactly three kinds of request" was written before the client
+> routes existed. It now reads: **the Player makes only the requests
+> `contract/routes.json` names** (today the manifest, media by hash, the wall
+> heartbeat, `GET /client` and `POST /client/heartbeat`). The contract file is
+> the list, so a sixth route is a contract change rather than an edit to this
+> sentence. **Status: steady-state.** The transition ended when the Player
+> retired the file channel on 2026-10-02; `tests/preferences/test_plane_isolation.py`
+> holds the statement as amended.
 
 <!-- Ratified by the owner 2026-08-07, in the words they stated it: "The display
      device HAS to render the label. We may have multiple pi's with different
@@ -196,6 +206,22 @@ result. A handler that validates, orders, or decides is the violation.
 > playlist" is two service calls composed by the binding. That is permitted,
 > because the binding still decides nothing. A composition that branches on one
 > call's result to choose the second is the violation, and belongs in a service.
+>
+> **AMENDED 2026-10-05 (the owner, at the Norm Health sweep; this closes the
+> fork deferred at the 2026-08-02 sweep).** The statement now reads:
+> **MCP tools and HTTP handlers are thin bindings. They unpack arguments, compose
+> service calls, and format the result, and they never branch on a service call's
+> result to decide what happens next.** Three transport shapes are not decisions
+> and are permitted: answering a conditional request (ETag, `304`), mapping a
+> service's "no such thing" to `404`, and admitting a caller by token, which is a
+> FastAPI dependency rather than a branch in the handler. **A composition both
+> surfaces need lives in a service, or is pinned by a test both surfaces run**
+> (issue #204 is the first). *Why the amendment:* the 2026-10-05 measurement
+> found 31 of 141 bindings composing more than one call, almost all of them
+> read-back after a write or two reads joined for one page. None decides
+> anything, so "call one service method" had stopped describing the norm the Why
+> protects, while the Player's token gate, which did branch, was the one shape
+> the Why is about. The handlers' departures row is retired with this amendment.
 
 **The Library/Programming seam: four norms, born 2026-09-30 and `in-transition`.**
 They come from the owner's ruling to "collapse the first two [roles], design with
@@ -221,8 +247,9 @@ convenience would otherwise make that split a migration.
    Library-served and content-addressed. *Why:* events become webhooks and URLs
    repoint at the split, with no code change on the consuming side.
 
-> **Status:** `in-transition`, tracked by `re-architecture.md` § Order of work
-> (backlog items not yet filed). **Interim rule:** new code that touches themes,
+> **Status:** `in-transition`, tracked by `re-architecture.md` § Order of work,
+> and for rule 3 by #216 (filed 2026-10-05, after wave 3 shipped without the store
+> split). **Interim rule:** new code that touches themes,
 > walls, directives or manifests is written against the rules above wherever it
 > can be without the package split: no new cross-seam foreign keys, no new direct
 > reads of catalogue tables from `programming/display.py`'s domain.
@@ -280,7 +307,7 @@ convenience would otherwise make that split a migration.
 >
 > **Enforcement:** Critic until each rule migrates. Wave 2 adds a static import
 > guard in the style of `tests/preferences/test_plane_isolation.py` for rule 1.
-> Wave 3 adds a schema test for rule 3. Rows are in `project-preferences.md`
+> Rule 3's schema test arrives with its store split (#216). Rows are in `project-preferences.md`
 > § Enforcement.
 
 ## Overview & Topology

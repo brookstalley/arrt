@@ -62,7 +62,9 @@ decision to record rather than something to sync the prose to.
 
    **Status:** in-transition. The panel conforms as built. No caption surface
    exists yet, and the norm binds the Player chunk that builds one. **Tracking
-   ref:** `re-architecture.md` § Player outputs (wave 6+). **Retroactivity:**
+   ref:** #217 (caption mode for a wall with no panel, filed 2026-10-05), under
+   `re-architecture.md` § Player outputs (wave 6+). Since 2026-10-02 an HDMI wall
+   shows no label at all, which conforms but brings the caption surface nearer. **Retroactivity:**
    none needed: the only built surface already conforms.
 2. **WCAG 2.1 AA on the curation browser, and colour is never the sole carrier of
    state.** Ratified; the decision it implements is
