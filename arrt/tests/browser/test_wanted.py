@@ -208,6 +208,9 @@ def test_the_wanted_section_is_not_shown_before_its_count_arrives(ui, wanted):
 
 def test_on_wanted_its_section_is_lit_as_where_the_curator_is(ui, wanted):
     open_wanted(ui)
+    # The screen and the sidebar ask for the wanted list separately, and only the
+    # sidebar's answer shows the section: wait for that one, not the screen's.
+    ui.page.wait_for_function("() => document.querySelector(\"[data-count-slot='wanted']\").textContent === '2'")
 
     assert ui.page.locator("nav.sidebar a[data-view='wanted'][aria-current='page']").is_visible()
 
