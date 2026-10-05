@@ -37,6 +37,9 @@ _JSON_TYPES: Final[Mapping[str, type | tuple[type, ...]]] = {
 #: on this surface wants one.
 _ELEMENT_TYPES: Final[tuple[str, ...]] = ("string", "integer")
 
+#: The longest a caller's value is quoted back before it is cut short with an ellipsis.
+_RENDERED_MAX: Final[int] = 60
+
 
 class RegistryError(RuntimeError):
     """The registry itself is malformed — a defect in this package, not a caller error.
@@ -484,4 +487,4 @@ def _article(json_type: str) -> str:
 def _render(value: object) -> str:
     """Quote a caller's value back safely, without letting a huge one through."""
     text = json.dumps(value) if not isinstance(value, str) else repr(value)
-    return text if len(text) <= 60 else f"{text[:57]}..."
+    return text if len(text) <= _RENDERED_MAX else f"{text[: _RENDERED_MAX - 3]}..."

@@ -371,8 +371,8 @@ def get_registry_artist(request: Request, qid: str) -> ArtistRegistryOut:
 def search_registry(
     request: Request,
     q: Annotated[str, Query()] = "",
-    prefix: Annotated[bool, Query()] = False,
-    wide: Annotated[bool, Query()] = False,
+    prefix: Annotated[bool, Query()] = False,  # noqa: FBT002 -- a query parameter FastAPI passes by name
+    wide: Annotated[bool, Query()] = False,  # noqa: FBT002 -- a query parameter FastAPI passes by name
 ) -> RegistrySearchOut:
     """Wikidata's artists and works for a few typed words, the other half of the top-bar search.
 
@@ -1015,7 +1015,7 @@ def list_runs(
     request: Request,
     status: Annotated[str | None, Query()] = None,
     kind: Annotated[str | None, Query()] = None,
-    awaiting: Annotated[bool, Query()] = False,
+    awaiting: Annotated[bool, Query()] = False,  # noqa: FBT002 -- a query parameter FastAPI passes by name
 ) -> RunListOut:
     """The newest runs, optionally narrowed, capped in the service layer.
 

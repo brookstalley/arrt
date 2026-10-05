@@ -152,7 +152,7 @@ class CommonsFinder:
         """The preview bytes, read against the preview ceiling, or `None`."""
         try:
             with self._http.stream("GET", url, headers=self._headers) as response:
-                if response.status_code != 200:
+                if response.status_code != httpx.codes.OK:
                     log.warning(
                         "could not cache a Commons preview",
                         extra={"event": "phase_two.preview_failed", "provider": PROVIDER, "status": response.status_code},
@@ -218,7 +218,7 @@ class CommonsFinder:
             response = self._http.get(API_URL, params=params, headers=self._headers)
         except httpx.HTTPError as exc:
             raise ImageSearchFailure(f"Commons could not be reached: {exc}") from exc
-        if response.status_code != 200:
+        if response.status_code != httpx.codes.OK:
             # A redirect lands here too: the endpoint is asked with none followed.
             raise ImageSearchFailure(f"Commons answered HTTP {response.status_code}.")
         try:

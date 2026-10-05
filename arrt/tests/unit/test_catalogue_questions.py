@@ -371,7 +371,7 @@ def test_q6_a_work_can_be_re_acquired_from_scratch_after_every_derived_file_is_l
     sources = service.list_sources(work.id)
 
     # Everything a fetch needs is on the row: where, how, and which one was used.
-    assert [source.id for source in sources][0] == moma.id
+    assert next(source.id for source in sources) == moma.id
     assert {source.acquisition_method for source in sources} == {AcquisitionMethod.API, AcquisitionMethod.DEZOOMIFY}
     assert sources[0].selection_rationale == "The holding institution's own page."
     assert all(source.url.startswith("https://") for source in sources)

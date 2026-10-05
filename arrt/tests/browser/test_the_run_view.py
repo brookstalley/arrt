@@ -545,10 +545,12 @@ def test_the_run_table_does_not_head_a_column_with_the_works_own_provenance(ui):
 
     text = ui.text()
     assert "Where it came from" not in text
-    assert "asked for" in text and "offered by the collection" in text, (
+    why = (
         "the offered/asked-for distinction must survive its per-row copy being removed — "
         "it is what tells a curator the list is longer than the one they authorised"
     )
+    assert "asked for" in text, why
+    assert "offered by the collection" in text, why
 
 
 def test_the_review_card_still_says_which_works_were_offered(ui):

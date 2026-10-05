@@ -273,7 +273,8 @@ def test_a_date_inside_a_title_is_not_treated_as_an_appended_one():
     cataloguing noise, and that distinction is the whole safety of the rule."""
     key = work_dedup_key(title="James Stuart (1612-1655), Duke of Richmond", artist="Anthony van Dyck")
 
-    assert "1612" in key and "duke of richmond" in key
+    assert "1612" in key
+    assert "duke of richmond" in key
 
 
 def test_two_painters_are_never_reduced_to_one():
@@ -349,7 +350,9 @@ def test_the_words_introducing_a_citation_go_with_it():
     """
     key = work_dedup_key(title="Mountain Lake (1938) - cited from tate.org.uk (", artist="Salvador Dalí")
 
-    assert "cited" not in key and "from" not in key and "tate" not in key
+    assert "cited" not in key
+    assert "from" not in key
+    assert "tate" not in key
 
 
 def test_a_title_ending_in_a_citation_word_keeps_it():

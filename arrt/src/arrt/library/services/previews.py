@@ -197,7 +197,7 @@ class PreviewCache:
             return self._absent(url, f"the cache could not be read: {exc}")
         try:
             payload = self._fetch(provider, url)
-        except Exception as exc:  # prawduct:allow prawduct/broad-except -- a provider fault must not fail the work
+        except Exception as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- a provider fault must not fail a work
             # The seam promises `None` for a preview it cannot get, and a
             # provider that raises something else instead — an httpx URL error is
             # not an `HTTPError` — would otherwise reach the run-level handler and
@@ -252,7 +252,6 @@ class PreviewCache:
             "no preview was cached for an instance; review will fall back to its source URL",
             extra={"event": "preview.absent", "preview_url": url, "reason": why},
         )
-        return None
 
     def _path_for(self, url: str) -> Path:
         """Where this URL's bytes live. Derived from the URL, so it is stable.
@@ -398,4 +397,3 @@ def _no_inline(path: Path, why: str) -> None:
         "a cached preview could not be rendered; the instance is listed without a picture",
         extra={"event": "preview.not_inlined", "path": str(path), "reason": why},
     )
-    return None

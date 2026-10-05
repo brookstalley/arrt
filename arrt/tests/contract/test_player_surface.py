@@ -105,7 +105,7 @@ def test_each_contract_route_is_mounted_and_guarded(server_url, name):
 
 
 def test_the_media_url_a_manifest_names_is_the_route_that_serves_it():
-    assert MEDIA_PATH_TEMPLATE == ROUTES["media"]["path"]
+    assert ROUTES["media"]["path"] == MEDIA_PATH_TEMPLATE
 
 
 # -- the manifest -------------------------------------------------------------------
@@ -387,7 +387,8 @@ def test_invented_wall_ids_share_one_refusal_line_and_never_reach_the_journal(se
 
     # The server's journal, not the test client's own request log beside it.
     journal = "\n".join(record.getMessage() for record in caplog.records if record.name.startswith("arrt"))
-    assert "invented-" not in journal and "forged-line" not in journal
+    assert "invented-" not in journal
+    assert "forged-line" not in journal
     refusals = [record.getMessage() for record in caplog.records if record.getMessage().startswith("Refused a Player request")]
     assert len(refusals) == 2, refusals
     assert any("an unknown client" in refusal for refusal in refusals)

@@ -99,7 +99,8 @@ def test_a_held_work_still_comes_back_with_the_fields_an_instance_needs(museum):
     assert instance.source_class is SourceClass.INSTITUTIONAL
     assert instance.acquisition_method is AcquisitionMethod.DEZOOMIFY
     assert instance.artist == HELD[1]
-    assert instance.preview_url and instance.preview_url.startswith("https://www.artic.edu/iiif/")
+    assert instance.preview_url
+    assert instance.preview_url.startswith("https://www.artic.edu/iiif/")
     assert instance.rights_status is not None
 
 
@@ -113,7 +114,8 @@ def test_the_search_response_still_carries_the_masters_dimensions_not_the_previe
     """
     instance = next(image for image in museum.find_images(ImageQuery(title=HELD[0], artist=HELD[1])) if image.title == HELD[0])
 
-    assert instance.estimated_width and instance.estimated_height
+    assert instance.estimated_width
+    assert instance.estimated_height
     assert instance.estimated_width > 2000, "these are the master's dimensions, not a preview's"
 
     preview = museum.fetch_preview(instance.preview_url)
@@ -225,7 +227,8 @@ def test_the_resolved_image_service_is_really_a_iiif_endpoint():
     response = httpx.get(f"{target}/info.json", timeout=20.0, follow_redirects=True)
     response.raise_for_status()
     payload = response.json()
-    assert int(payload["width"]) > 0 and int(payload["height"]) > 0
+    assert int(payload["width"]) > 0
+    assert int(payload["height"]) > 0
 
 
 # -- browsing the collection by artist ---------------------------------------
@@ -260,8 +263,10 @@ def test_a_browse_still_returns_per_facet_buckets_with_their_own_works(collectio
     assert by_artist["Morris Louis"].matched >= 1
     assert by_artist["Ellsworth Kelly"].works, "a facet reported matches but brought back no work"
     for work in by_artist["Ellsworth Kelly"].works:
-        assert work.estimated_width and work.estimated_height, "a browse hit must carry the master's dimensions"
-        assert work.preview_url and work.title
+        assert work.estimated_width, "a browse hit must carry the master's dimensions"
+        assert work.estimated_height, "a browse hit must carry the master's dimensions"
+        assert work.preview_url
+        assert work.title
 
 
 def test_the_surname_retry_still_recovers_a_name_the_museum_spells_its_own_way(collection):

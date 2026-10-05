@@ -56,10 +56,14 @@ def main(argv: list[str] | None = None) -> int:
 def render(report: IdentityReport) -> list[str]:
     """The report as a person reads it: what was found, then what needs a hand."""
     lines = [
-        f"Works: {report.works_matched} matched, {len(report.works_ambiguous)} ambiguous, "
-        f"{report.works_unknown} not on Wikidata, {report.works_without_identifier} with no museum identifier.",
-        f"Artists: {report.artists_matched} matched, {len(report.artists_ambiguous)} ambiguous, "
-        f"{len(report.artists_undated)} undated, {len(report.artists_unknown)} not found.",
+        (
+            f"Works: {report.works_matched} matched, {len(report.works_ambiguous)} ambiguous, "
+            f"{report.works_unknown} not on Wikidata, {report.works_without_identifier} with no museum identifier."
+        ),
+        (
+            f"Artists: {report.artists_matched} matched, {len(report.artists_ambiguous)} ambiguous, "
+            f"{len(report.artists_undated)} undated, {len(report.artists_unknown)} not found."
+        ),
     ]
     for heading, names in (
         ("Works whose sources name more than one item (set by hand: art_catalogue set_work_qid)", report.works_ambiguous),

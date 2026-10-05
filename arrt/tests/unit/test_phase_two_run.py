@@ -655,7 +655,7 @@ def test_a_level_tie_between_sources_is_stored_for_the_source_listed_first(
         sources=a_roster(second, museum),
         previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
     )
-    plane.runner._spawn = lambda work: work()  # noqa: SLF001 - phase 2 on this thread
+    plane.runner._spawn = lambda work: work()
     engine.result = a_list(*titles)
 
     run_id = start(plane.runner).id
@@ -693,7 +693,7 @@ def test_with_commons_the_only_source_a_work_named_by_title_is_not_called_unheld
         sources=a_roster(commons),
         previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
     )
-    plane.runner._spawn = lambda work: work()  # noqa: SLF001 - phase 2 on this thread
+    plane.runner._spawn = lambda work: work()
     engine.result = a_list("The Elephants")
 
     with caplog.at_level(logging.WARNING):
@@ -702,7 +702,8 @@ def test_with_commons_the_only_source_a_work_named_by_title_is_not_called_unheld
     (work,) = plane.discovery.list_candidate_works(run_id)
     assert (work.resolution_status, work.unresolved_reason) == (ResolutionStatus.PENDING, None)
     events = {getattr(record, "event", None) for record in caplog.records}
-    assert "phase_two.unanswerable" in events and "phase_two.unreachable" not in events, events
+    assert "phase_two.unanswerable" in events, events
+    assert "phase_two.unreachable" not in events, events
 
 
 def test_a_row_from_a_source_no_longer_wired_ranks_after_the_wired_ones(services, engine, settings):
@@ -732,7 +733,8 @@ def test_a_row_from_a_source_no_longer_wired_ranks_after_the_wired_ones(services
 
     outcome = services.discovery.record_resolution(work.id)
 
-    assert outcome.selected is not None and outcome.selected.provider == "second"
+    assert outcome.selected is not None
+    assert outcome.selected.provider == "second"
 
 
 # -- the Wikidata link, as the container wires it -------------------------------
@@ -769,7 +771,7 @@ def test_a_holders_other_title_resolves_through_the_deployments_registry(
         sources=a_roster(museum),
         previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
     )
-    plane.runner._spawn = lambda work: work()  # noqa: SLF001 - phase 2 on this thread
+    plane.runner._spawn = lambda work: work()
 
     run = plane.runner.get(
         works=[ChosenWork(qid=qid, title=long_title, artist="Sophie Taeuber-Arp")],

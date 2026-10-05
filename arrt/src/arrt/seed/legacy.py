@@ -154,7 +154,7 @@ def parse_artist(*, artist: str, details: str | None, nationality: str | None, b
         if first_dated:
             parsed_nationality = ", ".join(segments[:first_dated])
         years = [int(year) for year in _YEAR.findall(clause)]
-        if len(years) >= 2:
+        if len(years) >= 2:  # noqa: PLR2004 -- born and died: two years
             parsed_born, parsed_died = years[0], years[1]
         elif len(years) == 1:
             parsed_born = years[0]

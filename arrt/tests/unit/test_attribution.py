@@ -67,8 +67,10 @@ def test_two_unattributed_works_do_not_become_one_artist():
     first = resolve(None, [])
     second = resolve("   ", [])
 
-    assert first.is_unattributed and second.is_unattributed
-    assert first.mint is None and second.mint is None
+    assert first.is_unattributed
+    assert second.is_unattributed
+    assert first.mint is None
+    assert second.mint is None
 
 
 def test_an_unattributed_work_does_not_match_a_held_artist_whose_name_normalises_away():

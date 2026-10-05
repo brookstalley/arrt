@@ -280,7 +280,6 @@ class Caller:
 @asynccontextmanager
 async def connect(server_url: str) -> AsyncIterator[Caller]:
     """A real MCP client against a real server, with a fresh transcript."""
-    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            yield Caller(session, Transcript())
+    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _), ClientSession(read, write) as session:
+        await session.initialize()
+        yield Caller(session, Transcript())

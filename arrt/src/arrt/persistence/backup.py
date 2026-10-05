@@ -26,7 +26,6 @@ this is where the writer lands.
 
 import json
 import logging
-import os
 import sqlite3
 import threading
 from collections.abc import Callable
@@ -157,7 +156,7 @@ class CatalogueBackup:
             finally:
                 source.close()
             _require_intact(partial)
-            os.replace(partial, final)
+            partial.replace(final)
         except BaseException:
             partial.unlink(missing_ok=True)
             raise
@@ -189,7 +188,7 @@ class CatalogueBackup:
         }
         partial = self._receipt_path.with_name(self._receipt_path.name + _PARTIAL_SUFFIX)
         partial.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
-        os.replace(partial, self._receipt_path)
+        partial.replace(self._receipt_path)
 
 
 class BackupFailed(Exception):

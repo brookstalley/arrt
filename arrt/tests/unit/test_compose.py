@@ -365,7 +365,7 @@ class TestWritingTheFile:
         (destination.parent / f"{destination.name}.composing").mkdir()
         source = _source(tmp_path, 400, 300)
 
-        with pytest.raises(OSError) as raised:
+        with pytest.raises(OSError, match=r"work\.jpg\.composing") as raised:
             compose(
                 source,
                 destination=destination,
@@ -405,7 +405,7 @@ class TestWritingTheFile:
         # matters is what survives.
         (destination.parent / f"{destination.name}.composing").mkdir()
 
-        with pytest.raises(OSError):
+        with pytest.raises(OSError, match=r"work\.jpg\.composing"):
             compose(
                 source,
                 destination=destination,

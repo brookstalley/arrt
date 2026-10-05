@@ -80,8 +80,8 @@ def parse(fragment: str, *, path: str = "") -> dict:
         const answer = module.parseRoute({json.dumps(fragment)}, routes, options);
         process.stdout.write(JSON.stringify(answer));
     """
-    result = subprocess.run(
-        ["node", "--input-type=module", "--eval", driver],
+    result = subprocess.run(  # noqa: S603 -- a fixed argv over a repo file
+        ["node", "--input-type=module", "--eval", driver],  # noqa: S607 -- whatever node is on PATH, skipped without one
         capture_output=True,
         text=True,
         check=False,
@@ -97,8 +97,8 @@ def format_route(view: str, detail_id=None, params=None) -> str:
           module.formatRoute({json.dumps(view)}, {json.dumps(detail_id)}, {json.dumps(params or {})}),
         );
     """
-    result = subprocess.run(
-        ["node", "--input-type=module", "--eval", driver],
+    result = subprocess.run(  # noqa: S603 -- a fixed argv over a repo file
+        ["node", "--input-type=module", "--eval", driver],  # noqa: S607 -- whatever node is on PATH, skipped without one
         capture_output=True,
         text=True,
         check=False,
@@ -144,7 +144,12 @@ def test_this_test_and_the_client_spell_the_third_mode_the_same_way():
         const module = await import({json.dumps(ROUTE_MODULE.as_uri())});
         process.stdout.write(module.OPTIONAL_ID);
     """
-    result = subprocess.run(["node", "--input-type=module", "--eval", driver], capture_output=True, text=True, check=False)
+    result = subprocess.run(  # noqa: S603 -- a fixed argv over a repo file
+        ["node", "--input-type=module", "--eval", driver],  # noqa: S607 -- whatever node is on PATH, skipped without one
+        capture_output=True,
+        text=True,
+        check=False,
+    )
     assert result.returncode == 0, f"OPTIONAL_ID could not be read:\n{result.stderr}"
     assert result.stdout == OPTIONAL_ID
 

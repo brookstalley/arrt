@@ -1193,6 +1193,10 @@ class CatalogueService:
     @staticmethod
     def _require_hex(value: str) -> str:
         text = value.strip().lower()
-        if len(text) != 7 or not text.startswith("#") or any(character not in "0123456789abcdef" for character in text[1:]):
+        if (
+            len(text) != len("#rrggbb")
+            or not text.startswith("#")
+            or any(character not in "0123456789abcdef" for character in text[1:])
+        ):
             raise ServiceError(f"A mat colour must be a hex triplet like '#27285b', got {value!r}.")
         return text

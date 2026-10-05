@@ -87,8 +87,8 @@ def test_the_client_parses(path):
     that it is parseable, which is the cheapest fact worth having about a file
     nothing else executes.
     """
-    result = subprocess.run(
-        ["node", "--check", str(path)],
+    result = subprocess.run(  # noqa: S603 -- a fixed argv over a repo file
+        ["node", "--check", str(path)],  # noqa: S607 -- whatever node is on PATH, skipped without one
         capture_output=True,
         text=True,
         check=False,

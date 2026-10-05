@@ -28,10 +28,9 @@ from arrt.persistence.records import (
 
 async def call(server_url: str, tool: str, **arguments) -> tuple[dict, bool]:
     """Call a tool over real HTTP; return its payload and the protocol's error flag."""
-    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            result = await session.call_tool(tool, arguments)
+    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _), ClientSession(read, write) as session:
+        await session.initialize()
+        result = await session.call_tool(tool, arguments)
     return json.loads(result.content[0].text), bool(result.isError)
 
 
@@ -168,7 +167,7 @@ async def test_removing_a_work_from_a_theme_leaves_the_work_in_the_catalogue(ser
     works = await _the_works(server_url)
     await call(server_url, "art_theme", action="add", theme_id=theme_id, artwork_id=works["Nighthawks"])
 
-    payload, errored = await call(server_url, "art_theme", action="remove", theme_id=theme_id, artwork_id=works["Nighthawks"])
+    _payload, errored = await call(server_url, "art_theme", action="remove", theme_id=theme_id, artwork_id=works["Nighthawks"])
 
     assert errored is False
     theme, _ = await call(server_url, "art_theme", action="get", theme_id=theme_id)
@@ -401,7 +400,7 @@ async def test_a_theme_that_is_not_on_the_wall_can_be_deleted(server_url):
     await _a_theme(server_url, name="American Modernists")
     spare = await _a_theme(server_url, name="Surrealists")
 
-    payload, errored = await call(server_url, "art_theme", action="delete", theme_id=spare)
+    _payload, errored = await call(server_url, "art_theme", action="delete", theme_id=spare)
 
     assert errored is False
     listed, _ = await call(server_url, "art_theme", action="list")
@@ -420,7 +419,7 @@ async def test_deleting_the_last_theme_leaves_the_wall_showing_what_it_had(serve
     await call(server_url, "art_display", action="sync", wall_id=wall, theme_id=theme_id)
     before = wall_settings.manifest_path(wall).read_text()
 
-    payload, errored = await call(server_url, "art_theme", action="delete", theme_id=theme_id)
+    _payload, errored = await call(server_url, "art_theme", action="delete", theme_id=theme_id)
 
     assert errored is False
     listed, _ = await call(server_url, "art_theme", action="list")

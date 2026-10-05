@@ -188,7 +188,8 @@ class TestTheSupersededSignal:
         # Both stamps, because the comparison between them is the whole claim —
         # a line reporting only that it happened cannot tell an operator whether
         # the clock or the upsert is what went wrong.
-        assert emitted["thumbnail_generated_at"] and emitted["source_generated_at"]
+        assert emitted["thumbnail_generated_at"]
+        assert emitted["source_generated_at"]
 
     def test_a_deleted_cache_file_regenerates_quietly(self, thumbnails, work, caplog):
         """Always-regenerated, long before this rule; a line here would be noise."""
@@ -490,7 +491,7 @@ class TestGenerating:
         artwork = work()
         intact = Path.write_bytes
 
-        def fail_partway(self, data):  # noqa: ANN001, ANN202
+        def fail_partway(self, data):
             intact(self, b"\xff\xd8half an image")
             raise OSError("no space left on device")
 
@@ -517,7 +518,7 @@ class TestGenerating:
         """
         artwork = work()
 
-        def refuse(self, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003, ANN202
+        def refuse(self, *args, **kwargs):
             raise ValueError("conversion from La to RGB not supported")
 
         monkeypatch.setattr(Image.Image, "convert", refuse)

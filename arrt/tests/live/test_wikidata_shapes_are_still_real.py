@@ -78,7 +78,8 @@ def test_one_work_pairs_its_number_with_its_holder(registry):
     """The owner's held Rothko, ARTIC 100472 above, as its own page reads it."""
     work = registry.work("Q20270685")
 
-    assert work is not None and [c.name for c in work.creators] == ["Mark Rothko"]
+    assert work is not None
+    assert [c.name for c in work.creators] == ["Mark Rothko"]
     assert [(h.name, h.inventory) for h in work.holders] == [("Art Institute of Chicago", "1983.509")]
 
 
@@ -86,8 +87,10 @@ def test_a_title_search_finds_the_painting_and_not_the_tv_series(registry):
     """The index filter on artwork classes, measured 2026-10-01 (`wikidata-findings.md`)."""
     found = registry.works_matching(["the", "persistence"], prefix=True, limit=5)
 
-    assert found and found[0].qid == "Q25729"
-    assert found[0].creator is not None and found[0].creator.name == "Salvador Dalí"
+    assert found
+    assert found[0].qid == "Q25729"
+    assert found[0].creator is not None
+    assert found[0].creator.name == "Salvador Dalí"
     assert not any(
         match.title in {"Kojak", "Power Girl", "Wikidata"} for match in registry.works_matching(["starr"], prefix=True, limit=5)
     )

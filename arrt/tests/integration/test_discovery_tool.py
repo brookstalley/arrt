@@ -28,10 +28,9 @@ async def call(server_url: str, tool: str, **arguments) -> tuple[dict, bool]:
     from mcp import ClientSession
     from mcp.client.streamable_http import streamable_http_client
 
-    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            result = await session.call_tool(tool, arguments)
+    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _), ClientSession(read, write) as session:
+        await session.initialize()
+        result = await session.call_tool(tool, arguments)
     return json.loads(result.content[0].text), bool(result.isError)
 
 
@@ -118,7 +117,7 @@ async def test_status_holds_while_a_run_is_being_worked_on_and_answers_when_it_c
         engine.gate.set()
 
     began = time.monotonic()
-    held, released = await asyncio.gather(
+    held, _released = await asyncio.gather(
         call(server_url, "art_discovery", action="status", run_id=run_id),
         release_shortly(),
     )

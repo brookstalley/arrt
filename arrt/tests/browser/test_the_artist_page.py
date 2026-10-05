@@ -17,9 +17,9 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
-from fakes import FakeRegistry  # noqa: E402  (after the skip guard)
+from fakes import FakeRegistry
 
-from arrt.library.registry import RegistryArtist, RegistryHolding, RegistryWorkEntry  # noqa: E402
+from arrt.library.registry import RegistryArtist, RegistryHolding, RegistryWorkEntry
 
 ROTHKO = "Q160149"
 COMMONS = "https://commons.wikimedia.org/wiki/Special:FilePath/Rothko%20chapel.jpg"
@@ -188,7 +188,7 @@ class TestTheArtistPage:
         ui.page.wait_for_selector(f"#view h2:text-is('{work.title}')")
 
     def test_their_work_marks_a_wanted_one_wanted_and_draws_each_picture_in_its_style(self, ui, rothko, want_item, pictures_load):
-        artist, work = rothko
+        artist, _work = rothko
         want_item("Q17038023", "No 1")
         _page(ui, artist)
         _registry_answered(ui)
@@ -306,7 +306,7 @@ class TestTheArtistPage:
 
 class TestTheWaysIn:
     def test_an_artist_name_on_a_works_card_opens_their_page(self, ui, rothko):
-        artist, _work = rothko
+        _artist, _work = rothko
         ui.open("#collection")
         ui.page.wait_for_selector("ul.grid li.card")
 

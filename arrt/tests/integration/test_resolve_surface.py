@@ -27,10 +27,9 @@ async def call(server_url: str, tool: str, **arguments) -> tuple[dict, bool]:
     from mcp import ClientSession
     from mcp.client.streamable_http import streamable_http_client
 
-    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            result = await session.call_tool(tool, arguments)
+    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _), ClientSession(read, write) as session:
+        await session.initialize()
+        result = await session.call_tool(tool, arguments)
     return json.loads(result.content[0].text), bool(result.isError)
 
 
@@ -100,8 +99,10 @@ async def test_a_client_can_obtain_the_work_ids_the_actions_taking_one_require(s
     works = payload["works"]
     assert len(works["each"]) == works["total"] == 1
     only = works["each"][0]
-    assert only["work_id"] and only["title"] == "The Elephants"
-    assert only["verdict"] and only["resolution_status"]
+    assert only["work_id"]
+    assert only["title"] == "The Elephants"
+    assert only["verdict"]
+    assert only["resolution_status"]
     # The id is usable as sent, which is the whole claim.
     handle, errored = await call(server_url, "art_discovery", action="resolve_images", work_ids=[only["work_id"]])
     assert errored is False, handle
@@ -246,12 +247,15 @@ async def test_every_reason_resolve_images_can_refuse_for_is_named_in_its_tips(s
     # rather than the one below arriving first.
     mixed, errored = await call(server_url, "art_discovery", action="resolve_images", work_ids=[work.id, elsewhere.id])
     assert errored is True
-    assert "one discovery run" in mixed["error"] and "one discovery run" in tips
+    assert "one discovery run" in mixed["error"]
+    assert "one discovery run" in tips
 
     services.discovery.start_resolve_run(candidate_work_ids=[work.id], initiated_by="web_ui")
     covered, errored = await call(server_url, "art_discovery", action="resolve_images", work_ids=[work.id])
     assert errored is True
     # "search twice", not "pay twice" (until 2026-10-02): a re-search costs
     # nothing today, and the refusal says what re-submitting would actually do.
-    assert "search twice" in covered["error"] and "search twice" in tips
-    assert "pay" not in covered["error"] and "pay twice" not in tips
+    assert "search twice" in covered["error"]
+    assert "search twice" in tips
+    assert "pay" not in covered["error"]
+    assert "pay twice" not in tips

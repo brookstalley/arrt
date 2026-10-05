@@ -12,6 +12,7 @@ conversation spent turns up in the month total. The rest pin the pieces it would
 be easy to break without failing either.
 """
 
+import asyncio
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -30,10 +31,9 @@ async def call(server_url: str, tool: str, **arguments) -> tuple[dict, bool]:
     from mcp import ClientSession
     from mcp.client.streamable_http import streamable_http_client
 
-    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            result = await session.call_tool(tool, arguments)
+    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _), ClientSession(read, write) as session:
+        await session.initialize()
+        result = await session.call_tool(tool, arguments)
     return json.loads(result.content[0].text), bool(result.isError)
 
 
@@ -105,7 +105,8 @@ async def test_a_turn_writes_a_conversation_tokens_row_that_reaches_the_month_to
     now = datetime.now(UTC)
     before, _ = await call(server_url, "art_discovery", action="spend", year=now.year, month=now.month)
 
-    view = say(server_url, started(server_url), "Something calm.")
+    conversation_id = await asyncio.to_thread(started, server_url)
+    view = await asyncio.to_thread(say, server_url, conversation_id, "Something calm.")
 
     after, _ = await call(server_url, "art_discovery", action="spend", year=now.year, month=now.month)
     assert Decimal(after["cost_usd"]) == Decimal(before["cost_usd"]) + Decimal("0.00001896")

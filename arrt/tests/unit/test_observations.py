@@ -91,7 +91,8 @@ class TestWhatObserveFinds:
         seen = observations.observe(tmp_path / "nothing.json", key="reported_at")
         assert seen.absent is True
         assert seen.problem is None
-        assert seen.at is None and seen.age_seconds is None
+        assert seen.at is None
+        assert seen.age_seconds is None
 
     def test_a_document_that_will_not_parse_is_a_problem_rather_than_absent(self, tmp_path):
         """Nothing has ever run is normal; a file that will not parse is a fault.
@@ -162,7 +163,7 @@ class TestWhatObserveFinds:
         thing it exists to disprove.
         """
         path = tmp_path / "naive.json"
-        moment = datetime(2026, 8, 5, 12, 0, 0)
+        moment = datetime(2026, 8, 5, 12, 0, 0)  # noqa: DTZ001 -- the naive timestamp is the case under test
         path.write_text(json.dumps({"reported_at": moment.isoformat()}), encoding="utf-8")
 
         seen = observations.observe(path, key="reported_at", now=moment.replace(tzinfo=UTC))

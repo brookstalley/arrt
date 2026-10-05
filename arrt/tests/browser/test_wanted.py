@@ -158,8 +158,10 @@ def test_wanted_lists_both_kinds_saying_which(ui, wanted):
     rows = ui.page.locator(".wanted tbody tr").all_inner_texts()
     lobster = next(row for row in rows if "Lobster Telephone" in row)
     memory = next(row for row in rows if "The Persistence of Memory" in row)
-    assert "No scan found" in lobster and "No item" in lobster
-    assert "1 scan turned down" in memory and "Q25729" in memory
+    assert "No scan found" in lobster
+    assert "No item" in lobster
+    assert "1 scan turned down" in memory
+    assert "Q25729" in memory
     assert "spends nothing" in ui.text()
 
 
@@ -240,7 +242,8 @@ def test_search_again_on_a_work_with_no_item_offers_wikidata_s_matches_and_picks
     ui.page.wait_for_selector(".picker li")
     picker = ui.page.inner_text(".picker")
     assert "Which is Lobster Telephone (1938)?" in picker
-    assert "has a picture" in picker and "no picture on Wikidata" in picker
+    assert "has a picture" in picker
+    assert "no picture on Wikidata" in picker
 
     ui.page.click("button[aria-label='Pick Q2990594, Lobster Telephone by Salvador Dalí']")
     ui.page.wait_for_function("() => window.location.hash.startsWith('#run/resolve-2')")

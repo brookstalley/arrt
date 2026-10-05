@@ -113,7 +113,7 @@ def _build_fts_index(connection: sqlite3.Connection, columns: Sequence[str]) -> 
     """
     connection.execute(f"CREATE VIRTUAL TABLE search USING fts5({', '.join(columns)}, tokenize='unicode61')")
     connection.execute(
-        f"INSERT INTO search ({', '.join(columns)}) "
+        f"INSERT INTO search ({', '.join(columns)}) "  # noqa: S608 -- column names are this tool's literals
         f"SELECT {', '.join(f'COALESCE(a.{column}, \'\')' for column in columns)} FROM artworks a"
     )
     connection.commit()
@@ -180,13 +180,14 @@ def _measure(
     # `search_fold` is already defined on this connection by the catalogue the
     # service opened, and it remembers what it folded, so these figures are warm.
     folded_statement = (
-        "SELECT COUNT(*) FROM artworks a WHERE search_fold("
+        "SELECT COUNT(*) FROM artworks a WHERE search_fold("  # noqa: S608 -- column names are this tool's literals
         + " || char(31) || ".join(f"coalesce(a.{column}, '')" for column in columns)
         + ") LIKE ? ESCAPE '\\'"
     )
 
     _heading("The search clause alone — the same term, the same columns, three strategies:")
-    like_statement = f"SELECT COUNT(*) FROM artworks a WHERE {like_clause}"
+    match_statement = "SELECT COUNT(*) FROM search WHERE search MATCH ?"
+    like_statement = f"SELECT COUNT(*) FROM artworks a WHERE {like_clause}"  # noqa: S608 -- column names are this tool's literals
     for _, term in _TERMS:
         like_values = tuple(f"%{term}%" for _ in columns)
         _report(
@@ -213,10 +214,10 @@ def _measure(
         _report(
             f"FTS5  {match!r}",
             _time(
-                lambda match=match: connection.execute("SELECT COUNT(*) FROM search WHERE search MATCH ?", (match,)).fetchone(),
+                lambda match=match: connection.execute(match_statement, (match,)).fetchone(),
                 repeats=repeats,
             ),
-            f"{connection.execute('SELECT COUNT(*) FROM search WHERE search MATCH ?', (match,)).fetchone()[0]} rows",
+            f"{connection.execute(match_statement, (match,)).fetchone()[0]} rows",
         )
 
     _say(

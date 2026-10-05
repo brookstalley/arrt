@@ -182,7 +182,7 @@ def _set_artist_qid(services: Services, arguments: Mapping[str, Any]) -> dict[st
     return ok(artist=_artist_fields(artist))
 
 
-def _list_topics(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+def _list_topics(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
     index = services.topics.index()
     return ok(
         state=str(index.state),
@@ -282,10 +282,7 @@ def _set_mat_color(services: Services, arguments: Mapping[str, Any]) -> dict[str
     """
     artwork_id = arguments["artwork_id"]
     hex_rgb = arguments.get("hex_rgb")
-    if hex_rgb:
-        result = services.preparation.set_mat(artwork_id, str(hex_rgb))
-    else:
-        result = services.preparation.choose_mat(artwork_id)
+    result = services.preparation.set_mat(artwork_id, str(hex_rgb)) if hex_rgb else services.preparation.choose_mat(artwork_id)
     return ok(
         artwork_id=result.artwork_id,
         hex_rgb=result.mat_hex,
@@ -385,7 +382,7 @@ def _sources_notice(sources: Sequence[Source]) -> str | None:
     return None
 
 
-def _list_themes(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+def _list_themes(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
     # Where each theme hangs travels with it, because "which one is on the wall"
     # is what this listing is read to answer — and a caller that had to ask per
     # theme would ask once and guess after. The pairing is the service's, not
@@ -747,12 +744,12 @@ def _nothing_searching(work: CandidateWork) -> str:
     )
 
 
-def _list_wanted(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+def _list_wanted(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
     works = [_wanted_fields(entry) for entry in services.discovery.list_wanted()]
     return ok(works=works, count=len(works))
 
 
-def _sighting_hosts(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+def _sighting_hosts(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
     hosts = [{"host": entry.host, "works": entry.works} for entry in services.sightings.hosts()]
     return ok(hosts=hosts, count=len(hosts))
 
@@ -824,7 +821,7 @@ def _verdict_notice(outcome: VerdictOutcome) -> str | None:
     )
 
 
-def _wall_status(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+def _wall_status(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
     """Every wall's heartbeat, and one sentence across them.
 
     **All the walls rather than one**, and without a `wall_id` to narrow it. The
@@ -860,7 +857,7 @@ def _sync(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     return _built(services.display.sync(arguments["wall_id"], arguments.get("theme_id")))
 
 
-def _list_walls(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+def _list_walls(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
     views = services.display.survey_walls()
     return ok(walls=[_wall_view_fields(view) for view in views], count=len(views))
 
@@ -869,7 +866,7 @@ def _add_wall(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any
     return ok(wall=_wall_fields(services.display.add_wall(name=arguments["name"])))
 
 
-def _list_clients(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+def _list_clients(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
     views = services.clients.list_clients()
     return ok(clients=[_client_view_fields(view) for view in views], count=len(views))
 
@@ -1892,7 +1889,7 @@ def _works_truncation_notice(view: RunView, listed: int) -> str | None:
     )
 
 
-def _run_notice(view: RunView) -> str:
+def _run_notice(view: RunView) -> str:  # noqa: C901, PLR0911, PLR0912 -- one notice per run state, read top to bottom
     """What this run's state means, and what the caller can do about it.
 
     A state name tells a model what happened; this tells it what to do next,

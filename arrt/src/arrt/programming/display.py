@@ -640,7 +640,7 @@ class DisplayService:
         with self._store.transaction():
             others = list(self._store.list_memberships(theme_id))
             index = len(others) if target is None else min(target, len(others))
-            self._renumber(others[:index] + [membership] + others[index:], new=membership)
+            self._renumber([*others[:index], membership, *others[index:]], new=membership)
         return replace(membership, position=index)
 
     def move_in_theme(self, *, theme_id: str, artwork_id: str, position: int | None) -> ThemeMembership:
@@ -694,7 +694,7 @@ class DisplayService:
                 store_write(self._store.update_membership, moved)
             else:
                 index = min(target, len(others))
-                self._renumber(others[:index] + [membership] + others[index:])
+                self._renumber([*others[:index], membership, *others[index:]])
                 moved = replace(membership, position=index)
         return moved
 
@@ -731,9 +731,9 @@ class DisplayService:
         theme_id: str,
         *,
         name: str | None = None,
-        description: str | None | Unset = UNSET,
-        rotation_interval_seconds: int | None | Unset = UNSET,
-        shuffle: bool | None | Unset = UNSET,
+        description: str | Unset | None = UNSET,
+        rotation_interval_seconds: int | Unset | None = UNSET,
+        shuffle: bool | Unset | None = UNSET,
     ) -> Theme:
         """Change a theme's name, description, or pace.
 
@@ -994,7 +994,9 @@ class DisplayService:
         if event.change is WorkChange.ACCEPTED:
             self.offer_destinations([event.work_id])
 
-    def reconcile(self, work_ids: Iterable[str] | None = None, *, cause: str = "startup") -> Reconciliation:
+    def reconcile(  # noqa: C901, PLR0912 -- one pass over walls and pins, kept whole so its order is visible
+        self, work_ids: Iterable[str] | None = None, *, cause: str = "startup"
+    ) -> Reconciliation:
         """Make every published manifest and pin agree with what the Library will still show.
 
         Asks the facade about the works in question: the ones named, or, with

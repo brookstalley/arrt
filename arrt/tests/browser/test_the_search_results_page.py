@@ -15,9 +15,9 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
-from fakes import FakeRegistry  # noqa: E402  (after the skip guard)
+from fakes import FakeRegistry
 
-from arrt.library.registry import RegistryCreator, RegistryPerson, RegistryWorkMatch  # noqa: E402
+from arrt.library.registry import RegistryCreator, RegistryPerson, RegistryWorkMatch
 
 DALI = "Q5577"
 PERSISTENCE = "Q25729"
@@ -124,7 +124,8 @@ def test_in_your_library_shows_only_the_library_and_asks_wikidata_nothing(ui, ma
 
     assert _rows(ui, "artists") == ["Salvador Dalí 1904–1989 ● In your library"]
     assert _rows(ui, "works") == ["The Persistence of Memory — Salvador Dalí ● Held"]
-    assert registry.searched == [] and registry.matched == []
+    assert registry.searched == []
+    assert registry.matched == []
 
 
 def test_not_held_shows_only_what_the_library_does_not_hold(ui, matched):

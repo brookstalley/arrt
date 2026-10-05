@@ -52,10 +52,9 @@ def _imports_driver(tree: ast.AST) -> bool:
         if isinstance(node, ast.Import):
             if any(alias.name.split(".")[0] == _DRIVER for alias in node.names):
                 return True
-        elif isinstance(node, ast.ImportFrom):
-            # `node.module` is None for a relative import, which cannot be stdlib.
-            if node.module is not None and node.module.split(".")[0] == _DRIVER:
-                return True
+        # `node.module` is None for a relative import, which cannot be stdlib.
+        elif isinstance(node, ast.ImportFrom) and node.module is not None and node.module.split(".")[0] == _DRIVER:
+            return True
     return False
 
 
@@ -443,7 +442,7 @@ def test_the_catalogue_still_re_exports_the_shared_error_types():
     The re-export is deliberate and permanent rather than a transitional shim, so
     it is asserted rather than left to be tidied away by someone reading it as one.
     """
-    from arrt.persistence import catalogue, errors  # noqa: PLC0415
+    from arrt.persistence import catalogue, errors
 
     assert catalogue.StorageError is errors.StorageError
     assert catalogue.StoreMisuseError is errors.StoreMisuseError

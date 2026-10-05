@@ -692,7 +692,7 @@ class WikidataRegistry:
             response = self._http.post(SPARQL_ENDPOINT, data={"query": query}, headers=self._headers, **extra)
         except httpx.HTTPError as exc:
             raise RegistryUnavailable(f"Wikidata could not be reached: {exc}") from exc
-        if response.status_code != 200:
+        if response.status_code != httpx.codes.OK:
             # A redirect lands here too, deliberately: see the module docstring.
             raise RegistryUnavailable(f"Wikidata answered HTTP {response.status_code}.")
         try:

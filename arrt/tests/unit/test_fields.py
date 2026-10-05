@@ -131,7 +131,7 @@ def _parses_as_xml(markup: str) -> None:
     fails to parse is a rendering failure on a panel nobody is watching, which is
     the outcome the constraint exists to prevent.
     """
-    ET.fromstring(f"<root>{markup}</root>")
+    ET.fromstring(f"<root>{markup}</root>")  # noqa: S314 -- the test's own markup, parsed as Pango would
 
 
 def _corpus_descriptions() -> list[str]:

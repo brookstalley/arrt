@@ -17,6 +17,7 @@ import json
 import pathlib
 import re
 from datetime import UTC, datetime, timedelta
+from typing import ClassVar
 
 import httpx
 import pytest
@@ -44,7 +45,7 @@ def _contextual_and_destination_screens() -> set[str]:
     """
     table = (STATIC_DIR / "app.js").read_text()
     body = table.split("const ROUTES = {", 1)[1].split("\n};", 1)[0]
-    entries = re.findall(r"^  (\w+): \{(.*)\},$", body, flags=re.M)
+    entries = re.findall(r"^  (\w+): \{(.*)\},$", body, flags=re.MULTILINE)
     return {name for name, fields in entries if "detail: true" not in fields}
 
 
@@ -310,7 +311,7 @@ class TestHealth:
     #: resembles a judgement — no status, no ok/degraded, no colour. Asserted as a
     #: whole set rather than by naming the fields that must be absent, because the
     #: failure to catch is a *new* field nobody thought to forbid.
-    OBSERVATION_FIELDS = {"path", "age_seconds", "absent", "problem", "description", "reported"}
+    OBSERVATION_FIELDS: ClassVar[set[str]] = {"path", "age_seconds", "absent", "problem", "description", "reported"}
 
     def test_the_panel_states_an_observation_and_never_a_verdict(self, http):
         health = http.get("/api/health").json()

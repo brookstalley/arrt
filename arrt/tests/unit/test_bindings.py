@@ -470,7 +470,8 @@ def test_the_notice_steers_to_the_filters_because_this_action_has_no_offset():
     """
     notice = _runs_truncation_notice(_listing(MAX_RUNS_LISTED + 1))
 
-    assert "status=" in notice and "kind=" in notice
+    assert "status=" in notice
+    assert "kind=" in notice
     assert "no paging" in notice
     assert "offset" not in notice, "there is no offset on this action; naming one sends a caller to a refusal"
 

@@ -37,10 +37,9 @@ FROZEN_TOOL_NAMES = {
 
 @pytest.fixture
 async def tools(server_url):
-    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            listed = await session.list_tools()
+    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _), ClientSession(read, write) as session:
+        await session.initialize()
+        listed = await session.list_tools()
     return {tool.name: tool for tool in listed.tools}
 
 
@@ -49,9 +48,8 @@ async def test_the_server_boots_and_a_real_client_completes_the_handshake(server
     # run a mounted sub-app's. If the host application failed to drive the
     # session manager, every request below would raise "Task group is not
     # initialized" instead of answering.
-    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _):
-        async with ClientSession(read, write) as session:
-            result = await session.initialize()
+    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _), ClientSession(read, write) as session:
+        result = await session.initialize()
 
     assert result.serverInfo.name == "arrt"
     # The server reports its own version. Left unset the SDK reports its own,
@@ -454,7 +452,8 @@ def test_every_act_against_a_client_names_it_and_says_where_its_id_comes_from(to
     action = next(entry for entry in TOOLS_BY_NAME[tool_name].actions if entry.name == action_name)
 
     client = next((param for param in action.params if param.name == "client_id"), None)
-    assert client is not None and client.required, f"{tool_name}(action={action_name!r}) does not require a client"
+    assert client is not None, f"{tool_name}(action={action_name!r}) does not require a client"
+    assert client.required, f"{tool_name}(action={action_name!r}) does not require a client"
     assert "client_id=" in action.example
     assert "action='clients'" in " ".join([client.description, *action.tips])
 

@@ -25,7 +25,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Final
 
-import mcp.types as types
+from mcp import types
 
 #: Where a binding leaves the pictures its result carries. **Private, and
 #: stripped before anything is serialised** — base64 image data must reach the

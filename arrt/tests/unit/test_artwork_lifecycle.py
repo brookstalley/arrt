@@ -72,7 +72,7 @@ def _display(store, tmp_path, *, catalogue=None):
     """A display service over an explicitly opened store, wired as the entry point wires one."""
     catalogue = catalogue or CatalogueService(store)
     # The discovery tables share the catalogue's open file, as in the container.
-    discovery = DiscoveryService(SqliteDiscovery(store._store), catalogue)  # noqa: SLF001
+    discovery = DiscoveryService(SqliteDiscovery(store._store), catalogue)
     return DisplayService(
         store,
         LibraryFacade(catalogue, discovery),

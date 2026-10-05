@@ -29,7 +29,7 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
-from arrt.programming.client_heartbeat import client_heartbeat_path_in  # noqa: E402
+from arrt.programming.client_heartbeat import client_heartbeat_path_in
 
 TWO_OUTPUTS = {
     "reported_at": "2026-10-02T14:00:05+00:00",
@@ -113,7 +113,8 @@ def test_adding_a_client_shows_its_token_once_with_what_to_do_with_it(ui, servic
     assert ui.page.evaluate("() => document.activeElement.id") == "client-token"
     note = ui.page.locator(".token-once").inner_text()
     assert "the only time it is shown" in note
-    assert "CLIENT_TOKEN" in note and "SERVER_URL" in note
+    assert "CLIENT_TOKEN" in note
+    assert "SERVER_URL" in note
     assert server_url in note, "the address the host needs is not stated"
     [client] = services.clients.list_clients()
     assert client.client.name == "Hall Pi"
@@ -204,8 +205,10 @@ def test_a_report_is_listed_output_by_output_with_its_age(ui, settings, hall):
 
     rows = panel(ui, hall).locator("tbody tr").all_inner_texts()
     assert [row.split("\t")[0] for row in rows] == ["hdmi-a-1", "hdmi-a-2"]
-    assert "● connected" in rows[0] and "1920 × 1080" in rows[0]
-    assert "○ not connected" in rows[1] and "size unknown" in rows[1]
+    assert "● connected" in rows[0]
+    assert "1920 × 1080" in rows[0]
+    assert "○ not connected" in rows[1]
+    assert "size unknown" in rows[1]
     assert "It last reported " in panel(ui, hall).inner_text()
 
 

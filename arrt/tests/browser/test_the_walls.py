@@ -26,7 +26,7 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
-from arrt.persistence.records import MatMethod, RenditionKind  # noqa: E402
+from arrt.persistence.records import MatMethod, RenditionKind
 
 #: The phrase each reason states, keyed by the reason. Several for the silent
 #: one, because "nothing was ever written", "something was written and cannot be

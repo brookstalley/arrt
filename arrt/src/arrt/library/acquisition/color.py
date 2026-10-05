@@ -35,6 +35,15 @@ _EPSILON: Final[float] = 216 / 24389
 _KAPPA_SLOPE: Final[float] = 841 / 108
 _KAPPA_OFFSET: Final[float] = 4 / 29
 
+#: How many hex digits a CSS shorthand colour has (`#abc`), and a full triplet (`#aabbcc`).
+_SHORTHAND_DIGITS: Final[int] = 3
+_TRIPLET_DIGITS: Final[int] = 6
+
+#: Where sRGB's transfer function turns from its linear segment to its power
+#: curve, on the encoded side and on the linear side: IEC 61966-2-1's own values.
+_ENCODED_KNEE: Final[float] = 0.04045
+_LINEAR_KNEE: Final[float] = 0.0031308
+
 
 class ColorError(ValueError):
     """A colour could not be read as one."""
@@ -63,10 +72,10 @@ def parse_hex(value: str) -> tuple[int, int, int]:
     `method` to prevent.
     """
     text = value.strip().lstrip("#").strip()
-    if len(text) == 3:
+    if len(text) == _SHORTHAND_DIGITS:
         # #abc is #aabbcc — the CSS shorthand, and the only expansion there is.
         text = "".join(character * 2 for character in text)
-    if len(text) != 6 or any(character not in "0123456789abcdefABCDEF" for character in text):
+    if len(text) != _TRIPLET_DIGITS or any(character not in "0123456789abcdefABCDEF" for character in text):
         raise ColorError(f"{value!r} is not a hex colour triplet like '#27285b'.")
     return tuple(int(text[index : index + 2], 16) for index in (0, 2, 4))  # type: ignore[return-value]
 
@@ -84,12 +93,12 @@ def format_hex(rgb: tuple[int, int, int]) -> str:
 
 def _linearize(channel: float) -> float:
     """One sRGB channel, 0-1, with its transfer function removed."""
-    return channel / 12.92 if channel <= 0.04045 else ((channel + 0.055) / 1.055) ** 2.4
+    return channel / 12.92 if channel <= _ENCODED_KNEE else ((channel + 0.055) / 1.055) ** 2.4
 
 
 def _delinearize(channel: float) -> float:
     """The inverse: linear light back to an sRGB-encoded channel."""
-    return channel * 12.92 if channel <= 0.0031308 else 1.055 * channel ** (1 / 2.4) - 0.055
+    return channel * 12.92 if channel <= _LINEAR_KNEE else 1.055 * channel ** (1 / 2.4) - 0.055
 
 
 def _f(ratio: float) -> float:
@@ -173,9 +182,9 @@ def delta_e(one: Lab, two: Lab) -> float:
 
     if c_one_prime * c_two_prime == 0:
         delta_h_prime = 0.0
-    elif abs(h_two_prime - h_one_prime) <= 180:
+    elif abs(h_two_prime - h_one_prime) <= 180:  # noqa: PLR2004 -- degrees: CIEDE2000's half and whole turn
         delta_h_prime = h_two_prime - h_one_prime
-    elif h_two_prime - h_one_prime > 180:
+    elif h_two_prime - h_one_prime > 180:  # noqa: PLR2004 -- degrees: CIEDE2000's half and whole turn
         delta_h_prime = h_two_prime - h_one_prime - 360
     else:
         delta_h_prime = h_two_prime - h_one_prime + 360
@@ -183,9 +192,9 @@ def delta_e(one: Lab, two: Lab) -> float:
 
     if c_one_prime * c_two_prime == 0:
         h_bar_prime = h_one_prime + h_two_prime
-    elif abs(h_one_prime - h_two_prime) <= 180:
+    elif abs(h_one_prime - h_two_prime) <= 180:  # noqa: PLR2004 -- degrees: CIEDE2000's half and whole turn
         h_bar_prime = (h_one_prime + h_two_prime) / 2
-    elif h_one_prime + h_two_prime < 360:
+    elif h_one_prime + h_two_prime < 360:  # noqa: PLR2004 -- degrees: CIEDE2000's half and whole turn
         h_bar_prime = (h_one_prime + h_two_prime + 360) / 2
     else:
         h_bar_prime = (h_one_prime + h_two_prime - 360) / 2

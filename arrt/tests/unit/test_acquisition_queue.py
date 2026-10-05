@@ -260,7 +260,7 @@ class FakePreparation:
     failures: int = 0
     calls: list = field(default_factory=list)
 
-    def prepare(self, artwork_id, *, force=False):  # noqa: ARG002 - the queue never forces
+    def prepare(self, artwork_id, *, force=False):
         self.calls.append(artwork_id)
         if self.failures:
             self.failures -= 1
@@ -677,7 +677,8 @@ class TestThePause:
         with caplog.at_level(logging.WARNING, logger="arrt.library.acquisition.queue"):
             result = queue.run()
 
-        assert result.paused is not None and result.paused.condition == "NotEnoughSpace"
+        assert result.paused is not None
+        assert result.paused.condition == "NotEnoughSpace"
         # The pass stopped: the second work was not tried against the same disk.
         assert [artwork_id for artwork_id, _ in fetcher.calls] == [first]
         state = queue.state_of([first])[first]
@@ -702,7 +703,8 @@ class TestThePause:
 
         queue.run()
 
-        assert queue.pause is not None and queue.pause.condition == type(fault).__name__
+        assert queue.pause is not None
+        assert queue.pause.condition == type(fault).__name__
         assert queue.state_of([artwork_id])[artwork_id].failures == 0
 
     def test_a_paused_queue_tries_again_within_a_quarter_of_an_hour(self, queue, work, fetcher):
@@ -752,7 +754,8 @@ class TestThePause:
         assert queue.pause is None
         state = queue.state_of([failing])[failing]
         assert state.phase is AcquisitionPhase.FAILED
-        assert "OSError" in state.detail and "disk I/O error" in state.detail
+        assert "OSError" in state.detail
+        assert "disk I/O error" in state.detail
         assert state.next_try_at == clock.now + timedelta(hours=1)
         assert queue.state_of([behind]) == {}
 
@@ -775,7 +778,8 @@ class TestThePause:
         run_acquisition_queue(queue, stop=stop, after_pass=after_pass)
         monkeypatch.undo()
 
-        assert queue.pause is not None and queue.pause.condition == "OSError"
+        assert queue.pause is not None
+        assert queue.pause.condition == "OSError"
         assert queue.state_of([artwork_id])[artwork_id].phase is AcquisitionPhase.PAUSED
 
 
@@ -822,7 +826,8 @@ class TestTheWorkerSurvives:
 
         assert len(passes) == 2, "the worker ended after the failed wait instead of passing again"
         errors = [record for record in caplog.records if getattr(record, "event", None) == "acquisition.queue_error"]
-        assert len(errors) == 1 and "could not wait" in errors[0].getMessage(), "the failed wait was not journalled"
+        assert len(errors) == 1, "the failed wait was not journalled"
+        assert "could not wait" in errors[0].getMessage(), "the failed wait was not journalled"
 
 
 class TestTheRunningQueue:
