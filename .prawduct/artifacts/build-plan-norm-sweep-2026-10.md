@@ -55,7 +55,7 @@ history (the owner ruled fix forward).
 - [x] Chunk 03: Guards and small fixes the sweep found
 - [x] Chunk 04: Ruff ALL on the display plane; N and BLE001 at the root
 - [x] Chunk 05: Ruff ALL on the curation plane
-- [ ] Chunk 06: Wanted becomes a top-level section
+- [x] Chunk 06: Wanted becomes a top-level section
 
 ### Chunk 01: Records: amendments, index rows, stale references
 
