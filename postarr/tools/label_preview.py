@@ -232,8 +232,8 @@ def _viewing_conditions(args: argparse.Namespace, parser: argparse.ArgumentParse
     # them; a traceback would bury the two variable names that actually fix it.
     # Not swallowed: the reason is printed, and a run with no other source for
     # the two numbers still refuses rather than continuing.
-    except Exception as exc:
-        print(f"could not read this deployment's settings: {exc}")  # noqa: T201 -- the report is this tool's output
+    except Exception as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- see above
+        print(f"could not read this deployment's settings: {exc}")
         settings = None
 
     if args.diagonal_inches is None and settings is not None:
@@ -291,7 +291,7 @@ def _draw_on_the_panel(args: argparse.Namespace, record: dict[str, str], surface
     and nowhere else, and this tool's PNG half must keep working on a machine
     that has no panel.
     """
-    from postarr.panel.epaper import EpaperSurface, open_panel  # noqa: PLC0415 -- see above
+    from postarr.panel.epaper import EpaperSurface, open_panel
 
     rasterizer = PangoRasterizer()
     panel = EpaperSurface(

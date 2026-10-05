@@ -29,6 +29,7 @@ systemd restarts it.
 """
 
 import asyncio
+import contextlib
 import json
 import logging
 import re
@@ -310,10 +311,8 @@ class Supervisor:
                 self.reconcile(cached)
             while not stop.is_set():
                 await self.cycle()
-                try:
+                with contextlib.suppress(TimeoutError):
                     await asyncio.wait_for(stop.wait(), timeout=self._settings.client_poll_seconds)
-                except TimeoutError:
-                    pass
         finally:
             await self.stop_all()
             await self._link.close()
@@ -458,10 +457,8 @@ class Supervisor:
                 # A worker that ran for longer than the longest wait has earned a
                 # fresh ladder: this failure is a new one, not the next in a loop.
                 wait.clear()
-            try:
+            with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(stop.wait(), timeout=wait.hold())
-            except TimeoutError:
-                pass
 
     # -- the outputs ----------------------------------------------------------------
 

@@ -3,7 +3,7 @@ artifact: build-plan
 version: 1
 scope: norm-sweep-2026-10
 branch: chore/norm-sweep-2026-10
-partition: serial — one builder; the two ruff chunks touch most files in their plane, so nothing runs beside them
+partition: serial, except Chunk 05, delegated 2026-10-05 to its own worktree (chore/norm-sweep-2026-10-arrt-ruff) beside Chunk 04 — it owns arrt/ only and Chunk 04 owns postarr/ and the root, so they share no file; the coordinator merges it before Chunk 06, which touches arrt/
 depends_on:
   - artifact: project-preferences
   - artifact: architecture
@@ -37,6 +37,7 @@ the owner confirmed in bulk) or a fork the owner ruled on 2026-10-05.
 
 - [DECISION: ruff ALL on arrt and postarr, minus a named ignore list, each ignore with its why in `pyproject.toml` | the owner asked to "go big on ruff"; ALL brings rules ruff adds later without anyone choosing them | owner approved 2026-10-05]
 - [DECISION: the ignore list is formatter conflicts (COM812, ISC001), docstring convention (D), copyright header (CPY), exception-message style (EM101, EM102, TRY003), typographic Unicode in prose (RUF001-003), argument counts on keyword-only signatures (PLR0913, PLR0917), deliberate lazy imports (PLC0415), typing-only import moves (TC001-003), implicit namespace packages for tools and tests (INP001), exception-name suffixes (N818); tests also ignore S101, PLR2004, ARG, SLF001, FBT, ANN | each contradicts a house style the code follows on purpose, measured 2026-10-05 at ~1,900 sites across the two planes | owner approved the shape 2026-10-05; individual entries are the builder's and the Critic's to challenge]
+- [DECISION: both planes' tests also ignore S105, S106 and S311 | tests hold fake tokens and seeded randomness by design; added when Chunk 04 met them | builder's, at Chunk 04's review; owner can veto]
 - [DECISION: the root plane adds only N and BLE001 | its 2024 modules leave at wave 5, so fixing them for ALL buys nothing | owner approved 2026-10-05]
 - [ASSUMPTION: the residual after the ignore list is fixed, not waived, except where a site is a deliberate exception that gets a reasoned per-line `noqa` | MED impact: hundreds of edits | owner can correct]
 - [ASSUMPTION, as built: the deployment guard reads its forbidden values from `.env` (`TV_ADDRESS`, `LATITUDE`, `LONGITUDE`) and from `$HOME`, which covers a dev `ART_ROOT`; the Pi's `ART_ROOT` is the published `/srv/art`, held to code by its own pattern, and adds a structural check: no private-range IPv4 literal and no `/Users/<name>` or `/home/<name>` literal in source. With no values supplied it still runs the structural half and says so | MED impact | owner can correct]
@@ -141,14 +142,17 @@ Done when:
   `except` line.
 - No-op and reasonless waivers removed or given reasons.
 - A catch that swallows carries `# noqa: BLE001` beside its pragma, both on the
-  `except` line; the naming and broad-except index rows move to Linter in the
-  commit that selects the rules.
+  `except` line. The naming and broad-except index rows move to Linter when
+  Chunk 05 lands, the commit after which every plane selects `N` and `BLE001`
+  (moved from this chunk at its review: the curation plane does not select them
+  until then, and a row claiming a linter one plane lacks over-claims).
 - postarr suite (with `--group raster`) and root suite green; `ruff check` and
   `black --check` clean on both.
 
 ### Chunk 05: Ruff ALL on the curation plane
 
-Done when: as Chunk 04 for `arrt/`, plus the browser suite green (the client is
+Done when: as Chunk 04 for `arrt/`, plus the naming and broad-except index rows
+moved to Linter, plus the browser suite green (the client is
 untouched, but the server it drives is). S608 sites are each read: a query built
 from code constants gets a reasoned `noqa`; one built from input is a defect.
 ASYNC210 sites in tests are fixed, not waived.

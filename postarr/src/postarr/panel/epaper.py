@@ -237,7 +237,7 @@ class EpaperSurface(LabelSurface):
             self._epd.close()
         # This runs on the shutdown path, where anything raised would cost the
         # television its clean disconnect.
-        except Exception as exc:  # prawduct:allow prawduct/broad-except -- see above
+        except Exception as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- see above
             log.warning("the panel did not close cleanly (%s)", exc, extra={"event": "panel.close_failed"})
 
 
@@ -261,7 +261,7 @@ def open_panel(device_name: str) -> Epd:
     with no panel attached.
     """
     try:
-        from omni_epd import displayfactory  # noqa: PLC0415 -- deliberately local: see the module docstring
+        from omni_epd import displayfactory
 
         return displayfactory.load_display_driver(device_name)
     # Covers the library being absent (ImportError) and the device being

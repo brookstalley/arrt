@@ -467,7 +467,7 @@ def load(environ: dict[str, str] | None = None) -> ClientSettings:
         cache_dir=cache_dir,
         poll_interval_seconds=_float(env, "MANIFEST_POLL_SECONDS", DEFAULT_POLL_INTERVAL_SECONDS),
         rotation_interval_fallback_seconds=_int(env, "ROTATION_INTERVAL_SECONDS", DEFAULT_ROTATION_INTERVAL_SECONDS),
-        rotation_shuffle_fallback=_bool(env, "ROTATION_SHUFFLE", DEFAULT_ROTATION_SHUFFLE),
+        rotation_shuffle_fallback=_bool(env, "ROTATION_SHUFFLE", default=DEFAULT_ROTATION_SHUFFLE),
         frame=_frame(env, cache_dir),
     )
 
@@ -569,7 +569,7 @@ def _float(env: dict[str, str], name: str, default: float | None) -> float:
         raise ConfigError(f"{name} is {raw!r}, which is not a number.") from exc
 
 
-def _bool(env: dict[str, str], name: str, default: bool) -> bool:
+def _bool(env: dict[str, str], name: str, *, default: bool) -> bool:
     raw = env.get(name)
     if not raw:
         return default

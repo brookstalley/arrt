@@ -28,7 +28,7 @@ import pytest
 
 pytest.importorskip("gi", reason="the typesetter needs the `raster` group: uv sync --group raster")
 
-import gi  # noqa: E402 -- after the group check above
+import gi
 
 # The oracle below reaches Pango directly, so this file pins the versions itself
 # rather than relying on `postarr.panel.pango` having been imported first — which

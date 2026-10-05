@@ -30,6 +30,7 @@ no second way of reporting.
 """
 
 import asyncio
+import contextlib
 import hashlib
 import json
 import logging
@@ -37,6 +38,7 @@ import os
 import re
 from dataclasses import dataclass
 from enum import Enum
+from http import HTTPStatus
 from pathlib import Path
 from typing import Any, Final
 from urllib.parse import urljoin, urlsplit
@@ -132,10 +134,8 @@ class Pull:
             while not stop.is_set():
                 reachable = await self.cycle(session)
                 wait = self._interval if reachable else self._next_backoff()
-                try:
+                with contextlib.suppress(TimeoutError):
                     await asyncio.wait_for(stop.wait(), timeout=wait)
-                except TimeoutError:
-                    pass
 
     async def cycle(self, session: aiohttp.ClientSession) -> bool:
         """One poll: the manifest, then the heartbeat. False when the next poll should back off.
@@ -159,7 +159,9 @@ class Pull:
 
     # -- the manifest -----------------------------------------------------------------------
 
-    async def _pull_manifest(self, session: aiohttp.ClientSession) -> _Poll:
+    async def _pull_manifest(  # noqa: C901, PLR0911, PLR0912 -- one branch per answer the server can give, each keeping the cache
+        self, session: aiohttp.ClientSession
+    ) -> _Poll:
         headers = self._auth()
         etag = self._cached_etag()
         if etag is not None:
@@ -167,12 +169,12 @@ class Pull:
         try:
             async with session.get(self._manifest_url, headers=headers) as response:
                 status = response.status
-                body = await response.read() if status == 200 else b""
+                body = await response.read() if status == HTTPStatus.OK else b""
                 served_etag = response.headers.get("ETag")
         except _UNREACHABLE as exc:
             self._report_unreachable(f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__)
             return _Poll.UNREACHABLE
-        if status >= 500:
+        if status >= HTTPStatus.INTERNAL_SERVER_ERROR:
             self._report_unreachable(f"it answered {status}")
             return _Poll.UNREACHABLE
         self._report_reachable()
@@ -183,7 +185,7 @@ class Pull:
         # A 304 is the server accepting this client's token for a manifest it has
         # already sent, so it ends a refusal just as a 200 does.
         self._report_accepted()
-        if status == 304:
+        if status == HTTPStatus.NOT_MODIFIED:
             return _Poll.ANSWERED
 
         try:
@@ -248,7 +250,9 @@ class Pull:
         )
         return _Poll.ANSWERED
 
-    async def _cache_media(self, session: aiohttp.ClientSession, entry: dict[str, Any]) -> "str | bool | _Retry":
+    async def _cache_media(  # noqa: PLR0911 -- one return per way a render can be had, skipped or retried
+        self, session: aiohttp.ClientSession, entry: dict[str, Any]
+    ) -> "str | bool | _Retry":
         """The cached render's path, relative to the cache; False to skip the work; `_Retry` to try again later."""
         work_id = entry.get("work_id")
         media = entry.get("media")
@@ -270,13 +274,13 @@ class Pull:
         try:
             async with session.get(address, headers=headers) as response:
                 status = response.status
-                data = await response.read() if status == 200 else b""
+                data = await response.read() if status == HTTPStatus.OK else b""
         except _UNREACHABLE as exc:
             return _Retry(f"{type(exc).__name__} fetching it")
-        if status == 404:
+        if status == HTTPStatus.NOT_FOUND:
             self._skip_once(f"missing:{sha}", "the render for work %s is not held by the server; skipping it", work_id)
             return False
-        if status != 200:
+        if status != HTTPStatus.OK:
             return _Retry(f"the media route answered {status}")
         if hashlib.sha256(data).hexdigest() != sha:
             self._skip_once(
@@ -344,7 +348,7 @@ class Pull:
                 status = response.status
         except _UNREACHABLE:
             return
-        if status == 204:
+        if status == HTTPStatus.NO_CONTENT:
             self._heartbeat_seen = stamp
             self._heartbeat_sent = reported_at
             if self._heartbeat_failing.end():
@@ -445,7 +449,9 @@ class ClientPull:
             )
             return None
 
-    async def fetch(self) -> ClientDocument | None:
+    async def fetch(  # noqa: C901, PLR0911, PLR0912 -- one branch per answer the server can give, each keeping the walls running
+        self,
+    ) -> ClientDocument | None:
         """A new client document, or None to keep the walls already running."""
         headers = self._auth()
         etag = self._cached_etag()
@@ -454,12 +460,12 @@ class ClientPull:
         try:
             async with self._client().get(self._client_url, headers=headers) as response:
                 status = response.status
-                body = await response.read() if status == 200 else b""
+                body = await response.read() if status == HTTPStatus.OK else b""
                 served_etag = response.headers.get("ETag")
         except _UNREACHABLE as exc:
             self._report_unreachable(f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__)
             return None
-        if status >= 500:
+        if status >= HTTPStatus.INTERNAL_SERVER_ERROR:
             self._report_unreachable(f"it answered {status}")
             return None
         if self._unreachable.end():
@@ -481,7 +487,7 @@ class ClientPull:
                     refused,
                     extra={"event": "client.accepted", "status": refused},
                 )
-        if status == 304:
+        if status == HTTPStatus.NOT_MODIFIED:
             return None
         try:
             text = body.decode("utf-8")
@@ -533,7 +539,7 @@ class ClientPull:
             # Said by `fetch`, which runs on the same poll; a second line here
             # would be the same outage told twice.
             return False
-        if status == 204:
+        if status == HTTPStatus.NO_CONTENT:
             if self._heartbeat_failing.end():
                 log.info("the server is accepting this client's heartbeat again", extra={"event": "client.heartbeat_ok"})
             return True
@@ -599,7 +605,7 @@ def _write_atomically(path: Path, data: bytes) -> None:
             handle.write(data)
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temporary, path)
+        temporary.replace(path)
     except BaseException:  # prawduct:allow prawduct/broad-except -- cleanup-and-reraise; the temp file must go on any exit
         temporary.unlink(missing_ok=True)
         raise

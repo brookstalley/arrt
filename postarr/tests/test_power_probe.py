@@ -520,7 +520,7 @@ class TestItReportsWhatATransitionDid:
         assert remote.sent == []
         assert "no gesture asked for" in capsys.readouterr().out
 
-    def test_a_click_sends_exactly_one_KEY_POWER_click(self, probe_module, deployment, monkeypatch, capsys):
+    def test_a_click_sends_exactly_one_key_power_click(self, probe_module, deployment, monkeypatch, capsys):
         """**Which key, and which command** — not merely that something was sent.
 
         Counting frames leaves a swap to `KEY_VOLUP`, or a `Press` where a `Click`
@@ -577,7 +577,8 @@ class TestItReportsWhatATransitionDid:
         assert probe_module.main([*FAST, "--click", "--i-am-at-the-set"]) == 1
         printed = capsys.readouterr().out
         assert "the press FAILED" in printed
-        assert "UnauthorizedError" in printed and "ConnectionFailure" in printed
+        assert "UnauthorizedError" in printed
+        assert "ConnectionFailure" in printed
         assert "→ DARK" in printed, "the failure took the readings with it"
         assert "nothing was sent, so it is unchanged" in printed
 
@@ -606,7 +607,8 @@ class TestItReportsWhatATransitionDid:
         ), "a dropped hold did not exit like a dropped click"
         printed = capsys.readouterr().out
         assert "the press FAILED" in printed
-        assert "UnauthorizedError" in printed and "ConnectionFailure" in printed, "the hold lost the coaching lines"
+        assert "UnauthorizedError" in printed, "the hold lost the coaching lines"
+        assert "ConnectionFailure" in printed, "the hold lost the coaching lines"
         assert "KEY_POWER is still held" in printed
         assert "CHECK THE SET" in printed
         assert "nothing was sent, so it is unchanged" not in printed, "a hold that may have half-sent claimed nothing went out"
@@ -619,7 +621,8 @@ class TestItReportsWhatATransitionDid:
 
         monkeypatch.setattr(remote, "send_commands", drop)
         assert probe_module.main([*FAST, "--hold", "3", "--i-am-at-the-set"]) == 1
-        assert art.closed and remote.closed
+        assert art.closed
+        assert remote.closed
 
     @pytest.mark.parametrize("duration", ["0", "-1"])
     def test_a_non_positive_hold_is_refused(self, probe_module, deployment, capsys, duration):
@@ -769,7 +772,7 @@ class TestItReportsWhatATransitionDid:
         power transition* question with a confident no, on a run that never opened a
         channel to find out.
         """
-        art, _ = wire(monkeypatch, probe_module, power_states=["standby", "on"], art_modes=[])
+        _art, _ = wire(monkeypatch, probe_module, power_states=["standby", "on"], art_modes=[])
         assert probe_module.main([*FAST, "--no-art-channel", "--click", "--i-am-at-the-set"]) == 0
         printed = capsys.readouterr().out
         assert "never opened" in printed
@@ -794,7 +797,8 @@ class TestItAlwaysClosesWhatItOpened:
             art_modes=["off", "on", "on", "on"],
         )
         assert probe_module.main([*FAST, "--click", "--i-am-at-the-set"]) == 0
-        assert art.closed and remote.closed
+        assert art.closed
+        assert remote.closed
 
     def test_both_channels_close_when_a_press_is_refused_by_the_set(self, probe_module, deployment, monkeypatch):
         """A reported failure is still a failure: the channels do not outlive it."""
@@ -885,7 +889,9 @@ class TestTheStateMappingItself:
     def test_the_line_shows_the_raw_pair_beside_the_verdict(self, probe_module):
         """UNKNOWN is where the interesting failures live, so the report never hides the inputs."""
         line = self.reading(probe_module, "on", "off").line(0.0)
-        assert "on" in line and "off" in line and "TELEVISION" in line
+        assert "on" in line
+        assert "off" in line
+        assert "TELEVISION" in line
 
 
 class TestTheIntermediateReport:

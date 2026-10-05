@@ -463,7 +463,8 @@ class TestTheRemoteIsACuratorToo:
         assert surface.last_text[:1] == ["Cat Litter"]
 
         binding = state.binding_for("work-b")
-        assert binding is not None and binding.tv_content_id, "work-b never reached the set to be chosen"
+        assert binding is not None, "work-b never reached the set to be chosen"
+        assert binding.tv_content_id, "work-b never reached the set to be chosen"
         tv.announce(binding.tv_content_id, is_shown=True)
         await labelled.tick()
 
@@ -622,7 +623,8 @@ class TestTheJournalSaysWhatThePanelCaptioned:
         )
         await labelled.tick()
         binding = state.binding_for("work-b")
-        assert binding is not None and binding.tv_content_id, "work-b never reached the set to be chosen"
+        assert binding is not None, "work-b never reached the set to be chosen"
+        assert binding.tv_content_id, "work-b never reached the set to be chosen"
 
         tv.announce(binding.tv_content_id, is_shown=True)
         await labelled.tick()
@@ -673,7 +675,8 @@ class TestTheJournalSaysWhatThePanelCaptioned:
         publish(["work-a", "work-b"], shuffle=False, labels={"work-a": {}, "work-b": {}})
         await labelled.tick()
         binding = state.binding_for("work-b")
-        assert binding is not None and binding.tv_content_id
+        assert binding is not None
+        assert binding.tv_content_id
 
         surface.refuses = True
         tv.announce(binding.tv_content_id, is_shown=True)

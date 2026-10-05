@@ -110,8 +110,8 @@ def label_surface(settings: FrameSettings) -> LabelSurface | None:
     )
 
     try:
-        from postarr.panel.epaper import EpaperSurface, open_panel  # noqa: PLC0415 -- see the docstring
-        from postarr.panel.pango import PangoRasterizer  # noqa: PLC0415 -- see the docstring
+        from postarr.panel.epaper import EpaperSurface, open_panel
+        from postarr.panel.pango import PangoRasterizer
     except ImportError as exc:
         # The text stack being absent lands in the same place as the panel being
         # absent, and it is a provisioning mistake somebody can fix while the wall
@@ -244,7 +244,10 @@ async def run_screen_wall(wall: WallSettings, output: str, stop: asyncio.Event, 
     await _beside_its_pull(wall, stop, screen.run)
 
 
-def screen_output(wall: WallSettings, output: str) -> ScreenOutput:
+def screen_output(
+    wall: WallSettings,  # noqa: ARG001 -- every output builder takes the wall; a screen needs only its connector
+    output: str,
+) -> ScreenOutput:
     """What a wall on an HDMI connector draws on: the connector, through kernel mode setting."""
     return KmsOutput(output)
 

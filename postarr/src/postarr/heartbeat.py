@@ -144,7 +144,7 @@ def write(root: Path, health: Health, *, wall_id: str, reported_at: datetime) ->
     The obvious one is the reader: curation polls this file on its own schedule,
     so a plain truncating write leaves a window in which it sees half a document
     — which it correctly reports as an unreadable heartbeat, i.e. as this plane
-    being broken. `os.replace` is atomic within a filesystem, and the temp file is
+    being broken. `Path.replace` (an `os.replace`) is atomic within a filesystem, and the temp file is
     made in the same directory to guarantee that.
 
     The other is power. This runs on a Pi with an SD card and no UPS, and a
@@ -174,7 +174,7 @@ def write(root: Path, health: Health, *, wall_id: str, reported_at: datetime) ->
             handle.write(payload + "\n")
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temporary, destination)
+        temporary.replace(destination)
     except BaseException:  # prawduct:allow prawduct/broad-except -- cleanup-and-reraise; nothing is swallowed
         # **`BaseException`, matching the manifest builder**: a `KeyboardInterrupt`
         # or a cancelled task between the write and the rename would otherwise

@@ -133,7 +133,8 @@ class TestTheGreyLevelsAreTakenRatherThanAskedFor:
         with pytest.raises(SurfaceUnavailable) as raised:
             a_surface(epd=StaysInOneBit())
 
-        assert "bw" in str(raised.value) and GREYSCALE_MODE in str(raised.value)
+        assert "bw" in str(raised.value)
+        assert GREYSCALE_MODE in str(raised.value)
 
     def test_a_driver_that_raises_on_the_mode_is_a_surface_that_is_unavailable(self):
         class Unsettable:
@@ -227,7 +228,8 @@ class TestTheSurfaceSaysWhatItKnowsAndNeverStopsTheWall:
             a_surface(epd=FakeEpd(width=800, height=600))
 
         assert any(record.__dict__.get("event") == "panel.size_disagrees" for record in caplog.records)
-        assert "800x600" in caplog.text and "8x4" in caplog.text
+        assert "800x600" in caplog.text
+        assert "8x4" in caplog.text
 
     def test_a_panel_that_agrees_about_its_size_says_nothing(self, caplog):
         with caplog.at_level(logging.WARNING):

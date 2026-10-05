@@ -237,11 +237,50 @@ target-version = "py312"
 # `T20` matters more here than anywhere else in the repo — this plane runs
 # unattended on a Pi under systemd, where a `print()` has no level and no
 # timestamp and a failure is invisible in the journal.
-select = ["E", "F", "I", "UP", "B", "T20", "TRY", "ANN"]
-ignore = ["TRY003"]
+#
+# **Every rule ruff has, less a short list each named with its reason** (the
+# owner, 2026-10-05: "go big on ruff"). `ALL` brings the rules a ruff upgrade adds
+# without anyone choosing them, which is the point: a rule is opted out of, with a
+# reason here, never forgotten into. A site that is a deliberate exception carries
+# a per-line `noqa` with its reason, as `T201` already did.
+select = ["ALL"]
+ignore = [
+    # black owns layout, and these two fight it.
+    "COM812",
+    "ISC001",
+    # Docstrings here are prose written for a reader, not a convention's sections.
+    "D",
+    # No copyright header: a public repository with one owner.
+    "CPY",
+    # An exception's message is a sentence composed where it is raised, for the
+    # person who reads it; moving it into a variable first buys nothing here.
+    "EM101",
+    "EM102",
+    "TRY003",
+    # Prose (messages, docstrings, comments) uses typographic quotes and dashes on purpose.
+    "RUF001",
+    "RUF002",
+    "RUF003",
+    # Settings flow in as keyword-only arguments, so a long signature is not a confusing one.
+    "PLR0913",
+    "PLR0917",
+    # Lazy imports are deliberate: the panel driver exists only on a Pi.
+    "PLC0415",
+    # Moving typing-only imports under `TYPE_CHECKING` is churn with no runtime gain at this size.
+    "TC001",
+    "TC002",
+    "TC003",
+    # `tools/` and `tests/` are directories of scripts and test modules, not packages.
+    "INP001",
+    # Exception class names are public and already read as errors; renaming them is API churn.
+    "N818",
+]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["ANN"]
+# Tests assert with `assert`, name their expected numbers inline, take fixtures they
+# do not read, reach into what they test, pass flags positionally to helpers, and
+# hold fake tokens and seeded randomness by design.
+"tests/*" = ["ANN", "S101", "PLR2004", "ARG", "SLF001", "FBT", "S105", "S106", "S311"]
 # **`T201` is banned in `src/` for a reason that does not apply here.** The daemon
 # runs unattended under systemd, where a `print()` has no level and no timestamp
 # and a failure is invisible in the journal. `tools/` is the opposite case: these
