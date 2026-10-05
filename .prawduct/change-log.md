@@ -84,7 +84,7 @@ whose reason could not be recovered without the container's log (#207). Plan:
 - The run page shows "Why it stopped: …" under a failed or halted run's sentence,
   as text. A failed run from before the column keeps the log pointer.
 
-**Review:** cumulative, 0 blocking. Its two warnings were one defect: the new
+**Review:** cumulative, 0 blocking, two warnings. The new
 blank-reason refusal, raised inside the worker's handlers, would have stranded a
 run whose engine error had an empty message; `_end` now replaces a blank reason.
 A halt's reason was described as carrying a 402's arithmetic; a halt is a 403,
