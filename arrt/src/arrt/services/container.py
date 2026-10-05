@@ -18,6 +18,7 @@ they are settled in one place instead of per constructor.
 
 import logging
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Protocol
 
@@ -49,7 +50,7 @@ from arrt.library.acquisition.preparation import PreparationService, Preparation
 from arrt.library.acquisition.queue import AcquisitionQueue
 from arrt.library.acquisition.service import AcquisitionService, AcquisitionSettings
 from arrt.library.acquisition.transport import no_transport
-from arrt.library.acquisition.urls import Resolver
+from arrt.library.acquisition.urls import Resolver, check_fetchable
 from arrt.library.discovery.conversation import NO_CONVERSATION_KEY, ConversationEngine, UnavailableConversation
 from arrt.library.discovery.engine import DiscoveryEngine
 from arrt.library.discovery.phase_two import PhaseTwoEngine
@@ -343,6 +344,10 @@ class Services:
             # nothing.
             collection=sources.collection,
             sightings=sighting_service,
+            # The pages a run's search cited reach a plugin only past the fetch
+            # policy, resolving names the way acquisition does: a suite's stated
+            # answers, or the system's.
+            **({} if resolve is None else {"check_page": partial(check_fetchable, resolve=resolve)}),
         )
         return cls(
             catalogue=catalogue_service,

@@ -47,6 +47,7 @@ from time import monotonic
 from typing import Final
 
 from arrt.counting import agree, counted, noun
+from arrt.library.acquisition.urls import UrlRefused, check_fetchable
 from arrt.library.discovery.browse import (
     OFFERED_CONFIDENCE,
     BrowseQuery,
@@ -458,8 +459,15 @@ class DiscoveryRunner:
         collection: CollectionBrowse | None = None,
         sightings: SightingService | None = None,
         spawn: Callable[[Callable[[], None]], None] = _daemon_thread,
+        check_page: Callable[[str], str] = check_fetchable,
     ) -> None:
         self._discovery = discovery
+        #: Decides whether a page a run's search cited may reach a finder: the
+        #: acquisition fetch policy, raising `UrlRefused` for a LAN address or a
+        #: `.local` name. A plugin's own requests are unguarded, so this is the
+        #: one check those addresses get. An argument so tests can state what a
+        #: name resolves to.
+        self._check_page = check_page
         #: Where the pages a search found and nothing here reads are recorded.
         #: Optional: without it they are found and dropped, as before sightings.
         self._sightings = sightings
@@ -848,6 +856,7 @@ class DiscoveryRunner:
                 approval_threshold=self._settings.approval_threshold,
                 estimated_cost_usd=estimate,
                 strategy=produced.strategy,
+                citations=produced.citations,
             )
         except ServiceError as exc:
             self._could_not_settle(run_id, exc)
@@ -1026,6 +1035,9 @@ class DiscoveryRunner:
         """Ask the provider about each work this run is responsible for."""
         works = self._works_to_resolve(run_id)
         tally: Counter[WorkOutcome] = Counter()
+        #: Each proposing run's pages, checked once for this pass: a re-search can
+        #: cover works from several runs, and a run's works share its pages.
+        pages: dict[str, tuple[str, ...]] = {}
         for work in works:
             # Re-read each time round rather than once before the loop: a curator
             # cancelling partway through must stop the run there, and a decision
@@ -1037,7 +1049,9 @@ class DiscoveryRunner:
                     extra={"event": "run.discarded", "works_remaining": len(works) - sum(tally.values())},
                 )
                 return
-            tally[self._resolve_work(work, images, previews)] += 1
+            if work.discovery_run_id not in pages:
+                pages[work.discovery_run_id] = self._fetchable_citations(work.discovery_run_id)
+            tally[self._resolve_work(work, images, previews, pages=pages[work.discovery_run_id])] += 1
         self._supplement(run_id, previews)
         self._close_phase_two(run_id, tally=tally, works=len(works))
 
@@ -1190,7 +1204,27 @@ class DiscoveryRunner:
         self._discovery.record_resolution(work.id)
         return True
 
-    def _resolve_work(self, work: CandidateWork, images: PhaseTwoEngine, previews: PreviewCache) -> WorkOutcome:
+    def _fetchable_citations(self, run_id: str) -> tuple[str, ...]:
+        """The pages a run's search read that may reach a finder, in the search's order.
+
+        A refused page is dropped and logged with the fetch policy's reason, and the
+        rest go on: one unreachable citation says nothing about the others.
+        """
+        kept: list[str] = []
+        for url in self._discovery.run_citations(run_id):
+            try:
+                kept.append(self._check_page(url))
+            except UrlRefused as exc:
+                log.info(
+                    "not handing a cited page to the finders: %s",
+                    exc,
+                    extra={"event": "phase_two.page_refused", "run_id": run_id},
+                )
+        return tuple(kept)
+
+    def _resolve_work(
+        self, work: CandidateWork, images: PhaseTwoEngine, previews: PreviewCache, *, pages: tuple[str, ...] = ()
+    ) -> WorkOutcome:
         """Find and record one work's instances.
 
         Four outcomes, and they are genuinely different — which is why this
@@ -1233,6 +1267,7 @@ class DiscoveryRunner:
                     title=work.proposed_title,
                     artist=work.proposed_artist,
                     qid=None if work.wikidata_qid is None else ItemId(work.wikidata_qid),
+                    pages=pages,
                 )
             )
         except ImageSearchFailure as exc:

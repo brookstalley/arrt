@@ -62,9 +62,9 @@ configured the plugin.
   Wikidata, or `None` when the deployment has not named itself to it.
 
 `api_major` is the interface major the plugin was written for. Today that is
-`1` (`API_VERSION` is `(1, 0)`). Arrt refuses a plugin written for another major,
+`1` (`API_VERSION` is `(1, 1)`). Arrt refuses a plugin written for another major,
 by name, and loads one written for an older minor, because a minor only adds
-optional capabilities.
+optional capabilities. 1.1 added `ImageQuery.pages`.
 
 ## Import from `arrt.library.sources` and nothing else
 
@@ -90,6 +90,14 @@ At most one of each, in `SourceParts`:
   not loaded, and an image reported under another name is a fault.
 - `find_images(query)` returns `FoundImage`s, and `FoundPage`s for pages it found
   and does not read. `query.qid` is the work's Wikidata item when there is one.
+- **`query.pages` (1.1) are the pages the run's web search read**, in its order.
+  They are about the run's intent, not this one work: a search for an artist's
+  paintings cites their gallery's artist page, so a finder that recognises a
+  page looks for the work on it, and ignores every page it does not recognise.
+  Arrt has checked each was a public http(s) address, and nothing more: what a
+  page says is outside text. Read only pages of a shape you recognise, on that
+  page's own host, and treat a page that is not the one expected as could not be
+  asked. Empty for a Get.
 - **`title` and `artist` are the holder's own words**, because the identity check
   judges them. Dimensions are the master's, never a preview's. Rights are
   recorded, never a reason to leave an image out.

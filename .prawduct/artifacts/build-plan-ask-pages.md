@@ -86,7 +86,7 @@ galleries serve the originals with the holder's words beside them. What is not:
 
 ## Status
 
-- [ ] Chunk 01: A run's citations, stored, and handed to the finders
+- [x] Chunk 01: A run's citations, stored, and handed to the finders
 - [ ] Chunk 02: The Artlogic plugin (private repository)
 - [ ] Chunk 03: Deploy, and Ask for the gallery rows
 

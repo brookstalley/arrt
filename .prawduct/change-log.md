@@ -62,6 +62,31 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-05: An Ask's search hands the pages it read to the source plugins
+
+<!-- prawduct: scope=ask-pages -->
+
+**Why:** the owner chose Artlogic, the gallery platform, as the next source, found
+through Ask's web search rather than a list of galleries. Gallery works have no
+Wikidata item, so no plugin could be told where to look. Measured: a search for an
+artist's paintings cites the gallery's artist page (`procurement-corpus.md` § The
+probe: Artlogic, and what Ask's search cites). Plan: `build-plan-ask-pages.md`.
+
+**What:**
+- Phase 1 keeps its search's citations (`WorkList.citations`): in the search's
+  order, each once, http(s) only. Never an address from the model's answer.
+- New table `run_citations`, written when phase 1 closes (`data-model.md`
+  § RunCitation, Q46–Q47).
+- Phase 2 hands every work the run proposed its run's citations as
+  `ImageQuery.pages`, on approval, on a re-search and after a restart. Each passes
+  `check_fetchable` first, once per run per pass; a refused one is dropped and
+  logged (`phase_two.page_refused`). A Get has none. The container hands the
+  check the same resolver acquisition uses, so a suite's stated DNS answers
+  reach it too.
+- The plugin interface is 1.1. A plugin written for 1.0 loads unchanged.
+- `security-model.md`: bound 2 re-derived for plugin reads of cited pages
+  (§ Plugins read pages a search cited), with the owner's approval.
+
 ## 2026-10-04: Library screens — Artworks' theme filter and Select mode, a work's mark, Artists by surname
 
 <!-- prawduct: scope=library-screens | release=v0.2.0 -->

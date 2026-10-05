@@ -104,6 +104,11 @@ class WorkList:
     works: Sequence[ProposedWork]
     spend: Sequence[EngineSpend] = ()
     strategy: str | None = None
+    #: The pages the search read, in its order, each once, http(s) only. What the
+    #: search engine itself fetched, never an address the model wrote: phase 2
+    #: hands them to the finders (`ImageQuery.pages`), and an address nobody served
+    #: has no business reaching one.
+    citations: Sequence[str] = ()
 
     @property
     def searches_used(self) -> int:

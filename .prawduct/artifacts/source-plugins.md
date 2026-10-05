@@ -112,6 +112,28 @@ The `FoundImage` rules hold unchanged for every plugin:
 - Dimensions are the **master's**, never a preview's.
 - Rights are recorded, never a reason to leave an image out.
 
+### Pages a search read
+
+Added 2026-10-05 for gallery works, which have no Wikidata item and so no
+holder page a QID gives (`build-plan-ask-pages.md`). Ask's phase 1 searches the
+web, and the search cites the pages it read; measured, a search for an artist's
+paintings cites the gallery's artist page, not a page per work
+(`procurement-corpus.md` § The probe: Artlogic, and what Ask's search cites).
+
+- **The pages are the run's citations, never an address from the model's
+  answer.** A structured answer can name an address nobody served, or one an
+  injected page asked it to name; a citation is a page the search engine read.
+- **Stored with the run** (`data-model.md` § RunCitation), so approval, a
+  re-search and a restart all hand the same pages.
+- **Every work the run proposed is asked with all of them**, because they are
+  about the intent, not one work. A finder reads only pages of a shape it
+  recognises and finds the work on them.
+- **Arrt checks each page's address before a finder sees it** (`check_fetchable`:
+  http(s), a public address, no `.local` name) and drops one it refuses. A
+  plugin's own requests are unguarded, so this is the one check these addresses
+  get (`security-model.md` § Source plugins).
+- **A Get has none.** It searches nothing on the web.
+
 ### Three answers, plus a fault
 
 A plugin's call ends in one of three answers, as the pool keeps them today
@@ -293,6 +315,8 @@ still keeps for itself, and how a plugin's error text is scrubbed are
   declares the major it was written for; Arrt refuses to load one whose major
   differs, by name, and loads one written for an older minor. A minor release adds
   optional capabilities only. *Mine.*
+- **1.1 (2026-10-05) added `ImageQuery.pages`**, the pages the run's phase-1
+  web search read (§ Pages a search read).
 - **`arrt.library.sources` is the only import path a plugin may use.** It lives
   under `arrt.library` rather than at the top level because the Library/Programming
   import guard (`tests/preferences/test_seam_imports.py`) walks only `arrt.library`,

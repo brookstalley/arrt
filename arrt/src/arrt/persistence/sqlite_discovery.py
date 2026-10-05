@@ -287,6 +287,18 @@ CREATE TABLE IF NOT EXISTS sightings (
     url           TEXT NOT NULL,
     PRIMARY KEY (wikidata_qid, url)
 );
+
+-- The pages a run's phase-1 web search read, in the search's order. Phase 2 hands
+-- them to the finders, on approval, on a re-search and after a restart alike, so
+-- they are stored rather than held in memory. A new table, so `CREATE TABLE IF
+-- NOT EXISTS` reaches a file written before it; a run from before it simply has
+-- none. Written once, when phase 1 closes, and never changed.
+CREATE TABLE IF NOT EXISTS run_citations (
+    discovery_run_id  TEXT NOT NULL REFERENCES discovery_runs(id),
+    url               TEXT NOT NULL,
+    position          INTEGER NOT NULL,
+    PRIMARY KEY (discovery_run_id, url)
+);
 """
 
 #: The join's own key. A work appears at most once per resolve run.
@@ -294,6 +306,9 @@ _COVERAGE_KEY: Final[tuple[str, ...]] = ("resolve_run_id", "candidate_work_id")
 
 #: The table's own key: one row per page per item.
 _SIGHTING_KEY: Final[tuple[str, ...]] = ("wikidata_qid", "url")
+
+#: One row per page per run: a search that cited a page twice read it once.
+_CITATION_KEY: Final[tuple[str, ...]] = ("discovery_run_id", "url")
 
 #: Newest first: a run list is a history, and the run someone is asking about is
 #: almost always the last one.
@@ -563,6 +578,19 @@ class SqliteDiscovery(TableAdapter):
             (str(Verdict.WANTED), str(ResolutionStatus.UNRESOLVED), str(Verdict.PENDING)),
         )
         return [Sighting(wikidata_qid=row["wikidata_qid"], url=row["url"]) for row in rows]
+
+    # -- citations --------------------------------------------------------------
+
+    def add_run_citations(self, run_id: str, urls: Sequence[str]) -> None:
+        for position, url in enumerate(urls):
+            row = {"discovery_run_id": run_id, "url": url, "position": position}
+            self._store.upsert("run_citations", row, pk=_CITATION_KEY, on_conflict="ignore")
+
+    def list_run_citations(self, run_id: str) -> Sequence[str]:
+        rows = self._store.select_rows(
+            'SELECT "url" FROM run_citations WHERE "discovery_run_id" = ? ORDER BY "position"', (run_id,)
+        )
+        return [row["url"] for row in rows]
 
 
 # -- record to row ------------------------------------------------------------
