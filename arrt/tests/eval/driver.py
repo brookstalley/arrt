@@ -29,7 +29,7 @@ from mcp.shared.exceptions import McpError
 # collection order is not something to rest on.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "contract"))
 
-from scenarios import REFERENCE_ROUTE, Call, Transcript, connect  # noqa: E402
+from scenarios import REFERENCE_ROUTE, Call, Transcript, connect
 
 #: What the scripted flow takes to put a work on the wall, derived from the one
 #: place that route is written rather than counted here. If the flow ever needs

@@ -31,7 +31,7 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
-from arrt.persistence.discovery_records import RunStatus, Verdict, WorkProvenance  # noqa: E402
+from arrt.persistence.discovery_records import RunStatus, Verdict, WorkProvenance
 
 GET_ID = "a-get"
 RUN_ID = "a-search"
@@ -261,8 +261,12 @@ def test_scans_are_a_table_one_row_a_scan(ui):
     ]
     rows = [" ".join(row.split()) for row in ui.page.locator("tr.alternate").all_inner_texts()]
     assert len(rows) == 2
-    assert "3,840 × 2,604 px" in rows[0] and "artic" in rows[0] and "on offer" in rows[0], rows[0]
-    assert "1,600 × 1,085 px" in rows[1] and "commons" in rows[1] and "Use this one" in rows[1], rows[1]
+    assert "3,840 × 2,604 px" in rows[0], rows[0]
+    assert "artic" in rows[0], rows[0]
+    assert "on offer" in rows[0], rows[0]
+    assert "1,600 × 1,085 px" in rows[1], rows[1]
+    assert "commons" in rows[1], rows[1]
+    assert "Use this one" in rows[1], rows[1]
     # What does not compare down a column is still there, under its scan.
     assert RATIONALE in ui.text()
 
@@ -310,7 +314,8 @@ def test_the_card_states_the_scan_s_pixels_above_the_fold(ui):
     assert ui.page.locator("li.card .card-resolution").inner_text() == "3,840 × 2,604 px"
     resolution = ui.page.locator("li.card .card-resolution").bounding_box()
     assert resolution["y"] + resolution["height"] <= 900, "the pixels are below the fold"
-    assert "″" not in ui.text() and "would show at" not in ui.text()
+    assert "″" not in ui.text()
+    assert "would show at" not in ui.text()
     assert ui.page.locator("li.card .badge-native").inner_text().split() == ["●", "native"]
 
 
@@ -344,7 +349,8 @@ def test_no_screen_that_draws_a_fit_badge_says_inches(ui, services, work_with_an
 
     badge = ui.page.locator(f"#view :is({FIT_BADGE})").first.inner_text()
     assert badge.split()[-1] in {"native", "small", "floor"}, badge
-    assert "″" not in ui.text() and "would show at" not in ui.text()
+    assert "″" not in ui.text()
+    assert "would show at" not in ui.text()
 
 
 # -- clicking a picture enlarges it in place ------------------------------------------

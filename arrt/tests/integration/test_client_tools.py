@@ -14,8 +14,8 @@ here carries the fields `GET /api/clients` does.
 
 import json
 
-import httpx
 import pytest
+from async_http import request
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
@@ -32,16 +32,16 @@ _REPORT = {
 
 async def call(server_url: str, action: str, **arguments) -> tuple[dict, bool]:
     """Call `art_display` over real HTTP; return its payload and the protocol's error flag."""
-    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            result = await session.call_tool("art_display", {"action": action, **arguments})
+    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _), ClientSession(read, write) as session:
+        await session.initialize()
+        result = await session.call_tool("art_display", {"action": action, **arguments})
     return json.loads(result.content[0].text), bool(result.isError)
 
 
 async def ok(server_url: str, action: str, **arguments) -> dict:
     payload, errored = await call(server_url, action, **arguments)
-    assert errored is False and payload["success"] is True, f"art_display(action={action!r}) refused: {payload}"
+    assert errored is False, f"art_display(action={action!r}) refused: {payload}"
+    assert payload["success"] is True, f"art_display(action={action!r}) refused: {payload}"
     return payload
 
 
@@ -84,7 +84,8 @@ async def test_a_client_added_here_is_listed_with_no_token_no_walls_and_no_repor
 async def test_a_client_name_already_taken_is_refused(server_url, hall):
     refused, errored = await call(server_url, "add_client", name="Hall Pi")
 
-    assert errored is True and refused["success"] is False
+    assert errored is True
+    assert refused["success"] is False
     assert len((await ok(server_url, "clients"))["clients"]) == 1
 
 
@@ -93,7 +94,7 @@ async def test_the_listing_carries_what_the_client_reported_in_the_browsers_fiel
     _report(settings, hall)
 
     [client] = (await ok(server_url, "clients"))["clients"]
-    [browser] = httpx.get(f"{server_url}/api/clients").json()["clients"]
+    [browser] = (await request("GET", f"{server_url}/api/clients")).json()["clients"]
 
     assert client.keys() == browser.keys()
     assert client["heartbeat"].keys() == browser["heartbeat"].keys()
@@ -124,7 +125,9 @@ async def test_renaming_a_client_keeps_its_token_and_its_walls(server_url, hall,
     assert renamed["client"]["token_issued_at"] == issued["token_issued_at"]
     [client] = (await ok(server_url, "clients"))["clients"]
     assert [entry["wall_id"] for entry in client["walls"]] == [wall]
-    assert httpx.get(f"{server_url}/client", headers={"Authorization": f"Bearer {issued['token']}"}).status_code == 200
+    assert (
+        await request("GET", f"{server_url}/client", headers={"Authorization": f"Bearer {issued['token']}"})
+    ).status_code == 200
 
 
 # -- the token -----------------------------------------------------------------------------
@@ -135,8 +138,9 @@ async def test_a_token_issued_here_opens_the_players_route_and_is_never_listed(s
 
     assert issued["client_id"] == hall
     assert "only time" in issued["notice"]
-    assert "CLIENT_TOKEN" in issued["notice"] and "SERVER_URL" in issued["notice"]
-    answered = httpx.get(f"{server_url}/client", headers={"Authorization": f"Bearer {issued['token']}"})
+    assert "CLIENT_TOKEN" in issued["notice"]
+    assert "SERVER_URL" in issued["notice"]
+    answered = await request("GET", f"{server_url}/client", headers={"Authorization": f"Bearer {issued['token']}"})
     assert answered.status_code == 200
     assert answered.json()["client_id"] == hall
     listed = json.dumps(await ok(server_url, "clients"))
@@ -150,8 +154,12 @@ async def test_rotating_refuses_the_old_token_and_admits_the_new(server_url, hal
     second = await ok(server_url, "issue_client_token", client_id=hall)
 
     assert second["token"] != first["token"]
-    assert httpx.get(f"{server_url}/client", headers={"Authorization": f"Bearer {first['token']}"}).status_code == 401
-    assert httpx.get(f"{server_url}/client", headers={"Authorization": f"Bearer {second['token']}"}).status_code == 200
+    assert (
+        await request("GET", f"{server_url}/client", headers={"Authorization": f"Bearer {first['token']}"})
+    ).status_code == 401
+    assert (
+        await request("GET", f"{server_url}/client", headers={"Authorization": f"Bearer {second['token']}"})
+    ).status_code == 200
 
 
 # -- assignment ------------------------------------------------------------------------------
@@ -166,7 +174,7 @@ async def test_assigning_to_a_reported_output_carries_no_notice_and_reaches_the_
     assert assigned["notice"] is None
     assert (assigned["wall"]["wall_id"], assigned["wall"]["client_id"], assigned["wall"]["output"]) == (wall, hall, "hdmi-a-2")
     assert assigned["client"]["name"] == "Hall Pi"
-    document = httpx.get(f"{server_url}/client", headers={"Authorization": f"Bearer {issued['token']}"}).json()
+    document = (await request("GET", f"{server_url}/client", headers={"Authorization": f"Bearer {issued['token']}"})).json()
     assert [(entry["wall_id"], entry["output"]) for entry in document["walls"]] == [(wall, "hdmi-a-2")]
     listed = await ok(server_url, "walls")
     assert next(entry for entry in listed["walls"] if entry["wall_id"] == wall)["client_id"] == hall
@@ -229,7 +237,9 @@ async def test_removing_a_client_names_the_walls_it_leaves_without_one(server_ur
     assert "'Study'" in removed["notice"]
     assert "'Landing'" not in removed["notice"]
     assert (await ok(server_url, "clients"))["clients"] == []
-    assert httpx.get(f"{server_url}/client", headers={"Authorization": f"Bearer {issued['token']}"}).status_code == 401
+    assert (
+        await request("GET", f"{server_url}/client", headers={"Authorization": f"Bearer {issued['token']}"})
+    ).status_code == 401
 
 
 async def test_removing_a_client_that_showed_nothing_says_no_wall_is_affected(server_url, hall):

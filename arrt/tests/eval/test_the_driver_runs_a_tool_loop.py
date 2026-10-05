@@ -28,8 +28,8 @@ pytest.importorskip(
     reason="langchain-core is missing from the `dev` group — restore it; these guards must run by default",
 )
 
-from driver import drive  # noqa: E402
-from langchain_core.messages import AIMessage  # noqa: E402
+from driver import drive
+from langchain_core.messages import AIMessage
 
 
 class ScriptedModel:

@@ -474,7 +474,6 @@ class _CountingSweep:
         self.passes += 1
         if self.passes == self._fail_on:
             raise RuntimeError("the catalogue went away")
-        return None
 
 
 def test_the_loop_sweeps_before_it_waits():

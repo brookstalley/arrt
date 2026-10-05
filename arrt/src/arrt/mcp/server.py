@@ -14,7 +14,7 @@ from collections.abc import Mapping
 from importlib.metadata import PackageNotFoundError, version
 from typing import Any, Final
 
-import mcp.types as types
+from mcp import types
 from mcp.server.lowlevel import Server
 
 from arrt.mcp import registry
@@ -83,7 +83,9 @@ def tool_definitions() -> list[types.Tool]:
     ]
 
 
-def dispatch(services: Services, tool_name: str, arguments: Mapping[str, Any]) -> dict[str, Any]:
+def dispatch(  # noqa: PLR0911 -- one return per refusal the tool boundary distinguishes
+    services: Services, tool_name: str, arguments: Mapping[str, Any]
+) -> dict[str, Any]:
     """Resolve one tool call to a result payload.
 
     Returns a payload rather than a wire result so that the envelope's

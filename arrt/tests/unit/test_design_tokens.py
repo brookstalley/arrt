@@ -316,4 +316,4 @@ def test_the_stylesheet_the_test_read_is_the_one_the_server_serves():
     assertion pointed at the served file after someone moves it.
     """
     assert (STATIC_DIR / "app.css").is_file()
-    assert STATIC_DIR == Path(__file__).parents[2] / "src" / "arrt" / "http" / "static"
+    assert Path(__file__).parents[2] / "src" / "arrt" / "http" / "static" == STATIC_DIR

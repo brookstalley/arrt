@@ -345,7 +345,7 @@ def services(
     sources: SourceRoster,
 ) -> Services:
     """Every service, wired the way the entry point wires them."""
-    bound = Services.bind(
+    return Services.bind(
         catalogue=store,
         discovery=discovery_store,
         display_settings=wall_settings,
@@ -389,7 +389,6 @@ def services(
         open_stream=open_stream,
         sources=sources,
     )
-    return bound
 
 
 @pytest.fixture

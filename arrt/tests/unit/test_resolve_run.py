@@ -613,7 +613,7 @@ def test_a_deployment_with_no_image_provider_refuses_a_re_search_rather_than_min
     with pytest.raises(ServiceError, match="no image provider"):
         blind.resolve_images(candidate_work_ids=[work.id], initiated_by=InitiatedBy.WEB_UI)
 
-    assert [run for run in services.discovery.list_runs(kind=RunKind.RESOLVE)] == []
+    assert list(services.discovery.list_runs(kind=RunKind.RESOLVE)) == []
 
 
 # -- the cap the listing applies -------------------------------------------------

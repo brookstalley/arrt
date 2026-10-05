@@ -146,7 +146,8 @@ def test_cost_is_never_a_binary_float():
 
     assert isinstance(completion.cost_usd, Decimal)
     assert str(completion.cost_usd) == "0.00523535"
-    assert completion.cost_usd != Decimal(0.00523535), "a float round-trip would have been accepted here"
+    float_round_trip = Decimal(0.00523535)  # noqa: RUF032 -- the float round-trip is what is refused
+    assert completion.cost_usd != float_round_trip, "a float round-trip would have been accepted here"
 
 
 def test_a_call_that_did_not_search_attributes_everything_to_tokens():
@@ -547,7 +548,7 @@ def test_key_status_reads_the_ceiling_as_exact_money():
 
     status = client_over(handler).key_status()
 
-    assert status.limit_usd == Decimal("20")
+    assert status.limit_usd == Decimal(20)
     assert status.remaining_usd == Decimal("19.999972832")
     assert status.resets == "monthly"
     assert isinstance(status.usage_usd, Decimal)

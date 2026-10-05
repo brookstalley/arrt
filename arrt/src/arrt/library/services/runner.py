@@ -214,7 +214,7 @@ class DiscoverySettings:
         """
         return self._model_call_usd + self.phase1_search_allowance * self.search_cost_usd
 
-    def phase2_estimate_usd(self, work_count: int) -> Decimal:
+    def phase2_estimate_usd(self, work_count: int) -> Decimal:  # noqa: ARG002 -- free at any count; callers say how many
         """What resolving a known work list costs. Nothing, on museum APIs.
 
         **Zero is measured, not assumed** (2026-08-02). Phase 2 asks museum APIs,

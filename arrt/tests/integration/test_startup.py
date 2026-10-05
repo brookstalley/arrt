@@ -178,7 +178,7 @@ def test_the_plane_moves_the_catalogue_onto_walls_before_it_serves(tmp_path, mon
 
     served: list[str] = []
 
-    def capture(app, **kwargs) -> None:  # noqa: ANN001, ANN003 - uvicorn's own signature
+    def capture(app, **kwargs) -> None:
         # Read through a second connection to the same file, so this observes what
         # a request arriving at this moment would observe.
         opened = open_catalogue_file(path)
@@ -446,7 +446,7 @@ def test_uvicorn_is_given_no_logging_config_of_its_own(tmp_path, monkeypatch):
     _stub_settings(monkeypatch, art_root)
     passed: dict = {}
 
-    def capture(app, **kwargs) -> None:  # noqa: ANN001, ANN003 - uvicorn's own signature
+    def capture(app, **kwargs) -> None:
         passed.update(kwargs)
 
     monkeypatch.setattr(entry_point.uvicorn, "run", capture)
@@ -470,7 +470,7 @@ def test_the_configured_sweep_interval_reaches_the_application(tmp_path, monkeyp
     _stub_settings(monkeypatch, art_root, preview_sweep_interval_seconds=900)
     built: dict = {}
 
-    def capture(services, **kwargs):  # noqa: ANN001, ANN003 - the real signature
+    def capture(services, **kwargs):
         built.update(kwargs)
         return object()
 
@@ -493,7 +493,7 @@ def test_the_entry_point_asks_for_the_topic_sweep(tmp_path, monkeypatch):
     _stub_settings(monkeypatch, art_root)
     built: dict = {}
 
-    def capture(services, **kwargs):  # noqa: ANN001, ANN003 - the real signature
+    def capture(services, **kwargs):
         built.update(kwargs)
         return object()
 
@@ -516,7 +516,7 @@ def test_the_entry_point_asks_for_the_acquisition_queue(tmp_path, monkeypatch):
     _stub_settings(monkeypatch, art_root)
     built: dict = {}
 
-    def capture(services, **kwargs):  # noqa: ANN001, ANN003 - the real signature
+    def capture(services, **kwargs):
         built.update(kwargs)
         return object()
 
@@ -668,7 +668,7 @@ def test_the_registry_pages_answer_from_what_the_last_process_kept(tmp_path, mon
     answered: list = []
 
     def run(registry) -> None:
-        def capture(services, **kwargs):  # noqa: ANN001, ANN003 - the real signature
+        def capture(services, **kwargs):
             answered.append(services.artists.similar("Q43270"))
             return object()
 
@@ -690,7 +690,7 @@ def test_the_entry_point_backs_up_the_catalogue_when_a_backup_directory_is_set(t
     _stub_settings(monkeypatch, art_root, backup_dir=tmp_path / "backups", backup_interval_seconds=3600, backup_keep=7)
     built: dict = {}
 
-    def capture(services, **kwargs):  # noqa: ANN001, ANN003 - the real signature
+    def capture(services, **kwargs):
         built.update(kwargs)
         return object()
 
@@ -712,7 +712,7 @@ def test_the_entry_point_takes_no_backup_when_no_directory_is_set(tmp_path, monk
     _stub_settings(monkeypatch, art_root)
     built: dict = {}
 
-    def capture(services, **kwargs):  # noqa: ANN001, ANN003 - the real signature
+    def capture(services, **kwargs):
         built.update(kwargs)
         return object()
 
@@ -755,7 +755,7 @@ def test_startup_builds_the_services_over_the_plugins_it_loaded(tmp_path, monkey
     contexts, seen = [], {}
     real = entry_point.load_sources
 
-    def capture(services, **kwargs):  # noqa: ANN001, ANN003 - the real signature
+    def capture(services, **kwargs):
         # Read here, while the catalogue is open: `main` closes it on the way out.
         seen["loaded"] = [
             health.reading.name for health in services.health.observe().sources if health.reading.state.value == "loaded"

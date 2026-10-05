@@ -61,7 +61,7 @@ MCP_SESSION_IDLE_TIMEOUT_SECONDS: Final[float] = 1800.0
 STATIC_PATH: Final[str] = "/static"
 
 
-def create_app(
+def create_app(  # noqa: C901 -- the composition root: each optional background job is wired in one place
     services: Services,
     *,
     preview_sweep_interval_seconds: int = 0,

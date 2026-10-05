@@ -192,7 +192,8 @@ class TestAClaimedUrlIsReadBeforeItIsFetched:
         assert ok.outcome is AcquisitionOutcome.ACQUIRED
         assert fetched == [url]
         read = [r for r in caplog.records if getattr(r, "event", None) == "acquisition.source_read"]
-        assert read and all(r.fetch_url == "https://cdn.example.net/x.jpg?…" for r in read)
+        assert read
+        assert all(r.fetch_url == "https://cdn.example.net/x.jpg?…" for r in read)
         assert refused.outcome is not AcquisitionOutcome.ACQUIRED
         assert "sk-live-123" not in (refused.detail or "")
         assert not _records_mentioning("sk-live-123", caplog)

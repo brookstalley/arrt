@@ -474,19 +474,19 @@ def _read_body(response: httpx.Response) -> Mapping[str, Any]:
     apart here rather than anywhere above: 403 means the key is spent, 402 means
     this particular request reserved more than the balance covers.
     """
-    if response.status_code == 403:
+    if response.status_code == httpx.codes.FORBIDDEN:
         raise KeyExhausted(
             f"OpenRouter refused the call: the key's credit limit is spent. {_provider_message(response)} "
             "The ceiling is a per-key credit limit with a monthly reset, so this clears when the month turns "
             "or when the limit is raised in the OpenRouter console."
         )
-    if response.status_code == 402:
+    if response.status_code == httpx.codes.PAYMENT_REQUIRED:
         raise RequestUnaffordable(
             f"OpenRouter declined the request as unaffordable, with credit still in the account: "
             f"{_provider_message(response)} The provider reserves the maximum output the request could produce; "
             "lower DISCOVERY_MAX_OUTPUT_TOKENS or raise the key's limit."
         )
-    if response.status_code >= 400:
+    if response.status_code >= httpx.codes.BAD_REQUEST:
         raise OpenRouterError(f"OpenRouter returned HTTP {response.status_code}: {_provider_message(response)}")
     try:
         # Parsed with `parse_float=Decimal` so a cost never exists as a binary

@@ -49,7 +49,8 @@ def test_romanticism_has_years_and_is_a_movement_only(registry):
     romanticism = registry.topic("Q37068")
 
     assert romanticism.kinds == (TopicKind.MOVEMENT,)
-    assert romanticism.start is not None and romanticism.end is not None
+    assert romanticism.start is not None
+    assert romanticism.end is not None
 
 
 def test_a_kind_of_works_works_are_its_instances_one_entry_each(registry):
@@ -62,13 +63,15 @@ def test_a_kind_of_works_works_are_its_instances_one_entry_each(registry):
     assert len(works) == 50
     assert [creator.name for creator in works["Q748518"].creators] == ["Albrecht Dürer"]
     flammarion = works["Q1426992"]
-    assert flammarion.creator_unknown and flammarion.creators == ()
+    assert flammarion.creator_unknown
+    assert flammarion.creators == ()
 
 
 def test_a_movements_artists_are_its_own_with_image_counts(registry):
     people = {person.qid: person for person in registry.topic_artists(registry.topic("Q40415"), limit=12)}
 
-    assert people["Q296"].name == "Claude Monet" and people["Q296"].images > 0
+    assert people["Q296"].name == "Claude Monet"
+    assert people["Q296"].images > 0
 
 
 def test_a_topics_artists_are_ranked_by_the_fame_of_their_works_in_it(registry):

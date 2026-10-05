@@ -61,10 +61,9 @@ async def call(server_url: str, tool: str, **arguments):
     one returns `content[0].text` and the payload, which is exactly the view in
     which a result with no image looks identical to one with forty.
     """
-    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            return await session.call_tool(tool, arguments)
+    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _), ClientSession(read, write) as session:
+        await session.initialize()
+        return await session.call_tool(tool, arguments)
 
 
 def payload_of(result) -> dict:
@@ -626,20 +625,19 @@ async def test_a_cardful_of_rejections_never_crowds_out_a_scan_still_on_offer(
     """
     run = services.discovery.start_discovery_run(intent_text="Everything", initiated_by="mcp_client")
     work = propose("A much re-searched work", run_id=run.id, dedup_key="rejected-lead")
-    rejected = []
-    for index in range(MAX_INSTANCES_LISTED):
-        rejected.append(
-            add_image(
-                work,
-                url=f"https://museum.example/turned-down-{index}",
-                # The best scans, which is why they were the ones offered and
-                # turned down. They outrank everything found afterwards.
-                confidence=0.99 - index / 1000,
-                preview_path=preview_file(f"turned-down-{index}.jpg"),
-                estimated_width=4000,
-                estimated_height=3000,
-            )
+    rejected = [
+        add_image(
+            work,
+            url=f"https://museum.example/turned-down-{index}",
+            # The best scans, which is why they were the ones offered and
+            # turned down. They outrank everything found afterwards.
+            confidence=0.99 - index / 1000,
+            preview_path=preview_file(f"turned-down-{index}.jpg"),
+            estimated_width=4000,
+            estimated_height=3000,
         )
+        for index in range(MAX_INSTANCES_LISTED)
+    ]
     for image in rejected:
         services.discovery.reject_image(image.id)
     survivors = [
@@ -871,7 +869,8 @@ async def test_a_work_whose_every_scan_was_turned_down_is_not_reassured_about_it
 
     assert payload["truncated"] is True
     assert all(image["rejected_for_this_work"] for image in payload["images"])
-    assert "None of the" in payload["notice"] and "still open to you" in payload["notice"]
+    assert "None of the" in payload["notice"]
+    assert "still open to you" in payload["notice"]
     assert "resolve_images" in payload["notice"], "the curator is pointed at what actually finds more"
     # **The reassurance this test is named for.** Both notices fire on a card this
     # size, and the truncation half knows how to say "all N scans still open to you

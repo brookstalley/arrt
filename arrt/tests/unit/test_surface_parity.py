@@ -346,7 +346,7 @@ def _view(work: CandidateWork):
     parity claim is about key *names*, so an empty view exercises every key
     without needing a store, a run, or an image on disk.
     """
-    from arrt.library.services.review import CandidateView  # noqa: PLC0415
+    from arrt.library.services.review import CandidateView
 
     return CandidateView(work=work, instances_held=0, instances_surviving=0, shown=None)
 
@@ -395,7 +395,7 @@ def test_a_held_work_is_reported_as_held_on_every_surface():
     A non-default value, so a formatter that dropped the field, or wrote a
     constant, fails here rather than passing on the null every other view carries.
     """
-    from arrt.library.services.review import CandidateView  # noqa: PLC0415
+    from arrt.library.services.review import CandidateView
 
     view = CandidateView(work=_work(), instances_held=0, instances_surviving=0, shown=None, held_artwork_id="aw_7")
 

@@ -373,7 +373,7 @@ class TestTheDominantColour:
         image.paste(Image.new("RGB", (20, 20), (200, 0, 0)), (0, 0))
         image.save(path)
 
-        red, green, blue = dominant_color(path)
+        red, _green, blue = dominant_color(path)
 
         assert blue > 150
         assert red < 60
@@ -452,7 +452,8 @@ class TestTheFloor:
         choice = MatEngine(client, image_max_edge=768).choose(artwork)
 
         assert choice.method is MatMethod.DOMINANT_COLOR_FALLBACK
-        assert "#1c1c1c" in choice.fallback_detail and "#141414" in choice.fallback_detail
+        assert "#1c1c1c" in choice.fallback_detail
+        assert "#141414" in choice.fallback_detail
         assert choice.cost_usd == Decimal("0.0003")
         assert rgb_to_lab(parse_hex(choice.hex_rgb)).l >= MAT_LIGHTNESS_FLOOR
         assert len(requests) == 2
@@ -538,7 +539,8 @@ class TestTheFloor:
         choice = MatEngine(client, image_max_edge=768).choose(artwork)
 
         assert choice.method is MatMethod.DOMINANT_COLOR_FALLBACK
-        assert "#1c1c1c" in choice.fallback_detail and "MAT_MAX_OUTPUT_TOKENS" in choice.fallback_detail
+        assert "#1c1c1c" in choice.fallback_detail
+        assert "MAT_MAX_OUTPUT_TOKENS" in choice.fallback_detail
         assert choice.cost_usd == Decimal("0.0003")
 
     def test_a_refused_second_call_falls_back_with_the_first_cost(self, artwork):

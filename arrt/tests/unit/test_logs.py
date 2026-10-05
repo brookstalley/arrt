@@ -217,7 +217,8 @@ def test_a_direct_fetch_that_raises_with_a_keyed_url_journals_no_key(emitted, tm
 
     assert result.path is None
     warned = [line for line in emitted if "direct fetch of" in line["message"]]
-    assert warned and SECRET not in json.dumps(warned)
+    assert warned
+    assert SECRET not in json.dumps(warned)
 
 
 ACCENTED = f"https://api.example.net/v1/search?q=Dürer&key={SECRET}"

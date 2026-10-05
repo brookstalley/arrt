@@ -94,39 +94,41 @@ class Kept[K: Hashable, V]:
     def get(self, key: K) -> V | None:
         """The kept answer for `key`, or None when there is none, it is too old, or it cannot be read."""
         stored = _key_text(key)
-        found = self._answers._read(self.name, stored)
+        found = self._answers._read(self.name, stored)  # noqa: SLF001 -- KeptAnswers' module-private API
         if found is None:
             return None
         text, written = found
-        age = self._answers._clock() - written
+        age = self._answers._clock() - written  # noqa: SLF001 -- KeptAnswers' module-private API
         # A negative age is a clock that went back, and an answer from the future
         # would otherwise stay fresh for however far it went.
         if age < 0 or age >= self._max_age:
-            self._answers._forget(self.name, stored)
+            self._answers._forget(self.name, stored)  # noqa: SLF001 -- KeptAnswers' module-private API
             return None
         try:
             value = self._codec.decode(text)
-        except Exception as exc:  # prawduct:allow prawduct/broad-except -- caller's codec: unreadable is a miss
+        except Exception as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- caller's codec: unreadable is a miss
             log.info(
                 "a kept answer could not be read back and will be asked again",
                 extra={"event": "kept.unreadable", "namespace": self.name, "error": type(exc).__name__},
             )
-            self._answers._forget(self.name, stored)
+            self._answers._forget(self.name, stored)  # noqa: SLF001 -- KeptAnswers' module-private API
             return None
-        self._answers._touch(self.name, stored)
+        self._answers._touch(self.name, stored)  # noqa: SLF001 -- KeptAnswers' module-private API
         return value
 
     def put(self, key: K, value: V) -> None:
         """Keep `value` as the answer for `key`. Never raises: an answer not kept is asked again."""
         try:
             text = self._codec.encode(value)
-        except Exception as exc:  # prawduct:allow prawduct/broad-except -- caller's codec: unwritable is not kept
+        except Exception as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- caller's codec: unwritable is not kept
             log.warning(
                 "an answer could not be written and is not kept",
                 extra={"event": "kept.unwritable", "namespace": self.name, "error": repr(exc)},
             )
             return
-        self._answers._write(self.name, _key_text(key), text, max_age=self._max_age, size=self._size)
+        self._answers._write(  # noqa: SLF001 -- KeptAnswers' module-private API
+            self.name, _key_text(key), text, max_age=self._max_age, size=self._size
+        )
 
 
 class KeptAnswers:
@@ -346,7 +348,7 @@ def _is_union(origin: Any) -> bool:  # noqa: ANN401 - a type form
     return origin is typing.Union or origin is types.UnionType
 
 
-def _check_shape(shape: Any, seen: set[type]) -> None:  # noqa: ANN401 - a type form
+def _check_shape(shape: Any, seen: set[type]) -> None:  # noqa: ANN401, C901, PLR0911 -- a type form; a branch per kind of form
     shape = _unaliased(shape)
     if shape is type(None) or shape in _SCALARS:
         return
@@ -385,7 +387,7 @@ def _scalar_of(shape: Any) -> Any:  # noqa: ANN401 - a type form
     return shape
 
 
-def _to_json(shape: Any, value: Any) -> Any:  # noqa: ANN401 - JSON and type forms
+def _to_json(shape: Any, value: Any) -> Any:  # noqa: ANN401, C901, PLR0911, PLR0912 -- JSON and type forms; a branch per form
     shape = _unaliased(shape)
     origin, args = _parts(shape)
     if _is_union(origin):
@@ -431,7 +433,7 @@ def _to_json(shape: Any, value: Any) -> Any:  # noqa: ANN401 - JSON and type for
 _NOT_ITS_VALUE: Final[tuple[type[Exception], ...]] = (TypeError, ValueError)
 
 
-def _from_json(shape: Any, data: Any) -> Any:  # noqa: ANN401 - JSON and type forms
+def _from_json(shape: Any, data: Any) -> Any:  # noqa: ANN401, C901, PLR0911, PLR0912 -- JSON and type forms; a branch per form
     shape = _unaliased(shape)
     origin, args = _parts(shape)
     if _is_union(origin):
@@ -470,7 +472,7 @@ def _from_json(shape: Any, data: Any) -> Any:  # noqa: ANN401 - JSON and type fo
 
 def _items(args: tuple[Any, ...], length: int) -> Sequence[Any]:
     """The type of each item of a sequence of `length`: one for all, or one each for a fixed tuple."""
-    if len(args) == 2 and args[1] is Ellipsis:
+    if len(args) == 2 and args[1] is Ellipsis:  # noqa: PLR2004 -- tuple[X, ...] has exactly two args
         return [args[0]] * length
     if len(args) == 1:
         return [args[0]] * length

@@ -90,18 +90,7 @@ _OBJECT_ID: Final[re.Pattern[str]] = re.compile(r"/artworks/(\d+)(?:/|$|\?|#)")
 #: The fields asked for. Explicit rather than taking the default projection: the
 #: default omits `image_id` and the dimensions, which are the two things an
 #: instance cannot be recorded without.
-_FIELDS: Final[str] = ",".join(
-    (
-        "id",
-        "title",
-        "artist_title",
-        "date_display",
-        "image_id",
-        "is_public_domain",
-        "thumbnail",
-        "api_link",
-    )
-)
+_FIELDS: Final[str] = "id,title,artist_title,date_display,image_id,is_public_domain,thumbnail,api_link"
 
 #: Where the IIIF service lives if a response does not say. Every measured
 #: response carried `config.iiif_url`, so this is a fallback for a field going

@@ -178,7 +178,7 @@ def test_an_explicit_host_and_port_override_the_defaults(monkeypatch, tmp_path):
 
     settings = Settings.from_env()
 
-    assert (settings.host, settings.port) == ("0.0.0.0", 9001)
+    assert (settings.host, settings.port) == ("0.0.0.0", 9001)  # noqa: S104 -- the configured value is what is asserted
 
 
 # -- the wall's own settings ---------------------------------------------------

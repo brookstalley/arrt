@@ -198,7 +198,7 @@ class UnavailableConversation:
     def unavailable_reason(self) -> str | None:
         return self.reason
 
-    def answer(self, thread: Sequence[ThreadTurn]) -> ConversationReply:
+    def answer(self, thread: Sequence[ThreadTurn]) -> ConversationReply:  # noqa: ARG002 -- the conversation interface's signature
         raise ConversationFailure(self.reason)
 
 

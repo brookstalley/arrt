@@ -212,7 +212,8 @@ class TestPuttingThemOnTheWall:
     def test_a_living_artists_label_does_not_read_as_a_missing_death_date(self, built):
         """Rendered from the years alone this would say "1930–", which looks like a fault."""
         johns = [entry for entry in built.entries if entry.label["artist"] == "Jasper Johns"]
-        assert johns and all(entry.label["artist_dates"] == "born 1930" for entry in johns)
+        assert johns
+        assert all(entry.label["artist_dates"] == "born 1930" for entry in johns)
 
     def test_the_index_own_parse_is_corrected_on_the_way_in(self, built):
         """The index stored Brancusi's death as 1952; its own details text says 1957."""

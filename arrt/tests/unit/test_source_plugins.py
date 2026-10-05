@@ -47,7 +47,8 @@ def test_a_plugin_named_by_an_entry_point_loads_with_its_finder_and_collection()
     roster = load_sources(context(), entry_points=[entry("good", "GOOD")])
 
     assert [finder.provider for finder in roster.finders] == ["good"]
-    assert roster.collection is not None and roster.collection.provider == "good"
+    assert roster.collection is not None
+    assert roster.collection.provider == "good"
     assert states(roster) == {"good": (PluginState.LOADED, None)}
 
 
@@ -158,7 +159,8 @@ def test_the_collection_is_the_most_preferred_plugins_that_offers_one():
     roster = load_sources(context(), entry_points=points, order=("other", "good"))
 
     # `other` is preferred but offers no collection, so the run supplements from `good`.
-    assert roster.collection is not None and roster.collection.provider == "good"
+    assert roster.collection is not None
+    assert roster.collection.provider == "good"
 
 
 @pytest.mark.parametrize(
@@ -294,7 +296,7 @@ def test_an_image_recorded_under_another_plugins_name_is_a_contained_fault():
     plugin = SourcePlugin(api_major=1, create=lambda _c: SourceParts(finder=Answers("impostor", other)))
     roster = load_sources(context(), entry_points=[_Fixed(entry("impostor", "GOOD"), plugin)], order=())
 
-    answer = ImageSourcePool(roster.finders + (StubFinder("good"),)).find_images(ImageQuery(title="Nighthawks"))
+    answer = ImageSourcePool((*roster.finders, StubFinder("good"))).find_images(ImageQuery(title="Nighthawks"))
 
     assert answer.unreachable == ("impostor",)
     assert "recorded under 'artic'" in roster.observe()[0].last_fault
@@ -372,7 +374,8 @@ def test_the_built_in_plugins_load_through_the_real_entry_points():
     )
 
     assert [finder.provider for finder in roster.finders][:2] == ["commons", "artic"]
-    assert roster.collection is not None and roster.collection.provider == "artic"
+    assert roster.collection is not None
+    assert roster.collection.provider == "artic"
 
 
 @pytest.mark.parametrize(
@@ -514,7 +517,8 @@ class TestAPluginsWordsLoseTheirQueryStringsOnEveryWayOut:
             roster.route("https://example.org/w/1").reader.read("https://example.org/w/1")
 
         assert SECRET not in str(raised.value)
-        assert raised.value.__cause__ is None and raised.value.__suppress_context__
+        assert raised.value.__cause__ is None
+        assert raised.value.__suppress_context__
 
     @pytest.mark.plugin_fault_expected
     def test_through_a_contained_fault_its_log_line_and_the_panel(self, caplog):

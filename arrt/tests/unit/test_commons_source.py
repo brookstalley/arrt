@@ -288,5 +288,5 @@ def test_phase_two_picks_the_better_image_whichever_source_found_it(museum_size,
 
     resolution = engine.resolve(ImageQuery(title="The Starry Night", artist="Vincent van Gogh", qid=ItemId("Q45585")))
 
-    assert [entry.found.provider for entry in resolution.instances][0] == winner
+    assert next(entry.found.provider for entry in resolution.instances) == winner
     assert {entry.found.provider for entry in resolution.instances} == {"commons", "artic"}

@@ -104,10 +104,13 @@ def test_an_announcement_waits_for_the_outermost_commit(service, store, heard):
 
 
 def test_a_change_that_rolls_back_is_never_announced(service, store, heard):
-    with pytest.raises(RuntimeError):
+    def add_then_fail() -> None:
         with store.transaction():
             service.add_artwork(title="Nighthawks")
             raise RuntimeError("the rest of the operation failed")
+
+    with pytest.raises(RuntimeError, match="the rest of the operation failed"):
+        add_then_fail()
 
     assert heard == []
     assert service.list_artworks().entries == []
@@ -180,10 +183,14 @@ class TestAfterCommit:
 
     def test_a_rollback_discards_it_and_the_next_commit_does_not_run_it(self, store):
         ran: list[str] = []
-        with pytest.raises(RuntimeError):
+
+        def queue_then_abandon() -> None:
             with store.transaction():
                 store.after_commit(lambda: ran.append("stale"))
                 raise RuntimeError("abandoned")
+
+        with pytest.raises(RuntimeError, match="abandoned"):
+            queue_then_abandon()
 
         with store.transaction():
             store.after_commit(lambda: ran.append("fresh"))

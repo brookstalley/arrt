@@ -39,11 +39,11 @@ from PIL import Image, ImageDraw
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from arrt.config import DEFAULT_MAT_IMAGE_MAX_EDGE, DEFAULT_MAT_MAX_OUTPUT_TOKENS, DEFAULT_MAT_MODEL  # noqa: E402
-from arrt.library.acquisition.color import hex_distance, parse_hex  # noqa: E402
-from arrt.library.acquisition.mat import MatEngine  # noqa: E402
-from arrt.library.discovery.openrouter import OpenRouterClient  # noqa: E402
-from arrt.seed.legacy import read_index  # noqa: E402
+from arrt.config import DEFAULT_MAT_IMAGE_MAX_EDGE, DEFAULT_MAT_MAX_OUTPUT_TOKENS, DEFAULT_MAT_MODEL
+from arrt.library.acquisition.color import hex_distance, parse_hex
+from arrt.library.acquisition.mat import MatEngine
+from arrt.library.discovery.openrouter import OpenRouterClient
+from arrt.seed.legacy import read_index
 
 #: ARTIC's own standard derivative width, so the IIIF server normally serves one
 #: it has already generated rather than rendering one on demand.
@@ -87,7 +87,7 @@ def _tile(image: Image.Image, mat_hex: str, caption: str) -> Image.Image:
     return tile
 
 
-def main() -> int:
+def main() -> int:  # noqa: PLR0915 -- a script's main: argument parsing and one linear report
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("index", type=Path, help="the 2024 index, normally all.json at the repository root")
     parser.add_argument("--out", type=Path, required=True, help="where the sheet and the report are written")

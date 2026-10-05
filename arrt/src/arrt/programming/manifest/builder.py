@@ -262,7 +262,7 @@ def write_atomically(path: Path, document: dict[str, Any]) -> None:
             # truncated document that parses as invalid JSON rather than as absent.
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(temporary, path)
+        Path(temporary).replace(path)
     except BaseException:  # prawduct:allow prawduct/broad-except -- cleanup-and-reraise; the temp file must go on any exit
         # Wider than `Exception` deliberately, and it swallows nothing: a
         # `KeyboardInterrupt` or an early close leaves this body just as surely

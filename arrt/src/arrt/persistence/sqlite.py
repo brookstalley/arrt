@@ -576,7 +576,9 @@ def _matching(query: WorkQuery) -> _Restriction:
         if not chosen:
             continue
         placeholders = ", ".join("?" for _ in chosen)
-        clauses.append(f'a."id" IN (SELECT artwork_id FROM work_facets WHERE kind = ? AND value IN ({placeholders}))')
+        clauses.append(
+            f'a."id" IN (SELECT artwork_id FROM work_facets WHERE kind = ? AND value IN ({placeholders}))'  # noqa: S608 -- constants and ? placeholders only
+        )
         values.append(str(kind))
         values.extend(chosen)
 
@@ -699,7 +701,7 @@ class SqliteCatalogue(TableAdapter):
     def facet_vocabulary(self, *, status: ArtworkStatus | None) -> Mapping[VocabularyKind, Sequence[str]]:
         selects = _matching(WorkQuery(status=status))
         rows = self._store.select_rows(
-            f"SELECT f.kind AS kind, f.value AS value FROM work_facets f "
+            f"SELECT f.kind AS kind, f.value AS value FROM work_facets f "  # noqa: S608 -- constants and ? placeholders only
             f"WHERE 1{selects.over_works(column='f.artwork_id')} "
             f"GROUP BY f.kind, f.value ORDER BY f.kind, f.value COLLATE NOCASE",
             selects.values,
@@ -724,7 +726,7 @@ class SqliteCatalogue(TableAdapter):
             # `COUNT(*)` and not `COUNT(DISTINCT ...)`: `work_facets_once_per_work`
             # makes a second row for the same work and value impossible, so the
             # two are the same number and the cheaper one says so.
-            f"SELECT f.kind AS kind, f.value AS value, COUNT(*) AS tally FROM work_facets f "
+            f"SELECT f.kind AS kind, f.value AS value, COUNT(*) AS tally FROM work_facets f "  # noqa: S608 -- constants and ? placeholders only
             f"WHERE f.kind IN ({placeholders}){selects.over_works(column='f.artwork_id')} "
             f"GROUP BY f.kind, f.value",
             (*(str(kind) for kind in kinds), *selects.values),
@@ -744,7 +746,7 @@ class SqliteCatalogue(TableAdapter):
             # uniqueness is per value, and two values on one work may name one
             # item. `MIN` picks one label deterministically where two rows wrote
             # the item's name differently.
-            f"SELECT f.kind AS kind, f.value_qid AS qid, MIN(f.value) AS label, COUNT(DISTINCT f.artwork_id) AS tally "
+            f"SELECT f.kind AS kind, f.value_qid AS qid, MIN(f.value) AS label, COUNT(DISTINCT f.artwork_id) AS tally "  # noqa: S608 -- constants and ? placeholders only
             f"FROM work_facets f WHERE f.value_qid IS NOT NULL{narrowed}{selects.over_works(column='f.artwork_id')} "
             f"GROUP BY f.kind, f.value_qid ORDER BY f.kind, label COLLATE NOCASE, f.value_qid",
             (*bound, *selects.values),
@@ -764,7 +766,7 @@ class SqliteCatalogue(TableAdapter):
         selects = _matching(WorkQuery(status=status))
         placeholders = ", ".join("?" for _ in kinds)
         rows = self._store.select_rows(
-            f"SELECT a.id AS id {selects.source} WHERE {selects.where} "
+            f"SELECT a.id AS id {selects.source} WHERE {selects.where} "  # noqa: S608 -- constants and ? placeholders only
             f"AND a.id IN (SELECT artwork_id FROM work_facets WHERE value_qid = ? AND kind IN ({placeholders})) "
             f"ORDER BY {_WORKS_ORDERS[WorkOrder.TITLE]}",
             (*selects.values, qid, *(str(kind) for kind in kinds)),

@@ -72,8 +72,10 @@ def render(report: SeedReport, *, art_root: Path) -> list[str]:
     """
     lines = [
         f"Read {report.records_read} record(s) from the index against {art_root}.",
-        f"  {len(report.created)} work(s) created, {len(report.already_present)} already present,"
-        f" {report.records_collapsed} record(s) collapsed into a work already described.",
+        (
+            f"  {len(report.created)} work(s) created, {len(report.already_present)} already present,"
+            f" {report.records_collapsed} record(s) collapsed into a work already described."
+        ),
     ]
     if not report.noted:
         lines.append("  Every work seeded cleanly.")

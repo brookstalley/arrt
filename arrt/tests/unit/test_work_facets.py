@@ -771,7 +771,8 @@ class TestThePageAndItsCountsAreReadAtOneInstant:
         assert listing.total == 2, "the recording wrapper must not change the answer"
 
         events = recording.events
-        assert "<reading" in events and "reading>" in events, "the listing opened no read scope at all"
+        assert "<reading" in events, "the listing opened no read scope at all"
+        assert "reading>" in events, "the listing opened no read scope at all"
         opened, closed = events.index("<reading"), events.index("reading>")
         inside = set(events[opened:closed])
         # The reads whose mutual agreement the response asserts.

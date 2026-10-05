@@ -237,7 +237,8 @@ def test_a_second_start_finds_nothing_to_do_and_says_so(store, services, ready_w
 
     assert first.changed
     assert not second.changed
-    assert second.republished == () and second.pins_withdrawn == ()
+    assert second.republished == ()
+    assert second.pins_withdrawn == ()
     assert any("nothing to change" in record.getMessage() for record in caplog.records)
 
 
@@ -306,7 +307,7 @@ def test_a_step_that_cannot_reach_the_wall_is_not_recorded(display, ready_work, 
         raise OSError("No space left on device")
 
     monkeypatch.setattr(display_module, "write_atomically", full_disk)
-    with pytest.raises(OSError):
+    with pytest.raises(OSError, match="No space left on device"):
         display.step_display(wall_id)
 
     assert display.read_directive(wall_id).sequence == sequence
@@ -325,7 +326,7 @@ def test_a_hang_whose_manifest_cannot_be_written_is_not_recorded(display, ready_
         raise OSError("No space left on device")
 
     monkeypatch.setattr(display_module, "write_atomically", full_disk)
-    with pytest.raises(OSError):
+    with pytest.raises(OSError, match="No space left on device"):
         display.activate_theme(second.id, wall_id=wall_id)
 
     assert display.hanging_on(wall_id).id == first.id
