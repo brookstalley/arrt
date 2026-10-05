@@ -30,12 +30,12 @@
 
 import { acquisitionLine } from "../core/acquiring.js";
 import { api } from "../core/api.js";
-import { facts, fitBadge, sourceBadge, statusBadge, table } from "../core/badges.js";
+import { facts, fitBadge, pixelSize, sourceBadge, statusBadge, table } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
 import { getOne } from "../core/getting.js";
 import { identityControl } from "../core/identity.js";
 import { el, fill, guard, render } from "../core/render.js";
-import { isQid, named, personLink, stateMark, wikidataLink, workLink, workState } from "../core/registry.js";
+import { isQid, listHeadings, named, personLink, stateMark, wikidataLink, workCell, workState, year, yearCell } from "../core/registry.js";
 import { backLink, go, redirect } from "../core/router.js";
 
 /* The typed vocabulary a work is filed under, in the words a label uses.
@@ -137,22 +137,51 @@ async function viewRegistryWork(qid, generation) {
     el("div", { class: "panel" }, [
       picture,
       el("div", { class: "card-footer" }, [stateMark({ wanted: page.wanted, image: Boolean(page.image) })]),
+      pictureSize(page),
     ]),
     el("div", { class: "panel" }, [
       el("h2", { text: title }),
       facts([
         ["Artist", page.creators.length ? el("span", {}, page.creators.flatMap((person, at) => (at ? [", ", personLink(person)] : [personLink(person)]))) : null],
-        ["Date", page.year],
+        ["Date", page.year === null ? null : year(page.year)],
+        ["Size", workSize(page.height_cm, page.width_cm)],
         ["Medium", page.media.join(", ")],
         ["Held by", page.holders.length ? page.holders.map(holderLine).join("; ") : null],
       ]),
       el("p", { class: "muted" }, [wikidataLink(qid, `Wikidata ${qid}`)]),
       getOne(qid),
-      el("p", { class: "muted", text: "Not in your library. Getting it looks for an image of it, and spends nothing." }),
+      el("p", {
+        class: "muted",
+        text: "Not in your library. Its picture here is the one Wikidata names; getting the work asks every image source, and spends nothing.",
+      }),
     ]),
     maker ? theirWork : null,
   );
   if (maker) await paintTheirWork(theirWork, maker, qid);
+}
+
+/* The work's own size, as a museum label gives it: height before width, in
+ * centimetres and then inches. Either alone is said as what it is. */
+const CENTIMETRES = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
+
+function workSize(height, width) {
+  const inches = (cm) => CENTIMETRES.format(cm / 2.54);
+  if (height !== null && width !== null) {
+    return `${CENTIMETRES.format(height)} × ${CENTIMETRES.format(width)} cm (${inches(height)} × ${inches(width)} in)`;
+  }
+  if (height !== null) return `${CENTIMETRES.format(height)} cm high (${inches(height)} in)`;
+  if (width !== null) return `${CENTIMETRES.format(width)} cm wide (${inches(width)} in)`;
+  return null;
+}
+
+/* The picture's own pixels and how they would meet the wall, under it, as a
+ * review card states a scan's: the same words and the same badge. Nothing when
+ * Commons did not say, rather than a badge reading "no size known" under a
+ * picture that plainly exists. */
+function pictureSize(page) {
+  const size = pixelSize(page.image_width, page.image_height);
+  if (!size || !page.fit) return null;
+  return el("div", { class: "row picture-size" }, [el("span", { class: "muted", text: size }), fitBadge(page)]);
 }
 
 function holderLine(holder) {
@@ -181,10 +210,10 @@ async function paintTheirWork(section, maker, qid) {
     others.length
       ? el("div", { class: "artist-works" }, [
           el("table", {}, [
-            el("thead", {}, [el("tr", {}, ["Work", "Year", "State"].map((h) => el("th", { scope: "col", text: h })))]),
+            el("thead", {}, [listHeadings(["Work", "Year", "State"])]),
             el("tbody", {}, others.map((work) => el("tr", {}, [
-              el("td", {}, [workLink(work)]),
-              el("td", { text: work.year ? String(work.year) : "—" }),
+              workCell(work),
+              yearCell(work),
               el("td", {}, [workState(work)]),
             ]))),
           ]),

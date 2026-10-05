@@ -83,6 +83,35 @@ def test_one_work_pairs_its_number_with_its_holder(registry):
     assert [(h.name, h.inventory) for h in work.holders] == [("Art Institute of Chicago", "1983.509")]
 
 
+def test_a_works_size_is_its_own_and_not_its_frames(registry):
+    """Rhythms is recorded once, 145 x 113 cm. Q11826533 records its canvas, 180 x 130 cm, and its frame,
+    225 x 169 cm, each qualified with *applies to part*; the canvas is the work."""
+    rhythms = registry.work("Q19861769")
+    framed = registry.work("Q11826533")
+
+    assert rhythms is not None
+    assert (rhythms.height_cm, rhythms.width_cm) == (145.0, 113.0)
+    assert framed is not None
+    assert (framed.height_cm, framed.width_cm) == (180.0, 130.0)
+    # Here the frame's height is as well ranked as the work's, so only the part
+    # filter tells 82 cm of frame from 61 cm of painting (measured 2026-10-05).
+    same_rank = registry.work("Q56810539")
+    assert same_rank is not None
+    assert same_rank.height_cm == 61.0
+
+
+def test_a_commons_file_reports_its_pixel_size(registry):
+    """Rhythms' own picture, measured 2026-10-05; and a vector file is no picture at a size."""
+    rhythms = registry.work("Q19861769")
+
+    assert rhythms is not None
+    assert rhythms.image is not None
+    size = registry.image_size(rhythms.image)
+    assert size is not None
+    assert (size.width, size.height) == (2081, 2668)
+    assert registry.image_size("https://commons.wikimedia.org/wiki/Special:FilePath/Wikidata-logo.svg") is None
+
+
 def test_a_title_search_finds_the_painting_and_not_the_tv_series(registry):
     """The index filter on artwork classes, measured 2026-10-01 (`wikidata-findings.md`)."""
     found = registry.works_matching(["the", "persistence"], prefix=True, limit=5)

@@ -145,7 +145,7 @@ Priority is **core** (on a stated core flow) or **supporting**.
 |---|---|---|---|
 | **Walls** | What is hanging right now on each display, the theme it is drawn from, and what is next. | The sidebar; after activating a theme | core (flow 6) |
 | **Artworks** | Everything acquired. Find, sort, filter, group, organise into themes, archive. The product's home. *(Collection until 2026-09-30.)* | Launch; the sidebar; search from anywhere; from a theme; after a run's accepted works land | core (flows 3, 5) |
-| **Work** | One work at full size, with its sources, renditions, mat history and theme membership. At `#work/Q…`, a work Wikidata knows that the library does not hold: its image found or none, its facts, its holder and number there, *Get this work*, and the rest of its artist's work; the library's own page replaces it, in place, when the library holds it. *(QID form built 2026-10-01, ruling 2.)* | A tile in Artworks; a tile on a Wall; a row in Review; a title in an artist's *Their work* or a work's *More by* | core (flows 4, 5) |
+| **Work** | One work at full size, with its sources, renditions, mat history and theme membership. At `#work/Q…`, a work Wikidata knows that the library does not hold: its image found or none, with that picture's pixels and fit as a review card gives a scan's, its facts (its size among them, in cm and inches), its holder and number there, *Get this work* with a line saying the picture is Wikidata's and a Get asks every image source, and the rest of its artist's work; the library's own page replaces it, in place, when the library holds it. *(QID form built 2026-10-01, ruling 2.)* | A tile in Artworks; a tile on a Wall; a row in Review; a title in an artist's *Their work* or a work's *More by* | core (flows 4, 5) |
 | **Search results** | Everything a few words find, in one world (ruling 2): the library's artists and works first, then Wikidata's that the library does not already show, an artist marked ● *In your library* or ○ *Not held*, a work by § A work's mark; *All*, *In your library* and *Not held* narrow it; a top result when the words name one artist. Wikidata's works the library does not hold can be ticked and got (*Get N works*). *(Built 2026-10-01, `build-plan-one-world-search.md` Chunk 04; Get added 2026-10-02, `build-plan-get-and-ask.md` Chunk 04.)* | The dropdown's last row, *All results for "…"*; its own address (`#search?q=`) | core (S2, S3) |
 | **Ask** | Asking for something in words: the direct intent box on top, then the conversations, with a run's progress shown in the thread that started it. *(Discover until 2026-09-30, when it also listed every run; Add New until 2026-10-02, when ruling 3 made acquiring a Get action and this page Ask, at the same address `#discover`.)* | The sidebar, under Artworks; *Ask about "…"* in the search box and on an empty results page; an empty Artworks, Artists, Queue and Taste | core (flows 1, 2) |
 | **To review** | Every run holding works that found an image and wait for a verdict, newest first, each opening Review — a Get opening its own page, where it is reviewed (2026-10-02); the count is on its link and on Activity's. *(Built 2026-10-02, `build-plan-get-and-ask.md` Chunk 06.)* | The sidebar, under Activity, first | core (flow 3) |
@@ -610,6 +610,13 @@ is held plain with a quiet outline, wanted with a dashed accent outline, and not
 held under diagonal hatching. Glyph and word carry the state whatever the
 picture does, so a picture that fails to load, or none, leaves every state
 readable (`accessibility-spec.md`).
+
+**The picture shows at every width** *(the owner's feedback of 2026-10-05: on a
+phone the lists showed none, which made choosing what to Get guesswork)*. In the
+three lists (*Their work*, *Representative works*, *More by*) it is 3rem, large
+enough to tell two works apart; on a phone the badge stacks the picture above
+glyph and word, and the By and Year columns fold under the title so the row
+fits without scrolling sideways.
 
 ## User Flows
 

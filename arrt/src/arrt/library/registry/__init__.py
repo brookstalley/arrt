@@ -43,6 +43,14 @@ MuseumIdentifier = NewType("MuseumIdentifier", str)
 #: client drops anything else the registry offers as an image.
 CommonsFile = NewType("CommonsFile", str)
 
+#: The file types that are a picture at a size, as Commons names them. Commons
+#: also holds SVG, PDF, DjVu, GIF and video, whose stated width says nothing
+#: about how sharp they would hang. The registry sizes only these for a page;
+#: the Commons source keeps its own copy, since a plugin imports nothing outside
+#: `arrt.library.sources`, and `tests/unit/test_wikidata_client.py` holds the
+#: two equal, so a page cannot judge a file that a Get then refuses.
+RASTER_TYPES: frozenset[str] = frozenset({"image/jpeg", "image/png", "image/tiff", "image/webp"})
+
 #: A page about a work: an identifier put into its property's formatter URL, or a
 #: "described at URL" statement. Checked only as an `http(s)` URL with a host,
 #: because anyone can edit either, so it is **never sent to the browser**, as a
@@ -140,6 +148,19 @@ class RegistryWork:
     creators: tuple[RegistryCreator, ...] = ()
     media: tuple[RegistryText, ...] = ()
     holders: tuple[RegistryHolder, ...] = ()
+    #: The work's own height and width in centimetres, each only where the
+    #: registry gives it exactly one: a frame's or a mount's is not the work's,
+    #: and two sources that disagree have no answer to pick.
+    height_cm: float | None = None
+    width_cm: float | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RegistryImageSize:
+    """A registry file's pixel size, as the file host reports it."""
+
+    width: int
+    height: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -279,6 +300,10 @@ class Registry(Protocol):
 
     def work(self, qid: str) -> RegistryWork | None:
         """What the registry knows about this work, or None when it has no such item."""
+        ...
+
+    def image_size(self, image: CommonsFile) -> RegistryImageSize | None:
+        """The file's pixel size, or None when there is no such file or it is not a raster picture."""
         ...
 
     def label_of(self, qid: str) -> RegistryText | None:

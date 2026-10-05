@@ -1056,17 +1056,21 @@ button.link {
   }
 }
 
-/* The Artist page's list of what Wikidata holds. It scrolls sideways rather
-   than run past its panel, and on a phone the state badges wrap and drop their
-   thumbnail: the glyph and the word carry the state, as on every badge. */
+/* The lists of what Wikidata holds (*Their work*, *Representative works*,
+   *More by*). A list too wide for its panel scrolls sideways rather than run
+   past it, and on a phone the state badges wrap. */
 .artist-works {
   overflow-x: auto;
 }
 
 /* Registry titles include single words longer than a phone is wide
-   (Dalí's *Galacidalacidesoxyribonucleicacid*). */
-.artist-works td:first-child {
+   (Dalí's *Galacidalacidesoxyribonucleicacid*). On the title cell by class:
+   two of the three lists lead with the Get column. */
+.artist-works td.work-title {
   overflow-wrap: anywhere;
+  /* Breaking anywhere also lets the table squeeze the column to a letter's
+     width, which it does to the title first; this is the floor. */
+  min-width: 7rem;
 }
 
 /* A health reading's sentence names the file it read, and a path is one word
@@ -1075,13 +1079,47 @@ button.link {
   overflow-wrap: break-word;
 }
 
+/* In a list of works the picture is what a curator chooses by, so it is drawn
+   large enough to tell two works apart, on a phone as on a desktop
+   (`information-architecture.md` § A work's mark). On a phone the badge stacks:
+   the picture, then glyph and word together under it. */
+.artist-works .work-pic {
+  width: 3rem;
+  height: 3rem;
+}
+
+/* A listed work's makers and year under its title, for a phone, where the By
+   and Year columns are folded away to leave the picture room (`workCell` in
+   `core/registry.js`). */
+.by-under,
+.year-under {
+  display: none;
+}
+
 @media (max-width: 40rem) {
   .artist-works .badge {
     white-space: normal;
+    display: inline-grid;
+    grid-template-columns: auto 1fr;
+    align-items: baseline;
   }
 
-  .artist-works .work-pic {
+  .artist-works .badge .work-pic {
+    grid-column: 1 / -1;
+    margin-bottom: var(--space-1);
+  }
+
+  .artist-works .by-col,
+  .artist-works .year-col {
     display: none;
+  }
+
+  .artist-works .by-under,
+  .artist-works .year-under {
+    display: block;
+    margin-top: var(--space-1);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
   }
 }
 
@@ -1905,6 +1943,13 @@ dl.facts dd {
 .panel .card-footer {
   justify-content: center;
   padding-top: 0;
+}
+
+/* A registry picture's own pixels and fit, under its state, centred with it. */
+.panel .picture-size {
+  justify-content: center;
+  align-items: center;
+  margin-top: var(--space-2);
 }
 
 /* -- confirmation ---------------------------------------------------------- */

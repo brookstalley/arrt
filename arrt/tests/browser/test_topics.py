@@ -357,9 +357,35 @@ class TestTheTopicPage:
         for glyph in ui.page.locator(f"{WORKS} .badge .glyph").all():
             assert glyph.get_attribute("aria-hidden") == "true"
 
+    def test_on_a_phone_each_picture_shows_and_the_list_fits(self, ui, held, pictures_load):
+        """The Topic page's list has a *By* column the Artist page's lacks, so it is the likeliest to run wide."""
+        ui.page.set_viewport_size({"width": 390, "height": 900})
+        open_topic(ui)
+        works_answered(ui)
+
+        for style in ("held", "not-held"):
+            box = ui.page.locator(f"{WORKS} .work-pic-{style}").first.bounding_box()
+            assert box is not None, f"the {style} picture is not drawn"
+            assert min(box["width"], box["height"]) >= 48
+        fits = ui.page.evaluate(
+            "(s) => { const c = document.querySelector(`${s} .artist-works`); return c.scrollWidth <= c.clientWidth; }", WORKS
+        )
+        assert fits, "the list scrolls sideways"
+        # Titles can break anywhere, so the table would squeeze them first; they keep a readable width.
+        assert ui.page.locator(f"{WORKS} td.work-title").first.bounding_box()["width"] >= 112
+        # Who made it folds under the title rather than being lost.
+        flammarion = ui.page.locator(f"{WORKS} tbody tr", has_text="Flammarion engraving")
+        assert flammarion.locator(".by-under").inner_text() == "Unknown maker"
+        assert not flammarion.locator("td.by-col").is_visible()
+        harvesters = ui.page.locator(f"{WORKS} tbody tr", has_text="The Harvesters")
+        harvesters.locator(".by-under button:text-is('Pieter Bruegel the Elder')").click()
+        ui.page.wait_for_selector("#view h2:has-text('Pieter Bruegel the Elder')")
+
     def _marks(self, ui):
+        # Keyed by the title's own button: on a phone the cell also holds the year.
         return {
-            row.locator("td").nth(1).inner_text(): row.locator("td").nth(4) for row in ui.page.locator(f"{WORKS} tbody tr").all()
+            row.locator("td.work-title button.row-title").inner_text(): row.locator("td").nth(4)
+            for row in ui.page.locator(f"{WORKS} tbody tr").all()
         }
 
     def test_held_wanted_and_not_held_each_draw_their_picture_in_their_own_style(self, ui, held, want_item, pictures_load):
@@ -407,8 +433,10 @@ class TestTheTopicPage:
         assert hunters.locator(".work-pic-held").count() == 1
         assert hunters.locator(".work-pic-wanted").count() == 0
 
-    def test_with_every_picture_failing_the_states_still_read_apart(self, ui, held, want_item):
+    @pytest.mark.parametrize("width", [1280, 390], ids=["desktop", "phone"])
+    def test_with_every_picture_failing_the_states_still_read_apart(self, ui, held, want_item, width):
         """Glyph and word carry the state; the picture is a second signal (`accessibility-spec.md`)."""
+        ui.page.set_viewport_size({"width": width, "height": 900})
         want_item(NAMELESS, "An untitled work")
         ui.page.route("**/thumbnail*", lambda route: route.abort())
         ui.page.route("https://commons.wikimedia.org/**", lambda route: route.abort())
@@ -434,7 +462,8 @@ class TestTheTopicPage:
         }
         assert makers["Flammarion engraving"] == "Unknown maker"
         assert makers[f"No English title ({NAMELESS})"] == "—"
-        ui.page.click(f"{WORKS} tr:has-text('The Harvesters') button:text-is('Pieter Bruegel the Elder')")
+        # The By column's own link: the row also carries a copy under the title, shown only on a phone.
+        ui.page.click(f"{WORKS} tr:has-text('The Harvesters') td.by-col button:text-is('Pieter Bruegel the Elder')")
         ui.page.wait_for_selector("#view h2:has-text('Pieter Bruegel the Elder')")
 
     def test_a_held_work_offers_no_tick_box(self, ui, held):

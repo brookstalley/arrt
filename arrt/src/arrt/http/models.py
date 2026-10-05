@@ -191,6 +191,17 @@ class RegistryWorkPageOut(BaseModel):
     #: `held_artwork_ids` rather than instead of it: the page decides which mark
     #: wins (held), and both are true when a wanted work has since been acquired.
     wanted: bool
+    #: The work's own height and width in centimetres, each null where Wikidata
+    #: gives none, or more than one that disagree.
+    height_cm: float | None
+    width_cm: float | None
+    #: The picture's size in pixels, as Commons holds the file; null with no
+    #: picture, or when Commons could not be asked.
+    image_width: int | None
+    image_height: int | None
+    #: How that picture would meet this deployment's wall, as the review grid
+    #: judges a scan; null whenever the size is.
+    fit: FitOut | None
 
 
 class RegistryPersonFoundOut(BaseModel):

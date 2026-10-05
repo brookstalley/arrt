@@ -17,6 +17,7 @@ import {
   absentImage,
   facts,
   fitBadge,
+  pixelSize,
   REASON_SENTENCES,
   reasonBadge,
   resolutionBadge,
@@ -115,20 +116,11 @@ function instanceImage(instance, { alt, label, name }) {
   return frame;
 }
 
-/* A scan's own size, in pixels, as the curator judges it.
- *
- * **Pixels, and no inches** (the owner's ruling, 2026-10-02). The size on the
- * wall depends on which panel the work hangs on, and the one figure this server
- * could give — the long edge on the single panel it is configured for, after
- * the mat — read as a fact about the scan to somebody who did not know that.
- * A per-wall fit comes back with per-wall geometry (re-architecture wave 4).
- * `null` when the scan's dimensions were never recorded, which the fit badge's
- * "size unrecorded" already says. */
-const PIXELS = new Intl.NumberFormat("en-US");
-
-function pixelSize(instance) {
-  if (instance.width === null || instance.height === null) return null;
-  return `${PIXELS.format(instance.width)} × ${PIXELS.format(instance.height)} px`;
+/* A scan's own size, in pixels (`pixelSize` in `badges.js`). `null` when the
+ * scan's dimensions were never recorded, which the fit badge's "size
+ * unrecorded" already says. */
+function scanSize(instance) {
+  return pixelSize(instance.width, instance.height);
 }
 
 function instanceStateBadges(instance) {
@@ -169,7 +161,7 @@ function pictured(work) {
  * where the scan came from and its size, which is how the row tells it apart
  * from its neighbours. */
 function scanName(instance, work) {
-  const which = [`the scan from ${instance.provider}`, pixelSize(instance)].filter(Boolean).join(", ");
+  const which = [`the scan from ${instance.provider}`, scanSize(instance)].filter(Boolean).join(", ");
   return `${pictured(work)} — ${which}`;
 }
 
@@ -201,7 +193,7 @@ function instanceRows(instance, work, after) {
       ]),
       el("td", { class: "scan-fact" }, [
         el("div", { class: "stack-tight" }, [
-          pixelSize(instance) ? el("span", { class: "scan-pixels", text: pixelSize(instance) }) : null,
+          scanSize(instance) ? el("span", { class: "scan-pixels", text: scanSize(instance) }) : null,
           fitBadge(instance, "size unrecorded"),
         ]),
       ]),
@@ -501,7 +493,7 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
       el("p", { class: "card-artist", text: work.artist || "Artist unrecorded" }),
       // The shown scan's own size, above the fold: the one fact a picture at
       // card size cannot convey, and the first thing asked of a scan.
-      card.shown && pixelSize(card.shown) ? el("p", { class: "card-resolution", text: pixelSize(card.shown) }) : null,
+      card.shown && scanSize(card.shown) ? el("p", { class: "card-resolution", text: scanSize(card.shown) }) : null,
       el("div", { class: "card-footer" }, [
         verdictBadge(work),
         provenanceBadge(work),

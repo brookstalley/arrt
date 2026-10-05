@@ -150,7 +150,7 @@ from arrt.library.services.artists import HeldArtist, RegistryView
 from arrt.library.services.catalogue import FacetGroup, RenditionView
 from arrt.library.services.conversation import ConversationDeletion, ConversationView, TurnView
 from arrt.library.services.discovery import VerdictOutcome, WantedWork
-from arrt.library.services.display_fit import ArtworkBox
+from arrt.library.services.display_fit import ArtworkBox, FitAssessment
 from arrt.library.services.review import CandidatePage, CandidateView, InstanceListing, InstanceView
 from arrt.library.services.runner import Estimate, RunView, SpendReport
 from arrt.library.services.survey import WorkDossier, WorkSurvey
@@ -455,6 +455,11 @@ def get_registry_work(request: Request, qid: str) -> RegistryWorkPageOut:
         ),
         held_artwork_ids=list(view.held),
         wanted=view.wanted,
+        height_cm=view.height_cm,
+        width_cm=view.width_cm,
+        image_width=None if view.image_size is None else view.image_size.width,
+        image_height=None if view.image_size is None else view.image_size.height,
+        fit=None if view.fit is None else _fit(view.fit),
     )
 
 
@@ -1359,16 +1364,7 @@ def _work(survey: WorkSurvey) -> WorkOut:
         status=str(artwork.status),
         wikidata_qid=artwork.wikidata_qid,
         wikidata_qid_set_by=_set_by(artwork.wikidata_qid_set_by),
-        fit=(
-            None
-            if survey.fit is None
-            else FitOut(
-                verdict=str(survey.fit.fit),
-                rendered_width=survey.fit.rendered_width,
-                rendered_height=survey.fit.rendered_height,
-                rendered_long_edge_inches=survey.fit.rendered_long_edge_inches,
-            )
-        ),
+        fit=None if survey.fit is None else _fit(survey.fit),
         fit_note=survey.fit_note,
         image=ImageOut(
             available=survey.image.available,
@@ -1747,16 +1743,7 @@ def _instance(view: InstanceView) -> InstanceOut:
         selection_rationale=image.selection_rationale,
         width=image.estimated_width,
         height=image.estimated_height,
-        fit=(
-            None
-            if view.fit is None
-            else FitOut(
-                verdict=str(view.fit.fit),
-                rendered_width=view.fit.rendered_width,
-                rendered_height=view.fit.rendered_height,
-                rendered_long_edge_inches=view.fit.rendered_long_edge_inches,
-            )
-        ),
+        fit=None if view.fit is None else _fit(view.fit),
         fit_note=view.fit_note,
         # The view's own property. It is not `preview is not None` here, because
         # this surface asks for its pictures by URL and takes none inline — see
@@ -1897,6 +1884,16 @@ def _backup(reading: BackupReading) -> BackupOut:
         problem=reading.problem,
         description=reading.describe(),
         reported=reading.contents,
+    )
+
+
+def _fit(fit: FitAssessment) -> FitOut:
+    """A display-fit verdict as every surface that shows one carries it: the work, a scan, a registry picture."""
+    return FitOut(
+        verdict=str(fit.fit),
+        rendered_width=fit.rendered_width,
+        rendered_height=fit.rendered_height,
+        rendered_long_edge_inches=fit.rendered_long_edge_inches,
     )
 
 

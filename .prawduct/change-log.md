@@ -62,6 +62,40 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-05: Pictures in the registry lists on a phone, and sizes on a work's page
+
+<!-- prawduct: scope=work-pictures-and-sizes -->
+
+**Why:** the owner's feedback after the v0.3.0 deploy. On a phone, *Their work*
+marked rows *Not held · Image found* with no picture, so choosing what to Get was
+guesswork; and a work's page by QID (*Rhythms*) showed Wikidata's picture with
+nothing to judge it by. Plan: `build-plan-work-pictures-and-sizes.md`.
+
+**What:**
+- **Pictures at every width.** The phone rule that hid them, against
+  `information-architecture.md` § A work's mark, is gone. The three registry
+  lists draw each picture at 3rem from Commons' 250 px rendering; on a phone the
+  badge stacks, and the By and Year columns fold under the title so the row fits.
+  The long-title wrap rule now sits on the title cell (it had landed on the Get
+  column), and years before the common era read "50 BCE". The search typeahead
+  and results page share the 250 px rendering, still drawn at 2rem.
+- **A registry work's page states sizes.** The work's own size (cm and inches)
+  among the facts; under the picture its pixels and the review grid's fit badge,
+  from the same `assess_display_fit`. The registry reads best-ranked height and
+  width, leaving out frame, framed and mount, and asks Commons for the file's
+  pixels (raster only, 5 s, none for a held work), kept per file for a week.
+  The line under *Get this work* now says the picture is the one Wikidata names
+  and that a Get asks every image source.
+- **The size is checked for plausibility first** (the owner's ruling,
+  `procurement-corpus.md` § Gaps 4): `plausible_size` withholds sides no work has,
+  shapes past 50 : 1, and a shape more than 1.25× off its picture's. Corpus rows
+  12 and 33 are its test cases.
+- **Records.** `api-contract.md`, `architecture.md` channel 9,
+  `wikidata-findings.md` § A work's size, the norm's enforcement column and the two
+  "sizes are read nowhere" sentences. #221 filed (Commons alternatives).
+  `learnings/core.md`'s norm rule now also says to search the norm index for a
+  plan's new data at plan time, the lesson of this branch's blocked review.
+
 ## 2026-10-05: Norm Health sweep: the rules re-measured, and the owner's rulings built
 
 <!-- prawduct: scope=norm-sweep-2026-10 | release=v0.3.0 -->

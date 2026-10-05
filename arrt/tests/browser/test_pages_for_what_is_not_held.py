@@ -22,6 +22,7 @@ from arrt.library.registry import (
     RegistryArtist,
     RegistryCreator,
     RegistryHolder,
+    RegistryImageSize,
     RegistryWork,
     RegistryWorkEntry,
 )
@@ -32,6 +33,8 @@ HUNTERS = "Q500985"
 HARVESTERS = "Q1170284"
 HELD_ROTHKO = "Q20270685"
 COMMONS = "https://commons.wikimedia.org/wiki/Special:FilePath/Hunters.jpg"
+UNSIZED = "https://commons.wikimedia.org/wiki/Special:FilePath/Unsized.jpg"
+POSTCARD = "https://commons.wikimedia.org/wiki/Special:FilePath/Postcard.jpg"
 
 
 def _hunters(**changes):
@@ -44,6 +47,8 @@ def _hunters(**changes):
         "creators": (RegistryCreator(qid=BRUEGEL, name="Pieter Brueghel the Elder"),),
         "media": ("oil paint", "panel"),
         "holders": (RegistryHolder(qid="Q95569", name="Kunsthistorisches Museum", inventory="GG_1838"),),
+        "height_cm": 117.0,
+        "width_cm": 162.0,
     }
     return RegistryWork(**(work | changes))
 
@@ -55,7 +60,11 @@ def registry():
             HUNTERS: _hunters(),
             "Q7": _hunters(qid="Q7", title='Snow <img src=x onerror="window.pwned=1">', image=None),
             "Q8": _hunters(qid="Q8", title="A Rothko of theirs", creators=(RegistryCreator(qid=ROTHKO, name="Mark Rothko"),)),
+            # Measured by Wikidata in one dimension only, with a picture Commons cannot size.
+            "Q9": _hunters(qid="Q9", title="Half measured", image=UNSIZED, width_cm=None),
+            "Q10": _hunters(qid="Q10", title="A postcard of it", image=POSTCARD, height_cm=None, width_cm=None),
         },
+        image_sizes={COMMONS: RegistryImageSize(width=6000, height=4400), POSTCARD: RegistryImageSize(width=300, height=200)},
         artists={
             BRUEGEL: RegistryArtist(
                 qid=BRUEGEL,
@@ -89,6 +98,14 @@ def _hash(ui):
     return ui.page.evaluate("() => window.location.hash")
 
 
+def _fact(ui, term):
+    """The value beside `term` in the page's facts, or None when the page states no such fact."""
+    terms = ui.page.locator("#view dl.facts dt", has_text=term)
+    if terms.count() == 0:
+        return None
+    return terms.first.locator("xpath=following-sibling::dd[1]").inner_text()
+
+
 class TestAWorkNotHeld:
     def test_it_shows_what_wikidata_says_and_how_to_find_it(self, ui):
         ui.open(f"#work/{HUNTERS}")
@@ -104,6 +121,38 @@ class TestAWorkNotHeld:
         assert image.get_attribute("src") == f"{COMMONS}?width=1200"
         assert image.get_attribute("referrerpolicy") == "no-referrer"
         assert ui.page.locator(f"#view a[href='https://www.wikidata.org/wiki/{HUNTERS}']").count() == 1
+
+    def test_it_says_how_big_the_work_is_and_how_big_its_picture_is(self, ui):
+        """Size among the facts, as a museum label gives it; the picture's pixels and fit under it,
+        as a review card gives a scan's."""
+        ui.open(f"#work/{HUNTERS}")
+        ui.page.wait_for_selector("#view .picture-size")
+
+        assert _fact(ui, "Size") == "117 × 162 cm (46.1 × 63.8 in)"
+        size = ui.page.locator("#view .picture-size")
+        assert " ".join(size.inner_text().split()) == "6,000 × 4,400 px ● native"
+        assert " ".join(ui.page.locator("#view .card-footer").inner_text().split()) == "◐ Not held · Image found"
+
+    def test_a_picture_too_small_for_the_wall_says_so(self, ui):
+        ui.open("#work/Q10")
+        ui.page.wait_for_selector("#view .picture-size")
+
+        assert " ".join(ui.page.locator("#view .picture-size").inner_text().split()) == "300 × 200 px ▲ below floor"
+        assert _fact(ui, "Size") is None
+
+    def test_with_one_dimension_and_no_picture_size_it_says_only_what_it_knows(self, ui):
+        ui.open("#work/Q9")
+        ui.page.wait_for_selector("#view h2:text-is('Half measured')")
+
+        assert _fact(ui, "Size") == "117 cm high (46.1 in)"
+        assert ui.page.locator("#view .picture-size").count() == 0
+
+    def test_it_says_whose_picture_this_is_and_what_get_asks(self, ui):
+        """The picture is Wikidata's choice, not necessarily what a Get will bring back."""
+        ui.open(f"#work/{HUNTERS}")
+        ui.page.wait_for_selector("#view button:text-is('Get this work')")
+
+        assert ui.page.locator("#view p.muted", has_text="Wikidata").filter(has_text="every image source").count() == 1
 
     def test_it_offers_get_rather_than_a_museum_search(self, ui):
         """Ruling 3 replaced the seeded museum search with Get; `test_getting.py` drives it."""

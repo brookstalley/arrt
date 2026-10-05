@@ -431,6 +431,11 @@ These are findings about the product, not predictions. Each carries my ruling.
    *My ruling: no change now.* Nothing in the server reads a work's dimensions from
    Wikidata (searched 2026-10-03). Whatever first does must check them for
    plausibility before relying on them, and must state so.
+   *Since 2026-10-05* the page of a work by QID reads them, and states the check:
+   `plausible_size` in `library/services/registry_works.py` withholds a size whose
+   sides no work has, or whose shape disagrees with its picture's; rows 12 and 33
+   are its test cases. Row 52's size has no picture to check against, so only the
+   bounds apply to it. Dates are still unchecked (#215).
 5. **Sources vanish.** gerhard-richter.com has been offline since about January
    2026 after a security breach (reported 2026-04-29; still down 2026-10-03). A
    foundation or gallery source needs a "this source is gone" state that is not
