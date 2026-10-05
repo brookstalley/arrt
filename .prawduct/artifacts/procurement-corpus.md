@@ -770,3 +770,28 @@ than 2,048 px was available, which added Google Arts & Culture.
 **The owner's rulings (2026-10-04):** build the SFMOMA reader; it goes in the
 private plugin repository with MoMA's, because every reader of a museum's own
 pages lives there, challenged or not.
+
+### Run 5: SFMOMA through a plugin (2026-10-04)
+
+The SFMOMA reader was built in the private plugin repository (`arrt-sources`
+`a0c8048`), reviewed twice by fresh agents (1 blocking, fixed; then 0), and
+deployed as `arrt-sources:f560099-a0c8048`. A catalogue copy was taken first:
+`pre-sfmoma-20261005T001912Z`.
+
+Run `de112743`, on the NAS: a re-search of the three open works whose item links
+an SFMOMA page.
+
+- Finished in 8 seconds; spent $0.
+- **Two are found through SFMOMA**, each at confidence 0.95, and both clear the
+  floor, matted wider rather than downscaled:
+  - *Margarethe* (48): 2,048 × 1,501.
+  - *Sulamith* (49): 2,048 × 1,609.
+- ***256 Farben* (46) is below the floor**: SFMOMA's only file is 850 × 476. It
+  is offered, not selected. SFMOMA titles it "256 Farben (256 Colors)", and it
+  passed the title gate on the page its Wikidata item records (`link`), the
+  owner's ruling of the same day.
+- Each is recorded under the item's own spelling of its page
+  (`https://www.sfmoma.org/artwork/FC.595`, no trailing slash), which is what
+  the link check compares. The first review found the plugin reporting its own
+  spelling instead, which would have refused *256 Farben* as a different work.
+- All three carry SFMOMA's copyright line and are recorded as in copyright.
