@@ -37,6 +37,7 @@ the owner confirmed in bulk) or a fork the owner ruled on 2026-10-05.
 
 - [DECISION: ruff ALL on arrt and postarr, minus a named ignore list, each ignore with its why in `pyproject.toml` | the owner asked to "go big on ruff"; ALL brings rules ruff adds later without anyone choosing them | owner approved 2026-10-05]
 - [DECISION: the ignore list is formatter conflicts (COM812, ISC001), docstring convention (D), copyright header (CPY), exception-message style (EM101, EM102, TRY003), typographic Unicode in prose (RUF001-003), argument counts on keyword-only signatures (PLR0913, PLR0917), deliberate lazy imports (PLC0415), typing-only import moves (TC001-003), implicit namespace packages for tools and tests (INP001), exception-name suffixes (N818); tests also ignore S101, PLR2004, ARG, SLF001, FBT, ANN | each contradicts a house style the code follows on purpose, measured 2026-10-05 at ~1,900 sites across the two planes | owner approved the shape 2026-10-05; individual entries are the builder's and the Critic's to challenge]
+- [DECISION: the curation plane's `tools/*` ignores T201, as the display plane's does | hand-run scripts whose printing is the report; it replaced ten reason-less per-line waivers | builder's, at Chunk 05's review; owner can veto]
 - [DECISION: both planes' tests also ignore S105, S106 and S311 | tests hold fake tokens and seeded randomness by design; added when Chunk 04 met them | builder's, at Chunk 04's review; owner can veto]
 - [DECISION: the root plane adds only N and BLE001 | its 2024 modules leave at wave 5, so fixing them for ALL buys nothing | owner approved 2026-10-05]
 - [ASSUMPTION: the residual after the ignore list is fixed, not waived, except where a site is a deliberate exception that gets a reasoned per-line `noqa` | MED impact: hundreds of edits | owner can correct]
@@ -53,7 +54,7 @@ history (the owner ruled fix forward).
 - [x] Chunk 02: The deployment guard stops publishing the deployment
 - [x] Chunk 03: Guards and small fixes the sweep found
 - [x] Chunk 04: Ruff ALL on the display plane; N and BLE001 at the root
-- [ ] Chunk 05: Ruff ALL on the curation plane
+- [x] Chunk 05: Ruff ALL on the curation plane
 - [ ] Chunk 06: Wanted becomes a top-level section
 
 ### Chunk 01: Records: amendments, index rows, stale references
