@@ -87,7 +87,7 @@ galleries serve the originals with the holder's words beside them. What is not:
 ## Status
 
 - [x] Chunk 01: A run's citations, stored, and handed to the finders
-- [ ] Chunk 02: The Artlogic plugin (private repository)
+- [x] Chunk 02: The Artlogic plugin (private repository)
 - [ ] Chunk 03: Deploy, and Ask for the gallery rows
 
 ### Chunk 01: A run's citations, stored, and handed to the finders
@@ -155,13 +155,22 @@ blocking issue, as those two were. What it must do:
   the holder's own words. Other works on the page are left out.
 - **Report the original:**
   - the source `url` is the empty-transform address on the asset host;
-  - its size from the listing's `data-width`/`data-height` where given, else a
-    ranged read of the original's JPEG header;
+  - its size from a ranged read of the original's JPEG header, always. *Built
+    2026-10-05:* the listing's `data-width`/`data-height` matched the originals
+    measured, but a page's figures are the holder's description of the image,
+    and `arrt_sources/images.py` reads the size from the image itself;
   - the preview is a small transform;
   - rights from the caption where one is printed, else unknown, never free.
 - **Read politely and within bounds:** one page at a time per host, a listing
   read once per run rather than once per work, with `sfmoma`'s timeouts and body
   bound as the model.
+- *Built 2026-10-05, beyond the above:* the plugin is a finder only, with no
+  `claims` and no reader, since the source it records is the original image file,
+  which Arrt fetches as recorded. Artsy is excluded by name: Stephens's search
+  cited it, its `/artist/<slug>` is exhibit-E's shape, and it answers plain HTTP
+  with 403, which would otherwise make every work it was cited for
+  could-not-be-asked.
+- [DECISION: an exhibit-E-shaped page (`/artist/<slug>`, common on other sites) on a host this process has never seen answer with Artlogic's images is skipped when its answer says nothing about being a gallery (absent, no Artlogic image, a redirect elsewhere, a refusal such as 403, too large, a redirect loop); a server error, timeout or broken connection could not be asked even there, since a gallery can be down and a restart forgets which hosts are galleries. Once a host has answered as a gallery, all its failures could not be asked. The remaining cost: a real gallery refusing its first read after a restart reads as held by nobody until a later run. An Artlogic CMS address (`/artists/<n>-<slug>`, Artlogic's own) that fails or answers without Artlogic's images could not be asked, as does a listing read only in part, and a work not found while cited listings past the cap of 10 went unread | Arrt keeps a work waiting and re-searched while any source could not be asked (`phase_two.py`), so raising for every skipped page would strand works whenever the search cites an unrelated shape-alike; treating every one as "nobody's" would let a gallery's outage page read as "holds nothing" (the corpus's gap 5). The split puts "could not be asked" where the page is surely a gallery's | agent's, found at the plugin's first review 2026-10-05; owner can veto]
 
 ### Chunk 03: Deploy, and Ask for the gallery rows
 
