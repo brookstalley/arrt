@@ -81,9 +81,13 @@ matted shape is a little narrower than the screen. Not on your catalogue.
 - **Look at:** a square and a tall work on the HDMI monitor. The mat is the
   work's shape and 1.5" wide (deeper below), and everything else is black.
 
-### Wikidata identity's one *Edit*; Library › Topics in columns — added 2026-10-02
+### ✅ Wikidata identity's one *Edit*; Library › Topics in columns — added 2026-10-02, VERIFIED 2026-10-04
 
 **`build-plan-library-screens.md` Chunk 05 (#174, #175).** Visual change: yes.
+
+**Looked at by the owner on 2026-10-04** on a server over a copy of the dev
+catalogue, with pictures: "Screens are good". The owner gave no answer to the
+questions marked *worth an opinion* below, so the built choices stand.
 
 Checked by the builder on 2026-10-02 in the browser suite's own server, and on
 a copy of the dev catalogue at 1440 px and 390 px.
@@ -94,9 +98,13 @@ a copy of the dev catalogue at 1440 px and 390 px.
 - **Library › Topics** lays each kind out in columns, by name, each count beside
   its name: several columns at desktop width, one on a phone.
 
-### Library › Artists: surname order, posters and a table — added 2026-10-02
+### ✅ Library › Artists: surname order, posters and a table — added 2026-10-02, VERIFIED 2026-10-04
 
 **`build-plan-library-screens.md` Chunk 04 (#173).** Visual change: yes.
+
+**Looked at by the owner on 2026-10-04** on a server over a copy of the dev
+catalogue, with pictures: "Screens are good". The owner gave no answer to the
+questions marked *worth an opinion* below, so the built choices stand.
 
 Checked by the builder on 2026-10-02 at 1440 px and 390 px against a copy of
 the dev catalogue (31 artists, no masters, so every card says *No picture*),
@@ -115,9 +123,13 @@ and in the browser suite with pictures served.
 - **Worth an opinion:** whether the first accepted work is the right picture
   (the alternative is the most-shown or most-renowned one).
 
-### A work's mark: held, wanted and not held as image styles — added 2026-10-02
+### ✅ A work's mark: held, wanted and not held as image styles — added 2026-10-02, VERIFIED 2026-10-04
 
 **`build-plan-library-screens.md` Chunk 03 (#172).** Visual change: yes.
+
+**Looked at by the owner on 2026-10-04** on a server over a copy of the dev
+catalogue, with pictures: "Screens are good". The owner gave no answer to the
+questions marked *worth an opinion* below, so the built choices stand.
 
 Checked by the builder on 2026-10-02 in the browser suite's own server, with
 one work wanted and real pictures served: the Topic page (1280 px and 390 px),
@@ -143,9 +155,13 @@ Wanted, then open a Topic, Artist or search that lists it.
   and the state column starts off screen (it did before this change; the Artist
   page hides the pictures on a phone, the Topic page does not).
 
-### Artworks: Theme in the Filter rail, and Select mode — added 2026-10-02
+### ✅ Artworks: Theme in the Filter rail, and Select mode — added 2026-10-02, VERIFIED 2026-10-04
 
 **`build-plan-library-screens.md` Chunk 02 (#169).** Visual change: yes.
+
+**Looked at by the owner on 2026-10-04** on a server over a copy of the dev
+catalogue, with pictures: "Screens are good". The owner gave no answer to the
+questions marked *worth an opinion* below, so the built choices stand.
 
 Checked by the builder on 2026-10-02 at 1440 px and 390 px against a copy of
 the dev catalogue (no masters, so tiles show the missing-image sentence), with
