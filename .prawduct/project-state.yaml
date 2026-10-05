@@ -3426,7 +3426,7 @@ norm_health:
       2026-09-30 re-architecture, the display plane and the paid discovery
       path. Measured by four read-only agents per norm family at develop
       099368d; counts are AST, grep or test runs unless marked judgement.
-      Rulings owed are under `deferred` until the owner answers.
+      The owner's answers are under `rulings`.
     measurements:
       black-formatting: "0 violation sites on all three planes (38/315/63 files); test_tool_config.py green."
       naming-conventions: "1 ruff-N site (a postarr test name carrying KEY_POWER). The 8 legacy modules give 0 N findings now and at ba007cd, so the row's Why ('would fail it in bulk') was never true."

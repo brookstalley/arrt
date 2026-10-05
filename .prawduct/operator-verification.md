@@ -263,7 +263,7 @@ and a `page.screenshot` of your own.
   panel on a phone, reads well enough there; and whether adding a client and
   issuing its token in one act is what you want, rather than two steps.
 
-### Want and Forget, Activity › Wanted, and the Wikidata picker — added 2026-10-02
+### Want and Forget, Wanted, and the Wikidata picker — added 2026-10-02
 
 **`build-plan-after-review.md` Chunk 05.** Visual change: yes.
 
@@ -275,8 +275,8 @@ matches stubbed from the live answer for *Lobster Telephone*. Regenerate with
 
 - **A review card whose search found nothing** shows **Want** and **Forget**
   where Accept and Reject were. Want repaints the card `◑ wanted`, says "It
-  waits in Wanted…" (it said Activity › Wanted until the 2026-10-05 section move), and leaves only Forget.
-- **Wanted** appears in the sidebar, as a section of its own since 2026-10-05 (it was a page under Activity), with its count, once a work is
+  waits in Wanted…", and leaves only Forget.
+- **Wanted** appears in the sidebar, with its count, once a work is
   wanted. The page: "*n* works wanted", a sentence that searching spends nothing
   and why a work with no item is offered a pick, **Search all**, then a table of
   Work — Artist, Why (*No scan found* or *1 scan turned down*), Wikidata (the

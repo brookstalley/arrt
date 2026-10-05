@@ -78,7 +78,11 @@ the owner's rulings are in `project-state.yaml` (`norm_health`, 2026-10-05). Pla
   re-raises, superseding the 2026-08-02 ruling, because ruff `BLE001` now audits
   it. Four `data-model.md` norms indexed; four unassigned preferences assigned;
   stale chunk references, departures and counts brought to the tree. Issues
-  #215–#218 filed; ten older items given their filing reason.
+  #215–#218 filed; ten older items given their filing reason. Also on this
+  branch: `upgrades.md`'s reserved questions relabelled U1–U6 (Q38–Q43 had been
+  given to others), the owner keeping the exhibit-E skip rule, the stats
+  contribution preference (`always`), and two learnings (a core rule amended, a
+  new `learnings/tooling.md`).
 - **The deployment guard no longer publishes the deployment.** It checks shapes
   (a private address, a named home directory) and this checkout's own `.env`
   values, never the values themselves. A home path in a legacy comment, the Pi's
