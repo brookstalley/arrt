@@ -222,13 +222,44 @@ class TestTheArtistPage:
         ui.page.click("section[aria-labelledby='their-work'] .badge-held")
         ui.page.wait_for_selector(f"#view h2:has-text('{work.title}')")
 
+    @pytest.mark.parametrize("width", [1280, 390], ids=["desktop", "phone"])
+    def test_their_work_shows_each_picture_large_enough_to_choose_by(self, ui, rothko, pictures_load, width):
+        """The picture is what a curator picks a work to Get by, so a phone shows it too
+        (`information-architecture.md` § A work's mark), and the table still fits the panel."""
+        ui.page.set_viewport_size({"width": width, "height": 900})
+        artist, _work = rothko
+        _page(ui, artist)
+        _registry_answered(ui)
+        section = "section[aria-labelledby='their-work']"
+
+        # The frame is sized by the style, whether or not the picture has arrived;
+        # one hidden by the style has no box at all.
+        for style in ("held", "not-held"):
+            box = ui.page.locator(f"{section} .work-pic-{style}").bounding_box()
+            assert box is not None, f"the {style} picture is not drawn"
+            assert min(box["width"], box["height"]) >= 48, f"the {style} picture is too small to tell works apart"
+        fits = ui.page.evaluate(
+            "(s) => { const c = document.querySelector(`${s} .artist-works`); return c.scrollWidth <= c.clientWidth; }",
+            section,
+        )
+        assert fits, "the table scrolls sideways"
+        # The phone folds the Year column under the title rather than losing it.
+        chapel = ui.page.locator(f"{section} tbody tr", has_text="Rothko Chapel")
+        column, under = chapel.locator("td.year-col"), chapel.locator(".year-under")
+        shown, folded = (under, column) if width < 640 else (column, under)
+        assert shown.is_visible()
+        assert shown.inner_text() == "1971"
+        assert not folded.is_visible()
+
     def test_an_image_found_is_a_commons_thumbnail_that_sends_no_referrer(self, ui, rothko):
         artist, _work = rothko
         _page(ui, artist)
         _registry_answered(ui)
 
         thumb = ui.page.locator(".badge-image-found img")
-        assert thumb.get_attribute("src") == f"{COMMONS}?width=96"
+        # 250 is the fixed Commons width that stays sharp at the picture's 3rem
+        # on a 3x screen; Commons answers any other width with the next fixed one.
+        assert thumb.get_attribute("src") == f"{COMMONS}?width=250"
         assert thumb.get_attribute("referrerpolicy") == "no-referrer"
 
     def test_registry_text_arrives_as_words_not_markup(self, ui, rothko):

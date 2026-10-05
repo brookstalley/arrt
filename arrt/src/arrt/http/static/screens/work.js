@@ -35,7 +35,7 @@ import { confirmAct } from "../core/confirm.js";
 import { getOne } from "../core/getting.js";
 import { identityControl } from "../core/identity.js";
 import { el, fill, guard, render } from "../core/render.js";
-import { isQid, named, personLink, stateMark, wikidataLink, workLink, workState } from "../core/registry.js";
+import { isQid, listHeadings, named, personLink, stateMark, wikidataLink, workCell, workState, yearCell } from "../core/registry.js";
 import { backLink, go, redirect } from "../core/router.js";
 
 /* The typed vocabulary a work is filed under, in the words a label uses.
@@ -181,10 +181,10 @@ async function paintTheirWork(section, maker, qid) {
     others.length
       ? el("div", { class: "artist-works" }, [
           el("table", {}, [
-            el("thead", {}, [el("tr", {}, ["Work", "Year", "State"].map((h) => el("th", { scope: "col", text: h })))]),
+            el("thead", {}, [listHeadings(["Work", "Year", "State"])]),
             el("tbody", {}, others.map((work) => el("tr", {}, [
-              el("td", {}, [workLink(work)]),
-              el("td", { text: work.year ? String(work.year) : "—" }),
+              workCell(work),
+              yearCell(work),
               el("td", {}, [workState(work)]),
             ]))),
           ]),

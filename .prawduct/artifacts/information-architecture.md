@@ -611,6 +611,13 @@ held under diagonal hatching. Glyph and word carry the state whatever the
 picture does, so a picture that fails to load, or none, leaves every state
 readable (`accessibility-spec.md`).
 
+**The picture shows at every width** *(the owner's feedback of 2026-10-05: on a
+phone the lists showed none, which made choosing what to Get guesswork)*. In the
+three lists (*Their work*, *Representative works*, *More by*) it is 3rem, large
+enough to tell two works apart; on a phone the badge stacks the picture above
+glyph and word, and the Year column folds under the title so the row fits
+without scrolling sideways.
+
 ## User Flows
 
 Each core flow from the Product Brief, traced through screens. A flow that cannot

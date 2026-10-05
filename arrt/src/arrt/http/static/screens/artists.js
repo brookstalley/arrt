@@ -25,7 +25,7 @@ import { identityControl } from "../core/identity.js";
 import { addedSentence, addWorksToTheme, stoppedSentence } from "../core/membership.js";
 import { getSelection } from "../core/getting.js";
 import { el, fill, guard, render } from "../core/render.js";
-import { isQid, lifeDates, named, stateMark, wikidataLink, workLink, workState } from "../core/registry.js";
+import { isQid, lifeDates, listHeadings, named, stateMark, wikidataLink, workCell, workState, yearCell } from "../core/registry.js";
 import { backLink, backRow, go, goWithParams, redirect, refresh } from "../core/router.js";
 import { state } from "../core/state.js";
 import { recordReaction } from "../core/taste.js";
@@ -390,8 +390,8 @@ function paintRegistry(section, about, view) {
   const rows = view.works.map((work) =>
     el("tr", {}, [
       el("td", {}, [work.held_artwork_ids.length ? null : getting.box(work.qid, named(work.title, work.qid))]),
-      el("td", {}, [workLink(work)]),
-      el("td", { text: work.year ? String(work.year) : "—" }),
+      workCell(work),
+      yearCell(work),
       el("td", {}, [workState(work)]),
     ]),
   );
@@ -403,7 +403,7 @@ function paintRegistry(section, about, view) {
           el("caption", {
             text: `The most renowned of the ${view.works_total} works Wikidata lists, by how many Wikipedias cover them, and every one the library holds`,
           }),
-          el("thead", {}, [el("tr", {}, ["Get", "Work", "Year", "State"].map((h) => el("th", { scope: "col", text: h })))]),
+          el("thead", {}, [listHeadings(["Get", "Work", "Year", "State"])]),
           el("tbody", {}, rows),
         ])])
       : el("p", { class: "muted", text: "Wikidata lists no works for them." }),

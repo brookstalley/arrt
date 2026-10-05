@@ -1056,9 +1056,9 @@ button.link {
   }
 }
 
-/* The Artist page's list of what Wikidata holds. It scrolls sideways rather
-   than run past its panel, and on a phone the state badges wrap and drop their
-   thumbnail: the glyph and the word carry the state, as on every badge. */
+/* The lists of what Wikidata holds (*Their work*, *Representative works*,
+   *More by*). A list too wide for its panel scrolls sideways rather than run
+   past it, and on a phone the state badges wrap. */
 .artist-works {
   overflow-x: auto;
 }
@@ -1075,13 +1075,43 @@ button.link {
   overflow-wrap: break-word;
 }
 
+/* In a list of works the picture is what a curator chooses by, so it is drawn
+   large enough to tell two works apart, on a phone as on a desktop
+   (`information-architecture.md` § A work's mark). On a phone the badge stacks:
+   the picture, then glyph and word together under it. */
+.artist-works .work-pic {
+  width: 3rem;
+  height: 3rem;
+}
+
+/* A listed work's year under its title, for a phone, where the Year column is
+   folded away to leave the picture room (`workCell` in `core/registry.js`). */
+.year-under {
+  display: none;
+}
+
 @media (max-width: 40rem) {
   .artist-works .badge {
     white-space: normal;
+    display: inline-grid;
+    grid-template-columns: auto 1fr;
+    align-items: baseline;
   }
 
-  .artist-works .work-pic {
+  .artist-works .badge .work-pic {
+    grid-column: 1 / -1;
+    margin-bottom: var(--space-1);
+  }
+
+  .artist-works .year-col {
     display: none;
+  }
+
+  .artist-works .year-under {
+    display: block;
+    margin-top: var(--space-1);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
   }
 }
 

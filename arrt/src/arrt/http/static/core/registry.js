@@ -52,6 +52,23 @@ export function workLink(work) {
   });
 }
 
+/* A listed work's title cell: its link, and under it its year, shown only on a
+ * phone, where the Year column (`yearCell`) is folded away so the row keeps
+ * room for the work's picture without scrolling sideways (`app.css`). */
+export function workCell(work) {
+  return el("td", {}, [workLink(work), work.year === null || work.year === undefined ? null : el("span", { class: "year-under", text: String(work.year) })]);
+}
+
+/* A listed work's Year cell, and its heading: hidden on a phone, where the
+ * year sits under the title instead (`workCell`). */
+export function yearCell(work) {
+  return el("td", { class: "year-col", text: work.year === null || work.year === undefined ? "—" : String(work.year) });
+}
+
+export function listHeadings(names) {
+  return el("tr", {}, names.map((name) => el("th", { scope: "col", class: name === "Year" ? "year-col" : null, text: name })));
+}
+
 /* A registry person's name, opening their page here: the library's artist when
  * it holds them, the registry's otherwise. */
 export function personLink(person) {
@@ -62,6 +79,12 @@ export function personLink(person) {
     onclick: () => go("artist", person.artist_id || person.qid),
   });
 }
+
+/* The Commons rendering a listed work's picture is asked at. Commons serves
+ * fixed widths only and answers any other with the next one up; 250 is the
+ * first that stays sharp at the 3rem a list draws it at on a 3x screen
+ * (`app.css`, `.artist-works .work-pic`). */
+const FOUND_WIDTH = 250;
 
 /* A work's mark wherever registry works are listed — the search typeahead,
  * the results page, the Topic, Artist and Work pages: its picture, in the
@@ -98,7 +121,7 @@ export function workState(work, { noImage = "Not held", opens = true } = {}) {
     if (!opens) return el("span", { class: "badge badge-held state-mark" }, parts);
     return el("button", { class: "badge badge-held state-mark", type: "button", onclick: () => go("work", held[0]) }, parts);
   }
-  const found = work.image ? `${work.image}?width=96` : null;
+  const found = work.image ? `${work.image}?width=${FOUND_WIDTH}` : null;
   if (work.wanted) return stateBadge("badge-wanted", "◑", "Wanted", found && workPicture("wanted", found));
   if (found) return stateBadge("badge-image-found", "◐", "Not held · Image found", workPicture("not-held", found));
   return stateBadge("badge-not-held", "○", noImage);
