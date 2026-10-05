@@ -1017,6 +1017,11 @@ class RunOut(BaseModel):
     #: where the curator asked the works to go, and the theme is looked up by
     #: whoever shows it.
     destination_theme_id: str | None
+    #: Why the run's worker ended it, in its own words: present on `failed` and
+    #: `halted_by_budget`, null on every other ending and on a run that ended
+    #: before reasons were kept. Prose for a curator to read, never a code to
+    #: branch on; `status` is what says which ending this was.
+    end_reason: str | None
 
 
 class CandidateWorkOut(BaseModel):

@@ -993,6 +993,22 @@ reviewed later must still report the estimate it was actually authorised against
 > who disagrees with the reading can decline at the gate rather than working
 > through works that were never going to match.
 
+> **A run says why its worker ended it (added 2026-10-05, #207).** Every payload
+> carrying a run carries `end_reason`: on `failed` and `halted_by_budget`, the
+> sentence the worker composed when it ended the run, stored with the ending in
+> the same write; `null` on every other ending, and on a run that ended before
+> the field existed. It is prose for a reader, never a code to branch on, and it
+> sits beside the terminal state rather than replacing it: the state says which
+> response is right (constraints 1 and 3 under § Error Model), and the reason says
+> what to investigate. A halt's reason quotes the provider's refusal, which names
+> the limit that refused; a request the provider declined as unaffordable fails
+> the run instead, and its reason carries what was asked for against what was
+> left. A fault nothing anticipated
+> records a fixed sentence pointing at the server log and never the exception's
+> text, for the reason stack traces stay out of tool results. The MCP `status`
+> notice for a failed run names `end_reason` when it is set, and the log only when
+> it is not.
+
 ### Partial success is the normal case
 
 A run that resolves 34 of 40 works succeeded partially. Bulk actions return a

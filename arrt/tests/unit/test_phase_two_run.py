@@ -391,7 +391,49 @@ def test_a_run_that_could_not_reach_the_provider_for_anything_fails(services, en
     run_id = start(runner).id
 
     assert services.discovery.get_run(run_id).status is RunStatus.FAILED
+    assert services.discovery.get_run(run_id).end_reason.startswith(
+        "Phase 2 could not reach an image provider for any of this run's 2 works."
+    )
     assert all(work.resolution_status is ResolutionStatus.PENDING for work in services.discovery.list_candidate_works(run_id))
+
+
+def test_a_refusal_recording_phase_two_ends_the_run_with_the_refusal_named(services, engine, runner, museum, monkeypatch):
+    """The record layer's own words reach the run, because they say what it would not record.
+
+    Refused at `record_resolution`, the write phase 2 makes for every work, while
+    the run is still live: that is what tells this site apart from a cancel, and
+    a refusal of `complete_run` itself is read as one by design.
+    """
+    engine.result = a_list("The Elephants")
+    museum.holdings = {"The Elephants": (an_image("The Elephants"),)}
+
+    def refuse(*args, **kwargs):
+        raise ServiceError("Candidate work 'c1' has no image to resolve against.")
+
+    monkeypatch.setattr(services.discovery, "record_resolution", refuse)
+
+    run = services.discovery.get_run(start(runner).id)
+
+    assert run.status is RunStatus.FAILED
+    assert run.end_reason == "Phase 2 could not record what it found: Candidate work 'c1' has no image to resolve against."
+
+
+def test_a_fault_in_phase_two_points_the_run_at_the_log_and_keeps_its_text_there(services, engine, runner, museum, monkeypatch):
+    """Exception text can carry paths and addresses; a curator is told where to look instead."""
+    engine.result = a_list("The Elephants")
+    museum.holdings = {"The Elephants": (an_image("The Elephants"),)}
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("cannot write /srv/arrt/images/tmp")
+
+    monkeypatch.setattr(services.discovery, "record_resolution", broken)
+
+    run = services.discovery.get_run(start(runner).id)
+
+    assert run.status is RunStatus.FAILED
+    assert run.end_reason.startswith("Phase 2 failed unexpectedly")
+    assert "server log" in run.end_reason
+    assert "/srv/arrt" not in run.end_reason
 
 
 def test_the_failure_log_line_agrees_with_itself_over_a_single_work(services, engine, runner, museum, caplog):

@@ -1388,6 +1388,10 @@ def _run_fields(run: DiscoveryRun) -> dict[str, Any]:
         # Where a Get's accepted works go instead of the default theme, or null
         # for the default. A theme id, which may name one deleted since.
         "destination_theme_id": run.destination_theme_id,
+        # Why the run's worker ended it, beside the state rather than instead of
+        # it: the state says which response is right, and this says what to
+        # investigate. Null on every ending nobody had to explain.
+        "end_reason": run.end_reason,
     }
 
 
@@ -2029,7 +2033,10 @@ def _run_notice(view: RunView) -> str:
             "The process working on this run stopped underneath it — a restart or a crash, not a fault in the "
             "run. Start it again with the same intent; there is nothing to investigate."
         )
+    if status is RunStatus.FAILED and view.run.end_reason is not None:
+        return "This run hit an error and stopped; `end_reason` says why. This is worth investigating."
     if status is RunStatus.FAILED:
+        # A run that failed before reasons were kept: the log is the only record.
         return "This run hit an error and stopped. The server log has the details; this is worth investigating."
     if status is RunStatus.DECLINED:
         return "The work list was declined, so no images were looked for and nothing further was spent."

@@ -32,7 +32,7 @@ from fakes import (
     works,
 )
 
-from arrt.library.discovery.engine import WorkList
+from arrt.library.discovery.engine import BudgetExhausted, EngineFailure, WorkList
 from arrt.library.services.previews import PreviewSettings
 from arrt.persistence.discovery_records import RunStatus, UnresolvedReason
 from arrt.services.container import Services
@@ -274,7 +274,62 @@ class TestCommissioningARun:
         view = http.post(f"/api/runs/{run_id}/cancel").json()
 
         assert view["run"]["status"] == RunStatus.CANCELLED
+        assert view["run"]["end_reason"] is None, "a cancel is the curator's own act, so it carries no reason"
         assert Decimal(http.get(f"/api/runs/{run_id}/spend").json()["cost_usd"]) > 0
+
+    @pytest.mark.parametrize(
+        ("error", "status"),
+        [
+            (
+                EngineFailure(
+                    "Phase 1 returned an empty answer (it stopped on 'length'). If it stopped on 'length', "
+                    "the output reservation is too small for a work list of this size."
+                ),
+                RunStatus.FAILED,
+            ),
+            (
+                BudgetExhausted(
+                    "OpenRouter refused the call: the key's credit limit is spent. Key limit exceeded (monthly limit). "
+                    "The ceiling is a per-key credit limit with a monthly reset, so this clears when the month turns "
+                    "or when the limit is raised in the OpenRouter console."
+                ),
+                RunStatus.HALTED_BY_BUDGET,
+            ),
+        ],
+    )
+    def test_a_run_that_ended_badly_says_why_after_the_worker_is_gone(self, http, engine, error, status):
+        """The reason the worker composed reaches the run's view and its listing row, in its own words.
+
+        Seen on a real Ask: a run that failed after four minutes said only
+        "failed", and why could be recovered from nothing but the container's log.
+        Both endings the worker reaches on its own are driven, because a halt's
+        reason quotes the provider's refusal, naming the limit, which the page's
+        sentence cannot. The halt's message is the shape `openrouter.py` builds
+        for a 403, the one refusal that becomes a halt.
+        """
+        engine.error = error
+        run_id = http.post("/api/runs", json={"intent": "Lucy Bull"}).json()["run_id"]
+
+        view = settled(http, run_id, until=lambda current: current == status)
+        listed = {row["run_id"]: row for row in http.get("/api/runs").json()["runs"]}
+
+        assert view["run"]["end_reason"] == str(error)
+        assert listed[run_id]["end_reason"] == str(error)
+
+    def test_an_unexpected_fault_reaches_the_run_as_a_pointer_not_as_its_own_text(self, http, engine):
+        """An exception's text stays in the log; the run says where to look.
+
+        Exception text can carry paths and addresses, and a curator cannot act on
+        a traceback. The fixture's message names a path so that leaking it fails
+        here rather than reading as a plausible reason.
+        """
+        engine.error = RuntimeError("cannot open /srv/arrt/secrets/arrt.env")
+        run_id = http.post("/api/runs", json={"intent": "Lucy Bull"}).json()["run_id"]
+
+        reason = settled(http, run_id, until=lambda current: current == RunStatus.FAILED)["run"]["end_reason"]
+
+        assert "/srv/arrt" not in reason
+        assert "server log" in reason
 
     def test_a_run_with_no_image_provider_says_so_rather_than_looking_stuck(self, http, engine):
         """Two situations share `resolving_images`, and the wiring tells them apart.

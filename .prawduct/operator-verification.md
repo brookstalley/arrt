@@ -10,6 +10,21 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Why a run stopped, on the run page — added 2026-10-05
+
+**`build-plan-run-end-reason.md` Chunk 01.** Visual change: yes.
+
+Checked by the builder against the suites, including the browser suite with canned
+runs (failed with a reason, failed without one, halted, and three endings that
+carry none). Not yet deployed.
+
+- **Look at:** after the next deploy, a run that fails or is halted shows "Why it
+  stopped: …" in muted text under the run's sentence. A run that failed before the
+  deploy (run `4756cdee`, the Lucy Bull Ask) still reads "The server log has the
+  details." and has no such line.
+- **Worth an opinion:** whether the reason belongs on Activity's run rows too.
+  This build shows it only on the run's own page.
+
 ### Image sources on System › Status — added 2026-10-03
 
 **`build-plan-source-plugins.md` Chunk 01.** Visual change: yes.

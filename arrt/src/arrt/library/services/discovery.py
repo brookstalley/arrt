@@ -361,17 +361,23 @@ class DiscoveryService:
             store_write(self._store.update_run, completed)
         return completed
 
-    def fail_run(self, run_id: str, *, actual_cost_usd: Decimal | None = None) -> DiscoveryRun:
-        """End a run because something broke. Distinct from every other ending.
+    def fail_run(self, run_id: str, *, reason: str, actual_cost_usd: Decimal | None = None) -> DiscoveryRun:
+        """End a run because something broke, and keep why. Distinct from every other ending.
 
         Only a run whose process is working on it can break, which is why this is
         refused from `awaiting_approval`: nothing is executing there, and a run
         that "failed" while waiting for a curator would be describing something
         that did not happen.
-        """
-        return self._end_active(run_id, RunStatus.FAILED, doing="fail", actual_cost_usd=actual_cost_usd, from_working=True)
 
-    def halt_run_for_budget(self, run_id: str, *, actual_cost_usd: Decimal | None = None) -> DiscoveryRun:
+        **`reason` is required, and is what a curator reads on the run.** A
+        failure that kept no reason is what this argument exists to end, so it is
+        not optional and a blank one is refused.
+        """
+        return self._end_active(
+            run_id, RunStatus.FAILED, doing="fail", actual_cost_usd=actual_cost_usd, from_working=True, reason=reason
+        )
+
+    def halt_run_for_budget(self, run_id: str, *, reason: str, actual_cost_usd: Decimal | None = None) -> DiscoveryRun:
         """End a run because the provider refused to spend more.
 
         **The caller reaches this from the provider refusing to spend, and from
@@ -386,9 +392,20 @@ class DiscoveryService:
         parked for the curator is not spending, so it cannot be the one the
         provider refused. Phase 1 *can* be — it makes model calls and can search
         the web — so this is reachable from both working states, not only phase 2.
+
+        `reason` is required as failure's is. It quotes the provider's refusal,
+        which names the limit that refused, and the page's fixed sentence about a
+        halt cannot. (The refusal carrying what was asked for against what was
+        left is a 402, which fails the run rather than halting it, so that
+        arithmetic reaches a *failed* run's reason.)
         """
         return self._end_active(
-            run_id, RunStatus.HALTED_BY_BUDGET, doing="halt", actual_cost_usd=actual_cost_usd, from_working=True
+            run_id,
+            RunStatus.HALTED_BY_BUDGET,
+            doing="halt",
+            actual_cost_usd=actual_cost_usd,
+            from_working=True,
+            reason=reason,
         )
 
     def cancel_run(self, run_id: str, *, actual_cost_usd: Decimal | None = None) -> DiscoveryRun:
@@ -1608,6 +1625,7 @@ class DiscoveryService:
         doing: str,
         actual_cost_usd: Decimal | None,
         from_working: bool = False,
+        reason: str | None = None,
     ) -> DiscoveryRun:
         """End a run that is still running. A finished run stays as it finished.
 
@@ -1616,7 +1634,13 @@ class DiscoveryService:
         a run *while it works*; offering them from `awaiting_approval` would leave
         two edges reachable that the state machine does not draw, and a state
         machine with edges nobody modelled is one nobody can reason about.
+
+        `reason` is written in the same write as the status it explains, so the
+        two cannot disagree. Refused when blank, before anything is read: a run
+        stored as failing "because" of nothing is the defect the field ends.
         """
+        if reason is not None and not reason.strip():
+            raise ValueError(f"A run cannot {doing} without a reason; the reason is what a curator reads on it.")
         with self._store.transaction():
             run = self.get_run(run_id)
             if run.status.is_terminal:
@@ -1626,7 +1650,7 @@ class DiscoveryService:
                     f"Run {run_id!r} is {run.status}, so nothing is running that could {doing}; "
                     "approve, decline, or cancel it instead."
                 )
-            ended = self._ended(run, ending, actual_cost_usd=actual_cost_usd)
+            ended = replace(self._ended(run, ending, actual_cost_usd=actual_cost_usd), end_reason=reason)
             store_write(self._store.update_run, ended)
         return ended
 
