@@ -47,7 +47,7 @@ and shows them.
 
 ## Status
 
-- [ ] Chunk 01: A run keeps why it ended, and the run page says it
+- [x] Chunk 01: A run keeps why it ended, and the run page says it
 
 ### Chunk 01: A run keeps why it ended, and the run page says it
 
