@@ -233,26 +233,51 @@ def test_no_source_file_carries_a_deployment_value():
     assert not offenders, "deployment values must live in .env, not source:\n" + "\n".join(offenders)
 
 
+@pytest.mark.parametrize(
+    ("line", "leaks"),
+    [
+        ('HOST = "10.1.2.3"', True),
+        ('HOST = "192.168.0.20"', True),
+        ('HOST = "172.20.0.1"', True),
+        ("# copied from /Users/someone/thing", True),
+        ('ROOT = "/home/pi/art"', True),
+        ('HOST = "172.32.0.1"', False),  # just outside 172.16/12
+        ('HOST = "192.0.2.10"', False),  # RFC 5737 documentation range
+        ('HOST = "110.1.2.3"', False),  # not 10/8: the address starts 110
+        ('LISTEN = "0.0.0.0"', False),
+        ("# documented as /home/<user>/art", False),
+    ],
+)
+def test_the_shape_check_knows_a_leak_from_a_lookalike(line, leaks):
+    """The pattern behind the source guard, held to cases either side of each edge."""
+    assert bool(_PRIVATE_SHAPES.search(line)) is leaks
+
+
 def _this_machines_values():
     """The deployment values this checkout's `.env` holds, and this user's home.
 
-    Read straight from the file rather than through `config`, so nothing here
-    depends on what the test harness has cleared. Coordinates and the address are
-    the values a published repository must not carry; `$HOME` stands in for every
-    path under it (a dev `ART_ROOT` included).
+    Read with `dotenv_values`, the parser `config` itself loads `.env` through, so
+    an `export` prefix or an inline comment means here what it means there, and
+    straight from the file rather than through `config`, so nothing depends on
+    what the harness has cleared. Coordinates and the address are what a published
+    repository must not carry; `$HOME` stands in for every path under it, a dev
+    `ART_ROOT` included, and is compared even where there is no `.env`. An
+    `ART_ROOT` outside `$HOME` is the deployment's published path (`/srv/art`),
+    which `_DEPLOYMENT_PATHS` holds to code alone.
     """
-    repository_root = pathlib.Path(__file__).resolve().parent.parent
-    dotenv = repository_root / ".env"
+    from dotenv import dotenv_values
+
     values = {}
+    dotenv = _REPOSITORY_ROOT / ".env"
     if dotenv.is_file():
-        for raw in dotenv.read_text(encoding="utf-8").splitlines():
-            key, separator, value = raw.partition("=")
-            value = value.strip().strip("\"'")
-            if separator and key.strip() in ("TV_ADDRESS", "LATITUDE", "LONGITUDE") and len(value) >= 4:
-                values[key.strip()] = value
-        home = os.environ.get("HOME", "")
-        if len(home) > len("/home/"):
-            values["HOME"] = home
+        declared = dotenv_values(dotenv)
+        for key in ("TV_ADDRESS", "LATITUDE", "LONGITUDE"):
+            value = (declared.get(key) or "").strip()
+            if len(value) >= 4:
+                values[key] = value
+    home = os.environ.get("HOME", "")
+    if len(home) > len("/home/"):
+        values["HOME"] = home
     return values
 
 
@@ -269,7 +294,7 @@ def test_no_tracked_file_carries_this_machines_deployment_values():
 
     values = _this_machines_values()
     if not values:
-        pytest.skip("no .env with deployment values in this checkout, so there is nothing of this machine's to look for")
+        pytest.skip("no .env deployment values and no $HOME here, so there is nothing of this machine's to look for")
     repository_root = pathlib.Path(__file__).resolve().parent.parent
     tracked = subprocess.run(
         ["git", "ls-files", "-z"], cwd=repository_root, capture_output=True, check=True, text=True
