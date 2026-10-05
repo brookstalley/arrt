@@ -227,6 +227,28 @@ def test_a_runner_given_no_check_uses_the_fetch_policy(services, engine, setting
     assert pages_by_title(museum) == {"Mambo Jumbo": (public,)}
 
 
+def test_a_citation_that_is_not_a_url_is_refused_and_the_run_s_works_are_still_searched(services, engine, settings, museum):
+    """A stored citation is read again on every re-search, so one that raised
+    instead of being refused would fail that run's phase 2 for good."""
+    previews = PreviewCache(
+        PreviewSettings(art_root=settings.art_root, directory=settings.previews_path), ImageSourcePool([museum]).fetch_preview
+    )
+    runner = DiscoveryRunner(
+        services.discovery,
+        engine,
+        settings.discovery_settings,
+        images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
+        previews=previews,
+        spawn=lambda work: work(),
+    )
+    public = "http://93.184.216.34/artists/1-someone/works"
+
+    run = ask(runner, engine, museum, "Mambo Jumbo", citations=("http://[x/", "http://a..b/", public))
+
+    assert services.discovery.get_run(run.id).status is RunStatus.COMPLETED
+    assert pages_by_title(museum) == {"Mambo Jumbo": (public,)}
+
+
 def test_the_container_s_runner_hands_on_only_what_the_real_fetch_policy_passes(
     store, discovery_store, wall_settings, thumbnail_settings, settings, engine, museum
 ):

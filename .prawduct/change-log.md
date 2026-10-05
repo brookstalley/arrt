@@ -84,6 +84,10 @@ probe: Artlogic, and what Ask's search cites). Plan: `build-plan-ask-pages.md`.
   check the same resolver acquisition uses, so a suite's stated DNS answers
   reach it too.
 - The plugin interface is 1.1. A plugin written for 1.0 loads unchanged.
+- `check_fetchable` refuses a URL it cannot parse (`http://[x/`) and a name the
+  resolver cannot encode (`a..b`, a label over 63 characters) instead of raising
+  a parser's error. A stored citation of either shape would otherwise have failed
+  its run's phase 2 on every re-search; acquisition's three callers gain the same.
 - `security-model.md`: bound 2 re-derived for plugin reads of cited pages
   (§ Plugins read pages a search cited), with the owner's approval.
 

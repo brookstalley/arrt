@@ -152,6 +152,9 @@ call reads as a broken plugin on the panel.
   size bounds and the tile cache. A direct fetch re-checks every redirect hop.
   A tiled fetch hands the checked URL to `dezoomify-rs`, which fetches the tiles
   that URL names itself;
+- check the address of every page in `query.pages` before your finder sees it
+  (the same check: http or https, a public address, no `.local` name), and drop
+  one it refuses. That is one check, of the address as cited, at that moment;
 - decide a work's identity, its rights record, duplicates, review, quality,
   spending and storage, so a plugin writes nothing;
 - cut the query string from every URL in its log and on the health panel,
@@ -162,7 +165,11 @@ call reads as a broken plugin on the panel.
 code runs inside Arrt, with Arrt's network. So:
 
 - ask only the hosts your plugin is about, and in `read`, only hosts `claims`
-  accepts;
+  accepts. A page in `query.pages` widens that to the page's own host, and no
+  further: a redirect from it, and anything you read after it, are your requests
+  and unchecked, so keep them on that host and bound them. The host's name can also answer differently when you look it up
+  than when Arrt checked it, so a plugin that must never reach the LAN checks
+  the address it connects to;
 - bound every read;
 - send `context.user_agent`, or your own setting where the site asks callers to
   identify themselves;

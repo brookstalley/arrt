@@ -439,7 +439,12 @@ reach an address taken from search results. What bounds them instead:
 2. **Arrt checks each address before a plugin sees it**, with property 2 above
    (`check_fetchable`, in the runner): http(s), publicly routable, no `.local`
    name. A citation naming the operator's LAN never reaches a plugin. A plugin's
-   redirects and later requests are its own, and unguarded.
+   redirects and later requests are its own, and unguarded. So is its own lookup
+   of the name: an attacker who controls a cited host's DNS can answer Arrt's
+   check with a public address and the plugin's connection with a LAN one (DNS
+   rebinding). The read is a GET whose answer is parsed for a gallery's markup and
+   never returned to the attacker, so it can reach a LAN service but not read it
+   back; accepted on the same grounds as § The fetch trigger fired's residual.
 3. **A plugin reads only pages of a shape it recognises**, on that page's own
    host (`docs/source-plugins.md` § A finder). This is the plugin's property, not
    Arrt's: it holds for the plugins in this deployment and is what their reviews
@@ -451,7 +456,8 @@ reach an address taken from search results. What bounds them instead:
    name an arbitrary image to fetch.
 
 **The honest residual.** An attacker who gets a page into an Ask's search
-results can have a plugin GET that public page, and, if it is shaped like a page
+results can have a plugin GET that public page (or, through rebinding, a LAN
+address, blind), and, if it is shaped like a page
 the plugin reads, steer which image is offered for review. That is the realistic
 worst case § Prompt Injection already names, now reachable one step earlier, and
 it still stops at the curator. Each Ask is started by a person, so bound 6 is

@@ -156,3 +156,19 @@ class TestResolutionFailures:
         # address had passed.
         with pytest.raises(UrlRefused, match="no addresses"):
             check_fetchable("https://empty.example.com/x.jpg", resolve=_resolves_to())
+
+
+class TestUrlsThatAreNotUrls:
+    """Refused by name, never raised as a parser's error: a caller handles refusals,
+    and anything else from here fails whatever was asking (a run's whole phase 2,
+    for a citation stored with the run)."""
+
+    def test_a_bracketed_host_that_is_no_address_is_refused(self):
+        with pytest.raises(UrlRefused, match="cannot be parsed"):
+            check_fetchable("http://[x/", resolve=PUBLIC)
+
+    @pytest.mark.parametrize("url", ["http://a..b/", "http://" + "a" * 64 + ".example/"])
+    def test_a_name_with_an_empty_or_overlong_label_is_refused_before_any_lookup(self, url):
+        """The system resolver's own IDNA step raises; no network is involved."""
+        with pytest.raises(UrlRefused, match="not a name that can be looked up"):
+            check_fetchable(url)

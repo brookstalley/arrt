@@ -901,7 +901,7 @@ To review. Total spent across the four Asks: $0.037.
   it cannot see into is a question for the owner, not answered here.
 - **A failed run keeps no reason.** `fail_run` stores nothing but the status, so
   the screen says "failed" with nothing to act on, and the only record is the
-  container's log. Filed.
+  container's log. Filed as #207.
 - **Row 56 is larger, and still not the work's shape.** Kordansky's original of
   *13:13* is 2,800 × 4,200 (2 : 3), where the work is 8.7 : 1, so it is still a
   view of the stairwell commission, not a reproduction of the canvas. Gap 6's

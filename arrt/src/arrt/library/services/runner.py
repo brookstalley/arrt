@@ -1035,8 +1035,10 @@ class DiscoveryRunner:
         """Ask the provider about each work this run is responsible for."""
         works = self._works_to_resolve(run_id)
         tally: Counter[WorkOutcome] = Counter()
-        #: Each proposing run's pages, checked once for this pass: a re-search can
-        #: cover works from several runs, and a run's works share its pages.
+        #: The proposing run's pages, checked once for this pass and shared by its
+        #: works. Keyed by the proposing run because a re-search is a run of its
+        #: own, with no search: its works' pages are the run that proposed them
+        #: (the record layer keeps a re-search to one such run).
         pages: dict[str, tuple[str, ...]] = {}
         for work in works:
             # Re-read each time round rather than once before the loop: a curator
