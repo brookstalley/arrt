@@ -52,7 +52,7 @@ history (the owner ruled fix forward).
 - [x] Chunk 01: Records: amendments, index rows, stale references
 - [x] Chunk 02: The deployment guard stops publishing the deployment
 - [x] Chunk 03: Guards and small fixes the sweep found
-- [ ] Chunk 04: Ruff ALL on the display plane; N and BLE001 at the root
+- [x] Chunk 04: Ruff ALL on the display plane; N and BLE001 at the root
 - [ ] Chunk 05: Ruff ALL on the curation plane
 - [ ] Chunk 06: Wanted becomes a top-level section
 
