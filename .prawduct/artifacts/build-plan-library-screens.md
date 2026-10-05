@@ -210,7 +210,11 @@ presence or absence, and which image style it carries
 decides every screen's mark and style, so the typeahead, Artist and Work pages
 each test their wiring of `wanted` and some styles rather than the matrix again)*,
 plus one with pictures failing to load that still tells the states apart; before/after screenshots of
-all four screens; an operator-verification entry.
+all four screens *(built as screenshots of the Topic page, the search dropdown
+and the Artist page's *Their work*; the Search results page and a work's *More
+by* were checked by the browser tests only. The owner's review on 2026-10-04
+passed the screens without naming which pages were opened)*; an
+operator-verification entry.
 
 ### Chunk 04: Artists: surname order and cards
 
