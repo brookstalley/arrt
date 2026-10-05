@@ -3388,7 +3388,7 @@ base_branch: develop
 # invisible in any single diff review and visible only across entries here.
 # Keep the last 3; git holds the rest.
 
-norm_health_last_run: 2026-08-02
+norm_health_last_run: 2026-10-05
 
 norm_health:
   - date: 2026-08-02
@@ -3420,6 +3420,46 @@ norm_health:
       - "The service-layer fork (see service-layer-only above) — re-affirm with a named exception for the three shapes, or amend the norm. A Known-departures row now warns readers in the interval; the decision itself is still owed."
       - "Issue #24 names the MCP layer importing persistence directly; http/api.py now does the same. The boundary eroded after the issue was filed and the issue's scope did not follow. RESOLVED 2026-08-02, in the record only: #24 is retitled to the surface layer generally and names all three import sites (mcp/bindings.py, mcp/tools.py, http/api.py:51), and its stale module path is corrected — the 07B split moved the records to curation.persistence.records. The ARCHITECTURE IS UNCHANGED and the item is still open at stage design; what was deferred was the issue lying about its own scope, not the erosion, which is real and still there."
       - "Durable prose in this artifact anchors to build-plan chunk ids ('at Chunk 20'), which dangle once the plan ships. Weak form — the meaning survives — but it is the pattern the methodology names."
+  - date: 2026-10-05
+    note: >-
+      Second sweep, 64 days after the first, and the first since the
+      2026-09-30 re-architecture, the display plane and the paid discovery
+      path. Measured by four read-only agents per norm family at develop
+      099368d; counts are AST, grep or test runs unless marked judgement.
+      Rulings owed are under `deferred` until the owner answers.
+    measurements:
+      black-formatting: "0 violation sites on all three planes (38/315/63 files); test_tool_config.py green."
+      naming-conventions: "1 ruff-N site (a postarr test name carrying KEY_POWER). The 8 legacy modules give 0 N findings now and at ba007cd, so the row's Why ('would fail it in bulk') was never true."
+      import-grouping: "0 sites; ruff I selected in all three pyproject.toml files (the row still says 'both')."
+      logging-not-print: "19 live print() calls in the 8 legacy modules by AST, unchanged since ba007cd^ — the 2026-08-02 '39' counted 20 commented-out lines and was the wrong one. 20 per-line T201 waivers in arrt/postarr, 10 without a reason, 1 a no-op. 0 unwaived."
+      type-annotations: "Root unchanged (4 modules none, 2 params-only). ANN enforced on arrt and postarr shipped code (row names arrt only); 9 reasoned ANN401 waivers; 11 no-op ANN waivers in arrt tests."
+      broad-except: "Root 7 unwaived (dated, wave 5) + 1 waived. arrt 26 waived + 1 unwaived; postarr 20 waived + 4 unwaived. The 5 unwaived are cleanup-and-reraise BaseException catches (backup.py:202, kms.py:257/353/369/372). 9 pragmas sit off the except line. Up from '0 unwaived product-wide'."
+      no-hardcoded-deployment: "0 sites in what it walks (root, src and tools of both planes). The guard's own pattern carries the wall's private address, the Mac home path and city coordinates into this public repo (tests/test_config.py:19-20,188-194)."
+      tv-token-untracked: "0 tracked; basename guard covers every plane."
+      async-io-boundary: "4 root modules departed, unchanged (21 async defs). arrt 0; postarr async only in TV/HTTP adapters and their loops (judgement)."
+      hardware-behind-interface: "Measurable for the first time: postarr 4 surfaces, 4 interfaces (TvClient, Epd, Device, ClientLink), drivers imported only in __main__ and lazily in epaper.py. Root legacy imports drivers directly, with no departure row."
+      no-secret-in-log: "Declared secrets: root 2, arrt 1 + client tokens, postarr client_token. Plane guards exist (arrt test_startup.py:338, postarr test_config.py:275) but the row names only root tests; arrt's is hardcoded to openrouter_api_key rather than iterating _SECRET_FIELDS."
+      browser-client-executed: "580 tests in 31 files; browser.yml on PRs and main with assert_tests_ran.py; last 6 runs green."
+      service-layer-only: "31 of 141 bindings depart from the literal 'call one service method' (api.py 20/76, player.py 5/5, mcp/bindings.py 6/60). 5 (player.py token gates) break the 2026-09-30 ruling's own wording. 4 compositions written once per surface. Up from 6 of 12 + 1."
+      surface-imports-persistence: "Issue #24: 8 import statements, 36 names, 4 modules (incl. the store module persistence.catalogue), up from 5/15/2 at 0570394."
+      manifest-only-channel: "0 violations; HTTP client only in pull.py; file channel retired 2026-10-02. Statement still says 'exactly three kinds of request' while contract/routes.json names 5."
+      label-on-device: "0 in postarr. Arrt's tv_display rendition and TV_PANEL_* are an unrecorded departure (wave 4)."
+      display-independence: "Conforms; test_pull.py:251,271 test the cache claim. Interim condition (wave 3 retires the file channel) has fired; row still says Critic."
+      library-programming-seam: "Rules 1, 2, 4: 0 violations. Rule 3: 2 cross-seam foreign keys (sqlite.py:320,349), equal to the inventory. Its trigger (store split, wave 3) was skipped when wave 3 shipped without it; no wave or issue now."
+      heartbeat-contract: "Guard green. Filename half no longer crosses planes (Players POST); a third REPORTED_AT_KEY sits outside the guard."
+      tv-belongs-to-user: "0 power keys in postarr/src. Row's 'lands with Chunk 27' points at an abandoned chunk; no static guard."
+      provider-enforced-spend: "0 application-side gates: halt_run_for_budget reached only from the provider's 403. OPENROUTER_API_KEY in .env.example with ceiling notes. Legacy ai.py OPENAI_KEY has none (wave 5)."
+      wcag-aa-curation-ui: "0 failing pairs; text on --scrim since 2026-08-12 (app.css:957) is unchecked by the token test (hand-computed 4.95:1 / 7.11:1, passes)."
+      epaper-label-legible: "Panel 0 violations, 192 tests green. Caption surface unbuilt; HDMI walls now ship with no label. Tracking ref is a doc section the stalled-transition probe cannot watch."
+      outside-text-as-text: "0 markup-parsing sites in 41 scripts. 2 outside image sources and 1 link, all made safe server-side; security-model.md:70 claims a client-side host check that does not exist."
+      stylesheet-token-truth: "0 colours outside token blocks; design-direction.md:56 Retroactivity stale."
+      arr-layout: "0 mismatches against the IA (5 sections, 13 pages). Wanted sits under Activity against the norm's own precedent, placed by IA ruling 9, unrecorded as a departure."
+      data-model-direction: "4 Direction norms with no index row since 2026-07-19. identity-not-url 0; work-not-image 0; per-device-not-in-catalogue 1 departure (tv_display renditions, wave 4); derived-regenerated 1 departure (player.py:129 serves the matted canvas), Status still steady-state."
+      held-out-artists: "0 leaks; 71 tests; injected leak caught. Private plugins unmeasured."
+      unrecognised-page: "In-repo readers conform except commons.py:231-234, which reads a page with no imageinfo as 'holds nothing'. Private plugins unmeasured."
+      wikidata-plausibility: "Inception year read and relied on unchecked (century facet, topic year filter, wikidata.py:610-612,781-787). The row's 'nothing reads them today' is false for dates; 0 reads of size."
+      installation-view: "Phase 2 refuses artist mismatches; title-only match (0.75) remains the known gap, deferred to the first Get."
+      fix-not-file: "Judgement: of 35 issues since 2026-09-05, 14 non-user; 12 of those state neither filing reason; 3 look small and ready (#212, #198, #166)."
 
 # =============================================================================
 # CHANGE LOG
