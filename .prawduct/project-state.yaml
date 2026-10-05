@@ -3460,6 +3460,22 @@ norm_health:
       wikidata-plausibility: "Inception year read and relied on unchecked (century facet, topic year filter, wikidata.py:610-612,781-787). The row's 'nothing reads them today' is false for dates; 0 reads of size."
       installation-view: "Phase 2 refuses artist mismatches; title-only match (0.75) remains the known gap, deferred to the first Get."
       fix-not-file: "Judgement: of 35 issues since 2026-09-05, 14 non-user; 12 of those state neither filing reason; 3 look small and ready (#212, #198, #166)."
+    rulings:
+      - "The owner, 2026-10-05, on each fork the sweep raised (built by build-plan-norm-sweep-2026-10.md):"
+      - "Public-repo leak: fix forward. The deployment guard takes its forbidden values from the local environment plus a structural check; the hostname and login are scrubbed from two artifacts. History is not rewritten."
+      - "service-layer-only: AMENDED. Bindings compose service calls but never branch on their results; transport-only shapes are named; the Player token gate becomes a dependency; a composition both surfaces need lives in a service or is pinned by a test both run. Closes the fork deferred 2026-08-02."
+      - "Issue #24: AMENDED boundary. The surface may import persistence records and enums, never a store or the driver; the one store import (mcp/tools.py) is fixed and a test holds the line."
+      - "wikidata-plausibility: RE-AFFIRMED for size and date; an inception plausibility check is filed as a ready item."
+      - "broad-except: AMENDED. A catch that always re-raises is not a swallow and needs no pragma (ruff BLE001's semantics); a pragma sits on the except line itself."
+      - "naming-conventions: ruff N selected (N818 ignored); the row moves from Critic to Linter."
+      - "Ruff generally: the owner asked to go big. ALL on arrt and postarr, minus a named ignore list each with a why; the root adds N and BLE001 only, its modules leaving at wave 5."
+      - "fix-not-file: RE-AFFIRMED. #212 and #198 are fixed in the sweep build; non-user backlog items carry a 'filed, not fixed, because' line."
+      - "data-model Direction: the four norms are indexed and count as ratified."
+      - "arr-layout: Wanted moves to a top-level section, following the *arr precedent the norm names."
+      - "Four unassigned target preferences: assigned or pruned (root module set frozen by test; test location by test; coverage expectations re-pointed at the planes; testing strategies to Critic)."
+      - "Root tools that are not from 2024 (tv_api_check, tv_delete, panel_check, config) move to postarr/tools at wave 5."
+      - "manifest-only-channel and heartbeat-contract: texts amended to what wave 2/3 built; the manifest norm returns to steady-state."
+      - "Bulk: 18 clear-to-ratify findings confirmed."
 
 # =============================================================================
 # CHANGE LOG
