@@ -15,7 +15,13 @@ governed_by:
     dispositions:
       - "Additive widening only → conforms. One nullable TEXT column, which `durable.py`'s widening adds to an existing catalogue file in place"
 last_validated: null
+lifecycle: completed
+archived: 2026-10-05
+released_in: v0.3.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — Why a run ended
 

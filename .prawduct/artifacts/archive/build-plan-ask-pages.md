@@ -18,7 +18,13 @@ governed_by:
       - "§ Direction: outside text reaches the page as text; an outside link or image is used only when its host is one this repository names → conforms. Cited pages are never sent to the browser, and the plugin reports images only on Artlogic's asset host"
       - "§ Prompt Injection bound 2 (no fetch a curator did not first accept) → amendment proposed, approved by the owner 2026-10-05: a plugin may read a page the run's web search cited, before acceptance. See the DECISION below; the section is re-derived in Chunk 01, as its own trigger list requires"
 last_validated: null
+lifecycle: completed
+archived: 2026-10-05
+released_in: v0.3.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — Pages from Ask, and the Artlogic galleries
 

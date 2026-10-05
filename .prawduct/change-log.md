@@ -64,7 +64,7 @@
 
 ## 2026-10-05: Norm Health sweep: the rules re-measured, and the owner's rulings built
 
-<!-- prawduct: scope=norm-sweep-2026-10 -->
+<!-- prawduct: scope=norm-sweep-2026-10 | release=v0.3.0 -->
 
 **Why:** the sweep was 64 days overdue, and the first since the 2026-09-30
 re-architecture, the display plane and the paid discovery path. Measurements and
@@ -115,7 +115,7 @@ the owner's rulings are in `project-state.yaml` (`norm_health`, 2026-10-05). Pla
 
 ## 2026-10-05: A run keeps why it ended
 
-<!-- prawduct: scope=run-end-reason -->
+<!-- prawduct: scope=run-end-reason | release=v0.3.0 -->
 
 **Why:** a run that failed kept no record of why. The runner composed a reason
 at every failure site and only logged it, so the API, the MCP `status` action and
@@ -143,7 +143,7 @@ and the records now say so. Both verified in a second pass.
 
 ## 2026-10-05: An Ask's search hands the pages it read to the source plugins
 
-<!-- prawduct: scope=ask-pages -->
+<!-- prawduct: scope=ask-pages | release=v0.3.0 -->
 
 **Why:** the owner chose Artlogic, the gallery platform, as the next source, found
 through Ask's web search rather than a list of galleries. Gallery works have no
