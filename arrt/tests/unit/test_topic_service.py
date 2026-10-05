@@ -9,6 +9,7 @@ library on every call, and a server with no User-Agent says topics need one.
 from types import SimpleNamespace
 
 import pytest
+from fakes import NothingWanted
 
 from arrt.library.registry import (
     CommonsFile,
@@ -99,8 +100,18 @@ class Store:
         return self.artists
 
 
-def _service(registry, store=None):
-    return TopicService(store or Store(), registry, kept=KeptAnswers.in_memory())
+class Wanting:
+    """A `WantedItems` naming these items, read fresh on every call as the discovery store is."""
+
+    def __init__(self, *qids):
+        self.qids = frozenset(qids)
+
+    def wanted_qids(self):
+        return self.qids
+
+
+def _service(registry, store=None, wanted=None):
+    return TopicService(store or Store(), registry, kept=KeptAnswers.in_memory(), wanted=wanted or NothingWanted())
 
 
 def test_a_topic_is_asked_once_and_remembered():
@@ -121,7 +132,7 @@ def test_a_topics_sections_answer_after_a_restart_with_the_registry_down(tmp_pat
     path = tmp_path / "kept-answers.sqlite"
     first = KeptAnswers(path)
     up = TopicRegistry(topics=[WINTER], works={"Q1311": [HUNTERS]}, artists={"Q1311": [MONET]})
-    service = TopicService(Store(), up, kept=first)
+    service = TopicService(Store(), up, kept=first, wanted=NothingWanted())
     service.topic("Q1311")
     service.works("Q1311")
     service.artists("Q1311")
@@ -129,7 +140,7 @@ def test_a_topics_sections_answer_after_a_restart_with_the_registry_down(tmp_pat
 
     second = KeptAnswers(path)
     down = TopicRegistry(failing=True)
-    restarted = TopicService(Store(held={HUNTERS.qid: ["work-1"]}), down, kept=second)
+    restarted = TopicService(Store(held={HUNTERS.qid: ["work-1"]}), down, kept=second, wanted=NothingWanted())
     try:
         topic, works, artists = restarted.topic("Q1311"), restarted.works("Q1311"), restarted.artists("Q1311")
     finally:
@@ -163,7 +174,7 @@ def test_artists_kept_under_the_rule_before_are_asked_again_not_served(tmp_path)
     after = KeptAnswers(path)
     registry = TopicRegistry(topics=[WINTER], artists={"Q1311": [MONET]})
     try:
-        artists = TopicService(Store(), registry, kept=after).artists("Q1311")
+        artists = TopicService(Store(), registry, kept=after, wanted=NothingWanted()).artists("Q1311")
     finally:
         after.close()
 
@@ -232,7 +243,7 @@ def test_an_artist_the_library_holds_is_marked_with_its_id():
 
 @pytest.mark.parametrize("section", ["topic", "works", "artists", "named"])
 def test_with_no_user_agent_every_section_says_topics_need_one(section):
-    view = getattr(TopicService(Store(), None, kept=KeptAnswers.in_memory()), section)(
+    view = getattr(TopicService(Store(), None, kept=KeptAnswers.in_memory(), wanted=NothingWanted()), section)(
         "Q1311" if section != "named" else "winter"
     )
 
@@ -272,3 +283,33 @@ def test_a_failed_search_says_so_rather_than_finding_nothing():
 def test_an_address_that_is_not_a_qid_is_refused(section):
     with pytest.raises(ServiceError):
         getattr(_service(TopicRegistry()), section)("Q1 } UNION {")
+
+
+def test_a_work_a_wanted_work_names_is_marked_wanted_beside_its_state():
+    """Wanted is beside the held / image found / no image state, not a fourth value of it.
+
+    *The Magpie* is wanted; *The Hunters* is held and wanted (a wanted work since
+    acquired, which the page resolves as held); *The Farm* is neither, and a
+    wanted item the topic does not list marks nothing here.
+    """
+    store = Store(held={"Q500985": ["w-1"]})
+    wanted = Wanting("Q4429116", "Q500985", "Q999")
+    view = _service(TopicRegistry(topics=[WINTER], works={"Q1311": [HUNTERS, MAGPIE, UNSEEN]}), store, wanted).works("Q1311")
+
+    assert [(entry.work.qid, entry.state, entry.wanted) for entry in view.works] == [
+        ("Q500985", WorkState.HELD, True),
+        ("Q4429116", WorkState.IMAGE_FOUND, True),
+        ("Q1192436", WorkState.NO_IMAGE, False),
+    ]
+
+
+def test_wanted_is_read_fresh_while_the_registrys_answer_is_remembered():
+    registry = TopicRegistry(topics=[WINTER], works={"Q1311": [MAGPIE]})
+    wanted = Wanting()
+    service = _service(registry, Store(), wanted)
+
+    assert service.works("Q1311").works[0].wanted is False
+    wanted.qids = frozenset({"Q4429116"})
+
+    assert service.works("Q1311").works[0].wanted is True
+    assert registry.asked.count(("topic_works", "Q1311")) == 1

@@ -563,6 +563,13 @@ class FakeRegistry:
         return sorted(set(self.pages.get(qid, ())))
 
 
+class NothingWanted:
+    """A `WantedItems` for a test about something else: no wanted work names any item."""
+
+    def wanted_qids(self) -> frozenset[str]:
+        return frozenset()
+
+
 def a_roster(*finders, collection=None) -> SourceRoster:
     """The plugins a test's services are built over: these finders, this collection,
     and the Art Institute's reader, as the shared `sources` fixture has it."""

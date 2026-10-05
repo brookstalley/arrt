@@ -37,7 +37,7 @@ from arrt.library.registry import (
     RegistryUnavailable,
     TopicKind,
 )
-from arrt.library.services.artists import REGISTRY_KEPT_FOR, artist_ids_by_qid
+from arrt.library.services.artists import REGISTRY_KEPT_FOR, WantedItems, artist_ids_by_qid
 from arrt.library.services.remembered import REMEMBERED, checked_qid
 from arrt.persistence.catalogue import CatalogueStore, TopicTally
 from arrt.persistence.kept import JsonCodec, Kept, KeptAnswers
@@ -120,6 +120,9 @@ class TopicWork:
     #: The library's works in circulation that are this one. Usually one;
     #: several when held works share a QID, which the page shows rather than hides.
     held: Sequence[str] = ()
+    #: A wanted work names this item. Beside `state` rather than a fourth value
+    #: of it, so a reader branching on held, image found or no image is unchanged.
+    wanted: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -202,9 +205,10 @@ class TopicPage:
 class TopicService:
     """Ask the registry about a topic, and say what the library holds of it."""
 
-    def __init__(self, store: CatalogueStore, registry: Registry | None, *, kept: KeptAnswers) -> None:
+    def __init__(self, store: CatalogueStore, registry: Registry | None, *, kept: KeptAnswers, wanted: WantedItems) -> None:
         self._store = store
         self._registry = registry
+        self._wanted = wanted
         self._topics: Kept[str, RegistryTopic] = kept.namespace(
             "registry.topic", codec=JsonCodec(RegistryTopic), max_age=REGISTRY_KEPT_FOR, size=REMEMBERED
         )
@@ -284,7 +288,7 @@ class TopicService:
         return TopicView(state=TopicState.KNOWN, known=known)
 
     def works(self, qid: str) -> TopicWorksView:
-        """The topic's most renowned works of visual art, each marked Held, Image found or no image known."""
+        """The topic's most renowned works of visual art, each with what marks it: held, wanted, its image."""
         qid = checked_qid(qid)
         if self._registry is None:
             return TopicWorksView(state=TopicState.NOT_CONFIGURED, note=TOPICS_NOT_CONFIGURED_NOTE)
@@ -305,11 +309,12 @@ class TopicService:
         # "Held" means in circulation, as on the Artist page, so an archived
         # work is not marked.
         holdings = self._store.circulating_ids_by_qid()
+        wanted = self._wanted.wanted_qids()
         ours = artist_ids_by_qid(self._store)
         makers = {creator.qid for work in listed for creator in work.creators}
         return TopicWorksView(
             state=TopicState.KNOWN,
-            works=tuple(_marked(work, holdings.get(work.qid, ())) for work in listed),
+            works=tuple(_marked(work, holdings.get(work.qid, ()), wanted=work.qid in wanted) for work in listed),
             artists={qid: ours[qid] for qid in sorted(makers) if qid in ours},
         )
 
@@ -372,10 +377,10 @@ class TopicService:
         return known
 
 
-def _marked(work: RegistryTopicWork, held: Sequence[str]) -> TopicWork:
+def _marked(work: RegistryTopicWork, held: Sequence[str], *, wanted: bool) -> TopicWork:
     if held:
-        return TopicWork(work=work, state=WorkState.HELD, held=tuple(held))
-    return TopicWork(work=work, state=WorkState.IMAGE_FOUND if work.image is not None else WorkState.NO_IMAGE)
+        return TopicWork(work=work, state=WorkState.HELD, held=tuple(held), wanted=wanted)
+    return TopicWork(work=work, state=WorkState.IMAGE_FOUND if work.image is not None else WorkState.NO_IMAGE, wanted=wanted)
 
 
 def _label(tallies: Sequence[TopicTally]) -> str | None:

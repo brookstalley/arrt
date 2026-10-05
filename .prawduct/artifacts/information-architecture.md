@@ -138,7 +138,7 @@ Priority is **core** (on a stated core flow) or **supporting**.
 | **Walls** | What is hanging right now on each display, the theme it is drawn from, and what is next. | The sidebar; after activating a theme | core (flow 6) |
 | **Artworks** | Everything acquired. Find, sort, filter, group, organise into themes, archive. The product's home. *(Collection until 2026-09-30.)* | Launch; the sidebar; search from anywhere; from a theme; after a run's accepted works land | core (flows 3, 5) |
 | **Work** | One work at full size, with its sources, renditions, mat history and theme membership. At `#work/Q…`, a work Wikidata knows that the library does not hold: its image found or none, its facts, its holder and number there, *Get this work*, and the rest of its artist's work; the library's own page replaces it, in place, when the library holds it. *(QID form built 2026-10-01, ruling 2.)* | A tile in Artworks; a tile on a Wall; a row in Review; a title in an artist's *Their work* or a work's *More by* | core (flows 4, 5) |
-| **Search results** | Everything a few words find, in one world (ruling 2): the library's artists and works first, then Wikidata's that the library does not already show, each marked ● *In your library*, ◐ *Image found* or ○ *Not held*; *All*, *In your library* and *Not held* narrow it; a top result when the words name one artist. Wikidata's works the library does not hold can be ticked and got (*Get N works*). *(Built 2026-10-01, `build-plan-one-world-search.md` Chunk 04; Get added 2026-10-02, `build-plan-get-and-ask.md` Chunk 04.)* | The dropdown's last row, *All results for "…"*; its own address (`#search?q=`) | core (S2, S3) |
+| **Search results** | Everything a few words find, in one world (ruling 2): the library's artists and works first, then Wikidata's that the library does not already show, an artist marked ● *In your library* or ○ *Not held*, a work by § A work's mark; *All*, *In your library* and *Not held* narrow it; a top result when the words name one artist. Wikidata's works the library does not hold can be ticked and got (*Get N works*). *(Built 2026-10-01, `build-plan-one-world-search.md` Chunk 04; Get added 2026-10-02, `build-plan-get-and-ask.md` Chunk 04.)* | The dropdown's last row, *All results for "…"*; its own address (`#search?q=`) | core (S2, S3) |
 | **Ask** | Asking for something in words: the direct intent box on top, then the conversations, with a run's progress shown in the thread that started it. *(Discover until 2026-09-30, when it also listed every run; Add New until 2026-10-02, when ruling 3 made acquiring a Get action and this page Ask, at the same address `#discover`.)* | The sidebar, under Artworks; *Ask about "…"* in the search box and on an empty results page; an empty Artworks, Artists, Queue and Taste | core (flows 1, 2) |
 | **To review** | Every run holding works that found an image and wait for a verdict, newest first, each opening Review — a Get opening its own page, where it is reviewed (2026-10-02); the count is on its link and on Activity's. *(Built 2026-10-02, `build-plan-get-and-ask.md` Chunk 06.)* | The sidebar, under Activity, first | core (flow 3) |
 | **Queue** *(new)* | The searches that have not ended: working, or stopped at the approval gate. Beneath them, **Fetching images**: every accepted work still owed its image or its preparation, in the order the acquisition queue will try them, each queued, fetching, failed, given up on or paused, with Retry where it failed; a pause is said above them with its remedy *(the owner's decision on #167, 2026-10-02, `build-plan-after-review.md` Chunk 02)*. Not counted on Activity's link, which is To review's: a fetch needs time, not the curator. | The sidebar, under Activity | core (flow 2) |
@@ -146,10 +146,10 @@ Priority is **core** (on a stated core flow) or **supporting**.
 | **Wanted** *(new 2026-10-02)* | Every work the curator wants and holds no acceptable scan of — wanted on a no-scan card, or by turning down the scan on offer — each saying which, with its Wikidata item or none, the search it came from, *Search again* and *Forget*; *Search all* above. Search again on a work with no item first offers Wikidata's matches to pick from (`build-plan-after-review.md` Chunks 04-05; the owner's ruling on #168). | The sidebar, under Activity, once something is wanted; a review card's *Want*; turning down a scan on offer | core (flow 3) |
 | **Run** | One run while it works and after it stops: what it proposed, what it found images for, the gate where phase 2 is approved, and its work table. **A Get's run page is its review**: the review cards in place of the work table, and no *Review these works* *(the owner's ruling, 2026-10-02, `build-plan-topics-and-destinations.md` Chunk 07)*. | Queue or History; Ask, as it starts; a Get's *Open the Get*; a Get's row in To review; a re-search started on the review grid; its own address | core (flow 2) |
 | **Review** | Judging one run's candidates: accept, reject, choose a scan, ask for a better one. One work to a row, the picture left and the facts and verdicts right (one column on a phone), the scan's pixels above the fold, *Scans* opening beneath as a table, one row a scan; clicking a picture enlarges it in place. The same cards are a Get's page; `#review/<run>` still answers for a Get. | A finished discovery run or re-search, from its own page or To review; the run's own notification | core (flow 3) |
-| **Artists** | The artists the library holds, with how many works of theirs are in circulation; and at its own address one artist as the hub: who they are, what the library holds of theirs, what Wikidata lists with the held ones marked and the rest tickable to get (*Get N works*), and which collections hold their work. At `#artist/Q…`, an artist Wikidata knows that the library does not hold: the registry half alone, saying nothing of theirs is held; the library's page replaces it, in place, when the library holds them. Below Holdings, *Similar artists*: visual artists sharing a movement, by renown, each with how many of their works have an image, and ● where the library holds them. Under the name, which Wikidata item this is, who set it, and a control to change it (looked up and shown before it is stored) or say there is none (confirmed). *(Built 2026-10-01, ruling 4; the QID form, Similar artists and the control the same day, `build-plan-one-world-search.md`.)* | The sidebar, under Artworks; an artist's name on a work card, a table row or the Work page (either form); the top-bar search's Artists group; its own address | core (S2, S3, S11) |
-| **Themes** | The themes there are, and — at its own address — one of them: its members in curated order, its name, the act of hanging it, and which theme is the default that accepted works join. | The sidebar, under Artworks; Artworks' theme rail; a wall's theme control; its own address | core (flows 5, 6) |
-| **Topics** | The periods, movements, subjects and media the library's works are in, by kind, each with how many of them, each opening its page; and *Find a topic*, which asks Wikidata for any other (`#topics?find=`). *(Built 2026-10-02, `build-plan-topics-and-destinations.md` Chunk 05; topics come from Wikidata, so without `WIKIDATA_USER_AGENT` the page says they need it and offers no search.)* | The sidebar, under Artworks, after Themes | core (S12) |
-| **Topic** | One topic, browsed like a genre: its name, kind, Wikidata's description and a link to its item; *In your library*, your works in circulation in it; *Representative works*, the most renowned Wikidata lists, each ● *Held*, ◐ *Image found* or ○ *No image known*, the unheld tickable to get into a theme named after the topic (*Add to* defaults to it); and *Artists*, those whose works in it are best known first (the sum of those works' sitelinks), each opening their page. A period's works are headed with its years ("Works from 1501–1600"), since they are matched by date alone. *(Built 2026-10-02, `build-plan-topics-and-destinations.md` Chunk 05.)* | Library › Topics; *Find a topic*; the top bar's *Topics* and *Wikidata: topics* groups; its own address | core (S12) |
+| **Artists** | The artists the library holds, by surname, as Lidarr's poster index — each a card pictured by their first accepted work, with life dates and how many works of theirs are in circulation — with a View menu to the table, kept in the address (`?view=table`) *(the owner's ruling on #173, 2026-10-02; the surname is the stored family name, else the last word once *the Elder* / *the Younger* / *Jr.* is set aside)*; and at its own address one artist as the hub: who they are, what the library holds of theirs, what Wikidata lists with the held ones marked and the rest tickable to get (*Get N works*), and which collections hold their work. At `#artist/Q…`, an artist Wikidata knows that the library does not hold: the registry half alone, saying nothing of theirs is held; the library's page replaces it, in place, when the library holds them. Below Holdings, *Similar artists*: visual artists sharing a movement, by renown, each with how many of their works have an image, and ● where the library holds them. Under the name, which Wikidata item this is and who set it, with one quiet *Edit* *(the owner's ruling on #174, 2026-10-02)* that reveals the control to change it (looked up and shown before it is stored) and to say there is none (confirmed). *(Built 2026-10-01, ruling 4; the QID form, Similar artists and the control the same day, `build-plan-one-world-search.md`.)* | The sidebar, under Artworks; an artist's name on a work card, a table row or the Work page (either form); the top-bar search's Artists group; its own address | core (S2, S3, S11) |
+| **Themes** | The themes there are, and — at its own address — one of them: its members in curated order, its name, the act of hanging it, and which theme is the default that accepted works join. | The sidebar, under Artworks; a wall's theme control; its own address *(Artworks' theme rail and its per-theme *Open* went on 2026-10-02, #169)* | core (flows 5, 6) |
+| **Topics** | The periods, movements, subjects and media the library's works are in, by kind, each kind in columns by name *(the owner's ruling on #175, 2026-10-02: one column on a phone)*, each with how many of them beside its name, each opening its page; and *Find a topic*, which asks Wikidata for any other (`#topics?find=`). *(Built 2026-10-02, `build-plan-topics-and-destinations.md` Chunk 05; topics come from Wikidata, so without `WIKIDATA_USER_AGENT` the page says they need it and offers no search.)* | The sidebar, under Artworks, after Themes | core (S12) |
+| **Topic** | One topic, browsed like a genre: its name, kind, Wikidata's description and a link to its item; *In your library*, your works in circulation in it; *Representative works*, the most renowned Wikidata lists, each by § A work's mark (○ reading *No image known*), the unheld tickable to get into a theme named after the topic (*Add to* defaults to it); and *Artists*, those whose works in it are best known first (the sum of those works' sitelinks), each opening their page. A period's works are headed with its years ("Works from 1501–1600"), since they are matched by date alone. *(Built 2026-10-02, `build-plan-topics-and-destinations.md` Chunk 05.)* | Library › Topics; *Find a topic*; the top bar's *Topics* and *Wikidata: topics* groups; its own address | core (S12) |
 | **Status** | The three observations the panel states, and the spend record. *(Health until 2026-09-30.)* | The sidebar, under System; the top bar's status indicator; a failure's own link | supporting |
 | **Conversation** *(new)* | One intent-forming thread, its samples, and what it committed to. | Ask; the conversation list; an affinity's provenance | core (flow 1) |
 | **Taste** *(new)* | The affinities the product has accumulated, with their derivation, correctable. | The sidebar, under Settings; a suggestion's "why am I seeing this?" | supporting |
@@ -297,8 +297,8 @@ listed below so it can be disputed.
   library's), *Themes* (by name), then *Wikidata: artists*, *Wikidata: works* and
   *Wikidata: topics*, then *Ask*, then *Search*, whose one row, *All results for "…"*, opens
   the Search results page. Wikidata's rows arrive after the library's and never hold them
-  back, are asked from the third letter, carry a mark of glyph, word and colour (● *In
-  your library*, ◐ *Image found*, ○ *Not held*), leave out what the library's rows already show, and open the library's
+  back, are asked from the third letter, carry a mark of glyph, word and colour (an
+  artist's ● *In your library* or ○ *Not held*; a work's by § A work's mark), leave out what the library's rows already show, and open the library's
   page for a held match and the page by QID otherwise. Their arrival is announced
   in a polite live region and moves no highlight; a new query starts with none, so
   Enter is never sent to a row the curator did not choose. Wikidata off or down is said
@@ -344,8 +344,8 @@ listed below so it can be disputed.
   View, Sort and Filter on the right. View offers Posters, Overview and Table
   (Posters was the contact sheet and Overview the catalogue; `?density=` keeps
   its spellings). Sort offers Title, Artist (unattributed last) and Recently
-  added, and is not offered while a theme is showing, since a theme comes in
-  its curated order. **Filter shows and hides the rails rather than replacing
+  added, and applies to a theme filtered here as to any filter (a theme's
+  curated order is its own page's; #169). **Filter shows and hides the rails rather than replacing
   them with a dropdown**, so the facet counts stay in view while browsing
   (ruled by the owner 2026-09-30, departing from Radarr's Filter menu). With
   the rails away, a facet or a theme still narrowing the works says so above
@@ -581,6 +581,28 @@ Two consequences the interface must show rather than hide:
   it.** The free text stays the evidence; the facet is only the index. A work shown
   as "Late 19th c." must still show "1888–89" on its own screen.
 
+### A work's mark
+
+*The owner's ruling on #172, 2026-10-02.* Wherever registry works are listed —
+the search typeahead, the Search results page, the Topic page's *Representative
+works*, the Artist page's *Their work* and a work's *More by* — each carries its
+picture in the image style of its state, then glyph and word:
+
+| State | Picture | Glyph and word |
+|---|---|---|
+| Held | The library's own thumbnail, in the held style; the mark opens the work | ● *Held* (*Held ×n* for a duplicate) |
+| Wanted (Activity › Wanted, matched to the item) | Wikidata's picture where it has one, in the wanted style | ◑ *Wanted* |
+| Not held, with a picture | Wikidata's picture, in the not-held style | ◐ *Not held · Image found* |
+| Not held, no picture | None | ○ *Not held* (*No image known* on the Topic page) |
+
+Held wins over wanted. **The three image styles are one block in `app.css`**,
+to be tuned against one another: the owner asked to "css style held, wanted,
+not held as image styles and then iterate on what's most clear". The first try
+is held plain with a quiet outline, wanted with a dashed accent outline, and not
+held under diagonal hatching. Glyph and word carry the state whatever the
+picture does, so a picture that fails to load, or none, leaves every state
+readable (`accessibility-spec.md`).
+
 ## User Flows
 
 Each core flow from the Product Brief, traced through screens. A flow that cannot
@@ -659,12 +681,32 @@ and neither is fully reversible, which drives two rules:
 
 ### Flow 5 — Organise into themes
 
-`Artworks → select → add to theme` *(and)* `Artworks → theme rail → Theme → reorder`
+`Artworks → Select → add to theme` *(and)* `Library › Themes → Theme → reorder`
 
 **CHANGE — organising happens in the collection, against the works being
-organised.** The theme rail filters the grid to a theme's members; membership is
-edited from the grid, in place, with multi-select. Reordering — which is genuinely
-about the theme rather than about the works — happens on the Theme screen.
+organised.** Membership is edited from the grid, in place, with multi-select.
+Reordering — which is genuinely about the theme rather than about the works —
+happens on the Theme screen.
+
+**Radarr's pattern, the owner's ruling of 2026-10-02 (#169).** The rail's theme
+list read as the way to add works to a theme, and the toolbar's theme picker as
+a filter; the two were redrawn apart:
+
+- **A theme is one more group in the *Filter* rail**, beside the facets, one
+  theme at a time. It composes with the facets and the search on the server
+  (`GET /api/works?theme=`), and each theme carries the count it would select
+  given every other filter, disabled at zero, as a facet value does
+  (§ A control never offers a dead end). A theme filtered here is in the Sort
+  menu's order, as any filter is; its curated order is its own page's. The
+  rail's separate theme list and its per-theme *Open* are gone: themes are
+  reached from Library › Themes.
+- **Adding and removing appear only in *Select* mode**, as Radarr's mass editor
+  does: a *Select* toggle in the toolbar (`aria-pressed`) shows ticks on the
+  tiles and an action bar whose buttons say the whole act — "Add 3 works to
+  Winter", with a visibly labelled *Theme* picker, and "Remove 3 from Baroque"
+  when a theme is in the filter. Outside the mode, nothing on the screen changes
+  a theme's members. Leaving it drops the ticks. With no themes at all, *Select*
+  is not offered.
 
 **One theme is the default, and acceptance fills it** *(the owner's ruling 8,
 built 2026-10-01)*. A work accepted from any route joins the default theme at the
@@ -722,8 +764,8 @@ who did not edit this table.
 | Screen | Primary | Secondary | Actions | Status |
 |---|---|---|---|---|
 | Walls | Each wall's hanging work, large | Title, artist, theme, which wall; which client shows it, on which output ("Shown by Hall Pi on hdmi-a-1"), or "No client shows this wall" with a link to Settings › Clients *(2026-10-02, `build-plan-clients.md` Chunk 02)* | Change theme, next, open work *(the wall token panel, added 2026-09-30, was retired 2026-10-02 with wall tokens; a wall is assigned to a client in Settings › Clients)* | Panel + TV health, quietly |
-| Artworks | The grid of images | Counts, active filters | Search, filter, select, add to theme, archive | Total, and what is filtered out |
-| Work | The image at full size; for a work not held, the image Wikidata found, or none | Artist, facets, mat colour, rendition size; for a work not held, its date, medium, and holder with number | Theme membership, re-mat, archive, change the Wikidata item or say there is none, Retry a failed fetch; for a work not held, *Get this work*, its artist, and the rest of their work | Fit verdict, image state, and while the acquisition queue owes it one, where it stands there; for a work not held, *Not held* (○), or *Not held · Image found* (◐) |
+| Artworks | The grid of images | Counts, active filters | Search; filter by facet and by theme, which compose; *Select* mode, whose action bar adds the ticked works to a theme or removes them from the theme being filtered; archive | Total, and what is filtered out |
+| Work | The image at full size; for a work not held, the image Wikidata found, or none | Artist, facets, mat colour, rendition size; for a work not held, its date, medium, and holder with number | Theme membership, re-mat, archive, change the Wikidata item or say there is none, Retry a failed fetch; for a work not held, *Get this work*, its artist, and the rest of their work | Fit verdict, image state, and while the acquisition queue owes it one, where it stands there; for a work not held, *Wanted* (◑), *Not held · Image found* (◐) or *Not held* (○) |
 | Search results | The artists and works the words find, artists first | Each artist's years; each work's maker; how many library works match beyond those listed | Open any result; switch *All*, *In your library*, *Not held*; open the library's matches in Artworks; *Ask about* when Wikidata has nothing | Each result's mark; whether Wikidata answered |
 | Ask | The intent box and the conversations | Samples inline | Type, react, commit, start direct | Run progress, spend |
 | To review | The runs with works waiting for a verdict | What each asked for, its kind, how many works wait, when | Review a run's works | The count, as a word and a number |
@@ -736,9 +778,9 @@ who did not edit this table.
 | Clients | Each client by name, with the walls it shows and on which outputs | When its token was issued; its last report's outputs (name, kind, connected, screen size) | Add (issuing its token, shown once), rename, rotate the token (asks first), issue a first token, remove (asks first, naming the walls left without a client), assign a wall to an output, unassign | The last report's age in words; no token, no report, an unreadable report and no outputs, each said |
 | Review | The candidate picture | Title, artist, the scan's pixels (*3,840 × 2,604 px*; inches on a wall dropped 2026-10-02, back with per-wall geometry in wave 4) | Accept, reject, choose scan, ask better, enlarge the picture in place | Verdict, provenance, resolution, fit verdict word |
 | Themes | Members in wall order | Name, count | Reorder, rename, hang, make default, delete | Which walls it hangs on; whether it is the default (★ default) |
-| Artists | The artist: on the index, every held artist by name; on one artist's page, their held works, then what Wikidata lists | Life dates, nationality, Wikidata's description and movements; each listed work's year; the collections holding their work | Open an artist; select held works and add them to a theme; react (*More like this*, *Not this*); open a held work from its *Held* mark, and any listed work from its title; open a similar artist; change the Wikidata item or say there is none | Each listed work marked *Held* (●) or *Image found* (◐) or neither; whether Wikidata answered; for an artist not held, that nothing of theirs is held |
-| Topics | Your topics by kind, each by name | How many of your works are in each | Open a topic; find any other topic by name | Whether Wikidata is configured, said when it is not |
-| Topic | Your works in it, then the works Wikidata lists for it | Its kind, description and Wikidata item; each listed work's maker and year; each artist's life and how many of their works have an image | Open a held work, a listed work, a maker or an artist; tick unheld works and *Get* them, *Add to* defaulting to a theme named after the topic | Each listed work ● *Held*, ◐ *Image found* or ○ *No image known*; each artist ● where the library holds them; whether Wikidata answered, per section |
+| Artists | The artist: on the index, every held artist by surname, as posters or a table; on one artist's page, their held works, then what Wikidata lists | Life dates, nationality, Wikidata's description and movements; each listed work's year; the collections holding their work | Open an artist; select held works and add them to a theme; react (*More like this*, *Not this*); open a held work from its *Held* mark, and any listed work from its title; open a similar artist; change the Wikidata item or say there is none | Each listed work marked by § A work's mark; whether Wikidata answered; for an artist not held, that nothing of theirs is held |
+| Topics | Your topics by kind, each by name, in columns | How many of your works are in each | Open a topic; find any other topic by name | Whether Wikidata is configured, said when it is not |
+| Topic | Your works in it, then the works Wikidata lists for it | Its kind, description and Wikidata item; each listed work's maker and year; each artist's life and how many of their works have an image | Open a held work, a listed work, a maker or an artist; tick unheld works and *Get* them, *Add to* defaulting to a theme named after the topic | Each listed work marked by § A work's mark (○ reading *No image known*); each artist ● where the library holds them; whether Wikidata answered, per section |
 | Status | The three observations | Spend history | — | The whole screen is status |
 
 **"Remove" is the wrong word for a *work*, and that control must not use it.**

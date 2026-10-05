@@ -24,6 +24,7 @@ if they could disagree — they cannot, because the index is strictly the weaker
 statement of the same rule.
 """
 
+import json
 import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -547,6 +548,15 @@ def _matching(query: WorkQuery) -> _Restriction:
         clauses.append('a."artist_id" = ?')
         values.append(query.artist_id)
 
+    # One bound JSON array rather than a placeholder per id: a theme may hold
+    # more works than SQLite will bind variables to one statement. `json_each`
+    # is JSON1, part of every SQLite build since 3.38 and optional before it.
+    # The server runs only on a uv-managed CPython (the Dockerfile's `uv python
+    # install`), which bundles its own SQLite: 3.53.1 under 3.14.6, 2026-10-04.
+    if query.within is not None:
+        clauses.append('a."id" IN (SELECT value FROM json_each(?))')
+        values.append(json.dumps(sorted(query.within)))
+
     # ANDed across terms, ORed across columns: "blue harbour" means both words
     # appear somewhere about the work, which is what a person typing two words
     # means. ORing the terms instead would make every extra word widen the
@@ -625,13 +635,22 @@ class SqliteCatalogue(TableAdapter):
         )
         return ArtworkPage(artworks=[_artwork(row) for row in rows], total=total)
 
-    def held_artists(self) -> Sequence[tuple[Artist, int]]:
+    def artwork_ids_matching(self, query: WorkQuery) -> frozenset[str]:
+        selects = _matching(query)
+        rows = self._store.select_rows(f"SELECT a.id AS id {selects.source} WHERE {selects.where}", selects.values)
+        return frozenset(row["id"] for row in rows)
+
+    def held_artists(self) -> Sequence[tuple[Artist, int, str]]:
+        accepted = str(ArtworkStatus.ACCEPTED)
         rows = self._store.select_rows(
-            'SELECT ar.*, COUNT(a."id") AS held FROM artists ar JOIN artworks a ON a."artist_id" = ar."id" '
+            'SELECT ar.*, COUNT(a."id") AS held, '
+            '(SELECT a2."id" FROM artworks a2 WHERE a2."artist_id" = ar."id" AND a2."status" = ? '
+            'ORDER BY coalesce(a2."accepted_at", a2."created_at"), a2.rowid LIMIT 1) AS pictured '
+            'FROM artists ar JOIN artworks a ON a."artist_id" = ar."id" '
             'WHERE a."status" = ? GROUP BY ar."id" ORDER BY ar."name" COLLATE NOCASE, ar."id"',
-            (str(ArtworkStatus.ACCEPTED),),
+            (accepted, accepted),
         )
-        return [(_artist(row), int(row["held"])) for row in rows]
+        return [(_artist(row), int(row["held"]), row["pictured"]) for row in rows]
 
     def circulating_ids_by_qid(self) -> Mapping[str, Sequence[str]]:
         rows = self._store.select_rows(

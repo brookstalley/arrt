@@ -99,7 +99,7 @@ class TestAWorkNotHeld:
         assert "1565" in facts
         assert "oil paint, panel" in facts
         assert "Kunsthistorisches Museum (GG_1838)" in facts
-        assert " ".join(ui.page.locator("#view .card-footer").inner_text().split()) == "◐ Image found"
+        assert " ".join(ui.page.locator("#view .card-footer").inner_text().split()) == "◐ Not held · Image found"
         image = ui.page.locator("#view img.detail-image")
         assert image.get_attribute("src") == f"{COMMONS}?width=1200"
         assert image.get_attribute("referrerpolicy") == "no-referrer"
@@ -123,6 +123,16 @@ class TestAWorkNotHeld:
 
         ui.page.click("section[aria-labelledby='more-by'] button:has-text('The Harvesters')")
         ui.page.wait_for_function("(qid) => window.location.hash.split('?')[0] === `#work/${qid}`", arg=HARVESTERS)
+
+    def test_a_wanted_work_says_so_on_its_page_and_in_the_rest_of_their_work(self, ui, want_item):
+        want_item(HUNTERS, "The Hunters in the Snow")
+        want_item(HARVESTERS, "The Harvesters")
+        ui.open(f"#work/{HUNTERS}")
+        ui.page.wait_for_selector("section[aria-labelledby='more-by'] table")
+
+        assert " ".join(ui.page.locator("#view .card-footer").inner_text().split()) == "◑ Wanted"
+        row = ui.page.locator("section[aria-labelledby='more-by'] tbody tr", has_text="The Harvesters")
+        assert " ".join(row.locator(".state-mark").inner_text().split()) == "◑ Wanted"
 
     def test_its_unheld_artist_opens_their_page_here(self, ui):
         ui.open(f"#work/{HUNTERS}")

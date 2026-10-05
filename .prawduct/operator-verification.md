@@ -81,6 +81,111 @@ matted shape is a little narrower than the screen. Not on your catalogue.
 - **Look at:** a square and a tall work on the HDMI monitor. The mat is the
   work's shape and 1.5" wide (deeper below), and everything else is black.
 
+### ✅ Wikidata identity's one *Edit*; Library › Topics in columns — added 2026-10-02, VERIFIED 2026-10-04
+
+**`build-plan-library-screens.md` Chunk 05 (#174, #175).** Visual change: yes.
+
+**Looked at by the owner on 2026-10-04** on a server over a copy of the dev
+catalogue, with pictures: "Screens are good". The owner gave no answer to the
+questions marked *worth an opinion* below, so the built choices stand.
+
+Checked by the builder on 2026-10-02 in the browser suite's own server, and on
+a copy of the dev catalogue at 1440 px and 390 px.
+
+- **An Artist or Work page** shows "Wikidata: Q… (matched)" and one quiet
+  **Edit**. Edit reveals the Q… field, *Look up* and *There is none*; nothing
+  else shows at rest.
+- **Library › Topics** lays each kind out in columns, by name, each count beside
+  its name: several columns at desktop width, one on a phone.
+
+### ✅ Library › Artists: surname order, posters and a table — added 2026-10-02, VERIFIED 2026-10-04
+
+**`build-plan-library-screens.md` Chunk 04 (#173).** Visual change: yes.
+
+**Looked at by the owner on 2026-10-04** on a server over a copy of the dev
+catalogue, with pictures: "Screens are good". The owner gave no answer to the
+questions marked *worth an opinion* below, so the built choices stand.
+
+Checked by the builder on 2026-10-02 at 1440 px and 390 px against a copy of
+the dev catalogue (31 artists, no masters, so every card says *No picture*),
+and in the browser suite with pictures served.
+
+- **Order:** Albers, Andrieu, Brancusi, Calder, Callahan, Curry, Dalí, Demuth…
+  by surname, the stored family name where the catalogue has one, else the last
+  word once *the Elder* / *the Younger* / *Jr.* is set aside. *Moche* sorts under
+  M. **Worth an opinion:** *Katsushika Hokusai* sorts under H, as Western
+  catalogues shelve him, though Katsushika is the family name; a stored family
+  name would move him.
+- **Posters** (the default): a card per artist pictured by their first accepted
+  work, uncropped, with life dates and how many works; several to a row on a
+  desktop, two on a phone. **View → Table** shows the old table in the same
+  order, and the choice stays in the address (`#artist?view=table`).
+- **Worth an opinion:** whether the first accepted work is the right picture
+  (the alternative is the most-shown or most-renowned one).
+
+### ✅ A work's mark: held, wanted and not held as image styles — added 2026-10-02, VERIFIED 2026-10-04
+
+**`build-plan-library-screens.md` Chunk 03 (#172).** Visual change: yes.
+
+**Looked at by the owner on 2026-10-04** on a server over a copy of the dev
+catalogue, with pictures: "Screens are good". The owner gave no answer to the
+questions marked *worth an opinion* below, so the built choices stand.
+
+Checked by the builder on 2026-10-02 in the browser suite's own server, with
+one work wanted and real pictures served: the Topic page (1280 px and 390 px),
+the search dropdown and the Artist page's *Their work* (1280 px). The Search
+results page and a work's *More by* were checked by the browser tests only, not
+by eye.
+On your catalogue: want a work in Review, pick its Wikidata item in Activity ›
+Wanted, then open a Topic, Artist or search that lists it.
+
+- **Wherever registry works are listed** (the typeahead, Search results, a
+  Topic's *Representative works*, an Artist's *Their work*, a work's *More
+  by*): ● *Held* with the library's own thumbnail; ◑ *Wanted*, with Wikidata's
+  picture under a dashed accent outline where there is one; ◐ *Not held · Image
+  found*, Wikidata's picture under diagonal hatching; ○ *Not held* (*No image
+  known* on a Topic) with none. A picture that fails to load is dropped, leaving
+  glyph and word.
+- **This is a first try, to iterate on**, as you asked: the three styles are one
+  block in `app.css` (`.work-pic-held`, `-wanted`, `-not-held`). Say which reads
+  clearest and what to change.
+- **Worth an opinion:** the hatching is strong (it reads at a glance, and hides
+  more of the picture); in the search dropdown a pictured row is taller than
+  its neighbours; and on a phone the Topic and Artist tables scroll sideways
+  and the state column starts off screen (it did before this change; the Artist
+  page hides the pictures on a phone, the Topic page does not).
+
+### ✅ Artworks: Theme in the Filter rail, and Select mode — added 2026-10-02, VERIFIED 2026-10-04
+
+**`build-plan-library-screens.md` Chunk 02 (#169).** Visual change: yes.
+
+**Looked at by the owner on 2026-10-04** on a server over a copy of the dev
+catalogue, with pictures: "Screens are good". The owner gave no answer to the
+questions marked *worth an opinion* below, so the built choices stand.
+
+Checked by the builder on 2026-10-02 at 1440 px and 390 px against a copy of
+the dev catalogue (no masters, so tiles show the missing-image sentence), with
+a second theme, *Winter*, of four works added to the copy. Regenerate with a
+server on a copy (`ART_ROOT=<copy> CURATION_PORT=18767 OPENROUTER_API_KEY=
+uv run python -m arrt` in `arrt/`) and `page.screenshot` of `#collection`, with
+*Select* pressed, and of `#collection?theme=<id>`.
+
+- **The rail** opens with a *Theme* group: every theme with its count, as the
+  facets carry theirs. The chosen theme is pressed; a theme the other filters
+  empty is greyed and still listed. The old *Themes* list, its *Open* buttons
+  and *Manage themes* are gone (themes are reached from Library › Themes).
+- **A theme and a facet together** narrow the grid together; the heading reads
+  "*n* works in “Winter”", and the facet counts are about Winter's works.
+- **Outside *Select*,** no tick and no theme picker anywhere. **Select** shows
+  ticks on every tile and an action bar: "*n* selected", a labelled *Theme*
+  picker, **Add 2 works to All works**, and, with a theme filtered, **Remove 1
+  work from Winter**. Pressing Select again hides the ticks and drops them.
+- **Worth an opinion:** the Select toggle's pressed state is only a bolder
+  border, which may be too quiet; on a phone the Theme group scrolls sideways
+  like the facet groups, so a long theme name runs off the edge; and with a
+  theme filtered, the facet groups list every zero-count value disabled — the
+  rail's rule, but a long list of zeros under a small theme.
+
 ### An HDMI wall on its screen — added 2026-10-02
 
 **`build-plan-clients.md` Chunk 04.** Visual change: yes.
@@ -343,7 +448,7 @@ Lynch and Klee (●). On your held Rothko's Work page, looking up `q500985` name
    should it wait for taste (plan 4)?
 2. **The image count.** Does "0 works with an image" beside Pollock tell you what
    you need before you commit to him?
-3. **The control.** Change… → type an id → Look up → *Use Q…*. Is showing the item
+3. **The control.** Edit → type an id → Look up → *Use Q…*. Is showing the item
    first enough to stop a wrong one, and is *There is none* worded right?
 
 ### The search results page — added 2026-10-01

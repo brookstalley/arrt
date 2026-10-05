@@ -113,6 +113,13 @@ class WorkQuery:
     #: facet: the facet is a derived claim a catalogue may not carry at all (the
     #: owner's holds none), while every attributed work names its artist.
     artist_id: str | None = None
+    #: Only these works, by id. A theme's members arrive this way: themes are
+    #: Programming's, so the Library is handed their ids as opaque references and
+    #: learns nothing about themes. **Empty selects nothing; `None` restricts
+    #: nothing** — an empty theme is an empty grid, never the whole catalogue. An
+    #: id the catalogue does not hold is passed over, since Programming's
+    #: references may fail to resolve.
+    within: frozenset[str] | None = None
 
     def without(self, kind: VocabularyKind) -> WorkQuery:
         """The same query with one facet kind's own selection dropped.
@@ -226,8 +233,21 @@ class CatalogueStore(Protocol):
         """Return a page of works matching `query` in `order`, stable across pages, with the unpaged total."""
         ...
 
-    def held_artists(self) -> Sequence[tuple[Artist, int]]:
-        """Every artist with at least one work in circulation, and how many, by name."""
+    def artwork_ids_matching(self, query: WorkQuery) -> frozenset[str]:
+        """Every work `query` selects, by id, unpaged and unordered.
+
+        For a caller that counts the selection against a grouping the catalogue
+        does not hold — a theme's members — and so needs the set, not a page.
+        """
+        ...
+
+    def held_artists(self) -> Sequence[tuple[Artist, int, str]]:
+        """Every artist with at least one work in circulation, how many, and the first accepted of them, by name.
+
+        The first accepted work is the one the Artists index pictures the artist
+        by: no artist has a picture of their own, and the earliest acquisition is
+        a stable choice that does not change as more works arrive.
+        """
         ...
 
     def circulating_ids_by_qid(self) -> Mapping[str, Sequence[str]]:

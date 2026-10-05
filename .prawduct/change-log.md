@@ -62,6 +62,71 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-04: Library screens — Artworks' theme filter and Select mode, a work's mark, Artists by surname
+
+<!-- prawduct: scope=library-screens -->
+
+**Why:** the owner's review of the Library screens (#169, #172-#175): the theme
+dropdown on Artworks read as a filter and was an editor; search's *Image found*
+badge read as if it might mean held; the Artists index sorted by first name in
+one narrow table; the Wikidata identity controls all showed at once; Library ›
+Topics was one long column. Plan: `build-plan-library-screens.md`.
+
+**What:**
+- `GET /api/works?theme=<id>` and `art_catalogue(action='list', theme=...)`
+  narrow to one theme, composing with facets and text. Each binding composes
+  Programming's `theme_work_ids` with the Library's listing restricted to those
+  ids (seam rule 1). Each page carries the themes with counts against the other
+  filters. An unknown theme is refused by name.
+- Artworks: *Theme* is the Filter rail's first group. **Select** mode shows the
+  ticks and an action bar that adds the ticked works to a theme or removes them
+  from the theme being filtered. An address naming a deleted theme shows the
+  works the other filters select and says the theme is gone.
+- A work's mark: held, wanted and not held each have their own image style
+  wherever registry works are listed (typeahead, Search results, a Topic, an
+  Artist's *Their work*, a work's *More by*), each keeping its glyph and word.
+  Registry works report `wanted`.
+- Artworks, behaviour that changed: a filtered theme now follows the Sort menu
+  rather than its own curated order, and the Sort menu is offered with it. The
+  rail's *Themes* list with its *Open* buttons and *Manage themes*, and the
+  toolbar's always-shown theme picker, are gone: themes are reached from
+  Library › Themes, and the picker lives in Select mode's action bar.
+- Library › Artists sorts by surname (the stored family name, else the last
+  word once a generational suffix such as *the Younger* or *Jr.* is set aside),
+  shown as posters by default with a table view in the address.
+- Artist and Work pages show the Wikidata identity with one quiet *Edit*.
+  Library › Topics lays each kind out in columns.
+
+**Tests changed, and why:** each retired test asserted a design the owner's
+review replaced; its successor asserts the new design.
+- `test_a_theme_chip_filters_the_grid_to_its_members`,
+  `test_the_rails_filter_and_its_opener_are_separate_controls_with_separate_names`
+  and `test_the_rails_opener_goes_to_the_theme_rather_than_filtering_the_grid`:
+  the rail's Themes list and its *Open* buttons are gone. Replaced by
+  `test_a_theme_in_the_filter_rail_narrows_the_grid` and
+  `test_filtering_by_a_theme_and_changing_its_members_are_different_controls`.
+- `test_a_theme_is_shown_in_its_own_order_so_sort_is_not_offered`: a filtered
+  theme now follows the Sort menu. Replaced by
+  `test_a_theme_filtered_here_is_in_the_sort_menus_order`.
+- `test_the_table_carries_the_tick_only_when_there_is_a_theme_to_add_to`: ticks
+  now show only in Select mode. Replaced by
+  `test_the_table_carries_the_tick_in_select_mode_only_when_there_is_a_theme_to_add_to`.
+- `test_the_item_field_stays_hidden_until_change_is_pressed`: the identity's
+  *Change* became one *Edit* that hides every control. Replaced by
+  `test_at_rest_the_control_is_the_identity_and_one_edit`.
+- `test_held_artists_are_listed_with_counts_and_open_their_page` and
+  `test_held_artists_by_name_with_works_in_circulation_counted`: the index went
+  from name order to surname order. Replaced by
+  `test_held_artists_are_posters_in_surname_order_and_open_their_page` and
+  `test_held_artists_by_surname_with_works_in_circulation_counted`.
+- `test_removing_from_a_theme_takes_the_tiles_out_and_says_what_is_left` waits
+  for the rail's count instead of reading it at once: the rail is recounted by a
+  fetch after the tile goes, and under parallel load the immediate read saw the
+  old count. Same assertion, same strength; a rail that never recounts still
+  fails it, checked by removing the recount.
+
+**Owner verification:** 2026-10-04, "Screens are good".
+
 ## 2026-10-04: A title worded differently by its holder
 
 <!-- prawduct: scope=title-identity -->

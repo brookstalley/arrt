@@ -211,6 +211,55 @@ class TestTheIndex:
             ui.page.locator("section[aria-labelledby='topics-movement'] p").inner_text() == "None of your works is in a movement."
         )
 
+    @staticmethod
+    def thirty_subjects(ui):
+        subjects = [{"qid": f"Q{1000 + n}", "label": f"subject number {n:02d}", "works": n % 4 + 1} for n in range(30)]
+        ui.serve(
+            "**/api/topics",
+            {
+                "state": "known",
+                "note": None,
+                "kinds": [
+                    {"kind": "period", "topics": []},
+                    {"kind": "movement", "topics": []},
+                    {"kind": "subject", "topics": subjects},
+                    {"kind": "medium", "topics": []},
+                ],
+            },
+        )
+
+    def test_a_kind_of_thirty_takes_a_third_of_the_height_it_would_in_one_column(self, ui):
+        """The owner's ruling on #175: columns, by name, so a long kind uses the width."""
+        self.thirty_subjects(ui)
+        ui.page.set_viewport_size({"width": 1280, "height": 900})
+        ui.open("#topics")
+        ui.page.wait_for_selector("section[aria-labelledby='topics-subject'] li")
+
+        heights = ui.page.evaluate("""() => {
+            const list = document.querySelector("section[aria-labelledby='topics-subject'] ul");
+            const columned = list.getBoundingClientRect().height;
+            list.style.columns = "auto";
+            const single = list.getBoundingClientRect().height;
+            list.style.columns = "";
+            return { columned, single };
+        }""")
+        assert heights["columned"] <= heights["single"] / 3
+        # Each count stays beside its name.
+        first = ui.page.locator("section[aria-labelledby='topics-subject'] li").first.inner_text()
+        assert " ".join(first.split()) == "subject number 00 · 1 work"
+
+    def test_on_a_phone_a_kind_is_one_column(self, ui):
+        self.thirty_subjects(ui)
+        ui.page.set_viewport_size({"width": 390, "height": 844})
+        ui.open("#topics")
+        ui.page.wait_for_selector("section[aria-labelledby='topics-subject'] li")
+
+        lefts = ui.page.evaluate(
+            "() => [...document.querySelectorAll(\"section[aria-labelledby='topics-subject'] li\")]"
+            ".map((li) => Math.round(li.getBoundingClientRect().left))"
+        )
+        assert len(set(lefts)) == 1
+
     def test_a_topic_opens_its_page(self, ui, held):
         ui.open("#topics")
         ui.page.click("section[aria-labelledby='topics-period'] button:text-is('16th century')")
@@ -298,12 +347,79 @@ class TestTheTopicPage:
         }
         assert states == {
             "The Hunters in the Snow": "● Held",
-            "The Harvesters": "◐ Image found",
+            "The Harvesters": "◐ Not held · Image found",
             "Flammarion engraving": "○ No image known",
             f"No English title ({NAMELESS})": "○ No image known",
         }
         for glyph in ui.page.locator(f"{WORKS} .badge .glyph").all():
             assert glyph.get_attribute("aria-hidden") == "true"
+
+    def _marks(self, ui):
+        return {
+            row.locator("td").nth(1).inner_text(): row.locator("td").nth(4) for row in ui.page.locator(f"{WORKS} tbody tr").all()
+        }
+
+    def test_held_wanted_and_not_held_each_draw_their_picture_in_their_own_style(self, ui, held, want_item, pictures_load):
+        """The owner's ruling on #172: held and image found were told apart by a picture only one of them had.
+
+        Held draws the library's own thumbnail; not held draws Wikidata's under
+        hatching; wanted (here with no picture known) says so in glyph and word.
+        The hatching is on the not-held picture only.
+        """
+        want_item(NAMELESS, "An untitled work")
+        open_topic(ui)
+        works_answered(ui)
+        marks = self._marks(ui)
+
+        hunters = marks["The Hunters in the Snow"]
+        assert hunters.locator(".work-pic-held img").get_attribute("src").startswith("/api/works/")
+        assert " ".join(hunters.inner_text().split()) == "● Held"
+        harvesters = marks["The Harvesters"]
+        assert harvesters.locator(".work-pic-not-held img").get_attribute("src").startswith("https://commons.wikimedia.org/")
+        nameless = marks[f"No English title ({NAMELESS})"]
+        assert " ".join(nameless.inner_text().split()) == "◑ Wanted"
+        assert nameless.locator(".work-pic").count() == 0
+        assert marks["Flammarion engraving"].locator(".work-pic").count() == 0
+        assert ui.page.locator(f"{WORKS} .work-pic-not-held").count() == 1
+        assert ui.page.locator(f"{WORKS} .work-pic-held").count() == 1
+
+    def test_a_wanted_work_with_a_picture_draws_it_wanted_not_hatched(self, ui, held, want_item, pictures_load):
+        want_item(HARVESTERS, "The Harvesters")
+        open_topic(ui)
+        works_answered(ui)
+        harvesters = self._marks(ui)["The Harvesters"]
+
+        assert " ".join(harvesters.inner_text().split()) == "◑ Wanted"
+        assert harvesters.locator(".work-pic-wanted img").count() == 1
+        assert harvesters.locator(".work-pic-not-held").count() == 0
+
+    def test_a_held_work_that_is_also_wanted_reads_held(self, ui, held, want_item, pictures_load):
+        """A wanted work since acquired: the server reports both, and held wins on the page."""
+        want_item(HUNTERS, "The Hunters in the Snow")
+        open_topic(ui)
+        works_answered(ui)
+        hunters = self._marks(ui)["The Hunters in the Snow"]
+
+        assert " ".join(hunters.inner_text().split()) == "● Held"
+        assert hunters.locator(".work-pic-held").count() == 1
+        assert hunters.locator(".work-pic-wanted").count() == 0
+
+    def test_with_every_picture_failing_the_states_still_read_apart(self, ui, held, want_item):
+        """Glyph and word carry the state; the picture is a second signal (`accessibility-spec.md`)."""
+        want_item(NAMELESS, "An untitled work")
+        ui.page.route("**/thumbnail*", lambda route: route.abort())
+        ui.page.route("https://commons.wikimedia.org/**", lambda route: route.abort())
+        open_topic(ui)
+        works_answered(ui)
+        # A picture that fails takes its frame with it: no broken-image icon in a styled box.
+        ui.page.wait_for_function("(section) => document.querySelectorAll(`${section} .work-pic`).length === 0", arg=WORKS)
+
+        assert {title: " ".join(mark.inner_text().split()) for title, mark in self._marks(ui).items()} == {
+            "The Hunters in the Snow": "● Held",
+            "The Harvesters": "◐ Not held · Image found",
+            "Flammarion engraving": "○ No image known",
+            f"No English title ({NAMELESS})": "◑ Wanted",
+        }
 
     def test_makers_are_named_and_an_unknown_one_is_said(self, ui, held):
         open_topic(ui)

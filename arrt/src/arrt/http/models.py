@@ -85,10 +85,14 @@ class HeldArtistOut(BaseModel):
 
     artist: ArtistOut
     held: int
+    #: The work the Artists index pictures them by, their first accepted work in
+    #: circulation; its thumbnail is `/api/works/{id}/thumbnail`. None only for
+    #: an artist with nothing in circulation.
+    pictured_artwork_id: str | None
 
 
 class ArtistListOut(BaseModel):
-    """Library › Artists: every artist with a work in circulation, by name."""
+    """Library › Artists: every artist with a work in circulation, by surname (`surname_key`)."""
 
     artists: list[HeldArtistOut]
 
@@ -107,6 +111,10 @@ class RegistryWorkOut(BaseModel):
     #: The library's works in circulation that are this one (matched by QID).
     #: Empty when not held; more than one is a duplicate for the curator to see.
     held_artwork_ids: list[str]
+    #: A wanted work names this item (Activity › Wanted). Reported beside
+    #: `held_artwork_ids` rather than instead of it: the page decides which mark
+    #: wins (held), and both are true when a wanted work has since been acquired.
+    wanted: bool
 
 
 class RegistryHoldingOut(BaseModel):
@@ -179,6 +187,10 @@ class RegistryWorkPageOut(BaseModel):
     media: list[str]
     holders: list[RegistryHolderOut]
     held_artwork_ids: list[str]
+    #: A wanted work names this item (Activity › Wanted). Reported beside
+    #: `held_artwork_ids` rather than instead of it: the page decides which mark
+    #: wins (held), and both are true when a wanted work has since been acquired.
+    wanted: bool
 
 
 class RegistryPersonFoundOut(BaseModel):
@@ -199,6 +211,10 @@ class RegistryWorkFoundOut(BaseModel):
     creator: RegistryCreatorOut | None
     #: The library's works in circulation that are this one, by QID.
     held_artwork_ids: list[str]
+    #: A wanted work names this item (Activity › Wanted). Reported beside
+    #: `held_artwork_ids` rather than instead of it: the page decides which mark
+    #: wins (held), and both are true when a wanted work has since been acquired.
+    wanted: bool
 
 
 class RegistrySearchOut(BaseModel):
@@ -303,6 +319,10 @@ class TopicWorkOut(BaseModel):
     state: str
     #: The library's works in circulation that are it, by QID.
     held_artwork_ids: list[str]
+    #: A wanted work names this item (Activity › Wanted). Reported beside
+    #: `held_artwork_ids` rather than instead of it: the page decides which mark
+    #: wins (held), and both are true when a wanted work has since been acquired.
+    wanted: bool
 
 
 class TopicWorksOut(BaseModel):
@@ -420,6 +440,19 @@ class FacetGroupOut(BaseModel):
     truncated: bool
 
 
+class ThemeOptionOut(BaseModel):
+    """One theme as the *Filter* rail offers it, beside the facets."""
+
+    theme_id: str
+    name: str
+    #: Works this theme would select **given every other filter but the theme**,
+    #: as a facet option's count ignores its own kind.
+    count: int
+    selected: bool
+    #: True for a theme that would select nothing; never for the selected one.
+    disabled: bool
+
+
 class WorkPageOut(BaseModel):
     """A page of works that describes its own place in the set."""
 
@@ -433,6 +466,11 @@ class WorkPageOut(BaseModel):
     #: the grid answers, and two routes would give a curator two answers to it
     #: with a write free to land in between.
     facets: list[FacetGroupOut] = []
+    #: Every theme, by name, as a filter option counted against this filter.
+    #: Uncapped, and repeated on every page: themes are made by hand, one at a
+    #: time, so there are tens of them. If that stops being true, so does the
+    #: case for sending them whole with each page.
+    themes: list[ThemeOptionOut] = []
 
 
 class SourceOut(BaseModel):

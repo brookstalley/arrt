@@ -17,7 +17,7 @@
 
 import { api } from "../core/api.js";
 import { getSelection } from "../core/getting.js";
-import { lifeDates, named, stateMark } from "../core/registry.js";
+import { lifeDates, named, stateMark, workState } from "../core/registry.js";
 import { el, fill, render } from "../core/render.js";
 import { backLink, go } from "../core/router.js";
 import { fold } from "../core/search.js";
@@ -166,7 +166,12 @@ function paintWorks(section, query, view, library, registry) {
   const rows = [];
   if (view !== "not_held") {
     for (const work of library.works) {
-      rows.push({ title: work.title, by: work.artist ? work.artist.name : null, held: true, image: false, open: () => go("work", work.artwork_id) });
+      rows.push({
+        title: work.title,
+        by: work.artist ? work.artist.name : null,
+        mark: workState({ held_artwork_ids: [work.artwork_id] }, { opens: false }),
+        open: () => go("work", work.artwork_id),
+      });
     }
   }
   if (registry && registry.state === "known" && view !== "library") {
@@ -176,8 +181,7 @@ function paintWorks(section, query, view, library, registry) {
       rows.push({
         title: named(work.title, work.qid),
         by: work.creator ? named(work.creator.name, work.creator.qid) : null,
-        held,
-        image: Boolean(work.image),
+        mark: workState(work, { opens: false }),
         open: () => (held ? go("work", work.held_artwork_ids[0]) : go("work", work.qid)),
         // A work the library does not hold can be ticked and got from here.
         box: held ? null : getting.box(work.qid, named(work.title, work.qid)),
@@ -193,7 +197,7 @@ function paintWorks(section, query, view, library, registry) {
             row.box || null,
             el("button", { class: "row-title", type: "button", text: row.title, onclick: row.open }),
             row.by ? el("span", { class: "muted", text: ` — ${row.by}` }) : null,
-            stateMark({ held: row.held, image: row.image }),
+            row.mark,
           ]),
         ))
       : el("p", { class: "muted", text: "No works." }),

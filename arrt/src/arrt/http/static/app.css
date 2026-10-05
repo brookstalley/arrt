@@ -143,7 +143,7 @@
 /* `hidden` means hidden, whatever display a class gives the element. The
    browser's own rule for the attribute is the weakest there is, so `.stack`,
    `.field` or any flex or grid class silently outranked it: the Artist page's
-   Wikidata form showed before Change… was pressed, and the Get dialog's name
+   Wikidata form showed before its button was pressed, and the Get dialog's name
    field needed a patch of its own. One rule here, rather than a patch per
    class that is found the same way. */
 [hidden] {
@@ -700,8 +700,7 @@ button.link {
   color: var(--text-muted);
 }
 
-.facet-option,
-.theme-chip {
+.facet-option {
   appearance: none;
   font: var(--text-sm) / 1.3 var(--font-ui);
   color: var(--text);
@@ -717,8 +716,7 @@ button.link {
   width: 100%;
 }
 
-.facet-option:hover:enabled,
-.theme-chip:hover:enabled {
+.facet-option:hover:enabled {
   background: var(--surface-2);
   color: var(--text-strong);
 }
@@ -726,8 +724,7 @@ button.link {
 /* What is chosen is marked three ways — a boundary, a weight and
    `aria-pressed` — so the rail reads in greyscale and to a screen reader, not
    only to someone who can see the ground change. */
-.facet-option[aria-pressed="true"],
-.theme-chip[aria-pressed="true"] {
+.facet-option[aria-pressed="true"] {
   border-color: var(--border-strong);
   background: var(--surface-2);
   color: var(--text-strong);
@@ -741,36 +738,6 @@ button.link {
 .facet-option:disabled {
   color: var(--text-muted);
   cursor: not-allowed;
-}
-
-.theme-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-}
-
-.theme-chip {
-  border-color: var(--border);
-}
-
-/* The filter and the opener travel together and wrap together. A theme whose
-   name broke across the rail with its "Open" left on the line above would read
-   as belonging to the theme below it, and this is the one place two controls
-   share a subject. */
-.theme-chip-pair {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-/* Quieter than the chip beside it, because the chip is the act a curator
-   performs constantly and this is the one they perform occasionally. Never
-   hidden until hover: a control that appears on hover does not exist to a
-   keyboard, and this is the only route to a theme's own address. */
-.theme-chip-open {
-  font-size: var(--text-xs);
-  padding: 0 var(--space-1);
-  color: var(--text-muted);
 }
 
 /* The *arr page toolbar (`core/toolbar.js`): actions left, View, Sort and
@@ -887,6 +854,27 @@ button.link {
   gap: var(--space-2);
 }
 
+.selection-field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* Ticks show only in *Select* mode, Radarr's mass editor: outside it,
+   nothing on a tile reads as a way to change a theme. `display: none` takes
+   them out of the tab order too, so a keyboard meets them only once asked. */
+.collection:not(.selecting) .tile-select,
+.collection:not(.selecting) .row-select {
+  display: none;
+}
+
+.select-toggle[aria-pressed="true"] {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
 .selection-status {
   margin: 0;
   /* Reserved rather than sized to its words. The sentence changes as works are
@@ -921,6 +909,14 @@ button.link {
 /* The contact sheet: image only, uniform tiles, the words behind hover AND
    focus. A keyboard has no hover, so `:focus-within` is the rule and not a
    refinement of it. */
+
+/* Library › Artists' posters: narrower than a work's card, since a card here
+   is a name and a picture rather than a work to judge — two to a row on a
+   phone, as Lidarr's poster index is, rather than one card per screen. */
+.grid.artist-posters {
+  grid-template-columns: repeat(auto-fill, minmax(min(9rem, 100%), 1fr));
+  gap: var(--space-3);
+}
 
 .grid.contact-sheet,
 .grid-skeleton.contact-sheet {
@@ -1084,7 +1080,7 @@ button.link {
     white-space: normal;
   }
 
-  .artist-works .badge-thumb {
+  .artist-works .work-pic {
     display: none;
   }
 }
@@ -1125,11 +1121,62 @@ button.link {
   border-style: dashed;
 }
 
-.badge-thumb {
+.badge-wanted {
+  border-style: dashed;
+  border-color: var(--accent);
+}
+
+/* The Wikidata identity at rest: the item and one quiet Edit on a line. */
+.identity-now {
+  align-items: baseline;
+}
+
+.identity-now p {
+  margin: 0;
+}
+
+/* -- a work's state, as an image style ----------------------------------------
+   The owner's ruling on issue 172: held, wanted and not held are told apart first
+   by how the picture is drawn, then by glyph and word (`workState` in
+   `core/registry.js`). The three are defined together so they can be tuned
+   against one another, which is what the owner asked to iterate on. First
+   try: held plain, wanted with a dashed accent outline, not held under
+   diagonal hatching — recognisable, and never mistakable for held. */
+.work-pic {
+  position: relative;
+  display: inline-block;
+  flex: none;
   width: 2rem;
   height: 2rem;
-  object-fit: cover;
   border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.work-pic img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.work-pic-held {
+  outline: 1px solid var(--good);
+}
+
+.work-pic-wanted {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+}
+
+.work-pic-not-held::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--surface-1) 70%, transparent) 0 2px,
+    transparent 2px 5px
+  );
 }
 
 /* The theme new works join. Solid accent, because it is a standing role rather
@@ -1460,6 +1507,18 @@ details > summary {
   padding: var(--space-2) 0;
   border-bottom: 1px solid var(--border);
   overflow-wrap: anywhere;
+}
+
+/* Library › Topics: each kind in columns, by name, each count beside its name.
+   The column width decides how many fit, so a phone gets one. A topic never
+   breaks across two columns. */
+.topic-columns {
+  columns: 14rem;
+  column-gap: var(--space-6);
+}
+
+.topic-columns li {
+  break-inside: avoid;
 }
 
 /* -- tables ---------------------------------------------------------------- */

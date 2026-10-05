@@ -182,6 +182,13 @@ ART_CATALOGUE: Final = ToolRecord(
                     type="string",
                     description="Only this artist's works, by the catalogue id a work's artist carries.",
                 ),
+                Param(
+                    name="theme",
+                    type="string",
+                    description=(
+                        "Only this theme's works, by theme_id; every other filter and every facet count " "narrows within it."
+                    ),
+                ),
                 _SORT,
                 _LIMIT,
                 _OFFSET,
@@ -193,6 +200,8 @@ ART_CATALOGUE: Final = ToolRecord(
                 "there is to filter by.",
                 "A facet's counts are computed with its OWN selection ignored, so an option showing 0 with another "
                 "facet chosen is an empty intersection rather than an empty catalogue.",
+                "Every result also lists each theme with the count it would select, counted the same way, so "
+                "theme=… can be chosen without a separate art_theme call.",
             ),
         ),
         Action(

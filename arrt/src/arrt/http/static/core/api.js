@@ -81,13 +81,48 @@ function facetQuery(chosen) {
   return query;
 }
 
+/* The narrowing and order `GET /api/works` is asked for, as its query string.
+ *
+ * Sent to the server rather than filtered here. `GET /api/works` takes `q` and
+ * searches the work's own text and its artist's name word-wise, over the whole
+ * catalogue — where a client-side filter can only ever search what this screen
+ * happened to load, and reports its count as though it had searched
+ * everything. The facets are sent for the same reason, and for one more: the
+ * counts beside the grid are computed by the service against exactly this
+ * filter, and a client that narrowed locally would print them beside a
+ * different set of works.
+ *
+ * The order is the server's to apply, for the reason the search is: paging a
+ * set the client sorted would sort only what had arrived. One artist's works,
+ * and only those in circulation, are the Artist page's *In your library*; one
+ * theme's works are Artworks' Theme filter. All narrow on the server, which
+ * composes them. */
+function worksFilter(query, chosen, sort, { artistId = null, status = null, theme = null } = {}) {
+  return (
+    (query ? `&q=${encodeURIComponent(query)}` : "") +
+    facetQuery(chosen) +
+    (sort ? `&sort=${encodeURIComponent(sort)}` : "") +
+    (artistId ? `&artist_id=${encodeURIComponent(artistId)}` : "") +
+    (status ? `&status=${encodeURIComponent(status)}` : "") +
+    (theme ? `&theme=${encodeURIComponent(theme)}` : "")
+  );
+}
+
+/* The facet and theme controls for a filter, without its works: one page of
+ * one work, since the counts come with every page. For a screen that changed
+ * the works under its rail in place and must recount it. */
+export async function fetchFilterCounts(query = "", chosen = null, { theme = null } = {}) {
+  const body = await api(`/api/works?limit=1${worksFilter(query, chosen, null, { theme })}`);
+  return { facets: body.facets || [], themes: body.themes || [] };
+}
+
 /* `onFirstPage(body)` is called once, with the first page, before the loop asks
  * for a second — so a caller can act on `total` and `truncated` while the rest is
  * still arriving. The grid's loading placeholder needs exactly that: its geometry
  * depends on how much there is, which nothing knows until this page lands, and a
  * placeholder painted before it can only guess. Optional, and the two other
  * callers pass nothing. */
-export async function fetchAllWorks(query = "", chosen = null, onFirstPage = null, sort = null, { artistId = null, status = null } = {}) {
+export async function fetchAllWorks(query = "", chosen = null, onFirstPage = null, sort = null, { artistId = null, status = null, theme = null } = {}) {
   const works = [];
   let total = 0;
   let truncated = false;
@@ -96,28 +131,15 @@ export async function fetchAllWorks(query = "", chosen = null, onFirstPage = nul
   // scope precisely so the two cannot disagree — so keeping a later page's copy
   // would be the same numbers arrived at more slowly.
   let facets = [];
-  // Sent to the server rather than filtered here. `GET /api/works` takes `q` and
-  // searches the work's own text and its artist's name word-wise, over the whole
-  // catalogue — where a client-side filter can only ever search what this screen
-  // happened to load, and reports its count as though it had searched
-  // everything. The facets are sent for the same reason, and for one more: the
-  // counts beside the grid are computed by the service against exactly this
-  // filter, and a client that narrowed locally would print them beside a
-  // different set of works.
-  const search = query ? `&q=${encodeURIComponent(query)}` : "";
-  const narrowing = facetQuery(chosen);
-  // The order is the server's to apply, for the reason the search is: paging a
-  // set the client sorted would sort only what had arrived.
-  const order = sort ? `&sort=${encodeURIComponent(sort)}` : "";
-  // One artist's works, and only those in circulation: the Artist page's
-  // *In your library*. Both narrow on the server for the reason the search does.
-  const scope =
-    (artistId ? `&artist_id=${encodeURIComponent(artistId)}` : "") + (status ? `&status=${encodeURIComponent(status)}` : "");
+  // The theme options, from the first page for the reason the facets are.
+  let themes = [];
+  const filter = worksFilter(query, chosen, sort, { artistId, status, theme });
   for (let page = 0; page < PAGE_CEILING; page += 1) {
-    const body = await api(`/api/works?offset=${works.length}${search}${narrowing}${order}${scope}`);
+    const body = await api(`/api/works?offset=${works.length}${filter}`);
     total = body.total;
     if (page === 0) {
       facets = body.facets || [];
+      themes = body.themes || [];
       if (onFirstPage) onFirstPage(body);
     }
     works.push(...body.works);
@@ -126,10 +148,10 @@ export async function fetchAllWorks(query = "", chosen = null, onFirstPage = nul
     // progress — the offset is derived from what came back, so asking again
     // sends the identical request. `PAGE_CEILING` would stop it either way, so
     // what this saves is forty-nine pointless round trips rather than a hang.
-    if (!body.truncated || body.works.length === 0) return { works, total, truncated, facets };
+    if (!body.truncated || body.works.length === 0) return { works, total, truncated, facets, themes };
     truncated = true;
   }
-  return { works, total, truncated: works.length < total, facets };
+  return { works, total, truncated: works.length < total, facets, themes };
 }
 
 /* Every work a run holds, paged through to the end.

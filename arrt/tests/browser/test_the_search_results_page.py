@@ -103,10 +103,12 @@ def test_all_shows_the_library_then_wikidata_each_marked_and_nothing_twice(ui, m
         "Dalibor Chatrný 1925–2012 ○ Not held",
     ]
     assert _rows(ui, "works") == [
-        "The Persistence of Memory — Salvador Dalí ● In your library",
-        "The Burning Giraffe — Salvador Dalí ◐ Image found",
+        "The Persistence of Memory — Salvador Dalí ● Held",
+        "The Burning Giraffe — Salvador Dalí ◐ Not held · Image found",
         "Crucifixion — Salvador Dalí ○ Not held",
     ]
+    # The row's title is the way in, so its mark is not a second button to the same work.
+    assert ui.page.locator("section[aria-labelledby='results-works'] button.state-mark").count() == 0
     # Two artists carry "dali": no single one leads.
     assert ui.page.locator("#results-top").count() == 0
     assert ui.page.locator("#view [role='group'][aria-label='Show'] [aria-pressed='true']").inner_text() == "All"
@@ -121,7 +123,7 @@ def test_in_your_library_shows_only_the_library_and_asks_wikidata_nothing(ui, ma
     _results(ui, "dali", "library")
 
     assert _rows(ui, "artists") == ["Salvador Dalí 1904–1989 ● In your library"]
-    assert _rows(ui, "works") == ["The Persistence of Memory — Salvador Dalí ● In your library"]
+    assert _rows(ui, "works") == ["The Persistence of Memory — Salvador Dalí ● Held"]
     assert registry.searched == [] and registry.matched == []
 
 
@@ -134,7 +136,10 @@ def test_not_held_shows_only_what_the_library_does_not_hold(ui, matched):
         "Ana María Dalí 1908–1989 ○ Not held",
         "Dalibor Chatrný 1925–2012 ○ Not held",
     ]
-    assert _rows(ui, "works") == ["The Burning Giraffe — Salvador Dalí ◐ Image found", "Crucifixion — Salvador Dalí ○ Not held"]
+    assert _rows(ui, "works") == [
+        "The Burning Giraffe — Salvador Dalí ◐ Not held · Image found",
+        "Crucifixion — Salvador Dalí ○ Not held",
+    ]
 
 
 def test_switching_view_keeps_the_query(ui, matched):
@@ -178,7 +183,7 @@ def test_an_outage_leaves_the_librarys_results(ui, matched, registry):
     _answered(ui)
 
     assert ui.page.locator("#view p[aria-live]").inner_text() == "Wikidata could not be searched just now."
-    assert _rows(ui, "works") == ["The Persistence of Memory — Salvador Dalí ● In your library"]
+    assert _rows(ui, "works") == ["The Persistence of Memory — Salvador Dalí ● Held"]
 
 
 def test_registry_text_arrives_as_words_not_markup(ui, seeded_service):

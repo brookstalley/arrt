@@ -26,7 +26,7 @@ from enum import StrEnum
 from typing import Final
 
 from arrt.library.registry import Registry, RegistryPerson, RegistryUnavailable, RegistryWorkMatch
-from arrt.library.services.artists import REGISTRY_KEPT_FOR, artist_ids_by_qid
+from arrt.library.services.artists import REGISTRY_KEPT_FOR, WantedItems, artist_ids_by_qid
 from arrt.library.services.remembered import NOT_CONFIGURED_NOTE, REMEMBERED
 from arrt.persistence.catalogue import CatalogueStore
 from arrt.persistence.folding import search_fold
@@ -90,14 +90,17 @@ class RegistrySearch:
     held_artists: Mapping[str, str] = field(default_factory=dict)
     #: The library's works in circulation for each work found that it holds, by QID.
     held_works: Mapping[str, Sequence[str]] = field(default_factory=dict)
+    #: The QIDs among the works found that a wanted work names.
+    wanted_works: frozenset[str] = frozenset()
 
 
 class RegistrySearchService:
     """Search the registry for artists and works, and mark what the library holds."""
 
-    def __init__(self, store: CatalogueStore, registry: Registry | None, *, kept: KeptAnswers) -> None:
+    def __init__(self, store: CatalogueStore, registry: Registry | None, *, kept: KeptAnswers, wanted: WantedItems) -> None:
         self._store = store
         self._registry = registry
+        self._wanted = wanted
         self._kept: Kept[tuple[str, bool, bool], _Found] = kept.namespace(
             "registry.search", codec=JsonCodec(_Found), max_age=REGISTRY_KEPT_FOR, size=REMEMBERED
         )
@@ -124,6 +127,7 @@ class RegistrySearchService:
             return RegistrySearch(state=RegistrySearchState.UNAVAILABLE, note="Wikidata could not be searched just now.")
         ours = artist_ids_by_qid(self._store)
         holdings = self._store.circulating_ids_by_qid()
+        wanted = self._wanted.wanted_qids()
         return RegistrySearch(
             state=RegistrySearchState.KNOWN,
             artists=artists,
@@ -136,6 +140,7 @@ class RegistrySearchService:
                 if qid in ours
             },
             held_works={work.qid: holdings[work.qid] for work in works if work.qid in holdings},
+            wanted_works=frozenset(work.qid for work in works if work.qid in wanted),
         )
 
     def _found(self, words: Sequence[str], prefix: bool, wide: bool, registry: Registry) -> _Found:

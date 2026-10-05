@@ -136,7 +136,7 @@ async function viewRegistryWork(qid, generation) {
     el("p", {}, [backLink()]),
     el("div", { class: "panel" }, [
       picture,
-      el("div", { class: "card-footer" }, [stateMark({ image: Boolean(page.image) })]),
+      el("div", { class: "card-footer" }, [stateMark({ wanted: page.wanted, image: Boolean(page.image) })]),
     ]),
     el("div", { class: "panel" }, [
       el("h2", { text: title }),

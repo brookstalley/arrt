@@ -78,8 +78,9 @@ class IdentityService:
     # -- by hand --------------------------------------------------------------
 
     # Every rule here binds both surfaces: the browser's control shows the item
-    # before offering to store it and refuses nothing of its own, so a click and
-    # an agent's `art_catalogue` action get the same refusals, from here.
+    # before offering to store it and checks only that what was typed is an item
+    # id, so a click and an agent's `art_catalogue` action get the same
+    # refusals, from here.
 
     def set_work_identity(self, artwork_id: str, qid: str | None) -> Artwork:
         """Set or clear a work's QID as the curator. Clearing records "there is none", which the matcher respects.

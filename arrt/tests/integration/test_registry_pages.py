@@ -6,19 +6,23 @@ through every state the registry can be in, with a fake registry installed where
 the entry point would build Wikidata's.
 """
 
+from dataclasses import replace
 from types import SimpleNamespace
 
 import httpx
 import pytest
-from fakes import FakeRegistry
+from fakes import FakeRegistry, NothingWanted
 
 from arrt.library.registry import (
+    ItemId,
     RegistryArtist,
     RegistryCreator,
     RegistryHolder,
     RegistrySimilar,
+    RegistryText,
     RegistryWork,
     RegistryWorkEntry,
+    RegistryWorkMatch,
 )
 from arrt.library.services.artists import ArtistService, RegistryState
 from arrt.library.services.registry_search import RegistrySearchService, RegistrySearchState
@@ -266,9 +270,9 @@ class TestAfterARestart:
         kept = KeptAnswers(settings.kept_answers_path)
         yield SimpleNamespace(
             registry=down,
-            artists=ArtistService(store, down, kept=kept),
-            registry_works=RegistryWorkService(store, down, kept=kept),
-            registry_search=RegistrySearchService(store, down, kept=kept),
+            artists=ArtistService(store, down, kept=kept, wanted=NothingWanted()),
+            registry_works=RegistryWorkService(store, down, kept=kept, wanted=NothingWanted()),
+            registry_search=RegistrySearchService(store, down, kept=kept, wanted=NothingWanted()),
         )
         kept.close()
 
@@ -314,3 +318,67 @@ class TestAfterARestart:
         assert restarted.artists.similar(BRUEGEL).state is RegistryState.UNAVAILABLE
         assert restarted.registry_works.view(HUNTERS).state is RegistryWorkState.UNAVAILABLE
         assert restarted.registry_search.search("hunters", prefix=False).state is RegistrySearchState.UNAVAILABLE
+
+
+class TestAWantedWorkIsMarkedWhereverRegistryWorksAreListed:
+    """The owner's ruling on #172: held, wanted and not held read apart wherever registry works are listed.
+
+    A work wanted through Review names its Wikidata item once matched, and every
+    answer that says which works the library holds also says which are wanted.
+    Each fixture wants a second item that is not listed, so a route that marked
+    everything once anything is wanted fails.
+    """
+
+    @pytest.fixture
+    def wanted(self, discovery, propose):
+        hunters = propose("The Hunters in the Snow", proposed_artist="Pieter Brueghel the Elder")
+        discovery.want(hunters.id)
+        discovery.set_wikidata_item(hunters.id, HUNTERS)
+        elsewhere = propose("Lobster Telephone", proposed_artist="Salvador Dalí")
+        discovery.want(elsewhere.id)
+        discovery.set_wikidata_item(elsewhere.id, "Q2990594")
+        # Wanted with no item: names nothing, so marks nothing.
+        discovery.want(propose("Mountain Lake").id)
+
+    def test_a_works_page(self, http, wanted):
+        assert http.get(f"/api/registry/works/{HUNTERS}").raise_for_status().json()["wanted"] is True
+        assert http.get("/api/registry/works/Q16682090").raise_for_status().json()["wanted"] is False
+
+    def test_a_works_page_says_so_whatever_the_registry_does(self, http, wanted, registry):
+        registry.failing = True
+
+        page = http.get(f"/api/registry/works/{HUNTERS}").raise_for_status().json()
+
+        assert (page["state"], page["wanted"]) == ("unavailable", True)
+
+    def test_an_artists_works(self, http, wanted, registry):
+        # A second listed work nobody wants, so a route marking every work fails.
+        bruegel = registry.artists[BRUEGEL]
+        registry.artists[BRUEGEL] = replace(
+            bruegel, works=(*bruegel.works, RegistryWorkEntry(qid="Q1170284", title="The Harvesters", sitelinks=25, year=1565))
+        )
+
+        page = http.get(f"/api/registry/artists/{BRUEGEL}").raise_for_status().json()
+
+        assert [(work["qid"], work["wanted"]) for work in page["works"]] == [(HUNTERS, True), ("Q1170284", False)]
+
+    def test_the_search(self, http, wanted, registry):
+        registry.matches["hunters"] = [
+            RegistryWorkMatch(qid=ItemId(HUNTERS), title=RegistryText("The Hunters in the Snow"), sitelinks=39),
+            RegistryWorkMatch(qid=ItemId("Q16682090"), title=RegistryText("Hunters, untitled"), sitelinks=1),
+        ]
+
+        found = http.get("/api/registry/search", params={"q": "hunters"}).raise_for_status().json()
+
+        assert [(work["qid"], work["wanted"]) for work in found["works"]] == [(HUNTERS, True), ("Q16682090", False)]
+
+    def test_held_and_wanted_are_both_reported_and_the_page_decides(self, http, held, discovery, propose):
+        """A wanted work since acquired: the answer carries both facts; the page shows it held."""
+        _rothko, kept = held
+        work = propose("Untitled (Purple, White, and Red)")
+        discovery.want(work.id)
+        discovery.set_wikidata_item(work.id, HELD_ROTHKO)
+
+        page = http.get(f"/api/registry/works/{HELD_ROTHKO}").raise_for_status().json()
+
+        assert (page["held_artwork_ids"], page["wanted"]) == ([kept.id], True)

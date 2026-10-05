@@ -6,11 +6,16 @@
  * stored**: a typo cannot pass as an identity. *There is none* says the item does
  * not exist, which stops the matcher looking, and is confirmed first.
  *
- * **Every refusal is the service's.** The control refuses nothing the routes
- * would accept, so a click and an agent's `art_catalogue` action get the same
- * answer: it shows what the item is first, and a refusal (an item another artist
- * has, one Wikidata does not have, one Wikidata could not be asked about) is
- * the route's, said in its words. Shared by the Artist and Work pages, which call
+ * **At rest it is the identity and one quiet *Edit*** (the owner's ruling on
+ * #174): *Edit* reveals the Q… field, *Look up* and *There is none* together,
+ * since changing the item and saying there is none are both corrections a
+ * curator makes rarely.
+ *
+ * **Every refusal of an item is the service's.** The control checks only that
+ * what was typed is an item id; whether the item may be stored (one another
+ * artist has, one Wikidata does not have, one Wikidata could not be asked
+ * about) is the route's to say, in its words, so a click and an agent's
+ * `art_catalogue` action get the same answer. Shared by the Artist and Work pages, which call
  * the same two routes (`POST /api/artists|works/{id}/wikidata`). Registry text
  * is shown as text. */
 
@@ -78,21 +83,23 @@ export function identityControl(kind, record, onChanged) {
       }),
   });
 
-  const change = el("button", {
+  form.append(el("div", { class: "row" }, [none]));
+
+  const edit = el("button", {
     class: "action quiet",
     type: "button",
-    text: "Change…",
+    text: "Edit",
     "aria-expanded": "false",
+    "aria-label": `Edit the Wikidata item for ${kind === "work" ? record.title : record.name}`,
     onclick: () => {
       form.hidden = !form.hidden;
-      change.setAttribute("aria-expanded", String(!form.hidden));
+      edit.setAttribute("aria-expanded", String(!form.hidden));
       if (!form.hidden) field.focus();
     },
   });
 
   return el("div", { class: "stack identity" }, [
-    el("p", { class: "muted" }, [currentWords(record)]),
-    el("div", { class: "row" }, [change, none]),
+    el("div", { class: "row identity-now" }, [el("p", { class: "muted" }, [currentWords(record)]), edit]),
     form,
   ]);
 }
@@ -136,7 +143,7 @@ async function describeArtist(qid, artistId) {
   if (page.state !== "known") return { words: page.note || "Wikidata could not be asked just now.", usable: false };
   // An item named only in another language (a Japanese painter's, say) is an
   // item all the same; the service accepts it, so the control does too.
-  if (!page.name || page.name === qid) return { words: `${qid} exists on Wikidata with no English name; check it is the one you mean.`, usable: true };
+  if (!page.name || page.name === qid) return { words: `Wikidata gives no English name for ${qid}; check it is the one you mean.`, usable: true };
   const life = lifeDates(page);
   return { words: `${qid} is ${page.name}${life ? ` (${life})` : ""}.`, usable: true };
 }

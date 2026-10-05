@@ -13,7 +13,7 @@
  */
 
 import { api } from "./api.js";
-import { named, stateMark, topicKinds, topicName } from "./registry.js";
+import { named, stateMark, topicKinds, topicName, workState } from "./registry.js";
 import { el, fill } from "./render.js";
 import { go, openedFrom } from "./router.js";
 import { state } from "./state.js";
@@ -428,5 +428,5 @@ function registryTopicRow(topic) {
  * carries one, glyph and word and colour (`accessibility-spec.md`). */
 function registryWorkRow(work) {
   const maker = work.creator ? ` — ${named(work.creator.name, work.creator.qid)}` : "";
-  return [`${named(work.title, work.qid)}${maker}`, stateMark({ held: work.held_artwork_ids.length > 0, image: Boolean(work.image) })];
+  return [`${named(work.title, work.qid)}${maker}`, workState(work, { opens: false })];
 }

@@ -74,14 +74,16 @@ export async function viewTopics(generation) {
   if (configured && query) await paintFound(found, query);
 }
 
-/* One kind's topics, each opening its page, with how many of your works are in it. */
+/* One kind's topics, each opening its page, with how many of your works are in
+ * it: in columns, by name, so a kind of thirty fits in a few rows at desktop
+ * width and still reads as one column on a phone (the owner's ruling on #175). */
 function kindSection(group) {
   const words = TOPIC_KINDS[group.kind] || [group.kind, group.kind];
   const id = `topics-${group.kind}`;
   return el("section", { class: "panel", "aria-labelledby": id }, [
     el("h3", { id, text: words[1] }),
     group.topics.length
-      ? el("ul", { class: "results-list" }, group.topics.map((topic) =>
+      ? el("ul", { class: "results-list topic-columns" }, group.topics.map((topic) =>
           el("li", {}, [
             el("button", { class: "row-title", type: "button", text: topicName(topic.label, topic.qid), onclick: () => go("topic", topic.qid) }),
             el("span", { class: "muted", text: ` · ${counted(topic.works, "work")}` }),
@@ -298,17 +300,12 @@ function makers(work) {
   return parts.length ? parts : ["—"];
 }
 
-/* *Held* and *Image found* as the Artist page marks them; and for a work with
- * neither, ○ *No image known*, in words rather than a dash, since a Get may
- * still find one at a museum Wikidata has no picture from. */
+/* A work's mark as the Artist page draws it; and for a work with no picture
+ * that is neither held nor wanted, ○ *No image known*, in words rather than a
+ * dash, since a Get may still find one at a museum Wikidata has no picture
+ * from. */
 function stateOf(work) {
-  if (work.state === "no_image") {
-    return el("span", { class: "badge badge-not-held state-mark" }, [
-      el("span", { class: "glyph", text: "○", "aria-hidden": true }),
-      el("span", { text: "No image known" }),
-    ]);
-  }
-  return workState(work);
+  return workState(work, { noImage: "No image known" });
 }
 
 /* *Artists*: those whose works in the topic are best known, each opening their page, the

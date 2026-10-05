@@ -27,7 +27,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import timedelta
 from enum import StrEnum
-from typing import Final
+from typing import Final, Protocol
 
 from arrt.library.registry import Registry, RegistryArtist, RegistrySimilar, RegistryUnavailable
 from arrt.library.services.remembered import NOT_CONFIGURED_NOTE, REMEMBERED, checked_qid
@@ -66,6 +66,9 @@ class HeldArtist:
 
     artist: Artist
     held: int
+    #: The work the Artists index pictures them by: their first accepted work in
+    #: circulation. None for an artist with nothing in circulation (`get` only).
+    pictured: str | None = None
 
 
 class RegistryState(StrEnum):
@@ -96,6 +99,8 @@ class RegistryView:
     #: QID. Usually one; several when held works share a QID, which is a
     #: duplicate the page shows rather than hides (`data-model.md` § Artwork).
     held: Mapping[str, Sequence[str]] = field(default_factory=dict)
+    #: The QIDs among the listed works that a wanted work names.
+    wanted: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,12 +114,26 @@ class SimilarView:
     held: Mapping[str, str] = field(default_factory=dict)
 
 
+class WantedItems(Protocol):
+    """The one thing a page of registry works needs from discovery: which items are wanted.
+
+    A work wanted through Review names a Wikidata item once it is matched, and
+    every list of registry works marks it *Wanted* beside *Held* — the owner's
+    ruling on #172 that the three states read apart. Taken as this one method,
+    as the conversation takes its two, so these services do not depend on the
+    whole discovery service.
+    """
+
+    def wanted_qids(self) -> frozenset[str]: ...
+
+
 class ArtistService:
     """Read the artists the library holds, and ask the registry about one."""
 
-    def __init__(self, store: CatalogueStore, registry: Registry | None, *, kept: KeptAnswers) -> None:
+    def __init__(self, store: CatalogueStore, registry: Registry | None, *, kept: KeptAnswers, wanted: WantedItems) -> None:
         self._store = store
         self._registry = registry
+        self._wanted = wanted
         self._known_artists: Kept[tuple[str, tuple[str, ...]], RegistryArtist] = kept.namespace(
             "registry.artist", codec=JsonCodec(RegistryArtist), max_age=REGISTRY_KEPT_FOR, size=REMEMBERED
         )
@@ -123,8 +142,15 @@ class ArtistService:
         )
 
     def index(self, q: str | None = None) -> Sequence[HeldArtist]:
-        """Every artist with a work in circulation, by name; narrowed to names containing `q`, ignoring accents."""
-        held = [HeldArtist(artist=artist, held=count) for artist, count in self._store.held_artists()]
+        """Every artist with a work in circulation, by surname; narrowed to names containing `q`, ignoring accents.
+
+        By surname, as a library shelves them (the owner's ruling on #173):
+        `surname_key` says how a surname is found.
+        """
+        held = sorted(
+            (HeldArtist(artist=artist, held=count, pictured=pictured) for artist, count, pictured in self._store.held_artists()),
+            key=lambda entry: surname_key(entry.artist),
+        )
         if not q or not q.strip():
             return held
         wanted = search_fold(q.strip())
@@ -135,8 +161,10 @@ class ArtistService:
         artist = self._store.get_artist(artist_id)
         if artist is None:
             raise ServiceError(f"No artist with id {artist_id!r} is in the catalogue.")
-        held = next((count for found, count in self._store.held_artists() if found.id == artist_id), 0)
-        return HeldArtist(artist=artist, held=held)
+        held, pictured = next(
+            ((count, first) for found, count, first in self._store.held_artists() if found.id == artist_id), (0, None)
+        )
+        return HeldArtist(artist=artist, held=held, pictured=pictured)
 
     def registry_view(self, artist_id: str) -> RegistryView:
         """What the registry knows about this artist, or why there is nothing to show."""
@@ -208,10 +236,12 @@ class ArtistService:
         except RegistryUnavailable as exc:
             log.warning("Could not ask Wikidata about %s: %s", qid, exc)
             return RegistryView(state=RegistryState.UNAVAILABLE, note=unavailable)
+        wanted = self._wanted.wanted_qids()
         return RegistryView(
             state=RegistryState.KNOWN,
             known=known,
             held={entry.qid: holdings[entry.qid] for entry in known.works if entry.qid in holdings},
+            wanted=frozenset(entry.qid for entry in known.works if entry.qid in wanted),
         )
 
     def _known(self, qid: str, mine: Sequence[str], registry: Registry) -> RegistryArtist:
@@ -226,6 +256,34 @@ class ArtistService:
         known = registry.artist(qid, works=WORKS_SHOWN, holdings=HOLDINGS_SHOWN, include=mine)
         self._known_artists.put(key, known)
         return known
+
+
+#: What follows a name and is not its surname: "the Younger" in Hans Holbein
+#: the Younger. Matched as whole trailing words, folded.
+GENERATIONAL_SUFFIXES: Final = (("the", "elder"), ("the", "younger"), ("jr",), ("sr",), ("jr.",), ("sr.",))
+
+
+def surname_key(artist: Artist) -> tuple[str, str, str]:
+    """Where an artist sorts on a surname shelf: by surname, then whole name, then id.
+
+    The surname is the stored `family_name` where the catalogue holds one (the
+    seed and the catalogue write it for the wall label); otherwise the last
+    word once a generational suffix is set aside, so *Hans Holbein the Younger*
+    sorts under H, *Vincent van Gogh* under G (a particle such as "van" is never
+    the last word, so it never decides), and a single name such as *Moche*
+    under itself. Folded, so accents and case do not move anyone.
+    """
+    folded = search_fold(artist.name)
+    if artist.family_name:
+        surname = search_fold(artist.family_name)
+    else:
+        words = folded.replace(",", " ").split()
+        for suffix in GENERATIONAL_SUFFIXES:
+            if tuple(words[-len(suffix) :]) == suffix:
+                words = words[: -len(suffix)]
+                break
+        surname = words[-1] if words else folded
+    return (surname, folded, artist.id)
 
 
 def artist_ids_by_qid(store: CatalogueStore) -> dict[str, str]:

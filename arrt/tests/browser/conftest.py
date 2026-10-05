@@ -113,6 +113,40 @@ def work_with_an_image(service, settings, decodable_jpeg):
     return _work
 
 
+#: A 1×1 PNG, served for every picture a work's mark asks for when a test needs
+#: them to load: the suite's server holds no masters, and Commons is not asked.
+ONE_PIXEL_PNG = bytes.fromhex(
+    "89504e470d0a1a0a0000000d4948445200000001000000010806000000"
+    "1f15c4890000000d49444154789c6360f8cfc0f01f0005fe02fea7d6a4"
+    "e30000000049454e44ae426082"
+)
+
+
+@pytest.fixture
+def pictures_load(ui):
+    """Every work picture — the library's thumbnails and Wikidata's Commons files — answers with a real image."""
+
+    def _serve(route):
+        route.fulfill(status=200, content_type="image/png", body=ONE_PIXEL_PNG)
+
+    ui.page.route("**/api/works/*/thumbnail*", _serve)
+    ui.page.route("https://commons.wikimedia.org/**", _serve)
+    return ui
+
+
+@pytest.fixture
+def want_item(discovery, propose):
+    """Want a work and match it to a Wikidata item, as Review and the picker do: `want_item(qid, title)`."""
+
+    def _want(qid, title):
+        work = propose(title)
+        discovery.want(work.id)
+        discovery.set_wikidata_item(work.id, qid)
+        return work
+
+    return _want
+
+
 @pytest.fixture
 def a_health_reading():
     """`GET /api/health` as the API's own models define it: one heartbeat per wall.

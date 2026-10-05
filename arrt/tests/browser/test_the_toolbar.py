@@ -151,28 +151,50 @@ def test_showing_everything_keeps_how_the_page_is_shown(ui, seeded_service):
     assert "density=table" in hash_now and "sort=artist" in hash_now and "filters=hidden" in hash_now
 
 
-def test_a_theme_is_shown_in_its_own_order_so_sort_is_not_offered(ui, services, seeded_service):
+def test_a_theme_filtered_here_is_in_the_sort_menus_order(ui, services, seeded_service):
+    """A theme is one more filter on Artworks (the owner's ruling on #169), so Sort applies to it.
+
+    Replaces "a theme is shown in its own order, so sort is not offered": that
+    was true while the rail's theme showed the theme's curated order. The
+    curated order is now the theme's own page's, and here the theme's slice
+    follows the Sort menu like any other filter's.
+    """
     theme = services.display.add_theme(name="Late night")
-    ui.open(f"#collection?theme={theme.id}")
-    # Waits for the toolbar, not the heading: the heading can paint first, and a
-    # toolbar not yet drawn offers no Sort either, so the absence would pass
-    # for the wrong reason.
-    ui.page.wait_for_selector("button.menu-button-trigger:has-text('View')")
+    for entry in seeded_service.list_artworks().entries:
+        services.display.add_to_theme(theme_id=theme.id, artwork_id=entry.artwork.id)
+    ui.open(f"#collection?theme={theme.id}&density=table")
+    wait_for_table(ui, BY_TITLE)
 
-    assert ui.page.locator("button.menu-button-trigger", has_text="Sort").count() == 0
-    assert ui.page.locator("button.menu-button-trigger", has_text="View").count() == 1
+    choose(ui, "Sort", "Artist")
+    wait_for_table(ui, BY_ARTIST)
+
+    assert f"theme={theme.id}" in ui.page.evaluate("() => window.location.hash")
 
 
-def test_the_table_carries_the_tick_only_when_there_is_a_theme_to_add_to(ui, services, seeded_service):
+def test_the_table_carries_the_tick_in_select_mode_only_when_there_is_a_theme_to_add_to(ui, services, seeded_service):
     ui.open("#collection?density=table")
     ui.page.wait_for_selector("table.work-table")
     assert ui.page.locator("table.work-table input.tile-select").count() == 0
+    assert ui.page.locator("button.select-toggle").count() == 0
 
     services.display.add_theme(name="Late night")
     # A reload, because opening the address already showing is not a navigation.
     ui.page.reload()
-    ui.page.wait_for_selector("table.work-table input.tile-select")
-    assert ui.page.locator("table.work-table input.tile-select").count() == 3
+    ui.page.wait_for_selector("button.select-toggle")
+    # Drawn, and out of sight until *Select* is pressed — the tick column too.
+    assert ui.page.locator("table.work-table input.tile-select:visible").count() == 0
+    assert ui.page.locator("table.work-table th.row-select:visible").count() == 0
+
+    ui.page.click("button.select-toggle")
+    assert ui.page.locator("table.work-table input.tile-select:visible").count() == 3
+
+
+def test_a_rail_with_nothing_to_filter_by_says_so(ui, seeded_service):
+    """No theme and no facet on any work: the rail says why it is empty rather than drawing nothing."""
+    ui.open("#collection")
+    ui.page.wait_for_selector("aside.rails .rail-note")
+
+    assert ui.page.inner_text("aside.rails").startswith("Nothing to filter by yet.")
 
 
 def test_hidden_rails_say_so_when_they_are_still_narrowing(ui, services, seeded_service):

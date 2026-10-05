@@ -124,6 +124,7 @@ from arrt.http.models import (
     SuggestionOut,
     ThemeDetailOut,
     ThemeListOut,
+    ThemeOptionOut,
     ThemeOut,
     ThemePlacementOut,
     TopicArtistsOut,
@@ -172,7 +173,7 @@ from arrt.persistence.discovery_records import (
 )
 from arrt.persistence.records import Artist, Directive, IdentitySetBy, MatColor, Original, Source, Theme, WorkFacet
 from arrt.programming.clients import ClientView
-from arrt.programming.display import ThemePlacement, WallView
+from arrt.programming.display import ThemeCount, ThemePlacement, WallView
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.programming.manifest.heartbeat import HeartbeatReading
 from arrt.services.container import Services
@@ -233,6 +234,7 @@ def list_works(
     offset: Annotated[int, Query()] = 0,
     sort: Annotated[str | None, Query()] = None,
     artist_id: Annotated[str | None, Query()] = None,
+    theme: Annotated[str | None, Query()] = None,
 ) -> WorkPageOut:
     """A page of works with the facet controls for exactly this filter.
 
@@ -247,17 +249,31 @@ def list_works(
     FastAPI generates this route's schema from the signature, so a named
     parameter is what makes the filter set discoverable and an unknown one a
     stated refusal instead of a silent no-op.
+
+    `theme` narrows to one theme's works, and every other filter and every facet
+    count narrows within it. Two calls composed, as `_theme_detail` composes
+    them: Programming names the theme's works, and the Library lists them. An
+    unknown theme is refused by name rather than ignored, because ignoring it
+    would answer with the whole catalogue labelled as the theme's.
     """
+    services = _services(request)
+    within = None if theme is None else services.display.theme_work_ids(theme)
     chosen = {"artist": artist, "movement": movement, "era": era, "subject": subject, "medium": medium, "palette": palette}
-    page = _services(request).survey.list_works(
+    facets = {kind: values for kind, values in chosen.items() if values}
+    page = services.survey.list_works(
         status=status,
         q=q,
-        facets={kind: values for kind, values in chosen.items() if values},
+        facets=facets,
         limit=limit,
         offset=offset,
         sort=sort,
         artist_id=artist_id,
+        within=within,
     )
+    # The theme options, counted as the facets are, with the theme's own
+    # selection ignored: the Library names what the other filters select, and
+    # Programming counts each theme's members among them.
+    others = services.catalogue.matching_ids(status=status, q=q, facets=facets, artist_id=artist_id)
     return WorkPageOut(
         works=[_work(entry) for entry in page.entries],
         total=page.total,
@@ -265,6 +281,7 @@ def list_works(
         offset=page.offset,
         truncated=page.truncated,
         facets=[_facet_group(group) for group in page.facets],
+        themes=[_theme_option(option) for option in services.display.theme_counts(others, selected=theme)],
     )
 
 
@@ -304,14 +321,15 @@ def set_work_identity(request: Request, artwork_id: str, body: SetIdentity) -> W
 
 @router.get("/artists")
 def list_artists(request: Request, q: Annotated[str | None, Query()] = None) -> ArtistListOut:
-    """Library › Artists: every artist with a work in circulation, by name.
+    """Library › Artists: every artist with a work in circulation, by surname (`surname_key`).
 
     `q` narrows to names containing it, ignoring case and accents, which is what
     the top-bar search asks when it offers artists.
 
     **Not capped, and what bounds it is the catalogue**: one row per artist with a
     work in circulation, so never more rows than works, and an artist's row is a
-    name and a count. At the NFR's thousands of works that is a few hundred rows.
+    name, a count and one work id. At the NFR's thousands of works that is a few
+    hundred rows.
     If it is ever paged, the typeahead's `q` lookup is the caller that needs it.
     """
     return ArtistListOut(artists=[_held_artist(entry) for entry in _services(request).artists.index(q)])
@@ -382,6 +400,7 @@ def search_registry(
                     else RegistryCreatorOut(qid=w.creator.qid, name=w.creator.name, artist_id=held_artists.get(w.creator.qid))
                 ),
                 held_artwork_ids=list(held_works.get(w.qid, ())),
+                wanted=w.qid in found.wanted_works,
             )
             for w in found.works
         ],
@@ -433,6 +452,7 @@ def get_registry_work(request: Request, qid: str) -> RegistryWorkPageOut:
             [] if known is None else [RegistryHolderOut(qid=h.qid, name=h.name, inventory=h.inventory) for h in known.holders]
         ),
         held_artwork_ids=list(view.held),
+        wanted=view.wanted,
     )
 
 
@@ -513,7 +533,7 @@ def get_topic_registry(request: Request, qid: str) -> TopicRegistryOut:
 
 @router.get("/topics/{qid}/works")
 def get_topic_works(request: Request, qid: str) -> TopicWorksOut:
-    """*Representative works*: the topic's most renowned works, each Held, Image found or no image known.
+    """*Representative works*: the topic's most renowned works, each with what marks it: held, wanted, its image.
 
     Asked after the page is drawn: a period's works took 7 to 26 seconds to
     ask for. Always a 200 for a well-formed QID; a malformed one is a 400.
@@ -536,6 +556,7 @@ def get_topic_works(request: Request, qid: str) -> TopicWorksOut:
                 creator_unknown=entry.work.creator_unknown,
                 state=str(entry.state),
                 held_artwork_ids=list(entry.held),
+                wanted=entry.wanted,
             )
             for entry in view.works
         ],
@@ -608,6 +629,7 @@ def _artist_registry(view: RegistryView, *, artist_id: str | None = None) -> Art
                     sitelinks=entry.sitelinks,
                     image=entry.image,
                     held_artwork_ids=list(view.held.get(entry.qid, ())),
+                    wanted=entry.qid in view.wanted,
                 )
                 for entry in known.works
             ]
@@ -1310,6 +1332,16 @@ def _theme_detail(services: Services, theme_id: str) -> ThemeDetailOut:
     )
 
 
+def _theme_option(option: ThemeCount) -> ThemeOptionOut:
+    return ThemeOptionOut(
+        theme_id=option.theme.id,
+        name=option.theme.name,
+        count=option.count,
+        selected=option.selected,
+        disabled=option.disabled,
+    )
+
+
 def _work(survey: WorkSurvey) -> WorkOut:
     artwork = survey.detail.artwork
     return WorkOut(
@@ -1424,7 +1456,7 @@ def _artist(artist: Artist) -> ArtistOut:
 
 
 def _held_artist(entry: HeldArtist) -> HeldArtistOut:
-    return HeldArtistOut(artist=_artist(entry.artist), held=entry.held)
+    return HeldArtistOut(artist=_artist(entry.artist), held=entry.held, pictured_artwork_id=entry.pictured)
 
 
 def _set_by(value: IdentitySetBy | None) -> str | None:

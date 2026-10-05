@@ -106,7 +106,10 @@ OPENS = {"Artworks": "collection", "Walls": "walls", "Activity": "to_review", "S
 def test_each_section_lists_exactly_its_pages(ui, seeded_service, section):
     """Every section, so a page added to or dropped from any one of them fails by name."""
     ui.open(f"#{OPENS[section]}")
-    ui.page.wait_for_selector(SECTION_LINKS)
+    # The links exist before the router opens the current section, so waiting
+    # on them alone reads the pages too early under load. `lightSidebar` opens
+    # the section and marks `aria-current` in one step: wait for the mark.
+    ui.page.wait_for_selector("nav.sidebar li.section[data-open] [aria-current='page']")
 
     assert visible_pages(ui)[section] == PAGES[section]
 
