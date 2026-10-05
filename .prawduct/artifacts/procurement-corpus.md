@@ -795,3 +795,54 @@ an SFMOMA page.
   the link check compares. The first review found the plugin reporting its own
   spelling instead, which would have refused *256 Farben* as a different work.
 - All three carry SFMOMA's copyright line and are recorded as in copyright.
+
+### The probe: Artlogic, and what Ask's search cites (2026-10-05)
+
+The owner chose Artlogic as the next source, found through Ask's web search
+(2026-10-05). Probed before building.
+
+**The citations.** Ask's phase 1 prompt and schema as built, on the deployed
+model (`deepseek/deepseek-v4-flash`, 10 results, the default engine), for two
+intents. About half a cent each.
+
+- *"Peter Stephens's geometric paintings, such as Mambo Jumbo and Quadrivium
+  77"*: 10 citations. Two are Markel's works listing for him
+  (`/artists/422-peter-stephens/works` and `/artists/422/works`, which redirects
+  to it). The rest are his own site, Artsy, a museum profile, and noise. Seven
+  works were proposed, both named works among them.
+- *"Lucy Bull's paintings, such as The Bottoms and 3:13"*: 10 citations, the
+  first Kordansky's artist page (`/artist/lucy-bull`). The rest are ICA Miami,
+  press, Wikipedia and video. Four works were proposed, neither of the named
+  ones among them.
+
+**So the search cites a gallery's artist page, not a work's page.** That shaped
+`build-plan-ask-pages.md`: the run's citations are the pages handed to the
+plugins.
+
+**The galleries**, by hand over plain HTTP with Arrt's own user agent:
+
+- **The asset host serves the stored original** when asked with an empty
+  transform (`https://static-assets.artlogic.net//<path>`), on both templates:
+  - Lucy Bull, *The Bottoms* (Kordansky, exhibit-E): **10,446 × 7,970**. The
+    corpus measured 3,600 × 2,747, the largest transform the page asks for.
+  - Peter Stephens, *Mambo Jumbo* (Markel, Artlogic CMS): 2,885 × 3,173, the
+    same as the page's `w_4000` transform.
+  - Peter Stephens, *Big Top* (Nüart, Artlogic CMS): 2,839 × 2,838, where the
+    page stops at 2,400.
+  - A larger transform than the original upscales it (`w_8000` gave 8,000 ×
+    6,104 for *The Bottoms*), so a transform is never how the master is fetched.
+- **A ranged read works** (`Range: bytes=0-65535` → 206), so an original's size
+  can come from its JPEG header without downloading it, as the MoMA plugin does
+  (`arrt_sources/jpeg.py`).
+- **Artlogic CMS's works listing** (`/artists/<n>-<slug>/works/`) carries every
+  work on one page, unpaginated (Stephens's: 13). Each item is an `li` with
+  `data-width` and `data-height` (2,885 × 3,173 for *Mambo Jumbo*, the original's
+  size), a link to the work's page (`/works/<n>/`), the asset-host image, and a
+  caption: artist, title, year, medium, size, price. The work's page has
+  `og:title` "Peter Stephens, Mambo Jumbo, 2023". The footer says "Site by
+  Artlogic".
+- **exhibit-E has no page per work.** The artist's works are slides on one page
+  (`/artist/lucy-bull/featured-works?view=slider`). Each slide's `img` carries
+  `alt='Lucy Bull, The Bottoms, 2021'` and the asset-host image, and its
+  `figcaption` carries the artist, the title in `<em>`, the year, the medium and
+  the size. The page names `collageplatform` and no Artlogic credit.
