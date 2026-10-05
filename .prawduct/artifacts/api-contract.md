@@ -1000,8 +1000,10 @@ reviewed later must still report the estimate it was actually authorised against
 > the field existed. It is prose for a reader, never a code to branch on, and it
 > sits beside the terminal state rather than replacing it: the state says which
 > response is right (constraints 1 and 3 under § Error Model), and the reason says
-> what to investigate. A halt's reason quotes the provider's own words, which
-> state what was asked for against what was left. A fault nothing anticipated
+> what to investigate. A halt's reason quotes the provider's refusal, which names
+> the limit that refused; a request the provider declined as unaffordable fails
+> the run instead, and its reason carries what was asked for against what was
+> left. A fault nothing anticipated
 > records a fixed sentence pointing at the server log and never the exception's
 > text, for the reason stack traces stay out of tool results. The MCP `status`
 > notice for a failed run names `end_reason` when it is set, and the log only when

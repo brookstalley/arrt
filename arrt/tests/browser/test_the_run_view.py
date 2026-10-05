@@ -873,7 +873,7 @@ def test_a_run_with_no_reason_shows_no_reason_line(ui, status):
 
 def test_a_reason_quoting_the_provider_reaches_the_page_as_text(ui):
     """A halt's reason quotes the provider's own words, so it is outside text and never markup."""
-    shown = _ended(ui, status=RunStatus.HALTED_BY_BUDGET, end_reason="OpenRouter returned HTTP 402: <b>credit</b> limit spent.")
+    shown = _ended(ui, status=RunStatus.HALTED_BY_BUDGET, end_reason="OpenRouter refused the call: <b>Key</b> limit exceeded.")
 
-    assert "Why it stopped: OpenRouter returned HTTP 402: <b>credit</b> limit spent." in shown
+    assert "Why it stopped: OpenRouter refused the call: <b>Key</b> limit exceeded." in shown
     assert ui.page.locator("#view b").count() == 0

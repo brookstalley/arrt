@@ -288,7 +288,11 @@ class TestCommissioningARun:
                 RunStatus.FAILED,
             ),
             (
-                BudgetExhausted("OpenRouter refused the call: the key's credit limit is spent. Requested 0.05, 0.01 left."),
+                BudgetExhausted(
+                    "OpenRouter refused the call: the key's credit limit is spent. Key limit exceeded (monthly limit). "
+                    "The ceiling is a per-key credit limit with a monthly reset, so this clears when the month turns "
+                    "or when the limit is raised in the OpenRouter console."
+                ),
                 RunStatus.HALTED_BY_BUDGET,
             ),
         ],
@@ -299,7 +303,9 @@ class TestCommissioningARun:
         Seen on a real Ask: a run that failed after four minutes said only
         "failed", and why could be recovered from nothing but the container's log.
         Both endings the worker reaches on its own are driven, because a halt's
-        reason carries the provider's arithmetic, which the page's sentence cannot.
+        reason quotes the provider's refusal, naming the limit, which the page's
+        sentence cannot. The halt's message is the shape `openrouter.py` builds
+        for a 403, the one refusal that becomes a halt.
         """
         engine.error = error
         run_id = http.post("/api/runs", json={"intent": "Lucy Bull"}).json()["run_id"]

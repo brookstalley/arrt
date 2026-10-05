@@ -393,9 +393,11 @@ class DiscoveryService:
         provider refused. Phase 1 *can* be — it makes model calls and can search
         the web — so this is reachable from both working states, not only phase 2.
 
-        `reason` is required as failure's is. It carries the provider's own words,
-        which state what was asked for against what was left, and the page's fixed
-        sentence about a halt cannot.
+        `reason` is required as failure's is. It quotes the provider's refusal,
+        which names the limit that refused, and the page's fixed sentence about a
+        halt cannot. (The refusal carrying what was asked for against what was
+        left is a 402, which fails the run rather than halting it, so that
+        arithmetic reaches a *failed* run's reason.)
         """
         return self._end_active(
             run_id,

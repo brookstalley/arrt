@@ -102,6 +102,10 @@ _RECHECK_SECONDS: Final[float] = 5.0
 #: same moment, which is where this sends them.
 _UNEXPECTED: Final[str] = "{phase} failed unexpectedly. The server log has the details."
 
+#: What a run records when the error that ended it carried no message. Says so
+#: rather than pointing at the log, which holds the same empty message.
+_NO_REASON: Final[str] = "The run stopped without saying why: the error that ended it carried no message."
+
 #: How many runs one listing may carry. **Nothing else bounds this list**, and it
 #: is the only listing in the product that grows with what people *typed*: a run
 #: row carries the operator's verbatim intent, so the payload grows with both the
@@ -1443,7 +1447,14 @@ class DiscoveryRunner:
 
         The reason is stored on the run as well as logged, because the run is
         what a curator reads, and the log is out of their reach.
+
+        **A blank reason is replaced here, not passed on.** The service refuses
+        one, and this runs inside the worker's exception handlers: a refusal
+        raised from here would escape them and leave the run in a process-held
+        state with nothing working on it. An engine error with an empty message
+        is the way a blank one arrives.
         """
+        reason = reason.strip() or _NO_REASON
         try:
             ending(run_id, reason=reason, actual_cost_usd=self._discovery.run_cost(run_id).direct)
         except ServiceError as exc:
