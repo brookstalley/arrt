@@ -283,6 +283,16 @@ async def test_the_three_bad_endings_are_distinguishable_by_returned_state_alone
     assert payload["status"] == expected
     assert payload["success"] is True, "a run that ended badly is still a successful read of that run"
     assert must_say in payload["notice"]
+    # Why it ended, in the worker's words where it composed some: the provider's
+    # for a halt, a pointer to the log for a fault whose own text stays there,
+    # and nothing for a death only reconciliation saw.
+    if outcome == "halted":
+        assert payload["end_reason"] == "Key limit exceeded (total limit)."
+    elif outcome == "failed":
+        assert "unparseable" not in payload["end_reason"]
+        assert "server log" in payload["end_reason"]
+    else:
+        assert payload["end_reason"] is None
 
 
 # -- estimate and spend -----------------------------------------------------------

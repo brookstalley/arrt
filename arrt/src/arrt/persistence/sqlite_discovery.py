@@ -91,7 +91,11 @@ CREATE TABLE IF NOT EXISTS discovery_runs (
     -- the Library/Programming seam that may fail to resolve once the theme is
     -- deleted. Null means the default, and is what every run before Gets could
     -- name a theme reads as; nullable so widening reaches older files.
-    destination_theme_id   TEXT
+    destination_theme_id   TEXT,
+    -- Why the run's worker ended it, written only by `failed` and
+    -- `halted_by_budget`. Nullable so widening reaches older files, whose runs
+    -- ended before a reason was kept and read back as giving none.
+    end_reason             TEXT
 );
 
 -- Startup reconciliation reads runs by status, on every process start.
@@ -612,6 +616,7 @@ def _run_row(run: DiscoveryRun) -> dict[str, Any]:
         "started_at": to_iso(run.started_at),
         "completed_at": to_iso(run.completed_at),
         "destination_theme_id": run.destination_theme_id,
+        "end_reason": run.end_reason,
     }
 
 
@@ -737,6 +742,7 @@ def _run(row: Mapping[str, Any]) -> DiscoveryRun:
         unresolved_work_count=row["unresolved_work_count"],
         completed_at=from_iso(row["completed_at"]),
         destination_theme_id=row["destination_theme_id"],
+        end_reason=row["end_reason"],
     )
 
 

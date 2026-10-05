@@ -819,3 +819,61 @@ def test_the_run_sentence_does_not_deny_the_works_listed_underneath_it(ui):
     headings = ui.page.locator("table th").all_text_contents()
     assert "Why it is here" in headings, headings
     assert "Why the run named it" not in headings
+
+
+# -- why a run ended ----------------------------------------------------------------
+
+
+def _ended(ui, *, status: RunStatus, end_reason: str | None):
+    """A run that has ended in `status`, with the reason the worker stored, opened."""
+    run = a_run(status=status.value, is_terminal=True, completed_at="2026-10-05T10:05:00+00:00", end_reason=end_reason)
+    ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(run=run, works=[]))
+    ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend())
+    ui.open(f"#run/{RUN_ID}")
+    ui.page.wait_for_selector("#view dl.facts")
+    return ui.text()
+
+
+@pytest.mark.parametrize(
+    ("status", "sentence"),
+    [
+        (RunStatus.FAILED, "This run hit an error and stopped."),
+        (RunStatus.HALTED_BY_BUDGET, "The provider refused further spend"),
+    ],
+)
+def test_a_run_that_ended_badly_says_why_beside_what_happened(ui, status, sentence):
+    """The worker's reason is on the page a curator lands on, under the sentence it explains.
+
+    Until it was stored, a failed run's page could only send a curator to the
+    server log, which on the deployment means somebody with a shell on the NAS.
+    """
+    reason = "Phase 1 returned an empty answer (it stopped on 'length')."
+
+    shown = _ended(ui, status=status, end_reason=reason)
+
+    assert sentence in shown
+    assert f"Why it stopped: {reason}" in shown
+    assert "The server log has the details" not in shown, "the log pointer is the fallback for a run with no reason"
+
+
+def test_a_failed_run_from_before_reasons_were_kept_still_points_at_the_log(ui):
+    shown = _ended(ui, status=RunStatus.FAILED, end_reason=None)
+
+    assert "This run hit an error and stopped. The server log has the details." in shown
+    assert "Why it stopped" not in shown
+
+
+@pytest.mark.parametrize("status", [RunStatus.COMPLETED, RunStatus.CANCELLED, RunStatus.INTERRUPTED])
+def test_a_run_with_no_reason_shows_no_reason_line(ui, status):
+    """The paired negative: the line appears when there is a reason, and not otherwise."""
+    shown = _ended(ui, status=status, end_reason=None)
+
+    assert "Why it stopped" not in shown
+
+
+def test_a_reason_quoting_the_provider_reaches_the_page_as_text(ui):
+    """A halt's reason quotes the provider's own words, so it is outside text and never markup."""
+    shown = _ended(ui, status=RunStatus.HALTED_BY_BUDGET, end_reason="OpenRouter returned HTTP 402: <b>credit</b> limit spent.")
+
+    assert "Why it stopped: OpenRouter returned HTTP 402: <b>credit</b> limit spent." in shown
+    assert ui.page.locator("#view b").count() == 0

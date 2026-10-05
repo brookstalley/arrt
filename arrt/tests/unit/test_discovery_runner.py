@@ -235,6 +235,7 @@ def test_an_engine_that_overruns_the_allowance_fails_the_run_rather_than_keeping
 
     run = services.discovery.get_run(run_id)
     assert run.status is RunStatus.FAILED
+    assert "5 web searches against an allowance of 2" in run.end_reason
     assert services.discovery.list_candidate_works(run_id) == []
     # The spend still lands: the searches were made and billed whether or not
     # their results were kept.
@@ -333,13 +334,17 @@ def test_a_provider_refusing_to_spend_halts_the_run_rather_than_failing_it(servi
     run_id = start(runner).id
 
     assert services.discovery.get_run(run_id).status is RunStatus.HALTED_BY_BUDGET
+    assert services.discovery.get_run(run_id).end_reason == "Key limit exceeded (total limit)."
 
 
 def test_an_engine_error_fails_the_run(services, engine, settings):
     engine.error = EngineFailure("The model returned something unparseable.")
     runner = DiscoveryRunner(services.discovery, engine, settings.discovery_settings, spawn=lambda work: work())
 
-    assert services.discovery.get_run(start(runner).id).status is RunStatus.FAILED
+    run = services.discovery.get_run(start(runner).id)
+
+    assert run.status is RunStatus.FAILED
+    assert run.end_reason == "The model returned something unparseable."
 
 
 def test_an_unexpected_error_ends_the_run_instead_of_leaving_it_looking_alive(services, engine, settings):
@@ -352,7 +357,13 @@ def test_an_unexpected_error_ends_the_run_instead_of_leaving_it_looking_alive(se
     engine.error = ZeroDivisionError("something no engine was supposed to raise")
     runner = DiscoveryRunner(services.discovery, engine, settings.discovery_settings, spawn=lambda work: work())
 
-    assert services.discovery.get_run(start(runner).id).status is RunStatus.FAILED
+    run = services.discovery.get_run(start(runner).id)
+
+    assert run.status is RunStatus.FAILED
+    # The exception's own text stays in the log, which is where the run points.
+    assert "something no engine" not in run.end_reason
+    assert run.end_reason.startswith("Phase 1 failed unexpectedly")
+    assert "server log" in run.end_reason
 
 
 def test_spend_incurred_before_a_failure_is_still_recorded(services, engine, settings):
@@ -459,6 +470,7 @@ def test_a_work_the_engine_returns_with_no_rationale_fails_the_run_rather_than_h
     run = services.discovery.get_run(start(runner).id)
 
     assert run.status is RunStatus.FAILED
+    assert run.end_reason.startswith("Phase 1 produced a work list that could not be recorded: ")
     assert run.status.is_terminal, "a run nothing is working on must not be left in a process-held state"
 
 
@@ -503,6 +515,8 @@ def test_a_catalogue_fault_while_settling_ends_the_run_rather_than_hanging_it(se
     run = services.discovery.get_run(start(runner).id)
 
     assert run.status is RunStatus.FAILED
+    assert "database is locked" not in run.end_reason
+    assert "server log" in run.end_reason
     assert run.status.is_terminal, "a run nothing is working on must not be left in a process-held state"
 
 

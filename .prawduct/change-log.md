@@ -62,6 +62,28 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-05: A run keeps why it ended
+
+<!-- prawduct: scope=run-end-reason -->
+
+**Why:** a run that failed kept no record of why. The runner composed a reason
+at every failure site and only logged it, so the API, the MCP `status` action and
+the run page all said "failed". Seen on an Ask for Lucy Bull (run `4756cdee`),
+whose reason could not be recovered without the container's log (#207). Plan:
+`build-plan-run-end-reason.md`.
+
+**What:**
+- New nullable column `discovery_runs.end_reason`, added in place by widening.
+  `fail_run` and `halt_run_for_budget` require a non-blank `reason` and store it
+  with the ending; every other ending stores null (`data-model.md`).
+- The runner passes the reason it already logged. A fault nothing anticipated
+  stores "Phase N failed unexpectedly. The server log has the details." and never
+  the exception's text.
+- `end_reason` on every HTTP and MCP run shape, listings included
+  (`api-contract.md`). The MCP notice for a failed run names it when it is set.
+- The run page shows "Why it stopped: …" under a failed or halted run's sentence,
+  as text. A failed run from before the column keeps the log pointer.
+
 ## 2026-10-05: An Ask's search hands the pages it read to the source plugins
 
 <!-- prawduct: scope=ask-pages -->

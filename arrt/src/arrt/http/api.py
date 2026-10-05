@@ -1631,6 +1631,7 @@ def _run(run: DiscoveryRun) -> RunOut:
         started_at=run.started_at.isoformat(),
         completed_at=None if run.completed_at is None else run.completed_at.isoformat(),
         destination_theme_id=run.destination_theme_id,
+        end_reason=run.end_reason,
     )
 
 

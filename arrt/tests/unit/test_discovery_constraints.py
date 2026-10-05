@@ -333,13 +333,13 @@ def test_recording_spend_never_moves_a_run(discovery, run):
 
 
 def test_a_run_halts_only_when_the_caller_says_the_provider_refused(discovery, run):
-    assert discovery.halt_run_for_budget(run.id).status is RunStatus.HALTED_BY_BUDGET
+    assert discovery.halt_run_for_budget(run.id, reason="Out of credit.").status is RunStatus.HALTED_BY_BUDGET
 
 
 def test_spend_is_still_attributed_after_the_cap_fires(discovery, run):
     """The cap failing closed is not a reason to lose the record of what was spent."""
     discovery.record_spend(category=SpendCategory.WEB_SEARCH, cost_usd=Decimal("0.25"), discovery_run_id=run.id, units=5)
-    discovery.halt_run_for_budget(run.id)
+    discovery.halt_run_for_budget(run.id, reason="Out of credit.")
 
     assert discovery.run_cost(run.id).direct == Decimal("0.25")
 

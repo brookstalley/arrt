@@ -96,6 +96,12 @@ STATUS_HOLD_SECONDS: Final[float] = 45.0
 #: by something outside this process could go unnoticed.
 _RECHECK_SECONDS: Final[float] = 5.0
 
+#: What a run records when its worker raised something nothing anticipated. A
+#: fixed sentence and never the exception's text, which can carry paths and
+#: addresses and which a curator cannot act on; the traceback is logged at the
+#: same moment, which is where this sends them.
+_UNEXPECTED: Final[str] = "{phase} failed unexpectedly. The server log has the details."
+
 #: How many runs one listing may carry. **Nothing else bounds this list**, and it
 #: is the only listing in the product that grows with what people *typed*: a run
 #: row carries the operator's verbatim intent, so the payload grows with both the
@@ -829,7 +835,7 @@ class DiscoveryRunner:
             self._end(run_id, self._discovery.fail_run, "run.failed", str(exc))
         except Exception:  # prawduct:allow prawduct/broad-except -- worker boundary: a fault must end the run, not hang it
             log.exception("phase 1 raised an unexpected error", extra={"event": "run.failed"})
-            self._end(run_id, self._discovery.fail_run, "run.failed", "Phase 1 failed unexpectedly.")
+            self._end(run_id, self._discovery.fail_run, "run.failed", _UNEXPECTED.format(phase="Phase 1"))
 
     def _settle(self, run_id: str, produced: WorkList) -> None:
         """Turn an engine's answer into proposed works and close phase 1."""
@@ -1010,7 +1016,7 @@ class DiscoveryRunner:
             self._end(run_id, self._discovery.fail_run, "run.failed", f"Phase 2 could not record what it found: {exc}")
         except Exception:  # prawduct:allow prawduct/broad-except -- worker boundary: a fault must end the run, not hang it
             log.exception("phase 2 raised an unexpected error", extra={"event": "run.failed"})
-            self._end(run_id, self._discovery.fail_run, "run.failed", "Phase 2 failed unexpectedly.")
+            self._end(run_id, self._discovery.fail_run, "run.failed", _UNEXPECTED.format(phase="Phase 2"))
 
     def _works_to_resolve(self, run_id: str) -> Sequence[CandidateWork]:
         """Which works this run should be asking about, which depends on its kind.
@@ -1434,9 +1440,12 @@ class DiscoveryRunner:
         that is an ordinary outcome rather than a second failure — so it is
         logged and dropped rather than raised into a worker that has nobody to
         raise to.
+
+        The reason is stored on the run as well as logged, because the run is
+        what a curator reads, and the log is out of their reach.
         """
         try:
-            ending(run_id, actual_cost_usd=self._discovery.run_cost(run_id).direct)
+            ending(run_id, reason=reason, actual_cost_usd=self._discovery.run_cost(run_id).direct)
         except ServiceError as exc:
             log.info("could not end the run; it had already ended: %s", exc, extra={"event": "run.already_ended"})
             return

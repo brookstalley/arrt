@@ -314,6 +314,12 @@ class DiscoveryRun:
     #: that may fail to resolve (`architecture.md` seam rule 3): the Library
     #: records where the curator asked the works to go and never reads a theme.
     destination_theme_id: str | None = None
+    #: Why the run's own worker ended it, in the words it composed: written by
+    #: `failed` and `halted_by_budget`, the two endings nobody asked for, and
+    #: null on every other. A curator reads a run long after the process that
+    #: ended it is gone, and a reason held only in that process's log is one they
+    #: cannot reach. Null too on any run that ended before the field existed.
+    end_reason: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
