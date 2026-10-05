@@ -113,11 +113,11 @@ Done when:
   only `missing` reads as "nothing here". Test watched to fail first.
 - `test_design_tokens.py` checks the scrim text pair over the worst-case image.
 - arrt's startup secret test iterates `_SECRET_FIELDS`.
-- `mcp/tools.py` stops importing `persistence.catalogue`; a test holds that the
-  surface layers (`http/`, `mcp/`) import no persistence store or driver module.
+- `arrt/src/arrt/mcp/tools.py` stops importing `persistence.catalogue`; a test holds that the
+  surface layers (`arrt/src/arrt/http/`, `arrt/src/arrt/mcp/`) import no persistence store or driver module.
 - The Player routes' token check is a FastAPI dependency, so the handlers no
-  longer branch on its answer; the module heads of `http/api.py`,
-  `mcp/bindings.py` and `arrt/tests/unit/test_bindings.py` describe the amended norm.
+  longer branch on its answer; the module heads of `arrt/src/arrt/http/api.py`,
+  `arrt/src/arrt/mcp/bindings.py` and `arrt/tests/unit/test_bindings.py` describe the amended norm.
 - Root module set frozen by a test (File organization); each plane's tests live
   under its own `tests/` (Test location).
 - #212: the mat fallback's stored reason and MCP tip name the
@@ -125,7 +125,7 @@ Done when:
 - #198: the discovery-run thread no longer outlives its test's database.
 - The heartbeat row is re-scoped to the posted payload's key and schema, and
   its guard follows: the filename half retires, and the third `REPORTED_AT_KEY`
-  (`arrt/programming/client_heartbeat.py`) is compared or shown to be covered.
+  (`arrt/src/arrt/programming/client_heartbeat.py`) is compared or shown to be covered.
 - Index rows for File organization and Test location name their new tests; the
   stylesheet row records that its scrim trigger fired.
 - Every declared suite green; browser suite green.

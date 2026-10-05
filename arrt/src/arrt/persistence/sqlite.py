@@ -32,7 +32,7 @@ from datetime import datetime
 from typing import Any, Final
 
 from arrt.persistence.adapter import BY_ID, TableAdapter, from_iso, require_datetime, to_iso
-from arrt.persistence.catalogue import TopicTally, WorkOrder, WorkQuery, WorkToAcquire
+from arrt.persistence.catalogue import TopicTally, WorkQuery, WorkToAcquire
 from arrt.persistence.durable import OrderBy, SqliteDurableStore
 from arrt.persistence.errors import StorageError
 from arrt.persistence.folding import search_fold
@@ -62,6 +62,7 @@ from arrt.persistence.records import (
     VocabularyKind,
     Wall,
     WorkFacet,
+    WorkOrder,
 )
 
 log = logging.getLogger(__name__)

@@ -36,7 +36,7 @@ from arrt.library.acquisition.color import parse_hex, rgb_to_lab
 from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR
 from arrt.library.events import LibraryEvents, WorkChange, WorkChanged, WorkChangedHandler
 from arrt.library.services.display_fit import ArtworkBox, FitAssessment, assess_display_fit
-from arrt.persistence.catalogue import CatalogueStore, WorkOrder, WorkQuery
+from arrt.persistence.catalogue import CatalogueStore, WorkQuery
 from arrt.persistence.records import (
     AcquisitionMethod,
     Artist,
@@ -55,6 +55,7 @@ from arrt.persistence.records import (
     SourceClass,
     VocabularyKind,
     WorkFacet,
+    WorkOrder,
     is_current,
 )
 from arrt.services.errors import ServiceError

@@ -71,6 +71,45 @@ def test_only_the_durable_store_imports_the_storage_driver():
     )
 
 
+# -- the surfaces name records, never a store ------------------------------------
+
+
+#: The persistence modules a surface (`arrt.http`, `arrt.mcp`) may import from:
+#: the record types and enums its answers are shaped from. A store, the backup
+#: writer or the driver is reached through a service, by the boundary the owner
+#: drew on 2026-10-05 (issue #24): records yes, stores no.
+_SURFACES_MAY_IMPORT = {"arrt.persistence.records", "arrt.persistence.discovery_records"}
+_SURFACES = ("arrt.http", "arrt.mcp")
+
+
+def _persistence_imports(tree: ast.AST) -> set[str]:
+    """Every `arrt.persistence…` module this module imports, at any level."""
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            found.update(alias.name for alias in node.names if alias.name.startswith("arrt.persistence"))
+        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+            if node.module == "arrt.persistence":
+                found.update(f"arrt.persistence.{alias.name}" for alias in node.names)
+            elif node.module.startswith("arrt.persistence."):
+                found.add(node.module)
+    return found
+
+
+def test_the_surfaces_import_persistence_records_and_never_a_store():
+    surfaces = [path for path in sorted(_SOURCE_ROOT.rglob("*.py")) if _module_name(path).startswith(_SURFACES)]
+    assert {_module_name(path).split(".")[1] for path in surfaces} == {"http", "mcp"}, "a surface package moved"
+
+    offenders = {
+        f"{_module_name(path)} imports {module}"
+        for path in surfaces
+        for module in _persistence_imports(ast.parse(path.read_text(encoding="utf-8")))
+        if module not in _SURFACES_MAY_IMPORT
+    }
+
+    assert not offenders, "a surface reaches past the records into persistence:\n" + "\n".join(sorted(offenders))
+
+
 # -- discovery reaches nothing, and that is structural --------------------------
 
 

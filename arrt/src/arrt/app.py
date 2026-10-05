@@ -160,6 +160,15 @@ def create_app(
         log.info("refused: %s", error)
         return api.service_error_response(str(error))
 
+    @app.exception_handler(player.Refused)
+    async def not_admitted(_: Request, error: player.Refused) -> JSONResponse:
+        """A Player route's token did not open it: the contract's `401` or `403`.
+
+        The routes declare admission as a dependency that raises this, so the
+        refusal is decided once, here, and no Player handler branches on it.
+        """
+        return player.refusal(error.admission)
+
     @app.get("/healthz", include_in_schema=False)
     def healthz() -> PlainTextResponse:
         """Liveness for a container's healthcheck: the process is up and answering.

@@ -121,6 +121,40 @@ def test_every_control_boundary_clears_the_non_text_floor(scheme, token, surface
     assert ratio >= UI_CONTRAST_FLOOR, f"{scheme}: --{token} on --{surface} is {ratio:.2f}:1"
 
 
+def _scrim(scheme: str) -> tuple[tuple[int, int, int], float]:
+    """`--scrim` as authored, an RGB colour with an alpha, which the hex reader skips."""
+    css = (STATIC_DIR / "app.css").read_text(encoding="utf-8")
+    light_block, _, _ = _balanced_block(css, ":root")
+    dark_media, _, _ = _balanced_block(css, "@media (prefers-color-scheme: dark)")
+    block = light_block if scheme == "light" else _balanced_block(dark_media, ":root")[0]
+    found = re.search(r"--scrim:\s*rgb\((\d+)\s+(\d+)\s+(\d+)\s*/\s*(\d+)%\)\s*;", block)
+    assert found, f"{scheme}: --scrim is not the rgb(r g b / a%) this test reads; has its form changed?"
+    red, green, blue, alpha = (int(part) for part in found.groups())
+    return (red, green, blue), alpha / 100
+
+
+def _over(colour: tuple[int, int, int], alpha: float, ground: str) -> str:
+    """The colour a translucent layer shows over an opaque ground, as hex."""
+    under = [int(ground.lstrip("#")[index : index + 2], 16) for index in (0, 2, 4)]
+    return "#" + "".join(f"{round(alpha * top + (1 - alpha) * bottom):02x}" for top, bottom in zip(colour, under, strict=True))
+
+
+@pytest.mark.parametrize("scheme", ["light", "dark"])
+@pytest.mark.parametrize("image", ["#ffffff", "#000000"])
+def test_scrim_text_clears_aa_over_any_image(scheme, image):
+    """Text laid on the scrim (a tile's caption over its artwork) reads over any picture.
+
+    The scrim sits on an image nobody chose for contrast, so the pair is checked
+    at the image's two extremes, the scrim composited over each, rather than over
+    a surface token. The token pairs above never reached it, because the scrim is
+    translucent and the token reader takes only opaque hex.
+    """
+    colour, alpha = _scrim(scheme)
+    ground = _over(colour, alpha, image)
+    ratio = _ratio(SCHEMES[scheme]["scrim-text"], ground)
+    assert ratio >= TEXT_CONTRAST_FLOOR, f"{scheme}: --scrim-text on --scrim over {image} is {ratio:.2f}:1"
+
+
 #: The semantic status tokens, each with the quiet ground it is read on.
 #:
 #: These landed with the palette and were consumed by nothing, so the pair

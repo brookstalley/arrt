@@ -1,7 +1,7 @@
 """The MCP bindings' own behaviour — the formatting a binding is allowed to do.
 
-A binding unpacks arguments, calls one service method, and shapes the result for
-a model to read. The shaping is the part worth testing here, because it is the
+A binding unpacks arguments, composes service calls without branching on their
+answers, and shapes the result for a model to read. The shaping is the part worth testing here, because it is the
 only part a binding decides, and because a message that gives a caller advice it
 cannot act on is a defect the service layer cannot see.
 

@@ -457,6 +457,76 @@ class TestTheFloor:
         assert rgb_to_lab(parse_hex(choice.hex_rgb)).l >= MAT_LIGHTNESS_FLOOR
         assert len(requests) == 2
 
+    def test_the_stored_reason_says_the_model_answered_too_dark_twice(self, artwork):
+        """The reason is what a curator reads later, when the call's detail is gone.
+
+        Here the model was asked, answered readably, and chose too dark twice, so a
+        reason saying no model's choice was available would be false.
+        """
+        second = json.dumps({"hex_rgb": "#141414", "lab_l": 6, "lab_a": 0, "lab_b": 0, "reason": "Darker still."})
+        client = _answering_in_turn(
+            (200, _answered(DARK_ANSWER, cost=0.0001)), (200, _answered(second, cost=0.0002)), recorder=[]
+        )
+
+        reason = MatEngine(client, image_max_edge=768).choose(artwork).reason
+
+        assert "darker than the mat floor twice" in reason
+        assert "no vision model" not in reason
+
+    def test_a_fallback_with_no_model_configured_says_so_and_nothing_about_the_floor(self, artwork):
+        reason = MatEngine(None, image_max_edge=768).choose(artwork).reason
+
+        assert "no vision model is configured" in reason
+        assert "darker than the mat floor" not in reason
+
+    def test_the_stored_reason_never_carries_an_exception_s_text(self, artwork):
+        """The call's detail may quote a transport error; the stored sentence may not."""
+        client = _answering_in_turn((403, {"error": {"message": "Key limit exceeded at https://example.invalid/k"}}), recorder=[])
+
+        choice = MatEngine(client, image_max_edge=768).choose(artwork)
+
+        assert choice.method is MatMethod.DOMINANT_COLOR_FALLBACK
+        assert "example.invalid" not in choice.reason
+
+    @pytest.mark.parametrize(
+        ("answers", "says"),
+        [
+            pytest.param(
+                [(403, {"error": {"message": "Key limit exceeded"}})],
+                "the vision model could not be reached",
+                id="unreachable",
+            ),
+            pytest.param(
+                [(200, _answered("", finish_reason="length", cost=0.0001))],
+                "the vision model's answer could not be used",
+                id="unusable",
+            ),
+            pytest.param(
+                [(200, _answered(DARK_ANSWER, cost=0.0001)), (403, {"error": {"message": "Key limit exceeded"}})],
+                "darker than the mat floor, and asking again failed",
+                id="too dark, then asking again failed",
+            ),
+            pytest.param(
+                [(200, _answered(DARK_ANSWER, cost=0.0001)), (200, _answered("", finish_reason="length", cost=0.0002))],
+                "darker than the mat floor, and its second answer could not be used",
+                id="too dark, then unusable",
+            ),
+        ],
+    )
+    def test_every_fallback_s_stored_reason_names_its_own_case(self, artwork, answers, says):
+        """The MCP tip tells a model the stored reason says which case it was; each case is held to its words."""
+        reason = MatEngine(_answering_in_turn(*answers, recorder=[]), image_max_edge=768).choose(artwork).reason
+
+        assert says in reason
+        others = [
+            wording
+            for wording in ("asking again failed", "its second answer could not be used", "darker than the mat floor twice")
+            if wording not in says
+        ]
+        assert not [wording for wording in others if wording in reason], reason
+        if "darker than the mat floor" not in says:
+            assert "darker than the mat floor" not in reason
+
     def test_an_unusable_second_answer_falls_back_with_both_costs(self, artwork):
         requests: list = []
         client = _answering_in_turn(

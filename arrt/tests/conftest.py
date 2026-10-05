@@ -13,7 +13,7 @@ import struct
 import threading
 import time
 import uuid
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from decimal import Decimal
 from typing import Final
 
@@ -303,7 +303,35 @@ def sources() -> SourceRoster:
 
 
 @pytest.fixture
+def run_threads(store: SqliteCatalogue, discovery_store: SqliteDiscovery) -> Iterator[Callable[[Callable[[], None]], None]]:
+    """A run's background work on recorded threads, each joined before the store closes.
+
+    The runner starts a run's work on a daemon thread and returns its handle at
+    once, which is the contract. A test that returns while that thread still
+    writes leaves teardown to close the database under it, and the thread then
+    fails on a closed store, reported (if at all) as a warning about some other
+    test. Pytest tears fixtures down in reverse order of setup, so this one asks
+    for both stores: that is what sets it up after them and so joins its threads
+    before either is closed. Without them it can be set up first and torn down
+    last, joining threads that already failed on a closed store.
+    """
+    threads: list[threading.Thread] = []
+
+    def spawn(work: Callable[[], None]) -> None:
+        thread = threading.Thread(target=work, name="discovery-run", daemon=True)
+        threads.append(thread)
+        thread.start()
+
+    yield spawn
+    for thread in threads:
+        thread.join(timeout=20)
+    still = [thread.name for thread in threads if thread.is_alive()]
+    assert not still, f"run threads still working 20 seconds after the test: {still}"
+
+
+@pytest.fixture
 def services(
+    run_threads: Callable[[Callable[[], None]], None],
     store: SqliteCatalogue,
     discovery_store: SqliteDiscovery,
     wall_settings: DisplaySettings,
@@ -351,6 +379,7 @@ def services(
         # it and every acquisition test starts resolving real hostnames again with
         # nothing failing to say so.
         resolve=lambda _host: ["93.184.216.34"],
+        spawn=run_threads,
         # Injected for the same reason `engine` is: the container's own default
         # refuses every turn, which is the keyless deployment and is right for
         # it — and would make every conversation test assert against a refusal.

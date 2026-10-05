@@ -240,7 +240,7 @@ def test_no_source_file_carries_a_deployment_value():
         ('HOST = "192.168.0.20"', True),
         ('HOST = "172.20.0.1"', True),
         ("# copied from /Users/someone/thing", True),
-        ('ROOT = "/home/pi/art"', True),
+        ('ROOT = "/home/zz-no-such-user/art"', True),
         ('HOST = "172.32.0.1"', False),  # just outside 172.16/12
         ('HOST = "192.0.2.10"', False),  # RFC 5737 documentation range
         ('HOST = "110.1.2.3"', False),  # not 10/8: the address starts 110

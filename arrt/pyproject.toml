@@ -199,6 +199,11 @@ ignore = ["TRY003"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# A run's thread that fails after its test returned is a failure of that test's
+# harness, not a warning about whichever test pytest happens to be in (#198). As
+# an error it fails where it happened; as a warning it scrolled past while the
+# suite stayed green. `run_threads` in `tests/conftest.py` is what keeps it quiet.
+filterwarnings = ["error::pytest.PytestUnhandledThreadExceptionWarning"]
 markers = [
     "llm_eval: drives the tool surface with a real model over OpenRouter. Costs money, needs OPENROUTER_API_KEY, and is not deterministic — deselected by default, run with `-m llm_eval`.",
     "live_api: re-verifies OpenRouter's recorded response shapes and prices against the live API. Costs money, needs OPENROUTER_API_KEY — deselected by default, run with `-m live_api`.",

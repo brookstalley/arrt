@@ -33,9 +33,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Final
+from typing import Final
 
 from arrt import observations
+from arrt.persistence.records import BackupReading
 
 log = logging.getLogger(__name__)
 
@@ -53,48 +54,6 @@ BACKUP_RECEIPT_FILENAME: Final[str] = "backup-status.json"
 #: document was written, because a writer that stamps an attempt and a writer that
 #: stamps a success would otherwise both be spelling this correctly.
 COMPLETED_AT_KEY: Final[str] = "completed_at"
-
-
-@dataclass(frozen=True, slots=True)
-class BackupReading:
-    """When the catalogue was last backed up, stated as an observation.
-
-    `absent` and `unreadable` are different answers, as they are for the
-    heartbeat: nothing has ever run is the normal state of a deployment whose
-    backup is not yet scheduled, and a receipt that will not parse is a fault.
-    """
-
-    path: Path
-    #: None when no receipt exists at all.
-    completed_at: datetime | None
-    #: How long ago the backup finished, in seconds. None when there is nothing
-    #: to age.
-    age_seconds: float | None
-    #: The receipt as the backup job wrote it, or None if absent or unreadable.
-    #: Handed through untouched past `completed_at`: where the copy went, and how
-    #: large it was, are the job's to record and the panel's to show.
-    contents: dict[str, Any] | None
-    #: Set when a receipt is present but could not be read.
-    problem: str | None
-
-    @property
-    def absent(self) -> bool:
-        """True when no backup has ever recorded itself here."""
-        return self.contents is None and self.problem is None
-
-    def describe(self) -> str:
-        """One sentence stating what was observed, never a verdict about it.
-
-        There is deliberately no threshold in here. "Six days" is alarming for a
-        nightly job and unremarkable for a destination that is usually asleep,
-        and the panel does not know which this deployment is — so it reports the
-        age and the reader decides, exactly as it does for the heartbeat.
-        """
-        if self.absent:
-            return f"No backup has been recorded at {self.path}; nothing has written one yet."
-        if self.problem is not None:
-            return f"The backup record at {self.path} could not be read: {self.problem}"
-        return f"The catalogue was last backed up {observations.ago(self.age_seconds)}."
 
 
 def read(path: Path, *, now: datetime | None = None) -> BackupReading:

@@ -246,6 +246,35 @@ def test_every_wall_route_admits_only_the_client_the_wall_is_assigned_to(server_
     assert send(_bearer(token)).status_code in (200, 204)
 
 
+@pytest.mark.parametrize("route", sorted(ROUTES))
+def test_a_refusal_says_why_in_the_error_shape_and_never_echoes_the_token(server_url, playing, wall_id, route):
+    """Every Player route refuses the same way: `{"error": …}`, and a `401` names its scheme.
+
+    The refusal is raised by each route's admission dependency and answered once by
+    the application, so this asks it of all five routes, through the server, rather
+    than of the function that builds it.
+    """
+    presented = "not-a-token-0123456789"
+    method = ROUTES[route]["method"]
+    url = server_url + _path(route, wall_id=wall_id, sha256="0" * 64)
+
+    response = httpx.request(method, url, json={} if method == "POST" else None, headers=_bearer(presented))
+
+    assert response.status_code == 401
+    assert response.headers.get("WWW-Authenticate") == "Bearer"
+    assert set(response.json()) == {"error"}
+    assert presented not in response.text
+
+
+def test_a_wall_refused_to_a_known_client_is_a_403_in_the_same_shape(server_url, playing, study_token, wall_id):
+    response = httpx.get(server_url + _path("manifest", wall_id=wall_id), headers=_bearer(study_token))
+
+    assert response.status_code == 403
+    assert set(response.json()) == {"error"}
+    assert "WWW-Authenticate" not in response.headers
+    assert study_token not in response.text
+
+
 def test_the_study_clients_own_wall_admits_it(server_url, services, wall_id, token, study, study_token):
     """The 403 above is about assignment, not about the study client being refused everywhere."""
     url = server_url + _path("heartbeat", wall_id=study)

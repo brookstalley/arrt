@@ -30,9 +30,8 @@ from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR
 from arrt.library.services.catalogue import MAX_LIST_LIMIT
 from arrt.library.services.review import MAX_REVIEW_LIMIT
 from arrt.mcp.registry import Action, Param, ToolRecord
-from arrt.persistence.catalogue import WorkOrder
 from arrt.persistence.discovery_records import AffinityDerivation, AffinitySentiment, RunKind, RunStatus
-from arrt.persistence.records import ArtworkStatus, VocabularyKind
+from arrt.persistence.records import ArtworkStatus, VocabularyKind, WorkOrder
 
 _STATUS = Param(
     name="status",
@@ -273,8 +272,9 @@ ART_CATALOGUE: Final = ToolRecord(
                 "Nothing is overwritten: the previous colour is kept, so a worse choice can be read back and reversed "
                 "by setting the old one again.",
                 "The work is re-rendered in the new colour immediately — there is no separate regenerate to remember.",
-                "A colour recorded as method='dominant_color_fallback' was derived mechanically because the model "
-                "could not be asked or could not be read, not chosen for this work.",
+                "A colour recorded as method='dominant_color_fallback' was derived mechanically, not chosen for "
+                "this work: no vision model is configured, it could not be reached, its answer could not be used, "
+                "or it chose darker than the mat floor twice. The colour's stored reason says which.",
             ),
         ),
         Action(

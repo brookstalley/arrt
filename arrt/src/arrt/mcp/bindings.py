@@ -1,17 +1,12 @@
 """What each action calls, and how its answer is shaped for a model.
 
-A binding unpacks the validated arguments, calls **one** service method, and
-formats the result. A binding that validates, orders, or decides is the
-violation — that work belongs to the service, which the HTTP handlers call too.
-Two implementations of "list the catalogue" diverge within weeks, and the
-divergence shows up as an agent and a click disagreeing about the same
-catalogue.
-
-**One binding here departs**: answering "get theme" pairs the theme with its
-works, two reads behind one action. That is the same composite-read shape the
-HTTP surface departs in, and it is recorded alongside those under "Known
-departures" in the project preferences rather than excused here. The rule binds
-every other binding in this file, and binds the next one written.
+A binding unpacks the validated arguments, composes service calls, and formats
+the result, and it never branches on a service call's answer to decide what
+happens next — that belongs to the service, which the HTTP handlers call too
+(`architecture.md` § Direction, as amended 2026-10-05). Two implementations of
+"list the catalogue" diverge within weeks, and the divergence shows up as an agent
+and a click disagreeing about the same catalogue, which is why a composition both
+surfaces need lives in a service or is pinned by a test both run.
 
 Formatting is not logic and belongs here: tool results are shaped for a model
 to read, HTTP responses for a UI to render, and forcing one shape on both is
