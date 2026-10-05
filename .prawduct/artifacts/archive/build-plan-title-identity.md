@@ -12,7 +12,13 @@ governed_by:
     dispositions:
       - "§ Direction: identity is never a source URL → held. The work's identity stays its key and its QID; a page the work's Wikidata item records is evidence in one resolution attempt, the mirror of the QID matcher reading a holder's identifier from a source URL"
 last_validated: null
+lifecycle: completed
+archived: 2026-10-05
+released_in: v0.2.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — A title worded differently by its holder
 

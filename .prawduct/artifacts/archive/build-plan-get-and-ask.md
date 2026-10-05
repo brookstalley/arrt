@@ -38,7 +38,13 @@ governed_by:
     dispositions:
       - "registry features say they are off when no User-Agent is configured → binds Chunk 02: with no `WIKIDATA_USER_AGENT` there is no Commons source, the startup line says which sources are wired, and Get says it cannot run with no source"
 last_validated: null
+lifecycle: completed
+archived: 2026-10-05
+released_in: v0.2.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — Get and Ask
 

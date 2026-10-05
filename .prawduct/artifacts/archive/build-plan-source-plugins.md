@@ -32,7 +32,13 @@ governed_by:
       - "Catch specific exceptions; broad catch needs the waiver → conforms by waiver: fault containment is one broad catch per plugin call site, each with its reason, logged at error and counted on the health panel"
       - "Hardware and network access sits behind an interface → conforms: finders and readers are that interface"
 last_validated: null
+lifecycle: completed
+archived: 2026-10-05
+released_in: v0.2.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — Source plugins
 

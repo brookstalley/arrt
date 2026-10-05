@@ -16,7 +16,13 @@ governed_by:
     dispositions:
       - "§ Compositing moves to the Player (wave 4) → this plan changes the server's compositor now, because wave 4 is blocked on a Pi 4 measurement and the owner is looking at the wrong mat today; the rule is written into that section so wave 4's Player compositor inherits it"
 last_validated: null
+lifecycle: completed
+archived: 2026-10-05
+released_in: v0.2.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — The mat follows the work
 

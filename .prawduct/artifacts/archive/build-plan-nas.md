@@ -35,7 +35,13 @@ governed_by:
     dispositions:
       - "this repo is public; no network addresses, hostnames or usernames → binds every chunk: the Dockerfile and a generic compose example live here; the real compose, env, Caddy block, addresses and the deploy script live in the private homelab repo (the owner's choice of 2026-10-02)"
 last_validated: null
+lifecycle: completed
+archived: 2026-10-05
+released_in: v0.2.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — Arrt on the NAS
 

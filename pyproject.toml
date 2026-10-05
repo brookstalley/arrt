@@ -1,6 +1,6 @@
 [project]
 name = "samsung-frame-art-loader-legacy"
-version = "0.1.0"
+version = "0.2.0"
 description = "The 2024 modules that run the wall today, plus repo-wide tool config."
 requires-python = ">=3.12"
 dependencies = ["python-dotenv"]

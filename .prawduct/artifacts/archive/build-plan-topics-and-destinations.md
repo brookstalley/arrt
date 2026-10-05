@@ -41,7 +41,13 @@ governed_by:
     dispositions:
       - "WCAG 2.1 AA; colour never the sole carrier of state → binds Chunks 02 and 05: the destination is a labelled select whose confirmation names the theme in words; a topic's works carry their state as glyph and word, as the Artist page's do"
 last_validated: null
+lifecycle: completed
+archived: 2026-10-05
+released_in: v0.2.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — Topics and destinations
 

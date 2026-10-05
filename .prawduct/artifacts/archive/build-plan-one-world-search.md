@@ -37,7 +37,13 @@ governed_by:
     dispositions:
       - "nothing spends on a keystroke (builder's ruling, `information-architecture.md` § The *arr layout) → conforms: Wikidata is free, and a registry search is debounced and cached, so typing does not query per keystroke"
 last_validated: null
+lifecycle: completed
+archived: 2026-10-05
+released_in: v0.2.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — One-world search, and the rest of the Artist hub
 

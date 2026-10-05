@@ -33,7 +33,13 @@ governed_by:
     dispositions:
       - "text from outside Arrt reaches the page as text; links out are built from an item id → conforms: Chunk 03 shows Wikidata's pictures through the preview cache as the Topic page does today, and adds no new outside text"
 last_validated: null
+lifecycle: completed
+archived: 2026-10-05
+released_in: v0.2.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — Library screens
 

@@ -47,7 +47,13 @@ governed_by:
       - "spend ceilings are enforced by the provider → inapplicable because Wikidata lookups are free and spend nothing"
       - "the display plane never depends on the curation plane being reachable → inapplicable because nothing here touches the Player or the manifest"
 last_validated: null
+lifecycle: completed
+archived: 2026-10-05
+released_in: v0.2.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — IA foundations: accents, the default theme, registry identity, the Artist page
 

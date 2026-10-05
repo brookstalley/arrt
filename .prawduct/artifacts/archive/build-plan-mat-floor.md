@@ -12,7 +12,13 @@ governed_by:
       - "§ Output Quality: mat colour at least as good as the 2024 corpus → amended by the owner's ruling of 2026-10-03: no mat darker than L* 15, which excludes 10 of the corpus's 41 colours; the corpus stays the bar above the floor"
       - "§ Output Quality: the curator's presets #222222 and #6b6b6b (unbuilt, #91) → #222222 is below the floor; recorded there, and choosing its replacement is left to #91"
 last_validated: null
+lifecycle: completed
+archived: 2026-10-05
+released_in: v0.2.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — No mat near black
 
