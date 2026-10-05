@@ -16,9 +16,9 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
-from fakes import FakeRegistry  # noqa: E402  (after the skip guard)
+from fakes import FakeRegistry
 
-from arrt.library.registry import (  # noqa: E402
+from arrt.library.registry import (
     RegistryArtist,
     RegistryCreator,
     RegistryHolder,
@@ -35,16 +35,16 @@ COMMONS = "https://commons.wikimedia.org/wiki/Special:FilePath/Hunters.jpg"
 
 
 def _hunters(**changes):
-    work = dict(
-        qid=HUNTERS,
-        title="The Hunters in the Snow",
-        sitelinks=39,
-        year=1565,
-        image=COMMONS,
-        creators=(RegistryCreator(qid=BRUEGEL, name="Pieter Brueghel the Elder"),),
-        media=("oil paint", "panel"),
-        holders=(RegistryHolder(qid="Q95569", name="Kunsthistorisches Museum", inventory="GG_1838"),),
-    )
+    work = {
+        "qid": HUNTERS,
+        "title": "The Hunters in the Snow",
+        "sitelinks": 39,
+        "year": 1565,
+        "image": COMMONS,
+        "creators": (RegistryCreator(qid=BRUEGEL, name="Pieter Brueghel the Elder"),),
+        "media": ("oil paint", "panel"),
+        "holders": (RegistryHolder(qid="Q95569", name="Kunsthistorisches Museum", inventory="GG_1838"),),
+    }
     return RegistryWork(**(work | changes))
 
 

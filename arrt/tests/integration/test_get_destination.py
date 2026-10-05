@@ -77,7 +77,7 @@ def services(store, discovery_store, wall_settings, thumbnail_settings, settings
     )
     # Phase 2 on the request's own thread, so a Get has found its image by the
     # time the response arrives and each test reads as the curator's steps.
-    bound.runner._spawn = lambda work: work()  # noqa: SLF001
+    bound.runner._spawn = lambda work: work()
     return bound
 
 
@@ -105,10 +105,9 @@ def http(server_url):
 
 
 async def call(server_url: str, tool: str, **arguments) -> tuple[dict, bool]:
-    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            result = await session.call_tool(tool, arguments)
+    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _), ClientSession(read, write) as session:
+        await session.initialize()
+        result = await session.call_tool(tool, arguments)
     return json.loads("".join(block.text for block in result.content if block.type == "text")), bool(result.isError)
 
 

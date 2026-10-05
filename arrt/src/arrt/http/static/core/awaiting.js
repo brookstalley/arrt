@@ -39,13 +39,14 @@ export async function paintAwaiting() {
   }
 }
 
-/* How many works are wanted, on Wanted's own link — and the link only once one is.
+/* How many works are wanted, on the Wanted section's link — and the section only once one is.
  *
  * `ia-proposal.md` § The map: "Wanted appears once something is in it", as
- * Lidarr's Wanted does when nothing is missing. So with none wanted the link is
- * hidden rather than counting zero; its address still answers, and says it is
- * empty. Not counted on Activity's link: that count is To review's, the queue
- * that needs the curator now, and a wanted work waits until they ask. */
+ * Lidarr's Wanted does when nothing is missing. So with none wanted the section
+ * is hidden rather than counting zero; its address still answers, and says it is
+ * empty. The sidebar draws it hidden (`untilCounted`), so this is what shows it.
+ * Its own count, kept off Activity's: that one is To review's, the queue that
+ * needs the curator now, and a wanted work waits until they ask. */
 export async function paintWanted() {
   const slots = document.querySelectorAll("[data-count-slot='wanted']");
   if (!slots.length) return;

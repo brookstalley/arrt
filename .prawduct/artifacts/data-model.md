@@ -78,7 +78,16 @@ entities owned by the plane that talks to that device.
 > carrying one television's state along with it — and it is why the recovered
 > catalogue's label references point at the wrong panel.
 >
-> **Status:** steady-state.
+> **Status:** `in-transition` (since the 2026-10-05 Norm Health sweep, which
+> found the built code departing). The `tv_display` renditions hold one panel's
+> geometry and layout in the catalogue (`persistence/sqlite.py`, the `renditions`
+> table), beside `TV_PANEL_*` in `arrt/config.py`. Tracking ref:
+> `re-architecture.md` § Order of work, wave 4, which moves compositing to the
+> Player. **Interim rule:** no new per-device column or table in the catalogue.
+>
+> **Rulings:** the Wall entity, and which client drives it on which named output,
+> conform — a wall is a place and its assignment a curatorial act (§ Wall, ruled
+> 2026-10-02 and amended by `clients.md`).
 
 **Derived artifacts are regenerated, never transported.** Anything rendered for a
 specific output geometry is reproducible from upstream inputs and is never
@@ -126,7 +135,7 @@ synced between machines.
 > produces either wrong output or a cache that cannot be trusted. Regenerating on
 > the target is cheap and correct.
 >
-> **Status:** steady-state.
+> **Status:** `in-transition` (corrected below).
 >
 > **RULING 2026-09-30: a presentation master is not a derived artifact in this
 > norm's sense, and caching it on a Player conforms.** The norm covers
@@ -137,6 +146,12 @@ synced between machines.
 > changed master has a different hash. What *is* geometry-specific, the composed
 > and matted canvas, is regenerated on the Player that owns the screen, which is
 > this norm applied more strictly than the built code applies it.
+>
+> **Status corrected 2026-10-05 by the Norm Health sweep:** `in-transition`, not
+> steady-state, because the ruling above admits the built code departs:
+> `http/player.py` serves the matted, geometry-specific `tv_display` canvas and the
+> Player caches it. Tracking ref: `re-architecture.md` § Order of work, wave 4.
+> **Interim rule:** no new geometry-specific render is served to a Player.
 
 ## What this data must answer
 
@@ -181,7 +196,7 @@ to serve, elicited from the Product Brief's core flows:
 | Q33 | Why did the last attempt fail, in words a curator can act on? Asked by the Work page and Activity › Queue. | Owner 2026-10-02 (#167) |
 | Q34 | Has the queue given up on this work? Asked by the Retry button. | Owner 2026-10-02 (#167) |
 | Q35 | Which source should the next attempt use, when someone named one? Asked by MCP's `retry_acquisition`. | Owner 2026-10-02 (#167) |
-| Q36 | Which works does the curator want and not yet hold a scan of, across every run? Asked by Activity › Wanted and `art_review(action='list_wanted')`. | Owner 2026-10-02 (#168) |
+| Q36 | Which works does the curator want and not yet hold a scan of, across every run? Asked by Wanted and `art_review(action='list_wanted')`. | Owner 2026-10-02 (#168) |
 | Q37 | Was this work wanted because a scan was turned down, or because none was found? | Owner 2026-10-02 (#168) |
 | Q38 | Which client drives this wall, and on which of its outputs? Asked by the Walls screen and by every listing of walls. | Owner 2026-10-02 (clients) |
 | Q39 | Which walls does this client drive? The client's own question, asked over HTTP about every 30 seconds (`GET /client`). | Owner 2026-10-02 (clients) |

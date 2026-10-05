@@ -173,12 +173,12 @@ def test_a_port_outside_the_valid_range_is_refused(monkeypatch, tmp_path, port):
 
 def test_an_explicit_host_and_port_override_the_defaults(monkeypatch, tmp_path):
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
-    monkeypatch.setenv("CURATION_HOST", "0.0.0.0")  # noqa: S104 - the point of the test
+    monkeypatch.setenv("CURATION_HOST", "0.0.0.0")  # noqa: S104 -- the point of the test
     monkeypatch.setenv("CURATION_PORT", "9001")
 
     settings = Settings.from_env()
 
-    assert (settings.host, settings.port) == ("0.0.0.0", 9001)
+    assert (settings.host, settings.port) == ("0.0.0.0", 9001)  # noqa: S104 -- the configured value is what is asserted
 
 
 # -- the wall's own settings ---------------------------------------------------

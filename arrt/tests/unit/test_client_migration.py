@@ -118,7 +118,10 @@ def test_the_wall_token_columns_are_dropped_and_the_old_verifier_is_in_no_table(
     assert _columns(path, "walls") == {"id", "name", "created_at", "client_id", "output"}
     for (table,) in _raw(path, "SELECT name FROM sqlite_master WHERE type = 'table'"):
         for column in _columns(path, table):
-            found = _raw(path, f'SELECT COUNT(*) FROM "{table}" WHERE CAST("{column}" AS TEXT) = \'{_OLD_VERIFIER}\'')
+            found = _raw(
+                path,
+                f'SELECT COUNT(*) FROM "{table}" WHERE CAST("{column}" AS TEXT) = \'{_OLD_VERIFIER}\'',  # noqa: S608 -- test's own names
+            )
             assert found == [(0,)], f"{table}.{column} still holds a retired wall token's verifier"
 
 

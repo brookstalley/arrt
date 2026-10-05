@@ -1,7 +1,7 @@
 """The MCP bindings' own behaviour — the formatting a binding is allowed to do.
 
-A binding unpacks arguments, calls one service method, and shapes the result for
-a model to read. The shaping is the part worth testing here, because it is the
+A binding unpacks arguments, composes service calls without branching on their
+answers, and shapes the result for a model to read. The shaping is the part worth testing here, because it is the
 only part a binding decides, and because a message that gives a caller advice it
 cannot act on is a defect the service layer cannot see.
 
@@ -470,7 +470,8 @@ def test_the_notice_steers_to_the_filters_because_this_action_has_no_offset():
     """
     notice = _runs_truncation_notice(_listing(MAX_RUNS_LISTED + 1))
 
-    assert "status=" in notice and "kind=" in notice
+    assert "status=" in notice
+    assert "kind=" in notice
     assert "no paging" in notice
     assert "offset" not in notice, "there is no offset on this action; naming one sends a caller to a refusal"
 

@@ -407,7 +407,7 @@ class SqliteDiscovery(TableAdapter):
         for start in range(0, len(wanted), _IDS_PER_STATEMENT):
             chunk = wanted[start : start + _IDS_PER_STATEMENT]
             rows = self._store.select_rows(
-                'SELECT cw."artwork_id" AS artwork_id, r."destination_theme_id" AS theme_id '
+                'SELECT cw."artwork_id" AS artwork_id, r."destination_theme_id" AS theme_id '  # noqa: S608 -- constants and ? placeholders only
                 'FROM candidate_works cw JOIN discovery_runs r ON r."id" = cw."discovery_run_id" '
                 f'WHERE r."destination_theme_id" IS NOT NULL AND cw."artwork_id" IN ({", ".join("?" * len(chunk))})',
                 chunk,

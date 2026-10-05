@@ -94,6 +94,14 @@ inside an existing section, not a section of its own.
 > and the conversation becomes *Ask*, under Library where Add New stood. The rest
 > of the target sidebar keeps the norm (ruling 9): no new top-level section, and
 > *arr names where an *arr page exists (Queue, History, Wanted).
+>
+> **Ruling 2026-10-05 (the owner, at the Norm Health sweep): Wanted becomes a
+> top-level section.** Ruling 9 placed it under Activity, which the paragraph
+> above described as keeping the norm. It did not: Sonarr, Radarr and Lidarr all
+> give Wanted its own section, and this statement names Wanted as the precedent
+> for one. The owner chose the precedent over ruling 9 for this page. Activity
+> keeps Queue and History. Built by `build-plan-norm-sweep-2026-10.md`, which
+> brings the tables below to match.
 
 **A working prototype of everything below is committed beside this file:**
 `prototypes/curation-ia-prototype.html` — one self-contained page, no build step,
@@ -143,7 +151,7 @@ Priority is **core** (on a stated core flow) or **supporting**.
 | **To review** | Every run holding works that found an image and wait for a verdict, newest first, each opening Review — a Get opening its own page, where it is reviewed (2026-10-02); the count is on its link and on Activity's. *(Built 2026-10-02, `build-plan-get-and-ask.md` Chunk 06.)* | The sidebar, under Activity, first | core (flow 3) |
 | **Queue** *(new)* | The searches that have not ended: working, or stopped at the approval gate. Beneath them, **Fetching images**: every accepted work still owed its image or its preparation, in the order the acquisition queue will try them, each queued, fetching, failed, given up on or paused, with Retry where it failed; a pause is said above them with its remedy *(the owner's decision on #167, 2026-10-02, `build-plan-after-review.md` Chunk 02)*. Not counted on Activity's link, which is To review's: a fetch needs time, not the curator. | The sidebar, under Activity | core (flow 2) |
 | **History** *(new)* | The searches that have ended, with how each ended. | The sidebar, under Activity | supporting |
-| **Wanted** *(new 2026-10-02)* | Every work the curator wants and holds no acceptable scan of — wanted on a no-scan card, or by turning down the scan on offer — each saying which, with its Wikidata item or none, the search it came from, *Search again* and *Forget*; *Search all* above. Search again on a work with no item first offers Wikidata's matches to pick from (`build-plan-after-review.md` Chunks 04-05; the owner's ruling on #168). | The sidebar, under Activity, once something is wanted; a review card's *Want*; turning down a scan on offer | core (flow 3) |
+| **Wanted** *(new 2026-10-02)* | Every work the curator wants and holds no acceptable scan of — wanted on a no-scan card, or by turning down the scan on offer — each saying which, with its Wikidata item or none, the search it came from, *Search again* and *Forget*; *Search all* above. Search again on a work with no item first offers Wikidata's matches to pick from (`build-plan-after-review.md` Chunks 04-05; the owner's ruling on #168). | The sidebar's Wanted section, once something is wanted; a review card's *Want*; turning down a scan on offer | core (flow 3) |
 | **Run** | One run while it works and after it stops: what it proposed, what it found images for, the gate where phase 2 is approved, and its work table. **A Get's run page is its review**: the review cards in place of the work table, and no *Review these works* *(the owner's ruling, 2026-10-02, `build-plan-topics-and-destinations.md` Chunk 07)*. | Queue or History; Ask, as it starts; a Get's *Open the Get*; a Get's row in To review; a re-search started on the review grid; its own address | core (flow 2) |
 | **Review** | Judging one run's candidates: accept, reject, choose a scan, ask for a better one. One work to a row, the picture left and the facts and verdicts right (one column on a phone), the scan's pixels above the fold, *Scans* opening beneath as a table, one row a scan; clicking a picture enlarges it in place. The same cards are a Get's page; `#review/<run>` still answers for a Get. | A finished discovery run or re-search, from its own page or To review; the run's own notification | core (flow 3) |
 | **Artists** | The artists the library holds, by surname, as Lidarr's poster index — each a card pictured by their first accepted work, with life dates and how many works of theirs are in circulation — with a View menu to the table, kept in the address (`?view=table`) *(the owner's ruling on #173, 2026-10-02; the surname is the stored family name, else the last word once *the Elder* / *the Younger* / *Jr.* is set aside)*; and at its own address one artist as the hub: who they are, what the library holds of theirs, what Wikidata lists with the held ones marked and the rest tickable to get (*Get N works*), and which collections hold their work. At `#artist/Q…`, an artist Wikidata knows that the library does not hold: the registry half alone, saying nothing of theirs is held; the library's page replaces it, in place, when the library holds them. Below Holdings, *Similar artists*: visual artists sharing a movement, by renown, each with how many of their works have an image, and ● where the library holds them. Under the name, which Wikidata item this is and who set it, with one quiet *Edit* *(the owner's ruling on #174, 2026-10-02)* that reveals the control to change it (looked up and shown before it is stored) and to say there is none (confirmed). *(Built 2026-10-01, ruling 4; the QID form, Similar artists and the control the same day, `build-plan-one-world-search.md`.)* | The sidebar, under Artworks; an artist's name on a work card, a table row or the Work page (either form); the top-bar search's Artists group; its own address | core (S2, S3, S11) |
@@ -239,7 +247,7 @@ listed below so it can be disputed.
 │   To review ③│                                              │
 │   Queue      │                                              │
 │   History    │                                              │
-│   Wanted  ⑦  │                                              │
+│ ◑ Wanted  ⑦  │                                              │
 │ ⚙ Settings   │                                              │
 │   Taste      │                                              │
 │   Clients    │                                              │
@@ -259,7 +267,7 @@ listed below so it can be disputed.
 | Activity › **To review** | New 2026-10-02 | Radarr's Queue holds what finished but needs the user; here that is a page of its own, the one queue that needs the curator, counted on Activity's link as Sonarr counts its queue. Review opens from here |
 | Activity › **Queue** | Discover's run list: runs that have not ended; and, since 2026-10-02, the images being fetched | Radarr's Queue: work in flight, downloads included. Run and Work open from here |
 | Activity › **History** | Discover's run list: finished runs | Radarr's History |
-| Activity › **Wanted** | New 2026-10-02 | Lidarr's Wanted › Missing: what the library wants and does not have. Shown once something is in it. Cutoff Unmet (wave 4) and a Watch's Missing (wave 6) become its tabs when they exist |
+| **Wanted** | New 2026-10-02 under Activity; a section of its own since 2026-10-05 (the owner's ruling) | Lidarr's Wanted › Missing: what the library wants and does not have. Shown once something is in it. Cutoff Unmet (wave 4) and a Watch's Missing (wave 6) become its tabs when they exist |
 | Settings › **Taste** | Taste | Radarr's Profiles: the preferences that rank what it finds |
 | Settings › **Clients** | New 2026-10-02 (`clients.md`) | Radarr's Settings › Download Clients: the server's list of the external programs it works with, which here are the installed Players. Its *Assign a wall* is per client, as a download client carries its own settings there |
 | System › **Status** | Health, with the spend record | Radarr's System › Status, with health checks at the top |
@@ -591,7 +599,7 @@ picture in the image style of its state, then glyph and word:
 | State | Picture | Glyph and word |
 |---|---|---|
 | Held | The library's own thumbnail, in the held style; the mark opens the work | ● *Held* (*Held ×n* for a duplicate) |
-| Wanted (Activity › Wanted, matched to the item) | Wikidata's picture where it has one, in the wanted style | ◑ *Wanted* |
+| Wanted (the Wanted section, matched to the item) | Wikidata's picture where it has one, in the wanted style | ◑ *Wanted* |
 | Not held, with a picture | Wikidata's picture, in the not-held style | ◐ *Not held · Image found* |
 | Not held, no picture | None | ○ *Not held* (*No image known* on the Topic page) |
 

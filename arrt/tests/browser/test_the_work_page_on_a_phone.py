@@ -14,7 +14,7 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
-from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass  # noqa: E402
+from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
 
 #: As long as a real museum URL with a title slug in it, and unbroken.
 LONG_URL = "https://www.artic.edu/artworks/100472/untitled-purple-white-and-red-" + "x" * 60

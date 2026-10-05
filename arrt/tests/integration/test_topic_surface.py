@@ -97,10 +97,9 @@ def http(server_url):
 
 
 async def call(server_url: str, tool: str, **arguments) -> tuple[dict, bool]:
-    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            result = await session.call_tool(tool, arguments)
+    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _), ClientSession(read, write) as session:
+        await session.initialize()
+        result = await session.call_tool(tool, arguments)
     return json.loads(result.content[0].text), bool(result.isError)
 
 
@@ -252,8 +251,8 @@ class TestWithNoUserAgent:
 class TestTheToolSurface:
     async def test_topics_returns_what_the_http_index_returns(self, server_url, held):
         payload, errored = await call(server_url, "art_catalogue", action="topics")
-        with httpx.Client(base_url=server_url) as client:
-            index = client.get("/api/topics").raise_for_status().json()
+        async with httpx.AsyncClient(base_url=server_url) as client:
+            index = (await client.get("/api/topics")).raise_for_status().json()
 
         assert errored is False
         assert {key: value for key, value in payload.items() if key != "success"} == index
@@ -262,8 +261,8 @@ class TestTheToolSurface:
         _monet, sunrise = held
 
         payload, errored = await call(server_url, "art_catalogue", action="topic", qid=IMPRESSIONISM)
-        with httpx.Client(base_url=server_url) as client:
-            page = client.get(f"/api/topics/{IMPRESSIONISM}").raise_for_status().json()
+        async with httpx.AsyncClient(base_url=server_url) as client:
+            page = (await client.get(f"/api/topics/{IMPRESSIONISM}")).raise_for_status().json()
 
         assert errored is False
         assert set(payload) - {"success"} == set(page)

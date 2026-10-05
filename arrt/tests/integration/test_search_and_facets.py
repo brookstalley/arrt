@@ -404,10 +404,9 @@ class TestTheToolSurface:
 
     @staticmethod
     async def call(server_url: str, **arguments) -> tuple[dict, bool]:
-        async with streamable_http_client(f"{server_url}/mcp") as (read, write, _):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                result = await session.call_tool("art_catalogue", arguments)
+        async with streamable_http_client(f"{server_url}/mcp") as (read, write, _), ClientSession(read, write) as session:
+            await session.initialize()
+            result = await session.call_tool("art_catalogue", arguments)
         return json.loads(result.content[0].text), bool(result.isError)
 
     @pytest.fixture

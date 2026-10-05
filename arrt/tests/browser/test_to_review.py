@@ -16,9 +16,9 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
-from payloads import a_candidate, a_candidate_page, a_card, a_run, a_verdict, an_instance_listing  # noqa: E402
+from payloads import a_candidate, a_candidate_page, a_card, a_run, a_verdict, an_instance_listing
 
-from arrt.http.models import RunListOut  # noqa: E402
+from arrt.http.models import RunListOut
 
 GET_ID = "get-1"
 SEARCH_ID = "search-1"

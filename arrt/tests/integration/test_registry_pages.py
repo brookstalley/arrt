@@ -277,7 +277,7 @@ class TestAfterARestart:
         kept.close()
 
     def test_an_artist_page_section_answers_from_the_kept_answer_with_the_registry_down(self, http, held, registry, restarted):
-        rothko, kept_work = held
+        rothko, _kept_work = held
         http.get(f"/api/registry/artists/{BRUEGEL}").raise_for_status()
         http.get(f"/api/registry/artists/{BRUEGEL}/similar").raise_for_status()
         http.get(f"/api/registry/works/{HUNTERS}").raise_for_status()

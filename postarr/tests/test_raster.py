@@ -23,12 +23,12 @@ def test_a_flat_buffer_is_what_the_type_is_for():
 def test_a_padded_buffer_is_refused_at_the_seam_rather_than_drawn_sheared():
     """Three-wide rows padded to four is exactly what a Cairo A8 surface hands
     back, so this is the real mistake and not an invented one."""
-    with pytest.raises(ValueError) as raised:
+    with pytest.raises(ValueError, match="padded") as raised:
         Raster(width_px=3, height_px=2, pixels=bytes(8))
 
     assert "padded" in str(raised.value)
 
 
 def test_a_short_buffer_is_refused_too():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="needs 6 bytes"):
         Raster(width_px=3, height_px=2, pixels=bytes(5))

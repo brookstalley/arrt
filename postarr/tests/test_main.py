@@ -23,6 +23,7 @@ it, and ending the worker when it dies, so the supervisor starts both again.
 """
 
 import asyncio
+from typing import ClassVar
 
 import pytest
 
@@ -341,7 +342,7 @@ async def test_a_crash_is_distinguishable_from_a_clean_stop_in_the_log(settings,
 class _PullRecorder:
     """Stands in for the pull: records that it ran, and stops when asked, or fails when told to."""
 
-    started: list[object] = []
+    started: ClassVar[list[object]] = []
     failure: Exception | None = None
 
     def __init__(self, settings) -> None:

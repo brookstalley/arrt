@@ -128,7 +128,8 @@ def test_fewer_than_three_letters_asks_nothing(http, registry, q):
     found = _search(http, q)
 
     assert (found["state"], found["artists"], found["works"]) == ("too_short", [], [])
-    assert registry.matched == [] and registry.searched == []
+    assert registry.matched == []
+    assert registry.searched == []
 
 
 def test_an_outage_says_so_and_is_not_remembered(http, registry):

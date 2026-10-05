@@ -26,17 +26,17 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
-from fakes import FakeRegistry  # noqa: E402  (after the skip guard)
-from payloads import a_candidate, a_candidate_page, a_card, a_run, a_run_view  # noqa: E402
+from fakes import FakeRegistry
+from payloads import a_candidate, a_candidate_page, a_card, a_run, a_run_view
 
-from arrt.library.registry import (  # noqa: E402
+from arrt.library.registry import (
     RegistryArtist,
     RegistryCreator,
     RegistryWork,
     RegistryWorkEntry,
     RegistryWorkMatch,
 )
-from arrt.persistence.discovery_records import ResolutionStatus, RunStatus, WorkProvenance  # noqa: E402
+from arrt.persistence.discovery_records import ResolutionStatus, RunStatus, WorkProvenance
 
 BRUEGEL = "Q43270"
 HUNTERS = "Q500985"
@@ -348,7 +348,8 @@ def test_a_second_get_into_a_new_theme_joins_it_rather_than_making_another(ui, s
         ui.page.click("#view .get-control button.action")
 
     assert theme_names(services) == ["16th century", "All works"]
-    assert len(bodies) == 2 and bodies[0]["theme_id"] == bodies[1]["theme_id"]
+    assert len(bodies) == 2
+    assert bodies[0]["theme_id"] == bodies[1]["theme_id"]
 
 
 def test_a_typed_name_that_is_already_a_theme_joins_it(ui, services, winter, all_works):
@@ -502,7 +503,8 @@ def test_a_second_get_from_a_default_name_joins_the_theme_the_first_made(ui, ser
 
     assert theme_names(services) == ["16th century", "All works"]
     assert writes == ["api/themes", "api/gets", "api/gets"]
-    assert len(bodies) == 2 and bodies[0]["theme_id"] == bodies[1]["theme_id"]
+    assert len(bodies) == 2
+    assert bodies[0]["theme_id"] == bodies[1]["theme_id"]
 
 
 def test_new_theme_beside_a_default_name_asks_for_a_name_of_its_own(ui, services, all_works):

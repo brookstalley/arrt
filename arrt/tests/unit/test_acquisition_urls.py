@@ -8,7 +8,7 @@ from arrt.library.acquisition.urls import UrlRefused, check_fetchable
 def _resolves_to(*addresses: str):
     """A resolver that answers with exactly these addresses, whatever it is asked."""
 
-    def resolve(host: str):  # noqa: ARG001 - the answer is the point, not the question
+    def resolve(host: str):
         return list(addresses)
 
     return resolve
@@ -69,7 +69,7 @@ class TestPrivateAddresses:
             "192.168.1.1",
             "172.16.0.1",
             "169.254.169.254",
-            "0.0.0.0",
+            "0.0.0.0",  # noqa: S104 -- a literal the guard must refuse, not a bind
         ],
     )
     def test_private_and_loopback_literals_are_refused(self, literal):

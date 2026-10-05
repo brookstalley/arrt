@@ -63,7 +63,7 @@ class WikidataFinder:
             raise ImageSearchFailure(f"Wikidata could not be asked about {query.qid}: {exc}") from exc
         return tuple(FoundPage(url=page) for page in pages)
 
-    def fetch_preview(self, url: str) -> bytes | None:
+    def fetch_preview(self, url: str) -> bytes | None:  # noqa: ARG002 -- the finder interface's signature
         """None: a page carries no preview, and this finder reports nothing else."""
         return None
 

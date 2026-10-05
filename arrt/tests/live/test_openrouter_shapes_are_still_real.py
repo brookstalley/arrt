@@ -62,7 +62,8 @@ def test_a_generation_still_reports_its_own_cost_inline(client):
 
     assert completion.cost_usd > 0, "no cost came back inline; the ledger would have to be computed"
     assert isinstance(completion.cost_usd, Decimal)
-    assert completion.input_tokens > 0 and completion.output_tokens > 0
+    assert completion.input_tokens > 0
+    assert completion.output_tokens > 0
     assert completion.model_id
 
 
@@ -78,7 +79,8 @@ def test_the_web_fee_is_charged_per_request_and_not_per_result(client):
     narrow = client.complete(prompt="Name one art prize awarded in 2026.", search_results=1)
     wide = client.complete(prompt="Name one art prize awarded in 2026.", search_results=10)
 
-    assert narrow.searched and wide.searched, "no search ran, so this compared nothing"
+    assert narrow.searched, "no search ran, so this compared nothing"
+    assert wide.searched, "no search ran, so this compared nothing"
     assert narrow.search_cost_usd == wide.search_cost_usd, (
         f"the search fee now scales with max_results ({narrow.search_cost_usd} vs {wide.search_cost_usd}); "
         "the per-run search cap is sized against a flat per-request fee"

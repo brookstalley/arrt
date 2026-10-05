@@ -209,7 +209,8 @@ def test_the_offer_is_bounded_and_spread_across_the_artists_the_run_named(servic
 
     titles = [work.proposed_title for work in offered(services, run_id)]
     assert len(titles) == settings.discovery_settings.offered_works_per_run
-    assert "Louis 0" in titles and "Stella 0" in titles, "a sparse artist was crowded out by a prolific one"
+    assert "Louis 0" in titles, "a sparse artist was crowded out by a prolific one"
+    assert "Stella 0" in titles, "a sparse artist was crowded out by a prolific one"
     assert sum(1 for title in titles if title.startswith("Kelly")) < len(titles)
 
 
@@ -590,7 +591,8 @@ def test_the_run_notice_rates_resolution_over_proposed_works_only(services, engi
     # asserting it: every other test here reaches this clause at a count above
     # one, where the plural is correct.
     assert "1 could not be matched to any image and is reported as unresolved" in notice
-    assert "12 of 13" not in notice and "3 of 4" not in notice
+    assert "12 of 13" not in notice
+    assert "3 of 4" not in notice
 
     # The wording, not only the counts. This clause used to say the collection
     # offered works "by artists this run named but could not confirm" — which the

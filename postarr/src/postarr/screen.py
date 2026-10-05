@@ -29,6 +29,7 @@ black screen until the next rotation.
 """
 
 import asyncio
+import contextlib
 import logging
 import random
 from pathlib import Path
@@ -89,7 +90,7 @@ class ScreenWall:
         self._output = output
         self._watcher = watcher
         self._clock = clock
-        self._rng = rng if rng is not None else random.Random()
+        self._rng = rng if rng is not None else random.Random()  # noqa: S311 -- it orders artworks, it guards nothing
         #: Positions into the current manifest's entries, in the order they will
         #: be shown, and where the next one is taken from.
         self._order: list[int] = []
@@ -122,10 +123,8 @@ class ScreenWall:
         )
         while not stop.is_set():
             interval = await self.tick()
-            try:
+            with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(stop.wait(), timeout=interval)
-            except TimeoutError:
-                pass
         log.info("screen wall %s stopped", self._wall.wall_id, extra={"event": "screen.stopped", "wall_id": self._wall.wall_id})
 
     async def tick(self) -> float:
@@ -226,7 +225,7 @@ class ScreenWall:
                 return False
             try:
                 await asyncio.to_thread(self._output.show, render)
-            except Exception as exc:  # prawduct:allow prawduct/broad-except -- costs this picture, never the wall
+            except Exception as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- costs this picture, never the wall
                 self._last_error = f"the screen refused {entry.work_id} ({exc})"
                 # Once per episode: a screen that refuses one work refuses the
                 # next, and the rotation tries every work in the theme each time.
@@ -252,7 +251,8 @@ class ScreenWall:
         """Let the output draw again for a screen that came back. Its failure is said once, and costs the poll nothing."""
         try:
             await asyncio.to_thread(self._output.refresh)
-        except Exception as exc:  # prawduct:allow prawduct/broad-except -- a screen that cannot be redrawn must not stop the wall
+        # A screen that cannot be redrawn must not stop the wall.
+        except Exception as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- see above
             self._last_error = f"the screen could not be drawn again ({exc})"
             if self._refresh_failed.begin():
                 log.warning(

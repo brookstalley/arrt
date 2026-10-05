@@ -22,7 +22,6 @@ live, and the two would disagree.
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field, replace
-from enum import StrEnum
 from typing import Protocol
 
 from arrt.persistence.errors import StorageError, StoreMisuseError
@@ -38,24 +37,8 @@ from arrt.persistence.records import (
     Source,
     VocabularyKind,
     WorkFacet,
+    WorkOrder,
 )
-
-
-class WorkOrder(StrEnum):
-    """The orders a works listing can come back in: the toolbar's Sort.
-
-    Kept apart from `WorkQuery` deliberately. A query says *which* works, and its
-    one object is what keeps a page, its total and its facet counts describing
-    the same set; an order says only how that set is shown, and must move none
-    of those numbers.
-    """
-
-    TITLE = "title"
-    #: By the artist's name, unattributed works last: a work with no artist is
-    #: ordinary, and leading with them would bury every named one.
-    ARTIST = "artist"
-    #: Most recently added first, by when the work entered the catalogue.
-    NEWEST = "newest"
 
 
 @dataclass(frozen=True, slots=True)

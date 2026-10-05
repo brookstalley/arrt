@@ -1448,3 +1448,35 @@ class TestALeadingLineThatIdentifiesNothing:
 
         assert bottom(with_nationality) < bottom(alone), "the extra fact did not shorten the label"
         assert "Japanese" in [block.text for block in with_nationality.blocks]
+
+
+class TestTheFamilyNameEmphasis:
+    """The emphasis goes to a family name only when the line below it continues it.
+
+    Two identifying lines are necessary and not sufficient: the second line has to
+    be the rest of the name, which is what `continues_the_line_above` records. A
+    second line that is the next fact leaves the first line unemphasised.
+    """
+
+    @staticmethod
+    def _line(*, continues: bool = False):
+        from postarr.panel.layout import _ComposedLine
+
+        return _ComposedLine(
+            runs=(), mandatory=True, wholly_identifying=True, carries_the_name=True, continues_the_line_above=continues
+        )
+
+    def test_a_second_line_that_continues_the_name_gives_the_first_its_emphasis(self):
+        from postarr.panel.layout import _family_name_holds_its_own_line
+
+        assert _family_name_holds_its_own_line([self._line(), self._line(continues=True)], identifying_lines=2)
+
+    def test_a_second_line_that_is_the_next_fact_does_not(self):
+        from postarr.panel.layout import _family_name_holds_its_own_line
+
+        assert not _family_name_holds_its_own_line([self._line(), self._line(continues=False)], identifying_lines=2)
+
+    def test_one_identifying_line_never_does(self):
+        from postarr.panel.layout import _family_name_holds_its_own_line
+
+        assert not _family_name_holds_its_own_line([self._line(), self._line(continues=True)], identifying_lines=1)

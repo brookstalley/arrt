@@ -143,7 +143,7 @@ class Daemon:
         self._state = state
         self._watcher = watcher
         self._clock = clock
-        self._rng = rng if rng is not None else random.Random()
+        self._rng = rng if rng is not None else random.Random()  # noqa: S311 -- it orders artworks, it guards nothing
 
         #: Where this device draws its label, or None if it has none. **A device
         #: with no label surface is a supported deployment, not a fault** — the
@@ -464,7 +464,9 @@ class Daemon:
 
     # -- directives --------------------------------------------------------
 
-    async def _act_on_directive(self, manifest: Manifest) -> bool:
+    async def _act_on_directive(  # noqa: C901, PLR0911 -- one return per directive outcome, each named where it happens
+        self, manifest: Manifest
+    ) -> bool:
         """Execute at most one directive, and report whether the wall moved."""
         observed = manifest.directive_sequence
         acted_on = self._state.last_acted_sequence
@@ -770,7 +772,9 @@ class Daemon:
         with work_context(entry.work_id) if entry is not None else nullcontext():
             await self._put_the_label_up(surface, entry, content_id)
 
-    async def _put_the_label_up(self, surface: LabelSurface, entry: Entry | None, content_id: str) -> None:
+    async def _put_the_label_up(  # noqa: C901 -- every way a caption can fail is answered in place, so the wall never stops for one
+        self, surface: LabelSurface, entry: Entry | None, content_id: str
+    ) -> None:
         """The whole of a caption, with this work's id bound. See `_caption`."""
         self._captioned_content_id = content_id
         if self._label_draw is not None and not self._label_draw.done():
@@ -806,7 +810,7 @@ class Daemon:
         # GLib errors related to nothing this module can name. A promise that
         # nothing in here may stop the wall cannot be kept by a catch that lists
         # the exceptions somebody thought of.
-        except Exception as exc:  # prawduct:allow prawduct/broad-except -- see above
+        except Exception as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- see above
             self._label_would_not_take_it(str(exc), content_id)
             return
 

@@ -8,7 +8,6 @@ a theme and never reach the wall with nothing saying so.
 """
 
 import json
-import os
 from dataclasses import replace
 
 import pytest
@@ -453,7 +452,7 @@ def test_writing_leaves_no_temporary_files_behind(tmp_path):
     for _ in range(5):
         write_atomically(path, {"entries": []})
 
-    assert sorted(os.listdir(tmp_path)) == ["theme-manifest.json"]
+    assert sorted(entry.name for entry in tmp_path.iterdir()) == ["theme-manifest.json"]
 
 
 def test_a_failed_write_leaves_the_previous_manifest_in_place(tmp_path):
@@ -468,7 +467,7 @@ def test_a_failed_write_leaves_the_previous_manifest_in_place(tmp_path):
         write_atomically(path, {"entries": Unserialisable()})
 
     assert json.loads(path.read_text())["entries"] == [{"work_id": "first"}]
-    assert sorted(os.listdir(tmp_path)) == ["theme-manifest.json"]
+    assert sorted(entry.name for entry in tmp_path.iterdir()) == ["theme-manifest.json"]
 
 
 def test_the_manifest_directory_is_created_if_it_does_not_exist(tmp_path):

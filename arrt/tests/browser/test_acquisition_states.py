@@ -107,7 +107,8 @@ def test_a_work_being_fetched_says_since_when_and_that_it_takes_a_while(ui, acce
 
     line = ui.page.inner_text(".acquisition-line")
     assert "fetching" in line
-    assert "Being fetched since" in line and "up to half an hour" in line
+    assert "Being fetched since" in line
+    assert "up to half an hour" in line
     assert ui.page.locator(".acquisition-line button").count() == 0, "a fetch in hand is not retried"
 
 
@@ -162,9 +163,11 @@ def test_the_queue_lists_every_work_owed_its_image_in_the_order_it_will_try_them
     titles = [row.split("\t")[0] for row in rows]
     assert titles.index("Accepted first") < titles.index("Failed once")
     failed_row = next(row for row in rows if row.startswith("Failed once"))
-    assert "failed" in failed_row and "Retry now" in failed_row
+    assert "failed" in failed_row
+    assert "Retry now" in failed_row
     first_row = next(row for row in rows if row.startswith("Accepted first"))
-    assert "queued" in first_row and "Retry" not in first_row
+    assert "queued" in first_row
+    assert "Retry" not in first_row
 
 
 def test_a_paused_queue_says_why_and_what_ends_it_above_the_works(ui):
@@ -230,7 +233,8 @@ def test_an_accepted_card_says_its_image_is_queued_and_a_pending_one_says_nothin
     ui.page.wait_for_selector("li.card[data-work='taken'] .acquisition-line")
 
     line = ui.page.inner_text("li.card[data-work='taken'] .acquisition-line")
-    assert "queued" in line and "Waiting its turn" in line
+    assert "queued" in line
+    assert "Waiting its turn" in line
     assert ui.page.locator("li.card[data-work='pending'] .acquisition-slot").count() == 0
 
 

@@ -353,6 +353,9 @@ DEFAULT_CONVERSATION_MAX_OUTPUT_TOKENS: Final[int] = 2_000
 #: master at gallery resolution would otherwise be sent whole.
 DEFAULT_MAT_IMAGE_MAX_EDGE: Final[int] = 768
 
+#: The highest TCP port number there is.
+_HIGHEST_PORT: Final[int] = 65535
+
 #: Settings fields that must never reach a log line, declared once here rather
 #: than remembered at each site that logs. `Settings.redacted()` walks this set
 #: and so does the guard over it, so declaring a secret is what gets it both
@@ -645,7 +648,7 @@ class Settings:
             port=_port("CURATION_PORT", DEFAULT_PORT),
             wall_name=os.environ.get("WALL_NAME") or DEFAULT_WALL_NAME,
             rotation_interval_seconds=_positive_int("ROTATION_INTERVAL_SECONDS", DEFAULT_ROTATION_INTERVAL_SECONDS),
-            rotation_shuffle=_flag("ROTATION_SHUFFLE", DEFAULT_ROTATION_SHUFFLE),
+            rotation_shuffle=_flag("ROTATION_SHUFFLE", default=DEFAULT_ROTATION_SHUFFLE),
             # `_counted` rather than `_positive_int`: zero means "do not sweep",
             # which is a deployment's to choose, where a rotation interval of
             # zero is simply broken.
@@ -747,8 +750,8 @@ def _port(name: str, default: int) -> int:
         port = int(raw)
     except ValueError as exc:
         raise ConfigError(f"{name} must be a whole number, got {raw!r}. Check .env.") from exc
-    if not 1 <= port <= 65535:
-        raise ConfigError(f"{name} must be between 1 and 65535, got {port}. Check .env.")
+    if not 1 <= port <= _HIGHEST_PORT:
+        raise ConfigError(f"{name} must be between 1 and {_HIGHEST_PORT}, got {port}. Check .env.")
     return port
 
 
@@ -815,7 +818,7 @@ def _priced(name: str, default: str) -> Decimal:
     return value
 
 
-def _flag(name: str, default: bool) -> bool:
+def _flag(name: str, *, default: bool) -> bool:
     """Read a boolean, refusing anything that is not unmistakably one.
 
     Python's `bool("false")` is True, so a lenient reader turns a deliberate

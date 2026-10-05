@@ -294,7 +294,7 @@ def test_the_list_is_ordered_by_the_last_thing_said(talking):
     second = talking.start().conversation.id
     talking.speak(first, "Something calm.")
 
-    assert [conversation.id for conversation in talking.list_conversations()][0] == first
+    assert next(conversation.id for conversation in talking.list_conversations()) == first
     assert second in {conversation.id for conversation in talking.list_conversations()}
 
 

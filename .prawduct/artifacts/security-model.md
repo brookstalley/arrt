@@ -67,7 +67,11 @@ identifier.**
   item id, a museum identifier the caller asked about, a Commons file, or a work
   page. A plain string fails a test, so a new field or question has to choose. A
   Commons file is the only kind that may become a URL in the browser, and the
-  client keeps one only when its host is `commons.wikimedia.org`. **A work page**
+  server builds that URL itself, as a `commons.wikimedia.org` FilePath address from
+  the file's name (`library/registry/wikidata.py`), so no host the registry
+  supplied reaches the page. *(Corrected 2026-10-05 by the Norm Health sweep: this
+  sentence said the client checks the host, and no client check exists; the
+  server-side construction is what holds it.)* **A work page**
   (added 2026-10-03, `source-plugins.md` § The Wikidata finder) is a URL the
   server keeps as a sighting and never sends to the browser, as a link or as
   text: the sightings route and its MCP twin return its host as a name, which

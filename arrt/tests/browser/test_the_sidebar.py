@@ -33,8 +33,10 @@ pytest.importorskip(
 
 #: The sidebar's sections, in order: § The *arr layout's table. Artworks first
 #: because every *arr app puts its library first; Walls second, in Calendar's
-#: slot; then Activity, Settings and System in Sonarr's order.
-SECTIONS = ["Artworks", "Walls", "Activity", "Settings", "System"]
+#: slot; then Activity, Wanted, Settings and System in Sonarr's order. Wanted is
+#: a section of its own, as in Sonarr, Radarr and Lidarr (the owner's ruling of
+#: 2026-10-05), shown once something is wanted.
+SECTIONS = ["Artworks", "Walls", "Activity", "Wanted", "Settings", "System"]
 
 #: The pages each section lists beneath its own name, when it is the current one.
 #: A page named like its section *is* the section's link and is not repeated.
@@ -42,6 +44,7 @@ PAGES = {
     "Artworks": ["Ask", "Themes", "Topics", "Artists"],
     "Walls": [],
     "Activity": ["To review", "Queue", "History"],
+    "Wanted": [],
     "Settings": ["Taste", "Clients"],
     "System": ["Status"],
 }
@@ -99,12 +102,25 @@ def test_the_sidebar_is_the_arr_sections_and_nothing_else(ui, seeded_service):
 
 
 #: The page each section's own link opens: its first page in the route table.
-OPENS = {"Artworks": "collection", "Walls": "walls", "Activity": "to_review", "Settings": "taste", "System": "health"}
+OPENS = {
+    "Artworks": "collection",
+    "Walls": "walls",
+    "Activity": "to_review",
+    "Wanted": "wanted",
+    "Settings": "taste",
+    "System": "health",
+}
 
 
-@pytest.mark.parametrize("section", SECTIONS)
+#: Wanted lists no pages, and is hidden while nothing is wanted, so waiting for its
+#: lit link would wait for a link that is correctly not shown; `test_wanted.py`
+#: holds when it appears.
+@pytest.mark.parametrize("section", [name for name in SECTIONS if name != "Wanted"])
 def test_each_section_lists_exactly_its_pages(ui, seeded_service, section):
-    """Every section, so a page added to or dropped from any one of them fails by name."""
+    """Every section that lists pages, so a page added to or dropped from one fails by name.
+
+    Wanted lists none, and `test_wanted.py` holds when it shows.
+    """
     ui.open(f"#{OPENS[section]}")
     # The links exist before the router opens the current section, so waiting
     # on them alone reads the pages too early under load. `lightSidebar` opens

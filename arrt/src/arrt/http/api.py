@@ -1,23 +1,16 @@
 """The JSON surface the browser client reads, and the shaping that feeds it.
 
-A handler unpacks the request, calls **one** service method, and formats the
-result. A handler that validates, orders or decides is the violation — that work
-belongs to the service layer, which the MCP tools call too. This is the same rule
-`mcp/bindings.py` states, and it is stated twice on purpose: it is the only thing
-keeping an agent and a click from disagreeing about the same catalogue.
-
-**Some handlers below do not meet it today, and it binds anyway** — read it as
-what to write next, not as a description of what is here. **Three shapes depart**,
-and the shapes are the durable statement: read-back-after-mutate, composite reads,
-and HTTP conditional-request handling. (This paragraph said "half the handlers"
-while there were twelve; the run half took it to twenty without adding a
-departure, so the fraction moved and the sentence did not. A count of a thing
-that grows goes stale by being right once — the shapes do not.)
-Each carries its reason where it happens, and all of them are recorded with an
-open disposition under "Known departures" in the project preferences — which is
-the point, because a norm with unrecorded exceptions dies by accumulation rather
-than by anyone deciding to end it. Do not reconcile the gap by softening the
-paragraph above.
+A handler unpacks the request, composes service calls, and formats the result,
+and it never branches on a service call's answer to decide what happens next —
+that decision belongs to the service layer, which the MCP tools call too
+(`architecture.md` § Direction, as the owner amended it on 2026-10-05). Reading
+back what a write produced, or joining two reads for one page, is composition and
+conforms; so are the transport's own shapes: a conditional request answered with
+`304`, and a service's "no such thing" mapped to `404`. A composition the MCP
+surface needs too lives in a service, or is pinned by a test both surfaces run.
+This is the same rule `mcp/bindings.py` states, and it is stated twice on purpose:
+it is the only thing keeping an agent and a click from disagreeing about the same
+catalogue.
 
 **Handlers are synchronous `def`, deliberately.** The service layer is
 synchronous and its work is real — sqlite reads, `fsync` on write, and a JPEG
@@ -163,7 +156,6 @@ from arrt.library.services.runner import Estimate, RunView, SpendReport
 from arrt.library.services.survey import WorkDossier, WorkSurvey
 from arrt.library.services.taste import AffinityView
 from arrt.library.services.topics import TopicIndex, TopicPage
-from arrt.persistence.backup import BackupReading
 from arrt.persistence.discovery_records import (
     CandidateImage,
     CandidateWork,
@@ -171,7 +163,17 @@ from arrt.persistence.discovery_records import (
     DiscoveryRun,
     InitiatedBy,
 )
-from arrt.persistence.records import Artist, Directive, IdentitySetBy, MatColor, Original, Source, Theme, WorkFacet
+from arrt.persistence.records import (
+    Artist,
+    BackupReading,
+    Directive,
+    IdentitySetBy,
+    MatColor,
+    Original,
+    Source,
+    Theme,
+    WorkFacet,
+)
 from arrt.programming.clients import ClientView
 from arrt.programming.display import ThemeCount, ThemePlacement, WallView
 from arrt.programming.manifest.builder import ManifestBuild
@@ -369,8 +371,8 @@ def get_registry_artist(request: Request, qid: str) -> ArtistRegistryOut:
 def search_registry(
     request: Request,
     q: Annotated[str, Query()] = "",
-    prefix: Annotated[bool, Query()] = False,
-    wide: Annotated[bool, Query()] = False,
+    prefix: Annotated[bool, Query()] = False,  # noqa: FBT002 -- a query parameter FastAPI passes by name
+    wide: Annotated[bool, Query()] = False,  # noqa: FBT002 -- a query parameter FastAPI passes by name
 ) -> RegistrySearchOut:
     """Wikidata's artists and works for a few typed words, the other half of the top-bar search.
 
@@ -1013,7 +1015,7 @@ def list_runs(
     request: Request,
     status: Annotated[str | None, Query()] = None,
     kind: Annotated[str | None, Query()] = None,
-    awaiting: Annotated[bool, Query()] = False,
+    awaiting: Annotated[bool, Query()] = False,  # noqa: FBT002 -- a query parameter FastAPI passes by name
 ) -> RunListOut:
     """The newest runs, optionally narrowed, capped in the service layer.
 

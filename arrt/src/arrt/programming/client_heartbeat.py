@@ -115,7 +115,7 @@ def problem_with(document: object) -> str | None:
     return None
 
 
-def _problem_with_output(output: object) -> str | None:
+def _problem_with_output(output: object) -> str | None:  # noqa: PLR0911 -- one return per field check, each naming its problem
     if not isinstance(output, dict):
         return "each output is a JSON object."
     name = output.get("name")
@@ -130,7 +130,7 @@ def _problem_with_output(output: object) -> str | None:
     screen = output["screen"]
     if screen is not None and not (
         isinstance(screen, list)
-        and len(screen) == 2
+        and len(screen) == 2  # noqa: PLR2004 -- a screen is [width, height]
         and all(isinstance(side, int) and not isinstance(side, bool) and side >= 1 for side in screen)
     ):
         return "'screen' is [width, height] in pixels, or null when unknown."

@@ -163,7 +163,8 @@ def test_a_work_carries_the_collections_own_title_and_attribution():
     assert work.provider == PROVIDER
     assert work.url == "https://api.artic.edu/api/v1/artworks/64818"
     assert work.preview_url == "https://www.artic.edu/iiif/2/image-64818/full/843,/0/default.jpg"
-    assert work.estimated_width == 6000 and work.estimated_height == 4500
+    assert work.estimated_width == 6000
+    assert work.estimated_height == 4500
     assert work.rights_status is RightsStatus.PUBLIC_DOMAIN
     assert work.source_class is SourceClass.INSTITUTIONAL
     assert work.acquisition_method is AcquisitionMethod.DEZOOMIFY
@@ -323,7 +324,8 @@ def test_a_response_carrying_no_aggregation_is_an_empty_browse():
 
     (group,) = client.browse([BrowseQuery(artist="Claude Monet")], per_query=3)
 
-    assert group.matched == 0 and group.works == ()
+    assert group.matched == 0
+    assert group.works == ()
 
 
 def test_asking_for_nothing_asks_the_collection_nothing():

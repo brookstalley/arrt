@@ -622,7 +622,7 @@ def _state(
     if queued is not None and queued.failures >= GIVE_UP_AFTER:
         return AcquisitionState(artwork_id, AcquisitionPhase.GAVE_UP, failures=failures, detail=detail)
     if not _is_due(queued, now):
-        assert queued is not None  # noqa: S101 - a work with no row is always due
+        assert queued is not None  # noqa: S101 -- a work with no row is always due
         return AcquisitionState(
             artwork_id, AcquisitionPhase.FAILED, failures=failures, detail=detail, next_try_at=queued.next_try_at
         )

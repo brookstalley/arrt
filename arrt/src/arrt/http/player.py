@@ -10,9 +10,11 @@ surface, and this one is the Player's.
 walls from `GET /client`, reports its outputs to `POST /client/heartbeat`, and is
 admitted to the per-wall routes for the walls assigned to it.
 
-**Bindings, like every route.** Each handler checks the token, makes one service
-call, and turns the answer into a response. The token check is the access
-service's, and the refusal log with it.
+**Bindings, like every route.** Admission is a dependency each route declares:
+it asks the access service, and a refused token raises `Refused`, which the
+application turns into the `401` or `403` (`app.py`), so no handler branches on
+the answer. A handler then makes its service call and turns the answer into a
+response. The token check is the access service's, and the refusal log with it.
 
 **Synchronous `def`**, for the reason `api.py` gives: the work is real file and
 database I/O, and Starlette runs a sync handler in a worker thread. The client
@@ -27,11 +29,12 @@ import re
 from pathlib import PurePosixPath
 from typing import Annotated, Any, Final
 
-from fastapi import APIRouter, Body, Request, Response
+from fastapi import APIRouter, Body, Depends, Request, Response
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
 from arrt.library.readiness import CONTENT_TYPES, MEDIA_PATH_TEMPLATE
+from arrt.persistence.records import Client
 from arrt.programming.access import Admission
 from arrt.services.container import Services
 
@@ -65,7 +68,15 @@ def _token(request: Request) -> str | None:
     return credential.strip() or None
 
 
-def _refused(admission: Admission) -> JSONResponse:
+class Refused(Exception):
+    """A presented token that does not open what it asked for, as the access service judged it."""
+
+    def __init__(self, admission: Admission) -> None:
+        super().__init__(admission.value)
+        self.admission = admission
+
+
+def refusal(admission: Admission) -> JSONResponse:
     """`401` for no valid client token, `403` for a wall not assigned to the client. Neither names the token."""
     if admission is Admission.NOT_ITS_WALL:
         return JSONResponse(status_code=403, content={"error": "That wall is not assigned to this client."})
@@ -74,6 +85,28 @@ def _refused(admission: Admission) -> JSONResponse:
         content={"error": "A valid client token is required."},
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+
+def _presenting_client(request: Request) -> Client:
+    """The client whose token this is. A dependency, so a refusal never reaches the handler."""
+    presenting = _services(request).access.identify(_token(request))
+    if presenting is None:
+        raise Refused(Admission.UNKNOWN)
+    return presenting
+
+
+def _admitted_to_the_wall(request: Request, wall_id: str) -> None:
+    """The token's client is the one this wall is assigned to."""
+    admission = _services(request).access.admit(wall_id, _token(request))
+    if admission is not Admission.ADMITTED:
+        raise Refused(admission)
+
+
+def _admitted_to_media(request: Request) -> None:
+    """The token is any client's, which is all media asks: a hash names nothing secret."""
+    admission = _services(request).access.admit_any(_token(request))
+    if admission is not Admission.ADMITTED:
+        raise Refused(admission)
 
 
 def _etagged(request: Request, body: bytes) -> Response:
@@ -86,22 +119,15 @@ def _etagged(request: Request, body: bytes) -> Response:
 
 
 @router.get(CLIENT_ROUTE, include_in_schema=False)
-def client(request: Request) -> Response:
+def client(request: Request, presenting: Annotated[Client, Depends(_presenting_client)]) -> Response:
     """The presenting client and the walls assigned to it, each with the output it is shown on."""
-    services = _services(request)
-    presenting = services.access.identify(_token(request))
-    if presenting is None:
-        return _refused(Admission.UNKNOWN)
-    return _etagged(request, services.clients.client_document(presenting.id))
+    return _etagged(request, _services(request).clients.client_document(presenting.id))
 
 
 @router.post(CLIENT_HEARTBEAT_ROUTE, status_code=204, include_in_schema=False)
-async def client_heartbeat(request: Request) -> Response:
+async def client_heartbeat(request: Request, presenting: Annotated[Client, Depends(_presenting_client)]) -> Response:
     """What a client says about its outputs, kept where the curator's client listing reads it."""
     services = _services(request)
-    presenting = await run_in_threadpool(services.access.identify, _token(request))
-    if presenting is None:
-        return _refused(Admission.UNKNOWN)
     try:
         document = json.loads(await request.body())
     except ValueError:
@@ -110,14 +136,10 @@ async def client_heartbeat(request: Request) -> Response:
     return Response(status_code=204)
 
 
-@router.get(MANIFEST_ROUTE, include_in_schema=False)
+@router.get(MANIFEST_ROUTE, include_in_schema=False, dependencies=[Depends(_admitted_to_the_wall)])
 def wall_manifest(request: Request, wall_id: str) -> Response:
     """The wall's manifest as last published, with its hash as the ETag."""
-    services = _services(request)
-    admission = services.access.admit(wall_id, _token(request))
-    if admission is not Admission.ADMITTED:
-        return _refused(admission)
-    body = services.display.published_manifest(wall_id)
+    body = _services(request).display.published_manifest(wall_id)
     if body is None:
         # The contract classes a 404 on the wall as a configuration error: a
         # wall with nothing hanging has no manifest to serve.
@@ -125,14 +147,10 @@ def wall_manifest(request: Request, wall_id: str) -> Response:
     return _etagged(request, body)
 
 
-@router.get(MEDIA_ROUTE, include_in_schema=False)
+@router.get(MEDIA_ROUTE, include_in_schema=False, dependencies=[Depends(_admitted_to_media)])
 def media(request: Request, sha256: str) -> Response:
     """A render's bytes, by the hash of those bytes. Any client's token opens it."""
-    services = _services(request)
-    admission = services.access.admit_any(_token(request))
-    if admission is not Admission.ADMITTED:
-        return _refused(admission)
-    found = services.catalogue.read_media(sha256) if _SHA256.fullmatch(sha256) else None
+    found = _services(request).catalogue.read_media(sha256) if _SHA256.fullmatch(sha256) else None
     if found is None:
         return JSONResponse(status_code=404, content={"error": "No render with that hash is held."})
     rendition, data = found
@@ -140,14 +158,10 @@ def media(request: Request, sha256: str) -> Response:
     return Response(content=data, media_type=content_type, headers={"Cache-Control": _IMMUTABLE})
 
 
-@router.post(HEARTBEAT_ROUTE, status_code=204, include_in_schema=False)
+@router.post(HEARTBEAT_ROUTE, status_code=204, include_in_schema=False, dependencies=[Depends(_admitted_to_the_wall)])
 def heartbeat(request: Request, wall_id: str, document: Annotated[dict[str, Any], Body()]) -> Response:
     """What a Player says about one wall, kept where the health panel reads it."""
-    services = _services(request)
-    admission = services.access.admit(wall_id, _token(request))
-    if admission is not Admission.ADMITTED:
-        return _refused(admission)
-    services.display.record_heartbeat(wall_id, document)
+    _services(request).display.record_heartbeat(wall_id, document)
     return Response(status_code=204)
 
 

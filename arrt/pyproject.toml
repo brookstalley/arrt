@@ -188,17 +188,69 @@ line-length = 130
 target-version = "py314"
 
 [tool.ruff.lint]
-# The strict set. Unlike the root project there is no legacy carve-out here:
-# this plane is new code and every one of these rules applies to all of it.
-select = ["E", "F", "I", "UP", "B", "T20", "TRY", "ANN"]
-ignore = ["TRY003"]
+# Unlike the root project there is no legacy carve-out here: this plane is new
+# code, and every rule below applies to all of it except where the per-file
+# list names the test tree.
+#
+# **Every rule ruff has, less a short list each named with its reason** (the
+# owner, 2026-10-05: "go big on ruff"). `ALL` brings the rules a ruff upgrade adds
+# without anyone choosing them, which is the point: a rule is opted out of, with a
+# reason here, never forgotten into. A site that is a deliberate exception carries
+# a per-line `noqa` with its reason. The display plane carries the same list, so
+# the two planes are held to one standard.
+select = ["ALL"]
+ignore = [
+    # black owns layout, and these two fight it.
+    "COM812",
+    "ISC001",
+    # Docstrings here are prose written for a reader, not a convention's sections.
+    "D",
+    # No copyright header: a public repository with one owner.
+    "CPY",
+    # An exception's message is a sentence composed where it is raised, for the
+    # person who reads it; moving it into a variable first buys nothing here.
+    "EM101",
+    "EM102",
+    "TRY003",
+    # Prose (messages, docstrings, comments) uses typographic quotes and dashes on purpose.
+    "RUF001",
+    "RUF002",
+    "RUF003",
+    # Settings flow in as keyword-only arguments, so a long signature is not a confusing one.
+    "PLR0913",
+    "PLR0917",
+    # Lazy imports are deliberate: optional groups (`eval`, `browser`) are imported
+    # only where they are used, and tests import the module under test late.
+    "PLC0415",
+    # Moving typing-only imports under `TYPE_CHECKING` is churn with no runtime gain at this size.
+    "TC001",
+    "TC002",
+    "TC003",
+    # `tools/` and `tests/` are directories of scripts and test modules, not packages.
+    "INP001",
+    # Exception class names are public and already read as errors; renaming them is API churn.
+    "N818",
+]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["ANN"]
+# Tests assert with `assert`, name their expected numbers inline, take fixtures they
+# do not read, reach into what they test, and pass flags positionally to helpers.
+# Tests hold fake tokens and seeded randomness by design.
+"tests/*" = ["ANN", "S101", "PLR2004", "ARG", "SLF001", "FBT", "S105", "S106", "S311"]
+# `T201` is banned in `src/` because the server runs unattended, where a `print()`
+# has no level and no timestamp. `tools/` is the inverse: run by hand at a
+# terminal by a person waiting for the report the printing is (as the display
+# plane's `tools/` carve-out says).
+"tools/*" = ["T201"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# A run's thread that fails after its test returned is a failure of that test's
+# harness, not a warning about whichever test pytest happens to be in (#198). As
+# an error it fails where it happened; as a warning it scrolled past while the
+# suite stayed green. `run_threads` in `tests/conftest.py` is what keeps it quiet.
+filterwarnings = ["error::pytest.PytestUnhandledThreadExceptionWarning"]
 markers = [
     "llm_eval: drives the tool surface with a real model over OpenRouter. Costs money, needs OPENROUTER_API_KEY, and is not deterministic — deselected by default, run with `-m llm_eval`.",
     "live_api: re-verifies OpenRouter's recorded response shapes and prices against the live API. Costs money, needs OPENROUTER_API_KEY — deselected by default, run with `-m live_api`.",

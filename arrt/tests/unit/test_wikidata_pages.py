@@ -142,7 +142,7 @@ def test_one_page_named_twice_is_offered_once():
 def test_an_id_that_is_not_an_item_is_refused_before_anything_is_asked():
     asked: list[str] = []
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="is not a Wikidata item id"):
         _registry([], asked=asked).pages_about("Q1 } ?x ?y ?z . {")
 
     assert asked == []
@@ -184,7 +184,8 @@ def test_the_plugin_is_built_over_the_deployment_s_registry():
 
     parts = PLUGIN.create(SourceContext(environ={}, user_agent="arrt-tests/0", preview_max_bytes=1, registry=registry))
 
-    assert isinstance(parts, SourceParts) and parts.finder is not None
+    assert isinstance(parts, SourceParts)
+    assert parts.finder is not None
     parts.finder.find_images(ImageQuery(title="Drowning Girl", qid=ItemId("Q5308687")))
     assert registry.pages_asked == ["Q5308687"]
 

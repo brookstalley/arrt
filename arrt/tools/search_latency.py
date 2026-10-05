@@ -49,11 +49,11 @@ sys.path.insert(0, str(_CURATION / "src"))
 # from the one the tests assert over.
 sys.path.insert(0, str(_CURATION / "tests"))
 
-from conftest import _open_seeded_catalogue  # noqa: E402
+from conftest import _open_seeded_catalogue  # noqa: E402 -- after the sys.path insert above
 
-from arrt.library.services.catalogue import CatalogueService  # noqa: E402
-from arrt.persistence.durable import SqliteDurableStore  # noqa: E402
-from arrt.persistence.folding import search_fold  # noqa: E402
+from arrt.library.services.catalogue import CatalogueService  # noqa: E402 -- after the sys.path insert above
+from arrt.persistence.durable import SqliteDurableStore  # noqa: E402 -- after the sys.path insert above
+from arrt.persistence.folding import search_fold  # noqa: E402 -- after the sys.path insert above
 
 #: Terms chosen to span selectivity, which is the whole axis the two strategies
 #: differ on: a full scan pays the same for every question, an index pays in
@@ -90,7 +90,7 @@ def _time(call: Callable[[], object], *, repeats: int) -> tuple[float, float, fl
 
 
 def _say(line: str = "") -> None:
-    print(line)  # noqa: T201 - this tool's output IS a printed report
+    print(line)
 
 
 def _heading(title: str) -> None:
@@ -113,7 +113,7 @@ def _build_fts_index(connection: sqlite3.Connection, columns: Sequence[str]) -> 
     """
     connection.execute(f"CREATE VIRTUAL TABLE search USING fts5({', '.join(columns)}, tokenize='unicode61')")
     connection.execute(
-        f"INSERT INTO search ({', '.join(columns)}) "
+        f"INSERT INTO search ({', '.join(columns)}) "  # noqa: S608 -- column names are this tool's literals
         f"SELECT {', '.join(f'COALESCE(a.{column}, \'\')' for column in columns)} FROM artworks a"
     )
     connection.commit()
@@ -173,20 +173,21 @@ def _measure(
     # Reached directly, which nothing else in this repository does: the index
     # being compared is one the product deliberately does not ship, so there is
     # no store method that could stand it up. A measurement tool, not a caller.
-    connection = catalogue_file._connection  # noqa: SLF001
+    connection = catalogue_file._connection  # noqa: SLF001 -- a measurement tool; see above
     _build_fts_index(connection, columns)
     like_clause = " OR ".join(f"a.{column} LIKE ? ESCAPE '\\'" for column in columns)
     # What the product runs: the columns joined and folded, so `dali` finds Dalí.
     # `search_fold` is already defined on this connection by the catalogue the
     # service opened, and it remembers what it folded, so these figures are warm.
     folded_statement = (
-        "SELECT COUNT(*) FROM artworks a WHERE search_fold("
+        "SELECT COUNT(*) FROM artworks a WHERE search_fold("  # noqa: S608 -- column names are this tool's literals
         + " || char(31) || ".join(f"coalesce(a.{column}, '')" for column in columns)
         + ") LIKE ? ESCAPE '\\'"
     )
 
     _heading("The search clause alone — the same term, the same columns, three strategies:")
-    like_statement = f"SELECT COUNT(*) FROM artworks a WHERE {like_clause}"
+    match_statement = "SELECT COUNT(*) FROM search WHERE search MATCH ?"
+    like_statement = f"SELECT COUNT(*) FROM artworks a WHERE {like_clause}"  # noqa: S608 -- column names are this tool's literals
     for _, term in _TERMS:
         like_values = tuple(f"%{term}%" for _ in columns)
         _report(
@@ -213,10 +214,10 @@ def _measure(
         _report(
             f"FTS5  {match!r}",
             _time(
-                lambda match=match: connection.execute("SELECT COUNT(*) FROM search WHERE search MATCH ?", (match,)).fetchone(),
+                lambda match=match: connection.execute(match_statement, (match,)).fetchone(),
                 repeats=repeats,
             ),
-            f"{connection.execute('SELECT COUNT(*) FROM search WHERE search MATCH ?', (match,)).fetchone()[0]} rows",
+            f"{connection.execute(match_statement, (match,)).fetchone()[0]} rows",
         )
 
     _say(

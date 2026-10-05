@@ -259,7 +259,8 @@ class TestSubscribingTwiceIsSubscribingOnce:
 
         tv._on_image_selected("image_selected", announcement("tv-1"))
 
-        assert len(first) == 1 and len(second) == 1
+        assert len(first) == 1
+        assert len(second) == 1
 
 
 class TestTheDoubleMatchesTheClientOnThisSeam:

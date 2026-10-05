@@ -23,10 +23,9 @@ from arrt.persistence.records import FetchStatus
 
 async def call(server_url: str, tool: str, **arguments) -> tuple[dict, bool]:
     """Call a tool over real HTTP; return its payload and the protocol's error flag."""
-    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            result = await session.call_tool(tool, arguments)
+    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _), ClientSession(read, write) as session:
+        await session.initialize()
+        result = await session.call_tool(tool, arguments)
     return json.loads(result.content[0].text), bool(result.isError)
 
 

@@ -101,7 +101,7 @@ class DiscoveryStore(Protocol):
     def list_wanted_works(self) -> Sequence[CandidateWork]:
         """Every work, across runs, whose verdict is `wanted`.
 
-        The read behind Activity › Wanted: what the curator wants and does not yet
+        The read behind Wanted: what the curator wants and does not yet
         hold a scan of, wherever it came from. Ordered by title; the newest-first
         order a page shows is the service's, since it is decided by the runs.
         """

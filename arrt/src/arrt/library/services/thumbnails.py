@@ -29,7 +29,6 @@ seeing the composed presentation or the raw scan.
 """
 
 import logging
-import os
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
@@ -286,12 +285,12 @@ class ThumbnailService:
         # per attempt, so anything this method fails to unlink is stranded for
         # good and every retry strands another — and cleaning up only inside the
         # handlers meant an exception neither of them named leaked a file as well
-        # as a 500. After a successful `os.replace` the name is already gone, so
+        # as a 500. After a successful `replace` the name is already gone, so
         # the unlink is a no-op on the happy path.
         try:
             frame = encode_downscaled(source, max_edge=THUMBNAIL_MAX_EDGE_PX, quality=THUMBNAIL_JPEG_QUALITY)
             staging.write_bytes(frame.data)
-            os.replace(staging, destination)
+            staging.replace(destination)
         except Image.DecompressionBombError as exc:
             raise ThumbnailUnavailable(f"The image at {source.name} is too large to open safely: {exc}") from exc
         except (OSError, UnidentifiedImageError, ValueError) as exc:

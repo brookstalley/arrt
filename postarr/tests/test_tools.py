@@ -152,7 +152,8 @@ class TestTheLabelPreviewStillRuns:
         output = tmp_path / "label.png"
 
         assert run(label_preview, str(output)) == 0
-        assert output.exists() and output.stat().st_size > 0
+        assert output.exists()
+        assert output.stat().st_size > 0
 
         printed = capsys.readouterr().out
         assert "px per arcminute" in printed, "the report did not run, or stopped naming the visual angle"
@@ -395,8 +396,10 @@ class TestTheLabelPreviewStillRuns:
             label_preview.main([str(tmp_path / "label.png")])
 
         complaint = capsys.readouterr().err
-        assert "EPD_PANEL_DIAGONAL_INCHES" in complaint and "EPD_VIEWING_DISTANCE_INCHES" in complaint
-        assert "--diagonal-inches" in complaint and "--viewing-distance-inches" in complaint
+        assert "EPD_PANEL_DIAGONAL_INCHES" in complaint
+        assert "EPD_VIEWING_DISTANCE_INCHES" in complaint
+        assert "--diagonal-inches" in complaint
+        assert "--viewing-distance-inches" in complaint
 
     def test_it_takes_the_conditions_from_the_deployment_when_no_flag_gives_them(
         self, label_preview, deployment, tmp_path, monkeypatch, capsys

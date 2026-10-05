@@ -453,7 +453,8 @@ def test_a_rederived_key_is_reported_apart_from_a_recleaned_title(discovery, run
     by_event = {getattr(record, "event", None): record for record in caplog.records}
     assert by_event["works.rekeyed"].works_rekeyed == 1
     assert by_event["works.rekeyed"].levelno == logging.INFO
-    assert "works.recleaned" not in by_event and "work.recleaned" not in by_event
+    assert "works.recleaned" not in by_event
+    assert "work.recleaned" not in by_event
 
 
 def test_rederiving_keys_is_done_after_the_first_start(discovery, run, propose, caplog):

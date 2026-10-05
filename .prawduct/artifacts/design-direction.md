@@ -53,8 +53,10 @@ colour written outside the token blocks**.
 > amendment keeps the current palette: the *arr apps' look was offered and not
 > chosen.)*
 >
-> **Retroactivity:** the revised palettes are **not** in `app.css`, so the norm's
-> own subject does not conform on the day it was ratified. That is deliberate and
+> **Retroactivity: completed 2026-08-12**, when the revised palettes landed in
+> `app.css` (the norm sweep of 2026-10-05 found this paragraph still describing
+> the day of ratification). As written then: the revised palettes are **not** in
+> `app.css`, so the norm's own subject does not conform on the day it was ratified. That is deliberate and
 > is not a grace period — it names the chunk that owes the work. Until those values
 > land in the stylesheet they are hand-checked and ungoverned, and this norm is
 > what says so.

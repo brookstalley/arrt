@@ -1,12 +1,17 @@
-"""The two planes agree on what the files between them are called.
+"""The two planes agree on the key a heartbeat's instant is reported under.
 
 **This is the one agreement whose violation looks like the opposite of itself.**
 Curation's reader treats a document without a `reported_at` key as an unreadable
 heartbeat and says so on the health panel. A display plane that spelled the field
 `timestamp` would therefore be reported as *down* while running perfectly — this
 product's defining failure mode, manufactured by the mechanism built to detect it.
-The filename has the same shape: write to the wrong name and the reader reports,
-truthfully and uselessly, that the display plane has never reported at all.
+
+**The heartbeat's filename was compared here too, and left on 2026-10-05.** A
+Player POSTs its heartbeat (`player-contract.md` § Transport): it writes its own
+file under its own cache and Arrt writes what it receives under its own art root,
+so neither plane reads a file the other named, and the Norm Health sweep found the
+comparison guarding nothing that crosses. The key still crosses, in two bodies (a
+wall's heartbeat and a client's), and the contract's schemas require it in both.
 
 **The manifest's name was here too, and left on 2026-10-02.** The display plane
 read each wall's manifest from a file curation wrote under a shared art root, so
@@ -29,6 +34,7 @@ is a check nobody knows is wired up.
 """
 
 import ast
+import json
 import pathlib
 
 import pytest
@@ -36,12 +42,16 @@ import pytest
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 WRITER = REPOSITORY_ROOT / "postarr" / "src" / "postarr" / "heartbeat.py"
 READER = REPOSITORY_ROOT / "arrt" / "src" / "arrt" / "programming" / "manifest" / "heartbeat.py"
+CLIENT_READER = REPOSITORY_ROOT / "arrt" / "src" / "arrt" / "programming" / "client_heartbeat.py"
+SCHEMAS = REPOSITORY_ROOT / "contract" / "schemas"
 
 #: Every declaration both planes make separately and must spell identically, as
-#: `(constant, display's copy, curation's copy)`.
+#: `(constant, display's copy, curation's copy)`. The Player writes both bodies'
+#: key from one constant (`postarr/heartbeat.py`), and Arrt reads each body with
+#: its own, so each of Arrt's copies is compared with the Player's.
 SHARED_CONSTANTS = (
-    ("HEARTBEAT_FILENAME_TEMPLATE", WRITER, READER),
     ("REPORTED_AT_KEY", WRITER, READER),
+    ("REPORTED_AT_KEY", WRITER, CLIENT_READER),
 )
 
 
@@ -89,21 +99,17 @@ def test_the_planes_agree(constant: str, in_display: pathlib.Path, in_curation: 
     )
 
 
-def test_the_agreed_values_are_the_ones_the_artifacts_name():
-    """Pinned literally, because both sides moving together is still a break.
+def test_the_agreed_value_is_the_one_the_contract_requires():
+    """Pinned to the contract, because both sides moving together is still a break.
 
-    `observability-strategy.md` § The Health Surface states the heartbeat's two
-    names as the contract. A rename that updated both planes would pass the
-    comparison above while silently orphaning every file already on disk and
-    every artifact that documents it.
-
-    **The filename is a template carrying a wall id**, since 2026-08-12: one
-    heartbeat per wall, so health can name which wall is silent. The placeholder
-    is part of the pin — a template that lost it would put every wall back in one
-    file.
+    A rename that updated both planes would pass the comparison above while every
+    Player built from the published contract, which requires `reported_at`, was
+    refused or read as down.
     """
-    assert string_constants(WRITER)["HEARTBEAT_FILENAME_TEMPLATE"] == "display-heartbeat-{wall_id}.json"
-    assert string_constants(WRITER)["REPORTED_AT_KEY"] == "reported_at"
+    key = string_constants(WRITER)["REPORTED_AT_KEY"]
+    for schema in ("heartbeat.v1.schema.json", "client-heartbeat.v1.schema.json"):
+        required = json.loads((SCHEMAS / schema).read_text(encoding="utf-8"))["required"]
+        assert key in required, f"contract/schemas/{schema} does not require {key!r}"
 
 
 def _relative(path: pathlib.Path) -> str:

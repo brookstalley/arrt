@@ -18,6 +18,7 @@ from fakes import FakeRegistry
 import arrt.__main__ as entry_point
 from arrt.art_root import MARKER_NAME, ArtRootError
 from arrt.config import (
+    _SECRET_FIELDS,
     DEFAULT_ACQUISITION_USER_AGENT,
     DEFAULT_BACKUP_INTERVAL_SECONDS,
     DEFAULT_BACKUP_KEEP,
@@ -177,7 +178,7 @@ def test_the_plane_moves_the_catalogue_onto_walls_before_it_serves(tmp_path, mon
 
     served: list[str] = []
 
-    def capture(app, **kwargs) -> None:  # noqa: ANN001, ANN003 - uvicorn's own signature
+    def capture(app, **kwargs) -> None:
         # Read through a second connection to the same file, so this observes what
         # a request arriving at this moment would observe.
         opened = open_catalogue_file(path)
@@ -335,8 +336,18 @@ def test_a_supplement_switched_off_says_disabled_rather_than_zero(tmp_path, monk
     assert "offered_works_per_run=0" not in caplog.text, "the number is what nobody reads"
 
 
-def test_startup_never_writes_the_api_key_to_the_journal(tmp_path, monkeypatch, caplog):
-    """The plane holds a secret now, and the journal is where secrets leak.
+def test_the_secret_list_is_not_empty():
+    """The parametrisation below draws from `_SECRET_FIELDS`; an empty set would run no case at all."""
+    assert _SECRET_FIELDS
+
+
+@pytest.mark.parametrize("field", sorted(_SECRET_FIELDS))
+def test_startup_never_writes_the_api_key_to_the_journal(field, tmp_path, monkeypatch, caplog):
+    """The plane holds secrets, and the journal is where secrets leak.
+
+    One case per name in `_SECRET_FIELDS`, the set the redaction itself reads, so
+    a secret added to the settings is checked the day it is declared rather than
+    when someone remembers this test.
 
     The repository is public and logging is turned *up* during a failure, which
     is exactly when someone is reading over a shoulder. Presence is still
@@ -349,7 +360,7 @@ def test_startup_never_writes_the_api_key_to_the_journal(tmp_path, monkeypatch, 
     """
     art_root = tmp_path / "art"
     art_root.mkdir()
-    _stub_settings(monkeypatch, art_root, openrouter_api_key=SECRET)
+    _stub_settings(monkeypatch, art_root, **{field: SECRET})
     monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
 
     with caplog.at_level("INFO"):
@@ -435,7 +446,7 @@ def test_uvicorn_is_given_no_logging_config_of_its_own(tmp_path, monkeypatch):
     _stub_settings(monkeypatch, art_root)
     passed: dict = {}
 
-    def capture(app, **kwargs) -> None:  # noqa: ANN001, ANN003 - uvicorn's own signature
+    def capture(app, **kwargs) -> None:
         passed.update(kwargs)
 
     monkeypatch.setattr(entry_point.uvicorn, "run", capture)
@@ -459,7 +470,7 @@ def test_the_configured_sweep_interval_reaches_the_application(tmp_path, monkeyp
     _stub_settings(monkeypatch, art_root, preview_sweep_interval_seconds=900)
     built: dict = {}
 
-    def capture(services, **kwargs):  # noqa: ANN001, ANN003 - the real signature
+    def capture(services, **kwargs):
         built.update(kwargs)
         return object()
 
@@ -482,7 +493,7 @@ def test_the_entry_point_asks_for_the_topic_sweep(tmp_path, monkeypatch):
     _stub_settings(monkeypatch, art_root)
     built: dict = {}
 
-    def capture(services, **kwargs):  # noqa: ANN001, ANN003 - the real signature
+    def capture(services, **kwargs):
         built.update(kwargs)
         return object()
 
@@ -505,7 +516,7 @@ def test_the_entry_point_asks_for_the_acquisition_queue(tmp_path, monkeypatch):
     _stub_settings(monkeypatch, art_root)
     built: dict = {}
 
-    def capture(services, **kwargs):  # noqa: ANN001, ANN003 - the real signature
+    def capture(services, **kwargs):
         built.update(kwargs)
         return object()
 
@@ -657,7 +668,7 @@ def test_the_registry_pages_answer_from_what_the_last_process_kept(tmp_path, mon
     answered: list = []
 
     def run(registry) -> None:
-        def capture(services, **kwargs):  # noqa: ANN001, ANN003 - the real signature
+        def capture(services, **kwargs):
             answered.append(services.artists.similar("Q43270"))
             return object()
 
@@ -679,7 +690,7 @@ def test_the_entry_point_backs_up_the_catalogue_when_a_backup_directory_is_set(t
     _stub_settings(monkeypatch, art_root, backup_dir=tmp_path / "backups", backup_interval_seconds=3600, backup_keep=7)
     built: dict = {}
 
-    def capture(services, **kwargs):  # noqa: ANN001, ANN003 - the real signature
+    def capture(services, **kwargs):
         built.update(kwargs)
         return object()
 
@@ -701,7 +712,7 @@ def test_the_entry_point_takes_no_backup_when_no_directory_is_set(tmp_path, monk
     _stub_settings(monkeypatch, art_root)
     built: dict = {}
 
-    def capture(services, **kwargs):  # noqa: ANN001, ANN003 - the real signature
+    def capture(services, **kwargs):
         built.update(kwargs)
         return object()
 
@@ -744,7 +755,7 @@ def test_startup_builds_the_services_over_the_plugins_it_loaded(tmp_path, monkey
     contexts, seen = [], {}
     real = entry_point.load_sources
 
-    def capture(services, **kwargs):  # noqa: ANN001, ANN003 - the real signature
+    def capture(services, **kwargs):
         # Read here, while the catalogue is open: `main` closes it on the way out.
         seen["loaded"] = [
             health.reading.name for health in services.health.observe().sources if health.reading.state.value == "loaded"

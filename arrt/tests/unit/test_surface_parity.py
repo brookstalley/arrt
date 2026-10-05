@@ -173,7 +173,7 @@ def test_the_candidate_work_projections_agree_but_for_one_named_field():
 
 
 def test_the_wanted_work_projections_carry_the_same_field_names():
-    """Activity › Wanted and `art_review(action='list_wanted')` read one listing."""
+    """Wanted and `art_review(action='list_wanted')` read one listing."""
     entry = WantedWork(work=_work(), scans_turned_down=2)
 
     check_parity("WantedWork", set(bindings._wanted_fields(entry)), _fields(http_models.WantedWorkOut))
@@ -346,7 +346,7 @@ def _view(work: CandidateWork):
     parity claim is about key *names*, so an empty view exercises every key
     without needing a store, a run, or an image on disk.
     """
-    from arrt.library.services.review import CandidateView  # noqa: PLC0415
+    from arrt.library.services.review import CandidateView
 
     return CandidateView(work=work, instances_held=0, instances_surviving=0, shown=None)
 
@@ -395,7 +395,7 @@ def test_a_held_work_is_reported_as_held_on_every_surface():
     A non-default value, so a formatter that dropped the field, or wrote a
     constant, fails here rather than passing on the null every other view carries.
     """
-    from arrt.library.services.review import CandidateView  # noqa: PLC0415
+    from arrt.library.services.review import CandidateView
 
     view = CandidateView(work=_work(), instances_held=0, instances_surviving=0, shown=None, held_artwork_id="aw_7")
 

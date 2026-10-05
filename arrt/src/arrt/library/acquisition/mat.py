@@ -25,6 +25,7 @@ import json
 import logging
 from dataclasses import dataclass, replace
 from decimal import Decimal
+from enum import StrEnum
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Final
@@ -209,11 +210,24 @@ _GAMUT_SEARCH_STEPS: Final[int] = 20
 _FALLBACK_MAX_EDGE: Final[int] = 256
 
 #: What the fallback records as its reason, so a reader of the history sees why a
-#: colour was arrived at mechanically rather than an empty field.
+#: colour was arrived at mechanically rather than an empty field. It ends with which
+#: of the fallback's cases this was (`_Why`), named in fixed words: the call's own
+#: detail can quote a transport error, which can carry an address, and is reported
+#: once to whoever asked rather than stored.
 _FALLBACK_REASON: Final[str] = (
-    "Derived from the artwork's dominant colour, darkened and kept between the mat floor and ceiling; "
-    "no vision model choice was available."
+    "Derived from the artwork's dominant colour, darkened and kept between the mat floor and ceiling, because {why}."
 )
+
+
+class _Why(StrEnum):
+    """Why no model's colour was used, in the words the stored reason ends with."""
+
+    NOT_CONFIGURED = "no vision model is configured"
+    UNREACHABLE = "the vision model could not be reached"
+    UNUSABLE = "the vision model's answer could not be used"
+    TOO_DARK_THEN_FAILED = "the vision model chose a colour darker than the mat floor, and asking again failed"
+    TOO_DARK_THEN_UNUSABLE = "the vision model chose a colour darker than the mat floor, and its second answer could not be used"
+    TOO_DARK_TWICE = "the vision model chose a colour darker than the mat floor twice"
 
 
 @dataclass(frozen=True, slots=True)
@@ -268,7 +282,9 @@ class MatEngine:
         chosen — there is no such state.
         """
         if self._client is None:
-            return self._fallback(image_path, detail="no OpenRouter key is configured, so no vision model was asked")
+            return self._fallback(
+                image_path, why=_Why.NOT_CONFIGURED, detail="no OpenRouter key is configured, so no vision model was asked"
+            )
         attachment = reading(image_path, lambda: self._encode(image_path))
 
         try:
@@ -280,11 +296,13 @@ class MatEngine:
             # does not change. Both leave the work with a recorded mechanical mat
             # rather than with none.
             log.info("the mat model could not be reached for %s: %s", image_path.name, exc)
-            return self._fallback(image_path, detail=f"the vision model could not be reached: {exc}")
+            return self._fallback(image_path, why=_Why.UNREACHABLE, detail=f"the vision model could not be reached: {exc}")
 
         choice = _read_choice(completion)
         if choice is None:
-            return self._fallback(image_path, detail=_unusable_detail(completion), cost_usd=completion.cost_usd)
+            return self._fallback(
+                image_path, why=_Why.UNUSABLE, detail=_unusable_detail(completion), cost_usd=completion.cost_usd
+            )
         if not below_the_floor(choice.hex_rgb):
             return choice
         return self._ask_again(self._client, image_path, attachment, dark=choice)
@@ -313,14 +331,16 @@ class MatEngine:
         try:
             completion = client.complete(prompt=_again(dark.hex_rgb), schema=MAT_SCHEMA, image=attachment)
         except OpenRouterError as exc:
-            return self._fallback(image_path, detail=f"{first}, and asking again failed: {exc}", cost_usd=dark.cost_usd)
+            detail = f"{first}, and asking again failed: {exc}"
+            return self._fallback(image_path, why=_Why.TOO_DARK_THEN_FAILED, detail=detail, cost_usd=dark.cost_usd)
         spent = dark.cost_usd + completion.cost_usd
         again = _read_choice(completion)
         if again is None:
             detail = f"{first}, and its second was unusable: {_unusable_detail(completion)}"
-            return self._fallback(image_path, detail=detail, cost_usd=spent)
+            return self._fallback(image_path, why=_Why.TOO_DARK_THEN_UNUSABLE, detail=detail, cost_usd=spent)
         if below_the_floor(again.hex_rgb):
-            return self._fallback(image_path, detail=f"{first}, and its second, {again.hex_rgb}, was too", cost_usd=spent)
+            detail = f"{first}, and its second, {again.hex_rgb}, was too"
+            return self._fallback(image_path, why=_Why.TOO_DARK_TWICE, detail=detail, cost_usd=spent)
         return replace(again, cost_usd=spent)
 
     def _encode(self, image_path: Path) -> ImageAttachment:
@@ -343,7 +363,7 @@ class MatEngine:
             frame.save(buffer, format="JPEG", quality=85, optimize=True)
         return ImageAttachment(base64_data=base64.b64encode(buffer.getvalue()).decode("ascii"), media_type="image/jpeg")
 
-    def _fallback(self, image_path: Path, *, detail: str, cost_usd: Decimal = Decimal(0)) -> MatChoice:
+    def _fallback(self, image_path: Path, *, why: _Why, detail: str, cost_usd: Decimal = Decimal(0)) -> MatChoice:
         rgb = reading(image_path, lambda: dominant_color(image_path))
         scaled = scale_lightness(rgb, _FALLBACK_LIGHTNESS)
         darkened = _under_the_corpus_bar(scaled)
@@ -378,7 +398,7 @@ class MatEngine:
         return MatChoice(
             hex_rgb=format_hex(held),
             method=MatMethod.DOMINANT_COLOR_FALLBACK,
-            reason=_FALLBACK_REASON,
+            reason=_FALLBACK_REASON.format(why=why.value),
             lab_l=lab.l,
             lab_a=lab.a,
             lab_b=lab.b,

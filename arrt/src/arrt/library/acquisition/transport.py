@@ -72,7 +72,7 @@ def http_stream(user_agent: str, *, check: UrlCheck = check_fetchable) -> Stream
                         # than the one actually requested.
                         target = check(str(response.url.join(location)))
                         continue
-                    if response.status_code >= 400:
+                    if response.status_code >= httpx.codes.BAD_REQUEST:
                         # Read as a refusal rather than raised as a transport
                         # fault: the caller records it against the source, which
                         # is where a 404 from a museum that reorganised its site

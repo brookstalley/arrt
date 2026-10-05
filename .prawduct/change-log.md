@@ -62,6 +62,57 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-05: Norm Health sweep: the rules re-measured, and the owner's rulings built
+
+<!-- prawduct: scope=norm-sweep-2026-10 -->
+
+**Why:** the sweep was 64 days overdue, and the first since the 2026-09-30
+re-architecture, the display plane and the paid discovery path. Measurements and
+the owner's rulings are in `project-state.yaml` (`norm_health`, 2026-10-05). Plan:
+`build-plan-norm-sweep-2026-10.md`.
+
+**What:**
+- **Records.** The service-layer norm amended (bindings compose, never branch on
+  a result); the manifest norm says the Player makes only the requests
+  `contract/routes.json` names; the broad-except norm exempts a catch that always
+  re-raises, superseding the 2026-08-02 ruling, because ruff `BLE001` now audits
+  it. Four `data-model.md` norms indexed; four unassigned preferences assigned;
+  stale chunk references, departures and counts brought to the tree. Issues
+  #215–#218 filed; ten older items given their filing reason. Also on this
+  branch: `upgrades.md`'s reserved questions relabelled U1–U6 (Q38–Q43 had been
+  given to others), the owner keeping the exhibit-E skip rule, the stats
+  contribution preference (`always`), and two learnings (a core rule amended, a
+  new `learnings/tooling.md`).
+- **The deployment guard no longer publishes the deployment.** It checks shapes
+  (a private address, a named home directory) and this checkout's own `.env`
+  values, never the values themselves. A home path in a legacy comment, the Pi's
+  hostname and login, and an email in two live tests' User-Agent are scrubbed.
+  History is not rewritten (the owner's ruling).
+- **Guards and fixes.** Commons reads an unrecognised page as "could not be
+  asked"; the scrim text pair is computed; the startup secret test covers every
+  declared secret; the surfaces import persistence records and never a store
+  (#24, `WorkOrder` and `BackupReading` moved to `records.py`); the Player's token
+  check is a dependency, with its refusal shape now tested on all five routes;
+  the root's module set may only shrink, and tests live in their plane's
+  `tests/`; the mat fallback's stored reason names its case (#212); a run's
+  threads are joined before its test's store closes (#198); the heartbeat guard
+  compares the key both bodies carry and pins it to the contract.
+- **Ruff, gone big** (the owner's ruling). Both planes select every rule ruff has,
+  less a short ignore list each with its reason; the root adds `N` and `BLE`, its
+  2024 modules leaving at wave 5. The residual was fixed, or waived per line with
+  a reason, and `tests/preferences/test_waivers.py` now refuses a waiver without
+  one. The curation plane's half was built by a delegate in its own worktree and
+  merged here; its one behaviour slip (Playwright route handlers as bound
+  methods) was caught by the browser suite and reverted.
+- **Wanted is a section of its own**, after Activity, as in Sonarr, Radarr and
+  Lidarr (the owner's ruling, against IA ruling 9). It is drawn hidden and shown
+  once its count says something is wanted, which also ends a sidebar race the
+  browser suite tripped on once in six runs. Cards now say a work "waits in
+  Wanted".
+- **Tests changed, none weakened:** composite asserts split, three assigned
+  lambdas made functions, blocking HTTP in async tests moved off the loop, and the
+  sidebar tests rewritten to the new section list.
+
 ## 2026-10-05: A run keeps why it ended
 
 <!-- prawduct: scope=run-end-reason -->

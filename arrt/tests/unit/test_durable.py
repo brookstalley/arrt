@@ -537,10 +537,13 @@ def test_writes_grouped_in_a_transaction_are_all_present_afterwards(store):
 def test_a_transaction_that_raises_keeps_none_of_its_writes(store):
     _thing(store, "t0", "Already there")
 
-    with pytest.raises(RuntimeError, match="halfway"):
+    def write_then_fail() -> None:
         with store.transaction():
             _thing(store, "t1", "First")
             raise RuntimeError("something went wrong halfway")
+
+    with pytest.raises(RuntimeError, match="halfway"):
+        write_then_fail()
 
     # The write before the failure is gone; the write from before the block is not.
     assert {row["id"] for row in store.scan("things")} == {"t0"}
@@ -560,12 +563,15 @@ def test_a_write_inside_a_transaction_is_readable_inside_it(store):
 
 
 def test_a_nested_transaction_lives_or_dies_with_the_outer_one(store):
-    with pytest.raises(RuntimeError, match="outer"):
+    def nest_then_fail() -> None:
         with store.transaction():
             with store.transaction():
                 _thing(store, "inner", "Written inside the nested block")
             _thing(store, "outer", "Written after it")
             raise RuntimeError("the outer block failed")
+
+    with pytest.raises(RuntimeError, match="outer"):
+        nest_then_fail()
 
     # The nested block completing did not commit anything on its own.
     assert store.scan("things") == []
@@ -615,10 +621,14 @@ def test_a_transaction_survives_the_process_that_opened_it(tmp_path):
 def test_a_rolled_back_transaction_never_reached_the_file(tmp_path):
     path = tmp_path / "store.sqlite"
     first = SqliteDurableStore(path, _SCHEMA)
-    with pytest.raises(RuntimeError):
+
+    def write_then_abandon() -> None:
         with first.transaction():
             _thing(first, "t1", "First")
             raise RuntimeError("abandoned")
+
+    with pytest.raises(RuntimeError, match="abandoned"):
+        write_then_abandon()
     first.close()
 
     reopened = SqliteDurableStore(path, _SCHEMA)

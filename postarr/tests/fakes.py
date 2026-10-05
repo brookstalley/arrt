@@ -203,7 +203,7 @@ class FakeTv(TvClient):
         for observer in self.selection_observers:
             try:
                 observer(announcement)
-            except Exception:  # prawduct:allow prawduct/broad-except -- mirrors the real client; see below
+            except Exception:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- mirrors the real client; see below
                 # **Isolated because the real client isolates**, and a fake that
                 # did not would be stricter than the thing it stands in for — the
                 # direction that hurts. `SamsungTv._tell_observers` catches per

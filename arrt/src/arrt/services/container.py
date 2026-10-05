@@ -17,6 +17,7 @@ they are settled in one place instead of per constructor.
 """
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
@@ -227,6 +228,11 @@ class Services:
         #: caller reaching past this to write `acquisition._resolve` gets no error
         #: when the attribute is renamed, it just silently resolves for real again.
         resolve: Resolver | None = None,
+        #: How a run's background work is started. None is the runner's own daemon
+        #: thread, which a deployment wants. A test suite passes one that records
+        #: its threads, so a test can wait for a run's last write before the store
+        #: it writes to is closed.
+        spawn: Callable[[Callable[[], None]], None] | None = None,
         preparation: PreparationSettings | None = None,
         mat_engine: MatEngine | None = None,
         #: Defaults to an engine that refuses and says why, exactly as phase 1's
@@ -348,6 +354,7 @@ class Services:
             # policy, resolving names the way acquisition does: a suite's stated
             # answers, or the system's.
             **({} if resolve is None else {"check_page": partial(check_fetchable, resolve=resolve)}),
+            **({} if spawn is None else {"spawn": spawn}),
         )
         return cls(
             catalogue=catalogue_service,

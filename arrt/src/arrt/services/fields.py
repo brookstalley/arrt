@@ -113,7 +113,7 @@ class _Normaliser(HTMLParser):
         #: the fragment, which is the safe direction to fail.
         self._muted = 0
 
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:  # noqa: ARG002 -- HTMLParser's signature
         if tag in _DISCARDED:
             self._muted += 1
             return

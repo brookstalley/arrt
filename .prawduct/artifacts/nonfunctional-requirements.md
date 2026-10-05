@@ -106,9 +106,12 @@ decision.
 > a major that display refuses). Mechanism in `architecture.md`; contract row in
 > `api-contract.md`.
 >
-> **Status:** in-transition, amended 2026-09-30 (steady-state until then). The
-> tracking reference is `re-architecture.md` § Order of work; backlog items are
-> not yet filed. **Interim rule:** until wave 3 retires the file channel, the
+> **Status:** steady-state again since 2026-10-05 (the Norm Health sweep). The
+> transition ended when the Player retired the file channel on 2026-10-02 and
+> rendered only from its cache; `postarr/tests/test_pull.py` tests the cache
+> claim with the server stopped and with the Player restarted while it is down.
+> The transition's record follows. *(Was: in-transition, amended 2026-09-30.)*
+> **Interim rule, now discharged:** until wave 3 retires the file channel, the
 > built mechanism (a manifest file in a shared `ART_ROOT` on the same host)
 > remains the conforming one. New work toward the HTTP channel must keep the wall
 > rendering from the Player's local cache, never from a live request.
@@ -394,7 +397,8 @@ restarted at noon — the behaviour the paragraph above forbids, arriving throug
 the schedule instead of around it. Forfeiting is the safe direction by this
 norm's own ranking: a wall that is dark until tomorrow morning is late, and late
 is the smaller failure. The bound is a configured value, commented and not
-pinned, per Chunk 27.)
+pinned, as the abandoned v1 plan's power chunk specified and Postarr power
+control (`re-architecture.md`, wave 6+) inherits.)
 
 > **Why:** the household should need one remote at bedtime, not two. Sleeping the
 > Apple TV sends HDMI-CEC `Standby`; this set answers that with **art mode**, not
@@ -433,11 +437,12 @@ pinned, per Chunk 27.)
 >
 > **Retroactivity:** migrate, no residual sites in the daemon. Nothing on the
 > unattended path holds a power verb: `postarr/src/postarr/tv/` opens the art
-> channel only and sends no key, and that is what Chunk 25 changes.
+> channel only and sends no key, and that is what Postarr power control (`re-architecture.md`,
+> wave 6+) changes.
 >
 > Two places a reader will find power code today, and neither is the plane running
 > on the wall. `tvart.py` has every `KEY_POWER` line commented out — inert, the 2024
-> plane, deleted by Chunk 20. `postarr/tools/power_probe.py` sends them for real, by
+> plane, deleted at wave 5. `postarr/tools/power_probe.py` sends them for real, by
 > hand, guarded as above; it is an instrument rather than a plane, and it is listed
 > here because a retroactivity claim that misses a live call site is worse than no
 > claim.

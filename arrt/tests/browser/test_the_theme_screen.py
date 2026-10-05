@@ -30,7 +30,7 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
-from payloads import a_catalogue_work, a_theme_detail  # noqa: E402  (after the skip guard)
+from payloads import a_catalogue_work, a_theme_detail
 
 #: Titles chosen so curated order and alphabetical order agree at the start —
 #: which is what lets a moved row be told from an unmoved one by reading.

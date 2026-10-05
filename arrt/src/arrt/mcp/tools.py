@@ -30,9 +30,8 @@ from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR
 from arrt.library.services.catalogue import MAX_LIST_LIMIT
 from arrt.library.services.review import MAX_REVIEW_LIMIT
 from arrt.mcp.registry import Action, Param, ToolRecord
-from arrt.persistence.catalogue import WorkOrder
 from arrt.persistence.discovery_records import AffinityDerivation, AffinitySentiment, RunKind, RunStatus
-from arrt.persistence.records import ArtworkStatus, VocabularyKind
+from arrt.persistence.records import ArtworkStatus, VocabularyKind, WorkOrder
 
 _STATUS = Param(
     name="status",
@@ -186,7 +185,7 @@ ART_CATALOGUE: Final = ToolRecord(
                     name="theme",
                     type="string",
                     description=(
-                        "Only this theme's works, by theme_id; every other filter and every facet count " "narrows within it."
+                        "Only this theme's works, by theme_id; every other filter and every facet count narrows within it."
                     ),
                 ),
                 _SORT,
@@ -196,12 +195,18 @@ ART_CATALOGUE: Final = ToolRecord(
             tips=(
                 "A truncated result says so and reports the total, so a short list is never mistaken for a complete one.",
                 "Listings carry the fields needed to choose; use action='get' for the whole record.",
-                "Every result carries the facet vocabulary with counts, so call it once with no filter to see what "
-                "there is to filter by.",
-                "A facet's counts are computed with its OWN selection ignored, so an option showing 0 with another "
-                "facet chosen is an empty intersection rather than an empty catalogue.",
-                "Every result also lists each theme with the count it would select, counted the same way, so "
-                "theme=… can be chosen without a separate art_theme call.",
+                (
+                    "Every result carries the facet vocabulary with counts, so call it once with no filter to see what "
+                    "there is to filter by."
+                ),
+                (
+                    "A facet's counts are computed with its OWN selection ignored, so an option showing 0 with another "
+                    "facet chosen is an empty intersection rather than an empty catalogue."
+                ),
+                (
+                    "Every result also lists each theme with the count it would select, counted the same way, so "
+                    "theme=… can be chosen without a separate art_theme call."
+                ),
             ),
         ),
         Action(
@@ -211,9 +216,11 @@ ART_CATALOGUE: Final = ToolRecord(
             params=(_ARTWORK_ID,),
             tips=(
                 "Ids are stable internal identities, never source URLs, so they survive a museum reorganising its site.",
-                "`acquisition` is null once the work's image is fetched and prepared; otherwise its phase is queued, "
-                "fetching, failed (with the next try), gave_up (waits for retry_acquisition) or paused (with the "
-                "remedy an operator applies).",
+                (
+                    "`acquisition` is null once the work's image is fetched and prepared; otherwise its phase is queued, "
+                    "fetching, failed (with the next try), gave_up (waits for retry_acquisition) or paused (with the "
+                    "remedy an operator applies)."
+                ),
             ),
         ),
         Action(
@@ -253,13 +260,19 @@ ART_CATALOGUE: Final = ToolRecord(
             example="art_catalogue(action='retry_acquisition', artwork_id='<an artwork_id from action=list>')",
             params=(_ARTWORK_ID, _SOURCE_ID),
             tips=(
-                "Nothing is fetched in the call: the acquisition queue fetches one work at a time, and a tiled fetch "
-                "can take half an hour. action='get' shows its progress under `acquisition`.",
+                (
+                    "Nothing is fetched in the call: the acquisition queue fetches one work at a time, and a tiled fetch "
+                    "can take half an hour. action='get' shows its progress under `acquisition`."
+                ),
                 "It forgets the work's failures, so a work the queue gave up on is tried again.",
-                "Omitting source_id finishes what the work is owed; naming one fetches from it even when the work "
-                "already holds an image, which is how to ask for a complete scan after a partial one.",
-                "Retrying cannot cost the work its image: an attempt that fails replaces nothing, and one that "
-                "comes back with missing tiles is refused outright when the work already holds a complete image.",
+                (
+                    "Omitting source_id finishes what the work is owed; naming one fetches from it even when the work "
+                    "already holds an image, which is how to ask for a complete scan after a partial one."
+                ),
+                (
+                    "Retrying cannot cost the work its image: an attempt that fails replaces nothing, and one that "
+                    "comes back with missing tiles is refused outright when the work already holds a complete image."
+                ),
             ),
         ),
         Action(
@@ -268,13 +281,20 @@ ART_CATALOGUE: Final = ToolRecord(
             example="art_catalogue(action='set_mat_color', artwork_id='<an artwork_id from action=list>', hex_rgb='#27285b')",
             params=(_ARTWORK_ID, _HEX_RGB),
             tips=(
-                "Give hex_rgb to set a colour yourself; omit it to have the vision model choose, which spends "
-                "a fraction of a cent.",
-                "Nothing is overwritten: the previous colour is kept, so a worse choice can be read back and reversed "
-                "by setting the old one again.",
+                (
+                    "Give hex_rgb to set a colour yourself; omit it to have the vision model choose, which spends "
+                    "a fraction of a cent."
+                ),
+                (
+                    "Nothing is overwritten: the previous colour is kept, so a worse choice can be read back and reversed "
+                    "by setting the old one again."
+                ),
                 "The work is re-rendered in the new colour immediately — there is no separate regenerate to remember.",
-                "A colour recorded as method='dominant_color_fallback' was derived mechanically because the model "
-                "could not be asked or could not be read, not chosen for this work.",
+                (
+                    "A colour recorded as method='dominant_color_fallback' was derived mechanically, not chosen for "
+                    "this work: no vision model is configured, it could not be reached, its answer could not be used, "
+                    "or it chose darker than the mat floor twice. The colour's stored reason says which."
+                ),
             ),
         ),
         Action(
@@ -283,10 +303,14 @@ ART_CATALOGUE: Final = ToolRecord(
             example="art_catalogue(action='set_work_qid', artwork_id='<an artwork_id>', qid='Q20270685')",
             params=(_ARTWORK_ID, _QID),
             tips=(
-                "A work's wikidata_qid is otherwise matched only through its museum's own identifier, never its "
-                "title, so a work with a generic title or an unfamiliar source may have none until you set it.",
-                "What you set is never overwritten by matching, and qid='none' stops matching from filling it; "
-                "a later set_work_qid replaces either.",
+                (
+                    "A work's wikidata_qid is otherwise matched only through its museum's own identifier, never its "
+                    "title, so a work with a generic title or an unfamiliar source may have none until you set it."
+                ),
+                (
+                    "What you set is never overwritten by matching, and qid='none' stops matching from filling it; "
+                    "a later set_work_qid replaces either."
+                ),
             ),
         ),
         Action(
@@ -303,8 +327,10 @@ ART_CATALOGUE: Final = ToolRecord(
                 _QID,
             ),
             tips=(
-                "What you set is never overwritten by matching, and qid='none' stops matching from filling it; "
-                "a later set_artist_qid replaces either.",
+                (
+                    "What you set is never overwritten by matching, and qid='none' stops matching from filling it; "
+                    "a later set_artist_qid replaces either."
+                ),
             ),
         ),
         Action(
@@ -313,14 +339,20 @@ ART_CATALOGUE: Final = ToolRecord(
             example="art_catalogue(action='regenerate', artwork_id='<an artwork_id from action=list>')",
             params=(_ARTWORK_ID, _FORCE),
             tips=(
-                "Free for a work that already has a mat colour: the recorded one is reused and no model is asked. "
-                "A work that has never had one gets a mat chosen here, which costs a fraction of a cent — every "
-                "answer reports cost_usd, so a call that spent nothing says so.",
-                "Ordinarily it does only what is needed — a work whose canvas is already current is reported "
-                "unchanged rather than re-rendered.",
+                (
+                    "Free for a work that already has a mat colour: the recorded one is reused and no model is asked. "
+                    "A work that has never had one gets a mat chosen here, which costs a fraction of a cent — every "
+                    "answer reports cost_usd, so a call that spent nothing says so."
+                ),
+                (
+                    "Ordinarily it does only what is needed — a work whose canvas is already current is reported "
+                    "unchanged rather than re-rendered."
+                ),
                 "Use force=true after changing the panel geometry or clearing the rendered tree.",
-                "A work whose master image is missing from disk is refused rather than rendered blank; "
-                "action='retry_acquisition' fetches it again.",
+                (
+                    "A work whose master image is missing from disk is refused rather than rendered blank; "
+                    "action='retry_acquisition' fetches it again."
+                ),
             ),
         ),
         Action(
@@ -329,9 +361,14 @@ ART_CATALOGUE: Final = ToolRecord(
             example="art_catalogue(action='topics')",
             params=(),
             tips=(
-                "Topics are periods (centuries), movements, subjects and kinds of work, as Wikidata gives them for "
-                "works and artists with a Wikidata item; a work with neither has none.",
-                "Read from the catalogue alone, so it never waits on Wikidata. Each topic's qid is what " "action='topic' takes.",
+                (
+                    "Topics are periods (centuries), movements, subjects and kinds of work, as Wikidata gives them for "
+                    "works and artists with a Wikidata item; a work with neither has none."
+                ),
+                (
+                    "Read from the catalogue alone, so it never waits on Wikidata. Each topic's qid is what "
+                    "action='topic' takes."
+                ),
                 "state='not_configured' means WIKIDATA_USER_AGENT is unset, so nothing keeps topics up to date.",
             ),
         ),
@@ -342,8 +379,10 @@ ART_CATALOGUE: Final = ToolRecord(
             params=(_QID,),
             tips=(
                 "A topic none of the catalogue's works is in returns no label and no works rather than an error.",
-                "The same values filter action='list': a movement topic's label is a movement facet value, a "
-                "period's an era value.",
+                (
+                    "The same values filter action='list': a movement topic's label is a movement facet value, a "
+                    "period's an era value."
+                ),
             ),
         ),
     ),
@@ -382,12 +421,18 @@ ART_DISCOVERY: Final = ToolRecord(
             example="art_discovery(action='estimate')",
             params=(_OPTIONAL_RUN_ID,),
             tips=(
-                "This is the one action on this tool that spends nothing, so an intent can always be priced "
-                "before it is committed to.",
-                "With no run_id the answer covers phase 1 — one model call and its search allowance. With a "
-                "run_id it is that run's stored phase-2 figure, which is what its approval gate authorises against.",
-                "Both figures are bounded rather than typical: they price the whole search allowance, because a "
-                "number a run may freely exceed is not an estimate.",
+                (
+                    "This is the one action on this tool that spends nothing, so an intent can always be priced "
+                    "before it is committed to."
+                ),
+                (
+                    "With no run_id the answer covers phase 1 — one model call and its search allowance. With a "
+                    "run_id it is that run's stored phase-2 figure, which is what its approval gate authorises against."
+                ),
+                (
+                    "Both figures are bounded rather than typical: they price the whole search allowance, because a "
+                    "number a run may freely exceed is not an estimate."
+                ),
             ),
         ),
         Action(
@@ -403,12 +448,18 @@ ART_DISCOVERY: Final = ToolRecord(
                 ),
             ),
             tips=(
-                "This returns immediately with a run_id and does not wait for the run. Poll action='status' "
-                "with that id, which holds until something changes rather than answering straight away.",
-                "A run that proposes more works than the configured threshold stops and waits for "
-                "action='approve' before spending anything on phase 2.",
-                "Works the curator has already rejected are skipped rather than proposed again, so a run may "
-                "return fewer works than the intent would suggest.",
+                (
+                    "This returns immediately with a run_id and does not wait for the run. Poll action='status' "
+                    "with that id, which holds until something changes rather than answering straight away."
+                ),
+                (
+                    "A run that proposes more works than the configured threshold stops and waits for "
+                    "action='approve' before spending anything on phase 2."
+                ),
+                (
+                    "Works the curator has already rejected are skipped rather than proposed again, so a run may "
+                    "return fewer works than the intent would suggest."
+                ),
             ),
         ),
         Action(
@@ -417,11 +468,15 @@ ART_DISCOVERY: Final = ToolRecord(
             example="art_discovery(action='status', run_id='<a run_id from action=start>')",
             params=(_RUN_ID,),
             tips=(
-                "The call holds for up to 45 seconds while a run is being worked on, and answers immediately "
-                "when it is waiting for you or has ended. Call it again to keep watching.",
-                "The state itself says how a run ended: 'completed', 'failed', 'halted_by_budget' (out of "
-                "money — stop, do not retry), 'declined', 'cancelled', or 'interrupted' (the process was "
-                "restarted underneath it — simply run it again).",
+                (
+                    "The call holds for up to 45 seconds while a run is being worked on, and answers immediately "
+                    "when it is waiting for you or has ended. Call it again to keep watching."
+                ),
+                (
+                    "The state itself says how a run ended: 'completed', 'failed', 'halted_by_budget' (out of "
+                    "money — stop, do not retry), 'declined', 'cancelled', or 'interrupted' (the process was "
+                    "restarted underneath it — simply run it again)."
+                ),
             ),
         ),
         Action(
@@ -437,8 +492,10 @@ ART_DISCOVERY: Final = ToolRecord(
             example="art_discovery(action='decline', run_id='<a run_id awaiting approval>')",
             params=(_RUN_ID,),
             tips=(
-                "Declining is not the same as cancelling: it is a judgement on the work list, and it is "
-                "available only while the run is waiting for one.",
+                (
+                    "Declining is not the same as cancelling: it is a judgement on the work list, and it is "
+                    "available only while the run is waiting for one."
+                ),
             ),
         ),
         Action(
@@ -447,8 +504,10 @@ ART_DISCOVERY: Final = ToolRecord(
             example="art_discovery(action='cancel', run_id='<a run_id from action=list_runs>')",
             params=(_RUN_ID,),
             tips=(
-                "Available from every state a run can still leave, including while it waits for approval — "
-                "wanting a run gone is a different thing from declining what it found.",
+                (
+                    "Available from every state a run can still leave, including while it waits for approval — "
+                    "wanting a run gone is a different thing from declining what it found."
+                ),
                 "A run that has already ended cannot be cancelled; the refusal names how it ended.",
             ),
         ),
@@ -468,16 +527,26 @@ ART_DISCOVERY: Final = ToolRecord(
                 ),
             ),
             tips=(
-                "This is a run like any other: it returns a run_id, and action='status', action='cancel' and "
-                "action='spend' all take it.",
-                "A work already being re-searched by a running re-search is refused, and the refusal names it — "
-                "submitting the same ids twice would search twice for one result.",
-                "The works must all come from one discovery run, because a re-search hangs its cost on the "
-                "intent that proposed them. Start one re-search per originating run.",
-                "What this costs rolls up into the originating run's figure, so action='spend' on that run "
-                "still answers what asking for it cost altogether.",
-                "A verdict you reach while this is running wins: a re-search finishing against a work you have "
-                "since accepted or rejected reports what it found and leaves your decision alone.",
+                (
+                    "This is a run like any other: it returns a run_id, and action='status', action='cancel' and "
+                    "action='spend' all take it."
+                ),
+                (
+                    "A work already being re-searched by a running re-search is refused, and the refusal names it — "
+                    "submitting the same ids twice would search twice for one result."
+                ),
+                (
+                    "The works must all come from one discovery run, because a re-search hangs its cost on the "
+                    "intent that proposed them. Start one re-search per originating run."
+                ),
+                (
+                    "What this costs rolls up into the originating run's figure, so action='spend' on that run "
+                    "still answers what asking for it cost altogether."
+                ),
+                (
+                    "A verdict you reach while this is running wins: a re-search finishing against a work you have "
+                    "since accepted or rejected reports what it found and leaves your decision alone."
+                ),
             ),
         ),
         Action(
@@ -503,14 +572,20 @@ ART_DISCOVERY: Final = ToolRecord(
             ),
             tips=(
                 "This spends nothing: a Get has no phase 1, and the image sources it asks are free.",
-                "An item the library already holds, one a Get under way is already looking for, and one "
-                "Wikidata has no work for are skipped and listed under `skipped`, not refused. When every "
-                "item is skipped no run starts and `run_id` is null.",
-                "The run is like any other: action='status' and action='cancel' take its run_id, and its works "
-                "are judged with art_review. Accepting one records the item on the new work.",
-                "To send the works to a new theme, create it first with art_theme(action='create') and pass its "
-                "theme_id. An unknown theme_id refuses the Get and starts nothing. A theme deleted before a work "
-                "is accepted leaves that work in no theme, not in the default.",
+                (
+                    "An item the library already holds, one a Get under way is already looking for, and one "
+                    "Wikidata has no work for are skipped and listed under `skipped`, not refused. When every "
+                    "item is skipped no run starts and `run_id` is null."
+                ),
+                (
+                    "The run is like any other: action='status' and action='cancel' take its run_id, and its works "
+                    "are judged with art_review. Accepting one records the item on the new work."
+                ),
+                (
+                    "To send the works to a new theme, create it first with art_theme(action='create') and pass its "
+                    "theme_id. An unknown theme_id refuses the Get and starts nothing. A theme deleted before a work "
+                    "is accepted leaves that work in no theme, not in the default."
+                ),
             ),
         ),
         Action(
@@ -559,11 +634,15 @@ ART_DISCOVERY: Final = ToolRecord(
                 ),
             ),
             tips=(
-                "A run's figure includes every re-search descended from it, which is what 'what did asking "
-                "for this cost' means once spend is spread across a chain of runs.",
-                "Months are UTC calendar months, matching the boundary the provider's own credit limit "
-                "resets on. A report on any other boundary would disagree with the figure that can actually "
-                "stop spending.",
+                (
+                    "A run's figure includes every re-search descended from it, which is what 'what did asking "
+                    "for this cost' means once spend is spread across a chain of runs."
+                ),
+                (
+                    "Months are UTC calendar months, matching the boundary the provider's own credit limit "
+                    "resets on. A report on any other boundary would disagree with the figure that can actually "
+                    "stop spending."
+                ),
             ),
         ),
     ),
@@ -640,18 +719,26 @@ ART_REVIEW: Final = ToolRecord(
             ),
             tips=(
                 _BLOCK_ORDER_TIP,
-                "Works with an image found for them come first, then ones nothing was found for. A work "
-                "reported unresolved is not a defect; read `unresolved_reason` for which kind of nothing. "
-                "Only `not_held` suggests the work may not exist.",
-                "Read `provenance` on every row. `proposed` is a work the model named for this intent; "
-                "`offered` is one the collection volunteered by an artist the run named but could not "
-                "confirm a work for. An offered row carries the collection's own title and attribution "
-                "verbatim and is never the work that was asked for — its `rationale` says which artist "
-                "produced it and how many works that artist has there.",
-                f"The page is capped at {MAX_REVIEW_LIMIT} works because each one carries a picture, and pictures "
-                "dominate the result's size. A truncated page says so and how many remain; page with offset.",
-                "Every image is shown at 400px on its long edge, which is enough to judge whether this is the "
-                "right painting and whether it belongs in a living room. It is not enough to judge mat colour.",
+                (
+                    "Works with an image found for them come first, then ones nothing was found for. A work "
+                    "reported unresolved is not a defect; read `unresolved_reason` for which kind of nothing. "
+                    "Only `not_held` suggests the work may not exist."
+                ),
+                (
+                    "Read `provenance` on every row. `proposed` is a work the model named for this intent; "
+                    "`offered` is one the collection volunteered by an artist the run named but could not "
+                    "confirm a work for. An offered row carries the collection's own title and attribution "
+                    "verbatim and is never the work that was asked for — its `rationale` says which artist "
+                    "produced it and how many works that artist has there."
+                ),
+                (
+                    f"The page is capped at {MAX_REVIEW_LIMIT} works because each one carries a picture, and pictures "
+                    "dominate the result's size. A truncated page says so and how many remain; page with offset."
+                ),
+                (
+                    "Every image is shown at 400px on its long edge, which is enough to judge whether this is the "
+                    "right painting and whether it belongs in a living room. It is not enough to judge mat colour."
+                ),
             ),
         ),
         Action(
@@ -661,12 +748,16 @@ ART_REVIEW: Final = ToolRecord(
             params=(_WORK_ID,),
             tips=(
                 _BLOCK_ORDER_TIP,
-                "This carries one image, and is_on_offer says whether it is the one a verdict would accept "
-                "on. It is false for a work whose scans are all below the floor or all turned down — the "
-                "picture is still shown, because a work with no picture and a work nothing was found for "
-                "must not look alike. Use action='list_images' to see the alternates found for the work.",
-                "rationale is the engine's account of why this work matched the intent. A work is judged "
-                "against that reading of the request rather than against its wording.",
+                (
+                    "This carries one image, and is_on_offer says whether it is the one a verdict would accept "
+                    "on. It is false for a work whose scans are all below the floor or all turned down — the "
+                    "picture is still shown, because a work with no picture and a work nothing was found for "
+                    "must not look alike. Use action='list_images' to see the alternates found for the work."
+                ),
+                (
+                    "rationale is the engine's account of why this work matched the intent. A work is judged "
+                    "against that reading of the request rather than against its wording."
+                ),
             ),
         ),
         Action(
@@ -676,18 +767,26 @@ ART_REVIEW: Final = ToolRecord(
             params=(_WORK_ID,),
             tips=(
                 _BLOCK_ORDER_TIP,
-                "Where a work has an instance on offer it leads; a work whose scans are all below the floor "
-                "or all turned down has none, and then the first row is simply the highest-ranked. Read "
-                "is_on_offer rather than position. The rest are alternates, kept rather than discarded so "
-                "an over-eager match stays inspectable.",
-                "A card you can still act on may hold rows you cannot: rejected scans stay on it as the "
-                "record of a judgement, and they keep their rank rather than sorting last. Read "
-                "rejected_for_this_work on each row.",
-                "display_fit says how an instance would meet the wall: 'native', 'matted_small', or "
-                "'below_floor'. A below_floor instance is shown and may be chosen — it is labelled with the "
-                "size it would appear at, never hidden.",
-                "renders_at_inches is the number a thumbnail cannot convey. A 900-pixel scan and a "
-                "6000-pixel scan look identical here and are not the same thing on a wall.",
+                (
+                    "Where a work has an instance on offer it leads; a work whose scans are all below the floor "
+                    "or all turned down has none, and then the first row is simply the highest-ranked. Read "
+                    "is_on_offer rather than position. The rest are alternates, kept rather than discarded so "
+                    "an over-eager match stays inspectable."
+                ),
+                (
+                    "A card you can still act on may hold rows you cannot: rejected scans stay on it as the "
+                    "record of a judgement, and they keep their rank rather than sorting last. Read "
+                    "rejected_for_this_work on each row."
+                ),
+                (
+                    "display_fit says how an instance would meet the wall: 'native', 'matted_small', or "
+                    "'below_floor'. A below_floor instance is shown and may be chosen — it is labelled with the "
+                    "size it would appear at, never hidden."
+                ),
+                (
+                    "renders_at_inches is the number a thumbnail cannot convey. A 900-pixel scan and a "
+                    "6000-pixel scan look identical here and are not the same thing on a wall."
+                ),
             ),
         ),
         Action(
@@ -703,10 +802,14 @@ ART_REVIEW: Final = ToolRecord(
                 ),
             ),
             tips=(
-                "This is how a below_floor scan gets onto the wall: automatic selection withholds one, and "
-                "choosing it explicitly is the decision the floor exists to force. Nothing else overrides it.",
-                "A scan already turned down cannot be chosen again — that is what rejecting one means. Use "
-                "art_discovery(action='resolve_images') to go looking for a better one.",
+                (
+                    "This is how a below_floor scan gets onto the wall: automatic selection withholds one, and "
+                    "choosing it explicitly is the decision the floor exists to force. Nothing else overrides it."
+                ),
+                (
+                    "A scan already turned down cannot be chosen again — that is what rejecting one means. Use "
+                    "art_discovery(action='resolve_images') to go looking for a better one."
+                ),
             ),
         ),
         Action(
@@ -740,15 +843,21 @@ ART_REVIEW: Final = ToolRecord(
                 ),
             ),
             tips=(
-                "One work per call, named by id, and there is no accept-everything: the works being accepted "
-                "have to appear in the conversation, because a curator seeing what they accepted is the whole "
-                "of the review gate. Look at the picture before calling this.",
-                "Accepting mints the artwork, promotes every scan found into a source with the chosen one "
-                "primary, and attributes it to an artist. A work with no scan selected is refused rather than "
-                "recorded with no primary source — choose one with action='set_canonical' first.",
-                "minted_artist says a new artist row was created. Where it arrives with "
-                "possible_duplicate_artists, the catalogue may now hold the same painter twice under different "
-                "spellings — visible and mergeable, which a wrong merge would not be.",
+                (
+                    "One work per call, named by id, and there is no accept-everything: the works being accepted "
+                    "have to appear in the conversation, because a curator seeing what they accepted is the whole "
+                    "of the review gate. Look at the picture before calling this."
+                ),
+                (
+                    "Accepting mints the artwork, promotes every scan found into a source with the chosen one "
+                    "primary, and attributes it to an artist. A work with no scan selected is refused rather than "
+                    "recorded with no primary source — choose one with action='set_canonical' first."
+                ),
+                (
+                    "minted_artist says a new artist row was created. Where it arrives with "
+                    "possible_duplicate_artists, the catalogue may now hold the same painter twice under different "
+                    "spellings — visible and mergeable, which a wrong merge would not be."
+                ),
                 "'wanted' is not settable here: action='want' is its one way in.",
                 "Both verdicts are final: a work already accepted or rejected cannot be re-judged.",
             ),
@@ -775,8 +884,10 @@ ART_REVIEW: Final = ToolRecord(
                 ),
             ),
             tips=(
-                "The work's verdict becomes wanted. Nothing searches for a scan: "
-                "art_discovery(action='resolve_images') does, and it costs nothing today.",
+                (
+                    "The work's verdict becomes wanted. Nothing searches for a scan: "
+                    "art_discovery(action='resolve_images') does, and it costs nothing today."
+                ),
                 "A named scan is suppressed so no re-search can return it. Naming none suppresses nothing.",
                 "Refused on a work already accepted or rejected. action='set_verdict' still works from wanted.",
             ),
@@ -786,8 +897,10 @@ ART_REVIEW: Final = ToolRecord(
             description="List every wanted work across runs, newest run first.",
             example="art_review(action='list_wanted')",
             tips=(
-                "scans_turned_down is 0 for a work wanted because nothing was found. wikidata_qid is null "
-                "when no item is known.",
+                (
+                    "scans_turned_down is 0 for a work wanted because nothing was found. wikidata_qid is null "
+                    "when no item is known."
+                ),
             ),
         ),
         Action(
@@ -795,10 +908,14 @@ ART_REVIEW: Final = ToolRecord(
             description="Count, by host, the open works with a page there that no installed source plugin reads.",
             example="art_review(action='sighting_hosts')",
             tips=(
-                "Open works are wanted, or unresolved with no verdict. Held works, and pages a plugin now reads, "
-                "are left out.",
-                "The pages come from a work's Wikidata item, so a work with no item has none. Hosts are names "
-                "only: no page's address is returned.",
+                (
+                    "Open works are wanted, or unresolved with no verdict. Held works, and pages a plugin now reads, "
+                    "are left out."
+                ),
+                (
+                    "The pages come from a work's Wikidata item, so a work with no item has none. Hosts are names "
+                    "only: no page's address is returned."
+                ),
                 "Not every host holds the work: encyclopedias and search links are counted too.",
             ),
         ),
@@ -828,13 +945,19 @@ ART_REVIEW: Final = ToolRecord(
             example="art_review(action='reject_image', image_id='<an image_id from action=list_images>')",
             params=(_IMAGE_ID,),
             tips=(
-                "This does not go looking for a replacement — art_discovery(action='resolve_images') does, "
-                "at no cost today. Turn down the scans you want re-searched, then re-search them in one batch.",
-                "The scan is suppressed either way, so a later search cannot hand back the one just turned "
-                "down. The scan on offer moves the work to wanted and the selection to the next survivor; an "
-                "alternate leaves the verdict and the standing choice alone.",
-                "You are never blocked on a re-search: action='set_verdict' works from wanted too, so a "
-                "curator can accept the best scan on offer or give up on the work at any point.",
+                (
+                    "This does not go looking for a replacement — art_discovery(action='resolve_images') does, "
+                    "at no cost today. Turn down the scans you want re-searched, then re-search them in one batch."
+                ),
+                (
+                    "The scan is suppressed either way, so a later search cannot hand back the one just turned "
+                    "down. The scan on offer moves the work to wanted and the selection to the next survivor; an "
+                    "alternate leaves the verdict and the standing choice alone."
+                ),
+                (
+                    "You are never blocked on a re-search: action='set_verdict' works from wanted too, so a "
+                    "curator can accept the best scan on offer or give up on the work at any point."
+                ),
             ),
         ),
     ),
@@ -888,8 +1011,10 @@ ART_THEME: Final = ToolRecord(
             description="Return every theme, with the walls each is hanging on.",
             example="art_theme(action='list')",
             tips=(
-                "A theme is global and hangs nowhere until action='activate' puts it on a named wall. "
-                "The same theme may hang on several walls at once, and a theme hanging on none is normal.",
+                (
+                    "A theme is global and hangs nowhere until action='activate' puts it on a named wall. "
+                    "The same theme may hang on several walls at once, and a theme hanging on none is normal."
+                ),
             ),
         ),
         Action(
@@ -898,8 +1023,10 @@ ART_THEME: Final = ToolRecord(
             example="art_theme(action='get', theme_id='<a theme_id from action=list>')",
             params=(_THEME_ID,),
             tips=(
-                "Membership is curatorial, not technical: a work can be in a theme and still not be displayable. "
-                "Use art_display(action='sync') to see which members would actually reach the wall, and why not.",
+                (
+                    "Membership is curatorial, not technical: a work can be in a theme and still not be displayable. "
+                    "Use art_display(action='sync') to see which members would actually reach the wall, and why not."
+                ),
             ),
         ),
         Action(
@@ -932,8 +1059,10 @@ ART_THEME: Final = ToolRecord(
                 ),
             ),
             tips=(
-                "A theme that has never set an interval or shuffle inherits the deployment default, "
-                "which is what art_display(action='sync') reports.",
+                (
+                    "A theme that has never set an interval or shuffle inherits the deployment default, "
+                    "which is what art_display(action='sync') reports."
+                ),
             ),
         ),
         Action(
@@ -942,9 +1071,11 @@ ART_THEME: Final = ToolRecord(
             example="art_theme(action='delete', theme_id='<a theme_id>')",
             params=(_THEME_ID,),
             tips=(
-                "A theme hanging on any wall is refused, and the refusal names those walls. Hang something else "
-                "there with action='activate', or take it down with action='unhang', and then delete. This holds "
-                "even when it is the only theme: a wall losing its picture has to be a choice.",
+                (
+                    "A theme hanging on any wall is refused, and the refusal names those walls. Hang something else "
+                    "there with action='activate', or take it down with action='unhang', and then delete. This holds "
+                    "even when it is the only theme: a wall losing its picture has to be a choice."
+                ),
             ),
         ),
         Action(
@@ -953,10 +1084,12 @@ ART_THEME: Final = ToolRecord(
             example="art_theme(action='make_default', theme_id='<a theme_id>')",
             params=(_THEME_ID,),
             tips=(
-                "At most one theme is the default; action='list' shows which, as is_default. Each work joins it "
-                "once, when it is accepted, at the end of the order, unless the Get it came from named another "
-                "theme_id, which it joins instead. Works already in the catalogue are not added by this, and a "
-                "work taken out of the default by hand is not put back.",
+                (
+                    "At most one theme is the default; action='list' shows which, as is_default. Each work joins it "
+                    "once, when it is accepted, at the end of the order, unless the Get it came from named another "
+                    "theme_id, which it joins instead. Works already in the catalogue are not added by this, and a "
+                    "work taken out of the default by hand is not put back."
+                ),
                 "The default cannot be deleted. Make another theme the default first.",
             ),
         ),
@@ -1000,12 +1133,18 @@ ART_THEME: Final = ToolRecord(
             example="art_theme(action='activate', theme_id='<a theme_id>', wall_id='<a wall_id>')",
             params=(_THEME_ID, _WALL_ID),
             tips=(
-                "The wall is required even when there is only one, so the confirmation you report names it. "
-                "Get wall ids from art_display(action='walls').",
-                "This publishes the theme: it rewrites the manifest, so the wall converges on it "
-                "within about a second. No separate sync is needed.",
-                "The result names every member that will NOT be on the wall and why, exactly as "
-                "art_display(action='sync') does — a theme can be half-displayable.",
+                (
+                    "The wall is required even when there is only one, so the confirmation you report names it. "
+                    "Get wall ids from art_display(action='walls')."
+                ),
+                (
+                    "This publishes the theme: it rewrites the manifest, so the wall converges on it "
+                    "within about a second. No separate sync is needed."
+                ),
+                (
+                    "The result names every member that will NOT be on the wall and why, exactly as "
+                    "art_display(action='sync') does — a theme can be half-displayable."
+                ),
                 "Switching costs no television writes: the whole library stays on the TV and rotation is driven from here.",
             ),
         ),
@@ -1016,8 +1155,10 @@ ART_THEME: Final = ToolRecord(
             params=(_WALL_ID,),
             tips=(
                 "Refused when nothing is hanging on that wall — there is nothing to take down.",
-                "The wall goes on showing what it was showing until something else is hung: no manifest is "
-                "rewritten, because publishing an empty one would blank the wall as a side effect of tidying up.",
+                (
+                    "The wall goes on showing what it was showing until something else is hung: no manifest is "
+                    "rewritten, because publishing an empty one would blank the wall as a side effect of tidying up."
+                ),
                 "This is how a theme that is refused by action='delete' becomes deletable.",
             ),
         ),
@@ -1075,8 +1216,10 @@ ART_DISPLAY: Final = ToolRecord(
             description="Return every wall, with the theme hanging on each and that wall's directive.",
             example="art_display(action='walls')",
             tips=(
-                "Start here: every other action on this tool and art_theme(action='activate') needs a wall_id, "
-                "and this is where they come from.",
+                (
+                    "Start here: every other action on this tool and art_theme(action='activate') needs a wall_id, "
+                    "and this is where they come from."
+                ),
                 "A wall with no theme hanging on it is an ordinary state, not a fault.",
             ),
         ),
@@ -1086,12 +1229,16 @@ ART_DISPLAY: Final = ToolRecord(
             example="art_display(action='add_wall', name='Living room')",
             params=(_NAME,),
             tips=(
-                "A wall is a place and a name, never a device: which display serves it is that display's own "
-                "configuration, and nothing about a television is recorded here.",
+                (
+                    "A wall is a place and a name, never a device: which display serves it is that display's own "
+                    "configuration, and nothing about a television is recorded here."
+                ),
                 "Refuses a name that is empty or already taken.",
-                "A new wall shows nothing until it is assigned to a client — an installed Player — on one of "
-                "that client's outputs. Each wall has its own manifest, and a client is admitted only to the "
-                "walls assigned to it. Hanging a theme on a new wall disturbs no other wall.",
+                (
+                    "A new wall shows nothing until it is assigned to a client — an installed Player — on one of "
+                    "that client's outputs. Each wall has its own manifest, and a client is admitted only to the "
+                    "walls assigned to it. Hanging a theme on a new wall disturbs no other wall."
+                ),
             ),
         ),
         Action(
@@ -1099,11 +1246,15 @@ ART_DISPLAY: Final = ToolRecord(
             description="Report what the display serving each wall last said about itself, and how long ago.",
             example="art_display(action='status')",
             tips=(
-                "This reports an observation and its age in seconds, never a verdict about health. "
-                "If no display has ever run for a wall, it says so plainly rather than reporting a zero.",
-                "It takes no wall and reports every one of them: each wall's display writes its own "
-                "heartbeat, so the answerable question is which wall has gone quiet — and an answer about "
-                "one room could be given while another was dark.",
+                (
+                    "This reports an observation and its age in seconds, never a verdict about health. "
+                    "If no display has ever run for a wall, it says so plainly rather than reporting a zero."
+                ),
+                (
+                    "It takes no wall and reports every one of them: each wall's display writes its own "
+                    "heartbeat, so the answerable question is which wall has gone quiet — and an answer about "
+                    "one room could be given while another was dark."
+                ),
             ),
         ),
         Action(
@@ -1112,12 +1263,18 @@ ART_DISPLAY: Final = ToolRecord(
             example="art_display(action='sync', wall_id='<a wall_id>')",
             params=(_WALL_ID, _SYNC_THEME_ID),
             tips=(
-                "Refused when nothing is hanging on that wall and no theme_id is given — there is nothing "
-                "to put on it. Hang one with art_theme(action='activate') first.",
-                "The result names every theme member that will NOT be on the wall and why. "
-                "A theme can be half-displayable, and this is the only place that says so.",
-                "Switching themes costs no television writes: the whole library stays on the TV "
-                "and rotation is driven from here.",
+                (
+                    "Refused when nothing is hanging on that wall and no theme_id is given — there is nothing "
+                    "to put on it. Hang one with art_theme(action='activate') first."
+                ),
+                (
+                    "The result names every theme member that will NOT be on the wall and why. "
+                    "A theme can be half-displayable, and this is the only place that says so."
+                ),
+                (
+                    "Switching themes costs no television writes: the whole library stays on the TV "
+                    "and rotation is driven from here."
+                ),
             ),
         ),
         Action(
@@ -1126,11 +1283,13 @@ ART_DISPLAY: Final = ToolRecord(
             example="art_display(action='show_now', wall_id='<a wall_id>', artwork_id='<an artwork_id>')",
             params=(_WALL_ID, Param(name="artwork_id", type="string", description="The work to jump to.", required=True)),
             tips=(
-                "Any work that could not reach the wall is refused rather than pinned — archived, "
-                "missing its master image, mat colour or television render, carrying a render "
-                "made from an earlier acquisition, or naming no work the catalogue holds. The "
-                "refusal names which, in the same words "
-                "art_display(action='sync') uses for an excluded work.",
+                (
+                    "Any work that could not reach the wall is refused rather than pinned — archived, "
+                    "missing its master image, mat colour or television render, carrying a render "
+                    "made from an earlier acquisition, or naming no work the catalogue holds. The "
+                    "refusal names which, in the same words "
+                    "art_display(action='sync') uses for an excluded work."
+                ),
                 "This writes the directive; it does not confirm the television changed.",
             ),
         ),
@@ -1140,8 +1299,10 @@ ART_DISPLAY: Final = ToolRecord(
             example="art_display(action='next', wall_id='<a wall_id>')",
             params=(_WALL_ID,),
             tips=(
-                "It steps that wall and no other: each wall carries its own counter, so a step in the living "
-                "room leaves the study where it was.",
+                (
+                    "It steps that wall and no other: each wall carries its own counter, so a step in the living "
+                    "room leaves the study where it was."
+                ),
                 "Repeated calls inside one poll interval coalesce into a single step — latest wins.",
             ),
         ),
@@ -1150,12 +1311,18 @@ ART_DISPLAY: Final = ToolRecord(
             description="Return every client, with its walls and outputs and when it last reported them.",
             example="art_display(action='clients')",
             tips=(
-                "A client is an installed Player: one token, and the walls assigned to it, each on one of its "
-                "outputs. This is where client_id and the output names assign_wall takes come from.",
-                "The token is never listed. token_issued_at is null while the client has none, and then it is "
-                "admitted nowhere: issue one with action='issue_client_token'.",
-                "heartbeat is an observation with an age, never a verdict: a client that has not reported may "
-                "simply not be running yet.",
+                (
+                    "A client is an installed Player: one token, and the walls assigned to it, each on one of its "
+                    "outputs. This is where client_id and the output names assign_wall takes come from."
+                ),
+                (
+                    "The token is never listed. token_issued_at is null while the client has none, and then it is "
+                    "admitted nowhere: issue one with action='issue_client_token'."
+                ),
+                (
+                    "heartbeat is an observation with an age, never a verdict: a client that has not reported may "
+                    "simply not be running yet."
+                ),
             ),
         ),
         Action(
@@ -1164,8 +1331,10 @@ ART_DISPLAY: Final = ToolRecord(
             example="art_display(action='add_client', name='Hall Pi')",
             params=(_NAME,),
             tips=(
-                "Next, action='issue_client_token' for the token its host needs, and action='assign_wall' for "
-                "what it shows. Its host learns its walls from this server, so assigning needs no edit there.",
+                (
+                    "Next, action='issue_client_token' for the token its host needs, and action='assign_wall' for "
+                    "what it shows. Its host learns its walls from this server, so assigning needs no edit there."
+                ),
                 "Refuses a name that is empty or already a client's.",
             ),
         ),
@@ -1181,8 +1350,10 @@ ART_DISPLAY: Final = ToolRecord(
             example="art_display(action='remove_client', client_id='<a client_id>')",
             params=(_CLIENT_ID,),
             tips=(
-                "The answer names every wall released, so you can say which rooms now have nothing showing "
-                "them. They keep their themes; assign them to another client to show them again.",
+                (
+                    "The answer names every wall released, so you can say which rooms now have nothing showing "
+                    "them. They keep their themes; assign them to another client to show them again."
+                ),
                 "Not undoable: a client added again under the same name is a new client, needing a new token.",
             ),
         ),
@@ -1192,10 +1363,14 @@ ART_DISPLAY: Final = ToolRecord(
             example="art_display(action='issue_client_token', client_id='<a client_id>')",
             params=(_CLIENT_ID,),
             tips=(
-                "Give the token to whoever sets up the host: it goes in the Player's settings as CLIENT_TOKEN, "
-                "beside SERVER_URL, this server's address as that host reaches it.",
-                "Rotating is issuing again, and the earlier token stops working at once: the client's Player is "
-                "refused until its settings carry the new one. Say so before rotating a client in use.",
+                (
+                    "Give the token to whoever sets up the host: it goes in the Player's settings as CLIENT_TOKEN, "
+                    "beside SERVER_URL, this server's address as that host reaches it."
+                ),
+                (
+                    "Rotating is issuing again, and the earlier token stops working at once: the client's Player is "
+                    "refused until its settings carry the new one. Say so before rotating a client in use."
+                ),
                 "Only a verifier is kept, so a lost token cannot be shown again; issue another.",
             ),
         ),
@@ -1206,11 +1381,15 @@ ART_DISPLAY: Final = ToolRecord(
             params=(_WALL_ID, _CLIENT_ID, _OUTPUT),
             tips=(
                 "Get wall ids from action='walls', and client ids and output names from action='clients'.",
-                "The answer's notice says when the output is not among those the client last reported, or the "
-                "client has not reported yet. The assignment is kept either way, so a client can be set up "
-                "before it first runs.",
-                "One output shows one wall: refused when that output already shows another. A wall is shown by "
-                "one client, so assigning it elsewhere moves it.",
+                (
+                    "The answer's notice says when the output is not among those the client last reported, or the "
+                    "client has not reported yet. The assignment is kept either way, so a client can be set up "
+                    "before it first runs."
+                ),
+                (
+                    "One output shows one wall: refused when that output already shows another. A wall is shown by "
+                    "one client, so assigning it elsewhere moves it."
+                ),
             ),
         ),
         Action(
@@ -1289,14 +1468,20 @@ ART_TASTE: Final = ToolRecord(
                 _DERIVATION,
             ),
             tips=(
-                "This returns the whole taste unpaged — tens of rows for a household — which is why there is "
-                "no action='get'. Read it once and work from what comes back.",
-                "Read `open_to_more` beside `sentiment` rather than instead of it: a cool judgment that is "
-                "still open to more means keep offering this, and treating it as a refusal blacklists an "
-                "artist the curator asked to keep hearing about.",
-                "A `stated` judgment carries no rationale and that is normal — the curator's own words are "
-                "the account. An `inferred` one whose `source_turn_id` is null had its conversation deleted; "
-                "its rationale is the evidence that survived.",
+                (
+                    "This returns the whole taste unpaged — tens of rows for a household — which is why there is "
+                    "no action='get'. Read it once and work from what comes back."
+                ),
+                (
+                    "Read `open_to_more` beside `sentiment` rather than instead of it: a cool judgment that is "
+                    "still open to more means keep offering this, and treating it as a refusal blacklists an "
+                    "artist the curator asked to keep hearing about."
+                ),
+                (
+                    "A `stated` judgment carries no rationale and that is normal — the curator's own words are "
+                    "the account. An `inferred` one whose `source_turn_id` is null had its conversation deleted; "
+                    "its rationale is the evidence that survived."
+                ),
             ),
         ),
         Action(
@@ -1337,14 +1522,22 @@ ART_TASTE: Final = ToolRecord(
                 ),
             ),
             tips=(
-                "An upsert, addressed by kind and value rather than by an id — one live judgment per thing, "
-                "corrected in place. There is nothing to fetch first.",
-                "It refuses derivation='observed'. That value is a claim only the review path can make, and a "
-                "row asserting behaviour that never happened cannot be audited afterwards.",
-                "It refuses to overwrite a stronger provenance with a weaker one: a reading of what the "
-                "curator said cannot overwrite what they said or did. Ask them, then write it as 'stated'.",
-                "Writing replaces the provenance as well as the judgment, so a correction cites the turn it "
-                "came from or none — never the turn the previous judgment cited.",
+                (
+                    "An upsert, addressed by kind and value rather than by an id — one live judgment per thing, "
+                    "corrected in place. There is nothing to fetch first."
+                ),
+                (
+                    "It refuses derivation='observed'. That value is a claim only the review path can make, and a "
+                    "row asserting behaviour that never happened cannot be audited afterwards."
+                ),
+                (
+                    "It refuses to overwrite a stronger provenance with a weaker one: a reading of what the "
+                    "curator said cannot overwrite what they said or did. Ask them, then write it as 'stated'."
+                ),
+                (
+                    "Writing replaces the provenance as well as the judgment, so a correction cites the turn it "
+                    "came from or none — never the turn the previous judgment cited."
+                ),
             ),
         ),
         Action(
@@ -1360,9 +1553,11 @@ ART_TASTE: Final = ToolRecord(
                 ),
             ),
             tips=(
-                "Forgetting is not the same as recording a refusal: a deleted judgment leaves the product "
-                "knowing nothing about that thing, where sentiment='declines' tells it to stop offering it. "
-                "If the curator wants it left alone rather than forgotten, use action='set'.",
+                (
+                    "Forgetting is not the same as recording a refusal: a deleted judgment leaves the product "
+                    "knowing nothing about that thing, where sentiment='declines' tells it to stop offering it. "
+                    "If the curator wants it left alone rather than forgotten, use action='set'."
+                ),
             ),
         ),
     ),

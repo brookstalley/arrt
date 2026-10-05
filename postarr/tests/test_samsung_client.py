@@ -229,7 +229,6 @@ class TestUploadIsConfirmedAgainstTheSet:
         async def upload(file: str, **kwargs: object) -> None:
             art.entries.append({"content_id": "MY-SOMEONE-ELSES", "image_date": "1999:01:01 00:00:00"})
             art.entries.append({"content_id": "MY-MINE", "image_date": kwargs.get("date")})
-            return None
 
         art.upload = upload  # type: ignore[method-assign]
 
@@ -502,7 +501,7 @@ async def test_connecting_subscribes_to_the_announcement(art: StubArt, tmp_path)
 
 
 @pytest.mark.parametrize(
-    "reply, expected",
+    ("reply", "expected"),
     [
         pytest.param("on", True, id="the set says it is showing art"),
         pytest.param("off", False, id="a programme, or a dark panel"),

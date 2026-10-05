@@ -263,7 +263,7 @@ class _ContainedFinder:
     def fetch_preview(self, url: str) -> bytes | None:
         try:
             return _preview(self._inner.fetch_preview(url))
-        except Exception as exc:  # prawduct:allow prawduct/broad-except -- None is the interface's own failed preview
+        except Exception as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- None is the interface's failed preview
             self._faults.record(self._plugin, "fetch_preview", exc)
             return None
 
@@ -427,7 +427,7 @@ class SourceRoster:
         for claimant in self._claimants:
             try:
                 claimed = bool(claimant.claims(url))
-            except Exception as exc:  # prawduct:allow prawduct/broad-except -- a raising claims check claims nothing
+            except Exception as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- a raising check claims nothing
                 self._faults.record(claimant.name, "claims", exc)
                 claimed = False
             if claimed:
@@ -535,13 +535,13 @@ def load_sources(
     )
 
 
-def _load_one(
+def _load_one(  # noqa: PLR0911 -- one return per way a plugin can fail to load, each named
     entry: importlib.metadata.EntryPoint, context: SourceContext
 ) -> tuple[SourcePlugin | None, SourceParts | Declined | str]:
     """The plugin object, if one was got, and its parts, its decline, or why it could not be loaded."""
     try:
         plugin = entry.load()
-    except Exception as exc:  # prawduct:allow prawduct/broad-except -- a plugin that cannot import is left out, and named
+    except Exception as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- an unimportable plugin is left out, named
         return None, f"it could not be imported: {describe_exception(exc)}"
     if not isinstance(plugin, SourcePlugin):
         return None, f"its entry point names a {type(plugin).__name__}, not a SourcePlugin"
@@ -552,7 +552,7 @@ def _load_one(
         )
     try:
         answer = plugin.create(context)
-    except Exception as exc:  # prawduct:allow prawduct/broad-except -- a factory that raises is left out, and named
+    except Exception as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- a raising factory is left out, and named
         return plugin, f"its factory raised {describe_exception(exc)}"
     if isinstance(answer, Declined):
         return plugin, answer
@@ -560,7 +560,7 @@ def _load_one(
         return plugin, f"its factory answered a {type(answer).__name__}, not SourceParts or Declined"
     try:
         breach = _breach(entry.name, plugin, answer)
-    except Exception as exc:  # prawduct:allow prawduct/broad-except -- raising parts are left out, and named
+    except Exception as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- raising parts are left out, and named
         return plugin, f"its parts raised while being checked: {describe_exception(exc)}"
     return plugin, answer if breach is None else breach
 

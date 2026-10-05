@@ -186,7 +186,7 @@ class UnavailableEngine:
     def unavailable_reason(self) -> str | None:
         return self.reason
 
-    def enumerate_works(self, request: WorkListRequest) -> WorkList:
+    def enumerate_works(self, request: WorkListRequest) -> WorkList:  # noqa: ARG002 -- the engine interface's signature
         """Never reached: a start is refused before a run exists. Guarded anyway."""
         raise EngineFailure(self.reason)
 

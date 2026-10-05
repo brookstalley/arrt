@@ -13,12 +13,14 @@ it from. Reasoning about which rows moved is what a stored `ON DELETE` would
 survive.
 """
 
+import asyncio
 import json
 from datetime import UTC, datetime
 from decimal import Decimal
 
 import httpx
 import pytest
+from async_http import request
 
 from arrt.library.discovery.conversation import Suggestion
 from arrt.persistence.discovery_records import SpendCategory
@@ -29,10 +31,9 @@ async def call(server_url: str, tool: str, **arguments) -> tuple[dict, bool]:
     from mcp import ClientSession
     from mcp.client.streamable_http import streamable_http_client
 
-    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            result = await session.call_tool(tool, arguments)
+    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _), ClientSession(read, write) as session:
+        await session.initialize()
+        result = await session.call_tool(tool, arguments)
     return json.loads(result.content[0].text), bool(result.isError)
 
 
@@ -149,12 +150,12 @@ async def test_the_tool_and_the_route_call_the_same_fields_the_same_things(serve
     to disagree about the same taste, and it is invisible to either surface's own
     tests.
     """
-    set_taste(server_url, kind="artist", value="Kandinsky", sentiment="loves", open_to_more=True)
+    await asyncio.to_thread(set_taste, server_url, kind="artist", value="Kandinsky", sentiment="loves", open_to_more=True)
 
     payload, errored = await call(server_url, "art_taste", action="list")
 
     assert errored is False
-    over_http = taste(server_url)["affinities"][0]
+    over_http = (await asyncio.to_thread(taste, server_url))["affinities"][0]
     assert payload["affinities"][0] == over_http
 
 
@@ -173,7 +174,7 @@ async def test_the_tool_refuses_observed_and_says_which_path_can_write_it(server
 
     assert errored is True
     assert "review" in payload["error"]
-    assert taste(server_url)["count"] == 0
+    assert (await asyncio.to_thread(taste, server_url))["count"] == 0
 
 
 # -- the delete that detaches -------------------------------------------------
@@ -192,7 +193,7 @@ async def test_the_month_total_is_the_same_number_across_the_delete(server_url, 
     before, _ = await call(server_url, "art_discovery", action="spend", year=now.year, month=now.month)
     assert Decimal(before["cost_usd"]) > 0, "the thread spent nothing, so this would pass against a cascade"
 
-    deleted = httpx.delete(f"{server_url}/api/conversations/{a_thread}", timeout=20)
+    deleted = await request("DELETE", f"{server_url}/api/conversations/{a_thread}", timeout=20)
     assert deleted.status_code == 200
 
     after, _ = await call(server_url, "art_discovery", action="spend", year=now.year, month=now.month)

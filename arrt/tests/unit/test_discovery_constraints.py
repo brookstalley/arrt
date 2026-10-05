@@ -229,7 +229,8 @@ def test_a_work_whose_every_scan_is_below_the_floor_cannot_be_accepted(discovery
         add_image(work, url=f"https://museum.example/small-{index}", estimated_width=600, estimated_height=450)
     work = discovery.record_resolution(work.id).work
     held = discovery.list_candidate_images(work.id)
-    assert held and not any(image.is_selected for image in held), "the floor declined every one of them"
+    assert held, "the floor declined every one of them"
+    assert not any(image.is_selected for image in held), "the floor declined every one of them"
     assert all(image.rejected_at is None for image in held), "and none was rejected, so that guard does not fire"
 
     with pytest.raises(ServiceError, match="every scan found for it is below") as refused:
@@ -601,7 +602,8 @@ def test_an_unattempted_work_is_neither_resolved_nor_unresolved(discovery, run, 
     results = discovery.run_results(run.id)
 
     assert [entry.id for entry in results.pending] == [work.id]
-    assert results.resolved == [] and results.unresolved == []
+    assert results.resolved == []
+    assert results.unresolved == []
     assert work.resolution_status is ResolutionStatus.PENDING
 
 

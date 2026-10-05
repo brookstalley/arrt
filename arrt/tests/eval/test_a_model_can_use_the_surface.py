@@ -44,7 +44,7 @@ pytest.importorskip(
     reason="the model-driven evaluation needs the eval group — run `uv sync --group eval`",
 )
 
-from driver import REFERENCE_CALLS, drive  # noqa: E402
+from driver import REFERENCE_CALLS, drive
 
 pytestmark = pytest.mark.llm_eval
 

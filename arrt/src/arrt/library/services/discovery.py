@@ -32,7 +32,7 @@ from collections import Counter
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from datetime import MAXYEAR, MINYEAR, UTC, datetime
 from decimal import Decimal
 
 from arrt.library.discovery.dedup import clean_name, work_dedup_key
@@ -62,6 +62,9 @@ from arrt.services.fields import relative_path, require_member, require_text
 from arrt.services.store import store_write
 
 log = logging.getLogger(__name__)
+
+#: The last month of a calendar year, where a month's end wraps into the next year.
+_DECEMBER = 12
 
 
 @dataclass(frozen=True, slots=True)
@@ -1057,8 +1060,7 @@ class DiscoveryService:
             image = self.get_candidate_image(candidate_image_id)
             if image.rejected_at is not None:
                 raise ServiceError(f"Image {candidate_image_id!r} was rejected for this work, so it cannot be selected again.")
-            chosen = self._select(image, rationale=rationale)
-        return chosen
+            return self._select(image, rationale=rationale)
 
     def forget_preview(self, candidate_image_id: str) -> CandidateImage:
         """Record that this instance no longer has a local copy of its picture.
@@ -1226,7 +1228,7 @@ class DiscoveryService:
     def list_wanted(self) -> Sequence[WantedWork]:
         """Every wanted work across runs, newest run first, each with how many scans were turned down.
 
-        The read behind Activity › Wanted. Newest first by the run that proposed
+        The read behind Wanted. Newest first by the run that proposed
         the work, since the verdict carries no moment of its own; by title within
         a run. `scans_turned_down` is counted from the work's instances, which is
         what tells "wanted because its scan was turned down" from "wanted because
@@ -1403,15 +1405,15 @@ class DiscoveryService:
         report on a different boundary would disagree with the only figure that
         can actually stop spending.
         """
-        if not 1 <= month <= 12:
+        if not 1 <= month <= _DECEMBER:
             raise ServiceError(f"A month is 1 to 12, got {month}.")
         # The year is bounded too, so that the only input this method cannot
         # phrase a refusal for stops being the one that reaches a caller as a bare
         # stdlib ValueError through a tool boundary's "failed unexpectedly".
-        if not datetime.min.year <= year < datetime.max.year:
-            raise ServiceError(f"A year is {datetime.min.year} to {datetime.max.year - 1}, got {year}.")
+        if not MINYEAR <= year < MAXYEAR:
+            raise ServiceError(f"A year is {MINYEAR} to {MAXYEAR - 1}, got {year}.")
         since = datetime(year, month, 1, tzinfo=UTC)
-        until = datetime(year + (month == 12), month % 12 + 1, 1, tzinfo=UTC)
+        until = datetime(year + (month == _DECEMBER), month % _DECEMBER + 1, 1, tzinfo=UTC)
         return sum((record.cost_usd for record in self._store.list_spend_records(since=since, until=until)), Decimal(0))
 
     # -- internals ------------------------------------------------------------

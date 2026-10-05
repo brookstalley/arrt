@@ -64,7 +64,7 @@ def _spending_engine(hex_rgb: str, cost: Decimal) -> MatEngine:
     """
 
     class _Paid(MatEngine):
-        def choose(self, image_path):  # noqa: ARG002 - the path is irrelevant to a canned answer
+        def choose(self, image_path):
             return MatChoice(
                 hex_rgb=hex_rgb,
                 method=MatMethod.VISION_MODEL,
@@ -390,7 +390,8 @@ class TestACuratorsOwnColour:
         # colour already in force still reads as no change rather than as history.
         assert result.mat_hex == result.mat_hex.lower()
         assert service.current_mat_color(work.id).hex_rgb == result.mat_hex
-        assert result.mat_hex.startswith("#") and len(result.mat_hex) == 7
+        assert result.mat_hex.startswith("#")
+        assert len(result.mat_hex) == 7
 
     def test_an_unreadable_colour_is_refused_before_anything_is_written(self, prep, service, settings):
         work, _ = _work_with_original(service, settings)
@@ -622,7 +623,7 @@ class TestWhatItSpendsIsRecorded:
             def model_id(self):
                 return "qwen/qwen3.7-flash"
 
-            def choose(self, image_path):  # noqa: ARG002 - a canned answer
+            def choose(self, image_path):
                 return MatChoice(
                     hex_rgb="#2d2d2d",
                     method=MatMethod.DOMINANT_COLOR_FALLBACK,

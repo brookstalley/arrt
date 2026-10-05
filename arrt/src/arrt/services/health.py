@@ -38,7 +38,7 @@ from pathlib import Path
 from arrt.library.services.display_fit import ArtworkBox
 from arrt.library.sources.loading import PluginReading, PluginState, SourceRoster
 from arrt.persistence import backup
-from arrt.persistence.backup import BackupReading
+from arrt.persistence.records import BackupReading
 from arrt.programming.display import DisplayService, WallHeartbeat, describe_wall_status
 
 

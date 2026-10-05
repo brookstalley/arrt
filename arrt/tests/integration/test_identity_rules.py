@@ -21,10 +21,9 @@ MISSING = "Q999999999"
 
 
 async def call(server_url: str, tool: str, **arguments) -> tuple[dict, bool]:
-    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            result = await session.call_tool(tool, arguments)
+    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _), ClientSession(read, write) as session:
+        await session.initialize()
+        result = await session.call_tool(tool, arguments)
     text = "".join(block.text for block in result.content if block.type == "text")
     try:
         return json.loads(text), bool(result.isError)
@@ -68,7 +67,8 @@ class TestAnItemAnotherArtistHas:
 
         answer, failed = await call(server_url, "art_catalogue", action="set_artist_qid", artist_id=other.id, qid=ROTHKO)
 
-        assert failed and "Mark Rothko already has" in json.dumps(answer)
+        assert failed
+        assert "Mark Rothko already has" in json.dumps(answer)
         assert services.artists.get(other.id).artist.wikidata_qid is None
 
     def test_setting_it_again_on_the_artist_who_has_it_is_fine(self, http, two_artists):
@@ -90,7 +90,8 @@ class TestAnItemWikidataDoesNotHave:
 
         answer, failed = await call(server_url, "art_catalogue", action="set_artist_qid", artist_id=other.id, qid=MISSING)
 
-        assert failed and f"Wikidata has no item {MISSING}." in json.dumps(answer)
+        assert failed
+        assert f"Wikidata has no item {MISSING}." in json.dumps(answer)
 
     def test_a_registry_that_cannot_be_asked_refuses_rather_than_passes(self, http, registry, two_artists):
         _rothko, _other, work = two_artists

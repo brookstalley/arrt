@@ -314,12 +314,18 @@ class SqliteDurableStore:
         callback()
 
     # -- the matched contract -------------------------------------------------
+    #
+    # The statements below are built as strings, which is what S608 flags. Only
+    # names are interpolated, and every one has been checked against the real
+    # schema by `_validate` first; every value is bound with `?`.
 
     def fetch_one(self, table: str, pk: Mapping[str, Any]) -> dict[str, Any] | None:
         """Return the row whose primary key equals `pk`, or None on a miss."""
         where, values = self._equality(table, pk, as_key=True)
         with self._lock:
-            row = self._connection.execute(f'SELECT * FROM "{table}" WHERE {where}', values).fetchone()
+            row = self._connection.execute(
+                f'SELECT * FROM "{table}" WHERE {where}', values  # noqa: S608 -- names checked by _validate
+            ).fetchone()
         return None if row is None else dict(row)
 
     def upsert(
@@ -343,7 +349,7 @@ class SqliteDurableStore:
         self._validate(table, pk)
         placeholders = ", ".join("?" for _ in columns)
         quoted = ", ".join(f'"{column}"' for column in columns)
-        statement = f'INSERT INTO "{table}" ({quoted}) VALUES ({placeholders})'
+        statement = f'INSERT INTO "{table}" ({quoted}) VALUES ({placeholders})'  # noqa: S608 -- names checked by _validate
         if on_conflict != "raise":
             # Only a conflict clause names the key. A target that is not the
             # table's real key resolves nothing, so `update` would quietly start
@@ -356,7 +362,7 @@ class SqliteDurableStore:
     def delete(self, table: str, pk: Mapping[str, Any]) -> None:
         """Delete the row whose primary key equals `pk`. A missing row is not an error."""
         where, values = self._equality(table, pk, as_key=True)
-        self._write(f'DELETE FROM "{table}" WHERE {where}', values, table=table)
+        self._write(f'DELETE FROM "{table}" WHERE {where}', values, table=table)  # noqa: S608 -- names checked by _validate
 
     def scan(self, table: str, filters: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
         """Return every row matching the equality `filters`, or every row when there are none.
@@ -367,7 +373,9 @@ class SqliteDurableStore:
         where, values = self._equality(table, filters or {}, as_key=False)
         clause = "" if not where else f" WHERE {where}"
         with self._lock:
-            rows = self._connection.execute(f'SELECT * FROM "{table}"{clause}', values).fetchall()
+            rows = self._connection.execute(
+                f'SELECT * FROM "{table}"{clause}', values  # noqa: S608 -- names checked by _validate
+            ).fetchall()
         return [dict(row) for row in rows]
 
     # -- outside the matched contract -----------------------------------------
@@ -402,9 +410,12 @@ class SqliteDurableStore:
         else:
             window, page_values = " LIMIT ? OFFSET ?", (*values, limit, offset)
         with self._lock:
-            total = self._connection.execute(f'SELECT COUNT(*) FROM "{table}"{clause}', values).fetchone()[0]
+            total = self._connection.execute(
+                f'SELECT COUNT(*) FROM "{table}"{clause}', values  # noqa: S608 -- names checked by _validate
+            ).fetchone()[0]
             rows = self._connection.execute(
-                f'SELECT * FROM "{table}"{clause} ORDER BY {ordering}{window}', page_values
+                f'SELECT * FROM "{table}"{clause} ORDER BY {ordering}{window}',  # noqa: S608 -- names checked by _validate
+                page_values,
             ).fetchall()
         return [dict(row) for row in rows], total
 

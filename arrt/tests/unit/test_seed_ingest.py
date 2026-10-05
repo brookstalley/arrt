@@ -7,6 +7,7 @@ report rather than about the first run's happy path.
 
 import uuid
 from string import Formatter
+from typing import ClassVar
 
 import pytest
 
@@ -67,7 +68,13 @@ class TestTheReportsVocabulary:
     #: Every value a note's sentence is allowed to ask for, and something to put
     #: there. A sentence naming anything else could not be filled at the site
     #: that raises it, and would reach a curator as a formatting error.
-    CONTEXT = {"path": "raw/a.jpg", "count": 2, "discarded": "#433735", "name": "Piet Mondrian", "colour": "#1c1818"}
+    CONTEXT: ClassVar[dict[str, object]] = {
+        "path": "raw/a.jpg",
+        "count": 2,
+        "discarded": "#433735",
+        "name": "Piet Mondrian",
+        "colour": "#1c1818",
+    }
 
     def test_every_cause_has_a_sentence(self):
         """A cause added without one reaches a curator as a bare enum value."""
@@ -96,7 +103,8 @@ class TestSeedingOnce:
         detail = service.get_artwork(seeded.work_id)
         assert detail.artwork.title == "Nighthawks"
         assert detail.artwork.status is ArtworkStatus.ACCEPTED
-        assert detail.artist is not None and detail.artist.name == "Georgia O'Keeffe"
+        assert detail.artist is not None
+        assert detail.artist.name == "Georgia O'Keeffe"
 
     def test_identity_is_minted_and_is_never_the_source_url(self, service, record, tree):
         entry = record()

@@ -152,7 +152,7 @@ class CommonsFinder:
         """The preview bytes, read against the preview ceiling, or `None`."""
         try:
             with self._http.stream("GET", url, headers=self._headers) as response:
-                if response.status_code != 200:
+                if response.status_code != httpx.codes.OK:
                     log.warning(
                         "could not cache a Commons preview",
                         extra={"event": "phase_two.preview_failed", "provider": PROVIDER, "status": response.status_code},
@@ -218,7 +218,7 @@ class CommonsFinder:
             response = self._http.get(API_URL, params=params, headers=self._headers)
         except httpx.HTTPError as exc:
             raise ImageSearchFailure(f"Commons could not be reached: {exc}") from exc
-        if response.status_code != 200:
+        if response.status_code != httpx.codes.OK:
             # A redirect lands here too: the endpoint is asked with none followed.
             raise ImageSearchFailure(f"Commons answered HTTP {response.status_code}.")
         try:
@@ -228,10 +228,16 @@ class CommonsFinder:
         if not isinstance(pages, list) or not pages:
             raise ImageSearchFailure("Commons' answer carried no page for the file asked about.")
         page = pages[0]
-        if not isinstance(page, Mapping) or page.get("missing") or not page.get("imageinfo"):
+        if isinstance(page, Mapping) and page.get("missing"):
             return None
-        info = page["imageinfo"][0]
-        return info if isinstance(info, Mapping) else None
+        # Only `missing` says Commons has no such file. Any other shape is an answer
+        # this source does not recognise, which could not be asked rather than holds
+        # nothing (`procurement-corpus.md` § Gaps, 5).
+        infos = page.get("imageinfo") if isinstance(page, Mapping) else None
+        info = infos[0] if isinstance(infos, list) and infos else None
+        if not isinstance(info, Mapping):
+            raise ImageSearchFailure("Commons described the file in a shape it does not document.")
+        return info
 
 
 def _file_name(image: str) -> str:

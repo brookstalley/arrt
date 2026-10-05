@@ -526,7 +526,10 @@
 - **Contract:** no hardcoded deployment values in source. Now mechanically
   enforced rather than Critic-enforced:
   `tests/test_config.py::test_no_source_file_carries_a_deployment_value` fails on
-  any of the hoisted values reappearing in a module.
+  a private address or a named home directory in any module line, and on the
+  deployment's published paths in code; its sibling compares every tracked file
+  against this checkout's own `.env` values (rebuilt 2026-10-05, so that the guard
+  no longer publishes the values it guards).
 - Values known to belong here: `ART_ROOT`, TV address, coordinates, the **phase-2
   approval work-count threshold** (added 2026-07-19 as a cost threshold; amended
   2026-07-20 to count — see `data-model.md`), and the **per-run search cap**

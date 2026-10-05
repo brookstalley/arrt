@@ -12,6 +12,7 @@ import json
 
 import httpx
 import pytest
+from async_http import request
 from fakes import FakeFinder, FakeRegistry, a_roster
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
@@ -87,10 +88,9 @@ def http(server_url):
 
 
 async def call(server_url: str, tool: str, **arguments) -> tuple[dict, bool]:
-    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            result = await session.call_tool(tool, arguments)
+    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _), ClientSession(read, write) as session:
+        await session.initialize()
+        result = await session.call_tool(tool, arguments)
     return json.loads(result.content[0].text), bool(result.isError)
 
 
@@ -99,7 +99,8 @@ def test_the_route_counts_hosts_and_carries_no_address(sighted, http):
 
     assert answer.status_code == 200
     assert answer.json() == {"hosts": [{"host": "www.moma.org", "works": 1}]}
-    assert "/collection/works" not in answer.text and "sighting-path-marker" not in answer.text
+    assert "/collection/works" not in answer.text
+    assert "sighting-path-marker" not in answer.text
 
 
 def test_the_route_answers_an_empty_list_when_nothing_was_sighted(http):
@@ -112,16 +113,19 @@ async def test_the_mcp_action_names_the_same_facts_and_no_address(sighted, serve
     assert errored is False
     assert payload["hosts"] == [{"host": "www.moma.org", "works": 1}]
     assert payload["count"] == 1
-    assert "sighting-path-marker" not in json.dumps(payload) and "/collection/works" not in json.dumps(payload)
+    assert "sighting-path-marker" not in json.dumps(payload)
+    assert "/collection/works" not in json.dumps(payload)
 
 
 async def test_a_get_records_what_it_found_through_the_runner_the_plane_wires(server_url):
     """The museum holds only a near-match, so the work is left open, and MoMA's page is counted."""
-    started = httpx.post(f"{server_url}/api/gets", json={"qids": [DROWNING_GIRL]}, timeout=10)
+    started = await request("POST", f"{server_url}/api/gets", json={"qids": [DROWNING_GIRL]}, timeout=10)
     assert started.status_code == 200, started.text
     assert (await finished(server_url, started.json()["run"]["run_id"]))["status"] == "completed"
 
-    assert httpx.get(f"{server_url}/api/sightings/hosts", timeout=10).json() == {"hosts": [{"host": "www.moma.org", "works": 1}]}
+    assert (await request("GET", f"{server_url}/api/sightings/hosts", timeout=10)).json() == {
+        "hosts": [{"host": "www.moma.org", "works": 1}]
+    }
 
 
 async def finished(server_url: str, run_id: str) -> dict:
