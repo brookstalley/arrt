@@ -2566,8 +2566,8 @@ open_questions:
   # notes carried were added. Three more closed the same day by the operator:
   # the names (then Curatarr and Arrt; since 2026-10-01 Arrt and Postarr),
   # Player auth (a token per wall), and the v1 open chunks (abandoned; their requirements are rebuilt in later waves).
-  - question: "Re-architecture open questions (artifacts/re-architecture.md § Open questions is the full text): the Player cache's location (wave 2); the server image's provenance (before wave 3); the schedule horizon and a scene's default preview lifetime (before wave 4; the fields exist in the major 2 draft); the compositing budget on a Pi 4 (before wave 4); the quality profile's numbers (wave 4); the presentation master's size cap and encoding; directive latency (ETag poll or server-sent events); the smart-playlist rule language; mat colour per aspect ratio; facet editing in the UI; the Watch questions (prompt-injection re-derivation, whether auto-accept is offered, initiated_by, push alerts); filing the program as backlog issues."
-    blocking: "Waves 1–4 of re-architecture.md. The compositing budget blocks planning wave 4."
+  - question: "Re-architecture open questions (artifacts/re-architecture.md § Open questions is the full text): the Player cache's location (wave 2); the server image's provenance (before wave 3); the schedule horizon and a scene's default preview lifetime (before wave 4; the fields exist in the major 2 draft); the quality profile's numbers (wave 4); the presentation master's size cap and encoding; directive latency (ETag poll or server-sent events); the smart-playlist rule language; mat colour per aspect ratio; facet editing in the UI; the Watch questions (prompt-injection re-derivation, whether auto-accept is offered, initiated_by, push alerts); filing the program as backlog issues."
+    blocking: "Waves 1–4 of re-architecture.md. (The compositing budget, which blocked planning wave 4, was measured 2026-10-04.)"
     waiting_on: operator
     priority: high
   # RESOLVED 2026-08-11 by the operator: RATIFIED, with an amendment that is
