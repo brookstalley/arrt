@@ -72,7 +72,7 @@ also settles #218's browser half).
 
 ## Status
 
-- [ ] Chunk 01: The store, the norm, previews through it, and the import
+- [x] Chunk 01: The store, the norm, previews through it, and the import
 - [ ] Chunk 02: The sweep retired, the store on the health panel, and the bugs it closes
 
 ### Chunk 01: The store, the norm, previews through it, and the import
