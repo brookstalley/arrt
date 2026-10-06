@@ -14,8 +14,9 @@ each entry, which is the durable form.
 
 **`build-plan-search-held-not-held.md` Chunk 01.** Visual change: yes.
 
-Supersedes what the 2026-10-01 entries below say about Enter and the dropdown's
-group names. Checked by the builder against the browser suite. Not yet deployed.
+Supersedes what the 2026-10-01 entries below say about Enter, the dropdown's
+group names, and the results page's *All* / *In your library* / *Not held* switch,
+which is gone: nothing there is to be judged any more. Checked by the builder against the browser suite. Not yet deployed.
 
 - **Look at:** typing in the search box shows two halves, *Held* and *Not held*.
   An empty Held is one line, "Nothing you hold matches." Wikidata's artists, works
