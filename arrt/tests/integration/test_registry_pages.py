@@ -19,6 +19,7 @@ from arrt.library.registry import (
     RegistryCreator,
     RegistryHolder,
     RegistryImageSize,
+    RegistryPerson,
     RegistrySimilar,
     RegistryText,
     RegistryWork,
@@ -269,6 +270,115 @@ class TestAnArtistByQid:
         assert "bruegel" in refused.json()["error"]
 
 
+class TestAnUnlinkedArtist:
+    """An artist the library holds with no QID: who Wikidata says they might be, proposed and never stored.
+
+    The search is the matcher's own (`people_named`), and so is the test of
+    years, so the page proposes first the person the matcher would have chosen.
+    """
+
+    @pytest.fixture
+    def kline(self, service, registry):
+        painter = service.add_artist(name="Franz Kline", born=1910, died=1962)
+        service.add_artwork(title="Chicago", artist_id=painter.id)
+        registry.people["Franz Kline"] = [
+            # By renown, as Wikidata answers: a namesake with no years leads.
+            RegistryPerson(qid=ItemId("Q900001"), label=RegistryText("Franz Kline"), born=None, died=None),
+            RegistryPerson(qid=ItemId("Q900002"), label=RegistryText("Franz Kline"), born=1850, died=1901),
+            RegistryPerson(qid=ItemId("Q374492"), label=RegistryText("Franz Kline"), born=1910, died=1962),
+            RegistryPerson(qid=ItemId("Q900003"), label=RegistryText("Franz Kline"), born=1911, died=None),
+            RegistryPerson(qid=ItemId("Q900004"), label=RegistryText("Franz Klein"), born=1940, died=None),
+            RegistryPerson(qid=ItemId("Q900005"), label=RegistryText("Franz Kliner"), born=1960, died=None),
+            RegistryPerson(qid=ItemId("Q900006"), label=RegistryText("F. Kline"), born=1970, died=None),
+        ]
+        return painter
+
+    def test_the_people_whose_years_agree_come_first_and_five_at_most(self, http, kline):
+        page = http.get(f"/api/artists/{kline.id}/registry").raise_for_status().json()
+
+        assert page["state"] == "no_identity"
+        assert "not matched to Wikidata" in page["note"]
+        assert [(c["qid"], c["years_agree"]) for c in page["candidates"]] == [
+            ("Q374492", True),
+            ("Q900003", True),
+            ("Q900001", False),
+            ("Q900002", False),
+            ("Q900004", False),
+        ]
+        assert page["candidates"][0] == {
+            "qid": "Q374492",
+            "name": "Franz Kline",
+            "born": 1910,
+            "died": 1962,
+            "years_agree": True,
+        }
+
+    def test_an_item_another_library_artist_carries_is_not_offered(self, http, kline, service, services):
+        other = service.add_artist(name="Someone Else")
+        services.identity.set_artist_identity(other.id, "Q374492")
+
+        page = http.get(f"/api/artists/{kline.id}/registry").raise_for_status().json()
+
+        assert "Q374492" not in [c["qid"] for c in page["candidates"]]
+        assert page["candidates"][0]["qid"] == "Q900003"
+
+    def test_nothing_is_stored_until_the_curator_chooses(self, http, kline, services):
+        http.get(f"/api/artists/{kline.id}/registry").raise_for_status()
+
+        assert services.artists.get(kline.id).artist.wikidata_qid is None
+        chosen = http.post(f"/api/artists/{kline.id}/wikidata", json={"qid": "Q374492"}).raise_for_status().json()
+        assert (chosen["wikidata_qid"], chosen["wikidata_qid_set_by"]) == ("Q374492", "curator")
+        assert http.get(f"/api/artists/{kline.id}/registry").raise_for_status().json()["state"] == "known"
+
+    def test_there_is_none_is_honoured_and_asks_nothing(self, http, kline, services, registry):
+        services.identity.set_artist_identity(kline.id, None)
+
+        page = http.get(f"/api/artists/{kline.id}/registry").raise_for_status().json()
+
+        assert (page["state"], page["candidates"]) == ("no_identity", [])
+        assert "You said Wikidata has no item" in page["note"]
+        assert registry.searched == []
+
+    def test_the_search_is_asked_once_and_an_outage_is_said_and_not_kept(self, http, kline, registry):
+        registry.failing = True
+        down = http.get(f"/api/artists/{kline.id}/registry").raise_for_status().json()
+        assert (down["state"], down["candidates"]) == ("no_identity", [])
+        assert "could not be asked" in down["note"]
+
+        registry.failing = False
+        http.get(f"/api/artists/{kline.id}/registry").raise_for_status()
+        again = http.get(f"/api/artists/{kline.id}/registry").raise_for_status().json()
+
+        assert again["candidates"]
+        assert registry.searched == ["Franz Kline"]
+
+
+class TestANamesakeTheLibraryHoldsUnlinked:
+    """An artist reached by QID whom the library holds under the same name, with no QID.
+
+    The owner's path: search found the library's Kline and Wikidata's, as two.
+    """
+
+    def test_they_are_named_whatever_the_case_and_accents(self, http, service):
+        unlinked = service.add_artist(name="PIETER BRÜEGHEL THE ELDER", born=1525)
+
+        page = http.get(f"/api/registry/artists/{BRUEGEL}").raise_for_status().json()
+
+        assert (page["state"], page["artist_id"]) == ("known", None)
+        assert page["unlinked"] == [{"artist_id": unlinked.id, "name": "PIETER BRÜEGHEL THE ELDER", "born": 1525, "died": None}]
+
+    def test_one_linked_elsewhere_or_said_to_have_none_is_not(self, http, service, services):
+        linked = service.add_artist(name="Pieter Brueghel the Elder")
+        services.identity.set_artist_identity(linked.id, ROTHKO)
+        said_none = service.add_artist(name="Pieter Brueghel the Elder")
+        services.identity.set_artist_identity(said_none.id, None)
+        service.add_artist(name="Pieter Bruegel the Younger")
+
+        page = http.get(f"/api/registry/artists/{BRUEGEL}").raise_for_status().json()
+
+        assert page["unlinked"] == []
+
+
 class TestWithNoRegistryConfigured:
     @pytest.fixture
     def registry(self):
@@ -278,6 +388,14 @@ class TestWithNoRegistryConfigured:
         page = http.get(f"/api/registry/artists/{BRUEGEL}/similar").raise_for_status().json()
 
         assert (page["state"], page["artists"]) == ("not_configured", [])
+
+    def test_an_unlinked_artist_is_offered_nobody(self, http, service):
+        painter = service.add_artist(name="Franz Kline", born=1910, died=1962)
+
+        page = http.get(f"/api/artists/{painter.id}/registry").raise_for_status().json()
+
+        assert (page["state"], page["candidates"]) == ("no_identity", [])
+        assert "not matched to Wikidata" in page["note"]
 
     def test_both_pages_say_wikidata_is_not_configured_and_the_library_still_answers(self, http, held):
         rothko, kept = held

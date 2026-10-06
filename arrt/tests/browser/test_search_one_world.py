@@ -117,9 +117,9 @@ def test_wikidata_follows_the_library_and_shows_nothing_twice(ui, matched):
         "Salvador Dalí — artist",
         "The Persistence of Memory — Salvador Dalí",
         "Dalí and friends — theme",
-        "Gala Dalí (1894–1982) — artist ○ Not held",
-        "The Burning Giraffe — Salvador Dalí ◐ Not held · Image found",
-        "Crucifixion — Salvador Dalí ○ Not held",
+        "Gala Dalí (1894–1982) — artist",
+        "The Burning Giraffe — Salvador Dalí ◐ Image found",
+        "Crucifixion — Salvador Dalí ○ No image known",
         "Ask about “dali”",
         "All results for “dali”",
     ]

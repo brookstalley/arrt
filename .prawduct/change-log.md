@@ -62,6 +62,56 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-06: Artist pages that lead somewhere, quieter search marks, a settled review card
+
+<!-- prawduct: scope=artist-search-review-fixes -->
+
+**Why:** four things the owner hit the same day (`build-plan-artist-search-review-fixes.md`).
+The library's Franz Kline had no Wikidata item, so his page listed nothing of
+Wikidata's while search showed Wikidata's Kline beside him. The matcher that
+links artists is hand-run and had not run since he was acquired. Lucy Bull's page
+by QID said Wikidata lists no works and stopped there. Every row under *Not held*
+said "Not held" again. And a review card kept *Why*, *Accept* and *Reject* after
+Accept, though both verdicts are final.
+
+**What:**
+- `GET /api/artists/{id}/registry` carries `candidates` for an unlinked artist:
+  Wikidata's people of that name, those whose years agree first (the matcher's
+  own search and test, `identity.years_agree`, now public). The page offers each
+  with *This is them*, which stores it through the identity route. Nothing is
+  stored without the click. The search is kept a week (`registry.people`).
+- `GET /api/registry/artists/{qid}` carries `unlinked`: library artists of that
+  name with no item. The page offers *Link them to this item*.
+- An artist Wikidata lists no works for is offered *Ask for their work*, which
+  fills in Ask with "Paintings by <name>" and starts nothing.
+- Inside a search group a mark says only what the heading does not. Artist rows
+  carry none (the top result keeps its own). A not-held work reads ◐ *Image found*
+  or ○ *No image known*. This holds in the results page and the dropdown.
+- A decided review card says "Accepted. It is in your library." with *Open it in
+  Artworks*, or "Rejected. It will not be proposed again.", where its controls
+  were. Its scans offer no choice. A wanted card keeps *Forget*.
+- Every candidate work served over HTTP carries `decided` (`Verdict.is_terminal`),
+  which the card hides its controls on, so the client keeps no copy of the
+  final verdicts. It is HTTP-only, as `RunOut.is_terminal` is. Additive.
+- The picture-store norm in `data-model.md` is re-affirmed by the owner: #61, #62
+  and #81 are the history it closed (the startup advisory, answered the same day).
+
+**Tests changed, and why:** in `test_the_search_results_page.py`,
+`test_held_then_not_held_each_marked_and_nothing_twice` is renamed
+`…_marked_only_where_the_group_does_not_say_…`. It and the tests asserting
+`● In your library` on a grouped artist row, and *Not held* in a not-held work's
+mark, now assert the owner's ruling, with absence assertions added. The top
+result's `● In your library` assertion is unchanged. In `test_search_one_world.py`,
+`test_wikidata_follows_the_library_and_shows_nothing_twice` changes the same
+way. This records a changed requirement; the contract was not weakened.
+`_answered` there and in `test_topics.py` read `#view p[aria-live]` before the
+page drew it, and failed under `-n auto` on develop as well. They now wait for
+the Not held group's own note.
+`test_surface_parity.py`'s `…_agree_but_for_one_named_field` is renamed
+`…_agree_but_for_the_named_fields`. `decided` joins `rationale` as a named
+HTTP-only field, for the reason `RunOut.is_terminal` is one. The check is
+unchanged: each exempt field is still named.
+
 ## 2026-10-06: The browser suite runs in four CI shards, and skips record-only pull requests
 
 <!-- prawduct: scope=ci-browser-shards -->

@@ -130,6 +130,11 @@ history is in `change-log.md`, scope `picture-store`.)*
 > so the disposable class cost a decided work its picture for good, and the sweep
 > that reclaimed it carried races of its own (#61, #62, #81).
 >
+> **Re-affirmed: 2026-10-06, the owner — #61, #62, #81.** Cited as the history
+> this norm closed, not as work it waits on: all three were the retired preview
+> sweep's races, closed because this norm retired the sweep. The norm's reasons
+> above stand without them.
+>
 > **What it means, as ruled by the owner the same day:** two sizes are kept,
 > 480 px and 2,048 px on the long edge, so enlarging a scan at review stays as
 > sharp as when it was re-rendered per request; the store is not in the backup,
@@ -2095,8 +2100,9 @@ the catalogue**: a file of its own under `ART_ROOT`, holding no record and
 referred to by none. General purpose: the store names no source; each use
 registers a namespace with its own maximum age, size and codec. The registry's
 page sections are its first users (namespaces `registry.artist`,
-`registry.similar`, `registry.work`, `registry.search`, each 7 days and 512
-answers).
+`registry.similar`, `registry.work`, `registry.search`, and since 2026-10-06
+`registry.people` (an unlinked artist's name search, keyed by the name), each
+7 days and 512 answers).
 
 | Field | Type | Constraints | Description |
 |---|---|---|---|

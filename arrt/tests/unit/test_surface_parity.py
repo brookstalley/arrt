@@ -151,22 +151,27 @@ def test_every_fact_the_artist_record_holds_reaches_both_surfaces():
         )
 
 
-#: The one field `CandidateWorkOut` carries that `_work_summary` does not, and
-#: why the difference is intended on both sides rather than an omission.
+#: The fields `CandidateWorkOut` carries that `_work_summary` does not, and why
+#: each difference is intended on both sides rather than an omission.
 #:
-#: The HTTP model shows the run view and the review grid, where a curator judging
-#: a work list is judging the engine's reasoning as much as the titles. The MCP
-#: summary is deliberately "enough to choose and to act, and no more" — and the
-#: same prose repeated across forty listing rows is what pushed that shape past
-#: the token budget its own docstring records measuring.
+#: `rationale`: the HTTP model shows the run view and the review grid, where a
+#: curator judging a work list is judging the engine's reasoning as much as the
+#: titles. The MCP summary is deliberately "enough to choose and to act, and no
+#: more" — and the same prose repeated across forty listing rows is what pushed
+#: that shape past the token budget its own docstring records measuring.
 #:
-#: Named rather than tolerated by a subset check: an exemption list of one is a
-#: decision, and a bare `<=` would silently absorb the next four.
-HTTP_ONLY_ON_CANDIDATE_WORK = frozenset({"rationale"})
+#: `decided`: carried for the browser for the reason `RunOut.is_terminal` is
+#: (below). The review card hides its verdict controls on it, and a list of
+#: final verdicts copied into the client is what would go stale. A model reads
+#: `verdict` itself, and a second verdict's refusal says the first was final.
+#:
+#: Named rather than tolerated by a subset check: an exemption list is a
+#: decision per field, and a bare `<=` would silently absorb the next four.
+HTTP_ONLY_ON_CANDIDATE_WORK = frozenset({"rationale", "decided"})
 
 
-def test_the_candidate_work_projections_agree_but_for_one_named_field():
-    """The seven keys the MCP surface writes once, against the HTTP model's eight.
+def test_the_candidate_work_projections_agree_but_for_the_named_fields():
+    """The keys the MCP surface writes once, against the HTTP model's, which adds only the named fields.
 
     Until 2026-08-06 those seven were written out at four sites with identical
     expressions — three in `bindings.py` and one in `api.py`. Adding `provenance`

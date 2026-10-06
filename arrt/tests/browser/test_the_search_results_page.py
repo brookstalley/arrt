@@ -72,7 +72,12 @@ def _results(ui, query, extra=""):
 
 
 def _answered(ui):
-    ui.page.wait_for_function("() => !document.querySelector('#view p[aria-live]').textContent.startsWith('Asking')")
+    # The Not held group's own note, and only once it is drawn: read before the
+    # page is, a bare `#view p[aria-live]` is null, or the page before's.
+    ui.page.wait_for_function(
+        "() => { const note = document.querySelector(\"section[aria-labelledby='results-not-held'] p[aria-live]\");"
+        " return note !== null && !note.textContent.startsWith('Asking'); }"
+    )
 
 
 def _rows(ui, half, kind):
@@ -125,22 +130,27 @@ def test_enter_in_the_search_box_opens_it_and_it_returns_where_it_was_opened(ui,
     ui.page.wait_for_selector("#view h2:has-text('Walls')")
 
 
-def test_held_then_not_held_each_marked_and_nothing_twice(ui, matched):
+def test_held_then_not_held_marked_only_where_the_group_does_not_say_and_nothing_twice(ui, matched):
     _results(ui, "dali")
     _answered(ui)
 
     assert ui.page.locator("#view h3").all_inner_texts() == ["Held", "Not held"]
-    assert _rows(ui, "held", "artists") == ["Salvador Dalí 1904–1989 ● In your library"]
+    assert _rows(ui, "held", "artists") == ["Salvador Dalí 1904–1989"]
     assert _rows(ui, "held", "works") == ["The Persistence of Memory — Salvador Dalí ● Held"]
     assert _rows(ui, "not-held", "artists") == [
-        "Gala Dalí 1894–1982 ○ Not held",
-        "Ana María Dalí 1908–1989 ○ Not held",
-        "Dalibor Chatrný 1925–2012 ○ Not held",
+        "Gala Dalí 1894–1982",
+        "Ana María Dalí 1908–1989",
+        "Dalibor Chatrný 1925–2012",
     ]
     assert _rows(ui, "not-held", "works") == [
-        "The Burning Giraffe — Salvador Dalí ◐ Not held · Image found",
-        "Crucifixion — Salvador Dalí ○ Not held",
+        "The Burning Giraffe — Salvador Dalí ◐ Image found",
+        "Crucifixion — Salvador Dalí ○ No image known",
     ]
+    # Inside a group a mark says only what the heading does not (the owner,
+    # 2026-10-06): no artist row is marked, and no row says "Not held" again.
+    assert _group(ui, "held").locator(".results-kind:has(h4:has-text('Artists')) .state-mark").count() == 0
+    assert _group(ui, "not-held").locator(".results-kind:has(h4:has-text('Artists')) .state-mark").count() == 0
+    assert "Not held" not in " ".join(_group(ui, "not-held").locator(".results-list").all_inner_texts())
     # Each kind is headed inside its group, and the heading carries the group's
     # name, unseen, so a reader hears which half a kind is in.
     assert _group(ui, "held").locator("h4").evaluate_all("nodes => nodes.map((n) => n.textContent)") == [
@@ -164,7 +174,7 @@ def test_nothing_held_is_one_line_and_wikidatas_works_are_under_not_held(ui, mat
     held = _group(ui, "held")
     assert " ".join(held.inner_text().split()) == "Held Nothing you hold matches."
     assert held.locator(".results-none").is_visible()
-    assert _rows(ui, "not-held", "works") == ["The Burning Giraffe — Salvador Dalí ◐ Not held · Image found"]
+    assert _rows(ui, "not-held", "works") == ["The Burning Giraffe — Salvador Dalí ◐ Image found"]
     # No kind says it is empty, in either group.
     text = ui.page.locator("#view").inner_text()
     assert "No artists" not in text
@@ -185,7 +195,7 @@ def test_a_query_matching_only_held_things_shows_nothing_twice_and_says_so(ui, m
     _results(ui, "salvador%20dali")
     _answered(ui)
 
-    assert _rows(ui, "held", "artists") == ["Salvador Dalí 1904–1989 ● In your library"]
+    assert _rows(ui, "held", "artists") == ["Salvador Dalí 1904–1989"]
     assert _rows(ui, "held", "works") == ["The Persistence of Memory — Salvador Dalí ● Held"]
     assert _group(ui, "not-held").locator("li").count() == 0
     assert _note(ui).inner_text() == "Wikidata has nothing more."
@@ -214,7 +224,7 @@ def test_an_old_view_in_the_address_is_ignored_and_both_groups_show(ui, matched,
     _results(ui, "dali", "&view=library")
     _answered(ui)
 
-    assert _rows(ui, "held", "artists") == ["Salvador Dalí 1904–1989 ● In your library"]
+    assert _rows(ui, "held", "artists") == ["Salvador Dalí 1904–1989"]
     assert len(_rows(ui, "not-held", "works")) == 2
     assert registry.searched, "Wikidata was not asked, so the old view still narrows the page"
 
@@ -257,7 +267,7 @@ def test_an_outage_leaves_the_held_group_and_says_so(ui, matched, registry):
     # Said in the Not held group, where Wikidata's rows would be.
     assert _group(ui, "not-held").locator("p[aria-live]").count() == 1
     assert _rows(ui, "held", "works") == ["The Persistence of Memory — Salvador Dalí ● Held"]
-    assert _rows(ui, "held", "artists") == ["Salvador Dalí 1904–1989 ● In your library"]
+    assert _rows(ui, "held", "artists") == ["Salvador Dalí 1904–1989"]
     assert _group(ui, "not-held").locator("li").count() == 0
 
 
@@ -306,7 +316,7 @@ class TestWithNoRegistryConfigured:
         _answered(ui)
 
         assert "only your library is searched" in _note(ui).inner_text()
-        assert _rows(ui, "held", "artists") == ["Salvador Dalí 1904–1989 ● In your library"]
+        assert _rows(ui, "held", "artists") == ["Salvador Dalí 1904–1989"]
 
 
 def test_a_failed_library_search_is_an_error_not_an_empty_page(ui, seeded_service):

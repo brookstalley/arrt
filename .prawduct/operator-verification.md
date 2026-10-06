@@ -10,6 +10,33 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Artist pages that lead somewhere, quieter search marks, a settled review card — added 2026-10-06
+
+**`build-plan-artist-search-review-fixes.md` Chunk 01.** Visual change: yes.
+
+Checked by the builder against the suites, including the browser suite with a
+fake Wikidata. Not yet deployed.
+
+- **Try:** open the library's Franz Kline (search "Franz Kline", the Held row).
+  Under *Their work*, Wikidata's people named Franz Kline are listed, Q374492
+  (1910–1962) first with "their years agree". Press *This is them*: the page draws
+  his Wikidata works, his two held ones marked ● Held. Search "Franz Kline" again:
+  he is now one artist, under Held.
+- **Try:** search "Lucy Bull", open her under Not held. Below "Wikidata lists no
+  works for them." is *Ask for their work*, which opens Ask filled with "Paintings
+  by Lucy Bull" and starts nothing.
+- **Look at:** any search results page. Artist rows have no mark; a not-held work
+  reads ◐ *Image found* or ○ *No image known*. The top result keeps its ● or ○.
+- **Try:** on a Get or run page, Accept a work. The *Why* box and the buttons give
+  way to "Accepted. It is in your library." with *Open it in Artworks*.
+- **Worth an opinion:** whether "Paintings by <name>" is the Ask wording you'd
+  want, and whether *This is them* should ask for confirmation first.
+- **Then, once Kline is checked:** stop the server and run `python -m arrt.identify`
+  once (`backlog #252` is making it unnecessary). It links every unlinked artist
+  the matcher is certain of, and prints the ones it could not decide; those are
+  the ones the candidates list is for. Run it first and Kline is linked before
+  you can try the list on him.
+
 ### A work you don't hold shows what the sources hold, before any Get — added 2026-10-06
 
 **`build-plan-look-before-get.md` Chunks 01–02.** Visual change: yes (the Work
