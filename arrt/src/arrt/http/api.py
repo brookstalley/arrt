@@ -77,6 +77,7 @@ from arrt.http.models import (
     NameClient,
     OriginalOut,
     PickItem,
+    PicturesOut,
     QueuedWorkOut,
     QueuePauseOut,
     RegistryCreatorOut,
@@ -181,7 +182,7 @@ from arrt.programming.display import ThemeCount, ThemePlacement, WallView
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.programming.manifest.heartbeat import HeartbeatReading
 from arrt.services.container import Services
-from arrt.services.health import HealthReading, SourceHealth
+from arrt.services.health import HealthReading, PicturesReading, SourceHealth
 
 log = logging.getLogger(__name__)
 
@@ -199,14 +200,14 @@ THUMBNAIL_CACHE_CONTROL: str = "private, no-cache"
 #: preference. A thumbnail is named for its *work*, and a re-acquired master
 #: regenerates it under the same name, so a cached copy can become a superseded
 #: acquisition on screen. A candidate preview is named for its *instance*: the
-#: cache never re-fetches a file it already has, and nothing rewrites one, so the
-#: bytes behind an image id are written once and only ever deleted. An id whose
-#: content cannot change is the case `immutable` exists for, and it is what keeps
-#: a repaint of a thirty-card grid from re-encoding thirty images on a Pi.
+#: picture store keeps one picture per instance, never re-fetches what it keeps
+#: and never deletes it, so the bytes behind an image id are written once. An id
+#: whose content cannot change is the case `immutable` exists for, and it is what
+#: keeps a repaint of a thirty-card grid from asking the server thirty times.
 #:
-#: Reclamation is not a hole in that. A decided work's previews are deleted, and a
-#: card for such a work is told by the listing that no picture travels — so it
-#: never asks, and a copy still in a browser cache is never shown.
+#: A row the old sweep reclaimed is not a hole in that: its card is told by the
+#: listing that no picture travels, so it never asks, and a copy still in a
+#: browser cache is never shown.
 PREVIEW_CACHE_CONTROL: str = "private, max-age=86400, immutable"
 
 
@@ -1256,26 +1257,23 @@ def get_candidate_preview(
     image_id: str,
     size: Annotated[Literal["card", "large"], Query()] = "card",
 ) -> Response:
-    """The picture for one instance, re-encoded for a browser.
+    """The picture for one instance, from the picture store, never from a source.
 
     `size=large` is the picture a review card opens in place when it is
-    clicked: the largest preview the server holds, at its own size
-    (`ENLARGED_MAX_EDGE_PX` bounds it). The default is the card's own, small
-    enough for a page of them. Any other value is refused rather than read as
-    the default, so a misspelt request is not quietly answered small.
+    clicked: the store's larger tier, the source's preview at its own size up to
+    2,048 px (`ENLARGED_MAX_EDGE_PX`). The default is the card's own, the
+    smaller tier, small enough for a page of them. Any other value is refused
+    rather than read as the default, so a misspelt request is not quietly
+    answered small.
 
-    Not a `FileResponse` over the cached file, and not for want of trying to keep
-    this thin. A cached preview's *name* is derived from its URL and falls back to
-    `.jpg` for anything unrecognised, so the suffix on disk is not evidence of
-    what the bytes are — serving a TIFF as `image/jpeg`, or as `image/tiff`, is a
-    blank card either way. The re-encode is what makes one media type true.
+    The kept file's bytes as they are: the store re-encoded every picture as
+    JPEG when it kept it, so one media type is already true and nothing is
+    rendered per request.
 
-    No conditional handling, unlike the catalogue's thumbnail. That one is a
-    cached file whose ETag Starlette computes from a `stat`; this is generated per
-    request from a file with no stable identity for a client to revalidate
-    against, so a 304 would have nothing to compare. What bounds the cost instead
-    is the grid: a card asks once, and only for the works whose alternates a
-    curator opens.
+    No conditional handling, unlike the catalogue's thumbnail. That one is a file
+    regenerated under the same name when a master is replaced, so a client must
+    revalidate it; these never change behind an image id, so `immutable` answers
+    instead.
     """
     rendered = _services(request).review.preview_image(image_id, enlarged=size == "large")
     return Response(content=rendered.data, media_type=rendered.media_type, headers={"Cache-Control": PREVIEW_CACHE_CONTROL})
@@ -1866,6 +1864,17 @@ def _health(reading: HealthReading) -> HealthOut:
         backup=_backup(reading.backup),
         artwork_box=_artwork_box(reading.artwork_box),
         sources=[_source_plugin(each) for each in reading.sources],
+        pictures=_pictures(reading.pictures),
+    )
+
+
+def _pictures(reading: PicturesReading) -> PicturesOut:
+    return PicturesOut(
+        pictures_bytes=reading.pictures_bytes,
+        pictures_files=reading.pictures_files,
+        age_seconds=reading.age_seconds,
+        unreadable=reading.unreadable,
+        description=reading.describe(),
     )
 
 

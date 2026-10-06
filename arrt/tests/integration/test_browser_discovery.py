@@ -33,7 +33,6 @@ from fakes import (
 )
 
 from arrt.library.discovery.engine import BudgetExhausted, EngineFailure, WorkList
-from arrt.library.services.previews import PreviewSettings
 from arrt.persistence.discovery_records import RunStatus, UnresolvedReason
 from arrt.services.container import Services
 
@@ -464,7 +463,6 @@ class TestWhatTheRunBroughtBack:
             engine=engine,
             discovery_settings=settings.discovery_settings,
             sources=a_roster(museum, collection=collection),
-            previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
             spawn=run_threads,
         )
 

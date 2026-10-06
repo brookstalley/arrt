@@ -80,7 +80,7 @@ function provenanceBadge(work) {
 /* The picture for one instance, or what stands in for it.
  *
  * The card knows before it asks — the listing carries `preview_available` — so a
- * work whose picture was reclaimed never requests bytes that are not there. The
+ * work with no kept picture never requests bytes that are not there. The
  * error handler is for the narrow race where the file goes away in between, and
  * for a museum's file that will not decode: the listing reports that one as
  * available, because nothing has read the bytes yet.

@@ -36,13 +36,18 @@ CATALOGUE_FILENAME: Final[str] = "catalogue.sqlite"
 #: regenerated on whatever machine needs them, never copied between machines.
 THUMBNAILS_DIRNAME: Final[str] = "thumbs"
 
-#: Where candidate previews are cached under `ART_ROOT`. **A third class**, and
-#: kept apart from `thumbs/` because of it: a thumbnail is derived from a work
-#: the catalogue holds, while a preview belongs to a work nobody has accepted and
-#: may never. Previews are disposable the moment their candidate reaches a
-#: terminal verdict, and a sweep that could not tell the two apart would delete a
-#: held work's thumbnails.
+#: Where candidate previews were cached under `ART_ROOT` before the picture
+#: store. Nothing writes here any more: at startup the import moves every file a
+#: row names into `pictures/` and repoints the row, and the operator removes the
+#: directory by hand once the import's log line reports `done`.
 PREVIEWS_DIRNAME: Final[str] = "previews"
+
+#: Where every picture Arrt fetches from outside is kept under `ART_ROOT`
+#: (`library/services/pictures.py`). Kept forever, re-encoded as JPEG, and kept
+#: apart from `thumbs/`: a thumbnail is derived from a master the catalogue
+#: holds, a picture here was fetched from a source, and neither is transported
+#: or backed up.
+PICTURES_DIRNAME: Final[str] = "pictures"
 
 #: Where acquired master images are written under `ART_ROOT`. Upstream and
 #: expensive: this is the half of the tree rsync carries and nothing regenerates,
@@ -133,20 +138,6 @@ DEFAULT_PORT: Final[int] = 8770
 #: would be a regression nobody asked for.
 DEFAULT_ROTATION_INTERVAL_SECONDS: Final[int] = 180
 DEFAULT_ROTATION_SHUFFLE: Final[bool] = True
-
-#: How often the plane reclaims the previews of decided works.
-#:
-#: Hourly because the quantity being bounded is driven by a person: previews
-#: accumulate per image instance found, and instances are found by runs the
-#: curator starts. An hour is far shorter than the interval between a household's
-#: discovery sessions, so the directory is empty of decided works' previews
-#: whenever anyone looks — and the sweep is a walk over a household's rows plus a
-#: handful of unlinks, so running it more often than it has work to do costs
-#: nothing worth measuring.
-#:
-#: It matters because `operational-spec.md` § Risks opens with the SD card, and
-#: this directory is the only one under `ART_ROOT` that nothing else reclaims.
-DEFAULT_PREVIEW_SWEEP_INTERVAL_SECONDS: Final[int] = 3600
 
 #: How often the catalogue is backed up when `BACKUP_DIR` is set: daily, as
 #: `operational-spec.md` § Backup and Restore plans, plus once at every start.
@@ -383,10 +374,6 @@ class Settings:
     wall_name: str
     rotation_interval_seconds: int
     rotation_shuffle: bool
-    #: How often the plane reclaims the previews of works the curator has
-    #: decided. Zero disables sweeping, which is a coherent choice for a
-    #: deployment with disk to spare — previews are harmless, only numerous.
-    preview_sweep_interval_seconds: int
     #: Where the catalogue's backups go, or None when this deployment takes none
     #: (the health panel then says no backup has been recorded). A directory on
     #: storage other than the art root's, so losing one does not lose the other.
@@ -572,15 +559,14 @@ class Settings:
         return self.art_root / TILE_CACHE_DIRNAME
 
     @property
-    def previews_path(self) -> Path:
-        """Where phase 2 caches the previews a review card shows.
+    def pictures_path(self) -> Path:
+        """Where every picture fetched from outside is kept, for good.
 
         Inside `ART_ROOT` because every catalogue path is relative to it, and in
-        its own directory because these files are disposable in a way nothing
-        else under that root is — deletable as soon as their candidate work is
-        accepted or rejected, and never a loss when they go.
+        its own directory because these files were fetched from a source rather
+        than derived from anything the catalogue holds.
         """
-        return self.art_root / PREVIEWS_DIRNAME
+        return self.art_root / PICTURES_DIRNAME
 
     @property
     def tv_pixels_per_inch(self) -> float:
@@ -649,10 +635,6 @@ class Settings:
             wall_name=os.environ.get("WALL_NAME") or DEFAULT_WALL_NAME,
             rotation_interval_seconds=_positive_int("ROTATION_INTERVAL_SECONDS", DEFAULT_ROTATION_INTERVAL_SECONDS),
             rotation_shuffle=_flag("ROTATION_SHUFFLE", default=DEFAULT_ROTATION_SHUFFLE),
-            # `_counted` rather than `_positive_int`: zero means "do not sweep",
-            # which is a deployment's to choose, where a rotation interval of
-            # zero is simply broken.
-            preview_sweep_interval_seconds=_counted("PREVIEW_SWEEP_INTERVAL_SECONDS", DEFAULT_PREVIEW_SWEEP_INTERVAL_SECONDS),
             backup_dir=Path(os.environ["BACKUP_DIR"]) if os.environ.get("BACKUP_DIR") else None,
             backup_interval_seconds=_positive_int("BACKUP_INTERVAL_SECONDS", DEFAULT_BACKUP_INTERVAL_SECONDS),
             backup_keep=_positive_int("BACKUP_KEEP", DEFAULT_BACKUP_KEEP),

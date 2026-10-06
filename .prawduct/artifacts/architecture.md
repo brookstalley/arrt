@@ -331,7 +331,7 @@ recorded plan (curation on a desktop, NAS, or second Pi) — see Decision Log.
                     │  │  image prep · mat colour │   │  theme-manifest-<wall>(C)│ │
                     │  └───────────┬──────────────┘   │   raw/ ready/ thumbs/    │ │
                     │              │                  │   tv-thumbs/ tile-cache/ │ │
-                    │              │                  │   previews/              │ │
+                    │              │                  │   pictures/              │ │
                     │              │                  │   kept-answers.sqlite    │ │
                     │              │ HTTPS            │                          │ │
                     │              ▼                  │   display-state.sqlite(D)│ │
@@ -486,8 +486,8 @@ is no network between planes.
         │  ├─ CollectionBrowse (Protocol)     │          what the collection HOLDS by an artist, as
         │  │                                  │          opposed to what it can find: the offer
         │  │                                  │          supplementing works phase 2 could not confirm
-        │  └─ PreviewCache                    │          writes the disposable local copy an
-        │                                     │          instance is reviewed from
+        │  └─ PreviewCache ── PictureStore    │          keeps every picture fetched from outside,
+        │                                     │          for good: the only caller of fetch_preview
         │                                HealthService    every signal the health panel states, in one
         │                                     │          call. A service and not a handler concern
         │                                  observations   because WHICH signals the panel makes is a
@@ -502,8 +502,7 @@ is no network between planes.
         │                                     │          exception — a panel that raised where an age
         │                                     │          belongs would be an outage of its own
   Discovery ── ReviewService                  │          the pre-acceptance twin of SurveyService
-  Service ──── PreviewSweep                   │          reclaims the previews of decided works;
-        │       │              │              │          the plane's second background thread
+  Service      │                              │          answered from the PictureStore, never a museum
         │       │   AcquisitionService        │          fetches the master a work was accepted for.
         │       │    ├─ StreamOpener (seam)   │          the only service that runs a subprocess; all
         │       │    ├─ Resolver   (seam)     │          three edges are injected, so the policy above
@@ -550,35 +549,22 @@ is no network between planes.
   `DiscoveryService`, never the reverse, which keeps the dependency running the
   way the pipeline does.
 
-  **`PreviewCache` hangs off the runner, beside the two engine seams**, because a
-  preview is fetched at the moment an instance is found and from nowhere else.
-  `ReviewService` reads those files without going through it: producing a
-  small copy for a tool result is a read of the art tree, not another reason to
-  reach a museum.
-
-  **`PreviewSweep` is the plane's second background thread, and the first driven
-  by a timer** (added 2026-08-03). The runner's threads are one per run, started
-  by a request and finished when that run is; this one is started by the
-  application's lifespan, sweeps immediately, then waits out
-  `PREVIEW_SWEEP_INTERVAL_SECONDS` and repeats until shutdown stops it. It sits
-  beside `ReviewService` on `DiscoveryService` rather than under the runner,
-  because what it needs is the record layer and the art tree — never an engine,
-  never a museum, and nothing that can cost money. It is in the container for
-  the reason every service is: the entry point wires one thing, and a concern
-  reachable only by an entry point is one no surface and no test can exercise.
-
-  Its pass runs inside one store transaction, and **what that closes is narrower
-  than "the sweep and phase 2 cannot race"**. Deciding what to delete is a read
-  and deleting it is a write to the filesystem; holding the lock across both stops
-  `record_image` landing *between* them, because it takes the same lock. It does
-  not stop the writer's own two halves straddling it — `PreviewCache.store` checks
-  the file with no lock at all and `record_image` takes one afterwards, so a row
-  can still be written naming a file a pass removed in between. That residual is
-  filed, and its consequence is bounded rather than hidden: `ReviewService` reports
-  a `preview_path` with no file behind it as an absent copy, not an unreadable one.
-  This is the one place in this plane where a transaction spans work outside the
-  store, and it is bounded to a walk of the catalogue's rows plus a handful of
-  unlinks.
+  **The picture store is where every picture fetched from outside is kept**
+  (`library/services/pictures.py`, since 2026-10-06; `data-model.md` § Direction).
+  `PreviewCache` hangs off the runner, beside the two engine seams, and is the
+  store's client: a preview is asked for at the moment an instance is found, and
+  the store looks first, fetches once on a miss, and writes 480 and 2,048 px tiers
+  through temporary names it renames. It is the only module that calls a source's
+  `fetch_preview`, which a static test holds, so "never from the source again" has
+  one place to hold. `ReviewService` reads the kept tiers through the store,
+  never a museum: the card and the enlarged view get the kept bytes as they are,
+  and the model's inline copy is re-encoded smaller from the 480 tier. The
+  container builds the store whatever the deployment, so a plane with no image
+  source still answers from what is kept; `reconcile` cleans the store's stray
+  temporary files and imports the old `previews/` directory at every start.
+  Nothing deletes a kept picture. *(Until 2026-10-06 a `PreviewSweep` thread
+  deleted a decided work's previews on a timer; it retired with the norm, and its
+  race with phase 2 went with it.)*
 
   `DiscoveryRunner` holds `DiscoveryService`, not the other way round, and the
   engine hangs off the runner alone — no other service can reach it, which is
@@ -1072,6 +1058,7 @@ heartbeat's.
 |---|---|---|
 | `catalogue.sqlite` | curation | curation |
 | `kept-answers.sqlite` — answers from slow foreign sources, disposable (`persistence/kept.py`), since 2026-10-02 | curation | curation |
+| `pictures/` — every picture fetched from outside, kept for good (`library/services/pictures.py`), since 2026-10-06 | curation | curation |
 | `theme-manifest-{wall_id}.json` — **one file per wall**, since 2026-08-12 | curation | display |
 | image tree (`raw/`, `ready/`, …) | curation | display |
 | `display-state.sqlite` | display | display |
@@ -1192,7 +1179,7 @@ See `re-architecture.md`.)* What remains:
 | **TV reachable, panel dark: it takes selections and displays none of them** | rotation stalls, and every call reports success | **The one failure a return value cannot carry**, and it is the everyday condition of a set someone switched off — measured on the deployment's own television (`samsung-tv-state-findings.md`): uploads, deletions, listings and brightness all work, while `select_image` is accepted, raises nothing, emits no event, and changes nothing. So **a selection is confirmed by the set's own `image_selected` announcement**, which carries the id and an `is_shown` flag and does not fire at all in this state. It is the *only* sound signal: the set answers a "what are you displaying" question with the art-store slot, unchanged by anything this product selects, so the obvious confirming *read* reports every real rotation as a failure and parks the wall on one picture (measured 2026-08-07, both directions). Because the announcement is pushed rather than polled, **asking and confirming are one operation** at the television seam — a listener registered after the request races an answer measured arriving in half a second. A selection that did not land is its own outcome rather than a failure to show one work: the pass ends instead of walking the theme, the place in the rotation is given back rather than consumed, a `show_now` is left unconsumed by the same rule an outage leaves it unconsumed, and nothing is recorded as having been on the wall. Said **once**, with the set's own art-mode flag in the line, and said again when it recovers. **Backed off from on the same ladder as an unreachable set** (5 s doubling to 300 s, reset on recovery), because the rotation timer governs rotation and nothing governed the directive path: an unconsumed `show_now` — which is the correct thing to leave behind — would otherwise be re-asked once per poll all night. The cost is that the wall resumes within the current wait of someone switching the set on rather than instantly, which is the same trade this plane already makes for a television that has gone away |
 | E-paper write fails | label stale | Log and continue; never let a panel failure stop the TV rotation |
 | Budget exhausted mid-run (the provider refuses — a 403; see `openrouter-api-findings.md`) | discovery halts partially | `halted_by_budget`, a modelled outcome. Already-acquired works stay acquired |
-| Preview sweep stops running | **curation only, and silently** | The characteristic failure of the plane's one periodic job: no error, no refusal, and no symptom until the SD card fills. It is upstream of the row below, and the only signal is positive — `preview.swept` at INFO on **every** pass, including the ones that reclaim nothing, so absence over an interval is the fault. A pass that hangs instead of stopping is the neighbouring case and reads differently: `preview.sweep_started` with no `preview.swept`, and at shutdown a `preview.sweep_wedged` warning, because that pass holds the store lock the next generation of services will want |
+| The picture store grows | **curation only** | There is no ceiling (owner, 2026-10-06), so the store is watched rather than bounded: the health panel and `art_display(action='status')` state its files and bytes, from a walk at most ten minutes old. Nothing deletes a kept picture; the disk-headroom guard ahead of acquisition is unchanged. *(Replaced 2026-10-06 the row for the preview sweep stopping, which retired with the norm.)* |
 | SD card full | **both planes** | The one genuinely shared failure. **Built 2026-08-03**: `library/acquisition/space.py` refuses before a fetch begins, sized by `MIN_FREE_BYTES` (2 GiB) and protecting `catalogue.sqlite` on the same device rather than the fetch. It raises rather than recording, because a full disk is a fact about the machine that every work behind this one would hit. **It is not the only one, and this row said it was until 2026-08-04.** The rule is general: a condition no source is at fault for raises, because a `failed` row against a source sends whoever reads it to the museum to look for a problem that is in the deployment. Three qualify today — a full disk, `dezoomify-rs` missing, and a provider with no tile resolver wired — and the next acquisition failure is judged against that rule rather than against this list, which is why the rule is stated here and the count is not |
 | SD card corruption | catastrophic | The catalogue is the irreplaceable asset and it lives here. Mitigation is off-device backup — see `operational-spec.md` |
 

@@ -467,6 +467,27 @@ async def test_status_says_plainly_that_the_display_plane_has_never_reported(ser
     )
 
 
+async def test_status_and_the_health_panel_state_the_same_picture_store_count(server_url, services):
+    """The store's size reaches both surfaces, end to end, as the store's own walk counted it.
+
+    Two pictures kept are four files, one per size. The value-for-value check
+    is `test_surface_parity.py`'s; this is that both bindings are wired to it.
+    """
+    import httpx
+    from fakes import a_decodable_jpeg
+
+    for name in ("one", "two"):
+        services.pictures.put("artic", f"https://museum.example/{name}", a_decodable_jpeg())
+
+    payload, errored = await call(server_url, "art_display", action="status")
+    async with httpx.AsyncClient(base_url=server_url) as client:
+        panel = (await client.get("/api/health")).json()["pictures"]
+
+    assert errored is False
+    assert payload["pictures"]["pictures_files"] == panel["pictures_files"] == 4
+    assert payload["pictures"]["pictures_bytes"] == panel["pictures_bytes"] == services.pictures.size().pictures_bytes > 0
+
+
 async def test_sync_names_every_work_that_will_not_be_on_the_wall(server_url, wall):
     """The seeded works have no originals, so a sync puts none of them up.
 

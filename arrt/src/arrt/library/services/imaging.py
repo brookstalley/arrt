@@ -20,13 +20,27 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
-from typing import Final
+from typing import BinaryIO, Final
 
 from PIL import Image, ImageOps
 
 from arrt.services.errors import ServiceError
 
 log = logging.getLogger(__name__)
+
+#: What Pillow raises for a file that is not a picture it can decode, named once
+#: so every caller catches the same set: `OSError` for a truncated file (and
+#: `UnidentifiedImageError`, which is an `OSError`, for one that is not an image
+#: at all), and `ValueError` from `convert` for at least one mode (`La`). A tuple
+#: rather than an `except (A, B)` at each site, because the formatter's 3.14 style
+#: unparenthesises a bare multi-type `except`, which the root suite's older
+#: interpreter cannot parse (#166).
+UNDECODABLE: Final[tuple[type[Exception], ...]] = (OSError, ValueError)
+
+#: `UNDECODABLE`, and Pillow's guard against a file engineered to exhaust memory,
+#: which derives straight from `Exception`. For a caller that answers both the
+#: same way; one that words a bomb differently catches it by name first.
+UNREADABLE: Final[tuple[type[Exception], ...]] = (*UNDECODABLE, Image.DecompressionBombError)
 
 #: JPEG, always. Both callers produce something a client renders immediately
 #: rather than an archival copy, and the source is already whatever the museum
@@ -49,8 +63,12 @@ class EncodedFrame:
     height: int
 
 
-def encode_downscaled(source: Path, *, max_edge: int, quality: int) -> EncodedFrame:
+def encode_downscaled(source: Path | BinaryIO, *, max_edge: int, quality: int) -> EncodedFrame:
     """Decode `source`, fit it inside `max_edge`, and return it as JPEG bytes.
+
+    `source` is a file on disk or bytes already in memory: the picture store
+    re-encodes what a source served without first writing it anywhere, because
+    the only file it may write is the re-encoded one.
 
     Raises whatever Pillow raises — `UnidentifiedImageError` for a file that is
     not an image, `OSError` for a truncated one, `Image.DecompressionBombError`

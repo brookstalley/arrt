@@ -14,7 +14,6 @@ from fakes import FakeRegistry
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
-from arrt.library.services.previews import PreviewSettings
 from arrt.library.sources import SourceContext
 from arrt.library.sources.loading import SourceRoster, load_sources
 
@@ -30,12 +29,6 @@ def sources() -> SourceRoster:
             registry=FakeRegistry(),
         )
     )
-
-
-@pytest.fixture
-def preview_settings(settings) -> PreviewSettings:
-    """The built-ins include finders, and a roster with a finder needs somewhere to keep previews."""
-    return PreviewSettings(art_root=settings.art_root, directory=settings.previews_path)
 
 
 async def tool(server_url: str) -> dict:

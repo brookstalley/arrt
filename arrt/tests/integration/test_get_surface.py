@@ -19,7 +19,6 @@ from arrt.library.discovery.images import FoundImage, ImageQuery
 from arrt.library.registry import CommonsFile, ItemId, RegistryCreator, RegistryText, RegistryWork
 from arrt.library.services.discovery import ChosenWork
 from arrt.library.services.get import MAX_ITEMS_PER_GET
-from arrt.library.services.previews import PreviewSettings
 from arrt.persistence.discovery_records import InitiatedBy, ResolutionStatus, RunKind, RunStatus
 from arrt.persistence.records import IdentitySetBy
 from arrt.services.container import Services
@@ -102,7 +101,6 @@ def services(store, discovery_store, wall_settings, thumbnail_settings, settings
         engine=engine,
         discovery_settings=settings.discovery_settings,
         sources=a_roster(commons, museum, collection=a_collection_holding(**{"Salvador Dalí": ["Sleep"]})),
-        previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
         registry=registry,
         # A collection holding the chosen works' artist, so a Get that left a work
         # unresolved would reach the supplement if nothing stopped it there.
@@ -285,7 +283,6 @@ def test_a_get_with_no_registry_is_refused_and_starts_nothing(
         engine=engine,
         discovery_settings=settings.discovery_settings,
         sources=a_roster(commons),
-        previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
     )
 
     with pytest.raises(ServiceError, match="WIKIDATA_USER_AGENT"):

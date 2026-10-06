@@ -1270,9 +1270,17 @@ ART_DISPLAY: Final = ToolRecord(
         ),
         Action(
             name="status",
-            description="Report what the display serving each wall last said about itself, and how long ago.",
+            description=(
+                "Report what the display serving each wall last said about itself, and how long ago, and how "
+                "much the picture store keeps."
+            ),
             example="art_display(action='status')",
             tips=(
+                (
+                    "pictures carries the picture store's pictures_bytes and pictures_files, counted at most ten "
+                    "minutes ago (age_seconds). Every picture fetched from outside is kept for good, two files each, "
+                    "so these only grow; no size is called too large."
+                ),
                 (
                     "This reports an observation and its age in seconds, never a verdict about health. "
                     "If no display has ever run for a wall, it says so plainly rather than reporting a zero."

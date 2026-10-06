@@ -39,7 +39,6 @@ from arrt.config import (
     DEFAULT_PHASE1_SEARCH_ALLOWANCE,
     DEFAULT_PHASE2_SEARCHES_PER_WORK,
     DEFAULT_PREVIEW_MAX_BYTES,
-    DEFAULT_PREVIEW_SWEEP_INTERVAL_SECONDS,
     DEFAULT_RESOLUTION_FLOOR_INCHES,
     DEFAULT_ROTATION_INTERVAL_SECONDS,
     DEFAULT_ROTATION_SHUFFLE,
@@ -96,7 +95,6 @@ def _defaults(art_root, **overrides) -> Settings:
             preview_max_bytes=DEFAULT_PREVIEW_MAX_BYTES,
             rotation_interval_seconds=DEFAULT_ROTATION_INTERVAL_SECONDS,
             rotation_shuffle=DEFAULT_ROTATION_SHUFFLE,
-            preview_sweep_interval_seconds=DEFAULT_PREVIEW_SWEEP_INTERVAL_SECONDS,
             backup_dir=None,
             backup_interval_seconds=DEFAULT_BACKUP_INTERVAL_SECONDS,
             backup_keep=DEFAULT_BACKUP_KEEP,
@@ -458,31 +456,6 @@ def test_uvicorn_is_given_no_logging_config_of_its_own(tmp_path, monkeypatch):
     assert passed["log_config"] is None
 
 
-def test_the_configured_sweep_interval_reaches_the_application(tmp_path, monkeypatch):
-    """Sweeping is off unless a caller asks, and this entry point is the caller.
-
-    `create_app` defaults the interval to zero so a test harness cannot acquire a
-    file-deleting thread by accident. The consequence is that a deployment sweeps
-    only because `main` passes its setting through — one line, whose deletion
-    leaves every sweep test green and the plane never reclaiming anything.
-    """
-    art_root = tmp_path / "art"
-    art_root.mkdir()
-    _stub_settings(monkeypatch, art_root, preview_sweep_interval_seconds=900)
-    built: dict = {}
-
-    def capture(services, **kwargs):
-        built.update(kwargs)
-        return object()
-
-    monkeypatch.setattr(entry_point, "create_app", capture)
-    monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
-
-    entry_point.main()
-
-    assert built["preview_sweep_interval_seconds"] == 900
-
-
 def test_the_entry_point_asks_for_the_topic_sweep(tmp_path, monkeypatch):
     """`create_app` sweeps topics only when asked, and this entry point is the one that asks.
 
@@ -632,7 +605,7 @@ def test_startup_names_every_image_source_it_wires_in_order(tmp_path, monkeypatc
     with caplog.at_level("INFO"):
         entry_point.main()
 
-    assert "phase2 image_sources=commons,artic,met,smk " in caplog.text
+    assert f"phase2 image_sources=commons,artic,met,smk pictures={art_root / 'pictures'} fetching=on" in caplog.text
     assert "source plugin wikidata loaded" in caplog.text
 
 
@@ -661,7 +634,7 @@ def test_startup_with_no_image_source_says_which_settings_would_add_one(tmp_path
         "phase2 image_sources=none (commons: WIKIDATA_USER_AGENT is unset, and Commons is reached only through a "
         "work's Wikidata item; artic: ARTIC_USER_AGENT is unset, and the Art Institute is never asked anonymously; "
         "wikidata: no registry is configured (WIKIDATA_USER_AGENT is unset), and pages are read from a work's item) "
-        "previews=disabled"
+        f"pictures={art_root / 'pictures'} fetching=off"
     ) in caplog.text
 
 

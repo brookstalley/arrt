@@ -238,10 +238,6 @@ class PhaseTwoEngine:
         )
         return Resolution(instances=judged, refusals=frozenset(refusals), pages=answer.pages)
 
-    def fetch_preview(self, provider: str, url: str) -> bytes | None:
-        """The preview bytes for an instance, or `None` when they could not be got."""
-        return self._sources.fetch_preview(provider, url)
-
     def _judge(self, query: ImageQuery, found: FoundImage, link: _WikidataLink) -> JudgedImage | UnresolvedReason:
         """Score one instance, or name the gate that refused it.
 

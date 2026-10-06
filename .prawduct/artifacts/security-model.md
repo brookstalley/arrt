@@ -78,6 +78,18 @@ identifier.**
   `tests/integration/test_sightings_api.py` holds.
 - **Links out are built from an item id**, never from a URL the registry
   supplied. No test sees this half, which is the Critic's.
+- **A candidate's picture reaches the page from Arrt's own route, re-encoded,
+  never from the source** *(added 2026-10-06, with the picture store,
+  `data-model.md` § Direction)*. Every picture a source serves is decoded and
+  re-encoded as JPEG before it is kept (`library/services/pictures.py`), through
+  Pillow's decompression-bomb guard, and what the source served is never stored as
+  it came, so a file that is not an image, or one engineered to exhaust memory, is
+  refused rather than kept. The browser is served the kept bytes from
+  `/api/candidate-images/{id}/preview`, as `image/jpeg`. **The key is never the
+  client's:** a kept picture is found from the row's own `preview_path`, which the
+  server wrote, and the key is computed on the server from the row's `provider` and
+  `url`. A request names an image id, never a path or a URL, so no client string
+  becomes a path on disk or an address the server fetches.
 
 **Retroactive:** yes. Every page the client has today already conforms, which
 the sink test confirms on the day it lands. The museum clients' text (titles,

@@ -21,7 +21,6 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
 from arrt.library.registry import CommonsFile, ItemId, RegistryCreator, RegistryText, RegistryWork
-from arrt.library.services.previews import PreviewSettings
 from arrt.persistence.errors import StorageError
 from arrt.services.container import Services
 
@@ -72,7 +71,6 @@ def services(store, discovery_store, wall_settings, thumbnail_settings, settings
         engine=engine,
         discovery_settings=settings.discovery_settings,
         sources=a_roster(museum),
-        previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
         registry=registry,
     )
     # Phase 2 on the request's own thread, so a Get has found its image by the
