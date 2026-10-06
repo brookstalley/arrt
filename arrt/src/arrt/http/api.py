@@ -150,9 +150,9 @@ from arrt.library.acquisition.queue import AcquisitionState, QueueListing, Queue
 from arrt.library.services.artists import HeldArtist, RegistryView
 from arrt.library.services.catalogue import FacetGroup, RenditionView
 from arrt.library.services.conversation import ConversationDeletion, ConversationView, TurnView
-from arrt.library.services.discovery import VerdictOutcome, WantedWork
+from arrt.library.services.discovery import VerdictOutcome
 from arrt.library.services.display_fit import ArtworkBox, FitAssessment
-from arrt.library.services.review import CandidatePage, CandidateView, InstanceListing, InstanceView
+from arrt.library.services.review import CandidatePage, CandidateView, InstanceListing, InstanceView, WantedView
 from arrt.library.services.runner import Estimate, RunView, SpendReport
 from arrt.library.services.survey import WorkDossier, WorkSurvey
 from arrt.library.services.taste import AffinityView
@@ -1191,7 +1191,8 @@ def want_candidate(request: Request, work_id: str, body: WantWork) -> CandidateW
 @router.get("/wanted")
 def list_wanted(request: Request) -> WantedListingOut:
     """Every work the curator wants, across runs, newest run first."""
-    return WantedListingOut(works=[_wanted_work(entry) for entry in _services(request).discovery.list_wanted()])
+    # No bytes read: the listing is uncapped, so each row's picture costs a stat.
+    return WantedListingOut(works=[_wanted_work(view) for view in _services(request).review.list_wanted(pictures=False)])
 
 
 @router.get("/sightings/hosts")
@@ -1698,7 +1699,8 @@ def _candidate_work(work: CandidateWork) -> CandidateWorkOut:
     )
 
 
-def _wanted_work(entry: WantedWork) -> WantedWorkOut:
+def _wanted_work(view: WantedView) -> WantedWorkOut:
+    entry = view.wanted
     work = entry.work
     return WantedWorkOut(
         work_id=work.id,
@@ -1707,6 +1709,7 @@ def _wanted_work(entry: WantedWork) -> WantedWorkOut:
         run_id=work.discovery_run_id,
         wikidata_qid=work.wikidata_qid,
         scans_turned_down=entry.scans_turned_down,
+        shown=None if view.shown is None else _instance(view.shown),
     )
 
 

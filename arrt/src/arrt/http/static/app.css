@@ -2173,3 +2173,18 @@ dialog.confirm::backdrop {
   margin: 0 0 var(--space-2) var(--space-3);
   font-size: var(--text-sm);
 }
+
+/* -- Wanted's pictures ------------------------------------------------------
+
+   Each wanted work pictured by the scan its card shows, at the size the Scans
+   table uses: enough to recognise a work by, and usually below the floor, which
+   the badge under it says. */
+
+.wanted .wanted-picture {
+  width: 8rem;
+}
+
+.wanted .wanted-picture .card-image {
+  width: 8rem;
+  border-radius: var(--radius-sm);
+}

@@ -16,6 +16,8 @@ import json
 import pytest
 from payloads import a_candidate, a_candidate_page, a_card, an_instance, an_instance_listing
 
+from arrt.http.models import FitOut, WantedListingOut, WantedWorkOut
+from arrt.library.services.display_fit import DisplayFit
 from arrt.persistence.discovery_records import InitiatedBy
 
 pytest.importorskip(
@@ -149,6 +151,99 @@ def wanted(discovery, propose, resolved_work):
 def open_wanted(ui):
     ui.open("#wanted")
     ui.page.wait_for_selector("h2:has-text('Wanted')")
+
+
+def a_wanted_listing(*works: WantedWorkOut) -> dict:
+    return WantedListingOut(works=list(works)).model_dump(mode="json")
+
+
+def a_wanted(title="Blue Green Red", artist="Ellsworth Kelly", work_id="work-1", **fields) -> WantedWorkOut:
+    defaults = {"run_id": RUN_ID, "wikidata_qid": "Q20189992", "scans_turned_down": 0, "shown": None}
+    return WantedWorkOut(work_id=work_id, title=title, artist=artist, **(defaults | fields))
+
+
+#: A museum's web-size picture of a work in copyright: far below the floor.
+TOO_SMALL = an_instance(
+    is_selected=False,
+    width=567,
+    height=625,
+    fit=FitOut(verdict=DisplayFit.BELOW_FLOOR.value, rendered_width=567, rendered_height=625, rendered_long_edge_inches=7.5),
+)
+
+
+def test_a_wanted_work_is_pictured_by_its_too_small_scan_and_says_so(ui):
+    ui.serve_image("**/api/candidate-images/*/preview*")
+    ui.serve("**/api/wanted", a_wanted_listing(a_wanted(shown=TOO_SMALL)))
+
+    open_wanted(ui)
+    picture = ui.page.wait_for_selector(".wanted tbody tr .wanted-picture img")
+
+    assert picture.get_attribute("alt") == "Blue Green Red, by Ellsworth Kelly"
+    assert "/api/candidate-images/image-1/preview" in picture.get_attribute("src")
+    row = ui.page.locator(".wanted tbody tr").inner_text()
+    assert "below floor" in row
+    assert "Found only too small" in row
+    assert "No scan found" not in row, "a picture never sits beside a claim that nothing was found"
+
+
+def test_pressing_a_wanted_work_s_picture_enlarges_it(ui):
+    ui.serve_image("**/api/candidate-images/*/preview*")
+    ui.serve("**/api/wanted", a_wanted_listing(a_wanted(shown=TOO_SMALL)))
+
+    open_wanted(ui)
+    ui.page.click("button[aria-label='Enlarge the picture of Blue Green Red']")
+
+    dialog = ui.page.wait_for_selector("dialog[open] img")
+    assert "size=large" in dialog.get_attribute("src")
+
+
+def test_a_wanted_work_with_no_scan_standing_says_why_in_words_in_place_of_a_picture(ui):
+    ui.serve(
+        "**/api/wanted",
+        a_wanted_listing(
+            a_wanted(work_id="work-1", title="Nothing Found"),
+            a_wanted(work_id="work-2", title="All Turned Down", scans_turned_down=2),
+        ),
+    )
+
+    open_wanted(ui)
+    ui.page.wait_for_selector(".wanted table")
+
+    assert ui.page.locator(".wanted .wanted-picture img").count() == 0
+    rows = ui.page.locator(".wanted tbody tr").all_inner_texts()
+    nothing = next(row for row in rows if "Nothing Found" in row)
+    turned = next(row for row in rows if "All Turned Down" in row)
+    assert "No scan found." in nothing
+    assert "Every scan found was turned down." in turned
+    assert "2 scans turned down" in turned
+    assert "too small" not in turned
+
+
+def test_a_wanted_work_holding_a_scan_on_offer_does_not_say_none_was_found(ui):
+    """Wanted naming no scan, from a card standing on one: the scan is still there."""
+    ui.serve_image("**/api/candidate-images/*/preview*")
+    ui.serve("**/api/wanted", a_wanted_listing(a_wanted(shown=an_instance())))
+
+    open_wanted(ui)
+    ui.page.wait_for_selector(".wanted tbody tr .wanted-picture img")
+
+    row = ui.page.locator(".wanted tbody tr").inner_text()
+    assert "One still on offer" in row
+    assert "No scan found" not in row
+
+
+def test_a_wanted_work_s_unselected_scan_of_unknown_size_is_not_called_on_offer(ui):
+    """On offer means selected, as on the card; a scan nobody chose is only found."""
+    ui.serve_image("**/api/candidate-images/*/preview*")
+    unsized = an_instance(is_selected=False, width=None, height=None, fit=None, fit_note="Its size was never recorded.")
+    ui.serve("**/api/wanted", a_wanted_listing(a_wanted(shown=unsized)))
+
+    open_wanted(ui)
+    ui.page.wait_for_selector(".wanted tbody tr .wanted-picture img")
+
+    row = ui.page.locator(".wanted tbody tr").inner_text()
+    assert "One found, not on offer" in row
+    assert "still on offer" not in row
 
 
 def test_wanted_lists_both_kinds_saying_which(ui, wanted):

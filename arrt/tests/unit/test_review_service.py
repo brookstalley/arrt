@@ -327,3 +327,60 @@ def test_a_resolve_run_lists_the_works_it_covers(services, discovery, propose, a
 
     assert page.run.kind is RunKind.RESOLVE
     assert [view.work.id for view in page.entries] == [work.id]
+
+
+# -- Wanted, pictured as its card is -------------------------------------------
+
+
+def _wanted_view(services, work_id):
+    return next(view for view in services.review.list_wanted() if view.wanted.work.id == work_id)
+
+
+def test_a_wanted_work_is_pictured_by_its_selection_even_where_a_better_scan_stands(services, discovery, propose, add_image):
+    # The curator chose the weaker scan, then wanted the work without turning it
+    # down. The card pictures the selection, not the best survivor, so Wanted must.
+    work = propose()
+    add_image(work, url="https://museum.example/best", confidence=0.95, estimated_width=6000, estimated_height=4500)
+    chosen = add_image(work, url="https://museum.example/chosen", confidence=0.6, estimated_width=5000, estimated_height=4000)
+    discovery.select_image(chosen.id)
+    discovery.want(work.id)
+
+    view = _wanted_view(services, work.id)
+
+    assert view.shown.image.id == chosen.id
+    assert view.shown.image.id == services.review.get_work(work.id).shown.image.id
+
+
+def test_a_wanted_work_whose_only_scan_is_below_the_floor_is_pictured_by_it(services, discovery, propose, add_image):
+    work = propose()
+    small = add_image(work, estimated_width=600, estimated_height=450)
+    discovery.want(work.id)
+
+    view = _wanted_view(services, work.id)
+
+    assert view.shown.image.id == small.id == services.review.get_work(work.id).shown.image.id
+    assert str(view.shown.fit.fit) == "below_floor"
+    assert view.wanted.scans_turned_down == 0
+
+
+def test_a_wanted_work_whose_every_scan_was_turned_down_is_not_pictured(services, discovery, propose, add_image):
+    # A turned-down scan may be another painting, so it never stands for the work.
+    work = propose()
+    scan = add_image(work)
+    discovery.want(work.id, turning_down=scan.id)
+
+    view = _wanted_view(services, work.id)
+
+    assert view.shown is None
+    assert view.wanted.scans_turned_down == 1
+
+
+def test_a_wanted_work_nothing_was_found_for_is_not_pictured(services, discovery, propose):
+    work = propose()
+    discovery.record_resolution(work.id)
+    discovery.want(work.id)
+
+    view = _wanted_view(services, work.id)
+
+    assert view.shown is None
+    assert view.wanted.scans_turned_down == 0

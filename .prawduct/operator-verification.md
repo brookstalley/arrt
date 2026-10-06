@@ -10,6 +10,24 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Wanted shows each work's picture — added 2026-10-06
+
+**`build-plan-wanted-pictures.md` Chunk 01.** Visual change: yes.
+
+Checked by the builder against the browser suite with stand-in pictures, and
+over real HTTP and MCP with a below-floor scan. Not yet deployed.
+
+- **Look at:** Wanted's first column pictures each work by the scan its review
+  card shows, with the fit badge under it (usually ▲ below floor); pressing it
+  enlarges it. A work with nothing standing says "No scan found." or "Every scan
+  found was turned down." in its place, and *Why* reads "Found only too small"
+  beside a too-small picture, never "No scan found".
+- **Try, once `met_pages` is deployed** (arrt-sources): *Search again* on Kelly's
+  *Blue Green Red* (Q20189992) should picture it at 544 × 600, below the floor,
+  and leave it on Wanted.
+- **Worth an opinion:** whether 8rem is the right size for a picture you
+  recognise a work by, and whether Wanted wants a grid rather than a table.
+
 ### Settings › Sources, and the Met as a source — added 2026-10-06
 
 **`build-plan-met-source.md` Chunks 01–02.** Visual change: yes.

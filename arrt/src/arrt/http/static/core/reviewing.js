@@ -116,6 +116,44 @@ function instanceImage(instance, { alt, label, name }) {
   return frame;
 }
 
+/* A wanted work's picture, as Wanted's table carries it: the scan its review
+ * card pictures it by (`shown`), enlargeable, with the fit badge that says how
+ * small it is — usually below the floor, since nothing the curator would accept
+ * is held. A work with no scan standing says why in words, never a blank cell. */
+export function wantedPicture(work) {
+  if (!work.shown) {
+    const why = work.scans_turned_down ? "Every scan found was turned down." : "No scan found.";
+    return el("div", { class: "wanted-picture" }, [el("div", { class: "card-image" }, [absentImage(why)])]);
+  }
+  return el("div", { class: "wanted-picture stack-tight" }, [
+    instanceImage(work.shown, {
+      alt: pictured(work),
+      label: `Enlarge the picture of ${work.title}`,
+      name: pictured(work),
+    }),
+    fitBadge(work.shown, "size unrecorded"),
+  ]);
+}
+
+/* Why a work is wanted, from what it holds: how many scans were turned down,
+ * and what the one standing is — too small for the wall, the selection still on
+ * offer (wanted without turning it down), or neither. "On offer" means selected,
+ * as `is_on_offer` does on the card, so the row never claims one the card does
+ * not. Derived on every read, because a picture beside "No scan found" would
+ * contradict it. */
+export function wantedWhy(work) {
+  const parts = [];
+  if (work.scans_turned_down) parts.push(`${counted(work.scans_turned_down, "scan")} turned down`);
+  if (work.shown) {
+    if (work.shown.fit && work.shown.fit.verdict === "below_floor") parts.push("found only too small");
+    else if (work.shown.is_selected) parts.push("one still on offer");
+    else parts.push("one found, not on offer");
+  }
+  if (!parts.length) return "No scan found";
+  const said = parts.join("; ");
+  return said.charAt(0).toUpperCase() + said.slice(1);
+}
+
 /* A scan's own size, in pixels (`pixelSize` in `badges.js`). `null` when the
  * scan's dimensions were never recorded, which the fit badge's "size
  * unrecorded" already says. */
