@@ -684,7 +684,9 @@ one, which has the access above, they are not:
   that its advertised IIIF base is the museum's own host, and that check is the
   plugin's. The Met's reader returns an image only on `images.metmuseum.org`,
   and its finder reads image heads and previews only there, also the plugin's
-  checks. A third-party reader's locator gets bound 2 only: any public address.
+  checks. SMK's reader returns an image only from `api.smk.dk`'s download and
+  thumbnail paths, and its finder reads previews only from `iip-thumb.smk.dk`
+  or that thumbnail path, again the plugin's checks. A third-party reader's locator gets bound 2 only: any public address.
 - **Arrt decides** a work's identity, its rights record, duplicates, review,
   quality, spending and storage. A plugin answers "what images exist, and where".
 - **A plugin's error text is scrubbed** before the journal and the health panel.

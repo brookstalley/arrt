@@ -3132,6 +3132,8 @@ artifact_manifest:
       depends_on: [architecture, data-model]
     - file_path: .prawduct/artifacts/met-api-findings.md
       depends_on: [source-plugins]
+    - file_path: .prawduct/artifacts/smk-api-findings.md
+      depends_on: [source-plugins]
     - file_path: .prawduct/artifacts/dezoomify-cli-findings.md
       depends_on: [architecture, operational-spec]
     - file_path: .prawduct/artifacts/museum-label-findings.md
@@ -3356,7 +3358,7 @@ api_versioning_decided: "none — no version negotiation. MCP tool names frozen,
 # backlog_prefixes: []
 # backlog_external_imports: []
 
-backlog_last_groomed_at: 2026-10-05
+backlog_last_groomed_at: 2026-10-06
 
 # -----------------------------------------------------------------------------
 # BACKLOG SERVICE CUTOVER (API §2.4)

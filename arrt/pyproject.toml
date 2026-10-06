@@ -92,6 +92,7 @@ commons = "arrt.library.sources.commons:PLUGIN"
 artic = "arrt.library.sources.artic:PLUGIN"
 wikidata = "arrt.library.sources.wikidata:PLUGIN"
 met = "arrt.library.sources.met:PLUGIN"
+smk = "arrt.library.sources.smk:PLUGIN"
 
 [dependency-groups]
 # httpx appears here *and* in `[project].dependencies`, deliberately. It is a

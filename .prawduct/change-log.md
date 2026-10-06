@@ -76,6 +76,29 @@ code changes: until wave 4 the inch floor carries the minimum, and the owner's
 deployment sets `RESOLUTION_FLOOR_INCHES=11.34` (1,000 px on its 50" 4K panel,
 checked with `assess_display_fit`: 1000 × 700 passes, 999 × 700 does not).
 `DEFAULT_RESOLUTION_FLOOR_INCHES` stays 12 for an unconfigured deployment.
+## 2026-10-06: SMK, through its open API, as a built-in source
+
+<!-- prawduct: scope=smk-source -->
+
+**Why:** the owner asked for the next sources by works unlocked, and ruled that
+SMK's terms allow its in-copyright images for household use (arrt#232). SMK's is
+the only open API found that serves in-copyright works at full size, and about
+6,900 Wikidata items of SMK works record an SMK page.
+
+**What:** a built-in `smk` plugin (`library/sources/smk.py`). It finds by the
+pages the work's Wikidata item records (any `collection.smk.dk` or `open.smk.dk`
+page), takes the object number from each, asks the API, and reports the image
+under the page exactly as the item spells it, so the item's link identifies it
+(fragment pages included: `#/en/detail/KMS8010`). An item with no SMK page, or
+none SMK knows, and a work with no item, are searched for by title and artist,
+then by title alone when that finds nothing, ten objects at most. Rights come
+from SMK's own statement: public domain, in copyright (SMK's page on the use of
+its material, in either language), else unknown; nothing is left out for them.
+The reader answers with `image_native`, measured serving the original at the
+record's size for a public-domain and an in-copyright work, so no tiled fallback
+was built. It needs no setting and never declines. Measurements, including the
+objects with no IIIF image (one 1600-pixel file) and the page spellings Wikidata
+holds, in `smk-api-findings.md`.
 
 ## 2026-10-06: Wanted pictures each work by the scan its card shows
 
