@@ -366,8 +366,8 @@ def test_this_distribution_registers_the_built_in_plugins_as_entry_points():
     """Read from the installed metadata: the injected tests above cannot see a typo in pyproject."""
     installed = {point.name: point for point in importlib.metadata.entry_points(group=ENTRY_POINT_GROUP)}
 
-    assert {"commons", "artic", "wikidata", "met"} <= set(installed)
-    for name in ("commons", "artic", "wikidata", "met"):
+    assert {"commons", "artic", "wikidata", "met", "smk"} <= set(installed)
+    for name in ("commons", "artic", "wikidata", "met", "smk"):
         assert isinstance(installed[name].load(), SourcePlugin), name
 
 
@@ -400,9 +400,10 @@ def test_each_installed_plugin_says_which_distribution_and_version_it_came_from(
     )
     identity = {reading.name: reading.identity for reading in roster.observe()}
 
-    assert identity["met"] == PluginIdentity(
-        distribution="arrt", version=version, api_major=1, provides=(PluginPart.FINDS_IMAGES, PluginPart.READS)
-    )
+    for name in ("met", "smk"):
+        assert identity[name] == PluginIdentity(
+            distribution="arrt", version=version, api_major=1, provides=(PluginPart.FINDS_IMAGES, PluginPart.READS)
+        ), name
     assert identity["wikidata"].provides == (PluginPart.FINDS_PAGES,)
     # Declined: where it came from is known, and it provides nothing here.
     assert identity["artic"] == PluginIdentity(distribution="arrt", version=version, api_major=1, provides=())
@@ -488,7 +489,7 @@ def _built_in_modules() -> list[str]:
 
 def test_the_built_in_plugin_modules_are_read_from_the_entry_points():
     """An empty or short list would let the guard below pass over nothing."""
-    assert _built_in_modules() == ["artic.py", "commons.py", "met.py", "wikidata.py"]
+    assert _built_in_modules() == ["artic.py", "commons.py", "met.py", "smk.py", "wikidata.py"]
 
 
 def test_the_built_in_plugins_import_nothing_from_arrt_but_the_interface():

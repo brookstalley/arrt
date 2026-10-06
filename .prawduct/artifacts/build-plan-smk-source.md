@@ -64,7 +64,7 @@ new `smk-api-findings.md`):
 - [DECISION: an item with no SMK page, or a work with no QID, falls back to the API's search by title, narrowed by the artist when one is known, reading at most ten objects; each is reported under its `frontend_url` and judged by title and artist | the Met's precedent; the cap bounds one work's cost | agent's]
 - [DECISION: `claims` accepts `collection.smk.dk` detail pages, `open.smk.dk/artwork/image/<n>` pages, and `api.smk.dk` object URLs, and nothing else. The reader never fetches a page: it parses the object number and asks the API | the pages are a JavaScript front end; the API is the documented interface | agent's]
 - [DECISION: the image fetched is the original at `image_width` × `image_height`. Prefer one direct download (`image_native`, or IIIF `full/full`); fall back to the IIIF tiles through Arrt's existing tiled path only if a direct fetch is measured capped below the stated size. The builder measures which, on at least one public-domain and one in-copyright object, and records it in `smk-api-findings.md` | the contract requires the original's size; which URL serves it is a measurement, not a guess | agent's]
-- [DECISION: rights — `public_domain` true → `PUBLIC_DOMAIN`; false with `rights` equal to SMK's copyright page → `IN_COPYRIGHT`; anything else → `UNKNOWN` | SMK's own statement, read for what it says; a value never seen is not guessed at | agent's]
+- [DECISION: rights — `public_domain` true → `PUBLIC_DOMAIN`; false with `rights` equal to SMK's copyright page, in either language (asked in English, SMK names `https://www.smk.dk/en/section/use-of-smk-material/`; the Danish page is `brug-af-museets-materiale`) → `IN_COPYRIGHT`; anything else → `UNKNOWN` | SMK's own statement, read for what it says; a value never seen is not guessed at | agent's]
 - [DECISION: an object with `has_image` false or no image URL is not an image; the object number SMK answers "not found" for skips that page, and the work's search stands; 403, 429, 5xx and network errors fail it as could-not-be-asked | the Met plugin's rule, for the same reasons | agent's]
 - [DECISION: `smk` needs no setting and never declines | as `met`; a switch nobody asked for is a setting to document and test | agent's]
 - [ASSUMPTION: no collection browse | the issue scopes it out]
@@ -75,7 +75,7 @@ new `smk-api-findings.md`):
 
 ## Status
 
-- [ ] Chunk 01: The `smk` plugin, its records and its live check
+- [x] Chunk 01: The `smk` plugin, its records and its live check
 
 ### Chunk 01: The `smk` plugin, its records and its live check
 

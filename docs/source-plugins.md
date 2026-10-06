@@ -23,7 +23,7 @@ gallery = "arrt_gallery:PLUGIN"
 ```
 
 - **Pick a name no other installed plugin uses.** The built-ins are `commons`,
-  `artic`, `met` and `wikidata`. Two distributions registering one name load neither, so
+  `artic`, `met`, `smk` and `wikidata`. Two distributions registering one name load neither, so
   a plugin cannot replace a built-in by taking its name.
 - **The name is permanent once rows carry it.** Every image the plugin's finder
   reports is stored under it, and acquisition and the health panel name the
@@ -316,5 +316,6 @@ to it by a test:
 |---|---|---|
 | `artic` (`arrt/src/arrt/library/sources/artic.py`) | a finder, a reader and a collection; declining without its setting; `claims` checking host and path | `test_artic_client.py`, `test_artic_browse.py` |
 | `met` (`met.py`) | a finder that finds by item when a registry is configured and searches otherwise; a reader; `claims` taking only the URL shape it records; an image's size read from its header | `test_met_source.py` |
+| `smk` (`smk.py`) | a finder that reads the item's own pages, of several spellings, and reports each image under the page exactly as the item spells it; `claims` taking those spellings and the API's object URL; rights read from the holder's own statement, in copyright included | `test_smk_source.py` |
 | `commons` (`commons.py`) | a finder that needs the registry and looks works up by item | `test_commons_source.py` |
 | `wikidata` (`wikidata.py`) | a finder of pages only, with `offers_images = False` | `test_wikidata_pages.py` |

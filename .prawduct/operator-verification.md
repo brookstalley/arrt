@@ -10,6 +10,24 @@ each entry, which is the durable form.
 
 ## Pending
 
+### SMK as a source — added 2026-10-06
+
+**`build-plan-smk-source.md` Chunk 01.** Visual change: no; live integration.
+
+Checked by the builder against recorded answers and SMK's live API
+(`live_museum`). Not yet deployed.
+
+- **Look at:** after the next deploy, Settings › Sources lists `smk` from `arrt`,
+  loaded, reading "Finds images of a work; reads the addresses it claims."
+- **Try:** a Get of Richard Mortensen's *Tantra-Vision. With Gallic Palette*
+  (Q20267229, in copyright, no image on Wikidata). It should offer an `smk` image
+  at 2201 × 2221, recorded as in copyright and identified by the item's own
+  page (`https://collection.smk.dk/#/en/detail/KMS7816`).
+- **Worth an opinion:** many of SMK's in-copyright works come only at about
+  1,600 px, under the floor on most walls (KMSr31, KMS6503, KMS4337, measured
+  2026-10-06). They arrive as placeholders, which is what the owner's ruling of
+  2026-10-03 asks for, but fewer will hang at full size than #232 expected.
+
 ### Wanted shows each work's picture — added 2026-10-06
 
 **`build-plan-wanted-pictures.md` Chunk 01.** Visual change: yes.
@@ -38,7 +56,7 @@ deployed.
 
 - **Look at:** after the next deploy, Settings lists Taste, Clients, **Sources**.
   Sources shows every plugin with its package and version: `arrt` and its version
-  for `commons`, `artic`, `met` and `wikidata`, and `arrt-sources` and its version
+  for `commons`, `artic`, `met`, `smk` and `wikidata`, and `arrt-sources` and its version
   for `artlogic`, `moma` and `sfmoma`. `met` reads "Finds images of a work; reads
   the addresses it claims." `art_discovery(action='source_plugins')` answers the same.
 - **Try:** an Ask or Get for a public-domain painting the Met holds (e.g. van
