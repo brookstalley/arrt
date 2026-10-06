@@ -62,6 +62,27 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-06: The browser suite runs in four CI shards, and skips record-only pull requests
+
+<!-- prawduct: scope=ci-browser-shards -->
+
+**Why:** the owner, 2026-10-06: CI was slow. The browser suite ran as one serial
+job of about ten minutes on every PR. It is serial on purpose: its tests time
+real poll windows, and parallel workers on a CI runner's few cores make them flaky.
+
+**What:** `.github/workflows/browser.yml` runs four jobs side by side. Each is
+still serial, on a share of the files that `.github/scripts/browser_shard.py`
+computes from the directory, balanced by test count (158, 157, 157 and 158
+`def test_` lines at the time). Locally the four shares collect exactly the 692
+tests the single job did, with none twice. Each shard keeps the job's "nothing
+actually ran" guard. A pull request that changes only Markdown, `.prawduct/` or
+`docs/` skips the browser workflow: no browser test reads those, checked by grep.
+Neither `develop` nor `main` has branch protection, so no required check is
+stranded by the new job names. `tests/test_browser_shards.py` (root suite) holds
+two things: every browser test file is in exactly one share, and the workflow
+states one shard count in all three places. Both were seen failing on a
+planted break.
+
 ## 2026-10-06: A look shows what the image sources hold of a work, before any Get
 
 <!-- prawduct: scope=look-before-get -->
