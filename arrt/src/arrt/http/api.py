@@ -70,6 +70,9 @@ from arrt.http.models import (
     ImageOut,
     InstanceListingOut,
     InstanceOut,
+    LookOut,
+    LookPictureOut,
+    LookSourceOut,
     ManifestEntryOut,
     ManifestOut,
     MatColorOut,
@@ -153,6 +156,7 @@ from arrt.library.services.catalogue import FacetGroup, RenditionView
 from arrt.library.services.conversation import ConversationDeletion, ConversationView, TurnView
 from arrt.library.services.discovery import VerdictOutcome
 from arrt.library.services.display_fit import ArtworkBox, FitAssessment
+from arrt.library.services.look import LookPicture, LookView, SourceLook
 from arrt.library.services.review import CandidatePage, CandidateView, InstanceListing, InstanceView, WantedView
 from arrt.library.services.runner import Estimate, RunView, SpendReport
 from arrt.library.services.survey import WorkDossier, WorkSurvey
@@ -464,6 +468,42 @@ def get_registry_work(request: Request, qid: str) -> RegistryWorkPageOut:
         image_height=None if view.image_size is None else view.image_size.height,
         fit=None if view.fit is None else _fit(view.fit),
     )
+
+
+#: What a browser is told when a picture key is not one a work's current look
+#: names: another work's, a refused find's, or one from a look no longer kept.
+LOOK_AGAIN: str = "This picture is not part of a current look at this work. Look again."
+
+
+@router.get("/registry/works/{qid}/look")
+def get_registry_work_look(request: Request, qid: str) -> LookOut:
+    """What every image source holds of the work, asked before any Get.
+
+    Starts the asking, or joins it, and answers at once with each source's
+    state: the page polls while `state` is `asking`. Nothing is written to the
+    catalogue. A malformed QID is a 400.
+    """
+    return _look(_services(request).look.look(qid))
+
+
+@router.get("/registry/works/{qid}/look/pictures/{key}", response_class=Response)
+def get_registry_work_look_picture(
+    request: Request,
+    qid: str,
+    key: str,
+    size: Annotated[Literal["card", "large"], Query()] = "card",
+) -> Response:
+    """A picture the work's current look found, from the picture store.
+
+    `key` is one the look's answer names, never a URL: any other key, or one
+    from a look no longer kept, is a 404 saying to look again. A key the look
+    names whose picture could not be kept is a 400, as a review card's is.
+    `size` is the review card's: `card`, or `large` for the enlarged view.
+    """
+    rendered = _services(request).look.picture(qid, key, enlarged=size == "large")
+    if rendered is None:
+        return JSONResponse(status_code=404, content={"error": LOOK_AGAIN})
+    return Response(content=rendered.data, media_type=rendered.media_type, headers={"Cache-Control": PREVIEW_CACHE_CONTROL})
 
 
 # -- topics -------------------------------------------------------------------
@@ -1917,6 +1957,47 @@ def _backup(reading: BackupReading) -> BackupOut:
         problem=reading.problem,
         description=reading.describe(),
         reported=reading.contents,
+    )
+
+
+def _look(view: LookView) -> LookOut:
+    return LookOut(
+        qid=view.qid,
+        state=str(view.state),
+        note=view.note,
+        held_artwork_ids=list(view.held),
+        sources=[_look_source(source) for source in view.sources],
+        pictures=[_look_picture(picture) for picture in view.pictures],
+    )
+
+
+def _look_source(source: SourceLook) -> LookSourceOut:
+    return LookSourceOut(
+        provider=source.provider,
+        state=str(source.state),
+        found=len(source.pictures),
+        refusals=sorted(str(reason) for reason in source.refusals),
+        answered_at=None if source.answered_at is None else source.answered_at.isoformat(),
+        retry_at=None if source.retry_at is None else source.retry_at.isoformat(),
+    )
+
+
+def _look_picture(picture: LookPicture) -> LookPictureOut:
+    judged = picture.judged
+    found = judged.found
+    return LookPictureOut(
+        key=picture.key,
+        provider=found.provider,
+        url=found.url,
+        title=found.title,
+        artist=found.artist,
+        width=found.estimated_width,
+        height=found.estimated_height,
+        fit=_fit(judged.fit),
+        below_floor=judged.below_floor,
+        confidence=judged.confidence,
+        rights_status=None if found.rights_status is None else str(found.rights_status),
+        selection_rationale=judged.rationale,
     )
 
 

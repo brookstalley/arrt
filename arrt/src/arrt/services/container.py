@@ -19,6 +19,7 @@ they are settled in one place instead of per constructor.
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from functools import partial
 from pathlib import Path
 from typing import Protocol
@@ -68,6 +69,7 @@ from arrt.library.services.discovery import DiscoveryService
 from arrt.library.services.display_fit import ArtworkBox
 from arrt.library.services.get import GetService
 from arrt.library.services.identity import IdentityService
+from arrt.library.services.look import LookService
 from arrt.library.services.pictures import PictureStore, import_previews
 from arrt.library.services.previews import PreviewCache
 from arrt.library.services.registry_search import RegistrySearchService
@@ -191,6 +193,10 @@ class Services:
     #: A Get: works chosen by their Wikidata items, turned into one run over the
     #: image sources. Over the same registry and runner as the services above.
     get: GetService
+    #: A look: what the image sources hold of a work the library does not, asked
+    #: before any Get and kept in memory. Over the same sources and judge as a
+    #: Get's run, so what it shows is what a Get would find.
+    look: LookService
     #: Topics: the library's, from the facet rows, and a topic's registry
     #: sections. Over the same registry as `artists`.
     topics: TopicService
@@ -253,6 +259,9 @@ class Services:
         #: would search while the panel said no plugin is installed. `None` is a
         #: process with no plugins, which is what most tests are.
         sources: SourceRoster | None = None,
+        #: The clock a look's kept answers age by. Defaults to the system's; a
+        #: suite moves it to expire a look without waiting six hours.
+        look_now: Callable[[], datetime] | None = None,
     ) -> Services:
         """Assemble the services over an already-open file.
 
@@ -333,11 +342,13 @@ class Services:
         # announcement delays the fetch until the next start, which catches up.
         catalogue_service.subscribe(lambda event: acquisition_queue.nudge() if event.change is WorkChange.ACCEPTED else None)
         sighting_service = SightingService(discovery, catalogue, route=sources.route)
+        # One judge for a run and a look, so the two cannot judge a find apart.
+        judge = None if pool is None else PhaseTwoEngine(pool, box=artwork_box, registry=registry)
         runner_service = DiscoveryRunner(
             discovery_service,
             engine,
             discovery_settings,
-            images=None if pool is None else PhaseTwoEngine(pool, box=artwork_box, registry=registry),
+            images=judge,
             previews=None if pool is None else PreviewCache(pictures),
             # Independent of the phase-2 pair: a deployment may resolve images
             # without supplementing, and a run with no collection simply offers
@@ -350,6 +361,7 @@ class Services:
             **({} if resolve is None else {"check_page": partial(check_fetchable, resolve=resolve)}),
             **({} if spawn is None else {"spawn": spawn}),
         )
+        registry_works = RegistryWorkService(catalogue, registry, kept=kept, wanted=discovery_service, box=artwork_box)
         return cls(
             catalogue=catalogue_service,
             library=library,
@@ -396,9 +408,17 @@ class Services:
             taste=TasteService(discovery),
             identity=IdentityService(catalogue, registry, on_changed=topic_sweep.nudge),
             artists=ArtistService(catalogue, registry, kept=kept, wanted=discovery_service),
-            registry_works=RegistryWorkService(catalogue, registry, kept=kept, wanted=discovery_service, box=artwork_box),
+            registry_works=registry_works,
             registry_search=RegistrySearchService(catalogue, registry, kept=kept, wanted=discovery_service),
             get=GetService(store=catalogue, discovery=discovery_service, runner=runner_service, registry=registry),
+            look=LookService(
+                works=registry_works,
+                discovery=discovery_service,
+                pool=pool,
+                judge=judge,
+                pictures=pictures,
+                **({} if look_now is None else {"now": look_now}),
+            ),
             topics=TopicService(catalogue, registry, kept=kept, wanted=discovery_service),
             topic_sweep=topic_sweep,
             wikidata_match=WikidataMatchService(discovery_service, registry),

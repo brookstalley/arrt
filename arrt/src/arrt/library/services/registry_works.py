@@ -32,7 +32,7 @@ wrong and mis-scaled. A size that fails is unknown, not shown with a doubt.
 import logging
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import Final
 
@@ -120,6 +120,39 @@ class RegistryWorkService:
         )
 
     def view(self, qid: str) -> RegistryWorkView:
+        found = self.known(qid)
+        known, registry = found.known, self._registry
+        if known is None or registry is None:
+            return found
+        ours = artist_ids_by_qid(self._store)
+        size = None if known.image is None or found.held else self._size(known.image, registry)
+        height_cm, width_cm = plausible_size(known.height_cm, known.width_cm, size)
+        if (height_cm, width_cm) != (known.height_cm, known.width_cm):
+            log.info(
+                "an implausible size from Wikidata is treated as unknown",
+                extra={
+                    "event": "registry.size_implausible",
+                    "qid": qid,
+                    "height_cm": known.height_cm,
+                    "width_cm": known.width_cm,
+                },
+            )
+        return replace(
+            found,
+            artists={creator.qid: ours[creator.qid] for creator in known.creators if creator.qid in ours},
+            height_cm=height_cm,
+            width_cm=width_cm,
+            image_size=size,
+            fit=None if size is None else assess_display_fit(width=size.width, height=size.height, box=self._box),
+        )
+
+    def known(self, qid: str) -> RegistryWorkView:
+        """The work as the registry knows it, or why there is none, and what the library holds of it.
+
+        `view` without the picture's size or the library's artists: what a
+        look at the work needs, asked as often as the page polls, so it costs no
+        more than reading the kept answer and the library's own rows.
+        """
         checked_qid(qid)
         held = tuple(self._store.circulating_ids_by_qid().get(qid, ()))
         wanted = qid in self._wanted.wanted_qids()
@@ -147,30 +180,7 @@ class RegistryWorkService:
                 held=held,
                 wanted=wanted,
             )
-        ours = artist_ids_by_qid(self._store)
-        size = None if known.image is None or held else self._size(known.image, self._registry)
-        height_cm, width_cm = plausible_size(known.height_cm, known.width_cm, size)
-        if (height_cm, width_cm) != (known.height_cm, known.width_cm):
-            log.info(
-                "an implausible size from Wikidata is treated as unknown",
-                extra={
-                    "event": "registry.size_implausible",
-                    "qid": qid,
-                    "height_cm": known.height_cm,
-                    "width_cm": known.width_cm,
-                },
-            )
-        return RegistryWorkView(
-            state=RegistryWorkState.KNOWN,
-            known=known,
-            held=held,
-            wanted=wanted,
-            artists={creator.qid: ours[creator.qid] for creator in known.creators if creator.qid in ours},
-            height_cm=height_cm,
-            width_cm=width_cm,
-            image_size=size,
-            fit=None if size is None else assess_display_fit(width=size.width, height=size.height, box=self._box),
-        )
+        return RegistryWorkView(state=RegistryWorkState.KNOWN, known=known, held=held, wanted=wanted)
 
     def _size(self, image: CommonsFile, registry: Registry) -> RegistryImageSize | None:
         kept = self._sizes.get(image)

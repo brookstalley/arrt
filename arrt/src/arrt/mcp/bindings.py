@@ -23,7 +23,8 @@ from arrt.library.acquisition.preparation import PreparationResult
 from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState
 from arrt.library.services.catalogue import MAX_LIST_LIMIT, ArtworkDetail, ArtworkListing, FacetGroup
 from arrt.library.services.discovery import VerdictOutcome
-from arrt.library.services.display_fit import DisplayFit
+from arrt.library.services.display_fit import DisplayFit, FitAssessment
+from arrt.library.services.look import INLINED, Inlined, LookPicture, LookView, SourceLook
 from arrt.library.services.previews import InlinePreview
 from arrt.library.services.review import (
     MAX_REVIEW_LIMIT,
@@ -559,6 +560,102 @@ def _start_get(services: Services, arguments: Mapping[str, Any]) -> dict[str, An
             f"art_discovery(action='status', run_id='{outcome.run.id}'), which holds until something changes."
         ),
     )
+
+
+def _look(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """What every image source holds of a work, as `GET /api/registry/works/{qid}/look` carries it.
+
+    Held until no source is still being asked, so one call usually carries every
+    answer, and the best pictures travel as image blocks, the whole within the
+    client's minute (`LookService.look_for_a_model`).
+    """
+    view, inlined = services.look.look_for_a_model(arguments["qid"])
+    pictures = _Pictures()
+    fields = _look_fields(view, pictures, inlined.previews)
+    return with_images(ok(**fields, notice=_look_notice(view, inlined, pictures) or None), pictures.blocks)
+
+
+def _look_notice(view: LookView, inlined: Inlined, pictures: _Pictures) -> str:
+    """Say how the pictures line up with the rows, and why any picture did not come, in a look's own terms.
+
+    Not `_Pictures.notice`, which speaks of a review card's cached copies and its
+    `preview_note`; a look's row has neither, and says nothing of its own.
+    """
+    sentences = [view.note]
+    if pictures.blocks:
+        sentences.append(
+            f"{counted(len(pictures.blocks), 'image')} follow the text, best first; each picture's image_block_index "
+            "says which is its own, and a null one means its picture did not come with this answer."
+        )
+    if inlined.deferred:
+        late = len(inlined.deferred)
+        sentences.append(
+            f"{counted(late, 'picture')} had not arrived from {agree(late, 'its source', 'their sources')} in time to "
+            f"send; {agree(late, 'it is', 'they are')} being kept now, so calling action='look' again soon brings "
+            f"{agree(late, 'it', 'them')}."
+        )
+    if inlined.failed:
+        sentences.append(
+            f"{counted(len(inlined.failed), 'picture')} could not be kept: the source gave nothing that is a picture."
+        )
+    if len(view.pictures) > INLINED:
+        sentences.append(f"Only the best {INLINED} pictures are sent as images; the rest are listed without one.")
+    return _joined(*sentences)
+
+
+def _look_fields(view: LookView, pictures: _Pictures, inlined: Mapping[str, InlinePreview]) -> dict[str, Any]:
+    return {
+        "qid": view.qid,
+        "state": str(view.state),
+        "note": view.note,
+        "held_artwork_ids": list(view.held),
+        "sources": [_look_source_fields(source) for source in view.sources],
+        "pictures": [
+            _look_picture_fields(picture, pictures.index_of(None if picture.key is None else inlined.get(picture.key)))
+            for picture in view.pictures
+        ],
+    }
+
+
+def _look_source_fields(source: SourceLook) -> dict[str, Any]:
+    return {
+        "provider": source.provider,
+        "state": str(source.state),
+        "found": len(source.pictures),
+        "refusals": sorted(str(reason) for reason in source.refusals),
+        "answered_at": _moment(source.answered_at),
+        "retry_at": _moment(source.retry_at),
+    }
+
+
+def _look_picture_fields(picture: LookPicture, image_block_index: int | None) -> dict[str, Any]:
+    judged = picture.judged
+    found = judged.found
+    return {
+        "key": picture.key,
+        "provider": found.provider,
+        "url": found.url,
+        "title": found.title,
+        "artist": found.artist,
+        "width": found.estimated_width,
+        "height": found.estimated_height,
+        "fit": _fit_fields(judged.fit),
+        "below_floor": judged.below_floor,
+        "confidence": judged.confidence,
+        "rights_status": None if found.rights_status is None else str(found.rights_status),
+        "selection_rationale": judged.rationale,
+        "image_block_index": image_block_index,
+    }
+
+
+def _fit_fields(fit: FitAssessment) -> dict[str, Any]:
+    """A display-fit verdict in `FitOut`'s names."""
+    return {
+        "verdict": str(fit.fit),
+        "rendered_width": fit.rendered_width,
+        "rendered_height": fit.rendered_height,
+        "rendered_long_edge_inches": fit.rendered_long_edge_inches,
+    }
 
 
 def _list_runs(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -1169,6 +1266,7 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_discovery", "cancel"): _cancel_run,
     ("art_discovery", "resolve_images"): _resolve_images,
     ("art_discovery", "get"): _start_get,
+    ("art_discovery", "look"): _look,
     ("art_discovery", "list_runs"): _list_runs,
     ("art_discovery", "spend"): _spend,
     ("art_discovery", "source_plugins"): _image_sources,

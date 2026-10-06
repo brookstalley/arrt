@@ -62,6 +62,83 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-06: A look shows what the image sources hold of a work, before any Get
+
+<!-- prawduct: scope=look-before-get -->
+
+**Why:** the owner, 2026-10-06: a work's page should show what it looks like
+before the Get, asked of the sources on every unheld work page, "as long as we
+cache the result so repeated similar searches don't do too many queries."
+
+**What (`build-plan-look-before-get.md`, Chunks 01 and 02):**
+- **`LookService`** (`library/services/look.py`), wired as `Services.look`. It asks
+  every image source what a Get would ask and judges as a Get judges, and writes
+  nothing to the catalogue. Answers are kept in memory per work and source: 6 h for
+  an answer (holding nothing and "can't look this up" included), 10 min for "could
+  not be asked", never as holding nothing, and at most 256 works. One look at a
+  time asks each source, on threads of the look's own; a second look joins the
+  first; a queued ask for a work nobody has polled for 20 s is dropped; a run using
+  a source goes first. A finder of pages only is not asked.
+- **Get's code extracted, not copied, with Get unchanged:** `ImageSourcePool.ask`
+  (one source, sorted as the pool sorts every answer; `find_images` is rebuilt on
+  it) and `wait_for_runs`; `PhaseTwoEngine.judge`, `rank` and `link`, public;
+  `WikidataLink` (was `_WikidataLink`) safe to share between threads; the query
+  builders `get.chosen_work` and `runner.image_query`; and
+  `RegistryWorkService.known`, `view` without the picture's size, so a poll costs a
+  kept answer and the library's own rows.
+- **Surfaces:** `GET /api/registry/works/{qid}/look` (polled; answers at once),
+  `GET /api/registry/works/{qid}/look/pictures/{key}?size=card|large` (from the
+  picture store, by a key the server computed; a key the work's current look does
+  not name is a 404), and `art_discovery(action='look', qid=…)`, which holds up to
+  30 s within a 40 s budget and inlines the best six pictures.
+- **Carried from the picture store's review:** `picture_key` encodes with
+  `errors="surrogatepass"`, so a lone surrogate in a source's URL cannot make
+  `PictureStore.keep` raise.
+- **Observability:** `look.started`, `look.source_answered`,
+  `look.source_unreachable`, `look.abandoned`, `look.picture_served`, and a
+  `look_qid` context variable stamped by the run-correlation filter.
+- **Records:** `api-contract.md` (the routes, and the one registry page with an MCP
+  twin, with why), `security-model.md` § Direction (a look's picture by a
+  server-minted key), `observability-strategy.md` (the events and `look_qid`).
+- **Container:** `Services.bind` takes `look_now`, the clock a look's kept answers
+  age by, so a suite can expire one.
+- **The Work page (Chunk 02):** `screens/work.js` draws *What the image sources
+  hold* for a work not held, polling `/look` every 2 s while a source is still
+  asking and repainting only its own section: a row per source as a glyph and a
+  word, the finds best first as enlargeable cards with pixels, fit, source and
+  rationale (six, then *Show N more*), and one `role=status` line that changes
+  only when its words do. A picture once drawn is never redrawn or moved, so a
+  poll never moves focus. Wikidata's picture stays on top; without one, the first
+  find takes the top and keeps it. A source holding the work with no size reads
+  "Holds this work but gives no size for it; not shown" rather than "Holds none".
+  The line under *Get this work* now reads "These are what the sources hold now;
+  getting the work records them and spends nothing.", and the old sentence's
+  half about Wikidata's picture moved under that picture. Records:
+  `information-architecture.md` (the Work rows in § Screen Inventory, § Information
+  Hierarchy and § Screen States), an operator-verification entry, and
+  `tests/browser/test_the_look.py`.
+- **Review fixes to Chunk 01:**
+  - **A queued ask is dropped only if, under the lock that drops it, nobody now
+    wants it**, and a look lists a row for every configured image source, an
+    unanswered one as `asking`, so a held look can no longer lose a source or read
+    finished while one has not answered.
+  - **Every new fan-out builds its question and Wikidata link afresh**, and a
+    "none" judged while Wikidata could not be asked is kept 10 min, not 6 h
+    (`WikidataLink.unavailable`).
+  - **A source's thread that stops or never starts** answers its waiting asks as
+    `unreachable`; finder and judge faults log `look.source_unreachable` at WARNING.
+  - **Registry states map to look states by a stated table**; an unknown one is
+    refused by name.
+  - **`look_qid` is bound around the picture route and the model's picture
+    fetches**, so the store's `picture.*` lines carry it.
+  - **The MCP look fits the client's minute**: `LookService.look_for_a_model`
+    holds up to 30 s, sends the pictures the store keeps, fetches the rest
+    together, and stops at 40 s, listing any picture not arrived as coming with
+    the next call. Its notice is its own, no longer the review grid's.
+  - **A look picture's `rationale` is `selection_rationale`**, the name a scan's
+    carries on both surfaces, and a tip maps the look's size and fit names onto
+    `list_images`'.
+
 ## 2026-10-06: The preview sweep is retired, and the picture store is on the health panel
 
 <!-- prawduct: scope=picture-store -->

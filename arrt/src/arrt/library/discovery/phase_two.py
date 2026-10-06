@@ -60,6 +60,7 @@ than an absent row.
 """
 
 import logging
+import threading
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Final
@@ -204,22 +205,14 @@ class PhaseTwoEngine:
         answer = self._sources.find_images(query)
         judged: list[JudgedImage] = []
         refusals: set[UnresolvedReason] = set()
-        link = _WikidataLink(self._registry, query)
+        link = self.link(query)
         for found in answer.images:
-            outcome = self._judge(query, found, link)
+            outcome = self.judge(query, found, link)
             if isinstance(outcome, UnresolvedReason):
                 refusals.add(outcome)
             else:
                 judged.append(outcome)
-        judged.sort(
-            key=lambda entry: (
-                entry.below_floor,
-                -entry.confidence,
-                -entry.quality_score,
-                self._sources.precedence(entry.found.provider),
-                entry.found.url,
-            )
-        )
+        judged.sort(key=self.rank)
         if answer.unreachable and all(entry.below_floor for entry in judged):
             raise ImageSearchFailure(
                 f"{', '.join(answer.unreachable)} could not be asked, and no other source has an image of "
@@ -238,7 +231,26 @@ class PhaseTwoEngine:
         )
         return Resolution(instances=judged, refusals=frozenset(refusals), pages=answer.pages)
 
-    def _judge(self, query: ImageQuery, found: FoundImage, link: _WikidataLink) -> JudgedImage | UnresolvedReason:
+    def link(self, query: ImageQuery) -> WikidataLink:
+        """The pages this work's Wikidata item records, to be asked once for every instance judged against it."""
+        return WikidataLink(self._registry, query)
+
+    def rank(self, entry: JudgedImage) -> tuple[bool, float, float, int, str]:
+        """Where an instance stands among a work's, best first: the order `resolve` returns them in.
+
+        Clearing the floor first, then confidence, then quality, then the order
+        the sources are listed in, and the URL last, so two runs over the same
+        answers order them alike.
+        """
+        return (
+            entry.below_floor,
+            -entry.confidence,
+            -entry.quality_score,
+            self._sources.precedence(entry.found.provider),
+            entry.found.url,
+        )
+
+    def judge(self, query: ImageQuery, found: FoundImage, link: WikidataLink) -> JudgedImage | UnresolvedReason:
         """Score one instance, or name the gate that refused it.
 
         The gate is returned rather than a bare `None` because the three refusals
@@ -318,13 +330,17 @@ class PhaseTwoEngine:
         )
 
 
-class _WikidataLink:
+class WikidataLink:
     """The pages a work's Wikidata item records, asked for once, and only if needed.
 
     Asked only when a result's title differs, so a work every source names alike
     costs the registry nothing. A registry that cannot be asked means no link, and
     the title comparison decides as it would without one: refusing is the
     direction a later search can undo.
+
+    **Safe to share between threads.** A look judges each source's answer on
+    that source's own thread, against one link per work, so two answers arriving
+    together must still ask the registry once.
     """
 
     def __init__(self, registry: Registry | None, query: ImageQuery) -> None:
@@ -332,6 +348,13 @@ class _WikidataLink:
         self._query = query
         self._pages: frozenset[str] | None = None
         self._unavailable = False
+        self._asking = threading.Lock()
+
+    @property
+    def unavailable(self) -> bool:
+        """Whether the registry could not be asked, so titles alone decided what this link was asked about."""
+        with self._asking:
+            return self._unavailable
 
     def unlinked(self, url: str) -> str | None:
         """`None` when the work's item records `url`, exactly as the item spells it; else why not.
@@ -345,20 +368,26 @@ class _WikidataLink:
             return "no_registry"
         if self._query.qid is None:
             return "no_qid"
-        if self._pages is None:
-            try:
-                self._pages = frozenset(self._registry.pages_about(self._query.qid))
-            except RegistryUnavailable as exc:
-                log.warning(
-                    "could not ask Wikidata which pages describe a work, so its titles alone decide: %s",
-                    exc,
-                    extra={"event": "phase_two.link_unavailable", "work_title": self._query.title, "qid": self._query.qid},
-                )
-                self._unavailable = True
-                self._pages = frozenset()
-        if url in self._pages:
+        with self._asking:
+            if self._pages is None:
+                try:
+                    self._pages = frozenset(self._registry.pages_about(self._query.qid))
+                except RegistryUnavailable as exc:
+                    log.warning(
+                        "could not ask Wikidata which pages describe a work, so its titles alone decide: %s",
+                        exc,
+                        extra={
+                            "event": "phase_two.link_unavailable",
+                            "work_title": self._query.title,
+                            "qid": self._query.qid,
+                        },
+                    )
+                    self._unavailable = True
+                    self._pages = frozenset()
+            pages, unavailable = self._pages, self._unavailable
+        if url in pages:
             return None
-        return "registry_unavailable" if self._unavailable else "not_recorded"
+        return "registry_unavailable" if unavailable else "not_recorded"
 
 
 def _confidence(query: ImageQuery, found: FoundImage) -> float | None:
