@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Final
 
 from arrt.library.services import selection
-from arrt.library.services.discovery import DiscoveryService
+from arrt.library.services.discovery import DiscoveryService, WantedWork
 from arrt.library.services.display_fit import ArtworkBox, FitAssessment, assess_display_fit
 from arrt.library.services.previews import (
     InlinePreview,
@@ -257,6 +257,19 @@ class CandidatePage:
 
 
 @dataclass(frozen=True, slots=True)
+class WantedView:
+    """A wanted work, with the picture its review card shows (`CandidateView.shown`).
+
+    So Wanted and the card can never picture a work differently. It is None when
+    nothing was found, or when every scan was turned down: a turned-down scan may
+    be another painting, so it never stands for the work.
+    """
+
+    wanted: WantedWork
+    shown: InstanceView | None
+
+
+@dataclass(frozen=True, slots=True)
 class InstanceListing:
     """A work's instances in the store's ranking, capped at what one card carries.
 
@@ -384,6 +397,21 @@ class ReviewService:
         """
         return self._view(self._discovery.get_candidate_work(candidate_work_id), pictures=pictures)
 
+    def list_wanted(self, *, pictures: bool = True) -> Sequence[WantedView]:
+        """Every wanted work, in `DiscoveryService.list_wanted`'s order, each with its card's picture.
+
+        A wanted work holds no scan the curator would accept, so the picture is
+        usually one below the floor: enough to recognise the work by, labelled
+        with the size it would hang at, as on the card.
+        """
+        views = []
+        for entry in self._discovery.list_wanted():
+            shown = self._shown(self._discovery.list_candidate_images(entry.work.id))
+            views.append(
+                WantedView(wanted=entry, shown=None if shown is None else self._instance(shown, entry.work, pictures=pictures))
+            )
+        return views
+
     def list_images(self, candidate_work_id: str, *, pictures: bool = True) -> InstanceListing:
         """A work's instances in the order the review card offers them, capped.
 
@@ -454,6 +482,17 @@ class ReviewService:
 
     def _view(self, work: CandidateWork, *, pictures: bool) -> CandidateView:
         images = self._discovery.list_candidate_images(work.id)
+        chosen = self._shown(images)
+        return CandidateView(
+            work=work,
+            shown=None if chosen is None else self._instance(chosen, work, pictures=pictures),
+            instances_held=len(images),
+            instances_surviving=sum(1 for image in images if image.rejected_at is None),
+            held_artwork_id=self._discovery.held_artwork_id(work),
+        )
+
+    def _shown(self, images: Sequence[CandidateImage]) -> CandidateImage | None:
+        """The instance whose picture stands for a work: the selected one, else the best surviving one."""
         # Asked of `is_selected` rather than taken from position zero: the store
         # sorts the selected instance first, but a work with no selection would
         # then be represented by whichever instance happened to sort next —
@@ -471,13 +510,7 @@ class ReviewService:
         # selection exists and are different questions everywhere else.
         if chosen is None:
             chosen = next(iter(selection.surviving(images, precedence=self._discovery.precedence)), None)
-        return CandidateView(
-            work=work,
-            shown=None if chosen is None else self._instance(chosen, work, pictures=pictures),
-            instances_held=len(images),
-            instances_surviving=sum(1 for image in images if image.rejected_at is None),
-            held_artwork_id=self._discovery.held_artwork_id(work),
-        )
+        return chosen
 
     def _instance(self, image: CandidateImage, work: CandidateWork, *, pictures: bool) -> InstanceView:
         preview, preview_note = self._preview(image, work) if pictures else (None, self._unasked_preview_note(image, work))

@@ -923,9 +923,10 @@ ART_REVIEW: Final = ToolRecord(
             description="List every wanted work across runs, newest run first.",
             example="art_review(action='list_wanted')",
             tips=(
+                ("scans_turned_down counts the scans the curator turned down. wikidata_qid is null " "when no item is known."),
                 (
-                    "scans_turned_down is 0 for a work wanted because nothing was found. wikidata_qid is null "
-                    "when no item is known."
+                    "shown is the scan the work's review card pictures it by, usually one too small for the wall "
+                    "(display_fit below_floor), or null when nothing was found or every scan was turned down."
                 ),
             ),
         ),

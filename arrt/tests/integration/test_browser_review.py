@@ -451,8 +451,28 @@ class TestWanting:
                 "run_id": run_id,
                 "wikidata_qid": None,
                 "scans_turned_down": 0,
+                "shown": None,
             }
         ]
+
+    def test_a_wanted_work_whose_only_scan_is_below_the_floor_is_pictured_by_it(self, http):
+        """The picture its card shows, labelled too small, so a curator recognises what they want."""
+        run_id = a_finished_run(http)
+        card = card_for(http.get(f"/api/runs/{run_id}/candidates").json(), "Swans Reflecting Elephants")
+        work_id = card["work"]["work_id"]
+        assert card["shown_is_on_offer"] is False
+
+        http.post(f"/api/candidates/{work_id}/want", json={})
+
+        listed = {entry["work_id"]: entry for entry in http.get("/api/wanted").json()["works"]}
+        shown = listed[work_id]["shown"]
+        assert shown["image_id"] == card["shown"]["image_id"]
+        assert (shown["width"], shown["height"], shown["fit"]["verdict"]) == (900, 700, "below_floor")
+        assert shown["preview_available"] is True
+        assert listed[work_id]["scans_turned_down"] == 0
+        preview = http.get(f"/api/candidate-images/{shown['image_id']}/preview")
+        assert preview.status_code == 200
+        assert preview.headers["content-type"].startswith("image/")
 
     def test_wanting_while_turning_down_the_scan_suppresses_it_and_counts_it(self, http):
         run_id = a_finished_run(http)
@@ -468,6 +488,9 @@ class TestWanting:
         assert next(i for i in after["instances"] if i["image_id"] == on_offer["image_id"])["rejected"] is True
         listed = {entry["work_id"]: entry for entry in http.get("/api/wanted").json()["works"]}
         assert listed[work_id]["scans_turned_down"] == 1
+        # The turned-down scan never stands for the work; the one still standing does.
+        alternate = next(i for i in listing["instances"] if i["image_id"] != on_offer["image_id"])
+        assert listed[work_id]["shown"]["image_id"] == alternate["image_id"]
 
     def test_a_decided_work_cannot_be_wanted(self, http):
         run_id = a_finished_run(http)

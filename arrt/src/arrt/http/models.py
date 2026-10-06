@@ -1470,6 +1470,10 @@ class WantedWorkOut(BaseModel):
     #: How many of its scans the curator turned down: zero for a work wanted
     #: because nothing was found. Counted from its scans, not stored.
     scans_turned_down: int
+    #: The scan its review card pictures it by (`CandidateCardOut.shown`), or null
+    #: when nothing was found or every scan was turned down. Usually below the
+    #: floor, since a wanted work holds no scan the curator would accept.
+    shown: InstanceOut | None = None
 
 
 class WantedListingOut(BaseModel):
@@ -1477,7 +1481,8 @@ class WantedListingOut(BaseModel):
 
     Uncapped, and what bounds it is the curator: each row is a work somebody
     wanted by name, one call per work, so the list grows no faster than works are
-    judged, and a row is a few short strings with no picture.
+    judged. A row carries its picture's description, never its bytes: whether one
+    exists is a `stat`, and the browser asks for each by URL as it scrolls in.
     """
 
     works: list[WantedWorkOut]

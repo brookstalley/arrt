@@ -22,10 +22,17 @@ from arrt.counting import agree, agree_partitive, counted
 from arrt.library.acquisition.preparation import PreparationResult
 from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState
 from arrt.library.services.catalogue import MAX_LIST_LIMIT, ArtworkDetail, ArtworkListing, FacetGroup
-from arrt.library.services.discovery import VerdictOutcome, WantedWork
+from arrt.library.services.discovery import VerdictOutcome
 from arrt.library.services.display_fit import DisplayFit
 from arrt.library.services.previews import InlinePreview
-from arrt.library.services.review import MAX_REVIEW_LIMIT, CandidatePage, CandidateView, InstanceListing, InstanceView
+from arrt.library.services.review import (
+    MAX_REVIEW_LIMIT,
+    CandidatePage,
+    CandidateView,
+    InstanceListing,
+    InstanceView,
+    WantedView,
+)
 from arrt.library.services.runner import RunListing, RunView
 from arrt.library.services.taste import AffinityView
 from arrt.library.services.wikidata_match import WorkMatch
@@ -776,8 +783,15 @@ def _nothing_searching(work: CandidateWork) -> str:
 
 
 def _list_wanted(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
-    works = [_wanted_fields(entry) for entry in services.discovery.list_wanted()]
-    return ok(works=works, count=len(works))
+    # No image blocks: the listing is uncapped, and a picture per row would leave
+    # its size unbounded. `list_works` is capped and so may carry them.
+    works = [_wanted_fields(view) for view in services.review.list_wanted(pictures=False)]
+    notice = (
+        "No image blocks come with this listing. art_review(action='get_work', work_id=...) returns a work's picture."
+        if any(entry["shown"] is not None for entry in works)
+        else None
+    )
+    return ok(works=works, count=len(works), notice=notice)
 
 
 def _sighting_hosts(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -814,8 +828,9 @@ def _set_wikidata_item(services: Services, arguments: Mapping[str, Any]) -> dict
     return ok(work=_work_summary(work), wikidata_qid=work.wikidata_qid)
 
 
-def _wanted_fields(entry: WantedWork) -> dict[str, Any]:
+def _wanted_fields(view: WantedView) -> dict[str, Any]:
     """One wanted work, named as `WantedWorkOut` names it (`test_surface_parity.py`)."""
+    entry = view.wanted
     return {
         "work_id": entry.work.id,
         "title": entry.work.proposed_title,
@@ -823,6 +838,8 @@ def _wanted_fields(entry: WantedWork) -> dict[str, Any]:
         "run_id": entry.work.discovery_run_id,
         "wikidata_qid": entry.work.wikidata_qid,
         "scans_turned_down": entry.scans_turned_down,
+        # Read with `pictures=False`, so no row has a block to index.
+        "shown": None if view.shown is None else _shown_fields(view.shown, _Pictures()),
     }
 
 

@@ -35,6 +35,7 @@ import pytest
 from arrt.http import api as http_api
 from arrt.http import models as http_models
 from arrt.library.services.discovery import VerdictOutcome, WantedWork
+from arrt.library.services.review import WantedView
 from arrt.library.sources.loading import PluginIdentity, PluginPart, PluginReading, PluginState
 from arrt.mcp import bindings
 from arrt.persistence.discovery_records import CandidateWork, DiscoveryRun, InitiatedBy, RunKind, RunStatus
@@ -176,7 +177,7 @@ def test_the_candidate_work_projections_agree_but_for_one_named_field():
 
 def test_the_wanted_work_projections_carry_the_same_field_names():
     """Wanted and `art_review(action='list_wanted')` read one listing."""
-    entry = WantedWork(work=_work(), scans_turned_down=2)
+    entry = WantedView(wanted=WantedWork(work=_work(), scans_turned_down=2), shown=None)
 
     check_parity("WantedWork", set(bindings._wanted_fields(entry)), _fields(http_models.WantedWorkOut))
 

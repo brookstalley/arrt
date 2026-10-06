@@ -26,6 +26,7 @@ import { table } from "../core/badges.js";
 import { counted } from "../core/counting.js";
 import { destinationOf, destinationWords, readThemes } from "../core/destination.js";
 import { el, fill, guard, render } from "../core/render.js";
+import { wantedPicture, wantedWhy } from "../core/reviewing.js";
 import { go } from "../core/router.js";
 import { KIND_WORDS } from "../core/runs.js";
 
@@ -257,12 +258,11 @@ export async function viewWanted(generation) {
       ]),
       table(
         "Every work you want, newest search first.",
-        ["Work", "Why", "Wikidata", "From", ""],
+        ["Picture", "Work", "Why", "Wikidata", "From", ""],
         works.map((work) => [
+          wantedPicture(work),
           el("span", {}, [el("strong", { text: work.title }), work.artist ? ` — ${work.artist}` : ""]),
-          work.scans_turned_down
-            ? `${counted(work.scans_turned_down, "scan")} turned down`
-            : "No scan found",
+          wantedWhy(work),
           work.wikidata_qid
             ? el("button", { class: "link", type: "button", text: work.wikidata_qid, onclick: () => go("work", work.wikidata_qid) })
             : "No item",

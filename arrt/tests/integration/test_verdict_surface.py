@@ -18,7 +18,7 @@ bar is that no action exists which would accept without one.
 import json
 
 import pytest
-from fakes import FakeFinder, a_roster, a_work, an_image
+from fakes import FakeFinder, a_decodable_jpeg, a_roster, a_work, an_image
 
 from arrt.library.discovery.engine import WorkList
 from arrt.library.services.previews import PreviewSettings
@@ -35,6 +35,17 @@ async def call(server_url: str, tool: str, **arguments) -> tuple[dict, bool]:
         await session.initialize()
         result = await session.call_tool(tool, arguments)
     return json.loads("".join(block.text for block in result.content if block.type == "text")), bool(result.isError)
+
+
+async def block_kinds(server_url: str, tool: str, **arguments) -> list[str]:
+    """The kinds of content block one call answers with, in order."""
+    from mcp import ClientSession
+    from mcp.client.streamable_http import streamable_http_client
+
+    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _), ClientSession(read, write) as session:
+        await session.initialize()
+        result = await session.call_tool(tool, arguments)
+    return [block.type for block in result.content]
 
 
 @pytest.fixture
@@ -279,6 +290,43 @@ async def test_wanting_while_turning_a_scan_down_suppresses_it_and_the_listing_c
         nothing_found.id: 0,
     }
     assert {entry["run_id"] for entry in listed["works"]} == {work.discovery_run_id}
+
+
+async def test_the_wanted_listing_pictures_each_work_as_its_card_does_and_sends_no_image(
+    server_url, services, reviewable, add_image, settings
+):
+    """A too-small scan stands for its work; a work whose every scan was turned down has none to show.
+
+    The thumbnail's preview is on disk, so a listing that read pictures would
+    have a block to send; that it sends none is the bound on an uncapped list.
+    """
+    preview = settings.art_root / "previews/sleep-thumbnail.jpg"
+    preview.parent.mkdir(parents=True, exist_ok=True)
+    preview.write_bytes(a_decodable_jpeg(150, 148))
+    too_small, _ = reviewable(title="Sleep", instances=0)
+    add_image(
+        too_small,
+        url="https://museum.example/sleep-thumbnail",
+        estimated_width=150,
+        estimated_height=148,
+        preview_path="previews/sleep-thumbnail.jpg",
+    )
+    turned_down, images = reviewable(instances=1)
+    await call(server_url, "art_review", action="want", work_id=turned_down.id, turning_down=images[0].id)
+    nothing_pictured, _ = await call(server_url, "art_review", action="list_wanted")
+    assert nothing_pictured.get("notice") is None, "no picture to point at, so no pointer"
+    await call(server_url, "art_review", action="want", work_id=too_small.id)
+
+    payload, errored = await call(server_url, "art_review", action="list_wanted")
+
+    assert errored is False
+    listed = {entry["work_id"]: entry for entry in payload["works"]}
+    assert listed[turned_down.id]["shown"] is None
+    shown = listed[too_small.id]["shown"]
+    assert (shown["is_on_offer"], shown["display_fit"], shown["image_block_index"]) == (False, "below_floor", None)
+    assert "preview_note" not in shown, "the picture exists; only its bytes stay behind"
+    assert "get_work" in payload["notice"]
+    assert await block_kinds(server_url, "art_review", action="list_wanted") == ["text"]
 
 
 async def test_a_decided_work_cannot_be_wanted(server_url, services, reviewable):
