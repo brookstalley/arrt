@@ -89,7 +89,7 @@ They are summarised here and are to be re-checked at build time.
 
 ## Status
 
-- [ ] Chunk 01: The look service, its cache and its two surfaces
+- [x] Chunk 01: The look service, its cache and its two surfaces
 - [ ] Chunk 02: The Work page shows the look
 
 ### Chunk 01: The look service, its cache and its two surfaces
