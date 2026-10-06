@@ -144,9 +144,9 @@ Priority is **core** (on a stated core flow) or **supporting**.
 | Screen | Purpose | Entry points | Priority |
 |---|---|---|---|
 | **Walls** | What is hanging right now on each display, the theme it is drawn from, and what is next. | The sidebar; after activating a theme | core (flow 6) |
-| **Artworks** | Everything acquired. Find, sort, filter, group, organise into themes, archive. The product's home. *(Collection until 2026-09-30.)* | Launch; the sidebar; search from anywhere; from a theme; after a run's accepted works land | core (flows 3, 5) |
+| **Artworks** | Everything acquired. Find, sort, filter, group, organise into themes, archive. The product's home. *(Collection until 2026-09-30.)* | Launch; the sidebar; the Search results page's *Open in Artworks* (Enter opened it directly until 2026-10-06); from a theme; after a run's accepted works land | core (flows 3, 5) |
 | **Work** | One work at full size, with its sources, renditions, mat history and theme membership. At `#work/Q…`, a work Wikidata knows that the library does not hold: its image found or none, with that picture's pixels and fit as a review card gives a scan's, its facts (its size among them, in cm and inches), its holder and number there, *Get this work* with a line saying the picture is Wikidata's and a Get asks every image source, and the rest of its artist's work; the library's own page replaces it, in place, when the library holds it. *(QID form built 2026-10-01, ruling 2.)* | A tile in Artworks; a tile on a Wall; a row in Review; a title in an artist's *Their work* or a work's *More by* | core (flows 4, 5) |
-| **Search results** | Everything a few words find, in one world (ruling 2): the library's artists and works first, then Wikidata's that the library does not already show, an artist marked ● *In your library* or ○ *Not held*, a work by § A work's mark; *All*, *In your library* and *Not held* narrow it; a top result when the words name one artist. Wikidata's works the library does not hold can be ticked and got (*Get N works*). *(Built 2026-10-01, `build-plan-one-world-search.md` Chunk 04; Get added 2026-10-02, `build-plan-get-and-ask.md` Chunk 04.)* | The dropdown's last row, *All results for "…"*; its own address (`#search?q=`) | core (S2, S3) |
+| **Search results** | Everything a few words find, in one world (ruling 2), in two groups: *Held*, the library's artists, works and topics that match, and any of Wikidata's matches the library holds that those rows do not show; then *Not held*, the rest of Wikidata's artists, works and topics. An artist is marked ● *In your library* or ○ *Not held*, a work by § A work's mark; a top result when the words name one artist. Wikidata's works the library does not hold can be ticked and got (*Get N works*). *(Built 2026-10-01, `build-plan-one-world-search.md` Chunk 04; Get added 2026-10-02, `build-plan-get-and-ask.md` Chunk 04; grouped Held / Not held, with topics, replacing the *All*, *In your library*, *Not held* switch, the owner 2026-10-06, `build-plan-search-held-not-held.md`.)* | Enter in the search box; the dropdown's last row, *All results for "…"*; its own address (`#search?q=`; a `view=` left in an old one is ignored) | core (S2, S3) |
 | **Ask** | Asking for something in words: the direct intent box on top, then the conversations, with a run's progress shown in the thread that started it. *(Discover until 2026-09-30, when it also listed every run; Add New until 2026-10-02, when ruling 3 made acquiring a Get action and this page Ask, at the same address `#discover`.)* | The sidebar, under Artworks; *Ask about "…"* in the search box and on an empty results page; an empty Artworks, Artists, Queue and Taste | core (flows 1, 2) |
 | **To review** | Every run holding works that found an image and wait for a verdict, newest first, each opening Review — a Get opening its own page, where it is reviewed (2026-10-02); the count is on its link and on Activity's. *(Built 2026-10-02, `build-plan-get-and-ask.md` Chunk 06.)* | The sidebar, under Activity, first | core (flow 3) |
 | **Queue** *(new)* | The searches that have not ended: working, or stopped at the approval gate. Beneath them, **Fetching images**: every accepted work still owed its image or its preparation, in the order the acquisition queue will try them, each queued, fetching, failed, given up on or paused, with Retry where it failed; a pause is said above them with its remedy *(the owner's decision on #167, 2026-10-02, `build-plan-after-review.md` Chunk 02)*. Not counted on Activity's link, which is To review's: a fetch needs time, not the curator. | The sidebar, under Activity | core (flow 2) |
@@ -157,7 +157,7 @@ Priority is **core** (on a stated core flow) or **supporting**.
 | **Artists** | The artists the library holds, by surname, as Lidarr's poster index — each a card pictured by their first accepted work, with life dates and how many works of theirs are in circulation — with a View menu to the table, kept in the address (`?view=table`) *(the owner's ruling on #173, 2026-10-02; the surname is the stored family name, else the last word once *the Elder* / *the Younger* / *Jr.* is set aside)*; and at its own address one artist as the hub: who they are, what the library holds of theirs, what Wikidata lists with the held ones marked and the rest tickable to get (*Get N works*), and which collections hold their work. At `#artist/Q…`, an artist Wikidata knows that the library does not hold: the registry half alone, saying nothing of theirs is held; the library's page replaces it, in place, when the library holds them. Below Holdings, *Similar artists*: visual artists sharing a movement, by renown, each with how many of their works have an image, and ● where the library holds them. Under the name, which Wikidata item this is and who set it, with one quiet *Edit* *(the owner's ruling on #174, 2026-10-02)* that reveals the control to change it (looked up and shown before it is stored) and to say there is none (confirmed). *(Built 2026-10-01, ruling 4; the QID form, Similar artists and the control the same day, `build-plan-one-world-search.md`.)* | The sidebar, under Artworks; an artist's name on a work card, a table row or the Work page (either form); the top-bar search's Artists group; its own address | core (S2, S3, S11) |
 | **Themes** | The themes there are, and — at its own address — one of them: its members in curated order, its name, the act of hanging it, and which theme is the default that accepted works join. | The sidebar, under Artworks; a wall's theme control; its own address *(Artworks' theme rail and its per-theme *Open* went on 2026-10-02, #169)* | core (flows 5, 6) |
 | **Topics** | The periods, movements, subjects and media the library's works are in, by kind, each kind in columns by name *(the owner's ruling on #175, 2026-10-02: one column on a phone)*, each with how many of them beside its name, each opening its page; and *Find a topic*, which asks Wikidata for any other (`#topics?find=`). *(Built 2026-10-02, `build-plan-topics-and-destinations.md` Chunk 05; topics come from Wikidata, so without `WIKIDATA_USER_AGENT` the page says they need it and offers no search.)* | The sidebar, under Artworks, after Themes | core (S12) |
-| **Topic** | One topic, browsed like a genre: its name, kind, Wikidata's description and a link to its item; *In your library*, your works in circulation in it; *Representative works*, the most renowned Wikidata lists, each by § A work's mark (○ reading *No image known*), the unheld tickable to get into a theme named after the topic (*Add to* defaults to it); and *Artists*, those whose works in it are best known first (the sum of those works' sitelinks), each opening their page. A period's works are headed with its years ("Works from 1501–1600"), since they are matched by date alone. *(Built 2026-10-02, `build-plan-topics-and-destinations.md` Chunk 05.)* | Library › Topics; *Find a topic*; the top bar's *Topics* and *Wikidata: topics* groups; its own address | core (S12) |
+| **Topic** | One topic, browsed like a genre: its name, kind, Wikidata's description and a link to its item; *In your library*, your works in circulation in it; *Representative works*, the most renowned Wikidata lists, each by § A work's mark (○ reading *No image known*), the unheld tickable to get into a theme named after the topic (*Add to* defaults to it); and *Artists*, those whose works in it are best known first (the sum of those works' sitelinks), each opening their page. A period's works are headed with its years ("Works from 1501–1600"), since they are matched by date alone. *(Built 2026-10-02, `build-plan-topics-and-destinations.md` Chunk 05.)* | Library › Topics; *Find a topic*; the top bar's *Held: topics* and *Not held: topics* groups and the Search results page; its own address | core (S12) |
 | **Status** | The three observations the panel states, and the spend record. *(Health until 2026-09-30.)* | The sidebar, under System; the top bar's status indicator; a failure's own link | supporting |
 | **Conversation** *(new)* | One intent-forming thread, its samples, and what it committed to. | Ask; the conversation list; an affinity's provenance | core (flow 1) |
 | **Taste** *(new)* | The affinities the product has accumulated, with their derivation, correctable. | The sidebar, under Settings; a suggestion's "why am I seeing this?" | supporting |
@@ -304,17 +304,25 @@ listed below so it can be disputed.
     instead of the add dialog.
 
   **One world, since 2026-10-01** (ruling 2, `build-plan-one-world-search.md`
-  Chunk 03): the dropdown's groups are *Artists*, *In your library* and *Topics* (the
-  library's), *Themes* (by name), then *Wikidata: artists*, *Wikidata: works* and
-  *Wikidata: topics*, then *Ask*, then *Search*, whose one row, *All results for "…"*, opens
-  the Search results page. Wikidata's rows arrive after the library's and never hold them
+  Chunk 03), **in two halves since 2026-10-06** (the owner, `build-plan-search-held-not-held.md`):
+  under a *Held* heading, the groups *Held: artists*, *Held: works*, *Held: topics*
+  and *Held: themes* (the library's matches, themes by name, and any of
+  Wikidata's matches the library holds that those rows do not show); under a
+  *Not held* heading, *Not held: artists*, *Not held: works* and *Not held: topics*
+  (the rest of Wikidata's); then *Ask*, then *Search*, whose one row, *All results
+  for "…"*, opens the Search results page. A listbox cannot nest groups, so each
+  group's accessible name carries its half and the two headings are drawn for
+  the eye only (`aria-hidden`). A half with nothing in it is one line, not a
+  group for each kind it lacks: "Nothing you hold matches.", and, once Wikidata
+  has answered, "Wikidata has nothing more." The Not held half is left out below
+  Wikidata's three letters, when there is nothing it could say. Wikidata's rows arrive after the library's and never hold them
   back, are asked from the third letter, carry a mark of glyph, word and colour (an
   artist's ● *In your library* or ○ *Not held*; a work's by § A work's mark), leave out what the library's rows already show, and open the library's
   page for a held match and the page by QID otherwise. Their arrival is announced
   in a polite live region and moves no highlight; a new query starts with none, so
   Enter is never sent to a row the curator did not choose. Wikidata off or down is said
   in a note where its rows would be, in its own class, apart from the library's
-  note. Enter is unchanged (the owner, 2026-10-01: Enter stays on Artworks).
+  note. Enter with nothing highlighted opens the Search results page (below).
   *(Topics added 2026-10-02, `build-plan-topics-and-destinations.md` Chunk 05:
   *Topics* is the topics your works are in whose names hold the words, after
   works as `ia-proposal.md` § Search orders the objects, each naming its kind;
@@ -322,10 +330,13 @@ listed below so it can be disputed.
   for them that *Topics* does not already show, each with Wikidata's description,
   which is what tells six *Impressionism*s apart. Both open the Topic page. The
   topic search is asked beside Wikidata's other search and arrives with it, under
-  one note when Wikidata cannot be asked.)*
+  one note when Wikidata cannot be asked. Since 2026-10-06 the two are *Held:
+  topics* and *Not held: topics*, and a topic of Wikidata's that your works are
+  in is under Held even when its name is not the one the library knows.)*
 
-  Arrt follows that shape. The groups are *In your library* and *Ask* (*Add
-  New* until 2026-10-02), named as Sonarr names its second group for the page it
+  Arrt follows that shape. The library's groups are under *Held* (*In your
+  library* until 2026-10-06), and the last two are *Ask* (*Add New* until
+  2026-10-02) and *Search*, *Ask* named as Sonarr names its second group for the page it
   opens, and the row reads *Ask about "{query}"*. Picking it goes to
   `#discover?term={query}`. A candidate that is already an accepted work is
   marked *Already in your library*, and its first control opens that work.
@@ -335,15 +346,16 @@ listed below so it can be disputed.
     spends money, so Ask shows the free estimate beside the filled-in box
     and the curator presses Search. *(Builder's ruling: nothing may spend on a
     keystroke.)*
-  - **Enter opens Artworks filtered to the query, not its first match.** A series
-    title usually matches one series, but an artist or a movement matches many
-    works, so the first match is an arbitrary one. Opening the filtered library
-    keeps today's behaviour, where search is the main way to find things at
-    thousands of works. The matches in the dropdown are still one arrow key
-    away. *(Ruled by the owner 2026-09-30: "yes to filtered to the query". This is
-    a recorded departure from the *arr precedent, for the reason above. **Kept by
-    the owner 2026-10-01**, when one-world search offered a results page for
-    Enter instead: the page is reached from the dropdown's last row.)*
+  - **Enter opens the Search results page for the query, not its first match.**
+    A series title usually matches one series, but an artist or a movement
+    matches many works, so the first match is an arbitrary one. The page lists
+    every match, *Held* then *Not held*, and leads on to Artworks filtered to the
+    words through its Held works' *All N in Artworks*. The matches in the
+    dropdown are still one arrow key away. *(**Ruled by the owner 2026-10-06**,
+    reversing the ruling of 2026-09-30, kept 2026-10-01, that Enter opens
+    Artworks filtered to the query: Artworks lists only what is held, so a search
+    for a work not held found nothing there and offered no way on. This remains
+    a recorded departure from the *arr precedent, for the reason above.)*
   - **A held work keeps a quieter *Accept anyway*.** Sonarr's card for a series
     already in the library offers no add at all, because a TVDB id makes
     "already held" certain. Arrt's is found by title and artist, which two
@@ -784,7 +796,7 @@ who did not edit this table.
 | Walls | Each wall's hanging work, large | Title, artist, theme, which wall; which client shows it, on which output ("Shown by Hall Pi on hdmi-a-1"), or "No client shows this wall" with a link to Settings › Clients *(2026-10-02, `build-plan-clients.md` Chunk 02)* | Change theme, next, open work *(the wall token panel, added 2026-09-30, was retired 2026-10-02 with wall tokens; a wall is assigned to a client in Settings › Clients)* | Panel + TV health, quietly |
 | Artworks | The grid of images | Counts, active filters | Search; filter by facet and by theme, which compose; *Select* mode, whose action bar adds the ticked works to a theme or removes them from the theme being filtered; archive | Total, and what is filtered out |
 | Work | The image at full size; for a work not held, the image Wikidata found, or none | Artist, facets, mat colour, rendition size; for a work not held, its date, medium, and holder with number | Theme membership, re-mat, archive, change the Wikidata item or say there is none, Retry a failed fetch; for a work not held, *Get this work*, its artist, and the rest of their work | Fit verdict, image state, and while the acquisition queue owes it one, where it stands there; for a work not held, *Wanted* (◑), *Not held · Image found* (◐) or *Not held* (○) |
-| Search results | The artists and works the words find, artists first | Each artist's years; each work's maker; how many library works match beyond those listed | Open any result; switch *All*, *In your library*, *Not held*; open the library's matches in Artworks; *Ask about* when Wikidata has nothing | Each result's mark; whether Wikidata answered |
+| Search results | The artists, works and topics the words find, *Held* then *Not held*, artists first in each | Each artist's years; each work's maker; each topic's kind, and Wikidata's description for its own; how many library works match beyond those listed | Open any result; open the library's matches in Artworks (*All N in Artworks*); tick and get works not held; *Ask about* when Wikidata has nothing | Each artist's and work's mark; the group each result is in; whether Wikidata answered |
 | Ask | The intent box and the conversations | Samples inline | Type, react, commit, start direct | Run progress, spend |
 | To review | The runs with works waiting for a verdict | What each asked for, its kind, how many works wait, when | Review a run's works | The count, as a word and a number |
 | Queue | The searches in flight, then the images being fetched | What each asked for, and when; for a fetch, why it failed and when it tries again | Open a search; open a work, Retry a failed fetch | Which state each is in; a fetch's as glyph and word (◌ queued, ↻ fetching, ▲ failed, ✗ gave up, ‖ paused) |
@@ -914,7 +926,7 @@ almost no considered empty states.
 | Walls | Nothing hanging on a wall: name the reason (no active theme / empty theme / display plane silent) and offer the fix for that reason specifically. No client showing a wall → say so, with the link to Settings › Clients | The frame, then the image | Cannot reach the display plane — say which of the two planes answered. A client listing that does not arrive → each assigned wall says its output and that its client's name could not be read |
 | Artworks | **Three different empties.** No works at all → an invitation into Ask. No works *matching the filter* → the filter, and how to clear it. **Filtered to one artist and holding none of them** → say so as a normal state and offer the search (see flow 1). Conflating the first two tells a curator with 3,000 works that they own nothing; conflating the third with the second reports the expected result of following a suggestion as a failed query | Skeleton tiles at the grid's real geometry, so nothing reflows | Partial page: show what arrived and say what did not |
 | Work | n/a. For a work not held: Wikidata has no such item → "Wikidata has no such work", with the QID | Image placeholder at the work's own aspect ratio | Named per missing part — a work with no rendition is not a failed page. For a work not held, Wikidata not configured or not answering is said in a sentence, and its *More by* section says so on its own |
-| Search results | No words → a note to type in the search box. Nothing found in the library → its sections say "No artists." and "No works."; Wikidata found nothing → says so and offers *Ask about* (fills in Ask, starts nothing) | The library's sections first; *Asking Wikidata…* in a live region until Wikidata answers, nothing above it waiting | The library's refusal in the page's error banner; Wikidata off or down said in that live region, the library's results left standing |
+| Search results | No words → a note to type in the search box. A group with nothing in it is one line, with no line for each kind it lacks: Held says "Nothing you hold matches."; Not held, once Wikidata has answered, says "Wikidata has nothing more." when all it found is already under Held, and "Wikidata has nothing for "…"." with *Ask about* (fills in Ask, starts nothing) when it found nothing at all | The Held group first; *Asking Wikidata…* in a live region under *Not held* until both of Wikidata's searches answer, nothing above it waiting | The library's refusal in the page's error banner; Wikidata off or down said in that live region, the Held group left standing |
 | To review | Nothing waiting → say so, and say what would appear here | Nothing until the listing arrives | The request's refusal, in the page's error banner |
 | Queue | No search in flight → say so, say what would appear here, and offer Ask. Over a truncated listing it says what it checked, since an older search may still be at the gate. No image owed → "Every accepted work holds its image" | Nothing until both listings arrive, then the headings and the tables together | The request's refusal, in the page's error banner; a paused acquisition queue is not an error, and is said above its works with its remedy |
 | History | No search has finished → say so | Nothing until the listing arrives, then the heading and the table together | The request's refusal, in the page's error banner |

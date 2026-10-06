@@ -269,6 +269,27 @@ header.topbar {
   letter-spacing: 0.04em;
 }
 
+/* The two halves, Held then Not held, each headed above its groups. Drawn for
+   the eye only: each group's own name carries its half to a screen reader. The
+   rule between them is what sets the second half apart from the first. */
+.search-suggestions-half {
+  padding: var(--space-2) var(--space-3) 0;
+  color: var(--text);
+  font: 700 var(--text-sm) / 1.4 var(--font-ui);
+}
+
+.search-suggestions-half ~ .search-suggestions-half {
+  margin-top: var(--space-1);
+  border-top: 1px solid var(--border);
+}
+
+/* A half with nothing in it: one line, under its heading. */
+.search-suggestions-none {
+  padding: var(--space-1) var(--space-3) var(--space-2);
+  color: var(--text-muted);
+  font: var(--text-sm) / 1.4 var(--font-ui);
+}
+
 /* The library's note and the registry's look alike and are not alike: the first
    says the library was not searched, which guards a paid search; the second only
    that Wikidata was not, so tests and readers tell them apart by class. The

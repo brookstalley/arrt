@@ -47,14 +47,15 @@ no separate navigation bug is in scope.
 - [DECISION: **Wikidata's topics join the results page**, under Not held, from `GET /api/registry/topics` as the dropdown already asks. The library's matching topics join Held, from `GET /api/topics` filtered as the dropdown filters | the accepted mock-up lists Topics under Not held; the dropdown already shows both, so the page stops being the narrower of the two | agent's reading of the mock-up]
 - [DECISION: **the dropdown uses the same two halves**: the library's groups first under Held, Wikidata's under Not held, then Ask and *All results*. Because a listbox cannot nest groups, each group's accessible name carries its half ("Held: artists", "Not held: works"), and a visual heading row for each half is presentation only. An empty Held half is one presentation line, "Nothing you hold matches." | accessibility spec; the owner's words]
 - [DECISION: **kept as they are**: the top result when the words name one artist; *Get N works* on Not held works; *Ask about* when Wikidata finds nothing; the library half drawn first and never waiting on Wikidata; the polite live region; *Asking Wikidata…* | none of these was the complaint]
-- [DECISION: **the path to Artworks filtered by the words stays**, as the Held works section's "All N in Artworks" link when more match than are listed, and from Artworks' own filter | Enter no longer reaches it, and a curator with many matching works needs the grid's tools]
+- [DECISION: **the path to Artworks filtered by the words stays**, as the Held works section's link ("Open in Artworks", or "All N in Artworks" when more match than are listed), shown whenever anything held matches | Enter no longer reaches it, and Artworks has no words filter of its own besides `q` in its address (found in build; the plan first assumed one) | agent's, amended at build]
+- [DECISION: **a Wikidata match the library holds goes under Held**, even when the library's own search missed it, with its ● mark | a row marked held under a *Not held* heading would contradict itself; the owner's "group held and not held, Wikidata under each" | found in build]
 - [ASSUMPTION: no server change: every list the page needs already has a route]
 
 **Not in this plan:** a picture of a work before it is got (`build-plan-look-before-get.md`); any change to the Work screen.
 
 ## Status
 
-- [ ] Chunk 01: Held and Not held, on the results page and in the dropdown, and Enter opens the page
+- [x] Chunk 01: Held and Not held, on the results page and in the dropdown, and Enter opens the page
 
 ### Chunk 01: Held and Not held, on the results page and in the dropdown, and Enter opens the page
 

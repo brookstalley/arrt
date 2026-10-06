@@ -136,6 +136,8 @@ def registry():
         },
         topics_found={
             "16th": [topic(SIXTEENTH, "16th century", TopicKind.PERIOD, start=1501, end=1600)],
+            # The library's 16th century by a name the library's own label does not hold.
+            "cinquecento": [topic(SIXTEENTH, "16th century", TopicKind.PERIOD, description=RegistryText("Italian 1500s"))],
             "impressionism": [
                 topic(IMPRESSIONISM, "Impressionism", TopicKind.MOVEMENT, description=RegistryText("art movement")),
                 topic(ItemId("Q1145287"), "Impressionism", TopicKind.MOVEMENT, description=RegistryText("music movement")),
@@ -603,12 +605,12 @@ def test_the_dropdown_has_a_topics_group_after_works(ui, service, held):
     _type(ui, "16th")
     _announced(ui)
 
-    assert _options(ui, "Topics") == ["16th century — period"]
+    assert _options(ui, "Held: topics") == ["16th century — period"]
     # Wikidata's 16th century is the library's, already shown, so not offered twice.
     assert ui.page.locator(f"{LISTBOX} [aria-labelledby='suggestions-registry-topics']").count() == 0
     assert ui.page.locator(f"{LISTBOX} .search-suggestions-label").all_text_contents() == [
-        "In your library",
-        "Topics",
+        "Held: works",
+        "Held: topics",
         "Ask",
         "Search",
     ]
@@ -621,14 +623,66 @@ def test_the_dropdown_offers_wikidatas_topics_with_their_descriptions(ui, held):
     _type(ui, "impressionism")
     _announced(ui)
 
-    assert _options(ui, "Wikidata: topics") == [
+    assert _options(ui, "Not held: topics") == [
         "Impressionism — movement · art movement",
         "Impressionism — movement · music movement",
     ]
     labels = ui.page.locator(f"{LISTBOX} .search-suggestions-label").all_text_contents()
-    assert labels[-3:] == ["Wikidata: topics", "Ask", "Search"]
+    assert labels[-3:] == ["Not held: topics", "Ask", "Search"]
     ui.page.click(f"{LISTBOX} [role='option']:has-text('art movement')")
     ui.page.wait_for_function("(qid) => window.location.hash.split('?')[0] === `#topic/${qid}`", arg=IMPRESSIONISM)
+
+
+def test_wikidatas_topic_the_library_is_in_is_held_though_its_name_differs(ui, held):
+    """Held is what your works are in, whatever the words matched it by."""
+    _type(ui, "cinquecento")
+    _announced(ui)
+
+    assert _options(ui, "Held: topics") == ["16th century — period · Italian 1500s"]
+    assert ui.page.locator(f"{LISTBOX} [aria-labelledby='suggestions-registry-topics']").count() == 0
+
+
+# -- the search results page ---------------------------------------------------------
+
+
+def _results(ui, query):
+    ui.open(f"#search?q={query}")
+    ui.page.wait_for_function("() => !document.querySelector('#view p[aria-live]').textContent.startsWith('Asking')")
+
+
+def _result_rows(ui, half):
+    return [
+        " ".join(t.split()) for t in ui.page.locator(f"section[aria-labelledby='results-{half}-topics'] li").all_inner_texts()
+    ]
+
+
+def test_the_results_page_lists_the_librarys_topic_under_held_once(ui, held):
+    _results(ui, "16th")
+
+    assert _result_rows(ui, "held") == ["16th century — period"]
+    assert _result_rows(ui, "not-held") == []
+    ui.page.click("section[aria-labelledby='results-held-topics'] button:has-text('16th century')")
+    ui.page.wait_for_function("(qid) => window.location.hash.split('?')[0] === `#topic/${qid}`", arg=SIXTEENTH)
+
+
+def test_the_results_page_lists_wikidatas_topics_under_not_held(ui, held):
+    _results(ui, "impressionism")
+
+    assert _result_rows(ui, "not-held") == [
+        "Impressionism — movement · art movement",
+        "Impressionism — movement · music movement",
+    ]
+    assert ui.page.locator("#view .results-none").inner_text() == "Nothing you hold matches."
+    ui.page.click("section[aria-labelledby='results-not-held-topics'] li:has-text('art movement') button")
+    ui.page.wait_for_function("(qid) => window.location.hash.split('?')[0] === `#topic/${qid}`", arg=IMPRESSIONISM)
+
+
+def test_the_results_page_puts_a_topic_the_library_is_in_under_held(ui, held):
+    _results(ui, "cinquecento")
+
+    assert _result_rows(ui, "held") == ["16th century — period · Italian 1500s"]
+    assert _result_rows(ui, "not-held") == []
+    assert ui.page.locator("#view .results-none").is_hidden()
 
 
 # -- with no User-Agent ------------------------------------------------------------
