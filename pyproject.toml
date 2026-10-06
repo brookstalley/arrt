@@ -22,6 +22,9 @@ dev = [
     # Imported directly by the root contract test to resolve one schema's $ref
     # into another, so declared for the same reason as jsonschema above.
     "referencing>=0.35",
+    # Reads `.prawduct/project-state.yaml` in the artifact-manifest guard, which
+    # checks a YAML document's structure and so parses it rather than grepping it.
+    "pyyaml>=6",
 ]
 
 [tool.black]
