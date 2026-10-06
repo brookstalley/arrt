@@ -62,6 +62,32 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-06: The browser suite runs in four CI shards, and skips record-only pull requests
+
+<!-- prawduct: scope=ci-browser-shards -->
+
+**Why:** the owner, 2026-10-06: CI was slow. The browser suite ran as one serial
+job of about ten minutes on every PR. It is serial on purpose: its tests time
+real poll windows, and parallel workers on a CI runner's few cores make them flaky.
+
+**What:** `.github/workflows/browser.yml` runs four jobs side by side. Each is
+still serial, on a share of the files that `.github/scripts/browser_shard.py`
+computes from the directory, balanced by test count (158, 157, 157 and 158
+`def test_` lines at the time). Locally the four shares collect exactly the 692
+tests the single job did, with none twice. Each shard keeps the job's "nothing
+actually ran" guard. A pull request that changes only Markdown, `.prawduct/` or
+`docs/` skips the browser workflow: no browser test reads those, checked by grep.
+Neither `develop` nor `main` has branch protection, so no required check is
+stranded by the new job names. `tests/test_browser_shards.py` (root suite) holds
+that every test module pytest would collect under `tests/browser` (by its own
+rule, `test_*.py` and `*_test.py` in any subdirectory, walked independently of the
+script) is in exactly one share, and that the matrix is the one place the shard
+count is stated, the job reading it back as `strategy.job-total` and
+`strategy.job-index`. **From review:** the first version listed top-level
+`test_*.py` only, and its test used that same listing, so a nested or `*_test.py`
+module would have run in no shard unnoticed. Fixed, and the planted case fails
+against the old listing.
+
 ## 2026-10-06: A look shows what the image sources hold of a work, before any Get
 
 <!-- prawduct: scope=look-before-get -->
