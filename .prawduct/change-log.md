@@ -62,6 +62,20 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-06: The minimum is 1,000 px on the long edge
+
+<!-- prawduct: scope=quality-minimum -->
+
+**Why:** the owner: "let's adjust our minimum acceptable size to be 1000, on a
+1080p display with a mat that's about right for a minimum". That is the number
+`re-architecture.md` left open for the Library quality profile.
+
+**What:** the open question is answered in `re-architecture.md`, and
+`nonfunctional-requirements.md` § The floor carries a dated direction note. No
+code changes: until wave 4 the inch floor carries the minimum, and the owner's
+deployment sets `RESOLUTION_FLOOR_INCHES=11.34` (1,000 px on its 50" 4K panel,
+checked with `assess_display_fit`: 1000 × 700 passes, 999 × 700 does not).
+`DEFAULT_RESOLUTION_FLOOR_INCHES` stays 12 for an unconfigured deployment.
 ## 2026-10-06: SMK, through its open API, as a built-in source
 
 <!-- prawduct: scope=smk-source -->

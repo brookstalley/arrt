@@ -662,8 +662,14 @@ the other way round.
 - ~~**The compositing budget on a Pi 4.**~~ *Answered 2026-10-04:* measured and
   budgeted in `nonfunctional-requirements.md` § Performance. A 7680 cap needs no
   reduction for the Pi's sake, which bears on the master's size cap above.
-- **The quality profile's numbers:** the minimum and the upgrade cutoff, in
-  pixels. The floor the code derives from today's panel is the starting point.
+- ~~**The quality profile's numbers:** the minimum and the upgrade cutoff, in
+  pixels.~~ *Answered:* the **minimum is 1,000 px on the long edge** (the owner,
+  2026-10-06: "on a 1080p display with a mat that's about right for a
+  minimum"). The cutoff became a search cadence on 2026-10-02 (the direction note
+  in § Compositing moves to the Player). Until wave 4 builds the profile, the server's inch floor
+  carries it: a deployment sets `RESOLUTION_FLOOR_INCHES` to 1,000 divided by
+  its panel's pixels per inch (11.34 on a 50" 4K Frame, which cuts at exactly
+  1,000 px).
 - **The smart-playlist rule language:** how rich, and whether the facade's
   query needs anything beyond AND, OR and NOT over (kind, value) plus a date
   range.
