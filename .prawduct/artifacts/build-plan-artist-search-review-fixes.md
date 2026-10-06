@@ -63,7 +63,7 @@ is the mechanism, and the owner has not seen it).
 - [DECISION: **an artist reached by QID whom the library holds unlinked under the same name** (accents and case folded, no QID, not "there is none") is named on that page with *Link them to this item*, which stores the QID and opens their library page | the owner's Kline path went through this page | agent's]
 - [DECISION: **an artist Wikidata lists no works for offers *Ask for their work***, which opens Ask filled with "Paintings by <name>" and starts nothing, as search's *Ask about* does; on both Artist pages | IA § A control never offers a dead end; Ask is how works Wikidata does not list are found (Lucy Bull's were found by Ask, run bd44c4b3) | agent's]
 - [DECISION: **inside the search groups a mark says only what the group heading does not**: artist rows carry no mark (the top result, outside the groups, keeps it); a not-held work reads ◐ *Image found*, ◑ *Wanted*, or ○ *No image known* (the Topic page's words); a held work keeps ● *Held* and its picture, since *Held ×2* says something the heading does not. Results page and dropdown alike | the owner's words; the dropdown has the same two halves]
-- [DECISION: **a decided card shows its decision, not the controls**: accepted or rejected, the *Why* field and the verdict buttons are replaced by one line: "Accepted." with *Open it in Artworks*, or "Rejected. It will not be proposed again." (the rejection reason is not served to the card, so it is not repeated). *Wanted* is not terminal and keeps *Forget* | `set_verdict` refuses a second verdict]
+- [DECISION: **a decided card shows its decision, not the controls**: accepted or rejected, the *Why* field and the verdict buttons are replaced by one line: "Accepted. It is in your library." with *Open it in Artworks*, or "Rejected. It will not be proposed again." (the rejection reason is not served to the card, so it is not repeated). *Wanted* is not terminal and keeps *Forget* | `set_verdict` refuses a second verdict]
 - [DECISION: **the candidates answer is kept a week**, as the rest of the registry half is (`REGISTRY_KEPT_FOR`), keyed by the name; a failure is not kept | `artists.py` module rule]
 - [ASSUMPTION: running the matcher automatically at acceptance is the deeper fix for (1) and is out of this plan; filed to the backlog. The owner is asked to run `python -m arrt.identify` once for the artists already unlinked, after checking the candidates on Franz Kline; recorded in `operator-verification.md`]
 
@@ -75,7 +75,7 @@ is the mechanism, and the owner has not seen it).
 
 ### Chunk 01: all four
 
-**Exposed API:** `GET /api/artists/{id}/registry` gains `candidates` (state `no_identity`); `GET /api/registry/artists/{qid}` gains `unlinked` (state `known`). Additive.
+**Exposed API:** `GET /api/artists/{id}/registry` gains `candidates` (state `no_identity`); `GET /api/registry/artists/{qid}` gains `unlinked` (state `known`); every candidate work over HTTP gains `decided` (added at review). Additive.
 
 Done when:
 

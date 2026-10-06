@@ -90,6 +90,11 @@ Accept, though both verdicts are final.
 - A decided review card says "Accepted. It is in your library." with *Open it in
   Artworks*, or "Rejected. It will not be proposed again.", where its controls
   were. Its scans offer no choice. A wanted card keeps *Forget*.
+- Every candidate work served over HTTP carries `decided` (`Verdict.is_terminal`),
+  which the card hides its controls on, so the client keeps no copy of the
+  final verdicts. It is HTTP-only, as `RunOut.is_terminal` is. Additive.
+- The picture-store norm in `data-model.md` is re-affirmed by the owner: #61, #62
+  and #81 are the history it closed (the startup advisory, answered the same day).
 
 **Tests changed, and why:** in `test_the_search_results_page.py`,
 `test_held_then_not_held_each_marked_and_nothing_twice` is renamed
