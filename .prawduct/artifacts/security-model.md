@@ -677,7 +677,8 @@ which would have isolated it, and accepted the trust that comes with it.
   - the clients' token verifiers, which are hashes in the catalogue, not the
     tokens;
   - the network from inside the container, the house's LAN included.
-  "A plugin writes nothing" is what the interface lets it say, not a barrier.
+  "A plugin writes no record, and files only in its own directory" is what the
+  interface lets it say, not a barrier.
 - **Its own requests are unguarded.** `check_fetchable` and the redirect checks
   (§ The fetch trigger fired) run on what Arrt fetches. A plugin's search,
   preview and page reads are made by the plugin's own client, and nothing stops
@@ -708,9 +709,18 @@ one, which has the access above, they are not:
   and its finder reads image heads and previews only there, also the plugin's
   checks. SMK's reader returns an image only from `api.smk.dk`'s download and
   thumbnail paths, and its finder reads previews only from `iip-thumb.smk.dk`
-  or that thumbnail path, again the plugin's checks. A third-party reader's locator gets bound 2 only: any public address.
+  or that thumbnail path, again the plugin's checks. The NGA's reader returns an
+  image only on `api.nga.gov/iiif/`, built from an image id it checks against the
+  IIIF id's form; its finder reads previews only there and downloads the open
+  data only from `raw.githubusercontent.com`'s `NationalGalleryOfArt/opendata`
+  path, also the plugin's checks. A third-party reader's locator gets bound 2 only: any public address.
 - **Arrt decides** a work's identity, its rights record, duplicates, review,
   quality, spending and storage. A plugin answers "what images exist, and where".
+  Since interface 1.2 a plugin is handed a directory of its own under
+  `ART_ROOT/sources/` for a copy of what it can fetch again (`source-plugins.md` §
+  A plugin's own directory); the NGA's copy of its open data is the first. That
+  directory is where the interface lets it write, which, like "a plugin writes no
+  record", is not a barrier.
 - **A plugin's error text is scrubbed** before the journal and the health panel.
   Every URL's query string is cut, found by running to whitespace, `"`, `<` or
   `>`, the characters an HTTP client always encodes. The scrub runs past `'` and

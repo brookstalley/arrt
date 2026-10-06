@@ -36,7 +36,7 @@ RUN_1_FINDS = [
 
 
 @pytest.fixture(scope="module")
-def roster():
+def roster(tmp_path_factory):
     registry = WikidataRegistry(user_agent=USER_AGENT)
     loaded = load_sources(
         SourceContext(
@@ -44,7 +44,8 @@ def roster():
             user_agent=USER_AGENT,
             preview_max_bytes=16 * 1024 * 1024,
             registry=registry,
-        )
+        ),
+        data_root=tmp_path_factory.mktemp("sources"),
     )
     yield loaded
     registry.close()
@@ -57,6 +58,7 @@ def test_the_built_in_plugins_load_from_their_entry_points(roster):
         "commons": PluginState.LOADED,
         "artic": PluginState.LOADED,
         "met": PluginState.LOADED,
+        "nga": PluginState.LOADED,
         "smk": PluginState.LOADED,
         "wikidata": PluginState.LOADED,
     }

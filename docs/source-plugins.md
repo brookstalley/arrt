@@ -23,7 +23,7 @@ gallery = "arrt_gallery:PLUGIN"
 ```
 
 - **Pick a name no other installed plugin uses.** The built-ins are `commons`,
-  `artic`, `met`, `smk` and `wikidata`. Two distributions registering one name load neither, so
+  `artic`, `met`, `nga`, `smk` and `wikidata`. Two distributions registering one name load neither, so
   a plugin cannot replace a built-in by taking its name.
 - **The name is permanent once rows carry it.** Every image the plugin's finder
   reports is stored under it, and acquisition and the health panel name the
@@ -60,11 +60,19 @@ configured the plugin.
 - `context.user_agent` is this deployment's `ACQUISITION_USER_AGENT`.
   `context.preview_max_bytes` bounds a preview read. `context.registry` is
   Wikidata, or `None` when the deployment has not named itself to it.
+- `context.data_dir` (1.2) is a directory of your plugin's own,
+  `ART_ROOT/sources/<your plugin's name>/`, or `None` when the deployment gives
+  none. Create it when you first write. Keep there only what you can fetch again:
+  it is not backed up. A plugin that keeps a copy of a holder's catalogue there
+  meets the bounds `source-plugins.md` § A plugin's own directory sets (gzipped
+  on disk, refreshed at most daily and conditionally, in memory only while
+  asked). Read it with `getattr(context, "data_dir", None)` if your plugin should
+  also load on an older Arrt, and decline when you need it and it is `None`.
 
 `api_major` is the interface major the plugin was written for. Today that is
-`1` (`API_VERSION` is `(1, 1)`). Arrt refuses a plugin written for another major,
+`1` (`API_VERSION` is `(1, 2)`). Arrt refuses a plugin written for another major,
 by name, and loads one written for an older minor, because a minor only adds
-optional capabilities. 1.1 added `ImageQuery.pages`.
+optional capabilities. 1.1 added `ImageQuery.pages`, and 1.2 `SourceContext.data_dir`.
 
 ## Import from `arrt.library.sources` and nothing else
 
@@ -162,7 +170,8 @@ call reads as a broken plugin on the panel.
   (the same check: http or https, a public address, no `.local` name), and drop
   one it refuses. That is one check, of the address as cited, at that moment;
 - decide a work's identity, its rights record, duplicates, review, quality,
-  spending and storage, so a plugin writes nothing;
+  spending and storage, so a plugin writes no record (what it may keep in its
+  own directory is a copy of what it can fetch again);
 - cut the query string from every URL in its log and on the health panel,
   including in the message of anything your plugin raises.
 
@@ -317,5 +326,6 @@ to it by a test:
 | `artic` (`arrt/src/arrt/library/sources/artic.py`) | a finder, a reader and a collection; declining without its setting; `claims` checking host and path | `test_artic_client.py`, `test_artic_browse.py` |
 | `met` (`met.py`) | a finder that finds by item when a registry is configured and searches otherwise; a reader; `claims` taking only the URL shape it records; an image's size read from its header | `test_met_source.py` |
 | `smk` (`smk.py`) | a finder that reads the item's own pages, of several spellings, and reports each image under the page exactly as the item spells it; `claims` taking those spellings and the API's object URL; rights read from the holder's own statement, in copyright included | `test_smk_source.py` |
+| `nga` (`nga.py`) | a plugin that keeps a copy of a holder's open data in its own directory (`context.data_dir`), refreshed conditionally at most daily and released from memory when idle; a reader answering tiles for an original and a direct fetch for a capped copy; declining without a directory | `test_nga_source.py` |
 | `commons` (`commons.py`) | a finder that needs the registry and looks works up by item | `test_commons_source.py` |
 | `wikidata` (`wikidata.py`) | a finder of pages only, with `offers_images = False` | `test_wikidata_pages.py` |

@@ -10,6 +10,29 @@ each entry, which is the durable form.
 
 ## Pending
 
+### The NGA as a source — added 2026-10-06
+
+**`build-plan-nga-source.md` Chunk 01.** Visual change: no; live integration.
+
+Checked by the builder against recorded rows of the open data with a fake host
+and clock, and against the live hosts (`live_museum`). Not yet deployed.
+
+- **Look at:** after the next deploy, Settings › Sources lists `nga` from `arrt`,
+  loaded, and the interface version reads 1.2. `ART_ROOT/sources/` is empty until
+  the first look or Get that asks the NGA; then `sources/nga/` holds two `.csv.gz`
+  files (about 43 MB) and `state.json`, and the journal says
+  `nga.catalogue_downloaded` twice and `nga.catalogue_loaded` once.
+- **Try:** a look at Murillo's *Two Women at a Window* (Q3757652): an `nga`
+  picture at 17,385 × 20,855, public domain. Then a look at Escher's
+  *Castrovalva* (corpus row 15, Q65574099): an `nga` placeholder at 704 × 900,
+  below the floor, rights unknown.
+- **Worth watching:** about six hours after the last NGA query, the journal says
+  `nga.catalogue_released`, and the container's memory falls by about 80 MB. A
+  day later, the first NGA query says `nga.catalogue_unchanged` (a 304) or
+  downloads a new day's file.
+- **Worth an opinion:** the plugin keeps `objects.csv` as well as the file the
+  ruling named, for NGA's own titles and artists (the build plan's first decision).
+
 ### A work you don't hold shows what the sources hold, before any Get — added 2026-10-06
 
 **`build-plan-look-before-get.md` Chunks 01–02.** Visual change: yes (the Work

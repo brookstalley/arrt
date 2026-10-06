@@ -343,8 +343,9 @@
   tiles of a **partial** download so a retry can resume, and it is removed per
   source as soon as that work holds a complete image. Transporting it would carry
   the debris of an interrupted fetch to another machine. `api-cache/` appears only
-  in the 2024 `config.py`; the curation plane asks museums over HTTP and caches
-  nothing on disk, so nothing produces it.
+  in the 2024 `config.py`; the curation plane asks museums over HTTP, so nothing
+  produces it. (What a source plugin keeps of a holder's published data lives
+  under `sources/`, below.)
 - All stored paths are relative to `ART_ROOT`. No absolute paths in any record.
 - **`pictures/` joins the contract (added 2026-10-06, the owner's norm in
   `data-model.md` § Direction).** Every picture Arrt fetches from outside is kept
@@ -356,6 +357,14 @@
   deletes a picture; the store's only deletion is its own `*.tmp` files at startup.
   A row's `preview_path` names the larger tier. The old `previews/` directory is
   read by the import at each start, and removed by hand once that reports `done`.
+- **`sources/` joins the contract (added 2026-10-06, interface 1.2,
+  `build-plan-nga-source.md`).** `sources/<plugin name>/` is each source plugin's
+  own directory (`SourceContext.data_dir`), for a copy of what it can fetch again.
+  The first is `sources/nga/`: the NGA's open data, two gzipped CSVs and a
+  `state.json` of their ETags and last check, about 43 MB. Written and read by
+  that plugin only, in the curation plane. **Neither upstream nor derived, and
+  neither transported nor backed up:** deleting it costs one download at the next
+  query that asks the NGA.
 - **The preview sweep is retired (2026-10-06, `build-plan-picture-store.md`
   Chunk 02).** From 2026-08-03 candidate previews were a disposable third class
   under `previews/`, deleted by a periodic sweep once every work naming one was

@@ -79,7 +79,7 @@ NGA's web pages; a store API for plugin files; backing up `sources/`.
 
 ## Status
 
-- [ ] Chunk 01: Interface 1.2's data directory, the `nga` plugin, its records and its live check
+- [x] Chunk 01: Interface 1.2's data directory, the `nga` plugin, its records and its live check
 
 ### Chunk 01: Interface 1.2's data directory, the `nga` plugin, its records and its live check
 
@@ -91,7 +91,8 @@ Done when:
 
 - `plugin.py`: `data_dir`, `API_VERSION = (1, 2)`; `loading.py`: each plugin gets
   `data_root / <name>`, and a name that is not one plain segment gets `None`;
-  `__main__` passes `ART_ROOT/sources`; `config.py` names the directory.
+  `__main__` passes `Settings.source_data_path` (the `sources` directory under
+  ART_ROOT), which `config.py` names.
 - `arrt/src/arrt/library/sources/nga.py`: the catalogue copy, finder, reader,
   `claims`, `PLUGIN`, importing only `arrt.library.sources` and the standard library.
 - Tests with an injected clock, timer and fake HTTP: a cold query downloads both

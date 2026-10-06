@@ -62,6 +62,34 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-06: The NGA, through a copy of its open data, as a built-in source; plugins get a directory of their own
+
+<!-- prawduct: scope=nga-source -->
+
+**Why:** about 128,000 Wikidata items carry an NGA artwork ID (arrt#234), and no
+NGA interface turns that ID into an image except its open data's CSV
+(`nga-api-findings.md`). The owner ruled on 2026-10-06 to keep that copy, within
+bounds: on disk gzipped, refreshed at most once a day with a conditional request,
+in memory only when a query asks the NGA, released after six hours with no NGA
+query.
+
+**What:** interface 1.2 adds `SourceContext.data_dir`, a directory of each
+plugin's own under `ART_ROOT/sources/<name>/`, which the loader narrows from one
+root (a name that is not one plain path segment gets none). It holds what a
+plugin can fetch again, and is not backed up. A built-in `nga` plugin
+(`library/sources/nga.py`) keeps the NGA's `published_images.csv` and
+`objects.csv` there under the owner's bounds, the second because the first has
+no title or artist for the identity check to read. It finds a work through its
+item's NGA page and reports the image under that page: the original through its
+IIIF tiles, at the original's size; or, where the NGA serves only a capped copy,
+that copy as a placeholder at the size the capped service states. Rights from
+`openaccess`: public domain, else unknown, never in copyright. It declines with
+no directory, and offers its reader alone with no registry. The built-in
+enumerations, the contract (`source-plugins.md` § A plugin's own directory, with
+the line naming `nga` the first plugin to keep a copy of a holder's catalogue),
+the plugin guide, the security model and the `ART_ROOT` layout records name the
+new directory and plugin.
+
 ## 2026-10-06: The browser suite runs in four CI shards, and skips record-only pull requests
 
 <!-- prawduct: scope=ci-browser-shards -->

@@ -9,9 +9,11 @@ string and one request at a time, unless a line says *inferred*.
 **The answer is no.** No public interface measured here turns an NGA object ID
 into its image without the open data's CSV or the artwork's web page. So the
 design the issue names ("resolve the object ID through NGA's open data to its
-IIIF service, never fetching the page") cannot be built as written. Which of the
-two ways round it to take is the owner's call (§ What the owner decides). Nothing
-was built.
+IIIF service, never fetching the page") cannot be built as written without the
+CSV. The owner chose to keep the CSV, within bounds (§ What the owner decided),
+and the `nga` plugin was built on that (`arrt/src/arrt/library/sources/nga.py`).
+The durable form of these findings is
+`arrt/tests/live/test_nga_shapes_are_still_real.py` (`live_museum`).
 
 ## Wikidata
 
@@ -138,34 +140,71 @@ open data. *Castrovalva* has been US public domain since 2026-01-01
 not mean "in copyright"**: a reader would record it as unknown, not as
 `IN_COPYRIGHT`.
 
-## What the owner decides
+## What the owner decided
 
-Each of these was measured to work. None was chosen.
+Three routes were measured to work, and recorded here as options on 2026-10-06:
 
-1. **The plugin keeps the open data's index.** It downloads
-   `published_images.csv` (26.6 MB on the wire, 7 s; 38 MB in memory), refreshes
-   it no more than once a day with a conditional request, and answers object ID
-   → uuid, size and cap from memory. The page is never fetched and every host is
-   open. The costs:
-   - the issue named avoiding this CSV as its precondition;
-   - a plugin that holds a day-old copy of a holder's catalogue is new to the
-     contract (`source-plugins.md` says Arrt, not the plugin, decides storage).
-     In memory only, it writes nothing, but every restart downloads it again.
-2. **The reader reads the artwork page.** One request per object, through the
-   formatter's 301, and the uuid is taken from the page. This is a museum-page
-   reader on a host behind Cloudflare, which challenges every other path tried.
-   Under the owner's rule that museum-page and challenge-passing readers are
-   private (`build-plan-smk-source.md`, citing the rulings of 2026-10-03/04),
-   it belongs in the private repository.
-3. **Wait** for the NGA to restore a per-object manifest. The Wikidata P6108
-   claims show one existed.
+1. keep the open data's index;
+2. read the artwork page, which would be a private plugin;
+3. wait for a per-object manifest.
 
-Whichever is chosen, the reader's shape is settled by the measurements above:
+**The owner chose the first the same day**, and bounded it. The file sits on disk
+gzipped, under the deployment's data area. It is refreshed at most once a day,
+with a conditional request. It is parsed into memory only when a query asks the
+NGA, and released after six hours with no NGA query. The build plan is
+`build-plan-nga-source.md`, and the reader's shape is settled by the
+measurements above:
 
 - open or uncapped → `FetchLocator.tiles(<uuid>/info.json)` at the original's
   size;
-- capped → the `__900` derivative as a placeholder. A direct `full/full` gets it
-  at its stated size, and that is the size reported;
+- capped → the `__<maxpixels>` copy as a placeholder, fetched direct from
+  `full/full`, at its stated size;
 - rights: `openaccess=1` → public domain (*recalled, not measured here:* the NGA
-  releases its open-access images as CC0);
-  `openaccess=0` → unknown.
+  releases its open-access images as CC0); `openaccess=0` → unknown.
+
+## Measured for the build (2026-10-06)
+
+- **`published_images.csv` has no title and no artist.** `objects.csv` has both,
+  as `title` and `attribution`: `Two Women at a Window`, `Bartolomé Esteban
+  Murillo`; `Castrovalva`, `M.C. Escher`; `CRAK!`, `Roy Lichtenstein`; `On a Clear
+  Day I`, `Agnes Martin`.
+  - On the wire it is 16,481,976 bytes gzipped, with its own weak ETag; it
+    downloads in 2 s and is 82,406,831 bytes raw.
+  - It has 146,099 rows. An index of `objectid` → (title, attribution) is 38.5
+    MB (tracemalloc).
+  - Some attributions carry a stray line end (`Hans Lützelburger after Hans
+    Holbein the Younger\r\n`).
+- **NGA's attribution agrees with Wikidata's creator label, under the identity
+  check's artist key, for 30,496 of 39,873 items** that have both (P4683 and
+  P170). It disagrees for 9,377. The commonest disagreements:
+
+  | NGA's attribution | Wikidata's creator label | Items |
+  |---|---|---|
+  | `Robert Havell after John James Audubon` | `Robert Havell` | 338 |
+  | `Rembrandt van Rijn` | `Rembrandt` | 293 |
+  | `Sir Muirhead Bone` | `Muirhead Bone` | 246 |
+  | `Auguste Renoir` | `Pierre-Auguste Renoir` | 54 |
+  | `Canaletto` | `Giovanni Antonio Canal` | 68 |
+
+  An image found under such an item's page is refused on the artist when the
+  run's artist is Wikidata's label. That is arrt#245's ground.
+- **`M.C. Escher` and `M. C. Escher` key alike** (`m c escher`), so the corpus's
+  Escher rows are not refused for that.
+- **The NGA pages "described at URL" (P973) records, by shape:**
+
+  | Page | Links |
+  |---|---|
+  | `https://…/collection/art-object-page.<id>.html` | 221 |
+  | `http://…/content/ngaweb/Collection/art-object-page.<id>.html` | 89 |
+  | `https://…/content/ngaweb/Collection/art-object-page.<id>.html` | 38 |
+  | provenance pages | 34 |
+  | `kress.nga.gov` objects | 6 |
+  | artist pages | 4 |
+  | the new site's `/artworks/<id>-<words>` | 3 |
+
+- **The live conditional request:** a second request with the first's ETag was
+  answered 304 with no body, for both files
+  (`arrt/tests/live/test_nga_shapes_are_still_real.py`, passing 2026-10-06).
+- **Objects with more than one primary image:** 177, all at `sequence` 0. The
+  file is sorted by image uuid, so which comes first is arbitrary but stable for
+  a given file.
