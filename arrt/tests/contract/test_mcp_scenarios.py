@@ -15,11 +15,10 @@ day a sixth tool or a new action arrives with nothing exercising it.
 from dataclasses import replace
 
 import pytest
-from fakes import a_museum_holding, a_roster, a_work, a_work_list
+from fakes import a_museum_holding, a_roster, a_work, a_work_list, take_the_picture_away
 from scenarios import ACCEPTANCE_ROUTE, DISCOVERY_ROUTE, REFERENCE_ROUTE, REVIEW_ROUTE, Call, Transcript, connect
 
 from arrt.library.discovery.engine import WorkList
-from arrt.library.services.previews import PreviewSettings
 from arrt.mcp.registry import HELP_ACTION
 from arrt.mcp.tools import TOOLS
 from arrt.persistence.discovery_records import RunStatus
@@ -382,7 +381,6 @@ class TestReviewingWhatDiscoveryFound:
             engine=engine,
             discovery_settings=settings.discovery_settings,
             sources=a_roster(museum),
-            previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
         )
 
     async def test_a_curator_reaches_the_pictures_from_an_intent_alone(self, server_url):
@@ -435,7 +433,7 @@ class TestReviewingWhatDiscoveryFound:
             work_id = listed["works"][0]["work_id"]
             # Take the cached copy away, leaving the instance real and picture-less.
             held = services.discovery.list_candidate_images(work_id)[0]
-            (services.review._art_root / held.preview_path).unlink()
+            take_the_picture_away(services.pictures.art_root, held.preview_path)
 
             bare = await caller.ok("art_review", "list_images", work_id=work_id)
 

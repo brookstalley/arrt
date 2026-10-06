@@ -18,7 +18,6 @@ import pytest
 from fakes import FakeFinder, a_roster, a_work, an_image
 
 from arrt.library.discovery.engine import WorkList
-from arrt.library.services.previews import PreviewSettings
 from arrt.persistence.discovery_records import ResolutionStatus, RunStatus
 from arrt.services.container import Services
 
@@ -79,7 +78,6 @@ def services(store, discovery_store, wall_settings, thumbnail_settings, settings
         engine=engine,
         discovery_settings=settings.discovery_settings,
         sources=a_roster(museum),
-        previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
     )
 
 
@@ -123,7 +121,7 @@ async def test_previews_are_on_disk_when_the_run_finishes(server_url, services, 
     cached = [settings.art_root / image.preview_path for image in images if image.preview_path]
     assert len(cached) == 2
     assert all(path.is_file() and path.stat().st_size > 0 for path in cached)
-    assert all(path.is_relative_to(settings.previews_path) for path in cached)
+    assert all(path.is_relative_to(settings.pictures_path) for path in cached)
 
 
 async def test_the_work_no_collection_holds_is_named_rather_than_dropped(server_url, services):

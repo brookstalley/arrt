@@ -20,7 +20,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
-from typing import Final
+from typing import BinaryIO, Final
 
 from PIL import Image, ImageOps
 
@@ -49,8 +49,12 @@ class EncodedFrame:
     height: int
 
 
-def encode_downscaled(source: Path, *, max_edge: int, quality: int) -> EncodedFrame:
+def encode_downscaled(source: Path | BinaryIO, *, max_edge: int, quality: int) -> EncodedFrame:
     """Decode `source`, fit it inside `max_edge`, and return it as JPEG bytes.
+
+    `source` is a file on disk or bytes already in memory: the picture store
+    re-encodes what a source served without first writing it anywhere, because
+    the only file it may write is the re-encoded one.
 
     Raises whatever Pillow raises — `UnidentifiedImageError` for a file that is
     not an image, `OSError` for a truncated one, `Image.DecompressionBombError`

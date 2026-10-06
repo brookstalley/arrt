@@ -8,6 +8,8 @@ mode: a 900-pixel scan and a 6000-pixel one are indistinguishable in a grid and
 are not the same thing on a wall.
 """
 
+from io import BytesIO
+
 import pytest
 from PIL import Image
 
@@ -17,21 +19,24 @@ from arrt.persistence.discovery_records import RunKind, Verdict
 from arrt.services.errors import ServiceError
 
 
-@pytest.fixture
-def preview(settings):
-    """Write a decodable preview into the art tree and return its catalogue path.
+def a_picture(width=800, height=600, *, color=(90, 70, 140), fmt="JPEG", mode="RGB") -> bytes:
+    buffer = BytesIO()
+    Image.new(mode, (width, height), color).save(buffer, format=fmt)
+    return buffer.getvalue()
 
-    Paths in a record are relative to `ART_ROOT`; the file has to be at the
-    absolute location that resolves to, which is the pairing every test here
-    depends on and nothing else would catch if it broke.
+
+@pytest.fixture
+def preview(services):
+    """Keep a decodable picture in the picture store and return the path a row records.
+
+    Paths in a record are relative to `ART_ROOT`; the file has to be where the
+    store resolves that path, which is the pairing every test here depends on
+    and nothing else would catch if it broke. Each name is its own instance.
     """
 
     def _write(name="a.jpg", *, width=800, height=600, color=(90, 70, 140)):
-        relative = f"previews/{name}"
-        target = settings.art_root / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        Image.new("RGB", (width, height), color).save(target, format="JPEG", quality=90)
-        return relative
+        kept = services.pictures.put("artic", f"https://museum.example/{name}", a_picture(width, height, color=color))
+        return services.pictures.relative(kept)
 
     return _write
 
@@ -115,12 +120,14 @@ def test_an_instance_with_no_cached_copy_is_still_listed_and_says_why(services, 
     assert only.image.url
 
 
-def test_a_preview_that_will_not_decode_costs_its_picture_and_nothing_else(services, propose, add_image, settings):
+def test_a_preview_that_will_not_decode_costs_its_picture_and_nothing_else(services, propose, add_image, preview):
+    # The store re-encodes everything it keeps, so a kept file that will not
+    # decode is a disk's doing; it is damaged here after the store wrote it.
     work = propose()
-    corrupt = settings.art_root / "previews/corrupt.jpg"
-    corrupt.parent.mkdir(parents=True, exist_ok=True)
-    corrupt.write_bytes(b"this is not an image")
-    add_image(work, preview_path="previews/corrupt.jpg", estimated_width=3000, estimated_height=2000)
+    relative = preview("corrupt.jpg")
+    for tier in (400, 2048):
+        services.pictures.find(relative, max_edge=tier).write_bytes(b"this is not an image")
+    add_image(work, preview_path=relative, estimated_width=3000, estimated_height=2000)
 
     only = services.review.list_images(work.id).instances[0]
 
@@ -131,16 +138,14 @@ def test_a_preview_that_will_not_decode_costs_its_picture_and_nothing_else(servi
     assert str(only.fit.fit) == "native"
 
 
-def test_a_preview_that_is_not_a_jpeg_is_re_encoded_as_one(services, propose, add_image, settings):
+def test_a_preview_that_is_not_a_jpeg_is_re_encoded_as_one(services, propose, add_image):
     # Museums serve PNG and the occasional TIFF alongside JPEG. Everything is
-    # re-encoded on the way out so a caller's cost per image tracks the picture
-    # rather than the institution's choice of format — and so a client never has
-    # to handle a media type this surface did not promise.
+    # re-encoded as the store keeps it, so a caller's cost per image tracks the
+    # picture rather than the institution's choice of format — and so a client
+    # never has to handle a media type this surface did not promise.
     work = propose()
-    relative = "previews/alpha.png"
-    target = settings.art_root / relative
-    target.parent.mkdir(parents=True, exist_ok=True)
-    Image.new("RGBA", (500, 400), (10, 20, 30, 128)).save(target, format="PNG")
+    png = a_picture(500, 400, color=(10, 20, 30, 128), fmt="PNG", mode="RGBA")
+    relative = services.pictures.relative(services.pictures.put("artic", "https://museum.example/alpha", png))
     add_image(work, preview_path=relative)
 
     only = services.review.list_images(work.id).instances[0]
@@ -151,6 +156,42 @@ def test_a_preview_that_is_not_a_jpeg_is_re_encoded_as_one(services, propose, ad
 
 def test_inline_preview_reports_absence_for_a_file_that_is_not_there(tmp_path):
     assert inline_preview(tmp_path / "nothing.jpg") is None
+
+
+def test_a_row_naming_a_path_the_store_did_not_hand_out_is_told_apart_from_a_missing_one(services, propose, add_image, settings):
+    """After the import, such a row names an old preview that was missing or would not decode.
+
+    Neither is shown, because nothing outside the store is; the two are still
+    different answers, and a file that is there is not reported as absent.
+    """
+    work = propose()
+    kept_out = settings.art_root / "previews/refused.jpg"
+    kept_out.parent.mkdir(parents=True, exist_ok=True)
+    kept_out.write_bytes(a_picture())
+    there = add_image(work, url="https://museum.example/there", preview_path="previews/refused.jpg")
+    gone = add_image(work, url="https://museum.example/gone", preview_path="previews/gone.jpg")
+
+    notes = {view.image.id: view for view in services.review.list_images(work.id).instances}
+
+    assert notes[there.id].preview is None
+    assert "could not be read" in notes[there.id].preview_note
+    assert notes[gone.id].preview is None
+    assert "No local copy of this image is on disk" in notes[gone.id].preview_note
+
+
+def test_the_card_is_answered_from_the_smaller_tier_and_the_enlarged_view_from_the_larger(services, propose, add_image, preview):
+    """The bytes a browser gets are the kept files', unrendered: one decode at write, none per request."""
+    work = propose()
+    relative = preview("wide.jpg", width=3000, height=2000)
+    image = add_image(work, preview_path=relative)
+
+    card = services.review.preview_image(image.id)
+    enlarged = services.review.preview_image(image.id, enlarged=True)
+
+    assert card.data == services.pictures.find(relative, max_edge=480).read_bytes()
+    assert enlarged.data == services.pictures.find(relative, max_edge=2048).read_bytes()
+    assert max(Image.open(BytesIO(card.data)).size) == 480
+    assert max(Image.open(BytesIO(enlarged.data)).size) == 2048
 
 
 # -- what stands for the work --------------------------------------------------

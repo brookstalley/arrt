@@ -25,7 +25,8 @@ from arrt.library.discovery.phase_two import PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool, NoSourceCanAnswer
 from arrt.library.registry import ItemId
 from arrt.library.services.discovery import ChosenWork
-from arrt.library.services.previews import PreviewCache, PreviewSettings
+from arrt.library.services.pictures import PictureStore
+from arrt.library.services.previews import PreviewCache
 from arrt.library.services.runner import DiscoveryRunner
 from arrt.library.services.sightings import HostCount, SightingService
 from arrt.library.sources import SourceContext
@@ -340,7 +341,7 @@ def test_a_get_records_the_pages_its_search_found(services, engine, settings):
         engine,
         settings.discovery_settings,
         images=PhaseTwoEngine(pool, box=settings.tv_artwork_box),
-        previews=PreviewCache(PreviewSettings(art_root=settings.art_root, directory=settings.previews_path), pool.fetch_preview),
+        previews=PreviewCache(PictureStore(settings.pictures_path, art_root=settings.art_root, sources=pool)),
         sightings=services.sightings,
         spawn=lambda work: work(),
     )

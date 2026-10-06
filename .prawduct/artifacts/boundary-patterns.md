@@ -346,6 +346,20 @@
   in the 2024 `config.py`; the curation plane asks museums over HTTP and caches
   nothing on disk, so nothing produces it.
 - All stored paths are relative to `ART_ROOT`. No absolute paths in any record.
+- **`pictures/` joins the contract (added 2026-10-06, the owner's norm in
+  `data-model.md` § Direction).** Every picture Arrt fetches from outside is kept
+  there for good: `pictures/<2 hex>/<key>.<tier>.jpg`, tiers 480 and 2,048 px on the
+  long edge, re-encoded as JPEG by `library/services/pictures.py`, the only module
+  that asks a source for a preview. Written and read by curation only. **Neither
+  upstream nor derived, and neither transported nor backed up:** it is a cache of
+  outside pictures on the server's own disk, rebuilt by fetching again. Nothing
+  deletes a picture; the store's only deletion is its own `*.tmp` files at startup.
+  A row's `preview_path` names the larger tier. The old `previews/` directory is
+  read once more, by the import at startup, and then removed by hand.
+- **Direction changed 2026-10-06 — the next four bullets describe the sweep until
+  `build-plan-picture-store.md` Chunk 02 retires it.** Since the norm above, the
+  sweep never considers a path under `pictures/`, so what it can still reclaim is a
+  row naming a file in the old `previews/` directory.
 - Candidate `preview_path` files are a third class — neither upstream nor derived;
   cheap, disposable, pre-acceptance. Their lifecycle **is** recorded in
   `data-model.md`: safe to delete once their `CandidateWork` reaches a terminal

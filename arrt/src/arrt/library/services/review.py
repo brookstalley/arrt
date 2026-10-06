@@ -31,12 +31,15 @@ from typing import Final
 from arrt.library.services import selection
 from arrt.library.services.discovery import DiscoveryService, WantedWork
 from arrt.library.services.display_fit import ArtworkBox, FitAssessment, assess_display_fit
+from arrt.library.services.pictures import PictureStore
 from arrt.library.services.previews import (
+    BROWSER_MAX_EDGE_PX,
+    ENLARGED_MAX_EDGE_PX,
+    INLINE_MAX_EDGE_PX,
     InlinePreview,
     RenderedPreview,
-    browser_preview,
-    enlarged_preview,
     inline_preview,
+    kept_preview,
 )
 from arrt.persistence.discovery_records import CandidateImage, CandidateWork, DiscoveryRun
 from arrt.services.errors import ServiceError
@@ -324,7 +327,7 @@ class InstanceListing:
 class ReviewService:
     """Read proposed works the way a surface that shows them to a human needs them."""
 
-    def __init__(self, discovery: DiscoveryService, *, box: ArtworkBox, art_root: Path) -> None:
+    def __init__(self, discovery: DiscoveryService, *, box: ArtworkBox, pictures: PictureStore) -> None:
         self._discovery = discovery
         #: The space a work is rendered into on this deployment. Required rather
         #: than optional: a review surface whose whole justification is showing
@@ -332,8 +335,13 @@ class ReviewService:
         #: caller with none should fail at wiring rather than serve cards with
         #: every size reported as unknown.
         self._box = box
-        #: Where preview files live. Every catalogue path is relative to it.
-        self._art_root = art_root
+        #: Where every picture shown here is kept. A row's `preview_path` names
+        #: the store's larger tier, and the store answers each ask from the
+        #: smallest tier that covers it.
+        self._pictures = pictures
+        #: Every catalogue path is relative to it, a path the store did not hand
+        #: out included.
+        self._art_root = pictures.art_root
 
     def list_works(self, run_id: str, *, limit: int | None = None, offset: int = 0, pictures: bool = True) -> CandidatePage:
         """A page of the works a run is responsible for, each with a picture.
@@ -466,19 +474,24 @@ class ReviewService:
 
         A card knows before it asks: `list_works` and `list_images` both report
         whether a picture travels with each instance. Reaching this refusal means
-        the file went away between the listing and the request — the sweep
-        reclaiming a decided work's previews is the ordinary way that happens.
+        the row names no kept picture, or its file will not read.
+
+        Answered from the picture store, never from a source: `enlarged` is the
+        picture a card opens in place when clicked, the store's larger tier
+        (`ENLARGED_MAX_EDGE_PX`), and the card's own is its smaller one.
         """
         image = self._discovery.get_candidate_image(candidate_image_id)
         work = self._discovery.get_candidate_work(image.candidate_work_id)
-        if image.preview_path is not None:
-            # `enlarged` is the picture a card opens in place when clicked: the
-            # same file, in the larger box (`ENLARGED_MAX_EDGE_PX`).
-            render = enlarged_preview if enlarged else browser_preview
-            rendered = render(self._art_root / image.preview_path)
+        kept = self._kept(image, max_edge=ENLARGED_MAX_EDGE_PX if enlarged else BROWSER_MAX_EDGE_PX)
+        if kept is not None:
+            rendered = kept_preview(kept)
             if rendered is not None:
                 return rendered
         raise ServiceError(self._absent_preview_note(image, work))
+
+    def _kept(self, image: CandidateImage, *, max_edge: int) -> Path | None:
+        """The kept file that answers an ask of `max_edge` px for this instance, or `None`."""
+        return None if image.preview_path is None else self._pictures.find(image.preview_path, max_edge=max_edge)
 
     def _view(self, work: CandidateWork, *, pictures: bool) -> CandidateView:
         images = self._discovery.list_candidate_images(work.id)
@@ -531,7 +544,7 @@ class ReviewService:
         It is the honest answer besides — nothing has read the bytes yet, and
         claiming otherwise would be a verdict reached without looking.
         """
-        if image.preview_path is not None and (self._art_root / image.preview_path).exists():
+        if self._kept(image, max_edge=BROWSER_MAX_EDGE_PX) is not None:
             return None
         return self._absent_preview_note(image, work)
 
@@ -546,8 +559,9 @@ class ReviewService:
 
     def _preview(self, image: CandidateImage, work: CandidateWork) -> tuple[InlinePreview | None, str | None]:
         """The picture this instance travels with, or why it travels without one."""
-        if image.preview_path is not None:
-            rendered = inline_preview(self._art_root / image.preview_path)
+        kept = self._kept(image, max_edge=INLINE_MAX_EDGE_PX)
+        if kept is not None:
+            rendered = inline_preview(kept)
             if rendered is not None:
                 return rendered, None
         return None, self._absent_preview_note(image, work)
@@ -591,7 +605,9 @@ class ReviewService:
         # earlier. Reporting that as unreadable would be the corruption message
         # for a file this plane deleted on purpose, which sends whoever asks
         # looking for a bad download.
-        if not (self._art_root / image.preview_path).exists():
+        # A kept picture, or a file at a path the store did not hand out (one the
+        # import refused), is there and did not read; anything else is absent.
+        if self._kept(image, max_edge=BROWSER_MAX_EDGE_PX) is None and not (self._art_root / image.preview_path).exists():
             return (
                 "No local copy of this image is on disk, so it cannot be shown here — it was either never "
                 "cached or has since been reclaimed. Its source URL is reported beside it."

@@ -28,7 +28,6 @@ from fakes import FakeFinder, a_decodable_jpeg, a_roster, a_work, an_image
 from PIL import Image
 
 from arrt.library.discovery.engine import WorkList
-from arrt.library.services.previews import PreviewSettings
 from arrt.persistence.discovery_records import RunStatus, Verdict
 from arrt.services.container import Services
 
@@ -77,7 +76,6 @@ def services(store, discovery_store, wall_settings, thumbnail_settings, settings
         engine=engine,
         discovery_settings=settings.discovery_settings,
         sources=a_roster(museum),
-        previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
     )
 
 
@@ -551,11 +549,12 @@ class TestWanting:
         assert verdict["possible_duplicate_artists"] == []
         assert verdict["notice"] is None
 
-    def test_the_picture_is_refused_with_words_once_a_decided_work_loses_it(self, http, services):
-        """A reclaimed preview is not a corrupt one, and the two go different places.
+    def test_a_decided_works_picture_is_kept_through_a_sweep(self, http, services):
+        """Every picture fetched from outside is kept forever (`data-model.md` § Direction, 2026-10-06).
 
-        The sweep deletes a decided work's previews on purpose. Reporting that as
-        unreadable would send whoever asks looking for a bad download.
+        Until that norm the sweep deleted a decided work's preview and this card
+        stopped promising a picture. Now the sweep never considers a kept one, so
+        the card goes on showing it and the route goes on serving it.
         """
         run_id = a_finished_run(http)
         page = http.get(f"/api/runs/{run_id}/candidates").json()
@@ -564,21 +563,37 @@ class TestWanting:
         http.post(f"/api/candidates/{card['work']['work_id']}/verdict", json={"verdict": "accepted"})
         services.sweep.run()
 
+        repainted = http.get(f"/api/candidates/{card['work']['work_id']}").json()
         response = http.get(f"/api/candidate-images/{image_id}/preview")
 
-        assert response.status_code == 400
-        assert "reclaimed" in response.json()["error"]
+        assert repainted["shown"]["preview_available"] is True
+        assert response.status_code == 200
+        assert Image.open(BytesIO(response.content)).format == "JPEG"
 
-    def test_a_card_for_a_decided_work_stops_promising_a_picture(self, http, services):
-        """The card knows before it asks, which is what keeps it from painting a blank box."""
+    def test_a_reclaimed_old_preview_is_refused_with_words_and_the_card_stops_promising_it(self, http, services, settings):
+        """A row still naming the old `previews/` directory is the sweep's until it retires.
+
+        A reclaimed preview is not a corrupt one, and the two go different places:
+        reporting a deliberate deletion as unreadable would send whoever asks
+        looking for a bad download.
+        """
         run_id = a_finished_run(http)
         page = http.get(f"/api/runs/{run_id}/candidates").json()
         card = card_for(page, "The Elephants")
+        image_id = card["shown"]["image_id"]
+        old = settings.art_root / "previews" / "elephants.jpg"
+        old.parent.mkdir(parents=True, exist_ok=True)
+        old.write_bytes(a_decodable_jpeg())
+        services.discovery.repoint_preview(image_id, "previews/elephants.jpg")
         http.post(f"/api/candidates/{card['work']['work_id']}/verdict", json={"verdict": "accepted"})
         services.sweep.run()
 
+        response = http.get(f"/api/candidate-images/{image_id}/preview")
         repainted = http.get(f"/api/candidates/{card['work']['work_id']}").json()
 
+        assert not old.exists()
+        assert response.status_code == 400
+        assert "reclaimed" in response.json()["error"]
         assert repainted["shown"]["preview_available"] is False
         assert "reclaimed" in repainted["shown"]["preview_note"]
 

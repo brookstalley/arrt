@@ -21,7 +21,6 @@ import pytest
 from fakes import FakeFinder, a_decodable_jpeg, a_roster, a_work, an_image
 
 from arrt.library.discovery.engine import WorkList
-from arrt.library.services.previews import PreviewSettings
 from arrt.persistence.discovery_records import Verdict
 from arrt.persistence.records import ArtworkStatus
 from arrt.services.container import Services
@@ -67,7 +66,6 @@ def services(store, discovery_store, wall_settings, thumbnail_settings, settings
         engine=engine,
         discovery_settings=settings.discovery_settings,
         sources=a_roster(museum),
-        previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
     )
 
 
@@ -300,16 +298,14 @@ async def test_the_wanted_listing_pictures_each_work_as_its_card_does_and_sends_
     The thumbnail's preview is on disk, so a listing that read pictures would
     have a block to send; that it sends none is the bound on an uncapped list.
     """
-    preview = settings.art_root / "previews/sleep-thumbnail.jpg"
-    preview.parent.mkdir(parents=True, exist_ok=True)
-    preview.write_bytes(a_decodable_jpeg(150, 148))
+    kept = services.pictures.put("artic", "https://museum.example/sleep-thumbnail", a_decodable_jpeg(150, 148))
     too_small, _ = reviewable(title="Sleep", instances=0)
     add_image(
         too_small,
         url="https://museum.example/sleep-thumbnail",
         estimated_width=150,
         estimated_height=148,
-        preview_path="previews/sleep-thumbnail.jpg",
+        preview_path=services.pictures.relative(kept),
     )
     turned_down, images = reviewable(instances=1)
     await call(server_url, "art_review", action="want", work_id=turned_down.id, turning_down=images[0].id)

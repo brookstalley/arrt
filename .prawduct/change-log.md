@@ -62,6 +62,58 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-06: Every picture Arrt fetches is kept
+
+<!-- prawduct: scope=picture-store -->
+
+**Why:** the owner's norm: "we should persist all thumbnails we ever get/generate,
+and use them instead of hitting sources when the ask is only for thumbnail size",
+with the same day's rulings (two sizes, 480 and 2,048 px; not in the backup; no
+ceiling). Recorded in `data-model.md` § Direction, replacing the paragraphs that
+made candidate previews disposable, and indexed in `project-preferences.md`.
+
+**What (Chunk 01 of `build-plan-picture-store.md`):** a picture store,
+`library/services/pictures.py`, under `ART_ROOT/pictures/`. It re-encodes every
+picture a source serves as JPEG at quality 82 (through `encode_downscaled`, so
+the decompression-bomb guard applies), writes 480 and 2,048 px tiers through
+temporary names it renames, makes one fetch for concurrent asks of one key, and
+deletes nothing but its own stray `*.tmp` files at startup. It is the only module
+that calls a source's `fetch_preview`, which a static test holds. `PreviewCache`
+is now its client; the review card, the enlarged view and MCP's inline copy are
+answered from it (the card and the enlarged view with the kept bytes as they
+are). At startup the plane cleans the store and imports every file in `previews/`
+a row names, under that row's key, and repoints the row; unnamed files are left.
+The sweep never considers a path under `pictures/`; it retires in Chunk 02.
+
+**Departure from the plan, found in build:** the key's normalisation keeps the
+URL's fragment, where the plan said to drop it. SMK reports an image under the
+page Wikidata records, and `collection.smk.dk` names its object only in the
+fragment (`#/en/detail/KMS8010`), so dropping it would answer every such work's
+card with one picture. Query parameters are sorted, never dropped: SMK's API
+spelling carries the object in its query. The coordinator approved; the plan's
+decision is amended.
+
+**Measured bytes per picture** (2026-10-06, `PictureStore.put` on this Mac;
+synthetic sources, since no museum image is tracked in the repository): the
+suite's fixture, a flat 1200 × 900 JPEG, keeps 1.3 KB at 480 and 6.7 KB at 2048;
+an ARTIC-sized 843 × 1000 painting-like source (blurred noise) 33 KB and 100 KB;
+a Commons-sized 960 × 1200 one 33 KB and 136 KB; a 3000 × 2000 one 25 KB and
+386 KB; and raw noise at 3000 × 2000, the worst case, 31 KB and 1.3 MB. The plan
+estimated 35 KB and 180 KB; for previews at the sizes sources serve today
+(843 to 1,200 px) the larger tier is the source's own size and about 100 to
+140 KB.
+
+**Tests changed, and why:** the old cache's tests asserted a preview's raw bytes,
+its `previews/` file name and its `.partial` staging name. Their behaviour moved
+to the store's tests (`test_pictures.py`) and to the phase-two caller
+(`test_previews.py`): fetched once, never raises, nothing temporary left, a
+relative path, kept apart from `thumbs/`. `FakeFinder` now serves a decodable
+preview by default, because the store keeps only what decodes. Two browser-review
+tests asserted that the sweep takes a decided work's picture away; under the norm
+it keeps it, so one now asserts that, and the other asserts the reclaimed wording
+for a row still naming the old directory. Fixtures that seeded `previews/` files
+now keep their pictures in the store.
+
 ## 2026-10-06: The minimum is 1,000 px on the long edge
 
 <!-- prawduct: scope=quality-minimum -->

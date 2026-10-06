@@ -36,13 +36,18 @@ CATALOGUE_FILENAME: Final[str] = "catalogue.sqlite"
 #: regenerated on whatever machine needs them, never copied between machines.
 THUMBNAILS_DIRNAME: Final[str] = "thumbs"
 
-#: Where candidate previews are cached under `ART_ROOT`. **A third class**, and
-#: kept apart from `thumbs/` because of it: a thumbnail is derived from a work
-#: the catalogue holds, while a preview belongs to a work nobody has accepted and
-#: may never. Previews are disposable the moment their candidate reaches a
-#: terminal verdict, and a sweep that could not tell the two apart would delete a
-#: held work's thumbnails.
+#: Where candidate previews were cached under `ART_ROOT` before the picture
+#: store. Nothing writes here any more: at startup the import moves every file a
+#: row names into `pictures/` and repoints the row, and the operator removes the
+#: directory by hand once the import's log line reports `done`.
 PREVIEWS_DIRNAME: Final[str] = "previews"
+
+#: Where every picture Arrt fetches from outside is kept under `ART_ROOT`
+#: (`library/services/pictures.py`). Kept forever, re-encoded as JPEG, and kept
+#: apart from `thumbs/`: a thumbnail is derived from a master the catalogue
+#: holds, a picture here was fetched from a source, and neither is transported
+#: or backed up.
+PICTURES_DIRNAME: Final[str] = "pictures"
 
 #: Where acquired master images are written under `ART_ROOT`. Upstream and
 #: expensive: this is the half of the tree rsync carries and nothing regenerates,
@@ -573,14 +578,18 @@ class Settings:
 
     @property
     def previews_path(self) -> Path:
-        """Where phase 2 caches the previews a review card shows.
+        """Where phase 2 cached previews before the picture store; read only by its import."""
+        return self.art_root / PREVIEWS_DIRNAME
+
+    @property
+    def pictures_path(self) -> Path:
+        """Where every picture fetched from outside is kept, for good.
 
         Inside `ART_ROOT` because every catalogue path is relative to it, and in
-        its own directory because these files are disposable in a way nothing
-        else under that root is — deletable as soon as their candidate work is
-        accepted or rejected, and never a loss when they go.
+        its own directory because these files were fetched from a source rather
+        than derived from anything the catalogue holds.
         """
-        return self.art_root / PREVIEWS_DIRNAME
+        return self.art_root / PICTURES_DIRNAME
 
     @property
     def tv_pixels_per_inch(self) -> float:

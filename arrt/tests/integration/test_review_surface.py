@@ -21,14 +21,13 @@ import json
 from io import BytesIO
 
 import pytest
-from fakes import FakeFinder, a_decodable_jpeg, a_roster, a_work, an_image
+from fakes import FakeFinder, a_decodable_jpeg, a_roster, a_work, an_image, take_the_picture_away
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 from PIL import Image
 
 from arrt.config import DEFAULT_RESOLUTION_FLOOR_INCHES
 from arrt.library.discovery.engine import WorkList
-from arrt.library.services.previews import PreviewSettings
 from arrt.library.services.review import DEFAULT_REVIEW_LIMIT, MAX_INSTANCES_LISTED, MAX_REVIEW_LIMIT
 from arrt.persistence.discovery_records import RunStatus
 from arrt.services.container import Services
@@ -84,15 +83,12 @@ async def finished(server_url: str, run_id: str) -> dict:
 
 
 @pytest.fixture
-def preview_file(settings):
-    """Write a decodable preview into the art tree and return its catalogue path."""
+def preview_file(services):
+    """Keep a decodable picture in the picture store and return the path a row records."""
 
     def _write(name: str, *, width: int = 1200, height: int = 900) -> str:
-        relative = f"previews/{name}"
-        target = settings.art_root / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(a_decodable_jpeg(width, height))
-        return relative
+        kept = services.pictures.put("artic", f"https://museum.example/{name}", a_decodable_jpeg(width, height))
+        return services.pictures.relative(kept)
 
     return _write
 
@@ -123,7 +119,6 @@ def services(store, discovery_store, wall_settings, thumbnail_settings, settings
         engine=engine,
         discovery_settings=settings.discovery_settings,
         sources=a_roster(museum),
-        previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
     )
 
 
@@ -175,7 +170,7 @@ async def test_every_work_a_curator_could_accept_arrives_with_its_picture(server
         assert 0 <= index < len(blocks), f"{work['title']} points at a block that is not there"
 
 
-async def test_a_rows_index_names_its_own_block_when_another_row_has_no_picture(server_url, services, museum):
+async def test_a_rows_index_names_its_own_block_when_another_row_has_no_picture(server_url, services, museum, settings):
     """Position in the listing is *not* position in the blocks, and the rows must know it.
 
     The protocol gives an image block no identity, so a row can only name its
@@ -192,7 +187,7 @@ async def test_a_rows_index_names_its_own_block_when_another_row_has_no_picture(
     first_title = payload_of(await call(server_url, "art_review", action="list_works", run_id=started["run_id"]))
     leading = first_title["works"][0]
     stripped = services.discovery.list_candidate_images(leading["work_id"])[0]
-    (services.review._art_root / stripped.preview_path).unlink()
+    take_the_picture_away(settings.art_root, stripped.preview_path)
 
     result = await call(server_url, "art_review", action="list_works", run_id=started["run_id"])
     works = payload_of(result)["works"]
@@ -222,10 +217,8 @@ async def test_each_row_points_at_its_own_picture_and_not_another_works(server_u
     # block identifies its work without carrying any marker of its own.
     shapes = {"Work A": (800, 400), "Work B": (400, 800), "Work C": (600, 600)}
     for title, (width, height) in shapes.items():
-        relative = f"previews/{title.replace(' ', '-')}.jpg"
-        target = settings.art_root / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(a_decodable_jpeg(width, height))
+        kept = services.pictures.put("artic", f"https://museum.example/{title}", a_decodable_jpeg(width, height))
+        relative = services.pictures.relative(kept)
         work = propose(title, run_id=run.id, dedup_key=title)
         add_image(work, preview_path=relative, estimated_width=4000, estimated_height=3000)
 
@@ -321,12 +314,10 @@ def a_run_of(services, propose, add_image, settings):
 
     def _seeded(count: int):
         run = services.discovery.start_discovery_run(intent_text="Everything", initiated_by="mcp_client")
-        source = settings.art_root / "previews/seed.jpg"
-        source.parent.mkdir(parents=True, exist_ok=True)
-        source.write_bytes(a_decodable_jpeg())
+        seed = services.pictures.relative(services.pictures.put("artic", "https://museum.example/seed", a_decodable_jpeg()))
         for index in range(count):
             work = propose(f"Work {index:02d}", run_id=run.id, dedup_key=f"seed-{index}")
-            add_image(work, preview_path="previews/seed.jpg", estimated_width=4000, estimated_height=3000)
+            add_image(work, preview_path=seed, estimated_width=4000, estimated_height=3000)
         return run
 
     return _seeded

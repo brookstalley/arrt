@@ -42,6 +42,8 @@ from arrt.config import (
     DEFAULT_TV_PANEL_HEIGHT_PX,
     DEFAULT_TV_PANEL_WIDTH_PX,
     ORIGINALS_DIRNAME,
+    PICTURES_DIRNAME,
+    PREVIEWS_DIRNAME,
     READY_DIRNAME,
     TILE_CACHE_DIRNAME,
 )
@@ -66,7 +68,8 @@ from arrt.library.services.discovery import DiscoveryService
 from arrt.library.services.display_fit import ArtworkBox
 from arrt.library.services.get import GetService
 from arrt.library.services.identity import IdentityService
-from arrt.library.services.previews import PreviewCache, PreviewSettings
+from arrt.library.services.pictures import PictureStore, import_previews
+from arrt.library.services.previews import PreviewCache
 from arrt.library.services.registry_search import RegistrySearchService
 from arrt.library.services.registry_works import RegistryWorkService
 from arrt.library.services.review import ReviewService
@@ -88,7 +91,6 @@ from arrt.programming.access import PlayerAccess
 from arrt.programming.clients import ClientService
 from arrt.programming.display import DisplayService, DisplaySettings
 from arrt.programming.store import ProgrammingStore
-from arrt.services.errors import ServiceError
 from arrt.services.health import HealthService
 
 log = logging.getLogger(__name__)
@@ -131,6 +133,10 @@ class Services:
     #: single service spanning both would hold the catalogue and discovery stores
     #: at once for no shared logic.
     review: ReviewService
+    #: Every picture fetched from outside, kept for good under `ART_ROOT/pictures/`.
+    #: Built whatever the deployment: one with no image source still answers
+    #: review from what is kept, and fetches nothing.
+    pictures: PictureStore
     #: Everything the health panel states, gathered in one call. Its own concern
     #: rather than a composite the handler assembles, because the panel is the
     #: product's only alerting surface and "which signals does it make" is a
@@ -218,7 +224,6 @@ class Services:
         artwork_box: ArtworkBox,
         engine: DiscoveryEngine,
         discovery_settings: DiscoverySettings,
-        previews: PreviewSettings | None = None,
         acquisition: AcquisitionSettings | None = None,
         open_stream: StreamOpener | None = None,
         #: How a hostname becomes addresses for the fetch policy. Defaults to the
@@ -265,9 +270,9 @@ class Services:
         foreign API" impossible to arrange, and that is the arrangement most of
         this product's tests need.
 
-        A roster with no finder and no `previews` go together. Without either the
-        plane runs phase 1 and stops, which is a coherent deployment — and the
-        one every test that has no business reaching a museum uses.
+        A roster with no finder runs phase 1 and stops, which is a coherent
+        deployment — and the one every test that has no business reaching a
+        museum uses.
         """
         catalogue_service = CatalogueService(catalogue, art_root=thumbnails.art_root)
         kept = kept or KeptAnswers.in_memory()
@@ -297,16 +302,9 @@ class Services:
         # accepted or restored work is asked about now rather than at the
         # interval. Identity changes reach it through `identity` below.
         catalogue_service.subscribe(lambda event: topic_sweep.nudge() if event.change is WorkChange.ACCEPTED else None)
-        if (pool is None) != (previews is None):
-            # Refused here rather than defaulted, because either half alone is a
-            # misconfiguration that would otherwise disable phase 2 silently —
-            # and a deployment that meant to enable it would see runs stop at
-            # `resolving_images` with nothing saying why.
-            raise ServiceError(
-                "Phase 2 needs both an image source and a preview directory, or neither. A deployment "
-                "selects both by configuring a source — the preview directory is derived from ART_ROOT, so "
-                "passing one of these without the other is a wiring mistake rather than a configuration one."
-            )
+        # The picture store's directory is derived, never configured, as the
+        # catalogue's filename is: every plane and the import must agree on it.
+        pictures = PictureStore(thumbnails.art_root / PICTURES_DIRNAME, art_root=thumbnails.art_root, sources=pool)
         acquisition_service = AcquisitionService(
             catalogue_service,
             acquisition or _default_acquisition(thumbnails.art_root),
@@ -344,7 +342,7 @@ class Services:
             engine,
             discovery_settings,
             images=None if pool is None else PhaseTwoEngine(pool, box=artwork_box, registry=registry),
-            previews=None if pool is None or previews is None else PreviewCache(previews, pool.fetch_preview),
+            previews=None if pool is None else PreviewCache(pictures),
             # Independent of the phase-2 pair: a deployment may resolve images
             # without supplementing, and a run with no collection simply offers
             # nothing.
@@ -370,7 +368,8 @@ class Services:
             # catalogue path is relative to it — and it is already required and
             # validated there. A third copy would be a third chance for the
             # copies to disagree, and nothing would notice which was right.
-            review=ReviewService(discovery_service, box=artwork_box, art_root=thumbnails.art_root),
+            review=ReviewService(discovery_service, box=artwork_box, pictures=pictures),
+            pictures=pictures,
             # The receipt is located the same way, and for the same reason. It is
             # not a `DisplaySettings` field beside the art root the heartbeats are
             # named from: that settings object carries what the *walls'*
@@ -386,7 +385,7 @@ class Services:
             # `art_root` off the thumbnail settings for the same reason `review`
             # takes it from there: it is one deployment value, already validated,
             # and a second copy is a second chance for the two to disagree.
-            sweep=PreviewSweep(discovery_service, art_root=thumbnails.art_root),
+            sweep=PreviewSweep(discovery_service, art_root=thumbnails.art_root, pictures=pictures),
             acquisition=acquisition_service,
             preparation=preparation_service,
             acquisition_queue=acquisition_queue,
@@ -436,6 +435,12 @@ class Services:
         next start rather than leaving it undone.
         """
         self.discovery.reconcile()
+        # Before anything serves or sweeps: a write the last process died in
+        # leaves a temporary file, and the old preview directory's files are
+        # moved into the store and their rows repointed, so the sweep (which
+        # starts with the application) finds nothing of the store's to consider.
+        self.pictures.clean()
+        import_previews(self.pictures, self.discovery, legacy=self.pictures.art_root / PREVIEWS_DIRNAME)
         # Canvases drawn with another mat, panel or drawing rule are queued to be
         # recomposed. Nothing is drawn here; the queue does it once serving.
         self.acquisition_queue.owe_recomposition(self.preparation.layout)

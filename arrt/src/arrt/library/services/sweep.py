@@ -52,6 +52,13 @@ so a crash in between leaves a row pointing at a missing file — which the next
 pass finds and finishes. The other order strands bytes with nothing referencing
 them, and nothing would ever reclaim those.
 
+**A picture in the store is never this sweep's to consider.** Since the owner's
+norm of 2026-10-06 every picture fetched from outside is kept forever under
+`pictures/` (`data-model.md` § Direction), and a row naming one is skipped before
+any verdict is read. What remains for the sweep is a row still naming a file in
+the old `previews/` directory, which after the startup import is a row whose file
+was missing or would not decode.
+
 Deleting a preview never touches the catalogue proper. An accepted work's imagery
 comes from acquisition against the source URL the catalogue holds; the preview
 only ever helped someone decide.
@@ -66,6 +73,7 @@ from pathlib import Path
 from typing import Final
 
 from arrt.library.services.discovery import DiscoveryService
+from arrt.library.services.pictures import PictureStore
 from arrt.persistence.discovery_records import CandidateImage
 from arrt.services.errors import ServiceError
 
@@ -115,8 +123,11 @@ class SweepResult:
 class PreviewSweep:
     """Delete the cached previews of works that have reached a terminal verdict."""
 
-    def __init__(self, discovery: DiscoveryService, *, art_root: Path) -> None:
+    def __init__(self, discovery: DiscoveryService, *, art_root: Path, pictures: PictureStore) -> None:
         self._discovery = discovery
+        #: Whose files this sweep never deletes. Required, so a sweep cannot be
+        #: built that does not know where the kept pictures are.
+        self._pictures = pictures
         #: Every `preview_path` is relative to this, as every catalogue path is.
         self._art_root = art_root
 
@@ -209,7 +220,9 @@ class PreviewSweep:
                 if work.verdict.is_terminal:
                     decided.add(work.id)
                 for image in self._discovery.list_candidate_images(work.id):
-                    if image.preview_path is not None:
+                    # A kept picture is never reclaimable, so it is not a
+                    # reference at all: it is neither retained nor deleted.
+                    if image.preview_path is not None and not self._pictures.owns(image.preview_path):
                         references[image.preview_path].append(image)
         return references, decided
 

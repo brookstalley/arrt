@@ -18,7 +18,8 @@ from fakes import FakeCollectionBrowse, FakeFinder, a_collection_holding, a_work
 from arrt.library.discovery.engine import WorkList
 from arrt.library.discovery.phase_two import PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
-from arrt.library.services.previews import PreviewCache, PreviewSettings
+from arrt.library.services.pictures import PictureStore
+from arrt.library.services.previews import PreviewCache
 from arrt.library.services.runner import DiscoveryRunner
 from arrt.persistence.discovery_records import (
     InitiatedBy,
@@ -47,9 +48,7 @@ def collection() -> FakeCollectionBrowse:
 
 @pytest.fixture
 def previews(settings, museum) -> PreviewCache:
-    return PreviewCache(
-        PreviewSettings(art_root=settings.art_root, directory=settings.previews_path), ImageSourcePool([museum]).fetch_preview
-    )
+    return PreviewCache(PictureStore(settings.pictures_path, art_root=settings.art_root, sources=ImageSourcePool([museum])))
 
 
 @pytest.fixture

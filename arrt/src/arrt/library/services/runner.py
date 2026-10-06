@@ -489,7 +489,7 @@ class DiscoveryRunner:
         #: incoherent: there is nothing to supplement until the gate has refused
         #: something. A run with no collection simply offers nothing.
         self._collection = collection
-        #: Phase 2, and the cache its previews land in. Optional together: a
+        #: Phase 2, and the picture store its previews are kept in. Optional together: a
         #: deployment without an image provider runs phase 1 and stops, which is
         #: a coherent configuration and the one every phase-1 test uses. What is
         #: not coherent is one without the other, so the pair is checked rather
@@ -1204,7 +1204,7 @@ class DiscoveryRunner:
             # question to answer when the answer is the question.
             confidence=OFFERED_CONFIDENCE,
             preview_url=found.preview_url,
-            preview_path=previews.store(found.provider, found.preview_url) if found.preview_url else None,
+            preview_path=previews.store(found.provider, found.url, found.preview_url) if found.preview_url else None,
             estimated_width=found.estimated_width,
             estimated_height=found.estimated_height,
             rights_status=found.rights_status,
@@ -1319,9 +1319,10 @@ class DiscoveryRunner:
         return WorkOutcome.RESOLVED if outcome.resolution_status is ResolutionStatus.RESOLVED else WorkOutcome.UNRESOLVED
 
     def _record_instance(self, work: CandidateWork, entry: JudgedImage, previews: PreviewCache) -> None:
-        """Write down one judged instance, caching its preview on the way in.
+        """Write down one judged instance, keeping its picture on the way in.
 
-        The preview is fetched before the row is written so the path is recorded
+        The picture store answers from what it keeps, fetching the preview only
+        on a miss, before the row is written, so the path is recorded
         with it rather than by a second update — a row written first and patched
         after is a row that is briefly wrong, and on a crash permanently so.
         """
@@ -1334,7 +1335,7 @@ class DiscoveryRunner:
             acquisition_method=found.acquisition_method,
             confidence=entry.confidence,
             preview_url=found.preview_url,
-            preview_path=previews.store(found.provider, found.preview_url) if found.preview_url else None,
+            preview_path=previews.store(found.provider, found.url, found.preview_url) if found.preview_url else None,
             estimated_width=found.estimated_width,
             estimated_height=found.estimated_height,
             rights_status=found.rights_status,

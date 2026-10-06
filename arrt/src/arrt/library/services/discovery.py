@@ -1096,6 +1096,24 @@ class DiscoveryService:
             store_write(self._store.update_candidate_image, forgotten)
         return forgotten
 
+    def repoint_preview(self, candidate_image_id: str, path: str) -> CandidateImage:
+        """Point one row's `preview_path` at where its picture is now kept.
+
+        The picture store's import is the caller: a picture moved from the old
+        preview directory into the store keeps its row, and only the path the row
+        records changes. Allowed on a decided work, unlike every review act,
+        because it changes where a file is, not anything a curator decided.
+        Pointing a row where it already points writes nothing.
+        """
+        moved_to = relative_path(path, field="preview_path")
+        with self._store.transaction():
+            image = self.get_candidate_image(candidate_image_id)
+            if image.preview_path == moved_to:
+                return image
+            moved = replace(image, preview_path=moved_to)
+            store_write(self._store.update_candidate_image, moved)
+        return moved
+
     def set_wikidata_item(self, candidate_work_id: str, qid: str) -> CandidateWork:
         """Record the Wikidata item the curator picked for a work still under review.
 
