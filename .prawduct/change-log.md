@@ -70,7 +70,7 @@
 before the Get, asked of the sources on every unheld work page, "as long as we
 cache the result so repeated similar searches don't do too many queries."
 
-**What (Chunk 01 of `build-plan-look-before-get.md`):**
+**What (`build-plan-look-before-get.md`, Chunks 01 and 02):**
 - **`LookService`** (`library/services/look.py`), wired as `Services.look`. It asks
   every image source what a Get would ask and judges as a Get judges, and writes
   nothing to the catalogue. Answers are kept in memory per work and source: 6 h for
@@ -89,8 +89,8 @@ cache the result so repeated similar searches don't do too many queries."
 - **Surfaces:** `GET /api/registry/works/{qid}/look` (polled; answers at once),
   `GET /api/registry/works/{qid}/look/pictures/{key}?size=card|large` (from the
   picture store, by a key the server computed; a key the work's current look does
-  not name is a 404), and `art_discovery(action='look', qid=…)`, which holds as
-  `status` does and inlines the best six pictures.
+  not name is a 404), and `art_discovery(action='look', qid=…)`, which holds up to
+  30 s within a 40 s budget and inlines the best six pictures.
 - **Carried from the picture store's review:** `picture_key` encodes with
   `errors="surrogatepass"`, so a lone surrogate in a source's URL cannot make
   `PictureStore.keep` raise.
