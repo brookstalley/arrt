@@ -420,11 +420,17 @@ def _present(path: Path) -> bool:
         return False
 
 
+#: What a kept file's header can fail with. Named rather than written in place: the
+#: formatter's 3.14 style unparenthesises a bare multi-type `except`, which the
+#: root suite's older interpreter cannot parse when it reads this source.
+_UNREADABLE_HEADER: Final = (OSError, UnidentifiedImageError, ValueError, Image.DecompressionBombError)
+
+
 def _long_edge(path: Path) -> int:
     """A kept file's long edge, read from its header. A file that will not say is never full size."""
     try:
         return max(measure(path))
-    except OSError, UnidentifiedImageError, ValueError, Image.DecompressionBombError:
+    except _UNREADABLE_HEADER:
         return TIERS[-1]
 
 

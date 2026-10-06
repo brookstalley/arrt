@@ -134,6 +134,10 @@ _MAY_REACH_THE_NETWORK = {
     # SMK's client, beside the Met's. `urllib.parse` comes with it, to read an
     # object number and a host out of a page Wikidata records; no request goes through it.
     "arrt.library.sources.smk",
+    # The picture store. `urllib.parse` only, to normalise a source image URL into
+    # the key a kept picture is filed under; the fetch goes through the source's
+    # own `fetch_preview`, never through this module.
+    "arrt.library.services.pictures",
     # The Wikidata client — the far side of the registry seam
     # (`library/registry/__init__.py`), the same arrangement as the museum
     # clients. The identity service above it takes a `Registry`, so the matching
