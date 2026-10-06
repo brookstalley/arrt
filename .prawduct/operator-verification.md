@@ -19,6 +19,12 @@ Checked by the builder against the suites with fixture pictures: the store, the
 import on a fixture art root, the health count on HTTP, MCP and the page. Not yet
 deployed, and the NAS's `previews/` has never been imported.
 
+- **Before rolling back past this build:** an older image's preview sweep would
+  delete kept pictures, because the import repoints rows into `pictures/`. Set
+  `PREVIEW_SWEEP_INTERVAL_SECONDS=0` first (the NAS's `arrt.env` carries it from
+  2026-10-06; this build ignores it), and keep `previews/` until this build is
+  trusted.
+
 - **Look at the journal at the first start after deploy:** one `pictures.imported`
   line with `imported`, `missing`, `refused`, `failed` and `unnamed`. Expect
   `failed` 0 and `done` true; `imported` is about the number of review rows that

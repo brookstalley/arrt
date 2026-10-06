@@ -280,7 +280,7 @@ between planes.
 > | Event | Level | Says |
 > |---|---|---|
 > | `pictures.cleaned` | INFO | the store's stray temporary files were removed at startup, with how many. Logged at every start, zero included |
-> | `pictures.imported` | INFO | the startup import of the old `previews/` directory ran, with rows `imported`, `missing`, `refused` and `failed`, files no row names (`unnamed`), and `done`. Logged at every start; `done` is when `previews/` may be removed by hand |
+> | `pictures.imported` | INFO | the startup import of the old `previews/` directory ran, with rows `imported`, `missing`, `refused` and `failed`, files no row names (`unnamed`), and `done`. Logged at every start while `previews/` exists; `done` is when it may be removed by hand, after which a start logs `pictures.import_retired` instead |
 > | `pictures.import_failed` | WARNING | one row's old preview could not be read, or its picture or row could not be written. Counted in `failed`, so `done` is false until a later start succeeds |
 > | `picture.unreadable` | WARNING | the store could not be read: when keeping a picture (so nothing is fetched over it), or when a card or the model's copy asked for a kept file that will not read or decode. Every kept file is one the store wrote and checked, so this is the disk, never a museum |
 > | `picture.unwritable` | WARNING | a picture arrived and could not be written: a full or read-only disk. The instance is recorded without a picture, and the run goes on |
