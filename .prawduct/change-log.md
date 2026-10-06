@@ -62,6 +62,47 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-06: A look shows what the image sources hold of a work, before any Get
+
+<!-- prawduct: scope=look-before-get -->
+
+**Why:** the owner, 2026-10-06: a work's page should show what it looks like
+before the Get, asked of the sources on every unheld work page, "as long as we
+cache the result so repeated similar searches don't do too many queries."
+
+**What (Chunk 01 of `build-plan-look-before-get.md`):**
+- **`LookService`** (`library/services/look.py`), wired as `Services.look`. It asks
+  every image source what a Get would ask and judges as a Get judges, and writes
+  nothing to the catalogue. Answers are kept in memory per work and source: 6 h for
+  an answer (holding nothing and "can't look this up" included), 10 min for "could
+  not be asked", never as holding nothing, and at most 256 works. One look at a
+  time asks each source, on threads of the look's own; a second look joins the
+  first; a queued ask for a work nobody has polled for 20 s is dropped; a run using
+  a source goes first. A finder of pages only is not asked.
+- **Get's code extracted, not copied, with Get unchanged:** `ImageSourcePool.ask`
+  (one source, sorted as the pool sorts every answer; `find_images` is rebuilt on
+  it) and `wait_for_runs`; `PhaseTwoEngine.judge`, `rank` and `link`, public;
+  `WikidataLink` (was `_WikidataLink`) safe to share between threads; the query
+  builders `get.chosen_work` and `runner.image_query`; and
+  `RegistryWorkService.known`, `view` without the picture's size, so a poll costs a
+  kept answer and the library's own rows.
+- **Surfaces:** `GET /api/registry/works/{qid}/look` (polled; answers at once),
+  `GET /api/registry/works/{qid}/look/pictures/{key}?size=card|large` (from the
+  picture store, by a key the server computed; a key the work's current look does
+  not name is a 404), and `art_discovery(action='look', qid=…)`, which holds as
+  `status` does and inlines the best six pictures.
+- **Carried from the picture store's review:** `picture_key` encodes with
+  `errors="surrogatepass"`, so a lone surrogate in a source's URL cannot make
+  `PictureStore.keep` raise.
+- **Observability:** `look.started`, `look.source_answered`,
+  `look.source_unreachable`, `look.abandoned`, `look.picture_served`, and a
+  `look_qid` context variable stamped by the run-correlation filter.
+- **Records:** `api-contract.md` (the routes, and the one registry page with an MCP
+  twin, with why), `security-model.md` § Direction (a look's picture by a
+  server-minted key), `observability-strategy.md` (the events and `look_qid`).
+- **Container:** `Services.bind` takes `look_now`, the clock a look's kept answers
+  age by, so a suite can expire one.
+
 ## 2026-10-06: The preview sweep is retired, and the picture store is on the health panel
 
 <!-- prawduct: scope=picture-store -->

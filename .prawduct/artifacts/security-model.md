@@ -90,6 +90,16 @@ identifier.**
   server wrote, and the key is computed on the server from the row's `provider` and
   `url`. A request names an image id, never a path or a URL, so no client string
   becomes a path on disk or an address the server fetches.
+- **A look's picture reaches the page the same way, by a key the server minted**
+  *(added 2026-10-06, `build-plan-look-before-get.md`)*. A work the library does
+  not hold is shown from what the image sources hold now, before any Get, and no
+  row exists to read a path from. So the route is
+  `/api/registry/works/{qid}/look/pictures/{key}`, where `key` is the picture
+  store's key, computed on the server from a source's answer, and is served only
+  while that work's kept look names it: another work's key, a refused find's (which
+  has none), or an expired look's is a 404. The picture comes from the store,
+  re-encoded as above. No route takes a URL from the client, and a source's `url`
+  reaches the page as text only.
 
 **Retroactive:** yes. Every page the client has today already conforms, which
 the sink test confirms on the day it lands. The museum clients' text (titles,

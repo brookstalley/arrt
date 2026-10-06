@@ -23,7 +23,8 @@ from arrt.library.acquisition.preparation import PreparationResult
 from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState
 from arrt.library.services.catalogue import MAX_LIST_LIMIT, ArtworkDetail, ArtworkListing, FacetGroup
 from arrt.library.services.discovery import VerdictOutcome
-from arrt.library.services.display_fit import DisplayFit
+from arrt.library.services.display_fit import DisplayFit, FitAssessment
+from arrt.library.services.look import LookPicture, LookView, SourceLook
 from arrt.library.services.previews import InlinePreview
 from arrt.library.services.review import (
     MAX_REVIEW_LIMIT,
@@ -33,7 +34,7 @@ from arrt.library.services.review import (
     InstanceView,
     WantedView,
 )
-from arrt.library.services.runner import RunListing, RunView
+from arrt.library.services.runner import STATUS_HOLD_SECONDS, RunListing, RunView
 from arrt.library.services.taste import AffinityView
 from arrt.library.services.wikidata_match import WorkMatch
 from arrt.library.sources.plugin import API_VERSION
@@ -559,6 +560,74 @@ def _start_get(services: Services, arguments: Mapping[str, Any]) -> dict[str, An
             f"art_discovery(action='status', run_id='{outcome.run.id}'), which holds until something changes."
         ),
     )
+
+
+def _look(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """What every image source holds of a work, as `GET /api/registry/works/{qid}/look` carries it.
+
+    Held as `status` holds, until no source is still being asked, so one call
+    usually carries every answer. The best pictures travel as image blocks.
+    """
+    view = services.look.look(arguments["qid"], hold=STATUS_HOLD_SECONDS)
+    pictures = _Pictures()
+    fields = _look_fields(view, pictures, services.look.inline(view))
+    notice = _joined(view.note, pictures.notice() if view.pictures else None)
+    return with_images(ok(**fields, notice=notice or None), pictures.blocks)
+
+
+def _look_fields(view: LookView, pictures: _Pictures, inlined: Mapping[str, InlinePreview]) -> dict[str, Any]:
+    return {
+        "qid": view.qid,
+        "state": str(view.state),
+        "note": view.note,
+        "held_artwork_ids": list(view.held),
+        "sources": [_look_source_fields(source) for source in view.sources],
+        "pictures": [
+            _look_picture_fields(picture, pictures.index_of(None if picture.key is None else inlined.get(picture.key)))
+            for picture in view.pictures
+        ],
+    }
+
+
+def _look_source_fields(source: SourceLook) -> dict[str, Any]:
+    return {
+        "provider": source.provider,
+        "state": str(source.state),
+        "found": len(source.pictures),
+        "refusals": sorted(str(reason) for reason in source.refusals),
+        "answered_at": _moment(source.answered_at),
+        "retry_at": _moment(source.retry_at),
+    }
+
+
+def _look_picture_fields(picture: LookPicture, image_block_index: int | None) -> dict[str, Any]:
+    judged = picture.judged
+    found = judged.found
+    return {
+        "key": picture.key,
+        "provider": found.provider,
+        "url": found.url,
+        "title": found.title,
+        "artist": found.artist,
+        "width": found.estimated_width,
+        "height": found.estimated_height,
+        "fit": _fit_fields(judged.fit),
+        "below_floor": judged.below_floor,
+        "confidence": judged.confidence,
+        "rights_status": None if found.rights_status is None else str(found.rights_status),
+        "rationale": judged.rationale,
+        "image_block_index": image_block_index,
+    }
+
+
+def _fit_fields(fit: FitAssessment) -> dict[str, Any]:
+    """A display-fit verdict in `FitOut`'s names."""
+    return {
+        "verdict": str(fit.fit),
+        "rendered_width": fit.rendered_width,
+        "rendered_height": fit.rendered_height,
+        "rendered_long_edge_inches": fit.rendered_long_edge_inches,
+    }
 
 
 def _list_runs(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -1169,6 +1238,7 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_discovery", "cancel"): _cancel_run,
     ("art_discovery", "resolve_images"): _resolve_images,
     ("art_discovery", "get"): _start_get,
+    ("art_discovery", "look"): _look,
     ("art_discovery", "list_runs"): _list_runs,
     ("art_discovery", "spend"): _spend,
     ("art_discovery", "source_plugins"): _image_sources,

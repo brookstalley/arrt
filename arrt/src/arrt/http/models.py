@@ -204,6 +204,67 @@ class RegistryWorkPageOut(BaseModel):
     fit: FitOut | None
 
 
+class LookPictureOut(BaseModel):
+    """One instance a source holds of a work, judged as a Get's run would judge it.
+
+    `key` names its picture at `/api/registry/works/{qid}/look/pictures/{key}`,
+    the picture store's key computed on the server; null when the source gave no
+    preview. Titles and artists are what the source calls the work: untrusted text.
+    """
+
+    key: str | None
+    provider: str
+    #: Where the instance lives at its source. Shown as text, never fetched by the page.
+    url: str
+    title: str
+    artist: str | None
+    #: The scan's own size in pixels, as the source reported it. Never null in
+    #: practice, since phase 2 refuses a find whose size is unknown; typed as the
+    #: source's report is.
+    width: int | None
+    height: int | None
+    fit: FitOut
+    below_floor: bool
+    confidence: float
+    rights_status: str | None
+    #: Why phase 2 keeps it, in the words a review card uses.
+    rationale: str
+
+
+class LookSourceOut(BaseModel):
+    """What one image source said about the work."""
+
+    provider: str
+    #: `asking`, `found`, `holds_none`, `refused` (it holds a work by this title,
+    #: or on the item's page, by another artist), `unreachable` or `cannot`.
+    state: str
+    #: How many instances it holds that a Get would keep.
+    found: int
+    #: The gates that turned its other results away: `not_held`,
+    #: `identity_refused`, `size_unknown`.
+    refusals: list[str]
+    answered_at: str | None
+    #: When a source that could not be asked will be asked again.
+    retry_at: str | None
+
+
+class LookOut(BaseModel):
+    """What the image sources hold of a work the library does not, before any Get.
+
+    `state` is `asking` (poll again) or `answered`, or why nothing is asked:
+    `held` (the page goes to `held_artwork_ids`), `being_got`, `no_sources`,
+    `not_configured`, `not_found`, `unavailable`. `pictures` are every source's
+    finds, best first.
+    """
+
+    qid: str
+    state: str
+    note: str | None
+    held_artwork_ids: list[str]
+    sources: list[LookSourceOut]
+    pictures: list[LookPictureOut]
+
+
 class RegistryPersonFoundOut(BaseModel):
     qid: str
     name: str

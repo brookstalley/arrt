@@ -391,6 +391,21 @@ def test_an_instance_url_that_will_not_parse_still_keys_one_picture_and_never_ra
     assert picture_key("artic", broken) != picture_key("artic", "https://[museum.example/y")
 
 
+def test_an_instance_url_carrying_a_lone_surrogate_still_keys_one_picture_and_keep_never_raises(art_root):
+    """A plugin decoding with `surrogateescape` can hand over a code point UTF-8 cannot encode."""
+    source = CountingSource()
+    store = a_store(art_root, source)
+    odd = "https://museum.example/objects/\udcff"
+
+    first = store.keep("artic", odd, PREVIEW_URL)
+    second = store.keep("artic", odd, PREVIEW_URL)
+
+    assert first is not None
+    assert first == second
+    assert len(source.asked) == 1, "the second ask is answered from what the first kept"
+    assert picture_key("artic", odd) != picture_key("artic", "https://museum.example/objects/\udcfe")
+
+
 def test_a_preview_that_is_not_a_picture_is_absence(art_root):
     assert a_store(art_root, CountingSource(b"\xff\xd8\xff\xe0 not really")).keep("artic", URL, PREVIEW_URL) is None
     assert every_file(art_root) == set()

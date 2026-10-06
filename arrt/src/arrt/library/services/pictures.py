@@ -211,8 +211,14 @@ def picture_key(provider: str, url: str) -> str:
     its preview's: the instance is what the picture is of, and a source may serve
     one instance's preview from more than one address. The same picture at two
     holders is two keys, deliberately — two instances.
+
+    **Total, as `_normalise` is.** A lone surrogate in a source's URL (a plugin
+    that decoded bytes with `surrogateescape`) cannot be encoded as UTF-8, and a
+    key that raised would make `keep`, which promises never to raise, end a run
+    over one instance. `surrogatepass` encodes it as its own code unit, which is
+    stable, so it still keys one picture.
     """
-    return hashlib.sha256(f"{provider}\n{_normalise(url)}".encode()).hexdigest()
+    return hashlib.sha256(f"{provider}\n{_normalise(url)}".encode(errors="surrogatepass")).hexdigest()
 
 
 class PictureStore:

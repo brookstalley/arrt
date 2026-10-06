@@ -31,14 +31,25 @@ candidate-work summary are not that: they are one shape written twice.
 from datetime import UTC, datetime
 
 import pytest
+from fakes import an_image
 
 from arrt.http import api as http_api
 from arrt.http import models as http_models
+from arrt.library.discovery.phase_two import JudgedImage
 from arrt.library.services.discovery import VerdictOutcome, WantedWork
+from arrt.library.services.display_fit import DisplayFit, FitAssessment
+from arrt.library.services.look import LookPicture, LookState, LookView, SourceLook, SourceState
 from arrt.library.services.review import WantedView
 from arrt.library.sources.loading import PluginIdentity, PluginPart, PluginReading, PluginState
 from arrt.mcp import bindings
-from arrt.persistence.discovery_records import CandidateWork, DiscoveryRun, InitiatedBy, RunKind, RunStatus
+from arrt.persistence.discovery_records import (
+    CandidateWork,
+    DiscoveryRun,
+    InitiatedBy,
+    RunKind,
+    RunStatus,
+    UnresolvedReason,
+)
 from arrt.persistence.records import Artist, Artwork, Theme
 from arrt.services.health import PicturesReading, SourceHealth
 
@@ -462,3 +473,39 @@ def test_every_health_reading_is_placed_on_the_mcp_status_or_left_off_it_by_name
     assert carried | left == panel
     assert not carried & left
     assert all(reason.strip() for reason in bindings._STATUS_LEAVES.values())
+
+
+#: The one name a look's picture carries on MCP alone: which image block is its
+#: own. A browser asks for the picture by key instead.
+MCP_ONLY_ON_LOOK_PICTURE = frozenset({"image_block_index"})
+
+
+def _a_look() -> LookView:
+    found = an_image("Tantra-Vision", artist="Ejler Bille", width=2201, height=2221, provider="smk")
+    fit = FitAssessment(fit=DisplayFit.NATIVE, rendered_width=1800, rendered_height=1816, rendered_long_edge_inches=31.4)
+    picture = LookPicture(
+        key="a" * 64, judged=JudgedImage(found=found, confidence=0.95, quality_score=0.8, rationale="Why.", fit=fit)
+    )
+    source = SourceLook(
+        provider="smk",
+        state=SourceState.FOUND,
+        pictures=(picture,),
+        refusals=frozenset({UnresolvedReason.NOT_HELD}),
+        answered_at=WHEN,
+    )
+    return LookView(qid="Q20267229", state=LookState.ANSWERED, sources=(source,), pictures=(picture,))
+
+
+def test_the_look_projections_agree_value_for_value_but_for_the_image_block():
+    """`art_discovery(action='look')` is `GET /api/registry/works/{qid}/look`, in the same names and values."""
+    view = _a_look()
+    tool = bindings._look_fields(view, bindings._Pictures(), {})
+    route = http_api._look(view)
+
+    check_parity("Look", set(tool), _fields(http_models.LookOut))
+    check_parity("LookSource", set(tool["sources"][0]), _fields(http_models.LookSourceOut))
+    check_parity("LookPicture", set(tool["pictures"][0]) - MCP_ONLY_ON_LOOK_PICTURE, _fields(http_models.LookPictureOut))
+    check_parity("Fit", set(bindings._fit_fields(view.pictures[0].judged.fit)), _fields(http_models.FitOut))
+    assert set(tool["pictures"][0]) >= MCP_ONLY_ON_LOOK_PICTURE, "an exemption for a field the tool no longer carries"
+    tool["pictures"] = [{k: v for k, v in p.items() if k not in MCP_ONLY_ON_LOOK_PICTURE} for p in tool["pictures"]]
+    assert tool == route.model_dump()

@@ -442,6 +442,17 @@ def _round_robin(groups: Sequence[OfferedGroup]) -> Iterator[tuple[FoundImage, O
 OFFER_RATIONALE = "Offered by the collection, not proposed by the model."
 
 
+def image_query(title: str, artist: str | None, qid: str | None, *, pages: tuple[str, ...] = ()) -> ImageQuery:
+    """The question phase 2 asks the image sources about one work.
+
+    One builder, so a look at a work asks exactly what a Get of it would
+    (`library/services/look.py`): the title and maker as the work's row
+    records them, its item, and the pages its run's search cited, which a Get
+    has none of.
+    """
+    return ImageQuery(title=title, artist=artist, qid=None if qid is None else ItemId(qid), pages=pages)
+
+
 def _daemon_thread(work: Callable[[], None]) -> None:
     """Run a run's phase-1 work behind the handle that was already returned.
 
@@ -1274,14 +1285,7 @@ class DiscoveryRunner:
             )
             return WorkOutcome.VERDICT_STOOD
         try:
-            resolution = images.resolve(
-                ImageQuery(
-                    title=work.proposed_title,
-                    artist=work.proposed_artist,
-                    qid=None if work.wikidata_qid is None else ItemId(work.wikidata_qid),
-                    pages=pages,
-                )
-            )
+            resolution = images.resolve(image_query(work.proposed_title, work.proposed_artist, work.wikidata_qid, pages=pages))
         except ImageSearchFailure as exc:
             # Two reasons a work goes unasked, logged apart: a source that was
             # down, and no wired source able to look a work like this up at all.

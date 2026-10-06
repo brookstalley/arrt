@@ -46,6 +46,11 @@ from typing import Any, Final
 #: context variable is the one mechanism that behaves under both.
 _RUN_ID: ContextVar[str | None] = ContextVar("curation_run_id", default=None)
 
+#: The work a look is asking the image sources about (`library/services/look.py`),
+#: bound as `run_id` is and for its reason: a look fans one page's question out
+#: across every source, on threads of its own, and its lines are found by this.
+_LOOK_QID: ContextVar[str | None] = ContextVar("curation_look_qid", default=None)
+
 #: What every line carries. Ordered so a raw line reads left to right the way a
 #: person scans one: when, how bad, where from, what happened.
 _ALWAYS: Final[tuple[str, ...]] = ("time", "level", "logger", "message")
@@ -91,13 +96,23 @@ def run_context(run_id: str) -> Iterator[None]:
         _RUN_ID.reset(token)
 
 
+@contextmanager
+def look_context(qid: str) -> Iterator[None]:
+    """Bind a look's QID to everything logged inside this block, restoring what was bound before."""
+    token = _LOOK_QID.set(qid)
+    try:
+        yield
+    finally:
+        _LOOK_QID.reset(token)
+
+
 def current_run_id() -> str | None:
     """The run being worked on here, if this is inside one."""
     return _RUN_ID.get()
 
 
 class RunCorrelationFilter(logging.Filter):
-    """Stamp the bound run id onto every record that passes through.
+    """Stamp the bound run id, and a look's QID, onto every record that passes through.
 
     A filter rather than a formatter concern: the id belongs to the record, so
     anything that later formats or routes it can see it. Never rejects a record —
@@ -109,6 +124,9 @@ class RunCorrelationFilter(logging.Filter):
         run_id = _RUN_ID.get()
         if run_id is not None:
             record.run_id = run_id
+        look_qid = _LOOK_QID.get()
+        if look_qid is not None:
+            record.look_qid = look_qid
         return True
 
 

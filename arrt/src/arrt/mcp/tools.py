@@ -24,11 +24,14 @@ what it takes, and what a good call looks like; `bindings.py` says which
 service method answers it, and the service method does the work.
 """
 
+from datetime import timedelta
 from typing import Final
 
 from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR
 from arrt.library.services.catalogue import MAX_LIST_LIMIT
+from arrt.library.services.look import ANSWER_KEPT_FOR, UNREACHABLE_KEPT_FOR
 from arrt.library.services.review import MAX_REVIEW_LIMIT
+from arrt.library.services.runner import STATUS_HOLD_SECONDS
 from arrt.mcp.registry import Action, Param, ToolRecord
 from arrt.persistence.discovery_records import AffinityDerivation, AffinitySentiment, RunKind, RunStatus
 from arrt.persistence.records import ArtworkStatus, VocabularyKind, WorkOrder
@@ -585,6 +588,40 @@ ART_DISCOVERY: Final = ToolRecord(
                     "To send the works to a new theme, create it first with art_theme(action='create') and pass its "
                     "theme_id. An unknown theme_id refuses the Get and starts nothing. A theme deleted before a work "
                     "is accepted leaves that work in no theme, not in the default."
+                ),
+            ),
+        ),
+        Action(
+            name="look",
+            description=("Show what every image source holds of a work you do not hold, by its Wikidata item, before any Get."),
+            example="art_discovery(action='look', qid='Q20267229')",
+            params=(
+                Param(
+                    name="qid",
+                    type="string",
+                    description="The work's Wikidata item, such as Q20267229.",
+                    required=True,
+                ),
+            ),
+            tips=(
+                (
+                    "This spends nothing and records nothing: no run starts. Each source is asked what a Get would "
+                    "ask, and its finds are judged as a Get judges them, so the pictures are what a Get would find."
+                ),
+                (
+                    f"It waits up to {STATUS_HOLD_SECONDS:.0f} seconds for every source to answer; a source still "
+                    "`asking` after that is answered by calling again. Answers are kept for "
+                    f"{ANSWER_KEPT_FOR / timedelta(hours=1):.0f} hours, and 'could not be asked' for "
+                    f"{UNREACHABLE_KEPT_FOR / timedelta(minutes=1):.0f} minutes, so calling again soon asks nothing twice."
+                ),
+                (
+                    "A source's state is found, holds_none, refused (it holds a work by this title by another "
+                    "artist, which is not shown), unreachable or cannot. The best pictures follow as images; each "
+                    "picture's image_block_index says which is its own."
+                ),
+                (
+                    "state='held' means the library already holds the work (held_artwork_ids), and "
+                    "state='being_got' that a Get is asking already; neither asks anything."
                 ),
             ),
         ),
