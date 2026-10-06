@@ -24,9 +24,10 @@ Checked by the builder against recorded answers and SMK's live API
   at 2201 × 2221, recorded as in copyright and identified by the item's own
   page (`https://collection.smk.dk/#/en/detail/KMS7816`).
 - **Worth an opinion:** many of SMK's in-copyright works come only at about
-  1,600 px, under the floor on most walls (KMSr31, KMS6503, KMS4337, measured
-  2026-10-06). They arrive as placeholders, which is what the owner's ruling of
-  2026-10-03 asks for, but fewer will hang at full size than #232 expected.
+  1,600 px on the long edge (KMSr31, KMS6503, KMS4337, measured 2026-10-06).
+  That clears the 1,000 px minimum and renders about 18" tall on the owner's
+  50" 4K Frame, so they hang, matted small: a wider mat than a full-size scan
+  gets. Fewer fill the wall than #232's two full-size samples suggested.
 
 ### Wanted shows each work's picture — added 2026-10-06
 
