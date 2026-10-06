@@ -160,7 +160,9 @@ Deliberately minimal, because the topology does not need more.
 - **`look_qid`** — a look's correlation key *(added 2026-10-06,
   `build-plan-look-before-get.md`)*: the Wikidata item a look is asking the image
   sources about, bound by `logs.look_context` as `run_id` is bound, on every line
-  logged from the look's own threads and its picture route. A look is not a run
+  logged from the look's own threads, its picture route and the model's picture
+  fetches, the picture store's `picture.*` lines included (`test_look.py` holds
+  both). A look is not a run
   (it writes nothing and has no id), so it gets its own key rather than borrowing
   `run_id`; `jq 'select(.look_qid == "Q…")'` returns one work's look.
 - **`work_id`** — the only identifier that spans both planes. It appears in
@@ -227,8 +229,8 @@ between planes.
 > | `picture.kept` / `picture.absent` | whether a review card will have a kept picture to show: `picture.kept` names the store path and the bytes of each tier written; `picture.absent`, at INFO, names a source's reason none was kept (it returned nothing or raised, or the bytes are not a picture). A failure of this machine's own disk is not a miss and is never logged as one: see `picture.unreadable` and `picture.unwritable` below. Replaced `preview.cached` / `preview.absent` on 2026-10-06 |
 > | `run.completed` | the run's works split into resolved, unresolved and unreachable |
 > | `look.started` | a look queued an ask at one or more image sources (`providers`) for a work (`work_title`); not logged when every source's answer is still kept, so a quiet reload is visible as the absence of this line |
-> | `look.source_answered` | one source answered a look: its `state` (`found`, `holds_none`, `refused`, `cannot`), how many finds it holds (`found`), and `refused_at`. Phase 2's own `phase_two.not_the_work` lines appear beside it, since the look judges with phase 2's judge |
-> | `look.source_unreachable` | at WARNING: a source could not be asked for a look, with its `reason`; kept for ten minutes and asked again after, never recorded as holding nothing |
+> | `look.source_answered` | one source answered a look: its `state` (`found`, `holds_none`, `refused`, `cannot`), how many finds it holds (`found`), `refused_at`, and `registry_unavailable`: true when Wikidata could not be asked which pages describe the work, so titles alone judged and a "none" is kept ten minutes rather than six hours. Phase 2's own `phase_two.not_the_work` lines appear beside it, since the look judges with phase 2's judge |
+> | `look.source_unreachable` | at WARNING: a source could not be asked for a look, with its `reason`; kept for ten minutes and asked again after, never recorded as holding nothing. Also, with a traceback, when a finder or the judge raised something unexpected, and when the thread asking a source stopped or could not be started, whose waiting asks are all answered this way |
 > | `look.abandoned` | a queued ask was dropped before it started: nobody had polled the work for 20 seconds (`unwatched`), or the look was no longer kept (`forgotten`) |
 > | `look.picture_served` | a look's picture was served from the picture store, by `key` and `size`; the store's own `picture.kept` / `picture.absent` say whether it had to be fetched |
 >

@@ -90,7 +90,7 @@ They are summarised here and are to be re-checked at build time.
 ## Status
 
 - [x] Chunk 01: The look service, its cache and its two surfaces
-- [ ] Chunk 02: The Work page shows the look
+- [x] Chunk 02: The Work page shows the look
 
 ### Chunk 01: The look service, its cache and its two surfaces
 
@@ -134,7 +134,7 @@ Done when:
 
 Done when:
 
-- `screens/work.js` draws the panel, rows, pictures and states above, polling only
+- `arrt/src/arrt/http/static/screens/work.js` draws the panel, rows, pictures and states above, polling only
   its own section.
 - Browser tests:
   - rows fill over successive polls, and focus never moves;

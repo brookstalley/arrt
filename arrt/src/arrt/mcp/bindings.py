@@ -24,7 +24,7 @@ from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState
 from arrt.library.services.catalogue import MAX_LIST_LIMIT, ArtworkDetail, ArtworkListing, FacetGroup
 from arrt.library.services.discovery import VerdictOutcome
 from arrt.library.services.display_fit import DisplayFit, FitAssessment
-from arrt.library.services.look import LookPicture, LookView, SourceLook
+from arrt.library.services.look import INLINED, Inlined, LookPicture, LookView, SourceLook
 from arrt.library.services.previews import InlinePreview
 from arrt.library.services.review import (
     MAX_REVIEW_LIMIT,
@@ -34,7 +34,7 @@ from arrt.library.services.review import (
     InstanceView,
     WantedView,
 )
-from arrt.library.services.runner import STATUS_HOLD_SECONDS, RunListing, RunView
+from arrt.library.services.runner import RunListing, RunView
 from arrt.library.services.taste import AffinityView
 from arrt.library.services.wikidata_match import WorkMatch
 from arrt.library.sources.plugin import API_VERSION
@@ -565,14 +565,42 @@ def _start_get(services: Services, arguments: Mapping[str, Any]) -> dict[str, An
 def _look(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     """What every image source holds of a work, as `GET /api/registry/works/{qid}/look` carries it.
 
-    Held as `status` holds, until no source is still being asked, so one call
-    usually carries every answer. The best pictures travel as image blocks.
+    Held until no source is still being asked, so one call usually carries every
+    answer, and the best pictures travel as image blocks, the whole within the
+    client's minute (`LookService.look_for_a_model`).
     """
-    view = services.look.look(arguments["qid"], hold=STATUS_HOLD_SECONDS)
+    view, inlined = services.look.look_for_a_model(arguments["qid"])
     pictures = _Pictures()
-    fields = _look_fields(view, pictures, services.look.inline(view))
-    notice = _joined(view.note, pictures.notice() if view.pictures else None)
-    return with_images(ok(**fields, notice=notice or None), pictures.blocks)
+    fields = _look_fields(view, pictures, inlined.previews)
+    return with_images(ok(**fields, notice=_look_notice(view, inlined, pictures) or None), pictures.blocks)
+
+
+def _look_notice(view: LookView, inlined: Inlined, pictures: _Pictures) -> str:
+    """Say how the pictures line up with the rows, and why any picture did not come, in a look's own terms.
+
+    Not `_Pictures.notice`, which speaks of a review card's cached copies and its
+    `preview_note`; a look's row has neither, and says nothing of its own.
+    """
+    sentences = [view.note]
+    if pictures.blocks:
+        sentences.append(
+            f"{counted(len(pictures.blocks), 'image')} follow the text, best first; each picture's image_block_index "
+            "says which is its own, and a null one means its picture did not come with this answer."
+        )
+    if inlined.deferred:
+        late = len(inlined.deferred)
+        sentences.append(
+            f"{counted(late, 'picture')} had not arrived from {agree(late, 'its source', 'their sources')} in time to "
+            f"send; {agree(late, 'it is', 'they are')} being kept now, so calling action='look' again soon brings "
+            f"{agree(late, 'it', 'them')}."
+        )
+    if inlined.failed:
+        sentences.append(
+            f"{counted(len(inlined.failed), 'picture')} could not be kept: the source gave nothing that is a picture."
+        )
+    if len(view.pictures) > INLINED:
+        sentences.append(f"Only the best {INLINED} pictures are sent as images; the rest are listed without one.")
+    return _joined(*sentences)
 
 
 def _look_fields(view: LookView, pictures: _Pictures, inlined: Mapping[str, InlinePreview]) -> dict[str, Any]:
@@ -615,7 +643,7 @@ def _look_picture_fields(picture: LookPicture, image_block_index: int | None) ->
         "below_floor": judged.below_floor,
         "confidence": judged.confidence,
         "rights_status": None if found.rights_status is None else str(found.rights_status),
-        "rationale": judged.rationale,
+        "selection_rationale": judged.rationale,
         "image_block_index": image_block_index,
     }
 

@@ -10,6 +10,31 @@ each entry, which is the durable form.
 
 ## Pending
 
+### A work you don't hold shows what the sources hold, before any Get — added 2026-10-06
+
+**`build-plan-look-before-get.md` Chunks 01–02.** Visual change: yes (the Work
+page for a work not held); live integration (every image source, asked for real).
+
+Checked by the builder against fake sources only: the look's cache, its surfaces
+over a real server, and the page in Chromium with served answers and one real
+look. No live museum has been asked.
+
+- **Try:** open `#work/Q20267229` (*Tantra-Vision*, which Wikidata pictures with
+  nothing) and do **not** press *Get this work*. *What the image sources hold*
+  fills in within a few seconds, SMK's row reads ● 1 found, and SMK's picture
+  (2,201 × 2,221 px) takes the place at the top. Its card enlarges in place, and
+  Escape closes it.
+- **Look at the journal:** one `look.started` line, then one
+  `look.source_answered` (or `look.source_unreachable`) per source, each with
+  `look_qid` `Q20267229`, and a `look.picture_served` per picture shown.
+- **Then reload within six hours:** the panel fills at once, and the journal has
+  **no** new `look.started` and no `look.source_answered` lines: no source was
+  asked again. (A source that could not be asked is asked again after ten
+  minutes, and that one line is expected.)
+- **Look at:** a work Wikidata does picture (any well-known painting not held):
+  Wikidata's picture stays on top, with a line saying it is Wikidata's, and the
+  sources' finds are below it.
+
 ### Every picture Arrt fetches is kept — added 2026-10-06
 
 **`build-plan-picture-store.md` Chunks 01–02.** Visual change: yes (a Status

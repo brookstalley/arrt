@@ -18,20 +18,27 @@ from arrt.config import PICTURES_DIRNAME
 from arrt.library.discovery.images import FoundImage, ImageQuery, ImageQueryUnanswerable, ImageSearchFailure
 from arrt.library.discovery.phase_two import PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
-from arrt.library.registry import ItemId, RegistryCreator, RegistryText, RegistryWork
+from arrt.library.registry import ItemId, RegistryCreator, RegistryText, RegistryUnavailable, RegistryWork
 from arrt.library.services.discovery import ChosenWork
 from arrt.library.services.look import (
     ANSWER_KEPT_FOR,
+    LOOK_HOLD_SECONDS,
     MAX_LOOKS,
+    MODEL_LOOK_BUDGET_SECONDS,
     UNREACHABLE_KEPT_FOR,
     UNWATCHED_AFTER,
+    Inlined,
     LookService,
     LookState,
+    LookView,
     SourceState,
 )
 from arrt.library.services.pictures import PictureStore, picture_key
+from arrt.library.services.registry_works import RegistryWorkService, RegistryWorkState, RegistryWorkView
 from arrt.logs import RunCorrelationFilter
+from arrt.mcp import bindings
 from arrt.persistence.discovery_records import InitiatedBy, RunStatus
+from arrt.persistence.kept import KeptAnswers
 from arrt.services.errors import ServiceError
 
 TANTRA = ItemId("Q20267229")
@@ -521,3 +528,296 @@ def test_two_answers_judged_at_once_ask_the_registry_for_the_work_s_pages_once(s
 
     assert registry.pages_asked == [TANTRA]
     assert answers == ["not_recorded", "not_recorded"]
+
+
+# -- review fixes: the slot's state, the link's lifetime, the branches nothing reached ----
+
+
+def test_a_look_arriving_as_an_unwatched_ask_is_dropped_keeps_the_source_and_gets_it_asked(build, clock, monkeypatch):
+    """The drop is decided, then a held look arrives, then the drop would land: the look must win.
+
+    Deterministic: the drop is held at its door until the held look has
+    registered as watching, which is exactly the interleaving a poll can hit.
+    """
+    smk = Source(holdings={"Sleep": [smk_image("Sleep")]}, blocks=frozenset({"Tantra-Vision"}))
+    look = build(smk)
+    look.look(TANTRA)
+    assert smk.entered.wait(SETTLE)
+    look.look(SLEEP)  # queued behind Tantra-Vision, then left unwatched
+    clock.advance(seconds=UNWATCHED_AFTER.total_seconds() + 1)
+
+    held: list = []
+    drop = look._abandon
+
+    def a_look_arrives_first(entry, provider, why):
+        waiter = threading.Thread(target=lambda: held.append(look.look(SLEEP, hold=SETTLE)), daemon=True)
+        waiter.start()
+        until(lambda: look._looks[SLEEP].watchers > 0)
+        return drop(entry, provider, why)
+
+    monkeypatch.setattr(look, "_abandon", a_look_arrives_first)
+    smk.gate.set()
+    until(lambda: held)
+
+    (view,) = held
+    assert [source.provider for source in view.sources] == ["smk"], "the source vanished from the held look"
+    assert view.sources[0].state is SourceState.FOUND, "the watched ask was dropped rather than made"
+    assert smk.titles_asked() == ["Tantra-Vision", "Sleep"]
+
+
+def test_every_configured_source_has_a_row_even_before_its_slot_exists(build):
+    smk, met = Source(blocks=frozenset({"Tantra-Vision"})), Source("met", blocks=frozenset({"Tantra-Vision"}))
+    look = build(smk, met)
+    look.look(TANTRA)
+    with look._changed:
+        del look._looks[TANTRA].slots["met"]  # as a dropped ask leaves it
+        view = look._view(look._looks[TANTRA], look._pool, look._judge)
+    smk.gate.set()
+    met.gate.set()
+
+    assert [(source.provider, source.state) for source in view.sources] == [
+        ("smk", SourceState.ASKING),
+        ("met", SourceState.ASKING),
+    ]
+    assert view.state is LookState.ASKING
+
+
+def test_a_registry_outage_while_judging_is_not_kept_for_hours_and_a_later_look_asks_again(build, registry, clock):
+    """A differently titled find on the item's page is linked only if Wikidata answers which pages describe the work."""
+    page = "https://open.smk.dk/artwork/image/KMS8010"
+    registry.pages[TANTRA] = [page]
+    smk = Source(holdings={"Tantra-Vision": [an_image("Tantrisk syn", artist="Ejler Bille", provider="smk", url=page)]})
+    asked = registry.pages_about
+
+    def down(qid):
+        raise RegistryUnavailable("Wikidata is down")
+
+    registry.pages_about = down
+    look = build(smk)
+    during = look.look(TANTRA, hold=SETTLE)
+    assert during.sources[0].state is SourceState.HOLDS_NONE
+
+    registry.pages_about = asked
+    clock.advance(seconds=UNREACHABLE_KEPT_FOR.total_seconds() + 1)
+    after = look.look(TANTRA, hold=SETTLE)
+
+    assert len(smk.asked) == 2, "an answer shaped by an outage is kept only as long as an outage is"
+    assert after.sources[0].state is SourceState.FOUND, "the second ask judged against the link built during the outage"
+
+
+def test_a_finder_fault_turns_its_row_unreachable_at_warning_and_never_leaves_it_asking(build, caplog):
+    class Broken(Source):
+        def find_images(self, query):
+            raise RuntimeError("a defect in the finder")
+
+    with caplog.at_level(logging.INFO):
+        view = build(Broken("broken")).look(TANTRA, hold=SETTLE)
+
+    assert view.sources[0].state is SourceState.UNREACHABLE
+    (line,) = [r for r in caplog.records if getattr(r, "event", None) == "look.source_unreachable"]
+    assert line.levelno == logging.WARNING
+    assert line.exc_info is not None
+
+
+def test_a_source_that_could_not_be_asked_logs_it_at_warning(build, caplog):
+    with caplog.at_level(logging.INFO):
+        build(Source("met", fails=True)).look(TANTRA, hold=SETTLE)
+
+    (line,) = [r for r in caplog.records if getattr(r, "event", None) == "look.source_unreachable"]
+    assert (line.levelno, line.provider) == (logging.WARNING, "met")
+
+
+def test_a_look_thread_that_dies_turns_its_rows_unreachable(build, monkeypatch):
+    smk = Source()
+    look = build(smk)
+
+    def dies(provider, *, timeout):
+        raise RuntimeError("the wait broke")
+
+    monkeypatch.setattr(look._pool, "wait_for_runs", dies)
+    view = look.look(TANTRA, hold=SETTLE)
+
+    assert view.state is LookState.ANSWERED
+    assert view.sources[0].state is SourceState.UNREACHABLE
+    assert smk.asked == []
+
+
+def test_a_look_thread_that_never_starts_turns_its_row_unreachable(services, settings, registry, clock):
+    def cannot_start(_work):
+        raise RuntimeError("can't start new thread")
+
+    pool = ImageSourcePool([Source()])
+    look = LookService(
+        works=services.registry_works,
+        discovery=services.discovery,
+        pool=pool,
+        judge=PhaseTwoEngine(pool, box=settings.tv_artwork_box, registry=registry),
+        pictures=services.pictures,
+        now=clock,
+        spawn=cannot_start,
+    )
+
+    view = look.look(TANTRA)
+
+    assert view.sources[0].state is SourceState.UNREACHABLE
+
+
+def test_an_ask_queued_for_a_look_no_longer_kept_is_dropped_as_forgotten(build, registry, caplog):
+    qids = [ItemId(f"Q{800000 + n}") for n in range(MAX_LOOKS)]
+    for qid in qids:
+        registry.works[qid] = a_work(qid, f"Work {qid}")
+    smk = Source(blocks=frozenset({"Tantra-Vision"}))
+    look = build(smk)
+    look.look(TANTRA)
+    assert smk.entered.wait(SETTLE)
+    look.look(SLEEP)  # queued behind Tantra-Vision
+    with caplog.at_level(logging.INFO, logger="arrt.library.services.look"):
+        for qid in qids:  # Sleep is pushed past the bound while it waits
+            look.look(qid)
+        smk.gate.set()
+        until(lambda: any(getattr(r, "reason", None) == "forgotten" for r in caplog.records))
+
+    assert "Sleep" not in smk.titles_asked()
+
+
+def test_no_image_source_asks_nothing_and_says_so(services, clock):
+    look = LookService(
+        works=services.registry_works,
+        discovery=services.discovery,
+        pool=None,
+        judge=None,
+        pictures=services.pictures,
+        now=clock,
+    )
+
+    view = look.look(TANTRA)
+
+    assert (view.state, view.note) == (LookState.NO_SOURCES, "No image source is configured to ask.")
+
+
+@pytest.mark.parametrize("registry_state", [state for state in RegistryWorkState if state is not RegistryWorkState.KNOWN])
+def test_every_registry_state_but_known_has_a_look_state_of_its_own(build, registry, registry_state):
+    smk = Source()
+    look = build(smk)
+    answer = RegistryWorkView(state=registry_state, note="Said by the registry page.")
+    look._works = type("Works", (), {"known": lambda self, qid: answer})()
+
+    view = look.look(TANTRA)
+
+    assert str(view.state) == str(registry_state)
+    assert view.note == "Said by the registry page."
+    assert smk.asked == []
+
+
+def test_no_registry_asks_nothing_and_says_why(services, store, settings, clock):
+    smk = Source()
+    pool = ImageSourcePool([smk])
+    look = LookService(
+        works=RegistryWorkService(
+            store, None, kept=KeptAnswers.in_memory(), wanted=services.discovery, box=settings.tv_artwork_box
+        ),
+        discovery=services.discovery,
+        pool=pool,
+        judge=PhaseTwoEngine(pool, box=settings.tv_artwork_box, registry=None),
+        pictures=services.pictures,
+        now=clock,
+    )
+
+    view = look.look(TANTRA)
+
+    assert view.state is LookState.NOT_CONFIGURED
+    assert view.note
+    assert smk.asked == []
+
+
+def test_an_unavailable_registry_asks_nothing(build, registry):
+    registry.failing = True
+    smk = Source()
+
+    view = build(smk).look("Q4242", hold=SETTLE)
+
+    assert view.state is LookState.UNAVAILABLE
+    assert smk.asked == []
+
+
+def test_a_named_key_whose_picture_cannot_be_kept_is_refused_and_logs_why_with_the_qid(build, caplog):
+    smk = Source(holdings={"Tantra-Vision": [smk_image("Tantra-Vision")]})
+    smk.fetch_preview = lambda url: None
+    look = build(smk)
+    key = look.look(TANTRA, hold=SETTLE).pictures[0].key
+    caplog.handler.addFilter(RunCorrelationFilter())
+
+    with caplog.at_level(logging.INFO), pytest.raises(ServiceError, match="could be kept"):
+        look.picture(TANTRA, key)
+
+    (absent,) = [r for r in caplog.records if getattr(r, "event", None) == "picture.absent"]
+    assert absent.look_qid == TANTRA
+
+
+def test_a_served_picture_is_logged_with_its_key_size_and_qid(build, caplog):
+    smk = Source(holdings={"Tantra-Vision": [smk_image("Tantra-Vision")]})
+    look = build(smk)
+    key = look.look(TANTRA, hold=SETTLE).pictures[0].key
+    caplog.handler.addFilter(RunCorrelationFilter())
+
+    with caplog.at_level(logging.INFO):
+        look.picture(TANTRA, key, enlarged=True)
+
+    (served,) = [r for r in caplog.records if getattr(r, "event", None) == "look.picture_served"]
+    assert (served.key, served.size, served.look_qid) == (key, "large", TANTRA)
+    (kept,) = [r for r in caplog.records if getattr(r, "event", None) == "picture.kept"]
+    assert kept.look_qid == TANTRA
+
+
+# -- the model's call, within its client's minute ----------------------------------------
+
+
+def test_the_model_s_look_stays_within_its_budget_and_says_what_it_left_for_later(build):
+    class SlowPictures(Source):
+        def fetch_preview(self, url):
+            self.fetched.append(url)
+            time.sleep(3)
+            return a_decodable_jpeg()
+
+    smk = SlowPictures(holdings={"Tantra-Vision": [smk_image("Tantra-Vision"), smk_image("Tantra-Vision", width=3000)]})
+    look = build(smk)
+
+    started = time.monotonic()
+    view, inlined = look.look_for_a_model(TANTRA, hold=SETTLE, budget=1.0)
+    took = time.monotonic() - started
+
+    assert view.state is LookState.ANSWERED
+    assert took < 2.5, f"the call took {took:.1f}s against a 1s budget"
+    assert inlined.previews == {}
+    assert set(inlined.deferred) == {picture.key for picture in view.pictures}
+
+    until(lambda: len(smk.fetched) == 2)
+    time.sleep(3.2)  # the fetches finish behind the answer, into the store
+    _, later = look.look_for_a_model(TANTRA, hold=0, budget=1.0)
+    assert set(later.previews) == {picture.key for picture in view.pictures}, "a later call inlines what was kept"
+    assert later.deferred == ()
+
+
+def test_the_model_s_look_fits_the_client_s_minute():
+    assert LOOK_HOLD_SECONDS < MODEL_LOOK_BUDGET_SECONDS <= 40
+
+
+def test_the_model_s_notice_says_which_pictures_are_coming_later():
+    view = LookView(qid=TANTRA, state=LookState.ANSWERED, note=None)
+    pictures = bindings._Pictures()
+
+    notice = bindings._look_notice(view, Inlined(previews={}, deferred=("a" * 64, "b" * 64)), pictures)
+
+    assert notice == (
+        "2 pictures had not arrived from their sources in time to send; they are being kept now, "
+        "so calling action='look' again soon brings them."
+    )
+
+
+def test_an_unknown_registry_state_is_refused_by_name_rather_than_failing(build):
+    look = build(Source())
+    answer = RegistryWorkView(state="moved", note=None)
+    look._works = type("Works", (), {"known": lambda self, qid: answer})()
+
+    with pytest.raises(ServiceError, match="a state a look has no words for: moved"):
+        look.look(TANTRA)

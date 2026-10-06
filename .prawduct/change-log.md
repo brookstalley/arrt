@@ -102,6 +102,42 @@ cache the result so repeated similar searches don't do too many queries."
   server-minted key), `observability-strategy.md` (the events and `look_qid`).
 - **Container:** `Services.bind` takes `look_now`, the clock a look's kept answers
   age by, so a suite can expire one.
+- **The Work page (Chunk 02):** `screens/work.js` draws *What the image sources
+  hold* for a work not held, polling `/look` every 2 s while a source is still
+  asking and repainting only its own section: a row per source as a glyph and a
+  word, the finds best first as enlargeable cards with pixels, fit, source and
+  rationale (six, then *Show N more*), and one `role=status` line that changes
+  only when its words do. A picture once drawn is never redrawn or moved, so a
+  poll never moves focus. Wikidata's picture stays on top; without one, the first
+  find takes the top and keeps it. A source holding the work with no size reads
+  "Holds this work but gives no size for it; not shown" rather than "Holds none".
+  The line under *Get this work* now reads "These are what the sources hold now;
+  getting the work records them and spends nothing.", and the old sentence's
+  half about Wikidata's picture moved under that picture. Records:
+  `information-architecture.md` (the Work rows in § Screen Inventory, § Information
+  Hierarchy and § Screen States), an operator-verification entry, and
+  `tests/browser/test_the_look.py`.
+- **Review fixes to Chunk 01:**
+  - **A queued ask is dropped only if, under the lock that drops it, nobody now
+    wants it**, and a look lists a row for every configured image source, an
+    unanswered one as `asking`, so a held look can no longer lose a source or read
+    finished while one has not answered.
+  - **Every new fan-out builds its question and Wikidata link afresh**, and a
+    "none" judged while Wikidata could not be asked is kept 10 min, not 6 h
+    (`WikidataLink.unavailable`).
+  - **A source's thread that stops or never starts** answers its waiting asks as
+    `unreachable`; finder and judge faults log `look.source_unreachable` at WARNING.
+  - **Registry states map to look states by a stated table**; an unknown one is
+    refused by name.
+  - **`look_qid` is bound around the picture route and the model's picture
+    fetches**, so the store's `picture.*` lines carry it.
+  - **The MCP look fits the client's minute**: `LookService.look_for_a_model`
+    holds up to 30 s, sends the pictures the store keeps, fetches the rest
+    together, and stops at 40 s, listing any picture not arrived as coming with
+    the next call. Its notice is its own, no longer the review grid's.
+  - **A look picture's `rationale` is `selection_rationale`**, the name a scan's
+    carries on both surfaces, and a tip maps the look's size and fit names onto
+    `list_images`'.
 
 ## 2026-10-06: The preview sweep is retired, and the picture store is on the health panel
 

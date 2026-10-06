@@ -1997,7 +1997,7 @@ def _look_picture(picture: LookPicture) -> LookPictureOut:
         below_floor=judged.below_floor,
         confidence=judged.confidence,
         rights_status=None if found.rights_status is None else str(found.rights_status),
-        rationale=judged.rationale,
+        selection_rationale=judged.rationale,
     )
 
 

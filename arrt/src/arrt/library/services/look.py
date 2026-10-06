@@ -45,11 +45,13 @@ picture is served only for a key the work's current look names. No surface takes
 an address from a client, and a refused find has no key at all.
 """
 
+import contextvars
 import logging
 import threading
 import time
 from collections import OrderedDict, deque
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
@@ -105,6 +107,14 @@ _RECHECK_SECONDS: Final[float] = 1.0
 #: first screenful, at the model's inline size (`INLINE_MAX_EDGE_PX`).
 INLINED: Final[int] = 6
 
+#: How long the model's look holds for the sources to answer, and its whole
+#: budget, picture fetches included. A client abandons a single tool call at 60
+#: seconds; `STATUS_HOLD_SECONDS` was sized for a call that does nothing after its
+#: hold, and this one then fetches pictures, so the two are its own and leave a
+#: third of the minute spare.
+LOOK_HOLD_SECONDS: Final[float] = 30.0
+MODEL_LOOK_BUDGET_SECONDS: Final[float] = 40.0
+
 #: What a held look waits on, at most, between checks that the hold is over.
 _HOLD_STEP_SECONDS: Final[float] = 1.0
 
@@ -128,6 +138,16 @@ class LookState(StrEnum):
     NOT_FOUND = "not_found"
     #: Wikidata could not be asked.
     UNAVAILABLE = "unavailable"
+
+
+#: What a look says when the registry page could not name the work, by the page's
+#: own state. Stated rather than derived from the spelling, so a state the page
+#: gains later is refused by name here instead of failing as a bare lookup.
+_REGISTRY_STATES: Final[Mapping[RegistryWorkState, LookState]] = {
+    RegistryWorkState.NOT_FOUND: LookState.NOT_FOUND,
+    RegistryWorkState.NOT_CONFIGURED: LookState.NOT_CONFIGURED,
+    RegistryWorkState.UNAVAILABLE: LookState.UNAVAILABLE,
+}
 
 
 class SourceState(StrEnum):
@@ -186,6 +206,20 @@ class LookView:
     held: tuple[str, ...] = ()
     sources: tuple[SourceLook, ...] = ()
     pictures: tuple[LookPicture, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class Inlined:
+    """The pictures a model's look carries inline, by key, and the ones it does not.
+
+    `deferred` were not kept yet and did not arrive within the call's budget:
+    their fetches go on into the store, so the next call carries them.
+    `failed` were fetched and could not be kept or read.
+    """
+
+    previews: Mapping[str, InlinePreview]
+    deferred: tuple[str, ...] = ()
+    failed: tuple[str, ...] = ()
 
 
 @dataclass(slots=True)
@@ -267,7 +301,10 @@ class LookService:
         if pool is None or judge is None:
             return LookView(qid=qid, state=LookState.NO_SOURCES, note="No image source is configured to ask.")
         if known.state is not RegistryWorkState.KNOWN or known.known is None:
-            return LookView(qid=qid, state=LookState(str(known.state)), note=known.note)
+            state = _REGISTRY_STATES.get(known.state)
+            if state is None:
+                raise ServiceError(f"The registry page answered {qid} with a state a look has no words for: {known.state}.")
+            return LookView(qid=qid, state=state, note=known.note)
         if qid in self._discovery.items_being_got():
             return LookView(
                 qid=qid,
@@ -283,20 +320,20 @@ class LookService:
         with self._changed:
             entry = self._entry(qid, query, judge)
             entry.polled_at = self._now()
-            started = self._schedule(entry, pool)
+            started = self._schedule(entry, pool, query, judge)
             if started:
                 with look_context(qid):
                     log.info(
                         "looking at what the image sources hold of a work",
                         extra={"event": "look.started", "work_title": query.title, "providers": started},
                     )
-            view = self._view(entry, judge)
+            view = self._view(entry, pool, judge)
             entry.watchers += 1
             try:
                 while view.state is LookState.ASKING and (left := deadline - time.monotonic()) > 0:
                     self._changed.wait(timeout=min(left, _HOLD_STEP_SECONDS))
                     entry.polled_at = self._now()
-                    view = self._view(entry, judge)
+                    view = self._view(entry, pool, judge)
             finally:
                 entry.watchers -= 1
         return view
@@ -312,28 +349,72 @@ class LookService:
         self._looks.move_to_end(qid)
         return entry
 
-    def _schedule(self, entry: _Look, pool: ImageSourcePool) -> list[str]:
-        """Queue an ask at every source with no live answer and none queued; the sources queued. Holds `_changed`."""
+    def _schedule(self, entry: _Look, pool: ImageSourcePool, query: ImageQuery, judge: PhaseTwoEngine) -> list[str]:
+        """Queue an ask at every source with no live answer and none queued; the sources queued. Holds `_changed`.
+
+        **A fan-out starts from today's question and a fresh link.** The entry
+        outlives its answers, and a link remembers a registry that could not be
+        asked; reused, one outage would judge every later ask of the work.
+        """
         now = self._now()
-        started: list[str] = []
-        for provider in pool.image_providers:
+        due = [
+            provider
+            for provider in pool.image_providers
+            if not (slot := entry.slots.get(provider, _Slot())).queued
+            and not (slot.expires_at is not None and slot.expires_at > now)
+        ]
+        if due:
+            entry.query, entry.link = query, judge.link(query)
+        for provider in due:
             slot = entry.slots.setdefault(provider, _Slot())
-            if slot.queued or (slot.expires_at is not None and slot.expires_at > now):
-                continue
             slot.answer, slot.expires_at, slot.queued = None, None, True
             self._lanes.setdefault(provider, deque()).append(entry)
-            started.append(provider)
             if provider not in self._draining:
+                try:
+                    self._spawn(lambda provider=provider: self._drain(provider))
+                except Exception as exc:  # prawduct:allow prawduct/broad-except -- an unstarted thread must not leave rows asking
+                    log.warning(
+                        "could not start the thread that asks an image source for looks",
+                        extra={"event": "look.source_unreachable", "provider": provider, "reason": str(exc)},
+                        exc_info=True,
+                    )
+                    self._give_up(provider)
+                    continue
+                # Marked only once the thread exists, so a start that failed is
+                # retried by the next ask rather than waited on for good.
                 self._draining.add(provider)
-                self._spawn(lambda provider=provider: self._drain(provider))
-        return started
+        return due
+
+    def _give_up(self, provider: str, serving: _Look | None = None) -> None:
+        """Answer every ask waiting at a source, and the one being served, as "could not be asked". Holds `_changed`.
+
+        For a source whose thread stopped or never started: its rows leave
+        "asking" and are asked again after `UNREACHABLE_KEPT_FOR`, as any source
+        that could not be asked is.
+        """
+        now = self._now()
+        lane = self._lanes.pop(provider, deque())
+        for entry in [serving, *lane]:
+            if entry is None:
+                continue
+            slot = entry.slots.setdefault(provider, _Slot())
+            slot.answer = _stamped(
+                SourceLook(provider=provider, state=SourceState.UNREACHABLE),
+                answered_at=now,
+                kept_for=UNREACHABLE_KEPT_FOR,
+            )
+            slot.expires_at, slot.queued = now + UNREACHABLE_KEPT_FOR, False
+        self._draining.discard(provider)
+        self._changed.notify_all()
 
     def _drain(self, provider: str) -> None:
         """Work through one source's queued asks, one at a time, then stop.
 
-        However it stops, the source is marked as having no thread, so the next
-        ask queued there starts one rather than waiting behind a thread that died.
+        A thread that fails outside the ask itself answers the work it was
+        serving, and every work still waiting at the source, as "could not be
+        asked" (`_give_up`), so no row is left asking for a thread that is gone.
         """
+        serving: _Look | None = None
         try:
             while True:
                 with self._changed:
@@ -343,12 +424,21 @@ class LookService:
                         # either is seen here or finds no thread and starts one.
                         self._draining.discard(provider)
                         return
-                    entry = lane.popleft()
-                with look_context(entry.qid):
-                    self._serve(entry, provider)
+                    serving = lane.popleft()
+                with look_context(serving.qid):
+                    self._serve(serving, provider)
+                serving = None
+        except Exception as exc:  # prawduct:allow prawduct/broad-except -- a dead thread must not leave rows asking
+            log.warning(
+                "the thread asking an image source for looks stopped; its asks are answered as could not be asked",
+                extra={"event": "look.source_unreachable", "provider": provider, "reason": type(exc).__name__},
+                exc_info=True,
+            )
+            with self._changed:
+                self._give_up(provider, serving)
         except BaseException:
             with self._changed:
-                self._draining.discard(provider)
+                self._give_up(provider, serving)
             raise
 
     def _serve(self, entry: _Look, provider: str) -> None:
@@ -359,25 +449,33 @@ class LookService:
         while True:
             dropped = self._dropped(entry)
             if dropped is not None:
-                self._abandon(entry, provider, dropped)
-                return
+                if self._abandon(entry, provider, dropped):
+                    return
+                continue
             if pool.wait_for_runs(provider, timeout=_RECHECK_SECONDS):
                 break
+        outage = False
         try:
-            answer = pool.ask(provider, entry.query)
-            result = self._judged(entry, answer, judge)
+            with self._changed:
+                query, link = entry.query, entry.link
+            answer = pool.ask(provider, query)
+            result = self._judged(query, link, answer, judge)
+            # Judged with titles alone because Wikidata could not be asked:
+            # what was found stands, but "none" is kept no longer than an outage.
+            outage = link.unavailable and not result.pictures
         except Exception as exc:  # prawduct:allow prawduct/broad-except -- a fault must not leave a row asking
             # A plugin's finder arrives wrapped, so a fault here is a finder
             # handed in directly or a defect in judging. Kept as "could not be
             # asked", which is what is known, and logged with its traceback.
-            log.exception(
+            log.warning(
                 "a look could not ask an image source about a work",
                 extra={"event": "look.source_unreachable", "provider": provider, "reason": type(exc).__name__},
+                exc_info=True,
             )
             result = SourceLook(provider=provider, state=SourceState.UNREACHABLE)
             answer = None
         now = self._now()
-        kept_for = UNREACHABLE_KEPT_FOR if result.state is SourceState.UNREACHABLE else ANSWER_KEPT_FOR
+        kept_for = UNREACHABLE_KEPT_FOR if result.state is SourceState.UNREACHABLE or outage else ANSWER_KEPT_FOR
         result = _stamped(result, answered_at=now, kept_for=kept_for)
         # Logged before the answer is published, so the line is in the journal
         # by the time anyone can see the answer it describes.
@@ -396,6 +494,7 @@ class LookService:
                     "state": str(result.state),
                     "found": len(result.pictures),
                     "refused_at": sorted(str(reason) for reason in result.refusals),
+                    "registry_unavailable": outage,
                 },
             )
         with self._changed:
@@ -406,25 +505,38 @@ class LookService:
     def _dropped(self, entry: _Look) -> str | None:
         """Why a queued ask is no longer wanted, or `None` while it is."""
         with self._changed:
-            if self._looks.get(entry.qid) is not entry:
-                return "forgotten"
-            if entry.watchers == 0 and self._now() - entry.polled_at > UNWATCHED_AFTER:
-                return "unwatched"
+            return self._unwanted(entry)
+
+    def _unwanted(self, entry: _Look) -> str | None:
+        """`_dropped`'s answer. Holds `_changed`."""
+        if self._looks.get(entry.qid) is not entry:
+            return "forgotten"
+        if entry.watchers == 0 and self._now() - entry.polled_at > UNWATCHED_AFTER:
+            return "unwatched"
         return None
 
-    def _abandon(self, entry: _Look, provider: str, why: str) -> None:
-        """Drop a queued ask before it starts, so the next look at the work queues it again."""
+    def _abandon(self, entry: _Look, provider: str, why: str) -> bool:
+        """Drop a queued ask before it starts, unless somebody now wants it; whether it was dropped.
+
+        **Decided again here, under the lock that deletes the slot.** A look can
+        arrive between `_dropped` and this, and would see the ask queued and not
+        queue it again; dropping it anyway would lose the source from that look.
+        """
         with self._changed:
+            still = self._unwanted(entry)
+            if still is None:
+                return False
             slot = entry.slots.get(provider)
             if slot is not None and slot.answer is None:
                 del entry.slots[provider]
             self._changed.notify_all()
         log.info(
             "dropped an ask nobody is waiting for before it started",
-            extra={"event": "look.abandoned", "provider": provider, "reason": why},
+            extra={"event": "look.abandoned", "provider": provider, "reason": still or why},
         )
+        return True
 
-    def _judged(self, entry: _Look, answer: SourceAnswer, judge: PhaseTwoEngine) -> SourceLook:
+    def _judged(self, query: ImageQuery, link: WikidataLink, answer: SourceAnswer, judge: PhaseTwoEngine) -> SourceLook:
         """One source's answer, judged as phase 2 judges every answer."""
         if answer.outcome is AskOutcome.UNREACHABLE:
             return SourceLook(provider=answer.provider, state=SourceState.UNREACHABLE)
@@ -433,7 +545,7 @@ class LookService:
         kept: list[JudgedImage] = []
         refusals: set[UnresolvedReason] = set()
         for found in answer.images:
-            outcome = judge.judge(entry.query, found, entry.link)
+            outcome = judge.judge(query, found, link)
             if isinstance(outcome, UnresolvedReason):
                 refusals.add(outcome)
             else:
@@ -452,11 +564,18 @@ class LookService:
             refusals=frozenset(refusals),
         )
 
-    def _view(self, entry: _Look, judge: PhaseTwoEngine) -> LookView:
-        """The look as it stands. Holds `_changed`."""
+    def _view(self, entry: _Look, pool: ImageSourcePool, judge: PhaseTwoEngine) -> LookView:
+        """The look as it stands: a row for every configured image source. Holds `_changed`.
+
+        A source with no answer reads "asking", whatever its slot says, so a
+        source is never missing from a look and a look never reads as finished
+        while any source has not answered.
+        """
         sources: list[SourceLook] = []
-        for provider, slot in entry.slots.items():
-            sources.append(slot.answer if slot.answer is not None else SourceLook(provider=provider, state=SourceState.ASKING))
+        for provider in pool.image_providers:
+            slot = entry.slots.get(provider)
+            answer = None if slot is None else slot.answer
+            sources.append(answer if answer is not None else SourceLook(provider=provider, state=SourceState.ASKING))
         pictures = tuple(
             sorted((picture for source in sources for picture in source.pictures), key=lambda p: judge.rank(p.judged))
         )
@@ -484,39 +603,87 @@ class LookService:
         `None` when the key is not one the work's current look names: another
         work's, a refused find's, or one from a look no longer kept. Refused
         (`ServiceError`) when the key is this look's and no picture could be
-        kept or read, as a review card's picture is.
+        kept or read, as a review card's picture is. Every line it logs, the
+        store's included, carries the look's QID.
         """
-        path = self._kept(qid, key, max_edge=ENLARGED_MAX_EDGE_PX if enlarged else BROWSER_MAX_EDGE_PX)
-        if path is None:
-            return None
-        rendered = kept_preview(path)
-        if rendered is None:
-            raise ServiceError("The picture this source gave could not be read. Look again later.")
         with look_context(qid):
+            path = self._kept(qid, key, max_edge=ENLARGED_MAX_EDGE_PX if enlarged else BROWSER_MAX_EDGE_PX)
+            if path is None:
+                return None
+            rendered = kept_preview(path)
+            if rendered is None:
+                raise ServiceError("The picture this source gave could not be read. Look again later.")
             log.info(
                 "served a picture a look found",
                 extra={"event": "look.picture_served", "key": key, "size": "large" if enlarged else "card"},
             )
-        return rendered
+            return rendered
 
-    def inline(self, view: LookView, *, limit: int = INLINED) -> dict[str, InlinePreview]:
-        """The first `limit` pictures of a look, small enough to travel in a tool result, by key.
+    def look_for_a_model(
+        self, qid: str, *, hold: float = LOOK_HOLD_SECONDS, budget: float = MODEL_LOOK_BUDGET_SECONDS
+    ) -> tuple[LookView, Inlined]:
+        """The look, held for the sources, and its best pictures inline, all within `budget` seconds.
 
-        A picture that cannot be kept or read is left out, and its row says no
-        picture travels with it.
+        For `art_discovery(action='look')`, whose client abandons a call at a
+        minute. The hold is the smaller of `hold` and the budget; what is left
+        fetches the pictures not kept yet, together, and a picture that has not
+        arrived when the budget runs out is `deferred`: its fetch goes on into
+        the store, and the next call carries it.
         """
-        inlined: dict[str, InlinePreview] = {}
-        for picture in view.pictures[:limit]:
-            if picture.key is None:
-                continue
-            try:
-                path = self._kept(view.qid, picture.key, max_edge=BROWSER_MAX_EDGE_PX)
-            except ServiceError:
-                continue
-            preview = None if path is None else inline_preview(path)
-            if preview is not None:
-                inlined[picture.key] = preview
-        return inlined
+        deadline = time.monotonic() + budget
+        view = self.look(qid, hold=min(hold, budget))
+        return view, self._inline(view, deadline=deadline)
+
+    def _inline(self, view: LookView, *, deadline: float) -> Inlined:
+        """The first `INLINED` pictures, read from the store, fetching those it lacks in parallel until `deadline`."""
+        with look_context(view.qid):
+            previews: dict[str, InlinePreview] = {}
+            failed: list[str] = []
+            wanted = [picture for picture in view.pictures[:INLINED] if picture.key is not None]
+            missing: list[LookPicture] = []
+            for picture in wanted:
+                path = self._already_kept(picture)
+                if path is None:
+                    missing.append(picture)
+                    continue
+                preview = inline_preview(path)
+                (previews.__setitem__(picture.key, preview) if preview is not None else failed.append(picture.key))
+            deferred: list[str] = []
+            if missing:
+                fetching = ThreadPoolExecutor(max_workers=len(missing), thread_name_prefix="look-picture")
+                futures = {
+                    fetching.submit(contextvars.copy_context().run, self._fetched, view.qid, picture): picture.key
+                    for picture in missing
+                }
+                done, waiting = wait(futures, timeout=max(0.0, deadline - time.monotonic()))
+                # Not waited for: a fetch still under way finishes into the store.
+                fetching.shutdown(wait=False)
+                for future in done:
+                    preview = future.result()
+                    (previews.__setitem__(futures[future], preview) if preview is not None else failed.append(futures[future]))
+                deferred = [futures[future] for future in waiting]
+            order = [picture.key for picture in wanted]
+            return Inlined(
+                previews={key: previews[key] for key in order if key in previews},
+                deferred=tuple(key for key in order if key in deferred),
+                failed=tuple(key for key in order if key in failed),
+            )
+
+    def _already_kept(self, picture: LookPicture) -> Path | None:
+        """The store's file for a find at the inline size, if it keeps one, without fetching."""
+        found = picture.judged.found
+        try:
+            return self._pictures.find_for(found.provider, found.url, max_edge=BROWSER_MAX_EDGE_PX)
+        except OSError:
+            return None
+
+    def _fetched(self, qid: str, picture: LookPicture) -> InlinePreview | None:
+        """A find's picture, fetched into the store and made small enough to travel; `None` when none could be."""
+        try:
+            path = self._kept(qid, picture.key or "", max_edge=BROWSER_MAX_EDGE_PX)
+        except ServiceError:
+            return None
+        return None if path is None else inline_preview(path)
 
     def _kept(self, qid: str, key: str, *, max_edge: int) -> Path | None:
         """The kept file for a key this work's live look names, fetched into the store on a miss."""

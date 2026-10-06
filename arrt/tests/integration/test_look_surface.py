@@ -300,3 +300,25 @@ async def test_the_mcp_look_at_a_held_work_says_so_as_the_route_does(server_url,
     assert payload["state"] == "held"
     assert payload["held_artwork_ids"] == [work.id]
     assert [block for block in result.content if isinstance(block, types.ImageContent)] == []
+
+
+async def test_a_named_key_whose_picture_cannot_be_kept_is_a_400_saying_so(server_url, smk):
+    key = (await settled(server_url, TANTRA))["pictures"][0]["key"]
+    smk.fetch_preview = lambda url: None  # the source gives nothing that is a picture
+
+    response = await request("GET", f"{server_url}/api/registry/works/{TANTRA}/look/pictures/{key}", timeout=10)
+
+    assert response.status_code == 400
+    assert "could be kept" in response.json()["error"]
+
+
+async def test_the_mcp_look_says_in_its_own_words_why_a_picture_did_not_come(server_url, smk):
+    smk.fetch_preview = lambda url: None
+
+    result = await call(server_url, action="look", qid=TANTRA)
+    payload = json.loads(result.content[0].text)
+
+    assert payload["pictures"][0]["image_block_index"] is None
+    assert [block for block in result.content if isinstance(block, types.ImageContent)] == []
+    assert "1 picture could not be kept" in payload["notice"]
+    assert "preview_note" not in payload["notice"], "a look's rows have no preview_note to point at"

@@ -350,6 +350,12 @@ class WikidataLink:
         self._unavailable = False
         self._asking = threading.Lock()
 
+    @property
+    def unavailable(self) -> bool:
+        """Whether the registry could not be asked, so titles alone decided what this link was asked about."""
+        with self._asking:
+            return self._unavailable
+
     def unlinked(self, url: str) -> str | None:
         """`None` when the work's item records `url`, exactly as the item spells it; else why not.
 

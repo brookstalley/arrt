@@ -22,16 +22,19 @@
  * less carefully.
  *
  * **A work the library does not hold has a page here too**, at `#work/Q…`
- * (ruling 2): what Wikidata says of it, the one way to acquire it that exists
- * until *Get* does, and the rest of its artist's work below. A QID the library
+ * (ruling 2): what Wikidata says of it, *Get this work*, what the image
+ * sources hold of it now, before any Get (`watchLook`), and the rest of its
+ * artist's work below. A QID the library
  * holds is sent to the library's own page, in place. Every string on it is
  * registry text, shown as text.
  */
 
 import { acquisitionLine } from "../core/acquiring.js";
 import { api } from "../core/api.js";
-import { facts, fitBadge, pixelSize, sourceBadge, statusBadge, table } from "../core/badges.js";
+import { absentImage, facts, fitBadge, pixelSize, sourceBadge, statusBadge, table } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
+import { counted } from "../core/counting.js";
+import { enlarge } from "../core/enlarge.js";
 import { getOne } from "../core/getting.js";
 import { identityControl } from "../core/identity.js";
 import { el, fill, guard, render } from "../core/render.js";
@@ -131,13 +134,22 @@ async function viewRegistryWork(qid, generation) {
       })
     : el("p", { class: "note", text: "No free image of this work is known." });
   const theirWork = el("section", { class: "panel", "aria-labelledby": "more-by" });
+  // Wikidata's picture stays on top when there is one; otherwise the first
+  // picture a source answers with takes the place (`paintLook`).
+  const top = el("div", { class: "look-top" }, [
+    picture,
+    pictureSize(page),
+    // Said because the two can differ: Wikidata's choice of picture is not
+    // necessarily what a Get brings back, and the panel below is.
+    page.image ? el("p", { class: "muted", text: WIKIDATA_PICTURE_LINE }) : null,
+  ]);
+  const look = el("section", { class: "panel look", "aria-labelledby": "look-heading" });
   render(
     generation,
     el("p", {}, [backLink()]),
     el("div", { class: "panel" }, [
-      picture,
+      top,
       el("div", { class: "card-footer" }, [stateMark({ wanted: page.wanted, image: Boolean(page.image) })]),
-      pictureSize(page),
     ]),
     el("div", { class: "panel" }, [
       el("h2", { text: title }),
@@ -150,14 +162,234 @@ async function viewRegistryWork(qid, generation) {
       ]),
       el("p", { class: "muted" }, [wikidataLink(qid, `Wikidata ${qid}`)]),
       getOne(qid),
-      el("p", {
-        class: "muted",
-        text: "Not in your library. Its picture here is the one Wikidata names; getting the work asks every image source, and spends nothing.",
-      }),
+      el("p", { class: "muted", text: GET_LINE }),
     ]),
+    look,
     maker ? theirWork : null,
   );
+  // Both asked after the page is drawn, and neither waits for the other: the
+  // look polls for as long as a source is still being asked.
+  const watching = watchLook(look, qid, { top: page.image ? null : top, title, maker });
   if (maker) await paintTheirWork(theirWork, maker, qid);
+  await watching;
+}
+
+/* Under Wikidata's picture, when it has one. */
+const WIKIDATA_PICTURE_LINE = "This picture is the one Wikidata names; below is what every image source holds now.";
+
+/* The line under *Get this work*: what the panel below shows, and what a Get adds. */
+const GET_LINE = "These are what the sources hold now; getting the work records them and spends nothing.";
+
+/* -- the look: what the image sources hold, before any Get ------------------
+ *
+ * Asked of `GET /api/registry/works/{qid}/look`, which answers at once with each
+ * source's state and keeps asking behind it; the page polls every two seconds
+ * while any source is still being asked, and repaints only this section.
+ *
+ * **Nothing a curator is standing on is replaced.** The status line is one node
+ * whose text changes only when the summary does, so a screen reader hears each
+ * change once and never the same sentence twice; a picture, once drawn, is never
+ * redrawn or moved, and a better one arriving later is put in before it; the
+ * *Show N more* button keeps its node and changes its words. The rows hold
+ * nothing that takes focus, so they are redrawn whole. A poll never moves focus
+ * (`accessibility-spec.md`).
+ *
+ * Every source string — titles, artists, the rationale — is text, set as text. */
+
+const LOOK_POLL_MS = 2000;
+
+/* How many pictures are shown before *Show N more*. */
+const LOOK_SHOWN = 6;
+
+/* A source's row: a glyph and a word, so the state survives greyscale. Keyed by
+ * the server's `SourceState`, which `test_client_vocabulary.py` holds them to. */
+const LOOK_SOURCE_GLYPHS = {
+  asking: "◌",
+  found: "●",
+  holds_none: "○",
+  refused: "⊘",
+  unreachable: "▲",
+  cannot: "—",
+};
+
+const LOOK_SOURCE_WORDS = {
+  asking: "Asking…",
+  // Preceded by how many, as in "2 found".
+  found: "found",
+  holds_none: "Holds none",
+  refused: "Holds a work by this title by another artist; not shown",
+  unreachable: "Could not be asked; trying again in 10 minutes",
+  cannot: "Can't look this work up",
+};
+
+/* A source that holds a record of the work and gives no size for it. Phase 2
+ * refuses such a find, since one with no size cannot be judged against the wall,
+ * so "Holds none" would say the source has no such work, which it does. */
+const LOOK_UNSIZED_WORDS = "Holds this work but gives no size for it; not shown";
+
+function lookSourceWords(source) {
+  if (source.state === "found") return `${source.found} ${LOOK_SOURCE_WORDS.found}`;
+  if (source.state === "holds_none" && source.refusals.includes("size_unknown")) return LOOK_UNSIZED_WORDS;
+  return LOOK_SOURCE_WORDS[source.state] || source.state;
+}
+
+/* Poll the look until no source is still being asked, or the page is gone. */
+async function watchLook(section, qid, context) {
+  const shown = { pictures: new Map(), limit: LOOK_SHOWN, topFilled: !context.top };
+  const status = el("p", { class: "look-summary", role: "status" });
+  const rows = el("ul", { class: "look-sources" });
+  const grid = el("ul", { class: "grid look-pictures" });
+  const more = el("button", { class: "action quiet", type: "button", hidden: true });
+  more.addEventListener("click", () => {
+    shown.limit = Infinity;
+    const first = [...grid.children].find((node) => node.hidden);
+    for (const node of grid.children) node.hidden = false;
+    more.hidden = true;
+    // The curator asked for these, so the keyboard goes to the first of them.
+    const target = first && first.querySelector("button, [tabindex]");
+    if (target) target.focus();
+  });
+  fill(section, el("h3", { id: "look-heading", text: "What the image sources hold" }), status, rows, grid, more);
+  say(status, "Asking the image sources…");
+  for (;;) {
+    let look;
+    try {
+      look = await api(`/api/registry/works/${encodeURIComponent(qid)}/look`);
+    } catch (failure) {
+      look = null;
+    }
+    if (!section.isConnected) return;
+    if (look === null) {
+      say(status, "The image sources could not be asked just now. Reload the page to ask again.");
+      return;
+    }
+    if (look.state === "held" && look.held_artwork_ids.length) {
+      redirect("work", look.held_artwork_ids[0]);
+      return;
+    }
+    paintLook({ look, qid, status, rows, grid, more, shown, context });
+    if (look.state !== "asking") return;
+    await new Promise((resolve) => window.setTimeout(resolve, LOOK_POLL_MS));
+    if (!section.isConnected) return;
+  }
+}
+
+/* Set the status line's words, unless they are already its words. */
+function say(status, text) {
+  if (status.textContent !== text) status.textContent = text;
+}
+
+function lookSummary(look) {
+  if (look.state !== "asking" && look.state !== "answered") return look.note || "Nothing is being asked.";
+  const total = look.sources.length;
+  const answered = look.sources.filter((source) => source.state !== "asking").length;
+  if (look.state === "asking") {
+    const found = look.pictures.length ? `; ${counted(look.pictures.length, "picture")} so far` : "";
+    return `Asking the image sources: ${answered} of ${total} answered${found}.`;
+  }
+  if (!look.pictures.length) return look.note || "No image source holds a picture of this work now.";
+  const holding = look.sources.filter((source) => source.state === "found").length;
+  return `${counted(look.pictures.length, "picture")} found, from ${counted(holding, "source")}.`;
+}
+
+function paintLook({ look, qid, status, rows, grid, more, shown, context }) {
+  say(status, lookSummary(look));
+  fill(rows, ...look.sources.map((source) => el("li", { class: "look-source" }, [
+    el("span", { class: "look-provider", text: source.provider }),
+    el("span", { class: `badge badge-look-${source.state}` }, [
+      el("span", { class: "glyph", text: LOOK_SOURCE_GLYPHS[source.state] || "·", "aria-hidden": true }),
+      el("span", { text: lookSourceWords(source) }),
+    ]),
+  ])));
+  // Best first, as the server orders them. A picture already drawn keeps its
+  // node and its place; a new one goes in before the first drawn picture that
+  // ranks below it, so nothing a curator may be standing on moves.
+  look.pictures.forEach((picture, at) => {
+    const id = lookPictureId(picture);
+    if (shown.pictures.has(id)) return;
+    const node = lookPicture(picture, qid);
+    // Shown while fewer than the limit are; else it waits behind *Show N more*.
+    // A picture once shown is never hidden again.
+    node.hidden = [...grid.children].filter((child) => !child.hidden).length >= shown.limit;
+    const after = look.pictures.slice(at + 1).map((later) => shown.pictures.get(lookPictureId(later))).find(Boolean);
+    grid.insertBefore(node, after || null);
+    shown.pictures.set(id, node);
+  });
+  const waiting = [...grid.children].filter((child) => child.hidden).length;
+  more.hidden = waiting === 0;
+  if (waiting) {
+    const words = `Show ${waiting} more`;
+    if (more.textContent !== words) more.textContent = words;
+  }
+  if (!shown.topFilled) {
+    const first = look.pictures.find((picture) => picture.key);
+    if (first) {
+      shown.topFilled = true;
+      fill(context.top, topPicture(first, qid, context));
+    }
+  }
+}
+
+/* Which find a card is, across polls: its key, or for a find with no picture, its source and address. */
+function lookPictureId(picture) {
+  return picture.key || `${picture.provider} ${picture.url}`;
+}
+
+/* The picture's address on Arrt's own route, by the key the server minted. */
+function lookPictureSrc(qid, key, large = false) {
+  const src = `/api/registry/works/${encodeURIComponent(qid)}/look/pictures/${encodeURIComponent(key)}`;
+  return large ? `${src}?size=large` : src;
+}
+
+/* What a source calls the work, by whom, where from and how big: the picture's name. */
+function lookPictureName(picture) {
+  const who = picture.artist ? `${picture.title}, by ${picture.artist}` : picture.title;
+  const size = pixelSize(picture.width, picture.height);
+  return `${who}, from ${picture.provider}${size ? `, ${size}` : ""}`;
+}
+
+/* One find as a card: the picture, enlargeable in place as a review card's is,
+ * then its pixels and fit, its source, and why a Get would keep it. */
+function lookPicture(picture, qid) {
+  const name = lookPictureName(picture);
+  let frame;
+  if (picture.key) {
+    const image = el("img", { src: lookPictureSrc(qid, picture.key), alt: name, loading: "lazy" });
+    frame = el("button", {
+      class: "card-image enlargeable",
+      type: "button",
+      "aria-label": `Enlarge ${name}`,
+      onclick: () => enlarge({ src: lookPictureSrc(qid, picture.key, true), alt: name, trigger: frame }),
+    }, [image]);
+    image.addEventListener("error", () => {
+      frame.replaceWith(el("div", { class: "card-image" }, [absentImage("Its picture could not be loaded just now.")]));
+    });
+  } else {
+    frame = el("div", { class: "card-image" }, [absentImage("This source gave no picture to show.")]);
+  }
+  return el("li", { class: "card look-picture" }, [
+    frame,
+    el("div", { class: "card-body" }, [
+      el("div", { class: "row card-meta" }, [el("span", { text: pixelSize(picture.width, picture.height) }), fitBadge(picture)]),
+      el("p", { class: "card-meta", text: `From ${picture.provider}` }),
+      el("p", { class: "card-meta", text: picture.selection_rationale }),
+    ]),
+  ]);
+}
+
+/* The first find, in the place Wikidata's picture would have had, and kept there. */
+function topPicture(picture, qid, { title, maker }) {
+  const name = maker ? `${title}, by ${named(maker.name, maker.qid)}` : title;
+  const image = el("img", { class: "detail-image", src: lookPictureSrc(qid, picture.key, true), alt: `${name}, as ${picture.provider} holds it` });
+  const caption = el("div", { class: "row picture-size" }, [
+    el("span", { class: "muted", text: `${pixelSize(picture.width, picture.height)}, from ${picture.provider}` }),
+    fitBadge(picture),
+  ]);
+  const holder = el("div", {}, [image, caption]);
+  image.addEventListener("error", () => {
+    fill(holder, el("p", { class: "note", text: "The picture a source found could not be loaded just now." }));
+  });
+  return holder;
 }
 
 /* The work's own size, as a museum label gives it: height before width, in

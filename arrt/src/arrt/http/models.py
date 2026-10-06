@@ -227,8 +227,9 @@ class LookPictureOut(BaseModel):
     below_floor: bool
     confidence: float
     rights_status: str | None
-    #: Why phase 2 keeps it, in the words a review card uses.
-    rationale: str
+    #: Why phase 2 keeps it, in the words a review card uses, under the name a
+    #: scan's carries everywhere else (`InstanceOut`, `list_images`).
+    selection_rationale: str
 
 
 class LookSourceOut(BaseModel):

@@ -1968,6 +1968,34 @@ dl.facts dd {
   border-radius: var(--radius-md);
 }
 
+/* -- the look: what the image sources hold of a work not held ---------------
+   One row per source, its name then its state's glyph and word; then the finds
+   as cards, in the work grid's geometry. */
+.look-sources {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.look-source {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.look-provider {
+  min-width: 6rem;
+  color: var(--text-strong);
+}
+
+.look-pictures {
+  margin-bottom: var(--space-4);
+}
+
 /* The badges belong under the picture they describe, not under the panel. */
 .panel .card-footer {
   justify-content: center;
