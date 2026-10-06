@@ -1312,7 +1312,7 @@ the client with them.
 | Route | What it is |
 |---|---|
 | `GET /` and every page path in `UI_PATHS` (`arrt/src/arrt/http/pages.py`) | The client shell. Listed rather than globbed, so a mistyped `/api/...` 404s instead of returning HTML a client parses as JSON. `UI_PATHS` is the list, rather than a copy here, because it grew with every sidebar page and a copy was six paths behind it. |
-| `GET /static/app.css`, `/static/app.js` | The client. One stylesheet, one script, no build step. |
+| `GET /static/…` | The client: a stylesheet and a tree of ES modules under `app.js`, no build step. Every file, and the shell on every UI path, carries `Cache-Control: no-cache` (`pages.CLIENT_CACHE_CONTROL`, which says why): the modules import names from one another, so a browser holding any of them across a deploy can stop the client from starting. A `/static` file answers a conditional request with 304. **Added 2026-10-05.** |
 | `GET /api/works` | A page of works, each with its fit verdict and image state. `sort` is `title` (the default), `artist` (unattributed last) or `newest`, and orders the page only: the total and the facet counts describe the same set whatever the order. An unknown value is refused by name. |
 | `GET /api/works/{id}` | One work with sources, renditions and mat history. |
 | `GET /api/works/{id}/thumbnail` | A downscaled copy, generated on first ask and revalidated thereafter. |

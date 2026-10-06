@@ -1,6 +1,6 @@
-"""Serving the browser client itself — the shell and its two assets.
+"""Serving the browser client itself — the shell and its static files.
 
-The client is a static page and a script that reads `/api/*`. It is served from
+The client is a static page and a tree of ES modules that read `/api/*`. It is served from
 this package rather than built, because the alternative is a Node toolchain on a
 Raspberry Pi maintained for a single-operator tool on a private network, which
 buys nothing a curator can see.
@@ -68,7 +68,8 @@ UI_PATHS: Final[tuple[str, ...]] = (
 #: days module for hours by heuristic. After a deploy that leaves a cached old
 #: module beside a fetched new one importing a name only the new one exports,
 #: and the client never starts (seen 2026-10-05: "Loading the catalogue" on a
-#: phone). The ETag keeps an unchanged file to a 304, which on a LAN is nothing.
+#: phone). Under `/static` the ETag keeps an unchanged file to a 304; the shell,
+#: a few kilobytes, is sent whole each time, which on a LAN is nothing.
 CLIENT_CACHE_CONTROL: Final[str] = "no-cache"
 
 

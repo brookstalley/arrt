@@ -75,8 +75,9 @@ exports stops the client from starting. Inferred from the headers and the import
 graph; the phone's console was not read.
 
 **What:** the shell (every UI path) and every file under `/static` now carry
-`Cache-Control: no-cache`; the ETag keeps an unchanged file to a 304
-(`pages.ClientFiles`, `CLIENT_CACHE_CONTROL`). Tested on every module and every UI
+`Cache-Control: no-cache`; under `/static` the ETag keeps an unchanged file to a
+304, and the few-kilobyte shell is sent whole (`pages.ClientFiles`,
+`CLIENT_CACHE_CONTROL`). `api-contract.md` states the policy. Tested on every module and every UI
 path, and a conditional request answering 304. A browser that cached the old files
 still needs its site data cleared once.
 

@@ -182,15 +182,7 @@ class TestTheClientIsServed:
             assert http.get(f"/static/{module}").status_code == 200, module
 
     def test_the_client_revalidates_every_file_so_a_deploy_never_mixes_versions(self, http):
-        """Seen 2026-10-05 after a deploy: a phone hung on "Loading the catalogue".
-
-        With no `Cache-Control`, a browser holds a file for a heuristic share of
-        its age, and the image keeps each file's checkout date, so a module
-        unchanged for days is held for hours. A cached old module beside a
-        fetched new one that imports a name only the new one exports stops the
-        whole client from starting. `no-cache` makes every load ask, and the
-        ETag keeps an unchanged file to a 304.
-        """
+        """Why, and what a phone did without it: `pages.CLIENT_CACHE_CONTROL`."""
         static = pathlib.Path(STATIC_DIR)
         assets = ["app.css", *sorted(path.relative_to(static).as_posix() for path in static.rglob("*.js"))]
         for asset in assets:
