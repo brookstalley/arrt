@@ -62,6 +62,24 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-05: The client revalidates every file, so a deploy cannot leave a phone half-updated
+
+<!-- prawduct: scope=static-revalidate -->
+
+**Why:** right after the #222 deploy the owner's phone hung on "Loading the
+catalogue". The server and a fresh browser were fine. The shell and its ES modules
+were served with no `Cache-Control`, and the image keeps each file's checkout
+date, so a browser held unchanged-for-days modules for hours by heuristic. A
+cached old module beside a fetched new one that imports a name only the new one
+exports stops the client from starting. Inferred from the headers and the import
+graph; the phone's console was not read.
+
+**What:** the shell (every UI path) and every file under `/static` now carry
+`Cache-Control: no-cache`; the ETag keeps an unchanged file to a 304
+(`pages.ClientFiles`, `CLIENT_CACHE_CONTROL`). Tested on every module and every UI
+path, and a conditional request answering 304. A browser that cached the old files
+still needs its site data cleared once.
+
 ## 2026-10-05: Pictures in the registry lists on a phone, and sizes on a work's page
 
 <!-- prawduct: scope=work-pictures-and-sizes -->
