@@ -130,6 +130,11 @@ history is in `change-log.md`, scope `picture-store`.)*
 > so the disposable class cost a decided work its picture for good, and the sweep
 > that reclaimed it carried races of its own (#61, #62, #81).
 >
+> **Re-affirmed: 2026-10-06, the owner — #61, #62, #81.** Cited as the history
+> this norm closed, not as work it waits on: all three were the retired preview
+> sweep's races, closed because this norm retired the sweep. The norm's reasons
+> above stand without them.
+>
 > **What it means, as ruled by the owner the same day:** two sizes are kept,
 > 480 px and 2,048 px on the long edge, so enlarging a scan at review stays as
 > sharp as when it was re-rendered per request; the store is not in the backup,
