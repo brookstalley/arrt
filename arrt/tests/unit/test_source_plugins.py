@@ -22,7 +22,15 @@ from arrt.library.discovery.images import ImageQuery, ImageQueryUnanswerable, Im
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.services.display_fit import ArtworkBox
 from arrt.library.sources import API_VERSION, Declined, SourceContext, SourceParts, SourcePlugin
-from arrt.library.sources.loading import ENTRY_POINT_GROUP, FAULT_LOGGER, PluginState, SourceRoster, load_sources
+from arrt.library.sources.loading import (
+    ENTRY_POINT_GROUP,
+    FAULT_LOGGER,
+    PluginIdentity,
+    PluginPart,
+    PluginState,
+    SourceRoster,
+    load_sources,
+)
 from arrt.services.health import HealthReading, HealthService
 
 SOURCES = pathlib.Path(__file__).resolve().parents[2] / "src" / "arrt" / "library" / "sources"
@@ -377,6 +385,42 @@ def test_the_built_in_plugins_load_through_the_real_entry_points():
     assert [finder.provider for finder in roster.finders][:3] == ["commons", "artic", "met"]
     assert roster.collection is not None
     assert roster.collection.provider == "artic"
+
+
+def test_each_installed_plugin_says_which_distribution_and_version_it_came_from():
+    """Read from the installed metadata, for loaded, declined and page-only plugins alike."""
+    version = importlib.metadata.version("arrt")
+    roster = load_sources(
+        SourceContext(
+            environ={"WIKIDATA_USER_AGENT": "arrt-tests/0"},
+            user_agent="arrt-tests/0",
+            preview_max_bytes=1_000_000,
+            registry=FakeRegistry(),
+        )
+    )
+    identity = {reading.name: reading.identity for reading in roster.observe()}
+
+    assert identity["met"] == PluginIdentity(
+        distribution="arrt", version=version, api_major=1, provides=(PluginPart.FINDS_IMAGES, PluginPart.READS)
+    )
+    assert identity["wikidata"].provides == (PluginPart.FINDS_PAGES,)
+    # Declined: where it came from is known, and it provides nothing here.
+    assert identity["artic"] == PluginIdentity(distribution="arrt", version=version, api_major=1, provides=())
+
+
+def test_a_plugin_registered_by_hand_or_unimportable_says_what_could_be_read():
+    broken = importlib.metadata.EntryPoint(name="gone", value="no_such_module:PLUGIN", group=ENTRY_POINT_GROUP)
+
+    roster = load_sources(
+        context(), entry_points=[entry("good", "GOOD"), broken, entry("twice", "GOOD"), entry("twice", "OTHER")]
+    )
+    identity = {reading.name: reading.identity for reading in roster.observe()}
+
+    assert identity["good"].distribution is None
+    assert identity["good"].api_major == API_VERSION[0]
+    assert identity["good"].provides  # loaded, so its parts are read
+    assert identity["gone"] == PluginIdentity()
+    assert identity["twice"] == PluginIdentity(api_major=None)
 
 
 @pytest.mark.parametrize(

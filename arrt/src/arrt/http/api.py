@@ -108,6 +108,7 @@ from arrt.http.models import (
     SkippedOut,
     SourceOut,
     SourcePluginOut,
+    SourcesOut,
     Speak,
     SpendOut,
     StartGet,
@@ -156,6 +157,7 @@ from arrt.library.services.runner import Estimate, RunView, SpendReport
 from arrt.library.services.survey import WorkDossier, WorkSurvey
 from arrt.library.services.taste import AffinityView
 from arrt.library.services.topics import TopicIndex, TopicPage
+from arrt.library.sources.plugin import API_VERSION
 from arrt.persistence.discovery_records import (
     CandidateImage,
     CandidateWork,
@@ -957,6 +959,21 @@ def get_health(request: Request) -> HealthOut:
     assembly is `HealthService.observe`'s now, and this is a dispatch again.
     """
     return _health(_services(request).health.observe())
+
+
+@router.get("/sources")
+def get_sources(request: Request) -> SourcesOut:
+    """Every installed source plugin, where it came from, and what became of it at startup.
+
+    Settings › Sources reads this: the inventory, where Status reads the same
+    plugins for how they are doing. One reading, so the two pages cannot
+    describe a plugin differently.
+    """
+    major, minor = API_VERSION
+    return SourcesOut(
+        interface_version=f"{major}.{minor}",
+        sources=[_source_plugin(each) for each in _services(request).health.observe_sources()],
+    )
 
 
 # -- discovery runs -----------------------------------------------------------
@@ -1860,6 +1877,10 @@ def _source_plugin(health: SourceHealth) -> SourcePluginOut:
         last_fault_age_seconds=health.last_fault_age_seconds,
         last_fault=reading.last_fault,
         description=health.describe(),
+        distribution=reading.identity.distribution,
+        version=reading.identity.version,
+        api_major=reading.identity.api_major,
+        provides=[part.value for part in reading.identity.provides],
     )
 
 

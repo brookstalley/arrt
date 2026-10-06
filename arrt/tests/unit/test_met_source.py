@@ -14,7 +14,7 @@ from fakes import FakeRegistry
 
 from arrt.library.discovery.images import ImageQuery, ImageSearchFailure
 from arrt.library.registry import ItemId, WorkPage
-from arrt.library.sources import LocatorKind, SourceContext, SourceParts
+from arrt.library.sources import LocatorKind, SourceContext, SourceParts, met
 from arrt.library.sources.met import PLUGIN, MetFinder, MetReader, claims, jpeg_size, object_url
 from arrt.persistence.records import AcquisitionMethod, RightsStatus
 
@@ -65,21 +65,27 @@ def recorded(request: httpx.Request, *, objects=None, image=None) -> httpx.Respo
     return httpx.Response(200, json={**fixture(OBJECTS[KELLY]), "objectID": object_id})
 
 
-def a_client(asked: list | None = None, **kwargs) -> httpx.Client:
+def a_transport(asked: list | None = None, **kwargs) -> httpx.MockTransport:
+    """The recorded Met, under the plugin's own client policy: a test passes a transport, never a client."""
+
     def handler(request: httpx.Request) -> httpx.Response:
         if asked is not None:
             asked.append(request)
         return recorded(request, **kwargs)
 
-    return httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=False)
+    return httpx.MockTransport(handler)
+
+
+def answering(handler) -> httpx.MockTransport:
+    return httpx.MockTransport(handler)
 
 
 def a_finder(registry=None, asked=None, **kwargs) -> MetFinder:
-    return MetFinder(user_agent="arrt-tests/0", registry=registry, client=a_client(asked, **kwargs))
+    return MetFinder(user_agent="arrt-tests/0", registry=registry, transport=a_transport(asked, **kwargs))
 
 
 def a_reader(**kwargs) -> MetReader:
-    return MetReader(user_agent="arrt-tests/0", client=a_client(**kwargs))
+    return MetReader(user_agent="arrt-tests/0", transport=a_transport(**kwargs))
 
 
 WHEAT_ITEM = ItemId("Q18689458")
@@ -157,9 +163,43 @@ def test_no_artist_searches_by_title_alone_and_reads_at_most_ten_objects():
         asked.append(request)
         return search(request) if "search" in request.url.path else recorded(request)
 
-    finder = MetFinder(user_agent="t", client=httpx.Client(transport=httpx.MockTransport(handler)))
+    finder = MetFinder(user_agent="t", transport=answering(handler))
     assert finder.find_images(ImageQuery(title="Untitled")) == []
     assert len([r for r in asked if "/objects/" in r.url.path]) == 10
+
+
+def searches(title: dict, artist: dict, asked: list):
+    def handler(request: httpx.Request) -> httpx.Response:
+        asked.append(request)
+        if "search" in request.url.path:
+            return httpx.Response(200, json=title if request.url.params.get("title") == "true" else artist)
+        return recorded(request)
+
+    return answering(handler)
+
+
+def test_whole_lists_that_share_no_object_say_the_met_holds_nothing():
+    asked: list[httpx.Request] = []
+    transport = searches({"total": 2, "objectIDs": [CYPRESSES, KOSON]}, {"total": 1, "objectIDs": [WHEAT_FIELD]}, asked)
+
+    found = MetFinder(user_agent="t", transport=transport).find_images(ImageQuery(title="Cypresses", artist="Someone"))
+
+    assert found == []
+    assert not [r for r in asked if "/objects/" in r.url.path]
+
+
+@pytest.mark.parametrize("cut", ["title", "artist"])
+def test_a_list_cut_at_one_page_cannot_say_the_met_holds_nothing(cut):
+    """The artist's 900 objects, of which the page holds 500: the work may be among the rest."""
+    asked: list[httpx.Request] = []
+    title = {"total": 900 if cut == "title" else 2, "objectIDs": [CYPRESSES, KOSON]}
+    artist = {"total": 900 if cut == "artist" else 1, "objectIDs": [WHEAT_FIELD]}
+
+    found = MetFinder(user_agent="t", transport=searches(title, artist, asked)).find_images(
+        ImageQuery(title="Cypresses", artist="Someone")
+    )
+
+    assert {image.url for image in found} == {object_url(CYPRESSES), object_url(KOSON)}
 
 
 def test_a_search_that_matches_nothing_finds_nothing():
@@ -170,7 +210,7 @@ def test_a_search_answer_in_another_shape_could_not_be_asked():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"total": 3, "objectIDs": "1,2,3"})
 
-    finder = MetFinder(user_agent="t", client=httpx.Client(transport=httpx.MockTransport(handler)))
+    finder = MetFinder(user_agent="t", transport=answering(handler))
     with pytest.raises(ImageSearchFailure, match="shape"):
         finder.find_images(ImageQuery(title="Cypresses"))
 
@@ -179,9 +219,29 @@ def test_a_redirect_from_the_api_is_not_followed():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(301, headers={"Location": "http://10.0.0.1/"})
 
-    finder = MetFinder(user_agent="t", client=httpx.Client(transport=httpx.MockTransport(handler)))
+    finder = MetFinder(user_agent="t", transport=answering(handler))
     with pytest.raises(ImageSearchFailure, match="HTTP 301"):
         finder.find_images(ImageQuery(title="Cypresses"))
+
+
+def test_a_redirect_from_the_image_host_is_not_followed_off_it():
+    """The image-host bound holds only because no redirect is followed."""
+    asked: list[httpx.Request] = []
+    registry = FakeRegistry(pages={WHEAT_ITEM: [WEB_PAGE]})
+
+    def elsewhere(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(302, headers={"Location": "https://example.com/wheat.jpg"})
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        asked.append(request)
+        if request.url.host == "example.com":
+            return httpx.Response(200, content=HEAD)
+        return recorded(request, image=elsewhere)
+
+    finder = MetFinder(user_agent="t", registry=registry, transport=answering(handler))
+    with pytest.raises(ImageSearchFailure, match="HTTP 302"):
+        finder.find_images(ImageQuery(title="x", qid=WHEAT_ITEM))
+    assert not [r for r in asked if r.url.host == "example.com"]
 
 
 # -- what an object yields ---------------------------------------------------------------
@@ -290,13 +350,13 @@ def test_a_preview_is_read_from_the_image_host_only_and_under_the_ceiling():
     small = "https://images.metmuseum.org/CRDImages/ep/web-large/DP-42549-001.jpg"
     finder = MetFinder(
         user_agent="t",
-        client=a_client(image=lambda r: httpx.Response(200, content=b"x" * 100)),
+        transport=a_transport(image=lambda r: httpx.Response(200, content=b"x" * 100)),
         preview_max_bytes=50,
     )
     assert finder.fetch_preview(small) is None
     assert finder.fetch_preview("https://example.com/p.jpg") is None
 
-    roomy = MetFinder(user_agent="t", client=a_client(image=lambda r: httpx.Response(200, content=b"x" * 100)))
+    roomy = MetFinder(user_agent="t", transport=a_transport(image=lambda r: httpx.Response(200, content=b"x" * 100)))
     assert roomy.fetch_preview(small) == b"x" * 100
 
 
@@ -343,6 +403,29 @@ def test_the_reader_refuses_a_url_it_does_not_claim_and_an_image_off_the_host():
     elsewhere = {**fixture(OBJECTS[WHEAT_FIELD]), "primaryImage": "https://example.com/wheat.jpg"}
     with pytest.raises(ImageSearchFailure, match="off its image host"):
         a_reader(objects={WHEAT_FIELD: httpx.Response(200, json=elsewhere)}).read(object_url(WHEAT_FIELD))
+
+
+def test_the_factory_wires_the_deployments_registry_agent_and_preview_ceiling(monkeypatch):
+    """Through the plugin's own factory, with values no default carries."""
+    asked: list[httpx.Request] = []
+    real = met._client
+    monkeypatch.setattr(
+        met,
+        "_client",
+        lambda transport: real(transport or a_transport(asked, image=lambda r: httpx.Response(200, content=b"x" * 100))),
+    )
+    registry = FakeRegistry(pages={WHEAT_ITEM: [WEB_PAGE]})
+    small = "https://images.metmuseum.org/CRDImages/ep/web-large/DP-42549-001.jpg"
+
+    parts = PLUGIN.create(SourceContext(environ={}, user_agent="deployment/7", preview_max_bytes=50, registry=registry))
+    (image,) = parts.finder.find_images(ImageQuery(title="x", qid=WHEAT_ITEM))
+
+    assert image.url == object_url(WHEAT_FIELD)
+    assert registry.pages_asked == [WHEAT_ITEM]
+    assert {r.headers["User-Agent"] for r in asked} == {"deployment/7"}
+    assert parts.finder.fetch_preview(small) is None
+    roomy = PLUGIN.create(SourceContext(environ={}, user_agent="t", preview_max_bytes=1000, registry=None))
+    assert roomy.finder.fetch_preview(small) == b"x" * 100
 
 
 def test_the_plugin_never_declines_and_finds_by_item_only_with_a_registry():

@@ -68,6 +68,7 @@ from arrt.library.registry import Registry
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.conversation import ConversationService
 from arrt.library.services.discovery import DiscoveryService
+from arrt.library.services.previews import PreviewSettings
 from arrt.library.services.runner import DiscoveryRunner
 from arrt.library.services.thumbnails import ThumbnailService, ThumbnailSettings
 from arrt.library.sources.artic import claims as artic_claims
@@ -343,6 +344,7 @@ def services(
     kept: KeptAnswers,
     open_stream: StreamOpener | None,
     sources: SourceRoster,
+    preview_settings: PreviewSettings | None,
 ) -> Services:
     """Every service, wired the way the entry point wires them."""
     return Services.bind(
@@ -388,7 +390,14 @@ def services(
         kept=kept,
         open_stream=open_stream,
         sources=sources,
+        previews=preview_settings,
     )
+
+
+@pytest.fixture
+def preview_settings() -> PreviewSettings | None:
+    """None, as `sources` wires no finder; a test whose roster finds images overrides both."""
+    return None
 
 
 @pytest.fixture

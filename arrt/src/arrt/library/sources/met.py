@@ -31,7 +31,8 @@ of *Wheat Field with Cypresses* sat at byte 40,798, behind its metadata.
 
 import logging
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from typing import Any, Final
 from urllib.parse import urlsplit
 
@@ -163,16 +164,18 @@ def _on_image_host(url: object) -> bool:
     return parts.scheme == "https" and parts.hostname == _IMAGE_HOST and port is None
 
 
-def _client(client: httpx.Client | None) -> httpx.Client:
-    # No redirect is followed: the API answers in place, and an image host that
-    # redirected would take a read somewhere `_on_image_host` never checked.
-    return client or httpx.Client(
+def _client(transport: httpx.BaseTransport | None) -> httpx.Client:
+    """The one client policy. A test passes a transport, never a client, so it runs under this policy too."""
+    return httpx.Client(
+        transport=transport,
         timeout=httpx.Timeout(
             connect=_CONNECT_TIMEOUT_SECONDS,
             read=_READ_TIMEOUT_SECONDS,
             write=_READ_TIMEOUT_SECONDS,
             pool=_READ_TIMEOUT_SECONDS,
         ),
+        # No redirect is followed: the API answers in place, and an image host
+        # that redirected would take a read somewhere `_on_image_host` never checked.
         follow_redirects=False,
     )
 
@@ -180,21 +183,28 @@ def _client(client: httpx.Client | None) -> httpx.Client:
 class _Api:
     """The two questions this plugin asks the Met's API, shared by the finder and the reader."""
 
-    def __init__(self, *, user_agent: str, client: httpx.Client | None) -> None:
-        self._http = _client(client)
+    def __init__(self, *, user_agent: str, transport: httpx.BaseTransport | None) -> None:
+        self._http = _client(transport)
         self._headers = {"User-Agent": user_agent, "Accept": "application/json"}
         # The image host answers HTTP 406 to `Accept: application/json` (measured
         # 2026-10-06), so an image is asked for as one.
         self._image_headers = {"User-Agent": user_agent, "Accept": "image/*"}
 
-    @property
-    def http(self) -> httpx.Client:
-        return self._http
+    @contextmanager
+    def image(self, url: str, *, first_bytes: int | None = None) -> Iterator[httpx.Response]:
+        """A streamed read of an image on the Met's image host, and of nothing anywhere else.
 
-    @property
-    def image_headers(self) -> Mapping[str, str]:
-        """What a request to the image host carries; never the API's."""
-        return self._image_headers
+        The one place this plugin reads an image, so the host check
+        `security-model.md` § Source plugins claims has one owner. Transport
+        errors propagate as `httpx.HTTPError`; each caller says what one means.
+        """
+        if not _on_image_host(url):
+            raise ImageSearchFailure(f"{url!r} is not on the Met's image host, so it is not read.")
+        headers = dict(self._image_headers)
+        if first_bytes is not None:
+            headers["Range"] = f"bytes=0-{first_bytes - 1}"
+        with self._http.stream("GET", url, headers=headers) as response:
+            yield response
 
     def object(self, object_id: int) -> Mapping[str, Any] | None:
         """The object's record, or None when the Met says it has no such object."""
@@ -209,17 +219,25 @@ class _Api:
             raise ImageSearchFailure(f"The Met answered the read of object {object_id} without that object's record.")
         return payload
 
-    def search(self, query: str, *, field: str) -> list[int]:
-        """The ids of objects with images whose `field` matches `query`, at most `_SEARCH_LIMIT`, in the Met's order."""
+    def search(self, query: str, *, field: str) -> tuple[list[int], bool]:
+        """The ids of objects with images whose `field` matches `query`, in the Met's order, and whether that is all of them.
+
+        One page of `_SEARCH_LIMIT`. A match larger than that is cut, and says
+        so, because an absence from a cut list is not evidence of anything.
+        """
         params = {field: "true", "hasImages": "true", "q": query, "limit": str(_SEARCH_LIMIT)}
         response = self._get(_SEARCH_URL, what=f"search for {query!r}", params=params)
         payload = self._ok(response, what=f"search for {query!r}")
         total, ids = payload.get("total"), payload.get("objectIDs")
         if total == 0 and ids is None:
-            return []
-        if not isinstance(ids, list) or not all(isinstance(i, int) and not isinstance(i, bool) for i in ids):
+            return [], True
+        if (
+            not isinstance(total, int)
+            or not isinstance(ids, list)
+            or not all(isinstance(i, int) and not isinstance(i, bool) for i in ids)
+        ):
             raise ImageSearchFailure(f"The Met's search for {query!r} answered in a shape it does not document.")
-        return ids
+        return ids, total <= len(ids)
 
     def _get(self, url: str, *, what: str, params: Mapping[str, str] | None = None) -> httpx.Response:
         try:
@@ -253,10 +271,10 @@ class MetFinder:
         *,
         user_agent: str,
         registry: Registry | None = None,
-        client: httpx.Client | None = None,
+        transport: httpx.BaseTransport | None = None,
         preview_max_bytes: int = DEFAULT_PREVIEW_MAX_BYTES,
     ) -> None:
-        self._api = _Api(user_agent=user_agent, client=client)
+        self._api = _Api(user_agent=user_agent, transport=transport)
         self._registry = registry
         self._preview_max_bytes = preview_max_bytes
 
@@ -267,11 +285,12 @@ class MetFinder:
     def find_images(self, query: ImageQuery) -> Sequence[FoundImage]:
         """Every public-domain original the Met holds for this work, unjudged."""
         ids = self._recorded_ids(query.qid) if query.qid is not None else []
-        searched = not ids
-        if searched:
-            ids = self._searched_ids(query)
+        how = "wikidata"
+        if not ids:
+            ids, how = self._searched_ids(query)
+        read = ids[:_RESULT_LIMIT]
         found = []
-        for object_id in ids[:_RESULT_LIMIT]:
+        for object_id in read:
             record = self._api.object(object_id)
             image = None if record is None else self._image(object_id, record)
             if image is not None:
@@ -282,8 +301,9 @@ class MetFinder:
                 "event": "phase_two.searched",
                 "provider": PROVIDER,
                 "work_title": query.title,
-                "by": "search" if searched else "wikidata",
-                "results_returned": len(ids),
+                "by": how,
+                "objects_matched": len(ids),
+                "objects_read": len(read),
                 "instances_usable": len(found),
             },
         )
@@ -291,10 +311,8 @@ class MetFinder:
 
     def fetch_preview(self, url: str) -> bytes | None:
         """The preview bytes, read against the preview ceiling, or `None`."""
-        if not _on_image_host(url):
-            return None
         try:
-            with self._api.http.stream("GET", url, headers=self._api.image_headers) as response:
+            with self._api.image(url) as response:
                 if response.status_code != httpx.codes.OK:
                     log.warning(
                         "could not cache a Met preview",
@@ -312,6 +330,8 @@ class MetFinder:
                         )
                         return None
                     chunks.append(chunk)
+        except ImageSearchFailure:
+            return None
         except httpx.HTTPError as exc:
             log.warning(
                 "could not cache a Met preview",
@@ -337,20 +357,25 @@ class MetFinder:
                 ids.append(object_id)
         return ids
 
-    def _searched_ids(self, query: ImageQuery) -> list[int]:
-        """Objects titled as the work, narrowed to the artist's when the Met knows the artist.
+    def _searched_ids(self, query: ImageQuery) -> tuple[list[int], str]:
+        """Objects titled as the work, narrowed to the artist's when the Met knows the artist; and how they were chosen.
 
-        An artist the Met finds nothing for, perhaps spelt another way, leaves
-        the title's own first results rather than an empty answer, which would
-        say the Met holds nothing.
+        **An empty answer says the Met holds nothing**, so one is given only
+        when the lists behind it are whole. An artist the Met finds nothing for,
+        perhaps spelt another way, and an intersection of lists cut at one page,
+        leave the title's own first results instead, for the identity check to
+        judge.
         """
-        titled = self._api.search(query.title, field="title")
+        titled, titles_whole = self._api.search(query.title, field="title")
         if not titled or not query.artist:
-            return titled
-        by_artist = set(self._api.search(query.artist, field="artistOrCulture"))
+            return titled, "title"
+        by_artist, artist_whole = self._api.search(query.artist, field="artistOrCulture")
         if not by_artist:
-            return titled
-        return [object_id for object_id in titled if object_id in by_artist]
+            return titled, "title, the artist unknown to the Met"
+        narrowed = [object_id for object_id in titled if object_id in set(by_artist)]
+        if not narrowed and not (titles_whole and artist_whole):
+            return titled, "title, the artist's objects too many to narrow by"
+        return narrowed, "title and artist"
 
     def _image(self, object_id: int, record: Mapping[str, Any]) -> FoundImage | None:
         original = record.get("primaryImage")
@@ -390,9 +415,7 @@ class MetFinder:
         """
         head = bytearray()
         try:
-            with self._api.http.stream(
-                "GET", url, headers={**self._api.image_headers, "Range": f"bytes=0-{_HEAD_BYTES - 1}"}
-            ) as response:
+            with self._api.image(url, first_bytes=_HEAD_BYTES) as response:
                 if response.status_code not in (httpx.codes.OK, httpx.codes.PARTIAL_CONTENT):
                     raise ImageSearchFailure(f"The Met's image host answered HTTP {response.status_code} for {url}.")
                 for chunk in response.iter_bytes():
@@ -408,8 +431,8 @@ class MetFinder:
 class MetReader:
     """Read a Met object's API URL into its original image, fetched over plain HTTP."""
 
-    def __init__(self, *, user_agent: str, client: httpx.Client | None = None) -> None:
-        self._api = _Api(user_agent=user_agent, client=client)
+    def __init__(self, *, user_agent: str, transport: httpx.BaseTransport | None = None) -> None:
+        self._api = _Api(user_agent=user_agent, transport=transport)
 
     def read(self, url: str) -> FetchLocator:
         object_id = _api_id(url)

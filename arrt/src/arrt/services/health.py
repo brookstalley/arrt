@@ -138,8 +138,12 @@ class HealthService:
             walls=self._display.survey_wall_status(),
             backup=backup.read(self._backup_receipt_path),
             artwork_box=self._box,
-            sources=tuple(self._source_health()),
+            sources=self.observe_sources(),
         )
+
+    def observe_sources(self) -> tuple[SourceHealth, ...]:
+        """Every installed source plugin, now, most preferred first: the part of the panel Settings › Sources shows."""
+        return tuple(self._source_health())
 
     def _source_health(self) -> list[SourceHealth]:
         now = self._now()

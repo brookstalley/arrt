@@ -88,6 +88,15 @@ configured now has an image source. Measurements in `met-api-findings.md`
 passed). `source-plugins.md` registered in `project-state.yaml`, where it had
 never been.
 
+**Also (2026-10-06, the owner's asks mid-build):** a Settings › Sources page lists
+every installed plugin, most preferred first, with the package and version that
+installed it, whether it loaded and why not, what it provides, and the interface
+it was written for (`GET /api/sources`). `art_discovery(action='sources')` answers
+the same, field for field and value for value, and `GET /api/health`'s `sources`
+gained the same fields. From the review: a search cut at one page no longer says
+the Met holds nothing; the image host's check has one owner; the tests run under
+the plugins' real client policy (Commons' no-redirect default is now held too).
+
 ## 2026-10-05: The client revalidates every file, so a deploy cannot leave a phone half-updated
 
 <!-- prawduct: scope=static-revalidate -->

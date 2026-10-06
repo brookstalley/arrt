@@ -955,6 +955,24 @@ class SourcePluginOut(BaseModel):
     last_fault_age_seconds: float | None
     last_fault: str | None
     description: str
+    #: The installed distribution that registers the plugin, and its version;
+    #: null for a plugin registered by hand, or one two distributions both claim.
+    distribution: str | None
+    version: str | None
+    #: The source interface major the plugin was written for; null when it
+    #: failed before saying.
+    api_major: int | None
+    #: What its parts provide: `finds_images`, `finds_pages`, `reads`,
+    #: `browses`. Empty for a plugin that did not load.
+    provides: list[str]
+
+
+class SourcesOut(BaseModel):
+    """Every installed source plugin, most preferred first, and the interface this Arrt provides."""
+
+    #: `major.minor`. A plugin written for another major is refused by name.
+    interface_version: str
+    sources: list[SourcePluginOut]
 
 
 class HealthOut(BaseModel):

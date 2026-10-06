@@ -45,7 +45,7 @@ PAGES = {
     "Walls": [],
     "Activity": ["To review", "Queue", "History"],
     "Wanted": [],
-    "Settings": ["Taste", "Clients"],
+    "Settings": ["Taste", "Clients", "Sources"],
     "System": ["Status"],
 }
 

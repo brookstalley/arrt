@@ -160,7 +160,7 @@ lesson from a different count, which is why this one is stated as a shape.*
 
 | Tool | Actions | Notes |
 |---|---|---|
-| `art_discovery` | `estimate`, `start`, `status`, `approve`, `decline`, `cancel`, `resolve_images`, `get`, `list_runs`, `spend`, `help` | **The only tool that spends money in amounts worth authorising** — see the correction below. |
+| `art_discovery` | `estimate`, `start`, `status`, `approve`, `decline`, `cancel`, `resolve_images`, `get`, `list_runs`, `spend`, `sources`, `help` | **The only tool that spends money in amounts worth authorising** — see the correction below. `sources` (added 2026-10-06) answers what `GET /api/sources` does, in its field names and values (`test_source_plugins_surface.py`, `test_surface_parity.py`). |
 | `art_review` | `list_works`, `get_work`, `list_images`, `set_canonical`, `set_verdict`, `reject_image`, `want`, `list_wanted`, `sighting_hosts`, `wikidata_matches`, `set_wikidata_item`, `help` | Returns thumbnails; see Inputs & Outputs. Never spends. `want` and `list_wanted` (added 2026-10-02, `build-plan-after-review.md` Chunk 03) are the one way into `wanted` and Wanted's listing; see § `set_verdict` cannot set `wanted`. `wikidata_matches` offers Wikidata's items for a work's title and stores nothing; `set_wikidata_item` records the curator's pick, refused on a decided work (added 2026-10-02, `build-plan-after-review.md` Chunk 04). `sighting_hosts` counts, by host, the open works with a page there that no installed source plugin reads, and returns no address (added 2026-10-03, `build-plan-source-plugins.md` Chunk 03). |
 | `art_catalogue` | `list`, `get`, `sources`, `archive`, `restore`, `retry_acquisition`, `set_mat_color`, `set_work_qid`, `set_artist_qid`, `regenerate`, `topics`, `topic`, `help` | `sources` is the provenance read; see below. `set_work_qid` and `set_artist_qid` (added 2026-10-01) are the curator's word on a Wikidata identity; matching itself is the hand-run `python -m arrt.identify`, not a tool. `topics` and `topic` (added 2026-10-02) are `GET /api/topics` and `GET /api/topics/{qid}`, the library's half only. `retry_acquisition` **queues** the work and returns at once (changed 2026-10-02, `build-plan-after-review.md` Chunk 02; breaking, see § Versioning): it fetched in the call until then, for up to half an hour, beside the acquisition queue's own fetch. `get` carries the work's `acquisition` state. |
 | `art_theme` | `list`, `get`, `create`, `update`, `delete`, `make_default`, `add`, `remove`, `reorder`, `activate`, `unhang`, `help` | `activate` changes the wall immediately; `unhang` leaves the wall showing what it was showing. `make_default` (added 2026-10-01) moves the mark new works join, and changes no wall. |
@@ -1321,6 +1321,7 @@ the client with them.
 | `POST`/`DELETE /api/themes/{id}/works[/{work_id}]`, `POST .../position` | Membership and order. Each returns the resulting order, so the surface repaints from the response. |
 | `POST /api/themes/{id}/activate` | Change the wall. Returns the manifest that was published, exclusions included. |
 | `GET /api/manifest` | What a theme *would* put on the wall, evaluated without writing. |
+| `GET /api/sources` | Every installed source plugin, most preferred first, as `GET /api/health`'s `sources` reads it, with `interface_version` (`major.minor`, the plugin interface this Arrt provides). Settings › Sources reads it; `art_discovery(action='sources')` answers the same. Added 2026-10-06. |
 | `GET /api/health` | Every observation the panel states: **one heartbeat per wall** with the document that wall's display reported, the backup's age, this deployment's resolved artwork box, and **every installed source plugin** (`sources`, added 2026-10-03). There is deliberately no budget balance, settled 2026-08-04. Shape below. |
 
 Added 2026-08-05 with the run half of the browser surface, and exercised by
@@ -1594,7 +1595,11 @@ response is:
       "last_fault_at": null,
       "last_fault_age_seconds": null,
       "last_fault": null,
-      "description": "artic is loaded, with no faults since startup."
+      "description": "artic is loaded, with no faults since startup.",
+      "distribution": "arrt",
+      "version": "0.3.0",
+      "api_major": 1,
+      "provides": ["finds_images", "reads", "browses"]
     }
   ]
 }
@@ -1605,6 +1610,12 @@ installed plugin, most preferred first, and is empty when none is installed.
 `state` is `loaded`, `declined` (installed and not configured here) or `failed`
 (installed and could not be loaded), carried as itself. `reason` and `last_fault`
 are scrubbed of query strings (`security-model.md` § Source plugins).
+*Added 2026-10-06:* `distribution` and `version` are the installed package that
+registers the plugin, read from its metadata before the plugin's code runs (null
+for one registered by hand, or a name two packages register); `api_major` is the
+interface major the plugin was written for (null when it failed before saying);
+`provides` is what its parts provide, `finds_images`, `finds_pages`, `reads` and
+`browses`, and is empty for a plugin that did not load.
 
 **`heartbeat` is gone from the top level and is not coming back**: one reading for
 an installation with two rooms is a reading that cannot name the room, which is
