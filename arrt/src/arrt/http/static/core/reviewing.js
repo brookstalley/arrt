@@ -203,7 +203,7 @@ function scanName(instance, work) {
   return `${pictured(work)} — ${which}`;
 }
 
-function instanceRows(instance, work, after) {
+function instanceRows(instance, work, after, decided = false) {
   const title = work.title;
   const act = (path, body, message = null) =>
     guard(async () => {
@@ -245,7 +245,7 @@ function instanceRows(instance, work, after) {
         // overflowed a desktop card on wider fonts. The row is as tall as its
         // preview either way.
         el("div", { class: "stack-tight" }, [
-          instance.rejected || instance.is_selected
+          decided || instance.rejected || instance.is_selected
             ? null
             : el("button", {
                 class: "action quiet",
@@ -258,7 +258,7 @@ function instanceRows(instance, work, after) {
                 "aria-label": `Use this scan for ${title}`,
                 onclick: () => act(`/api/candidate-images/${encodeURIComponent(instance.image_id)}/select`),
               }),
-          instance.rejected
+          decided || instance.rejected
             ? null
             : el("button", {
                 class: "action quiet",
@@ -325,7 +325,7 @@ async function alternatesPanel(workId, after) {
       el("table", { class: "scans" }, [
         el("caption", { text: `The scans found for ${title}.` }),
         el("thead", {}, [el("tr", {}, SCAN_COLUMNS.map((name) => el("th", { scope: "col", text: name })))]),
-        el("tbody", {}, listing.instances.flatMap((instance) => instanceRows(instance, listing.work, after))),
+        el("tbody", {}, listing.instances.flatMap((instance) => instanceRows(instance, listing.work, after, listing.work.decided))),
       ]),
     ]),
   ]);
@@ -474,6 +474,11 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
   // accept, so Want or Forget. Not one whose search is still running, which has
   // found nothing *yet* and may still.
   const noScan = card.instances_held === 0 && work.resolution_status === "unresolved";
+  // A decided work (accepted or rejected, the server's `decided`) takes no
+  // second verdict and no change of scan, so its card says what was decided in
+  // place of the controls: offering them again read as though the click had not
+  // taken. Wanted is not decided: it keeps Forget.
+  const decided = work.decided;
   const acceptOrReject = () => [
     card.held_artwork_id
       ? el("button", {
@@ -553,7 +558,7 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
       // surprised by it. Accepting really is refused in this state — the service
       // will not record a work with no primary source — so the card says which
       // action reaches the way out.
-      card.shown && !card.shown_is_on_offer
+      card.shown && !card.shown_is_on_offer && !decided
         ? el("p", {
             class: "note",
             text: "No scan is on offer for this work. The picture is what was found, shown so you can judge it — accepting is refused until you choose one from the scans below.",
@@ -568,24 +573,26 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
       // can share both ("Untitled"), so taking Accept away would block acquiring
       // a painting the library does not hold. Reject stays too, because "stop
       // proposing this" is a fair thing to say about a work you already own.
-      card.held_artwork_id
+      card.held_artwork_id && !decided
         ? el("p", { class: "note already-held" }, [
             el("span", { class: "glyph", text: "✓", "aria-hidden": true }),
             el("span", { text: " Already in your library, by title and artist. Accepting it again acquires a second artwork." }),
           ])
         : null,
-      el("div", { class: "row" }, [
-        el("div", { class: "field" }, [
-          el("label", { for: `reason-${work.work_id}`, text: "Why (optional)" }),
-          reason,
-        ]),
-        // **A work nothing was ever found for offers Want and Forget**, not
-        // Accept and Reject: accepting it would mint a work with no image, and
-        // rejecting it is "forget it for good", which is said as such. Want is
-        // the one way to say "I want this painting; no scan exists yet", and it
-        // waits in Wanted (the owner's ruling on #168, 2026-10-02).
-        ...(noScan ? wantOrForget() : acceptOrReject()),
-      ]),
+      decided
+        ? decidedLine(work)
+        : el("div", { class: "row" }, [
+            el("div", { class: "field" }, [
+              el("label", { for: `reason-${work.work_id}`, text: "Why (optional)" }),
+              reason,
+            ]),
+            // **A work nothing was ever found for offers Want and Forget**, not
+            // Accept and Reject: accepting it would mint a work with no image, and
+            // rejecting it is "forget it for good", which is said as such. Want is
+            // the one way to say "I want this painting; no scan exists yet", and it
+            // waits in Wanted (the owner's ruling on #168, 2026-10-02).
+            ...(noScan ? wantOrForget() : acceptOrReject()),
+          ]),
     ]),
     // Beneath the picture and the facts both, the card's full width: the Scans
     // table needs it, and at the facts column's width its columns were what
@@ -593,6 +600,25 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
     disclosure,
   );
   return node;
+}
+
+/* What a decided card says where its controls were: the decision, and for an
+ * accepted work the way to the artwork it became. Its image's progress is the
+ * acquisition line above. */
+function decidedLine(work) {
+  const accepted = work.verdict === "accepted";
+  return el("div", { class: "row decided" }, [
+    el("p", { class: "muted", text: accepted ? "Accepted. It is in your library." : "Rejected. It will not be proposed again." }),
+    accepted && work.artwork_id
+      ? el("button", {
+          class: "action quiet",
+          type: "button",
+          text: "Open it in Artworks",
+          "aria-label": `Open ${work.title} in Artworks`,
+          onclick: () => go("work", work.artwork_id),
+        })
+      : null,
+  ]);
 }
 
 /* Where an accepted work's image stands: the queue's line while it owes one,

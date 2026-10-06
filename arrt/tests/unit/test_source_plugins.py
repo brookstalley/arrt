@@ -391,8 +391,8 @@ def test_this_distribution_registers_the_built_in_plugins_as_entry_points():
     """Read from the installed metadata: the injected tests above cannot see a typo in pyproject."""
     installed = {point.name: point for point in importlib.metadata.entry_points(group=ENTRY_POINT_GROUP)}
 
-    assert {"commons", "artic", "wikidata", "met", "smk", "nga"} <= set(installed)
-    for name in ("commons", "artic", "wikidata", "met", "smk", "nga"):
+    assert {"commons", "artic", "wikidata", "met", "smk", "navigart", "nga"} <= set(installed)
+    for name in ("commons", "artic", "wikidata", "met", "smk", "navigart", "nga"):
         assert isinstance(installed[name].load(), SourcePlugin), name
 
 
@@ -426,7 +426,7 @@ def test_each_installed_plugin_says_which_distribution_and_version_it_came_from(
     )
     identity = {reading.name: reading.identity for reading in roster.observe()}
 
-    for name in ("met", "smk", "nga"):
+    for name in ("met", "smk", "navigart", "nga"):
         assert identity[name] == PluginIdentity(
             distribution="arrt", version=version, api_major=1, provides=(PluginPart.FINDS_IMAGES, PluginPart.READS)
         ), name
@@ -515,7 +515,7 @@ def _built_in_modules() -> list[str]:
 
 def test_the_built_in_plugin_modules_are_read_from_the_entry_points():
     """An empty or short list would let the guard below pass over nothing."""
-    assert _built_in_modules() == ["artic.py", "commons.py", "met.py", "nga.py", "smk.py", "wikidata.py"]
+    assert _built_in_modules() == ["artic.py", "commons.py", "met.py", "navigart.py", "nga.py", "smk.py", "wikidata.py"]
 
 
 def test_the_built_in_plugins_import_nothing_from_arrt_but_the_interface():

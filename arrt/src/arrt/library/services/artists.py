@@ -24,17 +24,18 @@ Dalí was among them: the page that exists to say what is held said it of nothin
 
 import logging
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import timedelta
 from enum import StrEnum
 from typing import Final, Protocol
 
-from arrt.library.registry import Registry, RegistryArtist, RegistrySimilar, RegistryUnavailable
+from arrt.library.registry import Registry, RegistryArtist, RegistryPerson, RegistrySimilar, RegistryUnavailable
+from arrt.library.services.identity import open_to_match, years_agree
 from arrt.library.services.remembered import NOT_CONFIGURED_NOTE, REMEMBERED, checked_qid
 from arrt.persistence.catalogue import CatalogueStore, WorkQuery
 from arrt.persistence.folding import search_fold
 from arrt.persistence.kept import JsonCodec, Kept, KeptAnswers
-from arrt.persistence.records import Artist, ArtworkStatus
+from arrt.persistence.records import Artist, ArtworkStatus, IdentitySetBy
 from arrt.services.errors import ServiceError
 
 log = logging.getLogger(__name__)
@@ -54,6 +55,11 @@ SIMILAR_SHOWN: Final[int] = 12
 #: made on Wikidata reaches the page within a week. The registry's sections share
 #: it, so the Artist page and the pages it links to agree about how old they are.
 REGISTRY_KEPT_FOR: Final[timedelta] = timedelta(days=7)
+
+#: How many of Wikidata's people an unlinked artist's page offers as who they
+#: might be. A name search answers by renown, so the person meant is near the
+#: top or the name is too common for a list to settle it.
+CANDIDATES_SHOWN: Final[int] = 5
 
 #: How many of the artist's own works are read to find the QIDs to list. Above
 #: any one artist's holding at the owner's scale.
@@ -76,7 +82,8 @@ class RegistryState(StrEnum):
 
     #: The registry answered.
     KNOWN = "known"
-    #: The artist carries no QID, so there is nothing to ask about.
+    #: The artist carries no QID, so their works cannot be listed; the view may
+    #: name who Wikidata says they might be (`RegistryView.candidates`).
     NO_IDENTITY = "no_identity"
     #: No registry is configured (`WIKIDATA_USER_AGENT` unset).
     NOT_CONFIGURED = "not_configured"
@@ -85,6 +92,16 @@ class RegistryState(StrEnum):
     #: Asked for by QID, and the library holds this artist: their own page is the
     #: answer, and the registry is not asked.
     HELD = "held"
+
+
+@dataclass(frozen=True, slots=True)
+class ArtistCandidate:
+    """One person an unlinked artist might be, and whether their years agree with the library's."""
+
+    person: RegistryPerson
+    #: The matcher's own test (`identity.years_agree`): a year compared, and
+    #: every one compared within a year. False when the library holds no years.
+    years_agree: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,6 +118,14 @@ class RegistryView:
     held: Mapping[str, Sequence[str]] = field(default_factory=dict)
     #: The QIDs among the listed works that a wanted work names.
     wanted: frozenset[str] = frozenset()
+    #: For a library artist with no QID: who Wikidata's name search says they
+    #: might be, those whose years agree with the library's first. Proposed,
+    #: never stored: the curator's click stores one (`data-model.md` § Registry
+    #: identity).
+    candidates: Sequence[ArtistCandidate] = ()
+    #: For an artist reached by QID: the library's artists of the same name who
+    #: carry no QID, so the page can offer to link them to this one.
+    unlinked: Sequence[Artist] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,6 +165,9 @@ class ArtistService:
         self._similar: Kept[str, tuple[RegistrySimilar, ...]] = kept.namespace(
             "registry.similar", codec=JsonCodec(tuple[RegistrySimilar, ...]), max_age=REGISTRY_KEPT_FOR, size=REMEMBERED
         )
+        self._people: Kept[str, tuple[RegistryPerson, ...]] = kept.namespace(
+            "registry.people", codec=JsonCodec(tuple[RegistryPerson, ...]), max_age=REGISTRY_KEPT_FOR, size=REMEMBERED
+        )
 
     def index(self, q: str | None = None) -> Sequence[HeldArtist]:
         """Every artist with a work in circulation, by surname; narrowed to names containing `q`, ignoring accents.
@@ -170,10 +198,7 @@ class ArtistService:
         """What the registry knows about this artist, or why there is nothing to show."""
         artist = self.get(artist_id).artist
         if artist.wikidata_qid is None:
-            return RegistryView(
-                state=RegistryState.NO_IDENTITY,
-                note="This artist is not matched to Wikidata, so there is nothing more to show about them yet.",
-            )
+            return self._unlinked_view(artist)
         theirs = self._store.list_artworks(
             WorkQuery(status=ArtworkStatus.ACCEPTED, artist_id=artist.id), limit=_THEIRS, offset=0
         ).artworks
@@ -193,7 +218,18 @@ class ArtistService:
         held = artist_ids_by_qid(self._store).get(checked_qid(qid))
         if held is not None:
             return held, RegistryView(state=RegistryState.HELD, note="The library holds this artist.")
-        return None, self._view(qid, (), unavailable="Wikidata could not be asked just now. Try again later.")
+        view = self._view(qid, (), unavailable="Wikidata could not be asked just now. Try again later.")
+        if view.known is None or not view.known.name:
+            return None, view
+        # Folded, as search folds a name: the library's "Aleksandra Ekster" and
+        # Wikidata's are one spelling only once accents and case are set aside.
+        wanted = search_fold(view.known.name)
+        namesakes = tuple(
+            artist
+            for artist in sorted(self._store.list_artists(), key=lambda artist: (artist.name.casefold(), artist.id))
+            if open_to_match(artist) and search_fold(artist.name) == wanted
+        )
+        return None, replace(view, unlinked=namesakes)
 
     def similar(self, qid: str) -> SimilarView:
         """Visual artists sharing a movement with this one, each marked where the library holds them.
@@ -220,6 +256,41 @@ class ArtistService:
             state=RegistryState.KNOWN,
             people=people,
             held={person.qid: ours[person.qid] for person in people if person.qid in ours},
+        )
+
+    def _unlinked_view(self, artist: Artist) -> RegistryView:
+        """The registry half for an artist with no QID: who they might be, or why nobody is offered."""
+        if artist.wikidata_qid_set_by is IdentitySetBy.CURATOR:
+            return RegistryView(
+                state=RegistryState.NO_IDENTITY,
+                note="You said Wikidata has no item for this artist, so there is nothing more to show about them.",
+            )
+        unmatched = "This artist is not matched to Wikidata yet, so their other works cannot be listed."
+        if self._registry is None:
+            return RegistryView(state=RegistryState.NO_IDENTITY, note=unmatched)
+        people = self._people.get(artist.name)
+        if people is None:
+            try:
+                people = tuple(self._registry.people_named(artist.name))
+            except RegistryUnavailable as exc:
+                log.warning("Could not ask Wikidata who %s might be: %s", artist.name, exc)
+                return RegistryView(
+                    state=RegistryState.NO_IDENTITY,
+                    note=f"{unmatched} Wikidata could not be asked who they might be just now.",
+                )
+            self._people.put(artist.name, people)
+        # One item, one artist, as the identity service enforces: an item
+        # another library artist carries would be refused if chosen.
+        taken = artist_ids_by_qid(self._store)
+        open_people = [person for person in people if person.qid not in taken]
+        # Stable, so within each half the registry's renown order stands.
+        ranked = sorted(open_people, key=lambda person: not years_agree(artist, person))
+        return RegistryView(
+            state=RegistryState.NO_IDENTITY,
+            note=unmatched,
+            candidates=tuple(
+                ArtistCandidate(person=person, years_agree=years_agree(artist, person)) for person in ranked[:CANDIDATES_SHOWN]
+            ),
         )
 
     def _view(self, qid: str, mine: Sequence[str], *, unavailable: str) -> RegistryView:

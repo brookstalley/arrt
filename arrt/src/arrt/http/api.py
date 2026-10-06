@@ -33,6 +33,7 @@ from arrt.http.models import (
     AddWork,
     AffinityListOut,
     AffinityOut,
+    ArtistCandidateOut,
     ArtistListOut,
     ArtistOut,
     ArtistRegistryOut,
@@ -134,6 +135,7 @@ from arrt.http.models import (
     TopicsOut,
     TopicWorkOut,
     TopicWorksOut,
+    UnlinkedArtistOut,
     VerdictOut,
     WallAssignmentOut,
     WallHeartbeatOut,
@@ -686,6 +688,20 @@ def _artist_registry(view: RegistryView, *, artist_id: str | None = None) -> Art
         ),
         works_total=0 if known is None else known.works_total,
         holdings=([] if known is None else [RegistryHoldingOut(qid=h.qid, name=h.name, works=h.works) for h in known.holdings]),
+        candidates=[
+            ArtistCandidateOut(
+                qid=candidate.person.qid,
+                name=candidate.person.label,
+                born=candidate.person.born,
+                died=candidate.person.died,
+                years_agree=candidate.years_agree,
+            )
+            for candidate in view.candidates
+        ],
+        unlinked=[
+            UnlinkedArtistOut(artist_id=artist.id, name=artist.name, born=artist.born, died=artist.died)
+            for artist in view.unlinked
+        ],
     )
 
 
@@ -1732,6 +1748,7 @@ def _candidate_work(work: CandidateWork) -> CandidateWorkOut:
         offered_artist_matched=work.offered_artist_matched,
         wikidata_qid=work.wikidata_qid,
         verdict=str(work.verdict),
+        decided=work.verdict.is_terminal,
         resolution_status=str(work.resolution_status),
         unresolved_reason=None if work.unresolved_reason is None else str(work.unresolved_reason),
     )

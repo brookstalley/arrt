@@ -171,7 +171,11 @@ def a_candidate(**overrides) -> CandidateWorkOut:
         "resolution_status": ResolutionStatus.RESOLVED.value,
         "unresolved_reason": None,
     }
-    return CandidateWorkOut(**(fields | overrides))
+    fields |= overrides
+    # Derived, never passed: a fixture free to say a pending work is decided
+    # could assert a card no server could produce.
+    fields["decided"] = Verdict(fields["verdict"]).is_terminal
+    return CandidateWorkOut(**fields)
 
 
 def a_run_view(run: RunOut | None = None, works: list[CandidateWorkOut] | None = None, **overrides) -> dict:

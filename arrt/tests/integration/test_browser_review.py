@@ -404,6 +404,24 @@ class TestTheVerdict:
         assert response.status_code == 400
         assert "final" in response.json()["error"]
 
+    def test_a_card_says_whether_its_work_is_decided(self, http):
+        """`decided` is what the card hides its controls on: false while pending, true once accepted or rejected.
+
+        Read off the served card after each verdict, so a verdict made final later
+        reaches the card through `Verdict.is_terminal` and no client list.
+        """
+        run_id = a_finished_run(http)
+        page = http.get(f"/api/runs/{run_id}/candidates").json()
+        accepted = card_for(page, "The Elephants")["work"]["work_id"]
+        rejected = card_for(page, "Swans Reflecting Elephants")["work"]["work_id"]
+        assert http.get(f"/api/candidates/{accepted}").json()["work"]["decided"] is False
+
+        http.post(f"/api/candidates/{accepted}/verdict", json={"verdict": "accepted"}).raise_for_status()
+        http.post(f"/api/candidates/{rejected}/verdict", json={"verdict": "rejected"}).raise_for_status()
+
+        assert http.get(f"/api/candidates/{accepted}").json()["work"]["decided"] is True
+        assert http.get(f"/api/candidates/{rejected}").json()["work"]["decided"] is True
+
     def test_wanted_is_refused_here_and_the_refusal_names_the_way_in(self, http):
         """One entry into that verdict, so it and the scan's suppression cannot part."""
         run_id = a_finished_run(http)
