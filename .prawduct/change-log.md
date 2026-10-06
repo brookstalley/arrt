@@ -127,6 +127,23 @@ picture is fetched again); the store's size, its exclusion of temporary files an
 its ten-minute reuse; the backup carrying none of `pictures/`; HTTP and MCP parity
 and an end-to-end check of both; and two browser tests of the panel.
 
+**Review fixes (cumulative Critic):** the key is total, falling back to the
+stripped URL where `urlsplit` raises, so an instance address with an unbalanced
+bracket cannot end a run or stop a start; the import counts any failure on a row
+as `failed` (broad, with the traceback for anything but a disk or row write) and
+retires itself once `previews/` is gone (`pictures.import_retired`); a failure of
+the store's own disk is `picture.unreadable` or `picture.unwritable` at WARNING,
+never `picture.absent` at INFO, and a kept file that will not read is
+`picture.unreadable` (it was `preview.not_inlined` at INFO); the size walk counts
+what it could not read (`unreadable`, on both surfaces and Status) instead of
+`rglob`'s silent skip; `art_display(action='status')` is built from the panel's
+single `HealthService.observe()` call, with a test that places every
+`HealthReading` field on it or off it by name; the startup line reads
+`pictures=<path> fetching=on|off`; `PictureStore.owns`, `PictureStore.directory`
+and `Settings.previews_path` are gone (only tests used the first, nothing the
+other two); and `imaging.UNDECODABLE` / `UNREADABLE` name Pillow's failures once,
+for every caller. Tests added for each, each seen to fail on a re-break.
+
 ## 2026-10-06: Every picture Arrt fetches is kept
 
 <!-- prawduct: scope=picture-store -->

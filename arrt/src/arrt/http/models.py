@@ -987,6 +987,9 @@ class PicturesOut(BaseModel):
     pictures_files: int
     #: Seconds since the walk the count came from, which is reused for ten minutes.
     age_seconds: float
+    #: Directories and files the walk could not read: not zero is a disk fault,
+    #: and the count is short by what they hold.
+    unreadable: int
     description: str
 
 

@@ -170,6 +170,9 @@ function picturesPanel(health) {
       ["Files", pictures.pictures_files.toLocaleString()],
       ["Bytes", pictures.pictures_bytes.toLocaleString()],
       ["Counted", `${pictures.age_seconds.toFixed(0)} seconds ago`],
+      // Only when the disk refused part of the walk: the count is then short,
+      // and saying so is what keeps an unreadable store from reading as an empty one.
+      ["Could not be read", pictures.unreadable ? `${pictures.unreadable.toLocaleString()} entries` : null],
     ]),
   ]);
 }

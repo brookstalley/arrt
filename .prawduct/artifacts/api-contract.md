@@ -1610,6 +1610,7 @@ response is:
     "pictures_bytes": 52428800,
     "pictures_files": 600,
     "age_seconds": 212.0,
+    "unreadable": 0,
     "description": "The picture store keeps 600 files, 52.4 MB, counted 212 seconds ago. Each picture is two files, one per size kept."
   }
 }
@@ -1618,8 +1619,12 @@ response is:
 **`pictures`** *(added 2026-10-06, `build-plan-picture-store.md` Chunk 02)* is the
 picture store's size: every tier file under `ART_ROOT/pictures/` and their bytes,
 from a walk reused for ten minutes, with the walk's age. It has no ceiling (owner,
-2026-10-06), so this is a figure to watch, never a verdict. `art_display(action='status')`
-carries the same object under the same names and values (`test_surface_parity.py`).
+2026-10-06), so this is a figure to watch, never a verdict. `unreadable` counts
+directories and files the walk could not read: not zero is this machine's disk
+refusing the store, the count is short by what they hold, and `description` says
+so in place of "no pictures yet". `art_display(action='status')` carries the same
+object under the same names and values, built from the same single reading
+(`test_surface_parity.py`).
 
 **`sources`** *(added 2026-10-03, `source-plugins.md` § Loading)* lists every
 installed plugin, most preferred first, and is empty when none is installed.

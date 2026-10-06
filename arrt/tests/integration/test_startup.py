@@ -605,7 +605,7 @@ def test_startup_names_every_image_source_it_wires_in_order(tmp_path, monkeypatc
     with caplog.at_level("INFO"):
         entry_point.main()
 
-    assert "phase2 image_sources=commons,artic,met,smk " in caplog.text
+    assert f"phase2 image_sources=commons,artic,met,smk pictures={art_root / 'pictures'} fetching=on" in caplog.text
     assert "source plugin wikidata loaded" in caplog.text
 
 
@@ -634,7 +634,7 @@ def test_startup_with_no_image_source_says_which_settings_would_add_one(tmp_path
         "phase2 image_sources=none (commons: WIKIDATA_USER_AGENT is unset, and Commons is reached only through a "
         "work's Wikidata item; artic: ARTIC_USER_AGENT is unset, and the Art Institute is never asked anonymously; "
         "wikidata: no registry is configured (WIKIDATA_USER_AGENT is unset), and pages are read from a work's item) "
-        "previews=disabled"
+        f"pictures={art_root / 'pictures'} fetching=off"
     ) in caplog.text
 
 

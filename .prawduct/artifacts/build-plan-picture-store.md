@@ -73,7 +73,7 @@ also settles #218's browser half).
 ## Status
 
 - [x] Chunk 01: The store, the norm, previews through it, and the import
-- [ ] Chunk 02: The sweep retired, the store on the health panel, and the bugs it closes
+- [x] Chunk 02: The sweep retired, the store on the health panel, and the bugs it closes
 
 ### Chunk 01: The store, the norm, previews through it, and the import
 
@@ -121,7 +121,8 @@ Done when:
   with the change-log naming each one and the norm that retired it.
 - **The health panel** shows the size and the count, on HTTP, MCP and in
   `health.js`, with a parity test and a browser test.
-- **A test asserts the backup does not carry `pictures/`.**
+- **A test asserts the backup does not carry ART_ROOT/pictures/**
+  (`arrt/tests/unit/test_backup_writer.py`).
 - An operator-verification entry: after deploy, the import's log line, the health
   panel's numbers, and a review card's picture loading with no source asked.
 - **Backlog, closed at merge** through `/prawduct:backlog`: #61 and #81 (nothing

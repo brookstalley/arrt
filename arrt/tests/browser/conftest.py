@@ -185,6 +185,7 @@ def _some_pictures(*, files=2, size=48_000, age_seconds=12.0):
         "pictures_bytes": size,
         "pictures_files": files,
         "age_seconds": age_seconds,
+        "unreadable": 0,
         "description": f"The picture store keeps {files} files, counted {age_seconds:.0f} seconds ago.",
     }
 

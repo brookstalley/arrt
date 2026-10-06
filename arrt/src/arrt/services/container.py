@@ -295,7 +295,11 @@ class Services:
         # interval. Identity changes reach it through `identity` below.
         catalogue_service.subscribe(lambda event: topic_sweep.nudge() if event.change is WorkChange.ACCEPTED else None)
         # The picture store's directory is derived, never configured, as the
-        # catalogue's filename is: every plane and the import must agree on it.
+        # catalogue's filename is. `art_root` is read off the thumbnail settings
+        # rather than taken as an argument of its own: it is the same deployment
+        # value, every catalogue path is relative to it, and it is already
+        # required and validated there. A third copy would be a third chance for
+        # the copies to disagree. `ReviewService` reaches it through the store.
         pictures = PictureStore(thumbnails.art_root / PICTURES_DIRNAME, art_root=thumbnails.art_root, sources=pool)
         acquisition_service = AcquisitionService(
             catalogue_service,
@@ -355,14 +359,10 @@ class Services:
             display=display_service,
             thumbnails=thumbnail_service,
             survey=SurveyService(catalogue_service, thumbnail_service, artwork_box, acquisition=acquisition_queue),
-            # `art_root` is read off the thumbnail settings rather than taken as
-            # an argument of its own. It is the same deployment value — every
-            # catalogue path is relative to it — and it is already required and
-            # validated there. A third copy would be a third chance for the
-            # copies to disagree, and nothing would notice which was right.
             review=ReviewService(discovery_service, box=artwork_box, pictures=pictures),
             pictures=pictures,
-            # The receipt is located the same way, and for the same reason. It is
+            # The receipt is located off the thumbnail settings' `art_root`, as
+            # the picture store is above, and for the same reason. It is
             # not a `DisplaySettings` field beside the art root the heartbeats are
             # named from: that settings object carries what the *walls'*
             # operations need, and the backup is this plane's own business rather
@@ -375,9 +375,6 @@ class Services:
                 pictures=pictures,
             ),
             runner=runner_service,
-            # `art_root` off the thumbnail settings for the same reason `review`
-            # takes it from there: it is one deployment value, already validated,
-            # and a second copy is a second chance for the two to disagree.
             acquisition=acquisition_service,
             preparation=preparation_service,
             acquisition_queue=acquisition_queue,

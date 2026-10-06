@@ -479,3 +479,40 @@ def test_a_wanted_work_nothing_was_found_for_is_not_pictured(services, discovery
 
     assert view.shown is None
     assert view.wanted.scans_turned_down == 0
+
+
+def test_a_kept_file_that_cannot_be_read_is_a_warning_under_its_own_event(services, propose, add_image, preview, caplog):
+    """Every file a card reads is one the store wrote, so one that will not read is this machine's disk.
+
+    `observability-strategy.md` names it `picture.unreadable` at WARNING; at INFO
+    under another name, a store that stopped working reads like a quiet one.
+    """
+    import logging
+
+    work = propose()
+    relative = preview("locked.jpg")
+    image = add_image(work, preview_path=relative)
+    locked = services.pictures.find(relative, max_edge=480)
+    locked.chmod(0)
+    try:
+        with caplog.at_level(logging.INFO), pytest.raises(ServiceError):
+            services.review.preview_image(image.id)
+    finally:
+        locked.chmod(0o644)
+
+    (line,) = [record for record in caplog.records if getattr(record, "event", None) == "picture.unreadable"]
+    assert line.levelno == logging.WARNING
+
+
+def test_the_store_reading_says_when_the_disk_refused_part_of_the_walk():
+    """An unreadable store must never read as an empty one: the sentence names the refusal, not "no pictures yet"."""
+    from arrt.services.health import PicturesReading
+
+    refused = PicturesReading(pictures_bytes=0, pictures_files=0, age_seconds=5.0, unreadable=2).describe()
+    empty = PicturesReading(pictures_bytes=0, pictures_files=0, age_seconds=5.0).describe()
+
+    assert "could not be read" in refused
+    assert "2 entries" in refused
+    assert "no pictures yet" not in refused
+    assert "no pictures yet" in empty
+    assert "could not be read" not in empty

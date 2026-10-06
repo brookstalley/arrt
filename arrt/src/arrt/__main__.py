@@ -247,11 +247,13 @@ def main(argv: Sequence[str] = ()) -> None:
     registry = _registry(settings)
     sources = _sources(settings, registry)
     log.info(
-        "phase2 image_sources=%s previews=%s",
+        "phase2 image_sources=%s pictures=%s fetching=%s",
         ",".join(source.provider for source in sources.finders if offers_images(source)) or _no_finder(sources),
-        # Where a fetched preview is kept: the picture store, which answers review
-        # whether or not anything here can fetch.
-        settings.pictures_path if sources.finds_images else "disabled",
+        # Where every fetched picture is kept, printed whatever the sources: the
+        # store answers review from what it keeps whether or not anything here
+        # can fetch, and `fetching` says which.
+        settings.pictures_path,
+        "on" if sources.finds_images else "off",
     )
 
     # Whether tiled acquisition can run at all, and where the master images go.

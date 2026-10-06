@@ -9,6 +9,7 @@ disk, a half-written file served, and anything deleted.
 """
 
 import logging
+import pathlib
 import threading
 from io import BytesIO
 
@@ -175,8 +176,8 @@ def test_a_path_the_store_did_not_hand_out_finds_nothing(art_root):
     # The right name in the wrong bucket is not the store's either.
     misplaced = stored.replace(f"/{stored.split('/')[1]}/", "/zz/")
     assert store.find(misplaced, max_edge=480) is None
-    assert store.owns(misplaced)
-    assert not store.owns("previews/0123.jpg")
+    assert store.key_of(misplaced) is None
+    assert store.key_of("previews/0123.jpg") is None
 
 
 # -- re-encoding --------------------------------------------------------------------
@@ -344,16 +345,50 @@ def test_an_unreadable_store_degrades_the_card_rather_than_failing_the_run(art_r
         assert a_store(art_root, source).keep("artic", URL, PREVIEW_URL) is None
 
     assert source.asked == [], "a store it cannot read is not a reason to ask the museum"
-    assert any("the store could not be read" in getattr(record, "reason", "") for record in caplog.records)
+    (line,) = [record for record in caplog.records if "the store could not be read" in getattr(record, "reason", "")]
+    # This machine's disk, not a source's miss: its own event, at WARNING.
+    assert (line.event, line.levelno) == ("picture.unreadable", logging.WARNING)
 
 
-def test_bytes_that_cannot_be_written_degrade_the_card_rather_than_failing_the_run(art_root, monkeypatch):
+def test_bytes_that_cannot_be_written_degrade_the_card_rather_than_failing_the_run(art_root, monkeypatch, caplog):
     def explode(self, _data):
         raise OSError("no space left on device")
 
     monkeypatch.setattr("pathlib.Path.write_bytes", explode)
 
-    assert a_store(art_root, CountingSource()).keep("artic", URL, PREVIEW_URL) is None
+    with caplog.at_level(logging.INFO):
+        assert a_store(art_root, CountingSource()).keep("artic", URL, PREVIEW_URL) is None
+
+    (line,) = [record for record in caplog.records if getattr(record, "event", "").startswith("picture.")]
+    assert (line.event, line.levelno) == ("picture.unwritable", logging.WARNING)
+
+
+def test_a_sources_miss_is_ordinary_and_stays_at_info(art_root, caplog):
+    """The other side of the two above: a source with nothing to give is not a fault here."""
+    source = CountingSource()
+    source.payload = b""
+
+    with caplog.at_level(logging.INFO):
+        assert a_store(art_root, source).keep("artic", URL, PREVIEW_URL) is None
+
+    (line,) = [record for record in caplog.records if getattr(record, "event", "").startswith("picture.")]
+    assert (line.event, line.levelno) == ("picture.absent", logging.INFO)
+    assert not [record for record in caplog.records if record.levelno >= logging.WARNING]
+
+
+def test_an_instance_url_that_will_not_parse_still_keys_one_picture_and_never_raises(art_root):
+    """`urlsplit` raises on an unbalanced bracket; the key must not, or a run ends over one address."""
+    source = CountingSource()
+    store = a_store(art_root, source)
+    broken = "https://[museum.example/x"
+
+    first = store.keep("artic", broken, PREVIEW_URL)
+    second = store.keep("artic", "  " + broken + " ", PREVIEW_URL)
+
+    assert first is not None
+    assert first == second, "the stripped string is the key, so one spelling still keeps one picture"
+    assert len(source.asked) == 1
+    assert picture_key("artic", broken) != picture_key("artic", "https://[museum.example/y")
 
 
 def test_a_preview_that_is_not_a_picture_is_absence(art_root):
@@ -374,8 +409,10 @@ def test_a_store_outside_the_art_tree_is_refused_at_wiring_time(tmp_path):
 
 
 def test_pictures_are_kept_apart_from_thumbnails_and_the_old_previews(settings):
+    from arrt.config import PREVIEWS_DIRNAME
+
     assert settings.pictures_path.is_relative_to(settings.art_root)
-    assert len({settings.pictures_path, settings.thumbnails_path, settings.previews_path}) == 3
+    assert len({settings.pictures_path, settings.thumbnails_path, settings.art_root / PREVIEWS_DIRNAME}) == 3
 
 
 # -- deletion: temporary files at startup, and nothing else -----------------------------
@@ -494,7 +531,7 @@ def test_the_import_repoints_a_decided_works_row_too(picture_store, discovery, p
     discovery.set_verdict(work.id, Verdict.REJECTED)
 
     assert import_previews(picture_store, discovery, legacy=legacy).imported == 1
-    assert picture_store.owns(discovery.get_candidate_image(image.id).preview_path)
+    assert picture_store.key_of(discovery.get_candidate_image(image.id).preview_path) is not None
 
 
 def test_the_container_cleans_and_imports_when_the_plane_starts(services, propose, add_image, settings):
@@ -509,7 +546,7 @@ def test_the_container_cleans_and_imports_when_the_plane_starts(services, propos
 
     services.reconcile()
 
-    assert services.pictures.owns(services.discovery.get_candidate_image(image.id).preview_path)
+    assert services.pictures.key_of(services.discovery.get_candidate_image(image.id).preview_path) is not None
     assert not stray.exists()
 
 
@@ -553,3 +590,131 @@ def test_one_walk_answers_for_ten_minutes_and_then_the_store_is_walked_again(art
     walked = store.size()
     assert walked.pictures_files == first.pictures_files + len(TIERS)
     assert walked.measured_at == clock[0]
+
+
+def test_the_import_counts_a_file_it_cannot_read_and_is_not_done(
+    picture_store, discovery, propose, add_image, legacy, monkeypatch, caplog
+):
+    """`done` is what the operator's `rm -rf previews/` keys on, so a failure must hold it false, row and file untouched."""
+    old = legacy / "kept.jpg"
+    old.write_bytes(a_picture(843, 600))
+    image = add_image(propose("Kept"), url="https://museum.example/kept", preview_path="previews/kept.jpg")
+    real_read = pathlib.Path.read_bytes
+
+    def refuse(self):
+        if self == old:
+            raise PermissionError("permission denied")
+        return real_read(self)
+
+    monkeypatch.setattr(pathlib.Path, "read_bytes", refuse)
+
+    with caplog.at_level(logging.INFO):
+        report = import_previews(picture_store, discovery, legacy=legacy)
+
+    assert (report.imported, report.failed, report.done) == (0, 1, False)
+    (line,) = [record for record in caplog.records if getattr(record, "event", None) == "pictures.imported"]
+    assert (line.failed, line.done) == (1, False)
+    assert discovery.get_candidate_image(image.id).preview_path == "previews/kept.jpg"
+    assert old.exists()
+
+
+def test_the_import_counts_a_row_it_cannot_repoint_and_is_not_done(
+    picture_store, discovery, propose, add_image, legacy, monkeypatch
+):
+    old = legacy / "kept.jpg"
+    old.write_bytes(a_picture(843, 600))
+    image = add_image(propose("Kept"), url="https://museum.example/kept", preview_path="previews/kept.jpg")
+
+    def refuse(self, *_args, **_kwargs):
+        raise ServiceError("the catalogue is read-only")
+
+    monkeypatch.setattr(type(discovery), "repoint_preview", refuse)
+
+    report = import_previews(picture_store, discovery, legacy=legacy)
+
+    assert (report.imported, report.failed, report.done) == (0, 1, False)
+    assert discovery.get_candidate_image(image.id).preview_path == "previews/kept.jpg"
+    assert old.exists()
+
+
+def test_a_row_whose_url_will_not_parse_is_imported_and_one_that_breaks_is_counted(
+    picture_store, discovery, propose, add_image, legacy, monkeypatch
+):
+    """No row stops the import: an odd URL keys like any other, and a defect costs one row."""
+    (legacy / "odd.jpg").write_bytes(a_picture(843, 600))
+    (legacy / "bad.jpg").write_bytes(a_picture(843, 600))
+    odd = add_image(propose("Odd"), url="https://[museum.example/odd", preview_path="previews/odd.jpg")
+    add_image(propose("Bad"), url="https://museum.example/bad", preview_path="previews/bad.jpg")
+    real_put = PictureStore.put
+
+    def defect(self, provider, url, payload):
+        if url.endswith("/bad"):
+            raise RuntimeError("a defect nobody named")
+        return real_put(self, provider, url, payload)
+
+    monkeypatch.setattr(PictureStore, "put", defect)
+
+    report = import_previews(picture_store, discovery, legacy=legacy)
+
+    assert (report.imported, report.failed, report.done) == (1, 1, False)
+    assert picture_store.key_of(discovery.get_candidate_image(odd.id).preview_path) is not None
+
+
+def test_the_plane_boots_when_an_imported_row_breaks(services, propose, add_image, settings, monkeypatch):
+    """Through `reconcile`, the one call a start makes: a raising row must not stop it."""
+    legacy = settings.art_root / "previews"
+    legacy.mkdir(parents=True, exist_ok=True)
+    (legacy / "bad.jpg").write_bytes(a_picture(843, 600))
+    add_image(propose(), url="https://[museum.example/bad", preview_path="previews/bad.jpg")
+    monkeypatch.setattr(PictureStore, "put", lambda *_args: (_ for _ in ()).throw(RuntimeError("a defect")))
+
+    services.reconcile()
+
+
+def test_the_import_retires_itself_once_the_old_directory_is_gone(
+    picture_store, discovery, propose, add_image, monkeypatch, settings
+):
+    """Nothing is importable without `previews/`, so the walk over every row is skipped."""
+    add_image(propose(), url="https://museum.example/gone", preview_path="previews/gone.jpg")
+    walked: list[str] = []
+    real_list_runs = type(discovery).list_runs
+
+    def counting(self, *args, **kwargs):
+        walked.append("runs")
+        return real_list_runs(self, *args, **kwargs)
+
+    monkeypatch.setattr(type(discovery), "list_runs", counting)
+
+    report = import_previews(picture_store, discovery, legacy=settings.art_root / "previews")
+
+    assert walked == []
+    assert (report.imported, report.missing, report.failed, report.done) == (0, 0, 0, True)
+
+
+def test_an_unreadable_bucket_is_counted_as_unreadable_not_as_empty(art_root):
+    """`rglob` skips a directory it cannot scan in silence; the walk must say so instead."""
+    store = a_store(art_root)
+    kept = store.put("artic", URL, a_picture())
+    store.put("artic", URL + "/2", a_picture())
+    bucket = kept.parent
+    bucket.chmod(0)
+    try:
+        size = store.size()
+    finally:
+        bucket.chmod(0o755)
+
+    assert size.unreadable == 1
+    assert size.pictures_files < 2 * len(TIERS)
+
+
+def test_the_health_panel_reading_carries_what_the_walk_could_not_read(services):
+    """Through the container's `HealthService`, the one the panel and the MCP status both read."""
+    kept = services.pictures.put("artic", URL, a_picture())
+    kept.parent.chmod(0)
+    try:
+        reading = services.health.observe().pictures
+    finally:
+        kept.parent.chmod(0o755)
+
+    assert reading.unreadable == 1
+    assert "could not be read" in reading.describe()

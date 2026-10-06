@@ -1873,6 +1873,7 @@ def _pictures(reading: PicturesReading) -> PicturesOut:
         pictures_bytes=reading.pictures_bytes,
         pictures_files=reading.pictures_files,
         age_seconds=reading.age_seconds,
+        unreadable=reading.unreadable,
         description=reading.describe(),
     )
 

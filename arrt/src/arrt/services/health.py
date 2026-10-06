@@ -82,16 +82,28 @@ class PicturesReading:
     #: Seconds since the walk this count came from. The walk is reused for ten
     #: minutes, so a count can be that old.
     age_seconds: float
+    #: Directories and files the walk could not read. Not zero means this
+    #: machine's disk is refusing the store, and the count is short by what they
+    #: hold: stated apart, so an unreadable store never reads as an empty one.
+    unreadable: int = 0
 
     def describe(self) -> str:
-        """The count in a sentence, with its age."""
+        """The count in a sentence, with its age, and what could not be read when anything could not."""
+        counted = f"counted {self.age_seconds:.0f} seconds ago"
+        if self.unreadable:
+            entries = "entry" if self.unreadable == 1 else "entries"
+            return (
+                f"The picture store could not be read in full: {self.unreadable:,} {entries} refused, so the "
+                f"{self.pictures_files:,} files and {self.pictures_bytes / 1_000_000:,.1f} MB counted are short by "
+                f"what they hold ({counted}). Cards whose pictures are there go without them until the disk "
+                "answers."
+            )
         if self.pictures_files == 0:
-            return f"The picture store keeps no pictures yet (counted {self.age_seconds:.0f} seconds ago)."
-        megabytes = self.pictures_bytes / 1_000_000
+            return f"The picture store keeps no pictures yet ({counted})."
         plural = "file" if self.pictures_files == 1 else "files"
         return (
-            f"The picture store keeps {self.pictures_files:,} {plural}, {megabytes:,.1f} MB, counted "
-            f"{self.age_seconds:.0f} seconds ago. Each picture is two files, one per size kept."
+            f"The picture store keeps {self.pictures_files:,} {plural}, {self.pictures_bytes / 1_000_000:,.1f} MB, "
+            f"{counted}. Each picture is two files, one per size kept."
         )
 
 
@@ -182,6 +194,7 @@ class HealthService:
             pictures_bytes=size.pictures_bytes,
             pictures_files=size.pictures_files,
             age_seconds=max(0.0, (self._now() - size.measured_at).total_seconds()),
+            unreadable=size.unreadable,
         )
 
     def observe_sources(self) -> tuple[SourceHealth, ...]:

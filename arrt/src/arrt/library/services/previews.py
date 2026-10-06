@@ -28,9 +28,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
-from PIL import Image, UnidentifiedImageError
+from PIL import Image
 
-from arrt.library.services.imaging import EncodedFrame, encode_downscaled
+from arrt.library.services.imaging import UNDECODABLE, EncodedFrame, encode_downscaled
 from arrt.library.services.pictures import PictureStore
 
 log = logging.getLogger(__name__)
@@ -222,19 +222,11 @@ def _rendered(path: Path, *, max_edge: int, quality: int) -> EncodedFrame | None
         # than swept up with the rest, because a file engineered to exhaust
         # memory is worth a different log line from one that is merely corrupt.
         return _no_inline(path, f"it is too large to open safely: {exc}")
-    except (OSError, UnidentifiedImageError, ValueError) as exc:
-        # `OSError` and `UnidentifiedImageError` are the ordinary two — a
-        # truncated download, a file that is not an image — and are what the
-        # tests exercise.
-        #
-        # `ValueError` is boundary defence rather than a covered path, and the
-        # measurement is worth recording so nobody re-derives it: Pillow raises
-        # it from `convert` for at least one mode (`La`, premultiplied greyscale
-        # alpha), but no image format round-trips to that mode through
-        # `Image.open`, so it was not reachable from a file on disk when this was
-        # written. It is caught anyway because the alternative is one museum's
-        # unusual file costing a curator the other thirty-nine works in the
-        # listing, which is the outcome this whole module exists to prevent.
+    except UNDECODABLE as exc:
+        # A truncated file, a file that is not an image, or a mode `convert`
+        # refuses (`imaging.UNDECODABLE` says which raises what). Reported, not
+        # raised: one bad file must not cost a curator the other thirty-nine
+        # works in the listing.
         return _no_inline(path, f"it could not be read: {exc}")
 
 
@@ -242,10 +234,13 @@ def _no_inline(path: Path, why: str) -> None:
     """Report that no picture travels with this instance, with the reason.
 
     One exit for every way a kept picture can fail to be read or re-encoded, so
-    the log line cannot drift between them — the same shape the store's
-    `_absent` holds for the download it mirrors.
+    the log line cannot drift between them. At WARNING, as `picture.unreadable`
+    (`observability-strategy.md`): every file read here is one the picture store
+    wrote and checked, so one that will not read is this machine's disk failing,
+    not a museum's bad file, and a store that has stopped working must not read
+    like a quiet one.
     """
-    log.info(
-        "a kept picture could not be rendered; the instance is listed without a picture",
-        extra={"event": "preview.not_inlined", "path": str(path), "reason": why},
+    log.warning(
+        "a kept picture could not be read; the instance is shown without a picture",
+        extra={"event": "picture.unreadable", "path": str(path), "reason": why},
     )

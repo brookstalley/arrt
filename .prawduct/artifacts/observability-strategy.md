@@ -218,7 +218,7 @@ between planes.
 > | `get.asked` | a Get was asked for, with the run it started (`started_run_id`), the theme its accepted works join (`destination_theme_id`, null for the default), how many works it chose and how many it skipped for each reason |
 > | `phase_two.verdict_stands` | a resolution finished against a work the curator had already decided; the result is reported, not applied |
 > | `phase_two.preview_too_large` | a provider's preview body passed the size ceiling and the read was abandoned, naming the URL and the ceiling. Distinct from `preview_failed`, which is a preview that could not be fetched at all — this one *was* being served, and the far end was sending more than a thumbnail. Both leave the card falling back to the source URL, so the log line is the only place the difference is visible |
-> | `picture.kept` / `picture.absent` | whether a review card will have a kept picture to show: `picture.kept` names the store path and the bytes of each tier written; `picture.absent` names the reason none was kept (the source returned nothing or raised, the bytes are not a picture, the store could not be read or written). Replaced `preview.cached` / `preview.absent` on 2026-10-06 |
+> | `picture.kept` / `picture.absent` | whether a review card will have a kept picture to show: `picture.kept` names the store path and the bytes of each tier written; `picture.absent`, at INFO, names a source's reason none was kept (it returned nothing or raised, or the bytes are not a picture). A failure of this machine's own disk is not a miss and is never logged as one: see `picture.unreadable` and `picture.unwritable` below. Replaced `preview.cached` / `preview.absent` on 2026-10-06 |
 > | `run.completed` | the run's works split into resolved, unresolved and unreachable |
 >
 > **The supplement's events, which are a separate subsystem.** A run may offer
@@ -282,11 +282,16 @@ between planes.
 > | `pictures.cleaned` | INFO | the store's stray temporary files were removed at startup, with how many. Logged at every start, zero included |
 > | `pictures.imported` | INFO | the startup import of the old `previews/` directory ran, with rows `imported`, `missing`, `refused` and `failed`, files no row names (`unnamed`), and `done`. Logged at every start; `done` is when `previews/` may be removed by hand |
 > | `pictures.import_failed` | WARNING | one row's old preview could not be read, or its picture or row could not be written. Counted in `failed`, so `done` is false until a later start succeeds |
-> | `picture.unreadable` | WARNING | a kept picture's file could not be read when a card asked for it; the card reports no picture |
+> | `picture.unreadable` | WARNING | the store could not be read: when keeping a picture (so nothing is fetched over it), or when a card or the model's copy asked for a kept file that will not read or decode. Every kept file is one the store wrote and checked, so this is the disk, never a museum |
+> | `picture.unwritable` | WARNING | a picture arrived and could not be written: a full or read-only disk. The instance is recorded without a picture, and the run goes on |
+> | `pictures.import_retired` | INFO | the old `previews/` directory is gone, so the startup import walked nothing. The state after the operator removes it |
 >
 > The store's size is not a log line: its files and bytes are on the health panel
 > and `art_display(action='status')`, from a walk at most ten minutes old, because
-> a store with no ceiling is watched as a figure rather than as an event.
+> a store with no ceiling is watched as a figure rather than as an event. **The
+> walk counts what it could not read** (`unreadable`), and the panel's sentence
+> then says the store could not be read in full rather than "no pictures yet": an
+> unreadable store must never read as an empty one.
 
 > **The topic sweep's events, added 2026-10-02** (`library/services/topic_sweep.py`,
 > `build-plan-topics-and-destinations.md` Chunk 04). The sweep keeps the

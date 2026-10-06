@@ -559,11 +559,6 @@ class Settings:
         return self.art_root / TILE_CACHE_DIRNAME
 
     @property
-    def previews_path(self) -> Path:
-        """Where phase 2 cached previews before the picture store; read only by its import."""
-        return self.art_root / PREVIEWS_DIRNAME
-
-    @property
     def pictures_path(self) -> Path:
         """Where every picture fetched from outside is kept, for good.
 

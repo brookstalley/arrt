@@ -28,6 +28,20 @@ from arrt.services.errors import ServiceError
 
 log = logging.getLogger(__name__)
 
+#: What Pillow raises for a file that is not a picture it can decode, named once
+#: so every caller catches the same set: `OSError` for a truncated file (and
+#: `UnidentifiedImageError`, which is an `OSError`, for one that is not an image
+#: at all), and `ValueError` from `convert` for at least one mode (`La`). A tuple
+#: rather than an `except (A, B)` at each site, because the formatter's 3.14 style
+#: unparenthesises a bare multi-type `except`, which the root suite's older
+#: interpreter cannot parse (#166).
+UNDECODABLE: Final[tuple[type[Exception], ...]] = (OSError, ValueError)
+
+#: `UNDECODABLE`, and Pillow's guard against a file engineered to exhaust memory,
+#: which derives straight from `Exception`. For a caller that answers both the
+#: same way; one that words a bomb differently catches it by name first.
+UNREADABLE: Final[tuple[type[Exception], ...]] = (*UNDECODABLE, Image.DecompressionBombError)
+
 #: JPEG, always. Both callers produce something a client renders immediately
 #: rather than an archival copy, and the source is already whatever the museum
 #: served — re-encoding to a second format would cost a decision nobody needs.

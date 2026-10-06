@@ -51,7 +51,7 @@ from arrt.persistence.discovery_records import (
 )
 from arrt.persistence.records import Artist, Artwork, Client, Directive, Source, Theme, VocabularyKind, Wall
 from arrt.programming.clients import ClientView
-from arrt.programming.display import UNSET, ThemePlacement, WallView, describe_wall_status
+from arrt.programming.display import UNSET, ThemePlacement, WallView
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.services.container import Services
 from arrt.services.health import PicturesReading, SourceHealth
@@ -869,21 +869,38 @@ def _verdict_notice(outcome: VerdictOutcome) -> str | None:
     )
 
 
+#: Which of the health panel's readings `art_display(action='status')` carries.
+#: The action is built from the same single `HealthService.observe()` call
+#: `GET /api/health` is, and `test_surface_parity.py` compares these two names
+#: against every field of `HealthReading`, so a signal added to the panel has to
+#: be placed here or in `_STATUS_LEAVES` with a reason.
+_STATUS_CARRIES: Final[frozenset[str]] = frozenset({"walls", "pictures"})
+
+#: The panel's readings this action leaves out, and why.
+_STATUS_LEAVES: Final[Mapping[str, str]] = {
+    "backup": "the catalogue's backup is the operator's to watch on Status, not a question a model is asked",
+    "artwork_box": "the deployment's geometry; every size a tool reports is already in inches on this wall",
+    "sources": "art_discovery(action='source_plugins') answers it, in GET /api/sources' names",
+}
+
+
 def _wall_status(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
-    """Every wall's heartbeat, and one sentence across them.
+    """Every wall's heartbeat, and one sentence across them, and the picture store's size.
 
     **All the walls rather than one**, and without a `wall_id` to narrow it. The
     question this action is asked is "is anything wrong", and an action that
     answered it about one room would let a model report a healthy installation
     having looked at the room that was fine.
+
+    **One reading, the health panel's own** (`HealthService.observe`), so the
+    walls and the store are read at one instant and no signal can reach the
+    panel's surface by a path this one does not share.
     """
-    seen = services.display.survey_wall_status()
+    reading = services.health.observe()
+    seen = reading.walls
     return ok(
-        # Composed from the readings just taken rather than from a second pass,
-        # so the sentence and the list below it cannot describe two different
-        # instants — and from the shared function, so it cannot differ in
-        # wording from what the browser panel states.
-        observation=describe_wall_status(seen),
+        # The reading's own sentence, the same one the browser panel states.
+        observation=reading.describe(),
         walls=[
             {
                 "wall_id": each.wall.id,
@@ -898,10 +915,9 @@ def _wall_status(services: Services, _arguments: Mapping[str, Any]) -> dict[str,
             for each in seen
         ],
         count=len(seen),
-        # The picture store's size, as the health panel shows it. Here because
-        # this action is the panel's twin: the question it answers is "is
-        # anything wrong", and a store with no ceiling is watched, not bounded.
-        pictures=_pictures_fields(services.health.observe_pictures()),
+        # A store with no ceiling is watched, not bounded, and "is anything
+        # wrong" includes a disk refusing it.
+        pictures=_pictures_fields(reading.pictures),
     )
 
 
@@ -911,6 +927,7 @@ def _pictures_fields(reading: PicturesReading) -> dict[str, Any]:
         "pictures_bytes": reading.pictures_bytes,
         "pictures_files": reading.pictures_files,
         "age_seconds": reading.age_seconds,
+        "unreadable": reading.unreadable,
         "description": reading.describe(),
     }
 

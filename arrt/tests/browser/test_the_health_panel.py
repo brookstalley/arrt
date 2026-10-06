@@ -175,3 +175,27 @@ def test_a_reading_without_the_store_count_says_so(ui, a_health_reading):
     ui.page.wait_for_selector("h2:has-text('Status')")
 
     assert "carries no count of kept pictures" in ui.text()
+
+
+def test_a_store_the_disk_refused_shows_what_could_not_be_read(ui, a_health_reading):
+    """An unreadable store must not read as an empty one: the entries refused are a fact of their own."""
+    reading = a_health_reading()
+    reading["pictures"].update(unreadable=3, description="The picture store could not be read in full.")
+    ui.serve("**/api/health", reading)
+
+    ui.open("#health")
+    ui.page.wait_for_selector(".pictures-reading")
+    panel = ui.page.locator(".pictures-reading").inner_text()
+
+    assert "could not be read in full" in panel
+    assert "Could not be read" in panel
+    assert "3 entries" in panel
+
+
+def test_a_healthy_store_shows_no_could_not_be_read_fact(ui, a_health_reading):
+    ui.serve("**/api/health", a_health_reading())
+
+    ui.open("#health")
+    ui.page.wait_for_selector(".pictures-reading")
+
+    assert "Could not be read" not in ui.page.locator(".pictures-reading").inner_text()

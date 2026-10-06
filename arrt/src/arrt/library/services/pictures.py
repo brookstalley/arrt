@@ -38,10 +38,12 @@ to hold.
 
 import hashlib
 import logging
+import os
 import re
 import string
 import threading
 import uuid
+from collections import Counter
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
@@ -51,13 +53,14 @@ from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Final, Protocol
 from urllib.parse import parse_qsl, quote, urlsplit
 
-from PIL import Image, UnidentifiedImageError
+from PIL import Image
 
-from arrt.library.services.imaging import encode_downscaled, measure
+from arrt.library.services.imaging import UNDECODABLE, UNREADABLE, encode_downscaled, measure
 from arrt.services.errors import ServiceError
 
 if TYPE_CHECKING:
     from arrt.library.services.discovery import DiscoveryService
+    from arrt.persistence.discovery_records import CandidateImage
 
 log = logging.getLogger(__name__)
 
@@ -106,6 +109,10 @@ class StoreSize:
     pictures_bytes: int
     pictures_files: int
     measured_at: datetime
+    #: Directories and files the walk could not read, so the count is short by
+    #: what they hold. Zero on a healthy disk; anything else is this machine's
+    #: fault, and it is stated rather than folded into a smaller count.
+    unreadable: int = 0
 
 
 class PictureRefused(Exception):
@@ -114,6 +121,13 @@ class PictureRefused(Exception):
 
 class _NotKept(Exception):
     """Why `keep` has no picture to hand back. Never leaves this module."""
+
+    def __init__(self, why: str, *, event: str = "picture.absent") -> None:
+        super().__init__(why)
+        #: `picture.absent` for a source's miss, which is ordinary; the
+        #: store's own disk failing is this machine's fault and gets its own
+        #: event at WARNING (`picture.unreadable`, `picture.unwritable`).
+        self.event = event
 
 
 class PreviewSource(Protocol):
@@ -140,8 +154,21 @@ def _normalise(url: str) -> str:
     **Every query parameter is kept**, only reordered: SMK's API spelling of an
     object (`api.smk.dk/api/v1/art?object_number=KMS1`) carries the object in
     its query. A `+` reads as a space there, as a form would read it.
+
+    **Total: a URL that will not parse is its own spelling.** `urlsplit` raises
+    `ValueError` for an authority with an unbalanced `[` or `]` (`dedup.py` keeps
+    the same guard), and a key that raised would end a run over one instance's
+    address, or stop the plane booting over one stored row. The stripped string is
+    stable, so it still keys one picture.
     """
-    parts = urlsplit(url.strip())
+    try:
+        return _normalised(url.strip())
+    except ValueError:
+        return url.strip()
+
+
+def _normalised(url: str) -> str:
+    parts = urlsplit(url)
     scheme = parts.scheme.lower()
     host = parts.hostname or ""
     if ":" in host:
@@ -227,11 +254,6 @@ class PictureStore:
         """The tree every path this store hands out is relative to."""
         return self._art_root
 
-    @property
-    def directory(self) -> Path:
-        """Where the pictures are kept."""
-        return self._directory
-
     # -- reading ---------------------------------------------------------------
 
     def find(self, stored: str, *, max_edge: int) -> Path | None:
@@ -268,10 +290,6 @@ class PictureStore:
         if matched is None or bucket != matched.group(1)[:2] or int(matched.group(2)) not in TIERS:
             return None
         return matched.group(1)
-
-    def owns(self, stored: str) -> bool:
-        """Whether `stored` is under this store's directory, whatever its shape."""
-        return PurePosixPath(stored).parts[: len(self._prefix)] == self._prefix
 
     def relative(self, path: Path) -> str:
         """`path` as a row records it: relative to `ART_ROOT`."""
@@ -314,7 +332,7 @@ class PictureStore:
             with self._held(key):
                 kept = self._kept_or_fetched(key, provider, preview_url)
         except _NotKept as exc:
-            return self._absent(url, str(exc))
+            return self._absent(url, str(exc), event=exc.event)
         return self.relative(kept)
 
     def _kept_or_fetched(self, key: str, provider: str, preview_url: str) -> Path:
@@ -325,7 +343,7 @@ class PictureStore:
             if _present(largest):
                 return largest
         except OSError as exc:
-            raise _NotKept(f"the store could not be read: {exc}") from exc
+            raise _NotKept(f"the store could not be read: {exc}", event="picture.unreadable") from exc
         if self._sources is None:
             raise _NotKept("no image source is configured to fetch it from")
         try:
@@ -344,7 +362,7 @@ class PictureStore:
         except OSError as exc:
             # A full or read-only disk degrades the card; it must not end a run
             # that has already found its images.
-            raise _NotKept(f"the picture could not be written: {exc}") from exc
+            raise _NotKept(f"the picture could not be written: {exc}", event="picture.unwritable") from exc
 
     def put(self, provider: str, url: str, payload: bytes) -> Path:
         """Re-encode `payload` and keep it as this instance's picture, returning the largest tier.
@@ -366,8 +384,7 @@ class PictureStore:
             # Pillow's own guard, named apart because a file engineered to
             # exhaust memory is worth a different line from a corrupt one.
             raise PictureRefused(f"it is too large to open safely: {exc}") from exc
-        except (OSError, UnidentifiedImageError, ValueError) as exc:
-            # `ValueError` for the mode `convert` refuses (`La`); see `imaging.py`.
+        except UNDECODABLE as exc:
             raise PictureRefused(f"it could not be read as a picture: {exc}") from exc
         # Smallest first, so the largest tier's presence means every tier is
         # written: `keep` asks only after the largest.
@@ -418,11 +435,18 @@ class PictureStore:
                 else:
                     self._locks[key] = (lock, users - 1)
 
-    def _absent(self, url: str, why: str) -> None:
-        """One exit for every way a picture fails to be kept, so the log line cannot drift."""
-        log.info(
+    def _absent(self, url: str, why: str, *, event: str = "picture.absent") -> None:
+        """One exit for every way a picture fails to be kept, so the log line cannot drift.
+
+        A source's miss is ordinary and logged at INFO; this machine's own disk
+        refusing a read or a write is a fault, logged at WARNING under its own
+        event, so a store that has stopped working does not read like a quiet one.
+        """
+        level = logging.INFO if event == "picture.absent" else logging.WARNING
+        log.log(
+            level,
             "no picture was kept for an instance; review will fall back to its source URL",
-            extra={"event": "picture.absent", "image_url": url, "reason": why},
+            extra={"event": event, "image_url": url, "reason": why},
         )
 
     # -- the health panel -----------------------------------------------------------
@@ -440,19 +464,37 @@ class PictureStore:
             return self._size
 
     def _walk(self, now: datetime) -> StoreSize:
-        total = files = 0
-        if self._directory.is_dir():
-            for path in self._directory.rglob("*.jpg"):
+        """Count every kept tier file and its bytes, and what could not be read.
+
+        Walked by hand rather than with `rglob`, which skips a directory it
+        cannot scan without saying so: an unreadable store would then count as
+        an empty one.
+        """
+        total = files = unreadable = 0
+        pending = [self._directory]
+        while pending:
+            directory = pending.pop()
+            try:
+                with os.scandir(directory) as entries:
+                    listed = list(entries)
+            except FileNotFoundError:
+                # No store yet (or a bucket gone mid-walk): nothing to count.
+                continue
+            except OSError:
+                unreadable += 1
+                continue
+            for entry in listed:
                 try:
-                    if not path.is_file():
-                        continue
-                    total += path.stat().st_size
-                except OSError:
-                    # Gone between listing and stat, or unreadable: it is not
-                    # counted, and the next walk counts it if it is there.
+                    if entry.is_dir(follow_symlinks=False):
+                        pending.append(Path(entry.path))
+                    elif entry.name.endswith(".jpg") and entry.is_file(follow_symlinks=False):
+                        total += entry.stat(follow_symlinks=False).st_size
+                        files += 1
+                except FileNotFoundError:
                     continue
-                files += 1
-        return StoreSize(pictures_bytes=total, pictures_files=files, measured_at=now)
+                except OSError:
+                    unreadable += 1
+        return StoreSize(pictures_bytes=total, pictures_files=files, measured_at=now, unreadable=unreadable)
 
     # -- startup -----------------------------------------------------------------
 
@@ -480,17 +522,11 @@ def _present(path: Path) -> bool:
         return False
 
 
-#: What a kept file's header can fail with. Named rather than written in place: the
-#: formatter's 3.14 style unparenthesises a bare multi-type `except`, which the
-#: root suite's older interpreter cannot parse when it reads this source.
-_UNREADABLE_HEADER: Final = (OSError, UnidentifiedImageError, ValueError, Image.DecompressionBombError)
-
-
 def _long_edge(path: Path) -> int:
     """A kept file's long edge, read from its header. A file that will not say is never full size."""
     try:
         return max(measure(path))
-    except _UNREADABLE_HEADER:
+    except UNREADABLE:
         return TIERS[-1]
 
 
@@ -526,39 +562,35 @@ def import_previews(store: PictureStore, discovery: DiscoveryService, *, legacy:
     (two rows sharing one old file, or a row recorded since) repoints the row
     without reading the file again. Nothing is deleted: the operator removes
     `legacy` by hand once the log line reports `done`.
+
+    **It retires itself with the directory.** Once `legacy` is gone nothing can be
+    imported (a row still naming a file there could only count as missing), so the
+    walk over every run's rows is skipped and one line says so.
+
+    **One row never stops the plane booting.** Any failure on a row is counted in
+    `failed` and logged with its type, and the walk goes on to the next.
     """
+    if not legacy.is_dir():
+        log.info(
+            "the old preview directory is gone, so there is nothing to import",
+            extra={"event": "pictures.import_retired", "legacy": str(legacy)},
+        )
+        return PreviewImport(imported=0, missing=0, refused=0, failed=0, unnamed=0)
     prefix = PurePosixPath(legacy.relative_to(store.art_root).as_posix()).parts
     named: set[str] = set()
-    imported = missing = refused = failed = 0
+    outcomes: Counter[str] = Counter()
     for run in discovery.list_runs():
         for work in discovery.list_candidate_works(run.id):
             for image in discovery.list_candidate_images(work.id):
                 if image.preview_path is None or PurePosixPath(image.preview_path).parts[: len(prefix)] != prefix:
                     continue
                 named.add(image.preview_path)
-                try:
-                    kept = store.find_for(image.provider, image.url, max_edge=TIERS[-1])
-                    if kept is None:
-                        source = store.art_root / image.preview_path
-                        if not source.is_file():
-                            missing += 1
-                            continue
-                        kept = store.put(image.provider, image.url, source.read_bytes())
-                    discovery.repoint_preview(image.id, store.relative(kept))
-                except PictureRefused:
-                    refused += 1
-                    continue
-                except (OSError, ServiceError) as exc:
-                    log.warning(
-                        "a preview could not be imported into the picture store",
-                        extra={"event": "pictures.import_failed", "candidate_image_id": image.id, "reason": str(exc)},
-                    )
-                    failed += 1
-                    continue
-                imported += 1
-    unnamed = 0
-    if legacy.is_dir():
-        unnamed = sum(1 for path in legacy.iterdir() if path.is_file() and store.relative(path) not in named)
+                outcomes[_import_row(store, discovery, image)] += 1
+    unnamed = _unnamed(store, legacy, named)
+    if unnamed is None:
+        outcomes["failed"] += 1
+        unnamed = 0
+    imported, missing, refused, failed = (outcomes[name] for name in ("imported", "missing", "refused", "failed"))
     report = PreviewImport(imported=imported, missing=missing, refused=refused, failed=failed, unnamed=unnamed)
     # At INFO whatever it found, so an operator waiting to remove `previews/`
     # can see the import ran and whether it is done.
@@ -575,3 +607,46 @@ def import_previews(store: PictureStore, discovery: DiscoveryService, *, legacy:
         },
     )
     return report
+
+
+def _import_row(store: PictureStore, discovery: DiscoveryService, image: CandidateImage) -> str:
+    """Import one row's old preview: `imported`, `missing`, `refused` or `failed`. Never raises."""
+    try:
+        kept = store.find_for(image.provider, image.url, max_edge=TIERS[-1])
+        if kept is None:
+            source = store.art_root / image.preview_path
+            if not source.is_file():
+                return "missing"
+            kept = store.put(image.provider, image.url, source.read_bytes())
+        discovery.repoint_preview(image.id, store.relative(kept))
+    except PictureRefused:
+        return "refused"
+    except Exception as exc:  # prawduct:allow prawduct/broad-except -- one row must not stop the plane booting
+        # The ordinary failures are a disk (`OSError`) and the row write
+        # (`ServiceError`); anything else is a defect, logged with its
+        # traceback, and still costs one row rather than every start until
+        # someone edits that row.
+        log.warning(
+            "a preview could not be imported into the picture store",
+            extra={
+                "event": "pictures.import_failed",
+                "candidate_image_id": image.id,
+                "reason": f"{type(exc).__name__}: {exc}",
+            },
+            exc_info=not isinstance(exc, (OSError, ServiceError)),
+        )
+        return "failed"
+    return "imported"
+
+
+def _unnamed(store: PictureStore, legacy: Path, named: set[str]) -> int | None:
+    """Files in the old directory no row names, or `None` when it could not be listed."""
+    try:
+        return sum(1 for path in legacy.iterdir() if path.is_file() and store.relative(path) not in named)
+    except OSError as exc:
+        # What it still holds is unknown, so the import is not done.
+        log.warning(
+            "the old preview directory could not be listed",
+            extra={"event": "pictures.import_failed", "legacy": str(legacy), "reason": str(exc)},
+        )
+        return None
