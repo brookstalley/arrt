@@ -125,9 +125,9 @@ const ROUTES = {
   health: { render: viewHealth, section: "system", page: "Status" },
   work: { render: viewWork, detail: true, opensFrom: "collection" },
   // Everything a few words find, the library's and Wikidata's (ruling 2), as
-  // Sonarr's search results are a page of their own. Reached from the
-  // dropdown's last row; Enter still opens Artworks filtered, so it returns
-  // there by default.
+  // Sonarr's search results are a page of their own. Reached by Enter in the
+  // search box (the owner, 2026-10-06) and from the dropdown's last row; it
+  // returns to Artworks by default.
   search: { render: viewSearch, opensFrom: "collection" },
   // One topic, browsed like a genre, reached from Library › Topics, the top
   // bar's dropdown, or a search on the Topics page, and returned to Topics by a

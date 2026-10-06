@@ -4,8 +4,9 @@
 its source: typing searches the library, and the dropdown's last row offers the
 same words as a search of everything, handed to Ask. Two departures, each
 tested here: Ask fills the words in and does not start the search, because
-a museum search is a paid run; and Enter with nothing highlighted opens Artworks
-filtered to the query rather than the first match, as the owner ruled.
+a museum search is a paid run; and Enter with nothing highlighted opens the
+Search results page rather than the first match, as the owner ruled on
+2026-10-06. The library's groups sit under a *Held* heading, each named for it.
 """
 
 import pytest
@@ -46,9 +47,16 @@ def test_typing_offers_library_matches_then_a_search_of_everything(ui, seeded_se
     # which scope an option is in: asserted by role and accessible name, which
     # visible text alone cannot prove.
     listbox = ui.page.get_by_role("listbox", name="Suggestions")
-    assert listbox.get_by_role("group", name="Artists").get_by_role("option").all_inner_texts() == ["Salvador Dalí — artist"]
-    assert listbox.get_by_role("group", name="In your library").get_by_role("option").count() == 1
-    assert listbox.get_by_role("group", name="Ask").get_by_role("option").all_inner_texts() == ["Ask about “Dalí”"]
+    held_artists = listbox.get_by_role("group", name="Held: artists", exact=True)
+    assert held_artists.get_by_role("option").all_inner_texts() == ["Salvador Dalí — artist"]
+    assert listbox.get_by_role("group", name="Held: works", exact=True).get_by_role("option").count() == 1
+    assert listbox.get_by_role("group", name="Ask", exact=True).get_by_role("option").all_inner_texts() == ["Ask about “Dalí”"]
+    # Each half is drawn once, above its groups, and hidden from a screen reader,
+    # which hears it in each group's name instead. With no registry configured,
+    # Not held holds only the note saying so.
+    halves = ui.page.locator(f"{LISTBOX} .search-suggestions-half")
+    assert halves.all_inner_texts() == ["Held", "Not held"]
+    assert halves.evaluate_all("nodes => nodes.map(node => node.getAttribute('aria-hidden'))") == ["true", "true"]
 
 
 def test_typing_without_the_accent_still_offers_the_library_match(ui, seeded_service):
@@ -67,16 +75,30 @@ def test_typing_without_the_accent_still_offers_the_library_match(ui, seeded_ser
     ]
 
 
-def test_with_no_library_match_only_the_search_of_everything_is_offered(ui, seeded_service):
+def test_with_no_library_match_held_is_one_line_and_only_the_search_of_everything_is_offered(ui, seeded_service):
     """Sonarr leaves out the library group when nothing matches, rather than
-    heading an empty list."""
+    heading an empty list; here the Held half says so in one line, with no group
+    for each kind it lacks (the owner, 2026-10-06)."""
     ui.open("#walls")
     ui.page.wait_for_selector("#view h2")
 
     type_into_search(ui, "Vermeer")
 
     assert options(ui) == ["Ask about “Vermeer”", "All results for “Vermeer”"]
-    assert ui.page.locator(f"{LISTBOX} .search-suggestions-label", has_text="library").count() == 0
+    assert ui.page.locator(f"{LISTBOX} .search-suggestions-label").all_text_contents() == ["Ask", "Search"]
+    assert ui.page.locator(f"{LISTBOX} .search-suggestions-none").all_inner_texts()[0] == "Nothing you hold matches."
+    # Not an option: arrow keys pass over it.
+    assert ui.page.locator(f"{LISTBOX} .search-suggestions-none").first.get_attribute("role") == "presentation"
+
+
+def test_a_library_match_leaves_out_the_nothing_held_line(ui, seeded_service):
+    """The paired negative: the one line is for an empty half only."""
+    ui.open("#walls")
+    ui.page.wait_for_selector("#view h2")
+
+    type_into_search(ui, "Dalí")
+
+    assert "Nothing you hold matches." not in ui.page.inner_text(LISTBOX)
 
 
 def test_the_field_is_a_combobox_the_keyboard_can_drive(ui, seeded_service):
@@ -161,33 +183,36 @@ def test_add_new_reached_without_a_term_starts_empty(ui, seeded_service):
     assert ui.page.input_value("#intent") == ""
 
 
-def test_enter_with_several_matches_opens_artworks_filtered_not_the_first(ui, seeded_service):
-    """The owner's ruling: an artist or a movement matches many works, so the
-    first match is an arbitrary one. "the" matches two seeded works."""
-    ui.open("#walls")
+def test_enter_with_several_matches_opens_the_results_page_not_the_first(ui, seeded_service):
+    """An artist or a movement matches many works, so the first match is an
+    arbitrary one; Enter opens every match, on the results page (the owner,
+    2026-10-06). "the" matches two seeded works."""
+    ui.open("#collection")
     ui.page.wait_for_selector("#view h2")
 
     type_into_search(ui, "the")
-    library = ui.page.get_by_role("listbox", name="Suggestions").get_by_role("group", name="In your library")
+    library = ui.page.get_by_role("listbox", name="Suggestions").get_by_role("group", name="Held: works", exact=True)
     assert (
         library.get_by_role("option").count() == 2
     ), "the fixture must match more than one work, or this cannot tell first from all"
     ui.page.keyboard.press("Enter")
 
-    ui.page.wait_for_selector("#view h2:has-text('matching')")
-    assert ui.page.evaluate("() => window.location.hash") == "#collection?q=the"
-    assert ui.page.locator("ul.grid li.card").count() == 2
+    ui.page.wait_for_selector("#view h2:text-is('Results for “the”')")
+    # Opened from Artworks, the results page's own default return, so no `from`.
+    assert ui.page.evaluate("() => window.location.hash") == "#search?q=the"
+    assert ui.page.locator("section[aria-labelledby='results-held-works'] li").count() == 2
 
 
-def test_enter_with_no_match_opens_artworks_saying_so(ui, seeded_service):
+def test_enter_with_no_match_opens_the_results_page_saying_so(ui, seeded_service):
     ui.open("#walls")
     ui.page.wait_for_selector("#view h2")
 
     type_into_search(ui, "Vermeer")
     ui.page.keyboard.press("Enter")
 
-    ui.page.wait_for_selector("#view .empty")
-    assert ui.page.evaluate("() => window.location.hash") == "#collection?q=Vermeer"
+    ui.page.wait_for_selector("#view .results-none")
+    assert ui.page.evaluate("() => window.location.hash") == "#search?from=walls&q=Vermeer"
+    assert ui.page.locator("#view .results-none").inner_text() == "Nothing you hold matches."
     assert not ui.page.locator(LISTBOX).is_visible()
 
 

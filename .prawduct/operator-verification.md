@@ -39,6 +39,23 @@ deployed, and the NAS's `previews/` has never been imported.
   1,200 px previews), and whether the panel wants a sentence about disk free
   beside it.
 
+### Search grouped Held / Not held, and Enter opens the results — added 2026-10-06
+
+**`build-plan-search-held-not-held.md` Chunk 01.** Visual change: yes.
+
+Supersedes what the 2026-10-01 entries below say about Enter, the dropdown's
+group names, and the results page's *All* / *In your library* / *Not held* switch,
+which is gone: nothing there is to be judged any more. Checked by the builder against the browser suite. Not yet deployed.
+
+- **Look at:** typing in the search box shows two halves, *Held* and *Not held*.
+  An empty Held is one line, "Nothing you hold matches." Wikidata's artists, works
+  and topics are under Not held.
+- **Try:** type "mortensen tantra-vision" and press Enter. The results page opens
+  with Held as one line and *Tantra-Vision. With Gallic Palette* under Not held,
+  which opens its work page (the dead end of 2026-10-06).
+- **Worth an opinion:** whether the half headings read clearly on a phone, and
+  whether "Open in Artworks" sits where you'd look for it.
+
 ### SMK as a source — added 2026-10-06
 
 **`build-plan-smk-source.md` Chunk 01.** Visual change: no; live integration.
