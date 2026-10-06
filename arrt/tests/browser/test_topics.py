@@ -647,7 +647,12 @@ def test_wikidatas_topic_the_library_is_in_is_held_though_its_name_differs(ui, h
 
 def _results(ui, query):
     ui.open(f"#search?q={query}")
-    ui.page.wait_for_function("() => !document.querySelector('#view p[aria-live]').textContent.startsWith('Asking')")
+    # The Not held group's own note, and only once it is drawn: read before the
+    # page is, a bare `#view p[aria-live]` is null, or the page before's.
+    ui.page.wait_for_function(
+        "() => { const note = document.querySelector(\"section[aria-labelledby='results-not-held'] p[aria-live]\");"
+        " return note !== null && !note.textContent.startsWith('Asking'); }"
+    )
 
 
 def _result_rows(ui, half):

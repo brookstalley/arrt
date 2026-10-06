@@ -123,6 +123,22 @@ class RegistryHoldingOut(BaseModel):
     works: int
 
 
+class ArtistCandidateOut(BaseModel):
+    qid: str
+    name: str
+    born: int | None
+    died: int | None
+    #: Whether their years agree with the library's, by the matcher's own test.
+    years_agree: bool
+
+
+class UnlinkedArtistOut(BaseModel):
+    artist_id: str
+    name: str
+    born: int | None
+    died: int | None
+
+
 class ArtistRegistryOut(BaseModel):
     """What Wikidata knows about an artist, or why there is nothing to show.
 
@@ -149,6 +165,12 @@ class ArtistRegistryOut(BaseModel):
     #: How many works the registry lists in all; `works` is the most renowned of them.
     works_total: int
     holdings: list[RegistryHoldingOut]
+    #: State `no_identity` only: who Wikidata's name search says the library's
+    #: artist might be, those whose years agree first. Proposed, never stored.
+    candidates: list[ArtistCandidateOut] = []
+    #: An artist reached by QID: the library's artists of the same name with no
+    #: QID, whom the page offers to link to this item.
+    unlinked: list[UnlinkedArtistOut] = []
 
 
 class RegistryCreatorOut(BaseModel):
@@ -1175,6 +1197,11 @@ class CandidateWorkOut(BaseModel):
     offered_for_artist: str | None
     offered_artist_matched: int | None
     verdict: str
+    #: Whether the verdict is final (`Verdict.is_terminal`): accepted or rejected.
+    #: A decided work takes no second verdict and no change of scan, so the review
+    #: card offers neither; served rather than listed in the client, so a verdict
+    #: made final later reaches the card without a second copy to update.
+    decided: bool
     resolution_status: str
     #: Which kind of nothing an unresolved work came back with, or null. A bare
     #: `unresolved` cannot tell a title nobody holds from a scan too small for

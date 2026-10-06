@@ -2095,8 +2095,9 @@ the catalogue**: a file of its own under `ART_ROOT`, holding no record and
 referred to by none. General purpose: the store names no source; each use
 registers a namespace with its own maximum age, size and codec. The registry's
 page sections are its first users (namespaces `registry.artist`,
-`registry.similar`, `registry.work`, `registry.search`, each 7 days and 512
-answers).
+`registry.similar`, `registry.work`, `registry.search`, and since 2026-10-06
+`registry.people` (an unlinked artist's name search, keyed by the name), each
+7 days and 512 answers).
 
 | Field | Type | Constraints | Description |
 |---|---|---|---|

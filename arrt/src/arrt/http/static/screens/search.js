@@ -240,11 +240,13 @@ function artistRows(library, found) {
   return { held, notHeld };
 }
 
+/* No mark: the group heading the row sits under says whether the library holds
+ * them, and a mark beside it said it again (the owner, 2026-10-06). The top
+ * result, which sits under no group, keeps its mark. */
 function artistRow(row) {
   return el("li", {}, [
     el("button", { class: "row-title", type: "button", text: row.name, onclick: row.open }),
     row.life ? el("span", { class: "muted", text: ` ${row.life}` }) : null,
-    stateMark({ held: row.held }),
   ]);
 }
 
@@ -266,7 +268,7 @@ function workRows(library, found, getting) {
       const row = {
         title: named(work.title, work.qid),
         by: work.creator ? named(work.creator.name, work.creator.qid) : null,
-        mark: workState(work, { opens: false }),
+        mark: workState(work, { opens: false, grouped: true }),
         open: () => (isHeld ? go("work", work.held_artwork_ids[0]) : go("work", work.qid)),
         box: isHeld ? null : getting.box(work.qid, named(work.title, work.qid)),
       };
