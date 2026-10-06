@@ -119,6 +119,9 @@ Done when:
   - a held QID;
   - a picture key from another QID or an expired look gets a 404;
   - MCP parity, and the MCP hold.
+- Carried from the picture store's review (an observation accepted there): `picture_key`
+  encodes with `errors="surrogatepass"`, so a lone surrogate in a source's URL cannot
+  make `PictureStore.keep` raise. Add one example test through `keep`.
 - Observability: `look.started`, `look.source_answered`, `look.source_unreachable`,
   `look.abandoned`, `look.picture_served`, with a `look_qid` context variable.
 - Records: `api-contract.md`, `security-model.md`, `observability-strategy.md`,
