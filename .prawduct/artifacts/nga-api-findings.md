@@ -151,7 +151,9 @@ Three routes were measured to work, and recorded here as options on 2026-10-06:
 **The owner chose the first the same day**, and bounded it. The file sits on disk
 gzipped, under the deployment's data area. It is refreshed at most once a day,
 with a conditional request. It is parsed into memory only when a query asks the
-NGA, and released after six hours with no NGA query. The build plan is
+NGA, and released after six hours with no NGA query. The owner then confirmed
+the design, including keeping `objects.csv` beside the image file under the same
+bounds (§ Measured for the build says why). The build plan is
 `build-plan-nga-source.md`, and the reader's shape is settled by the
 measurements above:
 

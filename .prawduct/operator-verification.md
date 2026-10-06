@@ -30,8 +30,9 @@ and clock, and against the live hosts (`live_museum`). Not yet deployed.
   `nga.catalogue_released`, and the container's memory falls by about 80 MB. A
   day later, the first NGA query says `nga.catalogue_unchanged` (a 304) or
   downloads a new day's file.
-- **Worth an opinion:** the plugin keeps `objects.csv` as well as the file the
-  ruling named, for NGA's own titles and artists (the build plan's first decision).
+- **Worth an opinion:** about a quarter of NGA's attributions differ from
+  Wikidata's creator label under the identity check's key (`Rembrandt van Rijn`
+  against `Rembrandt`), and those finds are refused on the artist (#245).
 
 ### A work you don't hold shows what the sources hold, before any Get — added 2026-10-06
 
