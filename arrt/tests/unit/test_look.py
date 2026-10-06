@@ -465,8 +465,11 @@ def test_a_picture_is_served_from_the_store_only_for_a_key_this_work_s_look_name
 def test_the_look_writes_nothing_to_the_catalogue(build, catalogue_file):
     def every_row() -> dict[str, list]:
         tables = [row["name"] for row in catalogue_file.select_rows("SELECT name FROM sqlite_master WHERE type = 'table'")]
-        # The names are sqlite's own, read just above; nothing outside the file reaches the statement.
-        return {table: sorted(map(repr, catalogue_file.select_rows(f"SELECT * FROM {table}"))) for table in tables}  # noqa: S608
+        rows = {}
+        for table in tables:
+            statement = f"SELECT * FROM {table}"  # noqa: S608 -- names are sqlite_master's own, read just above
+            rows[table] = sorted(map(repr, catalogue_file.select_rows(statement)))
+        return rows
 
     before = every_row()
     smk = Source(holdings={"Tantra-Vision": [smk_image("Tantra-Vision")]})
