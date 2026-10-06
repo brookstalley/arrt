@@ -79,9 +79,14 @@ actually ran" guard. A pull request that changes only Markdown, `.prawduct/` or
 `docs/` skips the browser workflow: no browser test reads those, checked by grep.
 Neither `develop` nor `main` has branch protection, so no required check is
 stranded by the new job names. `tests/test_browser_shards.py` (root suite) holds
-two things: every browser test file is in exactly one share, and the workflow
-states one shard count in all three places. Both were seen failing on a
-planted break.
+that every test module pytest would collect under `tests/browser` (by its own
+rule, `test_*.py` and `*_test.py` in any subdirectory, walked independently of the
+script) is in exactly one share, and that the matrix is the one place the shard
+count is stated, the job reading it back as `strategy.job-total` and
+`strategy.job-index`. **From review:** the first version listed top-level
+`test_*.py` only, and its test used that same listing, so a nested or `*_test.py`
+module would have run in no shard unnoticed. Fixed, and the planted case fails
+against the old listing.
 
 ## 2026-10-06: A look shows what the image sources hold of a work, before any Get
 

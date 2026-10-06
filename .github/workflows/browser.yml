@@ -52,16 +52,15 @@ permissions:
 
 jobs:
   browser:
-    name: "The client, in a real browser (${{ matrix.shard }} of 4)"
+    name: "The client, in a real browser (${{ matrix.shard }} of ${{ strategy.job-total }})"
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       # One shard failing must not cancel the others: each names its own failures.
       fail-fast: false
       matrix:
-        # The count is in three places that must agree: here, in the job's name
-        # above and in the shard step's argument below. The root suite's
-        # `tests/test_browser_shards.py` reads all three.
+        # The shard count is stated here and only here: the job's name and the
+        # shard step read it back as `strategy.job-total` and `strategy.job-index`.
         shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
@@ -86,8 +85,8 @@ jobs:
         # skip as a provisioning failure and fails the job. Verified: unscoped,
         # this step reported "18 passed, 1 skipped" and the guard exited 1.
         run: |
-          files=$(python3 ../.github/scripts/browser_shard.py tests/browser 4 $(( ${{ matrix.shard }} - 1 )))
-          echo "Shard ${{ matrix.shard }} of 4 runs: $files"
+          files=$(python3 ../.github/scripts/browser_shard.py tests/browser ${{ strategy.job-total }} ${{ strategy.job-index }})
+          echo "Shard ${{ matrix.shard }} of ${{ strategy.job-total }} runs: $files"
           uv run pytest $files -m browser -n0 -v --junitxml=results.xml
       - name: Fail if nothing actually ran
         if: always()

@@ -5,7 +5,7 @@ parallel workers contending for a CI runner's cores turn those windows into
 flakes. So its wall clock is cut by running several serial jobs side by side,
 each on a share of the files, rather than by parallelism inside one job.
 
-**Every file lands in exactly one shard.** The partition is computed from the
+**Every test module lands in exactly one shard**, found as pytest finds them. The partition is computed from the
 directory each time, never from a list kept here, so a new test file is run by
 some shard the day it is added. `tests/test_browser_shards.py` holds that across
 the shard count the workflow uses.
@@ -25,10 +25,17 @@ import sys
 _TEST = re.compile(r"^\s*def test_", re.MULTILINE)
 
 
+#: What pytest collects as a test module, by its own defaults (Arrt's `pyproject.toml`
+#: sets no `python_files`): `test_*.py` and `*_test.py`, in any subdirectory.
+_PATTERNS = ("test_*.py", "*_test.py")
+
+
 def weights(directory: pathlib.Path) -> dict[str, int]:
-    """Each test file's name, and how many tests it defines (at least one)."""
+    """Each test module's path under `directory`, and how many tests it defines (at least one)."""
+    modules = {path for pattern in _PATTERNS for path in directory.rglob(pattern) if "__pycache__" not in path.parts}
     return {
-        path.name: max(1, len(_TEST.findall(path.read_text(encoding="utf-8")))) for path in sorted(directory.glob("test_*.py"))
+        path.relative_to(directory).as_posix(): max(1, len(_TEST.findall(path.read_text(encoding="utf-8"))))
+        for path in sorted(modules)
     }
 
 
