@@ -330,6 +330,31 @@ def test_a_head_that_never_reaches_a_frame_stops_at_the_bound():
     assert len(served) <= 5
 
 
+@pytest.mark.parametrize("status", [404, 410])
+def test_an_image_the_host_says_is_gone_skips_that_object_and_keeps_the_rest(status):
+    """Van Gogh's *Cypresses* has gone from the host; *Wheat Field* still answers for the work."""
+    gone = "https://images.metmuseum.org/CRDImages/ep/original/DP130999.jpg"
+
+    def image(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(status) if str(request.url) == gone else httpx.Response(206, content=HEAD)
+
+    found = a_finder(image=image).find_images(ImageQuery(title="Cypresses", artist="Vincent van Gogh"))
+
+    assert [image.url for image in found] == [object_url(WHEAT_FIELD)]
+
+
+def test_the_search_asks_for_a_whole_page_of_objects_with_images():
+    """Without the limit the API answers 100, which the artist narrowing would read as all of them."""
+    asked: list[httpx.Request] = []
+
+    a_finder(asked=asked).find_images(ImageQuery(title="Cypresses", artist="Vincent van Gogh"))
+
+    searches = [r for r in asked if "search" in r.url.path]
+    assert len(searches) == 2
+    for search in searches:
+        assert (search.url.params["limit"], search.url.params["hasImages"]) == ("500", "true")
+
+
 def test_an_image_host_that_refuses_the_head_could_not_be_asked():
     registry = FakeRegistry(pages={WHEAT_ITEM: [WEB_PAGE]})
 

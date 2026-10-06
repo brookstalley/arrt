@@ -22,7 +22,7 @@ deployed.
   Sources shows every plugin with its package and version: `arrt` and its version
   for `commons`, `artic`, `met` and `wikidata`, and `arrt-sources` and its version
   for `artlogic`, `moma` and `sfmoma`. `met` reads "Finds images of a work; reads
-  the addresses it claims." `art_discovery(action='sources')` answers the same.
+  the addresses it claims." `art_discovery(action='source_plugins')` answers the same.
 - **Try:** an Ask or Get for a public-domain painting the Met holds (e.g. van
   Gogh's *Wheat Field with Cypresses*, Q18689458) offers a `met` image at its full
   size (4000 × 3184).

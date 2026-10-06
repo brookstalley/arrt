@@ -420,7 +420,7 @@ def test_the_wikidata_match_projections_carry_the_same_field_names():
 
 
 def test_the_source_plugin_projections_agree_value_for_value():
-    """Settings › Sources and `art_discovery(action='sources')` read one plugin the same way."""
+    """Settings › Sources and `art_discovery(action='source_plugins')` read one plugin the same way."""
     reading = PluginReading(
         name="met",
         state=PluginState.LOADED,

@@ -263,6 +263,17 @@ def _json(response: httpx.Response) -> Mapping[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
+#: What the image host answers for an image it no longer has. The record named
+#: it, and the host says it is gone: this object offers nothing, and the rest of
+#: the work's search stands. Any other refusal (403, 429, 5xx) says nothing about
+#: the image, so it fails the search as could-not-be-asked.
+_GONE: Final[frozenset[int]] = frozenset({httpx.codes.NOT_FOUND, httpx.codes.GONE})
+
+
+class _ImageGone(Exception):
+    """The image host says the image a record names is not there."""
+
+
 class MetFinder:
     """The Met's public-domain originals of a work, found by Wikidata item or by search."""
 
@@ -330,7 +341,13 @@ class MetFinder:
                         )
                         return None
                     chunks.append(chunk)
-        except ImageSearchFailure:
+        except ImageSearchFailure as exc:
+            # Off the image host: refused before any request, and said, as every
+            # other preview that does not arrive is.
+            log.warning(
+                "refused a Met preview off its image host",
+                extra={"event": "phase_two.preview_failed", "provider": PROVIDER, "error": str(exc)},
+            )
             return None
         except httpx.HTTPError as exc:
             log.warning(
@@ -372,7 +389,8 @@ class MetFinder:
         by_artist, artist_whole = self._api.search(query.artist, field="artistOrCulture")
         if not by_artist:
             return titled, "title, the artist unknown to the Met"
-        narrowed = [object_id for object_id in titled if object_id in set(by_artist)]
+        artists = set(by_artist)
+        narrowed = [object_id for object_id in titled if object_id in artists]
         if not narrowed and not (titles_whole and artist_whole):
             return titled, "title, the artist's objects too many to narrow by"
         return narrowed, "title and artist"
@@ -391,7 +409,14 @@ class MetFinder:
             return None
         artist = record.get("artistDisplayName")
         preview = record.get("primaryImageSmall")
-        size = self._size(original)
+        try:
+            size = self._size(original)
+        except _ImageGone:
+            log.warning(
+                "skipping a Met object whose image the image host says is gone",
+                extra={"event": "met.image_gone", "provider": PROVIDER, "object_id": object_id},
+            )
+            return None
         return FoundImage(
             url=object_url(object_id),
             provider=PROVIDER,
@@ -416,6 +441,8 @@ class MetFinder:
         head = bytearray()
         try:
             with self._api.image(url, first_bytes=_HEAD_BYTES) as response:
+                if response.status_code in _GONE:
+                    raise _ImageGone(url)
                 if response.status_code not in (httpx.codes.OK, httpx.codes.PARTIAL_CONTENT):
                     raise ImageSearchFailure(f"The Met's image host answered HTTP {response.status_code} for {url}.")
                 for chunk in response.iter_bytes():

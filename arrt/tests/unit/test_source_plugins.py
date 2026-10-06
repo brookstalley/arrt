@@ -423,6 +423,36 @@ def test_a_plugin_registered_by_hand_or_unimportable_says_what_could_be_read():
     assert identity["twice"] == PluginIdentity(api_major=None)
 
 
+def test_a_name_two_packages_register_names_neither_as_its_origin():
+    """Both entries carry a real package, so the rule, not a missing package, is what empties it."""
+    met = next(point for point in importlib.metadata.entry_points(group=ENTRY_POINT_GROUP) if point.name == "met")
+    assert met.dist is not None
+
+    roster = load_sources(context(), entry_points=[met, met])
+
+    (reading,) = roster.observe()
+    assert reading.state is PluginState.FAILED
+    assert reading.identity == PluginIdentity()
+
+
+def test_a_package_whose_metadata_cannot_be_read_costs_its_origin_and_not_startup():
+    class _Unreadable:
+        @property
+        def metadata(self):
+            raise RuntimeError("corrupt METADATA")
+
+        version = "0"
+
+    point = _Fixed(entry("good", "GOOD"), _plugin_from("GOOD"))
+    point.dist = _Unreadable()
+
+    roster = load_sources(context(), entry_points=[point])
+
+    (reading,) = roster.observe()
+    assert reading.state is PluginState.LOADED
+    assert (reading.identity.distribution, reading.identity.version) == (None, None)
+
+
 @pytest.mark.parametrize(
     ("name", "environ", "said"),
     [
@@ -482,6 +512,10 @@ def test_the_built_in_plugins_import_nothing_from_arrt_but_the_interface():
 
 
 # -- helpers ------------------------------------------------------------------
+
+
+def _plugin_from(target: str) -> object:
+    return entry("x", target).load()
 
 
 class _Fixed:

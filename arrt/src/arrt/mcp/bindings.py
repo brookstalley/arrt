@@ -1123,7 +1123,7 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_discovery", "get"): _start_get,
     ("art_discovery", "list_runs"): _list_runs,
     ("art_discovery", "spend"): _spend,
-    ("art_discovery", "sources"): _image_sources,
+    ("art_discovery", "source_plugins"): _image_sources,
     ("art_review", "list_works"): _list_candidate_works,
     ("art_review", "get_work"): _get_candidate_work,
     ("art_review", "list_images"): _list_candidate_images,

@@ -1,4 +1,4 @@
-"""Every installed source plugin, over real HTTP: `GET /api/sources` and `art_discovery(action='sources')`.
+"""Every installed source plugin, over real HTTP: `GET /api/sources` and `art_discovery(action='source_plugins')`.
 
 The services are built over the plugins this interpreter has installed, read
 through their real entry points, so the distribution and version each answers
@@ -41,7 +41,7 @@ def preview_settings(settings) -> PreviewSettings:
 async def tool(server_url: str) -> dict:
     async with streamable_http_client(f"{server_url}/mcp") as (read, write, _), ClientSession(read, write) as session:
         await session.initialize()
-        result = await session.call_tool("art_discovery", {"action": "sources"})
+        result = await session.call_tool("art_discovery", {"action": "source_plugins"})
     assert not result.isError
     return json.loads(result.content[0].text)
 

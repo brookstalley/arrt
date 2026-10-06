@@ -646,12 +646,15 @@ ART_DISCOVERY: Final = ToolRecord(
             ),
         ),
         Action(
-            name="sources",
+            # Not `sources`: `art_catalogue(action='sources')` is a work's
+            # provenance, and one action name meaning two things across tools
+            # would be read as one.
+            name="source_plugins",
             description=(
                 "List every installed image source plugin, most preferred first: the package and version it "
                 "came from, whether it loaded, and what it provides."
             ),
-            example="art_discovery(action='sources')",
+            example="art_discovery(action='source_plugins')",
             tips=(
                 (
                     "A plugin that declined is installed and not configured here; its reason names the setting "

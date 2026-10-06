@@ -80,6 +80,7 @@ CC0 originals with no key.
 - [DECISION: rights: `isPublicDomain` true → public domain, else unknown | the API's own flag, read for what it says | agent's]
 - [DECISION: `met` never declines and has no off switch; leaving it out means uninstalling it (an image built without it) | it needs no key and names itself with the deployment's own agent, as every fetch does; a switch nobody asked for is a setting to document and test. Consequence: a deployment with nothing configured now has an image source, so `.env.example` and the startup test that described "no source at all" were rewritten to the deployment where every plugin declined | agent's, raised by the review; owner can ask for a switch]
 - [DECISION: a search cut at one page (500 ids) cannot say the Met holds nothing: an empty title-and-artist intersection of a cut list falls back to the title's first results | an absence from a cut list is not evidence; paging an artist with thousands of prints costs a request per 500 for a fallback the identity check already covers | agent's, raised by the review]
+- [DECISION: an image the host answers 404 or 410 for skips that object, and the work's search stands; 403, 429, 5xx and network errors still fail it as could-not-be-asked | the host saying an image is gone is an answer about that object; any other refusal says nothing about it, and failing the work on one stale record would leave it unsettled on every pass | agent's, raised by the cumulative review]
 - [ASSUMPTION: no collection browse in this plan | the owner asked for gaps and Asks, not browsing; the Art Institute's browse is the template when wanted]
 - [ASSUMPTION: no change to `DEFAULT_SOURCE_ORDER` | order only breaks ties; `met` follows `commons`, `artic` by name]
 
@@ -89,7 +90,7 @@ repository); browsing the Met's collection; `additionalImages`.
 ## Status
 
 - [x] Chunk 01: The `met` plugin, its records and its live check
-- [ ] Chunk 02: Settings › Sources lists every installed plugin and its version
+- [x] Chunk 02: Settings › Sources lists every installed plugin and its version
 
 ### Chunk 01: The `met` plugin, its records and its live check
 
@@ -122,9 +123,9 @@ installed plugin with its state and faults, and no version or package.
 - [DECISION: every installed plugin is listed, loaded or not, most preferred first | "active" read as installed: a declined plugin is the one whose setting the curator would look for here, and hiding it would make it look uninstalled | agent's]
 - [DECISION: each shows its name, the distribution that registers it and that distribution's version, its state and reason, what it provides (finds images, finds pages, reads URLs, browses a collection, read from its parts), and the interface major it was written for; the page heads with the interface version Arrt provides | the version a curator compares is the package's; the interface major says whether an upgrade of Arrt would refuse it | agent's]
 - [ASSUMPTION: read-only | ordering is `SOURCE_ORDER` and installing is an image build; neither is a page action]
-- [DECISION: MCP and HTTP parity — `art_discovery(action='sources')` answers what `GET /api/sources` does, in the same field names and values | the owner's requirement, 2026-10-06, mid-build. On `art_discovery` because image sources are discovery's, beside `spend` | owner's requirement; placement agent's]
+- [DECISION: MCP and HTTP parity — `art_discovery(action='source_plugins')` answers what `GET /api/sources` does, in the same field names and values | the owner's requirement, 2026-10-06, mid-build. On `art_discovery` because image sources are discovery's, beside `spend` | owner's requirement; placement agent's]
 
-**Exposed API:** `GET /api/sources` (new) and `art_discovery(action='sources')`
+**Exposed API:** `GET /api/sources` (new) and `art_discovery(action='source_plugins')`
 (new): `interface_version` and `sources`, each a `SourcePluginOut`. `SourcePluginOut` gains `distribution`, `version`,
 `api_major` and `provides`, so `GET /api/health`'s `sources` carries them too.
 

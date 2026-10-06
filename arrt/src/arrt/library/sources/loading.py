@@ -609,8 +609,17 @@ def _origin(entry: importlib.metadata.EntryPoint) -> tuple[str | None, str | Non
     dist = getattr(entry, "dist", None)
     if dist is None:
         return None, None
-    name = dist.metadata["Name"]
-    return (name if isinstance(name, str) else None), dist.version
+    try:
+        name, version = dist.metadata["Name"], dist.version
+    # A package's metadata is foreign: a corrupt one costs its plugin's origin, never startup.
+    except Exception:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- a corrupt package costs only its origin
+        log.warning(
+            "could not read the package that registers source plugin %s",
+            entry.name,
+            extra={"event": "source.origin_unread", "plugin": entry.name},
+        )
+        return None, None
+    return (name if isinstance(name, str) else None), (version if isinstance(version, str) else None)
 
 
 def _provides(finder: Finder | None, reader: Reader | None, collection: CollectionBrowse | None) -> tuple[PluginPart, ...]:

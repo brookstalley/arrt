@@ -91,11 +91,15 @@ never been.
 **Also (2026-10-06, the owner's asks mid-build):** a Settings › Sources page lists
 every installed plugin, most preferred first, with the package and version that
 installed it, whether it loaded and why not, what it provides, and the interface
-it was written for (`GET /api/sources`). `art_discovery(action='sources')` answers
+it was written for (`GET /api/sources`). `art_discovery(action='source_plugins')` answers
 the same, field for field and value for value, and `GET /api/health`'s `sources`
 gained the same fields. From the review: a search cut at one page no longer says
 the Met holds nothing; the image host's check has one owner; the tests run under
 the plugins' real client policy (Commons' no-redirect default is now held too).
+From the cumulative review: the MCP action is `source_plugins`, since
+`art_catalogue`'s `sources` already means a work's provenance; an image the Met's
+host says is gone (404, 410) skips that object rather than failing the work's
+search; a package whose metadata cannot be read costs only its plugin's origin.
 
 ## 2026-10-05: The client revalidates every file, so a deploy cannot leave a phone half-updated
 
