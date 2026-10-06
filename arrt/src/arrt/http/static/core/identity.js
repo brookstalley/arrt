@@ -24,11 +24,18 @@ import { confirmAct } from "./confirm.js";
 import { isQid, lifeDates, named, wikidataLink } from "./registry.js";
 import { el, guard } from "./render.js";
 
+/* Store which item a work or artist is (`qid`), or that there is none (null),
+ * as the curator's word: the one write every identity choice on any page makes,
+ * so each gets the route's refusal in the route's words. Answers the record. */
+export function storeIdentity(kind, id, qid) {
+  const path = `/api/${kind === "work" ? "works" : "artists"}/${encodeURIComponent(id)}/wikidata`;
+  return api(path, { method: "POST", body: JSON.stringify({ qid }) });
+}
+
 /* `kind` is "work" or "artist"; `record` the work or artist as the library
  * serves it; `onChanged` repaints from the route's answer. */
 export function identityControl(kind, record, onChanged) {
   const id = kind === "work" ? record.artwork_id : record.artist_id;
-  const path = `/api/${kind === "work" ? "works" : "artists"}/${encodeURIComponent(id)}/wikidata`;
   const said = el("p", { class: "muted", "aria-live": "polite" });
   const field = el("input", { id: `identity-${kind}`, type: "text", inputmode: "text", autocomplete: "off", placeholder: "Q…", spellcheck: "false" });
   const use = el("button", { class: "action", type: "button", text: "Use this item", hidden: true });
@@ -63,7 +70,7 @@ export function identityControl(kind, record, onChanged) {
   use.addEventListener("click", () =>
     guard(async () => {
       if (!found) return;
-      onChanged(await api(path, { method: "POST", body: JSON.stringify({ qid: found }) }));
+      onChanged(await storeIdentity(kind, id, found));
     }),
   );
 
@@ -79,7 +86,7 @@ export function identityControl(kind, record, onChanged) {
           confirmLabel: "There is none",
         });
         if (!agreed) return;
-        onChanged(await api(path, { method: "POST", body: JSON.stringify({ qid: null }) }));
+        onChanged(await storeIdentity(kind, id, null));
       }),
   });
 

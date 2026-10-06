@@ -121,8 +121,14 @@ const FOUND_WIDTH = 250;
  * the state whatever the picture does — one that fails to load, or none,
  * leaves every state readable (`accessibility-spec.md`).
  *
- * Held wins over wanted: a work wanted and since acquired is held. */
-export function workState(work, { noImage = "Not held", opens = true } = {}) {
+ * Held wins over wanted: a work wanted and since acquired is held.
+ *
+ * **`grouped`, where the list sits under a *Not held* heading** (the search
+ * results and the dropdown): the words say only what the heading does not, so
+ * ◐ *Image found*, and ○ *No image known* as the Topic page says it. "Not held"
+ * on every row of a group headed *Not held* was noise (the owner, 2026-10-06).
+ * `noImage`, where given, is the no-picture word whichever. */
+export function workState(work, { noImage = null, opens = true, grouped = false } = {}) {
   const held = work.held_artwork_ids || [];
   if (held.length) {
     // Two held works naming one item is a duplicate the curator should see,
@@ -142,8 +148,8 @@ export function workState(work, { noImage = "Not held", opens = true } = {}) {
   }
   const found = work.image ? `${work.image}?width=${FOUND_WIDTH}` : null;
   if (work.wanted) return stateBadge("badge-wanted", "◑", "Wanted", found && workPicture("wanted", found));
-  if (found) return stateBadge("badge-image-found", "◐", "Not held · Image found", workPicture("not-held", found));
-  return stateBadge("badge-not-held", "○", noImage);
+  if (found) return stateBadge("badge-image-found", "◐", grouped ? "Image found" : "Not held · Image found", workPicture("not-held", found));
+  return stateBadge("badge-not-held", "○", noImage || (grouped ? "No image known" : "Not held"));
 }
 
 /* A picture in the image style of a state. In a frame, because the not-held

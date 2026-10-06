@@ -325,6 +325,105 @@ def test_an_acceptance_with_nothing_to_say_says_nothing(grid):
     assert "may be the same painter" not in grid.text()
 
 
+# -- a decided card says what was decided --------------------------------------
+#
+# Accepted and rejected are final: the service refuses a second verdict and any
+# change of scan. A card that still offered *Why*, *Accept* and *Reject* after
+# Accept read as though the click had not taken (the owner, 2026-10-06).
+
+
+def _controls(grid, work_id="work-1"):
+    card = grid.page.locator(f"li.card[data-work='{work_id}']")
+    return {
+        "why": card.locator("input[id^='reason-']").count(),
+        "accept": card.locator("button:text-is('Accept'), button:text-is('Accept anyway')").count(),
+        "reject": card.locator("button:text-is('Reject')").count(),
+    }
+
+
+def test_an_accepted_card_says_so_in_place_of_its_controls(grid):
+    accepted = a_candidate(verdict=Verdict.ACCEPTED.value, artwork_id="art-1")
+    grid.serve("**/api/candidates/work-1/verdict", a_verdict())
+    grid.serve("**/api/candidates/work-1", a_card(work=accepted).model_dump(mode="json"))
+    grid.serve("**/api/works/art-1", {"acquisition": None, "original": {"width": 4000, "height": 3000}})
+    grid.open(f"#review/{RUN_ID}")
+    grid.page.wait_for_selector("li.card")
+    assert _controls(grid) == {"why": 1, "accept": 1, "reject": 1}
+
+    grid.page.click("button:has-text('Accept')")
+    grid.page.wait_for_selector("li.card .decided")
+
+    assert _controls(grid) == {"why": 0, "accept": 0, "reject": 0}
+    assert grid.page.locator("li.card .decided p").inner_text() == "Accepted. It is in your library."
+    grid.page.click("li.card .decided button:text-is('Open it in Artworks')")
+    grid.page.wait_for_function("() => window.location.hash.startsWith('#work/art-1')")
+
+
+def test_a_rejected_card_says_so_in_place_of_its_controls(grid):
+    grid.serve("**/api/candidates/work-1/verdict", a_verdict())
+    grid.serve("**/api/candidates/work-1", a_card(work=a_candidate(verdict=Verdict.REJECTED.value)).model_dump(mode="json"))
+    grid.open(f"#review/{RUN_ID}")
+    grid.page.wait_for_selector("li.card")
+
+    grid.page.click("button:text-is('Reject')")
+    grid.page.wait_for_selector("li.card .decided")
+
+    assert _controls(grid) == {"why": 0, "accept": 0, "reject": 0}
+    assert grid.page.locator("li.card .decided p").inner_text() == "Rejected. It will not be proposed again."
+    assert grid.page.locator("li.card .decided button").count() == 0
+
+
+def test_a_decided_works_scans_offer_nothing_to_choose(grid):
+    """Choosing or turning down a decided work's scan is refused, so neither is offered.
+
+    Two instances, so both of a choosable scan's actions would be drawn if the
+    decision were ignored, as `test_an_alternate_s_buttons_name_the_work_rather_than_its_id` shows they are.
+    """
+    accepted = a_candidate(verdict=Verdict.ACCEPTED.value)
+    grid.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([a_card(work=accepted)]))
+    grid.serve(
+        "**/api/candidates/work-1/images",
+        an_instance_listing([an_instance(image_id="image-1"), an_instance(image_id="image-2", is_selected=False)], work=accepted),
+    )
+    grid.open(f"#review/{RUN_ID}")
+    grid.page.click("summary")
+    grid.page.wait_for_selector("tr.alternate")
+
+    assert grid.page.locator("tr.alternate .scan-actions button").count() == 0
+    assert _controls(grid) == {"why": 0, "accept": 0, "reject": 0}
+
+
+@pytest.mark.parametrize(("verdict", "shown"), [(Verdict.PENDING, True), (Verdict.ACCEPTED, False)])
+def test_a_decided_card_drops_the_notices_that_invite_a_verdict(grid, verdict, shown):
+    """ "Already in your library … Accepting it again" and "accepting is refused until you choose" both invite a verdict.
+
+    On a decided card neither can be acted on, and the first invites a second
+    acquisition. The pending card is the pair that shows the fixture reaches both.
+    """
+    work = a_candidate(verdict=verdict.value)
+    off_offer = an_instance(work_id="work-1", is_selected=False)
+    card = a_card(work=work, shown=off_offer, held_artwork_id="art-0")
+    grid.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([card]))
+    grid.open(f"#review/{RUN_ID}")
+    grid.page.wait_for_selector("li.card")
+
+    text = grid.page.locator("li.card").inner_text()
+    assert ("Already in your library" in text) is shown
+    assert ("No scan is on offer for this work" in text) is shown
+    assert grid.page.locator("li.card .decided").count() == (0 if shown else 1)
+
+
+def test_a_wanted_card_still_offers_forget(grid):
+    """Wanted is not final: the curator may still forget the work."""
+    wanted = a_candidate(verdict=Verdict.WANTED.value, resolution_status=ResolutionStatus.UNRESOLVED.value)
+    grid.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([a_card(work=wanted, shown=None)]))
+    grid.open(f"#review/{RUN_ID}")
+    grid.page.wait_for_selector("li.card")
+
+    assert grid.page.locator("li.card button:text-is('Forget')").count() == 1
+    assert grid.page.locator("li.card .decided").count() == 0
+
+
 # -- a picture that is shown but is not on offer ------------------------------
 
 

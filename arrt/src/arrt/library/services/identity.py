@@ -142,7 +142,7 @@ class IdentityService:
         registry = self._registry
         if registry is None:
             raise ServiceError("No registry is configured, so nothing can be matched. Set WIKIDATA_USER_AGENT.")
-        work_report = self._match_works(registry, [work for work in self._all_works() if _open(work)])
+        work_report = self._match_works(registry, [work for work in self._all_works() if open_to_match(work)])
         # Read again, so the artists see the works this pass just identified.
         artist_report = self._match_artists(registry, self._all_works())
         # Each half fills only its own fields, so every field the works half set
@@ -200,7 +200,7 @@ class IdentityService:
         )
 
     def _match_artists(self, registry: Registry, works: Sequence[Artwork]) -> IdentityReport:
-        artists = [artist for artist in self._store.list_artists() if _open(artist)]
+        artists = [artist for artist in self._store.list_artists() if open_to_match(artist)]
         identified: dict[str, list[str]] = defaultdict(list)
         for work in works:
             if work.artist_id and work.wikidata_qid:
@@ -226,7 +226,7 @@ class IdentityService:
                 candidates = [
                     person
                     for person in registry.people_named(artist.name)
-                    if (not pinned or person.qid in pinned) and _years_agree(artist, person)
+                    if (not pinned or person.qid in pinned) and years_agree(artist, person)
                 ]
                 if len(candidates) != 1:
                     (ambiguous if candidates else unknown).append(artist.name)
@@ -257,12 +257,12 @@ class IdentityService:
                 return works
 
 
-def _open(record: Artwork | Artist) -> bool:
+def open_to_match(record: Artwork | Artist) -> bool:
     """Whether the matcher may fill this identity: none known, and the curator has not spoken."""
     return record.wikidata_qid is None and record.wikidata_qid_set_by is not IdentitySetBy.CURATOR
 
 
-def _years_agree(artist: Artist, person: RegistryPerson) -> bool:
+def years_agree(artist: Artist, person: RegistryPerson) -> bool:
     """At least one year compared, and every year compared within tolerance."""
     pairs = [(mine, theirs) for mine, theirs in ((artist.born, person.born), (artist.died, person.died)) if mine and theirs]
     return bool(pairs) and all(abs(mine - theirs) <= YEAR_TOLERANCE for mine, theirs in pairs)
