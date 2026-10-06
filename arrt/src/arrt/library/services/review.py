@@ -164,11 +164,11 @@ class InstanceView:
     small, and the two must not read alike: one is a fact about the picture, the
     other is a fact about our record of it.
 
-    `preview` is None whenever no picture travels with this instance — no local
-    copy was ever cached, the copy was reclaimed after the work was decided, or
-    the file will not decode. `preview_note` says which, and the three are kept
-    apart because they send whoever asks to three different places: phase 2's
-    caching, a sweep working as designed, and a corrupt file. An instance without
+    `preview` is None whenever no picture travels with this instance — no
+    picture was ever kept (or, before 2026-10-06, a decided work's was deleted),
+    the file its record names is gone, or the file will not decode.
+    `preview_note` says which, and they are kept apart because they send whoever
+    asks to different places: phase 2's fetching, the disk, and a corrupt file. An instance without
     a picture is still listed, still carries its source-side URL, and is still
     selectable; losing a work over a missing thumbnail would be the tail wagging
     the dog.
@@ -573,46 +573,41 @@ class ReviewService:
         honest rather than merely usually-right, and it is why this is a separate
         method rather than a check the callers make first. A `preview_path` that
         exists is not a promise the bytes decode, and a file-existence check made
-        *before* the read is not atomic with it — a file swept in between would
-        still be reported as unreadable. Asked afterwards, "the file is not
-        there" is true at the moment it is stated however it came to be true, and
-        the `stat` is spent only on the failing path, on a plane whose disk is an
-        SD card.
+        *before* the read is not atomic with it. Asked afterwards, "the file is
+        not there" is true at the moment it is stated however it came to be true,
+        and the `stat` is spent only on the failing path.
 
-        Shared by both re-encoders, so a curator who reaches the absence through
-        a card and one who reaches it through a refused picture request are told
+        Shared by both readers, so a curator who reaches the absence through a
+        card and one who reaches it through a refused picture request are told
         the same thing. Two hand-written versions of these four sentences would
         be four chances for the pair to disagree about the same file.
         """
         if image.preview_path is None:
-            # A decided work's previews are reclaimed on a timer, so the common
-            # reason a picture is absent here is not that one was never cached —
-            # it is that this plane deleted it, on purpose, after the curator was
-            # finished with the work. Saying otherwise sends whoever asks to
-            # phase 2's caching, which is the wrong place and the one they would
-            # look first.
+            # Since 2026-10-06 nothing deletes a kept picture, so a row with no
+            # path is one whose picture never arrived. A decided work has a
+            # second, older reason: until that day a decided work's previews
+            # were deleted and their rows cleared, and the row cannot say which
+            # happened. The sentence names both rather than guessing, because the
+            # never-cached one alone sends whoever asks to phase 2's fetching.
             if work.verdict.is_terminal:
                 return (
-                    f"This work was {work.verdict}, so its cached copy was reclaimed — previews are kept only "
-                    "while a work is under review. Its source URL is reported beside it."
+                    f"No local copy of this image is kept, so it cannot be shown here. This work was "
+                    f"{work.verdict}: either no picture arrived when it was found, or it was deleted when the "
+                    "work was decided, as previews were until 2026-10-06. Its source URL is reported beside it."
                 )
-            return "No local copy of this image was cached, so it cannot be shown here. Its source URL is reported beside it."
+            return "No local copy of this image was kept, so it cannot be shown here. Its source URL is reported beside it."
         # **Absent and unreadable are different answers, and a row can name a
-        # file that is simply gone.** The reclaiming sweep clears the column it
-        # deletes, so the ordinary swept case never reaches here — but the sweep
-        # and the write that records a `preview_path` are not a single critical
-        # section, so a row can be written naming a file a pass removed a moment
-        # earlier. Reporting that as unreadable would be the corruption message
-        # for a file this plane deleted on purpose, which sends whoever asks
-        # looking for a bad download.
-        # A kept picture, or a file at a path the store did not hand out (one the
-        # import refused), is there and did not read; anything else is absent.
+        # file that is simply gone** — lost from the disk, or an old `previews/`
+        # file that was missing when the import looked. Reporting that as
+        # unreadable would be the corruption message for a file that is not
+        # there, which sends whoever asks looking for a bad download. A kept
+        # picture, or a file at a path the store did not hand out (one the import
+        # refused), is there and did not read; anything else is absent.
         if self._kept(image, max_edge=BROWSER_MAX_EDGE_PX) is None and not (self._art_root / image.preview_path).exists():
             return (
-                "No local copy of this image is on disk, so it cannot be shown here — it was either never "
-                "cached or has since been reclaimed. Its source URL is reported beside it."
+                "No local copy of this image is on disk, so it cannot be shown here: the file its record names "
+                "is no longer there. Its source URL is reported beside it."
             )
         return (
-            "The cached copy of this image could not be read, so it cannot be shown here. Its source "
-            "URL is reported beside it."
+            "The kept copy of this image could not be read, so it cannot be shown here. Its source " "URL is reported beside it."
         )

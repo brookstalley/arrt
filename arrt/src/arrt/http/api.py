@@ -77,6 +77,7 @@ from arrt.http.models import (
     NameClient,
     OriginalOut,
     PickItem,
+    PicturesOut,
     QueuedWorkOut,
     QueuePauseOut,
     RegistryCreatorOut,
@@ -181,7 +182,7 @@ from arrt.programming.display import ThemeCount, ThemePlacement, WallView
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.programming.manifest.heartbeat import HeartbeatReading
 from arrt.services.container import Services
-from arrt.services.health import HealthReading, SourceHealth
+from arrt.services.health import HealthReading, PicturesReading, SourceHealth
 
 log = logging.getLogger(__name__)
 
@@ -1863,6 +1864,16 @@ def _health(reading: HealthReading) -> HealthOut:
         backup=_backup(reading.backup),
         artwork_box=_artwork_box(reading.artwork_box),
         sources=[_source_plugin(each) for each in reading.sources],
+        pictures=_pictures(reading.pictures),
+    )
+
+
+def _pictures(reading: PicturesReading) -> PicturesOut:
+    return PicturesOut(
+        pictures_bytes=reading.pictures_bytes,
+        pictures_files=reading.pictures_files,
+        age_seconds=reading.age_seconds,
+        description=reading.describe(),
     )
 
 

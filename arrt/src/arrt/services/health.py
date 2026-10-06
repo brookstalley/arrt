@@ -36,6 +36,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from arrt.library.services.display_fit import ArtworkBox
+from arrt.library.services.pictures import PictureStore
 from arrt.library.sources.loading import PluginReading, PluginState, SourceRoster
 from arrt.persistence import backup
 from arrt.persistence.records import BackupReading
@@ -68,6 +69,33 @@ class SourceHealth:
 
 
 @dataclass(frozen=True, slots=True)
+class PicturesReading:
+    """How much the picture store keeps, and how old that count is.
+
+    Here because the store has no ceiling (owner, 2026-10-06): its growth is
+    watched rather than bounded, and this is where it is watched. An observation
+    with its age, never a verdict: no size is called too large.
+    """
+
+    pictures_bytes: int
+    pictures_files: int
+    #: Seconds since the walk this count came from. The walk is reused for ten
+    #: minutes, so a count can be that old.
+    age_seconds: float
+
+    def describe(self) -> str:
+        """The count in a sentence, with its age."""
+        if self.pictures_files == 0:
+            return f"The picture store keeps no pictures yet (counted {self.age_seconds:.0f} seconds ago)."
+        megabytes = self.pictures_bytes / 1_000_000
+        plural = "file" if self.pictures_files == 1 else "files"
+        return (
+            f"The picture store keeps {self.pictures_files:,} {plural}, {megabytes:,.1f} MB, counted "
+            f"{self.age_seconds:.0f} seconds ago. Each picture is two files, one per size kept."
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class HealthReading:
     """Every observation the panel makes, gathered at one instant."""
 
@@ -87,6 +115,9 @@ class HealthReading:
     #: the grid, which reads as a catalogue problem rather than a configuration
     #: one.
     artwork_box: ArtworkBox
+    #: Every picture fetched from outside, kept for good: how many files and how
+    #: many bytes, and how old the count is.
+    pictures: PicturesReading
     #: Every installed source plugin: loaded, declined or failed, with the faults
     #: a loaded one has had. Here because a plugin missing or failing in silence
     #: looks like works nobody holds, which reads as a fact about art rather than
@@ -114,9 +145,11 @@ class HealthService:
         backup_receipt_path: Path,
         box: ArtworkBox,
         sources: SourceRoster,
+        pictures: PictureStore,
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._display = display
+        self._pictures = pictures
         self._sources = sources
         self._now = now
         #: Where the backup job records that it succeeded. Passed in rather than
@@ -139,6 +172,16 @@ class HealthService:
             backup=backup.read(self._backup_receipt_path),
             artwork_box=self._box,
             sources=self.observe_sources(),
+            pictures=self.observe_pictures(),
+        )
+
+    def observe_pictures(self) -> PicturesReading:
+        """The picture store's size and file count, from a walk at most ten minutes old."""
+        size = self._pictures.size()
+        return PicturesReading(
+            pictures_bytes=size.pictures_bytes,
+            pictures_files=size.pictures_files,
+            age_seconds=max(0.0, (self._now() - size.measured_at).total_seconds()),
         )
 
     def observe_sources(self) -> tuple[SourceHealth, ...]:

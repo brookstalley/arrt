@@ -42,9 +42,10 @@ import re
 import string
 import threading
 import uuid
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Final, Protocol
@@ -86,6 +87,25 @@ _ESCAPE: Final[re.Pattern[str]] = re.compile(r"%([0-9A-Fa-f]{2})")
 _PATH_SAFE: Final[str] = "/:@!$&'()*+,;=?"
 
 _DEFAULT_PORTS: Final[dict[str, int]] = {"http": 80, "https": 443}
+
+#: How long one walk of the store answers the health panel. The store has no
+#: ceiling (owner, 2026-10-06), so the walk grows with it; ten minutes keeps a
+#: panel repainted every few seconds from walking a tree of tens of thousands of
+#: files each time, and the reading carries its age so nobody mistakes it for now.
+SIZE_REUSED_FOR: Final[timedelta] = timedelta(minutes=10)
+
+
+@dataclass(frozen=True, slots=True)
+class StoreSize:
+    """What the store holds, as of one walk: every kept tier file and their bytes.
+
+    Temporary files are not counted: they are a write in flight, or debris the
+    next start removes, and never a picture.
+    """
+
+    pictures_bytes: int
+    pictures_files: int
+    measured_at: datetime
 
 
 class PictureRefused(Exception):
@@ -171,7 +191,14 @@ def picture_key(provider: str, url: str) -> str:
 class PictureStore:
     """Pictures fetched from outside, kept at two sizes and answered from disk."""
 
-    def __init__(self, directory: Path, *, art_root: Path, sources: PreviewSource | None = None) -> None:
+    def __init__(
+        self,
+        directory: Path,
+        *,
+        art_root: Path,
+        sources: PreviewSource | None = None,
+        now: Callable[[], datetime] = lambda: datetime.now(UTC),
+    ) -> None:
         """Refuse a store outside the tree, at wiring time rather than mid-run.
 
         Every catalogue path is relative to `ART_ROOT`, so a picture written
@@ -190,6 +217,10 @@ class PictureStore:
         #: One lock per key being asked for, and how many asks hold or await it.
         #: Removed when the last one leaves, so the map holds only keys in flight.
         self._locks: dict[str, tuple[threading.Lock, int]] = {}
+        self._now = now
+        #: The last walk, reused for `SIZE_REUSED_FOR`.
+        self._size: StoreSize | None = None
+        self._size_lock = threading.Lock()
 
     @property
     def art_root(self) -> Path:
@@ -393,6 +424,35 @@ class PictureStore:
             "no picture was kept for an instance; review will fall back to its source URL",
             extra={"event": "picture.absent", "image_url": url, "reason": why},
         )
+
+    # -- the health panel -----------------------------------------------------------
+
+    def size(self) -> StoreSize:
+        """How many picture files the store keeps and their bytes, from a walk at most ten minutes old.
+
+        One walk at a time: a second caller while one is running waits for it
+        and gets its answer, rather than walking the tree again beside it.
+        """
+        with self._size_lock:
+            now = self._now()
+            if self._size is None or now - self._size.measured_at >= SIZE_REUSED_FOR:
+                self._size = self._walk(now)
+            return self._size
+
+    def _walk(self, now: datetime) -> StoreSize:
+        total = files = 0
+        if self._directory.is_dir():
+            for path in self._directory.rglob("*.jpg"):
+                try:
+                    if not path.is_file():
+                        continue
+                    total += path.stat().st_size
+                except OSError:
+                    # Gone between listing and stat, or unreadable: it is not
+                    # counted, and the next walk counts it if it is there.
+                    continue
+                files += 1
+        return StoreSize(pictures_bytes=total, pictures_files=files, measured_at=now)
 
     # -- startup -----------------------------------------------------------------
 

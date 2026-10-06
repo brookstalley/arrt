@@ -218,7 +218,7 @@ between planes.
 > | `get.asked` | a Get was asked for, with the run it started (`started_run_id`), the theme its accepted works join (`destination_theme_id`, null for the default), how many works it chose and how many it skipped for each reason |
 > | `phase_two.verdict_stands` | a resolution finished against a work the curator had already decided; the result is reported, not applied |
 > | `phase_two.preview_too_large` | a provider's preview body passed the size ceiling and the read was abandoned, naming the URL and the ceiling. Distinct from `preview_failed`, which is a preview that could not be fetched at all — this one *was* being served, and the far end was sending more than a thumbnail. Both leave the card falling back to the source URL, so the log line is the only place the difference is visible |
-> | `preview.cached` / `preview.absent` | whether a review card will have local bytes to show |
+> | `picture.kept` / `picture.absent` | whether a review card will have a kept picture to show: `picture.kept` names the store path and the bytes of each tier written; `picture.absent` names the reason none was kept (the source returned nothing or raised, the bytes are not a picture, the store could not be read or written). Replaced `preview.cached` / `preview.absent` on 2026-10-06 |
 > | `run.completed` | the run's works split into resolved, unresolved and unreachable |
 >
 > **The supplement's events, which are a separate subsystem.** A run may offer
@@ -271,33 +271,27 @@ between planes.
 > `not_the_work` explains all of it, the next question is what the query asked
 > for**, not what came back.
 
-> **The preview sweep's events, added 2026-08-03, and the failure they exist to
-> break the silence around.** The sweep is the plane's only periodic job, and its
-> characteristic failure is that it stops happening — which produces no error, no
-> refusal, and no user-visible symptom until an SD card fills weeks later.
+> **The picture store's events, added 2026-10-06** (`library/services/pictures.py`,
+> `build-plan-picture-store.md`). They replace the preview sweep's, which retired
+> with the norm that every picture fetched from outside is kept
+> (`data-model.md` § Direction): nothing deletes a kept picture, so there is no
+> periodic job whose silence is the fault.
 >
 > | Event | Level | Says |
 > |---|---|---|
-> | `preview.sweep_started` | DEBUG | a pass began. Only useful against `preview.swept`: a start with no finish is a wedged pass, which is a different fault from a plane that stopped sweeping |
-> | `preview.swept` | INFO | a pass finished, with what it deleted, what it cleared, what it freed, what it held back for works still under review, and what it could not remove |
-> | `preview.sweep_failed` | WARNING | one file could not be deleted — a read-only mount or a permissions problem. Its record still names it, so the next pass retries |
-> | `preview.forget_failed` | WARNING | one file went but its record could not be cleared, so a row names a file that is gone. The card degrades to "no picture" and the next pass retries |
-> | `preview.sweep_error` | ERROR | a whole pass raised, with its traceback. The loop continues; two of these in a row means every pass is failing |
-> | `preview.sweep_wedged` | WARNING | shutdown asked the sweep to stop and it did not within the bound. It holds the store lock, so the next generation of services will wait on it |
+> | `pictures.cleaned` | INFO | the store's stray temporary files were removed at startup, with how many. Logged at every start, zero included |
+> | `pictures.imported` | INFO | the startup import of the old `previews/` directory ran, with rows `imported`, `missing`, `refused` and `failed`, files no row names (`unnamed`), and `done`. Logged at every start; `done` is when `previews/` may be removed by hand |
+> | `pictures.import_failed` | WARNING | one row's old preview could not be read, or its picture or row could not be written. Counted in `failed`, so `done` is false until a later start succeeds |
+> | `picture.unreadable` | WARNING | a kept picture's file could not be read when a card asked for it; the card reports no picture |
 >
-> **`preview.swept` logs at INFO on every pass, including the ones that reclaim
-> nothing**, and that is the point rather than noise: a job that logs only when it
-> acts is indistinguishable from a job that died. The question an operator has
-> about a periodic task is first "is it running at all", and this is the line that
-> answers it. At the shipped hourly interval it is 24 lines a day.
->
-> The counterpart on the operations side is `operational-spec.md` § Add disk
-> headroom, which now points at this event rather than at a manual prune.
+> The store's size is not a log line: its files and bytes are on the health panel
+> and `art_display(action='status')`, from a walk at most ten minutes old, because
+> a store with no ceiling is watched as a figure rather than as an event.
 
 > **The topic sweep's events, added 2026-10-02** (`library/services/topic_sweep.py`,
 > `build-plan-topics-and-destinations.md` Chunk 04). The sweep keeps the
 > library's works' topics as facet rows from Wikidata: at start, when a work is
-> accepted or a QID changes, and daily. Its failure mode is the preview sweep's:
+> accepted or a QID changes, and daily. Its failure mode is any periodic job's:
 > Library › Topics and the Artworks rail quietly stop changing.
 >
 > | Event | Level | Says |
@@ -636,7 +630,7 @@ the session, which is what makes self-announcing failures self-announcing.
 > (wave 6). That is exactly "unattended/scheduled discovery", so the
 > panel-only decision must be revisited in the wave-6 plan, before Watches ship.
 > Three conditions no longer announce themselves at the next session:
-> - a Watch whose job silently stopped firing. This has the preview sweep's
+> - a Watch whose job silently stopped firing. This has the topic sweep's
 >   shape, so it needs a positive signal on every run, including empty ones.
 > - a Watch that hit its per-period spending cap;
 > - a Watch that auto-accepted something.
@@ -678,7 +672,7 @@ remedial work is already tracked. Scheduled runs only — a hand-dispatched run
 already has somebody watching it.
 
 **The schedule stopped firing.** Nothing above can fire, because no job runs.
-This is the same shape as the preview sweep's `preview.swept`: the positive
+This is the same shape as the topic sweep's `topics.swept`: the positive
 signal is a successful run, and its *absence* over an interval is the fault.
 `suites.yml`'s `drift-freshness` job measures how long since each tier last
 succeeded — **free after 21 days, paid after 75** — reading the tiers apart,
@@ -793,15 +787,15 @@ signal exists:
 | **The TV takes selections and displays none of them** | `rotation.wall_unchanged` at WARNING **once**, carrying the id that was accepted and the set's own `art_mode` — then `rotation.wall_recovered` at INFO when the wall starts changing again. **The pairing is the design**, because the condition lasts as long as somebody leaves the panel off: a line per rotation would be a hundred a night saying the one thing that has not changed, and journald rate-limits by dropping the ERRORs this plane's only failure channel carries. The art-mode flag is read on this path for the operator's sake — it is the answer to *why is the wall not changing*, and it costs one call on a rotation that has already failed. It is read **separately, before every selection**, for a different purpose: the plane may not touch a television somebody is watching, and that gate asks whether it may act at all rather than why it did not. **The absence of `rotation.selected` is not itself the signal**: nothing distinguishes a wall that stopped changing from a daemon that stopped running, which is what this line exists to say |
 | Manifest major version unrecognised | ERROR, previous manifest retained. *(2026-09-30: the same over HTTP, from wave 2. Wave 4's major-2 bump, when compositing moves to the Player, is the planned occasion for it, so the ERROR is how an un-upgraded Player announces itself. See `re-architecture.md`.)* |
 | *Planned, 2026-09-30:* the server is unreachable from a Player | The Player keeps rendering from its cache (`nonfunctional-requirements.md` § Direction, amended). It logs the failed poll once per episode rather than per poll, the same pairing `rotation.wall_unchanged` uses. The panel shows the heartbeat's age, which grows only if the POST also fails. It becomes a real fault when the manifest names media the cache does not hold, and the heartbeat's cache report exists to say that. Built in wave 2 |
-| *Planned, 2026-09-30:* a scheduled Library job (Watch, upgrade re-search) stopped running | A positive line on every pass, including empty ones, as with the preview sweep. Absence over an interval is the fault. Whether it also reaches a push channel is the revisit above. Built with Watches in wave 6 |
+| *Planned, 2026-09-30:* a scheduled Library job (Watch, upgrade re-search) stopped running | A positive line on every pass, including empty ones, as with the topic sweep. Absence over an interval is the fault. Whether it also reaches a push channel is the revisit above. Built with Watches in wave 6 |
 | Budget exhausted | `halted_by_budget` outcome on the run, and the refusal text names the cause. *(Corrected 2026-08-02: this also promised "`limit_remaining` at zero in the UI" — a figure no surface exposes, and one that lags badly enough to read non-zero while calls are already being refused. See the note under the signals table.)* |
 | Acquisition queue stopped running | `acquisition.queue_pass` at INFO on every pass, including empty ones; its absence for more than a day, or after an acceptance, is the fault, and Activity › Queue keeps showing *queued* works that never move. A run of `acquisition.queue_paused` is the deployment refusing (disk, binary, provider), not the worker dying |
 | Topic sweep stopped running | `topics.swept` at INFO on every pass, including empty ones; its absence for more than a day, or after an acceptance, is the fault. A run of `topics.sweep_unavailable` is Wikidata refusing, not the sweep dying. With no `WIKIDATA_USER_AGENT` the one `topics.off` line at start says why there is nothing |
-| Preview sweep stopped running | **The only signal is a positive one, which is why it logs on empty passes**: `preview.swept` at INFO every interval, so what says the job died is its *absence* over one. A pass that hangs rather than stops reads differently — `preview.sweep_started` with no `preview.swept`, then `preview.sweep_wedged` at shutdown — and matters more, because that pass holds the store lock |
+| The picture store grows without bound | **By design** (owner, 2026-10-06: no ceiling). Its files and bytes are on the health panel and `art_display(action='status')`, counted at most ten minutes ago; the operator watches the figure. *(Replaced 2026-10-06 the row for the preview sweep stopping, which retired.)* |
 | Disk nearly full | Guarded *before* acquisition starts, not discovered as an exception during it |
 | A work silently absent from a theme | **The manifest build reports exclusions** with a per-work reason — see `architecture.md`. Not a log line: a first-class UI surface |
 | Mat colour degraded to the dominant-colour fallback | Recorded on the record itself (`MatColor.method`), not merely logged. The 2024 code degrades invisibly |
 | Curation killed mid-run (OOM, deploy restart, crash) | **Startup reconciliation logs one line per run it moves to `interrupted`**, at WARNING, with the run id and its prior status. This is the only signal that a run died — the dying process cannot report its own death, and the operator's next clue would otherwise be `resolve_images` refusing work ids. Silence here means reconciliation did not run, which is itself the bug (`data-model.md` → State Machines) |
 | A foreign API moved under a recorded measurement | **An issue in this repo's backlog, one per contract**, opened by the failing `api-drift.yml` job; repeat failures comment on it rather than opening another. Not the panel — this failure happens on GitHub's runners, possibly while nothing of ours is running. It stays open until a human reconciles the `*-api-findings.md` document, because a green re-run proves the probe passed and nothing about whether anyone did the work. See § The one surface the panel does not cover |
-| The API-drift schedule stopped firing | **The only signal is a positive one, exactly as with the preview sweep**: a successful run per tier, whose *absence* is the fault. `suites.yml`'s `drift-freshness` job fails past 21 days (free) or 75 days (paid), reading the tiers apart so a healthy monthly run cannot vouch for three missed Mondays. Covers both routes — never on the default branch, and disabled for repository inactivity. Detected at the next push to `main`, not continuously |
+| The API-drift schedule stopped firing | **The only signal is a positive one, exactly as with the topic sweep**: a successful run per tier, whose *absence* is the fault. `suites.yml`'s `drift-freshness` job fails past 21 days (free) or 75 days (paid), reading the tiers apart so a healthy monthly run cannot vouch for three missed Mondays. Covers both routes — never on the default branch, and disabled for repository inactivity. Detected at the next push to `main`, not continuously |
 | A default-suite regression reaches `main` | `suites.yml` runs all three default suites — the 2024 modules, curation, and display since 2026-08-06 — on every pull request and every push to `main`. Until 2026-08-06 there was no such signal at all: the repo had two workflows, and neither ran the suites that gate correctness, so a reviewer reading two green checks was reading the browser suite and a schedule |

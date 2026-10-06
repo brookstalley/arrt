@@ -162,3 +162,35 @@ def test_the_schedule_backs_up_at_once_and_keeps_going_after_a_failure(tmp_path,
 def test_keep_must_be_at_least_one(tmp_path, catalogue):
     with pytest.raises(ValueError, match="keep must be at least 1"):
         CatalogueBackup(catalogue_path=catalogue, directory=tmp_path, receipt_path=tmp_path / "r.json", keep=0)
+
+
+def test_a_generation_carries_the_catalogue_and_never_the_picture_store(job, catalogue, tmp_path):
+    """The store is not in the backup (owner, 2026-10-06): it can be fetched again, and it has no ceiling.
+
+    A kept picture sits beside the catalogue, where a deployment keeps it, and
+    the backup directory afterwards holds the one generation and nothing else.
+    """
+    from arrt.library.services.pictures import PictureStore
+
+    art_root = catalogue.parent
+    store = PictureStore(art_root / "pictures", art_root=art_root)
+    store.put("artic", "https://museum.example/kept", _a_jpeg())
+    assert store.size().pictures_files > 0, "a store with nothing in it would make this pass vacuously"
+
+    result = job.run(now=NOON)
+
+    backed_up = {path for path in (tmp_path / "backups").rglob("*") if path.is_file()}
+    assert backed_up == {result.path}
+    with sqlite3.connect(f"file:{result.path}?mode=ro", uri=True) as db:
+        tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    assert tables == {"artworks"}
+
+
+def _a_jpeg() -> bytes:
+    from io import BytesIO
+
+    from PIL import Image
+
+    buffer = BytesIO()
+    Image.new("RGB", (900, 600), (90, 70, 140)).save(buffer, format="JPEG")
+    return buffer.getvalue()

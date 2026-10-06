@@ -139,20 +139,6 @@ DEFAULT_PORT: Final[int] = 8770
 DEFAULT_ROTATION_INTERVAL_SECONDS: Final[int] = 180
 DEFAULT_ROTATION_SHUFFLE: Final[bool] = True
 
-#: How often the plane reclaims the previews of decided works.
-#:
-#: Hourly because the quantity being bounded is driven by a person: previews
-#: accumulate per image instance found, and instances are found by runs the
-#: curator starts. An hour is far shorter than the interval between a household's
-#: discovery sessions, so the directory is empty of decided works' previews
-#: whenever anyone looks — and the sweep is a walk over a household's rows plus a
-#: handful of unlinks, so running it more often than it has work to do costs
-#: nothing worth measuring.
-#:
-#: It matters because `operational-spec.md` § Risks opens with the SD card, and
-#: this directory is the only one under `ART_ROOT` that nothing else reclaims.
-DEFAULT_PREVIEW_SWEEP_INTERVAL_SECONDS: Final[int] = 3600
-
 #: How often the catalogue is backed up when `BACKUP_DIR` is set: daily, as
 #: `operational-spec.md` § Backup and Restore plans, plus once at every start.
 DEFAULT_BACKUP_INTERVAL_SECONDS: Final[int] = 24 * 60 * 60
@@ -388,10 +374,6 @@ class Settings:
     wall_name: str
     rotation_interval_seconds: int
     rotation_shuffle: bool
-    #: How often the plane reclaims the previews of works the curator has
-    #: decided. Zero disables sweeping, which is a coherent choice for a
-    #: deployment with disk to spare — previews are harmless, only numerous.
-    preview_sweep_interval_seconds: int
     #: Where the catalogue's backups go, or None when this deployment takes none
     #: (the health panel then says no backup has been recorded). A directory on
     #: storage other than the art root's, so losing one does not lose the other.
@@ -658,10 +640,6 @@ class Settings:
             wall_name=os.environ.get("WALL_NAME") or DEFAULT_WALL_NAME,
             rotation_interval_seconds=_positive_int("ROTATION_INTERVAL_SECONDS", DEFAULT_ROTATION_INTERVAL_SECONDS),
             rotation_shuffle=_flag("ROTATION_SHUFFLE", default=DEFAULT_ROTATION_SHUFFLE),
-            # `_counted` rather than `_positive_int`: zero means "do not sweep",
-            # which is a deployment's to choose, where a rotation interval of
-            # zero is simply broken.
-            preview_sweep_interval_seconds=_counted("PREVIEW_SWEEP_INTERVAL_SECONDS", DEFAULT_PREVIEW_SWEEP_INTERVAL_SECONDS),
             backup_dir=Path(os.environ["BACKUP_DIR"]) if os.environ.get("BACKUP_DIR") else None,
             backup_interval_seconds=_positive_int("BACKUP_INTERVAL_SECONDS", DEFAULT_BACKUP_INTERVAL_SECONDS),
             backup_keep=_positive_int("BACKUP_KEEP", DEFAULT_BACKUP_KEEP),

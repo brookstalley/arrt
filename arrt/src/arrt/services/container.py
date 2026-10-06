@@ -76,7 +76,6 @@ from arrt.library.services.review import ReviewService
 from arrt.library.services.runner import DiscoveryRunner, DiscoverySettings
 from arrt.library.services.sightings import SightingService
 from arrt.library.services.survey import SurveyService
-from arrt.library.services.sweep import PreviewSweep
 from arrt.library.services.taste import TasteService
 from arrt.library.services.thumbnails import ThumbnailService, ThumbnailSettings
 from arrt.library.services.topic_sweep import TopicSweep
@@ -148,13 +147,6 @@ class Services:
     #: synchronous and knows nothing of processes, and everything about starting
     #: work behind a handle does.
     runner: DiscoveryRunner
-    #: Reclaiming the previews of works the curator has decided. Built
-    #: unconditionally, unlike the phase-2 pair it cleans up after: a deployment
-    #: that never cached a preview has nothing to sweep, and the pass costs one
-    #: walk of a household's rows to find that out. An optional here would mean
-    #: a deployment could disable phase 2, keep the files it already wrote, and
-    #: lose the only thing that reclaims them.
-    sweep: PreviewSweep
     #: Acquiring the master image a work was accepted for. Held beside the
     #: catalogue rather than inside it because it is the one service that reaches
     #: outside the machine to do its job — a subprocess and an HTTP transport —
@@ -167,7 +159,7 @@ class Services:
     #: every re-render look like a re-fetch to whatever reads the journal.
     preparation: PreparationService
     #: Fetching, then preparing, every accepted work that holds no image, in the
-    #: background and one at a time. Built whatever the deployment, like `sweep`;
+    #: background and one at a time. Built whatever the deployment;
     #: it runs only when the application is asked to start it.
     acquisition_queue: AcquisitionQueue
     #: Intent-forming, upstream of every run. Beside `runner` rather than inside
@@ -203,7 +195,7 @@ class Services:
     #: sections. Over the same registry as `artists`.
     topics: TopicService
     #: Keeping the library's works' topics as facets. Built whatever the
-    #: registry, like `sweep`; without one it does nothing, and the application
+    #: registry; without one it does nothing, and the application
     #: says so once when it would have started it.
     topic_sweep: TopicSweep
     #: Wikidata's items for a wanted work, for the curator to pick from. Over the
@@ -380,12 +372,12 @@ class Services:
                 backup_receipt_path=thumbnails.art_root / BACKUP_RECEIPT_FILENAME,
                 box=artwork_box,
                 sources=sources,
+                pictures=pictures,
             ),
             runner=runner_service,
             # `art_root` off the thumbnail settings for the same reason `review`
             # takes it from there: it is one deployment value, already validated,
             # and a second copy is a second chance for the two to disagree.
-            sweep=PreviewSweep(discovery_service, art_root=thumbnails.art_root, pictures=pictures),
             acquisition=acquisition_service,
             preparation=preparation_service,
             acquisition_queue=acquisition_queue,
@@ -435,10 +427,10 @@ class Services:
         next start rather than leaving it undone.
         """
         self.discovery.reconcile()
-        # Before anything serves or sweeps: a write the last process died in
-        # leaves a temporary file, and the old preview directory's files are
-        # moved into the store and their rows repointed, so the sweep (which
-        # starts with the application) finds nothing of the store's to consider.
+        # Before anything serves: a write the last process died in leaves a
+        # temporary file, and the old preview directory's files are moved into
+        # the store and their rows repointed, so a card is answered from the
+        # store from the first request.
         self.pictures.clean()
         import_previews(self.pictures, self.discovery, legacy=self.pictures.art_root / PREVIEWS_DIRNAME)
         # Canvases drawn with another mat, panel or drawing rule are queued to be

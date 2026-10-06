@@ -79,7 +79,7 @@ def reviewable(services, propose, add_image):
     for real.
     """
 
-    def _reviewable(*, title="The Elephants", instances=1, artist="Salvador Dalí", previews=False, **fields):
+    def _reviewable(*, title="The Elephants", instances=1, artist="Salvador Dalí", **fields):
         work = propose(title, dedup_key=title.lower(), proposed_artist=artist, **fields)
         images = [
             add_image(
@@ -88,7 +88,6 @@ def reviewable(services, propose, add_image):
                 confidence=0.9 - index / 10,
                 estimated_width=6000,
                 estimated_height=4000,
-                preview_path=f"previews/{title.lower().replace(' ', '-')}-{index}.jpg" if previews else None,
             )
             for index in range(instances)
         ]
@@ -480,26 +479,3 @@ async def test_the_review_tool_still_reports_that_it_never_spends(server_url):
 
     assert errored is False
     assert "Never spends" in payload["summary"]
-
-
-@pytest.mark.parametrize("verdict", [Verdict.ACCEPTED, Verdict.REJECTED])
-async def test_a_decided_works_previews_become_reclaimable(server_url, services, reviewable, verdict, settings):
-    """The verdict is what arms the sweep, and before this chunk nothing could arm it.
-
-    `operational-spec.md` § Add disk headroom recorded that the sweep would
-    reclaim nothing whatever it did, because no shipped surface could set a
-    terminal verdict. This is the test that the sentence is now out of date —
-    and it is deliberately driven over the tool rather than the service, since
-    the surface being able to arm it is the whole of what changed.
-    """
-    work, images = reviewable(previews=True)
-    target = settings.art_root / images[0].preview_path
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(b"cached bytes")
-    assert services.sweep.run().retained == 1, "held while the work is under review"
-
-    _payload, errored = await call(server_url, "art_review", action="set_verdict", work_id=work.id, verdict=str(verdict))
-
-    assert errored is False
-    assert services.sweep.run().deleted == 1
-    assert not target.exists()

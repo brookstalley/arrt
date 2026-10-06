@@ -307,7 +307,9 @@ which the earlier form of this table could not express. `status` is the exceptio
 and takes none, but for the opposite reason to the one it used to give: the
 heartbeat is per wall now, and `status` answers with `walls[]` — every wall's
 reading in one call — so a `wall_id` would narrow an answer that is cheap whole
-and is read by a screen showing all of them.
+and is read by a screen showing all of them. It also carries `pictures`, the
+picture store's files and bytes, as `GET /api/health` does (added 2026-10-06): it
+is the health panel's twin on this surface.
 
 > **Both this row and that paragraph described the pre-per-wall behaviour until
 > 2026-08-12**, when Critic review found them — after the split had landed, and
@@ -1324,7 +1326,7 @@ the client with them.
 | `POST /api/themes/{id}/activate` | Change the wall. Returns the manifest that was published, exclusions included. |
 | `GET /api/manifest` | What a theme *would* put on the wall, evaluated without writing. |
 | `GET /api/sources` | Every installed source plugin, most preferred first, as `GET /api/health`'s `sources` reads it, with `interface_version` (`major.minor`, the plugin interface this Arrt provides). Settings › Sources reads it; `art_discovery(action='source_plugins')` answers the same. Added 2026-10-06. |
-| `GET /api/health` | Every observation the panel states: **one heartbeat per wall** with the document that wall's display reported, the backup's age, this deployment's resolved artwork box, and **every installed source plugin** (`sources`, added 2026-10-03). There is deliberately no budget balance, settled 2026-08-04. Shape below. |
+| `GET /api/health` | Every observation the panel states: **one heartbeat per wall** with the document that wall's display reported, the backup's age, this deployment's resolved artwork box, **every installed source plugin** (`sources`, added 2026-10-03), and the picture store's files and bytes (`pictures`, added 2026-10-06). There is deliberately no budget balance, settled 2026-08-04. Shape below. |
 
 Added 2026-08-05 with the run half of the browser surface, and exercised by
 `arrt/tests/integration/test_browser_discovery.py`:
@@ -1603,9 +1605,21 @@ response is:
       "api_major": 1,
       "provides": ["finds_images", "reads", "browses"]
     }
-  ]
+  ],
+  "pictures": {
+    "pictures_bytes": 52428800,
+    "pictures_files": 600,
+    "age_seconds": 212.0,
+    "description": "The picture store keeps 600 files, 52.4 MB, counted 212 seconds ago. Each picture is two files, one per size kept."
+  }
 }
 ```
+
+**`pictures`** *(added 2026-10-06, `build-plan-picture-store.md` Chunk 02)* is the
+picture store's size: every tier file under `ART_ROOT/pictures/` and their bytes,
+from a walk reused for ten minutes, with the walk's age. It has no ceiling (owner,
+2026-10-06), so this is a figure to watch, never a verdict. `art_display(action='status')`
+carries the same object under the same names and values (`test_surface_parity.py`).
 
 **`sources`** *(added 2026-10-03, `source-plugins.md` § Loading)* lists every
 installed plugin, most preferred first, and is empty when none is installed.

@@ -247,15 +247,11 @@ def main(argv: Sequence[str] = ()) -> None:
     registry = _registry(settings)
     sources = _sources(settings, registry)
     log.info(
-        "phase2 image_sources=%s previews=%s preview_sweep=%s",
+        "phase2 image_sources=%s previews=%s",
         ",".join(source.provider for source in sources.finders if offers_images(source)) or _no_finder(sources),
         # Where a fetched preview is kept: the picture store, which answers review
         # whether or not anything here can fetch.
         settings.pictures_path if sources.finds_images else "disabled",
-        # On this line rather than its own: the directory and the only thing
-        # that reclaims it are one operational fact, and a deployment reading
-        # `previews=<path>` with no sweep beside it is the state § Risks names.
-        f"every {settings.preview_sweep_interval_seconds}s" if settings.preview_sweep_interval_seconds else "disabled",
     )
 
     # Whether tiled acquisition can run at all, and where the master images go.
@@ -380,7 +376,6 @@ def main(argv: Sequence[str] = ()) -> None:
         uvicorn.run(
             create_app(
                 services,
-                preview_sweep_interval_seconds=settings.preview_sweep_interval_seconds,
                 sweep_topics=True,
                 acquire_queue=True,
                 backup=(

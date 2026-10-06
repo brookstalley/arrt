@@ -549,19 +549,20 @@ class TestWanting:
         assert verdict["possible_duplicate_artists"] == []
         assert verdict["notice"] is None
 
-    def test_a_decided_works_picture_is_kept_through_a_sweep(self, http, services):
+    def test_a_decided_works_picture_is_kept_through_a_restart(self, http, services):
         """Every picture fetched from outside is kept forever (`data-model.md` § Direction, 2026-10-06).
 
-        Until that norm the sweep deleted a decided work's preview and this card
-        stopped promising a picture. Now the sweep never considers a kept one, so
-        the card goes on showing it and the route goes on serving it.
+        Until that norm a sweep deleted a decided work's preview and its card
+        stopped promising a picture. Now nothing deletes one: accepted, and the
+        plane's startup repairs run again, the card still shows it and the route
+        still serves it.
         """
         run_id = a_finished_run(http)
         page = http.get(f"/api/runs/{run_id}/candidates").json()
         card = card_for(page, "The Elephants")
         image_id = card["shown"]["image_id"]
         http.post(f"/api/candidates/{card['work']['work_id']}/verdict", json={"verdict": "accepted"})
-        services.sweep.run()
+        services.reconcile()
 
         repainted = http.get(f"/api/candidates/{card['work']['work_id']}").json()
         response = http.get(f"/api/candidate-images/{image_id}/preview")
@@ -569,33 +570,6 @@ class TestWanting:
         assert repainted["shown"]["preview_available"] is True
         assert response.status_code == 200
         assert Image.open(BytesIO(response.content)).format == "JPEG"
-
-    def test_a_reclaimed_old_preview_is_refused_with_words_and_the_card_stops_promising_it(self, http, services, settings):
-        """A row still naming the old `previews/` directory is the sweep's until it retires.
-
-        A reclaimed preview is not a corrupt one, and the two go different places:
-        reporting a deliberate deletion as unreadable would send whoever asks
-        looking for a bad download.
-        """
-        run_id = a_finished_run(http)
-        page = http.get(f"/api/runs/{run_id}/candidates").json()
-        card = card_for(page, "The Elephants")
-        image_id = card["shown"]["image_id"]
-        old = settings.art_root / "previews" / "elephants.jpg"
-        old.parent.mkdir(parents=True, exist_ok=True)
-        old.write_bytes(a_decodable_jpeg())
-        services.discovery.repoint_preview(image_id, "previews/elephants.jpg")
-        http.post(f"/api/candidates/{card['work']['work_id']}/verdict", json={"verdict": "accepted"})
-        services.sweep.run()
-
-        response = http.get(f"/api/candidate-images/{image_id}/preview")
-        repainted = http.get(f"/api/candidates/{card['work']['work_id']}").json()
-
-        assert not old.exists()
-        assert response.status_code == 400
-        assert "reclaimed" in response.json()["error"]
-        assert repainted["shown"]["preview_available"] is False
-        assert "reclaimed" in repainted["shown"]["preview_note"]
 
 
 class TestTheWholeLoop:

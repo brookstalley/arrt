@@ -168,9 +168,8 @@ class TopicSweep:
                 written += replaced.written
                 self._asked[work.id] = _Asked(work_qid=work.wikidata_qid, artist_qid=artist_qid, at=now)
             result = TopicSweepResult(due=len(due), asked=len(identified), withdrawn=withdrawn, written=written)
-        # At INFO on every pass, including one with nothing due, for the preview
-        # sweep's reason: a periodic job that logs only when it acts cannot be
-        # told from one that died.
+        # At INFO on every pass, including one with nothing due: a periodic job
+        # that logs only when it acts cannot be told from one that died.
         log.info(
             "swept the library's topics",
             extra={

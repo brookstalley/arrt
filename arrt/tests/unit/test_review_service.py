@@ -179,6 +179,60 @@ def test_a_row_naming_a_path_the_store_did_not_hand_out_is_told_apart_from_a_mis
     assert "No local copy of this image is on disk" in notes[gone.id].preview_note
 
 
+def test_a_decided_work_with_no_kept_picture_names_both_reasons_and_its_verdict(services, discovery, propose, add_image):
+    """Carried from the retired sweep's tests: a decided work's card outlives its picture.
+
+    A row with no path on a decided work is a picture that never arrived, or one
+    the old sweep deleted before 2026-10-06, and the row cannot say which. The
+    note names both and the verdict, because the never-kept sentence alone sends
+    whoever asks to phase 2's fetching, and claims a history nobody recorded.
+    """
+    work = propose("The Persistence of Memory")
+    add_image(work, preview_path=None)
+    discovery.set_verdict(work.id, Verdict.ACCEPTED)
+
+    note = services.review.list_images(work.id).instances[0].preview_note
+
+    assert "accepted" in note
+    assert "deleted when the work was decided" in note
+    assert "until 2026-10-06" in note, "nothing deletes a kept picture now; the note must not say it still happens"
+    assert "no picture arrived" in note
+    # And the refusal a card's picture request gets says the same.
+    image = services.review.list_images(work.id).instances[0].image
+    with pytest.raises(ServiceError) as refused:
+        services.review.preview_image(image.id)
+    assert str(refused.value) == note
+
+
+def test_a_live_work_with_no_kept_picture_says_only_that_none_was_kept(services, propose, add_image):
+    """The other branch, which the decided one must not have swallowed (absence asserted, not only presence)."""
+    work = propose("The Persistence of Memory")
+    add_image(work, preview_path=None)
+
+    note = services.review.list_images(work.id).instances[0].preview_note
+
+    assert "No local copy of this image was kept" in note
+    assert "deleted" not in note
+
+
+def test_a_kept_picture_whose_files_are_gone_reads_as_absent_not_corrupt(services, propose, add_image, preview):
+    """Carried from the retired sweep's tests: a row naming files that are not there is absence.
+
+    The corruption message for a file that is simply gone would send whoever
+    asks looking for a bad download.
+    """
+    work = propose("The Persistence of Memory")
+    relative = preview("memory.jpg")
+    for tier in (480, 2048):
+        services.pictures.find(relative, max_edge=tier).unlink()
+    add_image(work, preview_path=relative)
+
+    note = services.review.list_images(work.id).instances[0].preview_note
+
+    assert "No local copy of this image is on disk" in note
+    assert "could not be read" not in note
+
+
 def test_the_card_is_answered_from_the_smaller_tier_and_the_enlarged_view_from_the_larger(services, propose, add_image, preview):
     """The bytes a browser gets are the kept files', unrendered: one decode at write, none per request."""
     work = propose()

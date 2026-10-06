@@ -10,6 +10,35 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Every picture Arrt fetches is kept — added 2026-10-06
+
+**`build-plan-picture-store.md` Chunks 01–02.** Visual change: yes (a Status
+panel); live integration.
+
+Checked by the builder against the suites with fixture pictures: the store, the
+import on a fixture art root, the health count on HTTP, MCP and the page. Not yet
+deployed, and the NAS's `previews/` has never been imported.
+
+- **Look at the journal at the first start after deploy:** one `pictures.imported`
+  line with `imported`, `missing`, `refused`, `failed` and `unnamed`. Expect
+  `failed` 0 and `done` true; `imported` is about the number of review rows that
+  had a preview. Then `rm -rf` the art root's `previews/`: nothing reads it
+  after `done`. A `PREVIEW_SWEEP_INTERVAL_SECONDS` left in `.env` is now ignored
+  and can go.
+- **Look at:** System › Status has a **Kept pictures** panel with a file count,
+  bytes, and how many seconds ago it was counted (at most ten minutes).
+  `art_display(action='status')` reports the same `pictures`. Files are about
+  twice the number of pictures, one per size kept.
+- **Try:** open a review card for a work found before the deploy, and its
+  enlarged view, with no request to the museum: the picture loads, and the
+  journal shows no `picture.kept` line as you do it (only a fetch writes one).
+  A card for a work already decided before the deploy that lost its picture
+  then says so in words rather than showing a blank box.
+- **Worth an opinion:** how fast the store grows on real searches (the builder
+  measured about 33 KB and 100 to 140 KB per picture on synthetic 843 to
+  1,200 px previews), and whether the panel wants a sentence about disk free
+  beside it.
+
 ### SMK as a source — added 2026-10-06
 
 **`build-plan-smk-source.md` Chunk 01.** Visual change: no; live integration.

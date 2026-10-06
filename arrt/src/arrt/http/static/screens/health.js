@@ -151,6 +151,29 @@ function sourcesPanel(health) {
   ]);
 }
 
+/* How much the picture store keeps: every picture fetched from outside, kept for
+ * good, with no ceiling (owner, 2026-10-06). Its growth is watched here rather
+ * than bounded, so the panel states the count and its age and calls no size too
+ * large. A reading without it says so, as the other panels do. */
+function picturesPanel(health) {
+  const pictures = health.pictures;
+  if (!pictures) {
+    return el("div", { class: "panel" }, [
+      el("h3", { text: "Kept pictures" }),
+      el("p", { class: "note", text: "This health reading carries no count of kept pictures. That is a fault in the reading, not in the store." }),
+    ]);
+  }
+  return el("div", { class: "panel pictures-reading" }, [
+    el("h3", { text: "Kept pictures" }),
+    el("p", { class: "reading-sentence", text: pictures.description }),
+    facts([
+      ["Files", pictures.pictures_files.toLocaleString()],
+      ["Bytes", pictures.pictures_bytes.toLocaleString()],
+      ["Counted", `${pictures.age_seconds.toFixed(0)} seconds ago`],
+    ]),
+  ]);
+}
+
 export async function viewHealth(generation) {
   const health = await api("/api/health");
   const box = health.artwork_box;
@@ -165,6 +188,7 @@ export async function viewHealth(generation) {
     health.description ? el("p", { class: "note", text: health.description }) : null,
     ...heartbeatPanels(health),
     sourcesPanel(health),
+    picturesPanel(health),
     el("div", { class: "panel" }, [
       el("h3", { text: "The backup" }),
       el("p", { class: "reading-sentence", text: health.backup.description }),

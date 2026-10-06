@@ -39,7 +39,6 @@ from arrt.config import (
     DEFAULT_PHASE1_SEARCH_ALLOWANCE,
     DEFAULT_PHASE2_SEARCHES_PER_WORK,
     DEFAULT_PREVIEW_MAX_BYTES,
-    DEFAULT_PREVIEW_SWEEP_INTERVAL_SECONDS,
     DEFAULT_RESOLUTION_FLOOR_INCHES,
     DEFAULT_ROTATION_INTERVAL_SECONDS,
     DEFAULT_ROTATION_SHUFFLE,
@@ -96,7 +95,6 @@ def _defaults(art_root, **overrides) -> Settings:
             preview_max_bytes=DEFAULT_PREVIEW_MAX_BYTES,
             rotation_interval_seconds=DEFAULT_ROTATION_INTERVAL_SECONDS,
             rotation_shuffle=DEFAULT_ROTATION_SHUFFLE,
-            preview_sweep_interval_seconds=DEFAULT_PREVIEW_SWEEP_INTERVAL_SECONDS,
             backup_dir=None,
             backup_interval_seconds=DEFAULT_BACKUP_INTERVAL_SECONDS,
             backup_keep=DEFAULT_BACKUP_KEEP,
@@ -456,31 +454,6 @@ def test_uvicorn_is_given_no_logging_config_of_its_own(tmp_path, monkeypatch):
 
     assert "log_config" in passed, "uvicorn was left to install its own text handlers"
     assert passed["log_config"] is None
-
-
-def test_the_configured_sweep_interval_reaches_the_application(tmp_path, monkeypatch):
-    """Sweeping is off unless a caller asks, and this entry point is the caller.
-
-    `create_app` defaults the interval to zero so a test harness cannot acquire a
-    file-deleting thread by accident. The consequence is that a deployment sweeps
-    only because `main` passes its setting through — one line, whose deletion
-    leaves every sweep test green and the plane never reclaiming anything.
-    """
-    art_root = tmp_path / "art"
-    art_root.mkdir()
-    _stub_settings(monkeypatch, art_root, preview_sweep_interval_seconds=900)
-    built: dict = {}
-
-    def capture(services, **kwargs):
-        built.update(kwargs)
-        return object()
-
-    monkeypatch.setattr(entry_point, "create_app", capture)
-    monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
-
-    entry_point.main()
-
-    assert built["preview_sweep_interval_seconds"] == 900
 
 
 def test_the_entry_point_asks_for_the_topic_sweep(tmp_path, monkeypatch):

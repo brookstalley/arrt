@@ -975,6 +975,21 @@ class SourcesOut(BaseModel):
     sources: list[SourcePluginOut]
 
 
+class PicturesOut(BaseModel):
+    """How much the picture store keeps: its files and their bytes, and how old the count is.
+
+    The store has no ceiling (owner, 2026-10-06), so its growth is watched here
+    rather than bounded. The same names, and the same values, as `art_display`'s
+    `status` carries (`test_surface_parity.py`).
+    """
+
+    pictures_bytes: int
+    pictures_files: int
+    #: Seconds since the walk the count came from, which is reused for ten minutes.
+    age_seconds: float
+    description: str
+
+
 class HealthOut(BaseModel):
     """Observations about the walls, the backup, and this deployment's geometry.
 
@@ -1002,6 +1017,7 @@ class HealthOut(BaseModel):
     #: Every installed source plugin, most preferred first. Empty when none is
     #: installed, which the panel says in words.
     sources: list[SourcePluginOut]
+    pictures: PicturesOut
 
 
 class RunOut(BaseModel):
@@ -1269,8 +1285,8 @@ class InstanceOut(BaseModel):
     #: painting a blank box while it finds out.
     preview_available: bool
     #: Present exactly when no picture travels, saying which of the four reasons
-    #: applies — never cached, reclaimed after a verdict, gone from disk, or
-    #: undecodable. They send whoever asks to different places.
+    #: applies — never kept (or, on a work decided before 2026-10-06, deleted
+    #: then), gone from disk, or undecodable. They send whoever asks to different places.
     preview_note: str | None
 
 
@@ -1608,9 +1624,9 @@ class SampleOut(BaseModel):
     **Not a candidate and not on its way to becoming one.** Nothing here has been
     proposed, judged, or acquired — it is a work the wired collection holds by an
     artist the model named. `image_url` is the collection's own preview address,
-    loaded by the browser directly, because a conversation caches no files: a
-    picture nobody chose is not a preview of anything, and storing one would need
-    a sweep for files that were never candidates.
+    loaded by the browser directly, because a conversation keeps no files of its
+    own. Moving such pictures behind Arrt's routes, into the picture store, is a
+    plan of its own (`build-plan-picture-store.md` § Not in this plan).
     """
 
     title: str

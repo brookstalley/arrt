@@ -54,7 +54,7 @@ from arrt.programming.clients import ClientView
 from arrt.programming.display import UNSET, ThemePlacement, WallView, describe_wall_status
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.services.container import Services
-from arrt.services.health import SourceHealth
+from arrt.services.health import PicturesReading, SourceHealth
 
 #: A bound action: validated arguments in, a result payload out. Every binding
 #: takes the whole container rather than the one service it happens to need, so
@@ -898,7 +898,21 @@ def _wall_status(services: Services, _arguments: Mapping[str, Any]) -> dict[str,
             for each in seen
         ],
         count=len(seen),
+        # The picture store's size, as the health panel shows it. Here because
+        # this action is the panel's twin: the question it answers is "is
+        # anything wrong", and a store with no ceiling is watched, not bounded.
+        pictures=_pictures_fields(services.health.observe_pictures()),
     )
+
+
+def _pictures_fields(reading: PicturesReading) -> dict[str, Any]:
+    """The picture store's reading, in `GET /api/health`'s `pictures` names (`test_surface_parity.py`)."""
+    return {
+        "pictures_bytes": reading.pictures_bytes,
+        "pictures_files": reading.pictures_files,
+        "age_seconds": reading.age_seconds,
+        "description": reading.describe(),
+    }
 
 
 def _sync(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:

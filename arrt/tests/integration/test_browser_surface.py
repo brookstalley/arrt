@@ -502,8 +502,10 @@ class TestHealth:
         # `description` is the walls' own summary rather than another signal —
         # it states nothing the readings beside it do not. `sources` is the
         # installed source plugins, added with them; its own keys are covered by
-        # the word check above.
-        assert set(http.get("/api/health").json()) == {"walls", "description", "backup", "artwork_box", "sources"}
+        # the word check above. `pictures` is the picture store's files and bytes,
+        # added 2026-10-06 by the owner's ruling that the store has no ceiling and
+        # is watched here instead.
+        assert set(http.get("/api/health").json()) == {"walls", "description", "backup", "artwork_box", "sources", "pictures"}
 
     def test_the_panel_shows_the_geometry_every_size_in_the_grid_is_judged_against(self, http):
         box = http.get("/api/health").json()["artwork_box"]

@@ -40,7 +40,7 @@ from arrt.library.sources.loading import PluginIdentity, PluginPart, PluginReadi
 from arrt.mcp import bindings
 from arrt.persistence.discovery_records import CandidateWork, DiscoveryRun, InitiatedBy, RunKind, RunStatus
 from arrt.persistence.records import Artist, Artwork, Theme
-from arrt.services.health import SourceHealth
+from arrt.services.health import PicturesReading, SourceHealth
 
 WHEN = datetime(2026, 8, 6, 12, 0, tzinfo=UTC)
 
@@ -435,3 +435,12 @@ def test_the_source_plugin_projections_agree_value_for_value():
 
     check_parity("SourcePlugin", set(bindings._source_plugin_fields(health)), _fields(http_models.SourcePluginOut))
     assert bindings._source_plugin_fields(health) == http_api._source_plugin(health).model_dump()
+
+
+def test_the_picture_store_readings_agree_value_for_value():
+    """Status and `art_display(action='status')` state the store's size in the same names and numbers."""
+    reading = PicturesReading(pictures_bytes=123_456_789, pictures_files=2_468, age_seconds=42.0)
+
+    check_parity("Pictures", set(bindings._pictures_fields(reading)), _fields(http_models.PicturesOut))
+    assert bindings._pictures_fields(reading) == http_api._pictures(reading).model_dump()
+    assert {"pictures_bytes", "pictures_files"} <= set(bindings._pictures_fields(reading))

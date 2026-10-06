@@ -142,6 +142,29 @@ def test_a_source_smaller_than_a_tier_is_kept_at_its_own_size_and_answers_a_larg
     assert long_edge(store.find_for("artic", tiny, max_edge=2048)) == 300
 
 
+def test_an_unreadable_smaller_tier_is_never_taken_for_the_sources_full_size(art_root):
+    """A file whose header will not read cannot prove it is smaller than its tier.
+
+    With nothing at 2,048, a 480 file smaller than 480 would answer a larger
+    ask. One that will not read must not: it is not served, and keeping the
+    picture fetches it again rather than trusting the damaged file.
+    """
+    source = CountingSource(a_picture(843, 600))
+    store = a_store(art_root, source)
+    key_path = art_root / store.keep("artic", URL, PREVIEW_URL)
+    small = store.find_for("artic", URL, max_edge=480)
+    key_path.unlink()
+    small.write_bytes(b"not a JPEG header at all")
+
+    assert store.find_for("artic", URL, max_edge=2048) is None, "the damaged file was served for a larger ask"
+
+    again = store.keep("artic", URL, PREVIEW_URL)
+
+    assert len(source.asked) == 2, "the picture was fetched again"
+    assert long_edge(art_root / again) == 843
+    assert long_edge(store.find_for("artic", URL, max_edge=480)) == 480
+
+
 def test_a_path_the_store_did_not_hand_out_finds_nothing(art_root):
     store = a_store(art_root)
     stored = store.relative(store.put("artic", URL, a_picture()))
@@ -488,3 +511,45 @@ def test_the_container_cleans_and_imports_when_the_plane_starts(services, propos
 
     assert services.pictures.owns(services.discovery.get_candidate_image(image.id).preview_path)
     assert not stray.exists()
+
+
+# -- the health panel's count -------------------------------------------------------
+
+
+def test_the_size_counts_every_tier_file_and_its_bytes_and_no_temporary_file(art_root):
+    store = a_store(art_root)
+    store.put("artic", URL, a_picture(843, 600))
+    store.put("artic", URL + "/2", a_picture(300, 200))
+    stray = next((art_root / "pictures").rglob("*.jpg"))
+    stray.with_name(f"{stray.name}.0123.tmp").write_bytes(b"x" * 1000)
+    kept = [path for path in every_file(art_root) if path.suffix == ".jpg"]
+
+    size = store.size()
+
+    assert size.pictures_files == 2 * len(TIERS) == len(kept)
+    assert size.pictures_bytes == sum(path.stat().st_size for path in kept)
+
+
+def test_an_empty_or_absent_store_counts_nothing(art_root):
+    size = a_store(art_root).size()
+
+    assert (size.pictures_files, size.pictures_bytes) == (0, 0)
+
+
+def test_one_walk_answers_for_ten_minutes_and_then_the_store_is_walked_again(art_root):
+    """The store has no ceiling, so the walk is reused; the reading's time is the walk's, not the ask's."""
+    from datetime import UTC, datetime, timedelta
+
+    clock = [datetime(2026, 10, 6, 12, 0, tzinfo=UTC)]
+    store = PictureStore(art_root / "pictures", art_root=art_root, now=lambda: clock[0])
+    store.put("artic", URL, a_picture())
+    first = store.size()
+
+    store.put("artic", URL + "/2", a_picture())
+    clock[0] += timedelta(minutes=9, seconds=59)
+    assert store.size() == first, "a walk under ten minutes old answers again"
+
+    clock[0] += timedelta(seconds=1)
+    walked = store.size()
+    assert walked.pictures_files == first.pictures_files + len(TIERS)
+    assert walked.measured_at == clock[0]

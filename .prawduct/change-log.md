@@ -62,6 +62,71 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-06: The preview sweep is retired, and the picture store is on the health panel
+
+<!-- prawduct: scope=picture-store -->
+
+**Why:** the owner's norm that every picture Arrt fetches from outside is kept
+(`data-model.md` § Direction), with that day's rulings: no ceiling, the store's
+size and file count on the health panel, and the store not in the backup. A sweep
+that deletes decided works' previews contradicts the first; the other two are
+what keeping everything costs.
+
+**What (Chunk 02 of `build-plan-picture-store.md`):**
+- **Retired:** `library/services/sweep.py` (`PreviewSweep`, `SweepResult`,
+  `run_periodically`, `start_sweeping`), `Services.sweep`, `create_app`'s
+  `preview_sweep_interval_seconds`, the entry point's pass-through and its
+  `preview_sweep=` startup token, `Settings.preview_sweep_interval_seconds`,
+  `PREVIEW_SWEEP_INTERVAL_SECONDS` and `DEFAULT_PREVIEW_SWEEP_INTERVAL_SECONDS`, the
+  `.env.example` block, and the two `DiscoveryService` methods only the sweep
+  called, `forget_preview` and `transaction`. A deployment's `.env` that still sets
+  the variable is ignored: nothing reads it.
+- **The health panel:** `GET /api/health` and `art_display(action='status')` carry
+  `pictures` (`pictures_bytes`, `pictures_files`, `age_seconds`, `description`),
+  from `PictureStore.size()`, a walk reused for ten minutes. Status shows it as
+  *Kept pictures*. `age_seconds` is beyond the plan's two names: the panel states
+  every observation with its age, and this one can be ten minutes old.
+- **The review notes** say what is true without the sweep: a decided work's row
+  with no picture names both reasons it may have none (never arrived, or deleted
+  before 2026-10-06), and a missing file is "no longer there" rather than
+  "reclaimed".
+- **Records:** the stale sweep, `PreviewCache` and "disposable" passages in
+  `architecture.md`, `boundary-patterns.md`, `operational-spec.md`,
+  `observability-strategy.md` (the sweep's events replaced by the store's),
+  `nonfunctional-requirements.md`, `api-contract.md`, `data-model.md` (the norm is
+  now steady-state) and the norm's row, plus comments citing the sweep as a
+  precedent, which now cite the topic sweep.
+
+**Tests retired, each by the norm that every picture fetched from outside is kept
+(`data-model.md` § Direction, 2026-10-06):** all 24 of
+`arrt/tests/unit/test_preview_sweep.py`, which asserted what the sweep deletes, what
+it holds back, its transaction, its loop and its shutdown, and `forget_preview`'s
+refusals; in `test_container.py`,
+`test_the_containers_sweep_reads_the_same_art_tree_everything_else_writes`,
+`test_the_application_sweeps_previews_while_it_is_serving`,
+`test_the_application_stops_sweeping_when_it_stops_serving` and
+`test_an_application_given_no_interval_never_sweeps`; in `test_startup.py`,
+`test_the_configured_sweep_interval_reaches_the_application`; in
+`test_verdict_surface.py`, `test_a_decided_works_previews_become_reclaimable` (both
+verdicts); and in `test_browser_review.py`,
+`test_a_reclaimed_old_preview_is_refused_with_words_and_the_card_stops_promising_it`.
+Three of the sweep file's tests were about what review says afterwards, which
+survives it, so they moved to `test_review_service.py` with the new wording: a
+decided work's note names both reasons and the verdict, a live work's says only
+that none was kept (and nothing about deletion), and a row whose files are gone
+reads as absent, not corrupt.
+
+**Tests changed:** `test_a_decided_works_picture_is_kept_through_a_sweep` became
+`…_through_a_restart` (it now runs `reconcile` instead of the sweep); the container's
+concern check asserts the picture store in place of the sweep; and the review
+grid's mocked note test became
+`test_a_picture_that_is_not_kept_is_named_rather_than_requested`, with the new
+wording. **Added:** the unreadable-header case the Chunk 01 Critic named (a
+damaged 480 tier with nothing at 2,048 is never served for a larger ask, and the
+picture is fetched again); the store's size, its exclusion of temporary files and
+its ten-minute reuse; the backup carrying none of `pictures/`; HTTP and MCP parity
+and an end-to-end check of both; and two browser tests of the panel.
+
 ## 2026-10-06: Every picture Arrt fetches is kept
 
 <!-- prawduct: scope=picture-store -->

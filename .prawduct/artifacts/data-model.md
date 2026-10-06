@@ -157,10 +157,10 @@ history is in `change-log.md`, scope `picture-store`.)*
 > deletion is of its own temporary files at startup
 > (`arrt/tests/unit/test_pictures.py`). Indexed in `project-preferences.md`.
 >
-> **Status:** `in-transition` until `build-plan-picture-store.md` Chunk 02 lands:
-> `PreviewSweep` still runs, and still reclaims a row that names a file in the old
-> `previews/` directory. **Interim rule:** the sweep never considers a path under
-> `pictures/` (`sweep.py`).
+> **Status:** steady-state since `build-plan-picture-store.md` Chunk 02 retired the
+> preview sweep and `PREVIEW_SWEEP_INTERVAL_SECONDS` (2026-10-06). The store's
+> files and bytes are on the health panel and `art_display(action='status')`, and
+> the backup carries none of it (`arrt/tests/unit/test_backup_writer.py`).
 >
 > **Retroactivity:** applied to every preview already on disk. At startup, each
 > file in `previews/` that a row names is imported under that row's key and the
