@@ -62,6 +62,28 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-06: Wanted pictures each work by the scan its card shows
+
+<!-- prawduct: scope=wanted-pictures -->
+
+**Why:** the owner, while the private Met page reader was being built (it reports
+the Met's web-size and thumbnail images of in-copyright works): thumbnails should
+show what a wanted work looks like, though it cannot yet hang. Wanted rows carried
+no picture. The owner chose that thumbnails stay ordinary below-floor scans, and
+that Wanted shows the best surviving one.
+
+**What:** `GET /api/wanted` and `art_review(action='list_wanted')` gain `shown`:
+the scan the work's review card pictures it by (the selection, else the best
+surviving scan), or null when nothing was found or every scan was turned down.
+`ReviewService.list_wanted` builds it with the card's own choice, so the two can
+never picture a work differently. The listing is uncapped, so neither surface
+reads bytes: the browser asks the preview route per row, and MCP sends no image
+block and its notice points at `get_work`. Wanted's first column shows the
+picture, enlargeable and badged, or words where nothing stands. *Why* is now
+derived from what the work holds: it used to say "No scan found" for a work
+holding a too-small scan. `met-api-findings.md` records the Met's web pages as
+measured in a browser.
+
 ## 2026-10-06: A guard holds the artifact manifest to the artifacts on disk
 
 <!-- prawduct: scope=artifact-manifest-guard -->
