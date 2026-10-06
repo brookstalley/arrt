@@ -645,6 +645,32 @@ ART_DISCOVERY: Final = ToolRecord(
                 ),
             ),
         ),
+        Action(
+            # Not `sources`: `art_catalogue(action='sources')` is a work's
+            # provenance, and one action name meaning two things across tools
+            # would be read as one.
+            name="source_plugins",
+            description=(
+                "List every installed image source plugin, most preferred first: the package and version it "
+                "came from, whether it loaded, and what it provides."
+            ),
+            example="art_discovery(action='source_plugins')",
+            tips=(
+                (
+                    "A plugin that declined is installed and not configured here; its reason names the setting "
+                    "that would load it. One that failed could not be loaded, and its reason says why."
+                ),
+                (
+                    "provides lists finds_images, finds_pages (pages for other plugins to read), reads (turns a "
+                    "URL it claims into an image) and browses (offers a collection). Only plugins that find "
+                    "images can answer a search."
+                ),
+                (
+                    "interface_version is the plugin interface this Arrt provides; a plugin whose api_major "
+                    "differs is refused by name."
+                ),
+            ),
+        ),
     ),
 )
 

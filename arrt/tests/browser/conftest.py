@@ -209,7 +209,17 @@ def _a_backup(*, absent=False, problem=None):
     }
 
 
-def _a_source(*, name="artic", state="loaded", reason=None, faults=0):
+def _a_source(
+    *,
+    name="artic",
+    state="loaded",
+    reason=None,
+    faults=0,
+    distribution="arrt",
+    version="0.3.0",
+    api_major=1,
+    provides=None,
+):
     if state == "declined":
         description = f"{name} is installed and not configured here: {reason}."
     elif state == "failed":
@@ -227,6 +237,10 @@ def _a_source(*, name="artic", state="loaded", reason=None, faults=0):
         "last_fault_age_seconds": 12.0 if faults else None,
         "last_fault": "KeyError: 'x'" if faults else None,
         "description": description,
+        "distribution": distribution,
+        "version": version,
+        "api_major": api_major,
+        "provides": (["finds_images", "reads"] if state == "loaded" else []) if provides is None else provides,
     }
 
 

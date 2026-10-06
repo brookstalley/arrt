@@ -35,9 +35,11 @@ import pytest
 from arrt.http import api as http_api
 from arrt.http import models as http_models
 from arrt.library.services.discovery import VerdictOutcome, WantedWork
+from arrt.library.sources.loading import PluginIdentity, PluginPart, PluginReading, PluginState
 from arrt.mcp import bindings
 from arrt.persistence.discovery_records import CandidateWork, DiscoveryRun, InitiatedBy, RunKind, RunStatus
 from arrt.persistence.records import Artist, Artwork, Theme
+from arrt.services.health import SourceHealth
 
 WHEN = datetime(2026, 8, 6, 12, 0, tzinfo=UTC)
 
@@ -415,3 +417,20 @@ def test_the_wikidata_match_projections_carry_the_same_field_names():
     )
 
     check_parity("WorkMatch", set(bindings._match_fields(entry)), _fields(http_models.WorkMatchOut))
+
+
+def test_the_source_plugin_projections_agree_value_for_value():
+    """Settings › Sources and `art_discovery(action='source_plugins')` read one plugin the same way."""
+    reading = PluginReading(
+        name="met",
+        state=PluginState.LOADED,
+        reason=None,
+        faults=2,
+        last_fault_at=WHEN,
+        last_fault="ImageSearchFailure: down",
+        identity=PluginIdentity(distribution="arrt", version="0.3.0", api_major=1, provides=(PluginPart.FINDS_IMAGES,)),
+    )
+    health = SourceHealth(reading=reading, last_fault_age_seconds=12.0)
+
+    check_parity("SourcePlugin", set(bindings._source_plugin_fields(health)), _fields(http_models.SourcePluginOut))
+    assert bindings._source_plugin_fields(health) == http_api._source_plugin(health).model_dump()

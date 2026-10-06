@@ -1079,6 +1079,14 @@ button.link {
   overflow-wrap: break-word;
 }
 
+/* Settings › Sources: one panel per plugin. Their order is the preference
+   order, which the list keeps in its markup and each panel states in words. */
+.source-inventory {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
 /* In a list of works the picture is what a curator chooses by, so it is drawn
    large enough to tell two works apart, on a phone as on a desktop
    (`information-architecture.md` § A work's mark). On a phone the badge stacks:

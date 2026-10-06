@@ -53,6 +53,7 @@ UI_PATHS: Final[tuple[str, ...]] = (
     "/topics",
     "/taste",
     "/clients",
+    "/sources",
     "/search",
     "/health",
     "/works",

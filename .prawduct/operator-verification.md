@@ -10,6 +10,25 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Settings › Sources, and the Met as a source — added 2026-10-06
+
+**`build-plan-met-source.md` Chunks 01–02.** Visual change: yes.
+
+Checked by the builder against the browser suite (loaded, declined and failed
+plugins; a plugin's text as text) and the Met against its live API. Not yet
+deployed.
+
+- **Look at:** after the next deploy, Settings lists Taste, Clients, **Sources**.
+  Sources shows every plugin with its package and version: `arrt` and its version
+  for `commons`, `artic`, `met` and `wikidata`, and `arrt-sources` and its version
+  for `artlogic`, `moma` and `sfmoma`. `met` reads "Finds images of a work; reads
+  the addresses it claims." `art_discovery(action='source_plugins')` answers the same.
+- **Try:** an Ask or Get for a public-domain painting the Met holds (e.g. van
+  Gogh's *Wheat Field with Cypresses*, Q18689458) offers a `met` image at its full
+  size (4000 × 3184).
+- **Worth an opinion:** whether the Met should have an off switch (today it is
+  always on, because it needs no key).
+
 ### Pictures in the registry lists, and sizes on a work's page — added 2026-10-05
 
 **`build-plan-work-pictures-and-sizes.md` Chunks 01–02.** Visual change: yes.

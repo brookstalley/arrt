@@ -162,6 +162,7 @@ Priority is **core** (on a stated core flow) or **supporting**.
 | **Conversation** *(new)* | One intent-forming thread, its samples, and what it committed to. | Ask; the conversation list; an affinity's provenance | core (flow 1) |
 | **Taste** *(new)* | The affinities the product has accumulated, with their derivation, correctable. | The sidebar, under Settings; a suggestion's "why am I seeing this?" | supporting |
 | **Clients** *(new 2026-10-02)* | The installed Players the server knows (`clients.md`): each client's name, whether it has a token, what it last reported about its outputs and how long ago, and the walls it shows on which outputs. Add a client (its token issued with it and shown once, with what to put in the Player's settings), rename, rotate the token, remove, assign a wall to an output, unassign. *(Built 2026-10-02, `build-plan-clients.md` Chunk 02.)* | The sidebar, under Settings, after Taste; a wall's *Assign it in Settings › Clients* on the Walls screen | core (flow 6) |
+| **Sources** *(new 2026-10-06)* | Every installed image source plugin, most preferred first (`source-plugins.md`): its name, the package that installed it and that package's version, whether it loaded, declined or failed and why, what it provides, the plugin interface it was written for beside the one Arrt provides, and its place in the order. Read-only. The same reading Status's *Image sources* panel shows, and `art_discovery(action='source_plugins')` answers. *(Built 2026-10-06, `build-plan-met-source.md` Chunk 02.)* | The sidebar, under Settings, after Clients | supporting |
 
 **One row here per screen the client routes.** Two are new and exist only because
 conversational intent-forming does (`product-brief.md` flow 1, amended
@@ -251,6 +252,7 @@ listed below so it can be disputed.
 │ ⚙ Settings   │                                              │
 │   Taste      │                                              │
 │   Clients    │                                              │
+│   Sources    │                                              │
 │ ♥ System  ②  │                                              │
 │   Status     │                                              │
 └──────────────┴──────────────────────────────────────────────┘
@@ -270,6 +272,7 @@ listed below so it can be disputed.
 | **Wanted** | New 2026-10-02 under Activity; a section of its own since 2026-10-05 (the owner's ruling) | Lidarr's Wanted › Missing: what the library wants and does not have. Shown once something is in it. Cutoff Unmet (wave 4) and a Watch's Missing (wave 6) become its tabs when they exist |
 | Settings › **Taste** | Taste | Radarr's Profiles: the preferences that rank what it finds |
 | Settings › **Clients** | New 2026-10-02 (`clients.md`) | Radarr's Settings › Download Clients: the server's list of the external programs it works with, which here are the installed Players. Its *Assign a wall* is per client, as a download client carries its own settings there |
+| Settings › **Sources** | New 2026-10-06 (`build-plan-met-source.md` Chunk 02) | Radarr's Settings › Indexers: the places the server searches, which here are the installed source plugins. Read-only, because the order is `SOURCE_ORDER` and installing a plugin is an image build |
 | System › **Status** | Health, with the spend record | Radarr's System › Status, with health checks at the top |
 
 - **Sub-pages show only under the current section**, as in Sonarr and Radarr.
@@ -791,6 +794,7 @@ who did not edit this table.
 | Conversation | The thread, newest exchange last | Each turn's suggestions, with their samples | Type, react to a sample, commit a direction, delete the thread | Whether a turn is in flight, and what the exchange cost |
 | Taste | The judgments, grouped by kind | Sentiment, openness, and how the claim was derived | React, correct, forget, follow a claim back to its turn | Which claims the product inferred rather than was told |
 | Clients | Each client by name, with the walls it shows and on which outputs | When its token was issued; its last report's outputs (name, kind, connected, screen size) | Add (issuing its token, shown once), rename, rotate the token (asks first), issue a first token, remove (asks first, naming the walls left without a client), assign a wall to an output, unassign | The last report's age in words; no token, no report, an unreadable report and no outputs, each said |
+| Sources | Each plugin by name, with the sentence saying what became of it | Its package and version, state, what it provides, the interface it was written for, its place in the order | None: read-only | A declined or failed plugin's reason; an unknown package or interface, each said in words |
 | Review | The candidate picture | Title, artist, the scan's pixels (*3,840 × 2,604 px*; inches on a wall dropped 2026-10-02, back with per-wall geometry in wave 4) | Accept, reject, choose scan, ask better, enlarge the picture in place | Verdict, provenance, resolution, fit verdict word |
 | Themes | Members in wall order | Name, count | Reorder, rename, hang, make default, delete | Which walls it hangs on; whether it is the default (★ default) |
 | Artists | The artist: on the index, every held artist by surname, as posters or a table; on one artist's page, their held works, then what Wikidata lists | Life dates, nationality, Wikidata's description and movements; each listed work's year; the collections holding their work | Open an artist; select held works and add them to a theme; react (*More like this*, *Not this*); open a held work from its *Held* mark, and any listed work from its title; open a similar artist; change the Wikidata item or say there is none | Each listed work marked by § A work's mark; whether Wikidata answered; for an artist not held, that nothing of theirs is held |
@@ -925,6 +929,7 @@ almost no considered empty states.
 | Topic | None of your works in it → say so in *In your library*; Wikidata lists no works or no artists → said in that section | The head and *In your library* first; *Representative works* and *Artists* each say *Asking Wikidata…* until they answer, nothing above them waiting | An address that is not a QID → "That is not a topic's address", and a way to all topics; Wikidata not configured, without the item, or not answering → a sentence in the head and in each registry section, the library half left standing |
 | Taste | No affinities yet → what would create some | — | Inline |
 | Clients | No client → say so, under the add. Per client, each its own sentence: no token yet (admitted nowhere), outputs never reported, a report that cannot be read, no outputs reported, no wall shown. An output with no report is typed (placeholder `hdmi-a-1`) with a sentence saying why | Nothing until the listing arrives | The request's refusal in the page's error banner — an output already showing a wall among them — with the page left as it was. An assignment's server notice (output not reported) is said beside the result, not as an error |
+| Sources | No plugin installed → say so, and that a package installed without its entry points is the likely cause | Nothing until the listing arrives | The request's failure in the page's error banner |
 | Status | n/a — every observation has a value, and "never reported" is one of them | Per observation, so a slow plane does not hold the other two | **A plane that cannot be reached is an observation, not a failed page.** This screen's subject is failure, so rendering an error over it would hide the thing it was opened to show |
 
 **The loading state's job is to not move.** Skeletons occupy the final geometry.

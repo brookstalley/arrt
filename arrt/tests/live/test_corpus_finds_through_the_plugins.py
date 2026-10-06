@@ -53,7 +53,12 @@ def roster():
 def test_the_built_in_plugins_load_from_their_entry_points(roster):
     states = {reading.name: reading.state for reading in roster.observe()}
 
-    assert states == {"commons": PluginState.LOADED, "artic": PluginState.LOADED, "wikidata": PluginState.LOADED}
+    assert states == {
+        "commons": PluginState.LOADED,
+        "artic": PluginState.LOADED,
+        "met": PluginState.LOADED,
+        "wikidata": PluginState.LOADED,
+    }
 
 
 @pytest.mark.parametrize(

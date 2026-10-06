@@ -29,6 +29,7 @@ from arrt.library.services.review import MAX_REVIEW_LIMIT, CandidatePage, Candid
 from arrt.library.services.runner import RunListing, RunView
 from arrt.library.services.taste import AffinityView
 from arrt.library.services.wikidata_match import WorkMatch
+from arrt.library.sources.plugin import API_VERSION
 from arrt.mcp.envelope import ImageBlock, ok, with_images
 from arrt.mcp.registry import HELP_ACTION, RegistryError
 from arrt.mcp.tools import TOOLS
@@ -46,6 +47,7 @@ from arrt.programming.clients import ClientView
 from arrt.programming.display import UNSET, ThemePlacement, WallView, describe_wall_status
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.services.container import Services
+from arrt.services.health import SourceHealth
 
 #: A bound action: validated arguments in, a result payload out. Every binding
 #: takes the whole container rather than the one service it happens to need, so
@@ -567,6 +569,35 @@ def _list_runs(services: Services, arguments: Mapping[str, Any]) -> dict[str, An
         truncated=listing.truncated,
         notice=_runs_truncation_notice(listing),
     )
+
+
+def _image_sources(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """Every installed source plugin, in `GET /api/sources`' field names (`test_surface_parity.py`)."""
+    major, minor = API_VERSION
+    sources = services.health.observe_sources()
+    return ok(
+        interface_version=f"{major}.{minor}",
+        sources=[_source_plugin_fields(each) for each in sources],
+        count=len(sources),
+    )
+
+
+def _source_plugin_fields(health: SourceHealth) -> dict[str, Any]:
+    reading = health.reading
+    return {
+        "name": reading.name,
+        "state": reading.state.value,
+        "reason": reading.reason,
+        "faults": reading.faults,
+        "last_fault_at": _moment(reading.last_fault_at),
+        "last_fault_age_seconds": health.last_fault_age_seconds,
+        "last_fault": reading.last_fault,
+        "description": health.describe(),
+        "distribution": reading.identity.distribution,
+        "version": reading.identity.version,
+        "api_major": reading.identity.api_major,
+        "provides": [part.value for part in reading.identity.provides],
+    }
 
 
 def _spend(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -1092,6 +1123,7 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_discovery", "get"): _start_get,
     ("art_discovery", "list_runs"): _list_runs,
     ("art_discovery", "spend"): _spend,
+    ("art_discovery", "source_plugins"): _image_sources,
     ("art_review", "list_works"): _list_candidate_works,
     ("art_review", "get_work"): _get_candidate_work,
     ("art_review", "list_images"): _list_candidate_images,

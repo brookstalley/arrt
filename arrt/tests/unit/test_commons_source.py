@@ -290,3 +290,14 @@ def test_phase_two_picks_the_better_image_whichever_source_found_it(museum_size,
 
     assert next(entry.found.provider for entry in resolution.instances) == winner
     assert {entry.found.provider for entry in resolution.instances} == {"commons", "artic"}
+
+
+def test_the_default_client_follows_no_redirect():
+    """Every other test passes its own client, so only this one holds the default.
+
+    The metadata endpoint is asked with no redirect followed, as the registry is,
+    and image URLs are fetched later by the acquisition path's checked transport.
+    """
+    source = CommonsFinder(registry=FakeRegistry(), user_agent="arrt-tests/0")
+
+    assert source._http.follow_redirects is False
