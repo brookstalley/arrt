@@ -1233,6 +1233,12 @@ number: a pixel threshold means different things on a 42" and a 75", and megapix
 were already ruled out. On a 42" panel a 12" floor puts the threshold at ~1260 px on
 the long edge.
 
+> **Direction changed 2026-10-06:** the owner set the minimum at **1,000 px on the
+> long edge**, the number the quality profile was waiting for
+> (`re-architecture.md` § Open questions). The inch floor stays the mechanism
+> until wave 4, and a deployment expresses the minimum in it as 1,000 px divided
+> by its panel's pixels per inch.
+
 **Below the floor, the work is not rejected and the image is not hidden.** Phase 2
 does not *auto-select* a below-floor instance; the review grid shows it labelled
 with its rendered physical size ("would show at 8.6 inches") and the curator may
