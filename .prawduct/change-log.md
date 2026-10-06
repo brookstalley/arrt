@@ -62,6 +62,32 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-06: The Met, through its open API, as a built-in source
+
+<!-- prawduct: scope=met-source -->
+
+**Why:** the owner asked for more sources and chose the Met's open API, after
+being shown it fills none of today's 36 gaps: the three gap works the Met holds
+are in copyright, and the API gives images only for public-domain works. Its
+value is public-domain works later Asks propose, as full-size CC0 originals with
+no key. The owner also asked how a public and a later private Met plugin would
+live together.
+
+**What:** a built-in `met` plugin (`library/sources/met.py`). It finds by the
+work's Wikidata item (the Met ids its pages give) and otherwise by title search,
+narrowed to the artist's objects when the Met knows the artist (a broad title
+comes back in id order, not relevance). It reports the original, sized from its
+JPEG header by a ranged read, and reads its own recorded URL back to the
+original. **It records and claims only the API's object URL**, so a private
+plugin reading the Met's web pages can claim those and each row reaches the
+reader that recorded it in any order (`source-plugins.md` § One holder, two
+plugins). It needs no setting and never declines, so a deployment with nothing
+configured now has an image source. Measurements in `met-api-findings.md`
+(the search endpoint moved on 2026-10-01; the image host refuses
+`Accept: application/json`, which the live test found after the unit suite
+passed). `source-plugins.md` registered in `project-state.yaml`, where it had
+never been.
+
 ## 2026-10-05: The client revalidates every file, so a deploy cannot leave a phone half-updated
 
 <!-- prawduct: scope=static-revalidate -->

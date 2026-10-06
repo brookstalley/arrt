@@ -23,7 +23,7 @@ gallery = "arrt_gallery:PLUGIN"
 ```
 
 - **Pick a name no other installed plugin uses.** The built-ins are `commons`,
-  `artic` and `wikidata`. Two distributions registering one name load neither, so
+  `artic`, `met` and `wikidata`. Two distributions registering one name load neither, so
   a plugin cannot replace a built-in by taking its name.
 - **The name is permanent once rows carry it.** Every image the plugin's finder
   reports is stored under it, and acquisition and the health panel name the
@@ -119,6 +119,12 @@ At most one of each, in `SourceParts`:
 - `claims(url)` is on the `SourcePlugin`, not the reader. It must be **static (no
   I/O and no settings) and narrower than a path**: check the host as well,
   because another site's `/objects/42` must not be sent to yours.
+- **Claim only the URL shape your finder records.** Arrt sends a stored source to
+  the first plugin that claims its URL, whoever found it. If another plugin reads
+  the same holder another way (the public `met` reads the Met's API; a private
+  plugin would read its web pages), two plugins claiming one shape would send one
+  plugin's rows to the other's reader. So each records, and claims, its own
+  (`source-plugins.md` § One holder, two plugins).
 - `read(url)` returns `FetchLocator.direct(url)` (an image), `.tiles(url)` (a
   URL `dezoomify-rs` reads, such as a IIIF `info.json`), or `.none(reason)` (the
   page is the expected one and shows no image).
@@ -309,5 +315,6 @@ to it by a test:
 | Plugin | Shows | Its tests (`arrt/tests/unit/`) |
 |---|---|---|
 | `artic` (`arrt/src/arrt/library/sources/artic.py`) | a finder, a reader and a collection; declining without its setting; `claims` checking host and path | `test_artic_client.py`, `test_artic_browse.py` |
+| `met` (`met.py`) | a finder that finds by item when a registry is configured and searches otherwise; a reader; `claims` taking only the URL shape it records; an image's size read from its header | `test_met_source.py` |
 | `commons` (`commons.py`) | a finder that needs the registry and looks works up by item | `test_commons_source.py` |
 | `wikidata` (`wikidata.py`) | a finder of pages only, with `offers_images = False` | `test_wikidata_pages.py` |

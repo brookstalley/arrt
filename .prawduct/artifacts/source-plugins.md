@@ -83,6 +83,36 @@ narrower than a path: the Art Institute's checks the museum's hosts as well as
 `/artworks/<id>`, because another site's `/artworks/91194` must not be sent to
 the museum.
 
+### One holder, two plugins
+
+Added 2026-10-06, when the owner asked how a public Met plugin (its open API,
+public-domain images only) and a later private one (its web pages, behind a bot
+checkpoint, for in-copyright works) would live together.
+
+**Two plugins for one holder claim disjoint URL shapes, and each records the URL
+its own reader reads.** Routing is by URL, so with one shape claimed by both,
+`SOURCE_ORDER` would pick one reader for both plugins' rows. The Met's API reader
+would then answer "no image" for every in-copyright work the page reader found,
+or the page reader would drive a browser for every public-domain one. With
+disjoint shapes each row reaches the reader that recorded it, in any order.
+
+- **`met` records and claims only the API's object URL**
+  (`collectionapi.metmuseum.org/public/collection/v1/objects/<id>`). A private
+  plugin reading the Met's pages claims `www.metmuseum.org` pages.
+- **The Met's web page stays a sighting** while a work is open, because nothing
+  installed reads it. That is true, and the count is what says when the private
+  reader is worth building.
+- **The cost:** `met`'s URL is not the page Wikidata records (Wikidata's preferred
+  formatter for P3634 is the web page, and the registry reads best rank only),
+  so its instances get no title shortcut in the identity check, which compares
+  title and artist as for any search.
+- **Both installed:** a public-domain work is found by both, under two provider
+  names; the pool ranks them as any two sources.
+- *Mine,* 2026-10-06; the owner can correct. Nothing enforces disjointness across
+  plugins, since `claims` is a function and the URLs it would take cannot be
+  listed. Each plugin's tests hold its own shape (`test_met_source.py` refuses the
+  web page).
+
 ### Fetch locators
 
 A reader answers with one of:

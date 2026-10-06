@@ -482,7 +482,7 @@ is no network between planes.
         │  │    UnavailableEngine ships       │          by no other service. NOT the only paid edge
         │  │                                  │          any more: MatEngine is the second, below
         │  ├─ ImageSourcePool                 │          phase 2 — every Finder (Protocol) a
-        │  │    commons, artic (plugins)      │          plugin offers, asked at once; free
+        │  │    commons, artic, met (plugins) │          plugin offers, asked at once; free
         │  ├─ CollectionBrowse (Protocol)     │          what the collection HOLDS by an artist, as
         │  │                                  │          opposed to what it can find: the offer
         │  │                                  │          supplementing works phase 2 could not confirm
@@ -631,10 +631,11 @@ is no network between planes.
   back to the source an instance was recorded under; a source's URL goes to the
   reader of the plugin that claims it. **Since 2026-10-03 every source is a
   plugin** (`source-plugins.md`), loaded through `arrt.sources` entry points, the
-  three built-ins included, and nothing in the wiring names one. `SOURCE_ORDER`
+  built-ins included, and nothing in the wiring names one. `SOURCE_ORDER`
   sets the order; its default is Commons (with `WIKIDATA_USER_AGENT`) first and
   the Art Institute (with `ARTIC_USER_AGENT`) second, and a plugin it does not
-  name follows by name. The third built-in, `wikidata`, finds no image: it offers
+  name follows by name, as the built-in `met` (the Met's open API) does. The
+  built-in `wikidata` finds no image: it offers
   the pages a work's item records, and a page no installed plugin claims is kept
   as a sighting (`library/services/sightings.py`).
 

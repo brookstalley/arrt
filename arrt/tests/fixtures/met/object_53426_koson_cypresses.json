@@ -1,0 +1,94 @@
+{
+    "objectID": 53426,
+    "isHighlight": false,
+    "accessionNumber": "2015.300.97",
+    "accessionYear": "2015",
+    "isPublicDomain": true,
+    "primaryImage": "https://images.metmuseum.org/CRDImages/as/original/PHOTS-1262-003.jpg",
+    "primaryImageSmall": "https://images.metmuseum.org/CRDImages/as/web-large/PHOTS-1262-003.jpg",
+    "additionalImages": [
+        "https://images.metmuseum.org/CRDImages/as/original/PHOTS-1262-002.jpg",
+        "https://images.metmuseum.org/CRDImages/as/original/PHOTS-1262-001.jpg"
+    ],
+    "constituents": [
+        {
+            "constituentID": 12509,
+            "role": "Artist",
+            "name": "Ikeda Koson",
+            "constituentULAN_URL": "",
+            "constituentWikidata_URL": "https://www.wikidata.org/wiki/Q11551796",
+            "gender": ""
+        }
+    ],
+    "department": "Asian Art",
+    "objectName": "Screens",
+    "title": "Cypresses",
+    "culture": "Japan",
+    "period": "Edo period (1615\u20131868)",
+    "dynasty": "",
+    "reign": "",
+    "portfolio": "",
+    "artistRole": "Artist",
+    "artistPrefix": "",
+    "artistDisplayName": "Ikeda Koson",
+    "artistDisplayBio": "Japanese, 1803\u20131868",
+    "artistSuffix": "",
+    "artistAlphaSort": "Ikeda Koson",
+    "artistNationality": "Japanese",
+    "artistBeginDate": "1803",
+    "artistEndDate": "1868",
+    "artistGender": "",
+    "artistWikidata_URL": "https://www.wikidata.org/wiki/Q11551796",
+    "artistULAN_URL": "",
+    "objectDate": "mid-19th century",
+    "objectBeginDate": 1834,
+    "objectEndDate": 1866,
+    "medium": "Two-panel folding screen; ink on paper",
+    "dimensions": "Image: 59 5/16 x 63 1/16 in. (150.6 x 160.2 cm)\r\nOverall with mounting: 67 1/2 x 70 1/2 in. (171.5 x 179.1 cm)",
+    "measurements": [
+        {
+            "elementName": "Overall",
+            "elementDescription": null,
+            "elementMeasurements": {
+                "Height": 171.45035,
+                "Width": 179.07036
+            }
+        },
+        {
+            "elementName": "Image",
+            "elementDescription": null,
+            "elementMeasurements": {
+                "Height": 150.6,
+                "Width": 160.2
+            }
+        }
+    ],
+    "creditLine": "Mary Griggs Burke Collection, Gift of the Mary and Jackson Burke Foundation, 2015",
+    "geographyType": "",
+    "city": "",
+    "state": "",
+    "county": "",
+    "country": "",
+    "region": "",
+    "subregion": "",
+    "locale": "",
+    "locus": "",
+    "excavation": "",
+    "river": "",
+    "classification": "Paintings",
+    "rightsAndReproduction": "",
+    "linkResource": "",
+    "metadataDate": "2025-12-20T04:50:39.43Z",
+    "repository": "Metropolitan Museum of Art, New York, NY",
+    "objectURL": "https://www.metmuseum.org/art/collection/search/53426",
+    "tags": [
+        {
+            "term": "Cypresses",
+            "AAT_URL": "http://vocab.getty.edu/page/aat/300343641",
+            "Wikidata_URL": "https://www.wikidata.org/wiki/Q146911"
+        }
+    ],
+    "objectWikidata_URL": "",
+    "isTimelineWork": false,
+    "GalleryNumber": ""
+}
