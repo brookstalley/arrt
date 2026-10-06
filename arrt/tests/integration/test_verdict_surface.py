@@ -21,7 +21,6 @@ import pytest
 from fakes import FakeFinder, a_decodable_jpeg, a_roster, a_work, an_image
 
 from arrt.library.discovery.engine import WorkList
-from arrt.library.services.previews import PreviewSettings
 from arrt.persistence.discovery_records import Verdict
 from arrt.persistence.records import ArtworkStatus
 from arrt.services.container import Services
@@ -67,7 +66,6 @@ def services(store, discovery_store, wall_settings, thumbnail_settings, settings
         engine=engine,
         discovery_settings=settings.discovery_settings,
         sources=a_roster(museum),
-        previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
     )
 
 
@@ -81,7 +79,7 @@ def reviewable(services, propose, add_image):
     for real.
     """
 
-    def _reviewable(*, title="The Elephants", instances=1, artist="Salvador Dalí", previews=False, **fields):
+    def _reviewable(*, title="The Elephants", instances=1, artist="Salvador Dalí", **fields):
         work = propose(title, dedup_key=title.lower(), proposed_artist=artist, **fields)
         images = [
             add_image(
@@ -90,7 +88,6 @@ def reviewable(services, propose, add_image):
                 confidence=0.9 - index / 10,
                 estimated_width=6000,
                 estimated_height=4000,
-                preview_path=f"previews/{title.lower().replace(' ', '-')}-{index}.jpg" if previews else None,
             )
             for index in range(instances)
         ]
@@ -300,16 +297,14 @@ async def test_the_wanted_listing_pictures_each_work_as_its_card_does_and_sends_
     The thumbnail's preview is on disk, so a listing that read pictures would
     have a block to send; that it sends none is the bound on an uncapped list.
     """
-    preview = settings.art_root / "previews/sleep-thumbnail.jpg"
-    preview.parent.mkdir(parents=True, exist_ok=True)
-    preview.write_bytes(a_decodable_jpeg(150, 148))
+    kept = services.pictures.put("artic", "https://museum.example/sleep-thumbnail", a_decodable_jpeg(150, 148))
     too_small, _ = reviewable(title="Sleep", instances=0)
     add_image(
         too_small,
         url="https://museum.example/sleep-thumbnail",
         estimated_width=150,
         estimated_height=148,
-        preview_path="previews/sleep-thumbnail.jpg",
+        preview_path=services.pictures.relative(kept),
     )
     turned_down, images = reviewable(instances=1)
     await call(server_url, "art_review", action="want", work_id=turned_down.id, turning_down=images[0].id)
@@ -484,26 +479,3 @@ async def test_the_review_tool_still_reports_that_it_never_spends(server_url):
 
     assert errored is False
     assert "Never spends" in payload["summary"]
-
-
-@pytest.mark.parametrize("verdict", [Verdict.ACCEPTED, Verdict.REJECTED])
-async def test_a_decided_works_previews_become_reclaimable(server_url, services, reviewable, verdict, settings):
-    """The verdict is what arms the sweep, and before this chunk nothing could arm it.
-
-    `operational-spec.md` § Add disk headroom recorded that the sweep would
-    reclaim nothing whatever it did, because no shipped surface could set a
-    terminal verdict. This is the test that the sentence is now out of date —
-    and it is deliberately driven over the tool rather than the service, since
-    the surface being able to arm it is the whole of what changed.
-    """
-    work, images = reviewable(previews=True)
-    target = settings.art_root / images[0].preview_path
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(b"cached bytes")
-    assert services.sweep.run().retained == 1, "held while the work is under review"
-
-    _payload, errored = await call(server_url, "art_review", action="set_verdict", work_id=work.id, verdict=str(verdict))
-
-    assert errored is False
-    assert services.sweep.run().deleted == 1
-    assert not target.exists()

@@ -14,12 +14,14 @@ import logging
 from dataclasses import replace
 
 import pytest
-from fakes import FakeFinder, a_roster, a_work, an_image
+from fakes import FakeFinder, a_decodable_jpeg, a_roster, a_work, an_image
+from PIL import Image
 
 from arrt.library.discovery.engine import WorkList
 from arrt.library.discovery.phase_two import PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
-from arrt.library.services.previews import PreviewCache, PreviewSettings
+from arrt.library.services.pictures import PictureStore
+from arrt.library.services.previews import PreviewCache
 from arrt.library.services.runner import DiscoveryRunner
 from arrt.persistence.discovery_records import InitiatedBy, ResolutionStatus, RunStatus, Verdict
 from arrt.persistence.records import AcquisitionMethod, SourceClass
@@ -38,10 +40,7 @@ def museum() -> FakeFinder:
 
 @pytest.fixture
 def previews(settings, museum) -> PreviewCache:
-    return PreviewCache(
-        PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
-        ImageSourcePool([museum]).fetch_preview,
-    )
+    return PreviewCache(PictureStore(settings.pictures_path, art_root=settings.art_root, sources=ImageSourcePool([museum])))
 
 
 @pytest.fixture
@@ -272,7 +271,6 @@ def test_the_floor_is_deployment_geometry_rather_than_a_pixel_count(
             engine=engine,
             discovery_settings=geometry.discovery_settings,
             sources=a_roster(museum),
-            previews=PreviewSettings(art_root=geometry.art_root, directory=geometry.previews_path),
         )
         runner = DiscoveryRunner(
             plane.discovery,
@@ -280,8 +278,7 @@ def test_the_floor_is_deployment_geometry_rather_than_a_pixel_count(
             geometry.discovery_settings,
             images=PhaseTwoEngine(ImageSourcePool([museum]), box=geometry.tv_artwork_box),
             previews=PreviewCache(
-                PreviewSettings(art_root=geometry.art_root, directory=geometry.previews_path),
-                ImageSourcePool([museum]).fetch_preview,
+                PictureStore(geometry.pictures_path, art_root=geometry.art_root, sources=ImageSourcePool([museum]))
             ),
             spawn=lambda work: work(),
         )
@@ -304,9 +301,17 @@ def test_a_preview_is_cached_on_disk_so_review_survives_the_museum_going_down(se
 
     cached = settings.art_root / image.preview_path
     assert cached.is_file()
-    assert cached.read_bytes() == b"\xff\xd8\xff\xe0 jpeg"
+    assert cached.is_relative_to(settings.pictures_path)
+    # The museum's bytes re-encoded and kept at their own size (the fixture's
+    # preview is 1200 x 900, under the store's larger tier), not as they came.
+    with Image.open(cached) as kept:
+        assert (kept.format, kept.size) == ("JPEG", (1200, 900))
     # Relative to ART_ROOT, like every other path the catalogue holds.
     assert not image.preview_path.startswith("/")
+    # And the point of keeping it: the museum gone, the card still has its picture.
+    museum.preview_bytes = None
+    museum.unreachable = True
+    assert services.review.preview_image(image.id).media_type == "image/jpeg"
 
 
 def test_an_instance_whose_preview_will_not_download_is_still_recorded(services, engine, runner, museum):
@@ -585,7 +590,8 @@ class SecondSource:
 
     def fetch_preview(self, url: str) -> bytes | None:
         self.fetched.append(url)
-        return b"\xff\xd8\xff\xe0 second"
+        # A real picture: the store keeps only what decodes.
+        return a_decodable_jpeg(640, 480)
 
 
 def test_an_instance_from_a_second_source_is_selected_and_its_preview_fetched_from_it(services, engine, settings, museum):
@@ -603,7 +609,7 @@ def test_an_instance_from_a_second_source_is_selected_and_its_preview_fetched_fr
         engine,
         settings.discovery_settings,
         images=PhaseTwoEngine(pool, box=settings.tv_artwork_box),
-        previews=PreviewCache(PreviewSettings(art_root=settings.art_root, directory=settings.previews_path), pool.fetch_preview),
+        previews=PreviewCache(PictureStore(settings.pictures_path, art_root=settings.art_root, sources=pool)),
         spawn=lambda work: work(),
     )
     engine.result = a_list("The Elephants")
@@ -653,7 +659,6 @@ def test_a_level_tie_between_sources_is_stored_for_the_source_listed_first(
         engine=engine,
         discovery_settings=settings.discovery_settings,
         sources=a_roster(second, museum),
-        previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
     )
     plane.runner._spawn = lambda work: work()
     engine.result = a_list(*titles)
@@ -691,7 +696,6 @@ def test_with_commons_the_only_source_a_work_named_by_title_is_not_called_unheld
         engine=engine,
         discovery_settings=settings.discovery_settings,
         sources=a_roster(commons),
-        previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
     )
     plane.runner._spawn = lambda work: work()
     engine.result = a_list("The Elephants")
@@ -769,7 +773,6 @@ def test_a_holders_other_title_resolves_through_the_deployments_registry(
         discovery_settings=settings.discovery_settings,
         registry=registry,
         sources=a_roster(museum),
-        previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
     )
     plane.runner._spawn = lambda work: work()
 

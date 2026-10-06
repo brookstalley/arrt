@@ -109,9 +109,9 @@ class Sample:
     proposed, judged or acquired: it is the collection's own record of a work it
     holds by an artist the reply named, shown so a curator can see what the name
     means. `image_url` is the collection's preview address, rendered by the
-    browser directly — a conversation caches no files, because a sample nobody
-    chose is not a preview of anything and reclaiming it would need a sweep for
-    pictures that were never candidates.
+    browser directly — a conversation keeps no files of its own. Moving such
+    pictures behind Arrt's routes, into the picture store, is a plan of its own
+    (`build-plan-picture-store.md` § Not in this plan).
     """
 
     title: str

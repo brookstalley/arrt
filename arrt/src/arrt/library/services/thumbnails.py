@@ -35,10 +35,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Final
 
-from PIL import Image, UnidentifiedImageError
+from PIL import Image
 
 from arrt.library.services.catalogue import CatalogueService
-from arrt.library.services.imaging import encode_downscaled
+from arrt.library.services.imaging import UNDECODABLE, encode_downscaled
 from arrt.persistence.records import Rendition, RenditionKind, tv_renditions_newest_first
 from arrt.services.errors import ServiceError
 
@@ -293,11 +293,7 @@ class ThumbnailService:
             staging.replace(destination)
         except Image.DecompressionBombError as exc:
             raise ThumbnailUnavailable(f"The image at {source.name} is too large to open safely: {exc}") from exc
-        except (OSError, UnidentifiedImageError, ValueError) as exc:
-            # `ValueError` is here for the same reason `inline_preview` carries
-            # it: Pillow raises it from `convert` for at least one mode (`La`).
-            # It was absent here while the sibling had it, which is exactly the
-            # drift that comes of keeping two copies of one decode.
+        except UNDECODABLE as exc:
             raise ThumbnailUnavailable(f"The image at {source.name} could not be read: {exc}") from exc
         finally:
             staging.unlink(missing_ok=True)

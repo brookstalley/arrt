@@ -292,7 +292,7 @@ largest single work in flight rather than by the corpus.
 > say so. Standing searches (Watches) and upgrade jobs also make the server
 > unattended in a way it was not. It still has no uptime target, but a scheduled
 > job that silently stops running is a detection problem for
-> `observability-strategy.md`, the same shape as the preview sweep.
+> `observability-strategy.md`, the same shape as the topic sweep.
 
 **The failure mode that matters is that display-plane "down" looks exactly like
 "up".** A stalled loader leaves the TV in art mode holding the last selected work

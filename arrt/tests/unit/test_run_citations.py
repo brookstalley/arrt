@@ -24,7 +24,8 @@ from arrt.library.discovery.images import FoundImage, ImageQuery
 from arrt.library.discovery.phase_two import PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.services.discovery import ChosenWork
-from arrt.library.services.previews import PreviewCache, PreviewSettings
+from arrt.library.services.pictures import PictureStore
+from arrt.library.services.previews import PreviewCache
 from arrt.library.services.runner import DiscoveryRunner
 from arrt.library.sources.loading import SourceRoster
 from arrt.persistence.discovery_records import DiscoveryRun, InitiatedBy, RunKind, RunStatus
@@ -76,9 +77,7 @@ def policy() -> PagePolicy:
 
 @pytest.fixture
 def runner(services, engine, settings, museum, policy) -> DiscoveryRunner:
-    previews = PreviewCache(
-        PreviewSettings(art_root=settings.art_root, directory=settings.previews_path), ImageSourcePool([museum]).fetch_preview
-    )
+    previews = PreviewCache(PictureStore(settings.pictures_path, art_root=settings.art_root, sources=ImageSourcePool([museum])))
     return DiscoveryRunner(
         services.discovery,
         engine,
@@ -203,9 +202,7 @@ def test_a_run_s_citations_survive_a_restart_and_another_run_s_are_not_mixed_in(
 def test_a_runner_given_no_check_uses_the_fetch_policy(services, engine, settings, museum):
     """The default, which is what a deployment gets: `__main__` binds no resolver.
     Literals and a `.local` name only, so the policy decides without DNS."""
-    previews = PreviewCache(
-        PreviewSettings(art_root=settings.art_root, directory=settings.previews_path), ImageSourcePool([museum]).fetch_preview
-    )
+    previews = PreviewCache(PictureStore(settings.pictures_path, art_root=settings.art_root, sources=ImageSourcePool([museum])))
     runner = DiscoveryRunner(
         services.discovery,
         engine,
@@ -230,9 +227,7 @@ def test_a_runner_given_no_check_uses_the_fetch_policy(services, engine, setting
 def test_a_citation_that_is_not_a_url_is_refused_and_the_run_s_works_are_still_searched(services, engine, settings, museum):
     """A stored citation is read again on every re-search, so one that raised
     instead of being refused would fail that run's phase 2 for good."""
-    previews = PreviewCache(
-        PreviewSettings(art_root=settings.art_root, directory=settings.previews_path), ImageSourcePool([museum]).fetch_preview
-    )
+    previews = PreviewCache(PictureStore(settings.pictures_path, art_root=settings.art_root, sources=ImageSourcePool([museum])))
     runner = DiscoveryRunner(
         services.discovery,
         engine,
@@ -267,7 +262,6 @@ def test_the_container_s_runner_hands_on_only_what_the_real_fetch_policy_passes(
         artwork_box=settings.tv_artwork_box,
         engine=engine,
         discovery_settings=settings.discovery_settings,
-        previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
         resolve=lambda _host: ["93.184.216.34"],
         sources=SourceRoster.of(finders=[museum]),
     )

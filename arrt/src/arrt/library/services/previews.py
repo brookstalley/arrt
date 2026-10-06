@@ -1,60 +1,39 @@
-"""Local copies of candidate previews, so review never depends on a museum.
+"""Candidate previews: kept in the picture store, and re-encoded for whoever reads them.
 
 The review grid — in the browser and over MCP alike — has to show the picture. A
 source-side URL alone means a curator reviewing an hour later sees broken images
 when a museum is down or rate-limiting, and it means the MCP surface has nothing
-local to inline. So the bytes are pulled once, when the instance is found, and
-the catalogue records where they landed.
-
-**These files are a third class, and the distinction is the data model's.**
-Upstream files are backed up and never regenerated; derived files regenerate per
-device and are never transported. A candidate preview is neither: it is
-disposable, safe to delete the moment its work reaches a terminal verdict, and
-deleting one never affects the catalogue — an accepted work's imagery comes from
-acquisition, not from the preview that helped someone decide.
+local to inline. So the picture is fetched once, when the instance is found, and
+kept for good in the picture store (`pictures.py`), which is the only thing that
+asks a source for one. The catalogue records where it landed.
 
 **A preview that will not download is not a failure.** The instance is still
 real, still selectable, and still carries a source-side URL to fall back on.
 Losing a work over a missing thumbnail would be the tail wagging the dog, so
-every failure path here reports absence rather than raising. The two re-encoders
-below hold the same posture for the same reason, one step further along: a file
+every failure path here reports absence rather than raising. The re-encoder
+below holds the same posture for the same reason, one step further along: a file
 that will not decode costs its instance a picture, never its place in the
 listing.
 
-**Two re-encoders, because there are two readers with unrelated budgets.** A model
-pays for a picture in context tokens and a curator pays for it in pixels on a
-screen. They share the decode and the media type and nothing else — see the two
-box constants, which say why sharing one would be a slow leak from the visual
-side into the model's context.
+**Two readers with unrelated budgets.** A model pays for a picture in context
+tokens and a curator pays for it in pixels on a screen. The browser is answered
+with a kept tier's bytes as they are; the model's copy is re-encoded smaller from
+the smallest tier — see the box constants, which say why sharing one would be a
+slow leak from the visual side into the model's context.
 """
 
 import base64
-import hashlib
 import logging
-from collections.abc import Callable
-from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
-from PIL import Image, UnidentifiedImageError
+from PIL import Image
 
-from arrt.library.services.imaging import EncodedFrame, encode_downscaled
-from arrt.services.errors import ServiceError
+from arrt.library.services.imaging import UNDECODABLE, EncodedFrame, encode_downscaled
+from arrt.library.services.pictures import PictureStore
 
 log = logging.getLogger(__name__)
-
-#: Extensions a preview may keep from its URL. Anything else gets the default:
-#: the name is ours, and a suffix copied unchecked from a URL is a path
-#: component an attacker-controlled string could choose.
-_KNOWN_SUFFIXES: Final[frozenset[str]] = frozenset({".jpg", ".jpeg", ".png", ".webp", ".gif", ".tif", ".tiff"})
-
-_DEFAULT_SUFFIX: Final[str] = ".jpg"
-
-#: How much of the URL digest names the file. Long enough that a collision is
-#: not a practical concern across a catalogue of this size, short enough that the
-#: directory stays readable when someone goes looking.
-_NAME_LENGTH: Final[int] = 24
 
 #: The box an inlined preview is fitted into, in pixels on its long edge.
 #:
@@ -84,7 +63,7 @@ INLINE_MAX_EDGE_PX: Final[int] = 400
 #: the judgement this image is for.
 INLINE_JPEG_QUALITY: Final[int] = 75
 
-#: The box a preview is fitted into on its way to a browser, in pixels.
+#: The long edge a review card asks the picture store for, in pixels.
 #:
 #: **Its own constant, not `INLINE_MAX_EDGE_PX` reused, and that separation is the
 #: point rather than an accident.** That one is bounded by arithmetic — an image
@@ -94,10 +73,8 @@ INLINE_JPEG_QUALITY: Final[int] = 75
 #: which would silently spend a curator's model context on pixels it cannot use.
 #:
 #: The value matches the catalogue thumbnail's for the reason both were sized:
-#: cards of about this width on a retina display. It is deliberately not *shared*
-#: with it either — that one downscales a 47-megapixel master a work already
-#: holds, this one re-encodes a preview a museum served — so the two move for
-#: unrelated reasons and neither should drag the other.
+#: cards of about this width on a retina display, and it is the store's smaller
+#: tier, so a card is answered with that file as it is.
 #:
 #: Sufficient for the judgement the review gate exists to make: is this the right
 #: painting, and is it appropriate for a living room. It is emphatically *not*
@@ -106,168 +83,58 @@ INLINE_JPEG_QUALITY: Final[int] = 75
 #: it would render at on the wall, in inches, beside the picture.
 BROWSER_MAX_EDGE_PX: Final[int] = 480
 
-#: Quality for the browser's copy. Higher than the inline one's, because these
-#: bytes land on a screen a curator is looking at rather than in a context window.
-BROWSER_JPEG_QUALITY: Final[int] = 82
-
-#: The box an *enlarged* preview is fitted into: the picture a review card opens
-#: in place when it is clicked, which is meant to be the largest preview the
-#: server holds.
+#: The long edge the *enlarged* picture asks for: what a review card opens in
+#: place when it is clicked, the largest picture the server keeps.
 #:
-#: **A bound, not a size.** What the server holds is the provider's preview —
+#: **A bound, not a size.** What the store keeps is the provider's preview —
 #: ARTIC's is 843 px wide (`artic._PREVIEW_WIDTH`) and Commons' 960
-#: (`commons.PREVIEW_WIDTH`) — so the enlarged copy is that file at its own size
-#: and nothing is scaled up or down. The bound is there for the provider that one
-#: day caches something enormous: the decode is `draft`-reduced to it, so a large
-#: file never becomes a large bitmap in memory on the smallest machine in the
-#: deployment. Not the master: a work under review has none yet.
+#: (`commons.PREVIEW_WIDTH`) — at its own size when smaller than the store's
+#: larger tier, so the enlarged picture is that file and nothing is scaled up.
+#: Not the master: a work under review has none yet.
 ENLARGED_MAX_EDGE_PX: Final[int] = 2048
 
-#: What a re-encoded preview is declared as on the wire, whichever reader asked.
-#: Everything becomes JPEG on the way out — museums serve JPEG, PNG and the
-#: occasional TIFF — and one media type for both is not merely tidy. For a model,
-#: a content block whose type varied per instance would make the cost per image
-#: depend on the museum's choice of format rather than on the picture. For a
-#: browser it is stronger than that: a cached preview's *suffix* is taken from a
-#: URL and falls back to `.jpg` for anything unrecognised, so the name on disk is
-#: not evidence of what the bytes are — and a TIFF served under a type a browser
-#: cannot paint is a blank card with nothing saying why.
+#: What a preview is declared as on the wire, whichever reader asked. Everything
+#: the store keeps is JPEG it encoded itself — museums serve JPEG, PNG and the
+#: occasional TIFF — and one media type for both readers is not merely tidy. For
+#: a model, a content block whose type varied per instance would make the cost
+#: per image depend on the museum's choice of format rather than on the picture.
+#: For a browser, a TIFF served under a type it cannot paint is a blank card with
+#: nothing saying why.
 PREVIEW_MEDIA_TYPE: Final[str] = "image/jpeg"
 
-
-@dataclass(frozen=True, slots=True)
-class PreviewSettings:
-    """Where the image tree is, and where cached previews go inside it.
-
-    Passed in rather than resolved here for the reason every other settings
-    object gives: a service that read its own configuration could not be tested
-    against two deployments and would make every caller share one.
-    """
-
-    art_root: Path
-    directory: Path
-
-    def __post_init__(self) -> None:
-        """Refuse a cache outside the tree, at wiring time rather than mid-run.
-
-        Every catalogue path is relative to `ART_ROOT`, so a preview written
-        anywhere else has no representable path. Caught here it is a startup
-        failure naming both directories; caught where the row is written it is a
-        `ValueError` from `relative_to`, thrown on a worker thread partway
-        through a run.
-        """
-        if not self.directory.is_relative_to(self.art_root):
-            raise ServiceError(f"The preview cache at {self.directory} must sit inside ART_ROOT at {self.art_root}.")
+#: How every JPEG begins (the start-of-image marker). A kept file is checked for
+#: it before it is served as `image/jpeg`, so a file that is not one is reported
+#: unreadable rather than painted as a blank box.
+_JPEG_START: Final[bytes] = b"\xff\xd8\xff"
 
 
 class PreviewCache:
-    """Fetch a preview once and hand back the path the catalogue should record."""
+    """Keep each found instance's preview in the picture store, and hand back the path its row records.
 
-    def __init__(self, settings: PreviewSettings, fetch: Callable[[str, str], bytes | None]) -> None:
-        self._settings = settings
-        #: Injected rather than reached for, because the transport belongs behind
-        #: the image seam: this class writes files and computes paths, and a
-        #: service that also made HTTP requests could not be tested without one.
-        #: Called with the source's name and the URL, because only the source
-        #: that found an instance can fetch its preview.
-        self._fetch = fetch
+    A client of the store, not a cache of its own: the store looks first, fetches
+    on a miss, and writes, so a second record of the same image asks no source.
+    What this adds is the phase-2 seam the runner holds — the store is the
+    runner's only way to a picture.
+    """
 
-    def store(self, provider: str, url: str) -> str | None:
-        """Cache the bytes at `url` from `provider`, returning the path relative to `ART_ROOT`.
+    def __init__(self, pictures: PictureStore) -> None:
+        self._pictures = pictures
 
-        `None` means no local copy exists — the fetch failed, or returned
-        nothing. The caller records the instance regardless, with its source-side
-        URL and no `preview_path`.
+    def store(self, provider: str, url: str, preview_url: str) -> str | None:
+        """The kept picture of the instance at `url`, as a path relative to `ART_ROOT`.
 
-        **Already-cached bytes are not re-fetched.** The name is derived from the
-        URL, so a work re-searched later finds its preview already on disk and
-        the museum is asked once per distinct image rather than once per attempt.
+        `url` is the instance's own address, which the picture is kept under;
+        `preview_url` is where its source serves the preview. `None` means no
+        picture is kept — the fetch failed, or what came back is not a picture —
+        and the caller records the instance regardless, with its source-side URL
+        and no `preview_path`. Never raises (`PictureStore.keep`).
         """
-        destination = self._path_for(url)
-        relative = str(destination.relative_to(self._settings.art_root))
-        # The cache read and the provider call are guarded separately, because an
-        # `OSError` can come out of either and they are different diagnoses: an
-        # unreadable cache directory is this machine's problem, and a provider
-        # raising one is the network's. One handler over both would report the
-        # second as the first, sending whoever reads the log to the wrong place.
-        try:
-            if destination.exists() and destination.stat().st_size > 0:
-                return relative
-        except OSError as exc:
-            return self._absent(url, f"the cache could not be read: {exc}")
-        try:
-            payload = self._fetch(provider, url)
-        except Exception as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- a provider fault must not fail a work
-            # The seam promises `None` for a preview it cannot get, and a
-            # provider that raises something else instead — an httpx URL error is
-            # not an `HTTPError` — would otherwise reach the run-level handler and
-            # fail the whole run over a thumbnail. That is precisely the outcome
-            # this module exists to prevent, so the contract is enforced on this
-            # side rather than trusted.
-            return self._absent(url, f"the provider raised {type(exc).__name__}: {exc}")
-        if not payload:
-            # Distinguishes nothing-came-back from a fetch that reported failure:
-            # the seam reports both as `None`, and neither is worth failing a
-            # work over.
-            return self._absent(url, "the provider returned no bytes")
-        # Written beside the target and renamed, so a process that dies mid-write
-        # leaves no half-file that the `exists()` check above would later treat as
-        # a valid cache hit.
-        staging = destination.with_name(f"{destination.name}.partial")
-        try:
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            staging.write_bytes(payload)
-            staging.replace(destination)
-        except OSError as exc:
-            # A full or read-only disk is a real operational condition, and it
-            # must degrade the review card rather than end a run that has already
-            # found the images it went looking for.
-            #
-            # The partial is removed on the way out. Its name is derived from the
-            # destination, so every retry for this preview writes the same path —
-            # a leftover is never read (nothing looks for `.partial`) and never
-            # reclaimed either, and on the one failure this handles, a full disk,
-            # the stranded bytes are the last thing the device can afford.
-            #
-            # The cleanup can fail for the same reason the write did, and if it
-            # does the original failure is still the one worth reporting —
-            # replacing it with the tidy-up's would name the second-order problem
-            # and lose the first.
-            with suppress(OSError):
-                staging.unlink(missing_ok=True)
-            return self._absent(url, f"the bytes could not be written: {exc}")
-        log.info(
-            "cached a preview",
-            extra={"event": "preview.cached", "preview_url": url, "path": relative, "bytes": len(payload)},
-        )
-        return relative
-
-    def _absent(self, url: str, why: str) -> None:
-        """Report that no local copy exists, with the reason, and carry on.
-
-        One exit for every way a preview can fail to arrive, so the log line
-        cannot drift between them and a caller has exactly one thing to handle.
-        """
-        log.info(
-            "no preview was cached for an instance; review will fall back to its source URL",
-            extra={"event": "preview.absent", "preview_url": url, "reason": why},
-        )
-
-    def _path_for(self, url: str) -> Path:
-        """Where this URL's bytes live. Derived from the URL, so it is stable.
-
-        The name is a digest rather than anything taken from the URL's own path,
-        because a museum's filename is not ours to trust as a path component and
-        two museums may well use the same one.
-        """
-        digest = hashlib.sha256(url.encode("utf-8")).hexdigest()[:_NAME_LENGTH]
-        suffix = Path(url.split("?", 1)[0]).suffix.lower()
-        return self._settings.directory / f"{digest}{suffix if suffix in _KNOWN_SUFFIXES else _DEFAULT_SUFFIX}"
+        return self._pictures.keep(provider, url, preview_url)
 
 
 @dataclass(frozen=True, slots=True)
 class InlinePreview:
-    """One cached preview, small enough to travel inside a tool result.
+    """One kept picture, small enough to travel inside a tool result.
 
     The bytes are base64 already, because that is the only form the wire takes
     them in and handing a caller raw bytes it must encode is an invitation for
@@ -286,7 +153,7 @@ class InlinePreview:
 
 @dataclass(frozen=True, slots=True)
 class RenderedPreview:
-    """One cached preview, re-encoded for a browser to paint directly.
+    """One kept picture, as bytes a browser paints directly.
 
     Raw bytes rather than base64: these travel as an HTTP response body, and
     encoding them for a transport that does not need it would cost a third more
@@ -302,10 +169,10 @@ class RenderedPreview:
 
 
 def inline_preview(path: Path) -> InlinePreview | None:
-    """Downscale a cached preview into something a tool result can carry.
+    """Downscale a kept picture into something a tool result can carry.
 
     `None` means this instance travels without a picture, and it is never an
-    error: a preview is a disposable convenience, and the same reasoning that
+    error: a picture on a card is a convenience beside the work, and the same reasoning that
     makes a failed *download* report absence makes a failed *decode* report it
     too. The instance is still real, still listed, and still carries its
     source-side URL. Raising instead would lose a curator the other thirty-nine
@@ -322,46 +189,31 @@ def inline_preview(path: Path) -> InlinePreview | None:
     )
 
 
-def browser_preview(path: Path) -> RenderedPreview | None:
-    """Downscale a cached preview into bytes a browser renders.
+def kept_preview(path: Path) -> RenderedPreview | None:
+    """A kept picture's bytes as they are, for a browser to paint.
 
-    Absence is reported the same way and for the same reason as above: a review
-    card whose picture will not decode still shows the work, its size on the
-    wall, and its source URL, and is still selectable. The card knows before it
-    asks — the listing carries `preview_available` — so a `None` here is the
-    narrow race where the file went away between the listing and the request.
+    Not re-encoded: the store wrote this file as JPEG at the size asked for, so
+    decoding it again would cost a Pi a re-render per card for nothing. Absence is
+    reported the same way and for the same reason as above: a review card whose
+    picture will not read still shows the work, its size on the wall, and its
+    source URL, and is still selectable.
     """
-    frame = _rendered(path, max_edge=BROWSER_MAX_EDGE_PX, quality=BROWSER_JPEG_QUALITY)
-    return None if frame is None else RenderedPreview(data=frame.data, media_type=PREVIEW_MEDIA_TYPE)
-
-
-def enlarged_preview(path: Path) -> RenderedPreview | None:
-    """A cached preview at its own size, for the picture a card enlarges in place.
-
-    `browser_preview`'s twin with the larger box, and absent for the same
-    reasons in the same way.
-    """
-    frame = _rendered(path, max_edge=ENLARGED_MAX_EDGE_PX, quality=BROWSER_JPEG_QUALITY)
-    return None if frame is None else RenderedPreview(data=frame.data, media_type=PREVIEW_MEDIA_TYPE)
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        return _no_inline(path, f"it could not be read: {exc}")
+    if not data.startswith(_JPEG_START):
+        return _no_inline(path, "it is not a JPEG, which is all the picture store writes")
+    return RenderedPreview(data=data, media_type=PREVIEW_MEDIA_TYPE)
 
 
 def _rendered(path: Path, *, max_edge: int, quality: int) -> EncodedFrame | None:
-    """Re-encode a cached preview, reporting absence rather than raising.
+    """Re-encode a kept picture, reporting absence rather than raising.
 
-    One decode for both callers. They differ in the box, the quality and what
-    they wrap the bytes in, and in nothing else — and this module's own sibling
-    is the standing argument for not keeping two copies of a decode: the two that
-    predate `imaging.py` had already drifted on which exceptions they named.
-
-    **Nothing is cached on the way out, for either caller.** The input is already
-    a preview — ARTIC's default is 843 px on the long edge — and `draft` decodes
-    it at a reduced scale, so a full forty-work batch measured **under 300 ms**
-    on the build machine (2026-08-03), and a 3000 px input cost no more than an
-    843 px one because the reduced-scale decode absorbs the difference. What a
-    cache would cost is a second disposable class: files derived from files that
-    are themselves deleted when a work is decided, needing their own place in
-    that sweep and their own answer to "is this one stale". The preview lifecycle
-    is deliberately the only one of its kind.
+    **Only the model's copy is re-encoded on the way out**, from the store's
+    smaller tier, because its box and quality are a token budget the store's
+    tiers are not sized for. Nothing is kept of it: the 480 px tier is already
+    small, and `draft` decodes it at a reduced scale.
     """
     try:
         return encode_downscaled(path, max_edge=max_edge, quality=quality)
@@ -370,30 +222,25 @@ def _rendered(path: Path, *, max_edge: int, quality: int) -> EncodedFrame | None
         # than swept up with the rest, because a file engineered to exhaust
         # memory is worth a different log line from one that is merely corrupt.
         return _no_inline(path, f"it is too large to open safely: {exc}")
-    except (OSError, UnidentifiedImageError, ValueError) as exc:
-        # `OSError` and `UnidentifiedImageError` are the ordinary two — a
-        # truncated download, a file that is not an image — and are what the
-        # tests exercise.
-        #
-        # `ValueError` is boundary defence rather than a covered path, and the
-        # measurement is worth recording so nobody re-derives it: Pillow raises
-        # it from `convert` for at least one mode (`La`, premultiplied greyscale
-        # alpha), but no image format round-trips to that mode through
-        # `Image.open`, so it was not reachable from a file on disk when this was
-        # written. It is caught anyway because the alternative is one museum's
-        # unusual file costing a curator the other thirty-nine works in the
-        # listing, which is the outcome this whole module exists to prevent.
+    except UNDECODABLE as exc:
+        # A truncated file, a file that is not an image, or a mode `convert`
+        # refuses (`imaging.UNDECODABLE` says which raises what). Reported, not
+        # raised: one bad file must not cost a curator the other thirty-nine
+        # works in the listing.
         return _no_inline(path, f"it could not be read: {exc}")
 
 
 def _no_inline(path: Path, why: str) -> None:
     """Report that no picture travels with this instance, with the reason.
 
-    One exit for every way a preview can fail to be re-encoded, so the log line
-    cannot drift between them — the same shape `_absent` holds for the download
-    it mirrors.
+    One exit for every way a kept picture can fail to be read or re-encoded, so
+    the log line cannot drift between them. At WARNING, as `picture.unreadable`
+    (`observability-strategy.md`): every file read here is one the picture store
+    wrote and checked, so one that will not read is this machine's disk failing,
+    not a museum's bad file, and a store that has stopped working must not read
+    like a quiet one.
     """
-    log.info(
-        "a cached preview could not be rendered; the instance is listed without a picture",
-        extra={"event": "preview.not_inlined", "path": str(path), "reason": why},
+    log.warning(
+        "a kept picture could not be read; the instance is shown without a picture",
+        extra={"event": "picture.unreadable", "path": str(path), "reason": why},
     )

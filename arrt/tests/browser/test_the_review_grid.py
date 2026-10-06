@@ -727,18 +727,20 @@ def test_a_picture_that_fails_to_load_says_so_rather_than_leaving_a_blank(ui):
     assert "could not be loaded" in ui.text()
 
 
-def test_a_reclaimed_picture_is_named_rather_than_requested(ui):
-    """A decided work's preview is deleted on purpose, and the card knows.
+def test_a_picture_that_is_not_kept_is_named_rather_than_requested(ui):
+    """A work with an instance and no kept picture: the card knows, and says why.
 
     This is the case `preview_available` exists for: the work *has* an instance,
-    so the card renders one — and the bytes are gone. Without the check the card
+    so the card renders one — and there are no bytes. Since 2026-10-06 nothing
+    deletes a kept picture, so this is a picture that never arrived, or one a
+    decided work lost before then. Without the check the card
     requests them, gets a refusal, and falls back to "could not be loaded just
     now", which sends the curator looking for a bad download instead of telling
     them the truth. The listing already carries the reason; the card shows it.
 
     Distinct from the test below, which is a work with no instance at all and
-    never reaches this branch. Both were needed: the sweep killed the guard and
-    only this one noticed.
+    never reaches this branch. Both were needed: a mutation sweep killed the guard
+    and only this one noticed.
     """
     ui.serve(
         f"**/api/runs/{RUN_ID}/candidates*",
@@ -747,7 +749,11 @@ def test_a_reclaimed_picture_is_named_rather_than_requested(ui):
                 a_card(
                     shown=an_instance(
                         preview_available=False,
-                        preview_note="This work was accepted, so its cached copy was reclaimed.",
+                        preview_note=(
+                            "No local copy of this image is kept, so it cannot be shown here. This work was "
+                            "accepted: either no picture arrived when it was found, or it was deleted when the work "
+                            "was decided, as previews were until 2026-10-06."
+                        ),
                     )
                 )
             ]
@@ -757,7 +763,7 @@ def test_a_reclaimed_picture_is_named_rather_than_requested(ui):
     ui.page.wait_for_selector("li.card")
 
     assert ui.requests_matching("/api/candidate-images/") == []
-    assert "its cached copy was reclaimed" in ui.text()
+    assert "No local copy of this image is kept" in ui.text()
     assert "could not be loaded" not in ui.text()
 
 

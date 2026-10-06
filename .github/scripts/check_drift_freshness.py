@@ -11,9 +11,9 @@ disables scheduled workflows after a stretch of repository inactivity, which
 nothing here would otherwise notice. Both leave the `*-api-findings.md` documents
 quietly un-re-verified while the product goes on being built against them.
 
-**The remedy shape is the one this product already uses elsewhere.** The preview
-sweep logs `preview.swept` on every pass *including the ones that reclaim
-nothing*, precisely so that absence over an interval is itself the fault. This is
+**The remedy shape is the one this product already uses elsewhere.** The topic
+sweep logs `topics.swept` on every pass *including the ones that find nothing
+due*, precisely so that absence over an interval is itself the fault. This is
 that idea applied to a workflow: a successful run is the positive signal, and its
 age is the thing measured.
 
