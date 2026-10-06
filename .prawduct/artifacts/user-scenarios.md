@@ -155,9 +155,10 @@ Two things follow for the IA, and both are for the owner to rule on:
   reachable from the search box. A registry lookup could answer S4a in the
   dropdown or on Add New at no cost, marking each result *In your library*,
   *Can be hung*, *Preview only* or *No image available*.
-- **Which meaning does Enter take?** Today Enter opens Artworks filtered to the
-  query (ruled 2026-09-30), which serves S1 and S2. If S3 or S4a is the common
-  case, that ruling should be revisited with this table in hand.
+- ~~**Which meaning does Enter take?**~~ *Answered 2026-10-06 (the owner):*
+  Enter opens the Search results page, grouped Held / Not held, which serves
+  S3 and S4a as well as S1 and S2 (`build-plan-search-held-not-held.md`). It
+  had opened Artworks filtered since 2026-09-30, a dead end for a work not held.
 
 ## Tested against three requests (2026-10-01)
 

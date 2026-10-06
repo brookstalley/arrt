@@ -3,8 +3,10 @@
 Ruling 2: below the library's matches, Wikidata's artists and works, each with
 its state. They arrive after the library's rows and never hold them back; a
 match the library's rows already show is not shown twice; and their arrival is
-announced rather than focused. The registry is a fake installed where the entry
-point builds Wikidata's.
+announced rather than focused. Since the owner's ruling of 2026-10-06 the list
+is in two halves, *Held* then *Not held*, each group named for its half, and a
+held match of Wikidata's is under Held. The registry is a fake installed where
+the entry point builds Wikidata's.
 """
 
 import pytest
@@ -122,8 +124,8 @@ def test_wikidata_follows_the_library_and_shows_nothing_twice(ui, matched):
         "All results for “dali”",
     ]
     listbox = ui.page.get_by_role("listbox", name="Suggestions")
-    assert listbox.get_by_role("group", name="Wikidata: artists").get_by_role("option").count() == 1
-    assert listbox.get_by_role("group", name="Wikidata: works").get_by_role("option").count() == 2
+    assert listbox.get_by_role("group", name="Not held: artists", exact=True).get_by_role("option").count() == 1
+    assert listbox.get_by_role("group", name="Not held: works", exact=True).get_by_role("option").count() == 2
     # Glyph, word and colour, as every state mark here carries one (`accessibility-spec.md`).
     badge = ui.page.locator(f"{LISTBOX} [role='option']:has-text('The Burning Giraffe') .badge-image-found")
     assert badge.locator(".glyph").inner_text() == "◐"
@@ -168,6 +170,12 @@ def test_a_held_match_the_library_rows_do_not_show_says_so_and_opens_the_library
 
     row = f"{LISTBOX} [role='option']:has-text('The Persistence of Memory')"
     assert " ".join(ui.page.locator(row).inner_text().split()) == "The Persistence of Memory — Salvador Dalí ● Held"
+    # Held, so in the Held half, not among what Wikidata has that you do not hold.
+    listbox = ui.page.get_by_role("listbox", name="Suggestions")
+    held_works = listbox.get_by_role("group", name="Held: works", exact=True).get_by_role("option").all_inner_texts()
+    assert [" ".join(text.split()) for text in held_works] == ["The Persistence of Memory — Salvador Dalí ● Held"]
+    not_held = listbox.get_by_role("group", name="Not held: works", exact=True).get_by_role("option").all_inner_texts()
+    assert not any("Persistence" in text for text in not_held)
     assert ui.page.locator(f"{row} .badge-held .glyph").inner_text() == "●"
     ui.page.click(row)
     ui.page.wait_for_function("(id) => window.location.hash.startsWith(`#work/${id}`)", arg=work.id)
@@ -209,6 +217,65 @@ def test_their_arrival_is_announced(ui, matched):
     assert ui.page.locator("#search-suggestions + [aria-live='polite']").inner_text() == "Wikidata: 5 matches."
 
 
+def test_every_group_says_its_half_in_its_name(ui, matched):
+    """A listbox cannot nest groups, so the half a row is in rides in its group's name."""
+    _type(ui, "dali")
+    _wait_for_registry(ui)
+
+    names = ui.page.locator(f"{LISTBOX} [role='group']").evaluate_all(
+        "groups => groups.map(group => document.getElementById(group.getAttribute('aria-labelledby')).textContent)"
+    )
+    assert names == [
+        "Held: artists",
+        "Held: works",
+        "Held: themes",
+        "Not held: artists",
+        "Not held: works",
+        "Ask",
+        "Search",
+    ]
+    # Drawn above each half for the eye, and only for the eye.
+    halves = ui.page.locator(f"{LISTBOX} .search-suggestions-half")
+    assert halves.all_inner_texts() == ["Held", "Not held"]
+    assert halves.evaluate_all("nodes => nodes.map(node => node.getAttribute('aria-hidden'))") == ["true", "true"]
+
+
+class TestWhenWikidataFindsOnlyWhatIsHeld:
+    @pytest.fixture
+    def registry(self):
+        dali = RegistryPerson(qid=DALI, label="Salvador Dalí", born=1904, died=1989)
+        persistence = RegistryWorkMatch(
+            qid=PERSISTENCE,
+            title="The Persistence of Memory",
+            sitelinks=48,
+            creator=RegistryCreator(qid=DALI, name="Salvador Dalí"),
+        )
+        return FakeRegistry(people={"salvador": [dali]}, matches={"salvador": [persistence]})
+
+    def test_the_not_held_half_is_one_line_once_wikidata_has_answered(self, ui, matched):
+        """Everything Wikidata found is already under Held: no heading over empty kinds, one line, and not before it answers."""
+        held = []
+        ui.page.route(
+            "**/api/registry/search?*",
+            lambda route: held.append(route),  # noqa: PLW0108 -- Playwright passes a builtin method two arguments
+        )
+        _type(ui, "salvador")
+        ui.page.wait_for_selector(PENDING)
+        assert ui.page.locator(f"{LISTBOX} .search-suggestions-none").count() == 0, "said before Wikidata answered"
+
+        held[0].continue_()
+        ui.page.wait_for_selector(PENDING, state="detached")
+
+        assert _options(ui) == [
+            "Salvador Dalí — artist",
+            "The Persistence of Memory — Salvador Dalí",
+            "Ask about “salvador”",
+            "All results for “salvador”",
+        ]
+        assert ui.page.locator(f"{LISTBOX} [aria-labelledby^='suggestions-registry-']").count() == 0
+        assert ui.page.locator(f"{LISTBOX} .search-suggestions-none").all_inner_texts() == ["Wikidata has nothing more."]
+
+
 def test_registry_text_arrives_as_words_not_markup(ui, seeded_service):
     _type(ui, "markup")
     ui.page.wait_for_selector(f"{LISTBOX} [aria-labelledby='suggestions-registry-artists']")
@@ -227,6 +294,11 @@ def test_an_outage_leaves_the_library_rows_and_says_so(ui, matched, registry):
     assert (
         ui.page.locator(f"{LISTBOX} .search-suggestions-registry-note").inner_text() == "Wikidata could not be searched just now."
     )
+    # Said under Not held, where Wikidata's rows would be, and not as "nothing more".
+    assert ui.page.locator(
+        f"{LISTBOX} .search-suggestions-half:text-is('Not held') ~ .search-suggestions-registry-note"
+    ).is_visible()
+    assert ui.page.locator(f"{LISTBOX} .search-suggestions-none").count() == 0
     # Not the library's note: the library was searched.
     assert ui.page.locator(f"{LISTBOX} .search-suggestions-note").count() == 0
 
@@ -253,7 +325,7 @@ class TestWithNoRegistryConfigured:
         assert _options(ui)[0] == "Salvador Dalí — artist"
 
 
-def test_a_new_query_starts_with_nothing_highlighted_so_enter_searches_artworks(ui, matched):
+def test_a_new_query_starts_with_nothing_highlighted_so_enter_opens_the_results(ui, matched):
     """A highlight kept by position would land on whatever the next query puts there, and Enter would open it."""
     _type(ui, "dal")
     announced = "() => document.querySelector('#search-suggestions + [aria-live]').textContent.startsWith('Wikidata')"
@@ -266,7 +338,8 @@ def test_a_new_query_starts_with_nothing_highlighted_so_enter_searches_artworks(
     assert ui.page.get_attribute("#search", "aria-activedescendant") is None
     ui.page.keyboard.press("Enter")
 
-    ui.page.wait_for_function("() => window.location.hash.startsWith('#collection') && window.location.hash.includes('q=dali')")
+    ui.page.wait_for_function("() => window.location.hash.startsWith('#search?') && window.location.hash.includes('q=dali')")
+    ui.page.wait_for_selector("#view h2:text-is('Results for “dali”')")
 
 
 def test_choosing_a_theme_opens_it(ui, services, matched):
@@ -316,8 +389,8 @@ class TestEachOfWikidatasSearchesPaintsOnItsOwn:
 
         ui.page.wait_for_selector(f"{LISTBOX} [aria-labelledby='suggestions-registry-works']", timeout=5000)
         listbox = ui.page.get_by_role("listbox", name="Suggestions")
-        assert listbox.get_by_role("group", name="Wikidata: artists").get_by_role("option").count() == 1
-        assert listbox.get_by_role("group", name="Wikidata: works").get_by_role("option").count() == 2
+        assert listbox.get_by_role("group", name="Not held: artists", exact=True).get_by_role("option").count() == 1
+        assert listbox.get_by_role("group", name="Not held: works", exact=True).get_by_role("option").count() == 2
         assert ui.page.locator(f"{LISTBOX} [aria-labelledby='suggestions-registry-topics']").count() == 0
         assert ui.page.locator(PENDING).inner_text() == "Asking Wikidata…"
         # Announced once, when both have answered: not a count of half of them.
@@ -332,7 +405,7 @@ class TestEachOfWikidatasSearchesPaintsOnItsOwn:
         held[0].continue_()
         ui.page.wait_for_selector(f"{LISTBOX} [aria-labelledby='suggestions-registry-topics']")
 
-        assert listbox.get_by_role("group", name="Wikidata: topics").get_by_role("option").all_inner_texts() == [
+        assert listbox.get_by_role("group", name="Not held: topics", exact=True).get_by_role("option").all_inner_texts() == [
             "Surrealism — movement · art movement"
         ]
         assert ui.page.locator(PENDING).count() == 0

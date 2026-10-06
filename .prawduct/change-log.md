@@ -62,6 +62,85 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-06: Search groups what you hold and what you do not
+
+<!-- prawduct: scope=search-held-not-held -->
+
+**Why:** the owner pressed Enter on a work they did not hold. Enter opened
+Artworks filtered to the words, Artworks lists only what is held, and the page
+found nothing and offered no way on. They ruled: Enter opens one results page,
+grouped *Held* / *Not held*, a group with nothing in it one line. That reverses
+the ruling of 2026-09-30, kept 2026-10-01, that Enter stays on Artworks.
+
+**What:** Enter in the search box opens `#search?q=…`, returning to the page it
+was made from. The results page has two groups, Held then Not held, each with
+its artists, works and topics (topics are new on the page: the library's by
+name, Wikidata's from `GET /api/registry/topics`). The *All* / *In your library*
+/ *Not held* switch is gone and a `view=` in an old address is ignored. An empty
+Held is "Nothing you hold matches."; an empty Not held is "Wikidata has nothing
+more.", or "Wikidata has nothing for …" with *Ask about* when it found nothing
+at all. The dropdown uses the same halves: each group's accessible name carries
+its half ("Held: works", "Not held: topics"), and the two headings are drawn
+`aria-hidden`. A Wikidata match the library holds that the library's own rows
+do not show sits under Held, in both places, so no row marked ● is under *Not
+held*. The Held works' link to Artworks reads *All N in Artworks*
+(*Open in Artworks* for one) and shows whenever the library has a match.
+
+**Tests rewritten to the 2026-10-06 ruling** (a recorded requirement change, not a
+weakening):
+- `test_search_in_two_scopes.py`: `test_enter_with_several_matches_opens_artworks_filtered_not_the_first`
+  → `…opens_the_results_page_not_the_first` (`#collection?q=the` with two cards
+  → `#search?q=the` with two Held works); `test_enter_with_no_match_opens_artworks_saying_so`
+  → `…opens_the_results_page_saying_so` (`#collection?q=Vermeer` and Artworks'
+  empty state → `#search?from=walls&q=Vermeer` and "Nothing you hold matches.");
+  `test_with_no_library_match_only_the_search_of_everything_is_offered` →
+  `…held_is_one_line_and_only_…` (no label holding "library" → labels are only
+  *Ask* and *Search*, and the one line is there); `test_typing_offers_library_matches_then_a_search_of_everything`
+  (group names *Artists* / *In your library* → *Held: artists* / *Held: works*).
+- `test_search_one_world.py`: `test_a_new_query_starts_with_nothing_highlighted_so_enter_searches_artworks`
+  → `…so_enter_opens_the_results` (`#collection` → `#search`); group names
+  *Wikidata: artists / works / topics* → *Not held: …* in
+  `test_wikidata_follows_the_library_and_shows_nothing_twice` and
+  `test_artists_and_works_are_shown_while_the_topic_search_is_held`.
+- `test_the_search_results_page.py`: `test_all_shows_the_library_then_wikidata_each_marked_and_nothing_twice`
+  → `test_held_then_not_held_each_marked_and_nothing_twice` (one list per kind with
+  the *All* button pressed → a list per kind in each group, and no switch);
+  `test_in_your_library_shows_only_the_library_and_asks_wikidata_nothing` →
+  `test_an_old_view_in_the_address_is_ignored_and_both_groups_show` (the
+  assertion inverts: `view=library` now asks Wikidata); `test_not_held_shows_only_what_the_library_does_not_hold`
+  folded into the first, whose Not held rows are exactly the unheld; `test_switching_view_keeps_the_query`
+  retired with the switch; `test_an_outage_leaves_the_librarys_results` →
+  `test_an_outage_leaves_the_held_group_and_says_so`; `test_the_librarys_matches_open_in_artworks`
+  (*Open them in Artworks* → *Open in Artworks*, in the Held works).
+- `test_topics.py`: `test_the_dropdown_has_a_topics_group_after_works` (labels
+  *In your library, Topics, Ask, Search* → *Held: works, Held: topics, Ask,
+  Search*) and `test_the_dropdown_offers_wikidatas_topics_with_their_descriptions`
+  (*Wikidata: topics* → *Not held: topics*).
+- `test_the_sidebar.py`: `test_searching_from_anywhere_lands_in_artworks` →
+  `test_searching_from_anywhere_opens_the_results_and_returns_there` (Artworks lit
+  → the results page, whose back link returns to Walls). `test_a_search_is_in_the_address_and_narrows_the_grid`
+  and `test_browser_back_undoes_a_search` keep their assertions and reach the grid
+  through the results page.
+
+New cases: Enter opens the results page; nothing held is one line with
+Wikidata's works under Not held; a query matching only held things shows nothing
+twice and says "Wikidata has nothing more."; a held Wikidata match the library's
+rows miss is under Held; every dropdown group names its half; an outage leaves
+Held standing; an old `view=library` renders both groups; more matches than
+listed are one click from Artworks; topics in each group, on the page and in the
+dropdown.
+
+**From review:** each kind's heading carries its half unseen ("Held: Artists"), so
+a screen reader's list of regions tells the halves apart; the held-group heading
+assertion in `test_held_then_not_held_each_marked_and_nothing_twice` reads the
+heading's full text for that reason. A failed topic listing no longer replaces
+the page with an error: the Held artists and works stand and the Held group says
+the topics could not be listed (two new tests). **Artworks' filters no longer
+carry into a search made from Artworks**, since Enter now opens the results page;
+search first, then *Open in Artworks*, then filter. Enter with an empty box opens
+the results page's "type in the search box" note (it used to clear Artworks'
+search).
+
 ## 2026-10-06: The minimum is 1,000 px on the long edge
 
 <!-- prawduct: scope=quality-minimum -->
