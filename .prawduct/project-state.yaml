@@ -3134,6 +3134,8 @@ artifact_manifest:
       depends_on: [source-plugins]
     - file_path: .prawduct/artifacts/smk-api-findings.md
       depends_on: [source-plugins]
+    - file_path: .prawduct/artifacts/navigart-api-findings.md
+      depends_on: [source-plugins]
     - file_path: .prawduct/artifacts/dezoomify-cli-findings.md
       depends_on: [architecture, operational-spec]
     - file_path: .prawduct/artifacts/museum-label-findings.md

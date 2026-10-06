@@ -74,7 +74,7 @@ that build.
 
 ## Status
 
-- [ ] Chunk 01: The `navigart` plugin, its records and its live check
+- [x] Chunk 01: The `navigart` plugin, its records and its live check
 
 ### Chunk 01: The `navigart` plugin, its records and its live check
 
