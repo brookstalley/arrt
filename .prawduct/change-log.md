@@ -62,6 +62,23 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-06: A guard holds the artifact manifest to the artifacts on disk
+
+<!-- prawduct: scope=artifact-manifest-guard -->
+
+**Why:** nothing checked that `artifact_manifest` lists every artifact, and every
+registration had been made by hand, four times over (#224). An unregistered
+artifact is invisible to a dependency walk, so a sweep reports a clean pass over a
+document it never saw.
+
+**What:** `tests/preferences/test_artifact_manifest.py` fails by name on a
+top-level artifact (less `build-plan-*`) the manifest does not list, a manifest
+entry whose file is gone, and a file registered twice. It was seen failing on the
+tree, naming `clients`, `hdmi-output-findings`, `ia-proposal`, `upgrades` and
+`user-scenarios`, which are now registered with their edges. PyYAML joins the
+root dev group to parse the manifest. Membership only: whether the edges are
+right is not checked.
+
 ## 2026-10-06: The Met, through its open API, as a built-in source
 
 <!-- prawduct: scope=met-source -->

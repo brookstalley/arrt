@@ -3090,6 +3090,24 @@ artifact_manifest:
       depends_on: [product-brief, data-model, architecture, api-contract,
                    nonfunctional-requirements, security-model, operational-spec,
                    observability-strategy, project-preferences, boundary-patterns]
+    # The four below were unregistered until 2026-10-06 (backlog #224);
+    # tests/preferences/test_artifact_manifest.py now fails on the next one.
+    - name: user-scenarios
+      file_path: .prawduct/artifacts/user-scenarios.md
+      version: 1
+      depends_on: [product-brief, re-architecture, information-architecture, data-model]
+    - name: ia-proposal
+      file_path: .prawduct/artifacts/ia-proposal.md
+      version: 1
+      depends_on: [user-scenarios, information-architecture, re-architecture, accessibility-spec]
+    - name: clients
+      file_path: .prawduct/artifacts/clients.md
+      version: 1
+      depends_on: [re-architecture, player-contract, data-model, nonfunctional-requirements]
+    - name: upgrades
+      file_path: .prawduct/artifacts/upgrades.md
+      version: 1
+      depends_on: [re-architecture, data-model]
   # Research findings — inputs to the artifacts above, not artifacts themselves.
   #
   # depends_on ADDED 2026-07-20 after Critic review found these entries had no
@@ -3126,6 +3144,8 @@ artifact_manifest:
       depends_on: [data-model, architecture, security-model, observability-strategy]
     - file_path: .prawduct/artifacts/procurement-corpus.md
       depends_on: [nonfunctional-requirements, data-model, re-architecture, wikidata-findings]
+    - file_path: .prawduct/artifacts/hdmi-output-findings.md
+      depends_on: [clients, nonfunctional-requirements]
   # Strategy-class artifacts still owed: test-specifications.md. The build plan
   # (Phase D) was authored 2026-07-20 and is registered above. The
   # structural-coverage advisory's named set was cleared 2026-07-20.
