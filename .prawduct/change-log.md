@@ -62,6 +62,28 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-06: navigart.fr, through its API, as a built-in source of placeholders
+
+<!-- prawduct: scope=navigart-source -->
+
+**Why:** the owner ruled on 2026-10-05 that navigart.fr's 1,000 px images are
+worth having as placeholders (arrt#213). One platform serves dozens of French
+public collections, and about 5,000 Wikidata items link a navigart artwork.
+
+**What:** a built-in `navigart` plugin (`library/sources/navigart.py`). It finds
+a work only through its Wikidata item: each navigart artwork page the item
+records is read through the documented, public API and reported under the page
+exactly as the item spells it. Which vault to ask comes from a table of
+publications read from each one's own front end, because one (`matisse_lecateau`,
+vault 701) does not match its IDs' prefix; a page of a publication not in the
+table stays a sighting. The image is the 1,000 px rendering, the largest served,
+at the size the record states. The artist, written surname first in capitals, is
+put in reading order so the identity check can match it. Rights come from the
+holder's own line: public domain, in copyright for a `©` line, else unknown.
+With no registry the plugin loads as a reader alone. It needs no setting and
+never declines. The built-in enumerations (entry points, modules, the network
+allowlist, the startup lines, the live roster), `docs/source-plugins.md` and
+`security-model.md` name it. Measurements in `navigart-api-findings.md`.
 ## 2026-10-06: Artist pages that lead somewhere, quieter search marks, a settled review card
 
 <!-- prawduct: scope=artist-search-review-fixes -->

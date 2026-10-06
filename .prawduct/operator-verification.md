@@ -114,6 +114,24 @@ which is gone: nothing there is to be judged any more. Checked by the builder ag
 - **Worth an opinion:** whether the half headings read clearly on a phone, and
   whether "Open in Artworks" sits where you'd look for it.
 
+### navigart.fr as a source — added 2026-10-06
+
+**`build-plan-navigart-source.md` Chunk 01.** Visual change: no; live integration.
+
+Checked by the builder against recorded answers and navigart's live API
+(`live_museum`). Not yet deployed.
+
+- **Look at:** after the next deploy, Settings › Sources lists `navigart` from
+  `arrt`, loaded, reading "Finds images of a work; reads the addresses it claims."
+- **Try:** *Search again* on corpus rows 6 (Sonia Delaunay, *Rythme couleur
+  n°1076*, Q116464677) and 14 (Taeuber-Arp, *Échelonnement*, Q136030970). Each
+  should be offered a `navigart` image, 1000 × 979 (in copyright) and 777 × 1000
+  (public domain), below the floor, identified by the item's own navigart page.
+  Row 7 has no navigart page and stays as it is.
+- **Worth an opinion:** every navigart image is at most 1,000 px, so each is a
+  placeholder that stays on Wanted. Whether the plugin belongs in this public
+  repository rather than the private one (the build plan's first decision).
+
 ### SMK as a source — added 2026-10-06
 
 **`build-plan-smk-source.md` Chunk 01.** Visual change: no; live integration.

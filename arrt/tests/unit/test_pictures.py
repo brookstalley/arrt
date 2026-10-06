@@ -101,6 +101,14 @@ def test_two_smk_collection_pages_are_two_keys_because_the_object_is_in_the_frag
     assert _normalise("https://collection.smk.dk/#/en/detail/KKS12485%2F6").endswith("KKS12485%2F6")
 
 
+def test_two_navigart_pages_of_one_publication_are_two_keys_because_the_artwork_is_in_the_fragment():
+    """Most navigart pages Wikidata records name the artwork only after the `#` (`navigart.py`)."""
+    first = picture_key("navigart", "https://www.navigart.fr/grenoble/#/artwork/60000000002521")
+    second = picture_key("navigart", "https://www.navigart.fr/grenoble/#/artwork/60000000002522")
+
+    assert first != second
+
+
 def test_no_query_parameter_is_dropped():
     """SMK's API spelling carries the object in its query."""
     assert picture_key("smk", "https://api.smk.dk/api/v1/art?object_number=KMS1") != picture_key(

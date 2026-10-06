@@ -708,7 +708,10 @@ one, which has the access above, they are not:
   and its finder reads image heads and previews only there, also the plugin's
   checks. SMK's reader returns an image only from `api.smk.dk`'s download and
   thumbnail paths, and its finder reads previews only from `iip-thumb.smk.dk`
-  or that thumbnail path, again the plugin's checks. A third-party reader's locator gets bound 2 only: any public address.
+  or that thumbnail path, again the plugin's checks. navigart's reader returns an
+  image only on `images.navigart.fr`, built from a file name it checks, and asks
+  the API only for a vault in its table of publications; its finder reads
+  previews only from that image host, also the plugin's checks. A third-party reader's locator gets bound 2 only: any public address.
 - **Arrt decides** a work's identity, its rights record, duplicates, review,
   quality, spending and storage. A plugin answers "what images exist, and where".
 - **A plugin's error text is scrubbed** before the journal and the health panel.
