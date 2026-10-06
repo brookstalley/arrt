@@ -22,7 +22,7 @@ from typing import ClassVar
 import httpx
 import pytest
 
-from arrt.http.pages import STATIC_DIR
+from arrt.http.pages import STATIC_DIR, UI_PATHS
 from arrt.persistence.backup import BACKUP_RECEIPT_FILENAME
 from arrt.persistence.records import (
     AcquisitionMethod,
@@ -180,6 +180,20 @@ class TestTheClientIsServed:
         assert len(modules) > 1, "the client was read as one file; this check would prove nothing"
         for module in modules:
             assert http.get(f"/static/{module}").status_code == 200, module
+
+    def test_the_client_revalidates_every_file_so_a_deploy_never_mixes_versions(self, http):
+        """Why, and what a phone did without it: `pages.CLIENT_CACHE_CONTROL`."""
+        static = pathlib.Path(STATIC_DIR)
+        assets = ["app.css", *sorted(path.relative_to(static).as_posix() for path in static.rglob("*.js"))]
+        for asset in assets:
+            assert "no-cache" in http.get(f"/static/{asset}").headers.get("cache-control", ""), asset
+        for path in UI_PATHS:
+            assert "no-cache" in http.get(path).headers.get("cache-control", ""), path
+
+        first = http.get("/static/app.js")
+        again = http.get("/static/app.js", headers={"If-None-Match": first.headers["etag"]})
+        assert again.status_code == 304
+        assert "no-cache" in again.headers.get("cache-control", "")
 
     def test_an_unknown_api_path_is_not_answered_with_the_shell(self, http):
         """A catch-all that returned HTML here would reach a client as unparseable JSON."""

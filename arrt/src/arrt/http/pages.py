@@ -1,6 +1,6 @@
-"""Serving the browser client itself — the shell and its two assets.
+"""Serving the browser client itself — the shell and its static files.
 
-The client is a static page and a script that reads `/api/*`. It is served from
+The client is a static page and a tree of ES modules that read `/api/*`. It is served from
 this package rather than built, because the alternative is a Node toolchain on a
 Raspberry Pi maintained for a single-operator tool on a private network, which
 buys nothing a curator can see.
@@ -12,11 +12,15 @@ too would turn a mistyped endpoint into a page of HTML that a client parses as
 JSON. So the UI paths are listed rather than globbed.
 """
 
+import os
 from pathlib import Path
 from typing import Final
 
 from fastapi import APIRouter
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from starlette.responses import Response
+from starlette.types import Scope
 
 router = APIRouter()
 
@@ -58,9 +62,31 @@ UI_PATHS: Final[tuple[str, ...]] = (
 )
 
 
+#: Every file of the client is asked about again on every load. The client is a
+#: tree of ES modules that import names from one another, and the image keeps
+#: each file's checkout date, so without this a browser holds an unchanged-for-
+#: days module for hours by heuristic. After a deploy that leaves a cached old
+#: module beside a fetched new one importing a name only the new one exports,
+#: and the client never starts (seen 2026-10-05: "Loading the catalogue" on a
+#: phone). Under `/static` the ETag keeps an unchanged file to a 304; the shell,
+#: a few kilobytes, is sent whole each time, which on a LAN is nothing.
+CLIENT_CACHE_CONTROL: Final[str] = "no-cache"
+
+
 def index() -> FileResponse:
     """The client shell."""
-    return FileResponse(STATIC_DIR / "index.html", media_type="text/html")
+    return FileResponse(STATIC_DIR / "index.html", media_type="text/html", headers={"Cache-Control": CLIENT_CACHE_CONTROL})
+
+
+class ClientFiles(StaticFiles):
+    """The client's static files, each revalidated on every load (`CLIENT_CACHE_CONTROL`)."""
+
+    def file_response(
+        self, full_path: str | os.PathLike[str], stat_result: os.stat_result, scope: Scope, status_code: int = 200
+    ) -> Response:
+        response = super().file_response(full_path, stat_result, scope, status_code)
+        response.headers["Cache-Control"] = CLIENT_CACHE_CONTROL
+        return response
 
 
 # Registered in a loop rather than with a decorator per path, so `UI_PATHS` is

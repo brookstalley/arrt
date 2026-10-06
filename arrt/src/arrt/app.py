@@ -25,7 +25,6 @@ from typing import Final
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
-from fastapi.staticfiles import StaticFiles
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from starlette.types import Receive, Scope, Send
 
@@ -183,6 +182,6 @@ def create_app(  # noqa: C901 -- the composition root: each optional background 
     app.include_router(api.router)
     app.include_router(player.router)
     app.include_router(pages.router)
-    app.mount(STATIC_PATH, StaticFiles(directory=pages.STATIC_DIR), name="static")
+    app.mount(STATIC_PATH, pages.ClientFiles(directory=pages.STATIC_DIR), name="static")
 
     return app
