@@ -422,10 +422,12 @@ site (`mcp/tools.py`, above `want`), and announced to the operator in the PR.*
 
 **`want` is the one way into `wanted`.** `art_review(action='want', work_id,
 turning_down?)` and `POST /api/candidates/{work_id}/want` record that the curator
-wants a work and holds no scan of it they would accept. `wanted` covers both
-reasons a work is wanted — its scan on offer was turned down, or none was found —
-because they are one wish; which it was is read from the work's instances, never
-stored, and `list_wanted` reports it as `scans_turned_down`. `set_verdict` accepts
+wants a work and holds no scan of it they would accept. `wanted` covers every
+reason a work is wanted — its scan on offer was turned down, nothing was found, or
+the only scans found are too small for the wall — because they are one wish; which
+it was is read from the work's instances, never stored, and `list_wanted` reports
+it as `scans_turned_down` and `shown` together (a work wanted from a below-floor
+card has `scans_turned_down` 0 and a `shown` scan). `set_verdict` accepts
 `accepted` and `rejected` only, and its refusal of `wanted` names `want`.
 
 **Turning a scan down is still the only way to suppress one.** `want` with
