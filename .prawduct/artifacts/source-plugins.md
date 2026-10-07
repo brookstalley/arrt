@@ -377,8 +377,8 @@ each for a work a person asked for, through a tool, so a host whose robots.txt
 disallows everything may still be asked: `iiif.micr.io` (the Rijksmuseum's and
 the Philadelphia Museum of Art's images) disallows `/`, and `media.getty.edu`
 answers its robots.txt with 503. What keeps a plugin from behaving like a crawler
-is the rest of this contract: it asks only per work, bounds every read, and paces
-where a holder asks. A plugin that walks a collection (a collection browse, a
+is the rest of this contract: it asks only per work and bounds every
+read. A plugin that walks a collection (a collection browse, a
 copy of a catalogue) is the case this ruling does not cover; a holder's published
 open data, which the NGA's is, is offered for exactly that.
 
