@@ -23,7 +23,6 @@ from arrt.config import (
     DEFAULT_ACQUISITION_USER_AGENT,
     DEFAULT_BACKUP_INTERVAL_SECONDS,
     DEFAULT_BACKUP_KEEP,
-    DEFAULT_DISCOVERY_APPROVAL_THRESHOLD,
     DEFAULT_DISCOVERY_MAX_OUTPUT_TOKENS,
     DEFAULT_DISCOVERY_MODEL,
     DEFAULT_DISCOVERY_SEARCH_RESULTS,
@@ -104,7 +103,6 @@ def _defaults(art_root, **overrides) -> Settings:
             mat_width_inches=DEFAULT_MAT_WIDTH_INCHES,
             mat_bottom_weight=DEFAULT_MAT_BOTTOM_WEIGHT,
             resolution_floor_inches=DEFAULT_RESOLUTION_FLOOR_INCHES,
-            approval_threshold=DEFAULT_DISCOVERY_APPROVAL_THRESHOLD,
             phase1_search_allowance=DEFAULT_PHASE1_SEARCH_ALLOWANCE,
             phase2_searches_per_work=DEFAULT_PHASE2_SEARCHES_PER_WORK,
             offered_works_per_run=DEFAULT_OFFERED_WORKS_PER_RUN,
@@ -239,7 +237,6 @@ def test_startup_logs_the_resolved_root_and_this_planes_own_panel(tmp_path, monk
         # And likewise every discovery value: the estimate below is arithmetic
         # over all of them, so a line built from the constants rather than the
         # resolved settings cannot reproduce it.
-        approval_threshold=7,
         phase1_search_allowance=3,
         phase2_searches_per_work=4,
         offered_works_per_run=9,
@@ -293,7 +290,7 @@ def test_startup_logs_the_resolved_root_and_this_planes_own_panel(tmp_path, monk
     # asked to authorise against that figure, so the numbers behind it are worth
     # a journal line — they are also the ones most likely to go stale, because
     # provider prices move underneath a deployment that never changes.
-    assert "gate=7 works" in logged
+    assert "gate=" not in logged, "no run stops for approval, so there is no gate to log"
     assert "phase1_searches=3" in logged
     assert "phase2_searches_per_work=4" in logged
     # The supplement's bound, and the one field here whose "off" is otherwise

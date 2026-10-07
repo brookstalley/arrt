@@ -42,7 +42,7 @@ reader should not conclude these were forgotten.
 |---|---|---|
 | Structured logs | **Yes** — the primary signal | Both planes, to the systemd journal |
 | Health/heartbeat state | **Yes** | Display writes it; the curation UI reads and displays it |
-| Spend | **Per run, yes; as a live balance, never** *(reversed 2026-10-07, see the note below the table)* | Recorded spend is on the run and reported by the discovery surface. **`limit_remaining` is not surfaced, and the operator settled that it will not be** — see the note below the table |
+| Spend | **Per run, yes; the month's remaining budget, yes, in the sidebar** *(since 2026-10-07; it was "never" until the owner reversed it, see the note below the table)* | Recorded spend is on the run and reported by the discovery surface. What is left this month is `GET /api/budget`, read from `limit_remaining` (`library/services/spending.py`), display only and never on the health panel |
 | Metrics (time series) | No | No store, no query surface, nobody to read them. Revisit only if a real question needs a trend |
 | Distributed tracing | No | Two processes with no request/response between them. There is no distributed call to trace. *(2026-09-30: after wave 2 there is one: the Player's manifest poll and media pull, and its heartbeat POST. Each is a single hop with no fan-out, so `work_id` and the wall id remain enough correlation, and this row still holds. See `re-architecture.md`.)* |
 | Uptime monitoring (external) | No | Follows from the operator's alerting decision below |
@@ -59,7 +59,7 @@ reader should not conclude these were forgotten.
 > (`operational-spec.md` § Troubleshooting corrected the same claim the same day;
 > this artifact was the copy that sweep did not reach.)
 >
-> *(**Reversed by the owner 2026-10-07** (`ia-proposal.md` § Rulings (2026-10-07), ruling 3): the month's remaining budget is shown. How, and what was weighed, is the note in `nonfunctional-requirements.md` § Direction, under its *read from the authority* corollary; #290 builds it, and until then the code still omits the figure.)*
+> *(**Reversed by the owner 2026-10-07** (`ia-proposal.md` § Rulings (2026-10-07), ruling 3): the month's remaining budget is shown. How, and what was weighed, is the note in `nonfunctional-requirements.md` § Direction, under its *read from the authority* corollary; #290 builds it; the server half, `GET /api/budget`, was built 2026-10-07.)*
 >
 > **Settled 2026-08-04 by the operator: it is not surfaced, in any form.** The
 > question left open here was whether to show it anyway as a lagging advisory
@@ -720,7 +720,7 @@ provider's own figure for budget left. A local counter would be a second source 
 truth for a number the provider owns, and the two would drift — which is the
 reasoning behind the ratified provider-enforced-ceilings norm.
 
-> *(Reversed by the owner 2026-10-07; the note under the signals table says how, and #290 builds it.)*
+> *(Reversed by the owner 2026-10-07; the note under the signals table says how. #290 builds it: `GET /api/budget`, server half built 2026-10-07.)*
 >
 > **`limit_remaining` is not surfaced, and as of 2026-08-04 that is settled rather
 > than pending.** Two measured facts stand against it: nothing outside the client

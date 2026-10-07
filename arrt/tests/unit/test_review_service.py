@@ -403,6 +403,31 @@ def test_works_with_an_image_lead_the_page(services, run, propose, add_image, di
     assert titles == [view.work.proposed_title for view in services.review.list_works(run.id).entries]
 
 
+def test_within_each_group_a_work_no_source_confirms_sorts_after_the_ones_a_source_does(
+    services, run, propose, add_image, discovery
+):
+    """#276: the card that may be an invented title is never the first one judged.
+
+    Titled against the order wanted, so the title order alone would fail it; the
+    unresolved work is confirmed, so an order by confirmation alone would fail it too.
+    """
+    for title, said in (("Alpha", False), ("Beta", None), ("Gamma", True)):
+        found = propose(title, dedup_key=title.lower(), source_confirmed=said)
+        add_image(found)
+        discovery.record_resolution(found.id)
+    missing = propose("Aardvark", dedup_key="aardvark", source_confirmed=True)
+    discovery.record_resolution(missing.id)
+
+    page = services.review.list_works(run.id).entries
+
+    assert [(view.work.proposed_title, str(view.work.confirmation)) for view in page] == [
+        ("Gamma", "confirmed"),
+        ("Beta", "unknown"),
+        ("Alpha", "unconfirmed"),
+        ("Aardvark", "confirmed"),
+    ]
+
+
 def test_an_unknown_run_is_refused_rather_than_answered_with_an_empty_page(services):
     with pytest.raises(ServiceError, match="does-not-exist"):
         services.review.list_works("does-not-exist")

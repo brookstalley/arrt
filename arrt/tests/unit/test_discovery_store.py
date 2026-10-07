@@ -18,6 +18,7 @@ from arrt.persistence.catalogue import StorageError
 from arrt.persistence.discovery_records import (
     CandidateImage,
     CandidateWork,
+    Confirmation,
     DiscoveryRun,
     InitiatedBy,
     ResolutionStatus,
@@ -63,6 +64,7 @@ _EXPECTED_SCHEMA = {
         "offered_for_artist",
         "offered_artist_matched",
         "wikidata_qid",
+        "source_confirmed",
         "resolution_status",
         "unresolved_reason",
         "verdict",
@@ -528,3 +530,35 @@ def test_a_file_from_before_end_reasons_opens_and_its_failed_runs_give_none(tmp_
         assert store.get_run("r2").end_reason == "Phase 1 returned an empty answer."
     finally:
         store.close()
+
+
+@pytest.mark.parametrize("said", [True, False, None], ids=["confirmed", "unconfirmed", "no-word"])
+def test_phase_ones_word_on_a_source_survives_the_file_with_no_word_kept_apart(tmp_path, said):
+    """Three values in one nullable column: a no-word read back as `False` would mark every older proposal unconfirmed."""
+    path = tmp_path / "catalogue.sqlite"
+    first = open_catalogue_file(path)
+    writer = SqliteDiscovery(first)
+    writer.add_run(_run())
+    writer.add_candidate_work(_work(source_confirmed=said))
+    first.close()
+
+    reopened = open_catalogue_file(path)
+    try:
+        assert SqliteDiscovery(reopened).get_candidate_work("c1").source_confirmed is said
+    finally:
+        reopened.close()
+
+
+@pytest.mark.parametrize(
+    ("provenance", "said", "confirmation"),
+    [
+        (WorkProvenance.PROPOSED, True, Confirmation.CONFIRMED),
+        (WorkProvenance.PROPOSED, False, Confirmation.UNCONFIRMED),
+        (WorkProvenance.PROPOSED, None, Confirmation.UNKNOWN),
+        # Confirmed by where they came from, whatever the column holds.
+        (WorkProvenance.CHOSEN, None, Confirmation.CONFIRMED),
+        (WorkProvenance.OFFERED, None, Confirmation.CONFIRMED),
+    ],
+)
+def test_a_work_is_confirmed_by_a_source_or_by_where_it_came_from_and_no_word_is_never_confirmed(provenance, said, confirmation):
+    assert _work(provenance=provenance, source_confirmed=said).confirmation is confirmation

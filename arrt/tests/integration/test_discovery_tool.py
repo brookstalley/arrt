@@ -17,7 +17,7 @@ import time
 from dataclasses import replace
 
 import pytest
-from fakes import a_work_list, spent, works
+from fakes import a_work_list, spent, stored_awaiting_approval, works
 
 from arrt.library.discovery.engine import BudgetExhausted, WorkList
 from arrt.persistence.discovery_records import RunStatus
@@ -131,12 +131,14 @@ async def test_status_holds_while_a_run_is_being_worked_on_and_answers_when_it_c
     assert payload["status"] != RunStatus.RESOLVING_WORKS
 
 
-async def test_status_on_a_run_that_is_waiting_for_a_person_answers_at_once(server_url, engine):
+async def test_status_on_a_run_that_is_waiting_for_a_person_answers_at_once(server_url, engine, discovery_store):
     """Holding there would make a caller wait to be told a thing that was
-    already true and was not going to change on its own."""
+    already true and was not going to change on its own. The run is one stored
+    awaiting approval before asking became the approval."""
     engine.result = a_work_list(26)
     run_id = await a_run(server_url)
     await settled(server_url, run_id)
+    stored_awaiting_approval(discovery_store, run_id)
 
     began = time.monotonic()
     payload, _ = await call(server_url, "art_discovery", action="status", run_id=run_id)
@@ -170,42 +172,31 @@ async def test_a_run_still_working_reports_no_strategy_rather_than_a_placeholder
     assert payload["strategy"] is None
 
 
-# -- the gate --------------------------------------------------------------------
+# -- asking is the approval --------------------------------------------------------
 
 
-async def test_a_run_crosses_the_gate_at_the_configured_threshold_and_waits(server_url, engine):
-    """Twenty-six works against a threshold of twenty-five stops for approval."""
+async def test_a_run_goes_straight_on_however_many_works_it_proposed(server_url, engine):
+    """Twenty-six works, where the retired gate stopped at twenty-five (the owner's ruling 3 of 2026-10-07)."""
     engine.result = a_work_list(26)
-    run_id = await a_run(server_url)
-
-    payload = await settled(server_url, run_id)
-
-    assert payload["status"] == RunStatus.AWAITING_APPROVAL
-    assert payload["approval_required"] is True
-    assert payload["works"]["total"] == 26
-    assert "more than the configured threshold" in payload["notice"]
-    # The figure the gate is authorising against is on the record, not
-    # recomputed when somebody asks. Zero since phase 2 was built and measured:
-    # it asks open museum APIs and matches titles locally, so approving costs
-    # nothing further. The gate still fires, because it is on the work count and
-    # never was on the price.
-    assert payload["estimated_cost_usd"] == "0"
-
-
-async def test_a_run_inside_the_threshold_does_not_stop_to_ask(server_url, engine):
-    engine.result = a_work_list(25)
     run_id = await a_run(server_url)
 
     payload = await settled(server_url, run_id)
 
     assert payload["status"] == RunStatus.RESOLVING_IMAGES
     assert payload["approval_required"] is False
+    assert payload["works"]["total"] == 26
+    assert "threshold" not in payload["notice"]
+    # The phase-2 figure is on the record, not recomputed when somebody asks.
+    # Zero since phase 2 was built and measured: it asks open museum APIs and
+    # matches titles locally.
+    assert payload["estimated_cost_usd"] == "0"
 
 
-async def test_a_waiting_run_can_be_approved_over_the_surface(server_url, engine):
+async def test_a_waiting_run_can_be_approved_over_the_surface(server_url, engine, discovery_store):
     engine.result = a_work_list(26)
     run_id = await a_run(server_url)
     await settled(server_url, run_id)
+    stored_awaiting_approval(discovery_store, run_id)
 
     payload, errored = await call(server_url, "art_discovery", action="approve", run_id=run_id)
 
@@ -213,10 +204,11 @@ async def test_a_waiting_run_can_be_approved_over_the_surface(server_url, engine
     assert payload["status"] == RunStatus.RESOLVING_IMAGES
 
 
-async def test_a_waiting_run_can_be_declined_and_nothing_further_is_spent(server_url, engine):
+async def test_a_waiting_run_can_be_declined_and_nothing_further_is_spent(server_url, engine, discovery_store):
     engine.result = a_work_list(26)
     run_id = await a_run(server_url)
     await settled(server_url, run_id)
+    stored_awaiting_approval(discovery_store, run_id)
     before, _ = await call(server_url, "art_discovery", action="spend", run_id=run_id)
 
     payload, errored = await call(server_url, "art_discovery", action="decline", run_id=run_id)
@@ -394,10 +386,11 @@ async def test_an_engine_that_overran_its_allowance_is_a_failure_not_a_footnote(
 # -- listing ----------------------------------------------------------------------
 
 
-async def test_runs_can_be_listed_and_narrowed_to_one_state(server_url, engine):
+async def test_runs_can_be_listed_and_narrowed_to_one_state(server_url, engine, discovery_store):
     engine.result = a_work_list(26)
     waiting = await a_run(server_url, intent="Surrealists")
     await settled(server_url, waiting)
+    stored_awaiting_approval(discovery_store, waiting)
 
     engine.result = a_work_list(2)
     small = await a_run(server_url, intent="Dutch still life")
@@ -451,7 +444,7 @@ async def test_a_line_emitted_inside_a_run_carries_that_runs_id(runner, caplog):
 # -- the prose the surface ships -------------------------------------------------
 
 
-async def test_a_run_that_has_already_ended_cannot_be_cancelled_and_the_refusal_names_how(server_url, engine):
+async def test_a_run_that_has_already_ended_cannot_be_cancelled_and_the_refusal_names_how(server_url, engine, discovery_store):
     """The tip on `cancel` promises exactly this, so the tip is driven, not read.
 
     A tool tip is what a model reads before deciding what to call, and it drifts
@@ -461,6 +454,7 @@ async def test_a_run_that_has_already_ended_cannot_be_cancelled_and_the_refusal_
     engine.result = a_work_list(26)
     run_id = await a_run(server_url)
     await settled(server_url, run_id)
+    stored_awaiting_approval(discovery_store, run_id)
     await call(server_url, "art_discovery", action="decline", run_id=run_id)
 
     payload, errored = await call(server_url, "art_discovery", action="cancel", run_id=run_id)

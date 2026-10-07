@@ -232,8 +232,11 @@ def test_a_spent_key_is_reported_as_exhaustion():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(403, json={"error": {"message": "Key limit exceeded (total limit)."}})
 
-    with pytest.raises(BudgetExhausted):
+    with pytest.raises(BudgetExhausted) as raised:
         engine_over(handler).enumerate_works(asked())
+
+    # The halted run's reason, which the run view shows: it names the budget (#290).
+    assert str(raised.value).startswith("This month's budget is spent")
 
 
 def test_an_unaffordable_request_is_a_failure_but_never_exhaustion():
@@ -521,3 +524,37 @@ def test_an_answer_with_no_choices_fails_the_run_and_still_reports_its_cost():
 
     assert "no reason" in str(raised.value), "there is no finish_reason to quote, and it says so"
     assert sum(entry.cost_usd for entry in raised.value.spend) == Decimal("0.00031")
+
+
+# -- whether a source confirms each work ----------------------------------------
+
+
+def test_the_schema_asks_whether_a_source_confirms_each_work():
+    """Strict mode needs every property required, so the question is asked of every work."""
+    sent = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(json.loads(request.content))
+        return responding(ANSWER)(request)
+
+    engine_over(handler).enumerate_works(asked())
+
+    item = sent[0]["response_format"]["json_schema"]["schema"]["properties"]["works"]["items"]
+    assert item["properties"]["source_found"]["type"] == "boolean"
+    assert "source_found" in item["required"]
+
+
+@pytest.mark.parametrize(
+    ("said", "read"),
+    [(True, True), (False, False), ("yes", None), (None, None)],
+    ids=["found", "not-found", "not-a-boolean", "absent"],
+)
+def test_a_work_carries_the_models_word_on_its_source_and_no_word_is_none(said, read):
+    """Read only as a boolean: anything else is no word, never a verdict either way."""
+    entry = {"title": "T", "artist": "A", "rationale": "r"}
+    if said is not None:
+        entry["source_found"] = said
+
+    produced = engine_over(responding({"strategy": "s", "works": [entry]})).enumerate_works(asked())
+
+    assert produced.works[0].source_confirmed is read

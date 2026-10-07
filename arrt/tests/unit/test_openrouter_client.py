@@ -218,6 +218,7 @@ def test_exhaustion_is_403_and_says_what_clears_it():
     with pytest.raises(KeyExhausted) as raised:
         client_over(handler).complete(prompt="anything")
 
+    assert str(raised.value).startswith("This month's budget is spent"), "the curator reads the cause first (#290)"
     assert "Key limit exceeded" in str(raised.value), "the provider's own words survive"
     assert "monthly reset" in str(raised.value)
 
@@ -542,6 +543,7 @@ def test_key_status_reads_the_ceiling_as_exact_money():
                 "limit_remaining": 19.999972832,
                 "limit_reset": "monthly",
                 "is_free_tier": False,
+                "usage_monthly": 0.05403939,
             }
         }
     )
@@ -552,6 +554,7 @@ def test_key_status_reads_the_ceiling_as_exact_money():
     assert status.remaining_usd == Decimal("19.999972832")
     assert status.resets == "monthly"
     assert isinstance(status.usage_usd, Decimal)
+    assert status.usage_monthly_usd == Decimal("0.05403939")
 
 
 def test_an_uncapped_key_reports_no_limit_rather_than_zero():
@@ -561,3 +564,4 @@ def test_an_uncapped_key_reports_no_limit_rather_than_zero():
     assert status.limit_usd is None
     assert status.remaining_usd is None
     assert status.usage_usd == Decimal("1.5")
+    assert status.usage_monthly_usd is None, "a reply that does not say is unknown, never zero"

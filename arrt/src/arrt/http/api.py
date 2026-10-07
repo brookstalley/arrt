@@ -22,6 +22,7 @@ that safe.
 """
 
 import logging
+from decimal import Decimal
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Query, Request, Response
@@ -40,6 +41,7 @@ from arrt.http.models import (
     ArtworkBoxOut,
     AssignWall,
     BackupOut,
+    BudgetOut,
     CandidateCardOut,
     CandidatePageOut,
     CandidateWorkOut,
@@ -54,6 +56,7 @@ from arrt.http.models import (
     ConversationOut,
     ConversationTurnOut,
     ConversationViewOut,
+    CostTiersOut,
     CreateTheme,
     CreateWall,
     DirectiveOut,
@@ -74,6 +77,7 @@ from arrt.http.models import (
     HistoryEventOut,
     HistoryPageOut,
     ImageOut,
+    InReviewOut,
     InstanceListingOut,
     InstanceOut,
     LookOut,
@@ -168,9 +172,11 @@ from arrt.library.services.display_fit import ArtworkBox, FitAssessment
 from arrt.library.services.look import LookPicture, LookView, SourceLook
 from arrt.library.services.review import CandidatePage, CandidateView, InstanceListing, InstanceView, WantedView
 from arrt.library.services.runner import Estimate, RunView, SpendReport
+from arrt.library.services.spending import CENTS_BELOW, DIMES_BELOW
 from arrt.library.services.survey import WorkDossier, WorkSurvey
 from arrt.library.services.taste import AffinityView
 from arrt.library.services.topics import TopicIndex, TopicPage
+from arrt.library.services.twins import InReview
 from arrt.library.sources.plugin import API_VERSION
 from arrt.persistence.discovery_records import (
     CandidateImage,
@@ -404,7 +410,14 @@ def search_registry(
         state=str(found.state),
         note=found.note,
         artists=[
-            RegistryPersonFoundOut(qid=p.qid, name=p.label, born=p.born, died=p.died, artist_id=held_artists.get(p.qid))
+            RegistryPersonFoundOut(
+                qid=p.qid,
+                name=p.label,
+                born=p.born,
+                died=p.died,
+                artist_id=held_artists.get(p.qid),
+                in_review=_in_review(found.waiting_artists.get(p.qid)),
+            )
             for p in found.artists
         ],
         works=[
@@ -420,6 +433,7 @@ def search_registry(
                 ),
                 held_artwork_ids=list(held_works.get(w.qid, ())),
                 wanted=w.qid in found.wanted_works,
+                in_review=_in_review(found.waiting_works.get(w.qid)),
             )
             for w in found.works
         ],
@@ -666,6 +680,10 @@ def _topic_page(page: TopicPage, works: list[WorkOut]) -> TopicPageOut:
     )
 
 
+def _in_review(waiting: InReview | None) -> InReviewOut | None:
+    return None if waiting is None else InReviewOut(run_id=waiting.run_id, candidate_work_id=waiting.candidate_work_id)
+
+
 def _artist_registry(view: RegistryView, *, artist_id: str | None = None) -> ArtistRegistryOut:
     known = view.known
     return ArtistRegistryOut(
@@ -690,6 +708,7 @@ def _artist_registry(view: RegistryView, *, artist_id: str | None = None) -> Art
                     image=entry.image,
                     held_artwork_ids=list(view.held.get(entry.qid, ())),
                     wanted=entry.qid in view.wanted,
+                    in_review=_in_review(view.waiting.get(entry.qid)),
                 )
                 for entry in known.works
             ]
@@ -1152,6 +1171,30 @@ def get_estimate(request: Request, run_id: Annotated[str | None, Query()] = None
     the decision.
     """
     return _estimate(_services(request).runner.estimate(run_id))
+
+
+@router.get("/budget")
+def get_budget(request: Request) -> BudgetOut:
+    """What is left of this month's budget, for the sidebar, read from the provider's key.
+
+    Always a 200: `state` says how the figure is known, or why there is none.
+    Display only, and up to a minute old; the provider's own refusal at its
+    limit is what stops spending. The tier boundaries ride along so every
+    spending control words its estimate the same way.
+    """
+    view = _services(request).budget.view()
+    return BudgetOut(
+        state=str(view.state),
+        remaining_usd=_usd(view.remaining_usd),
+        budget_usd=_usd(view.budget_usd),
+        spent_usd=_usd(view.spent_usd),
+        note=view.note,
+        tiers=CostTiersOut(cents_below_usd=str(CENTS_BELOW), dimes_below_usd=str(DIMES_BELOW)),
+    )
+
+
+def _usd(amount: Decimal | None) -> str | None:
+    return None if amount is None else str(amount)
 
 
 @router.post("/runs")
@@ -1858,6 +1901,7 @@ def _candidate_work(work: CandidateWork) -> CandidateWorkOut:
         decided=work.verdict.is_terminal,
         resolution_status=str(work.resolution_status),
         unresolved_reason=None if work.unresolved_reason is None else str(work.unresolved_reason),
+        confirmation=str(work.confirmation),
     )
 
 
@@ -2003,6 +2047,7 @@ def _estimate(estimate: Estimate) -> EstimateOut:
         # it: a price through binary floating point comes back as
         # 0.12699999999999999.
         estimated_cost_usd=str(estimate.cost_usd),
+        tier=str(estimate.tier),
         basis=estimate.basis,
         run_id=estimate.run_id,
     )

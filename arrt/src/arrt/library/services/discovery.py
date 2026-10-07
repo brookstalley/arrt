@@ -254,23 +254,17 @@ class DiscoveryService:
         self,
         run_id: str,
         *,
-        approval_threshold: int,
         estimated_cost_usd: Decimal | None = None,
         strategy: str | None = None,
         citations: Sequence[str] = (),
     ) -> DiscoveryRun:
-        """Close phase 1 and either stop for approval or go straight to phase 2.
+        """Close phase 1 and go straight to phase 2.
 
-        The gate is on the **work count**, not on the estimate. A dollar
-        threshold gates on the axis that does not discriminate — real runs cost
-        well under a dollar — while the judgement the gate exists to invite is
-        scope: "you asked for Dalí and I found 200 works — really?". More works
-        than the threshold stops for approval; exactly the threshold does not,
-        because a limit a curator set is a number they already accepted.
-
-        Whether the gate fired is stored rather than left to be re-derived: the
-        threshold is configuration, and a run that stopped for approval last
-        month must still read that way under today's setting.
+        **No run stops for approval** (the owner's ruling 3 of 2026-10-07,
+        #290): asking is the approval, and the month's budget and each action's
+        tier are what keep spend in view. A run stored `awaiting_approval`
+        before the gate was removed can still be approved or declined
+        (`approve_run`, `decline_run`); nothing writes that state now.
 
         `strategy` lands here because this is the moment it becomes known — it is
         the engine's account of how the intent was read, and it explains the very
@@ -282,15 +276,12 @@ class DiscoveryService:
         same reason and with the same single writer. Phase 2 hands them to the
         finders (`run_citations`).
         """
-        if approval_threshold < 0:
-            raise ServiceError(f"An approval threshold cannot be negative, got {approval_threshold}.")
         with self._store.transaction():
             run = self._require_status(run_id, RunStatus.RESOLVING_WORKS, doing="finish its work list")
-            required = len(self._store.list_candidate_works(run_id)) > approval_threshold
             advanced = replace(
                 run,
-                status=RunStatus.AWAITING_APPROVAL if required else RunStatus.RESOLVING_IMAGES,
-                approval_required=required,
+                status=RunStatus.RESOLVING_IMAGES,
+                approval_required=False,
                 estimated_cost_usd=estimated_cost_usd,
                 strategy=strategy,
             )
@@ -303,7 +294,11 @@ class DiscoveryService:
         return self._store.list_run_citations(run_id)
 
     def approve_run(self, run_id: str) -> DiscoveryRun:
-        """Accept the work list and its price; phase 2 may proceed."""
+        """Accept the work list and its price; phase 2 may proceed.
+
+        Only for a run stored `awaiting_approval` before the gate was removed
+        (`finish_work_list`): nothing puts a run there now.
+        """
         with self._store.transaction():
             run = self._require_status(run_id, RunStatus.AWAITING_APPROVAL, doing="be approved")
             approved = replace(run, status=RunStatus.RESOLVING_IMAGES)
@@ -518,6 +513,14 @@ class DiscoveryService:
         waiting are absent.
         """
         return dict(Counter(work.discovery_run_id for work in self._store.list_works_awaiting_verdict()))
+
+    def works_awaiting_review(self) -> Sequence[CandidateWork]:
+        """Every work that found an image and awaits a verdict: the works *To review* counts, by title.
+
+        What Search and the Artist page mark *Waiting for review*, so a work a
+        run already found is not offered for another Get.
+        """
+        return self._store.list_works_awaiting_verdict()
 
     def destinations(self, artwork_ids: Iterable[str]) -> Mapping[str, str | None]:
         """Where each artwork's acceptance asked it to go: a theme id, or None for the default.
@@ -771,11 +774,14 @@ class DiscoveryService:
         work_dedup_key: str,
         proposed_artist: str | None = None,
         reconsider: bool = False,
+        source_confirmed: bool | None = None,
     ) -> CandidateWork:
         """Record a work phase 1 proposed, unless the curator has already declined it.
 
         `rationale` is required because a review card that cannot say *why* this
         work matched the intent asks the curator to judge a bare title.
+        `source_confirmed` is phase 1's word on whether a source confirms it, or
+        `None` for none (`CandidateWork.confirmation`).
 
         Suppression is refused rather than silently skipped, and `reconsider`
         exists because the rule is "unless the curator explicitly reconsiders it"
@@ -805,6 +811,7 @@ class DiscoveryService:
                 rationale=require_text(rationale, field="rationale"),
                 work_dedup_key=key,
                 proposed_artist=proposed_artist,
+                source_confirmed=source_confirmed,
             )
             store_write(self._store.add_candidate_work, work)
         return work

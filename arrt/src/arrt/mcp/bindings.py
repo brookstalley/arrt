@@ -545,6 +545,7 @@ def _estimate(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any
         # A string rather than a float: a price rendered through binary floating
         # point is a price that can come back as 0.12699999999999999.
         estimated_cost_usd=str(estimate.cost_usd),
+        tier=str(estimate.tier),
         basis=estimate.basis,
         run_id=estimate.run_id,
         notice="Estimating costs nothing. This is the only art_discovery action that does not spend.",
@@ -1685,11 +1686,10 @@ def _runs_truncation_notice(listing: RunListing) -> str | None:
 
 
 #: How many of a run's works one result may carry. **The list this caps is not
-#: bounded by anything else**: phase 1 is deliberately uncapped — "you asked for
-#: Dalí and I found 200 works" is the case it is written for — and the approval
-#: gate is computed *after* the whole list is recorded, so it pauses the run
-#: without shortening it. The run that stops at the gate is therefore the broad
-#: one by construction, and a human decides it by reading exactly this payload.
+#: bounded by anything else** but one model answer's output reservation: phase 1
+#: is deliberately uncapped — "you asked for Dalí and I found 200 works" is the
+#: case it is written for — so the broad run is the long one, and this payload
+#: is how an agent sees how wide it read.
 #:
 #: 100 because a work here is five short fields, about sixty tokens, so a full
 #: page is ~6,000 — under the 10,000 at which a client warns, with room for the
@@ -1759,6 +1759,10 @@ def _work_summary(work: CandidateWork) -> dict[str, Any]:
         "verdict": str(work.verdict),
         "resolution_status": str(work.resolution_status),
         "unresolved_reason": _reason(work),
+        # Whether a source confirms the work exists: `unconfirmed` or `unknown`
+        # is a title the model may have invented, which an agent weighs before
+        # accepting as a curator does before the card's Accept.
+        "confirmation": str(work.confirmation),
     }
 
 
@@ -2068,7 +2072,7 @@ def _run_view(view: RunView) -> dict[str, Any]:
         **_run_fields(view.run),
         works={
             "total": view.work_count,
-            # The curator approved a work list of a stated size, and a supplement
+            # The curator asked for a work list of a stated size, and a supplement
             # adds to it. Reported apart because a single total describes a run
             # as having found more of what was asked for than it did — with
             # twelve offered works behind one unresolved proposal, a merged
@@ -2146,9 +2150,9 @@ def _run_notice(view: RunView) -> str:  # noqa: C901, PLR0911, PLR0912 -- one no
         return "Phase 1 is working out which works match the intent. Call status again to keep watching."
     if status is RunStatus.AWAITING_APPROVAL:
         return (
-            f"This run proposed {counted(view.work_count, 'work')}, which is more than the configured threshold, so it "
-            "stopped to ask. Approve it to let it look for images, or decline it — nothing more is spent "
-            "until you do."
+            f"This run proposed {counted(view.work_count, 'work')} and stopped to ask, as runs did before "
+            "asking became the approval. Approve it to let it look for images, or decline it — nothing more "
+            "is spent until you do."
         )
     if status is RunStatus.RESOLVING_IMAGES:
         # Two different situations share this state, and which one it is comes

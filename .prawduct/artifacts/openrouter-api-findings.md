@@ -120,6 +120,54 @@ data.rate_limit.{requests:int, interval:str, note:str}
 artifact and are worth knowing: the monthly figure is closer to what the ceiling
 means than the lifetime `usage` is.
 
+### Re-measured 2026-10-07: the shape has grown, and `limit_remaining` is the month's
+
+One `GET /api/v1/key` with the product's configured key (free; the values below
+are the shape and the money only, with every identifier left out). Status 200.
+
+```
+data.limit                  int     20
+data.limit_reset            str     "monthly"
+data.limit_remaining        float   19.94596061
+data.usage                  float   0.588850173      (lifetime)
+data.usage_daily            int     0
+data.usage_weekly           float   0.05322656
+data.usage_monthly          float   0.05403939
+data.byok_usage{,_daily,_weekly,_monthly}  int 0
+data.include_byok_in_limit  bool    false
+data.is_free_tier           bool    false
+data.is_provisioning_key    bool    false
+data.is_management_key      bool    false
+data.expires_at             null
+data.creator_user_id        str     (not recorded)
+data.label                  str     (new; not recorded)
+data.organization_id        null    (new)
+data.workspace_id           str     (new; not recorded)
+data.allowed_data_regions   list    (new; not recorded)
+data.free_model_daily_requests.{used,limit,remaining}  int   (new; limit 1000)
+data.rate_limit.{requests:int -1, interval:"10s", note:str}
+```
+
+**What drifted (#150):** five fields this file did not list — `label`,
+`organization_id`, `workspace_id`, `allowed_data_regions` and
+`free_model_daily_requests` — and `rate_limit.requests` reads `-1` with a `10s`
+interval. Every field the product reads (`limit`, `usage`, `limit_remaining`,
+`limit_reset`) is where it was, with the types it had. A JSON integer arrives
+where the value is whole (`limit`, `usage_daily`), so a reader takes any number.
+
+**`limit_remaining` is the month's, not the lifetime's.** `limit` less
+`usage_monthly` is `19.94596061` exactly, while `limit` less the lifetime
+`usage` would be `19.41`. So on a key with a monthly reset it answers "what is
+left this month" directly, which is what the sidebar shows (#290). The lag
+recorded above is unchanged and was not re-measured.
+
+**On a key with no limit**, `limit` and `limit_remaining` are null (recorded
+above, 2026-08-02). The product then reads `usage_monthly`, the provider's own
+figure for the month, against a configured budget, rather than tallying its own
+ledger. *Inferred, not measured:* that `usage_monthly` is present on an
+uncapped key was not checked, since the only uncapped key to hand is not this
+deployment's; a reply without it reads as spend unknown.
+
 ### `/key` lags materially, and the design must not depend on it being current
 
 Measured: after a call reporting `usage.cost` of `0.00523535`, `/key`'s `usage`

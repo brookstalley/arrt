@@ -75,6 +75,9 @@ class RunStatus(StrEnum):
     """
 
     RESOLVING_WORKS = "resolving_works"
+    #: Stopped for the curator's approval. Nothing enters it since 2026-10-07,
+    #: when asking became the approval; a run stored here before still leaves
+    #: by approve, decline or cancel.
     AWAITING_APPROVAL = "awaiting_approval"
     RESOLVING_IMAGES = "resolving_images"
     COMPLETED = "completed"
@@ -157,6 +160,36 @@ class WorkProvenance(StrEnum):
     #: The curator chose this work from the registry, by its Wikidata item. Its
     #: title and maker are the registry's, and nothing proposed or offered it.
     CHOSEN = "chosen"
+
+
+class Confirmation(StrEnum):
+    """Whether anything outside the model confirms a proposed work exists, as the review card says it.
+
+    A model asked for works will occasionally name a plausible one that does not
+    exist, and its own note may say it found no source while the card's badges
+    and Accept read as a match. This is what the card marks *Not confirmed*.
+    """
+
+    #: A source confirms it: phase 1's search found it, the curator chose it by
+    #: its Wikidata item, or a wired collection offered it from its holdings.
+    CONFIRMED = "confirmed"
+    #: Phase 1 named it and said no source it was given confirms it.
+    UNCONFIRMED = "unconfirmed"
+    #: Phase 1 named it and said nothing either way: every work proposed before
+    #: the model was asked, and any answer that left the field out.
+    UNKNOWN = "unknown"
+
+    @property
+    def rank(self) -> int:
+        """Where a review listing puts it: confirmed first, unknown next, unconfirmed last."""
+        return _CONFIRMATION_ORDER.index(self)
+
+
+_CONFIRMATION_ORDER: Final[tuple[Confirmation, ...]] = (
+    Confirmation.CONFIRMED,
+    Confirmation.UNKNOWN,
+    Confirmation.UNCONFIRMED,
+)
 
 
 class UnresolvedReason(StrEnum):
@@ -286,10 +319,10 @@ class DiscoveryRun:
     its own — it inherits the parent's, which is what keeps "what did asking for
     Dalí actually cost" answerable once spend is spread across a chain of runs.
 
-    `approval_required` is stored rather than re-derived because the threshold it
-    was judged against is configuration, and configuration changes. A run that
-    stopped for approval last month must still read as "this stopped for
-    approval", not as whatever today's threshold would imply.
+    `approval_required` is false on every run started since 2026-10-07, when
+    the approval gate was removed (asking is the approval). It is kept rather
+    than dropped because a run that stopped for approval before then must still
+    read as "this stopped for approval".
 
     There is no `target_candidate_count`: the phase-1 work list *is* the count,
     and it is a reviewable, trimmable list rather than a number guessed in
@@ -389,6 +422,25 @@ class CandidateWork:
     unresolved_reason: UnresolvedReason | None = None
     rejected_reason: str | None = None
     decided_at: datetime | None = None
+    #: What phase 1 said of a work it proposed: true when a source it was given
+    #: confirms the work, false when none does. `None` when it said nothing, and
+    #: on every chosen or offered work, which no model named.
+    source_confirmed: bool | None = None
+
+    @property
+    def confirmation(self) -> Confirmation:
+        """Whether the card may present this work as confirmed (`Confirmation`).
+
+        A chosen work is a Wikidata item and an offered one a collection's own
+        holding, so each is confirmed by where it came from. A proposed work is
+        confirmed only on phase 1's word, and an absent word is `UNKNOWN`, never
+        confirmed.
+        """
+        if self.provenance is not WorkProvenance.PROPOSED:
+            return Confirmation.CONFIRMED
+        if self.source_confirmed is None:
+            return Confirmation.UNKNOWN
+        return Confirmation.CONFIRMED if self.source_confirmed else Confirmation.UNCONFIRMED
 
 
 @dataclass(frozen=True, slots=True)

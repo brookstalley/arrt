@@ -11,7 +11,7 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
-from fakes import FakeRegistry, NothingWanted
+from fakes import FakeRegistry, NothingWaiting, NothingWanted
 
 from arrt.library.registry import (
     ItemId,
@@ -30,6 +30,7 @@ from arrt.library.services.artists import ArtistService, RegistryState
 from arrt.library.services.display_fit import DisplayFit, assess_display_fit
 from arrt.library.services.registry_search import RegistrySearchService, RegistrySearchState
 from arrt.library.services.registry_works import RegistryWorkService, RegistryWorkState
+from arrt.persistence.discovery_records import ResolutionStatus, Verdict
 from arrt.persistence.kept import KeptAnswers
 
 ROTHKO = "Q160149"
@@ -463,9 +464,9 @@ class TestAfterARestart:
         kept = KeptAnswers(settings.kept_answers_path)
         yield SimpleNamespace(
             registry=down,
-            artists=ArtistService(store, down, kept=kept, wanted=NothingWanted()),
+            artists=ArtistService(store, down, kept=kept, wanted=NothingWanted(), awaiting=NothingWaiting()),
             registry_works=RegistryWorkService(store, down, kept=kept, wanted=NothingWanted(), box=settings.tv_artwork_box),
-            registry_search=RegistrySearchService(store, down, kept=kept, wanted=NothingWanted()),
+            registry_search=RegistrySearchService(store, down, kept=kept, wanted=NothingWanted(), awaiting=NothingWaiting()),
         )
         kept.close()
 
@@ -577,3 +578,196 @@ class TestAWantedWorkIsMarkedWhereverRegistryWorksAreListed:
         page = http.get(f"/api/registry/works/{HELD_ROTHKO}").raise_for_status().json()
 
         assert (page["held_artwork_ids"], page["wanted"]) == ([kept.id], True)
+
+
+class TestARegistryRowIsFoldedIntoItsHeldTwin:
+    """Ruling 7 of 2026-10-01: a held work or artist is one row, whether or not it carries its QID yet.
+
+    A held work with no QID is matched by title and artist, a held artist with
+    none by name and life dates; one carrying a QID is matched by it alone. Each
+    fixture holds a second, near thing that must not fold, so a matcher that
+    folds everything by artist or by name alone fails.
+    """
+
+    @pytest.fixture
+    def unlinked_bruegel(self, service):
+        """Bruegel in the library with no QID, and *The Hunters in the Snow* held with none."""
+        bruegel = service.add_artist(name="Pieter Brueghel the Elder", born=1525, died=1569)
+        hunters = service.add_artwork(title="The Hunters in the Snow (1565)", artist_id=bruegel.id)
+        return bruegel, hunters
+
+    @pytest.fixture
+    def found(self, registry):
+        registry.matches["hunters"] = [
+            RegistryWorkMatch(
+                qid=ItemId(HUNTERS),
+                title=RegistryText("The Hunters in the Snow"),
+                sitelinks=39,
+                creator=RegistryCreator(qid=BRUEGEL, name="Pieter Brueghel the Elder"),
+            ),
+            # The same artist, another title: not held.
+            RegistryWorkMatch(
+                qid=ItemId("Q1170284"),
+                title=RegistryText("The Harvesters"),
+                sitelinks=25,
+                creator=RegistryCreator(qid=BRUEGEL, name="Pieter Brueghel the Elder"),
+            ),
+        ]
+
+    def test_a_held_work_with_no_qid_is_folded_by_title_and_artist(self, http, unlinked_bruegel, found):
+        _bruegel, hunters = unlinked_bruegel
+
+        works = http.get("/api/registry/search", params={"q": "hunters"}).raise_for_status().json()["works"]
+
+        assert [(work["qid"], work["held_artwork_ids"]) for work in works] == [(HUNTERS, [hunters.id]), ("Q1170284", [])]
+
+    def test_a_held_work_is_matched_by_the_library_name_of_a_maker_it_holds_by_qid(self, http, service, services, found):
+        """The registry spells the maker one way and the library another; the maker's QID joins them."""
+        bruegel = service.add_artist(name="Pieter Bruegel", born=1525, died=1569)
+        services.identity.set_artist_identity(bruegel.id, BRUEGEL)
+        hunters = service.add_artwork(title="The Hunters in the Snow", artist_id=bruegel.id)
+
+        works = http.get("/api/registry/search", params={"q": "hunters"}).raise_for_status().json()["works"]
+
+        assert works[0]["held_artwork_ids"] == [hunters.id]
+
+    def test_a_held_work_carrying_another_qid_is_not_folded_by_title(self, http, unlinked_bruegel, services, found):
+        _bruegel, hunters = unlinked_bruegel
+        services.identity.set_work_identity(hunters.id, "Q99999999")
+
+        works = http.get("/api/registry/search", params={"q": "hunters"}).raise_for_status().json()["works"]
+
+        assert works[0]["held_artwork_ids"] == []
+
+    def test_a_held_work_the_curator_said_has_no_item_is_not_folded(self, http, unlinked_bruegel, services, found):
+        _bruegel, hunters = unlinked_bruegel
+        services.identity.set_work_identity(hunters.id, None)
+
+        works = http.get("/api/registry/search", params={"q": "hunters"}).raise_for_status().json()["works"]
+
+        assert works[0]["held_artwork_ids"] == []
+
+    def test_a_held_artist_with_no_qid_is_one_row_by_name_and_life_dates(self, http, unlinked_bruegel, registry):
+        bruegel, _hunters = unlinked_bruegel
+        registry.people["brueghel"] = [
+            RegistryPerson(qid=ItemId(BRUEGEL), label=RegistryText("Pieter Brueghel the Elder"), born=1525, died=1569),
+            # A namesake two generations on: the name matches, the years do not.
+            RegistryPerson(qid=ItemId("Q102272"), label=RegistryText("Pieter Brueghel the Elder"), born=1564, died=1638),
+        ]
+
+        artists = http.get("/api/registry/search", params={"q": "brueghel"}).raise_for_status().json()["artists"]
+
+        assert [(artist["qid"], artist["artist_id"]) for artist in artists] == [(BRUEGEL, bruegel.id), ("Q102272", None)]
+
+    def test_an_artist_the_curator_said_has_no_item_is_not_folded(self, http, unlinked_bruegel, services, registry):
+        bruegel, _hunters = unlinked_bruegel
+        services.identity.set_artist_identity(bruegel.id, None)
+        registry.people["brueghel"] = [
+            RegistryPerson(qid=ItemId(BRUEGEL), label=RegistryText("Pieter Brueghel the Elder"), born=1525, died=1569)
+        ]
+
+        artists = http.get("/api/registry/search", params={"q": "brueghel"}).raise_for_status().json()["artists"]
+
+        assert artists[0]["artist_id"] is None
+
+    def test_the_artist_page_folds_a_held_work_with_no_qid(self, http, unlinked_bruegel, registry):
+        _bruegel, hunters = unlinked_bruegel
+        bruegel = registry.artists[BRUEGEL]
+        registry.artists[BRUEGEL] = replace(
+            bruegel, works=(*bruegel.works, RegistryWorkEntry(qid="Q1170284", title="The Harvesters", sitelinks=25, year=1565))
+        )
+
+        page = http.get(f"/api/registry/artists/{BRUEGEL}").raise_for_status().json()
+
+        assert [(work["qid"], work["held_artwork_ids"]) for work in page["works"]] == [
+            (HUNTERS, [hunters.id]),
+            ("Q1170284", []),
+        ]
+
+
+class TestAWorkWaitingForReviewIsMarked:
+    """#275: a work a run found and that waits for a verdict reads *Waiting for review*, not *Not held*.
+
+    Each row names the run whose review it waits on and the work there. A work
+    already held is held, not waiting; a work given a verdict waits no longer.
+    """
+
+    @pytest.fixture
+    def waiting(self, discovery, discovery_store, propose):
+        """*The Hunters in the Snow*, proposed by name and found; and *The Harvesters*, proposed and found nothing."""
+        hunters = propose("The Hunters in the Snow", proposed_artist="Pieter Brueghel the Elder")
+        discovery_store.update_candidate_work(replace(hunters, resolution_status=ResolutionStatus.RESOLVED))
+        # Proposed with nothing found: no image, nothing to accept, so not waiting.
+        propose("The Harvesters", proposed_artist="Pieter Brueghel the Elder")
+        return hunters
+
+    @pytest.fixture
+    def found(self, registry):
+        registry.matches["bruegel"] = [
+            RegistryWorkMatch(
+                qid=ItemId(HUNTERS),
+                title=RegistryText("The Hunters in the Snow"),
+                sitelinks=39,
+                creator=RegistryCreator(qid=BRUEGEL, name="Pieter Brueghel the Elder"),
+            ),
+            RegistryWorkMatch(
+                qid=ItemId("Q1170284"),
+                title=RegistryText("The Harvesters"),
+                sitelinks=25,
+                creator=RegistryCreator(qid=BRUEGEL, name="Pieter Brueghel the Elder"),
+            ),
+        ]
+        registry.people["bruegel"] = [
+            RegistryPerson(qid=ItemId(BRUEGEL), label=RegistryText("Pieter Brueghel the Elder"), born=1525, died=1569),
+            RegistryPerson(qid=ItemId("Q5598"), label=RegistryText("Rembrandt"), born=1606, died=1669),
+        ]
+
+    def test_the_search_marks_the_work_and_its_artist_with_where_it_waits(self, http, waiting, found):
+        found_ = http.get("/api/registry/search", params={"q": "bruegel"}).raise_for_status().json()
+
+        expected = {"run_id": waiting.discovery_run_id, "candidate_work_id": waiting.id}
+        assert [(work["qid"], work["held_artwork_ids"], work["in_review"]) for work in found_["works"]] == [
+            (HUNTERS, [], expected),
+            ("Q1170284", [], None),
+        ]
+        assert [(artist["qid"], artist["in_review"]) for artist in found_["artists"]] == [(BRUEGEL, expected), ("Q5598", None)]
+
+    def test_a_work_chosen_by_its_item_waits_by_it_whatever_its_title(self, http, discovery, discovery_store, propose, found):
+        work = propose("Hunters (a Get's title)")
+        discovery.set_wikidata_item(work.id, HUNTERS)
+        discovery_store.update_candidate_work(
+            replace(discovery.get_candidate_work(work.id), resolution_status=ResolutionStatus.RESOLVED)
+        )
+
+        works = http.get("/api/registry/search", params={"q": "bruegel"}).raise_for_status().json()["works"]
+
+        assert works[0]["in_review"] == {"run_id": work.discovery_run_id, "candidate_work_id": work.id}
+
+    def test_the_artist_page_marks_it(self, http, waiting, registry):
+        bruegel = registry.artists[BRUEGEL]
+        registry.artists[BRUEGEL] = replace(
+            bruegel, works=(*bruegel.works, RegistryWorkEntry(qid="Q1170284", title="The Harvesters", sitelinks=25, year=1565))
+        )
+
+        page = http.get(f"/api/registry/artists/{BRUEGEL}").raise_for_status().json()
+
+        assert [(work["qid"], work["in_review"]) for work in page["works"]] == [
+            (HUNTERS, {"run_id": waiting.discovery_run_id, "candidate_work_id": waiting.id}),
+            ("Q1170284", None),
+        ]
+
+    def test_a_held_work_is_held_and_not_waiting(self, http, waiting, found, service):
+        bruegel = service.add_artist(name="Pieter Brueghel the Elder", born=1525, died=1569)
+        hunters = service.add_artwork(title="The Hunters in the Snow", artist_id=bruegel.id)
+
+        found_ = http.get("/api/registry/search", params={"q": "bruegel"}).raise_for_status().json()
+
+        assert (found_["works"][0]["held_artwork_ids"], found_["works"][0]["in_review"]) == ([hunters.id], None)
+        assert (found_["artists"][0]["artist_id"], found_["artists"][0]["in_review"]) == (bruegel.id, None)
+
+    def test_a_verdict_ends_the_wait(self, http, waiting, found, discovery):
+        discovery.set_verdict(waiting.id, Verdict.REJECTED)
+
+        works = http.get("/api/registry/search", params={"q": "bruegel"}).raise_for_status().json()["works"]
+
+        assert works[0]["in_review"] is None

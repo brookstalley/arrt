@@ -97,6 +97,17 @@ class ArtistListOut(BaseModel):
     artists: list[HeldArtistOut]
 
 
+class InReviewOut(BaseModel):
+    """A proposed work waiting for a verdict in To review: Review is `#review/{run_id}`, the card `candidate_work_id`.
+
+    A registry row carrying one is *Waiting for review* and is not offered for a
+    Get: a run has already found it.
+    """
+
+    run_id: str
+    candidate_work_id: str
+
+
 class RegistryWorkOut(BaseModel):
     """One work the registry lists for an artist. `title` is registry text: show it as text."""
 
@@ -115,6 +126,8 @@ class RegistryWorkOut(BaseModel):
     #: `held_artwork_ids` rather than instead of it: the page decides which mark
     #: wins (held), and both are true when a wanted work has since been acquired.
     wanted: bool
+    #: The proposed work awaiting a verdict that this is, when it is not held.
+    in_review: InReviewOut | None = None
 
 
 class RegistryHoldingOut(BaseModel):
@@ -293,8 +306,11 @@ class RegistryPersonFoundOut(BaseModel):
     name: str
     born: int | None
     died: int | None
-    #: The library's artist with this QID, where it holds one.
+    #: The library's artist this is, where it holds one: by QID, or, for a held
+    #: artist with none, by name and life dates. One artist is one row.
     artist_id: str | None
+    #: A proposed work of theirs awaiting a verdict, when the library does not hold them.
+    in_review: InReviewOut | None = None
 
 
 class RegistryWorkFoundOut(BaseModel):
@@ -304,12 +320,15 @@ class RegistryWorkFoundOut(BaseModel):
     #: A Commons file URL, and only ever one.
     image: str | None
     creator: RegistryCreatorOut | None
-    #: The library's works in circulation that are this one, by QID.
+    #: The library's works in circulation that are this one: by QID, or, for a
+    #: held work with none, by title and artist. A held work is never also not held.
     held_artwork_ids: list[str]
     #: A wanted work names this item (Wanted). Reported beside
     #: `held_artwork_ids` rather than instead of it: the page decides which mark
     #: wins (held), and both are true when a wanted work has since been acquired.
     wanted: bool
+    #: The proposed work awaiting a verdict that this is, when it is not held.
+    in_review: InReviewOut | None = None
 
 
 class RegistrySearchOut(BaseModel):
@@ -1090,13 +1109,11 @@ class HealthOut(BaseModel):
     a question with one answer and became "which wall has not" — and a single
     reading could not have carried the name of the room that went quiet.
 
-    **There is no budget balance here, and its absence is a decision** (operator,
-    2026-08-04). The provider's `limit_remaining` was observed reporting credit
-    while live calls were already being refused, so it fails by inversion rather
-    than by staleness — and stating its age, which is this panel's whole remedy
-    for a stale figure, would not warn anyone about the case that bites. The
-    honest budget signals are recorded per-run spend and the `halted_by_budget`
-    outcome, and both are on the run view.
+    **There is no budget balance here**: the month's budget is the sidebar's,
+    `BudgetOut` (#290). It stays off this panel because the provider's
+    `limit_remaining` fails by inversion rather than by staleness, so stating
+    its age, this panel's remedy for a stale figure, would not warn about the
+    case that bites (`services/health.py`).
     """
 
     walls: list[WallHeartbeatOut]
@@ -1139,6 +1156,8 @@ class RunOut(BaseModel):
     #: surprising list is explicable instead of merely wrong. Null while phase 1
     #: is still working: nothing has read the intent yet.
     strategy: str | None
+    #: Whether the run stopped for approval: false on every run since the gate
+    #: was removed (2026-10-07), true only on one that stopped before then.
     approval_required: bool
     #: Prices are strings, never floats. A tenth of a cent that cannot be
     #: represented exactly is a rounding error in the figure a curator authorised
@@ -1212,6 +1231,12 @@ class CandidateWorkOut(BaseModel):
     #: `unresolved` cannot tell a title nobody holds from a scan too small for
     #: the wall, and those lead to opposite actions.
     unresolved_reason: str | None
+    #: `confirmed`, `unconfirmed` or `unknown` (`Confirmation`): whether a source
+    #: confirms the work exists. A proposed work is confirmed only on phase 1's
+    #: word that a search result names it; with no word it is `unknown`, never
+    #: confirmed. The card marks anything not confirmed *Not confirmed*, and the
+    #: review listing sorts unconfirmed works after confirmed ones.
+    confirmation: str
 
 
 class RunTallyOut(BaseModel):
@@ -1256,17 +1281,15 @@ class RunViewOut(BaseModel):
 
     run: RunOut
     tally: RunTallyOut
-    #: Every work, uncapped, and **nothing bounds how many there are** — phase 1
-    #: is deliberately not capped at a work count, because the approval gate
-    #: exists to catch exactly the run that read an intent too broadly ("you
-    #: asked for Dalí and I found 200 works, really?"), and a cap would mean the
-    #: gate could never fire. So this list is as long as the run is wide.
+    #: Every work, uncapped, and **nothing bounds how many there are** but one
+    #: model answer's output reservation — phase 1 is deliberately not capped at
+    #: a work count, so a run that read an intent too broadly ("you asked for
+    #: Dalí and I found 200 works, really?") shows it whole. So this list is as
+    #: long as the run is wide.
     #:
     #: Sent whole anyway. The MCP surface stops at 100 because a model's context
-    #: is the scarce thing; here the reader is a curator deciding whether to
-    #: approve, and a truncated list is precisely the one they cannot answer the
-    #: gate's question from. The cost is real and bounded by that same
-    #: judgement: a 200-work run re-fetched while it is being deliberated over.
+    #: is the scarce thing; here the reader is a curator reading the run, and a
+    #: truncated list is the one that hides how wide it read.
     works: list[CandidateWorkOut]
     searches: SearchUsageOut
     #: Whether this deployment can resolve images at all. A run sitting in
@@ -1308,8 +1331,41 @@ class EstimateOut(BaseModel):
 
     phase: str
     estimated_cost_usd: str
+    #: `free`, `$`, `$$` or `$$$` (`spending.cost_tier`): what the control shows
+    #: before the action is taken. Asking's is the tier of its bound.
+    tier: str
     basis: str
     run_id: str | None
+
+
+class CostTiersOut(BaseModel):
+    """Where the tiers change, so a control can word a figure as its tier: free at zero, then `$`, `$$`, `$$$`."""
+
+    #: Under this is `$`.
+    cents_below_usd: str
+    #: Under this is `$$`; this or more is `$$$`.
+    dimes_below_usd: str
+
+
+class BudgetOut(BaseModel):
+    """What is left of this month's budget, read from the provider (`spending.BudgetService`).
+
+    `state` is `known` (the key's monthly limit, from the provider), `configured`
+    (the key has no limit; `MONTHLY_BUDGET_USD` less the provider's spend this
+    month), `uncapped` (no limit and no budget: only `spent_usd`),
+    `not_configured` (no key; nothing spends) or `unavailable`. Money is a
+    decimal string. Display only and up to a minute old: nothing gates on it.
+    """
+
+    state: str
+    #: What is left this month, never below zero; null unless `known` or `configured`.
+    remaining_usd: str | None
+    #: The month's budget: the key's limit or the configured one.
+    budget_usd: str | None
+    #: What the provider counts as spent this month, where it said.
+    spent_usd: str | None
+    note: str | None
+    tiers: CostTiersOut
 
 
 class SpendOut(BaseModel):

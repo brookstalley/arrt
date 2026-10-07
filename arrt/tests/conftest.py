@@ -29,7 +29,6 @@ from arrt.config import (
     DEFAULT_ACQUISITION_USER_AGENT,
     DEFAULT_BACKUP_INTERVAL_SECONDS,
     DEFAULT_BACKUP_KEEP,
-    DEFAULT_DISCOVERY_APPROVAL_THRESHOLD,
     DEFAULT_DISCOVERY_MAX_OUTPUT_TOKENS,
     DEFAULT_DISCOVERY_MODEL,
     DEFAULT_DISCOVERY_SEARCH_RESULTS,
@@ -62,6 +61,7 @@ from arrt.config import (
 from arrt.library.acquisition.direct import StreamOpener
 from arrt.library.acquisition.preparation import PreparationSettings
 from arrt.library.discovery.dedup import work_dedup_key
+from arrt.library.discovery.openrouter import KeyStatus
 from arrt.library.facade import LibraryFacade
 from arrt.library.registry import Registry
 from arrt.library.services.catalogue import CatalogueService
@@ -217,7 +217,6 @@ def settings(tmp_path) -> Settings:
         mat_width_inches=DEFAULT_MAT_WIDTH_INCHES,
         mat_bottom_weight=DEFAULT_MAT_BOTTOM_WEIGHT,
         resolution_floor_inches=DEFAULT_RESOLUTION_FLOOR_INCHES,
-        approval_threshold=DEFAULT_DISCOVERY_APPROVAL_THRESHOLD,
         phase1_search_allowance=DEFAULT_PHASE1_SEARCH_ALLOWANCE,
         phase2_searches_per_work=DEFAULT_PHASE2_SEARCHES_PER_WORK,
         offered_works_per_run=DEFAULT_OFFERED_WORKS_PER_RUN,
@@ -341,6 +340,7 @@ def services(
     kept: KeptAnswers,
     open_stream: StreamOpener | None,
     sources: SourceRoster,
+    key_status: Callable[[], KeyStatus] | None,
 ) -> Services:
     """Every service, wired the way the entry point wires them."""
     return Services.bind(
@@ -386,7 +386,15 @@ def services(
         kept=kept,
         open_stream=open_stream,
         sources=sources,
+        key_status=key_status,
+        monthly_budget_usd=settings.monthly_budget_usd,
     )
+
+
+@pytest.fixture
+def key_status() -> Callable[[], KeyStatus] | None:
+    """No key, as most tests are: the budget says nothing spends. A test of the budget supplies the provider's answer."""
+    return None
 
 
 @pytest.fixture

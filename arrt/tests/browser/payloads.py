@@ -11,6 +11,8 @@ threading half a dozen builder fixtures through every signature would say
 nothing the import does not.
 """
 
+from decimal import Decimal
+
 from arrt.http.models import (
     AffinityListOut,
     AffinityOut,
@@ -46,9 +48,11 @@ from arrt.http.models import (
     WorkPageOut,
 )
 from arrt.library.services.display_fit import DisplayFit
+from arrt.library.services.spending import cost_tier
 from arrt.persistence.discovery_records import (
     AffinityDerivation,
     AffinitySentiment,
+    Confirmation,
     InitiatedBy,
     ResolutionStatus,
     RunKind,
@@ -170,6 +174,9 @@ def a_candidate(**overrides) -> CandidateWorkOut:
         "verdict": Verdict.PENDING.value,
         "resolution_status": ResolutionStatus.RESOLVED.value,
         "unresolved_reason": None,
+        # A proposal phase 1 said a source confirms; a test about the badge sets
+        # `unconfirmed` or `unknown`, as the server reports them.
+        "confirmation": Confirmation.CONFIRMED.value,
     }
     fields |= overrides
     # Derived, never passed: a fixture free to say a pending work is decided
@@ -371,7 +378,11 @@ def an_estimate(**overrides) -> dict:
         "basis": "Phase 2 asks museum APIs, which charge nothing.",
         "run_id": "run-under-test",
     }
-    return EstimateOut(**(fields | overrides)).model_dump(mode="json")
+    fields |= overrides
+    # Derived, never passed, as the server derives it: a fixture free to say a
+    # charge is free could assert a control no server could produce.
+    fields["tier"] = str(cost_tier(Decimal(fields["estimated_cost_usd"])))
+    return EstimateOut(**fields).model_dump(mode="json")
 
 
 def a_spend(**overrides) -> dict:

@@ -444,9 +444,9 @@ ART_DISCOVERY: Final = ToolRecord(
     #: No longer "the only tool that spends money" — `art_catalogue`'s
     #: `set_mat_color` asks a vision model when given no colour. The distinction
     #: that survives is scale, and it is the one a curator needs: a discovery run
-    #: is the operation with a budget, an approval gate and a ceiling behind it,
-    #: while a mat call is a fraction of a cent against one work.
-    summary="Propose and resolve new works. The only tool that spends money in amounts worth authorising.",
+    #: is the operation with an estimate, a tier and a ceiling behind it, while
+    #: a mat call is a fraction of a cent against one work.
+    summary="Propose and resolve new works. The only tool that spends money in amounts worth pricing first.",
     read_only=False,
     destructive=True,
     open_world=True,
@@ -463,11 +463,15 @@ ART_DISCOVERY: Final = ToolRecord(
                 ),
                 (
                     "With no run_id the answer covers phase 1 — one model call and its search allowance. With a "
-                    "run_id it is that run's stored phase-2 figure, which is what its approval gate authorises against."
+                    "run_id it is that run's stored phase-2 figure."
                 ),
                 (
                     "Both figures are bounded rather than typical: they price the whole search allowance, because a "
                     "number a run may freely exceed is not an estimate."
+                ),
+                (
+                    "`tier` is the figure as the curator sees it before acting: free, $ (under $0.05), $$ (under "
+                    "$0.50) or $$$. Starting the run is the approval; nothing stops to ask."
                 ),
             ),
         ),
@@ -489,8 +493,8 @@ ART_DISCOVERY: Final = ToolRecord(
                     "with that id, which holds until something changes rather than answering straight away."
                 ),
                 (
-                    "A run that proposes more works than the configured threshold stops and waits for "
-                    "action='approve' before spending anything on phase 2."
+                    "Starting is the approval: a run goes from its work list straight on to finding images, "
+                    "however many works it proposed. Price it first with action='estimate'."
                 ),
                 (
                     "Works the curator has already rejected are skipped rather than proposed again, so a run may "
@@ -520,7 +524,12 @@ ART_DISCOVERY: Final = ToolRecord(
             description="Accept a run's work list and its price, letting it proceed to finding images.",
             example="art_discovery(action='approve', run_id='<a run_id awaiting approval>')",
             params=(_RUN_ID,),
-            tips=("Only a run in 'awaiting_approval' can be approved; check action='status' first.",),
+            tips=(
+                (
+                    "Only a run in 'awaiting_approval' can be approved, and no run stops there now: only one "
+                    "stored there before asking became the approval. Check action='status' first."
+                ),
+            ),
         ),
         Action(
             name="decline",
@@ -530,7 +539,7 @@ ART_DISCOVERY: Final = ToolRecord(
             tips=(
                 (
                     "Declining is not the same as cancelling: it is a judgement on the work list, and it is "
-                    "available only while the run is waiting for one."
+                    "available only for a run stored waiting for one before asking became the approval."
                 ),
             ),
         ),
@@ -541,8 +550,8 @@ ART_DISCOVERY: Final = ToolRecord(
             params=(_RUN_ID,),
             tips=(
                 (
-                    "Available from every state a run can still leave, including while it waits for approval — "
-                    "wanting a run gone is a different thing from declining what it found."
+                    "Available from every state a run can still leave, including a run stored waiting for "
+                    "approval — wanting a run gone is a different thing from declining what it found."
                 ),
                 "A run that has already ended cannot be cancelled; the refusal names how it ended.",
             ),
@@ -666,7 +675,7 @@ ART_DISCOVERY: Final = ToolRecord(
         Action(
             name="list_runs",
             description="List discovery runs, newest first, optionally narrowed to one state or kind.",
-            example="art_discovery(action='list_runs', status='awaiting_approval')",
+            example="art_discovery(action='list_runs', status='resolving_images')",
             params=(
                 Param(
                     name="status",
@@ -824,6 +833,12 @@ ART_REVIEW: Final = ToolRecord(
                     "Works with an image found for them come first, then ones nothing was found for. A work "
                     "reported unresolved is not a defect; read `unresolved_reason` for which kind of nothing. "
                     "Only `not_held` suggests the work may not exist."
+                ),
+                (
+                    "Within each of those, `confirmation` orders the rows: `confirmed` (a source names the "
+                    "work), then `unknown` (the model said nothing), then `unconfirmed` (the model said no "
+                    "source it was given names it). A work that is not confirmed may be a title the model "
+                    "invented; check it before accepting."
                 ),
                 (
                     "Read `provenance` on every row. `proposed` is a work the model named for this intent; "
