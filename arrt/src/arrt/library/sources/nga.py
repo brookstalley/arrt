@@ -89,7 +89,8 @@ REFRESH_SECONDS: Final[float] = 24 * 60 * 60
 #: How long the parsed copy is kept with no NGA query before it is released (the owner's ruling).
 IDLE_SECONDS: Final[float] = 6 * 60 * 60
 
-#: The most of one file read off the wire, against 26.6 MB measured for the larger.
+#: The most of one file read off the wire: about five times the larger file
+#: gzipped (26.6 MB), and about one and a half times it served plain (89 MB).
 _MAX_DOWNLOAD_BYTES: Final[int] = 128 * 1024 * 1024
 
 #: Where a file's validators and last check are kept, beside the files.
@@ -245,6 +246,7 @@ class NgaCatalogue:
         self._state: dict[str, dict[str, Any]] | None = None
         self._last_asked = 0.0
         self._armed = False
+        self._swept = False
 
     @property
     def loaded(self) -> bool:
@@ -261,6 +263,7 @@ class NgaCatalogue:
         with self._lock:
             now = self._clock()
             self._last_asked = now
+            self._sweep()
             changed = False
             for data_file in _FILES:
                 changed = self._refresh(data_file, now) or changed
@@ -268,6 +271,22 @@ class NgaCatalogue:
                 self._index = self._parse()
             self._arm(IDLE_SECONDS)
             return self._index.get(object_id)
+
+    def _sweep(self) -> None:
+        """Remove what a download killed before its `finally` left behind, once per process.
+
+        A temporary file is only ever this process's own in flight, and nothing
+        is in flight before the first query, so every one found then is debris.
+        """
+        if self._swept:
+            return
+        self._swept = True
+        for debris in self._directory.glob(".*.part") if self._directory.is_dir() else ():
+            debris.unlink(missing_ok=True)
+            log.info(
+                "removed a download the last process did not finish",
+                extra={"event": "nga.catalogue_debris_removed", "provider": PROVIDER, "file": debris.name},
+            )
 
     def release_if_idle(self) -> None:
         """Release the parsed copy if no query has asked NGA for `IDLE_SECONDS`, else wait out the rest."""
@@ -336,6 +355,12 @@ class NgaCatalogue:
                 headers["If-None-Match"] = state["etag"]
             if isinstance(state.get("last_modified"), str):
                 headers["If-Modified-Since"] = state["last_modified"]
+        # Said before the request: the first download of a day holds every NGA
+        # query, and so the run asking, for the seconds it takes.
+        log.info(
+            "asking for NGA's open data",
+            extra={"event": "nga.catalogue_requested", "provider": PROVIDER, "file": data_file.name, "conditional": have},
+        )
         try:
             with self._http.stream("GET", f"{DATA_URL}{data_file.name}", headers=headers) as response:
                 if response.status_code == httpx.codes.NOT_MODIFIED and have:
@@ -389,22 +414,19 @@ class NgaCatalogue:
     def _parse(self) -> dict[int, Entry]:
         """Every object's primary image, with its title and attribution, from the files on disk."""
         started = time.monotonic()
-        rows: dict[int, list[Any]] = {}
+        index: dict[int, Entry] = {}
         try:
             for row in _rows(self._path(_IMAGES)):
                 parsed = _image_row(row)
                 if parsed is not None:
-                    rows.setdefault(parsed[0], parsed[1:])
+                    index.setdefault(*parsed)
             for row in _rows(self._path(_OBJECTS)):
-                try:
-                    found = rows.get(int(row["objectid"]))
-                except ValueError:
-                    continue
-                if found is not None:
-                    found[5], found[6] = _text(row.get("title")), _text(row.get("attribution"))
+                number = _number(row.get("objectid"))
+                entry = index.get(number) if number is not None else None
+                if entry is not None:
+                    index[number] = entry._replace(title=_text(row.get("title")), attribution=_text(row.get("attribution")))
         except (OSError, EOFError, csv.Error, UnicodeDecodeError) as exc:
             raise ImageSearchFailure(f"NGA's open data on disk could not be read: {exc}") from exc
-        index = {object_id: Entry(*fields) for object_id, fields in rows.items()}
         log.info(
             "read NGA's catalogue copy into memory",
             extra={
@@ -447,19 +469,30 @@ def _rows(path: Path) -> Iterator[Mapping[str, str]]:
         yield from csv.DictReader(text)
 
 
-def _image_row(row: Mapping[str, str]) -> list[Any] | None:
-    """(object ID, uuid, width, height, maxpixels, open access, title, attribution) of a primary image, or None."""
-    if row.get("viewtype") != "primary" or not _UUID.fullmatch(row.get("uuid") or ""):
+def _image_row(row: Mapping[str, str | None]) -> tuple[int, Entry] | None:
+    """A primary image's object ID and entry, its title and attribution still to come; None for any other row.
+
+    A row cut short has None where its missing fields are (`csv.DictReader`), so
+    every field is read as possibly absent, and such a row is skipped like any
+    other that is not a primary image's.
+    """
+    uuid = row.get("uuid") or ""
+    if row.get("viewtype") != "primary" or not _UUID.fullmatch(uuid):
         return None
+    object_id, width, height = _number(row.get("depictstmsobjectid")), _number(row.get("width")), _number(row.get("height"))
+    maxpixels = _number(row.get("maxpixels")) if row.get("maxpixels") else None
+    if object_id is None or width is None or height is None or (row.get("maxpixels") and maxpixels is None):
+        return None
+    return object_id, Entry(uuid, width, height, maxpixels, row.get("openaccess") == "1", title=None, attribution=None)
+
+
+def _number(value: str | None) -> int | None:
+    """A positive whole number, or None for anything else (absent, blank, not a number, zero)."""
     try:
-        object_id = int(row["depictstmsobjectid"])
-        width, height = int(row["width"]), int(row["height"])
-        maxpixels = int(row["maxpixels"]) if row.get("maxpixels") else None
-    except KeyError, ValueError:
+        number = int(value or "")
+    except ValueError:
         return None
-    if width <= 0 or height <= 0 or (maxpixels is not None and maxpixels <= 0):
-        return None
-    return [object_id, row["uuid"], width, height, maxpixels, row.get("openaccess") == "1", None, None]
+    return number if number > 0 else None
 
 
 def _text(value: str | None) -> str | None:

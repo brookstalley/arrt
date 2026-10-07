@@ -62,7 +62,9 @@ configured the plugin.
   Wikidata, or `None` when the deployment has not named itself to it.
 - `context.data_dir` (1.2) is a directory of your plugin's own,
   `ART_ROOT/sources/<your plugin's name>/`, or `None` when the deployment gives
-  none. Create it when you first write. Keep there only what you can fetch again:
+  none, and also when your plugin's name is not one plain path segment (a letter
+  or digit, then letters, digits, `.`, `_` or `-`), which the startup log names
+  (`source.no_directory`). Create it when you first write. Keep there only what you can fetch again:
   it is not backed up. A plugin that keeps a copy of a holder's catalogue there
   meets the bounds `source-plugins.md` § A plugin's own directory sets (gzipped
   on disk, refreshed at most daily and conditionally, in memory only while

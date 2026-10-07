@@ -417,6 +417,40 @@ def test_a_download_larger_than_the_bound_is_a_failed_refresh(world, monkeypatch
     assert not world.directory.joinpath("published_images.csv.gz").exists()
 
 
+def test_a_row_cut_short_is_skipped_and_the_rest_of_the_file_is_read(world):
+    """A primary image's row ending before its sizes reads as None fields, never as a fault."""
+    body = (
+        world.data.bodies["published_images.csv"] + b"aaaaaaaa-0000-4000-8000-000000000000,https://api.nga.gov/iiif/x,,primary\n"
+    )
+    world.data.publish("published_images.csv", body)
+    catalogue = world.catalogue()
+
+    assert catalogue.entry(1185).title == "Two Women at a Window"
+
+
+def test_a_download_the_last_process_did_not_finish_is_removed_at_the_first_query(world):
+    world.directory.mkdir(parents=True)
+    debris = world.directory / ".published_images.csv.gz.abc123.part"
+    debris.write_bytes(b"half a download")
+
+    world.catalogue().entry(1185)
+
+    assert not debris.exists()
+    assert sorted(p.name for p in world.directory.iterdir()) == ["objects.csv.gz", "published_images.csv.gz", "state.json"]
+
+
+def test_each_request_for_the_open_data_is_logged_before_it_is_made(world, caplog):
+    """The first download of a day holds the run asking; the journal says so before it starts."""
+    caplog.set_level("INFO", logger="arrt.library.sources.nga")
+    catalogue = world.catalogue()
+    catalogue.entry(1185)
+    world.clock.advance(REFRESH_SECONDS)
+    catalogue.entry(1185)
+
+    requested = [(r.file, r.conditional) for r in caplog.records if getattr(r, "event", None) == "nga.catalogue_requested"]
+    assert sorted(requested) == sorted([(name, False) for name in FILES] + [(name, True) for name in FILES])
+
+
 def test_an_object_with_no_image_in_the_open_data_has_no_entry(world):
     """*Metamorphosis II* (46828) has an objects row and no image."""
     assert world.catalogue().entry(46828) is None

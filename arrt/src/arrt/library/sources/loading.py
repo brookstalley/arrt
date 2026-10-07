@@ -652,7 +652,14 @@ def _own_directory(data_root: Path | None, name: str) -> Path | None:
     None when the deployment gives no root, and when the name is not one plain
     path segment, so that no plugin is handed a directory that is not its own.
     """
-    if data_root is None or not _PLAIN_SEGMENT.fullmatch(name):
+    if data_root is None:
+        return None
+    if not _PLAIN_SEGMENT.fullmatch(name):
+        log.warning(
+            "source plugin %s is given no directory: its name is not one plain path segment",
+            name,
+            extra={"event": "source.no_directory", "plugin": name},
+        )
         return None
     return data_root / name
 

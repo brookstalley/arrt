@@ -601,11 +601,20 @@ def test_startup_names_every_image_source_it_wires_in_order(tmp_path, monkeypatc
     monkeypatch.setenv("ARTIC_USER_AGENT", "arrt-tests/0")
     monkeypatch.setenv("WIKIDATA_USER_AGENT", "arrt-tests/0")
     monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
+    data_roots = []
+    real_load = entry_point.load_sources
+
+    def load_sources(context, **kwargs):
+        data_roots.append(kwargs.get("data_root"))
+        return real_load(context, **kwargs)
+
+    monkeypatch.setattr(entry_point, "load_sources", load_sources)
 
     with caplog.at_level("INFO"):
         entry_point.main()
 
     assert f"phase2 image_sources=commons,artic,met,navigart,nga,smk pictures={art_root / 'pictures'} fetching=on" in caplog.text
+    assert data_roots == [art_root / "sources"], "each plugin's directory is under ART_ROOT/sources, never the art root"
     assert "source plugin wikidata loaded" in caplog.text
 
 

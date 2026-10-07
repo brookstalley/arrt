@@ -66,13 +66,15 @@ def test_a_plugin_named_by_an_entry_point_loads_with_its_finder_and_collection()
     ("name", "own"),
     [("alpha", "alpha"), ("beta.2", "beta.2"), ("../catalogue", None), ("a/b", None), ("..", None), (".hidden", None)],
 )
-def test_each_plugin_is_handed_a_directory_of_its_own_under_the_data_root_and_no_other(tmp_path, name, own):
-    """1.2: `data_dir` is the plugin's name under the root, and a name that is not one plain segment gets none."""
+def test_each_plugin_is_handed_a_directory_of_its_own_under_the_data_root_and_no_other(tmp_path, caplog, name, own):
+    """1.2: `data_dir` is the plugin's name under the root, and a name that is not one plain segment gets none, said."""
     plugin_fakes.DIRECTORIES_HANDED.clear()
 
     load_sources(context(), entry_points=[entry(name, "DIRECTORY")], data_root=tmp_path / "sources")
 
     assert [None if own is None else tmp_path / "sources" / own] == plugin_fakes.DIRECTORIES_HANDED
+    withheld = [r.plugin for r in caplog.records if getattr(r, "event", None) == "source.no_directory"]
+    assert withheld == ([] if own is not None else [name])
     assert not (tmp_path / "sources").exists(), "the loader creates nothing; a plugin creates its directory when it writes"
 
 

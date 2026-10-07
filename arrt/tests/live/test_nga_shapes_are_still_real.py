@@ -40,10 +40,12 @@ class Recording(httpx.BaseTransport):
     def __init__(self) -> None:
         self._inner = httpx.HTTPTransport()
         self.statuses: list[int] = []
+        self.encodings: list[str | None] = []
 
     def handle_request(self, request: httpx.Request) -> httpx.Response:
         response = self._inner.handle_request(request)
         self.statuses.append(response.status_code)
+        self.encodings.append(response.headers.get("Content-Encoding"))
         return response
 
 
@@ -78,6 +80,7 @@ def info(service: str) -> dict:
 def test_the_open_data_still_arrives_gzipped_and_answers_a_conditional_request_with_304(copy):
     directory, network, clock, _ = copy
     assert network.statuses == [200, 200]
+    assert network.encodings[:2] == ["gzip", "gzip"], "the plugin stores what GitHub sends, gzipped as sent"
     assert (directory / "published_images.csv.gz").stat().st_size > 10_000_000
 
     clock.now += REFRESH_SECONDS
