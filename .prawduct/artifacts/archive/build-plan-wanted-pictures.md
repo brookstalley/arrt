@@ -18,8 +18,13 @@ governed_by:
   - artifact: accessibility-spec
     dispositions:
       - "Glyph and word carry the state → conforms: the fit badge travels with the picture as on the card; a row with no picture says so in words"
-lifecycle: active
+lifecycle: completed
+archived: 2026-10-07
+released_in: v0.4.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — Wanted shows each work's picture
 

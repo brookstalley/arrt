@@ -20,8 +20,13 @@ governed_by:
     dispositions:
       - "phase_two events → amended: `phase_two.renamed` and the refusal's `names` field"
 last_validated: null
-lifecycle: active
+lifecycle: completed
+archived: 2026-10-07
+released_in: v0.4.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — A holder's name for the artist that Wikidata records
 

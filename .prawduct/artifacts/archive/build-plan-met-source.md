@@ -30,8 +30,13 @@ governed_by:
     dispositions:
       - "§ Source plugins: a plugin's own requests are unguarded → bounded: it asks only the Met's API host and reads image heads only on `images.metmuseum.org` over https; anything else from the API is dropped"
 last_validated: null
-lifecycle: active
+lifecycle: completed
+archived: 2026-10-07
+released_in: v0.4.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — The Met, through its open API
 

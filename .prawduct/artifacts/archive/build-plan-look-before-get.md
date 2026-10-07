@@ -27,8 +27,13 @@ governed_by:
     dispositions:
       - "Correlation by context variable → conforms: a `look_qid` context variable binds the look's lines as `run_id` binds a run's"
 last_validated: null
-lifecycle: active
+lifecycle: completed
+archived: 2026-10-07
+released_in: v0.4.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — A work you don't hold shows what the sources hold, before any Get
 

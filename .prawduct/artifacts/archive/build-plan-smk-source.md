@@ -21,8 +21,13 @@ governed_by:
     dispositions:
       - "Invariant 13, rights gate nothing → conforms: in-copyright works are found and recorded as such; the owner's ruling of 2026-10-06 on SMK's terms rests on this invariant's household premise"
 last_validated: null
-lifecycle: active
+lifecycle: completed
+archived: 2026-10-07
+released_in: v0.4.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — SMK, through its open API
 

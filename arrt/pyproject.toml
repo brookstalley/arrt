@@ -1,6 +1,6 @@
 [project]
 name = "arrt"
-version = "0.3.0"
+version = "0.4.0"
 description = "Curation plane — discovery, acquisition, catalogue, and the MCP + HTTP surfaces."
 # Nothing in the default install requires 3.14. This floor used to be held by
 # `3tears-models`, which declares the same one — but that package was confined to

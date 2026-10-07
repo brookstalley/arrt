@@ -1,6 +1,6 @@
 [project]
 name = "postarr"
-version = "0.3.0"
+version = "0.4.0"
 description = "Display plane — reads the theme manifest, drives the television, owns this device's own state."
 # **The plane whose version is pinned by hardware, and the reason the two planes
 # are sibling uv projects rather than one workspace.** Raspberry Pi OS Trixie

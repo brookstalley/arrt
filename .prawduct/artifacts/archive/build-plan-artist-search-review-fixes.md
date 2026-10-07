@@ -19,8 +19,13 @@ governed_by:
     dispositions:
       - "§ Registry identity (ruling 7: the matcher sets an identity only where certain; the curator corrects it) → conforms: candidates are shown, never stored; only the curator's click stores one, through the existing route"
 last_validated: null
-lifecycle: active
+lifecycle: completed
+archived: 2026-10-07
+released_in: v0.4.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — Artist pages that lead somewhere, quieter search marks, a settled review card
 

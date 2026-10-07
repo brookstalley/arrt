@@ -17,8 +17,13 @@ governed_by:
       - "Glyph and word carry the state → conforms: each row keeps its mark; the group a row is in is in its accessible name, not only its position"
       - "The dropdown is an ARIA combobox whose options are named by group → conforms: a listbox cannot nest groups, so each group's label names its half (Held: works, Not held: works)"
 last_validated: null
-lifecycle: active
+lifecycle: completed
+archived: 2026-10-07
+released_in: v0.4.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — Search groups what you hold and what you do not
 
