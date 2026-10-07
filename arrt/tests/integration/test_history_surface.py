@@ -16,7 +16,7 @@ import time
 
 import httpx
 import pytest
-from fakes import a_work_list
+from fakes import a_work_list, stored_awaiting_approval
 
 from arrt.persistence.discovery_records import RunStatus
 
@@ -37,21 +37,25 @@ def of_kind(http: httpx.Client, kind: str) -> list[dict]:
     return history(http, kind=kind)
 
 
-def settled(http: httpx.Client, run_id: str, status: str) -> dict:
+def settled_past(http: httpx.Client, run_id: str, status: str) -> dict:
     deadline = time.monotonic() + 20
     while time.monotonic() < deadline:
         view = http.get(f"/api/runs/{run_id}").json()
-        if view["run"]["status"] == status:
+        if view["run"]["status"] != status:
             return view
         time.sleep(0.02)
-    raise AssertionError(f"run {run_id} never reached {status}: {view}")
+    raise AssertionError(f"run {run_id} never moved past {status}: {view}")
 
 
 class TestEachActWritesOneEvent:
-    def test_an_ask_writes_one_start_and_its_decline_one_finish(self, http, engine, settings):
-        engine.result = a_work_list(settings.discovery_settings.approval_threshold + 1)
+    def test_an_ask_writes_one_start_and_its_decline_one_finish(self, http, engine, discovery_store):
+        engine.result = a_work_list(3)
         run_id = http.post("/api/runs", json={"intent": "Everything Dalí ever painted"}).json()["run_id"]
-        settled(http, run_id, RunStatus.AWAITING_APPROVAL)
+        settled_past(http, run_id, RunStatus.RESOLVING_WORKS)
+        # Nothing in the service parks a run awaiting approval any more; a file
+        # written before the gate was retired can still hold one, and decline answers it.
+        stored_awaiting_approval(discovery_store, run_id)
+        finishes_before = len(of_kind(http, "get.finished"))
 
         assert http.post(f"/api/runs/{run_id}/decline").status_code == 200
 
@@ -60,18 +64,23 @@ class TestEachActWritesOneEvent:
             (run_id, {"run_kind": "discovery", "intent": "Everything Dalí ever painted"})
         ]
         finished = of_kind(http, "get.finished")
-        assert [(event["run_id"], event["detail"]["status"]) for event in finished] == [(run_id, "declined")]
+        assert len(finished) == finishes_before + 1
+        assert (finished[0]["run_id"], finished[0]["detail"]["status"]) == (run_id, "declined")
 
-    def test_a_cancelled_get_carries_how_it_ended_once(self, http, engine, settings):
-        engine.result = a_work_list(settings.discovery_settings.approval_threshold + 1)
+    def test_a_cancelled_get_carries_how_it_ended_once(self, http, engine, discovery_store):
+        engine.result = a_work_list(3)
         run_id = http.post("/api/runs", json={"intent": "Surrealists"}).json()["run_id"]
-        settled(http, run_id, RunStatus.AWAITING_APPROVAL)
+        settled_past(http, run_id, RunStatus.RESOLVING_WORKS)
+        stored_awaiting_approval(discovery_store, run_id)
+        finishes_before = len(of_kind(http, "get.finished"))
 
         http.post(f"/api/runs/{run_id}/cancel")
         # A second cancel is refused, and a refused act writes nothing.
         assert http.post(f"/api/runs/{run_id}/cancel").status_code == 400
 
-        assert [event["detail"]["status"] for event in of_kind(http, "get.finished")] == ["cancelled"]
+        finished = of_kind(http, "get.finished")
+        assert len(finished) == finishes_before + 1
+        assert finished[0]["detail"]["status"] == "cancelled"
 
     def test_accepting_writes_one_event_naming_the_work_it_became(self, http, resolved_work):
         candidate = resolved_work("The Elephants")
