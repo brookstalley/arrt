@@ -96,6 +96,12 @@ _MAX_DOWNLOAD_BYTES: Final[int] = 128 * 1024 * 1024
 #: Where a file's validators and last check are kept, beside the files.
 _STATE_FILENAME: Final[str] = "state.json"
 
+#: What reading the state file raises when it is missing or not JSON. A named
+#: tuple rather than `except OSError, ValueError:` because the root suite's seam
+#: guards parse this plane's source on Python 3.12, which cannot read the
+#: unparenthesised form this plane's formatter writes (backlog #166).
+_UNREADABLE_STATE: Final[tuple[type[Exception], ...]] = (OSError, ValueError)
+
 
 class _OpenDataFile(NamedTuple):
     name: str
@@ -318,7 +324,7 @@ class NgaCatalogue:
         if self._state is None:
             try:
                 loaded = json.loads((self._directory / _STATE_FILENAME).read_text(encoding="utf-8"))
-            except OSError, ValueError:
+            except _UNREADABLE_STATE:
                 loaded = {}
             self._state = loaded if isinstance(loaded, dict) else {}
         return self._state
