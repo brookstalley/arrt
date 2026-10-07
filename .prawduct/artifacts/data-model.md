@@ -1755,8 +1755,10 @@ selected. Produced by phase 2.
 > Off the item's pages the rule does not apply: aliases are open to anyone and
 > some name two people ("Canaletto" is an alias of Bellotto), so beside a title
 > match alone an alias would accept a son's copy under his father's name. Measured
-> on NGA, Pompidou and Art UK, with the options the owner may still choose
-> between, in `artist-name-identity-findings.md`.
+> on NGA, Pompidou and Art UK in `artist-name-identity-findings.md`. A page the
+> item records does not vouch for the artist on its own: the name is still
+> checked (the owner, 2026-10-06). Prints after another's design and works with
+> several makers stay refused (#257).
 >
 > Nothing that fails the comparison is recorded at all: a near-match kept at low confidence is still selected the moment nothing
 > better exists, which is precisely the case a work no museum holds produces, so

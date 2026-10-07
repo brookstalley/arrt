@@ -52,7 +52,7 @@ constituent QIDs, and navigart's life dates.
 - [DECISION: **both names must be names of the same recorded creator**: the Library's artist and the holder's, each a label or an alias, in any language, keyed by `artist_key` | "the artists agree" stays a statement about one person; any language, because the Pompidou writes French forms and the measured wrong-person rate did not rise (findings table) | agent's]
 - [DECISION: **an accepted renaming keeps `CONFIDENT`**, and the card says the holder's name is one Wikidata records for the requested artist | the identity is as confirmed as an exact match; the card names how | agent's]
 - [DECISION: **the names are asked of the registry once per work**, only when a result's artist disagrees on a page the item records; if Wikidata cannot be asked, the refusal stands and is logged | as the page link: refusing is the direction a later search can undo]
-- [DECISION: option 1, letting the item's page vouch for the artist as well, is **not** built; it is reported to the owner as an option | it removes the cross-check that catches a wrong creator on the item (Kandinsky's work credited to Joe Keery) and would weaken a pinned contract]
+- [DECISION: option 1, letting the item's page vouch for the artist as well, is **not** built; the owner ruled 2026-10-06 that the name check stays, and filed prints after another's design and multi-maker works as #257 | it removes the cross-check that catches a wrong creator on the item (Kandinsky's work credited to Joe Keery) and would weaken a pinned contract]
 
 ## Status
 

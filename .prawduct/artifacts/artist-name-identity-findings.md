@@ -140,7 +140,8 @@ titles, and "Bruegel" names both men.
    linked page). It accepts all 18,252 NGA refusals. It also accepts the
    wrong-creator items above and any wrong page an item records. It removes a
    check `test_a_recorded_page_by_another_artist_is_still_refused` pins as a
-   contract. That needs an owner ruling and is not chosen.
+   contract. Not chosen: the owner ruled 2026-10-06 that the name check stays.
+   The "X after Y" and multi-maker shape is filed as #257.
 2. **Wikidata names, on a page the item records only.** It accepts 7,588 of
    18,252 NGA refusals, 272 of 301 Pompidou, and Art UK's Lowry. No accepted
    pair is a different work. Every wrong-creator refusal measured stays refused,

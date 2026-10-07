@@ -95,8 +95,10 @@ another one Wikidata records for the requested artist.
 - **New log lines:** `phase_two.renamed`, `phase_two.names_unavailable`, and
   `names` on `phase_two.not_the_work`.
 - **Unchanged:** `artist_key` and the persisted suppression key.
-- **Still refused:** prints `after` a design, multiple makers, honorifics
-  Wikidata does not record, and token order (#79).
+- **Still refused:** prints `after` a design and multiple makers (#257),
+  honorifics Wikidata does not record, and token order (#79). The owner ruled
+  2026-10-06 that a page the item records does not vouch for the artist alone.
+
 ## 2026-10-06: The NGA, through a copy of its open data, as a built-in source; plugins get a directory of their own
 
 <!-- prawduct: scope=nga-source -->
