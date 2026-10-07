@@ -369,8 +369,8 @@ class ReviewService:
         # Read whole and sliced here rather than paged in the store, because the
         # relation differs by run kind — a discovery run's works are the ones it
         # proposed, a re-search's are the ones it covers — and that branch already
-        # lives behind `run_results`. Bounded by phase 1's output, which is
-        # already held in memory to compute the approval gate.
+        # lives behind `run_results`. Bounded by phase 1's output, which one
+        # model answer's reservation bounds.
         #
         # **The page order is resolved works, then unresolved, then pending**,
         # and within each group confirmed works, then unknown, then unconfirmed,

@@ -16,7 +16,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
-from fakes import a_work, a_work_list, spent, works
+from fakes import a_work, a_work_list, spent, stored_awaiting_approval, works
 
 from arrt.library.discovery.dedup import work_dedup_key
 from arrt.library.discovery.engine import BudgetExhausted, EngineFailure, ProposedWork, WorkList, unavailable_engine
@@ -29,75 +29,35 @@ def start(runner: DiscoveryRunner, intent: str = "Surrealist paintings with stro
     return runner.start(intent_text=intent, initiated_by=InitiatedBy.MCP_CLIENT)
 
 
-# -- the approval gate ----------------------------------------------------------
+# -- asking is the approval ------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    ("threshold", "found", "expected", "gated"),
-    [
-        (25, 26, RunStatus.AWAITING_APPROVAL, True),
-        # Exactly the threshold does not stop: a limit the curator set is a
-        # number they have already accepted.
-        (25, 25, RunStatus.RESOLVING_IMAGES, False),
-        (25, 3, RunStatus.RESOLVING_IMAGES, False),
-        # Zero gates everything, which is a coherent setting for a cautious
-        # deployment rather than a broken one.
-        (0, 1, RunStatus.AWAITING_APPROVAL, True),
-    ],
-)
-def test_the_gate_fires_on_the_work_count_against_the_configured_threshold(
-    services, engine, settings, threshold, found, expected, gated
-):
+@pytest.mark.parametrize("found", [3, 25, 26, 200])
+def test_a_run_goes_straight_on_however_many_works_it_proposed(services, runner, engine, found):
+    """No run stops for approval (the owner's ruling 3 of 2026-10-07, #290).
+
+    200 is the run "you asked for Dalí and I found 200 works" was written for,
+    and 26 the one the retired gate stopped at 25.
+    """
     engine.result = a_work_list(found)
-    runner = DiscoveryRunner(
-        services.discovery,
-        engine,
-        replace(settings.discovery_settings, approval_threshold=threshold),
-        spawn=lambda work: work(),
-    )
 
     run = services.discovery.get_run(start(runner).id)
 
-    assert run.status is expected
-    assert run.approval_required is gated
+    assert run.status is not RunStatus.AWAITING_APPROVAL
+    assert run.approval_required is False
 
 
-def test_whether_the_gate_fired_is_stored_rather_than_re_derived(services, engine, settings):
-    """A run judged last month must still read as having stopped for approval.
+def test_a_run_stored_awaiting_approval_still_takes_the_curators_decision(services, runner, discovery_store):
+    """A run that stopped at the gate before it was removed is not stranded: approve and decline still answer it."""
+    approved_id = stored_awaiting_approval(discovery_store, start(runner).id)
+    declined_id = stored_awaiting_approval(discovery_store, start(runner).id)
 
-    The threshold is configuration and configuration changes. Re-deriving would
-    have a run's history silently rewritten by an unrelated edit to `.env`.
-    """
-    engine.result = a_work_list(4)
-    gated = DiscoveryRunner(
-        services.discovery, engine, replace(settings.discovery_settings, approval_threshold=2), spawn=lambda work: work()
-    )
-    run_id = start(gated).id
-    assert services.discovery.get_run(run_id).approval_required is True
-
-    # The deployment is re-configured to a threshold this run would clear.
-    relaxed = DiscoveryRunner(
-        services.discovery, engine, replace(settings.discovery_settings, approval_threshold=99), spawn=lambda work: work()
-    )
-
-    assert relaxed.run_status(run_id, wait=False).run.approval_required is True
+    assert runner.approve(approved_id).run.status is RunStatus.RESOLVING_IMAGES
+    assert runner.decline(declined_id).run.status is RunStatus.DECLINED
+    assert services.discovery.get_run(approved_id).approval_required is True, "its history is kept"
 
 
-def test_a_gated_run_waits_and_then_takes_the_curators_decision(services, engine, settings):
-    """Approving and declining are both available, and only from the gate."""
-    gated = DiscoveryRunner(
-        services.discovery, engine, replace(settings.discovery_settings, approval_threshold=1), spawn=lambda work: work()
-    )
-
-    approved_id = start(gated).id
-    assert services.discovery.get_run(approved_id).status is RunStatus.AWAITING_APPROVAL
-    assert gated.approve(approved_id).run.status is RunStatus.RESOLVING_IMAGES
-
-    declined_id = start(gated).id
-    assert gated.decline(declined_id).run.status is RunStatus.DECLINED
-
-
-def test_a_run_that_never_reached_the_gate_cannot_be_approved(runner, services):
+def test_a_run_that_never_stopped_cannot_be_approved(runner, services):
     """The refusal names where the run actually is, so a caller can act on it."""
     run_id = start(runner).id
     assert services.discovery.get_run(run_id).status is RunStatus.RESOLVING_IMAGES

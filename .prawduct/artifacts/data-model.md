@@ -1275,7 +1275,7 @@ candidates provenance.
 | `status` | enum | required | `resolving_works` \| `awaiting_approval` \| `resolving_images` \| `completed` \| `failed` \| `declined` \| `cancelled` \| `halted_by_budget` \| `interrupted`. See State Machines. |
 | `estimated_cost_usd` | decimal | nullable | Phase-2 estimate, computed from the phase-1 work count. |
 | `actual_cost_usd` | decimal | nullable | Reconciled after. |
-| `approval_required` | boolean | required | Whether the resolved **work count** crossed the configured threshold (amended 2026-07-20 from "the phase-2 estimate"). Recorded per run, not re-derived — the threshold can change. |
+| `approval_required` | boolean | required | Whether the run stopped for approval. **Always false on a run started since 2026-10-07**, when the gate was removed (the owner's ruling 3 of 2026-10-07, #290: asking is the approval). True only on a run that crossed the retired work-count threshold before then; kept, not rewritten, as that run's history. |
 | `unresolved_work_count` | integer | nullable | Works from phase 1 for which no credible instance was found. **Q12.** |
 | `started_at` | datetime | required | **Narrowed from nullable 2026-07-27.** A run row is only created by starting one, and both entry states (`resolving_works` for a discovery run, `resolving_images` for a resolve run) are active — there is no state in which a row exists and the run has not started. Nullable would have made every reader handle an absence that cannot occur. |
 | `completed_at` | datetime | nullable | Written by whichever transition ends the run. On `interrupted` it records when the death was *observed* at startup, not when it happened: the process that died could not write one, and a terminal run with no end time silently drops out of any window a report asks for. |
@@ -1326,10 +1326,9 @@ candidates provenance.
 > guessed in advance. Nothing needs to be stored: the count is
 > `COUNT(CandidateWork)` for the run.
 >
-> **`approval_required` is stored rather than derived** because the threshold is
-> configuration and configuration changes. A run that stopped for approval last
-> month must still read as "this stopped for approval", not as whatever the current
-> threshold would imply.
+> **`approval_required` is stored rather than derived** because a run that
+> stopped for approval before the gate was removed (2026-10-07) must still read
+> as "this stopped for approval".
 >
 > **`initiated_by` exists because agents can now start runs.** An MCP client can
 > issue "add all of Salvador Dalí's most famous works" without the curator
@@ -1391,10 +1390,8 @@ artworks.
 > counts are also reported apart wherever a surface shows a number, because the
 > curator approved a work list of a stated size and the supplement adds to it.
 >
-> **The approval gate cannot see offered works, structurally rather than by rule.**
-> It is computed when the work list settles, which is before phase 2 has run and
-> therefore before anything could have been offered — an offer exists only to
-> supplement what phase 2 failed to confirm.
+> *(The approval gate this paragraph described, which could not see offered works
+> because it was computed before phase 2 ran, was removed 2026-10-07: #290.)*
 
 > **`wanted` is the verdict an accept/reject binary cannot express** — "I want this
 > work, and I hold no scan of it I would accept; find one." It covers a work whose
@@ -2257,9 +2254,13 @@ re-proposal is `CandidateWork.work_dedup_key` (**Q3**).
 kind='discovery':
 
 resolving_works ──┬──────────────────────────▶ resolving_images ──▶ completed
-   (phase 1)      │                                (phase 2)
-                  └──▶ awaiting_approval ──┬──▶ resolving_images
+   (phase 1)      ┊                                (phase 2)
+                  ┊┄┄▶ awaiting_approval ──┬──▶ resolving_images
                                            └──▶ declined
+
+  ┊┄┄▶ retired 2026-10-07: no run enters awaiting_approval now (asking is the
+       approval, #290). A run stored there before still leaves it by approve,
+       decline or cancel, so those edges stay.
 
 kind='resolve':          (the re-search — phase 2 only)
 

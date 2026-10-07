@@ -650,8 +650,8 @@ real constraint on how far consolidation can go.
 > confirmation.
 >
 > **A mat call does not need one, and the difference is four orders of
-> magnitude.** A discovery run is the operation with an approval gate, a run
-> handle, a stored estimate and a monthly ceiling behind it; a mat call is a
+> magnitude.** A discovery run is the operation with a priced estimate and
+> its tier, a run handle, a stored estimate and a monthly ceiling behind it; a mat call is a
 > fraction of a cent spent on one work at the curator's explicit request, and
 > re-preparing an entire collection spends nothing at all because a work that
 > already has a mat keeps it. Splitting `set_mat_color` onto its own tool to
@@ -1346,7 +1346,7 @@ Added 2026-08-05 with the run half of the browser surface, and exercised by
 | `POST /api/runs` | Begin a run. Returns a handle at once; phase 1 proceeds on a worker behind it. Records `initiated_by: web_ui`. |
 | `GET /api/runs` | The newest runs, newest first, capped at `MAX_RUNS_LISTED` in the service so this route and its MCP twin report the same history (#54). `total` and `truncated` say what the cap left out, and there is no paging: optional `status` and `kind` filters are how a caller reaches older runs. Activity's Queue and History split this one capped listing on `is_terminal`, and each says when the cap left runs out. `awaiting_works` counts every work, across all runs, that found an image and has no verdict, and `awaiting` gives the same by listed run (a run with none is absent); `awaiting=true` narrows the listing to such runs before the cap, which is what Activity › To review reads. `art_discovery(action='list_runs', awaiting=true)` carries the same. |
 | `GET /api/runs/{id}` | The run, its works, its tallies and its search usage. |
-| `POST /api/runs/{id}/approve`, `/decline`, `/cancel` | The approval gate and the stop. Each returns the whole resulting view, as the MCP surface does, so the client repaints from the response. |
+| `POST /api/runs/{id}/approve`, `/decline`, `/cancel` | The stop, and the decision on a run stored awaiting approval. Each returns the whole resulting view, as the MCP surface does, so the client repaints from the response. **No run stops for approval since 2026-10-07** (the owner's ruling 3, #290: asking is the approval; `DISCOVERY_APPROVAL_THRESHOLD` is no longer read): `approve` and `decline` answer only a run stored `awaiting_approval` before then, and refuse any other naming where it is. |
 | `GET /api/runs/{id}/spend` | What the run actually cost, including every re-search descended from it. Read by the run view's costs panel once the run is terminal — it is the only place the **family total** appears, since the run record carries only the run's own direct spend. |
 
 Added 2026-08-05 with the review half, and exercised by

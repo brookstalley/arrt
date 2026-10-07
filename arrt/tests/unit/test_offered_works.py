@@ -438,35 +438,6 @@ def test_the_two_kinds_are_counted_apart_wherever_a_number_is_shown(services, en
     assert view.work_count == 3, "the total is still available; it is simply not the only number"
 
 
-def test_the_approval_gate_is_sized_by_the_models_list_alone(services, engine, settings, museum, previews, collection):
-    """An offer can never push a run over the gate, because it happens after it.
-
-    Asserted on a run whose proposed list sits under a tight threshold and whose
-    supplement would carry it well past: the gate has already been decided by the
-    time a single work is offered.
-    """
-    from dataclasses import replace
-
-    tight = replace(settings.discovery_settings, approval_threshold=3)
-    runner = DiscoveryRunner(
-        services.discovery,
-        engine,
-        tight,
-        images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
-        previews=previews,
-        collection=collection,
-        spawn=lambda work: work(),
-    )
-    engine.result = a_list(("A", "Ellsworth Kelly"), ("B", "Ellsworth Kelly"))
-    collection.holdings = a_collection_holding(**{"Ellsworth Kelly": [f"Kelly {n}" for n in range(10)]}).holdings
-
-    run_id = start(runner).id
-
-    assert services.discovery.get_run(run_id).approval_required is False
-    assert runner.run_status(run_id).offered_count > 0
-    assert services.discovery.get_run(run_id).status is RunStatus.COMPLETED
-
-
 def test_an_offered_work_does_not_inflate_the_runs_unresolved_tally(services, engine, runner, collection):
     """The run's own report of what it could not do stays about what it was asked."""
     engine.result = a_list(("Spectrum IV", "Ellsworth Kelly"))
@@ -734,8 +705,8 @@ def test_the_gate_sentence_agrees_at_a_single_proposed_work(services, engine, ru
     """`awaiting_approval` over one work — the branch no fixture reached.
 
     Built as a view rather than driven, for the same reason as the in-flight
-    test below: reaching this state honestly needs an approval threshold of
-    zero, which is a deployment nobody runs, and `_run_notice` is a pure
+    test below: nothing reaches this state now that asking is the approval,
+    a run stored there before still reads it, and `_run_notice` is a pure
     function of the view.
 
     Its absence was found by mutation, not by reading. Every other test of this
@@ -758,7 +729,7 @@ def test_the_gate_sentence_agrees_at_a_single_proposed_work(services, engine, ru
 
     notice = _run_notice(gated)
 
-    assert "This run proposed 1 work, which is more than the configured threshold" in notice
+    assert "This run proposed 1 work and stopped to ask" in notice
     assert "1 works" not in notice
 
 

@@ -80,11 +80,10 @@ WORK_LIST_SCHEMA: Final[Mapping[str, Any]] = {
     "additionalProperties": False,
 }
 
-#: Deliberately not capped at a number of works. The approval gate exists to
-#: catch a run that read an intent far more broadly than intended — "you asked
-#: for Dalí and I found 200 works, really?" — and a prompt that quietly limited
-#: the list to twenty would mean the gate could never fire and the judgement it
-#: invites would never be asked for. The output reservation bounds the length
+#: Deliberately not capped at a number of works. A prompt that quietly limited
+#: the list to twenty would hide a run that read the intent far more broadly
+#: than intended — "you asked for Dalí and I found 200 works, really?" — where
+#: the review grid shows it whole. The output reservation bounds the length
 #: physically; the curator bounds it editorially.
 PROMPT: Final[str] = """\
 A curator is choosing art to show on a wall in their home. They have asked for:

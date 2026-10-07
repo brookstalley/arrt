@@ -581,8 +581,8 @@ is no network between planes.
   `DiscoveryService` owns the *records* — both state machines, the verdicts, the
   spend rows — and is deliberately synchronous with no notion of a process.
   `DiscoveryRunner` sits above it and owns everything that has one: a worker per
-  run behind the handle `start` returns, the `status` hold, the approval gate's
-  threshold, the estimates, and spend reporting. A record layer that also knew
+  run behind the handle `start` returns, the `status` hold, the estimates and
+  their tiers, and spend reporting. A record layer that also knew
   about worker threads would be untestable without them.
 
   **`DiscoveryEngine` is a Protocol, and every call that can cost money is behind

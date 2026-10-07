@@ -11,6 +11,8 @@ threading half a dozen builder fixtures through every signature would say
 nothing the import does not.
 """
 
+from decimal import Decimal
+
 from arrt.http.models import (
     AffinityListOut,
     AffinityOut,
@@ -46,6 +48,7 @@ from arrt.http.models import (
     WorkPageOut,
 )
 from arrt.library.services.display_fit import DisplayFit
+from arrt.library.services.spending import cost_tier
 from arrt.persistence.discovery_records import (
     AffinityDerivation,
     AffinitySentiment,
@@ -374,7 +377,11 @@ def an_estimate(**overrides) -> dict:
         "basis": "Phase 2 asks museum APIs, which charge nothing.",
         "run_id": "run-under-test",
     }
-    return EstimateOut(**(fields | overrides)).model_dump(mode="json")
+    fields |= overrides
+    # Derived, never passed, as the server derives it: a fixture free to say a
+    # charge is free could assert a control no server could produce.
+    fields["tier"] = str(cost_tier(Decimal(fields["estimated_cost_usd"])))
+    return EstimateOut(**fields).model_dump(mode="json")
 
 
 def a_spend(**overrides) -> dict:

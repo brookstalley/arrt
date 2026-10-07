@@ -177,15 +177,6 @@ DEFAULT_MAT_BOTTOM_WEIGHT: Final[float] = 1.15
 #: remain selectable; the floor is a warning, never a filter.
 DEFAULT_RESOLUTION_FLOOR_INCHES: Final[float] = 12.0
 
-#: How many proposed works a discovery run may produce before it stops and asks.
-#: The gate is on the **work count**, not on the price: real runs cost well under
-#: a dollar, so a money threshold gates on the axis that does not discriminate,
-#: while the judgement the gate exists to invite is scope — "you asked for Dalí
-#: and I found 200 works — really?". A typical run lands near twenty, so this
-#: never fires on an ordinary one and does fire on a run that read the intent far
-#: more broadly than intended.
-DEFAULT_DISCOVERY_APPROVAL_THRESHOLD: Final[int] = 25
-
 #: How many works a run may offer from a wired collection, on top of the list it
 #: proposed. A bound rather than everything held, because the collection's supply
 #: dwarfs a work list — one real run's four artists have 69 offerable works
@@ -195,9 +186,9 @@ DEFAULT_DISCOVERY_APPROVAL_THRESHOLD: Final[int] = 25
 #: nothing else can be: the museum's relevance score survives a filter-only query
 #: and cannot order the candidates (`artic-api-findings.md`). So the works kept
 #: are taken round-robin across the artists the run named, and this number is how
-#: many rounds that gets. Twelve is about half the approval threshold, which keeps
-#: a supplement visibly secondary to the list a curator actually approved while
-#: still giving a four-artist run three works each.
+#: many rounds that gets. Twelve is about half a typical run's twenty-odd works,
+#: which keeps a supplement visibly secondary to the list the curator asked for
+#: while still giving a four-artist run three works each.
 DEFAULT_OFFERED_WORKS_PER_RUN: Final[int] = 12
 
 #: How many web searches phase 1 may make. Flat, because phase 1's entire job is
@@ -411,7 +402,6 @@ class Settings:
     #: Prices move — one recorded model price drifted 28% in twelve days — and the
     #: allowances are policy a household sets, so none of these may be a literal
     #: in source.
-    approval_threshold: int
     phase1_search_allowance: int
     phase2_searches_per_work: int
     offered_works_per_run: int
@@ -478,7 +468,6 @@ class Settings:
         it can be handed in a test rather than eight it has to be given.
         """
         return DiscoverySettings(
-            approval_threshold=self.approval_threshold,
             phase1_search_allowance=self.phase1_search_allowance,
             phase2_searches_per_work=self.phase2_searches_per_work,
             offered_works_per_run=self.offered_works_per_run,
@@ -673,11 +662,9 @@ class Settings:
             # guards is the one file in this product that cannot be re-derived.
             min_free_bytes=_positive_int("MIN_FREE_BYTES", DEFAULT_MIN_FREE_BYTES),
             preview_max_bytes=_positive_int("PREVIEW_MAX_BYTES", DEFAULT_PREVIEW_MAX_BYTES),
-            # Zero is allowed throughout rather than refused: a threshold of zero
-            # gates every run, and an allowance of zero forbids searching. Both
-            # are coherent settings for a cautious deployment, and refusing them
-            # would be this module inventing a policy nobody wrote.
-            approval_threshold=_counted("DISCOVERY_APPROVAL_THRESHOLD", DEFAULT_DISCOVERY_APPROVAL_THRESHOLD),
+            # Zero is allowed rather than refused: an allowance of zero forbids
+            # searching, a coherent setting for a cautious deployment, and
+            # refusing it would be this module inventing a policy nobody wrote.
             phase1_search_allowance=_counted("DISCOVERY_PHASE1_SEARCH_ALLOWANCE", DEFAULT_PHASE1_SEARCH_ALLOWANCE),
             phase2_searches_per_work=_counted("DISCOVERY_PHASE2_SEARCHES_PER_WORK", DEFAULT_PHASE2_SEARCHES_PER_WORK),
             # Zero is a coherent setting here too: a deployment that wants only

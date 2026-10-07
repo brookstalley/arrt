@@ -527,23 +527,20 @@ def test_the_search_price_matches_the_engine_that_is_pinned(monkeypatch, tmp_pat
     )
 
 
-def test_the_gate_ships_at_the_value_a_typical_run_does_not_trip(monkeypatch, tmp_path):
-    """Twenty-five, against a typical run of about twenty.
-
-    Chosen so it never fires on an ordinary run and does fire on one that read
-    the intent far more broadly than intended. A gate that fires every time is
-    one a curator learns to approve without reading.
-    """
+def test_the_retired_approval_threshold_is_not_read(monkeypatch, tmp_path):
+    """No run stops for approval (the owner's ruling 3 of 2026-10-07, #290), so a
+    deployment's leftover `DISCOVERY_APPROVAL_THRESHOLD` is not read, even when
+    it would not parse."""
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    monkeypatch.setenv("DISCOVERY_APPROVAL_THRESHOLD", "several")
 
-    assert Settings.from_env().discovery_settings.approval_threshold == 25
+    assert not hasattr(Settings.from_env().discovery_settings, "approval_threshold")
 
 
 def test_a_deployment_can_override_every_discovery_setting(monkeypatch, tmp_path):
     """None of these may be a literal in source: prices move and policy is local."""
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
     for name, value in {
-        "DISCOVERY_APPROVAL_THRESHOLD": "40",
         "DISCOVERY_PHASE1_SEARCH_ALLOWANCE": "6",
         "DISCOVERY_PHASE2_SEARCHES_PER_WORK": "3",
         "DISCOVERY_SEARCH_COST_USD": "0.001",
@@ -556,7 +553,6 @@ def test_a_deployment_can_override_every_discovery_setting(monkeypatch, tmp_path
 
     discovery = Settings.from_env().discovery_settings
 
-    assert discovery.approval_threshold == 40
     assert discovery.phase1_search_allowance == 6
     assert discovery.phase2_searches_per_work == 3
     assert discovery.search_cost_usd == Decimal("0.001")
@@ -587,7 +583,7 @@ def test_a_price_is_read_as_a_decimal_rather_than_through_a_float(monkeypatch, t
 
 @pytest.mark.parametrize(
     "name",
-    ["DISCOVERY_APPROVAL_THRESHOLD", "DISCOVERY_PHASE1_SEARCH_ALLOWANCE", "DISCOVERY_PHASE1_INPUT_TOKENS"],
+    ["DISCOVERY_PHASE1_SEARCH_ALLOWANCE", "DISCOVERY_PHASE1_INPUT_TOKENS"],
 )
 def test_a_count_that_is_not_a_number_is_refused_with_the_offending_value(monkeypatch, tmp_path, name):
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
@@ -599,12 +595,12 @@ def test_a_count_that_is_not_a_number_is_refused_with_the_offending_value(monkey
 
 @pytest.mark.parametrize(
     "name",
-    ["DISCOVERY_APPROVAL_THRESHOLD", "DISCOVERY_PHASE1_SEARCH_ALLOWANCE", "DISCOVERY_PHASE2_SEARCHES_PER_WORK"],
+    ["DISCOVERY_PHASE1_SEARCH_ALLOWANCE", "DISCOVERY_PHASE2_SEARCHES_PER_WORK"],
 )
 def test_a_count_of_zero_is_allowed_rather_than_refused(monkeypatch, tmp_path, name):
-    """Zero gates every run, or forbids searching. Both are coherent settings for
-    a cautious deployment, and refusing them would be config inventing a policy
-    nobody wrote — which is the distinction from a zero rotation interval."""
+    """Zero forbids searching, a coherent setting for a cautious deployment, and
+    refusing it would be config inventing a policy nobody wrote — which is the
+    distinction from a zero rotation interval."""
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
     monkeypatch.setenv(name, "0")
 
@@ -613,7 +609,7 @@ def test_a_count_of_zero_is_allowed_rather_than_refused(monkeypatch, tmp_path, n
 
 @pytest.mark.parametrize(
     "name",
-    ["DISCOVERY_APPROVAL_THRESHOLD", "DISCOVERY_PHASE1_SEARCH_ALLOWANCE"],
+    ["DISCOVERY_PHASE1_SEARCH_ALLOWANCE", "DISCOVERY_PHASE2_SEARCHES_PER_WORK"],
 )
 def test_a_negative_count_is_refused(monkeypatch, tmp_path, name):
     monkeypatch.setenv("ART_ROOT", str(tmp_path))

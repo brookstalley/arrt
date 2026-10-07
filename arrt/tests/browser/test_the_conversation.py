@@ -160,8 +160,8 @@ def test_the_commit_card_agrees_with_itself_at_a_count_of_one(talking, status, e
     its docstring claimed to be the reason the defect was gone. Reverting either
     real fix left it green.
 
-    `awaiting_approval` is reachable at one work: `config.py` permits an
-    `approval_threshold` of zero.
+    `awaiting_approval` at one work is a run stored there before the gate was
+    removed (2026-10-07), when a threshold of zero stopped every run.
     """
     talking.serve(
         f"**/api/conversations/{CONVERSATION}/commit",

@@ -39,7 +39,7 @@ from arrt.library.registry import RegistryArtist, RegistryTopicsOf, RegistryUnav
 from arrt.library.sources.artic import claims as artic_claims
 from arrt.library.sources.loading import SourceRoster
 from arrt.library.sources.reading import FetchLocator
-from arrt.persistence.discovery_records import SpendCategory
+from arrt.persistence.discovery_records import RunStatus, SpendCategory
 from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
 
 #: Titles that are actually distinct works by one artist, so a run built from
@@ -621,3 +621,14 @@ def take_the_picture_away(art_root, preview_path: str) -> None:
     assert tiers, f"no kept picture at {preview_path}, so taking it away would test nothing"
     for tier in tiers:
         tier.unlink()
+
+
+def stored_awaiting_approval(store, run_id: str) -> str:
+    """Put a run where the retired approval gate left runs, as a file written before 2026-10-07 holds one.
+
+    Written to the store directly, because nothing in the service puts a run
+    there now; `approve` and `decline` still answer one.
+    """
+    run = store.get_run(run_id)
+    store.update_run(replace(run, status=RunStatus.AWAITING_APPROVAL, approval_required=True, completed_at=None))
+    return run_id

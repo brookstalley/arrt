@@ -75,6 +75,9 @@ class RunStatus(StrEnum):
     """
 
     RESOLVING_WORKS = "resolving_works"
+    #: Stopped for the curator's approval. Nothing enters it since 2026-10-07,
+    #: when asking became the approval; a run stored here before still leaves
+    #: by approve, decline or cancel.
     AWAITING_APPROVAL = "awaiting_approval"
     RESOLVING_IMAGES = "resolving_images"
     COMPLETED = "completed"
@@ -316,10 +319,10 @@ class DiscoveryRun:
     its own — it inherits the parent's, which is what keeps "what did asking for
     Dalí actually cost" answerable once spend is spread across a chain of runs.
 
-    `approval_required` is stored rather than re-derived because the threshold it
-    was judged against is configuration, and configuration changes. A run that
-    stopped for approval last month must still read as "this stopped for
-    approval", not as whatever today's threshold would imply.
+    `approval_required` is false on every run started since 2026-10-07, when
+    the approval gate was removed (asking is the approval). It is kept rather
+    than dropped because a run that stopped for approval before then must still
+    read as "this stopped for approval".
 
     There is no `target_candidate_count`: the phase-1 work list *is* the count,
     and it is a reviewable, trimmable list rather than a number guessed in

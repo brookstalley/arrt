@@ -125,7 +125,7 @@ def test_asking_for_dali_costs_what_the_re_searches_cost_too(discovery, run, pro
 def test_the_originating_run_never_reopens_to_absorb_a_re_search(discovery, run, propose):
     """The re-search's spend attributes to the re-search; only the total rolls up."""
     work = propose()
-    discovery.finish_work_list(run.id, approval_threshold=5)
+    discovery.finish_work_list(run.id)
     discovery.complete_run(run.id, actual_cost_usd=Decimal("0.20"))
     resolve = discovery.start_resolve_run(candidate_work_ids=[work.id], initiated_by=InitiatedBy.WEB_UI)
     discovery.record_spend(category=SpendCategory.IMAGE_RESEARCH, cost_usd=Decimal("0.07"), discovery_run_id=resolve.id)
@@ -367,7 +367,7 @@ def test_a_run_reports_how_many_works_it_could_not_resolve(discovery, run, propo
         discovery.record_resolution(found.id)
     for title in ("An Invented Title", "Another Invented Title"):
         discovery.record_resolution(propose(title).id)
-    discovery.finish_work_list(run.id, approval_threshold=10)
+    discovery.finish_work_list(run.id)
 
     completed = discovery.complete_run(run.id)
 
@@ -382,7 +382,7 @@ def test_the_count_a_run_reported_is_not_rewritten_by_later_work(discovery, run,
     """It is the run's own report of what it could not do, and must not drift."""
     lost = propose("An Invented Title")
     discovery.record_resolution(lost.id)
-    discovery.finish_work_list(run.id, approval_threshold=10)
+    discovery.finish_work_list(run.id)
     discovery.complete_run(run.id)
 
     resolve = discovery.start_resolve_run(candidate_work_ids=[lost.id], initiated_by=InitiatedBy.WEB_UI)

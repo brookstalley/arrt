@@ -1151,6 +1151,8 @@ class RunOut(BaseModel):
     #: surprising list is explicable instead of merely wrong. Null while phase 1
     #: is still working: nothing has read the intent yet.
     strategy: str | None
+    #: Whether the run stopped for approval: false on every run since the gate
+    #: was removed (2026-10-07), true only on one that stopped before then.
     approval_required: bool
     #: Prices are strings, never floats. A tenth of a cent that cannot be
     #: represented exactly is a rounding error in the figure a curator authorised
@@ -1274,17 +1276,15 @@ class RunViewOut(BaseModel):
 
     run: RunOut
     tally: RunTallyOut
-    #: Every work, uncapped, and **nothing bounds how many there are** — phase 1
-    #: is deliberately not capped at a work count, because the approval gate
-    #: exists to catch exactly the run that read an intent too broadly ("you
-    #: asked for Dalí and I found 200 works, really?"), and a cap would mean the
-    #: gate could never fire. So this list is as long as the run is wide.
+    #: Every work, uncapped, and **nothing bounds how many there are** but one
+    #: model answer's output reservation — phase 1 is deliberately not capped at
+    #: a work count, so a run that read an intent too broadly ("you asked for
+    #: Dalí and I found 200 works, really?") shows it whole. So this list is as
+    #: long as the run is wide.
     #:
     #: Sent whole anyway. The MCP surface stops at 100 because a model's context
-    #: is the scarce thing; here the reader is a curator deciding whether to
-    #: approve, and a truncated list is precisely the one they cannot answer the
-    #: gate's question from. The cost is real and bounded by that same
-    #: judgement: a 200-work run re-fetched while it is being deliberated over.
+    #: is the scarce thing; here the reader is a curator reading the run, and a
+    #: truncated list is the one that hides how wide it read.
     works: list[CandidateWorkOut]
     searches: SearchUsageOut
     #: Whether this deployment can resolve images at all. A run sitting in
