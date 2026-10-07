@@ -771,11 +771,14 @@ class DiscoveryService:
         work_dedup_key: str,
         proposed_artist: str | None = None,
         reconsider: bool = False,
+        source_confirmed: bool | None = None,
     ) -> CandidateWork:
         """Record a work phase 1 proposed, unless the curator has already declined it.
 
         `rationale` is required because a review card that cannot say *why* this
         work matched the intent asks the curator to judge a bare title.
+        `source_confirmed` is phase 1's word on whether a source confirms it, or
+        `None` for none (`CandidateWork.confirmation`).
 
         Suppression is refused rather than silently skipped, and `reconsider`
         exists because the rule is "unless the curator explicitly reconsiders it"
@@ -805,6 +808,7 @@ class DiscoveryService:
                 rationale=require_text(rationale, field="rationale"),
                 work_dedup_key=key,
                 proposed_artist=proposed_artist,
+                source_confirmed=source_confirmed,
             )
             store_write(self._store.add_candidate_work, work)
         return work

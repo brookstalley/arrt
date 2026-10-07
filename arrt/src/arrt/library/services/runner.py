@@ -969,6 +969,7 @@ class DiscoveryRunner:
                 rationale=work.rationale,
                 work_dedup_key=key,
                 proposed_artist=work.artist,
+                source_confirmed=work.source_confirmed,
             )
             proposed += 1
         return proposed, suppressed, duplicates

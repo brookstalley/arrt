@@ -792,6 +792,12 @@ ART_REVIEW: Final = ToolRecord(
                     "Only `not_held` suggests the work may not exist."
                 ),
                 (
+                    "Within each of those, `confirmation` orders the rows: `confirmed` (a source names the "
+                    "work), then `unknown` (the model said nothing), then `unconfirmed` (the model said no "
+                    "source it was given names it). A work that is not confirmed may be a title the model "
+                    "invented; check it before accepting."
+                ),
+                (
                     "Read `provenance` on every row. `proposed` is a work the model named for this intent; "
                     "`offered` is one the collection volunteered by an artist the run named but could not "
                     "confirm a work for. An offered row carries the collection's own title and attribution "

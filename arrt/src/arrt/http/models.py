@@ -1226,6 +1226,12 @@ class CandidateWorkOut(BaseModel):
     #: `unresolved` cannot tell a title nobody holds from a scan too small for
     #: the wall, and those lead to opposite actions.
     unresolved_reason: str | None
+    #: `confirmed`, `unconfirmed` or `unknown` (`Confirmation`): whether a source
+    #: confirms the work exists. A proposed work is confirmed only on phase 1's
+    #: word that a search result names it; with no word it is `unknown`, never
+    #: confirmed. The card marks anything not confirmed *Not confirmed*, and the
+    #: review listing sorts unconfirmed works after confirmed ones.
+    confirmation: str
 
 
 class RunTallyOut(BaseModel):

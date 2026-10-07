@@ -63,8 +63,15 @@ WORK_LIST_SCHEMA: Final[Mapping[str, Any]] = {
                     "title": {"type": "string", "description": "The work's title."},
                     "artist": {"type": "string", "description": "The artist's name, or an empty string if unknown."},
                     "rationale": {"type": "string", "description": "One sentence on why this work matches the request."},
+                    "source_found": {
+                        "type": "boolean",
+                        "description": (
+                            "True only if a search result you were given names this work by this artist. "
+                            "False if you are naming it from memory or no source confirms it."
+                        ),
+                    },
                 },
-                "required": ["title", "artist", "rationale"],
+                "required": ["title", "artist", "rationale", "source_found"],
                 "additionalProperties": False,
             },
         },
@@ -268,7 +275,17 @@ def _read_works(raw: object) -> tuple[ProposedWork, ...]:
                 extra={"event": "engine.work_dropped", "work_title": title, "has_rationale": bool(rationale)},
             )
             continue
-        works.append(ProposedWork(title=title, rationale=rationale, artist=artist or None))
+        # Read only as a boolean: a missing or malformed answer is no word, which
+        # the card shows as unknown rather than as either verdict.
+        found = entry.get("source_found")
+        works.append(
+            ProposedWork(
+                title=title,
+                rationale=rationale,
+                artist=artist or None,
+                source_confirmed=found if isinstance(found, bool) else None,
+            )
+        )
     return tuple(works)
 
 

@@ -766,6 +766,14 @@ warning. The remaining 2% overshoot at the ceiling is deliberate: closing it mea
 dropping `resolution_status` or `instances_held` from the row, and both carry the
 distinction between "nothing was found" and "we could not look".
 
+**The row gains `confirmation` (2026-10-07, #276)**: `confirmed`, `unconfirmed`
+or `unknown`, whether a source confirms the work exists (`data-model.md`
+§ CandidateWork, `source_confirmed`). On every candidate work, in the browser's
+`CandidateWorkOut` and in the MCP work summary alike. **Within each resolution
+group the listing now orders confirmed, then unknown, then unconfirmed**, each by
+title, so a title the model may have invented is never the first card judged.
+Not re-measured against the token budget: one short enum per row.
+
 **The row gains `unresolved_reason` beside `resolution_status`** — which kind of
 nothing, null unless the work is unresolved, **with the one exception
 `data-model.md` § CandidateWork records: a row whose attempt predates the

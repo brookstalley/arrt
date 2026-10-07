@@ -323,6 +323,24 @@ def test_each_proposed_work_carries_the_engines_reason_for_it(runner, services):
         assert work.proposed_artist == "Salvador Dalí"
 
 
+def test_each_proposed_work_carries_the_engines_word_on_its_source(runner, services, engine):
+    """Through the runner, so a word the engine said and nobody stored fails here."""
+    engine.result = WorkList(
+        works=(
+            ProposedWork(title="The Elephants", rationale="Named in the search.", artist="Salvador Dalí", source_confirmed=True),
+            ProposedWork(
+                title="Swans Reflecting Elephants", rationale="Recalled.", artist="Salvador Dalí", source_confirmed=False
+            ),
+            ProposedWork(title="The Burning Giraffe", rationale="Recalled.", artist="Salvador Dalí"),
+        ),
+        spend=spent(searches=1),
+    )
+    run_id = start(runner).id
+
+    said = {work.proposed_title: work.source_confirmed for work in services.discovery.list_candidate_works(run_id)}
+    assert said == {"The Elephants": True, "Swans Reflecting Elephants": False, "The Burning Giraffe": None}
+
+
 # -- how a run can end -----------------------------------------------------------
 
 

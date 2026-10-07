@@ -373,14 +373,21 @@ class ReviewService:
         # already held in memory to compute the approval gate.
         #
         # **The page order is resolved works, then unresolved, then pending**,
-        # each group in the store's title order. That falls out of `run_results`
-        # rather than being imposed here, and it is the right way round for this
-        # surface: the works a curator can actually judge lead, and the ones
-        # nothing was found for — which they can do nothing about except
-        # re-search — sort behind them. It is a total order, so a page boundary
-        # lands in the same place on every call.
+        # and within each group confirmed works, then unknown, then unconfirmed,
+        # each in the store's title order. The groups fall out of `run_results`,
+        # and they are the right way round for this surface: the works a curator
+        # can actually judge lead, and the ones nothing was found for — which
+        # they can do nothing about except re-search — sort behind them. Within
+        # a group, a work no source confirms sorts after the ones a source does,
+        # so the card that may be an invented title is never the first one
+        # judged. A stable sort keeps the title order, so this is a total order
+        # and a page boundary lands in the same place on every call.
         results = self._discovery.run_results(run_id)
-        works = results.works
+        works = [
+            work
+            for group in (results.resolved, results.unresolved, results.pending)
+            for work in sorted(group, key=lambda work: work.confirmation.rank)
+        ]
         page = works[offset : offset + resolved_limit]
         return CandidatePage(
             run=results.run,

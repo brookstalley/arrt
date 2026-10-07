@@ -1692,6 +1692,10 @@ def _work_summary(work: CandidateWork) -> dict[str, Any]:
         "verdict": str(work.verdict),
         "resolution_status": str(work.resolution_status),
         "unresolved_reason": _reason(work),
+        # Whether a source confirms the work exists: `unconfirmed` or `unknown`
+        # is a title the model may have invented, which an agent weighs before
+        # accepting as a curator does before the card's Accept.
+        "confirmation": str(work.confirmation),
     }
 
 

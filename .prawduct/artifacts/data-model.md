@@ -1368,6 +1368,7 @@ artworks.
 | `verdict` | enum | required | `pending` \| `accepted` \| `rejected` \| `wanted`. See State Machines. `wanted` was `awaiting_better_image` until 2026-10-02 (`build-plan-after-review.md` Chunk 03); a migration on open rewrites stored rows, and nothing reads the old spelling. **Q36, Q37.** |
 | `rejected_reason` | text | nullable | Optional curator note. |
 | `decided_at` | datetime | nullable | |
+| `source_confirmed` | boolean | nullable | Phase 1's word on a work it **proposed**: true when a search result it was given names the work by its artist, false when none does (the structured output's `source_found`). Null when it said nothing, on every work proposed before it was asked (widened without backfill), and on every chosen or offered work, which no model named. Read through the derived **`confirmation`** (`confirmed` \| `unconfirmed` \| `unknown`): a chosen or offered work is `confirmed` by where it came from, a proposed one only on phase 1's true, and a null is `unknown`, never confirmed. The review listing orders confirmed, unknown, unconfirmed within each resolution group (#276, `build-plan-walls-work-and-trust.md` Chunk 08). |
 
 > **`confidence` has a fourth derivation, and it is not a comparison result.**
 > The three tiers below this table grade *how much of an identity was

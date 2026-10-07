@@ -49,6 +49,7 @@ from arrt.library.services.display_fit import DisplayFit
 from arrt.persistence.discovery_records import (
     AffinityDerivation,
     AffinitySentiment,
+    Confirmation,
     InitiatedBy,
     ResolutionStatus,
     RunKind,
@@ -170,6 +171,9 @@ def a_candidate(**overrides) -> CandidateWorkOut:
         "verdict": Verdict.PENDING.value,
         "resolution_status": ResolutionStatus.RESOLVED.value,
         "unresolved_reason": None,
+        # A proposal phase 1 said a source confirms; a test about the badge sets
+        # `unconfirmed` or `unknown`, as the server reports them.
+        "confirmation": Confirmation.CONFIRMED.value,
     }
     fields |= overrides
     # Derived, never passed: a fixture free to say a pending work is decided

@@ -1766,6 +1766,7 @@ def _candidate_work(work: CandidateWork) -> CandidateWorkOut:
         decided=work.verdict.is_terminal,
         resolution_status=str(work.resolution_status),
         unresolved_reason=None if work.unresolved_reason is None else str(work.unresolved_reason),
+        confirmation=str(work.confirmation),
     )
 
 

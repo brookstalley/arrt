@@ -69,6 +69,9 @@ class ProposedWork:
     title: str
     rationale: str
     artist: str | None = None
+    #: Whether a source the engine was given confirms the work exists: `None`
+    #: when it did not say (`CandidateWork.source_confirmed`).
+    source_confirmed: bool | None = None
 
 
 @dataclass(frozen=True, slots=True)

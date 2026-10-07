@@ -159,6 +159,36 @@ class WorkProvenance(StrEnum):
     CHOSEN = "chosen"
 
 
+class Confirmation(StrEnum):
+    """Whether anything outside the model confirms a proposed work exists, as the review card says it.
+
+    A model asked for works will occasionally name a plausible one that does not
+    exist, and its own note may say it found no source while the card's badges
+    and Accept read as a match. This is what the card marks *Not confirmed*.
+    """
+
+    #: A source confirms it: phase 1's search found it, the curator chose it by
+    #: its Wikidata item, or a wired collection offered it from its holdings.
+    CONFIRMED = "confirmed"
+    #: Phase 1 named it and said no source it was given confirms it.
+    UNCONFIRMED = "unconfirmed"
+    #: Phase 1 named it and said nothing either way: every work proposed before
+    #: the model was asked, and any answer that left the field out.
+    UNKNOWN = "unknown"
+
+    @property
+    def rank(self) -> int:
+        """Where a review listing puts it: confirmed first, unknown next, unconfirmed last."""
+        return _CONFIRMATION_ORDER.index(self)
+
+
+_CONFIRMATION_ORDER: Final[tuple[Confirmation, ...]] = (
+    Confirmation.CONFIRMED,
+    Confirmation.UNKNOWN,
+    Confirmation.UNCONFIRMED,
+)
+
+
 class UnresolvedReason(StrEnum):
     """Which kind of nothing an unresolved work came back with.
 
@@ -389,6 +419,25 @@ class CandidateWork:
     unresolved_reason: UnresolvedReason | None = None
     rejected_reason: str | None = None
     decided_at: datetime | None = None
+    #: What phase 1 said of a work it proposed: true when a source it was given
+    #: confirms the work, false when none does. `None` when it said nothing, and
+    #: on every chosen or offered work, which no model named.
+    source_confirmed: bool | None = None
+
+    @property
+    def confirmation(self) -> Confirmation:
+        """Whether the card may present this work as confirmed (`Confirmation`).
+
+        A chosen work is a Wikidata item and an offered one a collection's own
+        holding, so each is confirmed by where it came from. A proposed work is
+        confirmed only on phase 1's word, and an absent word is `UNKNOWN`, never
+        confirmed.
+        """
+        if self.provenance is not WorkProvenance.PROPOSED:
+            return Confirmation.CONFIRMED
+        if self.source_confirmed is None:
+            return Confirmation.UNKNOWN
+        return Confirmation.CONFIRMED if self.source_confirmed else Confirmation.UNCONFIRMED
 
 
 @dataclass(frozen=True, slots=True)
