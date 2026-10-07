@@ -725,7 +725,13 @@ one, which has the access above, they are not:
   and a title's words into a query only inside string literals, and reading back
   only records and people of its own URL shapes; it reads manifests only under
   `media.getty.edu/iiif/manifest/3/` and returns an image, and reads previews,
-  only under `media.getty.edu/iiif/image/`, again the plugin's checks. The IIIF parsers
+  only under `media.getty.edu/iiif/image/`, again the plugin's checks. The
+  Rijksmuseum's plugin asks `data.rijksmuseum.nl` only its collection search,
+  with a title and a maker as query parameters, and reads only records on
+  `id.rijksmuseum.nl` of its own URL shape, an object only by a number it checks;
+  it reads image services, returns an image and reads previews only on
+  `iiif.micr.io`, from an access point of the one shape it checks, again the
+  plugin's checks. The IIIF parsers
   (interface 1.3) fetch nothing, so they add no request a plugin did not make. A
   third-party reader's locator gets bound 2 only: any public address.
 - **Arrt decides** a work's identity, its rights record, duplicates, review,

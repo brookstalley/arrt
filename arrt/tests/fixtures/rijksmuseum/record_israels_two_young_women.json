@@ -1,0 +1,384 @@
+{
+ "@context": "https://linked.art/ns/v1/linked-art.json",
+ "id": "https://id.rijksmuseum.nl/200109400",
+ "type": "HumanMadeObject",
+ "identified_by": [
+  {
+   "type": "Name",
+   "content": "Two Girls in the Snow",
+   "identified_by": [
+    {
+     "type": "Identifier",
+     "content": "1",
+     "classified_as": [
+      {
+       "id": "http://vocab.getty.edu/aat/300456575",
+       "type": "Type"
+      }
+     ]
+    }
+   ],
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417200",
+     "type": "Type"
+    }
+   ],
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388277",
+     "type": "Language"
+    }
+   ],
+   "translation_of": [
+    {
+     "id": "_:b20",
+     "type": "Name",
+     "content": "Twee meisjes in de sneeuw",
+     "identified_by": [
+      {
+       "id": "_:b78",
+       "type": "Identifier",
+       "content": "1",
+       "classified_as": [
+        {
+         "id": "http://vocab.getty.edu/aat/300456575",
+         "type": "Type"
+        }
+       ]
+      }
+     ],
+     "classified_as": [
+      {
+       "id": "http://vocab.getty.edu/aat/300417200",
+       "type": "Type"
+      }
+     ],
+     "language": [
+      {
+       "id": "http://vocab.getty.edu/aat/300388256",
+       "type": "Language"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "_:b17",
+   "type": "Name",
+   "content": "Two Young Women in the Snow",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300404670",
+     "type": "Type",
+     "classified_as": [
+      {
+       "id": "http://vocab.getty.edu/aat/300418049",
+       "type": "Type",
+       "_label": "brief text"
+      }
+     ]
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300417207",
+     "type": "Type"
+    }
+   ],
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388277",
+     "type": "Language"
+    }
+   ]
+  },
+  {
+   "id": "_:b18",
+   "type": "Name",
+   "content": "Twee meisjes in de sneeuw",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417207",
+     "type": "Type"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300404670",
+     "type": "Type",
+     "classified_as": [
+      {
+       "id": "http://vocab.getty.edu/aat/300418049",
+       "type": "Type",
+       "_label": "brief text"
+      }
+     ]
+    }
+   ],
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388256",
+     "type": "Language"
+    }
+   ]
+  },
+  {
+   "type": "Identifier",
+   "content": "SK-A-3591",
+   "classified_as": [
+    {
+     "id": "https://id.rijksmuseum.nl/22015218",
+     "type": "Type",
+     "notation": [
+      {
+       "@language": "en",
+       "@value": "object number"
+      },
+      {
+       "@language": "nl",
+       "@value": "objectnummer"
+      }
+     ]
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300312355",
+     "type": "Type"
+    }
+   ]
+  },
+  {
+   "id": "_:b20",
+   "type": "Name",
+   "content": "Twee meisjes in de sneeuw",
+   "identified_by": [
+    {
+     "id": "_:b78",
+     "type": "Identifier",
+     "content": "1",
+     "classified_as": [
+      {
+       "id": "http://vocab.getty.edu/aat/300456575",
+       "type": "Type"
+      }
+     ]
+    }
+   ],
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417200",
+     "type": "Type"
+    }
+   ],
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388256",
+     "type": "Language"
+    }
+   ]
+  }
+ ],
+ "produced_by": {
+  "type": "Production",
+  "timespan": {
+   "type": "TimeSpan",
+   "identified_by": [
+    {
+     "type": "Name",
+     "content": "c. 1890 - c. 1894",
+     "language": [
+      {
+       "id": "http://vocab.getty.edu/aat/300388277",
+       "type": "Language"
+      }
+     ]
+    },
+    {
+     "type": "Name",
+     "content": "ca. 1890 - ca. 1894",
+     "language": [
+      {
+       "id": "http://vocab.getty.edu/aat/300388256",
+       "type": "Language"
+      }
+     ]
+    }
+   ],
+   "begin_of_the_begin": "1890-01-01T00:00:00Z",
+   "end_of_the_end": "1894-12-31T23:59:59Z"
+  },
+  "referred_to_by": [
+   {
+    "type": "LinguisticObject",
+    "content": "Isaac Israels (mentioned on object)",
+    "classified_as": [
+     {
+      "id": "http://vocab.getty.edu/aat/300435416",
+      "type": "Type"
+     }
+    ],
+    "language": [
+     {
+      "id": "http://vocab.getty.edu/aat/300388277",
+      "type": "Language"
+     }
+    ]
+   },
+   {
+    "type": "LinguisticObject",
+    "content": "Isaac Israels (vermeld op object)",
+    "classified_as": [
+     {
+      "id": "http://vocab.getty.edu/aat/300435416",
+      "type": "Type"
+     }
+    ],
+    "language": [
+     {
+      "id": "http://vocab.getty.edu/aat/300388256",
+      "type": "Language"
+     }
+    ]
+   }
+  ],
+  "part": [
+   {
+    "type": "Production",
+    "assigned_by": [
+     {
+      "type": "AttributeAssignment",
+      "assigned": [
+       {
+        "id": "https://id.rijksmuseum.nl/2102815",
+        "type": "Person"
+       }
+      ],
+      "assigned_property": "carried_out_by",
+      "motivated_by": [
+       {
+        "type": "LinguisticObject",
+        "carried_by": [
+         "https://id.rijksmuseum.nl/200109400"
+        ],
+        "classified_as": [
+         {
+          "id": "http://vocab.getty.edu/aat/300028702",
+          "type": "Type"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "identified_by": [
+     {
+      "type": "Identifier",
+      "content": "1",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300456575",
+        "type": "Type"
+       }
+      ]
+     }
+    ],
+    "classified_as": [
+     {
+      "id": "http://vocab.getty.edu/aat/300404450",
+      "type": "Type"
+     }
+    ],
+    "technique": [
+     {
+      "id": "https://id.rijksmuseum.nl/2202217",
+      "type": "Type",
+      "notation": [
+       {
+        "@language": "en",
+        "@value": "painter"
+       },
+       {
+        "@language": "nl",
+        "@value": "schilder"
+       }
+      ],
+      "equivalent": [
+       {
+        "id": "http://vocab.getty.edu/aat/300025136",
+        "type": "Type"
+       }
+      ]
+     }
+    ],
+    "referred_to_by": [
+     {
+      "type": "LinguisticObject",
+      "content": "schilder: Isaac Israels (vermeld op object)",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300435416",
+        "type": "Type"
+       }
+      ],
+      "language": [
+       {
+        "id": "http://vocab.getty.edu/aat/300388256",
+        "type": "Language"
+       }
+      ]
+     },
+     {
+      "type": "LinguisticObject",
+      "content": "Isaac Israels (mentioned on object)",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300435417",
+        "type": "Type"
+       }
+      ],
+      "language": [
+       {
+        "id": "http://vocab.getty.edu/aat/300388277",
+        "type": "Language"
+       }
+      ]
+     },
+     {
+      "type": "LinguisticObject",
+      "content": "painter: Isaac Israels (mentioned on object)",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300435416",
+        "type": "Type"
+       }
+      ],
+      "language": [
+       {
+        "id": "http://vocab.getty.edu/aat/300388277",
+        "type": "Language"
+       }
+      ]
+     },
+     {
+      "type": "LinguisticObject",
+      "content": "Isaac Israels (vermeld op object)",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300435417",
+        "type": "Type"
+       }
+      ],
+      "language": [
+       {
+        "id": "http://vocab.getty.edu/aat/300388256",
+        "type": "Language"
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "shows": [
+  {
+   "id": "https://id.rijksmuseum.nl/202109400",
+   "type": "VisualItem"
+  }
+ ]
+}

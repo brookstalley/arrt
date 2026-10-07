@@ -61,6 +61,7 @@ def test_the_built_in_plugins_load_from_their_entry_points(roster):
         "met": PluginState.LOADED,
         "navigart": PluginState.LOADED,
         "nga": PluginState.LOADED,
+        "rijksmuseum": PluginState.LOADED,
         "smk": PluginState.LOADED,
         "wikidata": PluginState.LOADED,
         "yale": PluginState.LOADED,

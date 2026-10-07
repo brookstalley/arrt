@@ -1,0 +1,405 @@
+{
+ "@context": "https://linked.art/ns/v1/linked-art.json",
+ "id": "https://id.rijksmuseum.nl/200100873",
+ "type": "HumanMadeObject",
+ "identified_by": [
+  {
+   "type": "Name",
+   "content": "Man en vrouw bovenin de Tokyo Tower",
+   "identified_by": [
+    {
+     "type": "Identifier",
+     "content": "1",
+     "classified_as": [
+      {
+       "id": "http://vocab.getty.edu/aat/300456575",
+       "type": "Type"
+      }
+     ]
+    }
+   ],
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417200",
+     "type": "Type"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300404670",
+     "type": "Type",
+     "classified_as": [
+      {
+       "id": "http://vocab.getty.edu/aat/300418049",
+       "type": "Type",
+       "_label": "brief text"
+      }
+     ]
+    }
+   ],
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388256",
+     "type": "Language"
+    }
+   ]
+  },
+  {
+   "type": "Identifier",
+   "content": "RP-F-2019-242-1-35A(R)",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300312355",
+     "type": "Type"
+    },
+    {
+     "id": "https://id.rijksmuseum.nl/22015218",
+     "type": "Type",
+     "notation": [
+      {
+       "@language": "nl",
+       "@value": "objectnummer"
+      },
+      {
+       "@language": "en",
+       "@value": "object number"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "produced_by": {
+  "type": "Production",
+  "technique": [
+   {
+    "id": "https://id.rijksmuseum.nl/2206970",
+    "type": "Type",
+    "identified_by": [
+     {
+      "type": "Identifier",
+      "assigned_by": [
+       {
+        "type": "AttributeAssignment",
+        "assigned": [
+         "https://id.rijksmuseum.nl/200100873"
+        ],
+        "assigned_property": "influenced_by"
+       }
+      ],
+      "content": "1",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300456575",
+        "type": "Type"
+       }
+      ]
+     }
+    ],
+    "notation": [
+     {
+      "@language": "nl",
+      "@value": "ontwikkelgelatinezilverdruk"
+     },
+     {
+      "@language": "en",
+      "@value": "gelatin silver print"
+     }
+    ],
+    "equivalent": [
+     {
+      "id": "http://vocab.getty.edu/aat/300139114",
+      "type": "Type"
+     }
+    ]
+   }
+  ],
+  "timespan": [
+   {
+    "type": "TimeSpan",
+    "identified_by": [
+     {
+      "type": "Name",
+      "content": "1959-12",
+      "language": [
+       {
+        "id": "http://vocab.getty.edu/aat/300388256",
+        "type": "Language"
+       }
+      ]
+     },
+     {
+      "type": "Name",
+      "content": "1959-12",
+      "language": [
+       {
+        "id": "http://vocab.getty.edu/aat/300388277",
+        "type": "Language"
+       }
+      ]
+     }
+    ],
+    "begin_of_the_begin": "1959-12-01T00:00:00Z",
+    "end_of_the_end": "1959-12-31T23:59:59Z"
+   },
+   {
+    "type": "TimeSpan",
+    "identified_by": [
+     {
+      "type": "Name",
+      "content": "1960 - 1966",
+      "language": [
+       {
+        "id": "http://vocab.getty.edu/aat/300388256",
+        "type": "Language"
+       }
+      ]
+     },
+     {
+      "type": "Name",
+      "content": "1960 - 1966",
+      "language": [
+       {
+        "id": "http://vocab.getty.edu/aat/300388277",
+        "type": "Language"
+       }
+      ]
+     }
+    ],
+    "begin_of_the_begin": "1960-01-01T00:00:00Z",
+    "end_of_the_end": "1966-12-31T23:59:59Z"
+   }
+  ],
+  "referred_to_by": [
+   {
+    "type": "LinguisticObject",
+    "content": "Ed van der Elsken",
+    "classified_as": [
+     {
+      "id": "http://vocab.getty.edu/aat/300435416",
+      "type": "Type",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300418049",
+        "type": "Type",
+        "_label": "brief text"
+       }
+      ]
+     }
+    ],
+    "language": [
+     {
+      "id": "http://vocab.getty.edu/aat/300388256",
+      "type": "Language"
+     }
+    ]
+   },
+   {
+    "type": "LinguisticObject",
+    "content": "Ed van der Elsken",
+    "classified_as": [
+     {
+      "id": "http://vocab.getty.edu/aat/300435416",
+      "type": "Type",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300418049",
+        "type": "Type",
+        "_label": "brief text"
+       }
+      ]
+     }
+    ],
+    "language": [
+     {
+      "id": "http://vocab.getty.edu/aat/300388277",
+      "type": "Language"
+     }
+    ]
+   }
+  ],
+  "part": [
+   {
+    "type": "Production",
+    "carried_out_by": [
+     {
+      "id": "https://id.rijksmuseum.nl/21040861",
+      "type": "Person",
+      "notation": [
+       {
+        "@language": "en",
+        "@value": "Ed van der Elsken"
+       },
+       {
+        "@language": "nl",
+        "@value": "Ed van der Elsken"
+       }
+      ],
+      "equivalent": [
+       {
+        "id": "https://rkd.nl/artists/26087",
+        "type": "Person"
+       },
+       {
+        "id": "http://vocab.getty.edu/ulan/500065057",
+        "type": "Person"
+       },
+       {
+        "id": "http://www.wikidata.org/entity/Q1282569",
+        "type": "Person"
+       },
+       {
+        "id": "http://viaf.org/viaf/17298474",
+        "type": "Person"
+       }
+      ]
+     }
+    ],
+    "identified_by": [
+     {
+      "type": "Identifier",
+      "content": "1",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300456575",
+        "type": "Type"
+       }
+      ]
+     }
+    ],
+    "classified_as": [
+     {
+      "id": "http://vocab.getty.edu/aat/300404450",
+      "type": "Type"
+     }
+    ],
+    "technique": [
+     {
+      "id": "https://id.rijksmuseum.nl/2204764",
+      "type": "Type",
+      "notation": [
+       {
+        "@language": "nl",
+        "@value": "fotograaf"
+       },
+       {
+        "@language": "en",
+        "@value": "photographer"
+       }
+      ],
+      "equivalent": [
+       {
+        "id": "http://vocab.getty.edu/aat/300025687",
+        "type": "Type"
+       }
+      ]
+     }
+    ],
+    "referred_to_by": [
+     {
+      "type": "LinguisticObject",
+      "content": "Ed van der Elsken",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300435417",
+        "type": "Type"
+       }
+      ],
+      "language": [
+       {
+        "id": "http://vocab.getty.edu/aat/300388256",
+        "type": "Language"
+       }
+      ]
+     },
+     {
+      "type": "LinguisticObject",
+      "content": "photographer: Ed van der Elsken, Tokyo",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300435416",
+        "type": "Type",
+        "classified_as": [
+         {
+          "id": "http://vocab.getty.edu/aat/300418049",
+          "type": "Type",
+          "_label": "brief text"
+         }
+        ]
+       }
+      ],
+      "language": [
+       {
+        "id": "http://vocab.getty.edu/aat/300388277",
+        "type": "Language"
+       }
+      ]
+     },
+     {
+      "type": "LinguisticObject",
+      "content": "fotograaf: Ed van der Elsken, Tokyo",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300435416",
+        "type": "Type",
+        "classified_as": [
+         {
+          "id": "http://vocab.getty.edu/aat/300418049",
+          "type": "Type",
+          "_label": "brief text"
+         }
+        ]
+       }
+      ],
+      "language": [
+       {
+        "id": "http://vocab.getty.edu/aat/300388256",
+        "type": "Language"
+       }
+      ]
+     },
+     {
+      "type": "LinguisticObject",
+      "content": "Ed van der Elsken",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300435417",
+        "type": "Type"
+       }
+      ],
+      "language": [
+       {
+        "id": "http://vocab.getty.edu/aat/300388277",
+        "type": "Language"
+       }
+      ]
+     }
+    ],
+    "took_place_at": [
+     {
+      "id": "https://id.rijksmuseum.nl/2304002",
+      "type": "Place",
+      "notation": {
+       "@language": "nl",
+       "@value": "Tokyo"
+      },
+      "equivalent": [
+       {
+        "id": "http://vocab.getty.edu/tgn/1001032",
+        "type": "Place"
+       },
+       {
+        "id": "http://www.wikidata.org/entity/Q1490",
+        "type": "Place"
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "shows": [
+  {
+   "id": "https://id.rijksmuseum.nl/202100873",
+   "type": "VisualItem"
+  }
+ ]
+}

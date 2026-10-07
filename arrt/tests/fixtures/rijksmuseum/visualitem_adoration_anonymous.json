@@ -1,0 +1,47 @@
+{
+ "@context": "https://linked.art/ns/v1/linked-art.json",
+ "id": "https://id.rijksmuseum.nl/202106080",
+ "type": "VisualItem",
+ "subject_to": [
+  {
+   "type": "Right",
+   "identified_by": [
+    {
+     "type": "Name",
+     "content": "Public Domain",
+     "language": [
+      {
+       "id": "http://vocab.getty.edu/aat/300388277",
+       "type": "Language",
+       "_label": "English"
+      }
+     ]
+    },
+    {
+     "type": "Name",
+     "content": "Publieke domein",
+     "language": [
+      {
+       "id": "http://vocab.getty.edu/aat/300388256",
+       "type": "Language",
+       "_label": "Dutch"
+      }
+     ]
+    }
+   ],
+   "classified_as": [
+    {
+     "id": "https://creativecommons.org/publicdomain/mark/1.0/",
+     "type": "Type",
+     "_label": "Public Domain"
+    }
+   ]
+  }
+ ],
+ "digitally_shown_by": [
+  {
+   "id": "https://id.rijksmuseum.nl/5001171029073858652114",
+   "type": "DigitalObject"
+  }
+ ]
+}

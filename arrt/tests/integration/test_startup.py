@@ -613,7 +613,7 @@ def test_startup_names_every_image_source_it_wires_in_order(tmp_path, monkeypatc
     with caplog.at_level("INFO"):
         entry_point.main()
 
-    sources = "commons,artic,getty,met,navigart,nga,smk,yale"
+    sources = "commons,artic,getty,met,navigart,nga,rijksmuseum,smk,yale"
     assert f"phase2 image_sources={sources} pictures={art_root / 'pictures'} fetching=on" in caplog.text
     assert data_roots == [art_root / "sources"], "each plugin's directory is under ART_ROOT/sources, never the art root"
     assert "source plugin wikidata loaded" in caplog.text
@@ -622,7 +622,7 @@ def test_startup_names_every_image_source_it_wires_in_order(tmp_path, monkeypatc
 def test_startup_with_no_image_source_says_which_settings_would_add_one(tmp_path, monkeypatch, caplog):
     """A deployment where every installed plugin declined.
 
-    The built-ins `met`, `smk` and `getty` need no setting and search without a
+    The built-ins `met`, `smk`, `getty` and `rijksmuseum` need no setting and search without a
     registry, so they never decline; this is a deployment without them, as one
     that uninstalled them is. Every other
     built-in is installed and left unconfigured. `navigart`, `nga` and `yale`
@@ -633,7 +633,7 @@ def test_startup_with_no_image_source_says_which_settings_would_add_one(tmp_path
     art_root.mkdir()
     _stub_settings(monkeypatch, art_root)
     installed = importlib.metadata.entry_points
-    searchers = {"met", "smk", "getty"}
+    searchers = {"met", "smk", "getty", "rijksmuseum"}
     monkeypatch.setattr(
         importlib.metadata, "entry_points", lambda **kwargs: [p for p in installed(**kwargs) if p.name not in searchers]
     )
