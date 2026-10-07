@@ -48,7 +48,7 @@ gating in CI (the harness is run by hand, like `search_latency.py`).
 ## Status
 
 - [x] Chunk 01: The practice, and the Pass 1 harness
-- [ ] Chunk 02: The first walkthrough
+- [x] Chunk 02: The first walkthrough
 
 ### Chunk 01: The practice, and the Pass 1 harness
 
