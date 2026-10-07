@@ -33,12 +33,14 @@ says before it reaches the journal, `/api/health` or the panel.
 
 import importlib.metadata
 import logging
+import re
 import threading
 import traceback
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
+from pathlib import Path
 from types import MappingProxyType
 from typing import Final, NoReturn
 
@@ -506,13 +508,16 @@ def load_sources(
     order: Sequence[str] = DEFAULT_SOURCE_ORDER,
     entry_points: Iterable[importlib.metadata.EntryPoint] | None = None,
     now: Callable[[], datetime] = lambda: datetime.now(UTC),
+    data_root: Path | None = None,
 ) -> SourceRoster:
     """Load every installed plugin, and say what became of each.
 
     `order` names plugins most preferred first; plugins it does not name follow,
     by name. `entry_points` defaults to what this interpreter has installed in
     `ENTRY_POINT_GROUP`, and is a parameter so the loader can be tested without
-    installing a distribution per case.
+    installing a distribution per case. `data_root` is where plugins keep files:
+    each is handed `data_root / <its name>` as `SourceContext.data_dir`
+    (`_own_directory`).
     """
     found = list(importlib.metadata.entry_points(group=ENTRY_POINT_GROUP) if entry_points is None else entry_points)
     faults = _Faults(now)
@@ -536,7 +541,7 @@ def load_sources(
         # Before the factory runs, so a factory that hangs leaves its name in the
         # journal rather than a startup that simply stops.
         log.info("loading source plugin %s", entry.name, extra={"event": "source.loading", "plugin": entry.name})
-        plugin, loaded = _load_one(entry, context)
+        plugin, loaded = _load_one(entry, replace(context, data_dir=_own_directory(data_root, entry.name)))
         if plugin is not None:
             plugins[entry.name] = plugin
         if isinstance(loaded, SourceParts):
@@ -632,6 +637,31 @@ def _provides(finder: Finder | None, reader: Reader | None, collection: Collecti
     if collection is not None:
         provided.append(PluginPart.BROWSES)
     return tuple(provided)
+
+
+#: A plugin name that is one plain path segment, and so names one directory
+#: under the data root. An entry point's name is any string a distribution
+#: chooses, and `../catalogue` must not reach outside it. Its first character
+#: is a letter or a digit, so neither `.` nor `..` is one.
+_PLAIN_SEGMENT: Final[re.Pattern[str]] = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.\-]*")
+
+
+def _own_directory(data_root: Path | None, name: str) -> Path | None:
+    """The directory this plugin may keep files in, or None when it gets none.
+
+    None when the deployment gives no root, and when the name is not one plain
+    path segment, so that no plugin is handed a directory that is not its own.
+    """
+    if data_root is None:
+        return None
+    if not _PLAIN_SEGMENT.fullmatch(name):
+        log.warning(
+            "source plugin %s is given no directory: its name is not one plain path segment",
+            name,
+            extra={"event": "source.no_directory", "plugin": name},
+        )
+        return None
+    return data_root / name
 
 
 def _load_one(  # noqa: PLR0911 -- one return per way a plugin can fail to load, each named

@@ -12,6 +12,7 @@ import logging
 import pathlib
 from datetime import UTC, datetime, timedelta
 
+import plugin_fakes
 import pytest
 from fakes import FakeRegistry
 from plugin_fakes import Answers, StubCollection, StubFinder, StubReader, claims_example
@@ -59,6 +60,31 @@ def test_a_plugin_named_by_an_entry_point_loads_with_its_finder_and_collection()
     assert roster.collection is not None
     assert roster.collection.provider == "good"
     assert states(roster) == {"good": (PluginState.LOADED, None)}
+
+
+@pytest.mark.parametrize(
+    ("name", "own"),
+    [("alpha", "alpha"), ("beta.2", "beta.2"), ("../catalogue", None), ("a/b", None), ("..", None), (".hidden", None)],
+)
+def test_each_plugin_is_handed_a_directory_of_its_own_under_the_data_root_and_no_other(tmp_path, caplog, name, own):
+    """1.2: `data_dir` is the plugin's name under the root, and a name that is not one plain segment gets none, said."""
+    plugin_fakes.DIRECTORIES_HANDED.clear()
+
+    load_sources(context(), entry_points=[entry(name, "DIRECTORY")], data_root=tmp_path / "sources")
+
+    assert [None if own is None else tmp_path / "sources" / own] == plugin_fakes.DIRECTORIES_HANDED
+    withheld = [r.plugin for r in caplog.records if getattr(r, "event", None) == "source.no_directory"]
+    assert withheld == ([] if own is not None else [name])
+    assert not (tmp_path / "sources").exists(), "the loader creates nothing; a plugin creates its directory when it writes"
+
+
+def test_two_plugins_are_handed_two_directories_and_no_root_hands_none(tmp_path):
+    plugin_fakes.DIRECTORIES_HANDED.clear()
+
+    load_sources(context(), entry_points=[entry("one", "DIRECTORY"), entry("two", "DIRECTORY")], data_root=tmp_path)
+    load_sources(context(), entry_points=[entry("three", "DIRECTORY")])
+
+    assert [tmp_path / "one", tmp_path / "two", None] == plugin_fakes.DIRECTORIES_HANDED
 
 
 def test_a_plugin_written_for_another_major_is_refused_by_name():
@@ -367,8 +393,8 @@ def test_this_distribution_registers_the_built_in_plugins_as_entry_points():
     """Read from the installed metadata: the injected tests above cannot see a typo in pyproject."""
     installed = {point.name: point for point in importlib.metadata.entry_points(group=ENTRY_POINT_GROUP)}
 
-    assert {"commons", "artic", "wikidata", "met", "smk", "navigart"} <= set(installed)
-    for name in ("commons", "artic", "wikidata", "met", "smk", "navigart"):
+    assert {"commons", "artic", "wikidata", "met", "smk", "navigart", "nga"} <= set(installed)
+    for name in ("commons", "artic", "wikidata", "met", "smk", "navigart", "nga"):
         assert isinstance(installed[name].load(), SourcePlugin), name
 
 
@@ -388,7 +414,7 @@ def test_the_built_in_plugins_load_through_the_real_entry_points():
     assert roster.collection.provider == "artic"
 
 
-def test_each_installed_plugin_says_which_distribution_and_version_it_came_from():
+def test_each_installed_plugin_says_which_distribution_and_version_it_came_from(tmp_path):
     """Read from the installed metadata, for loaded, declined and page-only plugins alike."""
     version = importlib.metadata.version("arrt")
     roster = load_sources(
@@ -397,11 +423,12 @@ def test_each_installed_plugin_says_which_distribution_and_version_it_came_from(
             user_agent="arrt-tests/0",
             preview_max_bytes=1_000_000,
             registry=FakeRegistry(),
-        )
+        ),
+        data_root=tmp_path,
     )
     identity = {reading.name: reading.identity for reading in roster.observe()}
 
-    for name in ("met", "smk", "navigart"):
+    for name in ("met", "smk", "navigart", "nga"):
         assert identity[name] == PluginIdentity(
             distribution="arrt", version=version, api_major=1, provides=(PluginPart.FINDS_IMAGES, PluginPart.READS)
         ), name
@@ -490,7 +517,7 @@ def _built_in_modules() -> list[str]:
 
 def test_the_built_in_plugin_modules_are_read_from_the_entry_points():
     """An empty or short list would let the guard below pass over nothing."""
-    assert _built_in_modules() == ["artic.py", "commons.py", "met.py", "navigart.py", "smk.py", "wikidata.py"]
+    assert _built_in_modules() == ["artic.py", "commons.py", "met.py", "navigart.py", "nga.py", "smk.py", "wikidata.py"]
 
 
 def test_the_built_in_plugins_import_nothing_from_arrt_but_the_interface():

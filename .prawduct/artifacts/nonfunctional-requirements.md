@@ -512,7 +512,8 @@ curator every judgement they have already made. So:
   product's memory, and it is the only artefact whose loss cannot be repaired by
   spending time instead of money.
 - **The image tree is disposable.** `raw/`, `ready/`, `tv-thumbs/` and
-  `tile-cache/` are all reconstructible. They are excluded from
+  `tile-cache/` are all reconstructible, and so is `sources/`, a source plugin's
+  copy of a holder's published data (since 2026-10-06). They are excluded from
   backup deliberately, not by oversight — this is the upstream/derived split
   already recorded in `boundary-patterns.md` § `ART_ROOT` filesystem contract, applied to durability. (`label/` was listed
   here from the 2024 layout; it is retired from the prospective `ART_ROOT`

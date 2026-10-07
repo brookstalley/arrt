@@ -331,7 +331,7 @@ recorded plan (curation on a desktop, NAS, or second Pi) — see Decision Log.
                     │  │  image prep · mat colour │   │  theme-manifest-<wall>(C)│ │
                     │  └───────────┬──────────────┘   │   raw/ ready/ thumbs/    │ │
                     │              │                  │   tv-thumbs/ tile-cache/ │ │
-                    │              │                  │   pictures/              │ │
+                    │              │                  │   pictures/ sources/     │ │
                     │              │                  │   kept-answers.sqlite    │ │
                     │              │ HTTPS            │                          │ │
                     │              ▼                  │   display-state.sqlite(D)│ │
@@ -1059,6 +1059,7 @@ heartbeat's.
 | `catalogue.sqlite` | curation | curation |
 | `kept-answers.sqlite` — answers from slow foreign sources, disposable (`persistence/kept.py`), since 2026-10-02 | curation | curation |
 | `pictures/` — every picture fetched from outside, kept for good (`library/services/pictures.py`), since 2026-10-06 | curation | curation |
+| `sources/<plugin>/` — each source plugin's own copy of what it can fetch again (`SourceContext.data_dir`, interface 1.2); `sources/nga/` holds the NGA's open data, since 2026-10-06 | curation (that plugin) | curation (that plugin) |
 | `theme-manifest-{wall_id}.json` — **one file per wall**, since 2026-08-12 | curation | display |
 | image tree (`raw/`, `ready/`, …) | curation | display |
 | `display-state.sqlite` | display | display |

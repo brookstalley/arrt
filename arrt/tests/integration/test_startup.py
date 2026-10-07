@@ -601,11 +601,20 @@ def test_startup_names_every_image_source_it_wires_in_order(tmp_path, monkeypatc
     monkeypatch.setenv("ARTIC_USER_AGENT", "arrt-tests/0")
     monkeypatch.setenv("WIKIDATA_USER_AGENT", "arrt-tests/0")
     monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
+    data_roots = []
+    real_load = entry_point.load_sources
+
+    def load_sources(context, **kwargs):
+        data_roots.append(kwargs.get("data_root"))
+        return real_load(context, **kwargs)
+
+    monkeypatch.setattr(entry_point, "load_sources", load_sources)
 
     with caplog.at_level("INFO"):
         entry_point.main()
 
-    assert f"phase2 image_sources=commons,artic,met,navigart,smk pictures={art_root / 'pictures'} fetching=on" in caplog.text
+    assert f"phase2 image_sources=commons,artic,met,navigart,nga,smk pictures={art_root / 'pictures'} fetching=on" in caplog.text
+    assert data_roots == [art_root / "sources"], "each plugin's directory is under ART_ROOT/sources, never the art root"
     assert "source plugin wikidata loaded" in caplog.text
 
 
@@ -614,9 +623,9 @@ def test_startup_with_no_image_source_says_which_settings_would_add_one(tmp_path
 
     The built-ins `met` and `smk` need no setting, so they never decline; this
     is a deployment without them, as one that uninstalled them is. Every other
-    built-in is installed and left unconfigured. `navigart` needs no setting
-    either, and finds a work only through Wikidata, so with no registry it loads
-    as a reader alone and is named as one that finds no image.
+    built-in is installed and left unconfigured. `navigart` and `nga` need no
+    setting either, and find a work only through Wikidata, so with no registry
+    each loads as a reader alone and is named as one that finds no image.
     """
     art_root = tmp_path / "art"
     art_root.mkdir()
@@ -636,6 +645,7 @@ def test_startup_with_no_image_source_says_which_settings_would_add_one(tmp_path
         "phase2 image_sources=none (commons: WIKIDATA_USER_AGENT is unset, and Commons is reached only through a "
         "work's Wikidata item; artic: ARTIC_USER_AGENT is unset, and the Art Institute is never asked anonymously; "
         "navigart: loaded, and finds no image; "
+        "nga: loaded, and finds no image; "
         "wikidata: no registry is configured (WIKIDATA_USER_AGENT is unset), and pages are read from a work's item) "
         f"pictures={art_root / 'pictures'} fetching=off"
     ) in caplog.text

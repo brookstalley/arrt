@@ -481,6 +481,15 @@ every judgement they have already made.
 > journal), so deleting it by hand is never a repair step, only a way to make
 > every registry page ask again.
 
+> **`sources/` is not backed up either** (2026-10-06, `build-plan-nga-source.md`).
+> Each source plugin's own directory holds a copy of what it can fetch again; the
+> first is `sources/nga/`, the NGA's open data (about 43 MB gzipped). Deleting it
+> costs one download, of about 43 MB, at the next query that asks the NGA. The
+> plugin asks for each file at most once a day, conditionally, and holds the parsed
+> copy (about 80 MB) in memory only within six hours of an NGA query, which is the
+> figure to keep under the container's memory limit (`nga.catalogue_loaded` and
+> `nga.catalogue_released` in the journal mark both ends).
+
 **Destination: another machine on the network** (desktop or NAS, over LAN or the
 overlay network). Decided 2026-07-20. No third party, no cost, no credential on
 the Pi beyond what already exists.
