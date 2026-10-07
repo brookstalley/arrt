@@ -456,7 +456,9 @@ def test_a_manifest_giving_no_title_could_not_be_asked():
 
 def test_a_preview_is_read_from_yales_image_host_only_and_under_the_ceiling():
     preview = f"{NIGHT_CAFE_SERVICE}/full/!400,400/0/default.jpg"
-    big = lambda _: httpx.Response(200, content=b"x" * 100)  # noqa: E731
+
+    def big(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b"x" * 100)
 
     roomy = YaleFinder(user_agent="t", registry=FakeRegistry(), transport=a_transport(preview=big), preview_max_bytes=100)
     tight = YaleFinder(user_agent="t", registry=FakeRegistry(), transport=a_transport(preview=big), preview_max_bytes=99)
