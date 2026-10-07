@@ -27,6 +27,7 @@ from arrt.library.discovery.images import (
     ImageSearchFailure,
 )
 from arrt.library.registry import ItemId, Registry, RegistryUnavailable
+from arrt.library.sources.iiif import CanvasImage, ImageService, manifest_images, manifest_metadata
 from arrt.library.sources.plugin import (
     API_VERSION,
     Declined,
@@ -43,6 +44,7 @@ __all__ = [
     "DEFAULT_PREVIEW_MAX_BYTES",
     "AcquisitionMethod",
     "BrowseQuery",
+    "CanvasImage",
     "CollectionBrowse",
     "CollectionBrowseFailure",
     "Declined",
@@ -53,6 +55,7 @@ __all__ = [
     "ImageQuery",
     "ImageQueryUnanswerable",
     "ImageSearchFailure",
+    "ImageService",
     "ItemId",
     "LocatorKind",
     "OfferedGroup",
@@ -65,4 +68,6 @@ __all__ = [
     "SourceFactory",
     "SourceParts",
     "SourcePlugin",
+    "manifest_images",
+    "manifest_metadata",
 ]

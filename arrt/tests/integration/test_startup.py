@@ -613,7 +613,8 @@ def test_startup_names_every_image_source_it_wires_in_order(tmp_path, monkeypatc
     with caplog.at_level("INFO"):
         entry_point.main()
 
-    assert f"phase2 image_sources=commons,artic,met,navigart,nga,smk pictures={art_root / 'pictures'} fetching=on" in caplog.text
+    sources = "commons,artic,met,navigart,nga,smk,yale"
+    assert f"phase2 image_sources={sources} pictures={art_root / 'pictures'} fetching=on" in caplog.text
     assert data_roots == [art_root / "sources"], "each plugin's directory is under ART_ROOT/sources, never the art root"
     assert "source plugin wikidata loaded" in caplog.text
 
@@ -623,9 +624,9 @@ def test_startup_with_no_image_source_says_which_settings_would_add_one(tmp_path
 
     The built-ins `met` and `smk` need no setting, so they never decline; this
     is a deployment without them, as one that uninstalled them is. Every other
-    built-in is installed and left unconfigured. `navigart` and `nga` need no
-    setting either, and find a work only through Wikidata, so with no registry
-    each loads as a reader alone and is named as one that finds no image.
+    built-in is installed and left unconfigured. `navigart`, `nga` and `yale`
+    need no setting either, and find a work only through Wikidata, so with no
+    registry each loads as a reader alone and is named as one that finds no image.
     """
     art_root = tmp_path / "art"
     art_root.mkdir()
@@ -646,7 +647,8 @@ def test_startup_with_no_image_source_says_which_settings_would_add_one(tmp_path
         "work's Wikidata item; artic: ARTIC_USER_AGENT is unset, and the Art Institute is never asked anonymously; "
         "navigart: loaded, and finds no image; "
         "nga: loaded, and finds no image; "
-        "wikidata: no registry is configured (WIKIDATA_USER_AGENT is unset), and pages are read from a work's item) "
+        "wikidata: no registry is configured (WIKIDATA_USER_AGENT is unset), and pages are read from a work's item; "
+        "yale: loaded, and finds no image) "
         f"pictures={art_root / 'pictures'} fetching=off"
     ) in caplog.text
 

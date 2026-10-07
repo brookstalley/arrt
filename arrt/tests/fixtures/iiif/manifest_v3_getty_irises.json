@@ -1,0 +1,470 @@
+{
+  "@context": "http://iiif.io/api/presentation/3/context.json",
+  "homepage": [
+    {
+      "id": "https://www.getty.edu/art/collection/object/103JNH",
+      "type": "Text"
+    }
+  ],
+  "id": "https://media.getty.edu/iiif/manifest/53be857e-41e8-4198-b45d-2e0f52d3051b",
+  "items": [
+    {
+      "height": 7122,
+      "id": "https://media.getty.edu/iiif/manifest/canvas/8c255d80-7382-46db-9fa8-892c0d37247e",
+      "items": [
+        {
+          "id": "https://media.getty.edu/iiif/manifest/annopage/p0",
+          "items": [
+            {
+              "body": {
+                "height": 7122,
+                "id": "https://media.getty.edu/iiif/image/8c255d80-7382-46db-9fa8-892c0d37247e/full/max/0/default.jpg",
+                "service": [
+                  {
+                    "id": "https://media.getty.edu/iiif/image/8c255d80-7382-46db-9fa8-892c0d37247e",
+                    "profile": "level1",
+                    "sizes": [
+                      {
+                        "height": 111,
+                        "width": 140
+                      },
+                      {
+                        "height": 222,
+                        "width": 281
+                      },
+                      {
+                        "height": 445,
+                        "width": 563
+                      },
+                      {
+                        "height": 890,
+                        "width": 1127
+                      },
+                      {
+                        "height": 1780,
+                        "width": 2255
+                      },
+                      {
+                        "height": 3561,
+                        "width": 4510
+                      }
+                    ],
+                    "type": "ImageService3"
+                  }
+                ],
+                "type": "Image",
+                "width": 9021
+              },
+              "id": "https://media.getty.edu/iiif/manifest/anno-8c255d80-7382-46db-9fa8-892c0d37247e",
+              "motivation": "painting",
+              "target": "https://media.getty.edu/iiif/manifest/canvas/8c255d80-7382-46db-9fa8-892c0d37247e",
+              "type": "Annotation"
+            }
+          ],
+          "type": "AnnotationPage"
+        }
+      ],
+      "label": {
+        "en": [
+          "Front"
+        ]
+      },
+      "metadata": [
+        {
+          "label": {
+            "en": [
+              "Open Content Quality"
+            ]
+          },
+          "value": {
+            "en": [
+              "Yes"
+            ]
+          }
+        }
+      ],
+      "rights": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "thumbnail": [
+        {
+          "id": "https://media.getty.edu/iiif/image/8c255d80-7382-46db-9fa8-892c0d37247e/full/!600,474/0/default.jpg",
+          "service": [
+            {
+              "id": "https://media.getty.edu/iiif/image/8c255d80-7382-46db-9fa8-892c0d37247e",
+              "profile": "level1",
+              "type": "ImageService3"
+            }
+          ],
+          "type": "Image"
+        }
+      ],
+      "type": "Canvas",
+      "width": 9021
+    },
+    {
+      "height": 7296,
+      "id": "https://media.getty.edu/iiif/manifest/canvas/fbd08f99-6fd3-4671-80be-0d095cb30ad7",
+      "items": [
+        {
+          "id": "https://media.getty.edu/iiif/manifest/annopage/p1",
+          "items": [
+            {
+              "body": {
+                "height": 7296,
+                "id": "https://media.getty.edu/iiif/image/fbd08f99-6fd3-4671-80be-0d095cb30ad7/full/max/0/default.jpg",
+                "service": [
+                  {
+                    "id": "https://media.getty.edu/iiif/image/fbd08f99-6fd3-4671-80be-0d095cb30ad7",
+                    "profile": "level1",
+                    "sizes": [
+                      {
+                        "height": 114,
+                        "width": 144
+                      },
+                      {
+                        "height": 228,
+                        "width": 289
+                      },
+                      {
+                        "height": 456,
+                        "width": 579
+                      },
+                      {
+                        "height": 912,
+                        "width": 1158
+                      },
+                      {
+                        "height": 1824,
+                        "width": 2317
+                      },
+                      {
+                        "height": 3648,
+                        "width": 4635
+                      }
+                    ],
+                    "type": "ImageService3"
+                  }
+                ],
+                "type": "Image",
+                "width": 9271
+              },
+              "id": "https://media.getty.edu/iiif/manifest/anno-fbd08f99-6fd3-4671-80be-0d095cb30ad7",
+              "motivation": "painting",
+              "target": "https://media.getty.edu/iiif/manifest/canvas/fbd08f99-6fd3-4671-80be-0d095cb30ad7",
+              "type": "Annotation"
+            }
+          ],
+          "type": "AnnotationPage"
+        }
+      ],
+      "label": {
+        "en": [
+          "Back"
+        ]
+      },
+      "metadata": [
+        {
+          "label": {
+            "en": [
+              "Open Content Quality"
+            ]
+          },
+          "value": {
+            "en": [
+              "Yes"
+            ]
+          }
+        }
+      ],
+      "rights": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "thumbnail": [
+        {
+          "id": "https://media.getty.edu/iiif/image/fbd08f99-6fd3-4671-80be-0d095cb30ad7/full/!600,472/0/default.jpg",
+          "service": [
+            {
+              "id": "https://media.getty.edu/iiif/image/fbd08f99-6fd3-4671-80be-0d095cb30ad7",
+              "profile": "level1",
+              "type": "ImageService3"
+            }
+          ],
+          "type": "Image"
+        }
+      ],
+      "type": "Canvas",
+      "width": 9271
+    },
+    {
+      "height": 7189,
+      "id": "https://media.getty.edu/iiif/manifest/canvas/0b3696e1-4dd6-46fb-8494-e12aa719fb4d",
+      "items": [
+        {
+          "id": "https://media.getty.edu/iiif/manifest/annopage/p2",
+          "items": [
+            {
+              "body": {
+                "height": 7189,
+                "id": "https://media.getty.edu/iiif/image/0b3696e1-4dd6-46fb-8494-e12aa719fb4d/full/max/0/default.jpg",
+                "service": [
+                  {
+                    "id": "https://media.getty.edu/iiif/image/0b3696e1-4dd6-46fb-8494-e12aa719fb4d",
+                    "profile": "level1",
+                    "sizes": [
+                      {
+                        "height": 112,
+                        "width": 134
+                      },
+                      {
+                        "height": 224,
+                        "width": 268
+                      },
+                      {
+                        "height": 449,
+                        "width": 537
+                      },
+                      {
+                        "height": 898,
+                        "width": 1075
+                      },
+                      {
+                        "height": 1797,
+                        "width": 2150
+                      },
+                      {
+                        "height": 3594,
+                        "width": 4300
+                      }
+                    ],
+                    "type": "ImageService3"
+                  }
+                ],
+                "type": "Image",
+                "width": 8601
+              },
+              "id": "https://media.getty.edu/iiif/manifest/anno-0b3696e1-4dd6-46fb-8494-e12aa719fb4d",
+              "motivation": "painting",
+              "target": "https://media.getty.edu/iiif/manifest/canvas/0b3696e1-4dd6-46fb-8494-e12aa719fb4d",
+              "type": "Annotation"
+            }
+          ],
+          "type": "AnnotationPage"
+        }
+      ],
+      "label": {
+        "en": [
+          "Framed"
+        ]
+      },
+      "metadata": [
+        {
+          "label": {
+            "en": [
+              "Open Content Quality"
+            ]
+          },
+          "value": {
+            "en": [
+              "Yes"
+            ]
+          }
+        }
+      ],
+      "rights": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "thumbnail": [
+        {
+          "id": "https://media.getty.edu/iiif/image/0b3696e1-4dd6-46fb-8494-e12aa719fb4d/full/!600,501/0/default.jpg",
+          "service": [
+            {
+              "id": "https://media.getty.edu/iiif/image/0b3696e1-4dd6-46fb-8494-e12aa719fb4d",
+              "profile": "level1",
+              "type": "ImageService3"
+            }
+          ],
+          "type": "Image"
+        }
+      ],
+      "type": "Canvas",
+      "width": 8601
+    }
+  ],
+  "label": {
+    "en": [
+      "Irises"
+    ]
+  },
+  "metadata": [
+    {
+      "label": {
+        "en": [
+          "Artist/Maker"
+        ]
+      },
+      "value": {
+        "en": [
+          "Vincent van Gogh (Dutch, 1853 - 1890)"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Title"
+        ]
+      },
+      "value": {
+        "en": [
+          "Irises"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Material"
+        ]
+      },
+      "value": {
+        "en": [
+          "Oil on canvas"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Dimensions"
+        ]
+      },
+      "value": {
+        "en": [
+          "Unframed: 74.3  94.3 cm (29 1/4  37 1/8 in.)",
+          "Framed [Outer Dim]: 94.9  114.9  11.4 cm (37 3/8  45 1/4  4 1/2 in.)"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Accession Number"
+        ]
+      },
+      "value": {
+        "en": [
+          "90.PA.20"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Collection"
+        ]
+      },
+      "value": {
+        "en": [
+          "<a href=\"http://www.getty.edu/art/collection/\">The J. Paul Getty Museum</a>"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Rights Statement"
+        ]
+      },
+      "value": {
+        "en": [
+          "<p>Images provided here are believed to be in the public domain and     are available under <a href=\"https://creativecommons.org/publicdomain/zero/1.0/\">CC0</a>     through Getty&rsquo;s <a href=\"http://www.getty.edu/about/opencontent.html\">Open Content Program</a>.     Texts provided here are &copy; J. Paul Getty Trust, licensed under     <a href=\"https://creativecommons.org/licenses/by/4.0/legalcode\">CC BY 4.0</a>.     Terms of use for the Getty logo can be found     <a href=\"http://www.getty.edu/legal/copyright.html#logo\"> here</a>.    </p>"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Date Modified"
+        ]
+      },
+      "value": {
+        "en": [
+          "2026-08-31T19:11:27.163255Z"
+        ]
+      }
+    }
+  ],
+  "provider": [
+    {
+      "id": "https://www.getty.edu/about/",
+      "label": {
+        "en": [
+          "J. Paul Getty Trust"
+        ]
+      },
+      "logo": [
+        {
+          "format": "image/png",
+          "height": 529,
+          "id": "https://www.getty.edu/global/images/getty_logo_primary_blk.png",
+          "type": "Image",
+          "width": 486
+        }
+      ],
+      "type": "Agent"
+    }
+  ],
+  "requiredStatement": {
+    "label": {
+      "en": [
+        "attribution"
+      ]
+    },
+    "value": {
+      "en": [
+        "<p>Images provided here are believed to be in the public domain and     are available under <a href=\"https://creativecommons.org/publicdomain/zero/1.0/\">CC0</a>     through Getty&rsquo;s <a href=\"http://www.getty.edu/about/opencontent.html\">Open Content Program</a>.     Texts provided here are &copy; J. Paul Getty Trust, licensed under     <a href=\"https://creativecommons.org/licenses/by/4.0/legalcode\">CC BY 4.0</a>.     Terms of use for the Getty logo can be found     <a href=\"http://www.getty.edu/legal/copyright.html#logo\"> here</a>.    </p>"
+      ]
+    }
+  },
+  "rights": "http://creativecommons.org/publicdomain/zero/1.0/",
+  "seeAlso": [
+    {
+      "id": "https://data.getty.edu/museum/collection/object/c88b3df0-de91-4f5b-a9ef-7b2b9a6d8abb",
+      "type": "Text"
+    }
+  ],
+  "structures": [
+    {
+      "id": "https://media.getty.edu/iiif//manifest/range/53be857e-41e8-4198-b45d-2e0f52d3051b/default.json",
+      "items": [
+        {
+          "id": "https://media.getty.edu/iiif/manifest/canvas/8c255d80-7382-46db-9fa8-892c0d37247e",
+          "type": "Canvas"
+        },
+        {
+          "id": "https://media.getty.edu/iiif/manifest/canvas/fbd08f99-6fd3-4671-80be-0d095cb30ad7",
+          "type": "Canvas"
+        },
+        {
+          "id": "https://media.getty.edu/iiif/manifest/canvas/0b3696e1-4dd6-46fb-8494-e12aa719fb4d",
+          "type": "Canvas"
+        }
+      ],
+      "type": "Range"
+    }
+  ],
+  "summary": {
+    "en": [
+      "<p>In May 1889, after episodes of self-mutilation and hospitalization, Vincent van Gogh chose to enter an asylum in Saint-Rmy, France. There, in the last year before his death, he created almost 130 paintings. Within the first week, he began <em>Irises</em>, working from nature in the asylum''s garden. The cropped composition, divided into broad areas of vivid color with monumental irises overflowing its borders, was probably influenced by the decorative patterning of Japanese woodblock prints.   </p>\n<p>There are no known drawings for this painting; Van Gogh himself considered it a study. His brother Theo quickly recognized its quality and submitted it to the <em>Salon des Indpendants</em> in September 1889, writing Vincent of the exhibition: \"[It] strikes the eye from afar. It is a beautiful study full of air and life.\"   </p>\n<p>Each one of Van Gogh''s irises is unique. He carefully studied their movements and shapes to create a variety of curved silhouettes bounded by wavy, twisting, and curling lines. The painting''s first owner, French art critic Octave Mirbeau, one of Van Gogh''s earliest supporters, wrote: \"How well he has understood the exquisite nature of flowers!\"</p>"
+    ]
+  },
+  "thumbnail": [
+    {
+      "id": "https://media.getty.edu/iiif/image/8c255d80-7382-46db-9fa8-892c0d37247e/full/!600,474/0/default.jpg",
+      "service": [
+        {
+          "id": "https://media.getty.edu/iiif/image/8c255d80-7382-46db-9fa8-892c0d37247e",
+          "profile": "level1",
+          "type": "ImageService3"
+        }
+      ],
+      "type": "Image"
+    }
+  ],
+  "type": "Manifest"
+}

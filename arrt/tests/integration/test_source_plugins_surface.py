@@ -43,7 +43,7 @@ async def test_the_route_lists_each_plugin_with_its_distribution_version_and_par
     listing = (await request("GET", f"{server_url}/api/sources")).json()
     by_name = {source["name"]: source for source in listing["sources"]}
 
-    assert listing["interface_version"] == "1.2"
+    assert listing["interface_version"] == "1.3"
     assert [source["name"] for source in listing["sources"]][:3] == ["commons", "artic", "met"]
     assert by_name["met"] | {"description": None} == {
         "name": "met",

@@ -371,6 +371,17 @@ service, which would have isolated it. What installing one trusts, what Arrt
 still keeps for itself, and how a plugin's error text is scrubbed are
 `security-model.md` § Source plugins, their one home.
 
+**robots.txt does not bar a plugin's requests** (the owner's ruling,
+2026-10-07). robots.txt speaks to crawlers. A plugin's requests are single ones,
+each for a work a person asked for, through a tool, so a host whose robots.txt
+disallows everything may still be asked: `iiif.micr.io` (the Rijksmuseum's and
+the Philadelphia Museum of Art's images) disallows `/`, and `media.getty.edu`
+answers its robots.txt with 503. What keeps a plugin from behaving like a crawler
+is the rest of this contract: it asks only per work and bounds every
+read. A plugin that walks a collection (a collection browse, a
+copy of a catalogue) is the case this ruling does not cover; a holder's published
+open data, which the NGA's is, is offered for exactly that.
+
 ## Versioning and errors
 
 - **`arrt.library.sources.API_VERSION`** is `major.minor`, starting at `1.0`. A plugin
@@ -381,6 +392,14 @@ still keeps for itself, and how a plugin's error text is scrubbed are
   web search read (§ Pages a search read).
 - **1.2 (2026-10-06) added `SourceContext.data_dir`**, a directory of the
   plugin's own (§ A plugin's own directory).
+- **1.3 (2026-10-07) added the IIIF parsers**: `ImageService` (an `info.json`:
+  the original's size, its declared limits, and whether one request or the tiles
+  fetch it), `CanvasImage`, `manifest_images` and `manifest_metadata` (a
+  Presentation 2 or 3 manifest's canvases and metadata). They do no I/O, so they
+  add no request a plugin did not make. Three museums reach their image services
+  by three roads and share only this last step (`linked-art-findings.md`), which
+  is why the shared part is IIIF and not Linked Art. *Mine*, on the owner's
+  approval of a shared helper (arrt#242, 2026-10-06).
 - **`arrt.library.sources` is the only import path a plugin may use.** It lives
   under `arrt.library` rather than at the top level because the Library/Programming
   import guard (`tests/preferences/test_seam_imports.py`) walks only `arrt.library`,
@@ -455,7 +474,8 @@ case:
   (a minor version), not before, since nothing would read them.
 - **Watches** following a page (`re-architecture.md` § Procurement).
 - **Readers for new protocols**: IIIF in general, Google Arts & Culture,
-  Artlogic. Which comes first is what the sightings count. Under the owner's
+  Artlogic. (Since 1.3 a plugin can *parse* IIIF through the interface; a reader
+  claiming any IIIF URL, whoever serves it, is still not built.) Which comes first is what the sightings count. Under the owner's
   ruling, a reader for a site whose terms forbid scraping lives in the private
   repository. A IIIF reader has no such problem, because IIIF is an open
   standard served for reuse, so it can be public.

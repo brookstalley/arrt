@@ -23,7 +23,7 @@ gallery = "arrt_gallery:PLUGIN"
 ```
 
 - **Pick a name no other installed plugin uses.** The built-ins are `commons`,
-  `artic`, `met`, `navigart`, `nga`, `smk` and `wikidata`. Two distributions registering one name load neither, so
+  `artic`, `met`, `navigart`, `nga`, `smk`, `wikidata` and `yale`. Two distributions registering one name load neither, so
   a plugin cannot replace a built-in by taking its name.
 - **The name is permanent once rows carry it.** Every image the plugin's finder
   reports is stored under it, and acquisition and the health panel name the
@@ -72,15 +72,17 @@ configured the plugin.
   also load on an older Arrt, and decline when you need it and it is `None`.
 
 `api_major` is the interface major the plugin was written for. Today that is
-`1` (`API_VERSION` is `(1, 2)`). Arrt refuses a plugin written for another major,
+`1` (`API_VERSION` is `(1, 3)`). Arrt refuses a plugin written for another major,
 by name, and loads one written for an older minor, because a minor only adds
-optional capabilities. 1.1 added `ImageQuery.pages`, and 1.2 `SourceContext.data_dir`.
+optional capabilities. 1.1 added `ImageQuery.pages`, 1.2 `SourceContext.data_dir`,
+and 1.3 the IIIF parsers (§ Reading IIIF).
 
 ## Import from `arrt.library.sources` and nothing else
 
 Everything a plugin needs is re-exported there: the factory types, `Finder`,
 `FoundImage`, `FoundPage`, `ImageQuery`, `Reader`, `FetchLocator`,
-`CollectionBrowse`, the exceptions, the registry types and the record enums.
+`CollectionBrowse`, the exceptions, the registry types, the record enums and the
+IIIF parsers.
 Anything imported from elsewhere in `arrt` is not part of the interface and may
 break in any release. Each type's contract is in its own docstring.
 
@@ -140,6 +142,29 @@ At most one of each, in `SourceParts`:
   page is the expected one and shows no image).
 - A reader says how to fetch and never fetches the image itself.
 
+### Reading IIIF
+
+Since 1.3 the interface carries parsers for the IIIF answers a plugin has
+fetched. They do no I/O: you fetch with your own bounded client, from your own
+hosts, and check that a service is on a host you trust before you read it.
+
+- `manifest_images(manifest)` gives each canvas of a Presentation 2 or 3
+  manifest as a `CanvasImage`: its image service (or `None` when its image is a
+  plain file), its stated size, its label and its own metadata.
+  `manifest_metadata(manifest)` gives the manifest's metadata, each label with
+  all its values.
+- `ImageService.from_info(info)` reads an Image API 2 or 3 `info.json` into the
+  original's size and any limit the service declares (`maxWidth`, `maxHeight`,
+  `maxArea`).
+- `service.locator(direct_max_side=…)` answers one request for the original
+  (`full/full` in 2, `full/max` in 3) when nothing declared is below it and its
+  long side is at most the number you give, and the tiles otherwise. The number
+  is yours because servers fail large requests they never declared a limit for:
+  Yale's answered HTTP 500 for a 46,800-pixel original.
+
+Each raises `ImageSearchFailure` for a body that is not the shape expected. `yale`
+is the example.
+
 ## Three answers, and the page that is not the page
 
 | Answer | Finder | Reader |
@@ -190,6 +215,9 @@ code runs inside Arrt, with Arrt's network. So:
 - bound every read;
 - send `context.user_agent`, or your own setting where the site asks callers to
   identify themselves;
+- ask per work, never walk a site. robots.txt does not bar a single request for
+  a work someone asked for (`source-plugins.md` § Trust), because that is not
+  crawling, and a plugin that crawled would be the case it is written for;
 - put no key in a URL you raise or log. The log cuts query strings, but only
   from a URL that is encoded, as an HTTP client's own error is.
 
@@ -330,5 +358,6 @@ to it by a test:
 | `smk` (`smk.py`) | a finder that reads the item's own pages, of several spellings, and reports each image under the page exactly as the item spells it; `claims` taking those spellings and the API's object URL; rights read from the holder's own statement, in copyright included | `test_smk_source.py` |
 | `navigart` (`navigart.py`) | a finder that reads only the item's own pages, of one platform serving many collections, with a static table saying which collection is asked where; a plugin that offers its reader alone when it has no registry to find with; a holder's surname-first name put in reading order for the identity check | `test_navigart_source.py` |
 | `nga` (`nga.py`) | a plugin that keeps a copy of a holder's open data in its own directory (`context.data_dir`), refreshed conditionally at most daily and released from memory when idle; a reader answering tiles for an original and a direct fetch for a capped copy; declining without a directory | `test_nga_source.py` |
+| `yale` (`yale.py`) | a reader that never fetches the page it claims (a challenged one), reading the number out of it and asking the museum's IIIF manifest instead; the IIIF parsers choosing one request or the tiles; rights read from the canvas, not the manifest's licence for its record | `test_yale_source.py`, `test_iiif_helper.py` |
 | `commons` (`commons.py`) | a finder that needs the registry and looks works up by item | `test_commons_source.py` |
 | `wikidata` (`wikidata.py`) | a finder of pages only, with `offers_images = False` | `test_wikidata_pages.py` |
