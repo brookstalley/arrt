@@ -92,7 +92,11 @@ The built-in enumerations, the contract (§ Versioning and errors), the plugin
 guide (§ Reading IIIF) and the security model name the parsers and the plugin.
 The live check (`test_yale_shapes_are_still_real.py`) passed 5 of 5 on
 2026-10-07, and the descopes and the robots.txt findings are recorded as comments
-on #242, #229, #226 and #230.
+on #242, #229, #226 and #230. The owner ruled the same day that robots.txt does
+not bar a plugin's single, human-led requests (`source-plugins.md` § Trust): the
+Rijksmuseum's and Philadelphia's image host (`iiif.micr.io`) disallows `/`, and
+Getty's answers its robots.txt with 503. The plugin guide adds "ask per work,
+never walk a site".
 
 ## 2026-10-06: A holder's name for the artist that Wikidata records, on the item's page
 

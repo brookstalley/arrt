@@ -167,8 +167,8 @@ human-led requests are not crawling, so a plugin may ask both
 
 ### Chunk 01: Interface 1.3's IIIF helper, the `yale` plugin, their records and the live check
 
-**Exposed API:** interface 1.3 (`arrt.library.sources` gains `ImageService` and
-`manifest_images`), shown as `interface_version` on Settings › Sources and
+**Exposed API:** interface 1.3 (`arrt.library.sources` gains `ImageService`,
+`CanvasImage`, `manifest_images` and `manifest_metadata`), shown as `interface_version` on Settings › Sources and
 `art_discovery(action='source_plugins')`. A new built-in source plugin, `yale`.
 No route changes.
 
