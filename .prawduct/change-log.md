@@ -92,6 +92,14 @@ recorded suite run; `uv run --group browser pytest tests/browser/test_the_ux_wal
 -m browser -n0` ran them, 8 passed. `tests/integration/test_ux_walk_synthetic.py`
 boots `--synthetic` in the default suite.
 
+**The first run** is `.prawduct/artifacts/ux-review-2026-10.md`: 30 ranked findings
+from Pass 1 on the real library and a synthetic one, Pass 2's 13 scenarios, and five
+independent lenses, routed to 18 new backlog items (#272–#289), comments on #131,
+#252 and #265, and five decisions put to the owner. Pass 4 is the owner's. The
+practice doc gained the reviewer brief and two rules the run taught; `design-direction.md`
+lost a notice that its palettes were not yet in the stylesheet, which they had been
+for weeks.
+
 ## 2026-10-07: the Rijksmuseum as a built-in source, through its Linked Art records, its search and IIIF
 
 <!-- prawduct: scope=rijksmuseum-source -->

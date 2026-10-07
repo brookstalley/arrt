@@ -47,7 +47,7 @@ gating in CI (the harness is run by hand, like `search_latency.py`).
 
 ## Status
 
-- [ ] Chunk 01: The practice, and the Pass 1 harness
+- [x] Chunk 01: The practice, and the Pass 1 harness
 - [ ] Chunk 02: The first walkthrough
 
 ### Chunk 01: The practice, and the Pass 1 harness
@@ -81,8 +81,10 @@ Done when:
 1. Pass 1 has run against the synthetic corpus and, if reachable, the real
    library; its contact sheet exists.
 2. Passes 2 and 3 have run, each lens by an independent reviewer.
-3. The findings are one ranked list, each tagged with lens, screen, evidence
-   and whether `ia-proposal.md` already plans its fix, in
+3. The findings are one ranked list, each tagged with lens, screen and whether
+   `ia-proposal.md` already plans its fix — the screenshots stay in the
+   gitignored `.ux-walk/`, because this repository is public, so a finding
+   names its screen and the walk re-photographs it — in
    `.prawduct/artifacts/ux-review-2026-10.md`; actionable ones are filed through
    `/prawduct:backlog`.
 4. Pass 4 is handed to the owner with its three tasks written out.

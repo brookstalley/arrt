@@ -126,3 +126,40 @@ Then route by kind, because each kind has a different owner:
 - **Interaction, visual, copy** → the backlog, through `/prawduct:backlog`.
 
 The run's report lives in `.prawduct/artifacts/ux-review-<yyyy-mm>.md`.
+
+Before citing a backlog item as covering a finding, resolve it
+(`prawduct-hook backlog cache-query resolve <n> --repo brookstalley/arrt`): a search hit can be shipped,
+and a shipped item cited as "planned" hides an open defect.
+
+## Running Passes 2 and 3 with agents
+
+One agent per lens, plus one for Pass 2, launched together. Each gets the same
+brief and only its own lens; none sees another's output. What the brief must
+say, because each line closed a gap the first run found:
+
+- **What the product is**, in three sentences, and that the browser client is
+  its only human interface, laid out like the *arr apps by the owner's ruling.
+- **Where Pass 1's evidence is** (`.ux-walk/<run>/index.html`, `inventory.json`,
+  `shots/`), and that the screenshots are the primary evidence: read them as
+  images, real library first, synthetic for scale.
+- **Read-only, absolutely.** The live product may be browsed only through a
+  Playwright context wrapped by `ux_walk.guard_writes`; nothing but `GET` by
+  any other client. A path that needs a write stops there and is recorded as
+  "continues past a write — Pass 4".
+- **Judge what renders, not what the artifacts say.** Read only the artifact the
+  lens names, and the Pass 2 agent reads the predicted paths last.
+- **One finding format**: screen and address, evidence (a screenshot path or the
+  steps), what a person experiences, the heuristic or rule it breaks, severity
+  1–4, frequency, core flow, kind (structure, interaction, visual, copy,
+  accessibility), and an optional suggestion. Then up to five things that work
+  well, and the review's limits.
+- **Write only to the given output file**; nothing in the repository.
+
+The lenses' own instructions are the table in § Pass 3, plus, for
+accessibility, a keyboard-only walk of the core screens through the guard, and
+for vocabulary, a term table built from the inventory before reading
+`ia-proposal.md` § Objects. Expect each to take ten to fifteen minutes.
+
+**The synthetic corpus has works and nothing else** — no themes, runs, history
+or walls — so Themes, History and To review at scale are extrapolated until
+the corpus grows them. Say so in the report's limits.

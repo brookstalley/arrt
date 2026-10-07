@@ -6,6 +6,8 @@ would report a missing screen that exists, and one that invented a route from a
 comment would report an orphan that does not.
 """
 
+import signal
+import subprocess
 import sys
 from pathlib import Path
 
@@ -124,3 +126,29 @@ def test_a_tampered_axe_is_not_run(tmp_path, monkeypatch):
 
     assert source is None
     assert why.startswith("not run: axe-core could not be fetched")
+
+
+class _StubbornServer:
+    """A server that does not exit on SIGTERM: `wait` times out, as `subprocess.Popen.wait` would."""
+
+    def __init__(self):
+        self.signals = []
+
+    def send_signal(self, number):
+        self.signals.append(number)
+
+    def wait(self, timeout):
+        raise subprocess.TimeoutExpired(cmd="python -m arrt", timeout=timeout)
+
+
+def test_a_server_that_ignores_sigterm_still_loses_its_scratch_library_and_says_so(tmp_path):
+    """`stop_synthetic`'s promise: the scratch ART_ROOT goes either way, and the timeout reaches the caller."""
+    root = tmp_path / "ux-walk-scratch"
+    (root / "raw").mkdir(parents=True)
+    server = _StubbornServer()
+
+    with pytest.raises(subprocess.TimeoutExpired):
+        ux_walk.stop_synthetic(server, root)
+
+    assert server.signals == [signal.SIGTERM]
+    assert not root.exists()
