@@ -62,6 +62,59 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-07: the UX walkthrough, as a practice and a harness
+
+<!-- prawduct: scope=ux-walkthrough -->
+
+**Why:** the owner, 2026-10-07: IA/UX/UI is the product's weakest point, and every
+guard the browser client has asks whether it matches its documents, never whether it
+is good to use. They asked for the method to be written down "so we don't re-derive
+later", and then run.
+
+**What:** `docs/ux-walkthrough.md`, the four passes (inventory, scenarios, critique by
+independent lens, people) and how their findings are ranked and routed; a pointer to
+it from `CLAUDE.md`. `arrt/tools/ux_walk.py`, Pass 1: it reads the declared screens
+from `app.js`'s `ROUTES`, crawls the reachable ones from the home page by links
+and by clicking up to 30 buttons a page (`--clicks-per-page`; 0 follows links only),
+because the client navigates by buttons that call the router; photographs each at phone and desktop width in light and dark, records headings,
+controls and links, runs axe-core per photograph, and writes `inventory.json` and a
+contact sheet. It refuses every request but `GET`/`HEAD` in the browser, so a clicked Accept,
+Rename or Unassign never lands, but check the server's state after a run against
+the real library; `--synthetic N` boots a throwaway server over the suite's large corpus.
+Output goes to the gitignored `.ux-walk/`.
+
+**Tests:** `tests/unit/test_ux_walk_parsing.py` (the route table and address
+grammar); `tests/browser/test_the_ux_walk.py` (a write from the page refused and
+absent from the server afterwards, a read let through, every declared screen
+photographed or named as never visited, the skip link not mistaken for a screen, a
+screen reached only by address marked so, one a button opens found and marked as
+reached by script, `--clicks-per-page 0` following links only, a scan's clean,
+violations and not-run kept as three states, a screen that never paints recorded
+blank rather than aborting the walk). The guard and the anchor skip were each broken by
+hand and watched to fail, as were the synthetic boot's cleanup and the axe-core
+pin. The browser tests are deselected by default, so they are not in the
+recorded suite run; `uv run --group browser pytest tests/browser/test_the_ux_walk.py
+-m browser -n0` ran them, 8 passed. `tests/integration/test_ux_walk_synthetic.py`
+boots `--synthetic` in the default suite.
+
+**The first run** is `.prawduct/artifacts/ux-review-2026-10.md`: 30 ranked findings
+from Pass 1 on the real library and a synthetic one, Pass 2's 13 scenarios, and five
+independent lenses, routed to 18 new backlog items (#272–#289), comments on #131,
+#252 and #265, and five decisions put to the owner. Pass 4 is the owner's. The
+practice doc gained the reviewer brief and two rules the run taught; `design-direction.md`
+lost a notice that its palettes were not yet in the stylesheet, which they had been
+for weeks.
+
+**The owner's rulings on the review**, the same day (`ia-proposal.md` § Rulings
+(2026-10-07)): the ruled Walls and Work pages are next (#272); a new norm,
+*navigation is a link, an act is a button*, in `information-architecture.md`
+§ Direction, in-transition (#273); spend shown as a monthly budget with cost tiers
+and no approval gate (#290), reversing the 2026-08-04 decision never to show the
+remaining balance, recorded in `nonfunctional-requirements.md` and
+`observability-strategy.md`; *Get* everywhere (#291); Wanted always in the sidebar
+(#292); History as events (#293). The proposal's claim that walls already keep a
+history is corrected: the schema overwrites each wall's hang.
+
 ## 2026-10-07: the Rijksmuseum as a built-in source, through its Linked Art records, its search and IIIF
 
 <!-- prawduct: scope=rijksmuseum-source -->

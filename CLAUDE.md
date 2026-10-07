@@ -170,3 +170,9 @@ whenever you touch anything under `static/`. The four live markers (`live_museum
 `live_binary`, `live_api`, `llm_eval`) check foreign APIs and are deselected by
 default; `live_api` and `llm_eval` spend real money, and every live run takes
 `-n0`. Commands, setup and the reasons behind each rule: `docs/testing.md`.
+
+**Every suite asks whether the client matches its documents; none asks whether
+it is good to use.** When the question is the second one — a redesign, a run of
+screen work, "the UI feels off" — follow `docs/ux-walkthrough.md` rather than
+inventing a method: four passes, in order, and `arrt/tools/ux_walk.py` does the
+first.

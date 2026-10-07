@@ -103,6 +103,34 @@ inside an existing section, not a section of its own.
 > keeps Queue and History. Built by `build-plan-norm-sweep-2026-10.md`, which
 > brings the tables below to match.
 
+<!-- Ratified by the owner 2026-10-07. Enforcement row in project-preferences.md. -->
+
+**Navigation is a link; an act is a button.** Anything that takes the curator
+to another screen or address is an `<a href="#…">`, so it opens in a new tab,
+copies as an address, previews in the status bar, and is announced as a link.
+A `<button>` does something here: accept, hang, get, archive, sort, open a menu.
+A control is never both.
+
+> **Why:** the first UX walkthrough (`ux-review-2026-10.md`, finding 4) found
+> every work, artist, topic, run and review opened by a button calling the
+> router, while the sidebar and one Walls link were real links. Nothing had
+> chosen buttons: the router answers a plain `#…` link already. The cost was
+> four lenses' worth of findings: no new tab or copyable address, links that
+> look like tags and buttons that look like links, and a screen reader that
+> announces "Open … in Artworks" (moves you) and "Accept" (spends) the same way.
+> Each screen's button was a locally reasonable choice, which is the shape a
+> norm exists for.
+>
+> **Enforcement:** a browser-suite guard, landing with #273, that no in-content
+> control navigates without being a link; until it lands, the Critic.
+>
+> **Status:** in-transition. **Interim rule:** a new or changed screen follows
+> the norm; existing `go(` buttons in `static/screens/` and `static/core/` are
+> migrated by #273, which also carries focus and scroll on navigation.
+>
+> **Retroactivity:** migrate. The residual sites are every in-content `go(`
+> call bound to a `<button>`'s click; #273 enumerates them from the code.
+
 **A working prototype of everything below is committed beside this file:**
 `prototypes/curation-ia-prototype.html` — one self-contained page, no build step,
 opened directly in a browser. It carries a synthetic 2,000-work corpus because

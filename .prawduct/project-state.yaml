@@ -3147,6 +3147,11 @@ artifact_manifest:
       depends_on: [source-plugins]
     - file_path: .prawduct/artifacts/artist-name-identity-findings.md
       depends_on: [data-model, source-plugins]
+    # A UX walkthrough's report (docs/ux-walkthrough.md): what the rendered
+    # product does to a curator, feeding the IA's rulings and the design and
+    # accessibility artifacts the findings were judged against.
+    - file_path: .prawduct/artifacts/ux-review-2026-10.md
+      depends_on: [ia-proposal, information-architecture, design-direction, accessibility-spec, user-scenarios]
     - file_path: .prawduct/artifacts/dezoomify-cli-findings.md
       depends_on: [architecture, operational-spec]
     - file_path: .prawduct/artifacts/museum-label-findings.md
