@@ -288,7 +288,11 @@ convenience would otherwise make that split a migration.
 > handler and the catch-up both ask of `LibraryFacade.destinations`, the theme
 > its Get named or None for the default, so a lost event and a delivered one
 > land the work in the same theme. The run holds the theme id opaquely, with no
-> foreign key; `arrt/tests/integration/test_get_destination.py` holds it.)* **Still in the
+> foreign key; `arrt/tests/integration/test_get_destination.py` holds it.
+> 2026-10-07: Programming's acts on the walls (a hang, *Not this one again*, its
+> undo) reach the Library's history through `LibraryFacade.record`, written after
+> Programming's own change commits, and the facade refuses any other kind;
+> `work_exclusions` holds its work ids with no foreign key, as rule 3 asks.)* **Still in the
 > inventory:** the two foreign keys (rule 3), and one migration:
 > `mark_the_default_theme` (`persistence/migrations.py`) reads the Library's
 > `artworks` to back-fill Programming's `default_theme_offers` on a file that

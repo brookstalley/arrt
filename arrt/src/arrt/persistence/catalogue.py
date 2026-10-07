@@ -30,6 +30,9 @@ from arrt.persistence.records import (
     Artwork,
     ArtworkPage,
     ArtworkStatus,
+    EventKind,
+    EventPage,
+    HistoryEvent,
     MatColor,
     Original,
     QueuedAcquisition,
@@ -387,6 +390,16 @@ class CatalogueStore(Protocol):
 
     def remove_queued_acquisition(self, artwork_id: str) -> None:
         """Delete the queue's row for this work. A missing row is not an error."""
+        ...
+
+    # -- the history ----------------------------------------------------------
+
+    def add_event(self, event: HistoryEvent) -> None:
+        """Record one act. Raises if the id is already stored."""
+        ...
+
+    def list_events(self, *, kinds: Sequence[EventKind] = (), wall_id: str | None = None, limit: int, offset: int) -> EventPage:
+        """A page of history, newest first, narrowed to these kinds (any, when none) and to one wall."""
         ...
 
 

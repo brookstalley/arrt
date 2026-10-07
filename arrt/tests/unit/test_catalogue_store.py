@@ -86,10 +86,15 @@ _EXPECTED_SCHEMA = {
     # named wall. It is the first column this schema has *removed*, which the
     # widening step cannot do — `migrations.py` does, and the test below watches
     # a legacy file lose it. Widened 2026-10-01 with `is_default`, the theme new
-    # works join, under the partial index that allows at most one.
-    "themes": {"id", "name", "description", "created_at", "rotation_interval_seconds", "shuffle", "is_default"},
+    # works join, under the partial index that allows at most one; and with
+    # `is_hidden`, which marks a selection hung on a wall rather than a theme.
+    "themes": {"id", "name", "description", "created_at", "rotation_interval_seconds", "shuffle", "is_default", "is_hidden"},
     # Which works the default theme has been offered, so each is offered once.
     "default_theme_offers": {"artwork_id", "offered_at"},
+    # The works kept off every wall, and the history of every act: both new
+    # tables that `CREATE TABLE IF NOT EXISTS` brings to an older file.
+    "work_exclusions": {"artwork_id", "excluded_at"},
+    "history_events": {"id", "kind", "occurred_at", "work_id", "run_id", "wall_id", "theme_id", "detail"},
     # The wall token columns went on 2026-10-02, when a Player became a client
     # admitted by the client's token (`migrations.retire_wall_tokens`); the
     # client that shows the wall, and on which output, arrived in their place.
