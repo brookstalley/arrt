@@ -669,8 +669,9 @@ class SqliteCatalogue(TableAdapter):
     def circulating_without_qid(self) -> Sequence[tuple[str, str, str | None]]:
         rows = self._store.select_rows(
             'SELECT a."id" AS id, a."title" AS title, a."artist_id" AS artist_id FROM artworks a '
-            'WHERE a."wikidata_qid" IS NULL AND a."status" = ? ORDER BY a."created_at", a.rowid',
-            (str(ArtworkStatus.ACCEPTED),),
+            'WHERE a."wikidata_qid" IS NULL AND a."status" = ? '
+            'AND (a."wikidata_qid_set_by" IS NULL OR a."wikidata_qid_set_by" != ?) ORDER BY a."created_at", a.rowid',
+            (str(ArtworkStatus.ACCEPTED), str(IdentitySetBy.CURATOR)),
         )
         return [(row["id"], row["title"], row["artist_id"]) for row in rows]
 

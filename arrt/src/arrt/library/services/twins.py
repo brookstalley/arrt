@@ -6,7 +6,8 @@ carries one, a held work with no ID is matched by its normalised title and
 artist (`work_dedup_key`, the key discovery already dedups by), and a held
 artist with no ID by name and life dates (`identity.years_agree`). A held work
 or artist that does carry an ID is matched by it alone: a different ID names a
-different item, whatever the title says.
+different item, whatever the title says. One the curator said has no item is
+never matched: they said it is no registry row.
 
 The title-and-artist key inherits that key's limit: two works by one artist
 sharing a title ("Untitled") read as one, so a held *Untitled* folds every

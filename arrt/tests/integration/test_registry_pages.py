@@ -639,6 +639,14 @@ class TestARegistryRowIsFoldedIntoItsHeldTwin:
 
         assert works[0]["held_artwork_ids"] == []
 
+    def test_a_held_work_the_curator_said_has_no_item_is_not_folded(self, http, unlinked_bruegel, services, found):
+        _bruegel, hunters = unlinked_bruegel
+        services.identity.set_work_identity(hunters.id, None)
+
+        works = http.get("/api/registry/search", params={"q": "hunters"}).raise_for_status().json()["works"]
+
+        assert works[0]["held_artwork_ids"] == []
+
     def test_a_held_artist_with_no_qid_is_one_row_by_name_and_life_dates(self, http, unlinked_bruegel, registry):
         bruegel, _hunters = unlinked_bruegel
         registry.people["brueghel"] = [

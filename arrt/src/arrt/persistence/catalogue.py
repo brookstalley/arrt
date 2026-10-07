@@ -238,9 +238,11 @@ class CatalogueStore(Protocol):
         ...
 
     def circulating_without_qid(self) -> Sequence[tuple[str, str, str | None]]:
-        """Every work in circulation that carries no Wikidata QID: its id, title and artist id, oldest first.
+        """Every work in circulation that carries no Wikidata QID and is open to one: id, title and artist id, oldest first.
 
-        What a registry row is matched against by title and artist where no QID can match it.
+        What a registry row is matched against by title and artist where no QID
+        can match it. A work the curator said has no item is left out: they said
+        it is no registry row.
         """
         ...
 
