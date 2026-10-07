@@ -7,6 +7,7 @@ tested and entirely unwired, and only removing the call and re-running the suite
 showed it. So the call is asserted here, through `main()` itself.
 """
 
+import importlib.metadata
 import re
 import sqlite3
 from dataclasses import replace
@@ -38,7 +39,6 @@ from arrt.config import (
     DEFAULT_PHASE1_SEARCH_ALLOWANCE,
     DEFAULT_PHASE2_SEARCHES_PER_WORK,
     DEFAULT_PREVIEW_MAX_BYTES,
-    DEFAULT_PREVIEW_SWEEP_INTERVAL_SECONDS,
     DEFAULT_RESOLUTION_FLOOR_INCHES,
     DEFAULT_ROTATION_INTERVAL_SECONDS,
     DEFAULT_ROTATION_SHUFFLE,
@@ -95,7 +95,6 @@ def _defaults(art_root, **overrides) -> Settings:
             preview_max_bytes=DEFAULT_PREVIEW_MAX_BYTES,
             rotation_interval_seconds=DEFAULT_ROTATION_INTERVAL_SECONDS,
             rotation_shuffle=DEFAULT_ROTATION_SHUFFLE,
-            preview_sweep_interval_seconds=DEFAULT_PREVIEW_SWEEP_INTERVAL_SECONDS,
             backup_dir=None,
             backup_interval_seconds=DEFAULT_BACKUP_INTERVAL_SECONDS,
             backup_keep=DEFAULT_BACKUP_KEEP,
@@ -457,31 +456,6 @@ def test_uvicorn_is_given_no_logging_config_of_its_own(tmp_path, monkeypatch):
     assert passed["log_config"] is None
 
 
-def test_the_configured_sweep_interval_reaches_the_application(tmp_path, monkeypatch):
-    """Sweeping is off unless a caller asks, and this entry point is the caller.
-
-    `create_app` defaults the interval to zero so a test harness cannot acquire a
-    file-deleting thread by accident. The consequence is that a deployment sweeps
-    only because `main` passes its setting through — one line, whose deletion
-    leaves every sweep test green and the plane never reclaiming anything.
-    """
-    art_root = tmp_path / "art"
-    art_root.mkdir()
-    _stub_settings(monkeypatch, art_root, preview_sweep_interval_seconds=900)
-    built: dict = {}
-
-    def capture(services, **kwargs):
-        built.update(kwargs)
-        return object()
-
-    monkeypatch.setattr(entry_point, "create_app", capture)
-    monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
-
-    entry_point.main()
-
-    assert built["preview_sweep_interval_seconds"] == 900
-
-
 def test_the_entry_point_asks_for_the_topic_sweep(tmp_path, monkeypatch):
     """`create_app` sweeps topics only when asked, and this entry point is the one that asks.
 
@@ -614,7 +588,7 @@ def test_startup_with_init_creates_the_root_and_serves(tmp_path, monkeypatch):
 
 
 def test_startup_names_every_image_source_it_wires_in_order(tmp_path, monkeypatch, caplog):
-    """Commons first, then the Art Institute: the order breaks ties, so it is worth reading.
+    """Commons first, then the Art Institute, then the rest by name: the order breaks ties, so it is worth reading.
 
     The Wikidata plugin loads too, with the same user agent, and is not named:
     it finds pages, not images, and the line says which sources can supply one.
@@ -627,18 +601,39 @@ def test_startup_names_every_image_source_it_wires_in_order(tmp_path, monkeypatc
     monkeypatch.setenv("ARTIC_USER_AGENT", "arrt-tests/0")
     monkeypatch.setenv("WIKIDATA_USER_AGENT", "arrt-tests/0")
     monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
+    data_roots = []
+    real_load = entry_point.load_sources
+
+    def load_sources(context, **kwargs):
+        data_roots.append(kwargs.get("data_root"))
+        return real_load(context, **kwargs)
+
+    monkeypatch.setattr(entry_point, "load_sources", load_sources)
 
     with caplog.at_level("INFO"):
         entry_point.main()
 
-    assert "phase2 image_sources=commons,artic " in caplog.text
+    assert f"phase2 image_sources=commons,artic,met,navigart,nga,smk pictures={art_root / 'pictures'} fetching=on" in caplog.text
+    assert data_roots == [art_root / "sources"], "each plugin's directory is under ART_ROOT/sources, never the art root"
     assert "source plugin wikidata loaded" in caplog.text
 
 
 def test_startup_with_no_image_source_says_which_settings_would_add_one(tmp_path, monkeypatch, caplog):
+    """A deployment where every installed plugin declined.
+
+    The built-ins `met` and `smk` need no setting, so they never decline; this
+    is a deployment without them, as one that uninstalled them is. Every other
+    built-in is installed and left unconfigured. `navigart` and `nga` need no
+    setting either, and find a work only through Wikidata, so with no registry
+    each loads as a reader alone and is named as one that finds no image.
+    """
     art_root = tmp_path / "art"
     art_root.mkdir()
     _stub_settings(monkeypatch, art_root)
+    installed = importlib.metadata.entry_points
+    monkeypatch.setattr(
+        importlib.metadata, "entry_points", lambda **kwargs: [p for p in installed(**kwargs) if p.name not in {"met", "smk"}]
+    )
     monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
 
     with caplog.at_level("INFO"):
@@ -649,8 +644,10 @@ def test_startup_with_no_image_source_says_which_settings_would_add_one(tmp_path
     assert (
         "phase2 image_sources=none (commons: WIKIDATA_USER_AGENT is unset, and Commons is reached only through a "
         "work's Wikidata item; artic: ARTIC_USER_AGENT is unset, and the Art Institute is never asked anonymously; "
+        "navigart: loaded, and finds no image; "
+        "nga: loaded, and finds no image; "
         "wikidata: no registry is configured (WIKIDATA_USER_AGENT is unset), and pages are read from a work's item) "
-        "previews=disabled"
+        f"pictures={art_root / 'pictures'} fetching=off"
     ) in caplog.text
 
 

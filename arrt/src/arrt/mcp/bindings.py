@@ -22,13 +22,22 @@ from arrt.counting import agree, agree_partitive, counted
 from arrt.library.acquisition.preparation import PreparationResult
 from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState
 from arrt.library.services.catalogue import MAX_LIST_LIMIT, ArtworkDetail, ArtworkListing, FacetGroup
-from arrt.library.services.discovery import VerdictOutcome, WantedWork
-from arrt.library.services.display_fit import DisplayFit
+from arrt.library.services.discovery import VerdictOutcome
+from arrt.library.services.display_fit import DisplayFit, FitAssessment
+from arrt.library.services.look import INLINED, Inlined, LookPicture, LookView, SourceLook
 from arrt.library.services.previews import InlinePreview
-from arrt.library.services.review import MAX_REVIEW_LIMIT, CandidatePage, CandidateView, InstanceListing, InstanceView
+from arrt.library.services.review import (
+    MAX_REVIEW_LIMIT,
+    CandidatePage,
+    CandidateView,
+    InstanceListing,
+    InstanceView,
+    WantedView,
+)
 from arrt.library.services.runner import RunListing, RunView
 from arrt.library.services.taste import AffinityView
 from arrt.library.services.wikidata_match import WorkMatch
+from arrt.library.sources.plugin import API_VERSION
 from arrt.mcp.envelope import ImageBlock, ok, with_images
 from arrt.mcp.registry import HELP_ACTION, RegistryError
 from arrt.mcp.tools import TOOLS
@@ -43,9 +52,10 @@ from arrt.persistence.discovery_records import (
 )
 from arrt.persistence.records import Artist, Artwork, Client, Directive, Source, Theme, VocabularyKind, Wall
 from arrt.programming.clients import ClientView
-from arrt.programming.display import UNSET, ThemePlacement, WallView, describe_wall_status
+from arrt.programming.display import UNSET, ThemePlacement, WallView
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.services.container import Services
+from arrt.services.health import PicturesReading, SourceHealth
 
 #: A bound action: validated arguments in, a result payload out. Every binding
 #: takes the whole container rather than the one service it happens to need, so
@@ -552,6 +562,102 @@ def _start_get(services: Services, arguments: Mapping[str, Any]) -> dict[str, An
     )
 
 
+def _look(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """What every image source holds of a work, as `GET /api/registry/works/{qid}/look` carries it.
+
+    Held until no source is still being asked, so one call usually carries every
+    answer, and the best pictures travel as image blocks, the whole within the
+    client's minute (`LookService.look_for_a_model`).
+    """
+    view, inlined = services.look.look_for_a_model(arguments["qid"])
+    pictures = _Pictures()
+    fields = _look_fields(view, pictures, inlined.previews)
+    return with_images(ok(**fields, notice=_look_notice(view, inlined, pictures) or None), pictures.blocks)
+
+
+def _look_notice(view: LookView, inlined: Inlined, pictures: _Pictures) -> str:
+    """Say how the pictures line up with the rows, and why any picture did not come, in a look's own terms.
+
+    Not `_Pictures.notice`, which speaks of a review card's cached copies and its
+    `preview_note`; a look's row has neither, and says nothing of its own.
+    """
+    sentences = [view.note]
+    if pictures.blocks:
+        sentences.append(
+            f"{counted(len(pictures.blocks), 'image')} follow the text, best first; each picture's image_block_index "
+            "says which is its own, and a null one means its picture did not come with this answer."
+        )
+    if inlined.deferred:
+        late = len(inlined.deferred)
+        sentences.append(
+            f"{counted(late, 'picture')} had not arrived from {agree(late, 'its source', 'their sources')} in time to "
+            f"send; {agree(late, 'it is', 'they are')} being kept now, so calling action='look' again soon brings "
+            f"{agree(late, 'it', 'them')}."
+        )
+    if inlined.failed:
+        sentences.append(
+            f"{counted(len(inlined.failed), 'picture')} could not be kept: the source gave nothing that is a picture."
+        )
+    if len(view.pictures) > INLINED:
+        sentences.append(f"Only the best {INLINED} pictures are sent as images; the rest are listed without one.")
+    return _joined(*sentences)
+
+
+def _look_fields(view: LookView, pictures: _Pictures, inlined: Mapping[str, InlinePreview]) -> dict[str, Any]:
+    return {
+        "qid": view.qid,
+        "state": str(view.state),
+        "note": view.note,
+        "held_artwork_ids": list(view.held),
+        "sources": [_look_source_fields(source) for source in view.sources],
+        "pictures": [
+            _look_picture_fields(picture, pictures.index_of(None if picture.key is None else inlined.get(picture.key)))
+            for picture in view.pictures
+        ],
+    }
+
+
+def _look_source_fields(source: SourceLook) -> dict[str, Any]:
+    return {
+        "provider": source.provider,
+        "state": str(source.state),
+        "found": len(source.pictures),
+        "refusals": sorted(str(reason) for reason in source.refusals),
+        "answered_at": _moment(source.answered_at),
+        "retry_at": _moment(source.retry_at),
+    }
+
+
+def _look_picture_fields(picture: LookPicture, image_block_index: int | None) -> dict[str, Any]:
+    judged = picture.judged
+    found = judged.found
+    return {
+        "key": picture.key,
+        "provider": found.provider,
+        "url": found.url,
+        "title": found.title,
+        "artist": found.artist,
+        "width": found.estimated_width,
+        "height": found.estimated_height,
+        "fit": _fit_fields(judged.fit),
+        "below_floor": judged.below_floor,
+        "confidence": judged.confidence,
+        "rights_status": None if found.rights_status is None else str(found.rights_status),
+        "selection_rationale": judged.rationale,
+        "image_block_index": image_block_index,
+    }
+
+
+def _fit_fields(fit: FitAssessment) -> dict[str, Any]:
+    """A display-fit verdict in `FitOut`'s names."""
+    return {
+        "verdict": str(fit.fit),
+        "rendered_width": fit.rendered_width,
+        "rendered_height": fit.rendered_height,
+        "rendered_long_edge_inches": fit.rendered_long_edge_inches,
+    }
+
+
 def _list_runs(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     listing = services.runner.list_runs(
         status=arguments.get("status"), kind=arguments.get("kind"), awaiting=bool(arguments.get("awaiting"))
@@ -567,6 +673,35 @@ def _list_runs(services: Services, arguments: Mapping[str, Any]) -> dict[str, An
         truncated=listing.truncated,
         notice=_runs_truncation_notice(listing),
     )
+
+
+def _image_sources(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """Every installed source plugin, in `GET /api/sources`' field names (`test_surface_parity.py`)."""
+    major, minor = API_VERSION
+    sources = services.health.observe_sources()
+    return ok(
+        interface_version=f"{major}.{minor}",
+        sources=[_source_plugin_fields(each) for each in sources],
+        count=len(sources),
+    )
+
+
+def _source_plugin_fields(health: SourceHealth) -> dict[str, Any]:
+    reading = health.reading
+    return {
+        "name": reading.name,
+        "state": reading.state.value,
+        "reason": reading.reason,
+        "faults": reading.faults,
+        "last_fault_at": _moment(reading.last_fault_at),
+        "last_fault_age_seconds": health.last_fault_age_seconds,
+        "last_fault": reading.last_fault,
+        "description": health.describe(),
+        "distribution": reading.identity.distribution,
+        "version": reading.identity.version,
+        "api_major": reading.identity.api_major,
+        "provides": [part.value for part in reading.identity.provides],
+    }
 
 
 def _spend(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -745,8 +880,15 @@ def _nothing_searching(work: CandidateWork) -> str:
 
 
 def _list_wanted(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
-    works = [_wanted_fields(entry) for entry in services.discovery.list_wanted()]
-    return ok(works=works, count=len(works))
+    # No image blocks: the listing is uncapped, and a picture per row would leave
+    # its size unbounded. `list_works` is capped and so may carry them.
+    works = [_wanted_fields(view) for view in services.review.list_wanted(pictures=False)]
+    notice = (
+        "No image blocks come with this listing. art_review(action='get_work', work_id=...) returns a work's picture."
+        if any(entry["shown"] is not None for entry in works)
+        else None
+    )
+    return ok(works=works, count=len(works), notice=notice)
 
 
 def _sighting_hosts(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -783,8 +925,9 @@ def _set_wikidata_item(services: Services, arguments: Mapping[str, Any]) -> dict
     return ok(work=_work_summary(work), wikidata_qid=work.wikidata_qid)
 
 
-def _wanted_fields(entry: WantedWork) -> dict[str, Any]:
+def _wanted_fields(view: WantedView) -> dict[str, Any]:
     """One wanted work, named as `WantedWorkOut` names it (`test_surface_parity.py`)."""
+    entry = view.wanted
     return {
         "work_id": entry.work.id,
         "title": entry.work.proposed_title,
@@ -792,6 +935,8 @@ def _wanted_fields(entry: WantedWork) -> dict[str, Any]:
         "run_id": entry.work.discovery_run_id,
         "wikidata_qid": entry.work.wikidata_qid,
         "scans_turned_down": entry.scans_turned_down,
+        # Read with `pictures=False`, so no row has a block to index.
+        "shown": None if view.shown is None else _shown_fields(view.shown, _Pictures()),
     }
 
 
@@ -821,21 +966,38 @@ def _verdict_notice(outcome: VerdictOutcome) -> str | None:
     )
 
 
+#: Which of the health panel's readings `art_display(action='status')` carries.
+#: The action is built from the same single `HealthService.observe()` call
+#: `GET /api/health` is, and `test_surface_parity.py` compares these two names
+#: against every field of `HealthReading`, so a signal added to the panel has to
+#: be placed here or in `_STATUS_LEAVES` with a reason.
+_STATUS_CARRIES: Final[frozenset[str]] = frozenset({"walls", "pictures"})
+
+#: The panel's readings this action leaves out, and why.
+_STATUS_LEAVES: Final[Mapping[str, str]] = {
+    "backup": "the catalogue's backup is the operator's to watch on Status, not a question a model is asked",
+    "artwork_box": "the deployment's geometry; every size a tool reports is already in inches on this wall",
+    "sources": "art_discovery(action='source_plugins') answers it, in GET /api/sources' names",
+}
+
+
 def _wall_status(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
-    """Every wall's heartbeat, and one sentence across them.
+    """Every wall's heartbeat, and one sentence across them, and the picture store's size.
 
     **All the walls rather than one**, and without a `wall_id` to narrow it. The
     question this action is asked is "is anything wrong", and an action that
     answered it about one room would let a model report a healthy installation
     having looked at the room that was fine.
+
+    **One reading, the health panel's own** (`HealthService.observe`), so the
+    walls and the store are read at one instant and no signal can reach the
+    panel's surface by a path this one does not share.
     """
-    seen = services.display.survey_wall_status()
+    reading = services.health.observe()
+    seen = reading.walls
     return ok(
-        # Composed from the readings just taken rather than from a second pass,
-        # so the sentence and the list below it cannot describe two different
-        # instants — and from the shared function, so it cannot differ in
-        # wording from what the browser panel states.
-        observation=describe_wall_status(seen),
+        # The reading's own sentence, the same one the browser panel states.
+        observation=reading.describe(),
         walls=[
             {
                 "wall_id": each.wall.id,
@@ -850,7 +1012,21 @@ def _wall_status(services: Services, _arguments: Mapping[str, Any]) -> dict[str,
             for each in seen
         ],
         count=len(seen),
+        # A store with no ceiling is watched, not bounded, and "is anything
+        # wrong" includes a disk refusing it.
+        pictures=_pictures_fields(reading.pictures),
     )
+
+
+def _pictures_fields(reading: PicturesReading) -> dict[str, Any]:
+    """The picture store's reading, in `GET /api/health`'s `pictures` names (`test_surface_parity.py`)."""
+    return {
+        "pictures_bytes": reading.pictures_bytes,
+        "pictures_files": reading.pictures_files,
+        "age_seconds": reading.age_seconds,
+        "unreadable": reading.unreadable,
+        "description": reading.describe(),
+    }
 
 
 def _sync(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -1090,8 +1266,10 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_discovery", "cancel"): _cancel_run,
     ("art_discovery", "resolve_images"): _resolve_images,
     ("art_discovery", "get"): _start_get,
+    ("art_discovery", "look"): _look,
     ("art_discovery", "list_runs"): _list_runs,
     ("art_discovery", "spend"): _spend,
+    ("art_discovery", "source_plugins"): _image_sources,
     ("art_review", "list_works"): _list_candidate_works,
     ("art_review", "get_work"): _get_candidate_work,
     ("art_review", "list_images"): _list_candidate_images,

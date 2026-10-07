@@ -19,7 +19,6 @@ from mcp.client.streamable_http import streamable_http_client
 
 from arrt.library.discovery.images import FoundPage
 from arrt.library.registry import ItemId, RegistryCreator, RegistryText, RegistryWork
-from arrt.library.services.previews import PreviewSettings
 from arrt.library.sources.wikidata import WikidataFinder
 from arrt.persistence.discovery_records import CandidateWork, RunStatus, Verdict
 from arrt.services.container import Services
@@ -60,7 +59,6 @@ def services(store, discovery_store, wall_settings, thumbnail_settings, settings
         engine=engine,
         discovery_settings=settings.discovery_settings,
         sources=a_roster(FakeFinder(), WikidataFinder(registry=registry)),
-        previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
         registry=registry,
     )
 

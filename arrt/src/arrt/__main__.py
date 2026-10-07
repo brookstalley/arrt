@@ -28,7 +28,6 @@ from arrt.library.discovery.openrouter import OpenRouterClient
 from arrt.library.discovery.phase_one import build_engine
 from arrt.library.registry import Registry
 from arrt.library.registry.wikidata import INTERACTIVE_TIMEOUT_SECONDS, WikidataRegistry
-from arrt.library.services.previews import PreviewSettings
 from arrt.library.services.thumbnails import ThumbnailSettings
 from arrt.library.sources import SourceContext
 from arrt.library.sources.loading import SourceRoster, environment_of, load_sources
@@ -128,6 +127,7 @@ def _sources(settings: Settings, registry: Registry | None) -> SourceRoster:
             registry=registry,
         ),
         order=settings.source_order,
+        data_root=settings.source_data_path,
     )
 
 
@@ -248,13 +248,13 @@ def main(argv: Sequence[str] = ()) -> None:
     registry = _registry(settings)
     sources = _sources(settings, registry)
     log.info(
-        "phase2 image_sources=%s previews=%s preview_sweep=%s",
+        "phase2 image_sources=%s pictures=%s fetching=%s",
         ",".join(source.provider for source in sources.finders if offers_images(source)) or _no_finder(sources),
-        settings.previews_path if sources.finds_images else "disabled",
-        # On this line rather than its own: the directory and the only thing
-        # that reclaims it are one operational fact, and a deployment reading
-        # `previews=<path>` with no sweep beside it is the state § Risks names.
-        f"every {settings.preview_sweep_interval_seconds}s" if settings.preview_sweep_interval_seconds else "disabled",
+        # Where every fetched picture is kept, printed whatever the sources: the
+        # store answers review from what it keeps whether or not anything here
+        # can fetch, and `fetching` says which.
+        settings.pictures_path,
+        "on" if sources.finds_images else "off",
     )
 
     # Whether tiled acquisition can run at all, and where the master images go.
@@ -330,9 +330,6 @@ def main(argv: Sequence[str] = ()) -> None:
             engine=_engine(settings),
             discovery_settings=settings.discovery_settings,
             sources=sources,
-            previews=(
-                PreviewSettings(art_root=settings.art_root, directory=settings.previews_path) if sources.finds_images else None
-            ),
             acquisition=AcquisitionSettings(
                 art_root=settings.art_root,
                 originals_path=settings.originals_path,
@@ -382,7 +379,6 @@ def main(argv: Sequence[str] = ()) -> None:
         uvicorn.run(
             create_app(
                 services,
-                preview_sweep_interval_seconds=settings.preview_sweep_interval_seconds,
                 sweep_topics=True,
                 acquire_queue=True,
                 backup=(

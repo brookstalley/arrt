@@ -214,9 +214,8 @@ def start_backups(
 ) -> Callable[[], None]:
     """Back up once now, then every `interval_seconds`, on a daemon thread; return the call that stops it.
 
-    Now rather than after the first interval, for the reason the preview sweep
-    gives: a server that restarts more often than the interval would otherwise
-    never back up. A failed pass is logged by the job and the loop carries on —
+    Now rather than after the first interval: a server that restarts more often
+    than the interval would otherwise never back up. A failed pass is logged by the job and the loop carries on —
     the receipt's age on the health panel is what says it has been failing.
     """
     stop = threading.Event()

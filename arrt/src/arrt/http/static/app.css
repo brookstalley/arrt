@@ -269,6 +269,27 @@ header.topbar {
   letter-spacing: 0.04em;
 }
 
+/* The two halves, Held then Not held, each headed above its groups. Drawn for
+   the eye only: each group's own name carries its half to a screen reader. The
+   rule between them is what sets the second half apart from the first. */
+.search-suggestions-half {
+  padding: var(--space-2) var(--space-3) 0;
+  color: var(--text);
+  font: 700 var(--text-sm) / 1.4 var(--font-ui);
+}
+
+.search-suggestions-half ~ .search-suggestions-half {
+  margin-top: var(--space-1);
+  border-top: 1px solid var(--border);
+}
+
+/* A half with nothing in it: one line, under its heading. */
+.search-suggestions-none {
+  padding: var(--space-1) var(--space-3) var(--space-2);
+  color: var(--text-muted);
+  font: var(--text-sm) / 1.4 var(--font-ui);
+}
+
 /* The library's note and the registry's look alike and are not alike: the first
    says the library was not searched, which guards a paid search; the second only
    that Wikidata was not, so tests and readers tell them apart by class. The
@@ -1056,17 +1077,21 @@ button.link {
   }
 }
 
-/* The Artist page's list of what Wikidata holds. It scrolls sideways rather
-   than run past its panel, and on a phone the state badges wrap and drop their
-   thumbnail: the glyph and the word carry the state, as on every badge. */
+/* The lists of what Wikidata holds (*Their work*, *Representative works*,
+   *More by*). A list too wide for its panel scrolls sideways rather than run
+   past it, and on a phone the state badges wrap. */
 .artist-works {
   overflow-x: auto;
 }
 
 /* Registry titles include single words longer than a phone is wide
-   (Dalí's *Galacidalacidesoxyribonucleicacid*). */
-.artist-works td:first-child {
+   (Dalí's *Galacidalacidesoxyribonucleicacid*). On the title cell by class:
+   two of the three lists lead with the Get column. */
+.artist-works td.work-title {
   overflow-wrap: anywhere;
+  /* Breaking anywhere also lets the table squeeze the column to a letter's
+     width, which it does to the title first; this is the floor. */
+  min-width: 7rem;
 }
 
 /* A health reading's sentence names the file it read, and a path is one word
@@ -1075,13 +1100,55 @@ button.link {
   overflow-wrap: break-word;
 }
 
+/* Settings › Sources: one panel per plugin. Their order is the preference
+   order, which the list keeps in its markup and each panel states in words. */
+.source-inventory {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* In a list of works the picture is what a curator chooses by, so it is drawn
+   large enough to tell two works apart, on a phone as on a desktop
+   (`information-architecture.md` § A work's mark). On a phone the badge stacks:
+   the picture, then glyph and word together under it. */
+.artist-works .work-pic {
+  width: 3rem;
+  height: 3rem;
+}
+
+/* A listed work's makers and year under its title, for a phone, where the By
+   and Year columns are folded away to leave the picture room (`workCell` in
+   `core/registry.js`). */
+.by-under,
+.year-under {
+  display: none;
+}
+
 @media (max-width: 40rem) {
   .artist-works .badge {
     white-space: normal;
+    display: inline-grid;
+    grid-template-columns: auto 1fr;
+    align-items: baseline;
   }
 
-  .artist-works .work-pic {
+  .artist-works .badge .work-pic {
+    grid-column: 1 / -1;
+    margin-bottom: var(--space-1);
+  }
+
+  .artist-works .by-col,
+  .artist-works .year-col {
     display: none;
+  }
+
+  .artist-works .by-under,
+  .artist-works .year-under {
+    display: block;
+    margin-top: var(--space-1);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
   }
 }
 
@@ -1901,10 +1968,45 @@ dl.facts dd {
   border-radius: var(--radius-md);
 }
 
+/* -- the look: what the image sources hold of a work not held ---------------
+   One row per source, its name then its state's glyph and word; then the finds
+   as cards, in the work grid's geometry. */
+.look-sources {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.look-source {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.look-provider {
+  min-width: 6rem;
+  color: var(--text-strong);
+}
+
+.look-pictures {
+  margin-bottom: var(--space-4);
+}
+
 /* The badges belong under the picture they describe, not under the panel. */
 .panel .card-footer {
   justify-content: center;
   padding-top: 0;
+}
+
+/* A registry picture's own pixels and fit, under its state, centred with it. */
+.panel .picture-size {
+  justify-content: center;
+  align-items: center;
+  margin-top: var(--space-2);
 }
 
 /* -- confirmation ---------------------------------------------------------- */
@@ -2119,4 +2221,19 @@ dialog.confirm::backdrop {
 .affinity-provenance {
   margin: 0 0 var(--space-2) var(--space-3);
   font-size: var(--text-sm);
+}
+
+/* -- Wanted's pictures ------------------------------------------------------
+
+   Each wanted work pictured by the scan its card shows, at the size the Scans
+   table uses: enough to recognise a work by, and usually below the floor, which
+   the badge under it says. */
+
+.wanted .wanted-picture {
+  width: 8rem;
+}
+
+.wanted .wanted-picture .card-image {
+  width: 8rem;
+  border-radius: var(--radius-sm);
 }

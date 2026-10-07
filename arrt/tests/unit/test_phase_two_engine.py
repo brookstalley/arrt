@@ -17,8 +17,9 @@ import pytest
 from fakes import FakeRegistry
 
 from arrt.library.discovery.images import FoundImage, ImageQuery, ImageSearchFailure
-from arrt.library.discovery.phase_two import CONFIDENT, TITLE_ONLY, UNATTRIBUTED_RECORD, PhaseTwoEngine
+from arrt.library.discovery.phase_two import CONFIDENT, TITLE_ONLY, UNATTRIBUTED_RECORD, JudgedImage, PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
+from arrt.library.registry import RegistryUnavailable
 from arrt.library.services.display_fit import ArtworkBox, DisplayFit
 from arrt.persistence.discovery_records import UnresolvedReason
 from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
@@ -635,3 +636,203 @@ def test_an_artist_refusal_says_how_the_title_was_settled(title, link, caplog):
 def test_a_holders_leading_article_passes_the_title_gate():
     """Run 3's other refusal: MoMA's *The Tree*, asked for as "Tree", with no link to help."""
     assert len(resolve(an_instance("The Tree", artist="Agnes Martin"), title="Tree", artist="Agnes Martin")) == 1
+
+
+# -- a holder's name for the artist that Wikidata records -----------------------
+#
+# Art UK writes "Laurence Stephen Lowry"; the Library's artist is Wikidata's label,
+# "L. S. Lowry". Under the key alone the two disagree, and the right image was
+# refused even on the page Lowry's work's item records.
+
+LOWRY_WORK = "Q119294634"
+LOWRY = "Q1354277"
+ARTUK_PAGE = "https://artuk.org/discover/artworks/portrait-of-a-house-162388"
+LOWRY_NAMES = {LOWRY: {"L. S. Lowry", "Laurence Stephen Lowry", "Lowry, Lawrence Stephen", "LS Lowry"}}
+TAEUBER_ARP = "Q123307"
+JEAN_ARP = "Q153739"
+#: Both makers of a collaboration, each with their own names: neither name is the other's.
+COUPLE_NAMES = {
+    TAEUBER_ARP: {"Sophie Taeuber-Arp", "Sophie Taeuber", "Sophie Henriette Taeuber-Arp"},
+    JEAN_ARP: {"Jean Arp", "Hans Arp"},
+}
+
+
+def an_artuk_record(title: str = "Portrait of a House", *, artist: str = "Laurence Stephen Lowry", url: str = ARTUK_PAGE):
+    return FoundImage(
+        url=url,
+        provider="artic",  # the stub provider this module wires; the page is Art UK's
+        source_class=SourceClass.INSTITUTIONAL,
+        acquisition_method=AcquisitionMethod.DIRECT_HTTP,
+        title=title,
+        artist=artist,
+        estimated_width=3000,
+        estimated_height=2400,
+    )
+
+
+def lowry_registry(*, pages=(ARTUK_PAGE,), names=None) -> FakeRegistry:
+    return FakeRegistry(pages={LOWRY_WORK: list(pages)}, names={LOWRY_WORK: LOWRY_NAMES if names is None else names})
+
+
+def lowry_resolution(*instances: FoundImage, registry, artist: str | None = "L. S. Lowry", qid: str | None = LOWRY_WORK):
+    return PhaseTwoEngine(ImageSourcePool([StubSearch(*instances)]), box=BOX, registry=registry).resolve(
+        ImageQuery(title="Portrait of a House", artist=artist, qid=qid)
+    )
+
+
+def refusal_line(caplog) -> logging.LogRecord:
+    (refused,) = [record for record in caplog.records if getattr(record, "event", None) == "phase_two.not_the_work"]
+    return refused
+
+
+def test_a_holders_full_name_is_the_artist_wikidata_labels_by_initials_on_the_items_page(caplog):
+    with caplog.at_level(logging.INFO):
+        resolution = lowry_resolution(an_artuk_record(), registry=lowry_registry())
+
+    (entry,) = resolution.instances
+    assert entry.confidence == CONFIDENT
+    assert resolution.refusals == frozenset()
+    assert "matching the requested title, on the page the work's Wikidata item records" in entry.rationale
+    assert "by the requested artist under another name Wikidata records for them" in entry.rationale
+    (renamed,) = [record for record in caplog.records if getattr(record, "event", None) == "phase_two.renamed"]
+    assert (renamed.work_artist, renamed.found_artist, renamed.qid) == ("L. S. Lowry", "Laurence Stephen Lowry", LOWRY_WORK)
+
+
+def test_a_differing_title_and_a_differing_name_on_the_items_page_say_both():
+    (entry,) = lowry_resolution(an_artuk_record("A House, Portrait"), registry=lowry_registry()).instances
+
+    assert entry.rationale.startswith("artic holds this as 'A House, Portrait' by Laurence Stephen Lowry, a different title,")
+    assert "under another name Wikidata records for them" in entry.rationale
+
+
+def test_the_same_name_off_the_items_page_is_still_refused(caplog):
+    """A title match alone is not enough beside an alias: "Bruegel" names the father and the son who copied him."""
+    with caplog.at_level(logging.INFO):
+        resolution = lowry_resolution(
+            an_artuk_record(url="https://artuk.org/discover/artworks/another-house-1"), registry=lowry_registry()
+        )
+
+    assert resolution.instances == []
+    assert resolution.refusals == {UnresolvedReason.IDENTITY_REFUSED}
+    assert refusal_line(caplog).names == "not_recorded"
+
+
+def test_an_exact_artist_asks_wikidata_nothing_and_says_nothing_of_other_names(caplog):
+    registry = lowry_registry()
+    with caplog.at_level(logging.INFO):
+        (entry,) = lowry_resolution(an_artuk_record(artist="L. S. Lowry"), registry=registry).instances
+
+    assert (registry.pages_asked, registry.names_asked) == ([], [])
+    assert "another name" not in entry.rationale
+    assert "matching the requested title and artist" in entry.rationale
+    assert not [record for record in caplog.records if getattr(record, "event", None) == "phase_two.renamed"]
+
+
+def test_the_names_are_asked_once_however_many_records_need_them():
+    registry = lowry_registry(pages=(ARTUK_PAGE, ARTUK_PAGE + "-2"))
+    resolution = lowry_resolution(an_artuk_record(), an_artuk_record(url=ARTUK_PAGE + "-2"), registry=registry)
+
+    assert len(resolution.instances) == 2
+    assert (registry.pages_asked, registry.names_asked) == ([LOWRY_WORK], [LOWRY_WORK])
+
+
+@pytest.mark.parametrize(
+    ("asked", "holds"),
+    [
+        # Two people, two names, on the item's own page: the cross-check this must keep.
+        ("Sophie Taeuber-Arp", "Jean Arp"),
+        # Each a name of one of the work's two makers, but not of the same one.
+        ("Hans Arp", "Sophie Taeuber"),
+        # The holder's name is the creator's; the Library's is nobody's.
+        ("Somebody Else", "Sophie Taeuber"),
+    ],
+)
+def test_two_names_that_are_not_one_creators_are_refused_on_the_items_page(asked, holds, caplog):
+    registry = FakeRegistry(pages={"Q19884054": [MOMA_PAGE]}, names={"Q19884054": COUPLE_NAMES})
+    with caplog.at_level(logging.INFO):
+        resolution = linked_resolution(a_moma_page(artist=holds), registry=registry, artist=asked)
+
+    assert resolution.instances == []
+    assert resolution.refusals == {UnresolvedReason.IDENTITY_REFUSED}
+    assert refusal_line(caplog).names == "not_a_creators_name"
+
+
+def test_one_creators_two_names_on_a_two_maker_work_pass():
+    """The falsifying sibling of the case above: the same table, one person's two names."""
+    registry = FakeRegistry(pages={"Q19884054": [MOMA_PAGE]}, names={"Q19884054": COUPLE_NAMES})
+    (entry,) = linked_resolution(a_moma_page(artist="Hans Arp"), registry=registry, artist="Jean Arp").instances
+
+    assert entry.confidence == CONFIDENT
+
+
+def test_a_name_wikidata_does_not_record_is_refused():
+    """`Sir Muirhead Bone` and `Robert Havell after John James Audubon` stay refused: no name of theirs says so."""
+    resolution = lowry_resolution(an_artuk_record(artist="Sir L. S. Lowry RA"), registry=lowry_registry())
+
+    assert resolution.refusals == {UnresolvedReason.IDENTITY_REFUSED}
+
+
+def test_names_wikidata_could_not_be_asked_refuse_and_say_so(caplog):
+    registry = lowry_registry()
+
+    def down(qid):
+        raise RegistryUnavailable("Wikidata is down")
+
+    registry.creator_names = down
+    engine = PhaseTwoEngine(ImageSourcePool([StubSearch()]), box=BOX, registry=registry)
+    query = ImageQuery(title="Portrait of a House", artist="L. S. Lowry", qid=LOWRY_WORK)
+    link = engine.link(query)
+    with caplog.at_level(logging.INFO):
+        outcome = engine.judge(query, an_artuk_record(), link)
+
+    assert outcome is UnresolvedReason.IDENTITY_REFUSED
+    assert refusal_line(caplog).names == "names_unavailable"
+    assert "phase_two.names_unavailable" in [getattr(record, "event", None) for record in caplog.records]
+    # Read by a look, to keep a "none" only as long as an outage is kept.
+    assert link.unavailable
+
+
+def test_a_pages_outage_on_a_title_match_with_a_differing_artist_marks_the_link_unavailable():
+    """The title matched, so before this rule nothing was asked; now the page is, and a look must read its outage."""
+    engine = PhaseTwoEngine(ImageSourcePool([StubSearch()]), box=BOX, registry=FakeRegistry(failing=True))
+    query = ImageQuery(title="Portrait of a House", artist="L. S. Lowry", qid=LOWRY_WORK)
+    link = engine.link(query)
+
+    assert engine.judge(query, an_artuk_record(), link) is UnresolvedReason.IDENTITY_REFUSED
+    assert link.unavailable
+
+
+def test_a_link_that_asked_everything_successfully_is_not_unavailable():
+    engine = PhaseTwoEngine(ImageSourcePool([StubSearch()]), box=BOX, registry=lowry_registry())
+    query = ImageQuery(title="Portrait of a House", artist="L. S. Lowry", qid=LOWRY_WORK)
+    link = engine.link(query)
+
+    assert isinstance(engine.judge(query, an_artuk_record(), link), JudgedImage)
+    assert not link.unavailable
+
+
+@pytest.mark.parametrize(("registry", "qid", "reason"), [(None, LOWRY_WORK, "no_registry"), (lowry_registry(), None, "no_qid")])
+def test_a_link_asked_names_with_nothing_to_ask_says_why_and_asks_nothing(registry, qid, reason):
+    """The engine asks for the page first, which answers these two already; a link asked directly must not reach the registry."""
+    link = PhaseTwoEngine(ImageSourcePool([StubSearch()]), box=BOX, registry=registry).link(
+        ImageQuery(title="Portrait of a House", artist="L. S. Lowry", qid=qid)
+    )
+
+    assert link.unnamed("L. S. Lowry", "Laurence Stephen Lowry") == reason
+    assert registry is None or registry.names_asked == []
+
+
+@pytest.mark.parametrize(
+    ("registry", "qid", "names"),
+    [
+        (None, LOWRY_WORK, "no_registry"),
+        (lowry_registry(), None, "no_qid"),
+        (FakeRegistry(failing=True), LOWRY_WORK, "registry_unavailable"),
+    ],
+)
+def test_with_no_item_to_vouch_for_the_page_a_differing_name_is_refused(registry, qid, names, caplog):
+    with caplog.at_level(logging.INFO):
+        resolution = lowry_resolution(an_artuk_record(), registry=registry, qid=qid)
+
+    assert resolution.instances == []
+    assert refusal_line(caplog).names == names

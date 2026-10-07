@@ -37,6 +37,7 @@ import { viewHealth } from "./screens/health.js";
 import { viewReview } from "./screens/review.js";
 import { RUN_POLL_MAX_FAILURES, viewRun } from "./screens/run.js";
 import { viewSearch } from "./screens/search.js";
+import { viewSources } from "./screens/sources.js";
 import { viewTaste } from "./screens/taste.js";
 import { viewTheme } from "./screens/theme.js";
 import { viewTopic, viewTopics } from "./screens/topics.js";
@@ -118,12 +119,15 @@ const ROUTES = {
   // Radarr's Settings › Download Clients: the external programs the server
   // works with, which here are the installed Players (`clients.md` ruling 1).
   clients: { render: viewClients, section: "settings", page: "Clients" },
+  // Radarr's Settings › Indexers: the places the server searches, which here
+  // are the installed source plugins, with where each came from.
+  sources: { render: viewSources, section: "settings", page: "Sources" },
   health: { render: viewHealth, section: "system", page: "Status" },
   work: { render: viewWork, detail: true, opensFrom: "collection" },
   // Everything a few words find, the library's and Wikidata's (ruling 2), as
-  // Sonarr's search results are a page of their own. Reached from the
-  // dropdown's last row; Enter still opens Artworks filtered, so it returns
-  // there by default.
+  // Sonarr's search results are a page of their own. Reached by Enter in the
+  // search box (the owner, 2026-10-06) and from the dropdown's last row; it
+  // returns to Artworks by default.
   search: { render: viewSearch, opensFrom: "collection" },
   // One topic, browsed like a genre, reached from Library › Topics, the top
   // bar's dropdown, or a search on the Topics page, and returned to Topics by a

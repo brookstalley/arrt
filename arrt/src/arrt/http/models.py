@@ -123,6 +123,22 @@ class RegistryHoldingOut(BaseModel):
     works: int
 
 
+class ArtistCandidateOut(BaseModel):
+    qid: str
+    name: str
+    born: int | None
+    died: int | None
+    #: Whether their years agree with the library's, by the matcher's own test.
+    years_agree: bool
+
+
+class UnlinkedArtistOut(BaseModel):
+    artist_id: str
+    name: str
+    born: int | None
+    died: int | None
+
+
 class ArtistRegistryOut(BaseModel):
     """What Wikidata knows about an artist, or why there is nothing to show.
 
@@ -149,6 +165,12 @@ class ArtistRegistryOut(BaseModel):
     #: How many works the registry lists in all; `works` is the most renowned of them.
     works_total: int
     holdings: list[RegistryHoldingOut]
+    #: State `no_identity` only: who Wikidata's name search says the library's
+    #: artist might be, those whose years agree first. Proposed, never stored.
+    candidates: list[ArtistCandidateOut] = []
+    #: An artist reached by QID: the library's artists of the same name with no
+    #: QID, whom the page offers to link to this item.
+    unlinked: list[UnlinkedArtistOut] = []
 
 
 class RegistryCreatorOut(BaseModel):
@@ -191,6 +213,79 @@ class RegistryWorkPageOut(BaseModel):
     #: `held_artwork_ids` rather than instead of it: the page decides which mark
     #: wins (held), and both are true when a wanted work has since been acquired.
     wanted: bool
+    #: The work's own height and width in centimetres, each null where Wikidata
+    #: gives none, or more than one that disagree.
+    height_cm: float | None
+    width_cm: float | None
+    #: The picture's size in pixels, as Commons holds the file; null with no
+    #: picture, or when Commons could not be asked.
+    image_width: int | None
+    image_height: int | None
+    #: How that picture would meet this deployment's wall, as the review grid
+    #: judges a scan; null whenever the size is.
+    fit: FitOut | None
+
+
+class LookPictureOut(BaseModel):
+    """One instance a source holds of a work, judged as a Get's run would judge it.
+
+    `key` names its picture at `/api/registry/works/{qid}/look/pictures/{key}`,
+    the picture store's key computed on the server; null when the source gave no
+    preview. Titles and artists are what the source calls the work: untrusted text.
+    """
+
+    key: str | None
+    provider: str
+    #: Where the instance lives at its source. Shown as text, never fetched by the page.
+    url: str
+    title: str
+    artist: str | None
+    #: The scan's own size in pixels, as the source reported it. Never null in
+    #: practice, since phase 2 refuses a find whose size is unknown; typed as the
+    #: source's report is.
+    width: int | None
+    height: int | None
+    fit: FitOut
+    below_floor: bool
+    confidence: float
+    rights_status: str | None
+    #: Why phase 2 keeps it, in the words a review card uses, under the name a
+    #: scan's carries everywhere else (`InstanceOut`, `list_images`).
+    selection_rationale: str
+
+
+class LookSourceOut(BaseModel):
+    """What one image source said about the work."""
+
+    provider: str
+    #: `asking`, `found`, `holds_none`, `refused` (it holds a work by this title,
+    #: or on the item's page, by another artist), `unreachable` or `cannot`.
+    state: str
+    #: How many instances it holds that a Get would keep.
+    found: int
+    #: The gates that turned its other results away: `not_held`,
+    #: `identity_refused`, `size_unknown`.
+    refusals: list[str]
+    answered_at: str | None
+    #: When a source that could not be asked will be asked again.
+    retry_at: str | None
+
+
+class LookOut(BaseModel):
+    """What the image sources hold of a work the library does not, before any Get.
+
+    `state` is `asking` (poll again) or `answered`, or why nothing is asked:
+    `held` (the page goes to `held_artwork_ids`), `being_got`, `no_sources`,
+    `not_configured`, `not_found`, `unavailable`. `pictures` are every source's
+    finds, best first.
+    """
+
+    qid: str
+    state: str
+    note: str | None
+    held_artwork_ids: list[str]
+    sources: list[LookSourceOut]
+    pictures: list[LookPictureOut]
 
 
 class RegistryPersonFoundOut(BaseModel):
@@ -944,6 +1039,42 @@ class SourcePluginOut(BaseModel):
     last_fault_age_seconds: float | None
     last_fault: str | None
     description: str
+    #: The installed distribution that registers the plugin, and its version;
+    #: null for a plugin registered by hand, or one two distributions both claim.
+    distribution: str | None
+    version: str | None
+    #: The source interface major the plugin was written for; null when it
+    #: failed before saying.
+    api_major: int | None
+    #: What its parts provide: `finds_images`, `finds_pages`, `reads`,
+    #: `browses`. Empty for a plugin that did not load.
+    provides: list[str]
+
+
+class SourcesOut(BaseModel):
+    """Every installed source plugin, most preferred first, and the interface this Arrt provides."""
+
+    #: `major.minor`. A plugin written for another major is refused by name.
+    interface_version: str
+    sources: list[SourcePluginOut]
+
+
+class PicturesOut(BaseModel):
+    """How much the picture store keeps: its files and their bytes, and how old the count is.
+
+    The store has no ceiling (owner, 2026-10-06), so its growth is watched here
+    rather than bounded. The same names, and the same values, as `art_display`'s
+    `status` carries (`test_surface_parity.py`).
+    """
+
+    pictures_bytes: int
+    pictures_files: int
+    #: Seconds since the walk the count came from, which is reused for ten minutes.
+    age_seconds: float
+    #: Directories and files the walk could not read: not zero is a disk fault,
+    #: and the count is short by what they hold.
+    unreadable: int
+    description: str
 
 
 class HealthOut(BaseModel):
@@ -973,6 +1104,7 @@ class HealthOut(BaseModel):
     #: Every installed source plugin, most preferred first. Empty when none is
     #: installed, which the panel says in words.
     sources: list[SourcePluginOut]
+    pictures: PicturesOut
 
 
 class RunOut(BaseModel):
@@ -1065,6 +1197,11 @@ class CandidateWorkOut(BaseModel):
     offered_for_artist: str | None
     offered_artist_matched: int | None
     verdict: str
+    #: Whether the verdict is final (`Verdict.is_terminal`): accepted or rejected.
+    #: A decided work takes no second verdict and no change of scan, so the review
+    #: card offers neither; served rather than listed in the client, so a verdict
+    #: made final later reaches the card without a second copy to update.
+    decided: bool
     resolution_status: str
     #: Which kind of nothing an unresolved work came back with, or null. A bare
     #: `unresolved` cannot tell a title nobody holds from a scan too small for
@@ -1240,8 +1377,8 @@ class InstanceOut(BaseModel):
     #: painting a blank box while it finds out.
     preview_available: bool
     #: Present exactly when no picture travels, saying which of the four reasons
-    #: applies — never cached, reclaimed after a verdict, gone from disk, or
-    #: undecodable. They send whoever asks to different places.
+    #: applies — never kept (or, on a work decided before 2026-10-06, deleted
+    #: then), gone from disk, or undecodable. They send whoever asks to different places.
     preview_note: str | None
 
 
@@ -1441,6 +1578,10 @@ class WantedWorkOut(BaseModel):
     #: How many of its scans the curator turned down: zero for a work wanted
     #: because nothing was found. Counted from its scans, not stored.
     scans_turned_down: int
+    #: The scan its review card pictures it by (`CandidateCardOut.shown`), or null
+    #: when nothing was found or every scan was turned down. Usually below the
+    #: floor, since a wanted work holds no scan the curator would accept.
+    shown: InstanceOut | None = None
 
 
 class WantedListingOut(BaseModel):
@@ -1448,7 +1589,8 @@ class WantedListingOut(BaseModel):
 
     Uncapped, and what bounds it is the curator: each row is a work somebody
     wanted by name, one call per work, so the list grows no faster than works are
-    judged, and a row is a few short strings with no picture.
+    judged. A row carries its picture's description, never its bytes: whether one
+    exists is a `stat`, and the browser asks for each by URL as it scrolls in.
     """
 
     works: list[WantedWorkOut]
@@ -1574,9 +1716,9 @@ class SampleOut(BaseModel):
     **Not a candidate and not on its way to becoming one.** Nothing here has been
     proposed, judged, or acquired — it is a work the wired collection holds by an
     artist the model named. `image_url` is the collection's own preview address,
-    loaded by the browser directly, because a conversation caches no files: a
-    picture nobody chose is not a preview of anything, and storing one would need
-    a sweep for files that were never candidates.
+    loaded by the browser directly, because a conversation keeps no files of its
+    own. Moving such pictures behind Arrt's routes, into the picture store, is a
+    plan of its own (`build-plan-picture-store.md` § Not in this plan).
     """
 
     title: str

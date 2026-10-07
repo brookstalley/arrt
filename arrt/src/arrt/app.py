@@ -25,14 +25,12 @@ from typing import Final
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
-from fastapi.staticfiles import StaticFiles
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from starlette.types import Receive, Scope, Send
 
 from arrt.config import DEFAULT_BACKUP_INTERVAL_SECONDS
 from arrt.http import api, pages, player
 from arrt.library.acquisition.queue import start_acquisition_queue
-from arrt.library.services.sweep import start_sweeping
 from arrt.library.services.topic_sweep import start_topic_sweep
 from arrt.mcp.server import build_server
 from arrt.persistence.backup import CatalogueBackup, start_backups
@@ -61,10 +59,9 @@ MCP_SESSION_IDLE_TIMEOUT_SECONDS: Final[float] = 1800.0
 STATIC_PATH: Final[str] = "/static"
 
 
-def create_app(  # noqa: C901 -- the composition root: each optional background job is wired in one place
+def create_app(
     services: Services,
     *,
-    preview_sweep_interval_seconds: int = 0,
     sweep_topics: bool = False,
     acquire_queue: bool = False,
     backup: CatalogueBackup | None = None,
@@ -76,15 +73,13 @@ def create_app(  # noqa: C901 -- the composition root: each optional background 
     application against a scratch catalogue, and so that nothing at import time
     touches the filesystem.
 
-    **Sweeping is off unless a caller asks for it**, and the deployment entry
-    point is what asks. A background thread that deletes files is not something a
-    test harness should acquire by constructing the application: a suite that
-    accepted a work and then read its review card would be racing a reclamation
-    it never opted into, and the failure would be intermittent.
+    **Every background job is off unless a caller asks for it**, and the
+    deployment entry point is what asks. A thread that writes is not something a
+    test harness should acquire by constructing the application.
 
-    **The topic sweep is off unless asked for, for the same reason**: a suite
-    reading facet rows must not race a thread writing them. Asked for with no
-    registry configured, it starts nothing and says so once.
+    **The topic sweep is off unless asked for**: a suite reading facet rows must
+    not race a thread writing them. Asked for with no registry configured, it
+    starts nothing and says so once.
 
     **The acquisition queue is off unless asked for, for the same reason and a
     stronger one**: it writes originals, renditions and spend rows behind a test
@@ -98,19 +93,6 @@ def create_app(  # noqa: C901 -- the composition root: each optional background 
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        # Started before the surface is served and stopped after it is not, so
-        # the sweep's whole life is inside the application's. Nothing it does is
-        # request-scoped; it simply must not outlive the process that owns the
-        # catalogue it reads.
-        halt = (
-            None
-            if preview_sweep_interval_seconds <= 0
-            else start_sweeping(services.sweep, interval_seconds=preview_sweep_interval_seconds)
-        )
-        if halt is None:
-            log.info("candidate previews will not be swept; PREVIEW_SWEEP_INTERVAL_SECONDS is 0")
-        else:
-            log.info("sweeping candidate previews every %ds", preview_sweep_interval_seconds)
         halt_topics = start_topic_sweep(services.topic_sweep) if sweep_topics else None
         halt_queue = start_acquisition_queue(services.acquisition_queue) if acquire_queue else None
         halt_backups = None if backup is None else start_backups(backup, interval_seconds=backup_interval_seconds)
@@ -123,8 +105,6 @@ def create_app(  # noqa: C901 -- the composition root: each optional background 
                 log.info("curation plane ready; MCP server mounted at %s", MCP_PATH)
                 yield
         finally:
-            if halt is not None:
-                halt()
             if halt_topics is not None:
                 halt_topics()
             if halt_queue is not None:
@@ -183,6 +163,6 @@ def create_app(  # noqa: C901 -- the composition root: each optional background 
     app.include_router(api.router)
     app.include_router(player.router)
     app.include_router(pages.router)
-    app.mount(STATIC_PATH, StaticFiles(directory=pages.STATIC_DIR), name="static")
+    app.mount(STATIC_PATH, pages.ClientFiles(directory=pages.STATIC_DIR), name="static")
 
     return app

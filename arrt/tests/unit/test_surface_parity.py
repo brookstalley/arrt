@@ -31,13 +31,27 @@ candidate-work summary are not that: they are one shape written twice.
 from datetime import UTC, datetime
 
 import pytest
+from fakes import an_image
 
 from arrt.http import api as http_api
 from arrt.http import models as http_models
+from arrt.library.discovery.phase_two import JudgedImage
 from arrt.library.services.discovery import VerdictOutcome, WantedWork
+from arrt.library.services.display_fit import DisplayFit, FitAssessment
+from arrt.library.services.look import LookPicture, LookState, LookView, SourceLook, SourceState
+from arrt.library.services.review import WantedView
+from arrt.library.sources.loading import PluginIdentity, PluginPart, PluginReading, PluginState
 from arrt.mcp import bindings
-from arrt.persistence.discovery_records import CandidateWork, DiscoveryRun, InitiatedBy, RunKind, RunStatus
+from arrt.persistence.discovery_records import (
+    CandidateWork,
+    DiscoveryRun,
+    InitiatedBy,
+    RunKind,
+    RunStatus,
+    UnresolvedReason,
+)
 from arrt.persistence.records import Artist, Artwork, Theme
+from arrt.services.health import PicturesReading, SourceHealth
 
 WHEN = datetime(2026, 8, 6, 12, 0, tzinfo=UTC)
 
@@ -137,22 +151,27 @@ def test_every_fact_the_artist_record_holds_reaches_both_surfaces():
         )
 
 
-#: The one field `CandidateWorkOut` carries that `_work_summary` does not, and
-#: why the difference is intended on both sides rather than an omission.
+#: The fields `CandidateWorkOut` carries that `_work_summary` does not, and why
+#: each difference is intended on both sides rather than an omission.
 #:
-#: The HTTP model shows the run view and the review grid, where a curator judging
-#: a work list is judging the engine's reasoning as much as the titles. The MCP
-#: summary is deliberately "enough to choose and to act, and no more" — and the
-#: same prose repeated across forty listing rows is what pushed that shape past
-#: the token budget its own docstring records measuring.
+#: `rationale`: the HTTP model shows the run view and the review grid, where a
+#: curator judging a work list is judging the engine's reasoning as much as the
+#: titles. The MCP summary is deliberately "enough to choose and to act, and no
+#: more" — and the same prose repeated across forty listing rows is what pushed
+#: that shape past the token budget its own docstring records measuring.
 #:
-#: Named rather than tolerated by a subset check: an exemption list of one is a
-#: decision, and a bare `<=` would silently absorb the next four.
-HTTP_ONLY_ON_CANDIDATE_WORK = frozenset({"rationale"})
+#: `decided`: carried for the browser for the reason `RunOut.is_terminal` is
+#: (below). The review card hides its verdict controls on it, and a list of
+#: final verdicts copied into the client is what would go stale. A model reads
+#: `verdict` itself, and a second verdict's refusal says the first was final.
+#:
+#: Named rather than tolerated by a subset check: an exemption list is a
+#: decision per field, and a bare `<=` would silently absorb the next four.
+HTTP_ONLY_ON_CANDIDATE_WORK = frozenset({"rationale", "decided"})
 
 
-def test_the_candidate_work_projections_agree_but_for_one_named_field():
-    """The seven keys the MCP surface writes once, against the HTTP model's eight.
+def test_the_candidate_work_projections_agree_but_for_the_named_fields():
+    """The keys the MCP surface writes once, against the HTTP model's, which adds only the named fields.
 
     Until 2026-08-06 those seven were written out at four sites with identical
     expressions — three in `bindings.py` and one in `api.py`. Adding `provenance`
@@ -174,7 +193,7 @@ def test_the_candidate_work_projections_agree_but_for_one_named_field():
 
 def test_the_wanted_work_projections_carry_the_same_field_names():
     """Wanted and `art_review(action='list_wanted')` read one listing."""
-    entry = WantedWork(work=_work(), scans_turned_down=2)
+    entry = WantedView(wanted=WantedWork(work=_work(), scans_turned_down=2), shown=None)
 
     check_parity("WantedWork", set(bindings._wanted_fields(entry)), _fields(http_models.WantedWorkOut))
 
@@ -415,3 +434,83 @@ def test_the_wikidata_match_projections_carry_the_same_field_names():
     )
 
     check_parity("WorkMatch", set(bindings._match_fields(entry)), _fields(http_models.WorkMatchOut))
+
+
+def test_the_source_plugin_projections_agree_value_for_value():
+    """Settings › Sources and `art_discovery(action='source_plugins')` read one plugin the same way."""
+    reading = PluginReading(
+        name="met",
+        state=PluginState.LOADED,
+        reason=None,
+        faults=2,
+        last_fault_at=WHEN,
+        last_fault="ImageSearchFailure: down",
+        identity=PluginIdentity(distribution="arrt", version="0.3.0", api_major=1, provides=(PluginPart.FINDS_IMAGES,)),
+    )
+    health = SourceHealth(reading=reading, last_fault_age_seconds=12.0)
+
+    check_parity("SourcePlugin", set(bindings._source_plugin_fields(health)), _fields(http_models.SourcePluginOut))
+    assert bindings._source_plugin_fields(health) == http_api._source_plugin(health).model_dump()
+
+
+def test_the_picture_store_readings_agree_value_for_value():
+    """Status and `art_display(action='status')` state the store's size in the same names and numbers."""
+    reading = PicturesReading(pictures_bytes=123_456_789, pictures_files=2_468, age_seconds=42.0, unreadable=3)
+
+    check_parity("Pictures", set(bindings._pictures_fields(reading)), _fields(http_models.PicturesOut))
+    assert bindings._pictures_fields(reading) == http_api._pictures(reading).model_dump()
+    assert {"pictures_bytes", "pictures_files"} <= set(bindings._pictures_fields(reading))
+
+
+def test_every_health_reading_is_placed_on_the_mcp_status_or_left_off_it_by_name():
+    """`art_display(action='status')` is the panel's twin; a new panel signal must be placed, not forgotten.
+
+    Derived from `HealthReading`'s own fields, so a reading added to the panel
+    fails here until the binding says whether its twin carries it.
+    """
+    from dataclasses import fields
+
+    from arrt.services.health import HealthReading
+
+    panel = {field.name for field in fields(HealthReading)}
+    carried, left = set(bindings._STATUS_CARRIES), set(bindings._STATUS_LEAVES)
+
+    assert carried | left == panel
+    assert not carried & left
+    assert all(reason.strip() for reason in bindings._STATUS_LEAVES.values())
+
+
+#: The one name a look's picture carries on MCP alone: which image block is its
+#: own. A browser asks for the picture by key instead.
+MCP_ONLY_ON_LOOK_PICTURE = frozenset({"image_block_index"})
+
+
+def _a_look() -> LookView:
+    found = an_image("Tantra-Vision", artist="Ejler Bille", width=2201, height=2221, provider="smk")
+    fit = FitAssessment(fit=DisplayFit.NATIVE, rendered_width=1800, rendered_height=1816, rendered_long_edge_inches=31.4)
+    picture = LookPicture(
+        key="a" * 64, judged=JudgedImage(found=found, confidence=0.95, quality_score=0.8, rationale="Why.", fit=fit)
+    )
+    source = SourceLook(
+        provider="smk",
+        state=SourceState.FOUND,
+        pictures=(picture,),
+        refusals=frozenset({UnresolvedReason.NOT_HELD}),
+        answered_at=WHEN,
+    )
+    return LookView(qid="Q20267229", state=LookState.ANSWERED, sources=(source,), pictures=(picture,))
+
+
+def test_the_look_projections_agree_value_for_value_but_for_the_image_block():
+    """`art_discovery(action='look')` is `GET /api/registry/works/{qid}/look`, in the same names and values."""
+    view = _a_look()
+    tool = bindings._look_fields(view, bindings._Pictures(), {})
+    route = http_api._look(view)
+
+    check_parity("Look", set(tool), _fields(http_models.LookOut))
+    check_parity("LookSource", set(tool["sources"][0]), _fields(http_models.LookSourceOut))
+    check_parity("LookPicture", set(tool["pictures"][0]) - MCP_ONLY_ON_LOOK_PICTURE, _fields(http_models.LookPictureOut))
+    check_parity("Fit", set(bindings._fit_fields(view.pictures[0].judged.fit)), _fields(http_models.FitOut))
+    assert set(tool["pictures"][0]) >= MCP_ONLY_ON_LOOK_PICTURE, "an exemption for a field the tool no longer carries"
+    tool["pictures"] = [{k: v for k, v in p.items() if k not in MCP_ONLY_ON_LOOK_PICTURE} for p in tool["pictures"]]
+    assert tool == route.model_dump()

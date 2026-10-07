@@ -83,6 +83,36 @@ narrower than a path: the Art Institute's checks the museum's hosts as well as
 `/artworks/<id>`, because another site's `/artworks/91194` must not be sent to
 the museum.
 
+### One holder, two plugins
+
+Added 2026-10-06, when the owner asked how a public Met plugin (its open API,
+public-domain images only) and a later private one (its web pages, behind a bot
+checkpoint, for in-copyright works) would live together.
+
+**Two plugins for one holder claim disjoint URL shapes, and each records the URL
+its own reader reads.** Routing is by URL, so with one shape claimed by both,
+`SOURCE_ORDER` would pick one reader for both plugins' rows. The Met's API reader
+would then answer "no image" for every in-copyright work the page reader found,
+or the page reader would drive a browser for every public-domain one. With
+disjoint shapes each row reaches the reader that recorded it, in any order.
+
+- **`met` records and claims only the API's object URL**
+  (`collectionapi.metmuseum.org/public/collection/v1/objects/<id>`). A private
+  plugin reading the Met's pages claims `www.metmuseum.org` pages.
+- **The Met's web page stays a sighting** while a work is open, because nothing
+  installed reads it. That is true, and the count is what says when the private
+  reader is worth building.
+- **The cost:** `met`'s URL is not the page Wikidata records (Wikidata's preferred
+  formatter for P3634 is the web page, and the registry reads best rank only),
+  so its instances get no title shortcut in the identity check, which compares
+  title and artist as for any search.
+- **Both installed:** a public-domain work is found by both, under two provider
+  names; the pool ranks them as any two sources.
+- *Mine,* 2026-10-06; the owner can correct. Nothing enforces disjointness across
+  plugins, since `claims` is a function and the URLs it would take cannot be
+  listed. Each plugin's tests hold its own shape (`test_met_source.py` refuses the
+  web page).
+
 ### Fetch locators
 
 A reader answers with one of:
@@ -109,6 +139,11 @@ The `FoundImage` rules hold unchanged for every plugin:
   title; the artist comparison still runs. Added 2026-10-04 by the owner's ruling,
   for MoMA's *Composition* (`data-model.md`, the phase-2 identity notes). The
   MoMA plugin's page address is the P2014 formatter's, so it needs no change.
+  On such a page, the holder's artist also passes when Wikidata records it as a
+  name of the item's creator: Art UK's "Laurence Stephen Lowry" for "L. S.
+  Lowry" (arrt#245, `artist-name-identity-findings.md`). So a finder reports the
+  holder's name exactly as the holder writes it, and leaves recognising it to
+  phase 2.
 - Dimensions are the **master's**, never a preview's.
 - Rights are recorded, never a reason to leave an image out.
 
@@ -279,8 +314,9 @@ pages are lost with it; a later search of the work records them.
 - **What `SourceContext` gives a plugin:** the deployment's user agent
   (`ACQUISITION_USER_AGENT`); the
   preview size ceiling; the registry, when one is configured (the Commons and
-  Wikidata finders need it); and the environment, read-only, for
-  the plugin's own settings. A plugin documents its own environment variables,
+  Wikidata finders need it); the environment, read-only, for
+  the plugin's own settings; and, since 1.2, a directory of its own (§ A plugin's
+  own directory). A plugin documents its own environment variables,
   and the built-ins keep the names deployments already set (`ARTIC_USER_AGENT`,
   `WIKIDATA_USER_AGENT`).
 - **Order.** Every finder is asked at once, and order only breaks ties, as the
@@ -301,6 +337,32 @@ pages are lost with it; a later search of the work records them.
   Rows keep their provider names unchanged, so reinstalling a plugin reaches its
   rows again.
 
+## A plugin's own directory
+
+Added 2026-10-06 (interface 1.2), when the owner ruled that the NGA plugin keeps a
+copy of the NGA's open data on disk (`build-plan-nga-source.md`).
+
+- **`SourceContext.data_dir` is the plugin's own directory**,
+  `ART_ROOT/sources/<plugin name>/`, or `None` when the deployment gives none.
+  The loader narrows one root to each plugin's name, so no plugin is handed
+  another's, and a name that is not one plain path segment is handed `None`. It
+  may not exist yet; the plugin creates it when it first writes.
+- **It holds only what the plugin can fetch again.** It is not backed up, and
+  deleting it costs a download, never a record (`boundary-patterns.md` §
+  `ART_ROOT` filesystem contract). Arrt still decides everything a record says;
+  the directory is a plugin's working copy of a holder's published data.
+- **A path, not a store.** A plugin is trusted code with Arrt's own access (§
+  Trust), so the contract says where, and does not police what. *Mine,* the
+  smallest additive change: one optional field and a minor version, which a
+  plugin built for 1.0 or 1.1 never reads.
+- **`nga` is the first plugin to keep a copy of a holder's catalogue**, and it
+  does so under the owner's bounds (2026-10-06), which any later plugin keeping
+  one should meet: the files sit on disk gzipped; each is asked for at most once
+  a day, with a conditional request, so an unchanged file downloads nothing; they
+  are parsed into memory only when a query asks that plugin, and released after
+  six hours with no such query. A month with no searches costs no memory and no
+  downloads. A failed refresh keeps the copy it has.
+
 ## Trust
 
 **A plugin is trusted code.** It runs inside Arrt with everything Arrt can reach,
@@ -317,6 +379,8 @@ still keeps for itself, and how a plugin's error text is scrubbed are
   optional capabilities only. *Mine.*
 - **1.1 (2026-10-05) added `ImageQuery.pages`**, the pages the run's phase-1
   web search read (§ Pages a search read).
+- **1.2 (2026-10-06) added `SourceContext.data_dir`**, a directory of the
+  plugin's own (§ A plugin's own directory).
 - **`arrt.library.sources` is the only import path a plugin may use.** It lives
   under `arrt.library` rather than at the top level because the Library/Programming
   import guard (`tests/preferences/test_seam_imports.py`) walks only `arrt.library`,

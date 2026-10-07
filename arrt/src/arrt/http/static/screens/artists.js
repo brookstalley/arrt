@@ -21,11 +21,11 @@
 
 import { api, fetchAllWorks } from "../core/api.js";
 import { absentImage, facts } from "../core/badges.js";
-import { identityControl } from "../core/identity.js";
+import { identityControl, storeIdentity } from "../core/identity.js";
 import { addedSentence, addWorksToTheme, stoppedSentence } from "../core/membership.js";
 import { getSelection } from "../core/getting.js";
 import { el, fill, guard, render } from "../core/render.js";
-import { isQid, lifeDates, named, stateMark, wikidataLink, workLink, workState } from "../core/registry.js";
+import { isQid, lifeDates, listHeadings, named, stateMark, wikidataLink, workCell, workState, yearCell } from "../core/registry.js";
 import { backLink, backRow, go, goWithParams, redirect, refresh } from "../core/router.js";
 import { state } from "../core/state.js";
 import { recordReaction } from "../core/taste.js";
@@ -187,7 +187,7 @@ async function oneArtist(artistId, generation) {
     view = { state: "unavailable", note: "Wikidata could not be asked just now. What the library holds is above; try again later." };
   }
   if (!registrySection.isConnected) return;
-  paintRegistry(registrySection, about, view);
+  paintRegistry(registrySection, about, view, { name: artist.name, artistId });
   if (similarSection) await paintSimilar(similarSection, artist.wikidata_qid);
 }
 
@@ -232,12 +232,37 @@ async function registryArtist(qid, generation) {
       el("p", { class: "muted" }, [wikidataLink(qid, `Wikidata ${qid}`)]),
       about,
       heldNote,
+      ...(view.unlinked || []).map((artist) => namesakeOffer(artist, qid)),
     ]),
     registrySection,
     similarSection,
   );
-  paintRegistry(registrySection, about, view);
+  paintRegistry(registrySection, about, view, { name: view.name && view.name !== qid ? view.name : null });
   await paintSimilar(similarSection, qid);
+}
+
+/* A library artist of this name with no Wikidata item: most likely the same
+ * person, held under a record nothing has linked yet, which is why search shows
+ * them twice. The curator says so here, and the item is stored as their choice
+ * (`POST /api/artists/{id}/wikidata`, the identity control's route, which
+ * refuses an item another artist has); their own page then opens. Never linked
+ * without the click: two people can share a name. */
+function namesakeOffer(artist, qid) {
+  const life = lifeDates(artist);
+  return el("div", { class: "row namesake" }, [
+    el("p", { class: "note", text: `Your library has ${artist.name}${life ? ` (${life})` : ""}, not linked to Wikidata. If they are this person, link them, and this page becomes theirs.` }),
+    el("button", {
+      class: "action",
+      type: "button",
+      text: "Link them to this item",
+      "aria-label": `Link the library's ${artist.name} to ${qid}`,
+      onclick: () =>
+        guard(async () => {
+          await storeIdentity("artist", artist.artist_id, qid);
+          redirect("artist", artist.artist_id);
+        }),
+    }),
+  ]);
 }
 
 /* *Similar artists* (ruling 4): visual artists sharing a movement, by renown,
@@ -370,16 +395,67 @@ function heldCard(work, chosen, settle) {
   ]);
 }
 
+/* Who Wikidata's name search says an unlinked artist might be, those whose
+ * years agree with the library's first, each with *This is them*. The choice is
+ * stored as the curator's, through the identity control's route, and the page
+ * is drawn again: with an item, *Their work* lists what Wikidata does. */
+function candidateList(candidates, artistId) {
+  return el("div", { class: "stack" }, [
+    el("p", { id: "candidates", text: "Wikidata knows these people by that name. If one is them, say so:" }),
+    el("ul", { class: "results-list", "aria-labelledby": "candidates" }, candidates.map((person) => {
+      const life = lifeDates(person);
+      return el("li", {}, [
+        el("span", { text: named(person.name, person.qid) }),
+        life ? el("span", { class: "muted", text: ` ${life}` }) : null,
+        el("span", { class: "muted" }, [" · ", wikidataLink(person.qid, person.qid)]),
+        person.years_agree ? el("span", { class: "muted", text: " · their years agree" }) : null,
+        " ",
+        el("button", {
+          class: "action quiet",
+          type: "button",
+          text: "This is them",
+          "aria-label": `${named(person.name, person.qid)}${life ? `, ${life}` : ""}, ${person.qid}: this is them`,
+          onclick: () =>
+            guard(async () => {
+              await storeIdentity("artist", artistId, person.qid);
+              refresh();
+            }),
+        }),
+      ]);
+    })),
+  ]);
+}
+
+/* The way on when Wikidata lists nothing of theirs: Ask, which searches the
+ * web and the image sources rather than Wikidata, and is how a living painter's
+ * work is usually found. Filled in and never started, as search's *Ask about*
+ * is: asking is a paid run, and the curator presses the button beside its price. */
+function askForTheirWork(name) {
+  return el("div", { class: "row" }, [
+    el("button", {
+      class: "action",
+      type: "button",
+      text: "Ask for their work",
+      onclick: () => go("discover", null, { term: `Paintings by ${name}` }),
+    }),
+  ]);
+}
+
 /* The registry half, once it has answered: what Wikidata lists, most renowned
  * first, each with a work's mark (`workState`; held is matched by QID, never by
  * title); then the collections.
  *
  * Every work the library does not hold can be ticked and got, image found or not:
  * a museum may hold one Wikidata has no picture of. A held row has no tick box. */
-function paintRegistry(section, about, view) {
+function paintRegistry(section, about, view, { name = null, artistId = null } = {}) {
   const heading = section.querySelector("h3");
   if (view.state !== "known") {
-    fill(section, heading, el("p", { class: "note", text: view.note }));
+    const candidates = view.candidates || [];
+    fill(section,
+      heading,
+      el("p", { class: "note", text: view.note }),
+      candidates.length && artistId ? candidateList(candidates, artistId) : null,
+    );
     return;
   }
   fill(about,
@@ -390,8 +466,8 @@ function paintRegistry(section, about, view) {
   const rows = view.works.map((work) =>
     el("tr", {}, [
       el("td", {}, [work.held_artwork_ids.length ? null : getting.box(work.qid, named(work.title, work.qid))]),
-      el("td", {}, [workLink(work)]),
-      el("td", { text: work.year ? String(work.year) : "—" }),
+      workCell(work),
+      yearCell(work),
       el("td", {}, [workState(work)]),
     ]),
   );
@@ -403,10 +479,11 @@ function paintRegistry(section, about, view) {
           el("caption", {
             text: `The most renowned of the ${view.works_total} works Wikidata lists, by how many Wikipedias cover them, and every one the library holds`,
           }),
-          el("thead", {}, [el("tr", {}, ["Get", "Work", "Year", "State"].map((h) => el("th", { scope: "col", text: h })))]),
+          el("thead", {}, [listHeadings(["Get", "Work", "Year", "State"])]),
           el("tbody", {}, rows),
         ])])
       : el("p", { class: "muted", text: "Wikidata lists no works for them." }),
+    view.works.length || !name ? null : askForTheirWork(name),
     view.works.some((work) => !work.held_artwork_ids.length) ? getting.node : null,
     el("h3", { id: "holdings", text: "Holdings" }),
     holdings.length ? el("ul", { "aria-labelledby": "holdings" }, holdings) : el("p", { class: "muted", text: "Wikidata names no collection holding their work." }),

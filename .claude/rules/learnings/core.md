@@ -4,7 +4,7 @@
 
 Each rule is one line of at most 250 characters. This file is capped, so a new rule is paid for by merging or retiring one.
 
-- When a norm is ratified, re-read every artifact it governs against it, not just the code — because a spec that violates a norm is an instruction a builder will faithfully follow.
+- When a norm is ratified, re-read every artifact it governs; when a plan reads a new kind of data, grep the norm index for its nouns — because norms bind by subject, and a spec or plan lists only what it touches.
 - When a test, lint or check is new or rewritten, watch it fail once against the unfixed code or a re-break — because 'not run', 'unreachable state' and 'passed' print the same green, and two agreeing runs can share one fault.
 - When you delete a constant or add a required parameter, grep `tools/` and `scripts/` for consumers — because linter, type checker and suite are all silent about a file nothing imports.
 - When a review returns 0 blocking with cheap observations, accept them or carry them into the next commit already happening — because each fix commit buys another review round.

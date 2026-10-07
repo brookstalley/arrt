@@ -435,8 +435,8 @@ class AcquisitionQueue:
                 waiting=len(candidates) - len(due),
                 paused=paused,
             )
-        # At INFO on every pass, including one with nothing due, for the sweeps'
-        # reason: a periodic job that logs only when it acts cannot be told from
+        # At INFO on every pass, including one with nothing due, for the topic
+        # sweep's reason: a periodic job that logs only when it acts cannot be told from
         # one that died.
         log.info(
             "acquisition queue pass",

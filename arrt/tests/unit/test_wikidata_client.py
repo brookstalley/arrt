@@ -15,7 +15,7 @@ import pytest
 
 from arrt.library.registry import RegistryUnavailable
 from arrt.library.registry.identifiers import IdentifierScheme
-from arrt.library.registry.wikidata import SPARQL_ENDPOINT, WikidataRegistry
+from arrt.library.registry.wikidata import COMMONS_API, COMMONS_TIMEOUT_SECONDS, SPARQL_ENDPOINT, WikidataRegistry
 
 UA = "arrt test (+https://example.org)"
 
@@ -125,6 +125,58 @@ def test_a_transport_failure_is_an_outage():
 def test_a_creator_query_refuses_anything_that_is_not_an_item_id():
     with pytest.raises(ValueError, match="not a Wikidata item id"):
         _registry(lambda request: _results()).creators_of(["Q1 } UNION { ?x ?y ?z"])
+
+
+def test_a_works_creators_names_come_back_by_creator_labels_and_aliases_alike():
+    """Lowry's item labels him "L. S. Lowry"; Art UK writes his alias "Laurence Stephen Lowry"."""
+    seen = []
+
+    def handler(request):
+        seen.append(_sent_query(request))
+        return _results(
+            {"creator": _uri("Q1354277"), "name": {"value": "L. S. Lowry", "xml:lang": "en"}},
+            {"creator": _uri("Q1354277"), "name": {"value": "Laurence Stephen Lowry", "xml:lang": "en"}},
+            {"creator": _uri("Q1354277"), "name": {"value": "L. S. Lowry", "xml:lang": "fr"}},
+            {"creator": _uri("Q9"), "name": {"value": "Somebody Else"}},
+        )
+
+    names = _registry(handler).creator_names("Q119294634")
+
+    assert names == {
+        "Q1354277": frozenset({"L. S. Lowry", "Laurence Stephen Lowry"}),
+        "Q9": frozenset({"Somebody Else"}),
+    }
+    assert "wd:Q119294634 wdt:P170 ?creator" in seen[0]
+    assert "rdfs:label" in seen[0]
+    assert "skos:altLabel" in seen[0]
+    # Every language: the Pompidou writes "Vassily Kandinsky", a French form.
+    assert "LANG(" not in seen[0]
+
+
+def test_an_unknown_creator_and_an_empty_name_carry_no_names():
+    """An unknown creator is a blank node with no name to compare; a blank name compares with nothing."""
+
+    def handler(request):
+        return _results(
+            {
+                "creator": {"type": "uri", "value": "http://www.wikidata.org/.well-known/genid/abc"},
+                "name": {"value": "Anonymous"},
+            },
+            {"creator": _uri("Q7"), "name": {"value": "  "}},
+            {"creator": _uri("Q7")},
+        )
+
+    assert _registry(handler).creator_names("Q1") == {}
+
+
+def test_a_creator_names_query_refuses_anything_that_is_not_an_item_id():
+    with pytest.raises(ValueError, match="not a Wikidata item id"):
+        _registry(lambda request: _results()).creator_names("Q1 } UNION { ?x ?y ?z")
+
+
+def test_a_creator_names_outage_is_an_outage():
+    with pytest.raises(RegistryUnavailable):
+        _registry(lambda request: httpx.Response(503)).creator_names("Q1")
 
 
 def test_large_lists_are_asked_in_batches():
@@ -304,6 +356,61 @@ def test_an_unqualified_number_belongs_only_to_a_sole_collection():
     assert [h.inventory for h in shared.holders] == [None, None]
 
 
+def test_a_works_size_comes_back_in_centimetres():
+    """Wikidata normalises each measurement to metres, whatever unit it was entered in."""
+    work = _registry(lambda request: _results(_row(workLabel="W", links="0", height="0.794", width="0.54"))).work("Q1")
+
+    assert (work.height_cm, work.width_cm) == (79.4, 54.0)
+
+
+def test_two_heights_that_disagree_give_no_height_and_leave_the_width():
+    """Two sources measuring 80 and 81.5 cm have no answer to pick; the agreed width still stands."""
+    rows = [_row(workLabel="W", links="0", height=height, width="0.6") for height in ("0.8", "0.815")]
+
+    work = _registry(lambda request: _results(*rows)).work("Q1")
+
+    assert (work.height_cm, work.width_cm) == (None, 60.0)
+
+
+def test_one_height_repeated_across_rows_is_still_one_height():
+    """Two media make two rows carrying the same height: that is one measurement, not a disagreement."""
+    rows = [_row(workLabel="W", links="0", mediumLabel=medium, height="1.45", width="1.13") for medium in ("oil", "canvas")]
+
+    work = _registry(lambda request: _results(*rows)).work("Q1")
+
+    assert (work.height_cm, work.width_cm) == (145.0, 113.0)
+
+
+def test_a_work_with_no_size_has_none():
+    work = _registry(lambda request: _results(_row(workLabel="W", links="0"))).work("Q1")
+
+    assert (work.height_cm, work.width_cm) == (None, None)
+
+
+def test_the_size_asked_for_is_the_works_own_best_measurement_and_not_a_parts():
+    """A frame's height is recorded with *applies to part* = frame, and a deprecated one is not the best rank.
+
+    The canvas is a part too, and the commonest one a painting's own height is
+    recorded with, so only what surrounds the work is left out."""
+    seen = []
+
+    def handler(request):
+        seen.append(_sent_query(request))
+        return _results()
+
+    _registry(handler).work("Q1")
+
+    for prop in ("P2048", "P2049"):
+        clause = re.search(rf"OPTIONAL \{{[^{{}}]*p:{prop}[^{{}}]*\{{[^{{}}]*\}}[^{{}}]*\}}", seen[0])
+        assert clause is not None, f"no measurement clause for {prop}"
+        assert f"psn:{prop}" in clause.group(0)
+        assert "wikibase:BestRank" in clause.group(0)
+        assert "pq:P518" in clause.group(0)
+        for around in ("wd:Q860792", "wd:Q101698846", "wd:Q107105674"):
+            assert around in clause.group(0)
+        assert "wd:Q4259259" not in clause.group(0), "the canvas is the work's own size"
+
+
 def test_an_item_the_registry_does_not_have_is_none():
     assert _registry(lambda request: _results()).work("Q999999999999") is None
 
@@ -481,3 +588,81 @@ def test_the_servers_registry_gives_up_sooner_than_the_matchers():
     matcher = WikidataRegistry(user_agent=UA)
 
     assert server._http.timeout.read == INTERACTIVE_TIMEOUT_SECONDS < TIMEOUT_SECONDS == matcher._http.timeout.read
+
+
+COMMONS_FILE = "https://commons.wikimedia.org/wiki/Special:FilePath/Robert%20Delaunay%2C%20Rythmes%2C%201934.jpg"
+
+
+def _commons(info=None, *, missing=False):
+    page = {"title": "File:X.jpg", "missing": True} if missing else {"title": "File:X.jpg", "imageinfo": [info]}
+    return httpx.Response(200, json={"query": {"pages": [page]}})
+
+
+def test_a_files_size_is_asked_of_commons_by_its_name():
+    seen = []
+
+    def handler(request):
+        seen.append(request)
+        return _commons({"width": 2081, "height": 2668, "mime": "image/jpeg"})
+
+    size = _registry(handler).image_size(COMMONS_FILE)
+
+    assert (size.width, size.height) == (2081, 2668)
+    assert str(seen[0].url).startswith(COMMONS_API + "?")
+    assert seen[0].url.params["titles"] == "File:Robert Delaunay, Rythmes, 1934.jpg"
+    assert seen[0].headers["user-agent"] == UA
+
+
+def test_a_file_commons_does_not_have_has_no_size():
+    assert _registry(lambda request: _commons(missing=True)).image_size(COMMONS_FILE) is None
+
+
+@pytest.mark.parametrize("mime", ["image/svg+xml", "application/pdf", None])
+def test_a_file_that_is_not_a_raster_picture_has_no_size(mime):
+    """An SVG has a nominal size that says nothing about how sharp it hangs."""
+    info = {"width": 512, "height": 512, "mime": mime}
+
+    assert _registry(lambda request: _commons(info)).image_size(COMMONS_FILE) is None
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        httpx.Response(302, headers={"location": "https://elsewhere.example/"}),
+        httpx.Response(503),
+        httpx.Response(200, json={"error": "nope"}),
+        httpx.Response(200, json={"query": {"pages": [{"title": "File:X.jpg", "imageinfo": [{"mime": "image/jpeg"}]}]}}),
+    ],
+    ids=["redirect", "outage", "unrecognised", "no-size"],
+)
+def test_commons_not_answering_the_size_is_an_outage_not_no_file(answer):
+    with pytest.raises(RegistryUnavailable):
+        _registry(lambda request: answer).image_size(COMMONS_FILE)
+
+
+def test_a_file_that_is_not_a_commons_path_is_refused_before_anything_is_sent():
+    seen = []
+
+    with pytest.raises(ValueError, match="not a Commons file"):
+        _registry(lambda request: seen.append(request) or _commons()).image_size("https://elsewhere.example/x.jpg")
+    assert seen == []
+
+
+def test_the_registry_sizes_exactly_the_files_a_get_can_take():
+    """The page judges a picture only if the Commons source would fetch it; the two sets are copies."""
+    from arrt.library.registry import RASTER_TYPES
+    from arrt.library.sources import commons
+
+    assert commons._RASTER == RASTER_TYPES
+
+
+def test_commons_is_given_a_short_wait_because_a_page_waits_on_it():
+    seen = []
+
+    def handler(request):
+        seen.append(request)
+        return _commons({"width": 1, "height": 1, "mime": "image/png"})
+
+    _registry(handler).image_size(COMMONS_FILE)
+
+    assert seen[0].extensions["timeout"]["read"] == COMMONS_TIMEOUT_SECONDS <= 5

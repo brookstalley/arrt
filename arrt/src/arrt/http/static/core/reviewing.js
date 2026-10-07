@@ -17,6 +17,7 @@ import {
   absentImage,
   facts,
   fitBadge,
+  pixelSize,
   REASON_SENTENCES,
   reasonBadge,
   resolutionBadge,
@@ -79,7 +80,7 @@ function provenanceBadge(work) {
 /* The picture for one instance, or what stands in for it.
  *
  * The card knows before it asks — the listing carries `preview_available` — so a
- * work whose picture was reclaimed never requests bytes that are not there. The
+ * work with no kept picture never requests bytes that are not there. The
  * error handler is for the narrow race where the file goes away in between, and
  * for a museum's file that will not decode: the listing reports that one as
  * available, because nothing has read the bytes yet.
@@ -115,20 +116,49 @@ function instanceImage(instance, { alt, label, name }) {
   return frame;
 }
 
-/* A scan's own size, in pixels, as the curator judges it.
- *
- * **Pixels, and no inches** (the owner's ruling, 2026-10-02). The size on the
- * wall depends on which panel the work hangs on, and the one figure this server
- * could give — the long edge on the single panel it is configured for, after
- * the mat — read as a fact about the scan to somebody who did not know that.
- * A per-wall fit comes back with per-wall geometry (re-architecture wave 4).
- * `null` when the scan's dimensions were never recorded, which the fit badge's
- * "size unrecorded" already says. */
-const PIXELS = new Intl.NumberFormat("en-US");
+/* A wanted work's picture, as Wanted's table carries it: the scan its review
+ * card pictures it by (`shown`), enlargeable, with the fit badge that says how
+ * small it is — usually below the floor, since nothing the curator would accept
+ * is held. A work with no scan standing says why in words, never a blank cell. */
+export function wantedPicture(work) {
+  if (!work.shown) {
+    const why = work.scans_turned_down ? "Every scan found was turned down." : "No scan found.";
+    return el("div", { class: "wanted-picture" }, [el("div", { class: "card-image" }, [absentImage(why)])]);
+  }
+  return el("div", { class: "wanted-picture stack-tight" }, [
+    instanceImage(work.shown, {
+      alt: pictured(work),
+      label: `Enlarge the picture of ${work.title}`,
+      name: pictured(work),
+    }),
+    fitBadge(work.shown, "size unrecorded"),
+  ]);
+}
 
-function pixelSize(instance) {
-  if (instance.width === null || instance.height === null) return null;
-  return `${PIXELS.format(instance.width)} × ${PIXELS.format(instance.height)} px`;
+/* Why a work is wanted, from what it holds: how many scans were turned down,
+ * and what the one standing is — too small for the wall, the selection still on
+ * offer (wanted without turning it down), or neither. "On offer" means selected,
+ * as `is_on_offer` does on the card, so the row never claims one the card does
+ * not. Derived on every read, because a picture beside "No scan found" would
+ * contradict it. */
+export function wantedWhy(work) {
+  const parts = [];
+  if (work.scans_turned_down) parts.push(`${counted(work.scans_turned_down, "scan")} turned down`);
+  if (work.shown) {
+    if (work.shown.fit && work.shown.fit.verdict === "below_floor") parts.push("found only too small");
+    else if (work.shown.is_selected) parts.push("one still on offer");
+    else parts.push("one found, not on offer");
+  }
+  if (!parts.length) return "No scan found";
+  const said = parts.join("; ");
+  return said.charAt(0).toUpperCase() + said.slice(1);
+}
+
+/* A scan's own size, in pixels (`pixelSize` in `badges.js`). `null` when the
+ * scan's dimensions were never recorded, which the fit badge's "size
+ * unrecorded" already says. */
+function scanSize(instance) {
+  return pixelSize(instance.width, instance.height);
 }
 
 function instanceStateBadges(instance) {
@@ -169,11 +199,11 @@ function pictured(work) {
  * where the scan came from and its size, which is how the row tells it apart
  * from its neighbours. */
 function scanName(instance, work) {
-  const which = [`the scan from ${instance.provider}`, pixelSize(instance)].filter(Boolean).join(", ");
+  const which = [`the scan from ${instance.provider}`, scanSize(instance)].filter(Boolean).join(", ");
   return `${pictured(work)} — ${which}`;
 }
 
-function instanceRows(instance, work, after) {
+function instanceRows(instance, work, after, decided = false) {
   const title = work.title;
   const act = (path, body, message = null) =>
     guard(async () => {
@@ -201,7 +231,7 @@ function instanceRows(instance, work, after) {
       ]),
       el("td", { class: "scan-fact" }, [
         el("div", { class: "stack-tight" }, [
-          pixelSize(instance) ? el("span", { class: "scan-pixels", text: pixelSize(instance) }) : null,
+          scanSize(instance) ? el("span", { class: "scan-pixels", text: scanSize(instance) }) : null,
           fitBadge(instance, "size unrecorded"),
         ]),
       ]),
@@ -215,7 +245,7 @@ function instanceRows(instance, work, after) {
         // overflowed a desktop card on wider fonts. The row is as tall as its
         // preview either way.
         el("div", { class: "stack-tight" }, [
-          instance.rejected || instance.is_selected
+          decided || instance.rejected || instance.is_selected
             ? null
             : el("button", {
                 class: "action quiet",
@@ -228,7 +258,7 @@ function instanceRows(instance, work, after) {
                 "aria-label": `Use this scan for ${title}`,
                 onclick: () => act(`/api/candidate-images/${encodeURIComponent(instance.image_id)}/select`),
               }),
-          instance.rejected
+          decided || instance.rejected
             ? null
             : el("button", {
                 class: "action quiet",
@@ -295,7 +325,7 @@ async function alternatesPanel(workId, after) {
       el("table", { class: "scans" }, [
         el("caption", { text: `The scans found for ${title}.` }),
         el("thead", {}, [el("tr", {}, SCAN_COLUMNS.map((name) => el("th", { scope: "col", text: name })))]),
-        el("tbody", {}, listing.instances.flatMap((instance) => instanceRows(instance, listing.work, after))),
+        el("tbody", {}, listing.instances.flatMap((instance) => instanceRows(instance, listing.work, after, listing.work.decided))),
       ]),
     ]),
   ]);
@@ -444,6 +474,11 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
   // accept, so Want or Forget. Not one whose search is still running, which has
   // found nothing *yet* and may still.
   const noScan = card.instances_held === 0 && work.resolution_status === "unresolved";
+  // A decided work (accepted or rejected, the server's `decided`) takes no
+  // second verdict and no change of scan, so its card says what was decided in
+  // place of the controls: offering them again read as though the click had not
+  // taken. Wanted is not decided: it keeps Forget.
+  const decided = work.decided;
   const acceptOrReject = () => [
     card.held_artwork_id
       ? el("button", {
@@ -501,7 +536,7 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
       el("p", { class: "card-artist", text: work.artist || "Artist unrecorded" }),
       // The shown scan's own size, above the fold: the one fact a picture at
       // card size cannot convey, and the first thing asked of a scan.
-      card.shown && pixelSize(card.shown) ? el("p", { class: "card-resolution", text: pixelSize(card.shown) }) : null,
+      card.shown && scanSize(card.shown) ? el("p", { class: "card-resolution", text: scanSize(card.shown) }) : null,
       el("div", { class: "card-footer" }, [
         verdictBadge(work),
         provenanceBadge(work),
@@ -523,7 +558,7 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
       // surprised by it. Accepting really is refused in this state — the service
       // will not record a work with no primary source — so the card says which
       // action reaches the way out.
-      card.shown && !card.shown_is_on_offer
+      card.shown && !card.shown_is_on_offer && !decided
         ? el("p", {
             class: "note",
             text: "No scan is on offer for this work. The picture is what was found, shown so you can judge it — accepting is refused until you choose one from the scans below.",
@@ -538,24 +573,26 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
       // can share both ("Untitled"), so taking Accept away would block acquiring
       // a painting the library does not hold. Reject stays too, because "stop
       // proposing this" is a fair thing to say about a work you already own.
-      card.held_artwork_id
+      card.held_artwork_id && !decided
         ? el("p", { class: "note already-held" }, [
             el("span", { class: "glyph", text: "✓", "aria-hidden": true }),
             el("span", { text: " Already in your library, by title and artist. Accepting it again acquires a second artwork." }),
           ])
         : null,
-      el("div", { class: "row" }, [
-        el("div", { class: "field" }, [
-          el("label", { for: `reason-${work.work_id}`, text: "Why (optional)" }),
-          reason,
-        ]),
-        // **A work nothing was ever found for offers Want and Forget**, not
-        // Accept and Reject: accepting it would mint a work with no image, and
-        // rejecting it is "forget it for good", which is said as such. Want is
-        // the one way to say "I want this painting; no scan exists yet", and it
-        // waits in Wanted (the owner's ruling on #168, 2026-10-02).
-        ...(noScan ? wantOrForget() : acceptOrReject()),
-      ]),
+      decided
+        ? decidedLine(work)
+        : el("div", { class: "row" }, [
+            el("div", { class: "field" }, [
+              el("label", { for: `reason-${work.work_id}`, text: "Why (optional)" }),
+              reason,
+            ]),
+            // **A work nothing was ever found for offers Want and Forget**, not
+            // Accept and Reject: accepting it would mint a work with no image, and
+            // rejecting it is "forget it for good", which is said as such. Want is
+            // the one way to say "I want this painting; no scan exists yet", and it
+            // waits in Wanted (the owner's ruling on #168, 2026-10-02).
+            ...(noScan ? wantOrForget() : acceptOrReject()),
+          ]),
     ]),
     // Beneath the picture and the facts both, the card's full width: the Scans
     // table needs it, and at the facts column's width its columns were what
@@ -563,6 +600,25 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
     disclosure,
   );
   return node;
+}
+
+/* What a decided card says where its controls were: the decision, and for an
+ * accepted work the way to the artwork it became. Its image's progress is the
+ * acquisition line above. */
+function decidedLine(work) {
+  const accepted = work.verdict === "accepted";
+  return el("div", { class: "row decided" }, [
+    el("p", { class: "muted", text: accepted ? "Accepted. It is in your library." : "Rejected. It will not be proposed again." }),
+    accepted && work.artwork_id
+      ? el("button", {
+          class: "action quiet",
+          type: "button",
+          text: "Open it in Artworks",
+          "aria-label": `Open ${work.title} in Artworks`,
+          onclick: () => go("work", work.artwork_id),
+        })
+      : null,
+  ]);
 }
 
 /* Where an accepted work's image stands: the queue's line while it owes one,

@@ -10,6 +10,8 @@ an artist the library has not matched.
 carrying markup and asserts it arrives as words, not as an element.
 """
 
+from dataclasses import replace
+
 import pytest
 
 pytest.importorskip(
@@ -19,7 +21,7 @@ pytest.importorskip(
 
 from fakes import FakeRegistry
 
-from arrt.library.registry import RegistryArtist, RegistryHolding, RegistryWorkEntry
+from arrt.library.registry import ItemId, RegistryArtist, RegistryHolding, RegistryPerson, RegistryText, RegistryWorkEntry
 
 ROTHKO = "Q160149"
 COMMONS = "https://commons.wikimedia.org/wiki/Special:FilePath/Rothko%20chapel.jpg"
@@ -222,13 +224,55 @@ class TestTheArtistPage:
         ui.page.click("section[aria-labelledby='their-work'] .badge-held")
         ui.page.wait_for_selector(f"#view h2:has-text('{work.title}')")
 
+    @pytest.mark.parametrize("width", [1280, 390], ids=["desktop", "phone"])
+    def test_their_work_shows_each_picture_large_enough_to_choose_by(self, ui, rothko, registry, pictures_load, width):
+        """The picture is what a curator picks a work to Get by, so a phone shows it too
+        (`information-architecture.md` § A work's mark), and the table still fits the panel:
+        with a title longer than a phone is wide, as Dalí has, and a year before the common era."""
+        listed = registry.artists[ROTHKO]
+        registry.artists[ROTHKO] = replace(
+            listed,
+            works=(
+                *listed.works,
+                RegistryWorkEntry(qid="Q1", title="Galacidalacidesoxyribonucleicacid", sitelinks=0, year=1963),
+                RegistryWorkEntry(qid="Q2", title="A fresco", sitelinks=0, year=-50),
+            ),
+        )
+        ui.page.set_viewport_size({"width": width, "height": 900})
+        artist, _work = rothko
+        _page(ui, artist)
+        _registry_answered(ui)
+        section = "section[aria-labelledby='their-work']"
+
+        # The frame is sized by the style, whether or not the picture has arrived;
+        # one hidden by the style has no box at all.
+        for style in ("held", "not-held"):
+            box = ui.page.locator(f"{section} .work-pic-{style}").bounding_box()
+            assert box is not None, f"the {style} picture is not drawn"
+            assert min(box["width"], box["height"]) >= 48, f"the {style} picture is too small to tell works apart"
+        fits = ui.page.evaluate(
+            "(s) => { const c = document.querySelector(`${s} .artist-works`); return c.scrollWidth <= c.clientWidth; }",
+            section,
+        )
+        assert fits, "the table scrolls sideways"
+        # The phone folds the Year column under the title rather than losing it.
+        chapel = ui.page.locator(f"{section} tbody tr", has_text="Rothko Chapel")
+        column, under = chapel.locator("td.year-col"), chapel.locator(".year-under")
+        shown, folded = (under, column) if width < 640 else (column, under)
+        assert shown.is_visible()
+        assert shown.inner_text() == "1971"
+        assert not folded.is_visible()
+        fresco = ui.page.locator(f"{section} tbody tr", has_text="A fresco")
+        assert fresco.locator(".year-under" if width < 640 else "td.year-col").inner_text() == "50 BCE"
+
     def test_an_image_found_is_a_commons_thumbnail_that_sends_no_referrer(self, ui, rothko):
         artist, _work = rothko
         _page(ui, artist)
         _registry_answered(ui)
 
         thumb = ui.page.locator(".badge-image-found img")
-        assert thumb.get_attribute("src") == f"{COMMONS}?width=96"
+        # Why 250: `FOUND_WIDTH` in `core/registry.js`.
+        assert thumb.get_attribute("src") == f"{COMMONS}?width=250"
         assert thumb.get_attribute("referrerpolicy") == "no-referrer"
 
     def test_registry_text_arrives_as_words_not_markup(self, ui, rothko):
@@ -320,6 +364,138 @@ class TestTheWaysIn:
 
         ui.page.click("dl.facts button:has-text('Mark Rothko')")
         ui.page.wait_for_selector("#view h2:has-text('Mark Rothko')")
+
+
+LUCY_BULL = "Q123365005"
+
+
+def _their_work(ui):
+    return ui.page.locator("section[aria-labelledby='their-work']")
+
+
+class TestAnUnlinkedArtist:
+    """An artist the library holds with no Wikidata item: who they might be, and a click to say which.
+
+    The owner's case: the library's Franz Kline was never matched, so his page
+    listed nothing of Wikidata's, while search showed Wikidata's Kline beside him.
+    """
+
+    @pytest.fixture
+    def unlinked(self, service, registry):
+        painter = service.add_artist(name="Mark Rothko", born=1903, died=1970)
+        service.add_artwork(title="Untitled (Purple, White, and Red)", artist_id=painter.id)
+        registry.people["Mark Rothko"] = [
+            RegistryPerson(qid=ItemId("Q900001"), label=RegistryText("Mark Rothko"), born=1850, died=1900),
+            RegistryPerson(qid=ItemId(ROTHKO), label=RegistryText("Mark Rothko"), born=1903, died=1970),
+        ]
+        return painter
+
+    def test_the_candidates_are_named_and_this_is_them_lists_their_work(self, ui, unlinked):
+        _page(ui, unlinked)
+        ui.page.wait_for_selector("section[aria-labelledby='their-work'] button:text-is('This is them')")
+
+        rows = [" ".join(text.split()) for text in _their_work(ui).locator("li").all_inner_texts()]
+        assert rows == [
+            f"Mark Rothko 1903–1970 · {ROTHKO} · their years agree This is them",
+            "Mark Rothko 1850–1900 · Q900001 This is them",
+        ]
+        _their_work(ui).locator("li").first.locator("button").click()
+        ui.page.wait_for_selector("section[aria-labelledby='their-work'] table")
+
+        assert "Rothko Chapel" in _their_work(ui).inner_text()
+        assert _their_work(ui).locator("button:text-is('This is them')").count() == 0
+        assert "set by you" in ui.page.locator(".identity-now").inner_text()
+
+    def test_a_candidate_taken_since_the_page_was_drawn_is_refused_and_nothing_is_stored(self, ui, services, service, unlinked):
+        """The list is read once; another artist may take the item before the click. The route refuses it, and says why."""
+        _page(ui, unlinked)
+        ui.page.wait_for_selector("section[aria-labelledby='their-work'] button:text-is('This is them')")
+        other = service.add_artist(name="Someone Else")
+        services.identity.set_artist_identity(other.id, ROTHKO)
+
+        _their_work(ui).locator("li").first.locator("button").click()
+        ui.page.wait_for_selector("#error:not([hidden])")
+
+        assert "already" in ui.page.inner_text("#error")
+        assert services.artists.get(unlinked.id).artist.wikidata_qid is None
+
+    def test_linking_a_namesake_to_a_taken_item_is_refused_and_stays_on_the_page(self, ui, registry, services, service, unlinked):
+        registry.artists[ROTHKO] = replace(registry.artists[ROTHKO], name="Mark Rothko", born=1903, died=1970)
+        ui.open(f"#artist/{ROTHKO}")
+        ui.page.wait_for_selector("#view .namesake")
+        other = service.add_artist(name="Someone Else")
+        services.identity.set_artist_identity(other.id, ROTHKO)
+
+        ui.page.click("#view button:text-is('Link them to this item')")
+        ui.page.wait_for_selector("#error:not([hidden])")
+
+        assert ui.page.evaluate("() => window.location.hash") == f"#artist/{ROTHKO}"
+        assert services.artists.get(unlinked.id).artist.wikidata_qid is None
+
+    def test_after_there_is_none_nobody_is_offered(self, ui, services, unlinked):
+        services.identity.set_artist_identity(unlinked.id, None)
+        _page(ui, unlinked)
+        _registry_answered(ui)
+
+        assert "You said Wikidata has no item" in _their_work(ui).locator("p.note").inner_text()
+        assert _their_work(ui).locator("button:text-is('This is them')").count() == 0
+
+    def test_their_page_by_qid_offers_to_link_them_and_then_is_theirs(self, ui, registry, unlinked):
+        registry.artists[ROTHKO] = replace(registry.artists[ROTHKO], name="Mark Rothko", born=1903, died=1970)
+        ui.open(f"#artist/{ROTHKO}")
+        ui.page.wait_for_selector("#view .namesake")
+
+        assert "Your library has Mark Rothko (1903–1970), not linked to Wikidata." in ui.page.locator(".namesake").inner_text()
+        ui.page.click("#view button:text-is('Link them to this item')")
+        ui.page.wait_for_function("(id) => window.location.hash === `#artist/${id}`", arg=unlinked.id)
+        ui.page.wait_for_selector("section[aria-labelledby='their-work'] table")
+
+        assert "Rothko Chapel" in _their_work(ui).inner_text()
+
+    def test_a_linked_artists_namesake_page_offers_no_link(self, ui, registry, rothko):
+        """The paired negative: the page by QID of someone the library holds linked forwards, and offers nothing."""
+        ui.open(f"#artist/{ROTHKO}")
+        ui.page.wait_for_selector("#view h2:has-text('Mark Rothko')")
+        _registry_answered(ui)
+
+        assert ui.page.locator("#view .namesake").count() == 0
+
+
+class TestWhenWikidataListsNoWorks:
+    """Lucy Bull: Wikidata knows her, and lists no works, holdings or similar painters.
+
+    The page said so and stopped. Ask is how a living painter's work is found.
+    """
+
+    @pytest.fixture
+    def lucy_bull(self, registry):
+        registry.artists[LUCY_BULL] = RegistryArtist(qid=LUCY_BULL, name="Lucy Bull", born=1990)
+
+    def test_her_page_by_qid_offers_ask_filled_in_and_not_started(self, ui, lucy_bull):
+        ui.open(f"#artist/{LUCY_BULL}")
+        ui.page.wait_for_selector("#view button:text-is('Ask for their work')")
+
+        ui.page.click("#view button:text-is('Ask for their work')")
+        ui.page.wait_for_selector("#view textarea#intent")
+
+        assert ui.page.evaluate("() => window.location.hash") == "#discover?term=Paintings%20by%20Lucy%20Bull"
+        assert ui.page.input_value("#intent") == "Paintings by Lucy Bull"
+
+    def test_a_held_artist_wikidata_lists_nothing_for_offers_it_too(self, ui, services, service, lucy_bull):
+        painter = service.add_artist(name="Lucy Bull", born=1990)
+        service.add_artwork(title="The Bottoms", artist_id=painter.id)
+        services.identity.set_artist_identity(painter.id, LUCY_BULL)
+        _page(ui, painter)
+
+        ui.page.wait_for_selector("section[aria-labelledby='their-work'] button:text-is('Ask for their work')")
+
+    def test_an_artist_wikidata_lists_works_for_is_not_offered_it(self, ui, rothko):
+        """The paired negative: Ask is the way on from nothing, not a button on every page."""
+        artist, _work = rothko
+        _page(ui, artist)
+        _registry_answered(ui)
+
+        assert ui.page.locator("#view button:text-is('Ask for their work')").count() == 0
 
 
 def test_an_empty_artist_index_offers_ask(ui):

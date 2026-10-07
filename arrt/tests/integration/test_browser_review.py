@@ -28,7 +28,6 @@ from fakes import FakeFinder, a_decodable_jpeg, a_roster, a_work, an_image
 from PIL import Image
 
 from arrt.library.discovery.engine import WorkList
-from arrt.library.services.previews import PreviewSettings
 from arrt.persistence.discovery_records import RunStatus, Verdict
 from arrt.services.container import Services
 
@@ -77,7 +76,6 @@ def services(store, discovery_store, wall_settings, thumbnail_settings, settings
         engine=engine,
         discovery_settings=settings.discovery_settings,
         sources=a_roster(museum),
-        previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
     )
 
 
@@ -406,6 +404,24 @@ class TestTheVerdict:
         assert response.status_code == 400
         assert "final" in response.json()["error"]
 
+    def test_a_card_says_whether_its_work_is_decided(self, http):
+        """`decided` is what the card hides its controls on: false while pending, true once accepted or rejected.
+
+        Read off the served card after each verdict, so a verdict made final later
+        reaches the card through `Verdict.is_terminal` and no client list.
+        """
+        run_id = a_finished_run(http)
+        page = http.get(f"/api/runs/{run_id}/candidates").json()
+        accepted = card_for(page, "The Elephants")["work"]["work_id"]
+        rejected = card_for(page, "Swans Reflecting Elephants")["work"]["work_id"]
+        assert http.get(f"/api/candidates/{accepted}").json()["work"]["decided"] is False
+
+        http.post(f"/api/candidates/{accepted}/verdict", json={"verdict": "accepted"}).raise_for_status()
+        http.post(f"/api/candidates/{rejected}/verdict", json={"verdict": "rejected"}).raise_for_status()
+
+        assert http.get(f"/api/candidates/{accepted}").json()["work"]["decided"] is True
+        assert http.get(f"/api/candidates/{rejected}").json()["work"]["decided"] is True
+
     def test_wanted_is_refused_here_and_the_refusal_names_the_way_in(self, http):
         """One entry into that verdict, so it and the scan's suppression cannot part."""
         run_id = a_finished_run(http)
@@ -451,8 +467,28 @@ class TestWanting:
                 "run_id": run_id,
                 "wikidata_qid": None,
                 "scans_turned_down": 0,
+                "shown": None,
             }
         ]
+
+    def test_a_wanted_work_whose_only_scan_is_below_the_floor_is_pictured_by_it(self, http):
+        """The picture its card shows, labelled too small, so a curator recognises what they want."""
+        run_id = a_finished_run(http)
+        card = card_for(http.get(f"/api/runs/{run_id}/candidates").json(), "Swans Reflecting Elephants")
+        work_id = card["work"]["work_id"]
+        assert card["shown_is_on_offer"] is False
+
+        http.post(f"/api/candidates/{work_id}/want", json={})
+
+        listed = {entry["work_id"]: entry for entry in http.get("/api/wanted").json()["works"]}
+        shown = listed[work_id]["shown"]
+        assert shown["image_id"] == card["shown"]["image_id"]
+        assert (shown["width"], shown["height"], shown["fit"]["verdict"]) == (900, 700, "below_floor")
+        assert shown["preview_available"] is True
+        assert listed[work_id]["scans_turned_down"] == 0
+        preview = http.get(f"/api/candidate-images/{shown['image_id']}/preview")
+        assert preview.status_code == 200
+        assert preview.headers["content-type"].startswith("image/")
 
     def test_wanting_while_turning_down_the_scan_suppresses_it_and_counts_it(self, http):
         run_id = a_finished_run(http)
@@ -468,6 +504,9 @@ class TestWanting:
         assert next(i for i in after["instances"] if i["image_id"] == on_offer["image_id"])["rejected"] is True
         listed = {entry["work_id"]: entry for entry in http.get("/api/wanted").json()["works"]}
         assert listed[work_id]["scans_turned_down"] == 1
+        # The turned-down scan never stands for the work; the one still standing does.
+        alternate = next(i for i in listing["instances"] if i["image_id"] != on_offer["image_id"])
+        assert listed[work_id]["shown"]["image_id"] == alternate["image_id"]
 
     def test_a_decided_work_cannot_be_wanted(self, http):
         run_id = a_finished_run(http)
@@ -528,36 +567,27 @@ class TestWanting:
         assert verdict["possible_duplicate_artists"] == []
         assert verdict["notice"] is None
 
-    def test_the_picture_is_refused_with_words_once_a_decided_work_loses_it(self, http, services):
-        """A reclaimed preview is not a corrupt one, and the two go different places.
+    def test_a_decided_works_picture_is_kept_through_a_restart(self, http, services):
+        """Every picture fetched from outside is kept forever (`data-model.md` § Direction, 2026-10-06).
 
-        The sweep deletes a decided work's previews on purpose. Reporting that as
-        unreadable would send whoever asks looking for a bad download.
+        Until that norm a sweep deleted a decided work's preview and its card
+        stopped promising a picture. Now nothing deletes one: accepted, and the
+        plane's startup repairs run again, the card still shows it and the route
+        still serves it.
         """
         run_id = a_finished_run(http)
         page = http.get(f"/api/runs/{run_id}/candidates").json()
         card = card_for(page, "The Elephants")
         image_id = card["shown"]["image_id"]
         http.post(f"/api/candidates/{card['work']['work_id']}/verdict", json={"verdict": "accepted"})
-        services.sweep.run()
-
-        response = http.get(f"/api/candidate-images/{image_id}/preview")
-
-        assert response.status_code == 400
-        assert "reclaimed" in response.json()["error"]
-
-    def test_a_card_for_a_decided_work_stops_promising_a_picture(self, http, services):
-        """The card knows before it asks, which is what keeps it from painting a blank box."""
-        run_id = a_finished_run(http)
-        page = http.get(f"/api/runs/{run_id}/candidates").json()
-        card = card_for(page, "The Elephants")
-        http.post(f"/api/candidates/{card['work']['work_id']}/verdict", json={"verdict": "accepted"})
-        services.sweep.run()
+        services.reconcile()
 
         repainted = http.get(f"/api/candidates/{card['work']['work_id']}").json()
+        response = http.get(f"/api/candidate-images/{image_id}/preview")
 
-        assert repainted["shown"]["preview_available"] is False
-        assert "reclaimed" in repainted["shown"]["preview_note"]
+        assert repainted["shown"]["preview_available"] is True
+        assert response.status_code == 200
+        assert Image.open(BytesIO(response.content)).format == "JPEG"
 
 
 class TestTheWholeLoop:

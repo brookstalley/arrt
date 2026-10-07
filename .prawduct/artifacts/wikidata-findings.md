@@ -766,6 +766,29 @@ What it settles for the picker:
 - **Five of seven matches carry no image.** A pick is still worth making for
   them: a re-search by item asks Commons, and the image may be added later.
 
+## A work's size, and its picture's (2026-10-05)
+
+Measured for the registry work page's *Size* and picture size
+(`build-plan-work-pictures-and-sizes.md`).
+
+- **Height (P2048) and width (P2049)** come normalised to metres as `psn:`,
+  whatever unit they were entered in. *Rhythms* (Q19861769) is 145 × 113 cm.
+- **The work's own size is usually qualified as a part.** Among paintings'
+  heights carrying *applies to part* (P518): canvas 6,840 (6,432 as Q4259259,
+  408 as Q12321255), frame 2,097, painting 984, mount 37, framed 13; the rest are
+  supports, panels and sheets. So only frame, framed and mount are left out. On
+  Q11826533 the canvas (180 cm) is preferred over the frame (225 cm); on
+  Q56810539 both are best rank, and only the part tells 61 cm from 82 cm.
+- **More than one value:** 48 of the 3,462 works with a height by five artists
+  (Delaunay, van Gogh, Rembrandt, Monet, Vermeer) carry more than one distinct
+  value, some a frame, the rest small disagreements between sources.
+- **Plausibility against the picture:** for 14 well-recorded works the shape
+  (height over width) agreed with the picture's within 3.4%, a framed
+  photograph included; corpus rows 33 (*Whaam!*) and 12 (*Tête Dada*, 2,943 ×
+  14 cm) were 2.27 and about 100 times off.
+- **Commons' `imageinfo` with `iiprop=size|mime`** gives a file's pixels: *Rhythms*'
+  file is 2,081 × 2,668, `image/jpeg`. The live suite holds both.
+
 ## Reproducing
 
 The probes were scratch scripts, not product code: a SPARQL helper with the

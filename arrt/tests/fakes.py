@@ -173,6 +173,22 @@ def an_image(
     )
 
 
+def a_decodable_jpeg(width: int = 1200, height: int = 900) -> bytes:
+    """Preview bytes a museum could really have served, and that Pillow can open.
+
+    `FakeFinder.preview_bytes` defaults to one of these: the picture store keeps
+    only what decodes, so a stub would leave a review surface looking broken for
+    a reason that is the fixture's.
+    """
+    from io import BytesIO
+
+    from PIL import Image
+
+    buffer = BytesIO()
+    Image.new("RGB", (width, height), (84, 66, 132)).save(buffer, format="JPEG", quality=90)
+    return buffer.getvalue()
+
+
 @dataclass
 class FakeFinder:
     """A museum that holds whatever it was built to hold.
@@ -192,7 +208,10 @@ class FakeFinder:
     fails_for: set[str] = field(default_factory=set)
     asked: list[str] = field(default_factory=list)
     fetched: list[str] = field(default_factory=list)
-    preview_bytes: bytes | None = b"\xff\xd8\xff\xe0 jpeg"
+    #: A picture Pillow can open, by default: the picture store re-encodes what a
+    #: source serves and refuses what is not a picture, so a stub here would leave
+    #: every instance without one.
+    preview_bytes: bytes | None = field(default_factory=a_decodable_jpeg)
 
     @property
     def provider(self) -> str:
@@ -234,23 +253,6 @@ class FakeReader:
         if self.unreachable:
             raise ImageSearchFailure(f"could not reach the collection to read {url!r}")
         return self.answer or FetchLocator.tiles(f"https://www.artic.edu/iiif/2/{abs(hash(url)) % 100000}")
-
-
-def a_decodable_jpeg(width: int = 1200, height: int = 900) -> bytes:
-    """Preview bytes a museum could really have served, and that Pillow can open.
-
-    `FakeFinder.preview_bytes` defaults to a stub that is *not* decodable,
-    which is right for tests about caching bytes and wrong for every test about
-    showing them: a preview that will not decode produces no image block, so a
-    review surface would look broken for a reason that is the fixture's.
-    """
-    from io import BytesIO
-
-    from PIL import Image
-
-    buffer = BytesIO()
-    Image.new("RGB", (width, height), (84, 66, 132)).save(buffer, format="JPEG", quality=90)
-    return buffer.getvalue()
 
 
 def a_museum_holding(
@@ -436,11 +438,22 @@ class FakeRegistry:
         work_topics=None,
         artist_topics=None,
         pages=None,
+        image_sizes=None,
+        names=None,
     ):
         self.items = items or {}
+        #: Commons file → the `RegistryImageSize` `image_size` answers; an
+        #: absent file is one Commons does not have. `sizes_failing` fails only
+        #: these, as Commons can be down while the query service answers.
+        self.image_sizes = image_sizes or {}
+        self.sizes_asked: list[str] = []
+        self.sizes_failing = False
         #: QID → the work pages `pages_about` answers; an absent QID has none.
         self.pages = pages or {}
         self.pages_asked: list[str] = []
+        #: Work QID → {creator QID → the names `creator_names` answers}; an absent QID has none.
+        self.names = names or {}
+        self.names_asked: list[str] = []
         self.creators = creators or {}
         self.people = people or {}
         self.artists = artists or {}
@@ -529,6 +542,13 @@ class FakeRegistry:
         self.works_asked.append(qid)
         return self.works.get(qid)
 
+    def image_size(self, image):
+        self._check()
+        self.sizes_asked.append(image)
+        if self.sizes_failing:
+            raise RegistryUnavailable("Commons answered HTTP 503.")
+        return self.image_sizes.get(image)
+
     def topic(self, qid):
         self._check()
         self.topic_sections_asked.append(("topic", qid))
@@ -562,6 +582,11 @@ class FakeRegistry:
         self.pages_asked.append(qid)
         return sorted(set(self.pages.get(qid, ())))
 
+    def creator_names(self, qid):
+        self._check()
+        self.names_asked.append(qid)
+        return {creator: frozenset(written) for creator, written in self.names.get(qid, {}).items()}
+
 
 class NothingWanted:
     """A `WantedItems` for a test about something else: no wanted work names any item."""
@@ -574,3 +599,18 @@ def a_roster(*finders, collection=None) -> SourceRoster:
     """The plugins a test's services are built over: these finders, this collection,
     and the Art Institute's reader, as the shared `sources` fixture has it."""
     return SourceRoster.of(finders=finders, collection=collection, readers={"artic": (artic_claims, FakeReader())})
+
+
+def take_the_picture_away(art_root, preview_path: str) -> None:
+    """Remove every tier of a kept picture, as a disk losing the files would.
+
+    A row records the store's larger tier, and the smaller one answers a card on
+    its own, so unlinking only the recorded path leaves the picture showing.
+    """
+    from pathlib import Path
+
+    kept = Path(art_root) / preview_path
+    tiers = list(kept.parent.glob(f"{kept.name.split('.')[0]}.*.jpg"))
+    assert tiers, f"no kept picture at {preview_path}, so taking it away would test nothing"
+    for tier in tiers:
+        tier.unlink()

@@ -33,6 +33,7 @@ from arrt.http.models import (
     AddWork,
     AffinityListOut,
     AffinityOut,
+    ArtistCandidateOut,
     ArtistListOut,
     ArtistOut,
     ArtistRegistryOut,
@@ -70,6 +71,9 @@ from arrt.http.models import (
     ImageOut,
     InstanceListingOut,
     InstanceOut,
+    LookOut,
+    LookPictureOut,
+    LookSourceOut,
     ManifestEntryOut,
     ManifestOut,
     MatColorOut,
@@ -77,6 +81,7 @@ from arrt.http.models import (
     NameClient,
     OriginalOut,
     PickItem,
+    PicturesOut,
     QueuedWorkOut,
     QueuePauseOut,
     RegistryCreatorOut,
@@ -108,6 +113,7 @@ from arrt.http.models import (
     SkippedOut,
     SourceOut,
     SourcePluginOut,
+    SourcesOut,
     Speak,
     SpendOut,
     StartGet,
@@ -129,6 +135,7 @@ from arrt.http.models import (
     TopicsOut,
     TopicWorkOut,
     TopicWorksOut,
+    UnlinkedArtistOut,
     VerdictOut,
     WallAssignmentOut,
     WallHeartbeatOut,
@@ -149,13 +156,15 @@ from arrt.library.acquisition.queue import AcquisitionState, QueueListing, Queue
 from arrt.library.services.artists import HeldArtist, RegistryView
 from arrt.library.services.catalogue import FacetGroup, RenditionView
 from arrt.library.services.conversation import ConversationDeletion, ConversationView, TurnView
-from arrt.library.services.discovery import VerdictOutcome, WantedWork
-from arrt.library.services.display_fit import ArtworkBox
-from arrt.library.services.review import CandidatePage, CandidateView, InstanceListing, InstanceView
+from arrt.library.services.discovery import VerdictOutcome
+from arrt.library.services.display_fit import ArtworkBox, FitAssessment
+from arrt.library.services.look import LookPicture, LookView, SourceLook
+from arrt.library.services.review import CandidatePage, CandidateView, InstanceListing, InstanceView, WantedView
 from arrt.library.services.runner import Estimate, RunView, SpendReport
 from arrt.library.services.survey import WorkDossier, WorkSurvey
 from arrt.library.services.taste import AffinityView
 from arrt.library.services.topics import TopicIndex, TopicPage
+from arrt.library.sources.plugin import API_VERSION
 from arrt.persistence.discovery_records import (
     CandidateImage,
     CandidateWork,
@@ -179,7 +188,7 @@ from arrt.programming.display import ThemeCount, ThemePlacement, WallView
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.programming.manifest.heartbeat import HeartbeatReading
 from arrt.services.container import Services
-from arrt.services.health import HealthReading, SourceHealth
+from arrt.services.health import HealthReading, PicturesReading, SourceHealth
 
 log = logging.getLogger(__name__)
 
@@ -197,14 +206,14 @@ THUMBNAIL_CACHE_CONTROL: str = "private, no-cache"
 #: preference. A thumbnail is named for its *work*, and a re-acquired master
 #: regenerates it under the same name, so a cached copy can become a superseded
 #: acquisition on screen. A candidate preview is named for its *instance*: the
-#: cache never re-fetches a file it already has, and nothing rewrites one, so the
-#: bytes behind an image id are written once and only ever deleted. An id whose
-#: content cannot change is the case `immutable` exists for, and it is what keeps
-#: a repaint of a thirty-card grid from re-encoding thirty images on a Pi.
+#: picture store keeps one picture per instance, never re-fetches what it keeps
+#: and never deletes it, so the bytes behind an image id are written once. An id
+#: whose content cannot change is the case `immutable` exists for, and it is what
+#: keeps a repaint of a thirty-card grid from asking the server thirty times.
 #:
-#: Reclamation is not a hole in that. A decided work's previews are deleted, and a
-#: card for such a work is told by the listing that no picture travels — so it
-#: never asks, and a copy still in a browser cache is never shown.
+#: A row the old sweep reclaimed is not a hole in that: its card is told by the
+#: listing that no picture travels, so it never asks, and a copy still in a
+#: browser cache is never shown.
 PREVIEW_CACHE_CONTROL: str = "private, max-age=86400, immutable"
 
 
@@ -455,7 +464,48 @@ def get_registry_work(request: Request, qid: str) -> RegistryWorkPageOut:
         ),
         held_artwork_ids=list(view.held),
         wanted=view.wanted,
+        height_cm=view.height_cm,
+        width_cm=view.width_cm,
+        image_width=None if view.image_size is None else view.image_size.width,
+        image_height=None if view.image_size is None else view.image_size.height,
+        fit=None if view.fit is None else _fit(view.fit),
     )
+
+
+#: What a browser is told when a picture key is not one a work's current look
+#: names: another work's, a refused find's, or one from a look no longer kept.
+LOOK_AGAIN: str = "This picture is not part of a current look at this work. Look again."
+
+
+@router.get("/registry/works/{qid}/look")
+def get_registry_work_look(request: Request, qid: str) -> LookOut:
+    """What every image source holds of the work, asked before any Get.
+
+    Starts the asking, or joins it, and answers at once with each source's
+    state: the page polls while `state` is `asking`. Nothing is written to the
+    catalogue. A malformed QID is a 400.
+    """
+    return _look(_services(request).look.look(qid))
+
+
+@router.get("/registry/works/{qid}/look/pictures/{key}", response_class=Response)
+def get_registry_work_look_picture(
+    request: Request,
+    qid: str,
+    key: str,
+    size: Annotated[Literal["card", "large"], Query()] = "card",
+) -> Response:
+    """A picture the work's current look found, from the picture store.
+
+    `key` is one the look's answer names, never a URL: any other key, or one
+    from a look no longer kept, is a 404 saying to look again. A key the look
+    names whose picture could not be kept is a 400, as a review card's is.
+    `size` is the review card's: `card`, or `large` for the enlarged view.
+    """
+    rendered = _services(request).look.picture(qid, key, enlarged=size == "large")
+    if rendered is None:
+        return JSONResponse(status_code=404, content={"error": LOOK_AGAIN})
+    return Response(content=rendered.data, media_type=rendered.media_type, headers={"Cache-Control": PREVIEW_CACHE_CONTROL})
 
 
 # -- topics -------------------------------------------------------------------
@@ -638,6 +688,20 @@ def _artist_registry(view: RegistryView, *, artist_id: str | None = None) -> Art
         ),
         works_total=0 if known is None else known.works_total,
         holdings=([] if known is None else [RegistryHoldingOut(qid=h.qid, name=h.name, works=h.works) for h in known.holdings]),
+        candidates=[
+            ArtistCandidateOut(
+                qid=candidate.person.qid,
+                name=candidate.person.label,
+                born=candidate.person.born,
+                died=candidate.person.died,
+                years_agree=candidate.years_agree,
+            )
+            for candidate in view.candidates
+        ],
+        unlinked=[
+            UnlinkedArtistOut(artist_id=artist.id, name=artist.name, born=artist.born, died=artist.died)
+            for artist in view.unlinked
+        ],
     )
 
 
@@ -954,6 +1018,21 @@ def get_health(request: Request) -> HealthOut:
     return _health(_services(request).health.observe())
 
 
+@router.get("/sources")
+def get_sources(request: Request) -> SourcesOut:
+    """Every installed source plugin, where it came from, and what became of it at startup.
+
+    Settings › Sources reads this: the inventory, where Status reads the same
+    plugins for how they are doing. One reading, so the two pages cannot
+    describe a plugin differently.
+    """
+    major, minor = API_VERSION
+    return SourcesOut(
+        interface_version=f"{major}.{minor}",
+        sources=[_source_plugin(each) for each in _services(request).health.observe_sources()],
+    )
+
+
 # -- discovery runs -----------------------------------------------------------
 
 
@@ -1169,7 +1248,8 @@ def want_candidate(request: Request, work_id: str, body: WantWork) -> CandidateW
 @router.get("/wanted")
 def list_wanted(request: Request) -> WantedListingOut:
     """Every work the curator wants, across runs, newest run first."""
-    return WantedListingOut(works=[_wanted_work(entry) for entry in _services(request).discovery.list_wanted()])
+    # No bytes read: the listing is uncapped, so each row's picture costs a stat.
+    return WantedListingOut(works=[_wanted_work(view) for view in _services(request).review.list_wanted(pictures=False)])
 
 
 @router.get("/sightings/hosts")
@@ -1233,26 +1313,23 @@ def get_candidate_preview(
     image_id: str,
     size: Annotated[Literal["card", "large"], Query()] = "card",
 ) -> Response:
-    """The picture for one instance, re-encoded for a browser.
+    """The picture for one instance, from the picture store, never from a source.
 
     `size=large` is the picture a review card opens in place when it is
-    clicked: the largest preview the server holds, at its own size
-    (`ENLARGED_MAX_EDGE_PX` bounds it). The default is the card's own, small
-    enough for a page of them. Any other value is refused rather than read as
-    the default, so a misspelt request is not quietly answered small.
+    clicked: the store's larger tier, the source's preview at its own size up to
+    2,048 px (`ENLARGED_MAX_EDGE_PX`). The default is the card's own, the
+    smaller tier, small enough for a page of them. Any other value is refused
+    rather than read as the default, so a misspelt request is not quietly
+    answered small.
 
-    Not a `FileResponse` over the cached file, and not for want of trying to keep
-    this thin. A cached preview's *name* is derived from its URL and falls back to
-    `.jpg` for anything unrecognised, so the suffix on disk is not evidence of
-    what the bytes are — serving a TIFF as `image/jpeg`, or as `image/tiff`, is a
-    blank card either way. The re-encode is what makes one media type true.
+    The kept file's bytes as they are: the store re-encoded every picture as
+    JPEG when it kept it, so one media type is already true and nothing is
+    rendered per request.
 
-    No conditional handling, unlike the catalogue's thumbnail. That one is a
-    cached file whose ETag Starlette computes from a `stat`; this is generated per
-    request from a file with no stable identity for a client to revalidate
-    against, so a 304 would have nothing to compare. What bounds the cost instead
-    is the grid: a card asks once, and only for the works whose alternates a
-    curator opens.
+    No conditional handling, unlike the catalogue's thumbnail. That one is a file
+    regenerated under the same name when a master is replaced, so a client must
+    revalidate it; these never change behind an image id, so `immutable` answers
+    instead.
     """
     rendered = _services(request).review.preview_image(image_id, enlarged=size == "large")
     return Response(content=rendered.data, media_type=rendered.media_type, headers={"Cache-Control": PREVIEW_CACHE_CONTROL})
@@ -1359,16 +1436,7 @@ def _work(survey: WorkSurvey) -> WorkOut:
         status=str(artwork.status),
         wikidata_qid=artwork.wikidata_qid,
         wikidata_qid_set_by=_set_by(artwork.wikidata_qid_set_by),
-        fit=(
-            None
-            if survey.fit is None
-            else FitOut(
-                verdict=str(survey.fit.fit),
-                rendered_width=survey.fit.rendered_width,
-                rendered_height=survey.fit.rendered_height,
-                rendered_long_edge_inches=survey.fit.rendered_long_edge_inches,
-            )
-        ),
+        fit=None if survey.fit is None else _fit(survey.fit),
         fit_note=survey.fit_note,
         image=ImageOut(
             available=survey.image.available,
@@ -1680,12 +1748,14 @@ def _candidate_work(work: CandidateWork) -> CandidateWorkOut:
         offered_artist_matched=work.offered_artist_matched,
         wikidata_qid=work.wikidata_qid,
         verdict=str(work.verdict),
+        decided=work.verdict.is_terminal,
         resolution_status=str(work.resolution_status),
         unresolved_reason=None if work.unresolved_reason is None else str(work.unresolved_reason),
     )
 
 
-def _wanted_work(entry: WantedWork) -> WantedWorkOut:
+def _wanted_work(view: WantedView) -> WantedWorkOut:
+    entry = view.wanted
     work = entry.work
     return WantedWorkOut(
         work_id=work.id,
@@ -1694,6 +1764,7 @@ def _wanted_work(entry: WantedWork) -> WantedWorkOut:
         run_id=work.discovery_run_id,
         wikidata_qid=work.wikidata_qid,
         scans_turned_down=entry.scans_turned_down,
+        shown=None if view.shown is None else _instance(view.shown),
     )
 
 
@@ -1747,16 +1818,7 @@ def _instance(view: InstanceView) -> InstanceOut:
         selection_rationale=image.selection_rationale,
         width=image.estimated_width,
         height=image.estimated_height,
-        fit=(
-            None
-            if view.fit is None
-            else FitOut(
-                verdict=str(view.fit.fit),
-                rendered_width=view.fit.rendered_width,
-                rendered_height=view.fit.rendered_height,
-                rendered_long_edge_inches=view.fit.rendered_long_edge_inches,
-            )
-        ),
+        fit=None if view.fit is None else _fit(view.fit),
         fit_note=view.fit_note,
         # The view's own property. It is not `preview is not None` here, because
         # this surface asks for its pictures by URL and takes none inline — see
@@ -1859,6 +1921,17 @@ def _health(reading: HealthReading) -> HealthOut:
         backup=_backup(reading.backup),
         artwork_box=_artwork_box(reading.artwork_box),
         sources=[_source_plugin(each) for each in reading.sources],
+        pictures=_pictures(reading.pictures),
+    )
+
+
+def _pictures(reading: PicturesReading) -> PicturesOut:
+    return PicturesOut(
+        pictures_bytes=reading.pictures_bytes,
+        pictures_files=reading.pictures_files,
+        age_seconds=reading.age_seconds,
+        unreadable=reading.unreadable,
+        description=reading.describe(),
     )
 
 
@@ -1873,6 +1946,10 @@ def _source_plugin(health: SourceHealth) -> SourcePluginOut:
         last_fault_age_seconds=health.last_fault_age_seconds,
         last_fault=reading.last_fault,
         description=health.describe(),
+        distribution=reading.identity.distribution,
+        version=reading.identity.version,
+        api_major=reading.identity.api_major,
+        provides=[part.value for part in reading.identity.provides],
     )
 
 
@@ -1897,6 +1974,57 @@ def _backup(reading: BackupReading) -> BackupOut:
         problem=reading.problem,
         description=reading.describe(),
         reported=reading.contents,
+    )
+
+
+def _look(view: LookView) -> LookOut:
+    return LookOut(
+        qid=view.qid,
+        state=str(view.state),
+        note=view.note,
+        held_artwork_ids=list(view.held),
+        sources=[_look_source(source) for source in view.sources],
+        pictures=[_look_picture(picture) for picture in view.pictures],
+    )
+
+
+def _look_source(source: SourceLook) -> LookSourceOut:
+    return LookSourceOut(
+        provider=source.provider,
+        state=str(source.state),
+        found=len(source.pictures),
+        refusals=sorted(str(reason) for reason in source.refusals),
+        answered_at=None if source.answered_at is None else source.answered_at.isoformat(),
+        retry_at=None if source.retry_at is None else source.retry_at.isoformat(),
+    )
+
+
+def _look_picture(picture: LookPicture) -> LookPictureOut:
+    judged = picture.judged
+    found = judged.found
+    return LookPictureOut(
+        key=picture.key,
+        provider=found.provider,
+        url=found.url,
+        title=found.title,
+        artist=found.artist,
+        width=found.estimated_width,
+        height=found.estimated_height,
+        fit=_fit(judged.fit),
+        below_floor=judged.below_floor,
+        confidence=judged.confidence,
+        rights_status=None if found.rights_status is None else str(found.rights_status),
+        selection_rationale=judged.rationale,
+    )
+
+
+def _fit(fit: FitAssessment) -> FitOut:
+    """A display-fit verdict as every surface that shows one carries it: the work, a scan, a registry picture."""
+    return FitOut(
+        verdict=str(fit.fit),
+        rendered_width=fit.rendered_width,
+        rendered_height=fit.rendered_height,
+        rendered_long_edge_inches=fit.rendered_long_edge_inches,
     )
 
 

@@ -128,6 +128,22 @@ _MAY_REACH_THE_NETWORK = {
     # Institute's. `urllib.parse` comes with it, to read a file name out of the
     # registry's file URL and strip tracking parameters; no request goes through it.
     "arrt.library.sources.commons",
+    # The Met's client, beside the other museum clients. `urllib.parse` comes with
+    # it, to read an object id and a host out of a URL; no request goes through it.
+    "arrt.library.sources.met",
+    # SMK's client, beside the Met's. `urllib.parse` comes with it, to read an
+    # object number and a host out of a page Wikidata records; no request goes through it.
+    "arrt.library.sources.smk",
+    # navigart's client, beside SMK's. `urllib.parse` comes with it, to read a
+    # publication and an artwork ID out of a page Wikidata records; no request goes through it.
+    "arrt.library.sources.navigart",
+    # The NGA's client, beside navigart's: it downloads the NGA's open data and reads
+    # previews. `urllib.parse` comes with it, to read an object ID out of a page.
+    "arrt.library.sources.nga",
+    # The picture store. `urllib.parse` only, to normalise a source image URL into
+    # the key a kept picture is filed under; the fetch goes through the source's
+    # own `fetch_preview`, never through this module.
+    "arrt.library.services.pictures",
     # The Wikidata client — the far side of the registry seam
     # (`library/registry/__init__.py`), the same arrangement as the museum
     # clients. The identity service above it takes a `Registry`, so the matching

@@ -454,23 +454,20 @@ reasons, hand-approved mat colours, theme membership, suppression scopes) is not
 reproducible at any price except re-running discovery and re-asking the curator
 every judgement they have already made.
 
-> **Three kinds of file live under `ART_ROOT`, and the exclusion covers all
-> three.** Upstream originals in the image tree; derived renditions and
-> `thumbs/`, regenerated per device; and — since 2026-08-02 — `previews/`, the
-> candidate previews phase 2 caches so review works when a museum does not.
-> Previews are the most disposable of the three, and **disposable here means
-> "losing one costs a picture, not a record" — not "it comes back"** (corrected
-> 2026-08-03). Nothing re-fetches a preview: `PreviewCache.store` runs once, when
-> phase 2 first records an instance, and a re-search does not restore the file
-> because `record_image` returns the instance a work already holds for that URL
-> without rewriting `preview_path`. So a restored catalogue with an empty
-> `previews/` shows review cards that fall back to reporting their source URLs —
-> permanently for every candidate still under review, until acquisition fetches
-> the real image after acceptance. That is a degraded review surface rather than
-> a loss, which is why the exclusion stands; it is not self-healing, which the
-> earlier wording implied. The **judgements** made against those previews — which
-> instance was selected, the rationale, which images were rejected — are catalogue
-> rows and are backed up.
+> **Every kind of file under `ART_ROOT` is excluded.** Upstream originals in the
+> image tree; derived renditions and `thumbs/`, regenerated per device; and — since
+> 2026-10-06 — `pictures/`, the picture store, where every picture fetched from
+> outside is kept for good (`data-model.md` § Direction). The store is excluded by
+> the owner's ruling of that day: it can be rebuilt, and it has no ceiling.
+> `arrt/tests/unit/test_backup_writer.py` asserts that a generation carries none of
+> it. **A restore without the store is a degraded review surface, not a loss:** a
+> card whose picture is not on disk reports its source URL, and the store fills
+> again only as instances are found again, since nothing re-fetches a kept picture
+> that is missing. The **judgements** made against those pictures — which instance
+> was selected, the rationale, which images were rejected — are catalogue rows and
+> are backed up. *(Until 2026-10-06 the third kind was `previews/`, disposable and
+> swept; `previews/` is now read only by the startup import, and removed by hand
+> once its log line reports `done`.)*
 
 > **`kept-answers.sqlite` is not backed up either, and a backup may skip it**
 > (2026-10-02, `build-plan-topics-and-destinations.md` Chunk 03c). It holds
@@ -483,6 +480,15 @@ every judgement they have already made.
 > it by itself when it is damaged or of another format (`kept.replaced` in the
 > journal), so deleting it by hand is never a repair step, only a way to make
 > every registry page ask again.
+
+> **`sources/` is not backed up either** (2026-10-06, `build-plan-nga-source.md`).
+> Each source plugin's own directory holds a copy of what it can fetch again; the
+> first is `sources/nga/`, the NGA's open data (about 43 MB gzipped). Deleting it
+> costs one download, of about 43 MB, at the next query that asks the NGA. The
+> plugin asks for each file at most once a day, conditionally, and holds the parsed
+> copy (about 80 MB) in memory only within six hours of an NGA query, which is the
+> figure to keep under the container's memory limit (`nga.catalogue_loaded` and
+> `nga.catalogue_released` in the journal mark both ends).
 
 **Destination: another machine on the network** (desktop or NAS, over LAN or the
 overlay network). Decided 2026-07-20. No third party, no cost, no credential on
@@ -577,7 +583,7 @@ that will actually get run rather than skipped.
 | Deploy | `git pull`, then `systemctl restart` each unit. No migration spans the planes — the manifest is regenerated, never migrated. **One-off after the 2026-08-12 upgrade: delete `theme-manifest.json` and `display-heartbeat.json` from `ART_ROOT`.** Both files became per-wall (`theme-manifest-{wall_id}.json`), nothing writes or reads the old paths any more, and nothing deletes them either — so they sit there holding whatever they held at the moment of the upgrade. Harmless to the running planes and *not* harmless to a person: a `jq` at the old path answers, with a document that will never change again, and looks exactly like a current one. Delete them and the ambiguity goes with them |
 | Rollback | **No longer `git checkout` plus two restarts, since 2026-08-12** — this row said that for the whole life of the product and stopped being true the first time the schema *dropped* something. The wall migration removes `themes.is_active`, and the previous release reopening that file refuses to start rather than running against a column it requires and cannot find. **That refusal is the good outcome**: it is loud, immediate, and it happens before anything is served, where the alternative — a release silently reading a catalogue it does not understand — is the failure this product exists to refuse. But it means a rollback across a migration is a **restore**, not a checkout: `git checkout` the previous commit, then restore `catalogue.sqlite` from the backup taken before the deploy, then restart both. **The backup is the rollback plan**; without one, rolling back across this migration is not possible. A rollback that crosses no migration is still the old two-step |
 | Restart one plane | Safe at any time, in either order. The other is unaffected by design |
-| Add disk headroom | **`tile-cache/` reclaims itself since 2026-08-03** and is no longer an operator chore: tiles are cached under the id of the source being fetched, and that directory is removed the moment the work holds a complete image. What survives a pass is exactly the tiles of a **partial** fetch, which is the one case they are worth their disk — they are what lets `art_catalogue(action='retry_acquisition')` finish the image without re-downloading what already arrived. So a `tile-cache/` that is large is a report that works are sitting partially fetched, and the remedy is to retry them rather than to delete the directory; deleting it is safe and costs those retries their head start. `temp/` belongs to the 2024 modules and is still pruned by hand until they are retired. **`api-cache/` needs no rule: the curation plane never creates one** — phase 2 asks museums over HTTP with no on-disk cache, and the directory exists only in the 2024 `config.py`. **`previews/` reclaims itself since 2026-08-03**: the plane sweeps it hourly (`PREVIEW_SWEEP_INTERVAL_SECONDS`, 0 to disable), deleting the cached thumbnails of candidate works the curator has accepted or rejected, and logging `preview.swept` every pass whether or not it took anything — a plane that has stopped sweeping is therefore visible in the journal rather than only in the free-space figure. **Two things it does not reclaim, and the second is why deleting the directory by hand is still a listed remedy.** The previews of works nobody has judged yet — those are the ones review still needs, so a backlog of undecided candidates is a state in which this directory legitimately grows, and deciding them is the remedy. And **files no row names**: the sweep derives every path it considers from `CandidateImage.preview_path`, so bytes written by a phase-2 run that died between writing the file and recording the row are invisible to it permanently. That is not hypothetical — it is the case an on-verdict hook could never have covered, which is part of why the sweep exists — and it is unbuilt, filed rather than glossed. Until it is built, **`rm -rf` on `previews/` is the only thing that reclaims an orphan**, and it costs more than the word "disposable" suggests: **nothing re-fetches a preview.** `PreviewCache.store` is called once, by phase 2 when an instance is first recorded, and a re-search does not restore the file either — `record_image` returns the instance a work already holds for that URL without rewriting `preview_path`. So deleting the directory permanently costs the inline picture of every candidate **still under review**, whose cards fall back to reporting a source URL a curator would have to open by hand; works already decided lose nothing, since their previews were the sweep's to take anyway. Safe on a full card, and not free — prefer deciding the outstanding candidates first, which lets the sweep reclaim them properly. It matters here because § Risks opens with the SD card as the top operational risk |
+| Add disk headroom | **`tile-cache/` reclaims itself since 2026-08-03** and is no longer an operator chore: tiles are cached under the id of the source being fetched, and that directory is removed the moment the work holds a complete image. What survives a pass is exactly the tiles of a **partial** fetch, which is the one case they are worth their disk — they are what lets `art_catalogue(action='retry_acquisition')` finish the image without re-downloading what already arrived. So a `tile-cache/` that is large is a report that works are sitting partially fetched, and the remedy is to retry them rather than to delete the directory; deleting it is safe and costs those retries their head start. `temp/` belongs to the 2024 modules and is still pruned by hand until they are retired. **`api-cache/` needs no rule: the curation plane never creates one** — phase 2 asks museums over HTTP with no on-disk cache, and the directory exists only in the 2024 `config.py`. **`pictures/` is never reclaimed, by norm** (`data-model.md` § Direction, 2026-10-06): every picture fetched from outside is kept, two files each, and the store has no ceiling. Its files and bytes are on the health panel, counted at most ten minutes ago, so its growth is a figure to watch rather than a chore. **`previews/` is debris since the same day**: the startup import moves every file a row names into the store, logging `pictures.imported` with its counts; once that line reports `done`, `rm -rf previews/` loses nothing, including files no row ever named (#62). It matters here because § Risks opens with the SD card as the top operational risk |
 | **Verify the spend ceiling** | In the OpenRouter console, confirm the key in `OPENROUTER_API_KEY` still carries a **USD 20 credit limit with a monthly reset**. **This setting is the entire cap** — nothing in this repository enforces one, by ratified decision, because an application-side meter that fails open is indistinguishable from one that works. A key whose limit was cleared, or a key swapped for an uncapped one, looks identical on every surface the product exposes right up to the bill. `cd arrt && uv run pytest -m live_api` asserts it mechanically (`test_the_key_reports_a_monthly_ceiling`) and costs a few cents to run |
 | Bound the journal | Install `deploy/journald.conf.d/10-bound-the-journal.conf` and restart `systemd-journald`. **`SystemMaxUse=` alone is not enough** — Raspberry Pi OS ships `Storage=volatile`, so the journal is in RAM and `RuntimeMaxUse=` is the directive that binds; the drop-in sets both. Verify with journald's own `Journal ... max` startup line, not `systemd-analyze cat-config`, which only proves the file parses — see § Risks |
 | **Decide on a TV firmware update** | Auto-update is **off** (2026-08-04) and the set is held at 1310 with 1400 offered. Nothing arrives on its own, so this recurs whenever there is a reason to update. Default answer is stay: the update is one-way and every measured fact about this set is firmware-scoped. If one is ever taken, re-run `python tv_api_check.py --image <a 4K composite>` — it is what says which behaviours moved |

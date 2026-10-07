@@ -22,6 +22,7 @@ import pytest
 from arrt.http.pages import STATIC_DIR
 from arrt.library.discovery.conversation import SUGGESTION_KINDS
 from arrt.library.services.get import SkipReason
+from arrt.library.services.look import SourceState
 from arrt.mcp.bindings import RESTORE_NOTICE
 from arrt.persistence.discovery_records import (
     AffinityDerivation,
@@ -434,3 +435,11 @@ def test_no_screen_replaces_children_except_through_fill():
 def test_every_run_kind_has_a_word():
     """Queue names a run by its kind; a new kind would otherwise be listed as its raw token."""
     assert _object_keys("KIND_WORDS") == {str(kind) for kind in RunKind}
+
+
+@pytest.mark.parametrize("name", ["LOOK_SOURCE_WORDS", "LOOK_SOURCE_GLYPHS"])
+def test_every_state_a_source_can_answer_a_look_with_has_words_and_a_glyph(name):
+    """A look's row is a glyph and a word; a state missing here would be drawn as its raw token."""
+    assert _object_keys(name) == {str(state) for state in SourceState}
+    values = _object_values(name)
+    assert all(value.strip() for value in values.values()), f"`{name}` has a state with nothing to show"

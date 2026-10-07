@@ -343,43 +343,36 @@
   tiles of a **partial** download so a retry can resume, and it is removed per
   source as soon as that work holds a complete image. Transporting it would carry
   the debris of an interrupted fetch to another machine. `api-cache/` appears only
-  in the 2024 `config.py`; the curation plane asks museums over HTTP and caches
-  nothing on disk, so nothing produces it.
+  in the 2024 `config.py`; the curation plane asks museums over HTTP, so nothing
+  produces it. (What a source plugin keeps of a holder's published data lives
+  under `sources/`, below.)
 - All stored paths are relative to `ART_ROOT`. No absolute paths in any record.
-- Candidate `preview_path` files are a third class — neither upstream nor derived;
-  cheap, disposable, pre-acceptance. Their lifecycle **is** recorded in
-  `data-model.md`: safe to delete once their `CandidateWork` reaches a terminal
-  verdict, and deletion never touches the catalogue. **Settled 2026-08-03: a
-  periodic sweep performs it, not an on-verdict hook.** `[DECISION: candidate
-  previews are reclaimed by a periodic sweep over terminal-verdict CandidateWorks
-  | a sweep derives what to delete from current state, so it is idempotent and a
-  crashed pass costs a delay — where a hook that dies with the process leaks
-  silently, and nothing afterwards is looking for a leaked preview | user can
-  veto/override]` It runs on a daemon thread inside the application's lifespan,
-  sweeping immediately at start and then on `PREVIEW_SWEEP_INTERVAL_SECONDS`
-  (hourly by default, 0 to disable): a start-only sweep would reclaim nothing on
-  an always-on plane, which is the deployment this exists for.
-- **What it reclaims is bounded by the rows, and the shipped sweep is only half
-  of what the decision above promised.** Every path it considers comes from a
-  `CandidateImage.preview_path`, so a file written by a phase-2 run that died
-  before recording its row is invisible to it — permanently, since nothing else
-  ever looks at that directory. That is exactly the case a hook could not cover
-  and the sweep was chosen to cover, so it is the half still owed rather than a
-  limitation of the approach. Unbuilt and filed as issue #62; `operational-spec.md`
-  § Add disk headroom names hand-deletion as the interim reclamation and states
-  what it costs. **Not "re-fetchable" — nothing re-fetches a preview.**
-  `PreviewCache.store` is called once, when phase 2 first records an instance, and
-  a re-search does not restore the file either, because `record_image` returns the
-  instance a work already holds for that URL without rewriting `preview_path`. A
-  preview is disposable in the sense that losing one costs a picture rather than a
-  record; it is not disposable in the sense of coming back.
-- **The unit of deletion is the *path*, not the row**, because a preview file is
-  named by a digest of its URL and two candidate works can therefore share one.
-  A file survives while any work still under review references it. The producer
-  of the sharing is ordinary — phase 1 naming one painting twice, phase 2
-  resolving both to the same museum image — and deleting on the first work's
-  verdict would take the picture out from under a work still being judged, which
-  the review card would then report as a file it could not read.
+- **`pictures/` joins the contract (added 2026-10-06, the owner's norm in
+  `data-model.md` § Direction).** Every picture Arrt fetches from outside is kept
+  there for good: `pictures/<2 hex>/<key>.<tier>.jpg`, tiers 480 and 2,048 px on the
+  long edge, re-encoded as JPEG by `library/services/pictures.py`, the only module
+  that asks a source for a preview. Written and read by curation only. **Neither
+  upstream nor derived, and neither transported nor backed up:** it is a cache of
+  outside pictures on the server's own disk, rebuilt by fetching again. Nothing
+  deletes a picture; the store's only deletion is its own `*.tmp` files at startup.
+  A row's `preview_path` names the larger tier. The old `previews/` directory is
+  read by the import at each start, and removed by hand once that reports `done`.
+- **`sources/` joins the contract (added 2026-10-06, interface 1.2,
+  `build-plan-nga-source.md`).** `sources/<plugin name>/` is each source plugin's
+  own directory (`SourceContext.data_dir`), for a copy of what it can fetch again.
+  The first is `sources/nga/`: the NGA's open data, two gzipped CSVs and a
+  `state.json` of their ETags and last check, about 43 MB. Written and read by
+  that plugin only, in the curation plane. **Neither upstream nor derived, and
+  neither transported nor backed up:** deleting it costs one download at the next
+  query that asks the NGA.
+- **The preview sweep is retired (2026-10-06, `build-plan-picture-store.md`
+  Chunk 02).** From 2026-08-03 candidate previews were a disposable third class
+  under `previews/`, deleted by a periodic sweep once every work naming one was
+  decided, and `PREVIEW_SWEEP_INTERVAL_SECONDS` set its pace. The owner's norm
+  that every picture fetched from outside is kept retired the class, the sweep
+  and the setting together; the history is in `change-log.md`, scope
+  `picture-store`. A file in `previews/` that no row names (#62) is left in place
+  on purpose and removed by hand with the directory.
 - **`label/` is retired from this prospective contract (recorded 2026-07-20).**
   Labels are rendered on the display plane from manifest label text; a rendered
   label is device state, so any cache of one lives display-side, never in
@@ -419,14 +412,13 @@
   a thumbnail rebuilds from a master still on disk for one bounded decode, so a
   sweep would spend a mechanism and its own failure mode on the cheapest thing
   in the tree | user can veto/override]`
-- **The contrast with candidate previews above is the reasoning, not an
-  inconsistency**, and it is worth stating because the two sit in one section
-  and reach opposite answers. A preview belongs to a work that may never be
-  accepted, and nothing re-fetches one — so a leaked preview is permanent growth
-  in files nothing will ever want, which is what earns a sweep. A thumbnail
-  belongs to a work already held and is one decode from returning. The two
-  directories differ in whether the cached thing is *recoverable*, and that is
-  the whole of why one is swept and the other is not.
+- **Neither `thumbs/` nor `pictures/` is swept, for different reasons.** A
+  thumbnail belongs to a work already held and is one decode from returning, so a
+  sweep would spend a mechanism on the cheapest thing in the tree. A kept picture
+  is kept by norm (`data-model.md` § Direction, 2026-10-06): fetching it again
+  costs a museum a request, and the store's growth is watched on the health panel
+  rather than bounded. *(Until that norm, candidate previews were the contrast
+  case: swept, because nothing re-fetched one.)*
 - Each derived directory is device-specific in a different way, which is worth
   stating because the row above reads as if they were alike: `ready/` and
   `tv-thumbs/` are specific to the *television*, while `thumbs/` is specific to
@@ -623,7 +615,8 @@ none of the first three.** It spends nothing, reaches no foreign API, and is
 entirely deterministic. What it needs is a ~200MB browser on the machine, which
 is too much to put on the default `uv sync` — so its deselection is a packaging
 decision, not a statement about the tests, and `.github/workflows/browser.yml`
-runs it on pull requests and on pushes to `main`, so that being off the default
+runs it on pull requests (in four serial shards; a pull request changing only
+records skips it) and on every push to `main`, so that being off the default
 run does not become never running. Its dependency is its own group for the same
 reason the evaluation level's is, and its modules `importorskip` for the same
 reason too.

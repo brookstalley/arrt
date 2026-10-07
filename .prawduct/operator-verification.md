@@ -10,6 +10,222 @@ each entry, which is the durable form.
 
 ## Pending
 
+### The NGA as a source — added 2026-10-06
+
+**`build-plan-nga-source.md` Chunk 01.** Visual change: no; live integration.
+
+Checked by the builder against recorded rows of the open data with a fake host
+and clock, and against the live hosts (`live_museum`). Not yet deployed.
+
+- **Look at:** after the next deploy, Settings › Sources lists `nga` from `arrt`,
+  loaded, and the interface version reads 1.2. `ART_ROOT/sources/` is empty until
+  the first look or Get that asks the NGA; then `sources/nga/` holds two `.csv.gz`
+  files (about 43 MB) and `state.json`, and the journal says
+  `nga.catalogue_downloaded` twice and `nga.catalogue_loaded` once.
+- **Try:** a look at Murillo's *Two Women at a Window* (Q3757652): an `nga`
+  picture at 17,385 × 20,855, public domain. Then a look at Escher's
+  *Castrovalva* (corpus row 15, Q65574099): an `nga` placeholder at 704 × 900,
+  below the floor, rights unknown.
+- **Worth watching:** about six hours after the last NGA query, the journal says
+  `nga.catalogue_released`, and the container's memory falls by about 80 MB. A
+  day later, the first NGA query says `nga.catalogue_unchanged` (a 304) or
+  downloads a new day's file.
+- **Worth an opinion:** about a quarter of NGA's attributions differ from
+  Wikidata's creator label under the identity check's key (`Rembrandt van Rijn`
+  against `Rembrandt`), and those finds are refused on the artist (#245).
+
+### Artist pages that lead somewhere, quieter search marks, a settled review card — added 2026-10-06
+
+**`build-plan-artist-search-review-fixes.md` Chunk 01.** Visual change: yes.
+
+Checked by the builder against the suites, including the browser suite with a
+fake Wikidata. Not yet deployed.
+
+- **Try:** open the library's Franz Kline (search "Franz Kline", the Held row).
+  Under *Their work*, Wikidata's people named Franz Kline are listed, Q374492
+  (1910–1962) first with "their years agree". Press *This is them*: the page draws
+  his Wikidata works, his two held ones marked ● Held. Search "Franz Kline" again:
+  he is now one artist, under Held.
+- **Try:** search "Lucy Bull", open her under Not held. Below "Wikidata lists no
+  works for them." is *Ask for their work*, which opens Ask filled with "Paintings
+  by Lucy Bull" and starts nothing.
+- **Look at:** any search results page. Artist rows have no mark; a not-held work
+  reads ◐ *Image found* or ○ *No image known*. The top result keeps its ● or ○.
+- **Try:** on a Get or run page, Accept a work. The *Why* box and the buttons give
+  way to "Accepted. It is in your library." with *Open it in Artworks*.
+- **Worth an opinion:** whether "Paintings by <name>" is the Ask wording you'd
+  want, and whether *This is them* should ask for confirmation first.
+- **Then, once Kline is checked:** stop the server and run `python -m arrt.identify`
+  once (`backlog #252` is making it unnecessary). It links every unlinked artist
+  the matcher is certain of, and prints the ones it could not decide; those are
+  the ones the candidates list is for. Run it first and Kline is linked before
+  you can try the list on him.
+
+### A work you don't hold shows what the sources hold, before any Get — added 2026-10-06
+
+**`build-plan-look-before-get.md` Chunks 01–02.** Visual change: yes (the Work
+page for a work not held); live integration (every image source, asked for real).
+
+Checked by the builder against fake sources only: the look's cache, its surfaces
+over a real server, and the page in Chromium with served answers and one real
+look. No live museum has been asked.
+
+- **Try:** open `#work/Q20267229` (*Tantra-Vision*, which Wikidata pictures with
+  nothing) and do **not** press *Get this work*. *What the image sources hold*
+  fills in within a few seconds, SMK's row reads ● 1 found, and SMK's picture
+  (2,201 × 2,221 px) takes the place at the top. Its card enlarges in place, and
+  Escape closes it.
+- **Look at the journal:** one `look.started` line, then one
+  `look.source_answered` (or `look.source_unreachable`) per source, each with
+  `look_qid` `Q20267229`, and a `look.picture_served` per picture shown.
+- **Then reload within six hours:** the panel fills at once, and the journal has
+  **no** new `look.started` and no `look.source_answered` lines: no source was
+  asked again. (A source that could not be asked is asked again after ten
+  minutes, and that one line is expected.)
+- **Look at:** a work Wikidata does picture (any well-known painting not held):
+  Wikidata's picture stays on top, with a line saying it is Wikidata's, and the
+  sources' finds are below it.
+
+### Every picture Arrt fetches is kept — added 2026-10-06
+
+**`build-plan-picture-store.md` Chunks 01–02.** Visual change: yes (a Status
+panel); live integration.
+
+Checked by the builder against the suites with fixture pictures: the store, the
+import on a fixture art root, the health count on HTTP, MCP and the page. Not yet
+deployed, and the NAS's `previews/` has never been imported.
+
+- **Before rolling back past this build:** an older image's preview sweep would
+  delete kept pictures, because the import repoints rows into `pictures/`. Set
+  `PREVIEW_SWEEP_INTERVAL_SECONDS=0` first (the NAS's `arrt.env` carries it from
+  2026-10-06; this build ignores it), and keep `previews/` until this build is
+  trusted.
+
+- **Look at the journal at the first start after deploy:** one `pictures.imported`
+  line with `imported`, `missing`, `refused`, `failed` and `unnamed`. Expect
+  `failed` 0 and `done` true; `imported` is about the number of review rows that
+  had a preview. Then `rm -rf` the art root's `previews/`: nothing reads it
+  after `done`. A `PREVIEW_SWEEP_INTERVAL_SECONDS` left in `.env` is now ignored
+  and can go.
+- **Look at:** System › Status has a **Kept pictures** panel with a file count,
+  bytes, and how many seconds ago it was counted (at most ten minutes).
+  `art_display(action='status')` reports the same `pictures`. Files are about
+  twice the number of pictures, one per size kept.
+- **Try:** open a review card for a work found before the deploy, and its
+  enlarged view, with no request to the museum: the picture loads, and the
+  journal shows no `picture.kept` line as you do it (only a fetch writes one).
+  A card for a work already decided before the deploy that lost its picture
+  then says so in words rather than showing a blank box.
+- **Worth an opinion:** how fast the store grows on real searches (the builder
+  measured about 33 KB and 100 to 140 KB per picture on synthetic 843 to
+  1,200 px previews), and whether the panel wants a sentence about disk free
+  beside it.
+
+### Search grouped Held / Not held, and Enter opens the results — added 2026-10-06
+
+**`build-plan-search-held-not-held.md` Chunk 01.** Visual change: yes.
+
+Supersedes what the 2026-10-01 entries below say about Enter, the dropdown's
+group names, and the results page's *All* / *In your library* / *Not held* switch,
+which is gone: nothing there is to be judged any more. Checked by the builder against the browser suite. Not yet deployed.
+
+- **Look at:** typing in the search box shows two halves, *Held* and *Not held*.
+  An empty Held is one line, "Nothing you hold matches." Wikidata's artists, works
+  and topics are under Not held.
+- **Try:** type "mortensen tantra-vision" and press Enter. The results page opens
+  with Held as one line and *Tantra-Vision. With Gallic Palette* under Not held,
+  which opens its work page (the dead end of 2026-10-06).
+- **Worth an opinion:** whether the half headings read clearly on a phone, and
+  whether "Open in Artworks" sits where you'd look for it.
+
+### navigart.fr as a source — added 2026-10-06
+
+**`build-plan-navigart-source.md` Chunk 01.** Visual change: no; live integration.
+
+Checked by the builder against recorded answers and navigart's live API
+(`live_museum`). Not yet deployed.
+
+- **Look at:** after the next deploy, Settings › Sources lists `navigart` from
+  `arrt`, loaded, reading "Finds images of a work; reads the addresses it claims."
+- **Try:** *Search again* on corpus rows 6 (Sonia Delaunay, *Rythme couleur
+  n°1076*, Q116464677) and 14 (Taeuber-Arp, *Échelonnement*, Q136030970). Each
+  should be offered a `navigart` image, 1000 × 979 (in copyright) and 777 × 1000
+  (public domain), below the floor, identified by the item's own navigart page.
+  Row 7 has no navigart page and stays as it is.
+- **Worth an opinion:** every navigart image is at most 1,000 px, so each is a
+  placeholder that stays on Wanted. Whether the plugin belongs in this public
+  repository rather than the private one (the build plan's first decision).
+
+### SMK as a source — added 2026-10-06
+
+**`build-plan-smk-source.md` Chunk 01.** Visual change: no; live integration.
+
+Checked by the builder against recorded answers and SMK's live API
+(`live_museum`). Not yet deployed.
+
+- **Look at:** after the next deploy, Settings › Sources lists `smk` from `arrt`,
+  loaded, reading "Finds images of a work; reads the addresses it claims."
+- **Try:** a Get of Richard Mortensen's *Tantra-Vision. With Gallic Palette*
+  (Q20267229, in copyright, no image on Wikidata). It should offer an `smk` image
+  at 2201 × 2221, recorded as in copyright and identified by the item's own
+  page (`https://collection.smk.dk/#/en/detail/KMS7816`).
+- **Worth an opinion:** many of SMK's in-copyright works come only at about
+  1,600 px on the long edge (KMSr31, KMS6503, KMS4337, measured 2026-10-06).
+  That clears the 1,000 px minimum and renders about 18" tall on the owner's
+  50" 4K Frame, so they hang, matted small: a wider mat than a full-size scan
+  gets. Fewer fill the wall than #232's two full-size samples suggested.
+
+### Wanted shows each work's picture — added 2026-10-06
+
+**`build-plan-wanted-pictures.md` Chunk 01.** Visual change: yes.
+
+Checked by the builder against the browser suite with stand-in pictures, and
+over real HTTP and MCP with a below-floor scan. Not yet deployed.
+
+- **Look at:** Wanted's first column pictures each work by the scan its review
+  card shows, with the fit badge under it (usually ▲ below floor); pressing it
+  enlarges it. A work with nothing standing says "No scan found." or "Every scan
+  found was turned down." in its place, and *Why* reads "Found only too small"
+  beside a too-small picture, never "No scan found".
+- **Try, once `met_pages` is deployed** (arrt-sources): *Search again* on Kelly's
+  *Blue Green Red* (Q20189992) should picture it at 544 × 600, below the floor,
+  and leave it on Wanted.
+- **Worth an opinion:** whether 8rem is the right size for a picture you
+  recognise a work by, and whether Wanted wants a grid rather than a table.
+
+### Settings › Sources, and the Met as a source — added 2026-10-06
+
+**`build-plan-met-source.md` Chunks 01–02.** Visual change: yes.
+
+Checked by the builder against the browser suite (loaded, declined and failed
+plugins; a plugin's text as text) and the Met against its live API. Not yet
+deployed.
+
+- **Look at:** after the next deploy, Settings lists Taste, Clients, **Sources**.
+  Sources shows every plugin with its package and version: `arrt` and its version
+  for `commons`, `artic`, `met`, `smk` and `wikidata`, and `arrt-sources` and its version
+  for `artlogic`, `moma` and `sfmoma`. `met` reads "Finds images of a work; reads
+  the addresses it claims." `art_discovery(action='source_plugins')` answers the same.
+- **Try:** an Ask or Get for a public-domain painting the Met holds (e.g. van
+  Gogh's *Wheat Field with Cypresses*, Q18689458) offers a `met` image at its full
+  size (4000 × 3184).
+- **Worth an opinion:** whether the Met should have an off switch (today it is
+  always on, because it needs no key).
+
+### Pictures in the registry lists, and sizes on a work's page — added 2026-10-05
+
+**`build-plan-work-pictures-and-sizes.md` Chunks 01–02.** Visual change: yes.
+
+Checked by the builder against the browser suite at 390 px and 1280 px, with
+stand-in pictures. Not yet deployed.
+
+- **Look at:** on a phone, an artist's *Their work* shows each work's picture
+  (3rem) above glyph and word, the year sits under the title, and the table does
+  not scroll sideways. *Rhythms* (`#work/Q19861769`) lists Size 145 × 113 cm
+  (57.1 × 44.5 in), and under its picture 2,081 × 2,668 px with a fit badge.
+- **Worth an opinion:** whether 3rem is large enough to choose by, and whether
+  the desktop lists want the larger picture too (they have it now).
+
 ### Wanted as a section of its own — added 2026-10-05
 
 **`build-plan-norm-sweep-2026-10.md` Chunk 06.** Visual change: yes.

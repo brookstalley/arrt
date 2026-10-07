@@ -442,6 +442,17 @@ def _round_robin(groups: Sequence[OfferedGroup]) -> Iterator[tuple[FoundImage, O
 OFFER_RATIONALE = "Offered by the collection, not proposed by the model."
 
 
+def image_query(title: str, artist: str | None, qid: str | None, *, pages: tuple[str, ...] = ()) -> ImageQuery:
+    """The question phase 2 asks the image sources about one work.
+
+    One builder, so a look at a work asks exactly what a Get of it would
+    (`library/services/look.py`): the title and maker as the work's row
+    records them, its item, and the pages its run's search cited, which a Get
+    has none of.
+    """
+    return ImageQuery(title=title, artist=artist, qid=None if qid is None else ItemId(qid), pages=pages)
+
+
 def _daemon_thread(work: Callable[[], None]) -> None:
     """Run a run's phase-1 work behind the handle that was already returned.
 
@@ -489,7 +500,7 @@ class DiscoveryRunner:
         #: incoherent: there is nothing to supplement until the gate has refused
         #: something. A run with no collection simply offers nothing.
         self._collection = collection
-        #: Phase 2, and the cache its previews land in. Optional together: a
+        #: Phase 2, and the picture store its previews are kept in. Optional together: a
         #: deployment without an image provider runs phase 1 and stops, which is
         #: a coherent configuration and the one every phase-1 test uses. What is
         #: not coherent is one without the other, so the pair is checked rather
@@ -1204,7 +1215,7 @@ class DiscoveryRunner:
             # question to answer when the answer is the question.
             confidence=OFFERED_CONFIDENCE,
             preview_url=found.preview_url,
-            preview_path=previews.store(found.provider, found.preview_url) if found.preview_url else None,
+            preview_path=previews.store(found.provider, found.url, found.preview_url) if found.preview_url else None,
             estimated_width=found.estimated_width,
             estimated_height=found.estimated_height,
             rights_status=found.rights_status,
@@ -1274,14 +1285,7 @@ class DiscoveryRunner:
             )
             return WorkOutcome.VERDICT_STOOD
         try:
-            resolution = images.resolve(
-                ImageQuery(
-                    title=work.proposed_title,
-                    artist=work.proposed_artist,
-                    qid=None if work.wikidata_qid is None else ItemId(work.wikidata_qid),
-                    pages=pages,
-                )
-            )
+            resolution = images.resolve(image_query(work.proposed_title, work.proposed_artist, work.wikidata_qid, pages=pages))
         except ImageSearchFailure as exc:
             # Two reasons a work goes unasked, logged apart: a source that was
             # down, and no wired source able to look a work like this up at all.
@@ -1319,9 +1323,10 @@ class DiscoveryRunner:
         return WorkOutcome.RESOLVED if outcome.resolution_status is ResolutionStatus.RESOLVED else WorkOutcome.UNRESOLVED
 
     def _record_instance(self, work: CandidateWork, entry: JudgedImage, previews: PreviewCache) -> None:
-        """Write down one judged instance, caching its preview on the way in.
+        """Write down one judged instance, keeping its picture on the way in.
 
-        The preview is fetched before the row is written so the path is recorded
+        The picture store answers from what it keeps, fetching the preview only
+        on a miss, before the row is written, so the path is recorded
         with it rather than by a second update — a row written first and patched
         after is a row that is briefly wrong, and on a crash permanently so.
         """
@@ -1334,7 +1339,7 @@ class DiscoveryRunner:
             acquisition_method=found.acquisition_method,
             confidence=entry.confidence,
             preview_url=found.preview_url,
-            preview_path=previews.store(found.provider, found.preview_url) if found.preview_url else None,
+            preview_path=previews.store(found.provider, found.url, found.preview_url) if found.preview_url else None,
             estimated_width=found.estimated_width,
             estimated_height=found.estimated_height,
             rights_status=found.rights_status,

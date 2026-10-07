@@ -18,6 +18,8 @@ from arrt.library.registry import (
     RegistryArtist,
     RegistryCreator,
     RegistryHolder,
+    RegistryImageSize,
+    RegistryPerson,
     RegistrySimilar,
     RegistryText,
     RegistryWork,
@@ -25,6 +27,7 @@ from arrt.library.registry import (
     RegistryWorkMatch,
 )
 from arrt.library.services.artists import ArtistService, RegistryState
+from arrt.library.services.display_fit import DisplayFit, assess_display_fit
 from arrt.library.services.registry_search import RegistrySearchService, RegistrySearchState
 from arrt.library.services.registry_works import RegistryWorkService, RegistryWorkState
 from arrt.persistence.kept import KeptAnswers
@@ -33,6 +36,9 @@ ROTHKO = "Q160149"
 BRUEGEL = "Q43270"
 HUNTERS = "Q500985"
 HELD_ROTHKO = "Q20270685"
+HUNTERS_FILE = "https://commons.wikimedia.org/wiki/Special:FilePath/Hunters.jpg"
+SMALL_FILE = "https://commons.wikimedia.org/wiki/Special:FilePath/Small.jpg"
+SMALL = "Q7000001"
 
 
 @pytest.fixture
@@ -44,11 +50,14 @@ def registry():
                 title="The Hunters in the Snow",
                 sitelinks=39,
                 year=1565,
-                image="https://commons.wikimedia.org/wiki/Special:FilePath/Hunters.jpg",
+                image=HUNTERS_FILE,
                 creators=(RegistryCreator(qid=BRUEGEL, name="Pieter Brueghel the Elder"),),
                 media=("oil paint", "panel"),
                 holders=(RegistryHolder(qid="Q95569", name="Kunsthistorisches Museum", inventory="GG_1838"),),
+                height_cm=117.0,
+                width_cm=162.0,
             ),
+            SMALL: RegistryWork(qid=SMALL, title="A postcard of it", sitelinks=0, image=SMALL_FILE),
             "Q16682090": RegistryWork(
                 qid="Q16682090",
                 title="Q16682090",
@@ -68,6 +77,10 @@ def registry():
                 works_total=125,
             ),
             ROTHKO: RegistryArtist(qid=ROTHKO, name="Mark Rothko"),
+        },
+        image_sizes={
+            HUNTERS_FILE: RegistryImageSize(width=6000, height=4400),
+            SMALL_FILE: RegistryImageSize(width=300, height=200),
         },
         similar={
             BRUEGEL: [
@@ -104,6 +117,69 @@ class TestAWorkByQid:
         assert page["media"] == ["oil paint", "panel"]
         assert page["holders"] == [{"qid": "Q95569", "name": "Kunsthistorisches Museum", "inventory": "GG_1838"}]
         assert page["image"].startswith("https://commons.wikimedia.org/wiki/Special:FilePath/")
+
+    def test_a_work_says_how_big_it_is_and_how_big_its_picture_is(self, http):
+        page = http.get(f"/api/registry/works/{HUNTERS}").raise_for_status().json()
+
+        assert (page["height_cm"], page["width_cm"]) == (117.0, 162.0)
+        assert (page["image_width"], page["image_height"]) == (6000, 4400)
+        assert page["fit"]["verdict"] == "native"
+
+    def test_a_picture_too_small_for_the_wall_is_judged_as_the_review_grid_judges_it(self, http, settings):
+        page = http.get(f"/api/registry/works/{SMALL}").raise_for_status().json()
+
+        expected = assess_display_fit(width=300, height=200, box=settings.tv_artwork_box)
+        assert page["fit"]["verdict"] == "below_floor"
+        assert page["fit"]["rendered_long_edge_inches"] == expected.rendered_long_edge_inches
+        assert (page["height_cm"], page["width_cm"]) == (None, None)
+
+    def test_a_work_with_no_picture_asks_commons_nothing(self, http, registry):
+        page = http.get("/api/registry/works/Q16682090").raise_for_status().json()
+
+        assert (page["image_width"], page["image_height"], page["fit"]) == (None, None, None)
+        assert registry.sizes_asked == []
+
+    def test_a_size_that_disagrees_with_its_picture_is_not_shown(self, http, registry):
+        """Wikidata's sides swapped, as corpus row 33's are: the picture is wider than tall, the size says taller."""
+        registry.works[HUNTERS] = replace(registry.works[HUNTERS], height_cm=162.0, width_cm=117.0)
+
+        page = http.get(f"/api/registry/works/{HUNTERS}").raise_for_status().json()
+
+        assert (page["height_cm"], page["width_cm"]) == (None, None)
+        assert page["image_width"] == 6000, "the picture's own size is not in doubt"
+
+    def test_a_held_work_does_not_wait_on_commons(self, http, held, registry):
+        """Its page goes to the library's own, so Commons is not asked how big Wikidata's picture is."""
+        registry.works[HELD_ROTHKO] = replace(registry.works[HUNTERS], qid=HELD_ROTHKO)
+
+        page = http.get(f"/api/registry/works/{HELD_ROTHKO}").raise_for_status().json()
+
+        assert page["held_artwork_ids"]
+        assert registry.sizes_asked == []
+
+    def test_a_pictures_size_is_asked_once(self, http, registry):
+        for _ in range(2):
+            http.get(f"/api/registry/works/{HUNTERS}").raise_for_status()
+
+        assert registry.sizes_asked == [HUNTERS_FILE]
+
+    def test_commons_down_leaves_the_work_known_without_a_size_and_is_asked_again(self, http, registry):
+        registry.sizes_failing = True
+        page = http.get(f"/api/registry/works/{HUNTERS}").raise_for_status().json()
+
+        assert (page["state"], page["title"], page["height_cm"]) == ("known", "The Hunters in the Snow", 117.0)
+        assert (page["image_width"], page["image_height"], page["fit"]) == (None, None, None)
+
+        registry.sizes_failing = False
+        assert http.get(f"/api/registry/works/{HUNTERS}").json()["image_width"] == 6000
+        assert registry.sizes_asked == [HUNTERS_FILE, HUNTERS_FILE]
+
+    def test_a_file_commons_does_not_have_gives_no_size(self, http, registry):
+        registry.image_sizes.clear()
+
+        page = http.get(f"/api/registry/works/{HUNTERS}").raise_for_status().json()
+
+        assert (page["state"], page["image_width"], page["fit"]) == ("known", None, None)
 
     def test_a_held_creator_links_to_the_library_artist(self, http, held):
         rothko, _kept = held
@@ -194,6 +270,115 @@ class TestAnArtistByQid:
         assert "bruegel" in refused.json()["error"]
 
 
+class TestAnUnlinkedArtist:
+    """An artist the library holds with no QID: who Wikidata says they might be, proposed and never stored.
+
+    The search is the matcher's own (`people_named`), and so is the test of
+    years, so the page proposes first the person the matcher would have chosen.
+    """
+
+    @pytest.fixture
+    def kline(self, service, registry):
+        painter = service.add_artist(name="Franz Kline", born=1910, died=1962)
+        service.add_artwork(title="Chicago", artist_id=painter.id)
+        registry.people["Franz Kline"] = [
+            # By renown, as Wikidata answers: a namesake with no years leads.
+            RegistryPerson(qid=ItemId("Q900001"), label=RegistryText("Franz Kline"), born=None, died=None),
+            RegistryPerson(qid=ItemId("Q900002"), label=RegistryText("Franz Kline"), born=1850, died=1901),
+            RegistryPerson(qid=ItemId("Q374492"), label=RegistryText("Franz Kline"), born=1910, died=1962),
+            RegistryPerson(qid=ItemId("Q900003"), label=RegistryText("Franz Kline"), born=1911, died=None),
+            RegistryPerson(qid=ItemId("Q900004"), label=RegistryText("Franz Klein"), born=1940, died=None),
+            RegistryPerson(qid=ItemId("Q900005"), label=RegistryText("Franz Kliner"), born=1960, died=None),
+            RegistryPerson(qid=ItemId("Q900006"), label=RegistryText("F. Kline"), born=1970, died=None),
+        ]
+        return painter
+
+    def test_the_people_whose_years_agree_come_first_and_five_at_most(self, http, kline):
+        page = http.get(f"/api/artists/{kline.id}/registry").raise_for_status().json()
+
+        assert page["state"] == "no_identity"
+        assert "not matched to Wikidata" in page["note"]
+        assert [(c["qid"], c["years_agree"]) for c in page["candidates"]] == [
+            ("Q374492", True),
+            ("Q900003", True),
+            ("Q900001", False),
+            ("Q900002", False),
+            ("Q900004", False),
+        ]
+        assert page["candidates"][0] == {
+            "qid": "Q374492",
+            "name": "Franz Kline",
+            "born": 1910,
+            "died": 1962,
+            "years_agree": True,
+        }
+
+    def test_an_item_another_library_artist_carries_is_not_offered(self, http, kline, service, services):
+        other = service.add_artist(name="Someone Else")
+        services.identity.set_artist_identity(other.id, "Q374492")
+
+        page = http.get(f"/api/artists/{kline.id}/registry").raise_for_status().json()
+
+        assert "Q374492" not in [c["qid"] for c in page["candidates"]]
+        assert page["candidates"][0]["qid"] == "Q900003"
+
+    def test_nothing_is_stored_until_the_curator_chooses(self, http, kline, services):
+        http.get(f"/api/artists/{kline.id}/registry").raise_for_status()
+
+        assert services.artists.get(kline.id).artist.wikidata_qid is None
+        chosen = http.post(f"/api/artists/{kline.id}/wikidata", json={"qid": "Q374492"}).raise_for_status().json()
+        assert (chosen["wikidata_qid"], chosen["wikidata_qid_set_by"]) == ("Q374492", "curator")
+        assert http.get(f"/api/artists/{kline.id}/registry").raise_for_status().json()["state"] == "known"
+
+    def test_there_is_none_is_honoured_and_asks_nothing(self, http, kline, services, registry):
+        services.identity.set_artist_identity(kline.id, None)
+
+        page = http.get(f"/api/artists/{kline.id}/registry").raise_for_status().json()
+
+        assert (page["state"], page["candidates"]) == ("no_identity", [])
+        assert "You said Wikidata has no item" in page["note"]
+        assert registry.searched == []
+
+    def test_the_search_is_asked_once_and_an_outage_is_said_and_not_kept(self, http, kline, registry):
+        registry.failing = True
+        down = http.get(f"/api/artists/{kline.id}/registry").raise_for_status().json()
+        assert (down["state"], down["candidates"]) == ("no_identity", [])
+        assert "could not be asked" in down["note"]
+
+        registry.failing = False
+        http.get(f"/api/artists/{kline.id}/registry").raise_for_status()
+        again = http.get(f"/api/artists/{kline.id}/registry").raise_for_status().json()
+
+        assert again["candidates"]
+        assert registry.searched == ["Franz Kline"]
+
+
+class TestANamesakeTheLibraryHoldsUnlinked:
+    """An artist reached by QID whom the library holds under the same name, with no QID.
+
+    The owner's path: search found the library's Kline and Wikidata's, as two.
+    """
+
+    def test_they_are_named_whatever_the_case_and_accents(self, http, service):
+        unlinked = service.add_artist(name="PIETER BRÜEGHEL THE ELDER", born=1525)
+
+        page = http.get(f"/api/registry/artists/{BRUEGEL}").raise_for_status().json()
+
+        assert (page["state"], page["artist_id"]) == ("known", None)
+        assert page["unlinked"] == [{"artist_id": unlinked.id, "name": "PIETER BRÜEGHEL THE ELDER", "born": 1525, "died": None}]
+
+    def test_one_linked_elsewhere_or_said_to_have_none_is_not(self, http, service, services):
+        linked = service.add_artist(name="Pieter Brueghel the Elder")
+        services.identity.set_artist_identity(linked.id, ROTHKO)
+        said_none = service.add_artist(name="Pieter Brueghel the Elder")
+        services.identity.set_artist_identity(said_none.id, None)
+        service.add_artist(name="Pieter Bruegel the Younger")
+
+        page = http.get(f"/api/registry/artists/{BRUEGEL}").raise_for_status().json()
+
+        assert page["unlinked"] == []
+
+
 class TestWithNoRegistryConfigured:
     @pytest.fixture
     def registry(self):
@@ -203,6 +388,14 @@ class TestWithNoRegistryConfigured:
         page = http.get(f"/api/registry/artists/{BRUEGEL}/similar").raise_for_status().json()
 
         assert (page["state"], page["artists"]) == ("not_configured", [])
+
+    def test_an_unlinked_artist_is_offered_nobody(self, http, service):
+        painter = service.add_artist(name="Franz Kline", born=1910, died=1962)
+
+        page = http.get(f"/api/artists/{painter.id}/registry").raise_for_status().json()
+
+        assert (page["state"], page["candidates"]) == ("no_identity", [])
+        assert "not matched to Wikidata" in page["note"]
 
     def test_both_pages_say_wikidata_is_not_configured_and_the_library_still_answers(self, http, held):
         rothko, kept = held
@@ -271,7 +464,7 @@ class TestAfterARestart:
         yield SimpleNamespace(
             registry=down,
             artists=ArtistService(store, down, kept=kept, wanted=NothingWanted()),
-            registry_works=RegistryWorkService(store, down, kept=kept, wanted=NothingWanted()),
+            registry_works=RegistryWorkService(store, down, kept=kept, wanted=NothingWanted(), box=settings.tv_artwork_box),
             registry_search=RegistrySearchService(store, down, kept=kept, wanted=NothingWanted()),
         )
         kept.close()
@@ -293,6 +486,8 @@ class TestAfterARestart:
         # Held is the library's to say, read fresh, not kept with the answer.
         assert similar.held == {ROTHKO: rothko.id}
         assert (work.state, work.known) == (RegistryWorkState.KNOWN, registry.works[HUNTERS])
+        assert (work.image_size, work.fit.fit) == (registry.image_sizes[HUNTERS_FILE], DisplayFit.NATIVE)
+        assert restarted.registry.sizes_asked == []
         assert search.state is RegistrySearchState.KNOWN
         assert (restarted.registry.asked_about, restarted.registry.similar_asked, restarted.registry.works_asked) == ([], [], [])
 

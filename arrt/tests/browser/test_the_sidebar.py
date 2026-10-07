@@ -45,7 +45,7 @@ PAGES = {
     "Walls": [],
     "Activity": ["To review", "Queue", "History"],
     "Wanted": [],
-    "Settings": ["Taste", "Clients"],
+    "Settings": ["Taste", "Clients", "Sources"],
     "System": ["Status"],
 }
 
@@ -756,15 +756,20 @@ def test_the_search_box_is_on_every_page(ui, seeded_service):
         assert ui.page.locator("#search-form input#search").count() == 1, view
 
 
-def test_searching_from_anywhere_lands_in_artworks(ui, seeded_service):
+def test_searching_from_anywhere_opens_the_results_and_returns_there(ui, seeded_service):
+    """Enter opens the Search results page (the owner, 2026-10-06), which is
+    contextual: it goes back to the page the search was made from."""
     ui.open("#walls")
     ui.page.wait_for_selector("#view h2:has-text('Walls')")
 
     ui.page.fill("#search", "Nighthawks")
     ui.page.press("#search", "Enter")
-    ui.page.wait_for_selector("#view h2:has-text('matching')")
+    ui.page.wait_for_selector("#view h2:text-is('Results for “Nighthawks”')")
 
-    assert lit(ui, "collection").count() == 1
+    assert ui.page.evaluate("() => window.location.hash") == "#search?from=walls&q=Nighthawks"
+    ui.page.click("#view p button:text-is('← Walls')")
+    ui.page.wait_for_selector("#view h2:has-text('Walls')")
+    assert lit(ui, "walls").count() == 1
 
 
 def test_a_search_is_in_the_address_and_narrows_the_grid(ui, service, seeded_service):
@@ -779,8 +784,10 @@ def test_a_search_is_in_the_address_and_narrows_the_grid(ui, service, seeded_ser
     ui.page.wait_for_selector("ul.grid li.card")
     everything = ui.page.locator("ul.grid li.card").count()
 
+    # The box opens the results page; its held works lead on to the grid.
     ui.page.fill("#search", "singular study")
     ui.page.press("#search", "Enter")
+    ui.page.click("section[aria-labelledby='results-held-works'] button:text-is('Open in Artworks')")
     ui.page.wait_for_selector("#view h2:has-text('matching')")
 
     assert ui.page.evaluate("() => window.location.hash") == "#collection?q=singular%20study"
@@ -860,11 +867,11 @@ def test_browser_back_undoes_a_search(ui, seeded_service):
 
     ui.page.fill("#search", "study")
     ui.page.press("#search", "Enter")
-    ui.page.wait_for_selector("#view h2:has-text('matching')")
+    ui.page.wait_for_selector("#view h2:text-is('Results for “study”')")
 
     ui.page.go_back()
-    # The searched screen holds no grid at all — nothing seeded matches — so
-    # waiting on one is what distinguishes the repaint from the stale DOM.
+    # The results page holds no grid at all, so waiting on one is what
+    # distinguishes the repaint from the stale DOM.
     ui.page.wait_for_selector("ul.grid li.card")
     assert ui.page.locator("ul.grid li.card").count() == everything
 

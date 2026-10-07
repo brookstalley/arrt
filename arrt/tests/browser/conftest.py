@@ -49,7 +49,7 @@ import pathlib
 import pytest
 from PIL import Image
 
-from arrt.http.models import ArtworkBoxOut, BackupOut, HealthOut, SourcePluginOut, WallHeartbeatOut
+from arrt.http.models import ArtworkBoxOut, BackupOut, HealthOut, PicturesOut, SourcePluginOut, WallHeartbeatOut
 from arrt.persistence.records import (
     AcquisitionMethod,
     FetchStatus,
@@ -163,8 +163,11 @@ def a_health_reading():
     observation is wrong.
     """
 
-    def _reading(*, walls=None, backup=None, description="Every wall has reported.", artwork_box=None, sources=None):
+    def _reading(
+        *, walls=None, backup=None, description="Every wall has reported.", artwork_box=None, sources=None, pictures=None
+    ):
         return HealthOut(
+            pictures=PicturesOut(**(_some_pictures() if pictures is None else pictures)),
             sources=[SourcePluginOut(**source) for source in ([_a_source()] if sources is None else sources)],
             walls=[WallHeartbeatOut(**wall) for wall in ([_a_wall()] if walls is None else walls)],
             description=description,
@@ -175,6 +178,16 @@ def a_health_reading():
         ).model_dump()
 
     return _reading
+
+
+def _some_pictures(*, files=2, size=48_000, age_seconds=12.0):
+    return {
+        "pictures_bytes": size,
+        "pictures_files": files,
+        "age_seconds": age_seconds,
+        "unreadable": 0,
+        "description": f"The picture store keeps {files} files, counted {age_seconds:.0f} seconds ago.",
+    }
 
 
 def _a_wall(*, wall_id="wall-1", name="The living room", absent=False, problem=None, age_seconds=41.2):
@@ -209,7 +222,17 @@ def _a_backup(*, absent=False, problem=None):
     }
 
 
-def _a_source(*, name="artic", state="loaded", reason=None, faults=0):
+def _a_source(
+    *,
+    name="artic",
+    state="loaded",
+    reason=None,
+    faults=0,
+    distribution="arrt",
+    version="0.3.0",
+    api_major=1,
+    provides=None,
+):
     if state == "declined":
         description = f"{name} is installed and not configured here: {reason}."
     elif state == "failed":
@@ -227,6 +250,10 @@ def _a_source(*, name="artic", state="loaded", reason=None, faults=0):
         "last_fault_age_seconds": 12.0 if faults else None,
         "last_fault": "KeyError: 'x'" if faults else None,
         "description": description,
+        "distribution": distribution,
+        "version": version,
+        "api_major": api_major,
+        "provides": (["finds_images", "reads"] if state == "loaded" else []) if provides is None else provides,
     }
 
 

@@ -19,6 +19,7 @@ they are settled in one place instead of per constructor.
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from functools import partial
 from pathlib import Path
 from typing import Protocol
@@ -42,6 +43,8 @@ from arrt.config import (
     DEFAULT_TV_PANEL_HEIGHT_PX,
     DEFAULT_TV_PANEL_WIDTH_PX,
     ORIGINALS_DIRNAME,
+    PICTURES_DIRNAME,
+    PREVIEWS_DIRNAME,
     READY_DIRNAME,
     TILE_CACHE_DIRNAME,
 )
@@ -66,14 +69,15 @@ from arrt.library.services.discovery import DiscoveryService
 from arrt.library.services.display_fit import ArtworkBox
 from arrt.library.services.get import GetService
 from arrt.library.services.identity import IdentityService
-from arrt.library.services.previews import PreviewCache, PreviewSettings
+from arrt.library.services.look import LookService
+from arrt.library.services.pictures import PictureStore, import_previews
+from arrt.library.services.previews import PreviewCache
 from arrt.library.services.registry_search import RegistrySearchService
 from arrt.library.services.registry_works import RegistryWorkService
 from arrt.library.services.review import ReviewService
 from arrt.library.services.runner import DiscoveryRunner, DiscoverySettings
 from arrt.library.services.sightings import SightingService
 from arrt.library.services.survey import SurveyService
-from arrt.library.services.sweep import PreviewSweep
 from arrt.library.services.taste import TasteService
 from arrt.library.services.thumbnails import ThumbnailService, ThumbnailSettings
 from arrt.library.services.topic_sweep import TopicSweep
@@ -88,7 +92,6 @@ from arrt.programming.access import PlayerAccess
 from arrt.programming.clients import ClientService
 from arrt.programming.display import DisplayService, DisplaySettings
 from arrt.programming.store import ProgrammingStore
-from arrt.services.errors import ServiceError
 from arrt.services.health import HealthService
 
 log = logging.getLogger(__name__)
@@ -131,6 +134,10 @@ class Services:
     #: single service spanning both would hold the catalogue and discovery stores
     #: at once for no shared logic.
     review: ReviewService
+    #: Every picture fetched from outside, kept for good under `ART_ROOT/pictures/`.
+    #: Built whatever the deployment: one with no image source still answers
+    #: review from what is kept, and fetches nothing.
+    pictures: PictureStore
     #: Everything the health panel states, gathered in one call. Its own concern
     #: rather than a composite the handler assembles, because the panel is the
     #: product's only alerting surface and "which signals does it make" is a
@@ -142,13 +149,6 @@ class Services:
     #: synchronous and knows nothing of processes, and everything about starting
     #: work behind a handle does.
     runner: DiscoveryRunner
-    #: Reclaiming the previews of works the curator has decided. Built
-    #: unconditionally, unlike the phase-2 pair it cleans up after: a deployment
-    #: that never cached a preview has nothing to sweep, and the pass costs one
-    #: walk of a household's rows to find that out. An optional here would mean
-    #: a deployment could disable phase 2, keep the files it already wrote, and
-    #: lose the only thing that reclaims them.
-    sweep: PreviewSweep
     #: Acquiring the master image a work was accepted for. Held beside the
     #: catalogue rather than inside it because it is the one service that reaches
     #: outside the machine to do its job — a subprocess and an HTTP transport —
@@ -161,7 +161,7 @@ class Services:
     #: every re-render look like a re-fetch to whatever reads the journal.
     preparation: PreparationService
     #: Fetching, then preparing, every accepted work that holds no image, in the
-    #: background and one at a time. Built whatever the deployment, like `sweep`;
+    #: background and one at a time. Built whatever the deployment;
     #: it runs only when the application is asked to start it.
     acquisition_queue: AcquisitionQueue
     #: Intent-forming, upstream of every run. Beside `runner` rather than inside
@@ -193,11 +193,15 @@ class Services:
     #: A Get: works chosen by their Wikidata items, turned into one run over the
     #: image sources. Over the same registry and runner as the services above.
     get: GetService
+    #: A look: what the image sources hold of a work the library does not, asked
+    #: before any Get and kept in memory. Over the same sources and judge as a
+    #: Get's run, so what it shows is what a Get would find.
+    look: LookService
     #: Topics: the library's, from the facet rows, and a topic's registry
     #: sections. Over the same registry as `artists`.
     topics: TopicService
     #: Keeping the library's works' topics as facets. Built whatever the
-    #: registry, like `sweep`; without one it does nothing, and the application
+    #: registry; without one it does nothing, and the application
     #: says so once when it would have started it.
     topic_sweep: TopicSweep
     #: Wikidata's items for a wanted work, for the curator to pick from. Over the
@@ -218,7 +222,6 @@ class Services:
         artwork_box: ArtworkBox,
         engine: DiscoveryEngine,
         discovery_settings: DiscoverySettings,
-        previews: PreviewSettings | None = None,
         acquisition: AcquisitionSettings | None = None,
         open_stream: StreamOpener | None = None,
         #: How a hostname becomes addresses for the fetch policy. Defaults to the
@@ -256,6 +259,9 @@ class Services:
         #: would search while the panel said no plugin is installed. `None` is a
         #: process with no plugins, which is what most tests are.
         sources: SourceRoster | None = None,
+        #: The clock a look's kept answers age by. Defaults to the system's; a
+        #: suite moves it to expire a look without waiting six hours.
+        look_now: Callable[[], datetime] | None = None,
     ) -> Services:
         """Assemble the services over an already-open file.
 
@@ -265,9 +271,9 @@ class Services:
         foreign API" impossible to arrange, and that is the arrangement most of
         this product's tests need.
 
-        A roster with no finder and no `previews` go together. Without either the
-        plane runs phase 1 and stops, which is a coherent deployment — and the
-        one every test that has no business reaching a museum uses.
+        A roster with no finder runs phase 1 and stops, which is a coherent
+        deployment — and the one every test that has no business reaching a
+        museum uses.
         """
         catalogue_service = CatalogueService(catalogue, art_root=thumbnails.art_root)
         kept = kept or KeptAnswers.in_memory()
@@ -297,16 +303,13 @@ class Services:
         # accepted or restored work is asked about now rather than at the
         # interval. Identity changes reach it through `identity` below.
         catalogue_service.subscribe(lambda event: topic_sweep.nudge() if event.change is WorkChange.ACCEPTED else None)
-        if (pool is None) != (previews is None):
-            # Refused here rather than defaulted, because either half alone is a
-            # misconfiguration that would otherwise disable phase 2 silently —
-            # and a deployment that meant to enable it would see runs stop at
-            # `resolving_images` with nothing saying why.
-            raise ServiceError(
-                "Phase 2 needs both an image source and a preview directory, or neither. A deployment "
-                "selects both by configuring a source — the preview directory is derived from ART_ROOT, so "
-                "passing one of these without the other is a wiring mistake rather than a configuration one."
-            )
+        # The picture store's directory is derived, never configured, as the
+        # catalogue's filename is. `art_root` is read off the thumbnail settings
+        # rather than taken as an argument of its own: it is the same deployment
+        # value, every catalogue path is relative to it, and it is already
+        # required and validated there. A third copy would be a third chance for
+        # the copies to disagree. `ReviewService` reaches it through the store.
+        pictures = PictureStore(thumbnails.art_root / PICTURES_DIRNAME, art_root=thumbnails.art_root, sources=pool)
         acquisition_service = AcquisitionService(
             catalogue_service,
             acquisition or _default_acquisition(thumbnails.art_root),
@@ -339,12 +342,14 @@ class Services:
         # announcement delays the fetch until the next start, which catches up.
         catalogue_service.subscribe(lambda event: acquisition_queue.nudge() if event.change is WorkChange.ACCEPTED else None)
         sighting_service = SightingService(discovery, catalogue, route=sources.route)
+        # One judge for a run and a look, so the two cannot judge a find apart.
+        judge = None if pool is None else PhaseTwoEngine(pool, box=artwork_box, registry=registry)
         runner_service = DiscoveryRunner(
             discovery_service,
             engine,
             discovery_settings,
-            images=None if pool is None else PhaseTwoEngine(pool, box=artwork_box, registry=registry),
-            previews=None if pool is None or previews is None else PreviewCache(previews, pool.fetch_preview),
+            images=judge,
+            previews=None if pool is None else PreviewCache(pictures),
             # Independent of the phase-2 pair: a deployment may resolve images
             # without supplementing, and a run with no collection simply offers
             # nothing.
@@ -356,6 +361,7 @@ class Services:
             **({} if resolve is None else {"check_page": partial(check_fetchable, resolve=resolve)}),
             **({} if spawn is None else {"spawn": spawn}),
         )
+        registry_works = RegistryWorkService(catalogue, registry, kept=kept, wanted=discovery_service, box=artwork_box)
         return cls(
             catalogue=catalogue_service,
             library=library,
@@ -365,13 +371,10 @@ class Services:
             display=display_service,
             thumbnails=thumbnail_service,
             survey=SurveyService(catalogue_service, thumbnail_service, artwork_box, acquisition=acquisition_queue),
-            # `art_root` is read off the thumbnail settings rather than taken as
-            # an argument of its own. It is the same deployment value — every
-            # catalogue path is relative to it — and it is already required and
-            # validated there. A third copy would be a third chance for the
-            # copies to disagree, and nothing would notice which was right.
-            review=ReviewService(discovery_service, box=artwork_box, art_root=thumbnails.art_root),
-            # The receipt is located the same way, and for the same reason. It is
+            review=ReviewService(discovery_service, box=artwork_box, pictures=pictures),
+            pictures=pictures,
+            # The receipt is located off the thumbnail settings' `art_root`, as
+            # the picture store is above, and for the same reason. It is
             # not a `DisplaySettings` field beside the art root the heartbeats are
             # named from: that settings object carries what the *walls'*
             # operations need, and the backup is this plane's own business rather
@@ -381,12 +384,9 @@ class Services:
                 backup_receipt_path=thumbnails.art_root / BACKUP_RECEIPT_FILENAME,
                 box=artwork_box,
                 sources=sources,
+                pictures=pictures,
             ),
             runner=runner_service,
-            # `art_root` off the thumbnail settings for the same reason `review`
-            # takes it from there: it is one deployment value, already validated,
-            # and a second copy is a second chance for the two to disagree.
-            sweep=PreviewSweep(discovery_service, art_root=thumbnails.art_root),
             acquisition=acquisition_service,
             preparation=preparation_service,
             acquisition_queue=acquisition_queue,
@@ -408,9 +408,17 @@ class Services:
             taste=TasteService(discovery),
             identity=IdentityService(catalogue, registry, on_changed=topic_sweep.nudge),
             artists=ArtistService(catalogue, registry, kept=kept, wanted=discovery_service),
-            registry_works=RegistryWorkService(catalogue, registry, kept=kept, wanted=discovery_service),
+            registry_works=registry_works,
             registry_search=RegistrySearchService(catalogue, registry, kept=kept, wanted=discovery_service),
             get=GetService(store=catalogue, discovery=discovery_service, runner=runner_service, registry=registry),
+            look=LookService(
+                works=registry_works,
+                discovery=discovery_service,
+                pool=pool,
+                judge=judge,
+                pictures=pictures,
+                **({} if look_now is None else {"now": look_now}),
+            ),
             topics=TopicService(catalogue, registry, kept=kept, wanted=discovery_service),
             topic_sweep=topic_sweep,
             wikidata_match=WikidataMatchService(discovery_service, registry),
@@ -436,6 +444,12 @@ class Services:
         next start rather than leaving it undone.
         """
         self.discovery.reconcile()
+        # Before anything serves: a write the last process died in leaves a
+        # temporary file, and the old preview directory's files are moved into
+        # the store and their rows repointed, so a card is answered from the
+        # store from the first request.
+        self.pictures.clean()
+        import_previews(self.pictures, self.discovery, legacy=self.pictures.art_root / PREVIEWS_DIRNAME)
         # Canvases drawn with another mat, panel or drawing rule are queued to be
         # recomposed. Nothing is drawn here; the queue does it once serving.
         self.acquisition_queue.owe_recomposition(self.preparation.layout)

@@ -17,7 +17,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 
-from arrt.library.registry import Registry, RegistryUnavailable
+from arrt.library.registry import Registry, RegistryUnavailable, RegistryWork
 from arrt.library.services.discovery import ChosenWork, DiscoveryService
 from arrt.library.services.remembered import checked_qid
 from arrt.library.services.runner import DiscoveryRunner
@@ -53,6 +53,15 @@ class GetOutcome:
 
     run: DiscoveryRun | None
     skipped: tuple[Skipped, ...]
+
+
+def chosen_work(qid: str, work: RegistryWork) -> ChosenWork:
+    """The work a Get asks the image sources for, as the registry names it: its title and first maker.
+
+    A look asks the sources with the same words (`library/services/look.py`), so
+    what it shows is what a Get of the work would find.
+    """
+    return ChosenWork(qid=qid, title=work.title, artist=work.creators[0].name if work.creators else None)
 
 
 class GetService:
@@ -121,7 +130,7 @@ class GetService:
             if work is None:
                 skipped.append(Skipped(qid, SkipReason.NOT_FOUND))
                 continue
-            chosen.append(ChosenWork(qid=qid, title=work.title, artist=work.creators[0].name if work.creators else None))
+            chosen.append(chosen_work(qid, work))
         run = (
             self._runner.get(works=chosen, initiated_by=initiated_by, destination_theme_id=destination_theme_id)
             if chosen

@@ -292,7 +292,7 @@ largest single work in flight rather than by the corpus.
 > say so. Standing searches (Watches) and upgrade jobs also make the server
 > unattended in a way it was not. It still has no uptime target, but a scheduled
 > job that silently stops running is a detection problem for
-> `observability-strategy.md`, the same shape as the preview sweep.
+> `observability-strategy.md`, the same shape as the topic sweep.
 
 **The failure mode that matters is that display-plane "down" looks exactly like
 "up".** A stalled loader leaves the TV in art mode holding the last selected work
@@ -512,7 +512,8 @@ curator every judgement they have already made. So:
   product's memory, and it is the only artefact whose loss cannot be repaired by
   spending time instead of money.
 - **The image tree is disposable.** `raw/`, `ready/`, `tv-thumbs/` and
-  `tile-cache/` are all reconstructible. They are excluded from
+  `tile-cache/` are all reconstructible, and so is `sources/`, a source plugin's
+  copy of a holder's published data (since 2026-10-06). They are excluded from
   backup deliberately, not by oversight — this is the upstream/derived split
   already recorded in `boundary-patterns.md` § `ART_ROOT` filesystem contract, applied to durability. (`label/` was listed
   here from the 2024 layout; it is retired from the prospective `ART_ROOT`
@@ -1232,6 +1233,12 @@ the mat, and it scales with the panel automatically. It was never going to be on
 number: a pixel threshold means different things on a 42" and a 75", and megapixels
 were already ruled out. On a 42" panel a 12" floor puts the threshold at ~1260 px on
 the long edge.
+
+> **Direction changed 2026-10-06:** the owner set the minimum at **1,000 px on the
+> long edge**, the number the quality profile was waiting for
+> (`re-architecture.md` § Open questions). The inch floor stays the mechanism
+> until wave 4, and a deployment expresses the minimum in it as 1,000 px divided
+> by its panel's pixels per inch.
 
 **Below the floor, the work is not rejected and the image is not hidden.** Phase 2
 does not *auto-select* a below-floor instance; the review grid shows it labelled

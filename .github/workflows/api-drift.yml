@@ -82,8 +82,8 @@ jobs:
   # the job. Every one of these three would have gone red on every scheduled run
   # while every probe passed, which is the alarm that cries wolf until nobody
   # reads it. Verified: unscoped, a run reported "1 skipped, 1873 deselected" and
-  # the guard exited 1; scoped to `tests/live`, the same marker collects its 13
-  # tests and no skips. `browser.yml` hit and fixed the identical defect.
+  # the guard exited 1; scoped to `tests/live`, the same marker collects only the
+  # live tests and no skips. `browser.yml` hit and fixed the identical defect.
 
   museum:
     name: "Museum APIs (free)"

@@ -93,43 +93,6 @@ entities owned by the plane that talks to that device.
 specific output geometry is reproducible from upstream inputs and is never
 synced between machines.
 
-> **Candidate previews are a third class, and they are disposable.**
-> `CandidateImage.preview_path` files are neither upstream (they are cheap, and
-> losing one costs a picture rather than a record) nor derived (nothing renders
-> them from a held original — there is no original yet). They exist only to make
-> review work without depending on a museum server being reachable.
->
-> **"Disposable" does not mean "comes back"** (corrected 2026-08-03, after the
-> claim was retired from three other artifacts and survived here). Nothing
-> re-fetches a preview: `PreviewCache.store` runs once, when phase 2 first records
-> an instance, and a re-search does not restore the file either, because
-> `record_image` returns the instance a work already holds for that URL without
-> rewriting `preview_path`. A deleted preview costs its instance the inline
-> picture for the rest of that work's review, leaving the card to report the
-> source URL instead. That is what makes deleting them safe *once a work is
-> decided* and lossy before then — which is precisely the line the sweep draws. **They are safe to delete once their `CandidateWork`
-> reaches a terminal verdict**, and deleting them must never affect the catalogue:
-> the accepted work's imagery comes from acquisition, not from the preview. Flagged
-> 2026-07-19 by Critic review, which noted the rows are deliberately permanent while
-> the files had no recorded lifecycle at all.
->
-> **One file can belong to more than one work, so the rule is about the file and
-> not about the row** (added 2026-08-03, found in build). A preview's name is a
-> digest of its URL, so the same museum scan resolved for two candidate works is
-> two `CandidateImage` rows over one file on disk — which is what happens whenever
-> phase 1 proposes the same painting under two titles and phase 2 resolves both.
-> A preview is therefore reclaimable only when **every** work referencing it has
-> reached a terminal verdict; reclaiming on the first work's verdict takes the
-> picture out from under a work still being judged.
->
-> **A row must not outlive the file it names.** Clearing `preview_path` is part of
-> reclaiming a preview rather than an optional tidy-up: a row still naming a
-> deleted file makes the review card report "the cached copy could not be read",
-> which is a corruption message for a routine reclamation. The file goes first and
-> the column is cleared after, so an interruption strands a row — which the next
-> pass finds and finishes — rather than bytes nothing references, which nothing
-> would ever reclaim.
-
 > **Why:** Recorded in `boundary-patterns.md` § `ART_ROOT` filesystem contract. Derived files
 > are rendered for whichever display was targeted; copying them between machines
 > produces either wrong output or a cache that cannot be trusted. Regenerating on
@@ -152,6 +115,64 @@ synced between machines.
 > `http/player.py` serves the matted, geometry-specific `tv_display` canvas and the
 > Player caches it. Tracking ref: `re-architecture.md` § Order of work, wave 4.
 > **Interim rule:** no new geometry-specific render is served to a Player.
+
+**A picture Arrt fetches from outside is kept forever under `ART_ROOT/pictures/`,
+re-encoded as JPEG and keyed by its source; an ask of 2,048 px or less is answered
+from it, never from the source again.** *(Born 2026-10-06, the owner's norm: "we
+should persist all thumbnails we ever get/generate, and use them instead of hitting
+sources when the ask is only for thumbnail size." It replaces the paragraphs that
+called candidate previews a disposable third class, reclaimed once their work was
+decided; those paragraphs are retired by it, not silently deleted, and their
+history is in `change-log.md`, scope `picture-store`.)*
+
+> **Why:** fewer requests to museums, faster pages, and pictures that outlive a
+> source going down. A deleted preview never came back — nothing re-fetched one —
+> so the disposable class cost a decided work its picture for good, and the sweep
+> that reclaimed it carried races of its own (#61, #62, #81).
+>
+> **Re-affirmed: 2026-10-06, the owner — #61, #62, #81.** Cited as the history
+> this norm closed, not as work it waits on: all three were the retired preview
+> sweep's races, closed because this norm retired the sweep. The norm's reasons
+> above stand without them.
+>
+> **What it means, as ruled by the owner the same day:** two sizes are kept,
+> 480 px and 2,048 px on the long edge, so enlarging a scan at review stays as
+> sharp as when it was re-rendered per request; the store is not in the backup,
+> because it can be rebuilt; there is no ceiling, and the health panel shows the
+> store's size and file count. Every surface that draws a picture of a candidate
+> (the review card at 480, MCP inline at 400, the enlarged view at 2,048) is
+> answered from the smallest tier at or above its ask, and a kept file smaller
+> than its tier is the source's whole preview, so it answers a larger ask too.
+>
+> **Shape:** files only, `pictures/<2 hex>/<key>.<tier>.jpg`, with no table: every
+> row that points at a picture already carries the `provider` and `url` the key is
+> computed from, `sha256(provider + "\n" + normalise(url))`, where `url` is the
+> instance's own address, not its preview's. `CandidateImage.preview_path` is still
+> written, as the store path of the larger tier, so the column and its projections
+> keep their shape. The same picture at two holders is two keys, and two instances.
+>
+> **Not a derived artifact, and not upstream either.** It is a cache of outside
+> pictures on the server's own disk: never transported and never backed up, so the
+> derived-artifacts rule above is not engaged, and nothing in the catalogue
+> depends on it — an accepted work's imagery still comes from acquisition.
+>
+> **Enforcement:** `arrt/src/arrt/library/services/pictures.py` is the only
+> module that asks a source for a preview
+> (`arrt/tests/unit/test_only_the_store_fetches_previews.py`), and its only
+> deletion is of its own temporary files at startup
+> (`arrt/tests/unit/test_pictures.py`). Indexed in `project-preferences.md`.
+>
+> **Status:** steady-state since `build-plan-picture-store.md` Chunk 02 retired the
+> preview sweep and `PREVIEW_SWEEP_INTERVAL_SECONDS` (2026-10-06). The store's
+> files and bytes are on the health panel and `art_display(action='status')`, and
+> the backup carries none of it (`arrt/tests/unit/test_backup_writer.py`).
+>
+> **Retroactivity:** applied to every preview already on disk. At startup, each
+> file in `previews/` that a row names is imported under that row's key and the
+> row repointed, whatever its work's verdict; a file no row names is left in
+> place, and the operator removes `previews/` by hand once the import's log line
+> reports `done`. `thumbs/` is not imported: it is derived from held masters and
+> never touches a source.
 
 ## What this data must answer
 
@@ -1620,7 +1641,7 @@ selected. Produced by phase 2.
 | `candidate_work_id` | UUID | FK → CandidateWork, required | |
 | `url` | string | required | Where this instance was found. Unique per `candidate_work_id` — see constraint 7. |
 | `preview_url` | string | nullable | Small image for review. Source-side URL. |
-| `preview_path` | string | nullable | Cached local copy, relative to `ART_ROOT`. Review must not depend on a museum server being reachable. |
+| `preview_path` | string | nullable | The kept picture's path in the picture store (its larger tier), relative to `ART_ROOT`. Review must not depend on a museum server being reachable (§ Direction, pictures kept forever). |
 | `provider` | string | required | e.g. `artic`, `google_arts`, `gallery_site`. Open vocabulary. |
 | `source_class` | enum | required | `institutional` \| `contemporary_web`. |
 | `acquisition_method` | enum | required | `dezoomify` \| `direct_http` \| `api`. How the bytes are fetched. **Added 2026-07-27** — see below. |
@@ -1718,10 +1739,26 @@ selected. Produced by phase 2.
 > When a result's title differs, the work has a QID, and the result's `url` is,
 > exactly, one of the pages `Registry.pages_about` gives for it, the record is the
 > work, and the artist comparison still decides. The registry is asked once per
-> work, only then; one that cannot be asked means no link. This is not identity
+> work, only when a title or an artist differs; one that cannot be asked means
+> no link. This is not identity
 > by source URL (§ Direction): the work's identity stays its key and its QID, and
 > the page is evidence in one resolution attempt, the mirror of the QID matcher
 > reading a holder's identifier from a source URL.
+>
+> **On such a page, two names Wikidata records for one of the item's creators
+> are not a disagreement** (2026-10-06, arrt#245). Holders write "Laurence Stephen
+> Lowry" for the Library's "L. S. Lowry" and "Rembrandt van Rijn" for
+> "Rembrandt". So when the artists' keys differ and the result's page is one the
+> item records, the record is accepted at full confidence if both names are,
+> under the same key, a label or an alias, in any language, of one creator the
+> item records (`Registry.creator_names`, asked once per work and only then).
+> Off the item's pages the rule does not apply: aliases are open to anyone and
+> some name two people ("Canaletto" is an alias of Bellotto), so beside a title
+> match alone an alias would accept a son's copy under his father's name. Measured
+> on NGA, Pompidou and Art UK in `artist-name-identity-findings.md`. A page the
+> item records does not vouch for the artist on its own: the name is still
+> checked (the owner, 2026-10-06). Prints after another's design and works with
+> several makers stay refused (#257).
 >
 > Nothing that fails the comparison is recorded at all: a near-match kept at low confidence is still selected the moment nothing
 > better exists, which is precisely the case a work no museum holds produces, so
@@ -1746,12 +1783,12 @@ selected. Produced by phase 2.
 > alone means a curator reviewing an hour later sees broken images if a museum is
 > down or rate-limiting, and it means the MCP surface has nothing local to inline.
 >
-> Cached under `previews/` in `ART_ROOT`, kept apart from `thumbs/` because the
-> two have different lifecycles: a thumbnail belongs to a work the catalogue
-> holds, a preview to one nobody has accepted and may never. The file is named
-> from a digest of its source URL, so a work re-searched later finds its preview
-> already on disk and the museum is asked once per distinct image rather than
-> once per attempt. **A preview that will not download is not a failure** — the
+> Kept in the picture store under `pictures/` in `ART_ROOT` *(since 2026-10-06;
+> until then a disposable copy under `previews/`)*, apart from `thumbs/`, which is
+> derived from a master the catalogue holds. The file is named from the
+> instance's key, so a work re-searched later, or a second work resolved to the
+> same scan, finds its picture already kept and the museum is asked once per
+> distinct image rather than once per attempt. **A preview that will not download is not a failure** — the
 > instance is recorded with its source-side URL and no `preview_path`, because
 > losing a work over a missing thumbnail would be the tail wagging the dog.
 >
@@ -1800,7 +1837,7 @@ transform" checkable rather than asserted:
 | `url`, `provider`, `source_class`, `acquisition_method`, `confidence`, `selection_rationale` | same field | Carried unchanged |
 | `rights_status` | `rights_status` | `unknown` where the candidate has none: constraint 13 forbids absence, and "we did not check" is honestly `unknown` |
 | `is_selected` | `is_primary` | The selected instance becomes the primary source; the rest are retained as alternates (**Q6**) |
-| `preview_url`, `preview_path`, `estimated_width`, `estimated_height`, `quality_score` | *(not carried)* | Pre-acceptance facts. Previews are disposable, and real dimensions come from the acquired `Original` rather than from an estimate |
+| `preview_url`, `preview_path`, `estimated_width`, `estimated_height`, `quality_score` | *(not carried)* | Pre-acceptance facts. The kept picture stays in the picture store, keyed by the instance's URL, which the `Source` carries; real dimensions come from the acquired `Original` rather than from an estimate |
 
 `CandidateWork.proposed_artist` is **not** carried into an `Artist` row here. It
 is free text that has to be parsed and matched against existing artists; until
@@ -2079,8 +2116,9 @@ the catalogue**: a file of its own under `ART_ROOT`, holding no record and
 referred to by none. General purpose: the store names no source; each use
 registers a namespace with its own maximum age, size and codec. The registry's
 page sections are its first users (namespaces `registry.artist`,
-`registry.similar`, `registry.work`, `registry.search`, each 7 days and 512
-answers).
+`registry.similar`, `registry.work`, `registry.search`, and since 2026-10-06
+`registry.people` (an unlinked artist's name search, keyed by the name), each
+7 days and 512 answers).
 
 | Field | Type | Constraints | Description |
 |---|---|---|---|

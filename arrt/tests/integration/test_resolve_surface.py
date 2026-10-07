@@ -18,7 +18,6 @@ import pytest
 from fakes import FakeFinder, a_roster, a_work, an_image
 
 from arrt.library.discovery.engine import WorkList
-from arrt.library.services.previews import PreviewSettings
 from arrt.persistence.discovery_records import RunKind, RunStatus, SpendCategory, Verdict
 from arrt.services.container import Services
 
@@ -60,7 +59,6 @@ def services(store, discovery_store, wall_settings, thumbnail_settings, settings
         engine=engine,
         discovery_settings=settings.discovery_settings,
         sources=a_roster(museum),
-        previews=PreviewSettings(art_root=settings.art_root, directory=settings.previews_path),
     )
 
 

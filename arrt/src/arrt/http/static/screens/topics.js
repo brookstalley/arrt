@@ -33,9 +33,12 @@ import {
   topicKinds,
   topicName,
   topicYears,
+  byCell,
+  listHeadings,
   wikidataLink,
-  workLink,
+  workCell,
   workState,
+  yearCell,
 } from "../core/registry.js";
 import { el, fill, render } from "../core/render.js";
 import { backLink, go } from "../core/router.js";
@@ -270,9 +273,9 @@ function paintWorks(section, known, view, name) {
   const rows = view.works.map((work) =>
     el("tr", {}, [
       el("td", {}, [work.held_artwork_ids.length ? null : getting.box(work.qid, named(work.title, work.qid))]),
-      el("td", {}, [workLink(work)]),
-      el("td", {}, makers(work)),
-      el("td", { text: work.year === null ? "—" : String(work.year) }),
+      workCell(work, { by: makers(work) }),
+      byCell(makers(work)),
+      yearCell(work),
       el("td", {}, [stateOf(work)]),
     ]),
   );
@@ -280,7 +283,7 @@ function paintWorks(section, known, view, name) {
     heading,
     el("div", { class: "artist-works" }, [el("table", {}, [
       el("caption", { text: "The most renowned works Wikidata lists in it, by how many Wikipedias cover them, each marked where the library holds it" }),
-      el("thead", {}, [el("tr", {}, ["Get", "Work", "By", "Year", "State"].map((h) => el("th", { scope: "col", text: h })))]),
+      el("thead", {}, [listHeadings(["Get", "Work", "By", "Year", "State"])]),
       el("tbody", {}, rows),
     ])]),
     view.works.some((work) => !work.held_artwork_ids.length) ? getting.node : null,

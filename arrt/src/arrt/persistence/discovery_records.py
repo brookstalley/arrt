@@ -416,10 +416,11 @@ class CandidateImage:
     changes. Whoever next audits that vocabulary can stop here rather than
     re-deriving the distinction.
 
-    `preview_path` is a cached local copy because review must not depend on a
-    museum server being reachable. It is disposable: safe to delete once the work
-    reaches a terminal verdict, and deleting it never affects the catalogue,
-    whose imagery comes from acquisition rather than from a preview.
+    `preview_path` is the kept picture's path in the picture store (its larger
+    tier), because review must not depend on a museum server being reachable.
+    Kept for good since 2026-10-06 (`data-model.md` § Direction); the catalogue
+    never depends on it, since an accepted work's imagery comes from acquisition
+    rather than from a preview.
 
     `acquisition_method` is carried here rather than decided at acceptance
     because it is knowable only where the instance was found: the search reached

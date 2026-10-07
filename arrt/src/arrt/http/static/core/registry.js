@@ -52,6 +52,40 @@ export function workLink(work) {
   });
 }
 
+/* A listed work's title cell: its link, and under it who made it (where the
+ * list has a *By* column) and its year, both shown only on a phone. There the
+ * By and Year columns fold away (`byCell`, `yearCell`), so the row keeps room
+ * for the work's picture without scrolling sideways (`app.css`). The class is
+ * what lets a title longer than a phone is wide break anywhere. */
+export function workCell(work, { by = null } = {}) {
+  const known = work.year !== null && work.year !== undefined;
+  return el("td", { class: "work-title" }, [
+    workLink(work),
+    by ? el("span", { class: "by-under" }, by) : null,
+    known ? el("span", { class: "year-under", text: year(work.year) }) : null,
+  ]);
+}
+
+/* A listed work's By cell: hidden on a phone, where its makers sit under the title. */
+export function byCell(by) {
+  return el("td", { class: "by-col" }, by);
+}
+
+/* A listed work's Year cell: hidden on a phone, where the year sits under the
+ * title instead (`workCell`). */
+export function yearCell(work) {
+  return el("td", { class: "year-col", text: work.year === null || work.year === undefined ? "—" : year(work.year) });
+}
+
+/* The heading row of a list of registry works. The two columns a phone folds
+ * away are named here by their headings rather than marked by each caller,
+ * because every caller heads them with these words. */
+const FOLDED = { By: "by-col", Year: "year-col" };
+
+export function listHeadings(names) {
+  return el("tr", {}, names.map((name) => el("th", { scope: "col", class: FOLDED[name] || null, text: name })));
+}
+
 /* A registry person's name, opening their page here: the library's artist when
  * it holds them, the registry's otherwise. */
 export function personLink(person) {
@@ -62,6 +96,14 @@ export function personLink(person) {
     onclick: () => go("artist", person.artist_id || person.qid),
   });
 }
+
+/* The Commons rendering a listed work's picture is asked at. Commons serves
+ * fixed widths only and answers any other with the next one up; 250 is the
+ * first that stays sharp at the 3rem a list draws it at on a 3x screen
+ * (`app.css`, `.artist-works .work-pic`). The search typeahead and results
+ * draw the same picture at 2rem and share it, so a work shown in both is one
+ * download. */
+const FOUND_WIDTH = 250;
 
 /* A work's mark wherever registry works are listed — the search typeahead,
  * the results page, the Topic, Artist and Work pages: its picture, in the
@@ -79,8 +121,14 @@ export function personLink(person) {
  * the state whatever the picture does — one that fails to load, or none,
  * leaves every state readable (`accessibility-spec.md`).
  *
- * Held wins over wanted: a work wanted and since acquired is held. */
-export function workState(work, { noImage = "Not held", opens = true } = {}) {
+ * Held wins over wanted: a work wanted and since acquired is held.
+ *
+ * **`grouped`, where the list sits under a *Not held* heading** (the search
+ * results and the dropdown): the words say only what the heading does not, so
+ * ◐ *Image found*, and ○ *No image known* as the Topic page says it. "Not held"
+ * on every row of a group headed *Not held* was noise (the owner, 2026-10-06).
+ * `noImage`, where given, is the no-picture word whichever. */
+export function workState(work, { noImage = null, opens = true, grouped = false } = {}) {
   const held = work.held_artwork_ids || [];
   if (held.length) {
     // Two held works naming one item is a duplicate the curator should see,
@@ -98,10 +146,10 @@ export function workState(work, { noImage = "Not held", opens = true } = {}) {
     if (!opens) return el("span", { class: "badge badge-held state-mark" }, parts);
     return el("button", { class: "badge badge-held state-mark", type: "button", onclick: () => go("work", held[0]) }, parts);
   }
-  const found = work.image ? `${work.image}?width=96` : null;
+  const found = work.image ? `${work.image}?width=${FOUND_WIDTH}` : null;
   if (work.wanted) return stateBadge("badge-wanted", "◑", "Wanted", found && workPicture("wanted", found));
-  if (found) return stateBadge("badge-image-found", "◐", "Not held · Image found", workPicture("not-held", found));
-  return stateBadge("badge-not-held", "○", noImage);
+  if (found) return stateBadge("badge-image-found", "◐", grouped ? "Image found" : "Not held · Image found", workPicture("not-held", found));
+  return stateBadge("badge-not-held", "○", noImage || (grouped ? "No image known" : "Not held"));
 }
 
 /* A picture in the image style of a state. In a frame, because the not-held
@@ -163,7 +211,7 @@ export function topicKinds(kinds) {
 
 /* A year as a caption reads it: Wikidata numbers the years before the common
  * era as negatives, and "-500" reads as a typo. */
-function year(value) {
+export function year(value) {
   return value < 0 ? `${-value} BCE` : String(value);
 }
 

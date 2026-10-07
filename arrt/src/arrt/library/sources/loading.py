@@ -33,12 +33,14 @@ says before it reaches the journal, `/api/health` or the panel.
 
 import importlib.metadata
 import logging
+import re
 import threading
 import traceback
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
+from pathlib import Path
 from types import MappingProxyType
 from typing import Final, NoReturn
 
@@ -106,6 +108,35 @@ class PluginState(StrEnum):
     FAILED = "failed"
 
 
+class PluginPart(StrEnum):
+    """What a loaded plugin provides, read from its parts."""
+
+    FINDS_IMAGES = "finds_images"
+    #: A finder with `offers_images = False`: it offers pages for readers.
+    FINDS_PAGES = "finds_pages"
+    READS = "reads"
+    BROWSES = "browses"
+
+
+@dataclass(frozen=True, slots=True)
+class PluginIdentity:
+    """Where an installed plugin came from, and what it provides, as read at startup.
+
+    Every field is `None` or empty when it could not be read: a plugin
+    registered by hand rather than by an installed distribution has no
+    distribution, one that failed before Arrt got its `SourcePlugin` has no
+    interface major, and one that did not load has no parts.
+    """
+
+    #: The installed distribution that registers the entry point, as its metadata names it.
+    distribution: str | None = None
+    #: That distribution's version: what an operator compares when a plugin is upgraded.
+    version: str | None = None
+    #: The interface major the plugin says it was written for.
+    api_major: int | None = None
+    provides: tuple[PluginPart, ...] = ()
+
+
 @dataclass(frozen=True, slots=True)
 class PluginReading:
     """One installed plugin, as the health panel states it: an observation, never a verdict."""
@@ -120,6 +151,7 @@ class PluginReading:
     last_fault_at: datetime | None
     #: What the most recent fault was, as its type and scrubbed message.
     last_fault: str | None
+    identity: PluginIdentity = PluginIdentity()
 
 
 @dataclass(frozen=True, slots=True)
@@ -330,7 +362,9 @@ class SourceRoster:
         states: Sequence[tuple[str, PluginState, str | None]],
         faults: _Faults,
         unknowable: Mapping[str, str] | None = None,
+        identities: Mapping[str, PluginIdentity] | None = None,
     ) -> None:
+        self._identities = dict(identities or {})
         self._finders = tuple(finders)
         self._collection = collection
         self._claimants = tuple(claimants)
@@ -393,6 +427,16 @@ class SourceRoster:
             ],
             faults=faults,
             unknowable=unknowable,
+            identities={
+                name: PluginIdentity(
+                    provides=_provides(
+                        next((f for f in finders if f.provider == name), None),
+                        readers[name][1] if name in readers else None,
+                        collection if collection is not None and collection.provider == name else None,
+                    )
+                )
+                for name in dict.fromkeys(names)
+            },
         )
 
     @property
@@ -445,7 +489,15 @@ class SourceRoster:
         for name, state, reason in self._states:
             faults, last_at, last = self._faults.of(name)
             readings.append(
-                PluginReading(name=name, state=state, reason=reason, faults=faults, last_fault_at=last_at, last_fault=last)
+                PluginReading(
+                    name=name,
+                    state=state,
+                    reason=reason,
+                    faults=faults,
+                    last_fault_at=last_at,
+                    last_fault=last,
+                    identity=self._identities.get(name, PluginIdentity()),
+                )
             )
         return tuple(readings)
 
@@ -456,19 +508,23 @@ def load_sources(
     order: Sequence[str] = DEFAULT_SOURCE_ORDER,
     entry_points: Iterable[importlib.metadata.EntryPoint] | None = None,
     now: Callable[[], datetime] = lambda: datetime.now(UTC),
+    data_root: Path | None = None,
 ) -> SourceRoster:
     """Load every installed plugin, and say what became of each.
 
     `order` names plugins most preferred first; plugins it does not name follow,
     by name. `entry_points` defaults to what this interpreter has installed in
     `ENTRY_POINT_GROUP`, and is a parameter so the loader can be tested without
-    installing a distribution per case.
+    installing a distribution per case. `data_root` is where plugins keep files:
+    each is handed `data_root / <its name>` as `SourceContext.data_dir`
+    (`_own_directory`).
     """
     found = list(importlib.metadata.entry_points(group=ENTRY_POINT_GROUP) if entry_points is None else entry_points)
     faults = _Faults(now)
     states: dict[str, tuple[PluginState, str | None]] = {}
     parts: dict[str, SourceParts] = {}
     plugins: dict[str, SourcePlugin] = {}
+    origins: dict[str, tuple[str | None, str | None]] = {}
     for entry in found:
         if entry.name in states:
             # Two distributions registering one name would record their images
@@ -478,11 +534,14 @@ def load_sources(
             states[entry.name] = (PluginState.FAILED, reason)
             parts.pop(entry.name, None)
             plugins.pop(entry.name, None)
+            # Neither distribution is this plugin's, so neither is named as its origin.
+            origins[entry.name] = (None, None)
             continue
+        origins[entry.name] = _origin(entry)
         # Before the factory runs, so a factory that hangs leaves its name in the
         # journal rather than a startup that simply stops.
         log.info("loading source plugin %s", entry.name, extra={"event": "source.loading", "plugin": entry.name})
-        plugin, loaded = _load_one(entry, context)
+        plugin, loaded = _load_one(entry, replace(context, data_dir=_own_directory(data_root, entry.name)))
         if plugin is not None:
             plugins[entry.name] = plugin
         if isinstance(loaded, SourceParts):
@@ -532,7 +591,77 @@ def load_sources(
         states=[(name, *states[name]) for name in ranked],
         faults=faults,
         unknowable={n: states[n][1] or "" for n in ranked if n not in plugins and states[n][0] is PluginState.FAILED},
+        identities={
+            n: PluginIdentity(
+                distribution=origins[n][0],
+                version=origins[n][1],
+                api_major=plugins[n].api_major if n in plugins else None,
+                provides=() if n not in parts else _provides(parts[n].finder, parts[n].reader, parts[n].collection),
+            )
+            for n in ranked
+        },
     )
+
+
+def _origin(entry: importlib.metadata.EntryPoint) -> tuple[str | None, str | None]:
+    """The distribution that registers an entry point, and its version; `None` for one registered by hand.
+
+    Read from the installed metadata alone, before the plugin's code runs, so a
+    plugin that cannot be imported still says which package it came from.
+    """
+    # `getattr`, because the loader is also handed entry points built by hand,
+    # which carry no distribution at all.
+    dist = getattr(entry, "dist", None)
+    if dist is None:
+        return None, None
+    try:
+        name, version = dist.metadata["Name"], dist.version
+    # A package's metadata is foreign: a corrupt one costs its plugin's origin, never startup.
+    except Exception:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- a corrupt package costs only its origin
+        log.warning(
+            "could not read the package that registers source plugin %s",
+            entry.name,
+            extra={"event": "source.origin_unread", "plugin": entry.name},
+        )
+        return None, None
+    return (name if isinstance(name, str) else None), (version if isinstance(version, str) else None)
+
+
+def _provides(finder: Finder | None, reader: Reader | None, collection: CollectionBrowse | None) -> tuple[PluginPart, ...]:
+    """What a plugin's parts provide, in the order the guide lists the parts."""
+    provided = []
+    if finder is not None:
+        provided.append(PluginPart.FINDS_IMAGES if offers_images(finder) else PluginPart.FINDS_PAGES)
+    if reader is not None:
+        provided.append(PluginPart.READS)
+    if collection is not None:
+        provided.append(PluginPart.BROWSES)
+    return tuple(provided)
+
+
+#: A plugin name that is one plain path segment, and so names one directory
+#: under the data root. An entry point's name is any string a distribution
+#: chooses, and `../catalogue` must not reach outside it. Its first character
+#: is a letter or a digit, so neither `.` nor `..` is one.
+_PLAIN_SEGMENT: Final[re.Pattern[str]] = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.\-]*")
+
+
+def _own_directory(data_root: Path | None, name: str) -> Path | None:
+    """The directory this plugin may keep files in, or None when it gets none.
+
+    None when the deployment gives no root, and when the name is not one plain
+    path segment, so that no plugin is handed a directory that is not its own.
+    """
+    if data_root is None:
+        return None
+    if not _PLAIN_SEGMENT.fullmatch(name):
+        log.warning(
+            "source plugin %s is given no directory: its name is not one plain path segment",
+            name,
+            extra={"event": "source.no_directory", "plugin": name},
+        )
+        return None
+    return data_root / name
 
 
 def _load_one(  # noqa: PLR0911 -- one return per way a plugin can fail to load, each named

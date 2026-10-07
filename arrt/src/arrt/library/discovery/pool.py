@@ -21,9 +21,12 @@ because one server was down would tell a curator the painting is not out there.
 
 import contextvars
 import logging
+import threading
+from collections import Counter
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from enum import StrEnum
 
 from arrt.library.discovery.images import (
     Finder,
@@ -67,6 +70,39 @@ class PoolAnswer:
     pages: tuple[FoundPage, ...] = ()
 
 
+class AskOutcome(StrEnum):
+    """How one source took one question: the three answers the pool keeps apart."""
+
+    #: It was asked and answered, with whatever it holds, nothing included.
+    ANSWERED = "answered"
+    #: It cannot look a work like this one up (`ImageQueryUnanswerable`):
+    #: neither "holds none" nor "down".
+    DECLINED = "declined"
+    #: It could not be asked (`ImageSearchFailure`): nothing is known about
+    #: what it holds.
+    UNREACHABLE = "unreachable"
+
+
+@dataclass(frozen=True, slots=True)
+class SourceAnswer:
+    """What one source said about one work, sorted the way the pool sorts every answer.
+
+    `images` and `pages` are what it handed over before it answered or failed:
+    a finder that yields some results and then raises has said those, and the
+    pool has always kept them.
+    """
+
+    provider: str
+    outcome: AskOutcome
+    #: Whether this source finds images at all (`offers_images`). A finder of
+    #: pages that answered has said nothing about whether an image exists.
+    offers_images: bool
+    images: tuple[FoundImage, ...] = ()
+    pages: tuple[FoundPage, ...] = ()
+    #: The failure's own words, for the log, when it could not be asked.
+    failure: str | None = None
+
+
 class ImageSourcePool:
     """The image sources phase 2 asks, in order of preference."""
 
@@ -85,11 +121,21 @@ class ImageSourcePool:
             raise ValueError(f"Two image sources share a name: {', '.join(duplicated)}.")
         self._sources: tuple[Finder, ...] = tuple(sources)
         self._by_name: dict[str, Finder] = dict(zip(names, self._sources, strict=True))
+        #: How many asks a run (`find_images`) has under way at each source, so a
+        #: look can wait behind them (`wait_for_runs`). Guarded by the condition
+        #: that wakes a waiting look when a source's count falls to nothing.
+        self._run_asks: Counter[str] = Counter()
+        self._runs_done = threading.Condition()
 
     @property
     def providers(self) -> tuple[str, ...]:
         """The sources' names, most preferred first."""
         return tuple(self._by_name)
+
+    @property
+    def image_providers(self) -> tuple[str, ...]:
+        """The sources that find images, most preferred first: a finder of pages only is left out."""
+        return tuple(source.provider for source in self._sources if offers_images(source))
 
     def precedence(self, provider: str) -> int:
         """Where a source stands in the preference order; lower is preferred."""
@@ -110,41 +156,43 @@ class ImageSourcePool:
         with ThreadPoolExecutor(max_workers=len(self._sources), thread_name_prefix="image-source") as workers:
             # Each call runs in a copy of the caller's context, so what a source
             # logs from its worker thread still carries the run it is working for.
-            pending = [
-                (source.provider, workers.submit(contextvars.copy_context().run, source.find_images, query))
-                for source in self._sources
-            ]
+            pending = []
+            for source in self._sources:
+                # Counted here, before the worker starts, so a look asking in
+                # the gap between this call and the worker sees the run already.
+                with self._runs_done:
+                    self._run_asks[source.provider] += 1
+                pending.append(workers.submit(contextvars.copy_context().run, self._ask_for_a_run, source.provider, query))
             images: list[FoundImage] = []
             pages: dict[FoundPage, None] = {}
             answered: list[str] = []
             pages_only: list[str] = []
             unreachable: list[str] = []
             declined: list[str] = []
-            for source, (provider, future) in zip(self._sources, pending, strict=True):
-                try:
-                    for found in future.result():
-                        if isinstance(found, FoundPage):
-                            pages[found] = None
-                        else:
-                            images.append(found)
+            for future in pending:
+                answer = future.result()
+                images.extend(answer.images)
+                for page in answer.pages:
+                    pages[page] = None
+                if answer.outcome is AskOutcome.ANSWERED:
                     # A finder of pages answering says nothing about whether an
                     # image exists, so it is not a source that answered.
-                    (answered if offers_images(source) else pages_only).append(provider)
-                except ImageQueryUnanswerable:
+                    (answered if answer.offers_images else pages_only).append(answer.provider)
+                elif answer.outcome is AskOutcome.DECLINED:
                     # Not asked, in effect: this source has nothing to say about
                     # works like this one, which is neither "holds none" nor "down".
-                    declined.append(provider)
-                except ImageSearchFailure as exc:
+                    declined.append(answer.provider)
+                else:
                     log.warning(
                         "an image source could not be asked for a work: %s",
-                        exc,
-                        extra={"event": "image_pool.unreachable", "provider": provider, "work_title": query.title},
+                        answer.failure,
+                        extra={"event": "image_pool.unreachable", "provider": answer.provider, "work_title": query.title},
                     )
                     # Only a source of images leaves the work in doubt. A finder
                     # of pages that could not be asked holds no image either way,
                     # and counting it would keep a work waiting that every source
                     # of images has answered for.
-                    (unreachable if offers_images(source) else pages_only).append(provider)
+                    (unreachable if answer.offers_images else pages_only).append(answer.provider)
         if not answered:
             # No source of images answered. Nothing is known about the work, so
             # it is not recorded as held by nobody; it waits, as when every source
@@ -155,6 +203,56 @@ class ImageSourcePool:
             cannot = [*(f"{name} cannot" for name in declined), *(f"{name} finds pages only" for name in pages_only)]
             raise NoSourceCanAnswer(f"No image source can look this work up: {'; '.join(cannot)}.")
         return PoolAnswer(images=tuple(images), unreachable=tuple(unreachable), pages=tuple(pages))
+
+    def ask(self, provider: str, query: ImageQuery) -> SourceAnswer:
+        """Ask one source about one work, and sort its answer as the pool sorts every answer.
+
+        `find_images` is this, at every source at once, folded together; a look
+        asks one source at a time with it. A source raising anything other than
+        `ImageSearchFailure` (or `ImageQueryUnanswerable`) propagates, as it does
+        from `find_images`.
+        """
+        source = self._source(provider)
+        images: list[FoundImage] = []
+        pages: list[FoundPage] = []
+        offers = offers_images(source)
+        try:
+            for found in source.find_images(query):
+                (pages if isinstance(found, FoundPage) else images).append(found)
+        except ImageQueryUnanswerable:
+            outcome, failure = AskOutcome.DECLINED, None
+        except ImageSearchFailure as exc:
+            outcome, failure = AskOutcome.UNREACHABLE, str(exc)
+        else:
+            outcome, failure = AskOutcome.ANSWERED, None
+        return SourceAnswer(
+            provider=provider,
+            outcome=outcome,
+            offers_images=offers,
+            images=tuple(images),
+            pages=tuple(pages),
+            failure=failure,
+        )
+
+    def wait_for_runs(self, provider: str, *, timeout: float) -> bool:
+        """Wait until no run is asking this source, for at most `timeout` seconds; whether none is.
+
+        A run asks first: a look's question to a source a run is using waits
+        behind it, because the run is what a curator pressed Get for.
+        """
+        with self._runs_done:
+            return self._runs_done.wait_for(lambda: self._run_asks[provider] == 0, timeout=timeout)
+
+    def _ask_for_a_run(self, provider: str, query: ImageQuery) -> SourceAnswer:
+        """`ask`, for a run, releasing the source to waiting looks however it ends."""
+        try:
+            return self.ask(provider, query)
+        finally:
+            with self._runs_done:
+                self._run_asks[provider] -= 1
+                if self._run_asks[provider] <= 0:
+                    del self._run_asks[provider]
+                    self._runs_done.notify_all()
 
     def fetch_preview(self, provider: str, url: str) -> bytes | None:
         """The preview bytes, from the source the instance was recorded under."""

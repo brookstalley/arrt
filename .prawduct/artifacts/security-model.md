@@ -78,6 +78,28 @@ identifier.**
   `tests/integration/test_sightings_api.py` holds.
 - **Links out are built from an item id**, never from a URL the registry
   supplied. No test sees this half, which is the Critic's.
+- **A candidate's picture reaches the page from Arrt's own route, re-encoded,
+  never from the source** *(added 2026-10-06, with the picture store,
+  `data-model.md` § Direction)*. Every picture a source serves is decoded and
+  re-encoded as JPEG before it is kept (`library/services/pictures.py`), through
+  Pillow's decompression-bomb guard, and what the source served is never stored as
+  it came, so a file that is not an image, or one engineered to exhaust memory, is
+  refused rather than kept. The browser is served the kept bytes from
+  `/api/candidate-images/{id}/preview`, as `image/jpeg`. **The key is never the
+  client's:** a kept picture is found from the row's own `preview_path`, which the
+  server wrote, and the key is computed on the server from the row's `provider` and
+  `url`. A request names an image id, never a path or a URL, so no client string
+  becomes a path on disk or an address the server fetches.
+- **A look's picture reaches the page the same way, by a key the server minted**
+  *(added 2026-10-06, `build-plan-look-before-get.md`)*. A work the library does
+  not hold is shown from what the image sources hold now, before any Get, and no
+  row exists to read a path from. So the route is
+  `/api/registry/works/{qid}/look/pictures/{key}`, where `key` is the picture
+  store's key, computed on the server from a source's answer, and is served only
+  while that work's kept look names it: another work's key, a refused find's (which
+  has none), or an expired look's is a 404. The picture comes from the store,
+  re-encoded as above. No route takes a URL from the client, and a source's `url`
+  reaches the page as text only.
 
 **Retroactive:** yes. Every page the client has today already conforms, which
 the sink test confirms on the day it lands. The museum clients' text (titles,
@@ -655,7 +677,8 @@ which would have isolated it, and accepted the trust that comes with it.
   - the clients' token verifiers, which are hashes in the catalogue, not the
     tokens;
   - the network from inside the container, the house's LAN included.
-  "A plugin writes nothing" is what the interface lets it say, not a barrier.
+  "A plugin writes no record, and files only in its own directory" is what the
+  interface lets it say, not a barrier.
 - **Its own requests are unguarded.** `check_fetchable` and the redirect checks
   (§ The fetch trigger fired) run on what Arrt fetches. A plugin's search,
   preview and page reads are made by the plugin's own client, and nothing stops
@@ -682,9 +705,25 @@ one, which has the access above, they are not:
 - **Arrt fetches every locator a reader returns**, after bound 2 on the URL in
   the locator (§ The fetch trigger fired). The Art Institute's reader also checks
   that its advertised IIIF base is the museum's own host, and that check is the
-  plugin's. A third-party reader's locator gets bound 2 only: any public address.
+  plugin's. The Met's reader returns an image only on `images.metmuseum.org`,
+  and its finder reads image heads and previews only there, also the plugin's
+  checks. SMK's reader returns an image only from `api.smk.dk`'s download and
+  thumbnail paths, and its finder reads previews only from `iip-thumb.smk.dk`
+  or that thumbnail path, again the plugin's checks. navigart's reader returns an
+  image only on `images.navigart.fr`, built from a file name it checks, and asks
+  the API only for a vault in its table of publications; its finder reads
+  previews only from that image host, also the plugin's checks. The NGA's reader
+  returns an image only on `api.nga.gov/iiif/`, built from an image id it checks
+  against the IIIF id's form; its finder reads previews only there and downloads
+  the open data only from `raw.githubusercontent.com`'s
+  `NationalGalleryOfArt/opendata` path, again the plugin's checks. A third-party reader's locator gets bound 2 only: any public address.
 - **Arrt decides** a work's identity, its rights record, duplicates, review,
   quality, spending and storage. A plugin answers "what images exist, and where".
+  Since interface 1.2 a plugin is handed a directory of its own under
+  `ART_ROOT/sources/` for a copy of what it can fetch again (`source-plugins.md` §
+  A plugin's own directory); the NGA's copy of its open data is the first. That
+  directory is where the interface lets it write, which, like "a plugin writes no
+  record", is not a barrier.
 - **A plugin's error text is scrubbed** before the journal and the health panel.
   Every URL's query string is cut, found by running to whitespace, `"`, `<` or
   `>`, the characters an HTTP client always encodes. The scrub runs past `'` and

@@ -24,10 +24,12 @@ what it takes, and what a good call looks like; `bindings.py` says which
 service method answers it, and the service method does the work.
 """
 
+from datetime import timedelta
 from typing import Final
 
 from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR
 from arrt.library.services.catalogue import MAX_LIST_LIMIT
+from arrt.library.services.look import ANSWER_KEPT_FOR, LOOK_HOLD_SECONDS, UNREACHABLE_KEPT_FOR
 from arrt.library.services.review import MAX_REVIEW_LIMIT
 from arrt.mcp.registry import Action, Param, ToolRecord
 from arrt.persistence.discovery_records import AffinityDerivation, AffinitySentiment, RunKind, RunStatus
@@ -589,6 +591,45 @@ ART_DISCOVERY: Final = ToolRecord(
             ),
         ),
         Action(
+            name="look",
+            description=("Show what every image source holds of a work you do not hold, by its Wikidata item, before any Get."),
+            example="art_discovery(action='look', qid='Q20267229')",
+            params=(
+                Param(
+                    name="qid",
+                    type="string",
+                    description="The work's Wikidata item, such as Q20267229.",
+                    required=True,
+                ),
+            ),
+            tips=(
+                (
+                    "This spends nothing and records nothing: no run starts. Each source is asked what a Get would "
+                    "ask, and its finds are judged as a Get judges them, so the pictures are what a Get would find."
+                ),
+                (
+                    f"It waits up to {LOOK_HOLD_SECONDS:.0f} seconds for every source to answer; a source still "
+                    "`asking` after that is answered by calling again. Answers are kept for "
+                    f"{ANSWER_KEPT_FOR / timedelta(hours=1):.0f} hours, and 'could not be asked' for "
+                    f"{UNREACHABLE_KEPT_FOR / timedelta(minutes=1):.0f} minutes, so calling again soon asks nothing twice."
+                ),
+                (
+                    "A source's state is found, holds_none, refused (it holds a work by this title by another "
+                    "artist, which is not shown), unreachable or cannot. The best pictures follow as images; each "
+                    "picture's image_block_index says which is its own."
+                ),
+                (
+                    "state='held' means the library already holds the work (held_artwork_ids), and "
+                    "state='being_got' that a Get is asking already; neither asks anything."
+                ),
+                (
+                    "A picture's facts carry the browser's names: width and height are art_review list_images' "
+                    "estimated_width and estimated_height, fit.verdict its display_fit, and "
+                    "fit.rendered_long_edge_inches its renders_at_inches, unrounded."
+                ),
+            ),
+        ),
+        Action(
             name="list_runs",
             description="List discovery runs, newest first, optionally narrowed to one state or kind.",
             example="art_discovery(action='list_runs', status='awaiting_approval')",
@@ -642,6 +683,32 @@ ART_DISCOVERY: Final = ToolRecord(
                     "Months are UTC calendar months, matching the boundary the provider's own credit limit "
                     "resets on. A report on any other boundary would disagree with the figure that can actually "
                     "stop spending."
+                ),
+            ),
+        ),
+        Action(
+            # Not `sources`: `art_catalogue(action='sources')` is a work's
+            # provenance, and one action name meaning two things across tools
+            # would be read as one.
+            name="source_plugins",
+            description=(
+                "List every installed image source plugin, most preferred first: the package and version it "
+                "came from, whether it loaded, and what it provides."
+            ),
+            example="art_discovery(action='source_plugins')",
+            tips=(
+                (
+                    "A plugin that declined is installed and not configured here; its reason names the setting "
+                    "that would load it. One that failed could not be loaded, and its reason says why."
+                ),
+                (
+                    "provides lists finds_images, finds_pages (pages for other plugins to read), reads (turns a "
+                    "URL it claims into an image) and browses (offers a collection). Only plugins that find "
+                    "images can answer a search."
+                ),
+                (
+                    "interface_version is the plugin interface this Arrt provides; a plugin whose api_major "
+                    "differs is refused by name."
                 ),
             ),
         ),
@@ -897,9 +964,10 @@ ART_REVIEW: Final = ToolRecord(
             description="List every wanted work across runs, newest run first.",
             example="art_review(action='list_wanted')",
             tips=(
+                ("scans_turned_down counts the scans the curator turned down. wikidata_qid is null " "when no item is known."),
                 (
-                    "scans_turned_down is 0 for a work wanted because nothing was found. wikidata_qid is null "
-                    "when no item is known."
+                    "shown is the scan the work's review card pictures it by, usually one too small for the wall "
+                    "(display_fit below_floor), or null when nothing was found or every scan was turned down."
                 ),
             ),
         ),
@@ -1243,9 +1311,17 @@ ART_DISPLAY: Final = ToolRecord(
         ),
         Action(
             name="status",
-            description="Report what the display serving each wall last said about itself, and how long ago.",
+            description=(
+                "Report what the display serving each wall last said about itself, and how long ago, and how "
+                "much the picture store keeps."
+            ),
             example="art_display(action='status')",
             tips=(
+                (
+                    "pictures carries the picture store's pictures_bytes and pictures_files, counted at most ten "
+                    "minutes ago (age_seconds). Every picture fetched from outside is kept for good, two files each, "
+                    "so these only grow; no size is called too large."
+                ),
                 (
                     "This reports an observation and its age in seconds, never a verdict about health. "
                     "If no display has ever run for a wall, it says so plainly rather than reporting a zero."

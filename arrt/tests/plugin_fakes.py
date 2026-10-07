@@ -190,3 +190,16 @@ UNCLEAR_ABOUT_IMAGES = SourcePlugin(api_major=1, create=_unclear_about_images)
 READER_WITHOUT_CLAIMS = SourcePlugin(api_major=1, create=_reader_without_claims)
 CLAIMS_WITHOUT_READER = SourcePlugin(api_major=1, create=_claims_without_reader, claims=claims_example)
 LEAKY = SourcePlugin(api_major=1, create=_leaky)
+
+
+#: The `data_dir` each `DIRECTORY` factory was handed, in load order.
+DIRECTORIES_HANDED: list = []
+
+
+def _directory(context: SourceContext) -> Declined:
+    """Records the directory it was handed, and declines: the test is about what it was given."""
+    DIRECTORIES_HANDED.append(context.data_dir)
+    return Declined("recorded its directory")
+
+
+DIRECTORY = SourcePlugin(api_major=1, create=_directory)

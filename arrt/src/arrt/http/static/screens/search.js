@@ -1,222 +1,346 @@
-/* Search results — everything a few words find, the library's and Wikidata's.
+/* Search results — everything a few words find, grouped by what you hold.
  *
  * Ruling 2 (one world): one page lists what the library holds and what the
- * registry knows, each with its state, artists first. *All*, *In your library*
- * and *Not held* narrow it. If the words name exactly one artist, that artist
- * leads the page, one step from their hub.
+ * registry knows. Two groups, **Held** then **Not held**, each listing its
+ * artists, works and topics (the owner, 2026-10-06, after a search found
+ * nothing held and the page, then narrowed to the library, offered no way on).
+ * Held is the library's matches, and any of Wikidata's the library holds but
+ * its own rows do not show; Not held is the rest of Wikidata's. A group with
+ * nothing in it is one line, never a "No artists." for each kind. If the words
+ * name exactly one artist, that artist leads the page, one step from their hub.
  *
- * **Reached from the dropdown's last row**, *All results for "…"*. Enter still
- * opens Artworks filtered to the query, as the owner ruled on 2026-09-30 and kept
- * on 2026-10-01. Contextual, so it returns to the page it was opened from.
+ * **Reached by Enter in the search box**, and by the dropdown's last row,
+ * *All results for "…"*. Contextual, so it returns to the page it was opened
+ * from. A `view=` left in an old address, from when *All*, *In your library*
+ * and *Not held* narrowed the page, is ignored: both groups are always shown.
  *
- * **The library half is drawn first and never waits** on the registry's, which
- * fills its own sections when it answers and says why when it cannot. Nothing on
- * this page spends: *Ask about* fills in Ask and does not start it, and *Get* is free.
+ * **The Held group is drawn first and never waits** on Wikidata, whose two
+ * searches each fill their own kinds when they answer and say why when they
+ * cannot. Nothing on this page spends: *Ask about* fills in Ask and does not
+ * start it, and *Get* is free.
  *
  * Every string from the registry is untrusted text, shown as text. */
 
 import { api } from "../core/api.js";
 import { getSelection } from "../core/getting.js";
-import { lifeDates, named, stateMark, workState } from "../core/registry.js";
+import { lifeDates, named, stateMark, topicKinds, topicName, workState } from "../core/registry.js";
 import { el, fill, render } from "../core/render.js";
 import { backLink, go } from "../core/router.js";
-import { fold } from "../core/search.js";
+import { asksWikidata, fold } from "../core/search.js";
 import { state } from "../core/state.js";
 
 /* How many of the library's works the page lists. Artworks, one click away,
  * holds the rest and the tools to act on them. */
 const WORKS_SHOWN = 50;
 
-const VIEWS = [
-  ["all", "All"],
-  ["library", "In your library"],
-  ["not_held", "Not held"],
+const KINDS = [
+  ["artists", "Artists"],
+  ["works", "Works"],
+  ["topics", "Topics"],
 ];
+
+/* Each kind's heading carries its half, unseen, so a screen reader's list of
+ * regions says "Held: Artists" and "Not held: Artists" rather than "Artists"
+ * twice: a topic row has no mark of its own to say which half it is in. */
+const HALVES = { held: "Held", "not-held": "Not held" };
 
 export async function viewSearch(generation) {
   const query = (state.params.q || "").trim();
-  const view = VIEWS.some(([key]) => key === state.params.view) ? state.params.view : "all";
   if (!query) {
     render(generation, el("p", {}, [backLink()]), el("h2", { text: "Search" }), el("p", { class: "note", text: "Type in the search box above to search." }));
     return;
   }
-  // Asked now, beside the library, and awaited after the library's half is
-  // drawn. Not asked at all for *In your library*, which shows none of it.
-  const fromRegistry =
-    view === "library"
-      ? null
-      : api(`/api/registry/search?q=${encodeURIComponent(query)}&wide=true`).catch(() => ({
-          state: "unavailable",
-          note: "Wikidata could not be searched just now.",
-          artists: [],
-          works: [],
-        }));
-  const [page, people] = await Promise.all([
+  // Asked now, beside the library, and awaited after the Held group is drawn.
+  // The topic search is the slower of the two, so each fills its own kinds.
+  const fromRegistry = api(`/api/registry/search?q=${encodeURIComponent(query)}&wide=true`).catch(() => ({
+    state: "unavailable",
+    note: "Wikidata could not be searched just now.",
+    artists: [],
+    works: [],
+  }));
+  // Below the registry's floor the artist and work search says so itself; the
+  // topic search is simply not asked.
+  const fromTopics = asksWikidata(query)
+    ? api(`/api/registry/topics?q=${encodeURIComponent(query)}`).catch(() => ({
+        state: "unavailable",
+        note: "Wikidata's topics could not be searched just now.",
+        topics: [],
+      }))
+    : Promise.resolve({ state: "known", note: null, topics: [] });
+  const [page, people, ours] = await Promise.all([
     api(`/api/works?q=${encodeURIComponent(query)}&limit=${WORKS_SHOWN}`),
     api(`/api/artists?q=${encodeURIComponent(query)}`),
+    // The library's topics fail on their own: the artists and works above them
+    // still stand, and the Held group says the topics could not be listed.
+    api("/api/topics").catch(() => null),
   ]);
 
+  const everyTopic = (ours ? ours.kinds : []).flatMap((group) => group.topics.map((topic) => ({ ...topic, kind: group.kind })));
+  const wanted = fold(query);
+  const library = {
+    artists: people.artists.map((entry) => entry.artist),
+    works: page.works,
+    total: page.total,
+    topics: everyTopic.filter((topic) => fold(topic.label).includes(wanted)),
+    // Every topic the library's works are in, matched by name or not: one of
+    // Wikidata's that is among them is held, not *Not held*.
+    topicIds: new Set(everyTopic.map((topic) => topic.qid)),
+  };
+
   const top = el("div");
-  const artists = el("section", { class: "panel", "aria-labelledby": "results-artists" });
-  const works = el("section", { class: "panel", "aria-labelledby": "results-works" });
-  const registryNote = el("p", { class: "muted", "aria-live": "polite", text: view === "library" ? "" : "Asking Wikidata…" });
+  const section = (half, kind) => {
+    const node = el("section", { class: "results-kind", "aria-labelledby": `results-${half}-${kind}` });
+    node.hidden = true;
+    return node;
+  };
+  const sections = {
+    held: Object.fromEntries(KINDS.map(([kind]) => [kind, section("held", kind)])),
+    "not-held": Object.fromEntries(KINDS.map(([kind]) => [kind, section("not-held", kind)])),
+  };
+  const nothingHeld = el("p", { class: "muted results-none", text: "Nothing you hold matches." });
+  // The Not held group's one line, whatever Wikidata did: asking, found,
+  // nothing more, or why it could not be asked.
+  const registryNote = el("p", { class: "muted", "aria-live": "polite", text: "Asking Wikidata…" });
   render(
     generation,
     el("p", {}, [backLink()]),
     el("h2", { text: `Results for “${query}”` }),
-    viewSwitch(query, view),
     top,
-    registryNote,
-    artists,
-    works,
+    el("section", { class: "panel", "aria-labelledby": "results-held" }, [
+      el("h3", { id: "results-held", text: "Held" }),
+      nothingHeld,
+      ours ? null : el("p", { class: "muted results-topics-failed", text: "Your topics could not be listed just now." }),
+      ...KINDS.map(([kind]) => sections.held[kind]),
+    ]),
+    el("section", { class: "panel", "aria-labelledby": "results-not-held" }, [
+      el("h3", { id: "results-not-held", text: "Not held" }),
+      registryNote,
+      ...KINDS.map(([kind]) => sections["not-held"][kind]),
+    ]),
   );
 
-  const library = { artists: people.artists, works: page.works, total: page.total };
-  const paint = (registry) => {
-    paintArtists(artists, query, view, library, registry);
-    paintWorks(works, query, view, library, registry);
-    paintTop(top, query, view, library, registry);
-  };
-  paint(null);
-  if (!fromRegistry) return;
-  const registry = await fromRegistry;
-  if (!registryNote.isConnected) return;
-  paint(registry);
-  registryNote.textContent = registryWords(query, registry);
-  if (registry.state === "known" && !registry.artists.length && !registry.works.length) {
-    registryNote.after(
-      el("div", { class: "row" }, [
-        el("button", { class: "action", type: "button", text: `Ask about “${query}”`, onclick: () => go("discover", null, { term: query }) }),
-      ]),
+  // One selection for the page, painted once: the works are drawn when the
+  // artist and work search answers, and the topic search arriving later does
+  // not redraw them, so a box already ticked stays ticked.
+  const getting = getSelection();
+  const registry = { found: null, named: null };
+  const paintFound = () => {
+    const artists = artistRows(library, registry.found);
+    paintKind(sections.held.artists, "held", "artists", artists.held.map(artistRow));
+    paintKind(sections["not-held"].artists, "not-held", "artists", artists.notHeld.map(artistRow));
+    const works = workRows(library, registry.found, getting);
+    paintKind(sections.held.works, "held", "works", works.held.map(workRow), artworksLink(query, library));
+    paintKind(
+      sections["not-held"].works,
+      "not-held",
+      "works",
+      works.notHeld.map(workRow),
+      works.notHeld.length ? getting.node : null,
     );
-  }
+    paintTop(top, query, [...artists.held, ...artists.notHeld]);
+  };
+  const paintNamed = () => {
+    const topics = topicRows(library, registry.named);
+    paintKind(sections.held.topics, "held", "topics", topics.held.map(topicRow));
+    paintKind(sections["not-held"].topics, "not-held", "topics", topics.notHeld.map(topicRow));
+  };
+  const settle = () => {
+    nothingHeld.hidden = KINDS.some(([kind]) => !sections.held[kind].hidden);
+  };
+  paintFound();
+  paintNamed();
+  settle();
+
+  const arrive = (part, paint) => (answer) => {
+    if (!registryNote.isConnected) return;
+    registry[part] = answer;
+    paint();
+    settle();
+    if (registry.found && registry.named) sayWhatWikidataDid(registryNote, query, registry, sections["not-held"]);
+  };
+  await Promise.all([fromRegistry.then(arrive("found", paintFound)), fromTopics.then(arrive("named", paintNamed))]);
 }
 
-/* *All*, *In your library*, *Not held*: buttons that say which is showing. */
-function viewSwitch(query, view) {
-  return el(
-    "div",
-    { class: "row", role: "group", "aria-label": "Show" },
-    VIEWS.map(([key, label]) =>
-      el("button", {
-        class: key === view ? "action" : "action quiet",
-        type: "button",
-        text: label,
-        // As a string: `el` drops a false value, and an unpressed toggle must
-        // say "false", not leave a reader unsure whether it is a toggle at all.
-        "aria-pressed": String(key === view),
-        onclick: () => go("search", null, { ...state.params, q: query, view: key === "all" ? "" : key }),
-      }),
-    ),
+/* Said in the Not held group once both of Wikidata's searches have answered.
+ * An empty Not held group is this one line: "Wikidata has nothing more." when
+ * everything it found is already under Held, and, when it found nothing at all,
+ * that, with *Ask about* below it. */
+function sayWhatWikidataDid(note, query, { found, named }, notHeld) {
+  if (found.state === "too_short") {
+    note.textContent = "Wikidata is searched from three letters.";
+    return;
+  }
+  if (found.state !== "known") {
+    note.textContent = found.note || "";
+    return;
+  }
+  if (named.state !== "known") {
+    note.textContent = named.note || "";
+    return;
+  }
+  const total = found.artists.length + found.works.length + named.topics.length;
+  const anyNotHeld = KINDS.some(([kind]) => !notHeld[kind].hidden);
+  if (anyNotHeld) {
+    note.textContent = `Wikidata found ${total} for “${query}”.`;
+    return;
+  }
+  if (total) {
+    note.textContent = "Wikidata has nothing more.";
+    return;
+  }
+  note.textContent = `Wikidata has nothing for “${query}”.`;
+  note.after(
+    el("div", { class: "row" }, [
+      el("button", { class: "action", type: "button", text: `Ask about “${query}”`, onclick: () => go("discover", null, { term: query }) }),
+    ]),
   );
 }
 
-function registryWords(query, registry) {
-  if (registry.state === "too_short") return "Wikidata is searched from three letters.";
-  if (registry.state !== "known") return registry.note || "";
-  const found = registry.artists.length + registry.works.length;
-  return found ? `Wikidata found ${found} for “${query}”.` : `Wikidata has nothing for “${query}”.`;
+/* One kind in one group: its heading and rows, or nothing at all. A kind with
+ * no rows is left out rather than saying so, so an empty group is one line. */
+function paintKind(section, half, kind, rows, ...after) {
+  if (!rows.length) {
+    fill(section);
+    section.hidden = true;
+    return;
+  }
+  const heading = KINDS.find(([key]) => key === kind)[1];
+  fill(
+    section,
+    el("h4", { id: `results-${half}-${kind}` }, [el("span", { class: "visually-hidden", text: `${HALVES[half]}: ` }), heading]),
+    el("ul", { class: "results-list" }, rows),
+    ...after,
+  );
+  section.hidden = false;
 }
 
-/* The artists: the library's, then Wikidata's that the library's rows do not
- * already show, each marked held or not. */
-function artistRows(view, library, registry) {
-  const shown = new Set();
-  const rows = [];
-  if (view !== "not_held") {
-    for (const { artist } of library.artists) {
-      shown.add(artist.artist_id);
-      rows.push({ name: artist.name, life: lifeDates(artist), held: true, open: () => go("artist", artist.artist_id) });
-    }
-  }
-  if (registry && registry.state === "known" && view !== "library") {
-    for (const person of registry.artists) {
-      if (person.artist_id && (shown.has(person.artist_id) || view === "not_held")) continue;
-      rows.push({
+/* The artists: the library's, and Wikidata's split by whether the library holds
+ * them, leaving out any the library's rows already show. */
+function artistRows(library, found) {
+  const shown = new Set(library.artists.map((artist) => artist.artist_id));
+  const held = library.artists.map((artist) => ({
+    name: artist.name,
+    life: lifeDates(artist),
+    held: true,
+    open: () => go("artist", artist.artist_id),
+  }));
+  const notHeld = [];
+  if (found && found.state === "known") {
+    for (const person of found.artists) {
+      if (person.artist_id && shown.has(person.artist_id)) continue;
+      const row = {
         name: named(person.name, person.qid),
         life: lifeDates(person),
         held: Boolean(person.artist_id),
         open: () => go("artist", person.artist_id || person.qid),
-      });
+      };
+      (row.held ? held : notHeld).push(row);
     }
   }
-  return rows;
+  return { held, notHeld };
 }
 
-function paintArtists(section, query, view, library, registry) {
-  const rows = artistRows(view, library, registry);
-  fill(section,
-    el("h3", { id: "results-artists", text: "Artists" }),
-    rows.length
-      ? el("ul", { class: "results-list" }, rows.map((row) =>
-          el("li", {}, [
-            el("button", { class: "row-title", type: "button", text: row.name, onclick: row.open }),
-            row.life ? el("span", { class: "muted", text: ` ${row.life}` }) : null,
-            stateMark({ held: row.held }),
-          ]),
-        ))
-      : el("p", { class: "muted", text: "No artists." }),
-  );
+/* No mark: the group heading the row sits under says whether the library holds
+ * them, and a mark beside it said it again (the owner, 2026-10-06). The top
+ * result, which sits under no group, keeps its mark. */
+function artistRow(row) {
+  return el("li", {}, [
+    el("button", { class: "row-title", type: "button", text: row.name, onclick: row.open }),
+    row.life ? el("span", { class: "muted", text: ` ${row.life}` }) : null,
+  ]);
 }
 
-/* The works: the library's first, then Wikidata's that are not among them. */
-function paintWorks(section, query, view, library, registry) {
-  const getting = getSelection();
-  const shownIds = new Set(view === "not_held" ? [] : library.works.map((work) => work.artwork_id));
-  const rows = [];
-  if (view !== "not_held") {
-    for (const work of library.works) {
-      rows.push({
-        title: work.title,
-        by: work.artist ? work.artist.name : null,
-        mark: workState({ held_artwork_ids: [work.artwork_id] }, { opens: false }),
-        open: () => go("work", work.artwork_id),
-      });
-    }
-  }
-  if (registry && registry.state === "known" && view !== "library") {
-    for (const work of registry.works) {
-      const held = work.held_artwork_ids.length > 0;
-      if (held && (view === "not_held" || work.held_artwork_ids.some((id) => shownIds.has(id)))) continue;
-      rows.push({
+/* The works: the library's first, and Wikidata's split the same way. A work the
+ * library does not hold can be ticked and got from here. */
+function workRows(library, found, getting) {
+  const shown = new Set(library.works.map((work) => work.artwork_id));
+  const held = library.works.map((work) => ({
+    title: work.title,
+    by: work.artist ? work.artist.name : null,
+    mark: workState({ held_artwork_ids: [work.artwork_id] }, { opens: false }),
+    open: () => go("work", work.artwork_id),
+  }));
+  const notHeld = [];
+  if (found && found.state === "known") {
+    for (const work of found.works) {
+      const isHeld = work.held_artwork_ids.length > 0;
+      if (isHeld && work.held_artwork_ids.some((id) => shown.has(id))) continue;
+      const row = {
         title: named(work.title, work.qid),
         by: work.creator ? named(work.creator.name, work.creator.qid) : null,
-        mark: workState(work, { opens: false }),
-        open: () => (held ? go("work", work.held_artwork_ids[0]) : go("work", work.qid)),
-        // A work the library does not hold can be ticked and got from here.
-        box: held ? null : getting.box(work.qid, named(work.title, work.qid)),
-      });
+        mark: workState(work, { opens: false, grouped: true }),
+        open: () => (isHeld ? go("work", work.held_artwork_ids[0]) : go("work", work.qid)),
+        box: isHeld ? null : getting.box(work.qid, named(work.title, work.qid)),
+      };
+      (isHeld ? held : notHeld).push(row);
     }
   }
-  const more = view !== "not_held" && library.total > library.works.length;
-  fill(section,
-    el("h3", { id: "results-works", text: "Works" }),
-    rows.length
-      ? el("ul", { class: "results-list" }, rows.map((row) =>
-          el("li", {}, [
-            row.box || null,
-            el("button", { class: "row-title", type: "button", text: row.title, onclick: row.open }),
-            row.by ? el("span", { class: "muted", text: ` — ${row.by}` }) : null,
-            row.mark,
-          ]),
-        ))
-      : el("p", { class: "muted", text: "No works." }),
-    rows.some((row) => row.box) ? getting.node : null,
-    view !== "not_held" && library.works.length
-      ? el("p", { class: "muted" }, [
-          more ? `Your library has ${library.total} matching works; the first ${library.works.length} are here. ` : "",
-          el("button", { class: "link", type: "button", text: "Open them in Artworks", onclick: () => go("collection", null, { q: query }) }),
-        ])
-      : null,
-  );
+  return { held, notHeld };
 }
 
+function workRow(row) {
+  return el("li", {}, [
+    row.box || null,
+    el("button", { class: "row-title", type: "button", text: row.title, onclick: row.open }),
+    row.by ? el("span", { class: "muted", text: ` — ${row.by}` }) : null,
+    row.mark,
+  ]);
+}
+
+/* The way to the library's matches in Artworks, whose grid has the tools to act
+ * on them. Offered whenever the library has a match: Artworks has no words
+ * filter of its own to reach them by. */
+function artworksLink(query, library) {
+  if (!library.works.length) return null;
+  const more = library.total > library.works.length;
+  return el("p", { class: "muted" }, [
+    more ? `Your library has ${library.total} matching works; the first ${library.works.length} are here. ` : "",
+    el("button", {
+      class: "link",
+      type: "button",
+      text: library.total > 1 ? `All ${library.total} in Artworks` : "Open in Artworks",
+      onclick: () => go("collection", null, { q: query }),
+    }),
+  ]);
+}
+
+/* The topics: the library's whose names hold the words, then Wikidata's, held
+ * when the library's works are in it and not already listed. */
+function topicRows(library, found) {
+  const shown = new Set(library.topics.map((topic) => topic.qid));
+  const held = library.topics.map((topic) => ({
+    name: `${topicName(topic.label, topic.qid)} — ${topicKinds([topic.kind])}`,
+    description: null,
+    open: () => go("topic", topic.qid),
+  }));
+  const notHeld = [];
+  if (found && found.state === "known") {
+    for (const topic of found.topics) {
+      if (shown.has(topic.qid)) continue;
+      const row = {
+        name: `${topicName(topic.label, topic.qid)} — ${topicKinds(topic.kinds)}`,
+        // What tells six *Impressionism*s apart.
+        description: topic.description,
+        open: () => go("topic", topic.qid),
+      };
+      (library.topicIds.has(topic.qid) ? held : notHeld).push(row);
+    }
+  }
+  return { held, notHeld };
+}
+
+function topicRow(row) {
+  return el("li", {}, [
+    el("button", { class: "row-title", type: "button", text: row.name, onclick: row.open }),
+    row.description ? el("span", { class: "muted", text: ` · ${row.description}` }) : null,
+  ]);
+}
 
 /* The words name one artist when exactly one artist found carries every word
  * of them in their name, accents and case ignored. That artist leads the page. */
-function paintTop(section, query, view, library, registry) {
+function paintTop(section, query, artists) {
   const words = fold(query).split(/\s+/).filter(Boolean);
-  const naming = artistRows(view, library, registry).filter((row) => words.every((word) => fold(row.name).includes(word)));
+  const naming = artists.filter((row) => words.every((word) => fold(row.name).includes(word)));
   if (naming.length !== 1) {
     fill(section);
     return;

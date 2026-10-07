@@ -24,9 +24,25 @@ const FIT_WORDS = {
   below_floor: "below floor",
 };
 
+/* A picture's own size, in pixels, as the curator judges it: a scan on a
+ * review card, a registry work's picture on its page.
+ *
+ * **Pixels, and no inches** (the owner's ruling, 2026-10-02). The size on the
+ * wall depends on which panel the work hangs on, and the one figure this server
+ * could give — the long edge on the single panel it is configured for, after
+ * the mat — read as a fact about the picture to somebody who did not know that.
+ * A per-wall fit comes back with per-wall geometry (re-architecture wave 4).
+ * `null` when either dimension is unknown. */
+const PIXELS = new Intl.NumberFormat("en-US");
+
+export function pixelSize(width, height) {
+  if (width === null || width === undefined || height === null || height === undefined) return null;
+  return `${PIXELS.format(width)} × ${PIXELS.format(height)} px`;
+}
+
 /* How this would meet the panel — native, matted small, below the floor — or why that cannot be said.
  *
- * One function for a held work and for a candidate scan. Both carry the same
+ * One function for a held work, a candidate scan and a registry work's picture. Both carry the same
  * `fit`/`fit_note` pair and the same rule — a thing whose dimensions nobody
  * recorded must not read like a thing known to be small — so the only real
  * difference is what to call the absence, and that is the argument. Two copies

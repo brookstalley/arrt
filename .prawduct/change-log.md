@@ -62,234 +62,243 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
-## 2026-10-05: Norm Health sweep: the rules re-measured, and the owner's rulings built
+## 2026-10-06: A holder's name for the artist that Wikidata records, on the item's page
 
-<!-- prawduct: scope=norm-sweep-2026-10 | release=v0.3.0 -->
+<!-- prawduct: scope=artist-name-identity | release=v0.4.0 -->
 
-**Why:** the sweep was 64 days overdue, and the first since the 2026-09-30
-re-architecture, the display plane and the paid discovery path. Measurements and
-the owner's rulings are in `project-state.yaml` (`norm_health`, 2026-10-05). Plan:
-`build-plan-norm-sweep-2026-10.md`.
+**Why:** arrt#245, which the owner made the top public priority the same day.
+Phase 2 compared the holder's artist with the Library's under `artist_key`
+alone. So Art UK's "Laurence Stephen Lowry" was refused for "L. S. Lowry", and
+the NGA's "Rembrandt van Rijn" for "Rembrandt", even on the page the work's
+Wikidata item records. Measured, that refused 18,252 of 67,361 NGA items with an
+image, and 301 of 2,198 Pompidou items (`artist-name-identity-findings.md`).
 
-**What:**
-- **Records.** The service-layer norm amended (bindings compose, never branch on
-  a result); the manifest norm says the Player makes only the requests
-  `contract/routes.json` names; the broad-except norm exempts a catch that always
-  re-raises, superseding the 2026-08-02 ruling, because ruff `BLE001` now audits
-  it. Four `data-model.md` norms indexed; four unassigned preferences assigned;
-  stale chunk references, departures and counts brought to the tree. Issues
-  #215–#218 filed; ten older items given their filing reason. Also on this
-  branch: `upgrades.md`'s reserved questions relabelled U1–U6 (Q38–Q43 had been
-  given to others), the owner keeping the exhibit-E skip rule, the stats
-  contribution preference (`always`), and two learnings (a core rule amended, a
-  new `learnings/tooling.md`).
-- **The deployment guard no longer publishes the deployment.** It checks shapes
-  (a private address, a named home directory) and this checkout's own `.env`
-  values, never the values themselves. A home path in a legacy comment, the Pi's
-  hostname and login, and an email in two live tests' User-Agent are scrubbed.
-  History is not rewritten (the owner's ruling).
-- **Guards and fixes.** Commons reads an unrecognised page as "could not be
-  asked"; the scrim text pair is computed; the startup secret test covers every
-  declared secret; the surfaces import persistence records and never a store
-  (#24, `WorkOrder` and `BackupReading` moved to `records.py`); the Player's token
-  check is a dependency, with its refusal shape now tested on all five routes;
-  the root's module set may only shrink, and tests live in their plane's
-  `tests/`; the mat fallback's stored reason names its case (#212); a run's
-  threads are joined before its test's store closes (#198); the heartbeat guard
-  compares the key both bodies carry and pins it to the contract.
-- **Ruff, gone big** (the owner's ruling). Both planes select every rule ruff has,
-  less a short ignore list each with its reason; the root adds `N` and `BLE`, its
-  2024 modules leaving at wave 5. The residual was fixed, or waived per line with
-  a reason, and `tests/preferences/test_waivers.py` now refuses a waiver without
-  one. The curation plane's half was built by a delegate in its own worktree and
-  merged here; its one behaviour slip (Playwright route handlers as bound
-  methods) was caught by the browser suite and reverted.
-- **Wanted is a section of its own**, after Activity, as in Sonarr, Radarr and
-  Lidarr (the owner's ruling, against IA ruling 9). It is drawn hidden and shown
-  once its count says something is wanted, which also ends a sidebar race the
-  browser suite tripped on once in six runs. Cards now say a work "waits in
-  Wanted".
-- **Tests changed, none weakened:** composite asserts split, three assigned
-  lambdas made functions, blocking HTTP in async tests moved off the loop, and the
-  sidebar tests rewritten to the new section list.
+**What:** on a page the work's item records, an artist disagreement is now
+settled by Wikidata. The record is accepted at `CONFIDENT` when the Library's
+artist and the holder's are both, under `artist_key`, a label or an alias in any
+language of one creator the item records. Its card says the holder's name is
+another one Wikidata records for the requested artist.
 
-## 2026-10-05: A run keeps why it ended
+- **Measured:** this accepts 7,588 of the NGA refusals, 272 of the Pompidou's,
+  and Art UK's Lowry. Against independent ground truth (NGA's own constituent
+  QIDs, navigart's life dates), no accepted record was a different work.
+- **Off the item's pages nothing changes.** Aliases name two people at times
+  (Canaletto is an alias of Bellotto), so a title match alone does not earn one.
+- **New registry question:** `Registry.creator_names(qid)`. It is asked once per
+  work, and only for an artist disagreement on the item's page. If Wikidata
+  cannot answer, the refusal stands, and a look keeps that "none" only as long
+  as an outage.
+- **The item's pages are now also asked when only the artist differs.** That is
+  one `pages_about` per such work, where a title-matched artist refusal asked
+  nothing before. An outage there also shortens a look's kept refusal to the
+  outage window.
+- **New log lines:** `phase_two.renamed`, `phase_two.names_unavailable`, and
+  `names` on `phase_two.not_the_work`.
+- **Unchanged:** `artist_key` and the persisted suppression key.
+- **Still refused:** prints `after` a design and multiple makers (#257),
+  honorifics Wikidata does not record, and token order (#79). The owner ruled
+  2026-10-06 that a page the item records does not vouch for the artist alone.
 
-<!-- prawduct: scope=run-end-reason | release=v0.3.0 -->
+## 2026-10-06: The NGA, through a copy of its open data, as a built-in source; plugins get a directory of their own
 
-**Why:** a run that failed kept no record of why. The runner composed a reason
-at every failure site and only logged it, so the API, the MCP `status` action and
-the run page all said "failed". Seen on an Ask for Lucy Bull (run `4756cdee`),
-whose reason could not be recovered without the container's log (#207). Plan:
-`build-plan-run-end-reason.md`.
+<!-- prawduct: scope=nga-source | release=v0.4.0 -->
 
-**What:**
-- New nullable column `discovery_runs.end_reason`, added in place by widening.
-  `fail_run` and `halt_run_for_budget` require a non-blank `reason` and store it
-  with the ending; every other ending stores null (`data-model.md`).
-- The runner passes the reason it already logged. A fault nothing anticipated
-  stores "Phase N failed unexpectedly. The server log has the details." and never
-  the exception's text.
-- `end_reason` on every HTTP and MCP run shape, listings included
-  (`api-contract.md`). The MCP notice for a failed run names it when it is set.
-- The run page shows "Why it stopped: …" under a failed or halted run's sentence,
-  as text. A failed run from before the column keeps the log pointer.
+**Why:** about 128,000 Wikidata items carry an NGA artwork ID (arrt#234), and no
+NGA interface turns that ID into an image except its open data's CSV
+(`nga-api-findings.md`). The owner ruled on 2026-10-06 to keep that copy, within
+bounds: on disk gzipped, refreshed at most once a day with a conditional request,
+in memory only when a query asks the NGA, released after six hours with no NGA
+query.
 
-**Review:** cumulative, 0 blocking, two warnings. The new
-blank-reason refusal, raised inside the worker's handlers, would have stranded a
-run whose engine error had an empty message; `_end` now replaces a blank reason.
-A halt's reason was described as carrying a 402's arithmetic; a halt is a 403,
-and the records now say so. Both verified in a second pass.
+**What:** interface 1.2 adds `SourceContext.data_dir`, a directory of each
+plugin's own under `ART_ROOT/sources/<name>/`, which the loader narrows from one
+root (a name that is not one plain path segment gets none). It holds what a
+plugin can fetch again, and is not backed up. A built-in `nga` plugin
+(`library/sources/nga.py`) keeps the NGA's `published_images.csv` and
+`objects.csv` there under the owner's bounds, the second because the first has
+no title or artist for the identity check to read. It finds a work through its
+item's NGA page and reports the image under that page: the original through its
+IIIF tiles, at the original's size; or, where the NGA serves only a capped copy,
+that copy as a placeholder at the size the capped service states. Rights from
+`openaccess`: public domain, else unknown, never in copyright. It declines with
+no directory, and offers its reader alone with no registry. The built-in
+enumerations, the contract (`source-plugins.md` § A plugin's own directory, with
+the line naming `nga` the first plugin to keep a copy of a holder's catalogue),
+the plugin guide, the security model and the `ART_ROOT` layout records name the
+new directory and plugin.
 
-## 2026-10-05: An Ask's search hands the pages it read to the source plugins
+## 2026-10-06: navigart.fr, through its API, as a built-in source of placeholders
 
-<!-- prawduct: scope=ask-pages | release=v0.3.0 -->
+<!-- prawduct: scope=navigart-source | release=v0.4.0 -->
 
-**Why:** the owner chose Artlogic, the gallery platform, as the next source, found
-through Ask's web search rather than a list of galleries. Gallery works have no
-Wikidata item, so no plugin could be told where to look. Measured: a search for an
-artist's paintings cites the gallery's artist page (`procurement-corpus.md` § The
-probe: Artlogic, and what Ask's search cites). Plan: `build-plan-ask-pages.md`.
+**Why:** the owner ruled on 2026-10-05 that navigart.fr's 1,000 px images are
+worth having as placeholders (arrt#213). One platform serves dozens of French
+public collections, and about 5,000 Wikidata items link a navigart artwork.
 
-**What:**
-- Phase 1 keeps its search's citations (`WorkList.citations`): in the search's
-  order, each once, http(s) only. Never an address from the model's answer.
-- New table `run_citations`, written when phase 1 closes (`data-model.md`
-  § RunCitation, Q46–Q47).
-- Phase 2 hands every work the run proposed its run's citations as
-  `ImageQuery.pages`, on approval, on a re-search and after a restart. Each passes
-  `check_fetchable` first, once per run per pass; a refused one is dropped and
-  logged (`phase_two.page_refused`). A Get has none. The container hands the
-  check the same resolver acquisition uses, so a suite's stated DNS answers
-  reach it too.
-- The plugin interface is 1.1. A plugin written for 1.0 loads unchanged.
-- `check_fetchable` refuses a URL it cannot parse (`http://[x/`) and a name the
-  resolver cannot encode (`a..b`, a label over 63 characters) instead of raising
-  a parser's error. A stored citation of either shape would otherwise have failed
-  its run's phase 2 on every re-search; acquisition's three callers gain the same.
-- `security-model.md`: bound 2 re-derived for plugin reads of cited pages
-  (§ Plugins read pages a search cited), with the owner's approval.
-- **The gallery source itself is a private plugin**, `artlogic` in `arrt-sources`
-  (`eedae73`), which this repository does not ship. With it, run 6 found all six
-  of the corpus's gallery rows through Ask, at the galleries' stored originals
-  (`procurement-corpus.md` § Run 6). A failed run keeping no reason was filed as
-  #207.
-- **Shipping and rolling back.** `run_citations` is additive: an older build
-  opens the file and ignores it. Arrt and the plugin image are built together
-  (`arrt-sources:<arrt>-<plugin>`), so roll them back together; the `artlogic`
-  plugin under an Arrt before 1.1 answers every work "not answerable" rather
-  than failing.
-- Also carried: two wording fixes owed from PR #203's review (`re-architecture.md`'s
-  master-size-cap question; `project-state.yaml`'s blocking line).
+**What:** a built-in `navigart` plugin (`library/sources/navigart.py`). It finds
+a work only through its Wikidata item: each navigart artwork page the item
+records is read through the documented, public API and reported under the page
+exactly as the item spells it. Which vault to ask comes from a table of
+publications read from each one's own front end, because one (`matisse_lecateau`,
+vault 701) does not match its IDs' prefix; a page of a publication not in the
+table stays a sighting. The image is the 1,000 px rendering, the largest served,
+at the size the record states. The artist, written surname first in capitals, is
+put in reading order so the identity check can match it. Rights come from the
+holder's own line: public domain, in copyright for a `©` line, else unknown.
+With no registry the plugin loads as a reader alone. It needs no setting and
+never declines. The built-in enumerations (entry points, modules, the network
+allowlist, the startup lines, the live roster), `docs/source-plugins.md` and
+`security-model.md` name it. Measurements in `navigart-api-findings.md`.
 
-## 2026-10-04: Library screens — Artworks' theme filter and Select mode, a work's mark, Artists by surname
+## 2026-10-06: Artist pages that lead somewhere, quieter search marks, a settled review card
 
-<!-- prawduct: scope=library-screens | release=v0.2.0 -->
+<!-- prawduct: scope=artist-search-review-fixes | release=v0.4.0 -->
 
-**Why:** the owner's review of the Library screens (#169, #172-#175): the theme
-dropdown on Artworks read as a filter and was an editor; search's *Image found*
-badge read as if it might mean held; the Artists index sorted by first name in
-one narrow table; the Wikidata identity controls all showed at once; Library ›
-Topics was one long column. Plan: `build-plan-library-screens.md`.
+**Why:** four things the owner hit the same day (`build-plan-artist-search-review-fixes.md`).
+The library's Franz Kline had no Wikidata item, so his page listed nothing of
+Wikidata's while search showed Wikidata's Kline beside him. The matcher that
+links artists is hand-run and had not run since he was acquired. Lucy Bull's page
+by QID said Wikidata lists no works and stopped there. Every row under *Not held*
+said "Not held" again. And a review card kept *Why*, *Accept* and *Reject* after
+Accept, though both verdicts are final.
 
 **What:**
-- `GET /api/works?theme=<id>` and `art_catalogue(action='list', theme=...)`
-  narrow to one theme, composing with facets and text. Each binding composes
-  Programming's `theme_work_ids` with the Library's listing restricted to those
-  ids (seam rule 1). Each page carries the themes with counts against the other
-  filters. An unknown theme is refused by name.
-- Artworks: *Theme* is the Filter rail's first group. **Select** mode shows the
-  ticks and an action bar that adds the ticked works to a theme or removes them
-  from the theme being filtered. An address naming a deleted theme shows the
-  works the other filters select and says the theme is gone.
-- A work's mark: held, wanted and not held each have their own image style
-  wherever registry works are listed (typeahead, Search results, a Topic, an
-  Artist's *Their work*, a work's *More by*), each keeping its glyph and word.
-  Registry works report `wanted`.
-- Artworks, behaviour that changed: a filtered theme now follows the Sort menu
-  rather than its own curated order, and the Sort menu is offered with it. The
-  rail's *Themes* list with its *Open* buttons and *Manage themes*, and the
-  toolbar's always-shown theme picker, are gone: themes are reached from
-  Library › Themes, and the picker lives in Select mode's action bar.
-- Library › Artists sorts by surname (the stored family name, else the last
-  word once a generational suffix such as *the Younger* or *Jr.* is set aside),
-  shown as posters by default with a table view in the address.
-- Artist and Work pages show the Wikidata identity with one quiet *Edit*.
-  Library › Topics lays each kind out in columns.
+- `GET /api/artists/{id}/registry` carries `candidates` for an unlinked artist:
+  Wikidata's people of that name, those whose years agree first (the matcher's
+  own search and test, `identity.years_agree`, now public). The page offers each
+  with *This is them*, which stores it through the identity route. Nothing is
+  stored without the click. The search is kept a week (`registry.people`).
+- `GET /api/registry/artists/{qid}` carries `unlinked`: library artists of that
+  name with no item. The page offers *Link them to this item*.
+- An artist Wikidata lists no works for is offered *Ask for their work*, which
+  fills in Ask with "Paintings by <name>" and starts nothing.
+- Inside a search group a mark says only what the heading does not. Artist rows
+  carry none (the top result keeps its own). A not-held work reads ◐ *Image found*
+  or ○ *No image known*. This holds in the results page and the dropdown.
+- A decided review card says "Accepted. It is in your library." with *Open it in
+  Artworks*, or "Rejected. It will not be proposed again.", where its controls
+  were. Its scans offer no choice. A wanted card keeps *Forget*.
+- Every candidate work served over HTTP carries `decided` (`Verdict.is_terminal`),
+  which the card hides its controls on, so the client keeps no copy of the
+  final verdicts. It is HTTP-only, as `RunOut.is_terminal` is. Additive.
+- The picture-store norm in `data-model.md` is re-affirmed by the owner: #61, #62
+  and #81 are the history it closed (the startup advisory, answered the same day).
 
-**Tests changed, and why:** each retired test asserted a design the owner's
-review replaced; its successor asserts the new design.
-- `test_a_theme_chip_filters_the_grid_to_its_members`,
-  `test_the_rails_filter_and_its_opener_are_separate_controls_with_separate_names`
-  and `test_the_rails_opener_goes_to_the_theme_rather_than_filtering_the_grid`:
-  the rail's Themes list and its *Open* buttons are gone. Replaced by
-  `test_a_theme_in_the_filter_rail_narrows_the_grid` and
-  `test_filtering_by_a_theme_and_changing_its_members_are_different_controls`.
-- `test_a_theme_is_shown_in_its_own_order_so_sort_is_not_offered`: a filtered
-  theme now follows the Sort menu. Replaced by
-  `test_a_theme_filtered_here_is_in_the_sort_menus_order`.
-- `test_the_table_carries_the_tick_only_when_there_is_a_theme_to_add_to`: ticks
-  now show only in Select mode. Replaced by
-  `test_the_table_carries_the_tick_in_select_mode_only_when_there_is_a_theme_to_add_to`.
-- `test_the_item_field_stays_hidden_until_change_is_pressed`: the identity's
-  *Change* became one *Edit* that hides every control. Replaced by
-  `test_at_rest_the_control_is_the_identity_and_one_edit`.
-- `test_held_artists_are_listed_with_counts_and_open_their_page` and
-  `test_held_artists_by_name_with_works_in_circulation_counted`: the index went
-  from name order to surname order. Replaced by
-  `test_held_artists_are_posters_in_surname_order_and_open_their_page` and
-  `test_held_artists_by_surname_with_works_in_circulation_counted`.
-- `test_removing_from_a_theme_takes_the_tiles_out_and_says_what_is_left` waits
-  for the rail's count instead of reading it at once: the rail is recounted by a
-  fetch after the tile goes, and under parallel load the immediate read saw the
-  old count. Same assertion, same strength; a rail that never recounts still
-  fails it, checked by removing the recount.
+**Tests changed, and why:** in `test_the_search_results_page.py`,
+`test_held_then_not_held_each_marked_and_nothing_twice` is renamed
+`…_marked_only_where_the_group_does_not_say_…`. It and the tests asserting
+`● In your library` on a grouped artist row, and *Not held* in a not-held work's
+mark, now assert the owner's ruling, with absence assertions added. The top
+result's `● In your library` assertion is unchanged. In `test_search_one_world.py`,
+`test_wikidata_follows_the_library_and_shows_nothing_twice` changes the same
+way. This records a changed requirement; the contract was not weakened.
+`_answered` there and in `test_topics.py` read `#view p[aria-live]` before the
+page drew it, and failed under `-n auto` on develop as well. They now wait for
+the Not held group's own note.
+`test_surface_parity.py`'s `…_agree_but_for_one_named_field` is renamed
+`…_agree_but_for_the_named_fields`. `decided` joins `rationale` as a named
+HTTP-only field, for the reason `RunOut.is_terminal` is one. The check is
+unchanged: each exempt field is still named.
 
-**Owner verification:** 2026-10-04, "Screens are good".
+## 2026-10-06: The browser suite runs in four CI shards, and skips record-only pull requests
 
-## 2026-10-04: A title worded differently by its holder
+<!-- prawduct: scope=ci-browser-shards | release=v0.4.0 -->
 
-<!-- prawduct: scope=title-identity | release=v0.2.0 -->
+**Why:** the owner, 2026-10-06: CI was slow. The browser suite ran as one serial
+job of about ten minutes on every PR. It is serial on purpose: its tests time
+real poll windows, and parallel workers on a CI runner's few cores make them flaky.
 
-**Why:** run 3 found seven of the nine open MoMA works; phase two's title gate
-refused the other two on wording ("Tree" against MoMA's "The Tree"; Taeuber-Arp's
-long title against MoMA's "Composition"). The owner ruled: a leading article
-passes; a holder's shorter title does not pass on its own; a page the work's
-Wikidata item records does. Plan: `build-plan-title-identity.md`.
+**What:** `.github/workflows/browser.yml` runs four jobs side by side. Each is
+still serial, on a share of the files that `.github/scripts/browser_shard.py`
+computes from the directory, balanced by test count (158, 157, 157 and 158
+`def test_` lines at the time). Locally the four shares collect exactly the 692
+tests the single job did, with none twice. Each shard keeps the job's "nothing
+actually ran" guard. A pull request that changes only Markdown, `.prawduct/` or
+`docs/` skips the browser workflow: no browser test reads those, checked by grep.
+Neither `develop` nor `main` has branch protection, so no required check is
+stranded by the new job names. `tests/test_browser_shards.py` (root suite) holds
+that every test module pytest would collect under `tests/browser` (by its own
+rule, `test_*.py` and `*_test.py` in any subdirectory, walked independently of the
+script) is in exactly one share, and that the matrix is the one place the shard
+count is stated, the job reading it back as `strategy.job-total` and
+`strategy.job-index`. **From review:** the first version listed top-level
+`test_*.py` only, and its test used that same listing, so a nested or `*_test.py`
+module would have run in no shard unnoticed. Fixed, and the planted case fails
+against the old listing.
 
-**What:**
-- `title_key` drops one leading English article (`the`, `a`, `an`) followed by
-  whitespace in the title as written, so "A. Lincoln" keeps its initial; quotes
-  or emphasis before it are passed over, and a title that would be left empty
-  keeps its article. It is
-  half of `work_dedup_key`, so the identity key changes with it. The generic-title
-  guard compares the title without its article, so "The Portrait (Hands)" keeps
-  its parenthetical.
-- `phase_two.not_the_work` names `found_url`, `qid` and `link`, how the title
-  gate was or was not settled.
-- Phase two passes a result whose title differs when the work has a QID and the
-  result's `url` is exactly one of `Registry.pages_about(qid)`. The artist check
-  still runs. The registry is asked at most once per work, only on a differing
-  title; one that cannot be asked means no link (`phase_two.link_unavailable`).
-  The review card says the title differs and what identified it.
-- The container hands phase two the deployment's registry.
-- The startup repair re-derives every stored key, not only those whose title it
-  re-cleaned, and reports re-keyed rows apart (`works.rekeyed`, at INFO). Before
-  this, a change to the derivation alone left stored keys under the old rule.
-  **A rollback does not undo it:** the previous build re-keys only re-cleaned
-  titles, so article-titled rows stay split from new proposals until this build
-  is redeployed or the pre-deploy catalogue copy is restored.
+## 2026-10-06: A look shows what the image sources hold of a work, before any Get
 
-**Tests changed, and why:**
-- `test_a_stored_title_the_rules_do_not_reach_is_left_exactly_as_it_is`: it
-  seeded keys no writer produces (`title.lower()`) and asserted them unchanged.
-  The repair now rewrites any stale key, so the rows are seeded with the keys the
-  rules derive. It still asserts title and key unchanged, and now also that no
-  repair is logged.
-- `test_a_work_the_curator_already_rejected_is_not_proposed_again` and
-  `test_the_stored_estimate_counts_the_works_actually_proposed`: they wrote the
-  old derivation's key out by hand (`salvador dali::the elephants`). They now
-  seed the key the rules derive, with the artist the row would carry.
-- The shared `propose` fixture defaults a key to its title's derivation rather
-  than `title.lower()`, so a test that restarts the plane does not see its rows
-  re-keyed.
+<!-- prawduct: scope=look-before-get | release=v0.4.0 -->
+
+**Why:** the owner, 2026-10-06: a work's page should show what it looks like
+before the Get, asked of the sources on every unheld work page, "as long as we
+cache the result so repeated similar searches don't do too many queries."
+
+**What (`build-plan-look-before-get.md`, Chunks 01 and 02):**
+- **`LookService`** (`library/services/look.py`), wired as `Services.look`. It asks
+  every image source what a Get would ask and judges as a Get judges, and writes
+  nothing to the catalogue. Answers are kept in memory per work and source: 6 h for
+  an answer (holding nothing and "can't look this up" included), 10 min for "could
+  not be asked", never as holding nothing, and at most 256 works. One look at a
+  time asks each source, on threads of the look's own; a second look joins the
+  first; a queued ask for a work nobody has polled for 20 s is dropped; a run using
+  a source goes first. A finder of pages only is not asked.
+- **Get's code extracted, not copied, with Get unchanged:** `ImageSourcePool.ask`
+  (one source, sorted as the pool sorts every answer; `find_images` is rebuilt on
+  it) and `wait_for_runs`; `PhaseTwoEngine.judge`, `rank` and `link`, public;
+  `WikidataLink` (was `_WikidataLink`) safe to share between threads; the query
+  builders `get.chosen_work` and `runner.image_query`; and
+  `RegistryWorkService.known`, `view` without the picture's size, so a poll costs a
+  kept answer and the library's own rows.
+- **Surfaces:** `GET /api/registry/works/{qid}/look` (polled; answers at once),
+  `GET /api/registry/works/{qid}/look/pictures/{key}?size=card|large` (from the
+  picture store, by a key the server computed; a key the work's current look does
+  not name is a 404), and `art_discovery(action='look', qid=…)`, which holds up to
+  30 s within a 40 s budget and inlines the best six pictures.
+- **Carried from the picture store's review:** `picture_key` encodes with
+  `errors="surrogatepass"`, so a lone surrogate in a source's URL cannot make
+  `PictureStore.keep` raise.
+- **Observability:** `look.started`, `look.source_answered`,
+  `look.source_unreachable`, `look.abandoned`, `look.picture_served`, and a
+  `look_qid` context variable stamped by the run-correlation filter.
+- **Records:** `api-contract.md` (the routes, and the one registry page with an MCP
+  twin, with why), `security-model.md` § Direction (a look's picture by a
+  server-minted key), `observability-strategy.md` (the events and `look_qid`).
+- **Container:** `Services.bind` takes `look_now`, the clock a look's kept answers
+  age by, so a suite can expire one.
+- **The Work page (Chunk 02):** `screens/work.js` draws *What the image sources
+  hold* for a work not held, polling `/look` every 2 s while a source is still
+  asking and repainting only its own section: a row per source as a glyph and a
+  word, the finds best first as enlargeable cards with pixels, fit, source and
+  rationale (six, then *Show N more*), and one `role=status` line that changes
+  only when its words do. A picture once drawn is never redrawn or moved, so a
+  poll never moves focus. Wikidata's picture stays on top; without one, the first
+  find takes the top and keeps it. A source holding the work with no size reads
+  "Holds this work but gives no size for it; not shown" rather than "Holds none".
+  The line under *Get this work* now reads "These are what the sources hold now;
+  getting the work records them and spends nothing.", and the old sentence's
+  half about Wikidata's picture moved under that picture. Records:
+  `information-architecture.md` (the Work rows in § Screen Inventory, § Information
+  Hierarchy and § Screen States), an operator-verification entry, and
+  `tests/browser/test_the_look.py`.
+- **Review fixes to Chunk 01:**
+  - **A queued ask is dropped only if, under the lock that drops it, nobody now
+    wants it**, and a look lists a row for every configured image source, an
+    unanswered one as `asking`, so a held look can no longer lose a source or read
+    finished while one has not answered.
+  - **Every new fan-out builds its question and Wikidata link afresh**, and a
+    "none" judged while Wikidata could not be asked is kept 10 min, not 6 h
+    (`WikidataLink.unavailable`).
+  - **A source's thread that stops or never starts** answers its waiting asks as
+    `unreachable`; finder and judge faults log `look.source_unreachable` at WARNING.
+  - **Registry states map to look states by a stated table**; an unknown one is
+    refused by name.
+  - **`look_qid` is bound around the picture route and the model's picture
+    fetches**, so the store's `picture.*` lines carry it.
+  - **The MCP look fits the client's minute**: `LookService.look_for_a_model`
+    holds up to 30 s, sends the pictures the store keeps, fetches the rest
+    together, and stops at 40 s, listing any picture not arrived as coming with
+    the next call. Its notice is its own, no longer the review grid's.
+  - **A look picture's `rationale` is `selection_rationale`**, the name a scan's
+    carries on both surfaces, and a tip maps the look's size and fit names onto
+    `list_images`'.

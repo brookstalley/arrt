@@ -29,6 +29,9 @@ from arrt.http.models import (
     ImageOut,
     InstanceListingOut,
     InstanceOut,
+    LookOut,
+    LookPictureOut,
+    LookSourceOut,
     RunOut,
     RunTallyOut,
     RunViewOut,
@@ -168,7 +171,11 @@ def a_candidate(**overrides) -> CandidateWorkOut:
         "resolution_status": ResolutionStatus.RESOLVED.value,
         "unresolved_reason": None,
     }
-    return CandidateWorkOut(**(fields | overrides))
+    fields |= overrides
+    # Derived, never passed: a fixture free to say a pending work is decided
+    # could assert a card no server could produce.
+    fields["decided"] = Verdict(fields["verdict"]).is_terminal
+    return CandidateWorkOut(**fields)
 
 
 def a_run_view(run: RunOut | None = None, works: list[CandidateWorkOut] | None = None, **overrides) -> dict:
@@ -478,3 +485,48 @@ def a_taste(affinities=None) -> dict:
     """
     affinities = [] if affinities is None else list(affinities)
     return AffinityListOut(affinities=affinities, count=len(affinities)).model_dump(mode="json")
+
+
+def a_look_picture(key="a" * 64, **overrides) -> LookPictureOut:
+    """One find a look holds, as `LookPictureOut` carries it: SMK's, native, by default."""
+    fields = {
+        "key": key,
+        "provider": "smk",
+        "url": f"https://open.smk.dk/artwork/image/{key[:8]}",
+        "title": "Tantra-Vision",
+        "artist": "Ejler Bille",
+        "width": 2201,
+        "height": 2221,
+        "fit": FitOut(verdict=str(DisplayFit.NATIVE), rendered_width=1800, rendered_height=1816, rendered_long_edge_inches=31.4),
+        "below_floor": False,
+        "confidence": 0.95,
+        "rights_status": "public_domain",
+        "selection_rationale": "smk holds this as 'Tantra-Vision' by Ejler Bille, matching the requested title and artist.",
+    }
+    return LookPictureOut(**(fields | overrides))
+
+
+def a_look_source(provider="smk", state="asking", **overrides) -> LookSourceOut:
+    fields = {
+        "provider": provider,
+        "state": state,
+        "found": 0,
+        "refusals": [],
+        "answered_at": None if state == "asking" else "2026-10-06T12:00:00+00:00",
+        "retry_at": "2026-10-06T12:10:00+00:00" if state == "unreachable" else None,
+    }
+    return LookSourceOut(**(fields | overrides))
+
+
+def a_look(qid, sources=(), pictures=(), *, state=None, note=None, held=()) -> dict:
+    """`GET /api/registry/works/{qid}/look`: `asking` while any source is, else `answered`, unless `state` says."""
+    if state is None:
+        state = "asking" if any(source.state == "asking" for source in sources) else "answered"
+    return LookOut(
+        qid=qid,
+        state=state,
+        note=note,
+        held_artwork_ids=list(held),
+        sources=list(sources),
+        pictures=list(pictures),
+    ).model_dump()

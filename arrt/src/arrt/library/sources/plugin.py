@@ -14,6 +14,7 @@ to the loader.
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Final
 
 from arrt.library.discovery.browse import CollectionBrowse
@@ -28,7 +29,8 @@ from arrt.library.sources.reading import Reader
 #: only adds optional capabilities, so a plugin written for an older minor loads.
 #:
 #: 1.1 added `ImageQuery.pages`, the pages a run's web search read.
-API_VERSION: Final[tuple[int, int]] = (1, 1)
+#: 1.2 added `SourceContext.data_dir`, a directory of the plugin's own on disk.
+API_VERSION: Final[tuple[int, int]] = (1, 2)
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,6 +57,13 @@ class SourceContext:
     #: Wikidata, when this deployment has named itself to it, else `None`. A
     #: plugin that needs the registry declines without one.
     registry: Registry | None = None
+    #: A directory of this plugin's own (`ART_ROOT/sources/<plugin name>/`, since
+    #: 1.2), or `None` when the deployment gives it none. It may not exist yet,
+    #: and the plugin creates it when it first writes. **It holds only what the
+    #: plugin can fetch again**: it is not backed up, and deleting it costs a
+    #: download, never a record. Arrt's loader hands each plugin its own, so no
+    #: plugin is given another's. A plugin that needs one declines without one.
+    data_dir: Path | None = None
 
 
 @dataclass(frozen=True, slots=True)

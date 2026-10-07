@@ -3074,6 +3074,12 @@ artifact_manifest:
       file_path: .prawduct/artifacts/player-contract.md
       version: 1
       depends_on: [re-architecture, api-contract, data-model, security-model]
+    # Registered 2026-10-06; it was written 2026-10-03 and never added, so the
+    # findings and plans that rest on it reached nothing.
+    - name: source-plugins
+      file_path: .prawduct/artifacts/source-plugins.md
+      version: 1
+      depends_on: [re-architecture, architecture, data-model, security-model]
     # Edges mirror build-plan.md's own `depends_on:` front matter. The plan is
     # the most decision-dense artifact here: leaving it unedged would make every
     # decision it rests on unreachable by a dependency walk — precisely the
@@ -3084,6 +3090,29 @@ artifact_manifest:
       depends_on: [product-brief, data-model, architecture, api-contract,
                    nonfunctional-requirements, security-model, operational-spec,
                    observability-strategy, project-preferences, boundary-patterns]
+    # The four below were unregistered until 2026-10-06 (backlog #224);
+    # tests/preferences/test_artifact_manifest.py now fails on the next one.
+    - name: user-scenarios
+      file_path: .prawduct/artifacts/user-scenarios.md
+      version: 1
+      depends_on: [product-brief, re-architecture, information-architecture, data-model]
+    - name: ia-proposal
+      file_path: .prawduct/artifacts/ia-proposal.md
+      version: 1
+      depends_on: [user-scenarios, information-architecture, re-architecture, accessibility-spec]
+    - name: clients
+      file_path: .prawduct/artifacts/clients.md
+      version: 1
+      depends_on: [re-architecture, player-contract, data-model, nonfunctional-requirements]
+    - name: upgrades
+      file_path: .prawduct/artifacts/upgrades.md
+      version: 1
+      depends_on: [re-architecture, data-model]
+    # The first release plan, which check-releasability reads at the release.
+    - name: release-plan-v0.4.0
+      file_path: .prawduct/artifacts/release-plan-v0.4.0.md
+      version: 1
+      depends_on: []
   # Research findings — inputs to the artifacts above, not artifacts themselves.
   #
   # depends_on ADDED 2026-07-20 after Critic review found these entries had no
@@ -3106,6 +3135,16 @@ artifact_manifest:
     # dependency walk.
     - file_path: .prawduct/artifacts/artic-api-findings.md
       depends_on: [architecture, data-model]
+    - file_path: .prawduct/artifacts/met-api-findings.md
+      depends_on: [source-plugins]
+    - file_path: .prawduct/artifacts/smk-api-findings.md
+      depends_on: [source-plugins]
+    - file_path: .prawduct/artifacts/navigart-api-findings.md
+      depends_on: [source-plugins]
+    - file_path: .prawduct/artifacts/nga-api-findings.md
+      depends_on: [source-plugins]
+    - file_path: .prawduct/artifacts/artist-name-identity-findings.md
+      depends_on: [data-model, source-plugins]
     - file_path: .prawduct/artifacts/dezoomify-cli-findings.md
       depends_on: [architecture, operational-spec]
     - file_path: .prawduct/artifacts/museum-label-findings.md
@@ -3118,6 +3157,8 @@ artifact_manifest:
       depends_on: [data-model, architecture, security-model, observability-strategy]
     - file_path: .prawduct/artifacts/procurement-corpus.md
       depends_on: [nonfunctional-requirements, data-model, re-architecture, wikidata-findings]
+    - file_path: .prawduct/artifacts/hdmi-output-findings.md
+      depends_on: [clients, nonfunctional-requirements]
   # Strategy-class artifacts still owed: test-specifications.md. The build plan
   # (Phase D) was authored 2026-07-20 and is registered above. The
   # structural-coverage advisory's named set was cleared 2026-07-20.
@@ -3328,7 +3369,7 @@ api_versioning_decided: "none — no version negotiation. MCP tool names frozen,
 # backlog_prefixes: []
 # backlog_external_imports: []
 
-backlog_last_groomed_at: 2026-10-05
+backlog_last_groomed_at: 2026-10-06
 
 # -----------------------------------------------------------------------------
 # BACKLOG SERVICE CUTOVER (API §2.4)
