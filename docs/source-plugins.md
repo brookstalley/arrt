@@ -4,7 +4,8 @@ For someone writing a plugin that finds or reads images for Arrt. The contract
 the plugin is held to is `.prawduct/artifacts/source-plugins.md`, and what
 installing one trusts is `.prawduct/artifacts/security-model.md` § Source
 plugins. This page is how to write one against them. Deploying one into the
-server's image is `deploy/README.md` § A private source plugin.
+server's image is `deploy/README.md` § A private source plugin. Which holders are
+built, and which are candidates, is `docs/source-inventory.md`.
 
 ## A plugin is a distribution with one entry point
 
