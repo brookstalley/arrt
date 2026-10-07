@@ -89,6 +89,7 @@ enumerations, the contract (`source-plugins.md` § A plugin's own directory, wit
 the line naming `nga` the first plugin to keep a copy of a holder's catalogue),
 the plugin guide, the security model and the `ART_ROOT` layout records name the
 new directory and plugin.
+
 ## 2026-10-06: navigart.fr, through its API, as a built-in source of placeholders
 
 <!-- prawduct: scope=navigart-source -->
