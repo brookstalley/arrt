@@ -62,6 +62,38 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-07: IIIF parsers in the plugin interface (1.3), and Yale through its manifests as a built-in source
+
+<!-- prawduct: scope=yale-source -->
+
+**Why:** arrt#242, a helper shared by the Linked Art museums (Yale, the
+Rijksmuseum, Getty), approved by the owner on 2026-10-06, and arrt#229, its first
+consumer. The owner asked for the next public plugin on 2026-10-07, the day #233
+Paris Musées was demoted. Measured the same day (`linked-art-findings.md`): the
+three museums reach their image services by three roads and share only the last
+step, so the shared part is IIIF, not Linked Art. That narrows #242's proposal,
+and is recorded on the issue.
+
+**What:** interface 1.3 adds IIIF parsers that do no I/O: `ImageService` (an
+`info.json`'s original size and declared limits, and whether one request or the
+tiles fetch it, below a long side the caller states), and `CanvasImage`,
+`manifest_images` and `manifest_metadata` (a Presentation 2 or 3 manifest).
+A built-in `yale` plugin (`library/sources/yale.py`) finds a work through the
+YUAG or YCBA page its Wikidata item names (P8583, P9789). It never fetches the
+page, which is challenged. It reads the manifest built from the page's number
+and reports the first canvas under the page as the item spells it. The title and
+maker are Yale's own words. Rights come from the canvas, not the manifest's CC0,
+which licenses the record. The size is the canvas's: most works with no
+image on Wikidata are served at 480 px and are reported as placeholders. The
+reader answers one request for an original up to 16,384 px, and tiles beyond
+it or below a declared limit. It offers its reader alone with no registry. LUX
+search is not built: the IDs reach 4,053 of the 4,068 YUAG items with no image.
+The built-in enumerations, the contract (§ Versioning and errors), the plugin
+guide (§ Reading IIIF) and the security model name the parsers and the plugin.
+The live check (`test_yale_shapes_are_still_real.py`) passed 5 of 5 on
+2026-10-07, and the descopes and the robots.txt findings are recorded as comments
+on #242, #229, #226 and #230.
+
 ## 2026-10-06: A holder's name for the artist that Wikidata records, on the item's page
 
 <!-- prawduct: scope=artist-name-identity | release=v0.4.0 -->

@@ -30,7 +30,9 @@ from arrt.library.sources.reading import Reader
 #:
 #: 1.1 added `ImageQuery.pages`, the pages a run's web search read.
 #: 1.2 added `SourceContext.data_dir`, a directory of the plugin's own on disk.
-API_VERSION: Final[tuple[int, int]] = (1, 2)
+#: 1.3 added the IIIF parsers (`ImageService`, `CanvasImage`, `manifest_images`,
+#: `manifest_metadata`), which a plugin may use and none must.
+API_VERSION: Final[tuple[int, int]] = (1, 3)
 
 
 @dataclass(frozen=True, slots=True)

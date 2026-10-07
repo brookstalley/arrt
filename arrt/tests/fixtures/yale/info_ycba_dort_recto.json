@@ -1,0 +1,101 @@
+{
+  "@context": "http://iiif.io/api/image/2/context.json",
+  "@id": "https://images.collections.yale.edu/iiif/2/ycba:4f227f08-7842-46cc-b05a-e3c6a4614cc1",
+  "height": 9741,
+  "metadata": {
+    "caption": "recto, cropped to image",
+    "source": "Yale Center for British Art",
+    "imageCredit": "Digital Image: Yale Center for British Art"
+  },
+  "profile": [
+    "http://iiif.io/api/image/2/level2.json",
+    {
+      "formats": [
+        "jpg",
+        "tif",
+        "gif",
+        "png"
+      ],
+      "qualities": [
+        "bitonal",
+        "default",
+        "gray",
+        "color"
+      ],
+      "supports": [
+        "regionByPx",
+        "sizeByW",
+        "sizeByWhListed",
+        "cors",
+        "regionSquare",
+        "sizeByDistortedWh",
+        "sizeAboveFull",
+        "canonicalLinkHeader",
+        "sizeByConfinedWh",
+        "sizeByPct",
+        "jsonldMediaType",
+        "regionByPct",
+        "rotationArbitrary",
+        "sizeByH",
+        "baseUriRedirect",
+        "rotationBy90s",
+        "profileLinkHeader",
+        "sizeByForcedWh",
+        "sizeByWh",
+        "mirroring"
+      ]
+    }
+  ],
+  "protocol": "http://iiif.io/api/image",
+  "sizes": [
+    {
+      "height": 76,
+      "width": 113
+    },
+    {
+      "height": 152,
+      "width": 226
+    },
+    {
+      "height": 304,
+      "width": 453
+    },
+    {
+      "height": 609,
+      "width": 905
+    },
+    {
+      "height": 1218,
+      "width": 1811
+    },
+    {
+      "height": 2435,
+      "width": 3621
+    },
+    {
+      "height": 4871,
+      "width": 7242
+    },
+    {
+      "height": 9741,
+      "width": 14484
+    }
+  ],
+  "tiles": [
+    {
+      "height": 512,
+      "scaleFactors": [
+        1,
+        2,
+        4,
+        8,
+        16,
+        32,
+        64,
+        128
+      ],
+      "width": 512
+    }
+  ],
+  "width": 14484
+}

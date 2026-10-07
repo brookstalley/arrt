@@ -716,7 +716,13 @@ one, which has the access above, they are not:
   returns an image only on `api.nga.gov/iiif/`, built from an image id it checks
   against the IIIF id's form; its finder reads previews only there and downloads
   the open data only from `raw.githubusercontent.com`'s
-  `NationalGalleryOfArt/opendata` path, again the plugin's checks. A third-party reader's locator gets bound 2 only: any public address.
+  `NationalGalleryOfArt/opendata` path, again the plugin's checks. Yale's reader
+  asks only `manifests.collections.yale.edu` for a manifest built from a page
+  number it checks, and returns an image only on `images.collections.yale.edu`'s
+  `/iiif/2/` path, refusing a manifest naming a service anywhere else; its finder
+  reads previews only there, also the plugin's checks. The IIIF parsers
+  (interface 1.3) fetch nothing, so they add no request a plugin did not make. A
+  third-party reader's locator gets bound 2 only: any public address.
 - **Arrt decides** a work's identity, its rights record, duplicates, review,
   quality, spending and storage. A plugin answers "what images exist, and where".
   Since interface 1.2 a plugin is handed a directory of its own under

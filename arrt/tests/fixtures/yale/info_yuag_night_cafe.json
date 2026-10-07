@@ -1,0 +1,94 @@
+{
+  "@context": "http://iiif.io/api/image/2/context.json",
+  "@id": "https://images.collections.yale.edu/iiif/2/yuag:3b072179-2fc7-42bc-87cc-9ee4d782b270",
+  "height": 5848,
+  "metadata": {
+    "imageCredit": "Yale University Art Gallery"
+  },
+  "profile": [
+    "http://iiif.io/api/image/2/level2.json",
+    {
+      "formats": [
+        "jpg",
+        "tif",
+        "gif",
+        "png"
+      ],
+      "qualities": [
+        "bitonal",
+        "default",
+        "gray",
+        "color"
+      ],
+      "supports": [
+        "regionByPx",
+        "sizeByW",
+        "sizeByWhListed",
+        "cors",
+        "regionSquare",
+        "sizeByDistortedWh",
+        "sizeAboveFull",
+        "canonicalLinkHeader",
+        "sizeByConfinedWh",
+        "sizeByPct",
+        "jsonldMediaType",
+        "regionByPct",
+        "rotationArbitrary",
+        "sizeByH",
+        "baseUriRedirect",
+        "rotationBy90s",
+        "profileLinkHeader",
+        "sizeByForcedWh",
+        "sizeByWh",
+        "mirroring"
+      ]
+    }
+  ],
+  "protocol": "http://iiif.io/api/image",
+  "sizes": [
+    {
+      "height": 91,
+      "width": 116
+    },
+    {
+      "height": 183,
+      "width": 232
+    },
+    {
+      "height": 366,
+      "width": 463
+    },
+    {
+      "height": 731,
+      "width": 926
+    },
+    {
+      "height": 1462,
+      "width": 1852
+    },
+    {
+      "height": 2924,
+      "width": 3704
+    },
+    {
+      "height": 5848,
+      "width": 7408
+    }
+  ],
+  "tiles": [
+    {
+      "height": 512,
+      "scaleFactors": [
+        1,
+        2,
+        4,
+        8,
+        16,
+        32,
+        64
+      ],
+      "width": 512
+    }
+  ],
+  "width": 7408
+}

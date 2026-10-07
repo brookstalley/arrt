@@ -95,6 +95,7 @@ met = "arrt.library.sources.met:PLUGIN"
 smk = "arrt.library.sources.smk:PLUGIN"
 navigart = "arrt.library.sources.navigart:PLUGIN"
 nga = "arrt.library.sources.nga:PLUGIN"
+yale = "arrt.library.sources.yale:PLUGIN"
 
 [dependency-groups]
 # httpx appears here *and* in `[project].dependencies`, deliberately. It is a

@@ -140,6 +140,9 @@ _MAY_REACH_THE_NETWORK = {
     # The NGA's client, beside navigart's: it downloads the NGA's open data and reads
     # previews. `urllib.parse` comes with it, to read an object ID out of a page.
     "arrt.library.sources.nga",
+    # Yale's client, beside the NGA's: it reads manifests, image services and
+    # previews. `urllib.parse` comes with it, to read an object number out of a page.
+    "arrt.library.sources.yale",
     # The picture store. `urllib.parse` only, to normalise a source image URL into
     # the key a kept picture is filed under; the fetch goes through the source's
     # own `fetch_preview`, never through this module.
