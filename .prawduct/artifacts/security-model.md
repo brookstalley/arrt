@@ -720,7 +720,12 @@ one, which has the access above, they are not:
   asks only `manifests.collections.yale.edu` for a manifest built from a page
   number it checks, and returns an image only on `images.collections.yale.edu`'s
   `/iiif/2/` path, refusing a manifest naming a service anywhere else; its finder
-  reads previews only there, also the plugin's checks. The IIIF parsers
+  reads previews only there, also the plugin's checks. The Getty's plugin asks
+  `data.getty.edu` for records and its SPARQL endpoint, writing a maker's name
+  and a title's words into a query only inside string literals, and reading back
+  only records and people of its own URL shapes; it reads manifests only under
+  `media.getty.edu/iiif/manifest/3/` and returns an image, and reads previews,
+  only under `media.getty.edu/iiif/image/`, again the plugin's checks. The IIIF parsers
   (interface 1.3) fetch nothing, so they add no request a plugin did not make. A
   third-party reader's locator gets bound 2 only: any public address.
 - **Arrt decides** a work's identity, its rights record, duplicates, review,

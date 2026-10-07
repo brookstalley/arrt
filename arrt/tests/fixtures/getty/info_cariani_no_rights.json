@@ -1,0 +1,57 @@
+{
+ "@context": "http://iiif.io/api/image/3/context.json",
+ "protocol": "http://iiif.io/api/image",
+ "width": 500,
+ "height": 600,
+ "sizes": [
+  {
+   "width": 125,
+   "height": 150
+  },
+  {
+   "width": 250,
+   "height": 300
+  }
+ ],
+ "tiles": [
+  {
+   "width": 256,
+   "height": 256,
+   "scaleFactors": [
+    1,
+    2,
+    4
+   ]
+  }
+ ],
+ "id": "https://media.getty.edu/iiif/image/818a423b-77cf-4ac8-8467-ba3768cf1119",
+ "type": "ImageService3",
+ "profile": "level2",
+ "maxWidth": 30000,
+ "maxHeight": 30000,
+ "extraQualities": [
+  "color",
+  "gray",
+  "bitonal"
+ ],
+ "extraFormats": [
+  "tif",
+  "webp"
+ ],
+ "extraFeatures": [
+  "regionByPct",
+  "sizeByPct",
+  "sizeByConfinedWh",
+  "sizeUpscaling",
+  "rotationBy90s",
+  "mirroring"
+ ],
+ "service": [
+  {
+   "@context": "http://iiif.io/api/annex/services/physdim/1/context.json",
+   "profile": "http://iiif.io/api/annex/services/physdim",
+   "physicalScale": 0.0025,
+   "physicalUnits": "in"
+  }
+ ]
+}

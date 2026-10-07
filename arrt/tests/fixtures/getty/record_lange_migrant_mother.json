@@ -1,0 +1,527 @@
+{
+ "@context": "https://static.getty.edu/contexts/linked.art/ns/v1.1.0/linked-art.json",
+ "id": "https://data.getty.edu/museum/collection/object/5e3e8ca9-7c83-42f5-9739-078d4a0e1266",
+ "type": "HumanMadeObject",
+ "_label": "Human Erosion in California (Migrant Mother) (98.XM.162)",
+ "classified_as": [
+  {
+   "id": "http://vocab.getty.edu/aat/300133025",
+   "type": "Type",
+   "_label": "Artwork"
+  },
+  {
+   "id": "http://vocab.getty.edu/aat/300046300",
+   "type": "Type",
+   "_label": "Photographs",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300435444",
+     "type": "Type",
+     "_label": "Classification (Category)"
+    }
+   ]
+  },
+  {
+   "id": "https://data.getty.edu/local/thesaurus/object-record-structure-whole",
+   "type": "Type",
+   "_label": "Object Record Structure: Whole",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/local/thesaurus/object-record-structure-type",
+     "type": "Type",
+     "_label": "Object Record Structure Type"
+    }
+   ]
+  }
+ ],
+ "identified_by": [
+  {
+   "id": "https://data.getty.edu/museum/collection/object/5e3e8ca9-7c83-42f5-9739-078d4a0e1266/identifier/7420b6bf-d6fc-572b-83c6-6b4d1f90f9e3",
+   "type": "Identifier",
+   "_label": "Accession Number",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300404626",
+     "type": "Type",
+     "_label": "Identification Number"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300312355",
+     "type": "Type",
+     "_label": "Accession Number"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300404670",
+     "type": "Type",
+     "_label": "Preferred Term"
+    }
+   ],
+   "content": "98.XM.162"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/5e3e8ca9-7c83-42f5-9739-078d4a0e1266/name/d14453ea-a10f-51ce-9cd4-c9c4e194fceb",
+   "type": "Name",
+   "_label": "Alternate Title",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417193",
+     "type": "Type",
+     "_label": "Titles (General, Names)"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300417227",
+     "type": "Type",
+     "_label": "Alternate Title"
+    },
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/tms/object/titles/primary",
+     "type": "Type",
+     "_label": "Primary Title",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on the `https://data.getty.edu/local/thesaurus/object-title-*` terms instead.",
+      "since": "2020-11-11"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/object-title-primary",
+     "type": "Type",
+     "_label": "Primary Title"
+    }
+   ],
+   "content": "Human Erosion in California (Migrant Mother)",
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388277",
+     "type": "Language",
+     "_label": "English (language)"
+    }
+   ]
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/5e3e8ca9-7c83-42f5-9739-078d4a0e1266/name/21743df6-b4b5-58fb-a3a6-131f46e450e8",
+   "type": "Name",
+   "_label": "Alternate Title",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417193",
+     "type": "Type",
+     "_label": "Titles (General, Names)"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300417227",
+     "type": "Type",
+     "_label": "Alternate Title"
+    },
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/tms/object/titles/alternate",
+     "type": "Type",
+     "_label": "Alternate Title",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on the `https://data.getty.edu/local/thesaurus/object-title-*` terms instead.",
+      "since": "2020-11-11"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/object-title-alternate",
+     "type": "Type",
+     "_label": "Alternate Title"
+    }
+   ],
+   "content": "Facing Starvation",
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388277",
+     "type": "Language",
+     "_label": "English (language)"
+    }
+   ]
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/5e3e8ca9-7c83-42f5-9739-078d4a0e1266/name/a993a9c1-a41a-543e-926d-6306c42e1396",
+   "type": "Name",
+   "_label": "Alternate Title",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417193",
+     "type": "Type",
+     "_label": "Titles (General, Names)"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300417227",
+     "type": "Type",
+     "_label": "Alternate Title"
+    },
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/tms/object/titles/alternate",
+     "type": "Type",
+     "_label": "Alternate Title",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on the `https://data.getty.edu/local/thesaurus/object-title-*` terms instead.",
+      "since": "2020-11-11"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/object-title-alternate",
+     "type": "Type",
+     "_label": "Alternate Title"
+    }
+   ],
+   "content": "Migrant Mother, Nipomo",
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388277",
+     "type": "Language",
+     "_label": "English (language)"
+    }
+   ]
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/5e3e8ca9-7c83-42f5-9739-078d4a0e1266/name/e60887b6-4863-578f-9c34-fc9a712a7c07",
+   "type": "Name",
+   "_label": "Alternate Title",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417193",
+     "type": "Type",
+     "_label": "Titles (General, Names)"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300417227",
+     "type": "Type",
+     "_label": "Alternate Title"
+    },
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/tms/object/titles/published",
+     "type": "Type",
+     "_label": "Published Title",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on the `https://data.getty.edu/local/thesaurus/object-title-*` terms instead.",
+      "since": "2020-11-11"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/object-title-published",
+     "type": "Type",
+     "_label": "Published Title"
+    }
+   ],
+   "content": "Human Erosion in California (Migrant Mother)",
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388277",
+     "type": "Language",
+     "_label": "English (language)"
+    }
+   ]
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/5e3e8ca9-7c83-42f5-9739-078d4a0e1266/identifier/dor-id",
+   "type": "Identifier",
+   "_label": "Getty DOR ID",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/dor-id",
+     "type": "Type",
+     "_label": "Getty DOR ID",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on `Getty DOR ID` (https://data.getty.edu/local/thesaurus/dor-id) instead.",
+      "since": "2021-01-05"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/dor-id",
+     "type": "Type",
+     "_label": "Getty DOR ID"
+    }
+   ],
+   "content": "125690"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/5e3e8ca9-7c83-42f5-9739-078d4a0e1266/identifier/slug-id",
+   "type": "Identifier",
+   "_label": "Slug Identifier",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/local/thesaurus/slug-identifier",
+     "type": "Type",
+     "_label": "Slug Identifier"
+    }
+   ],
+   "content": "urn:getty-local:idm:object:slug/108E2E"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/5e3e8ca9-7c83-42f5-9739-078d4a0e1266/name/d14453ea-a10f-51ce-9cd4-c9c4e194fceb",
+   "type": "Name",
+   "_label": "Preferred Title",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417193",
+     "type": "Type",
+     "_label": "Titles (General, Names)"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300404670",
+     "type": "Type",
+     "_label": "Preferred Term"
+    }
+   ],
+   "content": "Human Erosion in California (Migrant Mother)",
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388277",
+     "type": "Language",
+     "_label": "English (language)"
+    }
+   ]
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/5e3e8ca9-7c83-42f5-9739-078d4a0e1266/identifier/tms-id",
+   "type": "Identifier",
+   "_label": "Gallery Systems' TMS ID",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/tms-id",
+     "type": "Type",
+     "_label": "Gallery Systems' TMS ID",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on `Gallery Systems' TMS ID` (https://data.getty.edu/local/thesaurus/tms-id) instead.",
+      "since": "2021-01-05"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/tms-id",
+     "type": "Type",
+     "_label": "Gallery Systems' TMS ID"
+    }
+   ],
+   "content": "133737"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/5e3e8ca9-7c83-42f5-9739-078d4a0e1266/identifier/dor-uuid",
+   "type": "Identifier",
+   "_label": "Getty DOR UUID",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/dor-uuid",
+     "type": "Type",
+     "_label": "Getty DOR UUID",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on `Getty DOR UUID` (https://data.getty.edu/local/thesaurus/dor-uuid) instead.",
+      "since": "2021-01-05"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/dor-uuid",
+     "type": "Type",
+     "_label": "Getty DOR UUID"
+    }
+   ],
+   "content": "5e3e8ca9-7c83-42f5-9739-078d4a0e1266"
+  }
+ ],
+ "produced_by": {
+  "id": "https://data.getty.edu/museum/collection/object/5e3e8ca9-7c83-42f5-9739-078d4a0e1266/production",
+  "type": "Production",
+  "_label": "Production of Artwork by Dorothea Lange",
+  "referred_to_by": [
+   {
+    "id": "https://data.getty.edu/museum/collection/object/5e3e8ca9-7c83-42f5-9739-078d4a0e1266/production/5baa1de8-1040-5e93-b1f3-cf24e6189264/producer-description",
+    "type": "LinguisticObject",
+    "_label": "Artist/Maker (Producer) Description",
+    "classified_as": [
+     {
+      "id": "https://data.getty.edu/museum/ontology/linked-data/tms/object/producer-description",
+      "type": "Type",
+      "_label": "Producer Description",
+      "deprecated": {
+       "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+       "replacement": "Filter on `Producer Description` (https://data.getty.edu/local/thesaurus/producer-description) instead.",
+       "since": "2020-11-10"
+      }
+     },
+     {
+      "id": "https://data.getty.edu/local/thesaurus/producer-description",
+      "type": "Type",
+      "_label": "Producer Description"
+     },
+     {
+      "id": "http://vocab.getty.edu/aat/300418049",
+      "type": "Type",
+      "_label": "Brief Text"
+     }
+    ],
+    "content": "Dorothea Lange (American, 1895 - 1965)"
+   },
+   {
+    "id": "https://data.getty.edu/museum/collection/object/5e3e8ca9-7c83-42f5-9739-078d4a0e1266/production/5baa1de8-1040-5e93-b1f3-cf24e6189264/producer-name",
+    "type": "LinguisticObject",
+    "_label": "Artist/Maker (Producer) Name",
+    "classified_as": [
+     {
+      "id": "https://data.getty.edu/local/thesaurus/producer-name",
+      "type": "Type",
+      "_label": "Producer Name"
+     },
+     {
+      "id": "http://vocab.getty.edu/aat/300418049",
+      "type": "Type",
+      "_label": "Brief Text"
+     }
+    ],
+    "content": "Dorothea Lange"
+   },
+   {
+    "id": "https://data.getty.edu/museum/collection/object/5e3e8ca9-7c83-42f5-9739-078d4a0e1266/production/5baa1de8-1040-5e93-b1f3-cf24e6189264/producer-nationality-and-dates",
+    "type": "LinguisticObject",
+    "_label": "Artist/Maker (Producer) Nationality & Dates",
+    "classified_as": [
+     {
+      "id": "https://data.getty.edu/local/thesaurus/nationality-and-dates",
+      "type": "Type",
+      "_label": "Producer Nationality & Dates"
+     },
+     {
+      "id": "http://vocab.getty.edu/aat/300418049",
+      "type": "Type",
+      "_label": "Brief Text"
+     }
+    ],
+    "content": "American, 1895 - 1965"
+   }
+  ],
+  "timespan": {
+   "id": "https://data.getty.edu/museum/collection/object/5e3e8ca9-7c83-42f5-9739-078d4a0e1266/production/timespan",
+   "type": "TimeSpan",
+   "identified_by": [
+    {
+     "id": "https://data.getty.edu/museum/collection/object/5e3e8ca9-7c83-42f5-9739-078d4a0e1266/production/timespan/display",
+     "type": "Name",
+     "_label": "Dates",
+     "classified_as": [
+      {
+       "id": "http://vocab.getty.edu/aat/300458798",
+       "type": "Type",
+       "_label": "Display Names"
+      }
+     ],
+     "content": "March 1936"
+    }
+   ],
+   "begin_of_the_begin": "1936-01-01T00:00:00",
+   "end_of_the_end": "1936-12-31T23:59:59"
+  },
+  "carried_out_by": [
+   {
+    "id": "https://data.getty.edu/museum/collection/person/d6446240-36e4-49d8-a9e7-bf0126c6cd95",
+    "type": "Person",
+    "_label": "Dorothea Lange",
+    "referred_to_by": [
+     {
+      "id": "https://data.getty.edu/museum/collection/object/5e3e8ca9-7c83-42f5-9739-078d4a0e1266/production/5baa1de8-1040-5e93-b1f3-cf24e6189264/role-statement",
+      "type": "LinguisticObject",
+      "_label": "Artist/Maker (Producer) Role Statement",
+      "classified_as": [
+       {
+        "id": "https://data.getty.edu/museum/ontology/linked-data/object/artist-maker-role-statement",
+        "type": "Type",
+        "_label": "Artist/Maker (Producer) Role Statement",
+        "deprecated": {
+         "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+         "replacement": "Filter on `Artist/Maker Role Statement` (https://data.getty.edu/local/thesaurus/artist-maker-role-statement) instead.",
+         "since": "2020-11-10"
+        }
+       },
+       {
+        "id": "https://data.getty.edu/local/thesaurus/producer-role-statement",
+        "type": "Type",
+        "_label": "Artist/Maker (Producer) Role Statement"
+       },
+       {
+        "id": "http://vocab.getty.edu/aat/300418049",
+        "type": "Type",
+        "_label": "Brief Text"
+       }
+      ],
+      "content": "Photographer",
+      "close_match": [
+       {
+        "id": "http://vocab.getty.edu/aat/300025687",
+        "type": "Type",
+        "_label": "Photographer"
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "subject_of": [
+  {
+   "id": "https://www.getty.edu/art/collection/object/108E2E",
+   "type": "LinguisticObject",
+   "_label": "Homepage for Human Erosion in California (Migrant Mother) (98.XM.162) (HumanMadeObject)",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300264578",
+     "type": "Type",
+     "_label": "Web Page"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300404670",
+     "type": "Type",
+     "_label": "Primary"
+    }
+   ],
+   "format": "text/html"
+  },
+  {
+   "has_format": "https://media.getty.edu/iiif/manifest/3/74a61144-8355-40bc-9705-16e15ea6ffd3",
+   "id": "https://media.getty.edu/iiif/manifest/2/74a61144-8355-40bc-9705-16e15ea6ffd3",
+   "type": "InformationObject",
+   "_label": "IIIF Manifest URL",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/local/thesaurus/iiif-manifest",
+     "type": "Type",
+     "_label": "IIIF Manifest"
+    }
+   ],
+   "conforms_to": [
+    {
+     "id": "http://iiif.io/api/presentation",
+     "type": "InformationObject",
+     "_label": "IIIF Presentation API"
+    }
+   ],
+   "format": "application/ld+json;profile=\"http://iiif.io/api/presentation/2/context.json\""
+  },
+  {
+   "has_format": "https://media.getty.edu/iiif/manifest/2/74a61144-8355-40bc-9705-16e15ea6ffd3",
+   "id": "https://media.getty.edu/iiif/manifest/3/74a61144-8355-40bc-9705-16e15ea6ffd3",
+   "type": "InformationObject",
+   "_label": "IIIF Manifest URL",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/local/thesaurus/iiif-manifest",
+     "type": "Type",
+     "_label": "IIIF Manifest"
+    }
+   ],
+   "conforms_to": [
+    {
+     "id": "http://iiif.io/api/presentation",
+     "type": "InformationObject",
+     "_label": "IIIF Presentation API"
+    }
+   ],
+   "format": "application/ld+json;profile=\"http://iiif.io/api/presentation/3/context.json\""
+  }
+ ]
+}

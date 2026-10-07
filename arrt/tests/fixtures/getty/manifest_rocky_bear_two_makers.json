@@ -1,0 +1,284 @@
+{
+ "@context": "http://iiif.io/api/presentation/3/context.json",
+ "homepage": [
+  {
+   "id": "https://www.getty.edu/art/collection/object/10435K",
+   "type": "Text"
+  }
+ ],
+ "id": "https://media.getty.edu/iiif/manifest/bfc37fbc-08dc-408c-a4c5-88f5bfc1052c",
+ "items": [
+  {
+   "height": 3540,
+   "id": "https://media.getty.edu/iiif/manifest/canvas/c8f49d56-9618-424c-a58b-d2fbd1743379",
+   "items": [
+    {
+     "id": "https://media.getty.edu/iiif/manifest/annopage/p0",
+     "items": [
+      {
+       "body": {
+        "height": 3540,
+        "id": "https://media.getty.edu/iiif/image/c8f49d56-9618-424c-a58b-d2fbd1743379/full/max/0/default.jpg",
+        "service": [
+         {
+          "id": "https://media.getty.edu/iiif/image/c8f49d56-9618-424c-a58b-d2fbd1743379",
+          "profile": "level1",
+          "sizes": [
+           {
+            "height": 221,
+            "width": 172
+           },
+           {
+            "height": 442,
+            "width": 344
+           },
+           {
+            "height": 885,
+            "width": 688
+           },
+           {
+            "height": 1770,
+            "width": 1377
+           }
+          ],
+          "type": "ImageService3"
+         }
+        ],
+        "type": "Image",
+        "width": 2754
+       },
+       "id": "https://media.getty.edu/iiif/manifest/anno-c8f49d56-9618-424c-a58b-d2fbd1743379",
+       "motivation": "painting",
+       "target": "https://media.getty.edu/iiif/manifest/canvas/c8f49d56-9618-424c-a58b-d2fbd1743379",
+       "type": "Annotation"
+      }
+     ],
+     "type": "AnnotationPage"
+    }
+   ],
+   "label": {
+    "en": [
+     "Main View"
+    ]
+   },
+   "metadata": [
+    {
+     "label": {
+      "en": [
+       "Open Content Quality"
+      ]
+     },
+     "value": {
+      "en": [
+       "Yes"
+      ]
+     }
+    }
+   ],
+   "rights": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "thumbnail": [
+    {
+     "id": "https://media.getty.edu/iiif/image/c8f49d56-9618-424c-a58b-d2fbd1743379/full/!600,600/0/default.jpg",
+     "service": [
+      {
+       "id": "https://media.getty.edu/iiif/image/c8f49d56-9618-424c-a58b-d2fbd1743379",
+       "profile": "level1",
+       "type": "ImageService3"
+      }
+     ],
+     "type": "Image"
+    }
+   ],
+   "type": "Canvas",
+   "width": 2754
+  }
+ ],
+ "label": {
+  "en": [
+   "Rocky Bear, Sioux"
+  ]
+ },
+ "metadata": [
+  {
+   "label": {
+    "en": [
+     "Artist/Maker"
+    ]
+   },
+   "value": {
+    "en": [
+     "Adolph F. Muhr (American, died 1913)",
+     "Frank A. Rinehart (American, 1861 - 1928)"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Title"
+    ]
+   },
+   "value": {
+    "en": [
+     "Rocky Bear, Sioux"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Date"
+    ]
+   },
+   "value": {
+    "en": [
+     "1899"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Material"
+    ]
+   },
+   "value": {
+    "en": [
+     "Platinum print"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Dimensions"
+    ]
+   },
+   "value": {
+    "en": [
+     "Sheet: 24.3  20.2 cm (9 9/16  8 in.)",
+     "Image: 23.7  18.3 cm (9 3/8  7 3/16 in.)",
+     "Mount: 45.6  35.4 cm (17 15/16  13 15/16 in.)"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Accession Number"
+    ]
+   },
+   "value": {
+    "en": [
+     "84.XM.200.7"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Collection"
+    ]
+   },
+   "value": {
+    "en": [
+     "<a href=\"http://www.getty.edu/art/collection/\">The J. Paul Getty Museum</a>"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Rights Statement"
+    ]
+   },
+   "value": {
+    "en": [
+     "<p>Images provided here are believed to be in the public domain and     are available under <a href=\"https://creativecommons.org/publicdomain/zero/1.0/\">CC0</a>     through Getty&rsquo;s <a href=\"http://www.getty.edu/about/opencontent.html\">Open Content Program</a>.     Texts provided here are &copy; J. Paul Getty Trust, licensed under     <a href=\"https://creativecommons.org/licenses/by/4.0/legalcode\">CC BY 4.0</a>.     Terms of use for the Getty logo can be found     <a href=\"http://www.getty.edu/legal/copyright.html#logo\"> here</a>.    </p>"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Date Modified"
+    ]
+   },
+   "value": {
+    "en": [
+     "2026-01-21T16:35:32.128694+00:00"
+    ]
+   }
+  }
+ ],
+ "provider": [
+  {
+   "id": "https://www.getty.edu/about/",
+   "label": {
+    "en": [
+     "J. Paul Getty Trust"
+    ]
+   },
+   "logo": [
+    {
+     "format": "image/png",
+     "height": 529,
+     "id": "https://www.getty.edu/global/images/getty_logo_primary_blk.png",
+     "type": "Image",
+     "width": 486
+    }
+   ],
+   "type": "Agent"
+  }
+ ],
+ "requiredStatement": {
+  "label": {
+   "en": [
+    "attribution"
+   ]
+  },
+  "value": {
+   "en": [
+    "<p>Images provided here are believed to be in the public domain and     are available under <a href=\"https://creativecommons.org/publicdomain/zero/1.0/\">CC0</a>     through Getty&rsquo;s <a href=\"http://www.getty.edu/about/opencontent.html\">Open Content Program</a>.     Texts provided here are &copy; J. Paul Getty Trust, licensed under     <a href=\"https://creativecommons.org/licenses/by/4.0/legalcode\">CC BY 4.0</a>.     Terms of use for the Getty logo can be found     <a href=\"http://www.getty.edu/legal/copyright.html#logo\"> here</a>.    </p>"
+   ]
+  }
+ },
+ "rights": "http://creativecommons.org/publicdomain/zero/1.0/",
+ "seeAlso": [
+  {
+   "id": "https://data.getty.edu/museum/collection/object/001c456d-e137-4fd1-ba3a-68b7df327776",
+   "type": "Text"
+  }
+ ],
+ "structures": [
+  {
+   "id": "https://media.getty.edu/iiif//manifest/range/bfc37fbc-08dc-408c-a4c5-88f5bfc1052c/default.json",
+   "items": [
+    {
+     "id": "https://media.getty.edu/iiif/manifest/canvas/c8f49d56-9618-424c-a58b-d2fbd1743379",
+     "type": "Canvas"
+    }
+   ],
+   "type": "Range"
+  }
+ ],
+ "summary": {
+  "en": [
+   "<p>Native American man in 3/4 pose in long headdress holding bead-handled object across his lap.</p>"
+  ]
+ },
+ "thumbnail": [
+  {
+   "id": "https://media.getty.edu/iiif/image/c8f49d56-9618-424c-a58b-d2fbd1743379/full/!600,600/0/default.jpg",
+   "service": [
+    {
+     "id": "https://media.getty.edu/iiif/image/c8f49d56-9618-424c-a58b-d2fbd1743379",
+     "profile": "level1",
+     "type": "ImageService3"
+    }
+   ],
+   "type": "Image"
+  }
+ ],
+ "type": "Manifest"
+}

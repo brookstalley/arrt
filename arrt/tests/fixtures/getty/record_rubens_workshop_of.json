@@ -1,0 +1,682 @@
+{
+ "@context": "https://static.getty.edu/contexts/linked.art/ns/v1.1.0/linked-art.json",
+ "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651",
+ "type": "HumanMadeObject",
+ "_label": "Four Studies of a Male Head (71.PB.39)",
+ "classified_as": [
+  {
+   "id": "http://vocab.getty.edu/aat/300133025",
+   "type": "Type",
+   "_label": "Artwork"
+  },
+  {
+   "id": "http://vocab.getty.edu/aat/300033618",
+   "type": "Type",
+   "_label": "Paintings",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300435444",
+     "type": "Type",
+     "_label": "Classification (Category)"
+    }
+   ]
+  },
+  {
+   "id": "http://vocab.getty.edu/aat/300033656",
+   "type": "Type",
+   "_label": "Panel Paintings"
+  },
+  {
+   "id": "https://data.getty.edu/local/thesaurus/object-record-structure-whole",
+   "type": "Type",
+   "_label": "Object Record Structure: Whole",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/local/thesaurus/object-record-structure-type",
+     "type": "Type",
+     "_label": "Object Record Structure Type"
+    }
+   ]
+  }
+ ],
+ "identified_by": [
+  {
+   "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651/identifier/b9731d7d-13a8-5b37-bd82-cdab69d77a24",
+   "type": "Identifier",
+   "_label": "Accession Number",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300404626",
+     "type": "Type",
+     "_label": "Identification Number"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300312355",
+     "type": "Type",
+     "_label": "Accession Number"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300404670",
+     "type": "Type",
+     "_label": "Preferred Term"
+    }
+   ],
+   "content": "71.PB.39"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651/name/75af7118-9708-5354-a5ba-bfb7bef22e6a",
+   "type": "Name",
+   "_label": "Alternate Title",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417193",
+     "type": "Type",
+     "_label": "Titles (General, Names)"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300417227",
+     "type": "Type",
+     "_label": "Alternate Title"
+    },
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/tms/object/titles/primary",
+     "type": "Type",
+     "_label": "Primary Title",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on the `https://data.getty.edu/local/thesaurus/object-title-*` terms instead.",
+      "since": "2020-11-11"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/object-title-primary",
+     "type": "Type",
+     "_label": "Primary Title"
+    }
+   ],
+   "content": "Four Studies of a Male Head",
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388277",
+     "type": "Language",
+     "_label": "English (language)"
+    }
+   ]
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651/name/4492e0ed-ff5f-5e81-93f7-430bbf4bc27a",
+   "type": "Name",
+   "_label": "Alternate Title",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417193",
+     "type": "Type",
+     "_label": "Titles (General, Names)"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300417227",
+     "type": "Type",
+     "_label": "Alternate Title"
+    },
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/tms/object/titles/display",
+     "type": "Type",
+     "_label": "Display Title",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on the `https://data.getty.edu/local/thesaurus/object-title-*` terms instead.",
+      "since": "2020-11-11"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/object-title-display",
+     "type": "Type",
+     "_label": "Display Title"
+    }
+   ],
+   "content": "Four Studies of a Male Head",
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388277",
+     "type": "Language",
+     "_label": "English (language)"
+    }
+   ]
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651/name/3237e4f1-3d2e-574f-a400-8294d0279cb8",
+   "type": "Name",
+   "_label": "Alternate Title",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417193",
+     "type": "Type",
+     "_label": "Titles (General, Names)"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300417227",
+     "type": "Type",
+     "_label": "Alternate Title"
+    },
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/tms/object/titles/display",
+     "type": "Type",
+     "_label": "Display Title",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on the `https://data.getty.edu/local/thesaurus/object-title-*` terms instead.",
+      "since": "2020-11-11"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/object-title-display",
+     "type": "Type",
+     "_label": "Display Title"
+    }
+   ],
+   "content": "Cuatro estudios de una cabeza masculina",
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300389311",
+     "type": "Language",
+     "_label": "Spanish (language)"
+    }
+   ]
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651/identifier/dor-id",
+   "type": "Identifier",
+   "_label": "Getty DOR ID",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/dor-id",
+     "type": "Type",
+     "_label": "Getty DOR ID",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on `Getty DOR ID` (https://data.getty.edu/local/thesaurus/dor-id) instead.",
+      "since": "2021-01-05"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/dor-id",
+     "type": "Type",
+     "_label": "Getty DOR ID"
+    }
+   ],
+   "content": "591"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651/identifier/slug-id",
+   "type": "Identifier",
+   "_label": "Slug Identifier",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/local/thesaurus/slug-identifier",
+     "type": "Type",
+     "_label": "Slug Identifier"
+    }
+   ],
+   "content": "urn:getty-local:idm:object:slug/103RBN"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651/name/75af7118-9708-5354-a5ba-bfb7bef22e6a",
+   "type": "Name",
+   "_label": "Preferred Title",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417193",
+     "type": "Type",
+     "_label": "Titles (General, Names)"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300404670",
+     "type": "Type",
+     "_label": "Preferred Term"
+    }
+   ],
+   "content": "Four Studies of a Male Head",
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388277",
+     "type": "Language",
+     "_label": "English (language)"
+    }
+   ]
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651/identifier/tms-id",
+   "type": "Identifier",
+   "_label": "Gallery Systems' TMS ID",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/tms-id",
+     "type": "Type",
+     "_label": "Gallery Systems' TMS ID",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on `Gallery Systems' TMS ID` (https://data.getty.edu/local/thesaurus/tms-id) instead.",
+      "since": "2021-01-05"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/tms-id",
+     "type": "Type",
+     "_label": "Gallery Systems' TMS ID"
+    }
+   ],
+   "content": "654"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651/identifier/dor-uuid",
+   "type": "Identifier",
+   "_label": "Getty DOR UUID",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/dor-uuid",
+     "type": "Type",
+     "_label": "Getty DOR UUID",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on `Getty DOR UUID` (https://data.getty.edu/local/thesaurus/dor-uuid) instead.",
+      "since": "2021-01-05"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/dor-uuid",
+     "type": "Type",
+     "_label": "Getty DOR UUID"
+    }
+   ],
+   "content": "3ae0423f-ef94-4581-88d0-005e78dbe651"
+  }
+ ],
+ "produced_by": {
+  "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651/production",
+  "type": "Production",
+  "_label": "Production of Artwork by Peter Paul Rubens",
+  "referred_to_by": [
+   {
+    "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651/production/2b90302c-47c6-52ff-b1cc-5a0eb4096159/producer-description",
+    "type": "LinguisticObject",
+    "_label": "Artist/Maker (Producer) Description",
+    "classified_as": [
+     {
+      "id": "https://data.getty.edu/museum/ontology/linked-data/tms/object/producer-description",
+      "type": "Type",
+      "_label": "Producer Description",
+      "deprecated": {
+       "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+       "replacement": "Filter on `Producer Description` (https://data.getty.edu/local/thesaurus/producer-description) instead.",
+       "since": "2020-11-10"
+      }
+     },
+     {
+      "id": "https://data.getty.edu/local/thesaurus/producer-description",
+      "type": "Type",
+      "_label": "Producer Description"
+     },
+     {
+      "id": "http://vocab.getty.edu/aat/300418049",
+      "type": "Type",
+      "_label": "Brief Text"
+     }
+    ],
+    "content": "Workshop of Peter Paul Rubens (Flemish, 1577 - 1640)"
+   },
+   {
+    "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651/production/2b90302c-47c6-52ff-b1cc-5a0eb4096159/producer-name",
+    "type": "LinguisticObject",
+    "_label": "Artist/Maker (Producer) Name",
+    "classified_as": [
+     {
+      "id": "https://data.getty.edu/local/thesaurus/producer-name",
+      "type": "Type",
+      "_label": "Producer Name"
+     },
+     {
+      "id": "http://vocab.getty.edu/aat/300418049",
+      "type": "Type",
+      "_label": "Brief Text"
+     }
+    ],
+    "content": "Peter Paul Rubens"
+   },
+   {
+    "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651/production/2b90302c-47c6-52ff-b1cc-5a0eb4096159/producer-name-prefix",
+    "type": "LinguisticObject",
+    "_label": "Artist/Maker (Producer) Name Prefix",
+    "classified_as": [
+     {
+      "id": "https://data.getty.edu/local/thesaurus/producer-name-prefix",
+      "type": "Type",
+      "_label": "Producer Name Prefix"
+     },
+     {
+      "id": "http://vocab.getty.edu/aat/300418049",
+      "type": "Type",
+      "_label": "Brief Text"
+     }
+    ],
+    "content": "Workshop of"
+   },
+   {
+    "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651/production/2b90302c-47c6-52ff-b1cc-5a0eb4096159/producer-nationality-and-dates",
+    "type": "LinguisticObject",
+    "_label": "Artist/Maker (Producer) Nationality & Dates",
+    "classified_as": [
+     {
+      "id": "https://data.getty.edu/local/thesaurus/nationality-and-dates",
+      "type": "Type",
+      "_label": "Producer Nationality & Dates"
+     },
+     {
+      "id": "http://vocab.getty.edu/aat/300418049",
+      "type": "Type",
+      "_label": "Brief Text"
+     }
+    ],
+    "content": "Flemish, 1577 - 1640"
+   }
+  ],
+  "timespan": {
+   "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651/production/timespan",
+   "type": "TimeSpan",
+   "identified_by": [
+    {
+     "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651/production/timespan/display",
+     "type": "Name",
+     "_label": "Dates",
+     "classified_as": [
+      {
+       "id": "http://vocab.getty.edu/aat/300458798",
+       "type": "Type",
+       "_label": "Display Names"
+      }
+     ],
+     "content": "about 1617–1620"
+    }
+   ],
+   "begin_of_the_begin": "1617-01-01T00:00:00",
+   "end_of_the_end": "1620-12-31T23:59:59"
+  },
+  "carried_out_by": [
+   {
+    "id": "https://data.getty.edu/museum/collection/person/87f818f8-8932-4003-8975-ef910d06d4df",
+    "type": "Person",
+    "_label": "Peter Paul Rubens",
+    "referred_to_by": [
+     {
+      "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651/production/2b90302c-47c6-52ff-b1cc-5a0eb4096159/role-statement",
+      "type": "LinguisticObject",
+      "_label": "Artist/Maker (Producer) Role Statement",
+      "classified_as": [
+       {
+        "id": "https://data.getty.edu/museum/ontology/linked-data/object/artist-maker-role-statement",
+        "type": "Type",
+        "_label": "Artist/Maker (Producer) Role Statement",
+        "deprecated": {
+         "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+         "replacement": "Filter on `Artist/Maker Role Statement` (https://data.getty.edu/local/thesaurus/artist-maker-role-statement) instead.",
+         "since": "2020-11-10"
+        }
+       },
+       {
+        "id": "https://data.getty.edu/local/thesaurus/producer-role-statement",
+        "type": "Type",
+        "_label": "Artist/Maker (Producer) Role Statement"
+       },
+       {
+        "id": "http://vocab.getty.edu/aat/300418049",
+        "type": "Type",
+        "_label": "Brief Text"
+       }
+      ],
+      "content": "Artist",
+      "close_match": [
+       {
+        "id": "http://vocab.getty.edu/aat/300025103",
+        "type": "Type",
+        "_label": "Artist"
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "assigned_by": [
+   {
+    "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651/production/b9d02a96-b36c-5cca-bbdd-577e1191f05c/previous-attribution",
+    "type": "AttributeAssignment",
+    "_label": "Previous Attribution to Peter Paul Rubens",
+    "classified_as": [
+     {
+      "id": "http://vocab.getty.edu/aat/300404908",
+      "type": "Type",
+      "_label": "Obsolete"
+     }
+    ],
+    "referred_to_by": [
+     {
+      "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651/production/b9d02a96-b36c-5cca-bbdd-577e1191f05c/previous-attribution/remarks",
+      "type": "LinguisticObject",
+      "_label": "Previous Attribution Remarks for Peter Paul Rubens",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300435415",
+        "type": "Type",
+        "_label": "Remarks"
+       },
+       {
+        "id": "http://vocab.getty.edu/aat/300418049",
+        "type": "Type",
+        "_label": "Brief Text"
+       }
+      ],
+      "content": "David Jaffe (December 2, 1997)"
+     }
+    ],
+    "timespan": {
+     "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651/production/b9d02a96-b36c-5cca-bbdd-577e1191f05c/previous-attribution/timespan",
+     "type": "TimeSpan",
+     "_label": "Previous Attribution Time Span for Peter Paul Rubens",
+     "identified_by": [
+      {
+       "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651/production/b9d02a96-b36c-5cca-bbdd-577e1191f05c/previous-attribution/timespan/display",
+       "type": "Name",
+       "_label": "Previous Attribution Display Date for Peter Paul Rubens",
+       "content": "1971 - 1997"
+      }
+     ],
+     "begin_of_the_begin": "1971-01-01T00:00:00",
+     "end_of_the_end": "1997-12-31T23:59:59"
+    },
+    "assigned_by": [
+     {
+      "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651/production/b9d02a96-b36c-5cca-bbdd-577e1191f05c/previous-attribution/sequence-assignment",
+      "type": "AttributeAssignment",
+      "_label": "Previous Attribution Sequence Assignment",
+      "used_specific_object": [
+       {
+        "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651/production/previous-attributions",
+        "type": "Set",
+        "_label": "Previous Attributions for Four Studies of a Male Head (71.PB.39)"
+       }
+      ],
+      "assigned_property": "dimension",
+      "assigned": [
+       {
+        "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651/production/b9d02a96-b36c-5cca-bbdd-577e1191f05c/previous-attribution/sequence",
+        "type": "Dimension",
+        "_label": "Previous Attribution Sequence for Peter Paul Rubens",
+        "classified_as": [
+         {
+          "id": "http://vocab.getty.edu/aat/300010269",
+          "type": "Type",
+          "_label": "Positional Attributes"
+         },
+         {
+          "id": "http://vocab.getty.edu/aat/300192339",
+          "type": "Type",
+          "_label": "Sequences"
+         }
+        ],
+        "value": 1,
+        "unit": {
+         "id": "http://vocab.getty.edu/aat/300055665",
+         "type": "MeasurementUnit",
+         "_label": "Numbers"
+        }
+       }
+      ]
+     }
+    ],
+    "assigned_property": "part_of",
+    "assigned": [
+     {
+      "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651/production/b9d02a96-b36c-5cca-bbdd-577e1191f05c",
+      "type": "Production",
+      "_label": "Previously Attributed Production to Peter Paul Rubens",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300404270",
+        "type": "Type",
+        "_label": "Formerly Attributed To (Attribution Qualifier)"
+       }
+      ],
+      "referred_to_by": [
+       {
+        "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651/production/b9d02a96-b36c-5cca-bbdd-577e1191f05c/producer-description",
+        "type": "LinguisticObject",
+        "_label": "Previously Assigned Producer Description",
+        "classified_as": [
+         {
+          "id": "http://vocab.getty.edu/aat/300417239",
+          "type": "Type",
+          "_label": "Compound Names"
+         },
+         {
+          "id": "http://vocab.getty.edu/aat/300404670",
+          "type": "Type",
+          "_label": "Preferred Term"
+         },
+         {
+          "id": "http://vocab.getty.edu/aat/300418049",
+          "type": "Type",
+          "_label": "Brief Text"
+         }
+        ],
+        "content": "Attributed to Peter Paul Rubens"
+       },
+       {
+        "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651/production/b9d02a96-b36c-5cca-bbdd-577e1191f05c/producer-name",
+        "type": "LinguisticObject",
+        "_label": "Artist/Maker (Producer) Name",
+        "classified_as": [
+         {
+          "id": "https://data.getty.edu/local/thesaurus/producer-name",
+          "type": "Type",
+          "_label": "Producer Name"
+         },
+         {
+          "id": "http://vocab.getty.edu/aat/300418049",
+          "type": "Type",
+          "_label": "Brief Text"
+         }
+        ],
+        "content": "Peter Paul Rubens"
+       },
+       {
+        "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651/production/b9d02a96-b36c-5cca-bbdd-577e1191f05c/producer-name-prefix",
+        "type": "LinguisticObject",
+        "_label": "Previously Assigned Producer Name Prefix",
+        "classified_as": [
+         {
+          "id": "https://data.getty.edu/local/thesaurus/producer-name-prefix",
+          "type": "Type",
+          "_label": "Producer Name Prefix"
+         },
+         {
+          "id": "http://vocab.getty.edu/aat/300418049",
+          "type": "Type",
+          "_label": "Brief Text"
+         }
+        ],
+        "content": "Attributed to"
+       }
+      ],
+      "carried_out_by": [
+       {
+        "id": "https://data.getty.edu/museum/collection/person/87f818f8-8932-4003-8975-ef910d06d4df",
+        "type": "Person",
+        "_label": "Peter Paul Rubens"
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "subject_of": [
+  {
+   "id": "https://www.getty.edu/art/collection/object/103RBN",
+   "type": "LinguisticObject",
+   "_label": "Homepage for Four Studies of a Male Head (71.PB.39) (HumanMadeObject)",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300264578",
+     "type": "Type",
+     "_label": "Web Page"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300404670",
+     "type": "Type",
+     "_label": "Primary"
+    }
+   ],
+   "format": "text/html"
+  },
+  {
+   "has_format": "https://media.getty.edu/iiif/manifest/3/b6447d74-b0b2-4018-b458-574da31d529a",
+   "id": "https://media.getty.edu/iiif/manifest/2/b6447d74-b0b2-4018-b458-574da31d529a",
+   "type": "InformationObject",
+   "_label": "IIIF Manifest URL",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/local/thesaurus/iiif-manifest",
+     "type": "Type",
+     "_label": "IIIF Manifest"
+    }
+   ],
+   "conforms_to": [
+    {
+     "id": "http://iiif.io/api/presentation",
+     "type": "InformationObject",
+     "_label": "IIIF Presentation API"
+    }
+   ],
+   "format": "application/ld+json;profile=\"http://iiif.io/api/presentation/2/context.json\""
+  },
+  {
+   "has_format": "https://media.getty.edu/iiif/manifest/2/b6447d74-b0b2-4018-b458-574da31d529a",
+   "id": "https://media.getty.edu/iiif/manifest/3/b6447d74-b0b2-4018-b458-574da31d529a",
+   "type": "InformationObject",
+   "_label": "IIIF Manifest URL",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/local/thesaurus/iiif-manifest",
+     "type": "Type",
+     "_label": "IIIF Manifest"
+    }
+   ],
+   "conforms_to": [
+    {
+     "id": "http://iiif.io/api/presentation",
+     "type": "InformationObject",
+     "_label": "IIIF Presentation API"
+    }
+   ],
+   "format": "application/ld+json;profile=\"http://iiif.io/api/presentation/3/context.json\""
+  }
+ ]
+}

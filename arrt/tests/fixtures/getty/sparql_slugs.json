@@ -1,0 +1,102 @@
+{
+ "head": {
+  "vars": [
+   "urn",
+   "object"
+  ]
+ },
+ "results": {
+  "bindings": [
+   {
+    "urn": {
+     "type": "literal",
+     "value": "urn:getty-local:idm:object:slug/108E2E"
+    },
+    "object": {
+     "type": "uri",
+     "value": "https://data.getty.edu/museum/collection/object/5e3e8ca9-7c83-42f5-9739-078d4a0e1266"
+    }
+   },
+   {
+    "urn": {
+     "type": "literal",
+     "value": "urn:getty-local:idm:object:slug/103R9G"
+    },
+    "object": {
+     "type": "uri",
+     "value": "https://data.getty.edu/museum/collection/object/908259ce-da9f-44c3-ad31-7938a6582fe7"
+    }
+   },
+   {
+    "urn": {
+     "type": "literal",
+     "value": "urn:getty-local:idm:object:slug/10P1MS"
+    },
+    "object": {
+     "type": "uri",
+     "value": "https://data.getty.edu/museum/collection/object/937588d8-b051-422b-bb46-e562c797bcc7"
+    }
+   },
+   {
+    "urn": {
+     "type": "literal",
+     "value": "urn:getty-local:idm:object:slug/104430"
+    },
+    "object": {
+     "type": "uri",
+     "value": "https://data.getty.edu/museum/collection/object/c6a909e7-ce1c-4331-8516-0ac40522fd22"
+    }
+   },
+   {
+    "urn": {
+     "type": "literal",
+     "value": "urn:getty-local:idm:object:slug/103JNH"
+    },
+    "object": {
+     "type": "uri",
+     "value": "https://data.getty.edu/museum/collection/object/c88b3df0-de91-4f5b-a9ef-7b2b9a6d8abb"
+    }
+   },
+   {
+    "urn": {
+     "type": "literal",
+     "value": "urn:getty-local:idm:object:slug/10435K"
+    },
+    "object": {
+     "type": "uri",
+     "value": "https://data.getty.edu/museum/collection/object/001c456d-e137-4fd1-ba3a-68b7df327776"
+    }
+   },
+   {
+    "urn": {
+     "type": "literal",
+     "value": "urn:getty-local:idm:object:slug/107SAK"
+    },
+    "object": {
+     "type": "uri",
+     "value": "https://data.getty.edu/museum/collection/object/cc39fc44-05a2-4ae2-bf4f-07b25830af50"
+    }
+   },
+   {
+    "urn": {
+     "type": "literal",
+     "value": "urn:getty-local:idm:object:slug/103RBN"
+    },
+    "object": {
+     "type": "uri",
+     "value": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651"
+    }
+   },
+   {
+    "urn": {
+     "type": "literal",
+     "value": "urn:getty-local:idm:object:slug/1JAXFV"
+    },
+    "object": {
+     "type": "uri",
+     "value": "https://data.getty.edu/museum/collection/object/bf2b5335-f677-41cb-9726-f6749e7611f3"
+    }
+   }
+  ]
+ }
+}

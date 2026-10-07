@@ -122,16 +122,68 @@ plugin does not search.
 
 ## Getty (for #230)
 
-- P2582 holds the page's slug, not the data ID: `data.getty.edu/museum/collection/object/<slug>`
-  answers 404 (m). The page's `local_id_manager` script, or the SPARQL endpoint,
-  maps the slug to the UUID.
-- **The road (m):** `shows[]` → `data.getty.edu/media/image/<uuid>` →
-  `digitally_shown_by[0].access_point[]`, the one classified "IIIF image
-  service", and `digitally_shown_by[0].dimension` gives the original's size.
-  `representation` is marked deprecated in the record.
-- **In copyright is served in full (m):** Brockhurst, "In Copyright", clearance
-  "zoom": 3,347 × 4,020 in full; Irises 9,021 × 7,122 by `full/max` and
-  `full/full` alike.
-- **`media.getty.edu` answers robots.txt with 503 (m)**, which RFC 9309 reads
-  as disallow-all. Nine requests were made there before this was weighed. The
-  owner's ruling of 2026-10-07 (§ The Rijksmuseum) covers it too.
+Measured 2026-10-07 in two passes: the first while building Yale, the second
+(about 120 requests) before building the `getty` plugin
+(`build-plan-getty-source.md`).
+
+- **Wikidata reaches few works with no image (m).** 2,596 items carry P2582, and 30
+  of them have no P18. Of those 30, 28 have an image at the Getty and 2 have no
+  manifest (a bound volume, an armlet). The museum holds 124,301 objects with
+  images (#230), so the plugin also searches.
+- **P2582 holds the page's slug, not the data ID (m):** six characters
+  `[0-9A-Z]` on all 2,596, and `data.getty.edu/museum/collection/object/<slug>`
+  answers 404. Each record carries the slug as an identifier,
+  `urn:getty-local:idm:object:slug/<slug>`, so the SPARQL endpoint
+  (`data.getty.edu/museum/collection/sparql`) maps slugs to records: 30 in one
+  query, 0.22 s. The page (a JavaScript shell) carries the same map in its
+  `local_id_manager` script. The plugin never reads it.
+- **The endpoint has no text index (m).** `bds:search` answers nothing. A
+  case-insensitive scan over every title, or over every maker's name joined to
+  its objects, took 11–14 s. A person by label, case-insensitively, among
+  25,611 `E21_Person`s took 0.6 s, and that person's objects with title words
+  0.2–0.3 s. A maker of several is in `produced_by → part[] → carried_out_by`, so the
+  query follows `P108i_was_produced_by/P9_consists_of?`. 4,716 people link to ULAN
+  (`skos:exactMatch`).
+- **The record (m).** Titles are `Name`s: preferred (AAT 300404670), primary,
+  translated ("La Ville" / "The City"), alternate. The maker's name, its prefix and
+  its suffix are `LinguisticObject`s on the production, classified
+  `producer-name`, `producer-name-prefix` and `producer-name-suffix`. Prefixes
+  include "Attributed to" (3,630), "and" (1,259), "Possibly" (813), "Workshop of"
+  (162), "Follower of" (156) and "After" (30). Suffixes include "maker, American"
+  (a role and nationality) and "or workshop" / "and workshop". The role statement
+  is an occupation ("Photographer" 110,202, "Artist" 37,473), not an attribution.
+  `subject_of` names the page (`text/html`) and the IIIF manifest, in
+  Presentation 2 and 3.
+- **The manifest drops non-ASCII letters (m):** "Fédèle Azari" is
+  "Fdle Azari" in its bytes, so names are read from the record.
+- **The image road (m).** `shows[]` → `data.getty.edu/media/image/<uuid>` →
+  `digitally_shown_by[0]` carries the size and the "IIIF image service" access
+  point, but `shows` is in no useful order. On *Irises* the third is its frame,
+  which is another object, and on *Migrant Mother* the first is "Subject
+  Terms". The manifest's first canvas is the main view on both, matching the
+  record's deprecated `representation`, so the plugin reads the manifest.
+- **Rights are per object in the manifest's `rights` (m):** CC0, or
+  rightsstatements.org `InC` / `InC-RUU` for works in copyright. These agreed with the
+  media record's rights on 6 of 6. One manifest (Cariani) states none. The media record
+  also carries Getty's clearance: `download`, `zoom` or `thumbnail`.
+- **Sizes (m), from JPEG headers.** `info.json` declares `maxWidth`/`maxHeight`
+  30,000, and `full/max` served every original asked whole: 573 × 600 (Arbus,
+  `thumbnail`), 3,347 × 4,020 (Brockhurst, `zoom`), 4,748 × 6,073 (Lange), 6,455 ×
+  5,022 (Weston, `zoom`), 8,409 × 12,441 (Moore, in copyright). Irises came out at
+  9,021 × 7,122 by `full/max` and `full/full` alike. Of the 28 with no P18 and a
+  manifest, nine are 600–768 px on the long side (eight in copyright, one with no
+  rights stated) and the rest 3,540–12,448 px.
+- **Access (m).** `data.getty.edu`: no robots.txt (404), no challenge, no
+  rate-limit headers. **`media.getty.edu` answers robots.txt with 503**, which RFC
+  9309 reads as disallow-all. Nine requests were made there before this was weighed.
+  The owner's ruling of 2026-10-07 (§ The Rijksmuseum) covers it.
+- **Names the identity check compares (m).** Of the 30, 23 have both a maker in
+  the record (read as the plugin reads it) and an English creator label on
+  Wikidata. For 15 the names agree by `artist_key`. 8 differ: two attributions,
+  which the check is right to refuse ("Circle of Jacopo Sansovino", "Attributed
+  to Alessandro Algardi"); five spellings or initials ("Karl Blossfeldt" /
+  "Karl Blosfeldt", "Shinjiro" / "Shimjiro" on two items, "Gerald L. Brockhurst"
+  / "Gerald Brockhurst", "Robert Oliver Skemp" / "Robert Skemp"); and one name
+  carrying another in parentheses ("Giovanni Busi (Cariani)"). Wikidata's own
+  names for the maker, read since #245, may settle some of these; that was not
+  measured.

@@ -1,0 +1,58 @@
+{
+ "@context": "http://iiif.io/api/image/3/context.json",
+ "protocol": "http://iiif.io/api/image",
+ "width": 573,
+ "height": 600,
+ "sizes": [
+  {
+   "width": 143,
+   "height": 150
+  },
+  {
+   "width": 286,
+   "height": 300
+  }
+ ],
+ "tiles": [
+  {
+   "width": 256,
+   "height": 256,
+   "scaleFactors": [
+    1,
+    2,
+    4
+   ]
+  }
+ ],
+ "id": "https://media.getty.edu/iiif/image/c86c716e-9579-4950-83d2-7c58343830e4",
+ "type": "ImageService3",
+ "profile": "level2",
+ "maxWidth": 30000,
+ "maxHeight": 30000,
+ "extraQualities": [
+  "color",
+  "gray",
+  "bitonal"
+ ],
+ "extraFormats": [
+  "tif",
+  "webp"
+ ],
+ "extraFeatures": [
+  "regionByPct",
+  "sizeByPct",
+  "sizeByConfinedWh",
+  "sizeUpscaling",
+  "rotationBy90s",
+  "mirroring"
+ ],
+ "rights": "© Estate of Diane Arbus LLC",
+ "service": [
+  {
+   "@context": "http://iiif.io/api/annex/services/physdim/1/context.json",
+   "profile": "http://iiif.io/api/annex/services/physdim",
+   "physicalScale": 0.0025,
+   "physicalUnits": "in"
+  }
+ ]
+}

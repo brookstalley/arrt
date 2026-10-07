@@ -1,0 +1,17 @@
+{
+ "head": {
+  "vars": [
+   "person"
+  ]
+ },
+ "results": {
+  "bindings": [
+   {
+    "person": {
+     "type": "uri",
+     "value": "https://data.getty.edu/museum/collection/person/d6446240-36e4-49d8-a9e7-bf0126c6cd95"
+    }
+   }
+  ]
+ }
+}

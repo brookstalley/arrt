@@ -1,0 +1,240 @@
+{
+ "@context": "http://iiif.io/api/presentation/3/context.json",
+ "homepage": [
+  {
+   "id": "https://www.getty.edu/art/collection/object/1JAXFV",
+   "type": "Text"
+  }
+ ],
+ "id": "https://media.getty.edu/iiif/manifest/10d352c8-2c6c-4cb5-b0ad-0e563dfed202",
+ "items": [
+  {
+   "height": 600,
+   "id": "https://media.getty.edu/iiif/manifest/canvas/818a423b-77cf-4ac8-8467-ba3768cf1119",
+   "items": [
+    {
+     "id": "https://media.getty.edu/iiif/manifest/annopage/p0",
+     "items": [
+      {
+       "body": {
+        "height": 600,
+        "id": "https://media.getty.edu/iiif/image/818a423b-77cf-4ac8-8467-ba3768cf1119/full/max/0/default.jpg",
+        "service": [
+         {
+          "id": "https://media.getty.edu/iiif/image/818a423b-77cf-4ac8-8467-ba3768cf1119",
+          "profile": "level1",
+          "sizes": [
+           {
+            "height": 150,
+            "width": 125
+           },
+           {
+            "height": 300,
+            "width": 250
+           }
+          ],
+          "type": "ImageService3"
+         }
+        ],
+        "type": "Image",
+        "width": 500
+       },
+       "id": "https://media.getty.edu/iiif/manifest/anno-818a423b-77cf-4ac8-8467-ba3768cf1119",
+       "motivation": "painting",
+       "target": "https://media.getty.edu/iiif/manifest/canvas/818a423b-77cf-4ac8-8467-ba3768cf1119",
+       "type": "Annotation"
+      }
+     ],
+     "type": "AnnotationPage"
+    }
+   ],
+   "label": {
+    "en": [
+     "Front"
+    ]
+   },
+   "metadata": [
+    {
+     "label": {
+      "en": [
+       "Open Content Quality"
+      ]
+     },
+     "value": {
+      "en": [
+       "No"
+      ]
+     }
+    }
+   ],
+   "thumbnail": [
+    {
+     "id": "https://media.getty.edu/iiif/image/818a423b-77cf-4ac8-8467-ba3768cf1119/full/!500,600/0/default.jpg",
+     "service": [
+      {
+       "id": "https://media.getty.edu/iiif/image/818a423b-77cf-4ac8-8467-ba3768cf1119",
+       "profile": "level1",
+       "type": "ImageService3"
+      }
+     ],
+     "type": "Image"
+    }
+   ],
+   "type": "Canvas",
+   "width": 500
+  }
+ ],
+ "label": {
+  "en": [
+   "Portrait of a Man with a Sword"
+  ]
+ },
+ "metadata": [
+  {
+   "label": {
+    "en": [
+     "Artist/Maker"
+    ]
+   },
+   "value": {
+    "en": [
+     "Giovanni Busi (Cariani) (Italian, (Venetian), about 1480 - after 1548)"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Title"
+    ]
+   },
+   "value": {
+    "en": [
+     "Portrait of a Man with a Sword"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Material"
+    ]
+   },
+   "value": {
+    "en": [
+     "Oil on canvas"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Dimensions"
+    ]
+   },
+   "value": {
+    "en": [
+     "Unframed: 74.9  64.8 cm (29 1/2  25 1/2 in.)"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Accession Number"
+    ]
+   },
+   "value": {
+    "en": [
+     "67.PA.4"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Collection"
+    ]
+   },
+   "value": {
+    "en": [
+     "<a href=\"http://www.getty.edu/art/collection/\">The J. Paul Getty Museum</a>"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Rights Statement"
+    ]
+   },
+   "value": {
+    "en": []
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Date Modified"
+    ]
+   },
+   "value": {
+    "en": [
+     "2026-07-01T18:15:03.225075+00:00"
+    ]
+   }
+  }
+ ],
+ "provider": [
+  {
+   "id": "https://www.getty.edu/about/",
+   "label": {
+    "en": [
+     "J. Paul Getty Trust"
+    ]
+   },
+   "logo": [
+    {
+     "format": "image/png",
+     "height": 529,
+     "id": "https://www.getty.edu/global/images/getty_logo_primary_blk.png",
+     "type": "Image",
+     "width": 486
+    }
+   ],
+   "type": "Agent"
+  }
+ ],
+ "seeAlso": [
+  {
+   "id": "https://data.getty.edu/museum/collection/object/bf2b5335-f677-41cb-9726-f6749e7611f3",
+   "type": "Text"
+  }
+ ],
+ "structures": [
+  {
+   "id": "https://media.getty.edu/iiif//manifest/range/10d352c8-2c6c-4cb5-b0ad-0e563dfed202/default.json",
+   "items": [
+    {
+     "id": "https://media.getty.edu/iiif/manifest/canvas/818a423b-77cf-4ac8-8467-ba3768cf1119",
+     "type": "Canvas"
+    }
+   ],
+   "type": "Range"
+  }
+ ],
+ "thumbnail": [
+  {
+   "id": "https://media.getty.edu/iiif/image/818a423b-77cf-4ac8-8467-ba3768cf1119/full/!500,600/0/default.jpg",
+   "service": [
+    {
+     "id": "https://media.getty.edu/iiif/image/818a423b-77cf-4ac8-8467-ba3768cf1119",
+     "profile": "level1",
+     "type": "ImageService3"
+    }
+   ],
+   "type": "Image"
+  }
+ ],
+ "type": "Manifest"
+}
