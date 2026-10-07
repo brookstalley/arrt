@@ -139,6 +139,11 @@ The `FoundImage` rules hold unchanged for every plugin:
   title; the artist comparison still runs. Added 2026-10-04 by the owner's ruling,
   for MoMA's *Composition* (`data-model.md`, the phase-2 identity notes). The
   MoMA plugin's page address is the P2014 formatter's, so it needs no change.
+  On such a page, the holder's artist also passes when Wikidata records it as a
+  name of the item's creator: Art UK's "Laurence Stephen Lowry" for "L. S.
+  Lowry" (arrt#245, `artist-name-identity-findings.md`). So a finder reports the
+  holder's name exactly as the holder writes it, and leaves recognising it to
+  phase 2.
 - Dimensions are the **master's**, never a preview's.
 - Rights are recorded, never a reason to leave an image out.
 

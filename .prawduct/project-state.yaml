@@ -3138,6 +3138,8 @@ artifact_manifest:
       depends_on: [source-plugins]
     - file_path: .prawduct/artifacts/nga-api-findings.md
       depends_on: [source-plugins]
+    - file_path: .prawduct/artifacts/artist-name-identity-findings.md
+      depends_on: [data-model, source-plugins]
     - file_path: .prawduct/artifacts/dezoomify-cli-findings.md
       depends_on: [architecture, operational-spec]
     - file_path: .prawduct/artifacts/museum-label-findings.md

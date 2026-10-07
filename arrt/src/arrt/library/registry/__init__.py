@@ -2,7 +2,7 @@
 
 Wikidata is the only one today (`wikidata-findings.md`). What the Library asks a
 registry is small and stated as data: which items carry this museum identifier,
-who created these items, which people go by this name, what is known about one
+who created these items and by what names, which people go by this name, what is known about one
 artist, and what a topic is and which works and artists are in it. Judging
 whether an answer identifies a held work or artist is the identity service's
 job (`library/services/identity.py`), so a second registry would answer the same
@@ -356,5 +356,15 @@ class Registry(Protocol):
         Holders' pages and anybody else's alike: a museum's, a catalogue
         raisonné's, an encyclopedia's. Which of them anything can read is a
         reader's question, not the registry's.
+        """
+        ...
+
+    def creator_names(self, qid: str) -> Mapping[ItemId, frozenset[RegistryText]]:
+        """Every name the registry records for each of this work's creators, keyed by the creator.
+
+        Labels and aliases in every language, as written. None for an item with
+        no recorded creator, or one the registry does not have. Anyone can add an
+        alias, and some name another person too, so a name here is evidence only
+        beside something else that identifies the work (`phase_two.py`).
         """
         ...

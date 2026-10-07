@@ -439,6 +439,7 @@ class FakeRegistry:
         artist_topics=None,
         pages=None,
         image_sizes=None,
+        names=None,
     ):
         self.items = items or {}
         #: Commons file → the `RegistryImageSize` `image_size` answers; an
@@ -450,6 +451,9 @@ class FakeRegistry:
         #: QID → the work pages `pages_about` answers; an absent QID has none.
         self.pages = pages or {}
         self.pages_asked: list[str] = []
+        #: Work QID → {creator QID → the names `creator_names` answers}; an absent QID has none.
+        self.names = names or {}
+        self.names_asked: list[str] = []
         self.creators = creators or {}
         self.people = people or {}
         self.artists = artists or {}
@@ -577,6 +581,11 @@ class FakeRegistry:
         self._check()
         self.pages_asked.append(qid)
         return sorted(set(self.pages.get(qid, ())))
+
+    def creator_names(self, qid):
+        self._check()
+        self.names_asked.append(qid)
+        return {creator: frozenset(written) for creator, written in self.names.get(qid, {}).items()}
 
 
 class NothingWanted:

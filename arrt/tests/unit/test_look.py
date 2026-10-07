@@ -605,6 +605,30 @@ def test_a_registry_outage_while_judging_is_not_kept_for_hours_and_a_later_look_
     assert after.sources[0].state is SourceState.FOUND, "the second ask judged against the link built during the outage"
 
 
+def test_a_names_outage_while_judging_is_not_kept_for_hours_and_a_later_look_asks_again(build, registry, clock):
+    """A find on the item's page under another name for the artist passes only if Wikidata answers the creator's names."""
+    page = "https://open.smk.dk/artwork/image/KMS8010"
+    registry.pages[TANTRA] = [page]
+    registry.names[TANTRA] = {BILLE.qid: {"Ejler Bille", "Ejler Bille Petersen"}}
+    smk = Source(holdings={"Tantra-Vision": [an_image("Tantra-Vision", artist="Ejler Bille Petersen", provider="smk", url=page)]})
+    asked = registry.creator_names
+
+    def down(qid):
+        raise RegistryUnavailable("Wikidata is down")
+
+    registry.creator_names = down
+    look = build(smk)
+    during = look.look(TANTRA, hold=SETTLE)
+    assert during.sources[0].state is SourceState.REFUSED
+
+    registry.creator_names = asked
+    clock.advance(seconds=UNREACHABLE_KEPT_FOR.total_seconds() + 1)
+    after = look.look(TANTRA, hold=SETTLE)
+
+    assert len(smk.asked) == 2, "an answer shaped by an outage is kept only as long as an outage is"
+    assert after.sources[0].state is SourceState.FOUND
+
+
 def test_a_finder_fault_turns_its_row_unreachable_at_warning_and_never_leaves_it_asking(build, caplog):
     class Broken(Source):
         def find_images(self, query):

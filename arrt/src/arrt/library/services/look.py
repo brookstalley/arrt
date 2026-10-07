@@ -460,8 +460,9 @@ class LookService:
                 query, link = entry.query, entry.link
             answer = pool.ask(provider, query)
             result = self._judged(query, link, answer, judge)
-            # Judged with titles alone because Wikidata could not be asked:
-            # what was found stands, but "none" is kept no longer than an outage.
+            # Judged without the item's pages or its creators' names, because
+            # Wikidata could not be asked: what was found stands, but "none" is
+            # kept no longer than an outage.
             outage = link.unavailable and not result.pictures
         except Exception as exc:  # prawduct:allow prawduct/broad-except -- a fault must not leave a row asking
             # A plugin's finder arrives wrapped, so a fault here is a finder
