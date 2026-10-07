@@ -70,6 +70,8 @@ unbounded bill.
 > `services/health.py` carries the same decision at the site that would hold the
 > field, and says not to add it back without reopening the decision.)*
 >
+> *(**Reversed by the owner 2026-10-07** (`ia-proposal.md` § Rulings (2026-10-07), ruling 3): the month's remaining budget is shown in the sidebar, read from the provider as this corollary says, and approvals give way to cost tiers. The inversion recorded here was weighed and accepted: it bites only at the edge of the cap, where the provider's refusal is authoritative and the screen must say so, and below about $1 the figure reads "under $1 left" rather than a precise amount. Built by #290; until it lands, the code still omits the figure and the test asserting its absence still holds.)*
+>
 > **Scope note:** this norm governs *ceilings*, not *budgeting*. A per-run search
 > cap (below, under Cost) is application-enforced and does not depart from this —
 > it bounds one run's ambition, it is not the thing that stops the bill.

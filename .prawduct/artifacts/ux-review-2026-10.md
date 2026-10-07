@@ -72,7 +72,7 @@ already covers the fix. **Route** is where the finding went (`docs/ux-walkthroug
 | 1 | **A single held work cannot be hung.** The Work page offers only Archive and Edit; the only way is a one-work theme, three writes, and remembering to re-hang *All works*. | Work, Walls | 4 | P2 A U D | **Ruled**: `ia-proposal.md` § Work (state strip: walls and themes), § Artist ("Hang… applies to a selection"), S1 row. No build plan. | #272 |
 | 2 | **Walls does not show what is on the wall.** "Showing (46)" lists the whole theme; the current work appears only on Status as a raw ID. "Move on" gives no visible result. | Walls, Status | 3 | P2 U V | **Ruled**: § Walls ("the work on the wall now, large… the next three"). No build plan. | #272 |
 | 3 | **"Not this one again" does not exist, and Archive is the loudest button in reach.** A wall card opens the Work page, whose filled primary button removes the work from the whole library. | Walls, Work | 3 | P2 U D A | **Ruled**: § Walls, and § Against what is built ("Archive a selection; Not this one again from Walls"). | #272 |
-| 4 | **Navigation by script buttons.** Works, artists, topics, runs and reviews open by `<button>`, never `<a href>`: no new tab, no copyable or previewable address, nothing announced as a link; "go to artist" appears in four styles. | every list | 3 | P1 U X A D | No. | Owner ruling (§ Decisions 2) |
+| 4 | **Navigation by script buttons.** Works, artists, topics, runs and reviews open by `<button>`, never `<a href>`: no new tab, no copyable or previewable address, nothing announced as a link; "go to artist" appears in four styles. | every list | 3 | P1 U X A D | No. | Norm, ruled 2026-10-07; migration #273 |
 | 5 | **Each navigation lands scrolled, and Back loses your place.** Focus on `#view` scrolls the page: a work opened from low on a list opens at its sources table; Back to Artworks returns to the top, 68 Tabs from card 20. | every route | 3 | P2 X U | No. | #273 |
 | 6 | **Wall health contradicts itself.** Clients says both outputs "not connected"; Walls says "shown on hdmi-a-1"; the top bar says "Well". | Clients, Walls, top bar | 3 | U V | No. Possibly a heartbeat bug, not copy — investigate first. | #274 |
 | 7 | **Search says both held and not held,** and a held artist appears twice as identical buttons leading to different pages. | Search | 3 | P2 | Partly: ruling 7 (store registry IDs); #252 (artists stay unlinked). | #275 |
@@ -84,7 +84,7 @@ already covers the fix. **Route** is where the finding went (`docs/ux-walkthroug
 | 13 | **Work page anatomy.** The picture is ~190 px in a 1,168 px column; the title is not the heading; Archive is primary; no toolbar, no history. | Work | 3 | D A U | Partly, with 1. | #272 |
 | 14 | **Phone: primary actions off-screen.** To review's Review button is at x=512 in 390 px; Themes renders 497 px wide; Activity tables clip; the top bar takes three rows. | To review, History, Run, Themes, all | 3 | U D X P2 | No. | #279 |
 | 15 | **Focus ring clipped on card pictures** (`.card { overflow: hidden }`): on one Tab stop in three the keyboard user cannot see where they are. | Artworks and every `.card` grid | 3 | X | No. | #280 |
-| 16 | **One request has four names (Ask, search, run, Get), and "search" means five things,** only some of which cost money. | Ask, Run, Review, Queue, History, Wanted, top bar | 3 | V | Partly: `ia-proposal.md` § Objects calls it a Get. | Owner ruling (§ Decisions 3) |
+| 16 | **One request has four names (Ask, search, run, Get), and "search" means five things,** only some of which cost money. | Ask, Run, Review, Queue, History, Wanted, top bar | 3 | V | Partly: `ia-proposal.md` § Objects calls it a Get. | Ruled 2026-10-07: Get, everywhere — #291 |
 | 17 | **At 2,000 works, 750 cannot be browsed to;** Artworks stops at 1,250 by design (`core/badges.js`'s runaway guard) with no next page. | Artworks | 3 | U A | No. Rare today (46 works). | #131 (comment) |
 | 18 | **Queue at 2,000 is one table, a Retry per row, no paging or bulk action,** naming each work by its ID beside its title. | Queue | 3 | U A | No. Rare today. | #281 |
 | 19 | **A Get can offer a photo of visitors in a gallery** as a native-size match. | Work (not held) | 3 | P2 | No. ("Image found is a weaker promise than it looks" is § Dependencies and risks.) | #282 |
@@ -92,9 +92,9 @@ already covers the fix. **Route** is where the finding went (`docs/ux-walkthroug
 | 21 | **Every page is titled "Arrt"** and its only `h1` is the brand; old addresses (`#collection`, `#discover`, `#health`) are then the only page names a bookmark or history entry carries. | all | 2 | X V | No. | #273 |
 | 22 | **Themes is an inline editor of every theme,** with no art, ↑/↓ one step at a time, and no link to `#theme/<id>`. "Position decides what shows first" while the wall says "shuffled". | Themes | 2 | A U D | No. #133 (shipped) gave one theme its address; nothing on the index links to it. | #284 |
 | 23 | **Selection works three ways and offers one action;** Artworks' selection cannot add to a new theme (S7 detour). | Artworks, Artist, Search, Topic | 2 | A P2 | No. #169 (shipped) separated filter from add-to-theme on Artworks only. | #285 |
-| 24 | **Settings opens on Taste,** which configures nothing and is headed "What this product thinks you like"; Wanted is hidden from the sidebar when empty and its help names a "Want" button that does not exist. | Taste, Wanted, sidebar | 2 | A U V | Wanted's hiding is recorded in the IA; *arr keeps it permanent. | #286; Wanted: owner ruling (§ Decisions 4) |
+| 24 | **Settings opens on Taste,** which configures nothing and is headed "What this product thinks you like"; Wanted is hidden from the sidebar when empty and its help names a "Want" button that does not exist. | Taste, Wanted, sidebar | 2 | A U V | Wanted's hiding is recorded in the IA; *arr keeps it permanent. | #286; Wanted ruled always shown — #292 |
 | 25 | **Status dumps healthy detail;** no About, Logs or Tasks. | Status | 2 | A U D | Partly: #265. | #265 (comment) |
-| 26 | **History lists runs, not events** — nothing records an accept, archive or hang. | History | 2 | A | No. | Owner ruling (§ Decisions 5) |
+| 26 | **History lists runs, not events** — nothing records an accept, archive or hang. | History | 2 | A | No. | Ruled 2026-10-07: events — #293 |
 | 27 | **No visual system across screens:** five heading treatments, four empty-state patterns, badges on every tile that say nothing ("native", "wall render"), disabled primaries that look live, spacing collisions. | all | 2 | D U | No. #2 (shipped) built the tokens; nothing governs headings, empty states or badges. | #287 |
 | 28 | **Clean-up (S9) has no resolution or never-hung facet;** "Filter" hides the facets rather than filtering. | Artworks | 2 | P2 | No. | #288 |
 | 29 | **Topics lists only held topics,** so S12 starts by recalling a name; a fresh topic took 22 s to fill. | Topics, Topic | 2 | P2 | No. #175 (shipped) fixed the index's layout, not what it lists. | #289 |
@@ -125,17 +125,17 @@ Several reviewers named these independently.
 
 ## Decisions only the owner can make
 
-1. **Build the ruled Walls and Work pages next?** Findings 1, 2, 3 and 13 are
-   one plan and need no new ruling: `ia-proposal.md` already designed them.
-   Part of Walls (what is next, durations) waits on wave 4; the current work and
-   *Not this one again* do not.
-2. **A norm: navigation is a link, an act is a button.** Fixing 4, 5 and 21
-   together is cheap; making it a norm stops the next screen regressing.
-3. **The request's one name.** § Objects says *Get*; the screens say Ask, search
-   and run. Which word does a curator see?
-4. **Wanted always in the sidebar,** as in every *arr app, or hidden when empty,
-   as built?
-5. **History: runs, or events** (accepted, archived, hung)?
+Put to the owner one at a time on 2026-10-07 and ruled the same day; the
+rulings and their wording are `ia-proposal.md` § Rulings (2026-10-07).
+
+1. **Build the ruled Walls and Work pages next** — yes (#272).
+2. **Navigation is a link, an act is a button** — yes, as a norm
+   (`information-architecture.md` § Direction; migration #273).
+3. **The request's one name** — *Get*, everywhere (#291). The question opened a
+   larger one, ruled with it: **no approvals; a monthly budget shown in the
+   sidebar and a cost tier on every action** (#290).
+4. **Wanted** — always in the sidebar (#292).
+5. **History** — events, from now on (#293).
 
 ## Pass 4 — the owner's
 

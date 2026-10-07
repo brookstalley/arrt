@@ -292,7 +292,7 @@ S11 and S12, the two scenarios the built IA failed in `user-scenarios.md`
 | Add New is a place: an intent box and conversations | Gone as a place. Get is an action on any selection; Ask is the conversation, under Library | **Removed** as a place: an owner-ruled departure from the *arr norm (ruling 3) |
 | Two-scope search: library, then *Search museums* → a paid run | One world: library and registry matches with states, free | **Changed** |
 | Search misses `dali` | Folds accents | **Fix**, independent of everything else |
-| Hang on one wall per click; no end; no history | Walls keep a history now; hanging on several walls, for a duration, with revert comes with wave 4's schedule | **New**, mostly deferred (ruling 6) |
+| Hang on one wall per click; no end; no history | Walls keep a history; hanging on several walls, for a duration, with revert comes with wave 4's schedule | **New**, mostly deferred (ruling 6). *(This row said "Walls keep a history now" until 2026-10-07. They do not: `theme_assignments` holds one row per wall and is overwritten, so no past hang survives. The history is ruling 6 of 2026-10-07, below, and #293.)* |
 | *All works* is an ordinary theme, kept by hand | The designated default theme: acceptances join it automatically unless their Get named another destination (2026-10-02) | **Changed** (rulings 5a and 8) |
 | Archive one work at a time | Archive a selection; *Not this one again* from Walls | **Changed** |
 | Taste recorded, unread | Taste read by Ask and by similar artists; what a Get's destination means for taste is plan 4's (ruling 5b, amended 2026-10-02) | **New** |
@@ -360,3 +360,25 @@ deleted, is not ruled; the build plan proposes it.
 proposal. Then a build plan, whose first pieces stand on their own: the accent
 fix, the default theme (ruling 8), storing registry IDs (ruling 7), and the
 Artist hub (4), which needs the IDs.
+
+## Rulings (2026-10-07)
+
+The owner ruled on the five decisions the first UX walkthrough raised
+(`ux-review-2026-10.md` § Decisions only the owner can make), one at a time, and
+on a sixth their answer to the third opened. The wording of each option is the
+builder's; the choice is the owner's.
+
+| # | Decision | Ruling |
+|---|---|---|
+| 1 | What to build next | **The Walls and Work pages as this proposal designed them** (§ Walls, § Work): the work on the wall now, Skip, *Not this one again*, and Hang on a work. Durations and hanging everywhere stay with ruling 6 of 2026-10-01. Backlog #272. |
+| 2 | Links or buttons | **Navigation is a link, an act is a button**, as a norm: `information-architecture.md` § Direction. Its migration is backlog #273. |
+| 3 | Approving spend | **No approvals: a monthly budget, shown, and a cost tier on every action.** *"Asking people to approve $0.01 at a time is just a nuisance… just doing the action is the approval."* And: *"We are conscious of total spend and don't want to be wasteful, but also don't want to ask excessive permission for everything."* The sidebar shows what is left of the month; each spending action shows free, $, $$ or $$$ before it is taken; the approval gate on runs of more than 25 works goes. The provider-enforced ceiling is unchanged. This reverses the operator's decision of 2026-08-04 that the remaining balance is never shown, knowing it lags the provider by minutes. Backlog #290. |
+| 4 | The spending request's name | **Get, everywhere**, as § Objects defines it. *Search* means only the free search; *run* leaves the screens. Backlog #291. |
+| 5 | Wanted in the sidebar | **Always shown**, as in every *arr app, with its count when non-zero. Backlog #292. |
+| 6 | History | **Events, from now on**: Gets, verdicts, archives, restores and hangs, in one log that also gives each wall its history. Past hangs are not recoverable. Backlog #293. |
+
+**The builder pushed back on ruling 3 in one place, and the owner kept it.**
+Without the gate, an Ask whose model proposes eighty works lands eighty cards in
+To review; the gate was guarding attention as much as money. If that bites, the
+remedy is a bound on works per Ask, not a cost approval.
+

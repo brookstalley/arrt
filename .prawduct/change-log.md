@@ -100,6 +100,16 @@ practice doc gained the reviewer brief and two rules the run taught; `design-dir
 lost a notice that its palettes were not yet in the stylesheet, which they had been
 for weeks.
 
+**The owner's rulings on the review**, the same day (`ia-proposal.md` § Rulings
+(2026-10-07)): the ruled Walls and Work pages are next (#272); a new norm,
+*navigation is a link, an act is a button*, in `information-architecture.md`
+§ Direction, in-transition (#273); spend shown as a monthly budget with cost tiers
+and no approval gate (#290), reversing the 2026-08-04 decision never to show the
+remaining balance, recorded in `nonfunctional-requirements.md` and
+`observability-strategy.md`; *Get* everywhere (#291); Wanted always in the sidebar
+(#292); History as events (#293). The proposal's claim that walls already keep a
+history is corrected: the schema overwrites each wall's hang.
+
 ## 2026-10-07: the Rijksmuseum as a built-in source, through its Linked Art records, its search and IIIF
 
 <!-- prawduct: scope=rijksmuseum-source -->
