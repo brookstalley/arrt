@@ -126,16 +126,17 @@ Several reviewers named these independently.
 ## Decisions only the owner can make
 
 Put to the owner one at a time on 2026-10-07 and ruled the same day; the
-rulings and their wording are `ia-proposal.md` § Rulings (2026-10-07).
+rulings and their wording are `ia-proposal.md` § Rulings (2026-10-07). The
+numbers below are that table's.
 
 1. **Build the ruled Walls and Work pages next** — yes (#272).
 2. **Navigation is a link, an act is a button** — yes, as a norm
    (`information-architecture.md` § Direction; migration #273).
-3. **The request's one name** — *Get*, everywhere (#291). The question opened a
-   larger one, ruled with it: **no approvals; a monthly budget shown in the
-   sidebar and a cost tier on every action** (#290).
-4. **Wanted** — always in the sidebar (#292).
-5. **History** — events, from now on (#293).
+3. **Approving spend**, the larger question the name opened — **no approvals;
+   a monthly budget shown in the sidebar and a cost tier on every action** (#290).
+4. **The request's one name** — *Get*, everywhere (#291).
+5. **Wanted** — always in the sidebar (#292).
+6. **History** — events, from now on (#293).
 
 ## Pass 4 — the owner's
 

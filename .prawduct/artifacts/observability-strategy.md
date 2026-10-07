@@ -59,7 +59,7 @@ reader should not conclude these were forgotten.
 > (`operational-spec.md` § Troubleshooting corrected the same claim the same day;
 > this artifact was the copy that sweep did not reach.)
 >
-> *(**Reversed by the owner 2026-10-07** (`ia-proposal.md` § Rulings (2026-10-07), ruling 3): the month's remaining budget is shown in the sidebar, read from the provider as this corollary says, and approvals give way to cost tiers. The inversion recorded here was weighed and accepted: it bites only at the edge of the cap, where the provider's refusal is authoritative and the screen must say so, and below about $1 the figure reads "under $1 left" rather than a precise amount. Built by #290; until it lands, the code still omits the figure and the test asserting its absence still holds.)*
+> *(**Reversed by the owner 2026-10-07** (`ia-proposal.md` § Rulings (2026-10-07), ruling 3): the month's remaining budget is shown. How, and what was weighed, is the note in `nonfunctional-requirements.md` § Direction, under its *read from the authority* corollary; #290 builds it, and until then the code still omits the figure.)*
 >
 > **Settled 2026-08-04 by the operator: it is not surfaced, in any form.** The
 > question left open here was whether to show it anyway as a lagging advisory

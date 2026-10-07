@@ -74,18 +74,23 @@ later", and then run.
 **What:** `docs/ux-walkthrough.md`, the four passes (inventory, scenarios, critique by
 independent lens, people) and how their findings are ranked and routed; a pointer to
 it from `CLAUDE.md`. `arrt/tools/ux_walk.py`, Pass 1: it reads the declared screens
-from `app.js`'s `ROUTES`, crawls the reachable ones from the home page by links,
-photographs each at phone and desktop width in light and dark, records headings,
+from `app.js`'s `ROUTES`, crawls the reachable ones from the home page by links
+and by clicking up to 30 buttons a page (`--clicks-per-page`; 0 follows links only),
+because the client navigates by buttons that call the router; photographs each at phone and desktop width in light and dark, records headings,
 controls and links, runs axe-core per photograph, and writes `inventory.json` and a
-contact sheet. It refuses every request but `GET`/`HEAD`, so it can walk the real
-library; `--synthetic N` boots a throwaway server over the suite's large corpus.
+contact sheet. It refuses every request but `GET`/`HEAD` in the browser, so a clicked Accept,
+Rename or Unassign never lands, but check the server's state after a run against
+the real library; `--synthetic N` boots a throwaway server over the suite's large corpus.
 Output goes to the gitignored `.ux-walk/`.
 
 **Tests:** `tests/unit/test_ux_walk_parsing.py` (the route table and address
 grammar); `tests/browser/test_the_ux_walk.py` (a write from the page refused and
 absent from the server afterwards, a read let through, every declared screen
 photographed or named as never visited, the skip link not mistaken for a screen, a
-skipped scan reported as not run). The guard and the anchor skip were each broken by
+screen reached only by address marked so, one a button opens found and marked as
+reached by script, `--clicks-per-page 0` following links only, a scan's clean,
+violations and not-run kept as three states, a screen that never paints recorded
+blank rather than aborting the walk). The guard and the anchor skip were each broken by
 hand and watched to fail, as were the synthetic boot's cleanup and the axe-core
 pin. The browser tests are deselected by default, so they are not in the
 recorded suite run; `uv run --group browser pytest tests/browser/test_the_ux_walk.py

@@ -53,7 +53,9 @@ so one never ends it.
 `HEAD` and lists what it refused, which is what makes pointing it at the real
 library safe — and what lets it click. Much of this client navigates by buttons
 that call the router rather than by links, so on each page the harness clicks a
-sample of buttons (as many of each kind as `--per-screen`, two by default) and keeps those that change the address.
+sample of buttons (up to `--clicks-per-page`, 30 by default, and as many of each
+kind as `--per-screen`, two by default) and keeps those that change the address.
+`--clicks-per-page 0` follows links only and clicks nothing.
 A write such a click attempts is refused and tagged with the button; a write a
 page attempts merely by being viewed is listed apart, and is a finding. After a
 run against the real library, confirm on the server that nothing a probe
@@ -62,9 +64,10 @@ and the server's own state is the evidence that it held. A screen whose interest
 a Get in flight) is reached in Pass 2, by hand.
 
 ```sh
-cd arrt && uv sync --group browser          # once, with `playwright install chromium`
-cd arrt && uv run python tools/ux_walk.py --synthetic 2000 --out ../.ux-walk/synthetic
-cd arrt && uv run python tools/ux_walk.py --base-url http://<host>:<port> --out ../.ux-walk/real
+cd arrt
+uv sync --group browser          # once, with `playwright install chromium`
+uv run python tools/ux_walk.py --synthetic 2000 --out ../.ux-walk/synthetic
+uv run python tools/ux_walk.py --base-url http://<host>:<port> --out ../.ux-walk/real
 ```
 
 `.ux-walk/` is gitignored: the repository is public and the screenshots are
