@@ -215,6 +215,9 @@ code runs inside Arrt, with Arrt's network. So:
 - bound every read;
 - send `context.user_agent`, or your own setting where the site asks callers to
   identify themselves;
+- ask per work, never walk a site. robots.txt does not bar a single request for
+  a work someone asked for (`source-plugins.md` § Trust), because that is not
+  crawling, and a plugin that crawled would be the case it is written for;
 - put no key in a URL you raise or log. The log cuts query strings, but only
   from a URL that is encoded, as an HTTP client's own error is.
 

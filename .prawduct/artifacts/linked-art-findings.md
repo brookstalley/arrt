@@ -115,9 +115,10 @@ plugin does not search.
   with no image still has `shows`; its VisualItem lacks `digitally_shown_by`.
 - **`iiif.micr.io`'s robots.txt is `Disallow: /` for every agent (m).** Only the
   Night Watch's `info.json` was read (14,645 × 12,158, `maxArea` 17,550,000),
-  before the robots file was read. `full/max` was not asked. Whether Arrt may
-  fetch from this host is the owner's ruling to make. The same host serves the
-  Philadelphia Museum of Art's images (arrt-sources#13).
+  before the robots file was read. `full/max` was not asked. The same host serves
+  the Philadelphia Museum of Art's images (arrt-sources#13). **The owner ruled
+  on 2026-10-07 that a plugin may ask it** (`source-plugins.md` § Trust): single,
+  human-led requests are not crawling.
 
 ## Getty (for #230)
 
@@ -132,5 +133,5 @@ plugin does not search.
   "zoom": 3,347 × 4,020 in full; Irises 9,021 × 7,122 by `full/max` and
   `full/full` alike.
 - **`media.getty.edu` answers robots.txt with 503 (m)**, which RFC 9309 reads
-  as disallow-all. Nine requests were made there before this was weighed. It is
-  the owner's ruling to make, with #226's.
+  as disallow-all. Nine requests were made there before this was weighed. The
+  owner's ruling of 2026-10-07 (§ The Rijksmuseum) covers it too.

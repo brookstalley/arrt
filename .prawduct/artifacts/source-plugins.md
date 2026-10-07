@@ -371,6 +371,17 @@ service, which would have isolated it. What installing one trusts, what Arrt
 still keeps for itself, and how a plugin's error text is scrubbed are
 `security-model.md` § Source plugins, their one home.
 
+**robots.txt does not bar a plugin's requests** (the owner's ruling,
+2026-10-07). robots.txt speaks to crawlers. A plugin's requests are single ones,
+each for a work a person asked for, through a tool, so a host whose robots.txt
+disallows everything may still be asked: `iiif.micr.io` (the Rijksmuseum's and
+the Philadelphia Museum of Art's images) disallows `/`, and `media.getty.edu`
+answers its robots.txt with 503. What keeps a plugin from behaving like a crawler
+is the rest of this contract: it asks only per work, bounds every read, and paces
+where a holder asks. A plugin that walks a collection (a collection browse, a
+copy of a catalogue) is the case this ruling does not cover; a holder's published
+open data, which the NGA's is, is offered for exactly that.
+
 ## Versioning and errors
 
 - **`arrt.library.sources.API_VERSION`** is `major.minor`, starting at `1.0`. A plugin

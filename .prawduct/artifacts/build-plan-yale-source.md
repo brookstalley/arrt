@@ -157,7 +157,9 @@ first; a IIIF reader claiming arbitrary IIIF URLs.
 **Found while measuring, for the owner (recorded on the issues, not ruled here):**
 `iiif.micr.io`, the Rijksmuseum's image host, has robots.txt `Disallow: /` for
 every agent (#226). `media.getty.edu` answers robots.txt with 503, which RFC 9309
-reads as disallow-all (#230).
+reads as disallow-all (#230). *Ruled by the owner on 2026-10-07: single,
+human-led requests are not crawling, so a plugin may ask both
+(`source-plugins.md` § Trust).*
 
 ## Status
 
