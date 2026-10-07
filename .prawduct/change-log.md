@@ -62,6 +62,36 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-07: the UX walkthrough, as a practice and a harness
+
+<!-- prawduct: scope=ux-walkthrough -->
+
+**Why:** the owner, 2026-10-07: IA/UX/UI is the product's weakest point, and every
+guard the browser client has asks whether it matches its documents, never whether it
+is good to use. They asked for the method to be written down "so we don't re-derive
+later", and then run.
+
+**What:** `docs/ux-walkthrough.md`, the four passes (inventory, scenarios, critique by
+independent lens, people) and how their findings are ranked and routed; a pointer to
+it from `CLAUDE.md`. `arrt/tools/ux_walk.py`, Pass 1: it reads the declared screens
+from `app.js`'s `ROUTES`, crawls the reachable ones from the home page by links,
+photographs each at phone and desktop width in light and dark, records headings,
+controls and links, runs axe-core per photograph, and writes `inventory.json` and a
+contact sheet. It refuses every request but `GET`/`HEAD`, so it can walk the real
+library; `--synthetic N` boots a throwaway server over the suite's large corpus.
+Output goes to the gitignored `.ux-walk/`.
+
+**Tests:** `tests/unit/test_ux_walk_parsing.py` (the route table and address
+grammar); `tests/browser/test_the_ux_walk.py` (a write from the page refused and
+absent from the server afterwards, a read let through, every declared screen
+photographed or named as never visited, the skip link not mistaken for a screen, a
+skipped scan reported as not run). The guard and the anchor skip were each broken by
+hand and watched to fail, as were the synthetic boot's cleanup and the axe-core
+pin. The browser tests are deselected by default, so they are not in the
+recorded suite run; `uv run --group browser pytest tests/browser/test_the_ux_walk.py
+-m browser -n0` ran them, 8 passed. `tests/integration/test_ux_walk_synthetic.py`
+boots `--synthetic` in the default suite.
+
 ## 2026-10-07: the Rijksmuseum as a built-in source, through its Linked Art records, its search and IIIF
 
 <!-- prawduct: scope=rijksmuseum-source -->
