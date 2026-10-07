@@ -81,8 +81,9 @@ already fetching and says "Shown by" only for a screen detected. Otherwise it sa
 reasons leaves the screen unknown. Clients' column becomes *Screen*
 ("● detected" / "○ none detected (off or unplugged)") beside *Size*, and the output
 picker says "screen detected" / "no screen detected". Clients' own lines about a wall
-say *assigned*, not *shown*: the "Walls assigned to it" heading, the assign and unassign
-messages, the wall and output pickers, and the remove confirmation. Otherwise the same
+say *assigned*, not *shown*: the "Walls assigned to it" heading, "has no wall assigned
+yet", "Every wall is already assigned to", the assign and unassign messages, the wall and
+output pickers, and the rotate and remove confirmations. Otherwise the same
 claim would have come back one screen over. `information-architecture.md`'s Walls and
 Clients rows describe the new lines.
 
