@@ -1739,10 +1739,24 @@ selected. Produced by phase 2.
 > When a result's title differs, the work has a QID, and the result's `url` is,
 > exactly, one of the pages `Registry.pages_about` gives for it, the record is the
 > work, and the artist comparison still decides. The registry is asked once per
-> work, only then; one that cannot be asked means no link. This is not identity
+> work, only when a title or an artist differs; one that cannot be asked means
+> no link. This is not identity
 > by source URL (§ Direction): the work's identity stays its key and its QID, and
 > the page is evidence in one resolution attempt, the mirror of the QID matcher
 > reading a holder's identifier from a source URL.
+>
+> **On such a page, two names Wikidata records for one of the item's creators
+> are not a disagreement** (2026-10-06, arrt#245). Holders write "Laurence Stephen
+> Lowry" for the Library's "L. S. Lowry" and "Rembrandt van Rijn" for
+> "Rembrandt". So when the artists' keys differ and the result's page is one the
+> item records, the record is accepted at full confidence if both names are,
+> under the same key, a label or an alias, in any language, of one creator the
+> item records (`Registry.creator_names`, asked once per work and only then).
+> Off the item's pages the rule does not apply: aliases are open to anyone and
+> some name two people ("Canaletto" is an alias of Bellotto), so beside a title
+> match alone an alias would accept a son's copy under his father's name. Measured
+> on NGA, Pompidou and Art UK, with the options the owner may still choose
+> between, in `artist-name-identity-findings.md`.
 >
 > Nothing that fails the comparison is recorded at all: a near-match kept at low confidence is still selected the moment nothing
 > better exists, which is precisely the case a work no museum holds produces, so

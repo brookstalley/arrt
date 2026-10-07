@@ -62,6 +62,42 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-06: A holder's name for the artist that Wikidata records, on the item's page
+
+<!-- prawduct: scope=artist-name-identity -->
+
+**Why:** arrt#245, which the owner made the top public priority the same day.
+Phase 2 compared the holder's artist with the Library's under `artist_key`
+alone. So Art UK's "Laurence Stephen Lowry" was refused for "L. S. Lowry", and
+the NGA's "Rembrandt van Rijn" for "Rembrandt", even on the page the work's
+Wikidata item records. Measured, that refused 18,252 of 67,361 NGA items with an
+image, and 301 of 2,198 Pompidou items (`artist-name-identity-findings.md`).
+
+**What:** on a page the work's item records, an artist disagreement is now
+settled by Wikidata. The record is accepted at `CONFIDENT` when the Library's
+artist and the holder's are both, under `artist_key`, a label or an alias in any
+language of one creator the item records. Its card says the holder's name is
+another one Wikidata records for the requested artist.
+
+- **Measured:** this accepts 7,588 of the NGA refusals, 272 of the Pompidou's,
+  and Art UK's Lowry. Against independent ground truth (NGA's own constituent
+  QIDs, navigart's life dates), no accepted record was a different work.
+- **Off the item's pages nothing changes.** Aliases name two people at times
+  (Canaletto is an alias of Bellotto), so a title match alone does not earn one.
+- **New registry question:** `Registry.creator_names(qid)`. It is asked once per
+  work, and only for an artist disagreement on the item's page. If Wikidata
+  cannot answer, the refusal stands, and a look keeps that "none" only as long
+  as an outage.
+- **The item's pages are now also asked when only the artist differs.** That is
+  one `pages_about` per such work, where a title-matched artist refusal asked
+  nothing before. An outage there also shortens a look's kept refusal to the
+  outage window.
+- **New log lines:** `phase_two.renamed`, `phase_two.names_unavailable`, and
+  `names` on `phase_two.not_the_work`.
+- **Unchanged:** `artist_key` and the persisted suppression key.
+- **Still refused:** prints `after` a design, multiple makers, honorifics
+  Wikidata does not record, and token order (#79).
+
 ## 2026-10-06: navigart.fr, through its API, as a built-in source of placeholders
 
 <!-- prawduct: scope=navigart-source -->

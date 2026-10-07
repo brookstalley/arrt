@@ -188,6 +188,12 @@ _TOPICS_SEARCHED: Final[int] = 20
 #: identifiers; the cap is there for the same reason `_WORK_ROWS` is.
 _PAGE_ROWS: Final[int] = 500
 
+#: Rows a work's creators' names may return: one per name per language. Canaletto
+#: alone takes 266 rows (172 distinct names, measured 2026-10-06), and a work by
+#: a workshop names several people. A cap that truncates leaves a name out, which
+#: refuses.
+_NAME_ROWS: Final[int] = 5000
+
 #: The characters an identifier keeps when it is put into a formatter URL, as
 #: Wikibase's own `wfUrlencode` keeps them; everything else is percent-encoded, so
 #: `fr:La_Persistance_de_la_mémoire` arrives as a URL and not as text.
@@ -723,6 +729,21 @@ class WikidataRegistry:
             if page is not None:
                 pages.add(page)
         return sorted(pages)
+
+    def creator_names(self, qid: str) -> Mapping[ItemId, frozenset[RegistryText]]:
+        item = _require_qid(qid)
+        rows = self._select(f"""SELECT ?creator ?name WHERE {{
+              wd:{item} wdt:P170 ?creator .
+              {{ ?creator rdfs:label ?name }} UNION {{ ?creator skos:altLabel ?name }}
+            }} LIMIT {_NAME_ROWS}""")
+        names: dict[ItemId, set[RegistryText]] = {}
+        for row in rows:
+            # An unknown creator is a blank node, not an item: it has no names to compare.
+            creator = _qid(row, "creator", required=False)
+            name = row.get("name", {}).get("value")
+            if creator is not None and isinstance(name, str) and name.strip():
+                names.setdefault(creator, set()).add(RegistryText(name))
+        return {creator: frozenset(written) for creator, written in names.items()}
 
     def close(self) -> None:
         self._http.close()

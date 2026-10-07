@@ -30,6 +30,15 @@ holds *American Gothic* by Grant Wood and *American Gothic* by Elizabeth Layton.
 A scheme that scored the wrong one slightly lower would still select it whenever
 the right one was absent, which is precisely the case that matters.
 
+**Two names Wikidata records for one of the item's creators are not a
+disagreement, on a page the item records.** Holders write the names they write:
+"Laurence Stephen Lowry" for the Library's "L. S. Lowry", "Rembrandt van Rijn"
+for "Rembrandt", "Vassily Kandinsky" for "Wassily Kandinsky", and the key alone
+refused a quarter of the NGA's imaged items for it
+(`artist-name-identity-findings.md`). Aliases are open to anyone and some name
+two people, so they count only where the item already vouches for the page,
+never beside a title match alone (`_renaming`).
+
 **Quality is whether the render is a downscale or a native-size paste**, graded
 by how much of the artwork box the master covers — deliberately *not* the size
 the instance renders at. Aspect-ratio mismatch dominates rendered size, so a tall
@@ -287,20 +296,37 @@ class PhaseTwoEngine:
                 },
             )
         confidence = _confidence(query, found)
+        renamed = False
         if confidence is None:
+            # `_confidence` answers None only when both name an artist and the two disagree.
+            unnamed = _renaming(link, found, asked=query.artist or "", holds=found.artist or "")
+            if unnamed is not None:
+                log.info(
+                    "discarding a result identified by its title or its page, whose artist does not match",
+                    extra={
+                        "event": "phase_two.not_the_work",
+                        "work_title": query.title,
+                        "found_title": found.title,
+                        "found_artist": found.artist,
+                        "found_url": found.url,
+                        "qid": query.qid,
+                        "link": "linked" if linked else "title_matched",
+                        "names": unnamed,
+                    },
+                )
+                return UnresolvedReason.IDENTITY_REFUSED
+            confidence, renamed = CONFIDENT, True
             log.info(
-                "discarding a result identified by its title or its page, whose artist does not match",
+                "keeping a result whose artist is named differently, because Wikidata records both names for the work's creator",
                 extra={
-                    "event": "phase_two.not_the_work",
+                    "event": "phase_two.renamed",
                     "work_title": query.title,
-                    "found_title": found.title,
+                    "work_artist": query.artist,
                     "found_artist": found.artist,
                     "found_url": found.url,
                     "qid": query.qid,
-                    "link": "linked" if linked else "title_matched",
                 },
             )
-            return UnresolvedReason.IDENTITY_REFUSED
         if found.estimated_width is None or found.estimated_height is None:
             # An instance whose rendered size cannot be computed cannot be judged
             # against the floor, and one recorded anyway is indistinguishable
@@ -325,18 +351,19 @@ class PhaseTwoEngine:
             found=found,
             confidence=confidence,
             quality_score=quality,
-            rationale=_rationale(found, confidence=confidence, fit=fit, linked=linked),
+            rationale=_rationale(found, confidence=confidence, fit=fit, linked=linked, renamed=renamed),
             fit=fit,
         )
 
 
 class WikidataLink:
-    """The pages a work's Wikidata item records, asked for once, and only if needed.
+    """What a work's Wikidata item says about where it is described and who made it, each asked once, only if needed.
 
-    Asked only when a result's title differs, so a work every source names alike
-    costs the registry nothing. A registry that cannot be asked means no link, and
-    the title comparison decides as it would without one: refusing is the
-    direction a later search can undo.
+    The pages are asked only when a result's title or artist differs, and the
+    creators' names only when an artist differs on a page the item records, so a
+    work every source names alike costs the registry nothing. A registry that
+    cannot be asked means no link and no names, and the comparison decides as it
+    would without them: refusing is the direction a later search can undo.
 
     **Safe to share between threads.** A look judges each source's answer on
     that source's own thread, against one link per work, so two answers arriving
@@ -347,14 +374,17 @@ class WikidataLink:
         self._registry = registry
         self._query = query
         self._pages: frozenset[str] | None = None
-        self._unavailable = False
+        self._pages_unavailable = False
+        #: Each recorded creator's names, keyed as `artist_key` keys them.
+        self._names: tuple[frozenset[str], ...] | None = None
+        self._names_unavailable = False
         self._asking = threading.Lock()
 
     @property
     def unavailable(self) -> bool:
-        """Whether the registry could not be asked, so titles alone decided what this link was asked about."""
+        """Whether the registry could not be asked something, so a comparison decided without what it would have said."""
         with self._asking:
-            return self._unavailable
+            return self._pages_unavailable or self._names_unavailable
 
     def unlinked(self, url: str) -> str | None:
         """`None` when the work's item records `url`, exactly as the item spells it; else why not.
@@ -374,7 +404,7 @@ class WikidataLink:
                     self._pages = frozenset(self._registry.pages_about(self._query.qid))
                 except RegistryUnavailable as exc:
                     log.warning(
-                        "could not ask Wikidata which pages describe a work, so its titles alone decide: %s",
+                        "could not ask Wikidata which pages describe a work, so no page of it is taken as the work: %s",
                         exc,
                         extra={
                             "event": "phase_two.link_unavailable",
@@ -382,12 +412,74 @@ class WikidataLink:
                             "qid": self._query.qid,
                         },
                     )
-                    self._unavailable = True
+                    self._pages_unavailable = True
                     self._pages = frozenset()
-            pages, unavailable = self._pages, self._unavailable
+            pages, unavailable = self._pages, self._pages_unavailable
         if url in pages:
             return None
         return "registry_unavailable" if unavailable else "not_recorded"
+
+    def unnamed(self, asked: str, holds: str) -> str | None:
+        """`None` when both names are names Wikidata records for one of the work's creators; else why not.
+
+        Compared under `artist_key`, so the names agree as the rest of the
+        identity check's names do: case, accents and punctuation aside, and in
+        order. `names_unavailable` when Wikidata could not be asked;
+        `not_a_creators_name` when it answered and no one creator carries both.
+        """
+        if self._registry is None:
+            return "no_registry"
+        if self._query.qid is None:
+            return "no_qid"
+        with self._asking:
+            if self._names is None:
+                try:
+                    recorded = self._registry.creator_names(self._query.qid)
+                    self._names = tuple(
+                        frozenset(key for key in map(artist_key, written) if key) for written in recorded.values()
+                    )
+                except RegistryUnavailable as exc:
+                    log.warning(
+                        "could not ask Wikidata the names of a work's creators, so a differently named artist is refused: %s",
+                        exc,
+                        extra={
+                            "event": "phase_two.names_unavailable",
+                            "work_title": self._query.title,
+                            "qid": self._query.qid,
+                        },
+                    )
+                    self._names_unavailable = True
+                    self._names = ()
+            names, unavailable = self._names, self._names_unavailable
+        asked_key, held_key = artist_key(asked), artist_key(holds)
+        if asked_key and held_key and any(asked_key in keys and held_key in keys for keys in names):
+            return None
+        return "names_unavailable" if unavailable else "not_a_creators_name"
+
+
+def _renaming(link: WikidataLink, found: FoundImage, *, asked: str, holds: str) -> str | None:
+    """`None` when two differing names are one artist by the work's own item; else why not.
+
+    **Both names must be names Wikidata records for one creator the item
+    records, and the page must be one the item records.** A holder writes
+    "Laurence Stephen Lowry" where the Library's label is "L. S. Lowry", and
+    "Rembrandt van Rijn" for "Rembrandt"; Wikidata carries both forms for that
+    person. But anyone can add an alias, and some name another person as well:
+    "Canaletto" is an alias of Bellotto, his nephew. So a recorded name is
+    accepted only where the item already identifies the record. On a title match
+    alone, an alias would take a Brueghel the Younger copy for his father's work,
+    under the same title (`artist-name-identity-findings.md`).
+
+    The reason is a word for the journal: the page link's own word when the page
+    is not the item's (`no_registry`, `no_qid`, `registry_unavailable`,
+    `not_recorded`), `names_unavailable` when Wikidata could not be asked the
+    names, and `not_a_creators_name` when it was asked and the names are not one
+    creator's.
+    """
+    unlinked = link.unlinked(found.url)
+    if unlinked is not None:
+        return unlinked
+    return link.unnamed(asked, holds)
 
 
 def _confidence(query: ImageQuery, found: FoundImage) -> float | None:
@@ -455,7 +547,7 @@ def _within_band(fit: FitAssessment, *, width: int, height: int, box: ArtworkBox
     return min(1.0, coverage / _NATIVE_SATURATION)
 
 
-def _rationale(found: FoundImage, *, confidence: float, fit: FitAssessment, linked: bool = False) -> str:
+def _rationale(found: FoundImage, *, confidence: float, fit: FitAssessment, linked: bool = False, renamed: bool = False) -> str:
     """Why this instance was chosen, in the words a curator asking gets back.
 
     Written for the review card rather than for a log: it names what the museum
@@ -472,7 +564,15 @@ def _rationale(found: FoundImage, *, confidence: float, fit: FitAssessment, link
     """
     holder = f"{found.provider} holds this as {found.title!r}"
     holder += f" by {found.artist}" if found.artist else ", with no artist recorded"
-    if linked:
+    if renamed:
+        # The artist's name differs too, so the sentence says what made it the
+        # requested artist: a curator reading another name on the card needs it.
+        title = "a different title" if linked else "matching the requested title"
+        identity = (
+            f"{title}, on the page the work's Wikidata item records, by the requested artist "
+            "under another name Wikidata records for them"
+        )
+    elif linked:
         # The title differs, so the sentence says what identified it instead:
         # a curator reading another title on the card needs the reason it is here.
         identity = "a different title, on the page the work's Wikidata item records"

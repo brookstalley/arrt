@@ -76,6 +76,7 @@ CALLS = {
     "topics_named": lambda registry: registry.topics_named("anything"),
     "topics_of": lambda registry: registry.topics_of(["Q1"], ["Q2"]),
     "pages_about": lambda registry: registry.pages_about("Q1"),
+    "creator_names": lambda registry: registry.creator_names("Q1"),
     "image_size": lambda registry: registry.image_size(CommonsFile(f"{COMMONS}A.jpg")),
 }
 

@@ -127,6 +127,58 @@ def test_a_creator_query_refuses_anything_that_is_not_an_item_id():
         _registry(lambda request: _results()).creators_of(["Q1 } UNION { ?x ?y ?z"])
 
 
+def test_a_works_creators_names_come_back_by_creator_labels_and_aliases_alike():
+    """Lowry's item labels him "L. S. Lowry"; Art UK writes his alias "Laurence Stephen Lowry"."""
+    seen = []
+
+    def handler(request):
+        seen.append(_sent_query(request))
+        return _results(
+            {"creator": _uri("Q1354277"), "name": {"value": "L. S. Lowry", "xml:lang": "en"}},
+            {"creator": _uri("Q1354277"), "name": {"value": "Laurence Stephen Lowry", "xml:lang": "en"}},
+            {"creator": _uri("Q1354277"), "name": {"value": "L. S. Lowry", "xml:lang": "fr"}},
+            {"creator": _uri("Q9"), "name": {"value": "Somebody Else"}},
+        )
+
+    names = _registry(handler).creator_names("Q119294634")
+
+    assert names == {
+        "Q1354277": frozenset({"L. S. Lowry", "Laurence Stephen Lowry"}),
+        "Q9": frozenset({"Somebody Else"}),
+    }
+    assert "wd:Q119294634 wdt:P170 ?creator" in seen[0]
+    assert "rdfs:label" in seen[0]
+    assert "skos:altLabel" in seen[0]
+    # Every language: the Pompidou writes "Vassily Kandinsky", a French form.
+    assert "LANG(" not in seen[0]
+
+
+def test_an_unknown_creator_and_an_empty_name_carry_no_names():
+    """An unknown creator is a blank node with no name to compare; a blank name compares with nothing."""
+
+    def handler(request):
+        return _results(
+            {
+                "creator": {"type": "uri", "value": "http://www.wikidata.org/.well-known/genid/abc"},
+                "name": {"value": "Anonymous"},
+            },
+            {"creator": _uri("Q7"), "name": {"value": "  "}},
+            {"creator": _uri("Q7")},
+        )
+
+    assert _registry(handler).creator_names("Q1") == {}
+
+
+def test_a_creator_names_query_refuses_anything_that_is_not_an_item_id():
+    with pytest.raises(ValueError, match="not a Wikidata item id"):
+        _registry(lambda request: _results()).creator_names("Q1 } UNION { ?x ?y ?z")
+
+
+def test_a_creator_names_outage_is_an_outage():
+    with pytest.raises(RegistryUnavailable):
+        _registry(lambda request: httpx.Response(503)).creator_names("Q1")
+
+
 def test_large_lists_are_asked_in_batches():
     asked = []
 
