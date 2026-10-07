@@ -1,0 +1,587 @@
+{
+ "@context": "https://static.getty.edu/contexts/linked.art/ns/v1.1.0/linked-art.json",
+ "id": "https://data.getty.edu/museum/collection/object/b68e003f-99d4-4d23-939a-acde02589f4b",
+ "type": "HumanMadeObject",
+ "_label": "[Copy print of Migrant Mother, Nipomo, California] (84.XP.1445.2)",
+ "classified_as": [
+  {
+   "id": "http://vocab.getty.edu/aat/300133025",
+   "type": "Type",
+   "_label": "Artwork"
+  },
+  {
+   "id": "http://vocab.getty.edu/aat/300046300",
+   "type": "Type",
+   "_label": "Photographs",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300435444",
+     "type": "Type",
+     "_label": "Classification (Category)"
+    }
+   ]
+  },
+  {
+   "id": "https://data.getty.edu/local/thesaurus/object-record-structure-whole",
+   "type": "Type",
+   "_label": "Object Record Structure: Whole",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/local/thesaurus/object-record-structure-type",
+     "type": "Type",
+     "_label": "Object Record Structure Type"
+    }
+   ]
+  }
+ ],
+ "identified_by": [
+  {
+   "id": "https://data.getty.edu/museum/collection/object/b68e003f-99d4-4d23-939a-acde02589f4b/identifier/7ec99000-f9b6-5702-81bb-7c45021e6400",
+   "type": "Identifier",
+   "_label": "Accession Number",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300404626",
+     "type": "Type",
+     "_label": "Identification Number"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300312355",
+     "type": "Type",
+     "_label": "Accession Number"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300404670",
+     "type": "Type",
+     "_label": "Preferred Term"
+    }
+   ],
+   "content": "84.XP.1445.2"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/b68e003f-99d4-4d23-939a-acde02589f4b/name/e43b6e7d-4273-57be-a38d-740e17664d15",
+   "type": "Name",
+   "_label": "Alternate Title",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417193",
+     "type": "Type",
+     "_label": "Titles (General, Names)"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300417227",
+     "type": "Type",
+     "_label": "Alternate Title"
+    },
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/tms/object/titles/primary",
+     "type": "Type",
+     "_label": "Primary Title",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on the `https://data.getty.edu/local/thesaurus/object-title-*` terms instead.",
+      "since": "2020-11-11"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/object-title-primary",
+     "type": "Type",
+     "_label": "Primary Title"
+    }
+   ],
+   "content": "[Copy print of Migrant Mother, Nipomo, California]",
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388277",
+     "type": "Language",
+     "_label": "English (language)"
+    }
+   ]
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/b68e003f-99d4-4d23-939a-acde02589f4b/name/9a395a87-e142-58ee-93d0-50aed9dfc309",
+   "type": "Name",
+   "_label": "Alternate Title",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417193",
+     "type": "Type",
+     "_label": "Titles (General, Names)"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300417227",
+     "type": "Type",
+     "_label": "Alternate Title"
+    },
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/tms/object/titles/alternate",
+     "type": "Type",
+     "_label": "Alternate Title",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on the `https://data.getty.edu/local/thesaurus/object-title-*` terms instead.",
+      "since": "2020-11-11"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/object-title-alternate",
+     "type": "Type",
+     "_label": "Alternate Title"
+    }
+   ],
+   "content": "Migrant Mother, Nipomo, California",
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388277",
+     "type": "Language",
+     "_label": "English (language)"
+    }
+   ]
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/b68e003f-99d4-4d23-939a-acde02589f4b/identifier/dor-id",
+   "type": "Identifier",
+   "_label": "Getty DOR ID",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/dor-id",
+     "type": "Type",
+     "_label": "Getty DOR ID",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on `Getty DOR ID` (https://data.getty.edu/local/thesaurus/dor-id) instead.",
+      "since": "2021-01-05"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/dor-id",
+     "type": "Type",
+     "_label": "Getty DOR ID"
+    }
+   ],
+   "content": "49103"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/b68e003f-99d4-4d23-939a-acde02589f4b/identifier/slug-id",
+   "type": "Identifier",
+   "_label": "Slug Identifier",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/local/thesaurus/slug-identifier",
+     "type": "Type",
+     "_label": "Slug Identifier"
+    }
+   ],
+   "content": "urn:getty-local:idm:object:slug/104CF5"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/b68e003f-99d4-4d23-939a-acde02589f4b/name/e43b6e7d-4273-57be-a38d-740e17664d15",
+   "type": "Name",
+   "_label": "Preferred Title",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417193",
+     "type": "Type",
+     "_label": "Titles (General, Names)"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300404670",
+     "type": "Type",
+     "_label": "Preferred Term"
+    }
+   ],
+   "content": "[Copy print of Migrant Mother, Nipomo, California]",
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388277",
+     "type": "Language",
+     "_label": "English (language)"
+    }
+   ]
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/b68e003f-99d4-4d23-939a-acde02589f4b/identifier/tms-id",
+   "type": "Identifier",
+   "_label": "Gallery Systems' TMS ID",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/tms-id",
+     "type": "Type",
+     "_label": "Gallery Systems' TMS ID",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on `Gallery Systems' TMS ID` (https://data.getty.edu/local/thesaurus/tms-id) instead.",
+      "since": "2021-01-05"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/tms-id",
+     "type": "Type",
+     "_label": "Gallery Systems' TMS ID"
+    }
+   ],
+   "content": "55610"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/b68e003f-99d4-4d23-939a-acde02589f4b/identifier/dor-uuid",
+   "type": "Identifier",
+   "_label": "Getty DOR UUID",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/dor-uuid",
+     "type": "Type",
+     "_label": "Getty DOR UUID",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on `Getty DOR UUID` (https://data.getty.edu/local/thesaurus/dor-uuid) instead.",
+      "since": "2021-01-05"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/dor-uuid",
+     "type": "Type",
+     "_label": "Getty DOR UUID"
+    }
+   ],
+   "content": "b68e003f-99d4-4d23-939a-acde02589f4b"
+  }
+ ],
+ "produced_by": {
+  "id": "https://data.getty.edu/museum/collection/object/b68e003f-99d4-4d23-939a-acde02589f4b/production",
+  "type": "Production",
+  "_label": "Production of Artwork",
+  "timespan": {
+   "id": "https://data.getty.edu/museum/collection/object/b68e003f-99d4-4d23-939a-acde02589f4b/production/timespan",
+   "type": "TimeSpan",
+   "identified_by": [
+    {
+     "id": "https://data.getty.edu/museum/collection/object/b68e003f-99d4-4d23-939a-acde02589f4b/production/timespan/display",
+     "type": "Name",
+     "_label": "Dates",
+     "classified_as": [
+      {
+       "id": "http://vocab.getty.edu/aat/300458798",
+       "type": "Type",
+       "_label": "Display Names"
+      }
+     ],
+     "content": "negative March 1936; print about 1960"
+    }
+   ],
+   "begin_of_the_begin": "1936-01-01T00:00:00",
+   "end_of_the_end": "1960-12-31T23:59:59"
+  },
+  "part": [
+   {
+    "id": "https://data.getty.edu/museum/collection/object/b68e003f-99d4-4d23-939a-acde02589f4b/production/956778be-8094-5134-af56-b247715effe1",
+    "type": "Production",
+    "_label": "Production of Artwork by Dorothea Lange",
+    "referred_to_by": [
+     {
+      "id": "https://data.getty.edu/museum/collection/object/b68e003f-99d4-4d23-939a-acde02589f4b/production/956778be-8094-5134-af56-b247715effe1/producer-description",
+      "type": "LinguisticObject",
+      "_label": "Artist/Maker (Producer) Description",
+      "classified_as": [
+       {
+        "id": "https://data.getty.edu/museum/ontology/linked-data/tms/object/producer-description",
+        "type": "Type",
+        "_label": "Producer Description",
+        "deprecated": {
+         "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+         "replacement": "Filter on `Producer Description` (https://data.getty.edu/local/thesaurus/producer-description) instead.",
+         "since": "2020-11-10"
+        }
+       },
+       {
+        "id": "https://data.getty.edu/local/thesaurus/producer-description",
+        "type": "Type",
+        "_label": "Producer Description"
+       },
+       {
+        "id": "http://vocab.getty.edu/aat/300418049",
+        "type": "Type",
+        "_label": "Brief Text"
+       }
+      ],
+      "content": "Dorothea Lange (American, 1895 - 1965)"
+     },
+     {
+      "id": "https://data.getty.edu/museum/collection/object/b68e003f-99d4-4d23-939a-acde02589f4b/production/956778be-8094-5134-af56-b247715effe1/producer-name",
+      "type": "LinguisticObject",
+      "_label": "Artist/Maker (Producer) Name",
+      "classified_as": [
+       {
+        "id": "https://data.getty.edu/local/thesaurus/producer-name",
+        "type": "Type",
+        "_label": "Producer Name"
+       },
+       {
+        "id": "http://vocab.getty.edu/aat/300418049",
+        "type": "Type",
+        "_label": "Brief Text"
+       }
+      ],
+      "content": "Dorothea Lange"
+     },
+     {
+      "id": "https://data.getty.edu/museum/collection/object/b68e003f-99d4-4d23-939a-acde02589f4b/production/956778be-8094-5134-af56-b247715effe1/producer-nationality-and-dates",
+      "type": "LinguisticObject",
+      "_label": "Artist/Maker (Producer) Nationality & Dates",
+      "classified_as": [
+       {
+        "id": "https://data.getty.edu/local/thesaurus/nationality-and-dates",
+        "type": "Type",
+        "_label": "Producer Nationality & Dates"
+       },
+       {
+        "id": "http://vocab.getty.edu/aat/300418049",
+        "type": "Type",
+        "_label": "Brief Text"
+       }
+      ],
+      "content": "American, 1895 - 1965"
+     }
+    ],
+    "carried_out_by": [
+     {
+      "id": "https://data.getty.edu/museum/collection/person/d6446240-36e4-49d8-a9e7-bf0126c6cd95",
+      "type": "Person",
+      "_label": "Dorothea Lange",
+      "referred_to_by": [
+       {
+        "id": "https://data.getty.edu/museum/collection/object/b68e003f-99d4-4d23-939a-acde02589f4b/production/956778be-8094-5134-af56-b247715effe1/role-statement",
+        "type": "LinguisticObject",
+        "_label": "Artist/Maker (Producer) Role Statement",
+        "classified_as": [
+         {
+          "id": "https://data.getty.edu/museum/ontology/linked-data/object/artist-maker-role-statement",
+          "type": "Type",
+          "_label": "Artist/Maker (Producer) Role Statement",
+          "deprecated": {
+           "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+           "replacement": "Filter on `Artist/Maker Role Statement` (https://data.getty.edu/local/thesaurus/artist-maker-role-statement) instead.",
+           "since": "2020-11-10"
+          }
+         },
+         {
+          "id": "https://data.getty.edu/local/thesaurus/producer-role-statement",
+          "type": "Type",
+          "_label": "Artist/Maker (Producer) Role Statement"
+         },
+         {
+          "id": "http://vocab.getty.edu/aat/300418049",
+          "type": "Type",
+          "_label": "Brief Text"
+         }
+        ],
+        "content": "Photographer",
+        "close_match": [
+         {
+          "id": "http://vocab.getty.edu/aat/300025687",
+          "type": "Type",
+          "_label": "Photographer"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "id": "https://data.getty.edu/museum/collection/object/b68e003f-99d4-4d23-939a-acde02589f4b/production/5755df6d-fef2-5554-8f97-7a34cc2575b2",
+    "type": "Production",
+    "_label": "Production of Artwork by Arthur Rothstein",
+    "referred_to_by": [
+     {
+      "id": "https://data.getty.edu/museum/collection/object/b68e003f-99d4-4d23-939a-acde02589f4b/production/5755df6d-fef2-5554-8f97-7a34cc2575b2/producer-description",
+      "type": "LinguisticObject",
+      "_label": "Artist/Maker (Producer) Description",
+      "classified_as": [
+       {
+        "id": "https://data.getty.edu/museum/ontology/linked-data/tms/object/producer-description",
+        "type": "Type",
+        "_label": "Producer Description",
+        "deprecated": {
+         "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+         "replacement": "Filter on `Producer Description` (https://data.getty.edu/local/thesaurus/producer-description) instead.",
+         "since": "2020-11-10"
+        }
+       },
+       {
+        "id": "https://data.getty.edu/local/thesaurus/producer-description",
+        "type": "Type",
+        "_label": "Producer Description"
+       },
+       {
+        "id": "http://vocab.getty.edu/aat/300418049",
+        "type": "Type",
+        "_label": "Brief Text"
+       }
+      ],
+      "content": "Print by Arthur Rothstein (American, 1915 - 1985)"
+     },
+     {
+      "id": "https://data.getty.edu/museum/collection/object/b68e003f-99d4-4d23-939a-acde02589f4b/production/5755df6d-fef2-5554-8f97-7a34cc2575b2/producer-name",
+      "type": "LinguisticObject",
+      "_label": "Artist/Maker (Producer) Name",
+      "classified_as": [
+       {
+        "id": "https://data.getty.edu/local/thesaurus/producer-name",
+        "type": "Type",
+        "_label": "Producer Name"
+       },
+       {
+        "id": "http://vocab.getty.edu/aat/300418049",
+        "type": "Type",
+        "_label": "Brief Text"
+       }
+      ],
+      "content": "Arthur Rothstein"
+     },
+     {
+      "id": "https://data.getty.edu/museum/collection/object/b68e003f-99d4-4d23-939a-acde02589f4b/production/5755df6d-fef2-5554-8f97-7a34cc2575b2/producer-name-prefix",
+      "type": "LinguisticObject",
+      "_label": "Artist/Maker (Producer) Name Prefix",
+      "classified_as": [
+       {
+        "id": "https://data.getty.edu/local/thesaurus/producer-name-prefix",
+        "type": "Type",
+        "_label": "Producer Name Prefix"
+       },
+       {
+        "id": "http://vocab.getty.edu/aat/300418049",
+        "type": "Type",
+        "_label": "Brief Text"
+       }
+      ],
+      "content": "Print by"
+     },
+     {
+      "id": "https://data.getty.edu/museum/collection/object/b68e003f-99d4-4d23-939a-acde02589f4b/production/5755df6d-fef2-5554-8f97-7a34cc2575b2/producer-nationality-and-dates",
+      "type": "LinguisticObject",
+      "_label": "Artist/Maker (Producer) Nationality & Dates",
+      "classified_as": [
+       {
+        "id": "https://data.getty.edu/local/thesaurus/nationality-and-dates",
+        "type": "Type",
+        "_label": "Producer Nationality & Dates"
+       },
+       {
+        "id": "http://vocab.getty.edu/aat/300418049",
+        "type": "Type",
+        "_label": "Brief Text"
+       }
+      ],
+      "content": "American, 1915 - 1985"
+     }
+    ],
+    "carried_out_by": [
+     {
+      "id": "https://data.getty.edu/museum/collection/person/f53602f3-d580-4fd8-9916-b30d721a3ac2",
+      "type": "Person",
+      "_label": "Arthur Rothstein",
+      "referred_to_by": [
+       {
+        "id": "https://data.getty.edu/museum/collection/object/b68e003f-99d4-4d23-939a-acde02589f4b/production/5755df6d-fef2-5554-8f97-7a34cc2575b2/role-statement",
+        "type": "LinguisticObject",
+        "_label": "Artist/Maker (Producer) Role Statement",
+        "classified_as": [
+         {
+          "id": "https://data.getty.edu/museum/ontology/linked-data/object/artist-maker-role-statement",
+          "type": "Type",
+          "_label": "Artist/Maker (Producer) Role Statement",
+          "deprecated": {
+           "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+           "replacement": "Filter on `Artist/Maker Role Statement` (https://data.getty.edu/local/thesaurus/artist-maker-role-statement) instead.",
+           "since": "2020-11-10"
+          }
+         },
+         {
+          "id": "https://data.getty.edu/local/thesaurus/producer-role-statement",
+          "type": "Type",
+          "_label": "Artist/Maker (Producer) Role Statement"
+         },
+         {
+          "id": "http://vocab.getty.edu/aat/300418049",
+          "type": "Type",
+          "_label": "Brief Text"
+         }
+        ],
+        "content": "Maker",
+        "close_match": [
+         {
+          "id": "http://vocab.getty.edu/aat/300251917",
+          "type": "Type",
+          "_label": "Maker"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "subject_of": [
+  {
+   "id": "https://www.getty.edu/art/collection/object/104CF5",
+   "type": "LinguisticObject",
+   "_label": "Homepage for [Copy print of Migrant Mother, Nipomo, California] (84.XP.1445.2) (HumanMadeObject)",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300264578",
+     "type": "Type",
+     "_label": "Web Page"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300404670",
+     "type": "Type",
+     "_label": "Primary"
+    }
+   ],
+   "format": "text/html"
+  },
+  {
+   "has_format": "https://media.getty.edu/iiif/manifest/3/616b1132-6e8c-40ab-a50d-c765aa57f9b5",
+   "id": "https://media.getty.edu/iiif/manifest/2/616b1132-6e8c-40ab-a50d-c765aa57f9b5",
+   "type": "InformationObject",
+   "_label": "IIIF Manifest URL",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/local/thesaurus/iiif-manifest",
+     "type": "Type",
+     "_label": "IIIF Manifest"
+    }
+   ],
+   "conforms_to": [
+    {
+     "id": "http://iiif.io/api/presentation",
+     "type": "InformationObject",
+     "_label": "IIIF Presentation API"
+    }
+   ],
+   "format": "application/ld+json;profile=\"http://iiif.io/api/presentation/2/context.json\""
+  },
+  {
+   "has_format": "https://media.getty.edu/iiif/manifest/2/616b1132-6e8c-40ab-a50d-c765aa57f9b5",
+   "id": "https://media.getty.edu/iiif/manifest/3/616b1132-6e8c-40ab-a50d-c765aa57f9b5",
+   "type": "InformationObject",
+   "_label": "IIIF Manifest URL",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/local/thesaurus/iiif-manifest",
+     "type": "Type",
+     "_label": "IIIF Manifest"
+    }
+   ],
+   "conforms_to": [
+    {
+     "id": "http://iiif.io/api/presentation",
+     "type": "InformationObject",
+     "_label": "IIIF Presentation API"
+    }
+   ],
+   "format": "application/ld+json;profile=\"http://iiif.io/api/presentation/3/context.json\""
+  }
+ ]
+}

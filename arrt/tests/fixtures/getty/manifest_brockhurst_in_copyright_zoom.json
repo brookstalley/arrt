@@ -1,0 +1,256 @@
+{
+ "@context": "http://iiif.io/api/presentation/3/context.json",
+ "homepage": [
+  {
+   "id": "https://www.getty.edu/art/collection/object/103R9G",
+   "type": "Text"
+  }
+ ],
+ "id": "https://media.getty.edu/iiif/manifest/d2fd6497-54c7-4b63-84ca-27fdee85cb79",
+ "items": [
+  {
+   "height": 4020,
+   "id": "https://media.getty.edu/iiif/manifest/canvas/9c4f0337-7c15-4c58-9fb9-1c74c7d6ad26",
+   "items": [
+    {
+     "id": "https://media.getty.edu/iiif/manifest/annopage/p0",
+     "items": [
+      {
+       "body": {
+        "height": 4020,
+        "id": "https://media.getty.edu/iiif/image/9c4f0337-7c15-4c58-9fb9-1c74c7d6ad26/full/max/0/default.jpg",
+        "service": [
+         {
+          "id": "https://media.getty.edu/iiif/image/9c4f0337-7c15-4c58-9fb9-1c74c7d6ad26",
+          "profile": "level1",
+          "sizes": [
+           {
+            "height": 251,
+            "width": 209
+           },
+           {
+            "height": 502,
+            "width": 418
+           },
+           {
+            "height": 1005,
+            "width": 836
+           },
+           {
+            "height": 2010,
+            "width": 1673
+           }
+          ],
+          "type": "ImageService3"
+         }
+        ],
+        "type": "Image",
+        "width": 3347
+       },
+       "id": "https://media.getty.edu/iiif/manifest/anno-9c4f0337-7c15-4c58-9fb9-1c74c7d6ad26",
+       "motivation": "painting",
+       "target": "https://media.getty.edu/iiif/manifest/canvas/9c4f0337-7c15-4c58-9fb9-1c74c7d6ad26",
+       "type": "Annotation"
+      }
+     ],
+     "type": "AnnotationPage"
+    }
+   ],
+   "label": {
+    "en": [
+     "Main View"
+    ]
+   },
+   "metadata": [
+    {
+     "label": {
+      "en": [
+       "Open Content Quality"
+      ]
+     },
+     "value": {
+      "en": [
+       "No"
+      ]
+     }
+    }
+   ],
+   "rights": "https://rightsstatements.org/vocab/InC/1.0/",
+   "thumbnail": [
+    {
+     "id": "https://media.getty.edu/iiif/image/9c4f0337-7c15-4c58-9fb9-1c74c7d6ad26/full/!600,600/0/default.jpg",
+     "service": [
+      {
+       "id": "https://media.getty.edu/iiif/image/9c4f0337-7c15-4c58-9fb9-1c74c7d6ad26",
+       "profile": "level1",
+       "type": "ImageService3"
+      }
+     ],
+     "type": "Image"
+    }
+   ],
+   "type": "Canvas",
+   "width": 3347
+  }
+ ],
+ "label": {
+  "en": [
+   "Portrait of J. Paul Getty"
+  ]
+ },
+ "metadata": [
+  {
+   "label": {
+    "en": [
+     "Artist/Maker"
+    ]
+   },
+   "value": {
+    "en": [
+     "Gerald L. Brockhurst (English, 1890 - 1978)"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Title"
+    ]
+   },
+   "value": {
+    "en": [
+     "Portrait of J. Paul Getty"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Material"
+    ]
+   },
+   "value": {
+    "en": [
+     "Oil on canvas"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Dimensions"
+    ]
+   },
+   "value": {
+    "en": [
+     "Framed [Outer Dim]: 99.7  87  3.8 cm (39 1/4  34 1/4  1 1/2 in.)",
+     "Unframed: 73.7  61 cm (29  24 in.)"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Accession Number"
+    ]
+   },
+   "value": {
+    "en": [
+     "67.PA.2"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Collection"
+    ]
+   },
+   "value": {
+    "en": [
+     "<a href=\"http://www.getty.edu/art/collection/\">The J. Paul Getty Museum</a>"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Rights Statement"
+    ]
+   },
+   "value": {
+    "en": []
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Date Modified"
+    ]
+   },
+   "value": {
+    "en": [
+     "2026-01-06T08:24:24.843336+00:00"
+    ]
+   }
+  }
+ ],
+ "provider": [
+  {
+   "id": "https://www.getty.edu/about/",
+   "label": {
+    "en": [
+     "J. Paul Getty Trust"
+    ]
+   },
+   "logo": [
+    {
+     "format": "image/png",
+     "height": 529,
+     "id": "https://www.getty.edu/global/images/getty_logo_primary_blk.png",
+     "type": "Image",
+     "width": 486
+    }
+   ],
+   "type": "Agent"
+  }
+ ],
+ "rights": "https://rightsstatements.org/vocab/InC/1.0/",
+ "seeAlso": [
+  {
+   "id": "https://data.getty.edu/museum/collection/object/908259ce-da9f-44c3-ad31-7938a6582fe7",
+   "type": "Text"
+  }
+ ],
+ "structures": [
+  {
+   "id": "https://media.getty.edu/iiif//manifest/range/d2fd6497-54c7-4b63-84ca-27fdee85cb79/default.json",
+   "items": [
+    {
+     "id": "https://media.getty.edu/iiif/manifest/canvas/9c4f0337-7c15-4c58-9fb9-1c74c7d6ad26",
+     "type": "Canvas"
+    }
+   ],
+   "type": "Range"
+  }
+ ],
+ "summary": {
+  "en": [
+   "<p>At age forty-five when he was beginning to collect art in earnest, J. Paul Getty sat for this portrait at Gerald Brockhursts London studio. Getty was on his annual trip to Europe in the summer and fall of 1938, during which he made some of his first major art purchases. It was Brockhurst himself who advised Getty on this occasion to buy the <a href=\"https://www.getty.edu/art/collection/objects/552/thomas-gainsborough-portrait-of-james-christie-1730-1803-english-1778/\"><em>Portrait of James Christie</em></a>, depicting the founder of Christies auction house, by the renowned British artist <a href=\"https://www.getty.edu/art/collection/artists/570/thomas-gainsborough-english-1727-1788/\">Thomas Gainsborough</a> (17271788).</p>\\n<p>Brockhurst was one of the most sought-after British portraitists of the 1930s and 1940s; some of his clients included the actress Marlene Dietrich, heiress Sarah Mellon, and Wallis Simpson, Duchess of Windsor. He paid careful attention to realistically capturing his sitters physical appearance in their contemporary clothes, set against ambiguous landscape backgrounds. In Gettys portrait, the pale sky meets horizontal bands of color, placing him in a nonspecific, timeless setting. The cool blues and grays complement Gettys suit and his composed expression. Unlike other modes of portraiture that might inform viewers about the sitters personality or lifestyle, Brockhursts austere depiction of Getty reveals little beyond the physical appearance of the man.</p>"
+  ]
+ },
+ "thumbnail": [
+  {
+   "id": "https://media.getty.edu/iiif/image/9c4f0337-7c15-4c58-9fb9-1c74c7d6ad26/full/!600,600/0/default.jpg",
+   "service": [
+    {
+     "id": "https://media.getty.edu/iiif/image/9c4f0337-7c15-4c58-9fb9-1c74c7d6ad26",
+     "profile": "level1",
+     "type": "ImageService3"
+    }
+   ],
+   "type": "Image"
+  }
+ ],
+ "type": "Manifest"
+}

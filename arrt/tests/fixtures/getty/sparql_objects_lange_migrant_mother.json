@@ -1,0 +1,23 @@
+{
+ "head": {
+  "vars": [
+   "object"
+  ]
+ },
+ "results": {
+  "bindings": [
+   {
+    "object": {
+     "type": "uri",
+     "value": "https://data.getty.edu/museum/collection/object/5e3e8ca9-7c83-42f5-9739-078d4a0e1266"
+    }
+   },
+   {
+    "object": {
+     "type": "uri",
+     "value": "https://data.getty.edu/museum/collection/object/b68e003f-99d4-4d23-939a-acde02589f4b"
+    }
+   }
+  ]
+ }
+}

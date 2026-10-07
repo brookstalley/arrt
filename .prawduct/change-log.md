@@ -62,6 +62,34 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-07: the Getty as a built-in source, through its SPARQL endpoint, Linked Art records and IIIF
+
+<!-- prawduct: scope=getty-source -->
+
+**Why:** arrt#230, asked for by the owner on 2026-10-07 after Yale. Measured the
+same day (`linked-art-findings.md` § Getty): only 30 Wikidata items with a Getty
+ID lack an image, while the museum holds 124,301 objects with images. So the
+plugin searches as well as following the item.
+
+**What:** a built-in `getty` plugin (`library/sources/getty.py`). The finder maps
+the slugs of the item's Getty pages (P2582) to Linked Art records in one query to
+the museum's SPARQL endpoint, and reports each under the page as the item spells
+it. When the item names none the Getty knows, or the work has no item, it asks
+for the maker by name and then for that maker's objects whose titles hold the
+title's words. A work with no maker is not searched for, because the endpoint has
+no text index and a scan takes 11–14 s. Title and maker come from the record,
+since the manifest drops non-ASCII letters. The title is the record's title equal
+to the one asked, else Getty's preferred one. The maker keeps Getty's attribution
+("Workshop of", "and workshop"). The image is the v3 manifest's first canvas, and
+rights are the manifest's per-object `rights` (CC0, `InC`, `InC-RUU`). Works the
+Getty keeps at 600 px are found as placeholders. The reader answers one request for
+originals up to the service's declared 30,000 px. It reads no web page. The
+built-in enumerations, the plugin guide's examples table and the security model
+name it. `getty` sorts third in the default order, ahead of `met`. That changes
+only which image wins a tie, since every finder is asked at once. A hand mutation sweep of 48 mutations left 4 survivors: one inert check
+was deleted, and the other three got tests. The live check
+(`test_getty_shapes_are_still_real.py`) passed 7 of 7 on 2026-10-07.
+
 ## 2026-10-07: IIIF parsers in the plugin interface (1.3), and Yale through its manifests as a built-in source
 
 <!-- prawduct: scope=yale-source -->

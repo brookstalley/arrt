@@ -1,0 +1,569 @@
+{
+ "@context": "https://static.getty.edu/contexts/linked.art/ns/v1.1.0/linked-art.json",
+ "id": "https://data.getty.edu/museum/collection/object/001c456d-e137-4fd1-ba3a-68b7df327776",
+ "type": "HumanMadeObject",
+ "_label": "Rocky Bear, Sioux (84.XM.200.7)",
+ "classified_as": [
+  {
+   "id": "http://vocab.getty.edu/aat/300133025",
+   "type": "Type",
+   "_label": "Artwork"
+  },
+  {
+   "id": "http://vocab.getty.edu/aat/300046300",
+   "type": "Type",
+   "_label": "Photographs",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300435444",
+     "type": "Type",
+     "_label": "Classification (Category)"
+    }
+   ]
+  },
+  {
+   "id": "https://data.getty.edu/local/thesaurus/object-record-structure-whole",
+   "type": "Type",
+   "_label": "Object Record Structure: Whole",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/local/thesaurus/object-record-structure-type",
+     "type": "Type",
+     "_label": "Object Record Structure Type"
+    }
+   ]
+  }
+ ],
+ "identified_by": [
+  {
+   "id": "https://data.getty.edu/museum/collection/object/001c456d-e137-4fd1-ba3a-68b7df327776/identifier/476851ba-3b87-53b8-b370-67c66a8a4435",
+   "type": "Identifier",
+   "_label": "Accession Number",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300404626",
+     "type": "Type",
+     "_label": "Identification Number"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300312355",
+     "type": "Type",
+     "_label": "Accession Number"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300404670",
+     "type": "Type",
+     "_label": "Preferred Term"
+    }
+   ],
+   "content": "84.XM.200.7"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/001c456d-e137-4fd1-ba3a-68b7df327776/name/93e79715-b378-5e4c-b783-10803125e8f0",
+   "type": "Name",
+   "_label": "Alternate Title",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417193",
+     "type": "Type",
+     "_label": "Titles (General, Names)"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300417227",
+     "type": "Type",
+     "_label": "Alternate Title"
+    },
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/tms/object/titles/primary",
+     "type": "Type",
+     "_label": "Primary Title",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on the `https://data.getty.edu/local/thesaurus/object-title-*` terms instead.",
+      "since": "2020-11-11"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/object-title-primary",
+     "type": "Type",
+     "_label": "Primary Title"
+    }
+   ],
+   "content": "Rocky Bear, Sioux",
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388277",
+     "type": "Language",
+     "_label": "English (language)"
+    }
+   ]
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/001c456d-e137-4fd1-ba3a-68b7df327776/name/e5df6549-1a23-5b27-9c29-6f9cd871de04",
+   "type": "Name",
+   "_label": "Alternate Title",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417193",
+     "type": "Type",
+     "_label": "Titles (General, Names)"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300417227",
+     "type": "Type",
+     "_label": "Alternate Title"
+    },
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/tms/object/titles/group",
+     "type": "Type",
+     "_label": "Group Title",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on the `https://data.getty.edu/local/thesaurus/object-title-*` terms instead.",
+      "since": "2020-11-11"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/object-title-group",
+     "type": "Type",
+     "_label": "Group Title"
+    }
+   ],
+   "content": "Rinehart's American Indians, portfolio 1 (of 4)",
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388277",
+     "type": "Language",
+     "_label": "English (language)"
+    }
+   ]
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/001c456d-e137-4fd1-ba3a-68b7df327776/identifier/dor-id",
+   "type": "Identifier",
+   "_label": "Getty DOR ID",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/dor-id",
+     "type": "Type",
+     "_label": "Getty DOR ID",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on `Getty DOR ID` (https://data.getty.edu/local/thesaurus/dor-id) instead.",
+      "since": "2021-01-05"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/dor-id",
+     "type": "Type",
+     "_label": "Getty DOR ID"
+    }
+   ],
+   "content": "36668"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/001c456d-e137-4fd1-ba3a-68b7df327776/identifier/slug-id",
+   "type": "Identifier",
+   "_label": "Slug Identifier",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/local/thesaurus/slug-identifier",
+     "type": "Type",
+     "_label": "Slug Identifier"
+    }
+   ],
+   "content": "urn:getty-local:idm:object:slug/10435K"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/001c456d-e137-4fd1-ba3a-68b7df327776/name/93e79715-b378-5e4c-b783-10803125e8f0",
+   "type": "Name",
+   "_label": "Preferred Title",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417193",
+     "type": "Type",
+     "_label": "Titles (General, Names)"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300404670",
+     "type": "Type",
+     "_label": "Preferred Term"
+    }
+   ],
+   "content": "Rocky Bear, Sioux",
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388277",
+     "type": "Language",
+     "_label": "English (language)"
+    }
+   ]
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/001c456d-e137-4fd1-ba3a-68b7df327776/identifier/tms-id",
+   "type": "Identifier",
+   "_label": "Gallery Systems' TMS ID",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/tms-id",
+     "type": "Type",
+     "_label": "Gallery Systems' TMS ID",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on `Gallery Systems' TMS ID` (https://data.getty.edu/local/thesaurus/tms-id) instead.",
+      "since": "2021-01-05"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/tms-id",
+     "type": "Type",
+     "_label": "Gallery Systems' TMS ID"
+    }
+   ],
+   "content": "43165"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/001c456d-e137-4fd1-ba3a-68b7df327776/identifier/dor-uuid",
+   "type": "Identifier",
+   "_label": "Getty DOR UUID",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/dor-uuid",
+     "type": "Type",
+     "_label": "Getty DOR UUID",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on `Getty DOR UUID` (https://data.getty.edu/local/thesaurus/dor-uuid) instead.",
+      "since": "2021-01-05"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/dor-uuid",
+     "type": "Type",
+     "_label": "Getty DOR UUID"
+    }
+   ],
+   "content": "001c456d-e137-4fd1-ba3a-68b7df327776"
+  }
+ ],
+ "produced_by": {
+  "id": "https://data.getty.edu/museum/collection/object/001c456d-e137-4fd1-ba3a-68b7df327776/production",
+  "type": "Production",
+  "_label": "Production of Artwork",
+  "timespan": {
+   "id": "https://data.getty.edu/museum/collection/object/001c456d-e137-4fd1-ba3a-68b7df327776/production/timespan",
+   "type": "TimeSpan",
+   "identified_by": [
+    {
+     "id": "https://data.getty.edu/museum/collection/object/001c456d-e137-4fd1-ba3a-68b7df327776/production/timespan/display",
+     "type": "Name",
+     "_label": "Dates",
+     "classified_as": [
+      {
+       "id": "http://vocab.getty.edu/aat/300458798",
+       "type": "Type",
+       "_label": "Display Names"
+      }
+     ],
+     "content": "1899"
+    }
+   ],
+   "begin_of_the_begin": "1899-01-01T00:00:00",
+   "end_of_the_end": "1899-12-31T23:59:59"
+  },
+  "part": [
+   {
+    "id": "https://data.getty.edu/museum/collection/object/001c456d-e137-4fd1-ba3a-68b7df327776/production/2b7037d8-c217-51f8-956a-1684e4899e89",
+    "type": "Production",
+    "_label": "Production of Artwork by Adolph F. Muhr",
+    "referred_to_by": [
+     {
+      "id": "https://data.getty.edu/museum/collection/object/001c456d-e137-4fd1-ba3a-68b7df327776/production/2b7037d8-c217-51f8-956a-1684e4899e89/producer-description",
+      "type": "LinguisticObject",
+      "_label": "Artist/Maker (Producer) Description",
+      "classified_as": [
+       {
+        "id": "https://data.getty.edu/museum/ontology/linked-data/tms/object/producer-description",
+        "type": "Type",
+        "_label": "Producer Description",
+        "deprecated": {
+         "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+         "replacement": "Filter on `Producer Description` (https://data.getty.edu/local/thesaurus/producer-description) instead.",
+         "since": "2020-11-10"
+        }
+       },
+       {
+        "id": "https://data.getty.edu/local/thesaurus/producer-description",
+        "type": "Type",
+        "_label": "Producer Description"
+       },
+       {
+        "id": "http://vocab.getty.edu/aat/300418049",
+        "type": "Type",
+        "_label": "Brief Text"
+       }
+      ],
+      "content": "Adolph F. Muhr (American, died 1913)"
+     },
+     {
+      "id": "https://data.getty.edu/museum/collection/object/001c456d-e137-4fd1-ba3a-68b7df327776/production/2b7037d8-c217-51f8-956a-1684e4899e89/producer-name",
+      "type": "LinguisticObject",
+      "_label": "Artist/Maker (Producer) Name",
+      "classified_as": [
+       {
+        "id": "https://data.getty.edu/local/thesaurus/producer-name",
+        "type": "Type",
+        "_label": "Producer Name"
+       },
+       {
+        "id": "http://vocab.getty.edu/aat/300418049",
+        "type": "Type",
+        "_label": "Brief Text"
+       }
+      ],
+      "content": "Adolph F. Muhr"
+     },
+     {
+      "id": "https://data.getty.edu/museum/collection/object/001c456d-e137-4fd1-ba3a-68b7df327776/production/2b7037d8-c217-51f8-956a-1684e4899e89/producer-nationality-and-dates",
+      "type": "LinguisticObject",
+      "_label": "Artist/Maker (Producer) Nationality & Dates",
+      "classified_as": [
+       {
+        "id": "https://data.getty.edu/local/thesaurus/nationality-and-dates",
+        "type": "Type",
+        "_label": "Producer Nationality & Dates"
+       },
+       {
+        "id": "http://vocab.getty.edu/aat/300418049",
+        "type": "Type",
+        "_label": "Brief Text"
+       }
+      ],
+      "content": "American, died 1913"
+     }
+    ],
+    "carried_out_by": [
+     {
+      "id": "https://data.getty.edu/museum/collection/person/0f7f305e-d8a6-4879-b220-bdabecc0b9ba",
+      "type": "Person",
+      "_label": "Adolph F. Muhr",
+      "referred_to_by": [
+       {
+        "id": "https://data.getty.edu/museum/collection/object/001c456d-e137-4fd1-ba3a-68b7df327776/production/2b7037d8-c217-51f8-956a-1684e4899e89/role-statement",
+        "type": "LinguisticObject",
+        "_label": "Artist/Maker (Producer) Role Statement",
+        "classified_as": [
+         {
+          "id": "https://data.getty.edu/museum/ontology/linked-data/object/artist-maker-role-statement",
+          "type": "Type",
+          "_label": "Artist/Maker (Producer) Role Statement",
+          "deprecated": {
+           "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+           "replacement": "Filter on `Artist/Maker Role Statement` (https://data.getty.edu/local/thesaurus/artist-maker-role-statement) instead.",
+           "since": "2020-11-10"
+          }
+         },
+         {
+          "id": "https://data.getty.edu/local/thesaurus/producer-role-statement",
+          "type": "Type",
+          "_label": "Artist/Maker (Producer) Role Statement"
+         },
+         {
+          "id": "http://vocab.getty.edu/aat/300418049",
+          "type": "Type",
+          "_label": "Brief Text"
+         }
+        ],
+        "content": "Photographer",
+        "close_match": [
+         {
+          "id": "http://vocab.getty.edu/aat/300025687",
+          "type": "Type",
+          "_label": "Photographer"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "id": "https://data.getty.edu/museum/collection/object/001c456d-e137-4fd1-ba3a-68b7df327776/production/ceeae2bc-8d53-5126-8f41-68476834211f",
+    "type": "Production",
+    "_label": "Production of Artwork by Frank A. Rinehart",
+    "referred_to_by": [
+     {
+      "id": "https://data.getty.edu/museum/collection/object/001c456d-e137-4fd1-ba3a-68b7df327776/production/ceeae2bc-8d53-5126-8f41-68476834211f/producer-description",
+      "type": "LinguisticObject",
+      "_label": "Artist/Maker (Producer) Description",
+      "classified_as": [
+       {
+        "id": "https://data.getty.edu/museum/ontology/linked-data/tms/object/producer-description",
+        "type": "Type",
+        "_label": "Producer Description",
+        "deprecated": {
+         "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+         "replacement": "Filter on `Producer Description` (https://data.getty.edu/local/thesaurus/producer-description) instead.",
+         "since": "2020-11-10"
+        }
+       },
+       {
+        "id": "https://data.getty.edu/local/thesaurus/producer-description",
+        "type": "Type",
+        "_label": "Producer Description"
+       },
+       {
+        "id": "http://vocab.getty.edu/aat/300418049",
+        "type": "Type",
+        "_label": "Brief Text"
+       }
+      ],
+      "content": "Frank A. Rinehart (American, 1861 - 1928)"
+     },
+     {
+      "id": "https://data.getty.edu/museum/collection/object/001c456d-e137-4fd1-ba3a-68b7df327776/production/ceeae2bc-8d53-5126-8f41-68476834211f/producer-name",
+      "type": "LinguisticObject",
+      "_label": "Artist/Maker (Producer) Name",
+      "classified_as": [
+       {
+        "id": "https://data.getty.edu/local/thesaurus/producer-name",
+        "type": "Type",
+        "_label": "Producer Name"
+       },
+       {
+        "id": "http://vocab.getty.edu/aat/300418049",
+        "type": "Type",
+        "_label": "Brief Text"
+       }
+      ],
+      "content": "Frank A. Rinehart"
+     },
+     {
+      "id": "https://data.getty.edu/museum/collection/object/001c456d-e137-4fd1-ba3a-68b7df327776/production/ceeae2bc-8d53-5126-8f41-68476834211f/producer-nationality-and-dates",
+      "type": "LinguisticObject",
+      "_label": "Artist/Maker (Producer) Nationality & Dates",
+      "classified_as": [
+       {
+        "id": "https://data.getty.edu/local/thesaurus/nationality-and-dates",
+        "type": "Type",
+        "_label": "Producer Nationality & Dates"
+       },
+       {
+        "id": "http://vocab.getty.edu/aat/300418049",
+        "type": "Type",
+        "_label": "Brief Text"
+       }
+      ],
+      "content": "American, 1861 - 1928"
+     }
+    ],
+    "carried_out_by": [
+     {
+      "id": "https://data.getty.edu/museum/collection/person/c10debda-f91d-4f90-b750-165c3804ddab",
+      "type": "Person",
+      "_label": "Frank A. Rinehart",
+      "referred_to_by": [
+       {
+        "id": "https://data.getty.edu/museum/collection/object/001c456d-e137-4fd1-ba3a-68b7df327776/production/ceeae2bc-8d53-5126-8f41-68476834211f/role-statement",
+        "type": "LinguisticObject",
+        "_label": "Artist/Maker (Producer) Role Statement",
+        "classified_as": [
+         {
+          "id": "https://data.getty.edu/museum/ontology/linked-data/object/artist-maker-role-statement",
+          "type": "Type",
+          "_label": "Artist/Maker (Producer) Role Statement",
+          "deprecated": {
+           "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+           "replacement": "Filter on `Artist/Maker Role Statement` (https://data.getty.edu/local/thesaurus/artist-maker-role-statement) instead.",
+           "since": "2020-11-10"
+          }
+         },
+         {
+          "id": "https://data.getty.edu/local/thesaurus/producer-role-statement",
+          "type": "Type",
+          "_label": "Artist/Maker (Producer) Role Statement"
+         },
+         {
+          "id": "http://vocab.getty.edu/aat/300418049",
+          "type": "Type",
+          "_label": "Brief Text"
+         }
+        ],
+        "content": "Publisher",
+        "close_match": [
+         {
+          "id": "http://vocab.getty.edu/aat/300025574",
+          "type": "Type",
+          "_label": "Publisher"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "subject_of": [
+  {
+   "id": "https://www.getty.edu/art/collection/object/10435K",
+   "type": "LinguisticObject",
+   "_label": "Homepage for Rocky Bear, Sioux (84.XM.200.7) (HumanMadeObject)",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300264578",
+     "type": "Type",
+     "_label": "Web Page"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300404670",
+     "type": "Type",
+     "_label": "Primary"
+    }
+   ],
+   "format": "text/html"
+  },
+  {
+   "has_format": "https://media.getty.edu/iiif/manifest/3/bfc37fbc-08dc-408c-a4c5-88f5bfc1052c",
+   "id": "https://media.getty.edu/iiif/manifest/2/bfc37fbc-08dc-408c-a4c5-88f5bfc1052c",
+   "type": "InformationObject",
+   "_label": "IIIF Manifest URL",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/local/thesaurus/iiif-manifest",
+     "type": "Type",
+     "_label": "IIIF Manifest"
+    }
+   ],
+   "conforms_to": [
+    {
+     "id": "http://iiif.io/api/presentation",
+     "type": "InformationObject",
+     "_label": "IIIF Presentation API"
+    }
+   ],
+   "format": "application/ld+json;profile=\"http://iiif.io/api/presentation/2/context.json\""
+  },
+  {
+   "has_format": "https://media.getty.edu/iiif/manifest/2/bfc37fbc-08dc-408c-a4c5-88f5bfc1052c",
+   "id": "https://media.getty.edu/iiif/manifest/3/bfc37fbc-08dc-408c-a4c5-88f5bfc1052c",
+   "type": "InformationObject",
+   "_label": "IIIF Manifest URL",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/local/thesaurus/iiif-manifest",
+     "type": "Type",
+     "_label": "IIIF Manifest"
+    }
+   ],
+   "conforms_to": [
+    {
+     "id": "http://iiif.io/api/presentation",
+     "type": "InformationObject",
+     "_label": "IIIF Presentation API"
+    }
+   ],
+   "format": "application/ld+json;profile=\"http://iiif.io/api/presentation/3/context.json\""
+  }
+ ]
+}
