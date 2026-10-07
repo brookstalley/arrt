@@ -62,6 +62,34 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-07: the Rijksmuseum as a built-in source, through its Linked Art records, its search and IIIF
+
+<!-- prawduct: scope=rijksmuseum-source -->
+
+**Why:** arrt#226, asked for by the owner on 2026-10-07, the last of the Linked Art
+tier. The museum holds the largest open volume measured, almost none of it reachable
+through Wikidata (`linked-art-findings.md` § The Rijksmuseum). The robots.txt
+ruling it waited on was made the same day.
+
+**What:** a built-in `rijksmuseum` plugin (`library/sources/rijksmuseum.py`). The
+finder reads the item's `id.rijksmuseum.nl` records (P13234) and reports each under
+the URL as the item spells it. When the item names none the museum knows, or the work
+has no item, it searches the collection by title and maker among objects with an
+image. If an accented maker finds nothing, it asks once more without the accents,
+because the museum folds them for some makers and not others. A work with no maker
+is not searched for. The image is three records away (VisualItem, DigitalObject,
+access point on `iiif.micr.io`), and its rights are the VisualItem's (Public Domain
+Mark, `InC`). In-copyright works the museum marks not downloadable are found like
+any other. The maker is the first part of the production naming one. An
+attribution ("attributed to …", "(possibly)") is kept, and evidence ("(signed by
+artist)", "(mentioned on object)") is dropped. The image service declares 17.55 MP,
+so most originals are tiled under `TILE_MAX_PIXELS`, and the rest are fetched in
+one request. It reads no web page. The built-in enumerations, the plugin guide's
+examples table and the security model name it. A mutation sweep of 46 mutations left
+4 survivors. One was an inert check (the access point's shape already pins the
+image host), which was deleted. The other three got tests. The live check
+(`test_rijksmuseum_shapes_are_still_real.py`) passed 8 of 8 on 2026-10-07.
+
 ## 2026-10-07: the Getty as a built-in source, through its SPARQL endpoint, Linked Art records and IIIF
 
 <!-- prawduct: scope=getty-source -->

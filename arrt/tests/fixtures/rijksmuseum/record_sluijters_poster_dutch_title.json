@@ -1,0 +1,453 @@
+{
+ "@context": "https://linked.art/ns/v1/linked-art.json",
+ "id": "https://id.rijksmuseum.nl/200656394",
+ "type": "HumanMadeObject",
+ "identified_by": [
+  {
+   "type": "Identifier",
+   "content": "RP-P-2015-26-2010",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300312355",
+     "type": "Type"
+    },
+    {
+     "id": "https://id.rijksmuseum.nl/22015218",
+     "type": "Type",
+     "notation": [
+      {
+       "@language": "nl",
+       "@value": "objectnummer"
+      },
+      {
+       "@language": "en",
+       "@value": "object number"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "type": "Name",
+   "content": "Affiche voor Zegepraal door Israël Querido",
+   "identified_by": [
+    {
+     "type": "Identifier",
+     "content": "1",
+     "classified_as": [
+      {
+       "id": "http://vocab.getty.edu/aat/300456575",
+       "type": "Type"
+      }
+     ]
+    }
+   ],
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417200",
+     "type": "Type"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300404670",
+     "type": "Type",
+     "classified_as": [
+      {
+       "id": "http://vocab.getty.edu/aat/300418049",
+       "type": "Type",
+       "_label": "brief text"
+      }
+     ]
+    }
+   ],
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388256",
+     "type": "Language"
+    }
+   ]
+  }
+ ],
+ "produced_by": {
+  "type": "Production",
+  "technique": [
+   {
+    "id": "https://id.rijksmuseum.nl/2202247",
+    "type": "Type",
+    "identified_by": [
+     {
+      "type": "Identifier",
+      "assigned_by": [
+       {
+        "type": "AttributeAssignment",
+        "assigned": [
+         "https://id.rijksmuseum.nl/200656394"
+        ],
+        "assigned_property": "influenced_by"
+       }
+      ],
+      "content": "1",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300456575",
+        "type": "Type"
+       }
+      ]
+     }
+    ],
+    "notation": [
+     {
+      "@language": "en",
+      "@value": "color lithography"
+     },
+     {
+      "@language": "nl",
+      "@value": "kleurenlithografie (procedé)"
+     }
+    ],
+    "equivalent": [
+     {
+      "id": "http://vocab.getty.edu/aat/300190525",
+      "type": "Type"
+     }
+    ]
+   }
+  ],
+  "timespan": {
+   "type": "TimeSpan",
+   "identified_by": [
+    {
+     "type": "Name",
+     "content": "1923",
+     "language": [
+      {
+       "id": "http://vocab.getty.edu/aat/300388277",
+       "type": "Language"
+      }
+     ]
+    },
+    {
+     "type": "Name",
+     "content": "1923",
+     "language": [
+      {
+       "id": "http://vocab.getty.edu/aat/300388256",
+       "type": "Language"
+      }
+     ]
+    }
+   ],
+   "begin_of_the_begin": "1923-01-01T00:00:00Z",
+   "end_of_the_end": "1923-12-31T23:59:59Z"
+  },
+  "referred_to_by": [
+   {
+    "type": "LinguisticObject",
+    "content": "Jan Sluijters (mentioned on object)",
+    "classified_as": [
+     {
+      "id": "http://vocab.getty.edu/aat/300435416",
+      "type": "Type"
+     }
+    ],
+    "language": [
+     {
+      "id": "http://vocab.getty.edu/aat/300388277",
+      "type": "Language"
+     }
+    ]
+   },
+   {
+    "type": "LinguisticObject",
+    "content": "Jan Sluijters (vermeld op object)",
+    "classified_as": [
+     {
+      "id": "http://vocab.getty.edu/aat/300435416",
+      "type": "Type"
+     }
+    ],
+    "language": [
+     {
+      "id": "http://vocab.getty.edu/aat/300388256",
+      "type": "Language"
+     }
+    ]
+   }
+  ],
+  "part": [
+   {
+    "type": "Production",
+    "assigned_by": [
+     {
+      "type": "AttributeAssignment",
+      "assigned": [
+       {
+        "id": "https://id.rijksmuseum.nl/21029231",
+        "type": "Person"
+       }
+      ],
+      "assigned_property": "carried_out_by",
+      "motivated_by": [
+       {
+        "type": "LinguisticObject",
+        "carried_by": [
+         "https://id.rijksmuseum.nl/200656394"
+        ],
+        "classified_as": [
+         {
+          "id": "http://vocab.getty.edu/aat/300028702",
+          "type": "Type"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "identified_by": [
+     {
+      "type": "Identifier",
+      "content": "1",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300456575",
+        "type": "Type"
+       }
+      ]
+     }
+    ],
+    "classified_as": [
+     {
+      "id": "http://vocab.getty.edu/aat/300404450",
+      "type": "Type"
+     }
+    ],
+    "technique": [
+     {
+      "id": "https://id.rijksmuseum.nl/2202348",
+      "type": "Type",
+      "notation": [
+       {
+        "@language": "nl",
+        "@value": "prentmaker"
+       },
+       {
+        "@language": "en",
+        "@value": "printmaker"
+       }
+      ],
+      "equivalent": [
+       {
+        "id": "http://vocab.getty.edu/aat/300025164",
+        "type": "Type"
+       }
+      ]
+     }
+    ],
+    "referred_to_by": [
+     {
+      "type": "LinguisticObject",
+      "content": "Jan Sluijters (mentioned on object)",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300435417",
+        "type": "Type"
+       }
+      ],
+      "language": [
+       {
+        "id": "http://vocab.getty.edu/aat/300388277",
+        "type": "Language"
+       }
+      ]
+     },
+     {
+      "type": "LinguisticObject",
+      "content": "Jan Sluijters (vermeld op object)",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300435417",
+        "type": "Type"
+       }
+      ],
+      "language": [
+       {
+        "id": "http://vocab.getty.edu/aat/300388256",
+        "type": "Language"
+       }
+      ]
+     },
+     {
+      "type": "LinguisticObject",
+      "content": "prentmaker: Jan Sluijters (vermeld op object)",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300435416",
+        "type": "Type"
+       }
+      ],
+      "language": [
+       {
+        "id": "http://vocab.getty.edu/aat/300388256",
+        "type": "Language"
+       }
+      ]
+     },
+     {
+      "type": "LinguisticObject",
+      "content": "printmaker: Jan Sluijters (mentioned on object)",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300435416",
+        "type": "Type"
+       }
+      ],
+      "language": [
+       {
+        "id": "http://vocab.getty.edu/aat/300388277",
+        "type": "Language"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "Production",
+    "assigned_by": [
+     {
+      "type": "AttributeAssignment",
+      "assigned": [
+       {
+        "id": "https://id.rijksmuseum.nl/21038856",
+        "type": "Group"
+       }
+      ],
+      "assigned_property": "carried_out_by",
+      "motivated_by": [
+       {
+        "type": "LinguisticObject",
+        "carried_by": [
+         "https://id.rijksmuseum.nl/200656394"
+        ],
+        "classified_as": [
+         {
+          "id": "http://vocab.getty.edu/aat/300028702",
+          "type": "Type"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "identified_by": [
+     {
+      "type": "Identifier",
+      "content": "2",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300456575",
+        "type": "Type"
+       }
+      ]
+     }
+    ],
+    "classified_as": [
+     {
+      "id": "http://vocab.getty.edu/aat/300379012",
+      "type": "Type"
+     }
+    ],
+    "technique": [
+     {
+      "id": "https://id.rijksmuseum.nl/2205148",
+      "type": "Type",
+      "notation": [
+       {
+        "@language": "en",
+        "@value": "publisher"
+       },
+       {
+        "@language": "nl",
+        "@value": "uitgever"
+       }
+      ],
+      "equivalent": [
+       {
+        "id": "http://vocab.getty.edu/aat/300025574",
+        "type": "Type"
+       }
+      ]
+     }
+    ],
+    "referred_to_by": [
+     {
+      "type": "LinguisticObject",
+      "content": "publisher: Scheltens & Giltay (mentioned on object), Amsterdam",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300435416",
+        "type": "Type"
+       }
+      ],
+      "language": [
+       {
+        "id": "http://vocab.getty.edu/aat/300388277",
+        "type": "Language"
+       }
+      ]
+     },
+     {
+      "type": "LinguisticObject",
+      "content": "uitgever: Scheltens & Giltay (vermeld op object), Amsterdam",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300435416",
+        "type": "Type"
+       }
+      ],
+      "language": [
+       {
+        "id": "http://vocab.getty.edu/aat/300388256",
+        "type": "Language"
+       }
+      ]
+     }
+    ],
+    "took_place_at": [
+     {
+      "id": "https://id.rijksmuseum.nl/23029985",
+      "type": "Place",
+      "notation": [
+       {
+        "@language": "en",
+        "@value": "Amsterdam"
+       },
+       {
+        "@language": "nl",
+        "@value": "Amsterdam"
+       }
+      ],
+      "equivalent": [
+       {
+        "id": "http://www.wikidata.org/entity/Q727",
+        "type": "Place"
+       },
+       {
+        "id": "http://vocab.getty.edu/tgn/7006952",
+        "type": "Place"
+       },
+       {
+        "id": "https://sws.geonames.org/2759794/",
+        "type": "Place"
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "shows": [
+  {
+   "id": "https://id.rijksmuseum.nl/202656394",
+   "type": "VisualItem"
+  }
+ ]
+}

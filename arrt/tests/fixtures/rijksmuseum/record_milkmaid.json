@@ -1,0 +1,472 @@
+{
+ "@context": "https://linked.art/ns/v1/linked-art.json",
+ "id": "https://id.rijksmuseum.nl/200108369",
+ "type": "HumanMadeObject",
+ "identified_by": [
+  {
+   "type": "Name",
+   "content": "De melkmeid",
+   "identified_by": [
+    {
+     "type": "Identifier",
+     "content": "2",
+     "classified_as": [
+      {
+       "id": "http://vocab.getty.edu/aat/300456575",
+       "type": "Type"
+      }
+     ]
+    }
+   ],
+   "classified_as": [
+    {
+     "id": "https://id.rijksmuseum.nl/22015528",
+     "type": "Type",
+     "notation": [
+      {
+       "@language": "en",
+       "@value": "former title"
+      },
+      {
+       "@language": "nl",
+       "@value": "voormalige titel"
+      }
+     ]
+    }
+   ],
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388256",
+     "type": "Language"
+    }
+   ]
+  },
+  {
+   "type": "Name",
+   "content": "The Milkmaid",
+   "identified_by": [
+    {
+     "type": "Identifier",
+     "content": "1",
+     "classified_as": [
+      {
+       "id": "http://vocab.getty.edu/aat/300456575",
+       "type": "Type"
+      }
+     ]
+    }
+   ],
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417200",
+     "type": "Type"
+    }
+   ],
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388277",
+     "type": "Language"
+    }
+   ],
+   "translation_of": [
+    {
+     "id": "_:b52",
+     "type": "Name",
+     "content": "Het melkmeisje",
+     "identified_by": [
+      {
+       "id": "_:b153",
+       "type": "Identifier",
+       "content": "1",
+       "classified_as": [
+        {
+         "id": "http://vocab.getty.edu/aat/300456575",
+         "type": "Type"
+        }
+       ]
+      }
+     ],
+     "classified_as": [
+      {
+       "id": "http://vocab.getty.edu/aat/300417200",
+       "type": "Type"
+      }
+     ],
+     "language": [
+      {
+       "id": "http://vocab.getty.edu/aat/300388256",
+       "type": "Language"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "_:b49",
+   "type": "Name",
+   "content": "The Milkmaid",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417207",
+     "type": "Type"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300404670",
+     "type": "Type",
+     "classified_as": [
+      {
+       "id": "http://vocab.getty.edu/aat/300418049",
+       "type": "Type",
+       "_label": "brief text"
+      }
+     ]
+    }
+   ],
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388277",
+     "type": "Language"
+    }
+   ]
+  },
+  {
+   "type": "Identifier",
+   "content": "SK-A-2344",
+   "classified_as": [
+    {
+     "id": "https://id.rijksmuseum.nl/22015218",
+     "type": "Type",
+     "notation": [
+      {
+       "@language": "nl",
+       "@value": "objectnummer"
+      },
+      {
+       "@language": "en",
+       "@value": "object number"
+      }
+     ]
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300312355",
+     "type": "Type"
+    }
+   ]
+  },
+  {
+   "id": "_:b51",
+   "type": "Name",
+   "content": "Het melkmeisje",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417207",
+     "type": "Type"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300404670",
+     "type": "Type",
+     "classified_as": [
+      {
+       "id": "http://vocab.getty.edu/aat/300418049",
+       "type": "Type",
+       "_label": "brief text"
+      }
+     ]
+    }
+   ],
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388256",
+     "type": "Language"
+    }
+   ]
+  },
+  {
+   "id": "_:b52",
+   "type": "Name",
+   "content": "Het melkmeisje",
+   "identified_by": [
+    {
+     "id": "_:b153",
+     "type": "Identifier",
+     "content": "1",
+     "classified_as": [
+      {
+       "id": "http://vocab.getty.edu/aat/300456575",
+       "type": "Type"
+      }
+     ]
+    }
+   ],
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417200",
+     "type": "Type"
+    }
+   ],
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388256",
+     "type": "Language"
+    }
+   ]
+  },
+  {
+   "type": "Name",
+   "content": "De keukenmeid",
+   "identified_by": [
+    {
+     "type": "Identifier",
+     "content": "3",
+     "classified_as": [
+      {
+       "id": "http://vocab.getty.edu/aat/300456575",
+       "type": "Type"
+      }
+     ]
+    }
+   ],
+   "classified_as": [
+    {
+     "id": "https://id.rijksmuseum.nl/22015528",
+     "type": "Type",
+     "notation": [
+      {
+       "@language": "en",
+       "@value": "former title"
+      },
+      {
+       "@language": "nl",
+       "@value": "voormalige titel"
+      }
+     ]
+    }
+   ],
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388256",
+     "type": "Language"
+    }
+   ]
+  }
+ ],
+ "produced_by": {
+  "type": "Production",
+  "timespan": {
+   "type": "TimeSpan",
+   "identified_by": [
+    {
+     "type": "Name",
+     "content": "c. 1660",
+     "language": [
+      {
+       "id": "http://vocab.getty.edu/aat/300388277",
+       "type": "Language"
+      }
+     ]
+    },
+    {
+     "type": "Name",
+     "content": "ca. 1660",
+     "language": [
+      {
+       "id": "http://vocab.getty.edu/aat/300388256",
+       "type": "Language"
+      }
+     ]
+    }
+   ],
+   "begin_of_the_begin": "1660-01-01T00:00:00Z",
+   "end_of_the_end": "1660-12-31T23:59:59Z"
+  },
+  "referred_to_by": [
+   {
+    "type": "LinguisticObject",
+    "content": "Johannes Vermeer",
+    "classified_as": [
+     {
+      "id": "http://vocab.getty.edu/aat/300435416",
+      "type": "Type"
+     }
+    ],
+    "language": [
+     {
+      "id": "http://vocab.getty.edu/aat/300388256",
+      "type": "Language"
+     }
+    ]
+   },
+   {
+    "type": "LinguisticObject",
+    "content": "Johannes Vermeer",
+    "classified_as": [
+     {
+      "id": "http://vocab.getty.edu/aat/300435416",
+      "type": "Type"
+     }
+    ],
+    "language": [
+     {
+      "id": "http://vocab.getty.edu/aat/300388277",
+      "type": "Language"
+     }
+    ]
+   }
+  ],
+  "part": [
+   {
+    "type": "Production",
+    "carried_out_by": [
+     {
+      "id": "https://id.rijksmuseum.nl/2101778",
+      "type": "Person",
+      "notation": [
+       {
+        "@language": "nl",
+        "@value": "Johannes Vermeer"
+       },
+       {
+        "@language": "en",
+        "@value": "Johannes Vermeer"
+       }
+      ],
+      "equivalent": [
+       {
+        "id": "http://viaf.org/viaf/51961439",
+        "type": "Person"
+       },
+       {
+        "id": "http://www.wikidata.org/entity/Q41264",
+        "type": "Person"
+       },
+       {
+        "id": "http://vocab.getty.edu/ulan/500032927",
+        "type": "Person"
+       },
+       {
+        "id": "http://data.cerl.org/thesaurus/cnp01437165",
+        "type": "Person"
+       },
+       {
+        "id": "https://rkd.nl/artists/80476",
+        "type": "Person"
+       }
+      ]
+     }
+    ],
+    "identified_by": [
+     {
+      "type": "Identifier",
+      "content": "1",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300456575",
+        "type": "Type"
+       }
+      ]
+     }
+    ],
+    "classified_as": [
+     {
+      "id": "http://vocab.getty.edu/aat/300404450",
+      "type": "Type"
+     }
+    ],
+    "technique": [
+     {
+      "id": "https://id.rijksmuseum.nl/2202217",
+      "type": "Type",
+      "notation": [
+       {
+        "@language": "en",
+        "@value": "painter"
+       },
+       {
+        "@language": "nl",
+        "@value": "schilder"
+       }
+      ],
+      "equivalent": [
+       {
+        "id": "http://vocab.getty.edu/aat/300025136",
+        "type": "Type"
+       }
+      ]
+     }
+    ],
+    "referred_to_by": [
+     {
+      "type": "LinguisticObject",
+      "content": "schilder: Johannes Vermeer",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300435416",
+        "type": "Type"
+       }
+      ],
+      "language": [
+       {
+        "id": "http://vocab.getty.edu/aat/300388256",
+        "type": "Language"
+       }
+      ]
+     },
+     {
+      "type": "LinguisticObject",
+      "content": "Johannes Vermeer",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300435417",
+        "type": "Type"
+       }
+      ],
+      "language": [
+       {
+        "id": "http://vocab.getty.edu/aat/300388277",
+        "type": "Language"
+       }
+      ]
+     },
+     {
+      "type": "LinguisticObject",
+      "content": "Johannes Vermeer",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300435417",
+        "type": "Type"
+       }
+      ],
+      "language": [
+       {
+        "id": "http://vocab.getty.edu/aat/300388256",
+        "type": "Language"
+       }
+      ]
+     },
+     {
+      "type": "LinguisticObject",
+      "content": "painter: Johannes Vermeer",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300435416",
+        "type": "Type"
+       }
+      ],
+      "language": [
+       {
+        "id": "http://vocab.getty.edu/aat/300388277",
+        "type": "Language"
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "shows": [
+  {
+   "id": "https://id.rijksmuseum.nl/202108369",
+   "type": "VisualItem"
+  }
+ ]
+}

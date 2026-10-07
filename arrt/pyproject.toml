@@ -97,6 +97,7 @@ navigart = "arrt.library.sources.navigart:PLUGIN"
 nga = "arrt.library.sources.nga:PLUGIN"
 yale = "arrt.library.sources.yale:PLUGIN"
 getty = "arrt.library.sources.getty:PLUGIN"
+rijksmuseum = "arrt.library.sources.rijksmuseum:PLUGIN"
 
 [dependency-groups]
 # httpx appears here *and* in `[project].dependencies`, deliberately. It is a

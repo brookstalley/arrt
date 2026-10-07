@@ -23,7 +23,7 @@ gallery = "arrt_gallery:PLUGIN"
 ```
 
 - **Pick a name no other installed plugin uses.** The built-ins are `commons`,
-  `artic`, `getty`, `met`, `navigart`, `nga`, `smk`, `wikidata` and `yale`. Two distributions registering one name load neither, so
+  `artic`, `getty`, `met`, `navigart`, `nga`, `rijksmuseum`, `smk`, `wikidata` and `yale`. Two distributions registering one name load neither, so
   a plugin cannot replace a built-in by taking its name.
 - **The name is permanent once rows carry it.** Every image the plugin's finder
   reports is stored under it, and acquisition and the health panel name the
@@ -360,5 +360,6 @@ to it by a test:
 | `nga` (`nga.py`) | a plugin that keeps a copy of a holder's open data in its own directory (`context.data_dir`), refreshed conditionally at most daily and released from memory when idle; a reader answering tiles for an original and a direct fetch for a capped copy; declining without a directory | `test_nga_source.py` |
 | `yale` (`yale.py`) | a reader that never fetches the page it claims (a challenged one), reading the number out of it and asking the museum's IIIF manifest instead; the IIIF parsers choosing one request or the tiles; rights read from the canvas, not the manifest's licence for its record | `test_yale_source.py`, `test_iiif_helper.py` |
 | `getty` (`getty.py`) | a finder asking a holder's SPARQL endpoint, mapping the item's page IDs in one question and searching by maker, then title, otherwise; outside text written into a query only inside a string literal; a holder's own title chosen to match the one asked; an attribution ("Workshop of") kept in the artist for the identity check | `test_getty_source.py` |
+| `rijksmuseum` (`rijksmuseum.py`) | a finder that follows a holder's Linked Art records three hops to an image service, searching by maker and title otherwise and asking once more without accents when the holder's spelling differs; an image service whose declared area sends most originals to the tiles; evidence for an attribution ("signed by artist") dropped from the artist, and an attribution ("attributed to") kept | `test_rijksmuseum_source.py` |
 | `commons` (`commons.py`) | a finder that needs the registry and looks works up by item | `test_commons_source.py` |
 | `wikidata` (`wikidata.py`) | a finder of pages only, with `offers_images = False` | `test_wikidata_pages.py` |

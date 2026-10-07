@@ -106,19 +106,98 @@ plugin does not search.
 
 ## The Rijksmuseum (for #226)
 
-- The Rijksmuseum ID is **P13234**; P350 is RKDimages (m). Records are at
-  `https://id.rijksmuseum.nl/<n>` with `Accept: application/ld+json`, or
-  `https://data.rijksmuseum.nl/<n>`. The search's `title`, `creator` and
-  `imageAvailable` parameters work.
-- **The road (m):** `shows[0]` → VisualItem → `digitally_shown_by[0]` →
-  DigitalObject → `access_point[0]`, an image URL on `iiif.micr.io`. An object
-  with no image still has `shows`; its VisualItem lacks `digitally_shown_by`.
-- **`iiif.micr.io`'s robots.txt is `Disallow: /` for every agent (m).** Only the
-  Night Watch's `info.json` was read (14,645 × 12,158, `maxArea` 17,550,000),
-  before the robots file was read. `full/max` was not asked. The same host serves
-  the Philadelphia Museum of Art's images (arrt-sources#13). **The owner ruled
-  on 2026-10-07 that a plugin may ask it** (`source-plugins.md` § Trust): single,
-  human-led requests are not crawling.
+Measured 2026-10-07 before writing `arrt/src/arrt/library/sources/rijksmuseum.py`:
+about 90 plain HTTP requests, user agent `arrt-research/0.1`, sizes read from the
+JPEG header or `info.json`. The durable form is
+`arrt/tests/live/test_rijksmuseum_shapes_are_still_real.py` (`live_museum`); the
+recorded answers the unit suite reads are `arrt/tests/fixtures/rijksmuseum/`.
+
+### Wikidata and the record
+
+- The Rijksmuseum ID is **P13234**; P350 is RKDimages (m). Its formatter is
+  `https://id.rijksmuseum.nl/$1` and its format `^\d{7,9}$` (m).
+- That URL answers the Linked Art record to `Accept: application/ld+json`, and
+  sends a browser to the object's page on `www.rijksmuseum.nl` with a 303 (m). The
+  page's URL carries a title slug and a hash, not the object number
+  (`/nl/collectie/object/De-Nachtwacht--3137deb4…`), so this plugin reads no page.
+- A well-shaped number the museum does not know answers 400 (`299999999`) or 404
+  (`20000000`) (m).
+
+### The search
+
+- `https://data.rijksmuseum.nl/search/collection` takes `title`, `creator`,
+  `objectNumber` and `imageAvailable`, and answers a Linked Art
+  `OrderedCollectionPage` of record ids, 100 to a page (m).
+- `title` matches words in any of the record's languages: "The Night Watch" and
+  "Nachtwacht" both find SK-C-5, and "night" finds 26 Rembrandts (m).
+- `creator` matches the museum's spelling, not Wikidata's: "Piet Mondrian" finds
+  nothing and "Piet Mondriaan" 9 (m). It folds accents for some makers and not
+  others: "Isaac Israëls" finds 0 and "Isaac Israels" 2,748; "Jozef Israëls"
+  finds 1,180 and "Jozef Israels" 1 (m). So the plugin asks once more without
+  accents when an accented name finds nothing. The opposite case (asked plain,
+  recorded accented) is not recovered.
+
+### The road to the image
+
+- **object → `shows[0]` (VisualItem) → `digitally_shown_by[0]` (DigitalObject) →
+  `access_point[0]`**, an image URL `https://iiif.micr.io/<id>/full/max/0/default.jpg` (m).
+  All three records are on `id.rijksmuseum.nl`. An object with no image still has
+  `shows`; its VisualItem lacks `digitally_shown_by` (200556187) (m).
+- **Rights are on the VisualItem's `subject_to`** (m, 13 objects): the Creative
+  Commons Public Domain Mark on public-domain works, rightsstatements.org `InC` on
+  in-copyright ones (Marlene Dumas, Karel Appel, Ed van der Elsken, Kees van
+  Dongen). The record's `subject_of` carries CC0, which licenses the metadata.
+- The DigitalObject says "downloadbaar" or "niet downloadbaar" and "zichtbaar" or
+  "niet zichtbaar". In-copyright works are "niet downloadbaar" and served anyway; van
+  Dongen's, "niet zichtbaar", served a 345 × 400 preview and a 6,033 × 7,003
+  `full/max` (m). The plugin does not read these labels.
+
+### Titles and makers
+
+- Titles are `identified_by` Names; preferred ones are classified `aat:300404670`,
+  in English (`aat:300388277`) and Dutch (`aat:300388256`). Some objects are titled
+  only in Dutch (Sluijters' poster) (m).
+- The maker is in `produced_by.part[]`, in the museum's order. Three shapes (m,
+  about 60 records across Rembrandt, Hals, Mierevelt, Bruegel, Vermeer, Israels,
+  Appel, Dumas, van Dongen and anonymous works):
+  1. `carried_out_by` names the person inline, with `notation` in English and
+     Dutch ("Johannes Vermeer"; "anonymous", "anoniem" for an unknown hand).
+  2. `assigned_by` assigns the person under `assigned_property: carried_out_by`,
+     unclassified, `motivated_by` the evidence (`aat:300028705` signed,
+     `aat:300028702` mentioned on object). The part's name statement
+     (`aat:300435417`) reads "Karel Appel (signed by artist)".
+  3. The same, but the assignment is classified, which is an attribution:
+     `aat:300404269` "attributed to Rembrandt van Rijn" (*Samson and Delilah*),
+     `aat:300435722` "(possibly)".
+- Later parts name a publisher or printer (Sluijters' poster, then Scheltens &
+  Giltay), or the design a print is after (`assigned_property: influenced_by`,
+  "after design by Rembrandt van Rijn"). A rejected attribution sits in
+  `produced_by.assigned_by`, outside the parts ("attributed to Jan Lievens
+  [rejected attribution]").
+- A person's own record carries a Wikidata `equivalent` (Rembrandt: Q5598) and many
+  name forms (m). The plugin does not read it: the identity check works from names.
+
+### Size
+
+- `info.json` is Image API 3, `maxArea` 17,550,000, no `maxWidth` (m).
+- The service is looser than it declares (m): `full/max` served 4,649 × 5,177
+  (24 MP) and 5,832 × 7,209 (42 MP) whole, and shrank the Night Watch
+  (14,645 × 12,158) to 7,133 × 5,922 and a van Dongen (8,217 × 9,538) to
+  6,033 × 7,003, both about 42.2 MP. An explicit width beyond the area answers 400.
+  1,024 px tiles are served.
+- The plugin trusts the declaration: an original within 17.55 MP is one request,
+  anything larger is tiled, and `TILE_MAX_PIXELS` bounds what tiling assembles.
+  Originals sampled ran from 3,200 × 3,327 to 14,645 × 12,158, most over 17.5 MP.
+
+### Access
+
+- **`iiif.micr.io`'s robots.txt is `Disallow: /` for every agent (m).** The same
+  host serves the Philadelphia Museum of Art's images (arrt-sources#13). **The owner
+  ruled on 2026-10-07 that a plugin may ask it** (`source-plugins.md` § Trust):
+  single, human-led requests are not crawling.
+- `data.rijksmuseum.nl` has no robots.txt (404); `id.rijksmuseum.nl` answers 400
+  for one; `www.rijksmuseum.nl` disallows only its search pages (m). No challenge
+  and no rate-limit header anywhere.
 
 ## Getty (for #230)
 

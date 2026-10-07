@@ -147,6 +147,10 @@ _MAY_REACH_THE_NETWORK = {
     # reads records, manifests, image services and previews. `urllib.parse` comes
     # with it, to read a slug out of a page.
     "arrt.library.sources.getty",
+    # The Rijksmuseum's client, beside the Getty's: it asks the museum's search and
+    # reads records, image services and previews. `urllib.parse` comes with it, to
+    # read an object number out of a record URL.
+    "arrt.library.sources.rijksmuseum",
     # The picture store. `urllib.parse` only, to normalise a source image URL into
     # the key a kept picture is filed under; the fetch goes through the source's
     # own `fetch_preview`, never through this module.
