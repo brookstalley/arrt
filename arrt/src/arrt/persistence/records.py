@@ -570,6 +570,12 @@ class Theme:
     #: default, never by saving a theme, so a rename built from a stale copy
     #: cannot move or clear it.
     is_default: bool = False
+    #: A selection: the works a curator hung on one wall by choosing them, stored
+    #: as a theme so the manifest, readiness and directives work unchanged. Left
+    #: off the Themes index and every theme picker, because the curator never
+    #: made it as a theme and would not recognise it in a list of theirs. Set
+    #: when the theme is made and never changed.
+    hidden: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -684,6 +690,81 @@ class Directive:
     wall_id: str
     sequence: int
     pinned_work_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class WorkExclusion:
+    """A work the curator said not to show again on any wall: *Not this one again*, from every wall.
+
+    Programming's, not the Library's: the work stays held, in its themes, and
+    every manifest leaves it out until the row is removed. **It is not Archive**,
+    which takes the work out of the Library, because the curator who says "not
+    this one again" has changed what the walls show and nothing else.
+    `artwork_id` is an opaque reference, as everywhere Programming names a work.
+    """
+
+    artwork_id: str
+    excluded_at: datetime
+
+
+class EventKind(StrEnum):
+    """What happened, in the history a curator reads. The values are what a filter names.
+
+    Each is an act a curator or a Get performed. A work's image or mat changing
+    is not here: those are the Library's announcements to Programming
+    (`library/events.py`), which is a different audience.
+    """
+
+    #: A Get began: an Ask, a Get chosen from the registry, or a look-again.
+    GET_STARTED = "get.started"
+    #: A Get ended, however it ended. Which way is in the event's detail.
+    GET_FINISHED = "get.finished"
+    #: A candidate was accepted, and became a work in the Library.
+    ACCEPTED = "work.accepted"
+    #: A candidate was turned down.
+    REJECTED = "work.rejected"
+    ARCHIVED = "work.archived"
+    RESTORED = "work.restored"
+    #: Something was hung on a wall: a theme, or a selection of works.
+    HUNG = "wall.hung"
+    #: *Not this one again*, from this theme: the work left the theme hanging on a wall.
+    LEFT_THEME = "work.left_theme"
+    #: *Not this one again*, from every wall.
+    EXCLUDED = "work.excluded"
+    #: The undo of the above: the work may go on a wall again.
+    ALLOWED = "work.allowed"
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryEvent:
+    """One act, as the history records it: what, when, and what it was about.
+
+    **Every reference is opaque.** A work, a run, a wall or a theme named here
+    may since have been archived, deleted or renamed, and the event still reads,
+    because what a curator needs to recognise it (a title, a theme's name, how a
+    Get ended) is copied into `detail` when the act happens. Walls and themes
+    are Programming's, and the Library holds their ids the way Programming
+    holds work ids: as references that may fail to resolve.
+    """
+
+    id: str
+    kind: EventKind
+    occurred_at: datetime
+    work_id: str | None = None
+    run_id: str | None = None
+    wall_id: str | None = None
+    theme_id: str | None = None
+    #: What the act was about, in words that outlive the records it names.
+    #: Plain values only, so the row can be written as JSON.
+    detail: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class EventPage:
+    """One page of history, newest first, and how many events the filter holds."""
+
+    events: Sequence[HistoryEvent]
+    total: int
 
 
 @dataclass(frozen=True, slots=True)

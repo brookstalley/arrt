@@ -162,8 +162,8 @@ lesson from a different count, which is why this one is stated as a shape.*
 |---|---|---|
 | `art_discovery` | `estimate`, `start`, `status`, `approve`, `decline`, `cancel`, `resolve_images`, `get`, `look`, `list_runs`, `spend`, `source_plugins`, `help` | **The only tool that spends money in amounts worth authorising** — see the correction below. `source_plugins` (added 2026-10-06; not `sources`, which is `art_catalogue`'s provenance read) answers what `GET /api/sources` does, in its field names and values (`test_source_plugins_surface.py`, `test_surface_parity.py`). `look` (added 2026-10-06, `build-plan-look-before-get.md`) is `GET /api/registry/works/{qid}/look`, in its field names, and spends and records nothing; see that route's row. |
 | `art_review` | `list_works`, `get_work`, `list_images`, `set_canonical`, `set_verdict`, `reject_image`, `want`, `list_wanted`, `sighting_hosts`, `wikidata_matches`, `set_wikidata_item`, `help` | Returns thumbnails; see Inputs & Outputs. Never spends. `want` and `list_wanted` (added 2026-10-02, `build-plan-after-review.md` Chunk 03) are the one way into `wanted` and Wanted's listing; see § `set_verdict` cannot set `wanted`. `wikidata_matches` offers Wikidata's items for a work's title and stores nothing; `set_wikidata_item` records the curator's pick, refused on a decided work (added 2026-10-02, `build-plan-after-review.md` Chunk 04). `sighting_hosts` counts, by host, the open works with a page there that no installed source plugin reads, and returns no address (added 2026-10-03, `build-plan-source-plugins.md` Chunk 03). |
-| `art_catalogue` | `list`, `get`, `sources`, `archive`, `restore`, `retry_acquisition`, `set_mat_color`, `set_work_qid`, `set_artist_qid`, `regenerate`, `topics`, `topic`, `help` | `sources` is the provenance read; see below. `set_work_qid` and `set_artist_qid` (added 2026-10-01) are the curator's word on a Wikidata identity; matching itself is the hand-run `python -m arrt.identify`, not a tool. `topics` and `topic` (added 2026-10-02) are `GET /api/topics` and `GET /api/topics/{qid}`, the library's half only. `retry_acquisition` **queues** the work and returns at once (changed 2026-10-02, `build-plan-after-review.md` Chunk 02; breaking, see § Versioning): it fetched in the call until then, for up to half an hour, beside the acquisition queue's own fetch. `get` carries the work's `acquisition` state. |
-| `art_theme` | `list`, `get`, `create`, `update`, `delete`, `make_default`, `add`, `remove`, `reorder`, `activate`, `unhang`, `help` | `activate` changes the wall immediately; `unhang` leaves the wall showing what it was showing. `make_default` (added 2026-10-01) moves the mark new works join, and changes no wall. |
+| `art_catalogue` | `list`, `get`, `sources`, `archive`, `restore`, `retry_acquisition`, `set_mat_color`, `set_work_qid`, `set_artist_qid`, `regenerate`, `topics`, `topic`, `history`, `help` | `sources` is the provenance read; see below. `set_work_qid` and `set_artist_qid` (added 2026-10-01) are the curator's word on a Wikidata identity; matching itself is the hand-run `python -m arrt.identify`, not a tool. `topics` and `topic` (added 2026-10-02) are `GET /api/topics` and `GET /api/topics/{qid}`, the library's half only. `retry_acquisition` **queues** the work and returns at once (changed 2026-10-02, `build-plan-after-review.md` Chunk 02; breaking, see § Versioning): it fetched in the call until then, for up to half an hour, beside the acquisition queue's own fetch. `get` carries the work's `acquisition` state. `history` (added 2026-10-07) is `GET /api/history`: `kinds` (array) and `wall_id` narrow it. |
+| `art_theme` | `list`, `get`, `create`, `update`, `delete`, `make_default`, `add`, `remove`, `reorder`, `activate`, `hang_selection`, `not_again`, `kept_off`, `allow_again`, `unhang`, `help` | `activate` changes the wall immediately; `unhang` leaves the wall showing what it was showing. `make_default` (added 2026-10-01) moves the mark new works join, and changes no wall. `hang_selection`, `not_again`, `kept_off` and `allow_again` (added 2026-10-07) are § History, selections and *Not this one again*'s routes on this surface; `list` leaves selections out, and every theme carries `hidden`. |
 | `art_display` | `walls`, `add_wall`, `status`, `sync`, `show_now`, `next`, `clients`, `add_client`, `rename_client`, `remove_client`, `issue_client_token`, `assign_wall`, `unassign_wall`, `help` | Every wall action goes through the theme manifest — see below. `walls` is where every other action's `wall_id` comes from, and `clients` every `client_id` and output name. The client actions (added 2026-10-02, `build-plan-clients.md` Chunk 02) are § Clients' routes on this surface; `issue_client_token` answers the token once. Destructive since then, because `remove_client` and `issue_client_token` cannot be undone. |
 | `art_taste` | `list`, `set`, `delete`, `help` | The curator's standing judgments about artists, movements and subjects. Never spends. Added 2026-08-11 by operator decision — see below, and § The routes the interface design requires. |
 
@@ -2131,11 +2131,36 @@ this whole surface is judged by.
   today's roughly 1 s behaviour and is the default.
 - **The presentation master's encoding and cap.**
 
+### History, selections and *Not this one again* — BUILT 2026-10-07 (`build-plan-walls-work-and-trust.md` Chunks 03, 04)
+
+The server halves of the owner's rulings 1 and 6 of 2026-10-07 (`ia-proposal.md`
+§ Rulings). Exercised against a booted server by
+`arrt/tests/integration/test_history_surface.py` and
+`arrt/tests/integration/test_selections_and_exclusions.py`, both surfaces.
+
+| Route | What it is |
+|---|---|
+| `GET /api/history` | What happened, newest first: `events` of `{event_id, kind, occurred_at, artwork_id, run_id, wall_id, theme_id, detail}`, with `total`, `limit`, `offset`. `kind` repeats and any named matches (`EventKind`'s values; an unknown one is refused by name); `wall_id` is one wall's history, what was hung there and what was kept off from there. `limit` 1–100, default 25. Every id may no longer resolve, so `detail` carries the words: `title`, `theme_name`, `wall_name`, `selection`, `works`, `run_kind`, `intent`, `status`, `reason`, `candidate_work_id`. Recorded from 2026-10-07 on; nothing earlier. Twin: `art_catalogue(action='history', kinds=[...], wall_id=...)`. |
+| `POST /api/walls/{wall_id}/selection` | Hang `{artwork_ids}` (one or more, in order) on the wall until something else is hung there. Stored as a theme with `hidden: true`. Returns the manifest build, as `activate` does. Refused, with nothing hung, for an empty list or an id the Library does not hold. Twin: `art_theme(action='hang_selection')`. |
+| `POST /api/walls/{wall_id}/not-again` | *Not this one again*, `{artwork_id, scope}`: `theme` takes the work out of the theme hanging on that wall; `every_wall` keeps it off every wall (a `WorkExclusion`), and it stays held and in its themes. The walls carrying it lose it from their published manifests at once, and a pin naming it is withdrawn without advancing; nothing else on any wall changes. Returns `{scope, artwork_id, wall, left_theme, excluded_at}`, the wall read back. Twin: `art_theme(action='not_again')`. |
+| `GET /api/exclusions` | Every work kept off every wall, `{artwork_id, excluded_at}`, oldest first. Twin: `art_theme(action='kept_off')`. |
+| `DELETE /api/exclusions/{artwork_id}` | The undo: the work may go on walls again. Republishes nothing; the next hang or sync carries it. Returns the exclusions that remain. Refused for a work not kept off. Twin: `art_theme(action='allow_again')`. |
+| `ThemeOut.hidden`, and `theme_fields`' `hidden` | Every theme shape carries it. `GET /api/themes`, `art_theme(action='list')` and the works grid's theme options leave hidden themes out (the grid keeps one only while it is the filter in force); a wall's `theme` may be one. |
+| `ExclusionOut.reason` gains `kept_off_every_wall` | A manifest build names an excluded work with this reason, ahead of any reason the Library would give. |
+
+Each act writes one `HistoryEvent` (`data-model.md`), and a refused act writes
+none. *Not this one again*'s two answers are one service method,
+`DisplayService.not_this_one_again`, so the HTTP route and the tool do not each
+decide which act a scope means.
+
 **The Library facade is a second, internal interface, drawn now to be
 network-ready later.** `re-architecture.md` § Seam 1 has Programming calling the
 Library only through a small facade, centred on
 `playable(work_ids) -> {id: PlayableWork | Unplayable(reason)}`. It is
-coarse-grained, id-based, returns plain data and is idempotent. It is **not an
+coarse-grained, id-based, returns plain data and is idempotent. Since
+2026-10-07 it also takes `record(ProgrammingAct)`, Programming's acts on the walls
+for the history, written after Programming's own change commits. That one call is
+a write and is not idempotent: a retried call records a second line. It is **not an
 exposed API** today and carries no versioning obligation, because both sides ship
 in one process. It is recorded here because it is written *as if* it were
 remote. If the Library and Programming ever split, this facade becomes a network

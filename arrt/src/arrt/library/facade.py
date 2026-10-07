@@ -14,8 +14,9 @@ reaches nothing in Programming.
 """
 
 import logging
-from collections.abc import Iterable, Sequence
-from dataclasses import replace
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass, field, replace
+from typing import Final
 
 from arrt.library.events import WorkChange, WorkChanged, WorkChangedHandler
 from arrt.library.readiness import (
@@ -31,17 +32,46 @@ from arrt.library.readiness import (
 )
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.discovery import DiscoveryService
+from arrt.persistence.records import EventKind
+from arrt.services.errors import ServiceError
 
 log = logging.getLogger(__name__)
 
 #: One work's answer: it can go on a wall, or it cannot and here is why.
 type Playability = PlayableWork | Unplayable
 
+#: The acts Programming performs that the Library's history records. Programming
+#: may record these and no others: a Get or a verdict is the Library's own act,
+#: written where it happens.
+PROGRAMMING_ACTS: Final[frozenset[EventKind]] = frozenset(
+    {EventKind.HUNG, EventKind.LEFT_THEME, EventKind.EXCLUDED, EventKind.ALLOWED}
+)
+
+
+@dataclass(frozen=True, slots=True)
+class ProgrammingAct:
+    """One act on the walls, for the history: plain ids and plain words, as a request body would carry.
+
+    The wall and the theme are Programming's, and the Library keeps their ids
+    without knowing what they name, which is why `detail` carries the words the
+    history is read by (a theme's name, whether it was a selection).
+    """
+
+    kind: EventKind
+    wall_id: str | None = None
+    theme_id: str | None = None
+    work_id: str | None = None
+    detail: Mapping[str, object] = field(default_factory=dict)
+
+
 __all__ = [
+    "PROGRAMMING_ACTS",
+    "EventKind",
     "LibraryFacade",
     "Media",
     "Playability",
     "PlayableWork",
+    "ProgrammingAct",
     "Unplayable",
     "UnplayableReason",
     "WorkChange",
@@ -89,6 +119,24 @@ class LibraryFacade:
         deleted one means.
         """
         return dict(self._discovery.destinations(work_ids))
+
+    def record(self, act: ProgrammingAct) -> None:
+        """Write an act on the walls into the Library's history.
+
+        **After Programming's own change has committed, never inside it**,
+        because once the two sides have separate stores no transaction spans
+        them, and recording an act that then rolled back would put a hang in the
+        history that never happened. A crash between the two loses the line,
+        which is the cheaper failure for a history. After a split this is a POST.
+
+        **The one call here that writes, and it is not idempotent**: asked twice,
+        it records two lines. Every other call answers the same while nothing
+        has changed.
+        """
+        if act.kind not in PROGRAMMING_ACTS:
+            allowed = ", ".join(sorted(str(kind) for kind in PROGRAMMING_ACTS))
+            raise ServiceError(f"Programming records only acts on the walls ({allowed}), not {act.kind}.")
+        self._catalogue.record_event(act.kind, wall_id=act.wall_id, theme_id=act.theme_id, work_id=act.work_id, detail=act.detail)
 
     def subscribe(self, handler: WorkChangedHandler) -> None:
         """Be told which work changed, after each change commits.

@@ -347,6 +347,7 @@ def a_theme(**overrides) -> ThemeOut:
         "shuffle": None,
         "created_at": "2026-08-12T09:00:00+00:00",
         "is_default": False,
+        "hidden": False,
     }
     return ThemeOut(**(fields | overrides))
 

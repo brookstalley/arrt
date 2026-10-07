@@ -58,16 +58,21 @@ from arrt.http.models import (
     CreateWall,
     DirectiveOut,
     EstimateOut,
+    ExcludedWorkListOut,
+    ExcludedWorkOut,
     ExclusionOut,
     FacetGroupOut,
     FacetOptionOut,
     FitOut,
     GetOut,
+    HangSelection,
     HangTheme,
     HealthOut,
     HeartbeatOut,
     HeldArtistOut,
     HeldTopicOut,
+    HistoryEventOut,
+    HistoryPageOut,
     ImageOut,
     InstanceListingOut,
     InstanceOut,
@@ -79,6 +84,8 @@ from arrt.http.models import (
     MatColorOut,
     MoveWork,
     NameClient,
+    NotAgainOut,
+    NotAgainRequest,
     OriginalOut,
     PickItem,
     PicturesOut,
@@ -154,7 +161,7 @@ from arrt.http.models import (
 )
 from arrt.library.acquisition.queue import AcquisitionState, QueueListing, QueuePause
 from arrt.library.services.artists import HeldArtist, RegistryView
-from arrt.library.services.catalogue import FacetGroup, RenditionView
+from arrt.library.services.catalogue import DEFAULT_LIST_LIMIT, FacetGroup, RenditionView
 from arrt.library.services.conversation import ConversationDeletion, ConversationView, TurnView
 from arrt.library.services.discovery import VerdictOutcome
 from arrt.library.services.display_fit import ArtworkBox, FitAssessment
@@ -176,6 +183,7 @@ from arrt.persistence.records import (
     Artist,
     BackupReading,
     Directive,
+    HistoryEvent,
     IdentitySetBy,
     MatColor,
     Original,
@@ -922,6 +930,104 @@ def clear_wall(request: Request, wall_id: str) -> WallOut:
     return _wall(services.display.get_wall_view(wall_id))
 
 
+@router.post("/walls/{wall_id}/selection")
+def hang_selection(request: Request, wall_id: str, body: HangSelection) -> ManifestOut:
+    """Hang one or more chosen works on this wall, until something else is hung there.
+
+    Answers with the build, as hanging a theme does: what reached the wall, and
+    every work that did not, with why.
+    """
+    return _manifest(_services(request).display.hang_selection(body.artwork_ids, wall_id=wall_id))
+
+
+@router.post("/walls/{wall_id}/not-again")
+def not_this_one_again(request: Request, wall_id: str, body: NotAgainRequest) -> NotAgainOut:
+    """*Not this one again*, from this theme (`scope=theme`) or from every wall (`scope=every_wall`).
+
+    From this theme takes the work out of what hangs on this wall. From every
+    wall keeps it off every wall until allowed again, and the work stays held.
+    Either way the walls carrying it lose it now. Answers with the wall as it
+    now stands, read back after the act, for the reason `clear_wall` gives.
+    """
+    services = _services(request)
+    done = services.display.not_this_one_again(body.artwork_id, wall_id=wall_id, scope=body.scope)
+    return NotAgainOut(
+        scope=str(done.scope),
+        artwork_id=done.artwork_id,
+        wall=_wall(services.display.get_wall_view(wall_id)),
+        left_theme=None if done.left_theme is None else _theme(done.left_theme),
+        excluded_at=None if done.exclusion is None else done.exclusion.excluded_at.isoformat(),
+    )
+
+
+@router.get("/exclusions")
+def list_exclusions(request: Request) -> ExcludedWorkListOut:
+    """Every work kept off every wall, oldest first. Each is still held."""
+    return _exclusions(_services(request))
+
+
+@router.delete("/exclusions/{artwork_id}")
+def allow_again(request: Request, artwork_id: str) -> ExcludedWorkListOut:
+    """Let a work kept off every wall go on walls again: the undo, from the work's page.
+
+    Nothing is republished. A theme holding the work carries it again at its
+    next build, as with a restored work. Answers with the exclusions that remain.
+    """
+    services = _services(request)
+    services.display.allow_work(artwork_id)
+    return _exclusions(services)
+
+
+def _exclusions(services: Services) -> ExcludedWorkListOut:
+    return ExcludedWorkListOut(
+        exclusions=[
+            ExcludedWorkOut(artwork_id=exclusion.artwork_id, excluded_at=exclusion.excluded_at.isoformat())
+            for exclusion in services.display.excluded_works()
+        ]
+    )
+
+
+# -- history ------------------------------------------------------------------
+
+
+@router.get("/history")
+def list_history(
+    request: Request,
+    kind: Annotated[list[str] | None, Query()] = None,
+    wall_id: Annotated[str | None, Query()] = None,
+    limit: Annotated[int | None, Query()] = None,
+    offset: Annotated[int, Query()] = 0,
+) -> HistoryPageOut:
+    """What happened, newest first: Gets started and finished, verdicts, archives, restores, hangs.
+
+    `kind` repeats, and any of those named matches (`?kind=work.accepted&kind=
+    work.rejected`); none named is every kind. `wall_id` narrows to one wall's
+    history: what was hung there, and what was kept off from there. Events are
+    recorded from the day the history arrived, and nothing earlier is recovered.
+    """
+    page = _services(request).catalogue.list_events(kinds=kind or (), wall_id=wall_id, limit=limit, offset=offset)
+    return HistoryPageOut(
+        events=[_history_event(event) for event in page.events],
+        total=page.total,
+        # The service's default, stated so a reader can page without guessing it.
+        limit=DEFAULT_LIST_LIMIT if limit is None else limit,
+        offset=offset,
+    )
+
+
+def _history_event(event: HistoryEvent) -> HistoryEventOut:
+    return HistoryEventOut(
+        event_id=event.id,
+        kind=str(event.kind),
+        occurred_at=event.occurred_at.isoformat(),
+        artwork_id=event.work_id,
+        run_id=event.run_id,
+        wall_id=event.wall_id,
+        theme_id=event.theme_id,
+        detail=dict(event.detail or {}),
+    )
+
+
 # -- clients ------------------------------------------------------------------
 
 
@@ -1590,6 +1696,7 @@ def _theme(theme: Theme) -> ThemeOut:
         shuffle=theme.shuffle,
         created_at=theme.created_at.isoformat(),
         is_default=theme.is_default,
+        hidden=theme.hidden,
     )
 
 

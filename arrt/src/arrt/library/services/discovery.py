@@ -55,7 +55,7 @@ from arrt.persistence.discovery_records import (
     Verdict,
     WorkProvenance,
 )
-from arrt.persistence.records import AcquisitionMethod, Artist, RightsStatus, SourceClass
+from arrt.persistence.records import AcquisitionMethod, Artist, EventKind, RightsStatus, SourceClass
 from arrt.services.errors import ServiceError
 from arrt.services.fields import relative_path, require_member, require_text
 from arrt.services.store import store_write
@@ -245,7 +245,9 @@ class DiscoveryService:
             started_at=datetime.now(UTC),
             intent_text=require_text(intent_text, field="intent_text"),
         )
-        store_write(self._store.add_run, run)
+        with self._store.transaction():
+            store_write(self._store.add_run, run)
+            self._record_started(run, intent=run.intent_text)
         return run
 
     def finish_work_list(
@@ -314,6 +316,7 @@ class DiscoveryService:
             run = self._require_status(run_id, RunStatus.AWAITING_APPROVAL, doing="be declined")
             declined = self._ended(run, RunStatus.DECLINED)
             store_write(self._store.update_run, declined)
+            self._record_ended(declined)
         return declined
 
     def complete_run(self, run_id: str, *, actual_cost_usd: Decimal | None = None) -> DiscoveryRun:
@@ -333,6 +336,7 @@ class DiscoveryService:
                 unresolved_work_count=len(unresolved),
             )
             store_write(self._store.update_run, completed)
+            self._record_ended(completed)
         return completed
 
     def fail_run(self, run_id: str, *, reason: str, actual_cost_usd: Decimal | None = None) -> DiscoveryRun:
@@ -444,6 +448,7 @@ class DiscoveryService:
             store_write(self._store.add_run, run)
             for work in works:
                 store_write(self._store.add_coverage, ResolveRunWork(resolve_run_id=run.id, candidate_work_id=work.id))
+            self._record_started(run, works=len(works))
         return run
 
     def start_get_run(
@@ -502,6 +507,7 @@ class DiscoveryService:
                         wikidata_qid=work.qid,
                     ),
                 )
+            self._record_started(run, works=len(chosen))
         return run
 
     def awaiting_verdict(self) -> Mapping[str, int]:
@@ -584,7 +590,9 @@ class DiscoveryService:
                     # Coverage is released by the run becoming terminal, not by
                     # deleting its rows: the join records what the run's scope
                     # was, and that stays true after the run has ended.
-                    store_write(self._store.update_run, self._ended(run, RunStatus.INTERRUPTED))
+                    interrupted = self._ended(run, RunStatus.INTERRUPTED)
+                    store_write(self._store.update_run, interrupted)
+                    self._record_ended(interrupted)
             self._reclean_proposed_titles()
 
     def _reclean_proposed_titles(self) -> None:
@@ -898,9 +906,23 @@ class DiscoveryService:
             if work.verdict.is_terminal:
                 raise ServiceError(f"Candidate work {candidate_work_id!r} was already {work.verdict}, and that is final.")
             if target is Verdict.ACCEPTED:
-                return self._accept(work)
+                outcome = self._accept(work)
+                self._catalogue.record_event(
+                    EventKind.ACCEPTED,
+                    work_id=outcome.work.artwork_id,
+                    run_id=work.discovery_run_id,
+                    detail={"title": work.proposed_title, "candidate_work_id": work.id},
+                )
+                return outcome
             rejected = replace(work, verdict=target, rejected_reason=reason, decided_at=datetime.now(UTC))
             store_write(self._store.update_candidate_work, rejected)
+            # A turned-down candidate never became a work, so the event names it
+            # by its candidate id and its title rather than by a work id.
+            self._catalogue.record_event(
+                EventKind.REJECTED,
+                run_id=work.discovery_run_id,
+                detail={"title": work.proposed_title, "candidate_work_id": work.id},
+            )
         return VerdictOutcome(work=rejected)
 
     # -- reads and writes: image instances ------------------------------------
@@ -1567,6 +1589,22 @@ class DiscoveryService:
     def _spend_total(self, run_id: str) -> Decimal:
         return sum((record.cost_usd for record in self._store.list_spend_records(run_id=run_id)), Decimal(0))
 
+    def _record_started(self, run: DiscoveryRun, *, intent: str | None = None, works: int | None = None) -> None:
+        """Write the history's line for a Get beginning, inside the transaction that begins it."""
+        detail: dict[str, object] = {"run_kind": str(run.kind)}
+        if intent is not None:
+            detail["intent"] = intent
+        if works is not None:
+            detail["works"] = works
+        self._catalogue.record_event(EventKind.GET_STARTED, run_id=run.id, detail=detail)
+
+    def _record_ended(self, run: DiscoveryRun) -> None:
+        """Write the history's line for a Get ending, however it ended, inside the transaction that ends it."""
+        detail: dict[str, object] = {"run_kind": str(run.kind), "status": str(run.status)}
+        if run.end_reason is not None:
+            detail["reason"] = run.end_reason
+        self._catalogue.record_event(EventKind.GET_FINISHED, run_id=run.id, detail=detail)
+
     def _require_status(self, run_id: str, expected: RunStatus, *, doing: str) -> DiscoveryRun:
         """Refuse a transition the run is not standing on the edge of."""
         run = self.get_run(run_id)
@@ -1609,6 +1647,7 @@ class DiscoveryService:
                 )
             ended = replace(self._ended(run, ending, actual_cost_usd=actual_cost_usd), end_reason=reason)
             store_write(self._store.update_run, ended)
+            self._record_ended(ended)
         return ended
 
     @staticmethod

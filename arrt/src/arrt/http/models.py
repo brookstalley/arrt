@@ -720,6 +720,10 @@ class ThemeOut(BaseModel):
     created_at: str
     #: Whether works the curator accepts join this theme. At most one is.
     is_default: bool
+    #: A selection: works hung on a wall by choosing them, stored as a theme. The
+    #: Themes index and the theme pickers leave these out; a wall hanging one
+    #: says "a selection" rather than printing this theme's made-up name.
+    hidden: bool
 
 
 class WallRefOut(BaseModel):
@@ -903,10 +907,11 @@ class ExclusionOut(BaseModel):
 
     artwork_id: str
     title: str
-    #: One of `UnplayableReason`'s values (`library/readiness.py`), each a
-    #: distinct thing a curator would act on differently. Named there rather
-    #: than listed here, so a reason added to the rule cannot be missing from
-    #: this description.
+    #: One of `UnplayableReason`'s values (`library/readiness.py`), or of
+    #: `KeptOff`'s (`programming/manifest/builder.py`) for a work the curator
+    #: said not to show again: each a distinct thing a curator would act on
+    #: differently. Named there rather than listed here, so a reason added to
+    #: either cannot be missing from this description.
     reason: str
     #: A sentence to act on, not a restatement of the reason.
     detail: str
@@ -1669,6 +1674,77 @@ class HangTheme(BaseModel):
     """
 
     wall_id: str
+
+
+class HangSelection(BaseModel):
+    """The works to hang on a wall, in the order they should show. One or more."""
+
+    artwork_ids: list[str]
+
+
+class NotAgainRequest(BaseModel):
+    """*Not this one again*: which work, and how far the curator meant it.
+
+    `scope` is `theme` (take it out of the theme hanging on this wall) or
+    `every_wall` (keep it off every wall until allowed again; it stays held).
+    """
+
+    artwork_id: str
+    scope: str
+
+
+class NotAgainOut(BaseModel):
+    """What *Not this one again* did, and the wall as it now stands."""
+
+    scope: str
+    artwork_id: str
+    wall: WallOut
+    #: The theme the work left, for `theme`; null for `every_wall`.
+    left_theme: ThemeOut | None
+    #: When the work was kept off every wall, for `every_wall`; null for `theme`.
+    excluded_at: str | None
+
+
+class ExcludedWorkOut(BaseModel):
+    """A work kept off every wall. It is still held, and still in its themes."""
+
+    artwork_id: str
+    excluded_at: str
+
+
+class ExcludedWorkListOut(BaseModel):
+    """Every work kept off every wall, oldest first."""
+
+    exclusions: list[ExcludedWorkOut]
+
+
+class HistoryEventOut(BaseModel):
+    """One act in the history: what, when, and what it was about.
+
+    `kind` is one of `EventKind`'s values (`persistence/records.py`). Every id
+    is a reference that may no longer resolve (a work archived, a theme
+    deleted), so `detail` carries the words the event is read by, copied when
+    it happened: a `title`, a `theme_name`, whether a hang was a `selection`,
+    how a Get ended (`status`, `reason`).
+    """
+
+    event_id: str
+    kind: str
+    occurred_at: str
+    artwork_id: str | None
+    run_id: str | None
+    wall_id: str | None
+    theme_id: str | None
+    detail: dict[str, Any]
+
+
+class HistoryPageOut(BaseModel):
+    """A page of history, newest first, and how many events the filter holds."""
+
+    events: list[HistoryEventOut]
+    total: int
+    limit: int
+    offset: int
 
 
 class StepDisplay(BaseModel):

@@ -704,6 +704,17 @@ naming and grouping concept, not an accounts concept.
 | `description` | text | nullable | |
 | `created_at` | datetime | auto | |
 | `is_default` | boolean | not null, default false; at most one true (partial unique index `themes_one_default`) | Whether new works join this theme (Q16). Written only by *make default*, which moves the mark in one transaction, so a rename or any other update cannot clear it. A theme carrying it cannot be deleted; renaming it keeps it. *Built 2026-10-01.* |
+| `is_hidden` | boolean | not null, default false; set at creation, never changed | A **selection**: works the curator hung on one wall by choosing them (`DisplayService.hang_selection`). Left off the Themes index and every theme picker (`survey_themes`, `theme_counts`); a wall hanging one reads as *a selection*. Its name is made up (`Selection for <wall> (<id head>)`) because names are unique. *Built 2026-10-07, `build-plan-walls-work-and-trust.md` Chunk 04.* |
+
+> **A selection is a theme with a flag, not a new kind of source** *(the owner
+> confirmed the decision, 2026-10-07)*. The manifest, the readiness facade, the
+> directive and `ThemeAssignment` already work through themes, so a hidden theme
+> changes two listing filters where a new source would change every reader of
+> `theme_assignments`. It hangs "until changed": hanging anything else on the wall
+> replaces it. A selection that no longer hangs anywhere is kept, not deleted, so
+> the history's references to it still resolve; nothing lists it. *That last is
+the builder's call, 2026-10-07: it costs a row per selection, and deleting one
+would need a rule for when.*
 
 > **The default theme** *(the owner's ruling 8, 2026-10-01: "There should be a
 > default 'all works' theme")*. Every work the Library announces as accepted joins
@@ -798,6 +809,31 @@ restore or restart.
 > for every work already in the catalogue, because those works predate the
 > default and were placed by hand. The guard is what the file holds, as for every
 > migration here: works present and no offers at all.
+
+### WorkExclusion
+
+> **Programming-owned.** `artwork_id` is an opaque work id with no foreign key
+> (seam rule 3). Table `work_exclusions`. *Built 2026-10-07,
+> `build-plan-walls-work-and-trust.md` Chunk 04.*
+
+*Not this one again*, **from every wall**: one row per work the curator said not
+to show on any wall. Every manifest build leaves it out and names it among the
+exclusions with reason `kept_off_every_wall` (`KeptOff`,
+`programming/manifest/builder.py`); every published manifest and pin naming it is
+patched off when the row is written, adding nothing. Removing the row is the undo
+(from the Work page), and republishes nothing: the next hang or sync carries the
+work again.
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `artwork_id` | UUID | PK; not a foreign key | The work kept off. |
+| `excluded_at` | datetime | auto | When. |
+
+> **Not Archive.** Archive takes the work out of the Library; this changes only
+> what the walls show, because S8 says "nothing else changed". The work stays
+> held and in every theme. *Not this one again* **from this theme** is not a row
+> here: it removes the work's `ThemeMembership` in the theme hanging on that
+> wall, and patches it off the walls hanging that theme.
 
 ### Wall
 
@@ -2059,6 +2095,41 @@ search read). Written once, when phase 1 closes, and never changed. Table
 > (`source-plugins.md` § Pages a search read). Nothing here says whether a page
 > is reachable: phase 2 checks each one when it hands it over, since a name's
 > answer can change between the run and a re-search.
+
+### HistoryEvent
+
+> **Library-owned**, in the catalogue file. Table `history_events`. *Built
+> 2026-10-07, `build-plan-walls-work-and-trust.md` Chunk 03 (the owner's ruling 6
+> of 2026-10-07: "events, from now on").*
+
+One row per act, written where the act happens, inside its transaction where it
+has one. **From now on**: nothing before the table existed is recovered, and past
+hangs cannot be. Read newest first (`occurred_at`, then `rowid`), filtered by kind
+and by wall (`GET /api/history`, `art_catalogue(action='history')`).
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `id` | UUID | PK | |
+| `kind` | enum | required | `EventKind` (`persistence/records.py`): `get.started`, `get.finished`, `work.accepted`, `work.rejected`, `work.archived`, `work.restored`, `wall.hung`, `work.left_theme`, `work.excluded`, `work.allowed`. |
+| `occurred_at` | datetime | required | |
+| `work_id` | UUID | nullable; not a foreign key | The Library work. Null for a rejected candidate, which never became one (its id is in `detail`). |
+| `run_id` | UUID | nullable; not a foreign key | The Get. |
+| `wall_id` | UUID | nullable; not a foreign key | Programming's wall, held opaquely. What a wall's history filters on. |
+| `theme_id` | UUID | nullable; not a foreign key | Programming's theme, held opaquely: what a hang was drawn from. |
+| `detail` | JSON | nullable | The words the event is read by, copied at the time: `title`, `candidate_work_id`, `theme_name`, `wall_name`, `selection`, `works`, `run_kind`, `intent`, `status`, `reason`. |
+
+> **No foreign keys, deliberately.** A history outlives what it names, and walls
+> and themes are Programming's (seam rule 3). That is why `detail` copies names
+> rather than leaving them to be joined.
+>
+> **Who writes which kind.** The Library writes its own: `DiscoveryService` at
+> each run start (`start_discovery_run`, `start_resolve_run`, `start_get_run`),
+> each ending (decline, complete, fail, halt, cancel, and `interrupted` at
+> startup), and each verdict; `CatalogueService` at archive and restore.
+> Programming writes `wall.hung`, `work.left_theme`, `work.excluded` and
+> `work.allowed` through `LibraryFacade.record`, which refuses any other kind,
+> **after** its own change commits (after a split there is no shared transaction,
+> and a history line for a hang that rolled back would be false).
 
 ### TvBinding *(display plane only)*
 

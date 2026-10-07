@@ -33,7 +33,7 @@ from arrt.library.services.look import ANSWER_KEPT_FOR, LOOK_HOLD_SECONDS, UNREA
 from arrt.library.services.review import MAX_REVIEW_LIMIT
 from arrt.mcp.registry import Action, Param, ToolRecord
 from arrt.persistence.discovery_records import AffinityDerivation, AffinitySentiment, RunKind, RunStatus
-from arrt.persistence.records import ArtworkStatus, VocabularyKind, WorkOrder
+from arrt.persistence.records import ArtworkStatus, EventKind, VocabularyKind, WorkOrder
 
 _STATUS = Param(
     name="status",
@@ -384,6 +384,40 @@ ART_CATALOGUE: Final = ToolRecord(
                 (
                     "The same values filter action='list': a movement topic's label is a movement facet value, a "
                     "period's an era value."
+                ),
+            ),
+        ),
+        Action(
+            name="history",
+            description="Return what happened, newest first: Gets, verdicts, archives, restores, and what was hung.",
+            example="art_catalogue(action='history', kinds=['wall.hung'], wall_id='<a wall_id>')",
+            params=(
+                Param(
+                    name="kinds",
+                    type="array",
+                    items="string",
+                    description=(
+                        "Only these kinds of event, any of them: "
+                        + ", ".join(kind.value for kind in EventKind)
+                        + ". Omit for every kind."
+                    ),
+                ),
+                Param(
+                    name="wall_id",
+                    type="string",
+                    description="Only this wall's history, as art_display(action='walls') names walls. Omit for every wall.",
+                ),
+                _LIMIT,
+                _OFFSET,
+            ),
+            tips=(
+                (
+                    "Recorded from the day the history arrived; nothing earlier is recovered, so an empty history "
+                    "means nothing has happened since, not that nothing ever did."
+                ),
+                (
+                    "Ids in an event may no longer resolve (an archived work, a deleted theme). Each event's detail "
+                    "carries the words it is read by: title, theme_name, selection, and how a Get ended (status)."
                 ),
             ),
         ),
@@ -1214,6 +1248,72 @@ ART_THEME: Final = ToolRecord(
                     "art_display(action='sync') does — a theme can be half-displayable."
                 ),
                 "Switching costs no television writes: the whole library stays on the TV and rotation is driven from here.",
+            ),
+        ),
+        Action(
+            name="hang_selection",
+            description="Hang one or more chosen works on a named wall, until something else is hung there.",
+            example="art_theme(action='hang_selection', wall_id='<a wall_id>', artwork_ids=['<an artwork_id>'])",
+            params=(
+                _WALL_ID,
+                Param(
+                    name="artwork_ids",
+                    type="array",
+                    items="string",
+                    description="The works to hang, in the order they should show, as art_catalogue(action='list') names them.",
+                    required=True,
+                ),
+            ),
+            tips=(
+                (
+                    "A selection is kept as a theme marked hidden: action='list' leaves it out, and the wall it hangs "
+                    "on reports it with hidden=true. Hanging anything else there replaces it."
+                ),
+                (
+                    "The result is the same as action='activate': every work that will NOT be on the wall and why, "
+                    "including a work kept off every wall by action='not_again'."
+                ),
+            ),
+        ),
+        Action(
+            name="not_again",
+            description="Not this one again: take a work out of the theme on a wall, or keep it off every wall.",
+            example="art_theme(action='not_again', wall_id='<a wall_id>', artwork_id='<an artwork_id>', scope='theme')",
+            params=(
+                _WALL_ID,
+                Param(name="artwork_id", type="string", description="The work to take off.", required=True),
+                Param(
+                    name="scope",
+                    type="string",
+                    description=(
+                        "theme: out of the theme hanging on that wall, and so off every wall hanging it. "
+                        "every_wall: off every wall until allowed again; the work stays in the library and its themes."
+                    ),
+                    choices=("theme", "every_wall"),
+                    required=True,
+                ),
+            ),
+            tips=(
+                "Ask which the curator meant; the two are different changes. Neither archives the work.",
+                "The walls carrying it lose it now, without a sync, and nothing else on them changes.",
+                "every_wall is undone with action='allow_again'.",
+            ),
+        ),
+        Action(
+            name="kept_off",
+            description="Return every work kept off every wall by action='not_again', oldest first.",
+            example="art_theme(action='kept_off')",
+        ),
+        Action(
+            name="allow_again",
+            description="Let a work kept off every wall go on walls again.",
+            example="art_theme(action='allow_again', artwork_id='<an artwork_id>')",
+            params=(Param(name="artwork_id", type="string", description="The work to allow again.", required=True),),
+            tips=(
+                (
+                    "Nothing is republished: a theme holding the work carries it again the next time it is hung or "
+                    "synced (art_display(action='sync'))."
+                ),
             ),
         ),
         Action(

@@ -467,6 +467,67 @@ def _activate_theme(services: Services, arguments: Mapping[str, Any]) -> dict[st
     return _built(services.display.activate_theme(arguments["theme_id"], wall_id=arguments["wall_id"]))
 
 
+def _hang_selection(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    # The answer `activate` gives, because it is the same question: what is on
+    # the wall now, and what is not.
+    return _built(services.display.hang_selection(arguments["artwork_ids"], wall_id=arguments["wall_id"]))
+
+
+def _not_again(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    done = services.display.not_this_one_again(arguments["artwork_id"], wall_id=arguments["wall_id"], scope=arguments["scope"])
+    return ok(
+        scope=str(done.scope),
+        artwork_id=done.artwork_id,
+        wall=_wall_view_fields(services.display.get_wall_view(done.wall_id)),
+        left_theme=None if done.left_theme is None else _theme_fields(done.left_theme),
+        excluded_at=None if done.exclusion is None else _moment(done.exclusion.excluded_at),
+    )
+
+
+def _kept_off(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
+    exclusions = services.display.excluded_works()
+    return ok(
+        exclusions=[
+            {"artwork_id": exclusion.artwork_id, "excluded_at": _moment(exclusion.excluded_at)} for exclusion in exclusions
+        ],
+        count=len(exclusions),
+    )
+
+
+def _allow_again(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    services.display.allow_work(arguments["artwork_id"])
+    return ok(
+        allowed=arguments["artwork_id"],
+        notice="It may go on walls again. Nothing is republished: a theme holding it carries it at its next hang or sync.",
+    )
+
+
+def _history(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    page = services.catalogue.list_events(
+        kinds=arguments.get("kinds") or (),
+        wall_id=arguments.get("wall_id"),
+        limit=arguments.get("limit"),
+        offset=arguments.get("offset", 0),
+    )
+    return ok(
+        events=[
+            {
+                "event_id": event.id,
+                "kind": str(event.kind),
+                "occurred_at": _moment(event.occurred_at),
+                "artwork_id": event.work_id,
+                "run_id": event.run_id,
+                "wall_id": event.wall_id,
+                "theme_id": event.theme_id,
+                "detail": dict(event.detail or {}),
+            }
+            for event in page.events
+        ],
+        total=page.total,
+        count=len(page.events),
+    )
+
+
 def _unhang(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     services.display.clear_wall(arguments["wall_id"])
     return ok(
@@ -1293,6 +1354,7 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_catalogue", "regenerate"): _regenerate,
     ("art_catalogue", "topics"): _list_topics,
     ("art_catalogue", "topic"): _get_topic,
+    ("art_catalogue", "history"): _history,
     ("art_theme", "list"): _list_themes,
     ("art_theme", "get"): _get_theme,
     ("art_theme", "create"): _create_theme,
@@ -1303,6 +1365,10 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_theme", "remove"): _remove_from_theme,
     ("art_theme", "reorder"): _reorder_in_theme,
     ("art_theme", "activate"): _activate_theme,
+    ("art_theme", "hang_selection"): _hang_selection,
+    ("art_theme", "not_again"): _not_again,
+    ("art_theme", "kept_off"): _kept_off,
+    ("art_theme", "allow_again"): _allow_again,
     ("art_theme", "unhang"): _unhang,
     ("art_display", "walls"): _list_walls,
     ("art_display", "add_wall"): _add_wall,
@@ -1481,6 +1547,7 @@ def _theme_fields(theme: Theme) -> dict[str, Any]:
         "shuffle": theme.shuffle,
         "created_at": _moment(theme.created_at),
         "is_default": theme.is_default,
+        "hidden": theme.hidden,
     }
 
 
