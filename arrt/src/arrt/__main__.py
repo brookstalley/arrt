@@ -127,6 +127,7 @@ def _sources(settings: Settings, registry: Registry | None) -> SourceRoster:
             registry=registry,
         ),
         order=settings.source_order,
+        data_root=settings.source_data_path,
     )
 
 

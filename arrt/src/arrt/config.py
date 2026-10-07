@@ -76,6 +76,11 @@ KEPT_ANSWERS_FILENAME: Final[str] = "kept-answers.sqlite"
 #: one case the tiles are worth what they cost.
 TILE_CACHE_DIRNAME: Final[str] = "tile-cache"
 
+#: Where source plugins keep files of their own, one directory each
+#: (`SourceContext.data_dir`). **Reconstructible, not backed up**: a plugin keeps
+#: here only what it can fetch again, such as a copy of a holder's open data.
+SOURCE_DATA_DIRNAME: Final[str] = "sources"
+
 #: How the loader names itself to the sites it fetches from.
 #:
 #: **Truthful by default, which is a change from the 2024 pipeline.** That code
@@ -557,6 +562,11 @@ class Settings:
     def tile_cache_path(self) -> Path:
         """Working space for tiled fetches, reclaimed per work as each completes."""
         return self.art_root / TILE_CACHE_DIRNAME
+
+    @property
+    def source_data_path(self) -> Path:
+        """Where source plugins keep what they can fetch again, each in a directory named after it."""
+        return self.art_root / SOURCE_DATA_DIRNAME
 
     @property
     def pictures_path(self) -> Path:
