@@ -3,7 +3,7 @@ artifact: build-plan
 version: 1
 scope: walls-work-and-trust
 branch: feature/walls-work-and-trust
-partition: serial — one builder, one PR
+partition: parallel in waves, delegates in worktrees, coordinator integrates (the owner asked for subagents to cut wall clock). Wave 1 — A static/ foundation (01, 02); B Programming and the event log, server only (03, 04); C search, review and spend, server only (07, 08, 10 server halves). Wave 2, after wave 1 merges — D Walls and History UI (05, 03 UI); E Work page (06); F Search, Artist, Review and spend UI (07, 08, 10 UI). Wave 3 — G vocabulary (09); H tiles, then keyboard and phone (11, 12). Chunk 13 and every review stay with the coordinator. Shared files (api.py, models.py, app.css) take appends, not rewrites.
 depends_on:
   - artifact: ia-proposal
   - artifact: information-architecture
