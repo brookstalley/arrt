@@ -738,9 +738,7 @@ def test_a_wall_on_an_output_with_no_screen_detected_is_not_said_to_be_shown(ui,
     ],
     ids=["never-reported", "unreadable", "output-not-reported"],
 )
-def test_a_screen_the_client_has_not_reported_on_is_neither_shown_nor_dark(
-    ui, services, settings, the_wall, document, words
-):
+def test_a_screen_the_client_has_not_reported_on_is_neither_shown_nor_dark(ui, services, settings, the_wall, document, words):
     """Unknown is its own state: neither "Shown by" nor "no screen detected".
 
     Each reason is its own sentence, because they send the curator to different
