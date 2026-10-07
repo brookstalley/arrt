@@ -16,6 +16,8 @@ not. It is stubbed for that reason — a server cannot be asked to fail on purpo
 the state every deployment with no display attached is actually in.
 """
 
+import json
+
 import pytest
 
 # At import time, not in a fixture. A marker deselection still *collects* this
@@ -27,6 +29,7 @@ pytest.importorskip(
 )
 
 from arrt.persistence.records import MatMethod, RenditionKind
+from arrt.programming.client_heartbeat import client_heartbeat_path_in
 
 #: The phrase each reason states, keyed by the reason. Several for the silent
 #: one, because "nothing was ever written", "something was written and cannot be
@@ -670,17 +673,91 @@ def _client_line(ui, wall_name):
     return section.locator("p.wall-client")
 
 
-def test_an_assigned_wall_says_which_client_shows_it_and_on_which_output(ui, services, the_wall):
+HALL_REPORT = {
+    "reported_at": "2026-10-02T14:00:05+00:00",
+    "outputs": [
+        {"name": "hdmi-a-1", "kind": "framebuffer", "connected": True, "screen": [1920, 1080]},
+        {"name": "hdmi-a-2", "kind": "framebuffer", "connected": False, "screen": None},
+    ],
+}
+
+
+def _report(settings, client, document=HALL_REPORT):
+    """What a running client's heartbeat leaves under the art root."""
+    path = client_heartbeat_path_in(settings.art_root, client.id)
+    path.write_text(document if isinstance(document, str) else json.dumps(document), encoding="utf-8")
+
+
+def test_an_assigned_wall_says_which_client_shows_it_and_on_which_output(ui, services, settings, the_wall):
+    """Shown, because the client reports a screen detected on that output.
+
+    Rewritten when "Shown by" stopped being said from the assignment alone: a
+    wall on an output with nothing detected is not shown by anything, and the
+    tests below say what it reads instead. This one keeps its claim, with the
+    report that makes it true.
+    """
     hall = services.clients.add_client(name="Hall Pi")
-    services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-2")
+    _report(settings, hall)
+    services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
     services.display.add_wall(name="Study")
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall p.wall-client")
 
-    assert _client_line(ui, the_wall.name).inner_text() == "Shown by Hall Pi on hdmi-a-2"
+    assert _client_line(ui, the_wall.name).inner_text() == "Shown by Hall Pi on hdmi-a-1"
     # The other wall's line is its own: an assignment painted under every wall
     # would read correctly with one wall and be wrong with two.
     assert _client_line(ui, "Study").inner_text().startswith("No client shows this wall.")
+
+
+def test_a_wall_on_an_output_with_no_screen_detected_is_not_said_to_be_shown(ui, services, settings, the_wall):
+    """A television switched off drops its hotplug line, and the client reports that.
+
+    Two walls on one client, one output each, so a line read from the wrong
+    output — or from the client rather than the output — reads wrong for one.
+    """
+    hall = services.clients.add_client(name="Hall Pi")
+    _report(settings, hall)
+    services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-2")
+    study = services.display.add_wall(name="Study")
+    services.clients.assign_wall(study.id, client_id=hall.id, output="hdmi-a-1")
+    ui.open("#walls")
+    ui.page.wait_for_selector("section.wall p.wall-client")
+
+    dark = _client_line(ui, the_wall.name).inner_text()
+    assert dark == "Assigned to Hall Pi on hdmi-a-2, where no screen is detected (off or unplugged)"
+    assert "Shown" not in dark
+    assert _client_line(ui, "Study").inner_text() == "Shown by Hall Pi on hdmi-a-1"
+
+
+@pytest.mark.parametrize(
+    ("document", "words"),
+    [
+        (None, "Hall Pi has not reported its outputs yet, so whether a screen is there is not known."),
+        ("{not json", "Hall Pi's last report could not be read, so whether a screen is there is not known."),
+        (HALL_REPORT | {"outputs": HALL_REPORT["outputs"][1:]}, "Hall Pi's last report lists no output called hdmi-a-1."),
+    ],
+    ids=["never-reported", "unreadable", "output-not-reported"],
+)
+def test_a_screen_the_client_has_not_reported_on_is_neither_shown_nor_dark(
+    ui, services, settings, the_wall, document, words
+):
+    """Unknown is its own state: neither "Shown by" nor "no screen detected".
+
+    Each reason is its own sentence, because they send the curator to different
+    places: a client not yet running, a report on the client that is corrupt, and
+    an assignment naming an output the client does not have.
+    """
+    hall = services.clients.add_client(name="Hall Pi")
+    if document is not None:
+        _report(settings, hall, document)
+    services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
+    ui.open("#walls")
+    ui.page.wait_for_selector("section.wall p.wall-client")
+
+    line = _client_line(ui, the_wall.name).inner_text()
+    assert line == f"Assigned to Hall Pi on hdmi-a-1. {words}"
+    assert "Shown" not in line
+    assert "no screen is detected" not in line
 
 
 def test_an_unassigned_wall_says_no_client_shows_it_and_links_to_where_one_is_assigned(ui, services, the_wall):
@@ -711,6 +788,8 @@ def test_a_client_listing_that_never_arrives_still_says_which_output_shows_the_w
     ui.page.wait_for_selector("section.wall p.wall-client")
 
     line = _client_line(ui, the_wall.name).inner_text()
-    assert line == "Shown on hdmi-a-1 by a client whose name could not be read — the client listing is down"
+    # The listing carries the client's report as well as its name, so without it
+    # whether a screen is there is unknown too, and "Shown" would claim it.
+    assert line == "Assigned to hdmi-a-1 of a client whose name and report could not be read — the client listing is down"
     assert ui.page.locator("#error").is_hidden()
     assert "Nothing is hanging on" in ui.text()

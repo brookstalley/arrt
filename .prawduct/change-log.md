@@ -62,6 +62,58 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-07: Walls says "Shown by" only when a screen is there
+
+<!-- prawduct: scope=wall-screen-state -->
+
+**Why:** #274, finding 6 of the October UX review. With the TV off, Clients said both
+outputs were "not connected", Walls said the wall was "Shown on hdmi-a-1", and the top bar
+said "Well". Measured on the wall's Pi with the owner confirming the set was off: the
+kernel reported the connector `disconnected`, as it does when a TV is off or unplugged. So
+Clients was right. Walls was claiming display from the *assignment* alone. The owner
+ruled that "Well" means healthy, not that the TV is on, so the top bar is unchanged.
+
+**What:** `core/outputs.js` (new) holds one state per output, read from the client's
+last report: detected, not detected, not reported, unreadable, or not listed. It also
+holds the words for each. Walls keeps each client's report from the listing it was
+already fetching and says "Shown by" only for a screen detected. Otherwise it says
+"Assigned to…" with "no screen is detected (off or unplugged)", or which of the three
+reasons leaves the screen unknown. Clients' column becomes *Screen*
+("● detected" / "○ none detected (off or unplugged)") beside *Size*, and the output
+picker says "screen detected" / "no screen detected". Clients' own lines about a wall
+say *assigned*, not *shown*: the "Walls assigned to it" heading, the assign and unassign
+messages, the wall and output pickers, and the remove confirmation. Otherwise the same
+claim would have come back one screen over. `information-architecture.md`'s Walls and
+Clients rows describe the new lines.
+
+**Tests:** `tests/browser/test_the_walls.py`:
+- detected, with a second wall on the same client's other output, so a lookup by
+  client rather than by output reads wrong for one of them;
+- not detected;
+- each unknown reason, each asserting "Shown" absent;
+- the listing down.
+
+`test_the_clients.py`: the column's words, its headers, that "connected" no longer
+appears, and the assignment lines' new wording. The two rewritten assertions keep their tests' claims: an assigned wall with a
+screen detected still reads "Shown by", and the listing-down test still names the
+output. Watched to fail before the fix, and two hand mutations of `screenState` (always
+detected; no not-listed case) each turned one test red.
+
+**Not changed:**
+- **How old the report is.** A client that died after reporting `connected: true` still
+  reads as shown. Choosing a threshold is a requirements question of its own, filed as
+  #295.
+- **The Frame output.** It is reported connected because it is configured; whether the
+  TV answers is the wall heartbeat's `television_reachable`.
+- **A kernel `unknown` status.** The Player reports it as `connected: false`, so it reads
+  "none detected". The Player's docstring chooses that on purpose ("a screen this client
+  cannot confirm is not one it should claim"), and the contract's `connected` is a
+  boolean with no third value.
+
+**Measured both ways on the wall's Pi:** `card1-HDMI-A-1` read `disconnected` at
+15:48 and 16:19 local with the TV off, and `connected` at 16:21 after the owner turned
+it on. So "Shown by" rests on a signal that follows the set.
+
 ## 2026-10-07: the UX walkthrough, as a practice and a harness
 
 <!-- prawduct: scope=ux-walkthrough -->
