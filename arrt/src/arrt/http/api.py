@@ -69,6 +69,7 @@ from arrt.http.models import (
     HeldArtistOut,
     HeldTopicOut,
     ImageOut,
+    InReviewOut,
     InstanceListingOut,
     InstanceOut,
     LookOut,
@@ -164,6 +165,7 @@ from arrt.library.services.runner import Estimate, RunView, SpendReport
 from arrt.library.services.survey import WorkDossier, WorkSurvey
 from arrt.library.services.taste import AffinityView
 from arrt.library.services.topics import TopicIndex, TopicPage
+from arrt.library.services.twins import InReview
 from arrt.library.sources.plugin import API_VERSION
 from arrt.persistence.discovery_records import (
     CandidateImage,
@@ -396,7 +398,14 @@ def search_registry(
         state=str(found.state),
         note=found.note,
         artists=[
-            RegistryPersonFoundOut(qid=p.qid, name=p.label, born=p.born, died=p.died, artist_id=held_artists.get(p.qid))
+            RegistryPersonFoundOut(
+                qid=p.qid,
+                name=p.label,
+                born=p.born,
+                died=p.died,
+                artist_id=held_artists.get(p.qid),
+                in_review=_in_review(found.waiting_artists.get(p.qid)),
+            )
             for p in found.artists
         ],
         works=[
@@ -412,6 +421,7 @@ def search_registry(
                 ),
                 held_artwork_ids=list(held_works.get(w.qid, ())),
                 wanted=w.qid in found.wanted_works,
+                in_review=_in_review(found.waiting_works.get(w.qid)),
             )
             for w in found.works
         ],
@@ -658,6 +668,10 @@ def _topic_page(page: TopicPage, works: list[WorkOut]) -> TopicPageOut:
     )
 
 
+def _in_review(waiting: InReview | None) -> InReviewOut | None:
+    return None if waiting is None else InReviewOut(run_id=waiting.run_id, candidate_work_id=waiting.candidate_work_id)
+
+
 def _artist_registry(view: RegistryView, *, artist_id: str | None = None) -> ArtistRegistryOut:
     known = view.known
     return ArtistRegistryOut(
@@ -682,6 +696,7 @@ def _artist_registry(view: RegistryView, *, artist_id: str | None = None) -> Art
                     image=entry.image,
                     held_artwork_ids=list(view.held.get(entry.qid, ())),
                     wanted=entry.qid in view.wanted,
+                    in_review=_in_review(view.waiting.get(entry.qid)),
                 )
                 for entry in known.works
             ]

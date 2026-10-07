@@ -97,6 +97,17 @@ class ArtistListOut(BaseModel):
     artists: list[HeldArtistOut]
 
 
+class InReviewOut(BaseModel):
+    """A proposed work waiting for a verdict in To review: Review is `#review/{run_id}`, the card `candidate_work_id`.
+
+    A registry row carrying one is *Waiting for review* and is not offered for a
+    Get: a run has already found it.
+    """
+
+    run_id: str
+    candidate_work_id: str
+
+
 class RegistryWorkOut(BaseModel):
     """One work the registry lists for an artist. `title` is registry text: show it as text."""
 
@@ -115,6 +126,8 @@ class RegistryWorkOut(BaseModel):
     #: `held_artwork_ids` rather than instead of it: the page decides which mark
     #: wins (held), and both are true when a wanted work has since been acquired.
     wanted: bool
+    #: The proposed work awaiting a verdict that this is, when it is not held.
+    in_review: InReviewOut | None = None
 
 
 class RegistryHoldingOut(BaseModel):
@@ -293,8 +306,11 @@ class RegistryPersonFoundOut(BaseModel):
     name: str
     born: int | None
     died: int | None
-    #: The library's artist with this QID, where it holds one.
+    #: The library's artist this is, where it holds one: by QID, or, for a held
+    #: artist with none, by name and life dates. One artist is one row.
     artist_id: str | None
+    #: A proposed work of theirs awaiting a verdict, when the library does not hold them.
+    in_review: InReviewOut | None = None
 
 
 class RegistryWorkFoundOut(BaseModel):
@@ -304,12 +320,15 @@ class RegistryWorkFoundOut(BaseModel):
     #: A Commons file URL, and only ever one.
     image: str | None
     creator: RegistryCreatorOut | None
-    #: The library's works in circulation that are this one, by QID.
+    #: The library's works in circulation that are this one: by QID, or, for a
+    #: held work with none, by title and artist. A held work is never also not held.
     held_artwork_ids: list[str]
     #: A wanted work names this item (Wanted). Reported beside
     #: `held_artwork_ids` rather than instead of it: the page decides which mark
     #: wins (held), and both are true when a wanted work has since been acquired.
     wanted: bool
+    #: The proposed work awaiting a verdict that this is, when it is not held.
+    in_review: InReviewOut | None = None
 
 
 class RegistrySearchOut(BaseModel):

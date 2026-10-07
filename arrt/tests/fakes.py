@@ -595,6 +595,13 @@ class NothingWanted:
         return frozenset()
 
 
+class NothingWaiting:
+    """An `AwaitingReview` for a test about something else: no proposed work waits for a verdict."""
+
+    def works_awaiting_review(self):
+        return ()
+
+
 def a_roster(*finders, collection=None) -> SourceRoster:
     """The plugins a test's services are built over: these finders, this collection,
     and the Art Institute's reader, as the shared `sources` fixture has it."""

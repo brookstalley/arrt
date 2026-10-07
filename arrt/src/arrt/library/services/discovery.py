@@ -513,6 +513,14 @@ class DiscoveryService:
         """
         return dict(Counter(work.discovery_run_id for work in self._store.list_works_awaiting_verdict()))
 
+    def works_awaiting_review(self) -> Sequence[CandidateWork]:
+        """Every work that found an image and awaits a verdict: the works *To review* counts, by title.
+
+        What Search and the Artist page mark *Waiting for review*, so a work a
+        run already found is not offered for another Get.
+        """
+        return self._store.list_works_awaiting_verdict()
+
     def destinations(self, artwork_ids: Iterable[str]) -> Mapping[str, str | None]:
         """Where each artwork's acceptance asked it to go: a theme id, or None for the default.
 

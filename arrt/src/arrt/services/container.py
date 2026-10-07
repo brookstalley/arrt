@@ -407,9 +407,11 @@ class Services:
             # does not.
             taste=TasteService(discovery),
             identity=IdentityService(catalogue, registry, on_changed=topic_sweep.nudge),
-            artists=ArtistService(catalogue, registry, kept=kept, wanted=discovery_service),
+            artists=ArtistService(catalogue, registry, kept=kept, wanted=discovery_service, awaiting=discovery_service),
             registry_works=registry_works,
-            registry_search=RegistrySearchService(catalogue, registry, kept=kept, wanted=discovery_service),
+            registry_search=RegistrySearchService(
+                catalogue, registry, kept=kept, wanted=discovery_service, awaiting=discovery_service
+            ),
             get=GetService(store=catalogue, discovery=discovery_service, runner=runner_service, registry=registry),
             look=LookService(
                 works=registry_works,
