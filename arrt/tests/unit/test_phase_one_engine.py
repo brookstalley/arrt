@@ -232,8 +232,11 @@ def test_a_spent_key_is_reported_as_exhaustion():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(403, json={"error": {"message": "Key limit exceeded (total limit)."}})
 
-    with pytest.raises(BudgetExhausted):
+    with pytest.raises(BudgetExhausted) as raised:
         engine_over(handler).enumerate_works(asked())
+
+    # The halted run's reason, which the run view shows: it names the budget (#290).
+    assert str(raised.value).startswith("This month's budget is spent")
 
 
 def test_an_unaffordable_request_is_a_failure_but_never_exhaustion():

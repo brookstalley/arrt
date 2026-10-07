@@ -22,6 +22,7 @@ that safe.
 """
 
 import logging
+from decimal import Decimal
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Query, Request, Response
@@ -40,6 +41,7 @@ from arrt.http.models import (
     ArtworkBoxOut,
     AssignWall,
     BackupOut,
+    BudgetOut,
     CandidateCardOut,
     CandidatePageOut,
     CandidateWorkOut,
@@ -54,6 +56,7 @@ from arrt.http.models import (
     ConversationOut,
     ConversationTurnOut,
     ConversationViewOut,
+    CostTiersOut,
     CreateTheme,
     CreateWall,
     DirectiveOut,
@@ -162,6 +165,7 @@ from arrt.library.services.display_fit import ArtworkBox, FitAssessment
 from arrt.library.services.look import LookPicture, LookView, SourceLook
 from arrt.library.services.review import CandidatePage, CandidateView, InstanceListing, InstanceView, WantedView
 from arrt.library.services.runner import Estimate, RunView, SpendReport
+from arrt.library.services.spending import CENTS_BELOW, DIMES_BELOW
 from arrt.library.services.survey import WorkDossier, WorkSurvey
 from arrt.library.services.taste import AffinityView
 from arrt.library.services.topics import TopicIndex, TopicPage
@@ -1063,6 +1067,30 @@ def get_estimate(request: Request, run_id: Annotated[str | None, Query()] = None
     return _estimate(_services(request).runner.estimate(run_id))
 
 
+@router.get("/budget")
+def get_budget(request: Request) -> BudgetOut:
+    """What is left of this month's budget, for the sidebar, read from the provider's key.
+
+    Always a 200: `state` says how the figure is known, or why there is none.
+    Display only, and up to a minute old; the provider's own refusal at its
+    limit is what stops spending. The tier boundaries ride along so every
+    spending control words its estimate the same way.
+    """
+    view = _services(request).budget.view()
+    return BudgetOut(
+        state=str(view.state),
+        remaining_usd=_usd(view.remaining_usd),
+        budget_usd=_usd(view.budget_usd),
+        spent_usd=_usd(view.spent_usd),
+        note=view.note,
+        tiers=CostTiersOut(cents_below_usd=str(CENTS_BELOW), dimes_below_usd=str(DIMES_BELOW)),
+    )
+
+
+def _usd(amount: Decimal | None) -> str | None:
+    return None if amount is None else str(amount)
+
+
 @router.post("/runs")
 def start_run(request: Request, body: StartRun) -> RunOut:
     """Begin a discovery run and return its handle at once.
@@ -1912,6 +1940,7 @@ def _estimate(estimate: Estimate) -> EstimateOut:
         # it: a price through binary floating point comes back as
         # 0.12699999999999999.
         estimated_cost_usd=str(estimate.cost_usd),
+        tier=str(estimate.tier),
         basis=estimate.basis,
         run_id=estimate.run_id,
     )

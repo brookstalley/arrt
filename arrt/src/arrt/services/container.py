@@ -20,6 +20,7 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
+from decimal import Decimal
 from functools import partial
 from pathlib import Path
 from typing import Protocol
@@ -57,6 +58,7 @@ from arrt.library.acquisition.transport import no_transport
 from arrt.library.acquisition.urls import Resolver, check_fetchable
 from arrt.library.discovery.conversation import NO_CONVERSATION_KEY, ConversationEngine, UnavailableConversation
 from arrt.library.discovery.engine import DiscoveryEngine
+from arrt.library.discovery.openrouter import KeyStatus
 from arrt.library.discovery.phase_two import PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.events import WorkChange
@@ -77,6 +79,7 @@ from arrt.library.services.registry_works import RegistryWorkService
 from arrt.library.services.review import ReviewService
 from arrt.library.services.runner import DiscoveryRunner, DiscoverySettings
 from arrt.library.services.sightings import SightingService
+from arrt.library.services.spending import BudgetService
 from arrt.library.services.survey import SurveyService
 from arrt.library.services.taste import TasteService
 from arrt.library.services.thumbnails import ThumbnailService, ThumbnailSettings
@@ -210,6 +213,9 @@ class Services:
     #: The pages found for works that no installed plugin reads, by host. Over
     #: the same routing acquisition uses, so a page a plugin claims is not one.
     sightings: SightingService
+    #: What is left of the month's budget, read from the provider's key, for
+    #: the sidebar. Display only: nothing gates on it.
+    budget: BudgetService
 
     @classmethod
     def bind(
@@ -262,6 +268,12 @@ class Services:
         #: The clock a look's kept answers age by. Defaults to the system's; a
         #: suite moves it to expire a look without waiting six hours.
         look_now: Callable[[], datetime] | None = None,
+        #: How the provider's key is asked what is left of the month, or None
+        #: with no key: the budget then says nothing spends. Never a default
+        #: client, for the reason `registry` has none.
+        key_status: Callable[[], KeyStatus] | None = None,
+        #: The month's budget on a key with no limit (`MONTHLY_BUDGET_USD`).
+        monthly_budget_usd: Decimal | None = None,
     ) -> Services:
         """Assemble the services over an already-open file.
 
@@ -425,6 +437,7 @@ class Services:
             topic_sweep=topic_sweep,
             wikidata_match=WikidataMatchService(discovery_service, registry),
             sightings=sighting_service,
+            budget=BudgetService(key_status, monthly_budget_usd=monthly_budget_usd),
         )
 
     def reconcile(self) -> None:

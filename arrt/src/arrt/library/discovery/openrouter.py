@@ -267,6 +267,9 @@ class KeyStatus:
     usage_usd: Decimal
     remaining_usd: Decimal | None
     resets: str | None
+    #: What the key has spent this calendar month, by the provider's own count
+    #: (`usage_monthly`), or `None` where the reply did not say.
+    usage_monthly_usd: Decimal | None = None
 
 
 class OpenRouterClient:
@@ -420,14 +423,10 @@ class OpenRouterClient:
     def key_status(self) -> KeyStatus:
         """What the account says about the ceiling. For display, never for gating.
 
-        **No surface consumes this yet, and that is deliberate rather than an
-        oversight.** `api-contract.md` specifies no action that reports remaining
-        budget; the cost display that will is part of the discovery UI, and until
-        it exists adding a field to the tool surface would be inventing a
-        requirement. What already depends on this is the live suite's check that
-        the key carries a limit at all — the only mechanical test that the
-        product's entire spend ceiling has been provisioned, since nothing in this
-        repository enforces one.
+        Read by the budget the sidebar shows (`library/services/spending.py`),
+        and by the live suite's check that the key carries a limit at all — the
+        only mechanical test that the product's entire spend ceiling has been
+        provisioned, since nothing in this repository enforces one.
         """
         payload = self._get("/key")
         data = payload.get("data") or {}
@@ -436,6 +435,7 @@ class OpenRouterClient:
             usage_usd=_money(data.get("usage")) or Decimal(0),
             remaining_usd=_money(data.get("limit_remaining")),
             resets=data.get("limit_reset"),
+            usage_monthly_usd=_money(data.get("usage_monthly")),
         )
 
     # -- transport ------------------------------------------------------------
@@ -475,10 +475,12 @@ def _read_body(response: httpx.Response) -> Mapping[str, Any]:
     this particular request reserved more than the balance covers.
     """
     if response.status_code == httpx.codes.FORBIDDEN:
+        # Led by the budget, in the words the sidebar uses for it, because this
+        # sentence is what a halted run and a refused turn show the curator.
         raise KeyExhausted(
-            f"OpenRouter refused the call: the key's credit limit is spent. {_provider_message(response)} "
-            "The ceiling is a per-key credit limit with a monthly reset, so this clears when the month turns "
-            "or when the limit is raised in the OpenRouter console."
+            f"This month's budget is spent: OpenRouter refused the call because the key's credit limit is used up. "
+            f"{_provider_message(response)} The ceiling is a per-key credit limit with a monthly reset, so this "
+            "clears when the month turns or when the limit is raised in the OpenRouter console."
         )
     if response.status_code == httpx.codes.PAYMENT_REQUIRED:
         raise RequestUnaffordable(

@@ -71,6 +71,7 @@ from arrt.library.registry import ItemId
 from arrt.library.services.discovery import ChosenWork, DiscoveryService
 from arrt.library.services.previews import PreviewCache
 from arrt.library.services.sightings import SightingService
+from arrt.library.services.spending import CostTier, cost_tier
 from arrt.logs import run_context
 from arrt.persistence.discovery_records import (
     CandidateWork,
@@ -254,6 +255,15 @@ class Estimate:
     cost_usd: Decimal
     basis: str
     run_id: str | None = None
+
+    @property
+    def tier(self) -> CostTier:
+        """The figure as the curator reads it before acting: free, `$`, `$$` or `$$$` (`spending.cost_tier`).
+
+        An Ask's figure is its bound, so an Ask shows the tier of what it may
+        spend at most rather than of a typical run.
+        """
+        return cost_tier(self.cost_usd)
 
 
 @dataclass(frozen=True, slots=True)

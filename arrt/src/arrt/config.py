@@ -451,6 +451,11 @@ class Settings:
     #: serves the whole catalogue and refuses only to *start* a discovery run,
     #: which is a far better failure than refusing to boot.
     openrouter_api_key: str | None = None
+    #: The month's budget the sidebar measures spend against when the key has no
+    #: limit of its own (`MONTHLY_BUDGET_USD`). Display only and never enforced:
+    #: on a key with a monthly limit the provider's own figure is shown instead,
+    #: and the provider's limit is the only thing that stops spending.
+    monthly_budget_usd: Decimal | None = None
     #: Source plugins by name, most preferred first; plugins it does not name
     #: follow, by name. Order only breaks a tie between images ranked level,
     #: because every finder is asked at once. The default is the owner's ruling of
@@ -702,6 +707,7 @@ class Settings:
                 "CONVERSATION_MAX_OUTPUT_TOKENS", DEFAULT_CONVERSATION_MAX_OUTPUT_TOKENS
             ),
             openrouter_api_key=os.environ.get("OPENROUTER_API_KEY") or None,
+            monthly_budget_usd=_priced("MONTHLY_BUDGET_USD", "0") if os.environ.get("MONTHLY_BUDGET_USD") else None,
             source_order=_names("SOURCE_ORDER", DEFAULT_SOURCE_ORDER),
             wikidata_user_agent=os.environ.get("WIKIDATA_USER_AGENT") or None,
         )

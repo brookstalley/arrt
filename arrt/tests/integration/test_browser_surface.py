@@ -487,13 +487,15 @@ class TestHealth:
         assert backup["reported"]["destination"].endswith("catalogue-2026-08-05.sqlite")
 
     def test_no_budget_balance_appears_anywhere_on_the_panel(self, http):
-        """Settled 2026-08-04, and asserted because the temptation recurs.
+        """The month's budget is the sidebar's, from `/api/budget`, and never this panel's.
 
-        `limit_remaining` reads non-zero while calls are already being refused, so
-        it fails by inversion rather than by staleness — and stating its age, this
-        panel's whole remedy for a stale figure, would not warn about the case
-        that bites. A future edit that adds it back has to delete this test, which
-        is the point at which the decision gets reopened rather than forgotten.
+        Shown since the owner's ruling of 2026-10-07 (#290), which reversed the
+        2026-08-04 decision to show it nowhere. It stays off this panel: the
+        panel states observations with their ages, and `limit_remaining` fails
+        by inversion rather than by staleness (it reads non-zero while calls are
+        already refused), so an age beside it would not warn about the case that
+        bites. The sidebar says what is left; the provider's refusal at the cap
+        says the month's budget is spent.
         """
         named = _every_key(http.get("/api/health").json())
         assert not [key for key in named if any(word in key for word in ("limit", "credit", "balance", "budget"))]

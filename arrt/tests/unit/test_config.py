@@ -56,6 +56,7 @@ def _clean_env(monkeypatch):
         "BACKUP_DIR",
         "BACKUP_INTERVAL_SECONDS",
         "BACKUP_KEEP",
+        "MONTHLY_BUDGET_USD",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -811,3 +812,20 @@ def test_source_order_defaults_to_commons_then_the_art_institute(monkeypatch, tm
         monkeypatch.setenv("SOURCE_ORDER", raw)
 
     assert Settings.from_env().source_order == ("commons", "artic")
+
+
+def test_a_monthly_budget_is_read_as_exact_money_and_unset_is_none(monkeypatch, tmp_path):
+    """None, not zero, when unset: a budget of zero would read as a month already spent."""
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    assert Settings.from_env().monthly_budget_usd is None
+
+    monkeypatch.setenv("MONTHLY_BUDGET_USD", "12.40")
+    assert Settings.from_env().monthly_budget_usd == Decimal("12.40")
+
+
+def test_a_monthly_budget_that_is_not_money_is_refused_by_name(monkeypatch, tmp_path):
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    monkeypatch.setenv("MONTHLY_BUDGET_USD", "ten dollars")
+
+    with pytest.raises(ConfigError, match="MONTHLY_BUDGET_USD"):
+        Settings.from_env()

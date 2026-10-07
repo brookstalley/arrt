@@ -62,6 +62,7 @@ from arrt.config import (
 from arrt.library.acquisition.direct import StreamOpener
 from arrt.library.acquisition.preparation import PreparationSettings
 from arrt.library.discovery.dedup import work_dedup_key
+from arrt.library.discovery.openrouter import KeyStatus
 from arrt.library.facade import LibraryFacade
 from arrt.library.registry import Registry
 from arrt.library.services.catalogue import CatalogueService
@@ -341,6 +342,7 @@ def services(
     kept: KeptAnswers,
     open_stream: StreamOpener | None,
     sources: SourceRoster,
+    key_status: Callable[[], KeyStatus] | None,
 ) -> Services:
     """Every service, wired the way the entry point wires them."""
     return Services.bind(
@@ -386,7 +388,15 @@ def services(
         kept=kept,
         open_stream=open_stream,
         sources=sources,
+        key_status=key_status,
+        monthly_budget_usd=settings.monthly_budget_usd,
     )
+
+
+@pytest.fixture
+def key_status() -> Callable[[], KeyStatus] | None:
+    """No key, as most tests are: the budget says nothing spends. A test of the budget supplies the provider's answer."""
+    return None
 
 
 @pytest.fixture

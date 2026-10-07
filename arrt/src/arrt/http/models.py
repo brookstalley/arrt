@@ -1104,13 +1104,11 @@ class HealthOut(BaseModel):
     a question with one answer and became "which wall has not" — and a single
     reading could not have carried the name of the room that went quiet.
 
-    **There is no budget balance here, and its absence is a decision** (operator,
-    2026-08-04). The provider's `limit_remaining` was observed reporting credit
-    while live calls were already being refused, so it fails by inversion rather
-    than by staleness — and stating its age, which is this panel's whole remedy
-    for a stale figure, would not warn anyone about the case that bites. The
-    honest budget signals are recorded per-run spend and the `halted_by_budget`
-    outcome, and both are on the run view.
+    **There is no budget balance here**: the month's budget is the sidebar's,
+    `BudgetOut` (#290). It stays off this panel because the provider's
+    `limit_remaining` fails by inversion rather than by staleness, so stating
+    its age, this panel's remedy for a stale figure, would not warn about the
+    case that bites (`services/health.py`).
     """
 
     walls: list[WallHeartbeatOut]
@@ -1328,8 +1326,41 @@ class EstimateOut(BaseModel):
 
     phase: str
     estimated_cost_usd: str
+    #: `free`, `$`, `$$` or `$$$` (`spending.cost_tier`): what the control shows
+    #: before the action is taken. Asking's is the tier of its bound.
+    tier: str
     basis: str
     run_id: str | None
+
+
+class CostTiersOut(BaseModel):
+    """Where the tiers change, so a control can word a figure as its tier: free at zero, then `$`, `$$`, `$$$`."""
+
+    #: Under this is `$`.
+    cents_below_usd: str
+    #: Under this is `$$`; this or more is `$$$`.
+    dimes_below_usd: str
+
+
+class BudgetOut(BaseModel):
+    """What is left of this month's budget, read from the provider (`spending.BudgetService`).
+
+    `state` is `known` (the key's monthly limit, from the provider), `configured`
+    (the key has no limit; `MONTHLY_BUDGET_USD` less the provider's spend this
+    month), `uncapped` (no limit and no budget: only `spent_usd`),
+    `not_configured` (no key; nothing spends) or `unavailable`. Money is a
+    decimal string. Display only and up to a minute old: nothing gates on it.
+    """
+
+    state: str
+    #: What is left this month, never below zero; null unless `known` or `configured`.
+    remaining_usd: str | None
+    #: The month's budget: the key's limit or the configured one.
+    budget_usd: str | None
+    #: What the provider counts as spent this month, where it said.
+    spent_usd: str | None
+    note: str | None
+    tiers: CostTiersOut
 
 
 class SpendOut(BaseModel):

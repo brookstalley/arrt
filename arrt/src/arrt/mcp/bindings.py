@@ -484,6 +484,7 @@ def _estimate(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any
         # A string rather than a float: a price rendered through binary floating
         # point is a price that can come back as 0.12699999999999999.
         estimated_cost_usd=str(estimate.cost_usd),
+        tier=str(estimate.tier),
         basis=estimate.basis,
         run_id=estimate.run_id,
         notice="Estimating costs nothing. This is the only art_discovery action that does not spend.",
