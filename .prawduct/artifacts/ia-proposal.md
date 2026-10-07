@@ -365,7 +365,8 @@ Artist hub (4), which needs the IDs.
 
 The owner ruled on the five decisions the first UX walkthrough raised
 (`ux-review-2026-10.md` § Decisions only the owner can make), one at a time, and
-on a sixth their answer to the third opened. The wording of each option is the
+on a sixth their answer to the third opened. A seventh, #278's tile direction,
+was confirmed later the same day. The wording of each option is the
 builder's; the choice is the owner's.
 
 | # | Decision | Ruling |
@@ -376,6 +377,7 @@ builder's; the choice is the owner's.
 | 4 | The spending request's name | **Get, everywhere**, as § Objects defines it. *Search* means only the free search; *run* leaves the screens. Backlog #291. |
 | 5 | Wanted in the sidebar | **Always shown**, as in every *arr app, with its count when non-zero. Backlog #292. |
 | 6 | History | **Events, from now on**: Gets, verdicts, archives, restores and hangs, in one log that also gives each wall its history. Past hangs are not recoverable. Backlog #293. |
+| 7 | Library tiles | **The work itself, at its own aspect.** The wall render, with its mat and bars, appears only on the Work page, where it is the subject. Previews of works not held are real thumbnails with a badge, not hatching. Confirmed by the owner 2026-10-07. Backlog #278. |
 
 **The builder pushed back on ruling 3 in one place, and the owner kept it.**
 Without the gate, an Ask whose model proposes eighty works lands eighty cards in

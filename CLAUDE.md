@@ -43,8 +43,7 @@ meanwhile:
   `postarr/src/postarr/pull.py` only, since wave 2b; everything else it holds is unchanged.
 - **Each wave has its own plan, which names its branch.** What comes next is
   `re-architecture.md` § Order of work, and the plan whose `branch:` you are on
-  is the one in force. Branch from `develop`. The parked round-2 UI plan lives
-  on `curation-ui/rulings-and-plan`.
+  is the one in force. Branch from `develop`.
 - **This repo is public.** The operator's NAS deployment is recorded in their
   private homelab repo. Don't put network addresses, hostnames or usernames here.
 
