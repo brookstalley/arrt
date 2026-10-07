@@ -33,6 +33,7 @@ import { api } from "../core/api.js";
 import { facts, table } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
 import { agree, counted } from "../core/counting.js";
+import { screenCell, screenPhrase } from "../core/outputs.js";
 import { el, guard, render } from "../core/render.js";
 import { refresh } from "../core/router.js";
 
@@ -204,11 +205,11 @@ function outputs(client) {
   } else {
     body = table(
       `The outputs ${client.name} last reported.`,
-      ["Output", "Kind", "Connected", "Screen"],
+      ["Output", "Kind", "Screen", "Size"],
       beat.outputs.map((output) => [
         output.name,
         KIND_WORDS[output.kind] || output.kind,
-        output.connected ? "● connected" : "○ not connected",
+        screenCell(output),
         output.screen ? `${output.screen[0]} × ${output.screen[1]}` : "size unknown",
       ]),
     );
@@ -218,7 +219,7 @@ function outputs(client) {
 
 function shownWalls(client) {
   return el("div", { class: "client-walls" }, [
-    el("h4", { text: "Walls it shows" }),
+    el("h4", { text: "Walls assigned to it" }),
     client.walls.length
       ? el(
           "ul",
@@ -236,7 +237,7 @@ function shownWalls(client) {
                     await api(`/api/walls/${encodeURIComponent(wall.wall_id)}/client`, { method: "DELETE" });
                     outcome = {
                       clientId: client.client_id,
-                      text: `${wall.name} is no longer shown by ${client.name}. It keeps its theme.`,
+                      text: `${wall.name} is no longer assigned to ${client.name}. It keeps its theme.`,
                     };
                     await refresh();
                   }),
@@ -244,7 +245,7 @@ function shownWalls(client) {
             ]),
           ),
         )
-      : el("p", { class: "muted", text: `${client.name} shows no wall yet.` }),
+      : el("p", { class: "muted", text: `${client.name} has no wall assigned yet.` }),
   ]);
 }
 
@@ -266,14 +267,14 @@ function assignForm(client, walls, names) {
       heading,
       el("p", {
         class: "muted",
-        text: walls.length ? `Every wall is already shown by ${client.name}.` : "No wall is recorded, so there is nothing to assign.",
+        text: walls.length ? `Every wall is already assigned to ${client.name}.` : "No wall is recorded, so there is nothing to assign.",
       }),
     ]);
   }
 
   const wallPicker = el("select", { id: `assign-wall-${id}`, "aria-label": `Wall for ${client.name}` });
   for (const wall of candidates) {
-    const elsewhere = wall.client_id ? `, now shown by ${names.get(wall.client_id) || "another client"} on ${wall.output}` : "";
+    const elsewhere = wall.client_id ? `, now assigned to ${names.get(wall.client_id) || "another client"} on ${wall.output}` : "";
     wallPicker.append(el("option", { value: wall.wall_id, text: `${wall.name}${elsewhere}` }));
   }
 
@@ -285,13 +286,12 @@ function assignForm(client, walls, names) {
   if (reported) {
     output = el("select", { id: `assign-output-${id}`, "aria-label": `Output of ${client.name}` });
     // The first output showing nothing is the one offered, since the server
-    // refuses a second wall on an output that already shows one.
+    // refuses a second wall on an output that already has one.
     const free = reported.find((each) => !occupied.has(each.name));
     for (const each of reported) {
-      const showing = occupied.has(each.name) ? `, shows ${occupied.get(each.name)}` : "";
-      const connected = each.connected ? "connected" : "not connected";
+      const showing = occupied.has(each.name) ? `, has ${occupied.get(each.name)}` : "";
       output.append(
-        el("option", { value: each.name, text: `${each.name} (${connected}${showing})`, selected: each === free }),
+        el("option", { value: each.name, text: `${each.name} (${screenPhrase(each)}${showing})`, selected: each === free }),
       );
     }
   } else {
@@ -337,7 +337,7 @@ async function assign(client, wallPicker, output, candidates) {
     method: "POST",
     body: JSON.stringify({ client_id: client.client_id, output: output.value }),
   });
-  const placed = `${wall.name} is now shown by ${client.name} on ${answer.wall.output}.`;
+  const placed = `${wall.name} is now assigned to ${client.name} on ${answer.wall.output}.`;
   // The server's notice, when there is one, is the part the curator has to act
   // on, so it is said after the fact it qualifies rather than in its place.
   outcome = { clientId: client.client_id, text: answer.notice ? `${placed} ${answer.notice}` : placed };
@@ -399,7 +399,7 @@ async function rotate(client) {
     // The consequence that matters is the dark wall, so it leads.
     consequence:
       `${client.name}'s Player is refused from the moment the new token is issued until its settings carry it, ` +
-      "so the walls it shows stop changing until then. The new token is shown once, here.",
+      "so the walls assigned to it stop changing until then. The new token is shown once, here.",
     confirmLabel: "Rotate the token",
   });
   if (!agreed) return;
@@ -414,7 +414,7 @@ async function remove(client) {
     consequence: walls.length
       ? `Its token stops working at once, and ${listed(walls)} will be left without a client. ` +
         `${agree(walls.length, "It keeps its theme", "They keep their themes")} until assigned to another.`
-      : "Its token stops working at once. It shows no wall, so no wall is affected.",
+      : "Its token stops working at once. No wall is assigned to it, so no wall is affected.",
     confirmLabel: `Remove ${client.name}`,
   });
   if (!agreed) return;

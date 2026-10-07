@@ -43,6 +43,7 @@ import { api } from "../core/api.js";
 import { absentImage, facts, table } from "../core/badges.js";
 import { hangTheme } from "../core/hanging.js";
 import { el, guard, render } from "../core/render.js";
+import { screenState, wallScreenLine } from "../core/outputs.js";
 import { go, refresh } from "../core/router.js";
 
 export async function viewWalls(generation) {
@@ -68,7 +69,7 @@ export async function viewWalls(generation) {
   }
 
   const beats = await heartbeats();
-  const shownBy = await clientNames();
+  const shownBy = await clientListing();
   const builds = await Promise.all(walls.walls.map(built));
 
   if (!walls.walls.length) {
@@ -113,41 +114,45 @@ function takeDownNote() {
   return el("p", { class: "note", text: "A wall goes on showing what it was showing until a theme is hung." });
 }
 
-/* Every client's name by its id, or why they could not be read.
+/* Every client by its id, or why they could not be read.
  *
- * A wall carries the id of the client that shows it and the output's name; the
- * client's name is in the client listing. Caught here for `heartbeats`' reason:
+ * A wall carries the id of the client it is assigned to and the output's name;
+ * the client's name, and its last report of what is on each output, are in the
+ * client listing. Caught here for `heartbeats`' reason:
  * a listing that failed is a fact about what this screen can say of each wall,
  * not a refusal of anything the curator did. */
-async function clientNames() {
+async function clientListing() {
   try {
     const listing = await api("/api/clients");
-    return { byId: new Map(listing.clients.map((client) => [client.client_id, client.name])) };
+    return { byId: new Map(listing.clients.map((client) => [client.client_id, client])) };
   } catch (failure) {
     return { failure: failure.message };
   }
 }
 
-/* Which client shows this wall, on which output, or that none does.
+/* Which client this wall is assigned to, on which output, and whether a screen
+ * is there to show it — or that no client is assigned.
  *
- * A wall nobody shows is an ordinary state (`clients.md` § The model), and the
+ * "Shown by" only where the client reports a screen detected on that output
+ * (`core/outputs.js` says why); otherwise the assignment, and what the report
+ * says or why it cannot. A wall nobody shows is an ordinary state (`clients.md` § The model), and the
  * one where everything else on this screen happens to no screen at all — so it
  * is said, with the way to Settings › Clients, where a wall is assigned. A link
  * rather than a button, as the sidebar's are: it goes somewhere and does
  * nothing there. */
-function shownByLine(wall, shownBy) {
+function assignmentLine(wall, shownBy) {
   if (!wall.client_id) {
     return el("p", { class: "muted wall-client" }, [
       el("span", { text: "No client shows this wall. " }),
       el("a", { href: "#clients", text: "Assign it in Settings › Clients" }),
     ]);
   }
-  const name = shownBy.byId ? shownBy.byId.get(wall.client_id) : null;
+  const client = shownBy.byId ? shownBy.byId.get(wall.client_id) : null;
   return el("p", {
     class: "muted wall-client",
-    text: name
-      ? `Shown by ${name} on ${wall.output}`
-      : `Shown on ${wall.output} by a client whose name could not be read${shownBy.failure ? ` — ${shownBy.failure}` : ""}`,
+    text: client
+      ? wallScreenLine(client.name, wall.output, screenState(client.heartbeat, wall.output))
+      : `Assigned to ${wall.output} of a client whose name and report could not be read${shownBy.failure ? ` — ${shownBy.failure}` : ""}`,
   });
 }
 
@@ -217,7 +222,7 @@ function wallSection(wall, build, beats, themes, shownBy) {
     // which room. The single-wall view read correctly by accident, having only
     // one room's worth of headings to confuse.
     el("h3", { class: "wall-title", text: manifest ? `${wall.name}: ${manifest.theme.name}` : wall.name }),
-    shownByLine(wall, shownBy),
+    assignmentLine(wall, shownBy),
     // The server's own sentence about how much of the theme reached the wall,
     // and not repeated when a reason below is about to say the same thing in
     // more useful words: a screen states a fact once, and two copies of one fact

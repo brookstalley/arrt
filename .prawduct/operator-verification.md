@@ -467,14 +467,18 @@ and a `page.screenshot` of your own.
   one your browser used — check it is the one the Pi reaches). Reload, and it is
   gone.
 - **Each client** says when its token was issued (or that it has none), its last
-  report's age, its outputs as a table (Output, Kind, Connected, Screen), the
-  walls it shows with **Unassign**, an **Assign a wall** row (a picker of reported
+  report's age, its outputs as a table (Output, Kind, Screen, Size: Screen reads
+  "● detected" or "○ none detected (off or unplugged)", since #274), the walls
+  assigned to it with **Unassign**, an **Assign a wall** row (a picker of reported
   outputs, the free one first; a text field with `hdmi-a-1` as placeholder when
   nothing is reported), and **Rename**, **Rotate the token** / **Issue a token**,
   **Remove**. Rotate and Remove ask first; Remove names the walls left without a
   client.
-- **The Walls screen** says under each wall's title "Shown by pi4 on hdmi-a-1",
-  or "No client shows this wall." with a link to Settings › Clients.
+- **The Walls screen** says under each wall's title "Shown by pi4 on hdmi-a-1"
+  only while the client reports a screen detected there (the TV on). With the TV
+  off it says "Assigned to pi4 on hdmi-a-1, where no screen is detected (off or
+  unplugged)", and that is correct, not a regression (#274). With no client it says
+  "No client shows this wall." with a link to Settings › Clients.
 - **To look at:** whether the outputs table, which scrolls sideways inside its
   panel on a phone, reads well enough there; and whether adding a client and
   issuing its token in one act is what you want, rather than two steps.

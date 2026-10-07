@@ -195,7 +195,7 @@ def test_a_client_that_has_not_reported_says_so_in_words(ui, hall):
     text = panel(ui, hall).inner_text()
     assert "It has not reported its outputs yet." in text
     assert "Hall Pi has not reported its outputs yet, so none can be listed." in text
-    assert "Hall Pi shows no wall yet." in text
+    assert "Hall Pi has no wall assigned yet." in text
 
 
 def test_a_report_is_listed_output_by_output_with_its_age(ui, settings, hall):
@@ -205,10 +205,16 @@ def test_a_report_is_listed_output_by_output_with_its_age(ui, settings, hall):
 
     rows = panel(ui, hall).locator("tbody tr").all_inner_texts()
     assert [row.split("\t")[0] for row in rows] == ["hdmi-a-1", "hdmi-a-2"]
-    assert "● connected" in rows[0]
+    assert "● detected" in rows[0]
     assert "1920 × 1080" in rows[0]
-    assert "○ not connected" in rows[1]
+    assert "○ none detected (off or unplugged)" in rows[1]
     assert "size unknown" in rows[1]
+    # "connected" read as a cable fault when the usual cause is a television
+    # switched off, which drops its hotplug line exactly as an unplugged one does.
+    assert "connected" not in panel(ui, hall).locator("table").inner_text()
+    # Text content, not inner text: the stylesheet sets headers in capitals.
+    headers = panel(ui, hall).locator("thead th").all_text_contents()
+    assert headers == ["Output", "Kind", "Screen", "Size"]
     assert "It last reported " in panel(ui, hall).inner_text()
 
 
@@ -252,7 +258,7 @@ def test_assigning_a_wall_to_a_reported_output(ui, services, settings, hall, the
     wall = services.display.get_wall_view(study.id).wall
     assert (wall.client_id, wall.output) == (hall.id, "hdmi-a-2")
     said = panel(ui, hall).locator("[data-said]")
-    assert said.inner_text() == "Study is now shown by Hall Pi on hdmi-a-2."
+    assert said.inner_text() == "Study is now assigned to Hall Pi on hdmi-a-2."
     assert ui.page.evaluate("() => document.activeElement.hasAttribute('data-said')")
     # The picker offers only walls this client does not already show.
     assert ui.page.get_by_label("Wall for Hall Pi").locator("option").all_inner_texts() == [the_wall.name]
@@ -272,7 +278,7 @@ def test_assigning_to_a_typed_output_when_none_is_reported_shows_the_servers_not
     ui.page.wait_for_selector(f"section.client li:has-text('{the_wall.name}, on hdmi-a-1')")
 
     said = panel(ui, hall).locator("[data-said]").inner_text()
-    assert said.startswith(f"{the_wall.name} is now shown by Hall Pi on hdmi-a-1. ")
+    assert said.startswith(f"{the_wall.name} is now assigned to Hall Pi on hdmi-a-1. ")
     assert "Hall Pi has not reported its outputs yet, so whether it has one called 'hdmi-a-1' cannot be checked" in said
     assert services.display.get_wall_view(the_wall.id).wall.client_id == hall.id
 
@@ -286,7 +292,7 @@ def test_an_output_already_showing_a_wall_is_named_and_a_second_is_refused_in_th
     ui.page.wait_for_selector("section.client")
 
     options = ui.page.get_by_label("Output of Hall Pi").locator("option").all_inner_texts()
-    assert options == [f"hdmi-a-1 (connected, shows {the_wall.name})", "hdmi-a-2 (not connected)"]
+    assert options == [f"hdmi-a-1 (screen detected, has {the_wall.name})", "hdmi-a-2 (no screen detected)"]
     # The output showing nothing is the one offered first.
     assert ui.page.get_by_label("Output of Hall Pi").input_value() == "hdmi-a-2"
     ui.page.get_by_label("Output of Hall Pi").select_option("hdmi-a-1")
@@ -303,11 +309,11 @@ def test_unassigning_a_wall_from_the_clients_list(ui, services, hall, the_wall):
     ui.page.wait_for_selector("section.client li")
 
     ui.page.get_by_role("button", name=f"Unassign {the_wall.name} from Hall Pi").click()
-    ui.page.wait_for_selector("section.client p:has-text('Hall Pi shows no wall yet.')")
+    ui.page.wait_for_selector("section.client p:has-text('Hall Pi has no wall assigned yet.')")
 
     assert services.display.get_wall_view(the_wall.id).wall.client_id is None
     said = panel(ui, hall).locator("[data-said]").inner_text()
-    assert said == f"{the_wall.name} is no longer shown by Hall Pi. It keeps its theme."
+    assert said == f"{the_wall.name} is no longer assigned to Hall Pi. It keeps its theme."
 
 
 def test_renaming_a_client_keeps_its_walls(ui, services, hall, the_wall):
@@ -374,5 +380,5 @@ def test_removing_a_client_that_shows_nothing_says_no_wall_is_affected(ui, hall)
     ui.page.wait_for_selector("dialog.confirm[open]")
 
     consequence = ui.page.inner_text("dialog.confirm .confirm-consequence")
-    assert "It shows no wall, so no wall is affected." in consequence
+    assert "No wall is assigned to it, so no wall is affected." in consequence
     assert "left without a client" not in consequence
