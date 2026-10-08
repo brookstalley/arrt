@@ -44,7 +44,9 @@ HELD_STATES = {"silent", "unreachable"}
 def label_outcome(document: dict, now: datetime) -> str:
     """caption, card or blank for one label document at one instant."""
     shown = document["display_state"]
-    state = shown["state"] if shown["state"] in STATES else "unreachable"
+    # A state the schema does not name falls through to the held branch below,
+    # which is reading it as unreachable.
+    state = shown["state"]
     label = document["label"]
     if state == "showing_art":
         return "caption" if label is not None else "card"

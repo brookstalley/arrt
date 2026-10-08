@@ -110,11 +110,11 @@ Seeded with `prawduct-hook jurisdiction`; dispositions:
 ## Status
 
 - [x] Chunk 01: The contract
-- [ ] Chunk 02: The server's records
-- [ ] Chunk 03: The server's routes
+- [x] Chunk 02: The server's records
+- [x] Chunk 03: The server's routes
 - [ ] Chunk 04: The interface
-- [ ] Chunk 05: The Player reports
-- [ ] Chunk 06: The label renderer
+- [x] Chunk 05: The Player reports
+- [x] Chunk 06: The label renderer
 - [ ] Chunk 07: On the wall
 
 ### Chunk 01: The contract
@@ -151,13 +151,13 @@ Done when:
    LabelOutput record (id, client_id, output, wall_id nullable) exist in
    Programming, and Wall's `client_id`/`output` give way to `display_id`.
 2. A migration turns each assigned wall's (client_id, output) into a Display with
-   identity `{client_id}/{output}`, so walls stay where they hang. A test opens a
+   identity {client_id}/{output}, so walls stay where they hang. A test opens a
    catalogue in today's shape and finds every wall on the same screen after.
 3. The store enforces, and the docstrings state exactly what it enforces: one
    identity per Display; one wall per Display; a LabelOutput's (client_id, output)
    unique; a LabelOutput on at most one wall (a wall may have many).
 4. A client heartbeat creates or refreshes the Displays it reports, keyed on
-   `identity` when present and on `{client_id}/{name}` otherwise, and the
+   `identity` when present and on {client_id}/{name} otherwise, and the
    LabelOutputs it reports. A Display reported by a different client than last
    time moves to that client, with its walls (the Frame moved from Pi to Mac).
 5. `data-model.md` gains both records, with § What this data must answer: which

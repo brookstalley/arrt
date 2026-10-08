@@ -131,7 +131,9 @@ def _text(value: object) -> bool:
 
 def outcome(document: LabelDocument, now: datetime) -> Outcome:
     """caption, card or blank for one label document at one instant. The rule, whole."""
-    state = document.state if document.state in STATES else UNREACHABLE
+    # A state this reader does not know falls through to the held branch below,
+    # which is reading it as unreachable, as the contract says to.
+    state = document.state
     if state == SHOWING_ART:
         return Outcome.CAPTION if document.label is not None else Outcome.CARD
     if state == UNASSIGNED:

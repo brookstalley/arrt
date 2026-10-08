@@ -62,6 +62,47 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-08: Displays as records, label outputs, and a label renderer per panel
+
+<!-- prawduct: scope=displays-and-label-outputs -->
+
+**Why:** Chunks 02, 03, 05 and 06 of `build-plan-displays-and-label-outputs.md`
+(#188): a wall names a display rather than a (client, output) pair, so a Frame
+moved between clients keeps its walls; a wall has any number of labels on any
+clients; and the panel stops belonging to the Frame loop.
+
+**What:**
+- Server: Display and LabelOutput records in Programming, with a migration that
+  gives every assigned wall a display keyed `{client_id}/{output}` and keeps it on
+  its screen. The client heartbeat keeps both records: a display first seen
+  without identity is re-keyed when its identity arrives, and a Frame moved to
+  another client moves with its walls. Two clients reporting one identity is a
+  fault: neither is given the wall, and the API names both.
+- Server routes: `GET /client` names each wall's display and the client's labels;
+  `GET /labels/{label_id}` serves the label document with an ETag (`contract/routes.json`
+  names it); HTTP and MCP map a wall's display and labels through one service in
+  `programming/clients.py`. `ScreenState` is checked against both schemas' states
+  in both directions.
+- Player: the client reads the Frame's `device.duid` itself, once, without the
+  art channel or a key, so a Frame with no wall still reports it. A configured
+  panel is a label output, and `EPD_DEVICE` no longer needs `TV_ADDRESS`. One
+  label renderer per mapped label polls its document through `pull.py`, applies
+  the rule (`label_rule.py`, run over every contract vector), holds a caption for
+  30 minutes while the server is away, and redraws only when the ink would
+  change. `daemon.py` no longer draws the panel; its label tests moved to
+  `test_label_renderer.py`, each move's reason in its commit.
+- Mutation sweeps: the server delegate broke its new code in 11 places, 10 caught
+  and one inert check deleted; the Player delegate's 37 were all caught; the
+  coordinator's own sweep of the rule and the redraw decision caught 14 of 15,
+  and the survivor (reading an unknown state as unreachable in `outcome`, which
+  the fall-through already does) was deleted here and in the root reference rule.
+- Artifacts: `data-model.md` (Display, LabelOutput, Q48–Q52), `api-contract.md`
+  § Clients, `player-contract.md` (the label route's answers, the fault),
+  `clients.md` § The Player, `observability-strategy.md` (label events carry
+  `label_id`), and the plan's decisions. #315 filed for the panel failure reasons
+  the client heartbeat cannot yet carry.
+- Suites: 6297 passed across the three (recorded); browser suite 898 passed.
+
 ## 2026-10-08: The contract for displays and label outputs
 
 <!-- prawduct: scope=displays-and-label-outputs -->
