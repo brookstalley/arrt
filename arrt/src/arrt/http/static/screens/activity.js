@@ -425,6 +425,9 @@ export async function viewWanted(generation) {
         "Every work you want, newest Get first.",
         ["Picture", "Work", "Why", "Wikidata", "From", ""],
         works.map((work) => wantedRow(work, picker, repaint)),
+        // Cards on a phone, as Activity's other tables are. No row link: a
+        // row holds several acts, and a link over the card would cover them.
+        { stacked: true },
       ),
     ]),
   );
