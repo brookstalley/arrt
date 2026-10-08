@@ -640,10 +640,12 @@ def _client_line(ui, wall_name):
     return section.locator("p.wall-client")
 
 
-#: Stamped now, so the report is young enough to speak for the screen: one
-#: older than three heartbeats says nothing about now, and has its own tests.
+#: Stamped when written (`_report`), so the report is young enough to speak for
+#: the screen: one older than three heartbeats says nothing about now, and has
+#: its own tests. Stamping it here, at import, made it stale for any test run
+#: more than three heartbeats after collection, which a full suite is.
 HALL_REPORT = {
-    "reported_at": datetime.now(UTC).isoformat(timespec="seconds"),
+    "reported_at": None,
     "outputs": [
         {"name": "hdmi-a-1", "kind": "framebuffer", "connected": True, "screen": [1920, 1080]},
         {"name": "hdmi-a-2", "kind": "framebuffer", "connected": False, "screen": None},
@@ -654,6 +656,8 @@ HALL_REPORT = {
 def _report(settings, client, document=HALL_REPORT):
     """What a running client's heartbeat leaves under the art root."""
     path = client_heartbeat_path_in(settings.art_root, client.id)
+    if isinstance(document, dict):
+        document = document | {"reported_at": datetime.now(UTC).isoformat(timespec="seconds")}
     path.write_text(document if isinstance(document, str) else json.dumps(document), encoding="utf-8")
 
 

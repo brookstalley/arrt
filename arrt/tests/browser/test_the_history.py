@@ -68,7 +68,8 @@ def test_each_act_reads_as_a_sentence_newest_first(ui, services, work_with_an_im
     )
 
 
-def test_a_date_is_said_as_how_long_ago_with_the_date_a_hover_away(ui, services, work_with_an_image):
+def test_a_date_is_said_as_a_readable_date_and_how_long_ago(ui, services, work_with_an_image):
+    """One date formatter everywhere (#283): the readable date and the age, both read."""
     work = work_with_an_image(title="Nighthawks")
     services.catalogue.archive_artwork(work.id)
 
@@ -76,11 +77,12 @@ def test_a_date_is_said_as_how_long_ago_with_the_date_a_hover_away(ui, services,
     stamp = ui.page.locator("ol.history-events li time").first
     stamp.wait_for()
 
-    assert stamp.inner_text() in {"0 seconds ago", "1 second ago", "2 seconds ago", "3 seconds ago"}
+    said = stamp.inner_text()
+    assert str(datetime.now(UTC).year) in said
+    assert said.endswith(("(0 seconds ago)", "(1 second ago)", "(2 seconds ago)", "(3 seconds ago)"))
     # The machine instant is in the attribute, never in what is read.
     assert stamp.get_attribute("datetime").startswith(str(datetime.now(UTC).year))
-    assert "T" not in ui.text()
-    assert stamp.get_attribute("title")
+    assert "T" not in said
 
 
 def test_a_get_reads_as_what_was_asked_and_how_it_ended(ui, services):
@@ -94,7 +96,7 @@ def test_a_get_reads_as_what_was_asked_and_how_it_ended(ui, services):
 
     text = ui.text()
     assert "Asked for “Quiet interiors”" in text
-    assert "A search stopped at the spending cap" in text
+    assert "A Get stopped at the spending cap" in text
     # The raw status is not what a curator reads.
     assert "halted_by_budget" not in text
 
@@ -104,7 +106,7 @@ def test_a_get_opened_from_history_returns_to_history(ui, services):
     services.catalogue.record_event(EventKind.GET_STARTED, run_id="run-1", detail=ASKED)
     open_history(ui)
     link = ui.page.get_by_role("link", name="“Quiet interiors”")
-    assert link.get_attribute("href") == "#run/run-1?from=history"
+    assert link.get_attribute("href") == "#get/run-1?from=history"
 
 
 def test_the_kinds_filter_by_link_and_say_which_is_shown(ui, services, work_with_an_image, the_wall):

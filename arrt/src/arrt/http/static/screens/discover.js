@@ -12,7 +12,8 @@ import { api } from "../core/api.js";
 import { table } from "../core/badges.js";
 import { el, render } from "../core/render.js";
 import { go, link } from "../core/router.js";
-import { tierMark } from "../core/spend.js";
+import { askingCost, tierMark } from "../core/spend.js";
+import { dated } from "../core/dates.js";
 import { state } from "../core/state.js";
 
 export async function viewDiscover(generation) {
@@ -22,21 +23,24 @@ export async function viewDiscover(generation) {
   const [estimate, conversations] = await Promise.all([api("/api/estimate"), api("/api/conversations")]);
 
   const intent = el("textarea", { id: "intent", rows: 3, required: true });
-  // A search handed over from the top bar's "Ask about …" row, as Sonarr hands
-  // its term to Add New. Filled in and never started: a search here
-  // is a paid run, and the curator presses the button beside its price.
+  // Words handed over from the top bar's "Ask about …" row, as Sonarr hands
+  // its term to Add New. Filled in and never started: a Get here spends, and
+  // the curator presses the button beside its price.
   intent.value = state.params.term || "";
   const start = el("button", {
     class: "action",
     type: "button",
-    text: "Start the search",
+    // The act, with its cost tier beside it (below): "Get", as every
+    // spending request is called (`ia-proposal.md` § Objects).
+    text: "Get",
+    "aria-label": "Get what you asked for",
     onclick: (event) =>
-      attempt(event.currentTarget, "start the search", async () => {
+      attempt(event.currentTarget, "start the Get", async () => {
         const run = await api("/api/runs", {
           method: "POST",
           body: JSON.stringify({ intent: intent.value }),
         });
-        go("run", run.run_id);
+        go("get", run.run_id);
       }),
   });
 
@@ -74,7 +78,7 @@ export async function viewDiscover(generation) {
       // The price before the decision, and what it buys. Stated as a bound
       // rather than a typical figure, because a run may freely use the whole
       // allowance and an estimate it can exceed is not an estimate.
-      text: `Asking costs at most $${estimate.estimated_cost_usd}. ${estimate.basis}`,
+      text: askingCost(estimate),
     }),
     // The tier beside the button it prices, so it is read before the press.
     el("div", { class: "row" }, [start, tierMark(estimate.tier), talk, taste]),
@@ -94,9 +98,9 @@ export async function viewDiscover(generation) {
           "Every conversation, the most recently spoken in first.",
           ["Last said", "Where it got to", "Open"],
           conversations.conversations.map((conversation) => [
-            conversation.last_turn_at,
+            el("time", { datetime: conversation.last_turn_at, text: dated(conversation.last_turn_at) }),
             conversation.summary || "—",
-            link({ view: "conversation", id: conversation.conversation_id }, { class: "action quiet", text: "Open", "aria-label": `Open the conversation last spoken in at ${conversation.last_turn_at}` }),
+            link({ view: "conversation", id: conversation.conversation_id }, { class: "action quiet", text: "Open", "aria-label": `Open the conversation last spoken in ${dated(conversation.last_turn_at)}` }),
           ]),
         ),
       ]),

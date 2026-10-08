@@ -431,7 +431,9 @@ ART_CATALOGUE: Final = ToolRecord(
 #: it governed both — telling a model that omitting `run_id` prices a new question
 #: on the four actions where omitting it is simply an error. What each action does
 #: with it belongs in that action's own description and tips, which `help` shows.
-_RUN_ID_DESCRIPTION = "A discovery run's id, as returned by action='start' or action='list_runs'."
+_RUN_ID_DESCRIPTION = (
+    "A discovery run's id (a Get, in the curator's browser), as returned by action='start' or action='list_runs'."
+)
 
 _RUN_ID = Param(name="run_id", type="string", description=_RUN_ID_DESCRIPTION, required=True)
 
@@ -446,7 +448,15 @@ ART_DISCOVERY: Final = ToolRecord(
     #: that survives is scale, and it is the one a curator needs: a discovery run
     #: is the operation with an estimate, a tier and a ceiling behind it, while
     #: a mat call is a fraction of a cent against one work.
-    summary="Propose and resolve new works. The only tool that spends money in amounts worth pricing first.",
+    #: The action names stay as they are — tool and action names are a frozen
+    #: contract with every agent already calling them, and this surface has no
+    #: action aliases — so the curator's word is carried in the summary instead:
+    #: every run is what the browser calls a Get, and an agent talking to the
+    #: curator should call it that (`information-architecture.md` § Vocabulary).
+    summary=(
+        "Propose and resolve new works. The only tool that spends money in amounts worth pricing first. "
+        "Each run is what the curator's browser calls a Get, at #get/<run_id>; say Get, not run or search, to them."
+    ),
     read_only=False,
     destructive=True,
     open_world=True,

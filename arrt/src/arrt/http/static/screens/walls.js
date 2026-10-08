@@ -54,7 +54,7 @@
  */
 
 import { attempt } from "../core/acting.js";
-import { ago, inWords } from "../core/ages.js";
+import { ago, inWords } from "../core/dates.js";
 import { api } from "../core/api.js";
 import { absentImage, facts, table } from "../core/badges.js";
 import { counted } from "../core/counting.js";
@@ -688,6 +688,20 @@ async function awaitNext(card, sentence, gone = null) {
   card.said.textContent = `${sentence} It has not reported a new work in ${inWords(STALE_AFTER_SECONDS)}; Status has its reading.`;
 }
 
+/* Why a work in the theme is not on the wall, as a word, by the server's
+ * `UnplayableReason` and `KeptOff`. Held to both enums by the vocabulary test;
+ * one it has no word for is shown as itself. The *What is missing* column
+ * beside it carries the server's own sentence. */
+const EXCLUSION_WORDS = {
+  archived: "Archived",
+  no_original: "No image yet",
+  no_rendition: "Not prepared yet",
+  stale_rendition: "Being prepared again",
+  no_mat_color: "No mat colour",
+  not_in_catalogue: "No longer in the library",
+  kept_off_every_wall: "Kept off every wall",
+};
+
 /* How the wall is set up: what of its theme is not reaching it, and how it
  * rotates. Behind a disclosure, because the card is about the work on the wall;
  * this is what to open when the wall is not doing what was expected. */
@@ -702,7 +716,7 @@ function setup(wall, manifest) {
         ? table(
             "Every work this wall draws from that is not on it, and exactly why.",
             ["Title", "Reason", "What is missing"],
-            manifest.exclusions.map((x) => [x.title, x.reason, x.detail]),
+            manifest.exclusions.map((x) => [x.title, EXCLUSION_WORDS[x.reason] || x.reason, x.detail]),
           )
         : el("p", {
             class: "muted",

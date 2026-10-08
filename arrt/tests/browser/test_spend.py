@@ -104,7 +104,7 @@ def test_asks_button_shows_its_tier_before_it_is_pressed(ui):
     ui.serve("**/api/estimate", an_estimate(phase="phase_1", estimated_cost_usd="0.12", run_id=None))
     ui.open("#discover")
 
-    start = ui.page.locator("#view button:text-is('Start the search')")
+    start = ui.page.locator("#view button:text-is('Get')")
     mark = start.locator("xpath=following-sibling::*[1]")
     assert " ".join(mark.inner_text().split()) == "Cost: $$"
     assert "badge-tier" in mark.get_attribute("class")
@@ -113,7 +113,7 @@ def test_asks_button_shows_its_tier_before_it_is_pressed(ui):
 def test_an_approval_gate_stored_before_offers_approve_with_its_tier(ui):
     ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(works=[a_candidate()]))
     ui.serve("**/api/estimate?*", an_estimate())
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
 
     approve = ui.page.locator("button:text-is('Approve the list')")
     approve.wait_for()
@@ -130,7 +130,7 @@ def test_no_other_run_offers_approve_or_decline(ui, status):
     run = a_run(status=status.value, is_terminal=terminal, approval_required=False)
     ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(run, works=[a_candidate()]))
     ui.serve(f"**/api/runs/{RUN_ID}/spend", {"scope": "run_family", "cost_usd": "0", "run_id": RUN_ID})
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("#view h1")
 
     assert ui.page.locator("button:text-is('Approve the list'), button:text-is('Decline it')").count() == 0
@@ -140,7 +140,7 @@ def test_a_run_halted_at_the_cap_says_the_months_budget_is_spent(ui):
     reason = "This month's budget is spent: OpenRouter refused the request (402)."
     run = a_run(status=RunStatus.HALTED_BY_BUDGET.value, is_terminal=True, approval_required=False, end_reason=reason)
     ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(run, works=[a_candidate()]))
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
 
     line = ui.page.locator("#view .run-end-reason")
     line.wait_for()

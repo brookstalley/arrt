@@ -200,8 +200,8 @@ const RESOLUTION_GLYPHS = { resolved: "●", unresolved: "▲", pending: "◌" }
  * These words mean the same on the grid, in the run table, and beside the raw
  * `resolution_status` an agent reads over MCP. */
 const RESOLUTION_WORDS = {
-  resolved: "the run found an image",
-  unresolved: "the run found none",
+  resolved: "the Get found an image",
+  unresolved: "the Get found none",
   pending: "not looked up",
 };
 

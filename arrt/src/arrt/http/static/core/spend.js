@@ -35,10 +35,24 @@ export function tierMark(tier) {
   ]);
 }
 
-/* A figure the server sends as a decimal string, to the cent. */
-function dollars(value) {
+/* A figure the server sends as a decimal string, to the cent: every cost and
+ * estimate the client shows goes through here, so none reads to nine places.
+ * A cost above nothing and below half a cent says so rather than reading as
+ * free. */
+export function dollars(value) {
   const number = Number(value);
-  return Number.isFinite(number) ? `$${number.toFixed(2)}` : `$${value}`;
+  if (value === null || value === undefined || !Number.isFinite(number)) return `$${value}`;
+  if (number > 0 && number < 0.005) return "under $0.01";
+  return `$${number.toFixed(2)}`;
+}
+
+/* What a Get from words costs at most, as a sentence beside its button.
+ *
+ * Composed here rather than shown as the estimate's `basis`, which is written
+ * for an agent and names the engine's phases; the bound is the same fact in the
+ * curator's words: the most the model call and its web lookups may spend. */
+export function askingCost(estimate) {
+  return `This Get costs at most ${dollars(estimate.estimated_cost_usd)}: one model call and its web lookups, priced at the most they may use. Finding the images after that is free.`;
 }
 
 /* The budget's line and, where the server says something more, its note. */

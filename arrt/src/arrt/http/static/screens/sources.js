@@ -20,6 +20,7 @@
 
 import { api } from "../core/api.js";
 import { facts } from "../core/badges.js";
+import { museumName, PLUGIN_STATE_WORDS } from "../core/providers.js";
 import { el, render } from "../core/render.js";
 
 /* What a plugin's parts provide, in the words a curator reads. */
@@ -55,11 +56,12 @@ export async function viewSources(generation) {
 
 function sourcePanel(source, index, count, interfaceMajor) {
   return el("li", { class: "panel source-entry" }, [
-    el("h2", { text: source.name }),
+    el("h2", { text: museumName(source.name) }),
     el("p", { class: "reading-sentence", text: source.description }),
     facts([
+      ["Plugin", source.name],
       ["Package", packageWords(source)],
-      ["State", source.state],
+      ["State", PLUGIN_STATE_WORDS[source.state] || source.state],
       ["Provides", providesWords(source)],
       ["Interface", interfaceWords(source, interfaceMajor)],
       ["Order", `${index + 1} of ${count}`],

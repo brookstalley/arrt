@@ -115,7 +115,7 @@ def test_committing_a_direction_transforms_the_card_in_place(talking):
     open_thread(talking)
     before = talking.page.url
 
-    talking.page.click("text=Search for this")
+    talking.page.click("#commit-card button:text-is('Get')")
     talking.page.wait_for_selector("text=Working out which works match this direction")
 
     # Still here: same address, same screen, same transcript above the card.
@@ -140,7 +140,7 @@ def test_committing_a_direction_transforms_the_card_in_place(talking):
 @pytest.mark.parametrize(
     ("status", "expected"),
     [
-        (RunStatus.AWAITING_APPROVAL, "This search proposed 1 work and stopped to ask"),
+        (RunStatus.AWAITING_APPROVAL, "This Get proposed 1 work and stopped to ask"),
         (RunStatus.RESOLVING_IMAGES, "The list of 1 work is settled"),
         (RunStatus.COMPLETED, "1 work is ready to review"),
     ],
@@ -184,7 +184,7 @@ def test_the_commit_card_agrees_with_itself_at_a_count_of_one(talking, status, e
         ),
     )
     open_thread(talking)
-    talking.page.click("text=Search for this")
+    talking.page.click("#commit-card button:text-is('Get')")
 
     talking.page.wait_for_selector(f"text={expected}")
     assert "1 works" not in talking.text()
@@ -200,7 +200,7 @@ def test_the_commit_card_offers_a_direction_before_anything_is_committed(talking
     # change.
     assert talking.page.input_value("#direction") == "Agnes Martin"
     # The bound, said as a bound. A price a search may exceed is not a price.
-    assert "Searching costs at most $" in card
+    assert "This Get costs at most $" in card
 
 
 def test_a_failed_turn_stays_in_the_thread_and_can_be_asked_again(ui):

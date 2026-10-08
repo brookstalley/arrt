@@ -48,7 +48,7 @@ def test_it_reads_the_shipped_table_in_its_order():
     routes = ux_walk.declared_routes(ux_walk.APP_JS.read_text(encoding="utf-8"))
 
     assert next(iter(routes)) == "collection"
-    assert {"work", "run", "review", "conversation", "topic"} <= {k for k, r in routes.items() if r.detail == "required"}
+    assert {"work", "get", "review", "conversation", "topic"} <= {k for k, r in routes.items() if r.detail == "required"}
     assert routes["theme"].detail == "optional"
 
 

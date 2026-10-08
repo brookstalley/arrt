@@ -177,7 +177,7 @@ async function getAndSay(qids, status, destination) {
     el("span", { text: getSentence(qids.length, outcome, into.name) }),
     outcome.run ? " " : null,
     outcome.run
-      ? link({ view: "run", id: outcome.run.run_id }, { class: "link", text: "Open the Get" })
+      ? link({ view: "get", id: outcome.run.run_id }, { class: "link", text: "Open the Get" })
       : null,
   );
   status.focus();

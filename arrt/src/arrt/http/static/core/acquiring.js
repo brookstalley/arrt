@@ -12,6 +12,7 @@
 import { attempt } from "./acting.js";
 import { api } from "./api.js";
 import { counted } from "./counting.js";
+import { dated } from "./dates.js";
 import { el } from "./render.js";
 
 const PHASES = {
@@ -27,7 +28,7 @@ const PHASES = {
 const TRIES = 4;
 
 function when(iso) {
-  return iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : null;
+  return iso ? dated(iso) : null;
 }
 
 export function acquisitionBadge(state) {

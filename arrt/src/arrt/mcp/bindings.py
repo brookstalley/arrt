@@ -88,9 +88,14 @@ _FACET_KINDS: Final[tuple[str, ...]] = tuple(str(kind) for kind in VocabularyKin
 #: `DisplayService.activate_theme` writes the assignment and syncs
 #: unconditionally, so hanging what is already hanging republishes.
 RESTORE_NOTICE: Final[str] = (
-    "It is eligible for the wall again; a theme holding it will carry it at the "
-    "next manifest build. Re-hanging a wall's current theme builds one."
+    "It may go on walls again the next time a theme holding it is hung. " "Re-hanging a wall's current theme does that now."
 )
+
+#: What `art_theme(action='allow_again')` and the Work page's *Allow on walls
+#: again* both say. Restoring an archived work and letting a kept-off work back
+#: reach the wall the same way, so they are said in the same words; the client
+#: holds this verbatim (`tests/unit/test_client_vocabulary.py`).
+ALLOW_AGAIN_NOTICE: Final[str] = RESTORE_NOTICE
 
 log = logging.getLogger(__name__)
 
@@ -498,7 +503,7 @@ def _allow_again(services: Services, arguments: Mapping[str, Any]) -> dict[str, 
     services.display.allow_work(arguments["artwork_id"])
     return ok(
         allowed=arguments["artwork_id"],
-        notice="It may go on walls again. Nothing is republished: a theme holding it carries it at its next hang or sync.",
+        notice=ALLOW_AGAIN_NOTICE,
     )
 
 

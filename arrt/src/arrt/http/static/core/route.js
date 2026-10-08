@@ -55,6 +55,9 @@ export const FRAGMENT_ALIASES = {
   manifest: "walls",
   discovery: "discover",
   themes: "theme",
+  // Every spending request is a Get (`ia-proposal.md` § Rulings 2026-10-07,
+  // ruling 4); its page was addressed `#run/<id>` before that.
+  run: "get",
 };
 
 export function resolveAlias(head) {

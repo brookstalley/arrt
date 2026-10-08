@@ -46,7 +46,9 @@ def test_every_installed_plugin_is_listed_in_order_with_its_package_and_version(
     ui.open("#sources")
     entries = panels(ui)
 
-    assert entries.locator("h2").all_inner_texts() == ["commons", "artic", "moma", "wikidata"]
+    # Each by the museum's name, and one this client has no name for by its own id.
+    assert entries.locator("h2").all_inner_texts() == ["Wikimedia Commons", "Art Institute of Chicago", "moma", "Wikidata"]
+    assert "Plugin\nartic" in entries.nth(1).inner_text()
     moma = entries.nth(2)
     assert "arrt-sources 0.4.1" in moma.inner_text()
     assert "Finds images of a work; reads the addresses it claims." in moma.inner_text()

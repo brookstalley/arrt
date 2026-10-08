@@ -458,7 +458,7 @@ def test_nothing_offers_a_re_search_when_no_work_is_wanted(grid):
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
 
-    assert "Look again for these" not in grid.text()
+    assert "Get these again" not in grid.text()
 
 
 def test_a_wanted_work_is_offered_a_re_search(grid):
@@ -507,8 +507,8 @@ def test_the_re_search_asks_only_for_the_works_that_are_waiting(grid):
 
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
-    grid.page.click("button:has-text('Look again for these')")
-    grid.page.wait_for_url("**/#run/resolve-run")
+    grid.page.click("button:has-text('Get these again')")
+    grid.page.wait_for_url("**/#get/resolve-run")
 
     assert len(sent) == 1
     assert sent[0].post_data_json == {"work_ids": ["wanting"]}
@@ -539,7 +539,7 @@ def test_the_offer_to_re_search_appears_when_a_scan_is_turned_down(grid):
     grid.serve("**/api/candidates/work-1", a_card(work=wanting).model_dump(mode="json"))
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
-    assert "Look again for these" not in grid.text()
+    assert "Get these again" not in grid.text()
 
     grid.page.click("summary")
     grid.page.wait_for_selector("tr.alternate")
@@ -548,7 +548,7 @@ def test_the_offer_to_re_search_appears_when_a_scan_is_turned_down(grid):
 
     shown = grid.text()
     assert "1 work is wanted." in shown
-    assert "Look again for these" in shown
+    assert "Get these again" in shown
 
 
 def test_the_re_search_covers_a_work_turned_down_after_the_page_loaded(grid):
@@ -587,8 +587,8 @@ def test_the_re_search_covers_a_work_turned_down_after_the_page_loaded(grid):
 
     assert "2 works are wanted." in grid.text()
 
-    grid.page.click("button:has-text('Look again for these')")
-    grid.page.wait_for_url("**/#run/resolve-run")
+    grid.page.click("button:has-text('Get these again')")
+    grid.page.wait_for_url("**/#get/resolve-run")
 
     assert len(sent) == 1
     assert sent[0].post_data_json == {"work_ids": ["work-1", "work-2"]}
@@ -683,12 +683,12 @@ def test_the_offer_withdraws_when_the_last_waiting_work_is_settled(grid):
     grid.serve("**/api/candidates/work-1", a_card(work=a_candidate(verdict=Verdict.ACCEPTED.value)).model_dump(mode="json"))
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
-    assert "Look again for these" in grid.text()
+    assert "Get these again" in grid.text()
 
     grid.page.click("button:has-text('Accept')")
     grid.page.wait_for_selector(".badge:has-text('accepted')")
 
-    assert "Look again for these" not in grid.text()
+    assert "Get these again" not in grid.text()
 
 
 # -- paging through the run's works -------------------------------------------
@@ -933,7 +933,7 @@ def test_a_work_whose_every_scan_was_turned_down_is_not_told_nothing_was_found(u
     # the RUN found and rejecting an image deliberately does not rewrite it — so
     # the column was right and "has an image" was the wrong tense for it. The
     # badge and the sentence now say compatible things about the same card.
-    assert "the run found an image" in ui.text()
+    assert "the Get found an image" in ui.text()
     assert "has an image" not in ui.text(), (
         "a present-tense badge beside 'you have turned down everything that was found for it' "
         "is the contradiction this card had three of"
@@ -964,7 +964,7 @@ def test_the_run_view_offers_the_way_into_the_grid(ui):
     ui.serve_image("**/api/candidate-images/*/preview")
     ui.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([a_card()]))
 
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.click("a:has-text('Review these works')")
 
     ui.page.wait_for_selector("li.card")
@@ -980,7 +980,7 @@ def test_a_run_holding_no_works_offers_no_way_into_an_empty_grid(ui):
         a_run_view(run=a_run(status=RunStatus.COMPLETED.value, is_terminal=True), works=[]),
     )
 
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("#view p.note")
 
     assert "Review these works" not in ui.text()
@@ -1075,7 +1075,7 @@ def test_the_offer_reconciles_what_the_collection_holds_with_what_one_run_shows(
 
     group = grid.page.locator("section.offer-group")
     assert group.count() == 1
-    assert "The collection holds 25 works by them; these 3 are what this run offered." in group.inner_text()
+    assert "The collection holds 25 works by them; these 3 are what this Get offered." in group.inner_text()
 
 
 def test_the_offer_reconciliation_agrees_over_a_single_offered_work(grid):
@@ -1091,7 +1091,7 @@ def test_the_offer_reconciliation_agrees_over_a_single_offered_work(grid):
     grid.page.wait_for_selector("li.card")
 
     said = grid.page.locator("section.offer-group").inner_text()
-    assert "this 1 is what this run offered" in said
+    assert "this 1 is what this Get offered" in said
     assert "these 1 are" not in said
 
 
@@ -1157,7 +1157,7 @@ def test_an_offer_that_is_the_whole_of_what_is_held_claims_no_cap(grid):
 
     shown = grid.text()
     assert "These are all 1 work the collection holds by them." in shown
-    assert "what this run offered" not in shown, "a subset was described where every held work is present"
+    assert "what this Get offered" not in shown, "a subset was described where every held work is present"
 
 
 def test_two_queries_are_two_groups_rather_than_one_run_of_cards(grid):
@@ -1400,10 +1400,10 @@ def test_a_work_opened_from_a_review_card_returns_to_that_review(ui, service):
     ui.page.wait_for_selector("li.card")
 
     ui.page.click("a:has-text('Open it in Artworks')")
-    ui.page.wait_for_selector("#view a:has-text('← The review')")
+    ui.page.wait_for_selector("#view a:has-text('← Review')")
     assert ui.page.evaluate("() => window.location.hash") == f"#work/{artwork.id}?from=review%2F{RUN_ID}"
 
-    ui.page.click("#view a:has-text('← The review')")
+    ui.page.click("#view a:has-text('← Review')")
     ui.page.wait_for_selector("li.card")
     assert ui.page.evaluate("() => window.location.hash") == f"#review/{RUN_ID}"
 

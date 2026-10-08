@@ -69,7 +69,7 @@ def test_each_confirmation_is_said_and_none_reads_as_confirmed(ui):
     assert "? Not confirmed" in badges("invented")
     assert "Not confirmed" not in " ".join(badges("unasked")), "unknown is not the model saying no"
     # The sentence only where the model said no; unknown claims neither way.
-    assert _card(ui, "invented").locator(".note.not-confirmed").inner_text().startswith("No source the search found")
+    assert _card(ui, "invented").locator(".note.not-confirmed").inner_text().startswith("No source the Get found")
     assert _card(ui, "unasked").locator(".note.not-confirmed").count() == 0
     assert _card(ui, "found").locator(".note.not-confirmed").count() == 0
     # Drawn in the order the server sorts them: the work that may not exist last.

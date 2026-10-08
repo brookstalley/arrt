@@ -200,7 +200,7 @@ def test_the_announcement_opens_the_run(ui):
 
     ui.page.click("#view .get-status a:text-is('Open the Get')")
 
-    ui.page.wait_for_function(f"() => window.location.hash.startsWith('#run/{GET_ID}')")
+    ui.page.wait_for_function(f"() => window.location.hash.startsWith('#get/{GET_ID}')")
 
 
 @pytest.mark.parametrize(
@@ -578,7 +578,7 @@ def test_the_run_screen_words_a_get_as_one(ui, status, said):
     ]
     ui.serve(f"**/api/runs/{GET_ID}", a_run_view(a_run(run_id=GET_ID, kind="get", intent=None, status=status), works))
     ui.serve(f"**/api/runs/{GET_ID}/spend*", {"scope": "run", "cost_usd": "0", "run_id": GET_ID, "year": None, "month": None})
-    ui.open(f"#run/{GET_ID}")
+    ui.open(f"#get/{GET_ID}")
     ui.page.wait_for_selector("#view h1:text-is('Get')")
 
     text = " ".join(ui.text().split())
@@ -595,7 +595,7 @@ def test_a_chosen_work_in_review_links_the_item_it_was_got_by(ui):
     ui.page.wait_for_selector("li.card")
 
     assert ui.page.locator("#view h1").first.inner_text() == "Get"
-    assert ui.page.locator("#view a:text-is('← The Get')").count() == 1
+    assert ui.page.locator("#view a:text-is('← Get')").count() == 1
     ui.page.click(f"li.card .card-meta a:text-is('{HUNTERS}')")
 
     ui.page.wait_for_function(f"() => window.location.hash.startsWith('#work/{HUNTERS}')")
@@ -610,12 +610,12 @@ GONE = "a-theme-id-nothing-holds"
 def destinations(winter, all_works):
     """Each case: the run's `destination_theme_id`, the Queue cell, and the sentence."""
     return {
-        "named": (winter.id, "Winter", "Works you accept from this run join Winter."),
-        "default": (None, "All works", "Works you accept from this run join All works."),
+        "named": (winter.id, "Winter", "Works you accept from this Get join Winter."),
+        "default": (None, "All works", "Works you accept from this Get join All works."),
         "deleted": (
             GONE,
             "a theme that has been deleted",
-            "Works you accept from this run were to join a theme that has been deleted, so they join no theme.",
+            "Works you accept from this Get were to join a theme that has been deleted, so they join no theme.",
         ),
     }
 
@@ -646,7 +646,7 @@ def test_queue_says_where_a_gets_works_go(ui, destinations, case):
 def test_the_run_page_says_where_a_gets_works_go(ui, destinations, case):
     theme_id, _, sentence = destinations[case]
     ui.serve(f"**/api/runs/{GET_ID}", a_run_view(a_get_into(theme_id)))
-    ui.open(f"#run/{GET_ID}")
+    ui.open(f"#get/{GET_ID}")
     ui.page.wait_for_selector("#view h1:text-is('Get')")
 
     assert ui.page.locator("#view .run-destination").inner_text() == sentence
@@ -685,12 +685,12 @@ def test_a_run_page_that_could_not_name_the_theme_tries_again_at_the_next_poll(u
     ui.serve("**/api/themes", [(500, {"error": "The theme listing failed."}), listing])
     running = a_get_into(None, status=RunStatus.RESOLVING_IMAGES.value)
     ui.serve(f"**/api/runs/{GET_ID}", a_run_view(running))
-    ui.open(f"#run/{GET_ID}")
+    ui.open(f"#get/{GET_ID}")
     sentence = ui.page.locator("#view .run-destination")
     sentence.wait_for()
-    assert sentence.inner_text() == "Which theme works you accept from this run join could not be looked up just now."
+    assert sentence.inner_text() == "Which theme works you accept from this Get join could not be looked up just now."
 
-    ui.page.wait_for_selector("#view .run-destination:text-is('Works you accept from this run join All works.')")
+    ui.page.wait_for_selector("#view .run-destination:text-is('Works you accept from this Get join All works.')")
 
 
 def test_a_re_search_defers_to_the_run_it_re_searches(ui, winter, all_works):
@@ -706,12 +706,12 @@ def test_a_re_search_defers_to_the_run_it_re_searches(ui, winter, all_works):
     ui.page.wait_for_selector("#view table")
     headings = ui.page.locator("#view thead th").all_text_contents()
     cells = ui.page.locator("#view tbody tr").first.locator("td").all_text_contents()
-    assert cells[headings.index("Into")].strip() == "as the run it re-searches"
+    assert cells[headings.index("Into")].strip() == "the same theme as the earlier Get"
 
-    ui.open("#run/r-again")
+    ui.open("#get/r-again")
     ui.page.wait_for_selector("#view .run-destination")
     assert ui.page.locator("#view .run-destination").inner_text() == (
-        "Works you accept from this re-search join the theme the run it re-searches sends its works to."
+        "Works you accept from this Get join the theme the earlier Get they came from sends its works to."
     )
 
 
@@ -722,7 +722,7 @@ def test_review_with_no_default_says_accepted_works_join_no_theme(ui, winter):
     ui.page.wait_for_selector("li.card")
 
     assert ui.page.locator("#view .run-destination").inner_text() == (
-        "Works you accept from this run join no theme, because no theme is the default."
+        "Works you accept from this Get join no theme, because no theme is the default."
     )
 
 
@@ -734,7 +734,7 @@ def test_review_still_opens_when_the_themes_cannot_be_read(ui):
     ui.page.wait_for_selector("li.card")
 
     assert ui.page.locator("#view .run-destination").inner_text() == (
-        "Which theme works you accept from this run join could not be looked up just now."
+        "Which theme works you accept from this Get join could not be looked up just now."
     )
 
 

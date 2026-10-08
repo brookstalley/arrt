@@ -35,6 +35,8 @@ import { api } from "../core/api.js";
 import { absentImage, facts, fitBadge, pixelSize, sourceBadge, statusBadge, table } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
 import { counted } from "../core/counting.js";
+import { dated } from "../core/dates.js";
+import { FETCH_WORDS, museumName, RIGHTS_WORDS } from "../core/providers.js";
 import { enlarge } from "../core/enlarge.js";
 import { getOne } from "../core/getting.js";
 import { identityControl } from "../core/identity.js";
@@ -95,7 +97,7 @@ const DERIVATION_FOOTNOTE =
  * `tests/unit/test_client_vocabulary.py`, so the two surfaces cannot drift into
  * saying one thing in two wordings. */
 const RESTORE_CONSEQUENCE =
-  "It is eligible for the wall again; a theme holding it will carry it at the next manifest build. Re-hanging a wall's current theme builds one.";
+  "It may go on walls again the next time a theme holding it is hung. Re-hanging a wall's current theme does that now.";
 
 function workPath(artworkId) {
   return `/api/works/${encodeURIComponent(artworkId)}`;
@@ -301,7 +303,7 @@ function lookSummary(look) {
 function paintLook({ look, qid, status, rows, grid, more, shown, context }) {
   say(status, lookSummary(look));
   fill(rows, ...look.sources.map((source) => el("li", { class: "look-source" }, [
-    el("span", { class: "look-provider", text: source.provider }),
+    el("span", { class: "look-provider", text: museumName(source.provider) }),
     el("span", { class: `badge badge-look-${source.state}` }, [
       el("span", { class: "glyph", text: LOOK_SOURCE_GLYPHS[source.state] || "·", "aria-hidden": true }),
       el("span", { text: lookSourceWords(source) }),
@@ -351,7 +353,7 @@ function lookPictureSrc(qid, key, large = false) {
 function lookPictureName(picture) {
   const who = picture.artist ? `${picture.title}, by ${picture.artist}` : picture.title;
   const size = pixelSize(picture.width, picture.height);
-  return `${who}, from ${picture.provider}${size ? `, ${size}` : ""}`;
+  return `${who}, from ${museumName(picture.provider)}${size ? `, ${size}` : ""}`;
 }
 
 /* One find as a card: the picture, enlargeable in place as a review card's is,
@@ -377,7 +379,7 @@ function lookPicture(picture, qid) {
     frame,
     el("div", { class: "card-body" }, [
       el("div", { class: "row card-meta" }, [el("span", { text: pixelSize(picture.width, picture.height) }), fitBadge(picture)]),
-      el("p", { class: "card-meta", text: `From ${picture.provider}` }),
+      el("p", { class: "card-meta", text: `From ${museumName(picture.provider)}` }),
       el("p", { class: "card-meta", text: picture.selection_rationale }),
     ]),
   ]);
@@ -386,9 +388,9 @@ function lookPicture(picture, qid) {
 /* The first find, in the place Wikidata's picture would have had, and kept there. */
 function topPicture(picture, qid, { title, maker }) {
   const name = maker ? `${title}, by ${named(maker.name, maker.qid)}` : title;
-  const image = el("img", { class: "detail-image", src: lookPictureSrc(qid, picture.key, true), alt: `${name}, as ${picture.provider} holds it` });
+  const image = el("img", { class: "detail-image", src: lookPictureSrc(qid, picture.key, true), alt: `${name}, as ${museumName(picture.provider)} holds it` });
   const caption = el("div", { class: "row picture-size" }, [
-    el("span", { class: "muted", text: `${pixelSize(picture.width, picture.height)}, from ${picture.provider}` }),
+    el("span", { class: "muted", text: `${pixelSize(picture.width, picture.height)}, from ${museumName(picture.provider)}` }),
     fitBadge(picture),
   ]);
   const holder = el("div", {}, [image, caption]);
@@ -531,7 +533,7 @@ function paint(detail, generation, { where, focusAction = false }) {
 
   panels.push(
     el("div", { class: "panel" }, [
-      el("h2", { text: "The master image" }),
+      el("h2", { text: "Master image" }),
       detail.original
         ? facts([
             ["File", detail.original.relative_path],
@@ -559,12 +561,12 @@ function paint(detail, generation, { where, focusAction = false }) {
       detail.sources.length
         ? table(
             "Every recorded source, the primary one first.",
-            ["Provider", "Rights", "Primary", "Last fetch", "URL"],
+            ["Source", "Rights", "Primary", "Last fetch", "URL"],
             detail.sources.map((s) => [
-              s.provider,
-              s.rights_status,
-              s.is_primary ? "yes" : "no",
-              s.last_fetch_status,
+              museumName(s.provider),
+              RIGHTS_WORDS[s.rights_status] || s.rights_status,
+              s.is_primary ? "Yes" : "No",
+              s.last_fetch_status ? FETCH_WORDS[s.last_fetch_status] || s.last_fetch_status : "Not fetched yet",
               s.url,
             ]),
           )
@@ -695,8 +697,6 @@ function matPanel(matColors) {
  * the placements read afresh after the act, and put the keyboard back on
  * *Hang…*, the control that stands where the pressed one stood or beside it. */
 
-/* When a work was kept off every wall, as a person writes a date. */
-const KEPT_OFF_DATE = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "long", year: "numeric" });
 
 function placementsPath(artworkId) {
   return `${workPath(artworkId)}/placements`;
@@ -734,7 +734,7 @@ function paintStrip(strip, work, where, { said = "", focusHang = false } = {}) {
 
   const lines = [];
   if (held && kept) {
-    lines.push(["Walls", `Kept off every wall since ${KEPT_OFF_DATE.format(new Date(kept))}.`]);
+    lines.push(["Walls", `Kept off every wall since ${dated(kept)}.`]);
   } else if (held) {
     lines.push(["Walls", walls.length ? walls.map((wall) => wall.name).join(", ") : "Not hanging on any wall."]);
   }
@@ -842,7 +842,7 @@ async function allowAgain(control, strip, work, where) {
 
 /* Said after the undo, in the words `art_theme(action='allow_again')` uses, so
  * an agent and a click are told one thing about when the work returns. */
-const ALLOWED_AGAIN = "It may go on walls again. Nothing is republished: a theme holding it carries it at its next hang or sync.";
+const ALLOWED_AGAIN = RESTORE_CONSEQUENCE;
 
 /* Archive, or Restore — whichever this work's status leaves available.
  *
@@ -950,7 +950,7 @@ function wallConsequence(names) {
   const walls = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
   const showing = names.length === 1 ? "is showing" : "are showing";
   const losing = names.length === 1 ? "loses" : "lose";
-  return `${walls} ${showing} this work, and ${losing} it at the next manifest build. Re-hanging a wall's current theme builds one. It stays in the theme, and Restore brings it back.`;
+  return `${walls} ${showing} this work, and ${losing} it the next time ${names.length === 1 ? "its theme is" : "their themes are"} hung. Re-hanging a wall's current theme does that now. It stays in the theme, and Restore brings it back.`;
 }
 
 /* The artist's name as the way to their page, `#artist/<id>`. */

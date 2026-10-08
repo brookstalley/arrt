@@ -5,7 +5,7 @@
  * THE SEAM IS THIS SCREEN'S HARD REQUIREMENT, NOT A POLISH ITEM. Committing a
  * direction never navigates: the commit card *becomes* the run's progress card
  * in place, and then becomes "12 works ready to review", with the transcript
- * above it the whole time. A commit that called `go("run", …)` — which is what
+ * above it the whole time. A commit that called `go("get", …)` — which is what
  * the direct-intent box on Ask does, correctly, because it has no
  * transcript to keep — would turn this conversation into a wizard wearing a
  * costume, which is the exact risk the flow was designed against.
@@ -22,7 +22,8 @@ import { agree, counted } from "../core/counting.js";
 import { claimPoll, pollIsCurrent, schedulePollUnlessDone } from "../core/poll.js";
 import { el, guard, render } from "../core/render.js";
 import { backLink, go, link } from "../core/router.js";
-import { tierMark } from "../core/spend.js";
+import { STATE_WORDS } from "../core/runs.js";
+import { askingCost, tierMark } from "../core/spend.js";
 import { state } from "../core/state.js";
 import { REACTIONS, recordReaction } from "../core/taste.js";
 
@@ -80,13 +81,13 @@ export function commitSentence(view) {
     return `${counted(count, "work")} ${agree(count, "is", "are")} ready to review.`;
   }
   if (run.status === "awaiting_approval") {
-    // Only a search stored here before asking became the approval: none stops
+    // Only a Get stored here before asking became the approval: none stops
     // to ask any more, so the sentence names no threshold.
-    return `This search proposed ${counted(tally.proposed, "work")} and stopped to ask, as a long list once did.`;
+    return `This Get proposed ${counted(tally.proposed, "work")} and stopped to ask, as a long list once did.`;
   }
   if (run.status === "resolving_works") return "Working out which works match this direction.";
   if (run.status === "resolving_images") return `The list of ${counted(tally.proposed, "work")} is settled; looking for an image of each.`;
-  return `This search is ${run.status}. Open it to see what happened.`;
+  return `This Get: ${(STATE_WORDS[run.status] || run.status).toLowerCase()}. Open it to see what happened.`;
 }
 
 /* The direction a commit would search for, composed from what the last turn
@@ -130,7 +131,7 @@ async function paint(view, { conversationId, generation, pollGeneration }) {
       // it, and a card that retried silently for as long as the tab stayed open
       // would be the stale-page-that-looks-live failure wearing a spinner.
       runProblem =
-        `The search this conversation started could not be read: ${failure.message} ` +
+        `The Get this conversation started could not be read: ${failure.message} ` +
         "Reload the page to try reading it again.";
     }
     if (!pollIsCurrent(pollGeneration)) return;
@@ -484,7 +485,7 @@ function unanswered(view, { conversationId, generation }) {
 }
 
 function commitCard(view, { run, runProblem, estimate, direction, conversationId, generation }) {
-  const children = [el("h2", { text: "Search for a direction" })];
+  const children = [el("h2", { text: "Get a direction" })];
   if (run !== null) {
     const finished = run.run.status === "completed";
     children.push(
@@ -492,7 +493,7 @@ function commitCard(view, { run, runProblem, estimate, direction, conversationId
         el("span", { class: "glyph", "aria-hidden": "true", text: run.run.is_terminal ? "●" : "◌" }),
         el("span", { text: ` ${commitSentence(run)}` }),
       ]),
-      el("p", { class: "muted", text: `Searching for: ${run.run.intent || "—"}` }),
+      el("p", { class: "muted", text: `Asked for: ${run.run.intent || "—"}` }),
       el("div", { class: "row" }, [
         // The one navigation this screen makes, and it is the curator choosing
         // to act on the result rather than the commit taking them somewhere.
@@ -501,32 +502,33 @@ function commitCard(view, { run, runProblem, estimate, direction, conversationId
         finished && run.works.length
           ? link({ view: "review", id: run.run.run_id }, { class: "action", text: "Review these works" })
           : null,
-        link({ view: "run", id: run.run.run_id }, { class: "action quiet", text: "Open the search" }),
+        link({ view: "get", id: run.run.run_id }, { class: "action quiet", text: "Open the Get" }),
       ]),
     );
   } else if (direction) {
     const intent = el("textarea", { id: "direction", rows: 2, required: true, text: direction });
     children.push(
-      el("p", { class: "muted", text: "This is what would be searched for. Change it if it is not quite right." }),
-      el("div", { class: "field" }, [el("label", { for: "direction", text: "The direction to search for" }), intent]),
+      el("p", { class: "muted", text: "This is what the Get would look for. Change it if it is not quite right." }),
+      el("div", { class: "field" }, [el("label", { for: "direction", text: "Direction" }), intent]),
       el("p", {
         class: "note",
         // Stated as a bound rather than a typical figure, because a search may
         // freely use its whole allowance and an estimate it can exceed is not
         // one. The absence of a price is said out loud rather than left blank.
         text: estimate
-          ? `Searching costs at most $${estimate.estimated_cost_usd}. ${estimate.basis}`
-          : "The cost of searching could not be read just now. Committing still starts a search.",
+          ? askingCost(estimate)
+          : "The cost of this Get could not be read just now. Pressing Get still starts it.",
       }),
       el("div", { class: "row" }, [
         el("button", {
           class: "action primary",
           type: "button",
-          text: "Search for this",
+          text: "Get",
+          "aria-label": "Get this direction",
           onclick: (event) =>
             attempt(
               event.currentTarget,
-              "start the search",
+              "start the Get",
               () =>
                 api(`/api/conversations/${encodeURIComponent(conversationId)}/commit`, {
                   method: "POST",
@@ -544,7 +546,7 @@ function commitCard(view, { run, runProblem, estimate, direction, conversationId
     children.push(
       el("p", {
         class: "muted",
-        text: "Once this conversation names an artist or a movement, the search it would run is offered here.",
+        text: "Once this conversation names an artist or a movement, the Get it would start is offered here.",
       }),
     );
   }
