@@ -1348,8 +1348,9 @@ h1,
   background: var(--surface-2);
 }
 
-/* Where a work stands in the acquisition queue. The glyph and the word carry
-   the phase; the border only separates the ones a curator acts on (failed,
+/* Where a work stands in the acquisition queue. The word carries the phase,
+   and the glyph its kind (failed and gave up are both a problem, ▲); the
+   border separates the ones a curator acts on (failed,
    gave up) and the one an operator does (paused) from the ones that need time. */
 .badge-acquisition-failed {
   border-style: solid;
@@ -1838,8 +1839,8 @@ select {
   border-color: var(--border-strong);
 }
 
-/* Hover tints the act toward its own text colour, which darkens a filled act
-   and a quiet one alike, in both schemes. A wash of inset shadow rather than a
+/* Hover tints the act toward its own text colour, which moves the fill toward
+   the label (lighter on a filled act, darker on a quiet one) in both schemes. A wash of inset shadow rather than a
    `filter`: a filter makes the act the containing block of anything absolutely
    positioned inside it, so a full-card link's cover shrank to the act under the
    pointer and a press on the card missed. */

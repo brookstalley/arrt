@@ -14,6 +14,12 @@ from arrt.http.pages import STATIC_DIR
 
 GLYPHS_JS = STATIC_DIR / "core" / "glyphs.js"
 APP_JS = STATIC_DIR / "app.js"
+INDEX_HTML = STATIC_DIR / "index.html"
+
+#: The status line's first paint, before any script runs, so it cannot import
+#: the table and spells the glyph as a character reference. Held to the table
+#: here instead.
+INDEX_GLYPHS = {"waiting": "&#x25CC;"}
 
 # The sidebar icons that are also badge glyphs, because each means the same
 # thing in both places: Activity is where fetching happens, Wanted holds the
@@ -80,3 +86,24 @@ def test_no_screen_writes_a_glyph_of_its_own():
             for character in set(line) & glyphs
         )
     assert not found, "a glyph is taken from core/glyphs.js by meaning:\n" + "\n".join(found)
+
+
+def test_every_meaning_a_screen_names_is_in_the_table():
+    table = _table()
+    unknown = sorted(
+        f"{path.relative_to(STATIC_DIR)} names GLYPHS.{meaning}"
+        for path in STATIC_DIR.rglob("*.js")
+        for meaning in set(re.findall(r"GLYPHS\.(\w+)", _without_comments(path.read_text())))
+        if meaning not in table
+    )
+    assert not unknown, "a meaning core/glyphs.js lacks draws as 'undefined':\n" + "\n".join(unknown)
+
+
+def test_the_page_shell_writes_no_glyph_of_its_own():
+    table = _table()
+    shell = INDEX_HTML.read_text()
+    for meaning, reference in INDEX_GLYPHS.items():
+        assert reference in shell
+        assert chr(int(reference[3:-1], 16)) == table[meaning]
+    glyphs = {glyph for meaning, glyph in table.items() if meaning not in PUNCTUATION}
+    assert not set(shell) & glyphs, "index.html writes a glyph rather than its character reference"
