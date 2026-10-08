@@ -228,9 +228,7 @@ shrink will overflow again the next time a word gets longer.
 coarse)` raises control heights to 2.75rem (44px). The 2.5rem default
 (`--control-h`) clears WCAG 2.2 AA's 24px floor, but 44px is what every touch
 platform assumes, and a small window on a desktop still has a mouse — so
-viewport width is the wrong signal. *(This paragraph said "2.25rem default"
-and described the coarse rule as built. Neither was in `app.css` until
-2026-10-08: see § Component Patterns, Controls.)*
+viewport width is the wrong signal.
 
 ## Component Patterns
 
@@ -270,12 +268,12 @@ classes the client never had.*
 - **Controls** *(2026-10-08)* — one height for every act and field,
   `--control-h` (2.5rem), and a compact one, `--control-h-compact` (2rem),
   for a menu's items. Under `@media (pointer: coarse)` both are 2.75rem.
-  The § Spacing & Layout paragraph on touch targets described this rule for
-  months before it was built; it is now in `app.css` and
-  `tests/browser/test_the_controls.py`.
-- **Cost** — a priced act carries its tier as words beside it, "Cost: $",
-  never as a boxed badge, because a box beside a button reads as another
-  button.
+- **Cost** — a priced act's tier is never a boxed badge, because a box
+  beside a button reads as another button. Where the cost sits is not ruled:
+  the owner asked for Get to carry it in its own label, and Wall label built
+  "Cost: $" as words beside the act instead (the builder's call, so that
+  Get's spoken name stays "Get"). Get and review clarity chunk 01 puts the
+  two to the owner.
 - **Badges** — glyph + word + colour, never fewer than all three. **A glyph
   has one meaning on every screen**, named in `core/glyphs.js`, where the word
   carries the specifics and the glyph only the kind of state; a new meaning
