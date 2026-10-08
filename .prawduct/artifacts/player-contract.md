@@ -130,7 +130,7 @@ of walls, each on one of its outputs. It learns its walls from the server.
 |---|---|---|
 | `GET /client` | none | `200` with the client document (`contract/schemas/client.v1.schema.json`): `{client_id, name, walls: [{wall_id, name, output, display}], labels: [{label_id, output, wall_id}]}`, only the walls assigned to this client and only its label outputs that caption a wall, and an `ETag`; `304` when `If-None-Match` matches. Polled about every 30 seconds |
 | `POST /client/heartbeat` | the client heartbeat (`contract/schemas/client-heartbeat.v1.schema.json`): `{reported_at, outputs: [{name, kind, connected, screen, identity?}], label_outputs?: [{name, kind, connected, size}]}` | `204`; `400` naming the problem for a body that is not JSON or not a client heartbeat |
-| `GET /labels/{label_id}` | none | `200` with the label document (`contract/schemas/label.v1.schema.json`): `{schema, wall_id, wall_name, display_state: {state, work_id, since}, label}`, and an `ETag`; `304` when `If-None-Match` matches. Polled about once a second by the label's renderer. Named in `contract/routes.json` once the server serves it |
+| `GET /labels/{label_id}` | none | `200` with the label document (`contract/schemas/label.v1.schema.json`): `{schema, wall_id, wall_name, display_state: {state, work_id, since}, label}`, and an `ETag`; `304` when `If-None-Match` matches. Polled about once a second by the label's renderer. Named in `contract/routes.json` (`label`) |
 | `GET /walls/{wall_id}/manifest` | none | `200` with the manifest and an `ETag`; `304` when `If-None-Match` matches. Polled about once a second |
 | `GET /media/sha256-{hex}` | none | `200` with the image, `Cache-Control: public, max-age=31536000, immutable`. A hash never serves different bytes |
 | `POST /walls/{wall_id}/heartbeat` | the heartbeat | `204` |
@@ -177,6 +177,20 @@ of walls, each on one of its outputs. It learns its walls from the server.
   them. It runs the rule rather than being told the outcome because the
   30-minute hold must still run while the server is unreachable. A state the
   renderer does not know is read as `unreachable`.
+- **As built in Postarr** (`label_rule.py`, `label_renderer.py`; build plan
+  displays-and-label-outputs, Chunks 05 and 06). The Frame's identity is read
+  by the client, not by a wall's worker, with one `GET /api/v2/` on a REST-only
+  client that opens no art channel and checks no token, so a Frame with no wall
+  on it is still identified; it is asked again on each report until it answers
+  and then kept, and a failure is said once per episode. A configured panel is
+  the label output `epd-0`, `connected: false` when it would not open or its
+  last draw failed. While the server cannot be reached (no answer, a timeout, a
+  `5xx`), the renderer reads its last document as `unreachable` from the last
+  instant the server answered, holding a caption and nothing else; a refusal or
+  an unreadable document keeps the last one as it is. It redraws only when the
+  drawing would change (outcome, label text or the card's wall name), and a
+  label output whose mapping goes is drawn blank; a client stopping leaves the
+  panel as it was.
 - **Media is identified by the SHA-256 of its bytes and located by its `url`.**
   The manifest gives `url`, `sha256`, `bytes` and `content_type`. The `url` is
   a URI reference resolved against the manifest's own URL. Today it is

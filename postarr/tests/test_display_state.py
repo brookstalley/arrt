@@ -1,10 +1,10 @@
-"""The Frame's display state, and the panel following it, driven through the real loop.
+"""The Frame's display state, driven through the real loop.
 
 What the wall's screen is doing (`labels-and-surfaces.md` § Display state) is
 reported in the heartbeat as minor 3's `display_state`, written on the pass that
-saw it change, and today's panel follows `§ What a label says`: the caption while
-art is up, blank while somebody is using the set or it is off, and while the set
-cannot be reached the last caption until the owner's thirty minutes are up.
+saw it change. Every label of the wall follows it through the server; the panel
+that followed it here, while the Frame loop drew it, is the label renderer's now,
+and its tests moved with it to `test_label_renderer.py` (`TestThePanelFollowsTheScreen`).
 
 Every document written here is validated against the contract's schema, because
 a state the server refuses is a wall that reads as silent.
@@ -17,14 +17,10 @@ import json
 import logging
 from pathlib import Path
 
-import pytest
 from conftest import WALL_ID
-from fakes import FakeSurface
 from jsonschema import Draft202012Validator
 
-from postarr.daemon import UNREACHABLE_CAPTION_HOLD_SECONDS, Daemon
 from postarr.heartbeat import INTERVAL_SECONDS, path_in
-from postarr.manifest import Watcher
 
 CONTRACT = Path(__file__).resolve().parents[2] / "contract"
 SCHEMA = json.loads((CONTRACT / "schemas" / "heartbeat.v1.schema.json").read_text(encoding="utf-8"))
@@ -42,26 +38,6 @@ def heartbeat(wall_dir: Path) -> dict:
 def display(wall_dir: Path) -> tuple[str, str | None]:
     reported = heartbeat(wall_dir)["display_state"]
     return reported["state"], reported["work_id"]
-
-
-@pytest.fixture
-def surface():
-    made = FakeSurface()
-    yield made
-    made.release.set()
-
-
-@pytest.fixture
-def labelled(settings, tv, state, clock, surface) -> Daemon:
-    watcher = Watcher(
-        settings.manifest_path,
-        rotation_interval_fallback=settings.rotation_interval_fallback_seconds,
-        shuffle_fallback=settings.rotation_shuffle_fallback,
-    )
-    return Daemon(settings=settings, tv=tv, state=state, watcher=watcher, clock=clock.as_clock(), surface=surface)
-
-
-LABELS = {"w1": {"title": "Cat Litter"}, "w2": {"title": "Silver Sun"}}
 
 
 class TestTheStateIsReported:
@@ -227,111 +203,6 @@ class TestAChangeIsWrittenAtOnce:
         await daemon.tick()
 
         assert path_in(wall_dir, WALL_ID).read_text() == written
-
-
-class TestThePanelFollowsTheScreen:
-    async def test_television_blanks_the_label_once_and_art_brings_it_back(self, labelled, tv, surface, publish, clock):
-        publish(["w1", "w2"], interval_seconds=900, labels=LABELS)
-        await labelled.tick()
-        assert surface.last_text[:1] == ["Cat Litter"]
-        drawn = len(surface.shown)
-
-        tv.art_mode = "off"
-        tv.art_mode_announced = True
-        clock.advance(3.3)
-        await labelled.tick()
-        assert surface.last_text == [], "a caption stayed up beside somebody's programme"
-        assert len(surface.shown) == drawn + 1
-
-        for _ in range(3):
-            tv.art_mode_announced = True
-            clock.advance(4.1)
-            await labelled.tick()
-        assert len(surface.shown) == drawn + 1, "the blank was redrawn on every pass, a flash each time"
-
-        tv.art_mode = "on"
-        tv.art_mode_announced = True
-        clock.advance(2.9)
-        await labelled.tick()
-        assert surface.last_text[:1] == ["Cat Litter"]
-
-    async def test_a_dark_set_blanks_the_label(self, labelled, tv, surface, publish, clock):
-        publish(["w1"], labels=LABELS)
-        await labelled.tick()
-
-        tv.art_mode = "off"
-        tv.power = "standby"
-        tv.art_mode_announced = True
-        clock.advance(3.3)
-        await labelled.tick()
-
-        assert surface.last_text == []
-
-    async def test_a_remote_change_gets_the_right_caption(self, labelled, tv, surface, state, publish, clock, wall_dir):
-        publish(["w1", "w2"], interval_seconds=900, labels=LABELS)
-        await labelled.tick()
-        await labelled.tick()
-        binding = state.binding_for("w2")
-        assert binding is not None
-        assert binding.tv_content_id
-
-        tv.announce(binding.tv_content_id, is_shown=True)
-        clock.advance(1.7)
-        await labelled.tick()
-
-        assert surface.last_text[:1] == ["Silver Sun"]
-        assert display(wall_dir) == ("showing_art", "w2")
-
-    @pytest.mark.parametrize(
-        ("minutes", "kept"),
-        [(29, True), (31, False)],
-        ids=["29 minutes keeps the caption", "31 minutes blanks it"],
-    )
-    async def test_an_unreachable_set_keeps_the_caption_for_thirty_minutes(
-        self, labelled, tv, surface, publish, clock, minutes, kept
-    ):
-        publish(["w1"], interval_seconds=60, labels=LABELS)
-        await labelled.tick()
-        assert surface.last_text[:1] == ["Cat Litter"]
-        drawn = len(surface.shown)
-
-        tv.unavailable = True
-        clock.advance(61.3)  # the rotation is the call that finds the set gone
-        await labelled.tick()
-        # Stepped in amounts that are no multiple of the hold, so a hold consumed
-        # early cannot pass for one correctly withheld.
-        for _ in range(minutes):
-            clock.advance(59.3)
-            await labelled.tick()
-        clock.advance(minutes * 0.7)
-        await labelled.tick()
-        await labelled.tick()
-
-        if kept:
-            assert surface.last_text[:1] == ["Cat Litter"]
-            assert len(surface.shown) == drawn
-        else:
-            assert surface.last_text == []
-            assert len(surface.shown) == drawn + 1, "the blank was drawn more than once"
-
-    def test_the_hold_is_the_owners_thirty_minutes(self):
-        assert UNREACHABLE_CAPTION_HOLD_SECONDS == 30 * 60
-
-    async def test_the_caption_comes_back_when_the_set_does(self, labelled, tv, surface, publish, clock):
-        publish(["w1"], interval_seconds=60, labels=LABELS)
-        await labelled.tick()
-        tv.unavailable = True
-        clock.advance(61.3)
-        await labelled.tick()
-        clock.advance(UNREACHABLE_CAPTION_HOLD_SECONDS + 61.7)
-        await labelled.tick()
-        assert surface.last_text == []
-
-        tv.unavailable = False
-        clock.advance(3.1)
-        await labelled.tick()
-
-        assert surface.last_text[:1] == ["Cat Litter"]
 
 
 async def test_a_device_with_no_panel_still_reports_its_state(daemon, tv, publish, wall_dir, clock):
