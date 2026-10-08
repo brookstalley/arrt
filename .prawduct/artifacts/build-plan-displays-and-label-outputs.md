@@ -70,6 +70,19 @@ here forbids it; caption mode; any non-Pi Player.
 - `[DECISION: for silent and unreachable, the label document's label is the work the wall last showed where the server knows it, and the renderer holds it for 30 minutes from since; with no label or no since it blanks at once | the hold must be a pure function of the document and the clock for the vectors to state it, so the renderer is never asked to remember its own last caption | builder's call]`
 - `[DECISION: contract/routes.json gains the label route in Chunk 03, not Chunk 01 | arrt's route test holds the mounted routes and routes.json equal in both directions, so naming a route the server does not mount turns that suite red between chunks; player-contract.md describes the route from Chunk 01 | amended at Chunk 01]`
 
+Recorded while building Chunks 02, 03, 05 and 06 (builder's calls, owner can veto):
+
+- `[DECISION: the Frame's identity is read by the client, not by a wall's worker: one GET of /api/v2/ through the TV module, no art channel, no key, kept for the life of the process once read | a Frame with no wall on a new client would otherwise never report it and never move | coordinator]`
+- `[DECISION: a display first reported without identity is re-keyed when its identity arrives and keeps its walls; a Frame moved to another client absorbs that client's placeholder display: no wall there, the placeholder is deleted; only the placeholder has a wall, the wall moves; both have one, the Frame's display keeps its own and the placeholder's is unassigned (logged at WARNING) | an output shows at most one wall | coordinator]`
+- `[DECISION: Display.client_id is nullable: a different device reported on a client's output leaves the old display with its wall and no client; Display.kind is nullable until reported; removing a client deletes its displays and label outputs and unassigns their walls | builder]`
+- `[DECISION: a duplicate-display fault counts only readable reports no older than STALE_AFTER_SECONDS, so a host switched off stops claiming; while in fault the display stays with its current client and neither client is admitted to the wall | builder]`
+- `[DECISION: mapping a label output that already captions a wall is refused, not moved; GET /labels for the client's own unmapped label output is 404 | builder]`
+- `[DECISION: label text is read through LibraryFacade.labels(), sharing label_of() with the manifest builder | playable() logs per call, and labels poll once a second | builder]`
+- `[DECISION: assign_wall(client_id, output) stays, finding or creating the display, so today's browser screens work unchanged until Chunk 04 | builder]`
+- `[DECISION: while the server is unreachable the renderer reads its last document as unreachable from the last answer, holding only a caption; a refusal (401/403/404) or an unreadable document keeps the last document without starting the hold; a renderer with no document yet draws blank (no disk cache); a retired renderer blanks its panel, a stopping client leaves it | builder]`
+- `[DECISION: the panel and its draw gate live in LabelPanel, opened once per process, so a renderer restarted onto a panel mid-draw cannot send a second draw; the redraw check compares outcome, label text and wall name | builder]`
+- `[GAP: why a panel would not open, and a geometry with no usable area, were wall-heartbeat signals; the client heartbeat has no field for them, so today they reach the journal only (observability-strategy.md says so). An additive key on label_outputs would carry them | not in this plan; #315]`
+
 **What would raise it:** one read of the Frame's `/api/v2/` on the operator's set
 (with the Player stopped, through the existing `power_probe.py` REST sample, no
 key), recording the id fields into `samsung-tv-state-findings.md`.
@@ -198,6 +211,10 @@ Done when:
    by a test; and a state name Walls does not know, read as
    `unreachable`, no longer says "cannot reach its screen", which is wrong for
    that case.
+7. Carried in from Chunk 03: a wall whose display is in the duplicate-display
+   fault still carries `client_id` in `/api/walls`, so today's Walls shows it
+   assigned while its state is `unassigned`. Walls and Settings › Clients read
+   `display.fault` (walls) and `faults` (clients) instead.
 
 ### Chunk 05: The Player reports
 
