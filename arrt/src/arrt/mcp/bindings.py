@@ -53,6 +53,7 @@ from arrt.persistence.discovery_records import (
 from arrt.persistence.records import Artist, Artwork, Client, Directive, Source, Theme, VocabularyKind, Wall
 from arrt.programming.clients import ClientView
 from arrt.programming.display import UNSET, ThemePlacement, WallView
+from arrt.programming.display_state import DisplayState
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.services.container import Services
 from arrt.services.health import PicturesReading, SourceHealth
@@ -1579,6 +1580,20 @@ def _wall_view_fields(view: WallView) -> dict[str, Any]:
         # ordinary state this surface has to be able to state.
         "hanging": None if view.hanging is None else _theme_fields(view.hanging),
         "directive": _directive_fields(view.directive),
+        "display_state": _display_state_fields(view.display_state),
+    }
+
+
+def _display_state_fields(shown: DisplayState) -> dict[str, Any]:
+    """What the wall's screen is doing, in `GET /api/walls`' shape."""
+    last = shown.last
+    return {
+        "state": str(shown.state),
+        "work_id": shown.work_id,
+        "since": _moment(shown.since),
+        "reported_at": _moment(shown.reported_at),
+        "age_seconds": shown.age_seconds,
+        "last": None if last is None else {"state": str(last.state), "work_id": last.work_id, "since": _moment(last.since)},
     }
 
 

@@ -13,6 +13,7 @@ here carries the fields `GET /api/clients` does.
 """
 
 import json
+from datetime import UTC, datetime
 
 import pytest
 from async_http import request
@@ -20,6 +21,7 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
 from arrt.programming.client_heartbeat import client_heartbeat_path_in
+from arrt.programming.manifest.heartbeat import heartbeat_path_in
 
 _REPORT = {
     "reported_at": "2026-10-02T14:00:05+00:00",
@@ -260,3 +262,47 @@ async def test_an_unknown_client_is_refused_by_every_act_that_names_one(server_u
         refused, errored = await call(server_url, action, client_id="nobody", **arguments)
         assert errored is True, action
         assert "No client with id 'nobody'" in refused["error"], action
+
+
+# -- each wall's display state ------------------------------------------------------------
+
+
+async def test_the_walls_read_carries_each_walls_display_state_in_the_browsers_shape(server_url, settings, hall, wall):
+    """Parity with `GET /api/walls`: an assigned wall says what its screen reported, an unassigned one says so."""
+    await ok(server_url, "assign_wall", wall_id=wall, client_id=hall, output="hdmi-a-1")
+    await ok(server_url, "add_wall", name="Study")
+    heartbeat_path_in(settings.art_root, wall).write_text(
+        json.dumps(
+            {
+                "reported_at": datetime.now(UTC).isoformat(timespec="seconds"),
+                "current_work_id": "w-dali-1",
+                "schema": {"major": 1, "minor": 3},
+                "display_state": {"state": "in_use", "work_id": None, "since": "2026-10-08T20:15:00-06:00"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    tool = {each["wall_id"]: each["display_state"] for each in (await ok(server_url, "walls"))["walls"]}
+    browser = {
+        each["wall_id"]: each["display_state"] for each in (await request("GET", f"{server_url}/api/walls")).json()["walls"]
+    }
+
+    # The age is read at each request, so it is the one field the two may differ in.
+    assert {k: {f: v for f, v in s.items() if f != "age_seconds"} for k, s in tool.items()} == {
+        k: {f: v for f, v in s.items() if f != "age_seconds"} for k, s in browser.items()
+    }
+    assert tool[wall].keys() == browser[wall].keys()
+    assert tool[wall]["state"] == "in_use"
+    assert tool[wall]["work_id"] is None
+    assert tool[wall]["since"] == "2026-10-08T20:15:00-06:00"
+    assert tool[wall]["last"] is None
+    [study] = [state for wall_id, state in tool.items() if wall_id != wall]
+    assert study == {
+        "state": "unassigned",
+        "work_id": None,
+        "since": None,
+        "reported_at": None,
+        "age_seconds": None,
+        "last": None,
+    }

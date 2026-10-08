@@ -41,6 +41,7 @@ from arrt.library.facade import (
     WorkChanged,
 )
 from arrt.persistence.records import Directive, Theme, ThemeAssignment, ThemeMembership, Wall, WorkExclusion
+from arrt.programming.display_state import DisplayState, display_state_of
 from arrt.programming.manifest import heartbeat
 from arrt.programming.manifest.builder import (
     Exclusion,
@@ -140,6 +141,8 @@ class WallView:
     #: Null when nothing is hanging, which is an ordinary state.
     hanging: Theme | None
     directive: Directive
+    #: What the wall's screen is doing, from its last heartbeat and its assignment.
+    display_state: DisplayState
 
 
 @dataclass(frozen=True, slots=True)
@@ -346,7 +349,7 @@ class DisplayService:
         # and a read that lined the two up by position would be wrong the first
         # time a wall was renamed.
         directives = {directive.wall_id: directive for directive in self._store.list_directives()}
-        return [self._view(wall, themes, hanging, directives) for wall in self._store.list_walls()]
+        return [self._view(wall, themes, hanging, directives, self._display_state(wall)) for wall in self._store.list_walls()]
 
     def get_wall_view(self, wall_id: str) -> WallView:
         """One wall with what hangs on it and what it was last told to do.
@@ -362,11 +365,17 @@ class DisplayService:
         It costs two extra `get_wall` lookups against the same open file, which
         is the price of the single definition and is not worth inlining back.
         """
+        wall = self.get_wall(wall_id)
         return WallView(
-            wall=self.get_wall(wall_id),
+            wall=wall,
             hanging=self.hanging_on(wall_id),
             directive=self.read_directive(wall_id),
+            display_state=self._display_state(wall),
         )
+
+    def _display_state(self, wall: Wall) -> DisplayState:
+        """What the wall's screen is doing, read from its heartbeat file now."""
+        return display_state_of(wall, heartbeat.read(self._settings.heartbeat_path(wall.id)))
 
     def survey_themes(self) -> Sequence[ThemePlacement]:
         """Every theme with every wall showing it.
@@ -398,6 +407,7 @@ class DisplayService:
         themes: Mapping[str, Theme],
         hanging: Mapping[str, str],
         directives: Mapping[str, Directive],
+        display_state: DisplayState,
     ) -> WallView:
         directive = directives.get(wall.id)
         if directive is None:
@@ -406,7 +416,12 @@ class DisplayService:
             # something else, and saying so beats a KeyError from a dict lookup.
             raise ServiceError(f"Wall {wall.name!r} has no display directive, which this plane never writes.")
         theme_id = hanging.get(wall.id)
-        return WallView(wall=wall, hanging=None if theme_id is None else themes[theme_id], directive=directive)
+        return WallView(
+            wall=wall,
+            hanging=None if theme_id is None else themes[theme_id],
+            directive=directive,
+            display_state=display_state,
+        )
 
     def theme_counts(self, work_ids: Iterable[str], *, selected: str | None = None) -> Sequence[ThemeCount]:
         """Every theme, by name, with how many of `work_ids` it holds.

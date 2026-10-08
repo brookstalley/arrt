@@ -24,6 +24,7 @@ document-with-an-instant, read for the same panel. Three things are this module'
 own: the filename, the key, and the sentence.
 """
 
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -47,6 +48,28 @@ HEARTBEAT_FILENAME_TEMPLATE: Final[str] = "display-heartbeat-{wall_id}.json"
 #: mechanism built to detect it. `observability-strategy.md` names it for the same
 #: reason. Everything else in the document is the writer's to shape.
 REPORTED_AT_KEY: Final[str] = "reported_at"
+
+#: How often a Player reports each wall's heartbeat: `postarr/src/postarr/
+#: heartbeat.py`'s `INTERVAL_SECONDS`. Written again here because neither plane
+#: imports the other; `tests/preferences/test_staleness_threshold.py` holds this,
+#: the Player's and the browser's (`static/core/outputs.js`) to one number.
+INTERVAL_SECONDS: Final[float] = 60.0
+
+#: Past this age a wall's report says nothing about now, and the wall is
+#: `silent`. Three missed reports, not one: a report a few seconds late is a busy
+#: Pi, and three in a row is a Player that has stopped. The browser's
+#: `STALE_AFTER_SECONDS` is the same expression, so Walls and the server cannot
+#: call one report current and stale at once.
+STALE_AFTER_SECONDS: Final[float] = 3 * INTERVAL_SECONDS
+
+#: Minor 3's `display_state.state`: what a wall's controller can say its screen
+#: is doing (`contract/schemas/heartbeat.v1.schema.json`).
+REPORTED_DISPLAY_STATES: Final[frozenset[str]] = frozenset({"showing_art", "in_use", "dark", "no_screen", "unreachable"})
+
+#: RFC 3339 with an offset, the schema's pattern for `display_state.since`.
+_INSTANT: Final[re.Pattern[str]] = re.compile(
+    r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,6 +135,31 @@ def problem_with(document: object) -> str | None:
     schema = document.get("schema")
     if schema is not None and (not isinstance(schema, dict) or schema.get("major") != 1):
         return "this plane reads heartbeat schema major 1."
+    if "display_state" in document:
+        return _problem_with_display_state(document["display_state"])
+    return None
+
+
+def _problem_with_display_state(value: object) -> str | None:
+    """Minor 3's `display_state`, checked as the schema states it.
+
+    Refused rather than stored, because Walls and every label read this record:
+    a state the server does not know, or a work named beside a screen that is
+    not showing art, would be shown as a fact about the room.
+    """
+    if not isinstance(value, dict) or set(value) != {"state", "work_id", "since"}:
+        return "'display_state' is an object of exactly 'state', 'work_id' and 'since'."
+    state = value["state"]
+    if state not in REPORTED_DISPLAY_STATES:
+        return f"'display_state.state' is one of {', '.join(sorted(REPORTED_DISPLAY_STATES))}."
+    work_id = value["work_id"]
+    if work_id is not None and not isinstance(work_id, str):
+        return "'display_state.work_id' is a work id, or null."
+    if work_id is not None and state != "showing_art":
+        return "'display_state.work_id' names a work only while the state is showing_art."
+    since = value["since"]
+    if not isinstance(since, str) or _INSTANT.fullmatch(since) is None:
+        return "'display_state.since' is an RFC 3339 timestamp with an offset."
     return None
 
 

@@ -22,6 +22,7 @@ that safe.
 """
 
 import logging
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Annotated, Literal
@@ -61,6 +62,7 @@ from arrt.http.models import (
     CreateTheme,
     CreateWall,
     DirectiveOut,
+    DisplayStateOut,
     EstimateOut,
     ExcludedWorkListOut,
     ExcludedWorkOut,
@@ -107,6 +109,7 @@ from arrt.http.models import (
     RenameTheme,
     RenditionOut,
     ReportedOutputOut,
+    ReportedStateOut,
     RunListOut,
     RunOut,
     RunTallyOut,
@@ -201,6 +204,7 @@ from arrt.persistence.records import (
 )
 from arrt.programming.clients import ClientView
 from arrt.programming.display import ThemeCount, ThemePlacement, WallView
+from arrt.programming.display_state import DisplayState
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.programming.manifest.heartbeat import HeartbeatReading
 from arrt.services.container import Services
@@ -1794,6 +1798,23 @@ def _wall(view: WallView) -> WallOut:
         pinned_work_id=view.directive.pinned_work_id,
         client_id=view.wall.client_id,
         output=view.wall.output,
+        display_state=_display_state(view.display_state),
+    )
+
+
+def _instant(moment: datetime | None) -> str | None:
+    return None if moment is None else moment.isoformat()
+
+
+def _display_state(shown: DisplayState) -> DisplayStateOut:
+    last = shown.last
+    return DisplayStateOut(
+        state=str(shown.state),
+        work_id=shown.work_id,
+        since=_instant(shown.since),
+        reported_at=_instant(shown.reported_at),
+        age_seconds=shown.age_seconds,
+        last=None if last is None else ReportedStateOut(state=str(last.state), work_id=last.work_id, since=_instant(last.since)),
     )
 
 
