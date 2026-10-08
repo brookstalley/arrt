@@ -19,6 +19,7 @@ import { attempt } from "../core/acting.js";
 import { api } from "../core/api.js";
 import { confirmAct } from "../core/confirm.js";
 import { agree, counted } from "../core/counting.js";
+import { GLYPHS } from "../core/glyphs.js";
 import { claimPoll, pollIsCurrent, schedulePollUnlessDone } from "../core/poll.js";
 import { el, guard, render } from "../core/render.js";
 import { backLink, go, link } from "../core/router.js";
@@ -331,7 +332,7 @@ function suggestion(entry, turnId) {
     el("p", { class: "suggestion-name" }, [
       // Glyph, word and value, so the kind survives greyscale and a reader who
       // has turned the lights down. Never colour alone anywhere on this surface.
-      el("span", { class: "glyph", "aria-hidden": "true", text: "◆" }),
+      el("span", { class: "glyph", "aria-hidden": "true", text: GLYPHS.putForward }),
       el("span", { class: "muted", text: `${KIND_WORDS[entry.kind] || entry.kind}: ` }),
       el("span", { text: entry.value }),
     ]),
@@ -490,7 +491,7 @@ function commitCard(view, { run, runProblem, estimate, direction, conversationId
     const finished = run.run.status === "completed";
     children.push(
       el("p", {}, [
-        el("span", { class: "glyph", "aria-hidden": "true", text: run.run.is_terminal ? "●" : "◌" }),
+        el("span", { class: "glyph", "aria-hidden": "true", text: run.run.is_terminal ? GLYPHS.good : GLYPHS.waiting }),
         el("span", { text: ` ${commitSentence(run)}` }),
       ]),
       el("p", { class: "muted", text: `Asked for: ${run.run.intent || "—"}` }),

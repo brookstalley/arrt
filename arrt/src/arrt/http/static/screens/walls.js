@@ -63,7 +63,7 @@ import { api } from "../core/api.js";
 import { absentImage, facts, table } from "../core/badges.js";
 import { counted } from "../core/counting.js";
 import { hangTheme } from "../core/hanging.js";
-import { el, fill, guard, render } from "../core/render.js";
+import { el, emptyState, fill, guard, render } from "../core/render.js";
 import { screenState, STALE_AFTER_SECONDS, wallScreenLine } from "../core/outputs.js";
 import { link, refresh } from "../core/router.js";
 import { state } from "../core/state.js";
@@ -105,10 +105,10 @@ export async function viewWalls(generation) {
     render(
       generation,
       heading(),
-      el("p", {
-        class: "note",
-        text: "No wall is recorded, so there is nowhere to hang anything. A wall is created when the plane first opens the catalogue.",
-      }),
+      emptyState(
+        "No wall is recorded, so there is nowhere to hang anything.",
+        "A wall is created when the plane first opens the catalogue.",
+      ),
     );
     return;
   }
@@ -117,12 +117,10 @@ export async function viewWalls(generation) {
   render(generation, heading(), ...sections, walls.walls.some((wall) => !wall.theme) ? takeDownNote() : null);
 }
 
-/* The one heading on this surface set at `--text-3xl`, and the token's only use.
- * `design-direction.md` adds it "for the Walls screen's single large heading",
- * which is this one: the page about what the product exists to produce saying
- * so, at a size nothing else on the client reaches. */
+/* The page's heading, at the size every page's `h1` has: Walls is a page
+ * among the others, and the art on it is what is large. */
 function heading() {
-  return el("h1", { class: "walls-heading", text: "Walls" });
+  return el("h1", { text: "Walls" });
 }
 
 /* The fact the MCP surface already states after an unhang, said here too: taking

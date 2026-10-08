@@ -62,6 +62,45 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-08: Component rules — one heading scale, one empty page, one glyph per meaning
+
+<!-- prawduct: scope=lists-settings-and-scale -->
+
+**Why:** The October review (finding 27, #287) found five heading treatments,
+four empty-page patterns, disabled acts drawn as ready, and glyphs that meant
+different things on different screens (◇ was "matted small", "cool" and "you
+chose"). Chunk 01 of `build-plan-lists-settings-and-scale.md` sets the rules the
+later chunks build to.
+
+**What:**
+- `design-direction.md` § Component Patterns rewritten to what the stylesheet
+  holds (it named `.btn`, `.primary` and `.danger`, which never existed) and
+  extended: headings, empty states, buttons and their disabled state, spacing,
+  badges with one meaning per glyph.
+- `core/glyphs.js` (new) names every badge glyph by meaning; every screen takes
+  its glyphs from it. Reassigned so no glyph is shared: *you chose* ◇ → ◎,
+  *likes* ◆ → ☆, *declines* ✕ → ✗, *gave up* ✗ → ▲ (a failure, not a verdict),
+  the wall render ▣ → ▤ (▣ is the Artworks section icon), *Already in your
+  library* ✓ → ●. The decorative ◦ before a taste row's derivation is gone.
+- One `emptyState()` in `core/render.js` for every page whose list is empty
+  (Artworks, Themes, Topics, Artists, To review, Queue, History, Wanted, Taste,
+  Clients, Sources, Walls without a wall). The lead is a paragraph, not an `h2`.
+- Walls' 36px heading and the `--text-3xl` token only it used are gone: every
+  page's `h1` is one size.
+- A disabled act looks disabled. Hover tints with an inset shadow instead of a
+  `filter`, so a full-card link inside an act keeps covering its card (#305);
+  the stacked-table exception that worked around the filter is removed.
+
+**Tests:** new `tests/unit/test_glyphs_have_one_meaning.py` and
+`tests/browser/test_component_rules.py`, each watched failing against the old
+code. Changed, not weakened: `test_the_review_grid.py` expects ◎ for *you chose*
+(the glyph was reassigned); `test_activity.py`'s empty-queue check asserts the
+lead's exact words instead of a trailing space, and its absence check keys on
+`.empty` (`.panel.empty` no longer exists, so the old check would pass on
+anything); `test_wanted.py` reads `.empty`; in `test_client_vocabulary.py` the
+sentiment-glyph check verifies each shape names a meaning `core/glyphs.js`
+holds, since the values are no longer string literals.
+
 ## 2026-10-08: Labels as outputs, and each wall reports its display state
 
 <!-- prawduct: scope=display-state -->

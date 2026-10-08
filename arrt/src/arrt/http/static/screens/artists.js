@@ -25,7 +25,7 @@ import { absentImage, facts, workName } from "../core/badges.js";
 import { identityControl, storeIdentity } from "../core/identity.js";
 import { addedSentence, addWorksToTheme, stoppedSentence } from "../core/membership.js";
 import { getSelection } from "../core/getting.js";
-import { el, fill, render } from "../core/render.js";
+import { el, emptyState, fill, render } from "../core/render.js";
 import { gettable, isQid, lifeDates, listHeadings, named, stateMark, wikidataLink, workCell, workState, yearCell } from "../core/registry.js";
 import { backLink, backRow, goWithParams, link, redirect, refresh, setTitle } from "../core/router.js";
 import { state } from "../core/state.js";
@@ -64,8 +64,7 @@ export async function viewArtists(artistId, generation) {
       ? shown === TABLE
         ? artistTable(listing.artists, count)
         : artistPosters(listing.artists, count)
-      : el("div", { class: "panel" }, [
-          el("p", { class: "muted", text: "No artists yet. Works you accept bring their artists here." }),
+      : emptyState("No artists yet.", "Works you accept bring their artists here.", [
           link({ view: "discover" }, { class: "action", text: "Ask" }),
         ]),
   );

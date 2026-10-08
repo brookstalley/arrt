@@ -36,7 +36,7 @@ import { attempt } from "../core/acting.js";
 import { api, fetchAllWorks, fetchFilterCounts } from "../core/api.js";
 import { absentImage, shortfallNote, statusBadge, tileFitBadge, workName } from "../core/badges.js";
 import { addedSentence, addWorksToTheme, stoppedSentence } from "../core/membership.js";
-import { el, fill, guard, render } from "../core/render.js";
+import { el, emptyState, fill, guard, render } from "../core/render.js";
 import { goWithParams, link } from "../core/router.js";
 import { clearSearchLink } from "../core/search.js";
 import { state } from "../core/state.js";
@@ -750,7 +750,7 @@ function membershipControls({ themes, shownTheme, grid, heading, recount, recoun
  * second reports the expected result of following a suggestion as a failed query,
  * and the conversation makes that one common — the artists it surfaces are by
  * definition ones the curator could not have named. */
-function emptyState(query, chosen, shownTheme) {
+function nothingShown(query, chosen, shownTheme) {
   const artists = chosen.artist;
   const onlyAnArtist =
     !query &&
@@ -759,40 +759,28 @@ function emptyState(query, chosen, shownTheme) {
     !FACET_KINDS.filter((kind) => kind !== "artist").some((kind) => chosen[kind].length);
 
   if (onlyAnArtist) {
-    return el("div", { class: "stack empty" }, [
-      el("h2", { text: `Nothing by ${artists[0]} yet.` }),
-      el("p", {
-        class: "muted",
-        text:
-          "That is the normal answer, not a failed search: the collection holds what has been acquired, " +
-          "not everything that exists. Ask, or Get from a search, is where more comes from.",
-      }),
-      el("div", { class: "row" }, [
+    return emptyState(
+      `Nothing by ${artists[0]} yet.`,
+      "That is the normal answer, not a failed search: the collection holds what has been acquired, " +
+        "not everything that exists. Ask, or Get from a search, is where more comes from.",
+      [
         link({ view: "discover" }, { class: "action", text: "Ask for some" }),
         link({ view: "collection", params: viewing() }, { class: "action quiet", text: "Show everything" }),
-      ]),
-    ]);
+      ],
+    );
   }
 
   if (!query && !shownTheme && !anyFacetChosen(chosen)) {
-    return el("div", { class: "stack empty" }, [
-      el("h2", { text: "Nothing is held yet." }),
-      el("p", {
-        class: "muted",
-        text: "Artworks fill from Ask and Get: ask for something, or get works you find, judge what comes back, and what you accept lands here.",
-      }),
-      el("div", { class: "row" }, [
-        link({ view: "discover" }, { class: "action", text: "Go to Ask" }),
-      ]),
-    ]);
+    return emptyState(
+      "Nothing is held yet.",
+      "Artworks fill from Ask and Get: ask for something, or get works you find, judge what comes back, and what you accept lands here.",
+      [link({ view: "discover" }, { class: "action", text: "Go to Ask" })],
+    );
   }
 
-  return el("div", { class: "stack empty" }, [
-    el("h2", { text: "Nothing held matches this filter." }),
-    // The filter itself, named. "No results" without saying what was asked for
-    // leaves a curator guessing which of three narrowings did it.
-    el("p", { class: "muted", text: `Filtered by ${filterPhrase(query, chosen, shownTheme)}.` }),
-    el("div", { class: "row" }, [
+  // The filter itself, named. "No results" without saying what was asked for
+  // leaves a curator guessing which of three narrowings did it.
+  return emptyState("Nothing held matches this filter.", `Filtered by ${filterPhrase(query, chosen, shownTheme)}.`, [
       // "Show everything" rather than "Clear the filter", and the wording is a
       // contract rather than a preference: it is what the way out of a search has
       // been called since the search landed, and it says where the control goes
@@ -800,7 +788,6 @@ function emptyState(query, chosen, shownTheme) {
       // honest reading of the words.
       link({ view: "collection", params: viewing() }, { class: "action", text: "Show everything" }),
       query ? clearSearchLink("Clear only the search") : null,
-    ]),
   ]);
 }
 
@@ -899,7 +886,7 @@ export async function viewCollection(generation) {
     render(
       generation,
       heading,
-      collectionLayout(page, chosen, shownTheme, density, null, [staleTheme, emptyState(query, chosen, shownTheme)]),
+      collectionLayout(page, chosen, shownTheme, density, null, [staleTheme, nothingShown(query, chosen, shownTheme)]),
     );
     return;
   }
@@ -919,7 +906,7 @@ export async function viewCollection(generation) {
       const counts = await fetchFilterCounts(query, chosen, { theme });
       fill(rail, ...railContents(counts, chosen));
     },
-    whenEmpty: () => (grid.closest("table") || grid).replaceWith(emptyState(query, chosen, shownTheme)),
+    whenEmpty: () => (grid.closest("table") || grid).replaceWith(nothingShown(query, chosen, shownTheme)),
   });
   const tile = density === TABLE ? workRow : density === CONTACT ? contactTile : workCard;
   for (const work of page.works) grid.append(tile(work, selection));

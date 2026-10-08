@@ -41,7 +41,7 @@ import {
   workState,
   yearCell,
 } from "../core/registry.js";
-import { el, fill, render } from "../core/render.js";
+import { el, emptyState, fill, render } from "../core/render.js";
 import { backLink, go, link, setTitle } from "../core/router.js";
 import { state } from "../core/state.js";
 
@@ -72,7 +72,12 @@ export async function viewTopics(generation) {
     // offers a dead end).
     configured ? searchForm(query) : null,
     configured && query ? found : null,
-    held ? null : el("p", { class: "muted", text: "None of your works is in a topic yet. A work's topics are read from Wikidata once it, or its artist, is matched to a Wikidata item." }),
+    held
+      ? null
+      : emptyState(
+          "None of your works is in a topic yet.",
+          "A work's topics are read from Wikidata once it, or its artist, is matched to a Wikidata item.",
+        ),
     ...(held ? groups : []),
   );
   if (configured && query) await paintFound(found, query);

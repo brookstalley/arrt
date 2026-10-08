@@ -271,9 +271,9 @@ def test_the_wanted_section_shows_its_count_once_something_is_wanted(ui, wanted)
 
 def test_with_nothing_wanted_the_section_is_shown_uncounted_and_the_page_names_the_controls_that_add_one(ui):
     open_wanted(ui)
-    ui.page.wait_for_selector(".panel.empty")
+    ui.page.wait_for_selector("#view .empty")
 
-    empty = ui.page.inner_text(".panel.empty")
+    empty = ui.page.inner_text("#view .empty")
     assert "Nothing is wanted." in empty
     # The controls that really put a work here, by the words they carry.
     assert "press Want on its review card" in empty

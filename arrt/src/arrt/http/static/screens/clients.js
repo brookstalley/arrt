@@ -36,7 +36,7 @@ import { confirmAct } from "../core/confirm.js";
 import { agree, counted } from "../core/counting.js";
 import { dated } from "../core/dates.js";
 import { isStale, screenCell, screenPhrase, STALE_AFTER_SECONDS } from "../core/outputs.js";
-import { el, render } from "../core/render.js";
+import { el, emptyState, render } from "../core/render.js";
 import { refresh } from "../core/router.js";
 
 /* The output kinds `player-contract.md` names, in the words a curator reads. */
@@ -80,10 +80,10 @@ export async function viewClients(generation) {
     ...(clients.length
       ? clients.map((client) => clientPanel(client, walls.walls, names, shown, said))
       : [
-          el("p", {
-            class: "note",
-            text: "No client is recorded yet. Add one for each host that runs a Player; its walls are assigned here once it exists.",
-          }),
+          emptyState(
+            "No client is recorded yet.",
+            "Add one for each host that runs a Player; its walls are assigned here once it exists.",
+          ),
         ]),
   );
 

@@ -66,18 +66,6 @@
   --text-lg: 1.125rem;
   --text-xl: 1.375rem;
   --text-2xl: 1.75rem;
-  /* The one step above the 1.25 scale, added for the Walls screen's single large
-     heading and used nowhere else.
-
-     **2.25rem is derived, not chosen.** The scale is nominally 1.25 but is not
-     one in fact: rounded to whole pixels it runs 1.167, 1.143, 1.125, 1.222,
-     1.273 — the ratios widen towards the display end, which is what a type scale
-     rounded onto a pixel grid does. Continuing that widening from 1.75rem gives
-     roughly 1.29, and 2.25rem (36px) is where that lands on the same 4px base
-     the spacing scale is built on. The nominal ratio would give 2.1875rem, which
-     is 35px: half a pixel off the grid every other value in this block sits on,
-     for a difference no reader could see. */
-  --text-3xl: 2.25rem;
 
   /* Spacing, 4px base. */
   --space-1: 0.25rem;
@@ -1036,15 +1024,24 @@ h1,
   }
 }
 
+/* A page with nothing in it (`core/render.js`, `emptyState`): the lead in the
+   label serif, what fills it beneath, then the way on. No panel around it, so
+   an empty page does not look like a page with one empty box on it. */
 .empty {
-  padding: var(--space-8) 0;
+  padding: var(--space-6) 0;
   max-width: 34rem;
 }
 
-.empty h2 {
-  margin: 0;
-  font: 400 var(--text-xl) / 1.3 var(--font-label);
+/* Below the page's `h1` in size, never above it: the lead says what the page
+   holds, and the page's name still outranks it. */
+.empty-lead {
+  margin: 0 0 var(--space-2);
+  font: 400 var(--text-md) / 1.4 var(--font-label);
   color: var(--text-strong);
+}
+
+.empty > .row {
+  margin-top: var(--space-4);
 }
 
 /* The IA's three shapes. The rail becomes a horizontal scroller rather than
@@ -1685,16 +1682,8 @@ th {
 
 /* -- the walls -------------------------------------------------------------
 
-   The product's home, and the one screen whose primary content is the art
-   itself rather than a report about it. */
-
-/* The single large heading on this surface, and the only use of `--text-3xl`.
-   It is the product's home saying so — the one place the type is allowed to be
-   the size a gallery's own name is, and a size nothing else reaches so that it
-   stays that. Every other `h1` on this client keeps `--text-lg`. */
-.walls-heading {
-  font-size: var(--text-3xl);
-}
+   The one screen whose primary content is the art itself rather than a report
+   about it. */
 
 /* One wall's whole section. Separated by space rather than by a rule: with three
    walls a reader has to be able to see where one room's account ends, and a line
@@ -1849,8 +1838,24 @@ select {
   border-color: var(--border-strong);
 }
 
+/* Hover tints the act toward its own text colour, which darkens a filled act
+   and a quiet one alike, in both schemes. A wash of inset shadow rather than a
+   `filter`: a filter makes the act the containing block of anything absolutely
+   positioned inside it, so a full-card link's cover shrank to the act under the
+   pointer and a press on the card missed. */
 :is(button, a).action:hover {
-  filter: brightness(1.08);
+  box-shadow: inset 0 0 0 100vmax color-mix(in srgb, currentColor 10%, transparent);
+}
+
+/* Disabled looks disabled: no fill, muted text, no hover. A disabled act that
+   keeps the primary fill reads as one that is ready and silently refuses. */
+button.action:disabled,
+button.action:disabled:hover {
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border-color: var(--border);
+  box-shadow: none;
+  cursor: not-allowed;
 }
 
 .row {
@@ -1858,6 +1863,11 @@ select {
   flex-wrap: wrap;
   gap: var(--space-3);
   align-items: flex-end;
+}
+
+/* A row of acts under a sentence sits a step below it, never flush. */
+p + .row {
+  margin-top: var(--space-3);
 }
 
 /* A labelled field beside its button: the field's own bottom margin would hold
@@ -2670,12 +2680,5 @@ input[type="checkbox"] {
     content: "";
     position: absolute;
     inset: 0;
-  }
-
-  /* The act's hover brightening is a filter, and a filter makes the link the
-     box its own cover is placed in: the cover shrank to the link under the
-     pointer, and a press on the card hit the row instead. */
-  table.stacked .row-link:hover {
-    filter: none;
   }
 }

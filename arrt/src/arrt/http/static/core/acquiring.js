@@ -13,14 +13,15 @@ import { attempt } from "./acting.js";
 import { api } from "./api.js";
 import { counted } from "./counting.js";
 import { dated } from "./dates.js";
+import { GLYPHS } from "./glyphs.js";
 import { el } from "./render.js";
 
 const PHASES = {
-  queued: { glyph: "◌", word: "queued" },
-  fetching: { glyph: "↻", word: "fetching" },
-  failed: { glyph: "▲", word: "failed" },
-  gave_up: { glyph: "✗", word: "gave up" },
-  paused: { glyph: "‖", word: "paused" },
+  queued: { glyph: GLYPHS.waiting, word: "queued" },
+  fetching: { glyph: GLYPHS.moving, word: "fetching" },
+  failed: { glyph: GLYPHS.problem, word: "failed" },
+  gave_up: { glyph: GLYPHS.problem, word: "gave up" },
+  paused: { glyph: GLYPHS.paused, word: "paused" },
 };
 
 //: How many tries the queue makes before it gives up: the first and three
@@ -32,7 +33,7 @@ function when(iso) {
 }
 
 export function acquisitionBadge(state) {
-  const phase = PHASES[state.phase] || { glyph: "?", word: state.phase };
+  const phase = PHASES[state.phase] || { glyph: GLYPHS.unknown, word: state.phase };
   return el("span", { class: `badge badge-acquisition badge-acquisition-${state.phase}` }, [
     el("span", { class: "glyph", text: phase.glyph, "aria-hidden": true }),
     el("span", { text: phase.word }),

@@ -35,8 +35,9 @@ import { attempt } from "../core/acting.js";
 import { api, fetchAllWorks } from "../core/api.js";
 import { fitBadge, shortfallNote, table } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
+import { GLYPHS } from "../core/glyphs.js";
 import { hangTheme } from "../core/hanging.js";
-import { el, fill, guard, render } from "../core/render.js";
+import { el, emptyState, fill, guard, render } from "../core/render.js";
 import { backLink, backRow, go, link, refresh, setTitle } from "../core/router.js";
 
 export async function viewTheme(themeId, generation) {
@@ -105,7 +106,7 @@ export async function viewTheme(themeId, generation) {
     fill(list,
       ...(placements.length
         ? placements.map((placement) => themePanel(placement, walls.walls, works.works, paintThemes))
-        : [el("p", { class: "muted", text: "No themes yet. Create one, then add works to it." })]),
+        : [emptyState("No themes yet.", "Create one, then add works to it.")]),
     );
   };
   paintThemes(themes.themes);
@@ -293,7 +294,7 @@ function themePanel(placement, walls, allWorks, repaintThemes, { heading: headin
       // colour is the third signal, as on every badge here.
       theme.is_default
         ? el("span", { class: "badge badge-default", style: "margin-left: 0.5rem" }, [
-            el("span", { class: "glyph", text: "★", "aria-hidden": true }),
+            el("span", { class: "glyph", text: GLYPHS.picked, "aria-hidden": true }),
             el("span", { text: "default" }),
           ])
         : null,
@@ -302,7 +303,7 @@ function themePanel(placement, walls, allWorks, repaintThemes, { heading: headin
       // there is one of them.
       hangingOn.length
         ? el("span", { class: "badge", style: "margin-left: 0.5rem" }, [
-            el("span", { class: "glyph", text: "●", "aria-hidden": true }),
+            el("span", { class: "glyph", text: GLYPHS.good, "aria-hidden": true }),
             el("span", { text: `on ${hangingOn.map((wall) => wall.name).join(", ")}` }),
           ])
         : null,

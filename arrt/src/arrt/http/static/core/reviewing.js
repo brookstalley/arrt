@@ -25,6 +25,7 @@ import {
   shortfallNote,
 } from "./badges.js";
 import { enlarge } from "./enlarge.js";
+import { GLYPHS } from "./glyphs.js";
 import { heldFor, hold, showHold } from "./holding.js";
 import { museumName, RIGHTS_WORDS } from "./providers.js";
 import { el, fill, guard } from "./render.js";
@@ -37,7 +38,7 @@ import { tierMark } from "./spend.js";
  * shows no badge, the same way an accepted catalogue work shows no status badge.
  * A badge on every card would make the two decided states harder to pick out,
  * not easier. The vocabulary test knows about the omission. */
-const VERDICT_GLYPHS = { accepted: "✓", rejected: "✗", wanted: "◑" };
+const VERDICT_GLYPHS = { accepted: GLYPHS.yes, rejected: GLYPHS.no, wanted: GLYPHS.wanted };
 
 const VERDICT_WORDS = {
   accepted: "accepted",
@@ -68,7 +69,7 @@ function verdictBadge(work) {
  * a grid that renders the two alike invites accepting one as though it were. A
  * provenance missing here would be drawn as its raw token, so the vocabulary test
  * holds these keys to the enum. */
-const PROVENANCE_GLYPHS = { proposed: "◆", offered: "◈", chosen: "◇" };
+const PROVENANCE_GLYPHS = { proposed: GLYPHS.putForward, offered: GLYPHS.offered, chosen: GLYPHS.chosen };
 
 const PROVENANCE_WORDS = { proposed: "asked for", offered: "offered", chosen: "you chose" };
 
@@ -76,7 +77,7 @@ function provenanceBadge(work) {
   // `proposed` is the ordinary case and keeps the base badge, as it always has.
   const styled = work.provenance === "proposed" ? "badge" : `badge badge-${work.provenance}`;
   return el("span", { class: styled }, [
-    el("span", { class: "glyph", text: PROVENANCE_GLYPHS[work.provenance] || "◆", "aria-hidden": true }),
+    el("span", { class: "glyph", text: PROVENANCE_GLYPHS[work.provenance] || GLYPHS.unknown, "aria-hidden": true }),
     el("span", { text: PROVENANCE_WORDS[work.provenance] || work.provenance }),
   ]);
 }
@@ -96,8 +97,8 @@ function provenanceBadge(work) {
  * name rather than drawing as its raw token. */
 const CONFIRMATION_MARKS = {
   confirmed: null,
-  unconfirmed: ["?", "Not confirmed", "No source the Get found names this work by this artist. It may not exist."],
-  unknown: ["?", "Unchecked", "Nothing was asked to confirm this work exists."],
+  unconfirmed: [GLYPHS.unknown, "Not confirmed", "No source the Get found names this work by this artist. It may not exist."],
+  unknown: [GLYPHS.unknown, "Unchecked", "Nothing was asked to confirm this work exists."],
 };
 
 function confirmationBadge(work) {
@@ -105,7 +106,7 @@ function confirmationBadge(work) {
   if (mark === null) return null;
   // A state this client has no words for is drawn as itself rather than as
   // confirmed: silence here would be the one claim the badge exists to refuse.
-  const [glyph, words] = mark || ["?", work.confirmation || "Unchecked"];
+  const [glyph, words] = mark || [GLYPHS.unknown, work.confirmation || "Unchecked"];
   return el("span", { class: `badge badge-${work.confirmation === "unconfirmed" ? "unconfirmed" : "unchecked"}` }, [
     el("span", { class: "glyph", text: glyph, "aria-hidden": true }),
     el("span", { text: words }),
@@ -243,13 +244,13 @@ function instanceStateBadges(instance) {
   return [
     instance.rejected
       ? el("span", { class: "badge badge-refused" }, [
-          el("span", { class: "glyph", text: "⊘", "aria-hidden": true }),
+          el("span", { class: "glyph", text: GLYPHS.refused, "aria-hidden": true }),
           el("span", { text: "turned down" }),
         ])
       : null,
     instance.is_selected
       ? el("span", { class: "badge badge-on_offer" }, [
-          el("span", { class: "glyph", text: "★", "aria-hidden": true }),
+          el("span", { class: "glyph", text: GLYPHS.picked, "aria-hidden": true }),
           el("span", { text: "on offer" }),
         ])
       : null,
@@ -697,7 +698,7 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
       // proposing this" is a fair thing to say about a work you already own.
       card.held_artwork_id && !decided
         ? el("p", { class: "note already-held" }, [
-            el("span", { class: "glyph", text: "✓", "aria-hidden": true }),
+            el("span", { class: "glyph", text: GLYPHS.good, "aria-hidden": true }),
             el("span", { text: " Already in your library, by title and artist. Accepting it again acquires a second artwork." }),
           ])
         : null,

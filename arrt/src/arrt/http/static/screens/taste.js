@@ -27,7 +27,8 @@
 import { attempt } from "../core/acting.js";
 import { api } from "../core/api.js";
 import { confirmAct } from "../core/confirm.js";
-import { el, render } from "../core/render.js";
+import { GLYPHS } from "../core/glyphs.js";
+import { el, emptyState, render } from "../core/render.js";
 import { backRow, link, refresh } from "../core/router.js";
 import { REACTIONS, recordReaction } from "../core/taste.js";
 
@@ -67,10 +68,10 @@ const SENTIMENT_WORDS = {
  * read. The word is beside the glyph in every case, so neither is load-bearing
  * alone. */
 const SENTIMENT_GLYPHS = {
-  loves: "★",
-  likes: "◆",
-  cool: "◇",
-  declines: "✕",
+  loves: GLYPHS.picked,
+  likes: GLYPHS.liked,
+  cool: GLYPHS.cool,
+  declines: GLYPHS.no,
 };
 
 /* Where a judgment came from, in a sentence rather than a token.
@@ -123,18 +124,12 @@ function paint(taste, generation) {
  * a thing the curator has not done yet, so the state names it and offers the
  * way. */
 function empty() {
-  return el("div", { class: "stack empty" }, [
-    el("h2", { text: "Nothing is known about your taste yet." }),
-    el("p", {
-      class: "muted",
-      text:
-        "This fills up as you talk: reacting to a picture in a conversation — more like this, not this, " +
-        "tell me more — is what records a judgment here.",
-    }),
-    el("div", { class: "row" }, [
-      link({ view: "discover" }, { class: "action", text: "Start a conversation in Ask" }),
-    ]),
-  ]);
+  return emptyState(
+    "Nothing is known about your taste yet.",
+    "This fills up as you talk: reacting to a picture in a conversation — more like this, not this, " +
+      "tell me more — is what records a judgment here.",
+    [link({ view: "discover" }, { class: "action", text: "Start a conversation in Ask" })],
+  );
 }
 
 function group(kind, affinities) {
@@ -210,8 +205,7 @@ function correctionLabel(reaction) {
  * were left with, so it is what this says. */
 function provenance(affinity) {
   const parts = [
-    el("span", { class: "glyph", "aria-hidden": true, text: "◦" }),
-    el("span", { text: ` ${DERIVATION_WORDS[affinity.derivation] || affinity.derivation}` }),
+    el("span", { text: DERIVATION_WORDS[affinity.derivation] || affinity.derivation }),
   ];
   if (affinity.source_turn_id) {
     parts.push(

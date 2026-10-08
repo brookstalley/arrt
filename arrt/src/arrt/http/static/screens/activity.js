@@ -23,8 +23,9 @@ import { paintWanted } from "../core/awaiting.js";
 import { table } from "../core/badges.js";
 import { counted } from "../core/counting.js";
 import { destinationOf, destinationWords, readThemes } from "../core/destination.js";
+import { GLYPHS } from "../core/glyphs.js";
 import { hold, heldFor, showHold } from "../core/holding.js";
-import { el, fill, guard, render } from "../core/render.js";
+import { el, emptyState, fill, guard, render } from "../core/render.js";
 import { wantedPicture, wantedWhy } from "../core/reviewing.js";
 import { go, link } from "../core/router.js";
 import { KIND_WORDS, STATE_WORDS } from "../core/runs.js";
@@ -81,11 +82,7 @@ export async function viewToReview(generation) {
   const panels = [el("h1", { text: "To review" })];
   if (!runs.runs.length) {
     panels.push(
-      el("div", { class: "panel empty" }, [
-        el("p", {
-          text: "Nothing waits for you. When a Get finds images, its works wait here until you accept or reject them.",
-        }),
-      ]),
+      emptyState("Nothing waits for you.", "When a Get finds images, its works wait here until you accept or reject them."),
     );
   } else {
     panels.push(
@@ -138,7 +135,7 @@ function acquisitionPanel(listing, generation) {
     el("h2", { text: `Fetching images (${listing.works.length})` }),
     listing.pause
       ? el("p", { class: "note acquisition-pause" }, [
-          el("span", { class: "glyph", text: "‖", "aria-hidden": true }),
+          el("span", { class: "glyph", text: GLYPHS.paused, "aria-hidden": true }),
           ` Every fetch is paused: ${listing.pause.detail} ${listing.pause.remedy || "Nothing anticipated this error; the server's journal has it, as acquisition.queue_error."}`,
         ])
       : null,
@@ -161,11 +158,7 @@ export async function viewQueue(generation) {
       ? `No Get is in flight among the ${runs.count} most recent Gets.`
       : "No Get is in flight.";
     panels.push(
-      el("div", { class: "panel empty" }, [
-        el("p", {
-          text:
-            `${nothing} A Get you start in Ask, or on works you chose, shows here while it works.`,
-        }),
+      emptyState(nothing, "A Get you start in Ask, or on works you chose, shows here while it works.", [
         link({ view: "discover" }, { class: "action", text: "Go to Ask" }),
       ]),
     );
@@ -222,14 +215,14 @@ export async function viewHistory(generation) {
   }
   if (!page.events.length) {
     panels.push(
-      el("p", {
-        class: "muted empty",
-        text: offset
-          ? "Nothing older than this."
-          : group || wallName
-            ? "Nothing of this kind has happened yet."
-            : "Nothing has happened yet. Gets, verdicts, archives, restores and hangs are recorded here as they happen; nothing from before the history began is.",
-      }),
+      offset
+        ? emptyState("Nothing older than this.")
+        : group || wallName
+          ? emptyState("Nothing of this kind has happened yet.")
+          : emptyState(
+              "Nothing has happened yet.",
+              "Gets, verdicts, archives, restores and hangs are recorded here as they happen; nothing from before the history began is.",
+            ),
     );
   } else {
     panels.push(
@@ -390,18 +383,16 @@ export async function viewWanted(generation) {
   const panels = [el("h1", { text: "Wanted" }), picker];
   if (!works.length) {
     panels.push(
-      el("div", { class: "panel empty" }, [
-        el("p", {
-          // The two controls that put a work here, by the words they carry: a
-          // review card's Want, offered where a Get found no scan of the work,
-          // and Turn it down on the scan a card offers, under Scans.
-          text:
-            "Nothing is wanted. A work comes here when a Get finds no scan of it and you press Want on its review " +
-            "card, or when you turn down the scan its card offers (Scans, then Turn it down). It waits here until " +
-            "you get it again.",
-        }),
-        link({ view: "to_review" }, { class: "action quiet", text: "Open To review" }),
-      ]),
+      emptyState(
+        "Nothing is wanted.",
+        // The two controls that put a work here, by the words they carry: a
+        // review card's Want, offered where a Get found no scan of the work,
+        // and Turn it down on the scan a card offers, under Scans.
+        "A work comes here when a Get finds no scan of it and you press Want on its review " +
+          "card, or when you turn down the scan its card offers (Scans, then Turn it down). It waits here until " +
+          "you get it again.",
+        [link({ view: "to_review" }, { class: "action quiet", text: "Open To review" })],
+      ),
     );
     render(generation, ...panels);
     return;

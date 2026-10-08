@@ -140,7 +140,7 @@ back a version per wall under Clients.
 
 ## Status
 
-- [ ] Chunk 01: Component rules
+- [x] Chunk 01: Component rules
 - [ ] Chunk 02: Follow-ups and an Ask turn's tier
 - [ ] Chunk 03: Themes index as cards
 - [ ] Chunk 04: Settings index

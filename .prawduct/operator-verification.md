@@ -10,6 +10,23 @@ each entry, which is the durable form.
 
 ## Pending
 
+### One heading scale, one empty page, one glyph per meaning — added 2026-10-08
+
+**`build-plan-lists-settings-and-scale.md` Chunk 01.** Visual change: yes.
+
+Checked by the builder in both schemes at desktop width against a synthetic
+library (`arrt/tools/ux_walk.py --synthetic 30`), and by
+`tests/browser/test_component_rules.py`.
+
+- **Look at:** Walls' heading is the same size as every other page's. An empty
+  To review, Queue, History or Wanted says one sentence in the serif, a muted
+  line under it and, where there is one, the way on, with no box around it.
+- **Try:** a disabled button (Get with nothing chosen) looks unavailable, and
+  hovering it does nothing. In Wanted or History on a phone, a card's whole row
+  still opens it after the pointer has passed over its link.
+- **Worth watching:** the reassigned glyphs read as their words: ◎ *you chose*
+  on a review card, ☆ *likes* on Taste, ▤ *wall render* on a Work page.
+
 ### The NGA as a source — added 2026-10-06
 
 **`build-plan-nga-source.md` Chunk 01.** Visual change: no; live integration.

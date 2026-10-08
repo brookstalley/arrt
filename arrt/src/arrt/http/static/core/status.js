@@ -49,6 +49,7 @@
  */
 
 import { api } from "./api.js";
+import { GLYPHS } from "./glyphs.js";
 import { el, fill } from "./render.js";
 import { go } from "./router.js";
 
@@ -119,7 +120,7 @@ function paint(reading) {
   indicator.dataset.state = state;
   indicator.dataset.words = reading.words;
   fill(indicator,
-    el("span", { class: "glyph", text: reading.well ? "●" : "▲", "aria-hidden": true }),
+    el("span", { class: "glyph", text: reading.well ? GLYPHS.good : GLYPHS.problem, "aria-hidden": true }),
     el("span", { text: reading.words }),
   );
   paintBadge(reading);
