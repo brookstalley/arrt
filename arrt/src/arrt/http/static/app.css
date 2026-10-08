@@ -1220,9 +1220,10 @@ h1,
    The owner's ruling on issue 172: held, wanted and not held are told apart first
    by how the picture is drawn, then by glyph and word (`workState` in
    `core/registry.js`). The three are defined together so they can be tuned
-   against one another, which is what the owner asked to iterate on. First
-   try: held plain, wanted with a dashed accent outline, not held under
-   diagonal hatching — recognisable, and never mistakable for held. */
+   against one another, which is what the owner asked to iterate on. Held has a
+   thin outline, wanted a dashed accent one, and not held is the picture plain:
+   the owner's ruling on tiles (2026-10-07) is that a preview of a work not held
+   is a real picture marked by its badge, not hatched over. */
 .work-pic {
   position: relative;
   display: inline-block;
@@ -1249,16 +1250,6 @@ h1,
   outline-offset: -2px;
 }
 
-.work-pic-not-held::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--surface-1) 70%, transparent) 0 2px,
-    transparent 2px 5px
-  );
-}
 
 /* The theme new works join. Solid accent, because it is a standing role rather
    than a state a curator is warned about; the star and the word carry it first. */
@@ -2486,4 +2477,36 @@ dialog.confirm::backdrop {
   margin-top: var(--space-1);
   font-size: var(--text-xs);
   color: var(--text-muted);
+}
+
+/* -- tiles show the art ------------------------------------------------------
+   A library tile is the work itself at its own aspect (ruling 7 of 2026-10-07):
+   the thumbnail route now serves the bare work, so the tile's box is the wall
+   the work hangs on rather than a frame around a letterboxed television. The
+   box keeps its fixed shape, because a grid that reflows as pictures arrive is
+   the opposite of the identity (`design-direction.md` § Tiles); the picture
+   sits in it uncropped, on the card's own ground. */
+.card-image:has(img) {
+  background: transparent;
+}
+
+/* A listed work's picture, held or not, is drawn whole: cropping a work to a
+   square is the one thing an art tool must not do, and at the size a list draws
+   it the crop was most of what a curator could not see. */
+.work-pic img {
+  object-fit: contain;
+}
+
+/* Large enough to judge before spending, which is what a not-held preview is
+   for. 5rem stays sharp from the 250 px Commons rendering on a 3x screen
+   (`FOUND_WIDTH` in `core/registry.js`). The search typeahead keeps its small
+   mark, being a list of names to choose between. */
+.artist-works .work-pic {
+  width: 5rem;
+  height: 5rem;
+}
+
+.results-list .work-pic {
+  width: 3.5rem;
+  height: 3.5rem;
 }

@@ -69,6 +69,21 @@ export function fitBadge(sized, absentWord = "no size known") {
   ]);
 }
 
+/* A tile's fit mark: only where the fit is news.
+ *
+ * On a library tile "native" is what nearly every work says, so it says nothing
+ * (`ux-review-2026-10.md` finding 27): a mark on every tile is noise that hides
+ * the tile that needs one. A work that would hang small, below the floor, or at
+ * a size nobody can state keeps its badge. The Work page, a review card and a
+ * theme's rows still say "native", where the fit is what is being judged. */
+export function tileFitBadge(work) {
+  if (work.fit && work.fit.verdict === "native") return null;
+  return fitBadge(work);
+}
+
+/* Which image the Work page's picture is: the wall render, or the master where
+ * no wall render exists yet. Not drawn on a tile, which is always the work
+ * itself (ruling 7 of 2026-10-07), so the word would say nothing there. */
 export function sourceBadge(work) {
   if (!work.image.available) return null;
   const rendered = work.image.source_kind === "tv_display";

@@ -393,9 +393,9 @@ class TestTheTopicPage:
     def test_held_wanted_and_not_held_each_draw_their_picture_in_their_own_style(self, ui, held, want_item, pictures_load):
         """The owner's ruling on #172: held and image found were told apart by a picture only one of them had.
 
-        Held draws the library's own thumbnail; not held draws Wikidata's under
-        hatching; wanted (here with no picture known) says so in glyph and word.
-        The hatching is on the not-held picture only.
+        Held draws the library's own thumbnail; not held draws Wikidata's, plain
+        and marked by its badge; wanted (here with no picture known) says so in
+        glyph and word. The not-held style is on the not-held picture only.
         """
         want_item(NAMELESS, "An untitled work")
         open_topic(ui)
@@ -414,7 +414,31 @@ class TestTheTopicPage:
         assert ui.page.locator(f"{WORKS} .work-pic-not-held").count() == 1
         assert ui.page.locator(f"{WORKS} .work-pic-held").count() == 1
 
-    def test_a_wanted_work_with_a_picture_draws_it_wanted_not_hatched(self, ui, held, want_item, pictures_load):
+    def test_a_not_held_preview_is_a_real_picture_marked_by_its_badge(self, ui, held, pictures_load):
+        """Ruling 7: legible at a glance, whole, and not hatched over; the badge says not held.
+
+        Measured against the held picture in the same list, so a rule that
+        shrank or hatched every picture alike would fail here too.
+        """
+        open_topic(ui)
+        works_answered(ui)
+        marks = self._marks(ui)
+        style = (
+            "(f) => { const img = f.querySelector('img'); const after = getComputedStyle(f, '::after');"
+            " return { after: after.content, background: after.backgroundImage, fit: getComputedStyle(img).objectFit,"
+            " edge: f.getBoundingClientRect().width }; }"
+        )
+        found = marks["The Harvesters"].locator(".work-pic-not-held").evaluate(style)
+        assert found["after"] in ("none", "normal"), "the preview is still hatched"
+        assert found["background"] == "none", "the preview is still hatched"
+        assert found["fit"] == "contain", "the preview is cropped to a square"
+        assert found["edge"] >= 64, "the preview is too small to judge before spending"
+        assert "Image found" in marks["The Harvesters"].inner_text()
+        held_pic = marks["The Hunters in the Snow"].locator(".work-pic-held").evaluate(style)
+        assert held_pic["fit"] == "contain"
+        assert held_pic["edge"] == found["edge"]
+
+    def test_a_wanted_work_with_a_picture_draws_it_wanted_not_as_not_held(self, ui, held, want_item, pictures_load):
         want_item(HARVESTERS, "The Harvesters")
         open_topic(ui)
         works_answered(ui)

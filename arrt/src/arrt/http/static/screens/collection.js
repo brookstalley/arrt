@@ -34,7 +34,7 @@
 
 import { attempt } from "../core/acting.js";
 import { api, fetchAllWorks, fetchFilterCounts } from "../core/api.js";
-import { absentImage, fitBadge, shortfallNote, sourceBadge, statusBadge } from "../core/badges.js";
+import { absentImage, shortfallNote, statusBadge, tileFitBadge } from "../core/badges.js";
 import { addedSentence, addWorksToTheme, stoppedSentence } from "../core/membership.js";
 import { el, fill, guard, render } from "../core/render.js";
 import { goWithParams, link } from "../core/router.js";
@@ -250,7 +250,7 @@ function workCard(work, selection) {
         class: "card-meta",
         text: [work.date_created, work.medium].filter(Boolean).join(" · ") || " ",
       }),
-      el("div", { class: "card-footer" }, [statusBadge(work), fitBadge(work), sourceBadge(work)]),
+      el("div", { class: "card-footer" }, [statusBadge(work), tileFitBadge(work)]),
     ]),
   ]);
 }

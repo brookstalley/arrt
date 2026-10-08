@@ -88,11 +88,10 @@ export function personLink(person) {
 }
 
 /* The Commons rendering a listed work's picture is asked at. Commons serves
- * fixed widths only and answers any other with the next one up; 250 is the
- * first that stays sharp at the 3rem a list draws it at on a 3x screen
- * (`app.css`, `.artist-works .work-pic`). The search typeahead and results
- * draw the same picture at 2rem and share it, so a work shown in both is one
- * download. */
+ * fixed widths only and answers any other with the next one up; 250 stays
+ * sharp at the 5rem a list draws it at on a 3x screen (`app.css`,
+ * `.artist-works .work-pic`). The search results and typeahead draw the same
+ * picture smaller and share it, so a work shown in both is one download. */
 const FOUND_WIDTH = 250;
 
 /* A work's mark wherever registry works are listed — the search typeahead,
@@ -165,9 +164,9 @@ export function reviewMark(inReview, { inOption = false } = {}) {
   return link({ view: "review", id: inReview.run_id }, { class: "badge badge-in-review state-mark" }, parts);
 }
 
-/* A picture in the image style of a state. In a frame, because the not-held
- * style draws hatching over the picture and an `<img>` cannot carry an
- * overlay of its own. Decorative: the title beside it names the work.
+/* A picture in the image style of a state. In a frame, which carries the
+ * state's outline and keeps the box square while the picture inside it keeps
+ * its own aspect. Decorative: the title beside it names the work.
  *
  * A picture that fails to load takes its frame with it, so a held work with
  * no master yet, or a Commons outage, leaves glyph and word rather than a

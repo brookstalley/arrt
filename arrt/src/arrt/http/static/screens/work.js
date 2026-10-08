@@ -487,7 +487,9 @@ function paint(detail, generation, { where, focusAction = false }) {
   const image = work.image.available
     ? el("img", {
         class: "detail-image work-picture",
-        src: `${workPath(work.artwork_id)}/thumbnail`,
+        // The wall render at a size this column draws sharply; a tile's
+        // thumbnail is the bare work and a fraction of this width.
+        src: `${workPath(work.artwork_id)}/wall-preview`,
         alt: work.artist ? `${work.title}, by ${work.artist.name}` : work.title,
       })
     : el("p", { class: "note", text: work.image.note || "No image held." });

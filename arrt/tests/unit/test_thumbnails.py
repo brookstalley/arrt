@@ -374,9 +374,7 @@ class TestGenerating:
                 3840 / 2160, abs=0.01
             ), "the cache still holds the bare master while the Work page says 'wall render'"
 
-    def test_a_thumbnail_stays_the_bare_work_once_a_wall_render_exists(
-        self, thumbnails, service, settings, decodable_jpeg, work
-    ):
+    def test_a_thumbnail_stays_the_bare_work_once_a_wall_render_exists(self, thumbnails, service, settings, decodable_jpeg, work):
         """A tile shows the work at its own aspect; the canvas's mat and bars are the wall's."""
         artwork = work(width=1200, height=1600)
         rendered = f"ready/{artwork.id}.jpg"

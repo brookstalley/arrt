@@ -691,16 +691,20 @@ Search results page alike (2026-10-07, #275).
 
 Held wins over waiting for review, which wins over wanted. **The three image styles are one block in `app.css`**,
 to be tuned against one another: the owner asked to "css style held, wanted,
-not held as image styles and then iterate on what's most clear". The first try
-is held plain with a quiet outline, wanted with a dashed accent outline, and not
-held under diagonal hatching. Glyph and word carry the state whatever the
+not held as image styles and then iterate on what's most clear". Held has a
+quiet outline and wanted a dashed accent outline; not held is the picture plain,
+marked by its badge, since the owner's ruling on tiles (`ia-proposal.md` §
+Rulings 2026-10-07, ruling 7) that a preview of a work not held is a real
+picture with a badge, not hatching. Every picture is drawn whole at its own
+aspect inside its square, never cropped. Glyph and word carry the state whatever the
 picture does, so a picture that fails to load, or none, leaves every state
 readable (`accessibility-spec.md`).
 
 **The picture shows at every width** *(the owner's feedback of 2026-10-05: on a
 phone the lists showed none, which made choosing what to Get guesswork)*. In the
-three lists (*Their work*, *Representative works*, *More by*) it is 3rem, large
-enough to tell two works apart; on a phone the badge stacks the picture above
+three lists (*Their work*, *Representative works*, *More by*) it is 5rem, large
+enough to judge a work before spending on it (3rem until ruling 7; the Search
+results page draws it at 3.5rem and the typeahead at 2rem); on a phone the badge stacks the picture above
 glyph and word, and the By and Year columns fold under the title so the row
 fits without scrolling sideways.
 
@@ -979,6 +983,14 @@ thousands.** Three views, in the toolbar's View menu:
   competes with the art.
 - **Overview** (was *Catalogue*) — the built card: image, title, artist, badges.
   The default below that threshold, and always available above it.
+
+**Every library tile shows the work itself at its own aspect** — Artworks at
+both densities, the Artist and Topic pages' held works — and never the wall
+render, whose mat and bars are the wall's and which appears only on the Work
+page, where it is the subject (ruling 7 of 2026-10-07). A tile carries a badge
+only where it is news: archived, or a fit other than native. "Native" and the
+image's source ("wall render", "master image") say nothing on a tile and are not
+drawn there.
 - **Table** — one row per work: title, artist, date, medium, status. Never a
   default; for scanning by the words when the pictures are not what you are
   looking for.
