@@ -60,6 +60,7 @@ from websockets.exceptions import WebSocketException
 
 from postarr.tv.client import (
     UPLOADED_CATEGORY,
+    PowerStateUnreadable,
     RemovalOutcome,
     SelectionAnnouncement,
     SelectionObserver,
@@ -106,6 +107,15 @@ _LIBRARY_FAILURES: Final[tuple[type[Exception], ...]] = (
 #: sends: the mat is already composed into the render by the curation plane, and
 #: letting the television draw a second one over it would frame the frame.
 _NO_MATTE: Final[str] = "none"
+
+#: How long a `PowerState` read may take before it counts as unreadable. **Short,
+#: because the wall never waits on it for anything it needs**: it is asked only
+#: once `get_artmode` has said no, to tell a set in use from a set that is off,
+#: and both blank the label. The set answers it "instant" in every state measured
+#: (`samsung-tv-state-findings.md` § What works in each state); the library's
+#: REST client has no timeout of its own, so without this a set that stopped
+#: answering HTTP would hold the poll for as long as the socket took to give up.
+POWER_STATE_TIMEOUT_SECONDS: Final[float] = 2.0
 
 #: The set's announcement that a selection took effect. It carries the id and an
 #: `is_shown` flag, and it is the only signal on this firmware that distinguishes
@@ -544,6 +554,40 @@ class SamsungTv(TvClient):
         then be impossible rather than merely unlikely.
         """
         self._art_mode_announced = True
+
+    async def power_state(self) -> str:
+        """The set's `PowerState`, read over REST beside the art channel.
+
+        **A GET of the device description and nothing else**: `rest_device_info`
+        is `_rest_request("")` with the default method, a GET of `/api/v2/`, which
+        is what `power_probe.py` samples as its read-only half. It presses no key
+        and changes nothing on the set, so the rule that the television belongs to
+        whoever is using it (`nonfunctional-requirements.md`) is not engaged.
+
+        **Through the art client's own REST helper**, which is what the library's
+        `on()` uses: it rides the HTTP session the art client already owns and
+        closes, so this plane imports no HTTP client of its own. `on()` itself is
+        not used because it swallows every failure into "off" — the one reading
+        that would turn a REST hiccup into a wall reported dark.
+
+        **Not through `_call`**, deliberately: that drops the art channel on any
+        failure, and a REST read failing says nothing about the websocket.
+        """
+        art = self._art
+        if art is None:
+            raise PowerStateUnreadable("not connected to the television")
+        try:
+            rest = art._get_rest_api()  # noqa: SLF001 -- the library's own helper, the one its `on()` uses; see above
+            info = await asyncio.wait_for(rest.rest_device_info(), timeout=POWER_STATE_TIMEOUT_SECONDS)
+        # Every way an HTTP read can fail lands here, and they are one answer:
+        # unreadable. Its caller reports the wall in use rather than guess "off".
+        except Exception as exc:  # prawduct:allow prawduct/broad-except -- converted, never swallowed
+            raise PowerStateUnreadable(_named(exc)) from exc
+        device = info.get("device") if isinstance(info, dict) else None
+        power = device.get("PowerState") if isinstance(device, dict) else None
+        if not isinstance(power, str):
+            raise PowerStateUnreadable("the set's device description carries no PowerState")
+        return power
 
     async def reported_art_mode(self) -> str | None:
         """The set's own art-mode flag, for a log line and nothing else.

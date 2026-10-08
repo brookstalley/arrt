@@ -52,11 +52,20 @@ from postarr import brightness as brightness_module
 from postarr import heartbeat as heartbeat_module
 from postarr.config import Settings
 from postarr.episodes import Backoff, ReportOnce
+from postarr.heartbeat import DisplayReport, ScreenState
 from postarr.logs import work_context
 from postarr.manifest import Entry, Manifest, Watcher
 from postarr.panel import LabelSurface, Layout, lay_out, read_label
 from postarr.state import Binding, DisplayState, UploadStatus
-from postarr.tv import RemovalOutcome, SelectionAnnouncement, TvClient, TvRemovalUnconfirmed, TvUnavailable, TvUploadFailed
+from postarr.tv import (
+    PowerStateUnreadable,
+    RemovalOutcome,
+    SelectionAnnouncement,
+    TvClient,
+    TvRemovalUnconfirmed,
+    TvUnavailable,
+    TvUploadFailed,
+)
 
 log = logging.getLogger(__name__)
 
@@ -71,6 +80,13 @@ log = logging.getLogger(__name__)
 #: what this catches is an SPI transaction that is never coming back, which is the
 #: one way a panel could stop the wall that no `except` clause can reach.
 LABEL_DRAW_BUDGET_SECONDS: Final[float] = 15.0
+
+#: How long the panel keeps its caption once this loop cannot tell what the
+#: screen is doing, before it draws itself blank. **The owner's number,
+#: 2026-10-08** (`labels-and-surfaces.md` § What a label says): long enough that
+#: an overnight Wi-Fi blip or a set rebooting leaves the room its caption, short
+#: enough that a wall gone for good stops naming a picture nobody can confirm.
+UNREACHABLE_CAPTION_HOLD_SECONDS: Final[float] = 30 * 60.0
 
 
 def _forget(draw: "asyncio.Future[Layout]") -> None:
@@ -203,7 +219,36 @@ class Daemon:
         #: it is one reference, and a reader that catches the previous value gets
         #: a stale id rather than a torn one.
         self._announced_content_id: str | None = None
+        #: The announcement itself, kept so the daemon's own task can tell a new
+        #: one from one it has already taken — by identity, so the same picture
+        #: announced twice is still two pieces of news.
+        self._announcement: SelectionAnnouncement | None = None
+        self._announcement_taken: SelectionAnnouncement | None = None
         tv.observe_selections(self._note_announcement)
+
+        #: The set's id for the picture on the wall: this plane's own confirmed
+        #: selection, or one the set announced as shown that somebody chose with
+        #: the remote. None until either has happened.
+        self._wall_content_id: str | None = None
+        #: What the wall's screen is doing (`labels-and-surfaces.md` § Display
+        #: state). **Unreachable until the set has been asked**, which is the
+        #: contract's word for "the controller cannot tell" — a fresh process has
+        #: not asked anything yet, and a guess would be a reading nobody took.
+        self._display = DisplayReport(state=ScreenState.UNREACHABLE, work_id=None, since=clock.now())
+        #: When the current display state began, on the elapsed clock, for the
+        #: unreachable caption hold. `since` above is wall time for the reader.
+        self._display_began = clock.monotonic()
+        #: A change not yet written. The heartbeat goes out on the pass that saw
+        #: the change rather than waiting out its interval, because every label
+        #: of the wall follows this record (`player-contract.md` § minor 3).
+        self._display_owed = False
+        #: Whether the panel was last drawn blank because of the screen's state.
+        #: Recorded on the attempt, as `_captioned_content_id` is, so a refusing
+        #: panel is not re-asked on every poll.
+        self._label_blank = False
+        #: `PowerState` would not answer while `get_artmode` did. The wall is
+        #: reported in use (the label blanks either way); said once per episode.
+        self._power_unreadable = ReportOnce()
 
         #: Whether the set was showing art the last time it was actually asked.
         #: **None until it has been**, rather than defaulting to either answer: the
@@ -374,11 +419,13 @@ class Daemon:
             # process is alive — returning here without a heartbeat would let
             # curation's panel report a running plane as one that has never
             # spoken.
+            await self._label_follows_the_screen(manifest=None)
             self._beat(manifest=None)
             return self._settings.poll_interval_seconds
 
         try:
             await self._connected()
+            await self._take_the_sets_news()
             if self._reconciliation_owed and self._reconcile_wait.is_due():
                 # Cleared only when the work actually settled: a set that goes
                 # away halfway through raises, and one that cannot say what it
@@ -397,7 +444,7 @@ class Daemon:
             # Last, because it reconciles the label against whatever the pass
             # above left on the wall — including the case where the pass did
             # nothing and the wall changed anyway.
-            await self._caption_the_wall_the_set_reports(manifest)
+            await self._label_follows_the_screen(manifest)
         except TvUnavailable as exc:
             # **The heartbeat is written on this path too, and that is the whole
             # point of it.** A television that has gone away is the condition an
@@ -406,6 +453,10 @@ class Daemon:
             # leaving curation to report "has not reported" for a process that is
             # running perfectly and telling the truth about a set that is not.
             self._record_error(str(exc))
+            self._display_is(ScreenState.UNREACHABLE)
+            # The label still follows: an unreachable set keeps its caption for
+            # a while and then blanks, and that clock runs while the set is gone.
+            await self._label_follows_the_screen(manifest)
             self._beat(manifest=manifest, television_reachable=False)
             return self._back_off(exc)
 
@@ -705,6 +756,9 @@ class Daemon:
             self._state.set_last_selected_work_id(entry.work_id)
             self._attempted_at = self._clock.monotonic()
             self._has_shown = True
+            self._wall_content_id = content_id
+            self._showing_art = True
+            self._display_is(ScreenState.SHOWING_ART, entry.work_id)
             if self._wall_unchanged.end():
                 log.info(
                     "the television is changing what it displays again",
@@ -772,11 +826,17 @@ class Daemon:
         with work_context(entry.work_id) if entry is not None else nullcontext():
             await self._put_the_label_up(surface, entry, content_id)
 
-    async def _put_the_label_up(  # noqa: C901 -- every way a caption can fail is answered in place, so the wall never stops for one
-        self, surface: LabelSurface, entry: Entry | None, content_id: str
+    async def _put_the_label_up(  # noqa: C901, PLR0912 -- every way a caption can fail is answered in place, so the wall never stops for one
+        self, surface: LabelSurface, entry: Entry | None, content_id: str | None, *, blanked_for: ScreenState | None = None
     ) -> None:
-        """The whole of a caption, with this work's id bound. See `_caption`."""
+        """The whole of a caption, with this work's id bound. See `_caption`.
+
+        `blanked_for` names the screen state a blank is drawn for — somebody using
+        the set, the set off, or a set unreachable past the caption hold — and
+        then there is no picture, so no `content_id` either.
+        """
         self._captioned_content_id = content_id
+        self._label_blank = blanked_for is not None
         if self._label_draw is not None and not self._label_draw.done():
             self._label_would_not_take_it("the previous label is still being drawn", content_id)
             return
@@ -817,7 +877,17 @@ class Daemon:
         self._label_working = True
         if self._label_failed.end():
             log.info("the label surface is taking labels again", extra={"event": "label.recovered"})
-        if entry is None:
+        if blanked_for is not None:
+            # **Blank on purpose, and said so by the state that asked for it.** The
+            # label shows a caption only while the screen shows art
+            # (`labels-and-surfaces.md` § What a label says): a caption beside a
+            # programme is a distraction, beside a dark set it names nothing.
+            log.info(
+                "the panel was drawn blank: the screen is %s",
+                blanked_for.value,
+                extra={"event": "label.blanked", "display_state": blanked_for.value},
+            )
+        elif entry is None:
             # **A third outcome, and it needs its own name.** The set is showing a
             # picture nothing on this device can name — an art-store image somebody
             # chose with the remote — and the panel was drawn blank on purpose. A
@@ -985,7 +1055,7 @@ class Daemon:
                 },
             )
 
-    def _label_would_not_take_it(self, why: str, content_id: str) -> None:
+    def _label_would_not_take_it(self, why: str, content_id: str | None) -> None:
         """One place for every way a label fails to reach the surface.
 
         They differ only in the sentence: the response is the same to all of them
@@ -1039,8 +1109,120 @@ class Daemon:
         than what we last put there.
         """
         self._announced_content_id = announcement.content_id
+        self._announcement = announcement
 
-    async def _caption_the_wall_the_set_reports(self, manifest: Manifest) -> None:
+    async def _take_the_sets_news(self) -> None:
+        """Act, on the daemon's own task, on what the set has said since the last pass.
+
+        Two kinds of news, both already heard and neither a new question put to
+        the set on a timer. **A picture announced as shown** is the wall changing
+        — this plane's own selection echoed back, or somebody with the remote —
+        and it is art on the wall, resolved to a work through the bindings. **An
+        art-mode announcement** (which connecting also counts as) is the set
+        saying its mode may have changed: it clears the wall's wait, as it always
+        has, and is now also answered with one fresh `get_artmode` read, so the
+        display state follows the set within a pass of the set saying so rather
+        than at the next rotation. One read per announcement, never per poll.
+        """
+        announcement = self._announcement
+        if announcement is not None and announcement is not self._announcement_taken:
+            self._announcement_taken = announcement
+            if announcement.is_shown:
+                self._wall_content_id = announcement.content_id
+                self._showing_art = True
+                self._display_is(ScreenState.SHOWING_ART, self._work_bound_to(announcement.content_id))
+        if self._tv.art_mode_announcement_pending():
+            self._wall_is_answering()
+            await self._read_art_mode()
+
+    def _work_bound_to(self, content_id: str) -> str | None:
+        """The work this device put on the set under `content_id`, or None for a picture it did not put there."""
+        for binding in self._state.bindings():
+            if binding.tv_content_id == content_id:
+                return binding.artwork_id
+        return None
+
+    async def _read_art_mode(self) -> bool:
+        """Ask the set whether it is showing art, and let the display state follow the answer.
+
+        A yes is art on the wall: the picture last known to be there, which may
+        be one nothing here can name. A no is somebody else's screen or a dark
+        one, and only `PowerState` tells those apart — see `_screen_is_not_ours`.
+        """
+        showing = await self._tv.showing_art()
+        self._showing_art = showing
+        if showing:
+            content_id = self._wall_content_id
+            self._display_is(ScreenState.SHOWING_ART, self._work_bound_to(content_id) if content_id is not None else None)
+        else:
+            await self._screen_is_not_ours()
+        return showing
+
+    async def _screen_is_not_ours(self) -> None:
+        """`get_artmode` said no: report the set in use, or dark if `PowerState` says standby.
+
+        **Read only here, straight after a `get_artmode` no**, so it adds no
+        cadence of its own: it rides a read this loop was already taking. Both
+        states blank the label, so the read decides only what Walls says; a
+        failed read therefore reports `in_use` — the screen is somebody's or off,
+        and of the two, "in use" is the one that cannot wrongly tell a curator a
+        lit screen is off — and says so once per episode.
+        """
+        try:
+            power = await self._tv.power_state()
+        except PowerStateUnreadable as exc:
+            if self._power_unreadable.begin():
+                log.info(
+                    "could not read whether the television's panel is lit (%s); reporting it in use",
+                    exc,
+                    extra={"event": "display.power_unreadable"},
+                )
+            self._display_is(ScreenState.IN_USE)
+            return
+        if self._power_unreadable.end():
+            log.info("the television's panel power can be read again", extra={"event": "display.power_readable"})
+        self._display_is(ScreenState.DARK if power == "standby" else ScreenState.IN_USE)
+
+    def _display_is(self, state: ScreenState, work_id: str | None = None) -> None:
+        """Record what the screen is doing; a change is written on this pass, not at the interval."""
+        moved = self._display.moved_to(state, work_id, at=self._clock.now())
+        if moved is self._display:
+            return
+        self._display = moved
+        self._display_began = self._clock.monotonic()
+        self._display_owed = True
+        log.info(
+            "the screen is %s%s",
+            state.value,
+            f" ({work_id})" if work_id is not None else "",
+            extra={"event": "display.state", "display_state": state.value, "work_id": work_id},
+        )
+
+    async def _label_follows_the_screen(self, manifest: Manifest | None) -> None:
+        """Make the panel say what `labels-and-surfaces.md` § What a label says asks of this state.
+
+        A caption while the screen shows art; blank while it is in use or dark;
+        and while the set cannot be reached, the last caption until
+        `UNREACHABLE_CAPTION_HOLD_SECONDS` have passed, then blank. Each blank is
+        one full redraw, drawn once on the way into the state, never per poll.
+        """
+        # The surface is checked here as well as inside `_caption`, which is not
+        # belt-and-braces: the lookup below is a read of the binding table, and a
+        # device with no panel would otherwise pay for one on every poll.
+        if self._surface is None:
+            return
+        state = self._display.state
+        if state is ScreenState.SHOWING_ART:
+            await self._caption_the_wall_the_set_reports(manifest)
+            return
+        held = self._clock.monotonic() - self._display_began < UNREACHABLE_CAPTION_HOLD_SECONDS
+        if state is ScreenState.UNREACHABLE and held:
+            return
+        if self._label_blank:
+            return
+        await self._put_the_label_up(self._surface, None, None, blanked_for=state)
+
+    async def _caption_the_wall_the_set_reports(self, manifest: Manifest | None) -> None:
         """Re-label when the wall changed without this plane changing it.
 
         **The remote is a curator too.** Somebody in the room picks a different
@@ -1063,16 +1245,12 @@ class Daemon:
         is only read when they differ — which is once per rotation, plus once per
         time somebody actually touches the remote.
         """
-        # The surface is checked here as well as inside `_caption`, which is not
-        # belt-and-braces: the lookup below is a read of the binding table, and a
-        # device with no panel would otherwise pay for one on every poll — a query
-        # a second, for ever, to decide what to draw on nothing.
-        if self._surface is None:
+        on_the_wall = self._wall_content_id
+        if manifest is None or on_the_wall is None:
             return
-        announced = self._announced_content_id
-        if announced is None or announced == self._captioned_content_id:
+        if on_the_wall == self._captioned_content_id and not self._label_blank:
             return
-        await self._caption(self._entry_showing(announced, manifest), announced)
+        await self._caption(self._entry_showing(on_the_wall, manifest), on_the_wall)
 
     def _entry_showing(self, content_id: str, manifest: Manifest) -> Entry | None:
         """The manifest entry for what the set says it is showing, if it carries one."""
@@ -1100,8 +1278,7 @@ class Daemon:
         actually moved. A no then backs off on the shared ladder, so a whole
         evening of television costs a handful of reads rather than thousands.
         """
-        showing = await self._tv.showing_art()
-        self._showing_art = showing
+        showing = await self._read_art_mode()
         if showing:
             if self._not_our_wall.end():
                 log.info(
@@ -1134,9 +1311,9 @@ class Daemon:
         somebody switching from a programme back to art mode would watch a blank
         wall for the remainder of a backoff that had grown to five minutes; with
         it, the next poll asks again and the picture comes back in about a second.
+        The clearing happens in `_take_the_sets_news`, at the top of every pass
+        that reaches the set, so this only reads the wait.
         """
-        if self._tv.art_mode_announcement_pending():
-            self._wall_is_answering()
         return self._wall_retry.is_due()
 
     def _hold_off_the_wall(self) -> None:
@@ -1442,9 +1619,13 @@ class Daemon:
         line per episode rather than one a minute.
         """
         elapsed = self._clock.monotonic()
-        if self._heartbeat_at is not None and elapsed - self._heartbeat_at < heartbeat_module.INTERVAL_SECONDS:
+        due = self._heartbeat_at is None or elapsed - self._heartbeat_at >= heartbeat_module.INTERVAL_SECONDS
+        if not due and not self._display_owed:
             return
         self._heartbeat_at = elapsed
+        # Cleared on the attempt: a disk that refuses this write gets the next
+        # one at the interval, not on every poll.
+        self._display_owed = False
 
         health = heartbeat_module.Health(
             manifest_schema=f"{manifest.schema_major}.{manifest.schema_minor}" if manifest is not None else None,
@@ -1461,6 +1642,7 @@ class Daemon:
             has_label_surface=self._surface is not None or self._surface_error is not None,
             label_surface_working=self._label_working,
             last_error=self._last_error,
+            display_state=self._display,
         )
         try:
             heartbeat_module.write(

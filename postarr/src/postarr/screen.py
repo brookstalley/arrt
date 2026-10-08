@@ -39,6 +39,7 @@ from postarr import heartbeat as heartbeat_module
 from postarr.config import WallSettings
 from postarr.daemon import Clock
 from postarr.episodes import ReportOnce
+from postarr.heartbeat import DisplayReport, ScreenState
 from postarr.logs import work_context
 from postarr.manifest import Entry, Manifest, Watcher
 
@@ -64,6 +65,10 @@ class ScreenOutput(Protocol):
         Called on every poll, so it must be cheap when nothing changed, and like
         `show` it blocks and must not raise for a screen that is off or unplugged.
         """
+
+    @property
+    def listed(self) -> bool:
+        """Whether the output exists on this client at all, screen or no screen."""
 
     @property
     def connected(self) -> bool:
@@ -109,6 +114,11 @@ class ScreenWall:
         self._refresh_failed = ReportOnce()
         self._draw_failed = ReportOnce()
         self._missing: set[str] = set()
+        #: What the screen is doing, as `labels-and-surfaces.md` § Display state
+        #: names it. None until the first pass has looked.
+        self._display: DisplayReport | None = None
+        #: A change not yet written; see `_beat`.
+        self._display_owed = False
 
     @property
     def showing(self) -> str | None:
@@ -136,8 +146,47 @@ class ScreenWall:
         if manifest is not None and not await self._act_on_directive(manifest):
             await self._rotate_if_due(manifest)
         await self._refresh()
+        self._observe_the_screen()
         self._beat(manifest)
         return self._wall.poll_interval_seconds
+
+    def _observe_the_screen(self) -> None:
+        """Read the display state off the output, every pass, and note a change.
+
+        **This controller can always tell**, because it is the one drawing: the
+        connector's own `status` says whether a screen is there, the same reading
+        the client heartbeat reports, so it never reports `unreachable` or
+        `in_use`. An output the kernel no longer lists is `no_screen`; a listed
+        connector with no screen detected is `dark`; a screen showing what this
+        worker last drew is `showing_art`.
+
+        **A screen with nothing of this wall's on it yet is `dark`** — before the
+        first draw, or with no manifest, it shows the console's black, not art,
+        and `dark` is the state whose label is blank. The cost is one pass of
+        "The screen is off" on Walls at startup.
+        """
+        if not self._output.listed:
+            state, work_id = ScreenState.NO_SCREEN, None
+        elif not self._output.connected or self._showing is None:
+            state, work_id = ScreenState.DARK, None
+        else:
+            state, work_id = ScreenState.SHOWING_ART, self._showing
+        now = self._clock.now()
+        moved = (
+            DisplayReport(state=state, work_id=work_id, since=now)
+            if self._display is None
+            else self._display.moved_to(state, work_id, at=now)
+        )
+        if moved is self._display:
+            return
+        self._display = moved
+        self._display_owed = True
+        log.info(
+            "the screen is %s%s",
+            state.value,
+            f" ({work_id})" if work_id is not None else "",
+            extra={"event": "display.state", "wall_id": self._wall.wall_id, "display_state": state.value, "work_id": work_id},
+        )
 
     def _adopt(self, manifest: Manifest) -> None:
         """Take a new manifest's entries as the rotation, resuming after the work on the screen."""
@@ -265,16 +314,26 @@ class ScreenWall:
             log.info("the screen can be drawn again", extra={"event": "screen.refresh_recovered", "wall_id": self._wall.wall_id})
 
     def _beat(self, manifest: Manifest | None) -> None:
-        """Write the wall's heartbeat once per interval, for the pull to forward. Never stops the wall."""
+        """Write the wall's heartbeat once per interval, and at once when the display state changed.
+
+        Never stops the wall. A display-state change is written on the pass that
+        saw it because every label of the wall follows that record, and the pull
+        forwards a changed file within about a second; the interval stays the
+        ceiling on everything else, for the SD card's sake.
+        """
         elapsed = self._clock.monotonic()
-        if self._heartbeat_at is not None and elapsed - self._heartbeat_at < heartbeat_module.INTERVAL_SECONDS:
+        due = self._heartbeat_at is None or elapsed - self._heartbeat_at >= heartbeat_module.INTERVAL_SECONDS
+        if not due and not self._display_owed:
             return
         self._heartbeat_at = elapsed
+        # Cleared on the attempt, so a refusing disk is retried at the interval.
+        self._display_owed = False
         health = heartbeat_module.Health(
             manifest_schema=f"{manifest.schema_major}.{manifest.schema_minor}" if manifest is not None else None,
             theme_id=manifest.theme_id if manifest is not None else None,
             current_work_id=self._showing,
             last_error=self._last_error,
+            display_state=self._display,
         )
         try:
             heartbeat_module.write(self._wall.heartbeat_root, health, wall_id=self._wall.wall_id, reported_at=self._clock.now())

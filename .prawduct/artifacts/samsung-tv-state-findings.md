@@ -435,3 +435,14 @@ crash-loops could lock itself out of its own television.
    survives a power transition or must reconnect. Nothing above answers any of
    these — the section above is the client half, read off source, and these are
    the set.
+6. **The daemon now reads `PowerState`, and nothing has run that read against the
+   set yet.** Since the display-state report (2026-10-08), `SamsungTv.power_state`
+   reads the REST device description through the art client's own
+   `_get_rest_api()` — one GET of `/api/v2/`, the read-only half of what
+   `power_probe.py` samples, never a key — only straight after a `get_artmode`
+   read says `off`, to tell television (`on` → `in_use`) from dark (`standby` →
+   `dark`). It is bounded at 2 s and its failure is reported as `in_use`. Its unit
+   tests drive the library's real REST client over a recording session; whether
+   this firmware answers it on the art client's port (8002, over TLS) as it does
+   on 8001, and how quickly, is unmeasured until the build plan's chunk 05 sees
+   the set in use and off on Walls.
