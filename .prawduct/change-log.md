@@ -62,6 +62,39 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-08: Get and review clarity, chunk 03: Review
+
+<!-- prawduct: scope=get-and-review-clarity -->
+
+**Why:** The owner walked Review and found the cards to judge mixed in with
+cards that had no picture and cards already decided
+(`build-plan-get-and-review-clarity.md` chunk 03, owner's rulings of
+2026-10-08).
+
+**What:**
+- Review's cards still to judge come first, in the server's order. After them
+  one line, *N found no image*, folds the cards whose Get found none; it only
+  opens, onto the same cards with their *Want* and *Forget*. Last, one line,
+  *N decided*, folds the accepted and rejected cards. The same on a Get of
+  chosen works' page, which draws the same cards.
+- Folding happens when the page is drawn: a card decided now stays where the
+  curator's hand is until the next visit (the builder's call, so a verdict
+  never moves the card out from under the keyboard).
+- A page whose every card is folded says "Nothing here is left to judge by
+  its picture."
+- `information-architecture.md` § Review records the rule as the owner's, and
+  that the server's order already put works with an image first. The plan's
+  premise that it put named works first was wrong.
+
+**Tests:** `tests/browser/test_review_folds.py`, six tests, five watched
+failing first (the sixth, no fold lines on a page with nothing to fold,
+passed before as it must). Eleven tests about a decided or found-none card's
+own behaviour now open the folds first (`Ui.open_folds`), as a curator would;
+what each asserts about the card is unchanged.
+`test_a_discovery_run_s_page_is_unchanged` no longer asserts that the page
+never reads the cards, which chunk 02 changed on purpose (it reads them for
+the pictures). It asserts what it was for: a table, and no cards.
+
 ## 2026-10-08: Get and review clarity, chunk 02: a Get's page
 
 <!-- prawduct: scope=get-and-review-clarity -->

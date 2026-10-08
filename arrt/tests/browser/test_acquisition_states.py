@@ -350,6 +350,7 @@ def test_an_accepted_card_says_its_image_is_queued_and_a_pending_one_says_nothin
     ui.serve("**/api/runs/run-1/candidates*", a_candidate_page([taken, pending]))
 
     ui.open("#review/run-1")
+    ui.open_folds()
     ui.page.wait_for_selector("li.card[data-work='taken'] .acquisition-line")
 
     line = ui.page.inner_text("li.card[data-work='taken'] .acquisition-line")
@@ -365,6 +366,7 @@ def test_an_accepted_card_whose_image_is_held_says_so(ui, ready_work):
     ui.serve("**/api/runs/run-1/candidates*", a_candidate_page([taken]))
 
     ui.open("#review/run-1")
+    ui.open_folds()
     ui.page.wait_for_selector("li.card[data-work='taken'] .acquisition-slot p")
 
     assert ui.page.inner_text("li.card[data-work='taken'] .acquisition-slot") == "Its image is held and prepared for the wall."
@@ -378,6 +380,7 @@ def test_an_accepted_card_the_queue_owes_nothing_and_holds_no_image_says_none_is
     ui.serve("**/api/runs/run-1/candidates*", a_candidate_page([taken]))
 
     ui.open("#review/run-1")
+    ui.open_folds()
     ui.page.wait_for_selector("li.card[data-work='taken'] .acquisition-slot p")
 
     assert ui.page.inner_text("li.card[data-work='taken'] .acquisition-slot") == "No image is being fetched for it."

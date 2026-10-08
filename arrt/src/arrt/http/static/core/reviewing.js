@@ -982,8 +982,21 @@ export function reviewSection(page, { keptFrom = null } = {}) {
    * That spread is a choice about *which* works are offered and survives being
    * displayed in any order — its own docstring says the spread is the point, not
    * the order within a facet. */
-  const offered = page.works.filter((card) => card.work.provenance === "offered");
-  const named = page.works.filter((card) => card.work.provenance !== "offered");
+  /* What a curator can judge leads, and the rest folds away behind one line
+   * each at the end (the owner's ruling, 2026-10-08): a card already decided
+   * takes no second verdict, and a card whose Get found no image has no
+   * picture to judge by — it can only be wanted or forgotten. Folded, not
+   * dropped: each line opens onto the same cards. Decided at paint, so a card
+   * decided now stays where the curator's hand is until the page is next
+   * drawn. */
+  const decided = page.works.filter((card) => card.work.decided);
+  const open = page.works.filter((card) => !card.work.decided);
+  const foundNone = open.filter((card) => card.work.resolution_status === "unresolved");
+  const toJudge = open.filter((card) => card.work.resolution_status !== "unresolved");
+  const offered = toJudge.filter((card) => card.work.provenance === "offered");
+  const named = toJudge.filter((card) => card.work.provenance !== "offered");
+  const fold = (kind, summary, cards) =>
+    cards.length ? el("details", { class: `fold ${kind}` }, [el("summary", { text: summary }), gridOf(cards)]) : null;
 
   return [
     // The catalogue grid's own helper: `fetchAllCandidates` returns the
@@ -992,6 +1005,7 @@ export function reviewSection(page, { keptFrom = null } = {}) {
     shortfallNote(page),
     offer,
     page.works.length ? null : el("p", { class: "muted", text: "This Get settled on no works, so there is nothing to review." }),
+    page.works.length && !toJudge.length ? el("p", { class: "muted", text: "Nothing here is left to judge by its picture." }) : null,
     named.length ? gridOf(named) : null,
     // Each group in its own element rather than as three loose siblings. The
     // requirement is an *association* — this sentence belongs to these works —
@@ -1014,5 +1028,7 @@ export function reviewSection(page, { keptFrom = null } = {}) {
         gridOf(group.cards),
       ]),
     ),
+    fold("fold-found-none", `${foundNone.length} found no image`, foundNone),
+    fold("fold-decided", `${decided.length} decided`, decided),
   ];
 }

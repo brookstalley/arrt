@@ -130,7 +130,9 @@ def test_a_discovery_run_s_page_is_unchanged(ui):
 
     assert ui.page.locator("a:text-is('Review these works')").count() == 1
     assert ui.page.locator("li.card").count() == 0
-    assert ui.requests_matching(f"/api/runs/{RUN_ID}/candidates") == []
+    # Its cards are read since 2026-10-08, but only for each row's picture and
+    # the museum that offered it: the page still draws a table, never cards.
+    assert ui.page.locator("#view section.asked-for table").count() == 1
 
 
 def test_review_still_answers_for_a_get(ui):

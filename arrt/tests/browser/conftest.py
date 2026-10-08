@@ -367,6 +367,16 @@ class Ui:
         assert self.page.locator("#error").is_hidden(), "a failed act was reported in the banner as well"
         return beside.inner_text()
 
+    def open_folds(self) -> None:
+        """Open Review's fold lines, for a test about a card that starts folded.
+
+        Review folds decided cards and found-none cards behind one line each
+        (`test_review_folds.py` holds that); a test about such a card's own
+        behaviour opens the lines first, as a curator would.
+        """
+        self.page.wait_for_selector("#view li.review-card", state="attached")
+        self.page.evaluate("() => document.querySelectorAll('#view details.fold').forEach((d) => { d.open = true; })")
+
     def requests_matching(self, needle: str) -> list[str]:
         return [url for url in self.requests if needle in url]
 

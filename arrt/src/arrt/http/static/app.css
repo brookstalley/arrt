@@ -1894,6 +1894,23 @@ details > summary {
   padding: var(--space-2) 0;
 }
 
+/* Review's fold lines: the cards with no picture to judge, then the decided
+   ones, each behind one line at the end. A rule above each, as every section
+   has, so the line reads as the start of something rather than a stray link. */
+details.fold {
+  margin-top: var(--space-6);
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-2);
+}
+
+details.fold > summary {
+  font-size: var(--text-base);
+}
+
+details.fold[open] > summary {
+  margin-bottom: var(--space-3);
+}
+
 /* Things stacked inside one table cell, closer than `.stack` sets them: a
    scan's pixels and its fit, or its two actions. Each is one statement about
    one scan, not two sections. */

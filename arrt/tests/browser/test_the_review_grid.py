@@ -384,7 +384,8 @@ def test_a_decided_works_scans_offer_nothing_to_choose(grid):
         an_instance_listing([an_instance(image_id="image-1"), an_instance(image_id="image-2", is_selected=False)], work=accepted),
     )
     grid.open(f"#review/{RUN_ID}")
-    grid.page.click("summary")
+    grid.open_folds()
+    grid.page.click("li.review-card summary")
     grid.page.wait_for_selector("tr.alternate")
 
     assert grid.page.locator("tr.alternate .scan-actions button").count() == 0
@@ -403,6 +404,7 @@ def test_a_decided_card_drops_the_notices_that_invite_a_verdict(grid, verdict, s
     card = a_card(work=work, shown=off_offer, held_artwork_id="art-0")
     grid.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([card]))
     grid.open(f"#review/{RUN_ID}")
+    grid.open_folds()
     grid.page.wait_for_selector("li.card")
 
     text = grid.page.locator("li.card").inner_text()
@@ -416,6 +418,7 @@ def test_a_wanted_card_still_offers_forget(grid):
     wanted = a_candidate(verdict=Verdict.WANTED.value, resolution_status=ResolutionStatus.UNRESOLVED.value)
     grid.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([a_card(work=wanted, shown=None)]))
     grid.open(f"#review/{RUN_ID}")
+    grid.open_folds()
     grid.page.wait_for_selector("li.card")
 
     assert grid.page.locator("li.card button:text-is('Forget')").count() == 1
@@ -781,6 +784,7 @@ def test_every_decided_verdict_reaches_the_page_as_words_and_a_glyph(grid, verdi
         a_candidate_page([a_card(work=a_candidate(verdict=verdict.value))]),
     )
     grid.open(f"#review/{RUN_ID}")
+    grid.open_folds()
     grid.page.wait_for_selector("li.card")
 
     badge = grid.page.locator(f"li.card span.badge-{verdict.value}")
@@ -886,6 +890,7 @@ def test_a_work_the_run_found_nothing_for_says_so_without_asking_for_a_picture(u
         ),
     )
     ui.open(f"#review/{RUN_ID}")
+    ui.open_folds()
     ui.page.wait_for_selector("li.card")
 
     assert ui.requests_matching("/api/candidate-images/") == []
