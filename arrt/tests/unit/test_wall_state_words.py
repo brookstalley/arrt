@@ -22,9 +22,9 @@ WORDED_IN_THE_CARD = {"showing_art", "silent"}
 
 def _state_words() -> set[str]:
     source = WALLS.read_text(encoding="utf-8")
-    table = re.search(r"const STATE_WORDS = \{(.*?)\};", source, flags=re.S)
+    table = re.search(r"const STATE_WORDS = \{(.*?)\};", source, flags=re.DOTALL)
     assert table, "STATE_WORDS is not where this test reads it"
-    return set(re.findall(r"^\s*(\w+):", table.group(1), flags=re.M))
+    return set(re.findall(r"^\s*(\w+):", table.group(1), flags=re.MULTILINE))
 
 
 def _schema_states() -> set[str]:
