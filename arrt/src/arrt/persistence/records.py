@@ -121,13 +121,20 @@ class RenditionKind(StrEnum):
     There is no `label` kind. A label is rendered on the display plane from the
     text fields the theme manifest carries, because its geometry is the e-paper
     panel's — a device this plane does not own and must not hold facts about.
-    Both kinds here are device-independent: `TV_DISPLAY` is a 4K presentation of
-    the artwork with its mat composed in, which any 4K display shows, and a
-    thumbnail is a thumbnail.
+    Every kind here is device-independent: `TV_DISPLAY` is a 4K presentation of
+    the artwork with its mat composed in, which any 4K display shows; a
+    `THUMBNAIL` is the work itself, small, for a library tile; and a
+    `WALL_PREVIEW` is the wall render brought down to a size a browser column
+    shows sharply, for the Work page, where the wall render is the subject.
+
+    The two browser kinds differ in their parent, and the kind is what records
+    it: a thumbnail is always drawn from the master, a wall preview from the
+    current canvas when there is one.
     """
 
     TV_DISPLAY = "tv_display"
     THUMBNAIL = "thumbnail"
+    WALL_PREVIEW = "wall_preview"
 
 
 class MatMethod(StrEnum):
@@ -458,10 +465,10 @@ def is_current(rendition: Rendition, original: Original | None) -> bool:
 
     **What it deliberately does not answer: whether a rendition drawn from
     another rendition is current.** This compares against the *original*, which
-    is the right parent for every kind but one — a thumbnail of a work that has a
+    is the right parent for every kind but one — a wall preview of a work that has a
     television canvas is a copy of the canvas, and composing or recomposing that
     canvas leaves the original untouched. So this rule says "current" about a
-    cached thumbnail of an image that has since been redrawn, and it is right to:
+    cached wall preview of an image that has since been redrawn, and it is right to:
     the question it is asked is about the master. `ThumbnailService._drawn_from`
     asks the other one. Do not fold it in here — three surfaces share this rule
     precisely so they cannot disagree, and a term only one of them can evaluate

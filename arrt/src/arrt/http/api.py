@@ -23,6 +23,7 @@ that safe.
 
 import logging
 from decimal import Decimal
+from pathlib import Path
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Query, Request, Response
@@ -209,8 +210,9 @@ log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api")
 
-#: Thumbnails are revalidated rather than held for a fixed window. A replaced
-#: master regenerates the file under the same name, so a cached copy is a
+#: Thumbnails and wall previews are revalidated rather than held for a fixed
+#: window. A replaced master, or a recomposed canvas, regenerates the file under
+#: the same name, so a cached copy is a
 #: *superseded acquisition* on screen — the exact thing the staleness rule
 #: refuses everywhere else. The cost of that correctness is one conditional
 #: request per card, answered below with a 304 rather than the bytes.
@@ -1509,7 +1511,27 @@ def get_candidate_preview(
 
 @router.get("/works/{artwork_id}/thumbnail", response_class=FileResponse)
 def get_thumbnail(request: Request, artwork_id: str) -> Response:
-    """A small copy of the work's held image, generated on first ask.
+    """A small copy of the work itself, drawn from its master, generated on first ask.
+
+    What a library tile shows: the work at its own aspect, never the wall
+    render's mat and bars, which are the wall's and appear only on the Work
+    page (`get_wall_preview`).
+    """
+    return _revalidated_file(request, _services(request).thumbnails.thumbnail(artwork_id))
+
+
+@router.get("/works/{artwork_id}/wall-preview", response_class=FileResponse)
+def get_wall_preview(request: Request, artwork_id: str) -> Response:
+    """The wall render, mat and all, at a size the Work page's column draws sharply.
+
+    Drawn from the current television canvas, or from the master where the work
+    has none yet; the work's `image.source_kind` says which.
+    """
+    return _revalidated_file(request, _services(request).thumbnails.wall_preview(artwork_id))
+
+
+def _revalidated_file(request: Request, path: Path) -> Response:
+    """A cached image, answered with a 304 when the client already holds it.
 
     **The conditional check is done here because nothing else does it.**
     `FileResponse` *sets* an `ETag` and never *reads* one — only Starlette's
@@ -1521,7 +1543,6 @@ def get_thumbnail(request: Request, artwork_id: str) -> Response:
     Starlette itself would have produced rather than a second implementation of
     its formula.
     """
-    path = _services(request).thumbnails.thumbnail(artwork_id)
     headers = {"Cache-Control": THUMBNAIL_CACHE_CONTROL}
     response = FileResponse(path, media_type="image/jpeg", headers=headers, stat_result=path.stat())
     etag = response.headers.get("etag")

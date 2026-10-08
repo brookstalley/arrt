@@ -1,18 +1,23 @@
 """Small copies of held works — which image they come from, and when they go stale.
 
-The risk this covers is not "does Pillow resize". It is that a thumbnail is a
+The risk this covers is not "does Pillow resize". It is that each copy is a
 *rendition*, so it inherits the catalogue's staleness rule, and a cache that
 answers from a file made before the master changed puts a superseded acquisition
 in front of the curator — the one thing the staleness rule exists to prevent.
 
-**And that inheritance is not sufficient, which is the harder half.** A thumbnail
-is the one rendition drawn from another rendition: once a work has a television
-canvas the thumbnail is a copy of *that*, and neither composing a canvas nor
-recomposing one in a new mat colour touches the original the inherited rule asks
-about. So the inherited rule alone answers "current" for a picture that has since
-been redrawn, and the two ways a curator meets it — a card badged "wall render"
-over the bare master, and a mat colour that changes the wall but not the picture
-in front of them — are what the tests below hold.
+**Two products, and their parents are the difference.** A thumbnail is the work
+itself, drawn from the master whatever canvas exists, because a library tile
+shows the work at its own aspect and never the wall's mat and bars (ruling 7 of
+2026-10-07). A wall preview is the canvas, for the Work page.
+
+**For the wall preview the inherited rule is not sufficient, which is the harder
+half.** It is the one rendition drawn from another rendition: once a work has a
+television canvas the preview is a copy of *that*, and neither composing a canvas
+nor recomposing one in a new mat colour touches the original the inherited rule
+asks about. So the inherited rule alone answers "current" for a picture that has
+since been redrawn, and the two ways a curator meets it — a Work page badged
+"wall render" over the bare master, and a mat colour that changes the wall but
+not the picture in front of them — are what the tests below hold.
 """
 
 import logging
@@ -24,6 +29,7 @@ from PIL import Image
 
 from arrt.library.services.thumbnails import (
     THUMBNAIL_MAX_EDGE_PX,
+    WALL_PREVIEW_MAX_EDGE_PX,
     ThumbnailSettings,
     ThumbnailSource,
     ThumbnailUnavailable,
@@ -147,10 +153,10 @@ class TestWhichImageIsUsed:
 
 
 class TestTheSupersededSignal:
-    """The one line that says a thumbnail was regenerated for the new reason.
+    """The one line that says a wall preview was regenerated for the canvas's reason.
 
     Its stated purpose is to make a *wrong* comparison legible: anything holding
-    `_drawn_from` false re-encodes a 4K canvas per card per page load and reaches
+    `_drawn_from` false re-encodes a 4K canvas per page load and reaches
     the operator as "the grid got slow", against a journal with nothing in it. A
     signal whose failure mode is silence is exactly the kind that can be deleted
     without a suite noticing, so both halves are asserted — that it fires here,
@@ -165,7 +171,7 @@ class TestTheSupersededSignal:
 
     def test_a_regeneration_forced_by_the_new_rule_says_so(self, thumbnails, service, settings, decodable_jpeg, work, caplog):
         artwork = work(width=1600, height=1200)
-        thumbnails.thumbnail(artwork.id)
+        thumbnails.wall_preview(artwork.id)
 
         rendered = f"ready/{artwork.id}.jpg"
         decodable_jpeg(settings.art_root / rendered, width=3840, height=2160)
@@ -178,12 +184,13 @@ class TestTheSupersededSignal:
         )
 
         with caplog.at_level(logging.INFO, logger="arrt.library.services.thumbnails"):
-            thumbnails.thumbnail(artwork.id)
+            thumbnails.wall_preview(artwork.id)
 
         records = self._events(caplog)
         assert len(records) == 1
         emitted = records[0].__dict__
         assert emitted["work_id"] == artwork.id
+        assert emitted["rendition_kind"] == RenditionKind.WALL_PREVIEW.value
         assert emitted["source_kind"] == RenditionKind.TV_DISPLAY.value
         # Both stamps, because the comparison between them is the whole claim —
         # a line reporting only that it happened cannot tell an operator whether
@@ -244,26 +251,26 @@ class TestTheRuleAtItsBoundary:
         return Rendition(
             id="r1",
             artwork_id="a1",
-            kind=RenditionKind.THUMBNAIL,
-            target_width=THUMBNAIL_MAX_EDGE_PX,
-            target_height=THUMBNAIL_MAX_EDGE_PX,
-            relative_path="thumbs/a1.jpg",
+            kind=RenditionKind.WALL_PREVIEW,
+            target_width=WALL_PREVIEW_MAX_EDGE_PX,
+            target_height=WALL_PREVIEW_MAX_EDGE_PX,
+            relative_path="thumbs/wall-previews/a1.jpg",
             source_content_hash="hash-1",
             generated_at=at,
         )
 
-    def test_a_thumbnail_of_the_same_instant_is_not_treated_as_drawn_from_the_canvas(self):
+    def test_a_preview_of_the_same_instant_is_not_treated_as_drawn_from_the_canvas(self):
         instant = datetime(2026, 8, 10, 12, 0, 0, tzinfo=UTC)
         source = ThumbnailSource(kind=RenditionKind.TV_DISPLAY.value, path=Path("ready/a1.jpg"), generated_at=instant)
         assert _drawn_from(self._rendition(instant), source) is False
 
-    def test_a_thumbnail_taken_after_the_canvas_is_kept(self):
+    def test_a_preview_taken_after_the_canvas_is_kept(self):
         canvas = datetime(2026, 8, 10, 12, 0, 0, tzinfo=UTC)
         source = ThumbnailSource(kind=RenditionKind.TV_DISPLAY.value, path=Path("ready/a1.jpg"), generated_at=canvas)
         later = canvas + timedelta(microseconds=1)
         assert _drawn_from(self._rendition(later), source) is True
 
-    def test_a_thumbnail_of_the_master_is_never_second_guessed_on_time(self):
+    def test_a_preview_of_the_master_is_never_second_guessed_on_time(self):
         """The master's branch has no timestamp to compare, and must not invent one."""
         source = ThumbnailSource(kind="original", path=Path("raw/a1.jpg"), generated_at=None)
         ancient = datetime(1999, 1, 1, tzinfo=UTC)
@@ -296,7 +303,7 @@ class TestGenerating:
         artwork = work()
         thumbnails.thumbnail(artwork.id)
         row = next(v.rendition for v in service.list_renditions(artwork.id) if v.rendition.kind is RenditionKind.THUMBNAIL)
-        assert row.relative_path == f"thumbs/{artwork.id}.jpg"
+        assert row.relative_path == f"thumbs/tiles/{artwork.id}.jpg"
 
     def test_a_second_ask_reuses_the_file_rather_than_re_encoding_it(self, thumbnails, work):
         artwork = work()
@@ -334,21 +341,21 @@ class TestGenerating:
         with Image.open(thumbnails.thumbnail(artwork.id)) as regenerated:
             assert regenerated.size[1] > regenerated.size[0], "the cache still holds the previous acquisition"
 
-    def test_a_thumbnail_of_the_master_is_rebuilt_once_a_wall_render_exists(
+    def test_a_wall_preview_of_the_master_is_rebuilt_once_a_wall_render_exists(
         self, thumbnails, service, settings, decodable_jpeg, work
     ):
         """The master's hash cannot answer this, which is why it went unnoticed.
 
-        A thumbnail is the one rendition made from *another rendition*, and the
+        A wall preview is the one rendition made from *another rendition*, and the
         staleness rule compares a rendition against the **original**. Composing a
-        canvas does not change the original, so a thumbnail built from the bare
-        master before the work was ever prepared stayed "current" for good — and
-        `source_for` reports `tv_display` over it, so the card badges "wall
-        render" above the unmatted picture. Two things a curator can see: the
-        aspect becomes the panel's, and the mat appears.
+        canvas does not change the original, so a preview built from the bare
+        master before the work was ever prepared would stay "current" for good —
+        and `source_for` reports `tv_display` over it, so the Work page badges
+        "wall render" above the unmatted picture. Two things a curator can see:
+        the aspect becomes the panel's, and the mat appears.
         """
         artwork = work(width=1600, height=1200)
-        with Image.open(thumbnails.thumbnail(artwork.id)) as first:
+        with Image.open(thumbnails.wall_preview(artwork.id)) as first:
             assert first.size[0] / first.size[1] == pytest.approx(1600 / 1200, abs=0.01), "the master's own shape"
 
         rendered = f"ready/{artwork.id}.jpg"
@@ -362,10 +369,75 @@ class TestGenerating:
         )
 
         assert thumbnails.source_for(artwork.id).kind == RenditionKind.TV_DISPLAY.value
-        with Image.open(thumbnails.thumbnail(artwork.id)) as regenerated:
+        with Image.open(thumbnails.wall_preview(artwork.id)) as regenerated:
             assert regenerated.size[0] / regenerated.size[1] == pytest.approx(
                 3840 / 2160, abs=0.01
-            ), "the cache still holds the bare master while the card says 'wall render'"
+            ), "the cache still holds the bare master while the Work page says 'wall render'"
+
+    def test_a_thumbnail_stays_the_bare_work_once_a_wall_render_exists(
+        self, thumbnails, service, settings, decodable_jpeg, work
+    ):
+        """A tile shows the work at its own aspect; the canvas's mat and bars are the wall's."""
+        artwork = work(width=1200, height=1600)
+        rendered = f"ready/{artwork.id}.jpg"
+        decodable_jpeg(settings.art_root / rendered, width=3840, height=2160)
+        service.record_rendition(
+            artwork_id=artwork.id,
+            kind=RenditionKind.TV_DISPLAY,
+            target_width=3840,
+            target_height=2160,
+            path=rendered,
+        )
+
+        with Image.open(thumbnails.thumbnail(artwork.id)) as tile:
+            assert tile.size[1] / tile.size[0] == pytest.approx(1600 / 1200, abs=0.01), "the tile is the wall's 16:9"
+        with Image.open(thumbnails.wall_preview(artwork.id)) as preview:
+            assert preview.size[0] / preview.size[1] == pytest.approx(3840 / 2160, abs=0.01)
+
+    def test_a_thumbnail_cached_from_a_canvas_at_the_old_path_is_replaced_by_the_bare_work(
+        self, thumbnails, service, settings, decodable_jpeg, work
+    ):
+        """What a deployment's cache holds from before tiles were the bare work.
+
+        A row of kind `thumbnail`, current by the master's hash, naming a file at
+        the cache's top level that was drawn from the 16:9 canvas. Nothing on the
+        row says so, so the path is what tells: the row moves to this product's
+        directory, the picture becomes the work's own shape, and the old file goes
+        rather than lying in the cache with nothing naming it.
+        """
+        artwork = work(width=1200, height=1600)
+        legacy = f"thumbs/{artwork.id}.jpg"
+        decodable_jpeg(settings.art_root / legacy, width=480, height=270)
+        service.record_rendition(
+            artwork_id=artwork.id,
+            kind=RenditionKind.THUMBNAIL,
+            target_width=THUMBNAIL_MAX_EDGE_PX,
+            target_height=THUMBNAIL_MAX_EDGE_PX,
+            path=legacy,
+        )
+
+        with Image.open(thumbnails.thumbnail(artwork.id)) as tile:
+            assert tile.size[1] / tile.size[0] == pytest.approx(1600 / 1200, abs=0.01), "the canvas copy is still served"
+        rows = [v.rendition for v in service.list_renditions(artwork.id) if v.rendition.kind is RenditionKind.THUMBNAIL]
+        assert [row.relative_path for row in rows] == [f"thumbs/tiles/{artwork.id}.jpg"]
+        assert not (settings.art_root / legacy).exists()
+
+    def test_the_wall_preview_is_large_enough_for_the_work_page(self, thumbnails, service, settings, decodable_jpeg, work):
+        """The Work page draws it across a column; a tile's 480 px is soft there."""
+        artwork = work()
+        rendered = f"ready/{artwork.id}.jpg"
+        decodable_jpeg(settings.art_root / rendered, width=3840, height=2160)
+        service.record_rendition(
+            artwork_id=artwork.id,
+            kind=RenditionKind.TV_DISPLAY,
+            target_width=3840,
+            target_height=2160,
+            path=rendered,
+        )
+        with Image.open(thumbnails.wall_preview(artwork.id)) as preview:
+            assert max(preview.size) == WALL_PREVIEW_MAX_EDGE_PX
+        rows = [v.rendition for v in service.list_renditions(artwork.id) if v.rendition.kind is RenditionKind.WALL_PREVIEW]
+        assert [row.relative_path for row in rows] == [f"thumbs/wall-previews/{artwork.id}.jpg"]
 
     def test_a_recomposed_canvas_regenerates_so_a_new_mat_is_actually_seen(
         self, thumbnails, service, settings, decodable_jpeg, work
@@ -393,13 +465,13 @@ class TestGenerating:
             )
 
         compose((20, 20, 20))
-        with Image.open(thumbnails.thumbnail(artwork.id)) as first:
+        with Image.open(thumbnails.wall_preview(artwork.id)) as first:
             assert first.convert("RGB").getpixel((4, 4)) == pytest.approx((20, 20, 20), abs=6)
 
         # What pressing a mat preset amounts to.
         compose((200, 190, 170))
 
-        with Image.open(thumbnails.thumbnail(artwork.id)) as regenerated:
+        with Image.open(thumbnails.wall_preview(artwork.id)) as regenerated:
             assert regenerated.convert("RGB").getpixel((4, 4)) == pytest.approx(
                 (200, 190, 170), abs=6
             ), "the curator's picture still shows the mat colour they replaced"
@@ -407,7 +479,7 @@ class TestGenerating:
     @pytest.mark.xfail(
         strict=True,
         reason=(
-            "Known and filed as #116: nothing records what a cached thumbnail was drawn from, so a "
+            "Known and filed as #116: nothing records what a cached wall preview was drawn from, so a "
             "canvas-derived one keeps being served under an 'original' badge once the canvas "
             "file goes. Closing it needs provenance on the row; strict, so this flips to a "
             "failure the moment it is fixed rather than sitting green and forgotten."
@@ -424,11 +496,12 @@ class TestGenerating:
         above already treats it as real. `source_for` falls back to the master and
         reports `original`, while the cache still holds the matted 16:9 picture, so
         the curator is shown the composed render under a badge denying it.
+        A thumbnail has no such case: it is drawn from the master alone.
 
         The timestamp cannot answer this: it says when the thumbnail was made, not
         what it was made *from*. Regenerating whenever an absent-file canvas row
         exists is the wrong closure — it spends a re-encode per page load forever
-        on a thumbnail legitimately drawn from the master.
+        on a preview legitimately drawn from the master.
         """
         artwork = work(width=1600, height=1200)
         rendered = f"ready/{artwork.id}.jpg"
@@ -440,12 +513,12 @@ class TestGenerating:
             target_height=2160,
             path=rendered,
         )
-        thumbnails.thumbnail(artwork.id)
+        thumbnails.wall_preview(artwork.id)
 
         (settings.art_root / rendered).unlink()
 
         assert thumbnails.source_for(artwork.id).kind == "original"
-        with Image.open(thumbnails.thumbnail(artwork.id)) as served:
+        with Image.open(thumbnails.wall_preview(artwork.id)) as served:
             assert served.size[0] / served.size[1] == pytest.approx(
                 1600 / 1200, abs=0.01
             ), "the canvas is gone and its picture is still being served under a 'master image' badge"
@@ -557,9 +630,21 @@ class TestReadinessIsUnaffected:
         build = display.build_manifest(wall_id, theme.id)
         assert [exclusion.reason for exclusion in build.exclusions] == ["no_rendition"]
 
+    def test_a_wall_preview_does_not_make_a_work_displayable(self, thumbnails, service, display, work, wall_id):
+        """The same rule for the other browser kind, drawn from the master when no canvas exists."""
+        artwork = work()
+        service.record_mat_color(artwork_id=artwork.id, hex_rgb="#27285b", method=MatMethod.VISION_MODEL)
+        thumbnails.wall_preview(artwork.id)
+        theme = display.add_theme(name="Evening")
+        display.add_to_theme(theme_id=theme.id, artwork_id=artwork.id)
+        build = display.build_manifest(wall_id, theme.id)
+        assert [exclusion.reason for exclusion in build.exclusions] == ["no_rendition"]
+
 
 def _leftovers(settings) -> list:
     """Anything sitting in the thumbnail cache, staging files included."""
     if not settings.thumbnails_path.exists():
         return []
-    return sorted(settings.thumbnails_path.glob("*"))
+    # Files only, at any depth: each product writes into its own subdirectory,
+    # which the write creates before it can fail, and a directory holds no bytes.
+    return sorted(path for path in settings.thumbnails_path.rglob("*") if path.is_file())
