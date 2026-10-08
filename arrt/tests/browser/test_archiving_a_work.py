@@ -64,13 +64,16 @@ def ask(ui, label):
 # -- the label -----------------------------------------------------------------
 
 
-def test_the_control_reads_archive_and_is_styled_as_an_ordinary_act(ui, service):
-    """Not `danger`, and there is no danger class in this stylesheet to reach for.
+def test_the_control_reads_archive_and_is_styled_as_a_secondary_act(ui, service):
+    """Quiet: not `danger`, and not the filled primary either.
 
     Archive's whole point is that Restore exists. Dressing a cheap reversible act
     as a destructive one produces exactly the hesitation the IA argues the word
     "Remove" produces — and teaches the operator that this dialog means danger,
-    which is the wrong lesson on the day one of them is not.
+    which is the wrong lesson on the day one of them is not. And it is not the
+    page's primary: a wall card opens this page, and the loudest button in reach
+    of a curator who wanted one picture off one wall must not take it out of the
+    whole library (`ux-review-2026-10.md` finding 3).
     """
     work = service.add_artwork(title="Chop Suey")
     open_work(ui, work)
@@ -79,7 +82,7 @@ def test_the_control_reads_archive_and_is_styled_as_an_ordinary_act(ui, service)
 
     assert control.count() == 1
     assert control.inner_text() == "Archive"
-    assert control.get_attribute("class") == "action"
+    assert control.get_attribute("class") == "action quiet"
 
 
 @pytest.mark.parametrize("word", ["Remove", "Delete"])
