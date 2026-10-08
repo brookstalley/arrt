@@ -367,7 +367,9 @@ function nowShowing(wall, now, reason) {
   const work = now.work;
   const artist = work.artist ? work.artist.name : null;
   const image = el("img", {
-    src: `/api/works/${encodeURIComponent(work.artwork_id)}/thumbnail`,
+    // The large size: this box is drawn up to 48rem wide, and the tile's 480 px
+    // is soft there on a 2x screen. Still the bare work, never the wall render.
+    src: `/api/works/${encodeURIComponent(work.artwork_id)}/thumbnail?size=large`,
     alt: artist ? `${work.title}, ${artist}` : work.title,
   });
   // A file can go away between the heartbeat and this fetch. Without this the

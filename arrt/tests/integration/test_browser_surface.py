@@ -275,6 +275,23 @@ class TestThumbnails:
         assert response.status_code == 400
         assert "No master image" in response.json()["error"]
 
+    def test_a_large_thumbnail_is_the_work_itself_and_bigger_than_the_tile(self, http, hold):
+        """Walls' lead: the bare work, at its own aspect, sharper than a tile, never the canvas."""
+        artwork = hold("Automat", width=3000, height=4000, rendered=True, mat=True)
+        tile = http.get(f"/api/works/{artwork.id}/thumbnail")
+        large = http.get(f"/api/works/{artwork.id}/thumbnail", params={"size": "large"})
+        assert large.status_code == 200
+        assert large.headers["content-type"] == "image/jpeg"
+        with Image.open(io.BytesIO(tile.content)) as picture:
+            tile_edge = max(picture.size)
+        with Image.open(io.BytesIO(large.content)) as picture:
+            assert picture.size[1] / picture.size[0] == pytest.approx(4000 / 3000, abs=0.01)
+            assert max(picture.size) > tile_edge
+
+    def test_a_misspelt_thumbnail_size_is_refused_rather_than_answered_small(self, http, hold):
+        artwork = hold("Automat")
+        assert http.get(f"/api/works/{artwork.id}/thumbnail", params={"size": "huge"}).status_code == 422
+
     def test_a_thumbnail_is_the_work_itself_while_the_wall_preview_is_the_canvas(self, http, hold):
         """A tile shows the work at its own aspect; the wall render is the Work page's.
 

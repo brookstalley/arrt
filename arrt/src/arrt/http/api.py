@@ -1514,14 +1514,21 @@ def get_candidate_preview(
 
 
 @router.get("/works/{artwork_id}/thumbnail", response_class=FileResponse)
-def get_thumbnail(request: Request, artwork_id: str) -> Response:
+def get_thumbnail(
+    request: Request,
+    artwork_id: str,
+    size: Annotated[Literal["tile", "large"], Query()] = "tile",
+) -> Response:
     """A small copy of the work itself, drawn from its master, generated on first ask.
 
     What a library tile shows: the work at its own aspect, never the wall
     render's mat and bars, which are the wall's and appear only on the Work
-    page (`get_wall_preview`).
+    page (`get_wall_preview`). `size=large` is the same bare work in a box sharp
+    across Walls' lead picture on a 2x screen (`LARGE_THUMBNAIL_MAX_EDGE_PX`).
+    Any other value is refused rather than read as the default, so a misspelt
+    request is not quietly answered small.
     """
-    return _revalidated_file(request, _services(request).thumbnails.thumbnail(artwork_id))
+    return _revalidated_file(request, _services(request).thumbnails.thumbnail(artwork_id, large=size == "large"))
 
 
 @router.get("/works/{artwork_id}/wall-preview", response_class=FileResponse)
