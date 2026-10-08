@@ -2,8 +2,7 @@
 artifact: build-plan
 version: 1
 scope: get-and-review-clarity
-branch: feature/get-and-review-clarity
-partition: not yet decided — settle it when the plan is picked up, after Wall label merges, since every chunk touches screens that branch restyles.
+partition: not yet decided. No `branch:` until the plan is picked up: a declared branch that does not exist yet is flagged stale by every session briefing. Branch from develop as feature/get-and-review-clarity once Wall label merges. Partition — settle it when the plan is picked up, after Wall label merges, since every chunk touches screens that branch restyles.
 depends_on:
   - artifact: information-architecture
   - artifact: design-direction
