@@ -77,8 +77,8 @@ class Epd(Protocol):
     **A structural protocol rather than the library's own class**, because naming
     that class here would import it — which is the one thing this module is
     arranged not to do. These are the members this surface *requires*: `clear`
-    exists on the library's object too and is unused, since every label replaces
-    the last.
+    exists on the library's object too and this surface never calls it, since
+    every label replaces the last; `open_panel` silences it (`_never_clear`).
 
     `mode` is a read-write attribute and both directions matter: the driver comes
     up in one bit, and reading it back is the only honest check that it took the
@@ -272,12 +272,13 @@ def open_panel(device_name: str) -> Epd:
         from omni_epd import displayfactory
 
         epd = displayfactory.load_display_driver(device_name)
-    # Covers the library being absent (ImportError) and the device being
-    # unopenable (EPDNotFoundError, and whatever the driver raises below it).
+        _never_clear(epd)
+    # Covers the library being absent (ImportError), the device being
+    # unopenable (EPDNotFoundError, and whatever the driver raises below it), and
+    # a driver object that will not take the silenced `clear`.
     # One outcome here: this device has no panel it can draw on.
     except Exception as exc:  # prawduct:allow prawduct/broad-except -- see above
         raise SurfaceUnavailable(f"could not open the e-paper device {device_name!r} ({exc})") from exc
-    _never_clear(epd)
     return epd
 
 
@@ -287,7 +288,8 @@ def _never_clear(epd: object) -> None:
     **Nothing in this surface calls `clear()`**: a frame repaints every pixel. The
     one caller left is omni-epd's IT8951 driver, whose `_display()` clears before
     every frame, so silencing it here is what removes that second, heavier
-    refresh, and it costs no other driver anything.
+    refresh. No other driver in the pinned omni-epd calls `clear()` from its draw
+    path (read 2026-10-08), so for them this changes nothing.
     """
     epd.clear = _no_clear  # type: ignore[attr-defined]
 

@@ -41,7 +41,7 @@ log = logging.getLogger(__name__)
 #: changing (`nonfunctional-requirements.md` § Performance), and the panel's own
 #: refresh is most of that — so this is the loosest bound that still honours the
 #: requirement, and a draw that has passed it has already missed the thing it was
-#: for. A healthy 16-level frame measures 1.5–1.9 s and comes nowhere near it;
+#: for. A healthy 16-level frame takes well under that (`platform-and-dependency-findings.md` § The e-paper panel);
 #: what this catches is an SPI transaction that is never coming back, which is the
 #: one way a panel could stop a renderer that no `except` clause can reach.
 LABEL_DRAW_BUDGET_SECONDS: Final[float] = 15.0

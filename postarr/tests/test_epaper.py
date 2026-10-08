@@ -355,6 +355,21 @@ class TestALabelIsOneRefreshNotTwo:
 
         assert driver.refreshes == ["GC16", "GC16"]
 
+    def test_a_driver_that_will_not_take_the_silenced_clear_is_a_surface_that_is_unavailable(self, monkeypatch):
+        """A driver object with fixed attributes refuses the assignment. The
+        composition root catches one type, so the refusal must arrive as it."""
+        from postarr.panel.surface import SurfaceUnavailable
+
+        class Fixed:
+            __slots__ = ("mode",)
+
+            def clear(self) -> None: ...
+
+        with pytest.raises(SurfaceUnavailable) as raised:
+            opened_through_a_library_that_returns(Fixed(), monkeypatch)
+
+        assert "waveshare_epd.it8951" in str(raised.value)
+
 
 class TestTypesettingFailsInsideTheGuardRatherThanBeforeIt:
     """`show` promises one exception type, and it has to be true of all of its work.

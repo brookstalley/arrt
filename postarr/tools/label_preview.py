@@ -303,8 +303,8 @@ def _draw_on_the_panel(args: argparse.Namespace, record: dict[str, str], surface
     )
     try:
         laid_out = lay_out(read_label(record).candidates(), panel.geometry, panel.measure, panel.type_scale)
-        # Blocks for 1.5-1.9s: there is no partial refresh on this driver, so
-        # every candidate is a whole frame.
+        # Blocks for a full-frame refresh: there is no partial refresh on this
+        # driver, so every candidate is a whole frame.
         panel.show(laid_out)
         print(f"drew on {args.device} — {args.width_px}x{args.height_px}, margin {surface.margin_px}")
         return laid_out
