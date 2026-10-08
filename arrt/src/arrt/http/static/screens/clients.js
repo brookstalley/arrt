@@ -34,7 +34,7 @@ import { api } from "../core/api.js";
 import { facts, table } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
 import { agree, counted } from "../core/counting.js";
-import { screenCell, screenPhrase } from "../core/outputs.js";
+import { isStale, screenCell, screenPhrase, STALE_AFTER_SECONDS } from "../core/outputs.js";
 import { el, render } from "../core/render.js";
 import { refresh } from "../core/router.js";
 
@@ -213,16 +213,30 @@ function outputs(client) {
   } else if (!beat.outputs.length) {
     body = el("p", { class: "muted", text: `${client.name} reported that it has no outputs.` });
   } else {
+    const stale = isStale(beat);
     body = table(
       `The outputs ${client.name} last reported.`,
       ["Output", "Kind", "Screen", "Size"],
       beat.outputs.map((output) => [
         output.name,
         KIND_WORDS[output.kind] || output.kind,
-        screenCell(output),
+        screenCell(output, stale),
         output.screen ? `${output.screen[0]} × ${output.screen[1]}` : "size unknown",
       ]),
     );
+    // Said once above the table rather than in every row: it is one fact about
+    // the report, and Walls reads the same threshold (`core/outputs.js`).
+    if (stale) {
+      body = el("div", {}, [
+        el("p", {
+          class: "note client-stale",
+          text:
+            `${client.name}'s report is older than ${STALE_AFTER_SECONDS / 60} minutes, three missed reports, ` +
+            "so whether a screen is on each output now is not known.",
+        }),
+        body,
+      ]);
+    }
   }
   return el("div", { class: "client-outputs" }, [el("h3", { text: "Outputs" }), body]);
 }
@@ -297,6 +311,7 @@ function assignForm(client, walls, names) {
   const beat = client.heartbeat;
   const reported = !beat.absent && !beat.problem && beat.outputs.length ? beat.outputs : null;
   const occupied = new Map(client.walls.map((wall) => [wall.output, wall.name]));
+  const stale = isStale(beat);
   let output;
   let guidance = null;
   if (reported) {
@@ -307,7 +322,7 @@ function assignForm(client, walls, names) {
     for (const each of reported) {
       const showing = occupied.has(each.name) ? `, has ${occupied.get(each.name)}` : "";
       output.append(
-        el("option", { value: each.name, text: `${each.name} (${screenPhrase(each)}${showing})`, selected: each === free }),
+        el("option", { value: each.name, text: `${each.name} (${screenPhrase(each, stale)}${showing})`, selected: each === free }),
       );
     }
   } else {

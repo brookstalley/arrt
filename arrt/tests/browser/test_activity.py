@@ -1,10 +1,12 @@
-"""Activity › Queue and History, in a real browser.
+"""Activity › Queue, in a real browser.
 
 `information-architecture.md` § The *arr layout: Queue is the searches that have
-not ended and History the ones that have, split on the server's `is_terminal`
-flag. Every listing below holds runs of both kinds, so a page that showed
-everything, or split on the wrong field, fails rather than passing on a fixture
-that could not tell.
+not ended, split on the server's `is_terminal` flag. Every listing below holds
+runs of both kinds, so a page that showed everything, or split on the wrong
+field, fails rather than passing on a fixture that could not tell.
+
+History reads the event log rather than the finished runs, and has its own file,
+`test_the_history.py`.
 """
 
 import pytest
@@ -46,21 +48,6 @@ def test_queue_shows_the_searches_that_have_not_ended(ui):
     assert "In flight (2)" in text
 
 
-def test_history_shows_the_searches_that_ended_and_how(ui):
-    ui.serve("**/api/runs", EVERY_KIND)
-    ui.open("#history")
-    ui.page.wait_for_selector("h2:has-text('Finished')")
-
-    text = ui.text()
-    assert "All done" in text
-    assert "Ran out of money" in text
-    # How it ended, carried as itself: out of money and completed call for
-    # different responses from the person reading the row.
-    assert "halted_by_budget" in text
-    assert "Working on it" not in text
-    assert "Waiting at the gate" not in text
-
-
 def test_the_split_follows_the_server_flag_not_the_status_name(ui):
     """A status this client has never heard of still lands on the right page.
 
@@ -70,12 +57,9 @@ def test_the_split_follows_the_server_flag_not_the_status_name(ui):
     novel = a_run(run_id="r-novel", intent="A state from the future", status="some_new_state", is_terminal=True)
     ui.serve("**/api/runs", a_listing(WORKING, novel))
 
-    ui.open("#history")
-    ui.page.wait_for_selector("h2:has-text('Finished')")
-    assert "A state from the future" in ui.text()
-
     ui.open("#queue")
     ui.page.wait_for_selector("h2:has-text('In flight')")
+    assert "Working on it" in ui.text()
     assert "A state from the future" not in ui.text()
 
 
@@ -89,14 +73,6 @@ def test_an_empty_queue_says_so_and_offers_add_new(ui):
     ui.page.wait_for_selector("#view h1:text-is('Ask')")
 
 
-def test_an_empty_history_says_so(ui):
-    ui.serve("**/api/runs", a_listing(WORKING))
-    ui.open("#history")
-    ui.page.wait_for_selector("#view .empty")
-
-    assert "No search has finished yet" in ui.text()
-
-
 def test_add_new_no_longer_lists_the_searches(ui):
     """They moved to Activity; a second copy on Ask would be two lists of one thing."""
     ui.serve("**/api/runs", EVERY_KIND)
@@ -105,18 +81,6 @@ def test_add_new_no_longer_lists_the_searches(ui):
 
     assert "Working on it" not in ui.text()
     assert "All done" not in ui.text()
-
-
-def test_a_search_opened_from_history_returns_to_history(ui):
-    """History is not a run's default return, so the opener travels in the address."""
-    ui.serve("**/api/runs", EVERY_KIND)
-    ui.open("#history")
-    ui.page.wait_for_selector("h2:has-text('Finished')")
-
-    ui.page.click("#view a[aria-label='Open the search for All done']")
-    ui.page.wait_for_function("() => window.location.hash.startsWith('#run/')")
-
-    assert ui.page.evaluate("() => window.location.hash") == "#run/r-done?from=history"
 
 
 def test_a_search_opened_from_the_queue_carries_no_opener(ui):
@@ -160,9 +124,10 @@ def test_a_complete_empty_queue_says_nothing_is_in_flight_plainly(ui):
 def test_a_listing_that_fails_is_announced_not_shown_as_empty(ui, where):
     """A refused request is not an empty history, and must not read as one."""
     ui.serve("**/api/runs", [(503, {"error": "the catalogue is unavailable"})])
+    ui.serve("**/api/history*", [(503, {"error": "the catalogue is unavailable"})])
     ui.open(f"#{where}")
     ui.page.wait_for_selector("#error:not([hidden])")
 
     assert "unavailable" in ui.page.inner_text("#error")
     assert "No search is in flight" not in ui.page.inner_text("body")
-    assert "No search has finished yet" not in ui.page.inner_text("body")
+    assert "Nothing has happened yet" not in ui.page.inner_text("body")

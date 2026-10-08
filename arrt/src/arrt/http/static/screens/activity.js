@@ -1,26 +1,23 @@
-/* Activity — Queue and History, the searches in flight and the ones that ended.
+/* Activity — Queue, To review, History and Wanted.
  *
  * Radarr's Activity section (`information-architecture.md` § The *arr layout):
- * Queue is the work in flight and History what has finished. The two pages
- * split one listing, `GET /api/runs`, on the server's own `is_terminal` flag
- * rather than on a list of status names here, because that list is the thing
- * that goes stale: a status added to the enum would otherwise sit in neither
- * page, or in the wrong one, with nothing failing to say so.
+ * Queue is the work in flight and History what has happened. Queue lists the
+ * runs that have not ended, split from `GET /api/runs` on the server's own
+ * `is_terminal` flag rather than on a list of status names here, because that
+ * list is the thing that goes stale: a status added to the enum would otherwise
+ * sit in the wrong page with nothing failing to say so.
  *
- * **Queue is the runs that have not ended**, which includes one stopped at the
- * approval gate, waiting on the curator. A run that finished with candidates
- * nobody has judged yet is *also* waiting on the curator — Radarr shows the
- * like of it in its Queue — but the listing carries no signal for it, so it
- * lands in History with its state. That signal is a recorded gap
- * (`information-architecture.md` § The *arr layout), not an oversight here.
+ * **History is the event log** (`GET /api/history`), not the finished runs: a
+ * Get ending is one kind of event among the verdicts, archives, restores and
+ * hangs, and a finished run is still opened from its own events.
  *
- * One module for both pages because they are one table over one listing, cut
- * two ways; a screen module may hold several views, and must never import
- * another screen.
+ * One module for these pages because they are Activity's; a screen module may
+ * hold several views, and must never import another screen.
  */
 
 import { acquisitionBadge, acquisitionSentence, retryButton } from "../core/acquiring.js";
 import { attempt } from "../core/acting.js";
+import { agoFrom } from "../core/ages.js";
 import { api } from "../core/api.js";
 import { paintWanted } from "../core/awaiting.js";
 import { table } from "../core/badges.js";
@@ -30,6 +27,7 @@ import { el, fill, guard, render } from "../core/render.js";
 import { wantedPicture, wantedWhy } from "../core/reviewing.js";
 import { go, link } from "../core/router.js";
 import { KIND_WORDS } from "../core/runs.js";
+import { state } from "../core/state.js";
 
 /* The runs as rows. A re-search and a Get are runs too. A Get has no intent of
  * its own: the curator chose its works, which is what its row says. *Into* is
@@ -146,7 +144,7 @@ export async function viewQueue(generation) {
   const panels = [el("h1", { text: "Queue" })];
   if (!active.length) {
     // Only as sure as the listing: when the cap left older searches out, one of
-    // them may still be at the approval gate, so the page says what it checked
+    // them may still be working, so the page says what it checked
     // rather than that nothing is in flight. "No search", not "nothing": the
     // fetches below may be.
     const nothing = runs.truncated
@@ -156,8 +154,7 @@ export async function viewQueue(generation) {
       el("div", { class: "panel empty" }, [
         el("p", {
           text:
-            `${nothing} A search you start in Ask, or a Get, shows here while it works, ` +
-            "and while it waits for you to approve its price.",
+            `${nothing} A search you start in Ask, or a Get, shows here while it works.`,
         }),
         link({ view: "discover" }, { class: "action", text: "Go to Ask" }),
       ]),
@@ -166,7 +163,7 @@ export async function viewQueue(generation) {
     panels.push(
       el("div", { class: "panel" }, [
         el("h2", { text: `In flight (${active.length})` }),
-        runTable("Every search still working or waiting for approval, newest first.", active, themes),
+        runTable("Every search not yet ended, newest first.", active, themes),
       ]),
     );
   }
@@ -175,22 +172,183 @@ export async function viewQueue(generation) {
   render(generation, ...panels);
 }
 
+/* History: what happened, newest first, from the event log (`GET /api/history`).
+ *
+ * Every act the log records — a Get starting and ending, a verdict, an archive
+ * or a restore, and every hang and *Not this one again* — as one sentence with
+ * how long ago it was, the readable date a hover away. Filtered by kind with
+ * links, so a filtered history is an address a curator can keep; `?wall=` is one
+ * wall's history, which its card on Walls opens.
+ *
+ * **Every id in an event may no longer resolve**, so the sentence is built from
+ * the words the event carries (`detail`), and only where those are missing from
+ * the reads that can still answer: the walls listing for a wall's name, and a
+ * work's own record for its title. A work the library no longer answers for is
+ * said to be one, never left as a bare id. */
 export async function viewHistory(generation) {
-  const [runs, themes] = await Promise.all([api("/api/runs"), readThemes()]);
-  const finished = runs.runs.filter((run) => run.is_terminal);
-  const panels = [el("h1", { text: "History" })];
-  if (!finished.length) {
-    panels.push(el("p", { class: "muted empty", text: "No search has finished yet." }));
-  } else {
+  const params = state.params;
+  const group = HISTORY_GROUPS.find((each) => each.key === (params.kind || "")) || null;
+  const offset = Math.max(0, Number.parseInt(params.offset || "0", 10) || 0);
+  const query = new URLSearchParams({ limit: String(HISTORY_PAGE), offset: String(offset) });
+  for (const kind of group ? group.kinds : []) query.append("kind", kind);
+  if (params.wall) query.set("wall_id", params.wall);
+  const [page, walls] = await Promise.all([api(`/api/history?${query}`), api("/api/walls")]);
+  const wallNames = new Map(walls.walls.map((wall) => [wall.wall_id, wall.name]));
+  const titles = await titlesFor(page.events);
+
+  const wallName = params.wall ? wallNames.get(params.wall) || "a wall no longer recorded" : null;
+  const panels = [el("h1", { text: wallName ? `History of ${wallName}` : "History" })];
+  if (wallName) {
     panels.push(
-      el("div", { class: "panel" }, [
-        el("h2", { text: `Finished (${finished.length})` }),
-        runTable("Every search that has ended, newest first, with how it ended.", finished, themes),
+      el("p", { class: "muted" }, [
+        "What was hung on it, and what was kept off from it. ",
+        link({ view: "history", params: { kind: params.kind || "" } }, { text: "Every wall's history" }),
       ]),
     );
   }
-  panels.push(truncation(runs, "The finished ones"));
+  panels.push(kindFilter(group, params));
+  if (!group && params.kind) {
+    panels.push(el("p", { class: "note", text: `The history has no kind called “${params.kind}”, so every kind is shown.` }));
+  }
+  if (!page.events.length) {
+    panels.push(
+      el("p", {
+        class: "muted empty",
+        text: offset
+          ? "Nothing older than this."
+          : group || wallName
+            ? "Nothing of this kind has happened yet."
+            : "Nothing has happened yet. Gets, verdicts, archives, restores and hangs are recorded here as they happen; nothing from before the history began is.",
+      }),
+    );
+  } else {
+    panels.push(
+      el(
+        "ol",
+        { class: "history-events", "aria-label": "What happened, newest first" },
+        page.events.map((event) => el("li", { "data-kind": event.kind }, [when(event.occurred_at), el("span", {}, sentence(event, wallNames, titles))])),
+      ),
+    );
+  }
+  panels.push(paging(page, params));
   render(generation, ...panels);
+}
+
+/* How many events a page shows. The server allows up to 100. */
+const HISTORY_PAGE = 50;
+
+/* The kinds, as a curator filters them: the event kinds grouped by what they
+ * are about. Each group's `kinds` are `EventKind`'s values, which the server
+ * refuses by name if one is misspelled, so a typo here fails loudly. */
+const HISTORY_GROUPS = [
+  { key: "gets", label: "Gets", kinds: ["get.started", "get.finished"] },
+  { key: "verdicts", label: "Verdicts", kinds: ["work.accepted", "work.rejected"] },
+  { key: "archive", label: "Archive", kinds: ["work.archived", "work.restored"] },
+  { key: "walls", label: "Walls", kinds: ["wall.hung", "work.left_theme", "work.excluded", "work.allowed"] },
+];
+
+function kindFilter(group, params) {
+  const target = (key) => ({ view: "history", params: { wall: params.wall || "", kind: key } });
+  const item = (key, label, current) =>
+    el("li", {}, [link(target(key), { class: "link", text: label, "aria-current": current ? "page" : null })]);
+  return el("ul", { class: "history-kinds", "aria-label": "Show" }, [
+    item("", "Everything", !group),
+    ...HISTORY_GROUPS.map((each) => item(each.key, each.label, group === each)),
+  ]);
+}
+
+/* Newer and older pages, as links, so a page of the history is an address. */
+function paging(page, params) {
+  const older = page.offset + page.events.length < page.total;
+  const newer = page.offset > 0;
+  if (!older && !newer) return null;
+  const at = (offset) => ({ view: "history", params: { ...params, offset: offset ? String(offset) : "" } });
+  return el("div", { class: "row history-paging" }, [
+    newer ? link(at(Math.max(0, page.offset - page.limit)), { class: "action quiet", text: "Newer" }) : null,
+    older ? link(at(page.offset + page.limit), { class: "action quiet", text: "Older" }) : null,
+    el("span", { class: "muted", text: `${page.offset + 1}–${page.offset + page.events.length} of ${page.total}` }),
+  ]);
+}
+
+/* How long ago, with the readable date and time a hover away and in the
+ * element's `datetime`, so the machine instant is never what is read. */
+function when(iso) {
+  const readable = new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  return el("time", { datetime: iso, title: readable, text: agoFrom(iso) });
+}
+
+/* A title for every event that names a work and carries no title of its own
+ * (*Not this one again* and its undo are recorded by the walls, which do not
+ * hold works' titles), each work asked for once. */
+async function titlesFor(events) {
+  const wanted = [...new Set(events.filter((event) => event.artwork_id && !event.detail.title).map((event) => event.artwork_id))];
+  const answers = await Promise.all(
+    wanted.map(async (id) => {
+      try {
+        return [id, (await api(`/api/works/${encodeURIComponent(id)}`)).work.title];
+      } catch {
+        return [id, null];
+      }
+    }),
+  );
+  return new Map(answers);
+}
+
+/* How a Get ended, in words, by `RunStatus`. A status added there and not here
+ * is shown as itself rather than guessed at. */
+const ENDINGS = {
+  completed: "finished",
+  failed: "failed",
+  declined: "was declined",
+  cancelled: "was cancelled",
+  halted_by_budget: "stopped at the spending cap",
+  interrupted: "was interrupted",
+};
+
+/* One event as a sentence: text, with links to what can still be opened. */
+function sentence(event, wallNames, titles) {
+  const detail = event.detail || {};
+  const title = detail.title || titles.get(event.artwork_id) || "a work no longer in the library";
+  const work = () => (event.artwork_id ? link({ view: "work", id: event.artwork_id }, { class: "link", text: title }) : title);
+  const wall = detail.wall_name || wallNames.get(event.wall_id) || "a wall no longer recorded";
+  const run = (text) => (event.run_id ? link({ view: "run", id: event.run_id }, { class: "link", text }) : text);
+  const kindWord = KIND_WORDS[detail.run_kind] || "Get";
+  switch (event.kind) {
+    case "get.started":
+      if (detail.intent) return ["Asked for ", run(`“${detail.intent}”`)];
+      return [`Started a ${kindWord}`, detail.works ? ` for ${counted(detail.works, "work")}` : "", ": ", run(`open the ${kindWord}`)];
+    case "get.finished":
+      return [
+        run(`A ${kindWord}`),
+        ` ${ENDINGS[detail.status] || detail.status || "ended"}`,
+        detail.reason ? `: ${detail.reason}` : "",
+      ];
+    case "work.accepted":
+      return ["Accepted ", work()];
+    case "work.rejected":
+      return ["Turned down ", detail.title || "a work", event.run_id ? [" from ", run(`its ${kindWord}`)] : ""].flat();
+    case "work.archived":
+      return ["Archived ", work()];
+    case "work.restored":
+      return ["Restored ", work()];
+    case "wall.hung":
+      if (detail.selection) {
+        return [`Hung a selection${typeof detail.works === "number" ? ` of ${counted(detail.works, "work")}` : ""} on ${wall}`];
+      }
+      return [
+        "Hung ",
+        event.theme_id ? link({ view: "theme", id: event.theme_id }, { class: "link", text: detail.theme_name || "a theme" }) : detail.theme_name || "a theme",
+        ` on ${wall}`,
+      ];
+    case "work.left_theme":
+      return ["Took ", work(), ` out of ${detail.selection ? "the selection" : detail.theme_name || "its theme"} on ${wall}`];
+    case "work.excluded":
+      return ["Kept ", work(), " off every wall", event.wall_id ? ` (from ${wall})` : ""];
+    case "work.allowed":
+      return ["Let ", work(), " back on the walls"];
+    default:
+      return [`Something the history records as ${event.kind}`];
+  }
 }
 
 /* *Wanted*: the works the curator wants and holds no acceptable scan of.

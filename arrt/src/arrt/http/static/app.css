@@ -1703,36 +1703,6 @@ section.wall {
   margin-bottom: var(--space-8);
 }
 
-/* What is hanging, at the size the IA asks for: the artwork is the primary
-   content on every screen that shows one, and this is the screen that shows the
-   most of them. A wider minimum than the collection grid's 15rem, because this
-   is a handful of works being looked at rather than a catalogue being scanned. */
-.hanging {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
-  gap: var(--space-5);
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-/* No card, no border, no shadow. A work on this screen is hung, not filed, and
-   the fixed-aspect image box above it is doing the alignment a card would
-   otherwise be doing. */
-.hung {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-/* A work's own title inside the Showing panel. The panel's heading rule sets a
-   paragraph's worth of space under a heading, which is right for a section title
-   and wrong under a picture whose artist line belongs with it. */
-.hung .card-title {
-  margin: 0;
-}
-
 /* The wall's controls, held apart from the account of what is on it: hanging a
    different theme is the one act on this screen that other people in the house
    see, and it should not read as another row of facts. */
@@ -2311,4 +2281,147 @@ dialog.confirm::backdrop {
 
 .described {
   white-space: pre-line;
+
+/* -- Walls: the card that leads with the work on the wall --------------------
+
+   The work a wall's heartbeat names, large: the one thing on this card a
+   person in the room is looking at. Its own aspect, never cropped, inside a
+   height bound so a portrait work does not push the controls off a laptop
+   screen. */
+
+.wall-now {
+  margin: 0 0 var(--space-4);
+}
+
+.wall-now-when {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.wall-now-picture {
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  display: flex;
+  justify-content: center;
+  max-width: 48rem;
+}
+
+.wall-now-picture img {
+  display: block;
+  max-width: 100%;
+  max-height: 32rem;
+  height: auto;
+  object-fit: contain;
+}
+
+.wall-now-label {
+  margin-top: var(--space-3);
+}
+
+.wall-now-title {
+  margin: 0;
+  font-size: var(--text-xl);
+}
+
+.wall-now-artist,
+.wall-now-facts {
+  margin: var(--space-1) 0 0;
+}
+
+.wall-source {
+  margin: 0 0 var(--space-2);
+}
+
+.wall-controls > * + * {
+  margin-top: var(--space-3);
+}
+
+.not-again {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.not-again-choice:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.not-again-choice p {
+  margin: 0;
+}
+
+/* The summary is Change's button, so it reads as one and keeps the browser's
+   disclosure triangle out of a row of buttons. */
+.wall-change > summary {
+  display: inline-block;
+  list-style: none;
+  cursor: pointer;
+}
+
+.wall-change > summary::-webkit-details-marker {
+  display: none;
+}
+
+.wall-change[open] > summary {
+  margin-bottom: var(--space-2);
+}
+
+.wall-said:empty {
+  display: none;
+}
+
+.wall-setup {
+  margin-top: var(--space-4);
+}
+
+.wall-setup > summary {
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+/* -- History: the event log --------------------------------------------------- */
+
+.history-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  list-style: none;
+}
+
+.history-kinds a[aria-current="page"] {
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.history-events {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.history-events li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.history-events time {
+  min-width: 9rem;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+/* -- Clients: a report too old to speak for now -------------------------------- */
+
+.client-stale {
+  margin: 0 0 var(--space-2);
 }

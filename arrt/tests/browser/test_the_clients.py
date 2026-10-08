@@ -17,6 +17,7 @@ file the server reads, at the path the server derives.
 """
 
 import json
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
@@ -31,8 +32,10 @@ pytest.importorskip(
 
 from arrt.programming.client_heartbeat import client_heartbeat_path_in
 
+#: Stamped now, so the report is young enough to speak for the outputs: one
+#: older than three heartbeats says nothing about now, and has its own test.
 TWO_OUTPUTS = {
-    "reported_at": "2026-10-02T14:00:05+00:00",
+    "reported_at": datetime.now(UTC).isoformat(timespec="seconds"),
     "outputs": [
         {"name": "hdmi-a-1", "kind": "framebuffer", "connected": True, "screen": [1920, 1080]},
         {"name": "hdmi-a-2", "kind": "framebuffer", "connected": False, "screen": None},
@@ -218,6 +221,52 @@ def test_a_report_is_listed_output_by_output_with_its_age(ui, settings, hall):
     assert "It last reported " in panel(ui, hall).inner_text()
 
 
+def test_a_report_older_than_three_heartbeats_says_nothing_about_now(ui, services, settings, hall, the_wall):
+    """A client that stopped leaves its last report saying "connected" for ever.
+
+    So past the threshold Clients says the screen is not known now, and Walls,
+    reading the same threshold, never says "Shown by" for it: the two pages agree
+    on one report, in the same words for its age (#295).
+    """
+    old = datetime.now(UTC) - timedelta(days=5)
+    report(settings, hall, TWO_OUTPUTS | {"reported_at": old.isoformat(timespec="seconds")})
+    services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
+    open_clients(ui)
+    ui.page.wait_for_selector("section.client table")
+
+    text = panel(ui, hall).inner_text()
+    assert "It last reported 5 days ago." in text
+    assert "Hall Pi's report is older than 3 minutes, three missed reports" in text
+    rows = panel(ui, hall).locator("tbody tr").all_inner_texts()
+    assert "◌ not known now (was detected)" in rows[0]
+    assert "● detected" not in text
+
+    ui.open("#walls")
+    ui.page.wait_for_selector("section.wall p.wall-client")
+    line = ui.page.locator("section.wall p.wall-client").inner_text()
+    assert (
+        line
+        == "Assigned to Hall Pi on hdmi-a-1. Hall Pi last reported 5 days ago, so whether a screen is there now is not known."
+    )
+    assert "Shown by" not in line
+
+
+def test_a_report_just_inside_the_threshold_still_speaks_for_now(ui, services, settings, hall, the_wall):
+    """The paired case: two minutes old is a report, not a stopped client."""
+    recent = datetime.now(UTC) - timedelta(minutes=2)
+    report(settings, hall, TWO_OUTPUTS | {"reported_at": recent.isoformat(timespec="seconds")})
+    services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
+    open_clients(ui)
+    ui.page.wait_for_selector("section.client table")
+
+    assert "● detected" in panel(ui, hall).locator("tbody tr").first.inner_text()
+    assert "older than" not in panel(ui, hall).inner_text()
+
+    ui.open("#walls")
+    ui.page.wait_for_selector("section.wall p.wall-client")
+    assert ui.page.locator("section.wall p.wall-client").inner_text() == "Shown by Hall Pi on hdmi-a-1"
+
+
 def test_a_report_that_cannot_be_read_is_said_to_be_one(ui, settings, hall):
     client_heartbeat_path_in(settings.art_root, hall.id).write_text("{not json", encoding="utf-8")
     open_clients(ui)
@@ -230,7 +279,7 @@ def test_a_report_that_cannot_be_read_is_said_to_be_one(ui, settings, hall):
 
 
 def test_a_report_of_no_outputs_says_so_and_lists_none(ui, settings, hall):
-    report(settings, hall, {"reported_at": "2026-10-02T14:00:05+00:00", "outputs": []})
+    report(settings, hall, {"reported_at": TWO_OUTPUTS["reported_at"], "outputs": []})
     open_clients(ui)
     ui.page.wait_for_selector("section.client")
 
