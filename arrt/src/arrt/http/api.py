@@ -1230,7 +1230,7 @@ def start_get(request: Request, body: StartGet) -> GetOut:
     starts), and the Library starts the Get.
     """
     services = _services(request)
-    destination = None if body.theme_id is None else services.display.get_theme(body.theme_id).id
+    destination = None if body.theme_id is None else services.display.get_listed_theme(body.theme_id).id
     outcome = services.get.start(body.qids, initiated_by=InitiatedBy.WEB_UI, destination_theme_id=destination)
     return GetOut(
         run=None if outcome.run is None else _run(outcome.run),

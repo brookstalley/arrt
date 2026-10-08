@@ -275,6 +275,23 @@ class DisplayService:
             raise ServiceError(f"No theme with id {theme_id!r} is in the catalogue.")
         return theme
 
+    def get_listed_theme(self, theme_id: str) -> Theme:
+        """A theme a curator can name: any theme but a hung selection.
+
+        A selection lives only as long as it hangs (`_retire_selection`), so a
+        Get that sent its works there, or a default that pointed at it, would
+        point at nothing the day the wall changes. Both name a theme from a
+        picker that never offers a selection; this refuses the id arriving
+        another way.
+        """
+        theme = self.get_theme(theme_id)
+        if theme.hidden:
+            raise ServiceError(
+                f"{theme.name!r} is the selection hanging on a wall, not a theme, so works cannot be sent to it "
+                "or made to join it. Choose a theme from Themes."
+            )
+        return theme
+
     def default_theme(self) -> Theme | None:
         """The theme new works join, or None while the curator has marked none."""
         return self._store.get_default_theme()
@@ -484,7 +501,7 @@ class DisplayService:
         then, and marking a theme is not a request to fill it with everything
         accepted before; a curator who wants that adds them from Library › Works.
         """
-        self.get_theme(theme_id)
+        self.get_listed_theme(theme_id)
         store_write(self._store.mark_default_theme, theme_id)
         return self.get_theme(theme_id)
 
@@ -593,6 +610,7 @@ class DisplayService:
         """
         self.get_theme(theme_id)
         self.get_wall(wall_id)
+        replaced = self._store.get_assignment(wall_id)
         # One transaction around the hang and the publish, so a manifest that
         # could not be written takes the hang back with it. Recording the hang
         # and then failing to publish left the catalogue naming a theme the wall
@@ -603,6 +621,7 @@ class DisplayService:
                 ThemeAssignment(wall_id=wall_id, theme_id=theme_id, assigned_at=datetime.now(UTC)),
             )
             build = self.sync(wall_id, theme_id)
+            self._retire_selection(replaced)
         self._record_hang(build)
         return build
 
@@ -631,6 +650,7 @@ class DisplayService:
             if not isinstance(answer, PlayableWork) and answer.reason is UnplayableReason.NOT_IN_CATALOGUE:
                 raise ServiceError(answer.detail)
         now = datetime.now(UTC)
+        replaced = self._store.get_assignment(wall_id)
         theme_id = str(uuid.uuid4())
         theme = Theme(
             id=theme_id,
@@ -649,6 +669,7 @@ class DisplayService:
                 )
             store_write(self._store.set_assignment, ThemeAssignment(wall_id=wall_id, theme_id=theme_id, assigned_at=now))
             build = self.sync(wall_id, theme_id)
+            self._retire_selection(replaced)
         self._record_hang(build)
         return build
 
@@ -762,7 +783,10 @@ class DisplayService:
         assignment = self._store.get_assignment(wall_id)
         if assignment is None:
             raise ServiceError(f"Nothing is hanging on wall {wall_id!r}, so there is nothing to take down.")
-        store_write(self._store.remove_assignment, wall_id)
+        taken_down = self.get_theme(assignment.theme_id)
+        with self._store.transaction():
+            store_write(self._store.remove_assignment, wall_id)
+            self._retire_selection(assignment)
         # The only operation in this plane that deliberately leaves the catalogue
         # and the wall disagreeing for an unbounded time, so it is the one an
         # operator asking "why is the set showing a theme that hangs nowhere"
@@ -771,7 +795,7 @@ class DisplayService:
         # writes no manifest to record it anywhere else.
         log.info(
             "Took theme %r down from wall %r. The wall goes on showing it until a theme is hung.",
-            self.get_theme(assignment.theme_id).name,
+            taken_down.name,
             wall.name,
         )
 
@@ -1285,6 +1309,25 @@ class DisplayService:
         return result
 
     # -- internals ------------------------------------------------------------
+
+    def _retire_selection(self, replaced: ThemeAssignment | None) -> None:
+        """Delete the selection a wall stopped hanging, if no other wall still hangs it.
+
+        A selection is made for one hang and has no name a curator chose, so
+        once nothing hangs it nobody can find it to hang again, and keeping it
+        would leave one hidden theme behind per hang for good. History does not
+        need the row: a hang event carries the selection's name and id itself.
+        Called inside the caller's transaction, after the new assignment is
+        written, so `walls_hanging` already sees the wall as moved on.
+        """
+        if replaced is None:
+            return
+        theme = self._store.get_theme(replaced.theme_id)
+        if theme is None or not theme.hidden or self.walls_hanging(theme.id):
+            return
+        for membership in self._store.list_memberships(theme.id):
+            store_write(self._store.remove_membership, theme.id, membership.artwork_id)
+        store_write(self._store.remove_theme, theme.id)
 
     def _record_hang(self, build: ManifestBuild) -> None:
         """Tell the Library's history what was hung where, once the hang has committed."""

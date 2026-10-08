@@ -109,6 +109,82 @@ class TestHangingASelection:
         assert events(http, "wall.hung") == []
 
 
+class TestASelectionLivesWhileItHangs:
+    """A selection has no name a curator chose, so once nothing hangs it nothing can find it again."""
+
+    @staticmethod
+    def selection_on(http, wall: dict, *works) -> str:
+        response = http.post(f"/api/walls/{wall['wall_id']}/selection", json={"artwork_ids": [w.id for w in works]})
+        assert response.status_code == 200, response.text
+        return next(w for w in http.get("/api/walls").json()["walls"] if w["wall_id"] == wall["wall_id"])["theme"]["theme_id"]
+
+    def test_hanging_a_theme_over_a_selection_deletes_the_selection(self, http, ready_work, the_wall):
+        work = ready_work("Automat")
+        selection = self.selection_on(http, the_wall, work)
+
+        hang(http, a_theme_holding(http, "Late night", work), the_wall)
+
+        assert http.get(f"/api/themes/{selection}").status_code == 400
+        assert http.get(f"/api/works/{work.id}").status_code == 200
+
+    def test_a_new_selection_over_an_old_one_deletes_the_old_one(self, http, ready_work, the_wall):
+        first = self.selection_on(http, the_wall, ready_work("Automat"))
+
+        second = self.selection_on(http, the_wall, ready_work("Chop Suey"))
+
+        assert http.get(f"/api/themes/{first}").status_code == 400
+        assert http.get(f"/api/themes/{second}").status_code == 200
+
+    def test_taking_a_selection_down_deletes_it(self, http, ready_work, the_wall):
+        selection = self.selection_on(http, the_wall, ready_work("Automat"))
+
+        assert http.delete(f"/api/walls/{the_wall['wall_id']}/theme").status_code == 200
+
+        assert http.get(f"/api/themes/{selection}").status_code == 400
+
+    def test_a_selection_still_hanging_on_another_wall_is_kept(self, http, ready_work, the_wall):
+        study = http.post("/api/walls", json={"name": "The study"}).json()
+        selection = self.selection_on(http, the_wall, ready_work("Automat"))
+        hang(http, {"theme_id": selection}, study)
+
+        hang(http, a_theme_holding(http, "Late night"), the_wall)
+
+        assert http.get(f"/api/themes/{selection}").status_code == 200
+
+    def test_a_replaced_ordinary_theme_is_kept(self, http, ready_work, the_wall):
+        late = a_theme_holding(http, "Late night", ready_work("Automat"))
+        hang(http, late, the_wall)
+
+        self.selection_on(http, the_wall, ready_work("Chop Suey"))
+
+        assert http.get(f"/api/themes/{late['theme_id']}").status_code == 200
+
+    def test_a_selection_cannot_be_made_the_default_or_a_gets_destination(self, http, ready_work, the_wall):
+        selection = self.selection_on(http, the_wall, ready_work("Automat"))
+        runs_before = http.get("/api/runs").json()
+
+        default = http.post(f"/api/themes/{selection}/default")
+        get = http.post("/api/gets", json={"qids": ["Q45585"], "theme_id": selection})
+
+        assert (default.status_code, get.status_code) == (400, 400)
+        assert "selection" in get.text
+        assert http.get("/api/runs").json() == runs_before
+
+    async def test_the_tool_refuses_a_selection_as_a_gets_destination(self, server_url, ready_work):
+        work = ready_work("Automat")
+        walls, _ = await call(server_url, "art_display", action="walls")
+        hung, _ = await call(
+            server_url, "art_theme", action="hang_selection", wall_id=walls["walls"][0]["wall_id"], artwork_ids=[work.id]
+        )
+
+        refused, error = await call(
+            server_url, "art_discovery", action="get", qids=["Q45585"], theme_id=hung["theme"]["theme_id"]
+        )
+
+        assert error, refused
+        assert "selection" in json.dumps(refused)
+
+
 class TestNotThisOneAgain:
     @pytest.fixture
     def two_walls_hanging(self, http, ready_work, the_wall):

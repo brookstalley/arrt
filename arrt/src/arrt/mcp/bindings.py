@@ -605,7 +605,7 @@ def _start_get(services: Services, arguments: Mapping[str, Any]) -> dict[str, An
     # the theme exists (refusing an unknown one, so nothing starts), and the
     # Library starts the Get.
     theme_id = arguments.get("theme_id")
-    destination = None if theme_id is None else services.display.get_theme(theme_id).id
+    destination = None if theme_id is None else services.display.get_listed_theme(theme_id).id
     outcome = services.get.start(arguments["qids"], initiated_by=InitiatedBy.MCP_CLIENT, destination_theme_id=destination)
     skipped = [{"qid": entry.qid, "reason": str(entry.reason)} for entry in outcome.skipped]
     if outcome.run is None:

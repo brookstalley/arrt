@@ -711,10 +711,14 @@ naming and grouping concept, not an accounts concept.
 > directive and `ThemeAssignment` already work through themes, so a hidden theme
 > changes two listing filters where a new source would change every reader of
 > `theme_assignments`. It hangs "until changed": hanging anything else on the wall
-> replaces it. A selection that no longer hangs anywhere is kept, not deleted, so
-> the history's references to it still resolve; nothing lists it. *That last is
-the builder's call, 2026-10-07: it costs a row per selection, and deleting one
-would need a rule for when.*
+> replaces it. **A selection lives only while it hangs**: when a wall stops
+> hanging it (another theme or selection hung there, or the wall taken down) and
+> no other wall hangs it, it and its memberships are deleted
+> (`DisplayService._retire_selection`), in the same transaction as the change. Nothing
+> can name one afterwards, so it is refused as a Get's destination and as the
+> default theme (`get_listed_theme`). History needs no row: a hang event carries the
+> selection's id and name itself. *(Until 2026-10-08 a selection that hung nowhere
+> was kept, one hidden row per hang for good; the wave-1 review found it.)*
 
 > **The default theme** *(the owner's ruling 8, 2026-10-01: "There should be a
 > default 'all works' theme")*. Every work the Library announces as accepted joins
