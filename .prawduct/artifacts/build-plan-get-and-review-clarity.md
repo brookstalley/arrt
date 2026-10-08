@@ -2,7 +2,8 @@
 artifact: build-plan
 version: 1
 scope: get-and-review-clarity
-partition: not yet decided. No `branch:` until the plan is picked up: a declared branch that does not exist yet is flagged stale by every session briefing. Branch from develop as feature/get-and-review-clarity once Wall label merges. Partition — settle it when the plan is picked up, after Wall label merges, since every chunk touches screens that branch restyles.
+branch: feature/get-and-review-clarity
+partition: serial — chunks 01 and 02 both change how a Get's cost is said, and 03's collapsed lines reuse 02's counts; the screens are small enough that one builder in order is cheaper than merging.
 depends_on:
   - artifact: information-architecture
   - artifact: design-direction
@@ -59,11 +60,12 @@ and each chosen as recommended):
   short sentence. Dropping the column for offered works removes both.
 - "Rejected" plus "the Get found none" on one card are two separate facts:
   the curator's verdict and the run's image-search outcome.
-- Review's order is deliberate today (`library/services/review.py`): named
-  works first, so a possibly invented title is judged first. The owner's
-  ruling replaces that reason with "judge what has a picture first". The
-  comment and any test that pins the old order change with it, and the change
-  is recorded as the owner's decision.
+- Review's order today (`library/services/review.py` `list_works`) is
+  resolved works, then unresolved, then pending, and within each a work no
+  source confirms after the ones a source does. So "pictures first" is
+  largely already true at the group level; the investigation note that said
+  the opposite was wrong. What chunk 03 changes is the client: the
+  unresolved group and the decided cards fold away.
 
 ## Requirements Confidence
 
@@ -85,12 +87,14 @@ Done when: the Taste link is gone from Ask, Get is the one filled act and
 carries its cost, *Talk it through first* is quiet and explained in one
 line, and `information-architecture.md`'s Ask screen table matches.
 
-**Open before building (builder, 2026-10-08):** Wall label chunk 06 did not put the cost in Get's
-label. It kept "Cost: $" beside the button and the bound on a muted line
-beneath, because a cost inside the button changes Get's spoken name
-(`build-plan-wall-label.md` chunk 06, item 3). That was the builder's call,
-not the owner's, so the ruling above still stands. Put both to the owner
-when this chunk starts.
+**Owner ruling, 2026-10-08, replacing the one above for where the cost
+sits:** beside or under Get is fine, provided it plainly belongs to Get and
+plainly is not an act. What it should say is the order of magnitude, roughly
+"About $0.01", "About $0.10" or "About $1", not an exact bound. So: a short
+muted caption directly under Get, tied to it for a screen reader, in place of
+the "Cost: $" mark and the long "costs at most" sentence. The same on a
+conversation's commit card, which starts the same Get. Other priced acts keep
+their tier mark; whether they move to the same form is not in this plan.
 
 ### Chunk 02: A Get's page
 

@@ -263,17 +263,20 @@ classes the client never had.*
   precedes it, never flush: a paragraph, a facts list, another row. *(Until
   2026-10-08 only `p + .row` was spaced, so the Artist page spaced its three
   rows of acts three different ways.)* A row inside a flex column is spaced
-  by that column's gap. A one-line note under a row (`.act-note`) says what
-  pressing costs or does, and sits close beneath it.
+  by that column's gap. One line of words that says what pressing an act
+  costs or starts sits under that act, centred, small and muted
+  (`captioned`, `.act-caption`), and is read with it by a screen reader.
 - **Controls** *(2026-10-08)* — one height for every act and field,
   `--control-h` (2.5rem), and a compact one, `--control-h-compact` (2rem),
   for a menu's items. Under `@media (pointer: coarse)` both are 2.75rem.
-- **Cost** — a priced act's tier is never a boxed badge, because a box
-  beside a button reads as another button. Where the cost sits is not ruled:
-  the owner asked for Get to carry it in its own label, and Wall label built
-  "Cost: $" as words beside the act instead (the builder's call, so that
-  Get's spoken name stays "Get"). Get and review clarity chunk 01 puts the
-  two to the owner.
+- **Cost** — a priced act's cost is never a boxed badge, because a box
+  beside a button reads as another button. It must plainly belong to its act
+  and plainly not be an act. Get, on Ask and on a conversation's commit card,
+  says its order of magnitude in a caption under it: "About $0.01", "About
+  $0.10", "About $1" *(owner, 2026-10-08: the curator is deciding between
+  cents, dimes and dollars, not reading an exact bound)*. Every other priced
+  act still carries "Cost: <tier>" as words beside it; moving those to the
+  same form is not yet asked for.
 - **Badges** — glyph + word + colour, never fewer than all three. **A glyph
   has one meaning on every screen**, named in `core/glyphs.js`, where the word
   carries the specifics and the glyph only the kind of state; a new meaning

@@ -62,6 +62,47 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-08: Get and review clarity, chunk 01: Ask
+
+<!-- prawduct: scope=get-and-review-clarity -->
+
+**Why:** The owner walked Wall label and found Ask confusing: three acts of
+equal weight, a link to Taste among them, and a cost they could not place
+(`build-plan-get-and-review-clarity.md` chunk 01, with the owner's rulings
+of 2026-10-08).
+
+**What:**
+- Get is Ask's one filled act. Under it, a caption tied to it for a screen
+  reader says roughly what it costs, as an order of magnitude: "About $0.01",
+  "About $0.10", "About $1" (`aboutCost`, the nearest power of ten, never
+  below a cent). It replaces the "Cost: $" mark and the "This Get costs at
+  most …" sentence. A conversation's commit card, which starts the same Get,
+  says the same under its Get.
+- *Talk it through first* is quiet, with "Free to start; each reply shows its
+  cost" under it. The plan's ruling said "a conversation is free", but every
+  reply is a priced model call, so the caption says what is true (the
+  builder's wording).
+- Ask no longer links to Taste, which is under Settings.
+- Ask opens when the estimate cannot be read, and says "Cost unknown just
+  now" under Get. It used to fail the whole page.
+- `captioned` (core/render.js) and `.captioned` / `.act-caption` replace the
+  `.act-note` line; `askingCost` is gone.
+- `information-architecture.md` (Ask, Taste) and `design-direction.md`
+  (Cost, the caption) say so.
+
+**Tests:** `test_ask_says_about_what_a_get_costs_under_it` (six bounds),
+`test_ask_still_opens_when_the_estimate_cannot_be_read`,
+`test_ask_has_one_filled_act`, `test_ask_does_not_link_taste` and
+`test_the_commit_card_says_about_what_its_get_costs_under_it` were each
+watched failing first. Three tests are replaced because the owner's ruling
+replaced what they held: `test_asks_button_shows_its_tier_before_it_is_pressed`
+(the tier mark beside Get), `test_discover_offers_the_way_into_taste` (the
+Taste link; Taste's own route is still held by
+`test_taste_is_a_page_under_settings`), and the commit card's "costs at
+most" assertion. The tier mark's look, which the controls test checked on
+Ask, moves to `test_a_tier_mark_is_words_on_one_line_not_a_box` on a Get's
+Approve, where the mark still is.
+
 ## 2026-10-08: Wall label: the boundary review's findings
 
 <!-- prawduct: scope=wall-label -->

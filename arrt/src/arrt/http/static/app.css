@@ -2222,11 +2222,26 @@ button.action:disabled:hover {
   margin-top: var(--space-4);
 }
 
-/* A line under a row of acts that says what pressing costs or does. Close to
-   the row it explains, and small. */
-.row + .act-note {
-  margin: var(--space-2) 0 0;
+/* An act with one line under it that says what pressing costs or starts
+   (`captioned` in core/render.js). The line starts where its act starts, close
+   under it, small and muted, and kept whole, so it is read as that act's and
+   never as a second act beside it. A row of them is spaced wider than a row of
+   bare acts, so two captions never read as one sentence. */
+.captioned {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.row:has(> .captioned) {
+  column-gap: var(--space-6);
+}
+
+.act-caption {
+  color: var(--text-muted);
   font-size: var(--text-sm);
+  white-space: nowrap;
 }
 
 /* A labelled field beside its button: the field's own bottom margin would hold

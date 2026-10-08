@@ -10,17 +10,21 @@
 import { attempt } from "../core/acting.js";
 import { api } from "../core/api.js";
 import { table } from "../core/badges.js";
-import { el, render } from "../core/render.js";
+import { captioned, el, render } from "../core/render.js";
 import { go, link } from "../core/router.js";
-import { askingCost, tierMark } from "../core/spend.js";
+import { getCaption } from "../core/spend.js";
 import { dated } from "../core/dates.js";
 import { state } from "../core/state.js";
 
 export async function viewDiscover(generation) {
   // Both in one round trip: the estimate exists to inform the decision being
   // made in the field beside it, so a screen that fetched it afterwards would
-  // be showing a receipt.
-  const [estimate, conversations] = await Promise.all([api("/api/estimate"), api("/api/conversations")]);
+  // be showing a receipt. An estimate that cannot be read leaves the page
+  // usable and says so under Get, rather than taking the whole page down.
+  const [estimate, conversations] = await Promise.all([
+    api("/api/estimate").catch(() => null),
+    api("/api/conversations"),
+  ]);
 
   const intent = el("textarea", { id: "intent", rows: 3, required: true });
   // Words handed over from the top bar's "Ask about …" row, as Sonarr hands
@@ -28,10 +32,10 @@ export async function viewDiscover(generation) {
   // the curator presses the button beside its price.
   intent.value = state.params.term || "";
   const start = el("button", {
-    class: "action",
+    // The one filled act on the page, with what it costs under it (below):
+    // "Get", as every spending request is called (`ia-proposal.md` § Objects).
+    class: "action primary",
     type: "button",
-    // The act, with its cost tier beside it (below): "Get", as every
-    // spending request is called (`ia-proposal.md` § Objects).
     text: "Get",
     "aria-label": "Get what you asked for",
     onclick: (event) =>
@@ -59,30 +63,20 @@ export async function viewDiscover(generation) {
       }),
   });
 
-  /* The way into what the product has come to believe about the curator.
-   *
-   * Taste's page is under Settings, and this is a second way in: it sits beside
-   * the two ways of asking for something because it is the thing that shapes
-   * what comes back — a curator wondering why they keep being offered pale grids
-   * looks for the answer where they do the asking. */
-  const taste = link({ view: "taste" }, { class: "action quiet", text: "See what this product thinks you like" });
-
   const entry = el("div", { class: "panel" }, [
     el("h2", { text: "Ask for something" }),
     el("div", { class: "field" }, [
       el("label", { for: "intent", text: "What are you looking for?" }),
       intent,
     ]),
-    // The tier beside the button it prices, so it is read before the press.
-    el("div", { class: "row" }, [start, tierMark(estimate.tier), talk, taste]),
-    el("p", {
-      class: "muted act-note",
-      // The price before the decision, and what it buys, under the act it
-      // prices rather than above the field. Stated as a bound rather than a
-      // typical figure, because a run may freely use the whole allowance and
-      // an estimate it can exceed is not an estimate.
-      text: askingCost(estimate),
-    }),
+    // Each act with one line under it: Get, roughly what it costs, as an order
+    // of magnitude (the owner's ruling, 2026-10-08); talking, that it is free
+    // to start. Only starting is free — every reply is a model call and is
+    // priced beside its own button in the thread.
+    el("div", { class: "row" }, [
+      captioned(start, getCaption(estimate)),
+      captioned(talk, "Free to start; each reply shows its cost"),
+    ]),
   ]);
 
   const panels = [el("h1", { text: "Ask" }), entry];

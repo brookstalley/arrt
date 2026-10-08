@@ -47,13 +47,23 @@ export function dollars(value) {
   return `$${number.toFixed(2)}`;
 }
 
-/* What a Get from words costs at most, as a sentence beside its button.
- *
- * Composed here rather than shown as the estimate's `basis`, which is written
- * for an agent and names the engine's phases; the bound is the same fact in the
- * curator's words: the most the model call and its web lookups may spend. */
-export function askingCost(estimate) {
-  return `This Get costs at most ${dollars(estimate.estimated_cost_usd)}: one model call and its web lookups, priced at the most they may use. Finding the images after that is free.`;
+/* What a Get from words costs, as its order of magnitude: "About $0.01",
+ * "About $0.10", "About $1". The owner asked for this rather than the bound
+ * (2026-10-08): the curator is deciding whether an act is cents, dimes or
+ * dollars, and an exact figure reads as a promise the bound is not. Rounded to
+ * the nearest power of ten, never below a cent; nothing at all reads "Free". */
+export function aboutCost(value) {
+  const number = Number(value);
+  if (value === null || value === undefined || !Number.isFinite(number)) return `About $${value}`;
+  if (number <= 0) return "Free";
+  const scale = 10 ** Math.max(-2, Math.round(Math.log10(number)));
+  return `About $${scale < 1 ? scale.toFixed(2) : String(scale)}`;
+}
+
+/* The caption under Get: its order of magnitude, or that it is not known. An
+ * unreadable estimate is said rather than left blank, which would read as free. */
+export function getCaption(estimate) {
+  return estimate ? aboutCost(estimate.estimated_cost_usd) : "Cost unknown just now";
 }
 
 /* The budget's line and, where the server says something more, its note. */
