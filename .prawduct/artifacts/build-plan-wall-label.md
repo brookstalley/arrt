@@ -150,7 +150,7 @@ the real library.
 - [x] Chunk 02: The shell
 - [x] Chunk 03: The Artworks grid
 - [x] Chunk 04: A work's page
-- [ ] Chunk 05: Ruled sections everywhere, and the walk
+- [x] Chunk 05: Ruled sections everywhere, and the walk
 
 ### Chunk 01: Typefaces and type scale
 
