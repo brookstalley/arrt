@@ -74,7 +74,11 @@ def test_an_empty_library_reaches_the_16th_century_without_typing(ui):
     centuries = ui.page.locator(f"{PERIODS} ul.topic-offered li").all_inner_texts()
     assert centuries == [f"{n}{'st' if n == 21 else 'th'} century" for n in range(13, 22)]
     assert ui.page.locator(f"{MOVEMENTS} h3").inner_text() == "Major movements"
-    assert "Impressionism" in ui.page.locator(f"{MOVEMENTS} ul.topic-offered li").all_inner_texts()
+    movements = ui.page.locator(f"{MOVEMENTS} ul.topic-offered li").all_inner_texts()
+    assert "Impressionism" in movements
+    # Wikidata writes "realism" lower-case; a list of names is in one case.
+    assert "Realism" in movements
+    assert all(name[0].isupper() for name in movements)
     # Said once for the whole library, not once per kind.
     assert "None of your works is in a topic yet." in ui.text()
     assert ui.page.locator(f"{PERIODS} p").count() == 0

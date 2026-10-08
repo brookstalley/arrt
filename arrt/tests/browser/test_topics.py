@@ -208,7 +208,9 @@ class TestTheIndex:
         periods = ui.page.locator("section[aria-labelledby='topics-period'] ul.topic-held li").all_inner_texts()
         assert [" ".join(row.split()) for row in periods] == ["16th century · 2 works"]
         subjects = ui.page.locator("section[aria-labelledby='topics-subject'] li").all_inner_texts()
-        assert [" ".join(row.split()) for row in subjects] == ["winter · 1 work"]
+        assert [" ".join(row.split()) for row in subjects] == [
+            "Winter · 1 work"
+        ]  # a name on its own starts with a capital (`topicName`)
         assert (
             ui.page.locator("section[aria-labelledby='topics-movement'] p").inner_text() == "None of your works is in a movement."
         )
@@ -248,7 +250,7 @@ class TestTheIndex:
         assert heights["columned"] <= heights["single"] / 3
         # Each count stays beside its name.
         first = ui.page.locator("section[aria-labelledby='topics-subject'] li").first.inner_text()
-        assert " ".join(first.split()) == "subject number 00 · 1 work"
+        assert " ".join(first.split()) == "Subject number 00 · 1 work"
 
     def test_on_a_phone_a_kind_is_one_column(self, ui):
         self.thirty_subjects(ui)
@@ -608,7 +610,8 @@ def _type(ui, words):
     ui.page.wait_for_selector("#view h1")
     ui.page.click("#search")
     ui.page.keyboard.type(words)
-    ui.page.wait_for_selector(f"{LISTBOX}:not([hidden]) [role='option']")
+    # The answer to all the words, not to where typing paused on a loaded machine.
+    ui.page.wait_for_selector(f"{LISTBOX}:not([hidden]) [role='option']:text-is('All results for “{words}”')")
 
 
 def _options(ui, group):

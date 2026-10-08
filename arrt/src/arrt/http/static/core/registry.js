@@ -202,8 +202,13 @@ function stateBadge(kind, glyph, words, picture = null) {
 
 /* A topic's name, or what to say when Wikidata has none in English: the label
  * service answers with the bare QID, as it does for a work (`named` above). */
+/* A topic's name standing on its own — a list item, a page title, a dropdown
+ * row — so it starts with a capital: Wikidata writes "realism" and "cubism"
+ * lower-case beside "Impressionism", and a list of names in two cases reads as
+ * two kinds of thing. */
 export function topicName(label, qid) {
-  return label && label !== qid ? label : `No English name (${qid})`;
+  if (!label || label === qid) return `No English name (${qid})`;
+  return label.charAt(0).toLocaleUpperCase("en") + label.slice(1);
 }
 
 /* A topic's kinds as a curator reads them, one and many, in the order the
