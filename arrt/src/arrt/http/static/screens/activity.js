@@ -232,7 +232,7 @@ function causeWorks(page, repaint) {
     ]),
   ]);
   return el("div", { class: "failure-cause-works" }, [
-    table(`The works that failed: ${page.cause}`, ["Work", "State", "What happened"], rows, { stacked: true }),
+    table(`Failed works: ${page.cause}`, ["Work", "State", "What happened"], rows, { stacked: true }),
     pager(page, "cause_offset", page.works.length, "works"),
   ]);
 }
