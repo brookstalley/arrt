@@ -40,8 +40,12 @@ export function acquisitionBadge(state) {
   ]);
 }
 
-/* What the state means, in one or two sentences a curator can act on. */
-export function acquisitionSentence(state) {
+/* What the state means, in one or two sentences a curator can act on.
+ *
+ * `cause: false` leaves out why a failed or given-up work failed, for a work
+ * read under its cause on Queue, where the cause is the group's heading. */
+export function acquisitionSentence(state, { cause = true } = {}) {
+  const why = cause ? `: ${state.detail}` : ".";
   switch (state.phase) {
     case "queued":
       return state.failures
@@ -50,9 +54,9 @@ export function acquisitionSentence(state) {
     case "fetching":
       return `Being fetched since ${when(state.since)}, then prepared for the wall. A tiled fetch can take up to half an hour.`;
     case "failed":
-      return `Try ${state.failures} of ${TRIES} failed: ${state.detail} It tries again at ${when(state.next_try_at)}.`;
+      return `Try ${state.failures} of ${TRIES} failed${why} It tries again at ${when(state.next_try_at)}.`;
     case "gave_up":
-      return `Gave up after ${counted(state.failures, "try", "tries")}: ${state.detail} Nothing tries again until you retry.`;
+      return `Gave up after ${counted(state.failures, "try", "tries")}${why} Nothing tries again until you retry.`;
     case "paused":
       return `Every fetch is paused: ${state.detail} ${state.remedy || "Nothing anticipated this error; the server's journal has it, as acquisition.queue_error."}`;
     default:

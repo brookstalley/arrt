@@ -703,17 +703,76 @@ class QueuePauseOut(BaseModel):
 
 
 class QueuedWorkOut(BaseModel):
-    """One work the acquisition queue owes something, named for a person."""
+    """One work the acquisition queue owes something, named for a person.
+
+    `acquisition.detail` names the work by `title`, never by its id.
+    """
 
     title: str
     acquisition: AcquisitionStateOut
 
 
 class AcquisitionQueueOut(BaseModel):
-    """Activity › Queue's acquisitions: the pause, if any, then every work owed, in the order tried."""
+    """Activity › Queue's acquisitions: the pause, if any, then one page of the works still in line.
+
+    `works` is the works queued, being fetched or paused, in the order tried,
+    paged by `limit` and `offset` out of `total`. A work that failed or that the
+    queue gave up on is not among them: it is counted in `failing`, and listed
+    under its cause at `/api/acquisitions/causes`, of which there are `causes`.
+    """
 
     pause: QueuePauseOut | None
     works: list[QueuedWorkOut]
+    total: int
+    limit: int
+    offset: int
+    failing: int
+    causes: int
+
+
+class FailureCauseOut(BaseModel):
+    """Every work whose last try failed for one reason: the reason, naming no work, and how many."""
+
+    cause: str
+    works: int
+    #: Of `works`, how many will be tried again on their own, and how many the
+    #: queue gave up on and wait for Retry.
+    failed: int
+    gave_up: int
+
+
+class FailureCausesOut(BaseModel):
+    """One page of the causes the queue's failed works share, the largest first, out of `total`."""
+
+    causes: list[FailureCauseOut]
+    total: int
+    limit: int
+    offset: int
+
+
+class CauseWorksOut(BaseModel):
+    """One page of the works that failed for `cause`, in the order the queue holds them, out of `total`."""
+
+    cause: str
+    works: list[QueuedWorkOut]
+    total: int
+    limit: int
+    offset: int
+
+
+class RefusedRetryOut(BaseModel):
+    """Why Retry all left some works where they were, naming no work, and how many."""
+
+    reason: str
+    works: int
+
+
+class RetryCauseOut(BaseModel):
+    """What Retry all did: how many works it put back in line, and why it refused any it did not."""
+
+    cause: str
+    retried: int
+    refused: list[RefusedRetryOut]
 
 
 class WorkDetailOut(BaseModel):
@@ -1913,6 +1972,12 @@ class StepDisplay(BaseModel):
     """
 
     wall_id: str
+
+
+class RetryCause(BaseModel):
+    """Retry all: the cause, exactly as `/api/acquisitions/causes` words it."""
+
+    cause: str
 
 
 class SetIdentity(BaseModel):

@@ -2863,3 +2863,37 @@ input[type="checkbox"] {
 .settings-index li p {
   margin: var(--space-1) 0 0;
 }
+
+/* -- Queue: failed fetches by cause -------------------------------------------
+   One row per cause, its count and its acts beneath the reason, and the
+   group's works under it when opened: thousands of works failing for one
+   reason read as one problem. */
+.failure-causes {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-3) 0 0;
+  display: grid;
+  gap: var(--space-4);
+}
+
+.failure-cause {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--space-3);
+}
+
+.failure-cause-head p {
+  margin: 0;
+}
+
+/* A cause can quote a URL or a path with no space to break at. */
+.failure-cause-why {
+  overflow-wrap: anywhere;
+}
+
+.failure-cause-head .row {
+  margin-top: var(--space-2);
+}
+
+.failure-cause-works {
+  margin-top: var(--space-3);
+}
