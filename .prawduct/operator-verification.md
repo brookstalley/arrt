@@ -10,6 +10,20 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Walk S7, S9 and S12 on the real library — added 2026-10-08
+
+**`build-plan-lists-settings-and-scale.md` Chunk 11, deferred part.** Live walk.
+
+Walked by the builder with writes on a throwaway synthetic library only.
+
+- **Try, after the deploy, on the operator's library:** S7 (a theme from a
+  selection, without leaving Artworks); S9 (*Size on the wall › matted small*,
+  then *Not on any wall*; Select all; Archive — check the confirmation says the
+  wall loses them now, and that it does); S12 (Topics › 16th century opens at once
+  once the sweep has warmed it).
+- **Also:** re-run `arrt/tools/ux_walk.py --base-url <the deployment>` and Pass 4
+  (`docs/ux-walkthrough.md`).
+
 ### Selection, clean-up, Artworks paging, Queue by cause, Topics — added 2026-10-08
 
 **`build-plan-lists-settings-and-scale.md` Chunks 05–09.** Visual change: yes.

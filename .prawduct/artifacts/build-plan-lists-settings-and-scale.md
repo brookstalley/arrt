@@ -299,6 +299,13 @@ Done when:
 
 ### Chunk 11: Walk and re-photograph
 
+*Ticked 2026-10-08 with three parts deferred, by name:* S7, S9 and S12 were
+walked with writes on a 300-work synthetic library, not the operator's (S9's
+*Size on the wall* cannot be walked there: no masters); Pass 1 ran on a
+synthetic 2,000-work library only. The operator-library walk and Pass 4 follow
+the deploy and are queued in `operator-verification.md`. The backlog items close
+as shipped at the merge (Issues backend), not in this branch.
+
 **Type:** cumulative-final
 
 Done when:
