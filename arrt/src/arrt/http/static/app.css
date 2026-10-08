@@ -858,11 +858,12 @@ h1 {
   filter: drop-shadow(var(--shadow-art));
 }
 
-/* The label is one fixed height on every tile: the most its clamped lines can
-   take, plus the badge row a tile shows only when its value is unusual. So a
-   tile's height never depends on its words, and every row is the same height
-   without any row's height depending on another's (§ Component Patterns,
-   Tiles). Sizing rows to the tallest tile instead made the page's length
+/* The label is at least the height of its longest shape: two lines of title,
+   one of artist, two of date and medium, and one row of the badges a tile
+   shows only when its value is unusual. The words are clamped to that, so a
+   tile's height does not depend on its words, and rows are uniform without
+   any row's height depending on another's (§ Component Patterns, Tiles). Only
+   a tile whose badges wrap to a second row is taller. Sizing rows to the tallest tile instead made the page's length
    change as later pages arrived, and the scroll restored on the way back to
    Artworks landed short. */
 .card:is([data-artwork], [data-artist], .tile-skeleton) .card-body {
@@ -2571,6 +2572,88 @@ dialog.confirm::backdrop {
   width: 100%;
   max-height: 75vh;
   object-fit: contain;
+}
+
+/* Wall label: the picture and its label side by side, as on a gallery wall,
+   then the record below. Neither is boxed: a bordered panel round every part
+   of the page is what made it read as a form. Each part of the record is set
+   off by a rule above it instead. One column below 60rem, the breakpoint at
+   which the work detail stacks (§ Spacing & Layout). */
+.work-head {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-6);
+  align-items: start;
+  margin-bottom: var(--space-8);
+}
+
+.work-head > .panel,
+.work-record > .panel {
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+  margin: 0;
+}
+
+.work-hero .work-picture {
+  border: none;
+  border-radius: 0;
+  margin: 0;
+  filter: drop-shadow(var(--shadow-art));
+}
+
+.work-hero .card-footer {
+  justify-content: center;
+}
+
+/* The picture stays in view while a long label is read beside it. */
+.work-head > .work-hero {
+  position: sticky;
+  top: var(--space-4);
+}
+
+/* The description is a paragraph, not a value, so it takes the label's whole
+   width under its term rather than the narrow value column beside it. */
+.work-label dl.facts dd:has(> .described) {
+  grid-column: 1 / -1;
+}
+
+/* The description is the label's own voice, so it is set in the label serif,
+   larger, at a measure a paragraph reads well at. */
+.work-label dl.facts dd .described {
+  font: 400 var(--text-lg) / 1.6 var(--font-label);
+  color: var(--text-strong);
+  max-width: 68ch;
+}
+
+.work-record {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(24rem, 100%), 1fr));
+  gap: 0 var(--space-6);
+  align-items: start;
+}
+
+.work-record > .panel {
+  border-top: 1px solid var(--border-strong);
+  padding: var(--space-4) 0 var(--space-6);
+}
+
+/* A table of sources or renditions needs the page's width: at half of it the
+   paths and URLs wrap a word to a line. */
+.work-record > .panel:has(table) {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 60rem) {
+  .work-head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .work-head > .work-hero {
+    position: static;
+  }
 }
 
 .state-strip {

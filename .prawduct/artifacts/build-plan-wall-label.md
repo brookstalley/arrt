@@ -110,8 +110,13 @@ the real library.
 - `[ASSUMPTION: Latin and Latin Extended cover the library's names. A title in
   another script (Japanese, Cyrillic) falls back to the system serif or sans,
   which is the behaviour today. | LOW | owner can correct]`
-- `[ASSUMPTION: a work's page uses its recorded mat colour behind the hero
-  image, and --surface-2 when none is recorded. | MED | owner can correct]`
+- `[ASSUMPTION, corrected at chunk 04: a work's page uses its recorded mat
+  colour behind the hero image, and --surface-2 when none is recorded. | MED |
+  owner can correct]` The hero is the *wall preview*, by an earlier owner
+  ruling (`library/services/thumbnails.py`: on the Work page the wall render
+  is the subject), and that preview already carries the work's mat and the
+  panel around it. So the hero is drawn as it is, with no ground of its own;
+  only the canvas, which drew the bare work, needed one.
 
 ## Norm dispositions
 
@@ -144,7 +149,7 @@ the real library.
 - [x] Chunk 01: Typefaces and type scale
 - [x] Chunk 02: The shell
 - [x] Chunk 03: The Artworks grid
-- [ ] Chunk 04: A work's page
+- [x] Chunk 04: A work's page
 - [ ] Chunk 05: Ruled sections everywhere, and the walk
 
 ### Chunk 01: Typefaces and type scale
@@ -222,10 +227,9 @@ Done when:
 
 Done when:
 
-1. The hero is two columns, collapsing to one below 60rem: the image on the
-   work's mat colour (or `--surface-2` when none is recorded), and the label
-   block (h1 title, artist link with nationality, a definition list of date,
-   medium and dimensions, and the acts).
+1. The hero is two columns, collapsing to one below 60rem: the wall preview
+   as it is (see the corrected ASSUMPTION), and the label block (h1 title,
+   where it hangs, the facts list, and the acts).
 2. The description is set in the serif at a readable measure (at most 68ch).
 3. Every section the page holds today keeps its content and its order: Walls
    and Themes, What this work is, Master image, Where it can be obtained, What

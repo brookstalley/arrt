@@ -62,6 +62,29 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-08: Wall label, chunk 04: a work's page
+
+<!-- prawduct: scope=wall-label -->
+
+**Why:** `build-plan-wall-label.md` chunk 04.
+
+**What:**
+- The picture (the wall preview, as before) and its label sit side by side,
+  three to two, and stack below 60rem. The picture stays in view while a long
+  label is read. The description stays in the facts list, where a test pins
+  it, but takes the label's whole width and is set in the label serif at
+  `--text-lg`, at most 68ch.
+- The record (What this work is, Master image, Where it can be obtained, What
+  has been rendered, Mat colour) is a grid of sections separated by a rule,
+  not boxed panels. A section holding a table spans the full width.
+- The plan's assumption that the hero would sit on the work's mat colour is
+  corrected: the wall preview already carries the mat.
+
+**Tests:** New in `test_the_work_page.py`: side by side at 1280px and stacked
+at 800px, the record's sections in order, ruled and not boxed, for a held work
+and for one with nothing acquired. Watched failing against the old page, which
+has no `.work-head`.
+
 ## 2026-10-08: Wall label, chunk 03: the work on a mat, its label beneath
 
 <!-- prawduct: scope=wall-label -->

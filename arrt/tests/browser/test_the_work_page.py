@@ -303,3 +303,42 @@ def test_the_tokeniser_builds_only_i_and_b(ui, service, markup, tags, text):
     )
 
     assert built == {"tags": tags, "text": text}
+
+
+# -- the wall label's layout -----------------------------------------------------
+
+RECORD = ["Master image", "Where it can be obtained", "What has been rendered", "Mat colour"]
+
+
+def _layout(ui):
+    return ui.page.evaluate("""() => {
+          const hero = document.querySelector('.work-head > .work-hero').getBoundingClientRect();
+          const label = document.querySelector('.work-head > .work-label').getBoundingClientRect();
+          const record = [...document.querySelectorAll('.work-record > .panel')];
+          return {
+            side_by_side: label.left >= hero.right && Math.abs(label.top - hero.top) < 2,
+            stacked: label.top >= hero.bottom,
+            headings: record.map((panel) => panel.querySelector('h2')?.textContent),
+            boxed: record.some((panel) => getComputedStyle(panel).borderLeftStyle !== 'none'),
+            ruled: record.every((panel) => getComputedStyle(panel).borderTopStyle === 'solid'),
+          };
+        }""")
+
+
+@pytest.mark.parametrize("held", [True, False], ids=["held", "nothing-acquired"])
+def test_the_picture_sits_beside_its_label_and_the_record_is_ruled_not_boxed(ui, hangable, service, held):
+    """Wide: picture and label side by side, then every part of the record, in
+    its order, set off by a rule rather than a box. Narrow: the label stacks
+    under the picture. A work with nothing acquired keeps every section."""
+    work = hangable("Automat") if held else service.add_artwork(title="Automat")
+    ui.page.set_viewport_size({"width": 1280, "height": 900})
+    open_work(ui, work)
+    wide = _layout(ui)
+    ui.page.set_viewport_size({"width": 800, "height": 900})
+    narrow = _layout(ui)
+
+    assert wide["side_by_side"]
+    assert narrow["stacked"]
+    assert [h for h in wide["headings"] if h in RECORD] == RECORD
+    assert not wide["boxed"]
+    assert wide["ruled"]

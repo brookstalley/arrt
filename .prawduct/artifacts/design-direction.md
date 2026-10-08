@@ -273,10 +273,10 @@ classes the client never had.*
   arrive is the opposite of the identity, and the built client has already shipped
   that bug. *(Wall label, 2026-10-08.)* A work's tile and an artist's poster are
   not cards: the picture sits on a `--surface-2` mat with `--shadow-art` under
-  it, and the label sits beneath on the page's ground. The label is one fixed
-  height on every tile, the most its clamped lines (two of title, one of artist,
-  two of date and medium) and a badge row can take. That height is what makes
-  rows uniform. Sizing rows to the tallest tile instead (`grid-auto-rows: 1fr`)
+  it, and the label sits beneath on the page's ground. The label is at least
+  the height of its longest shape: its clamped lines (two of title, one of
+  artist, two of date and medium) and one badge row. That minimum is what makes
+  rows uniform; only a tile whose badges wrap is taller. Sizing rows to the tallest tile instead (`grid-auto-rows: 1fr`)
   was tried and broke scroll restoration, because the page's length changed as
   later pages arrived.
 - **Skeletons** occupy the final geometry rather than approximating it.

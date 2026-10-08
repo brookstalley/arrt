@@ -182,11 +182,6 @@ def test_a_status_badge_keeps_its_boundary_on_its_own_ground(scheme, token):
     """A badge on a status ground is bordered in the state's own colour (the
     sidebar's System count, a held or in-review badge), and that border is what
     marks out the badge, so it is held to WCAG 1.4.11's floor.
-
-    This replaced a check of `--border-strong` on the quiet grounds, written
-    when the top bar's status indicator was a button with that border on a
-    status ground. The indicator no longer has a box, and nothing draws that
-    pair any more.
     """
     tokens = SCHEMES[scheme]
     ratio = _ratio(tokens[token], tokens[f"{token}-quiet"])
