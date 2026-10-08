@@ -80,10 +80,12 @@ that left a thread alive at teardown were four in `test_get_surface.py`, one in
 `test_resolve_surface.py` and two in `test_browser_review.py` (`TestTheReSearch`).
 
 **What:**
-- `arrt/tests/conftest.py`: `catalogue_file` joins every live thread named
-  `RUN_THREAD_NAME` or `LOOK_THREAD_NAME` before it closes the file. It enumerates
-  again after each join, so it also catches a follow-on run. It fails the test
-  after 20s. `run_threads` is retired, along with its uses in
+- `arrt/tests/conftest.py`: a new `quiet_catalogue_file` fixture, which both
+  stores are built from, joins every live thread named `RUN_THREAD_NAME` or
+  `LOOK_THREAD_NAME` before `catalogue_file` closes, so a module that overrides
+  `catalogue_file` keeps the join. It enumerates again after each join, so it also
+  catches a follow-on run. It fails the test after 20s, and remembers the threads
+  it failed for so one hung thread fails one test, not every later one. `run_threads` is retired, along with its uses in
   `test_browser_discovery.py` and `test_look_surface.py`. The look never received
   that spawn anyway, because `Services.bind` passed it to the runner only.
 - `runner.py`, `look.py`: the thread names became module constants.
