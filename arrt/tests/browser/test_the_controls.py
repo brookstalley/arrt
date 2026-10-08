@@ -135,8 +135,11 @@ def test_a_cost_is_words_beside_its_act_not_a_box(ui):
     mark = ui.page.locator("#view button:text-is('Get') + .badge-tier")
     look = mark.evaluate("""(node) => {
           const s = getComputedStyle(node);
-          return {border: s.borderTopStyle, background: s.backgroundColor, label: node.textContent.replace(/\\s+/g, ' ').trim()};
+          return {border: s.borderTopStyle, background: s.backgroundColor, wrap: s.whiteSpace,
+                  label: node.textContent.replace(/\\s+/g, ' ').trim()};
         }""")
     assert look["border"] == "none"
     assert look["background"] == "rgba(0, 0, 0, 0)"
     assert look["label"].startswith("Cost: ")
+    # Kept whole: "Cost:" never wraps away from its tier in a narrow row.
+    assert look["wrap"] == "nowrap"

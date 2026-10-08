@@ -85,7 +85,7 @@ Done when: the Taste link is gone from Ask, Get is the one filled act and
 carries its cost, *Talk it through first* is quiet and explained in one
 line, and `information-architecture.md`'s Ask screen table matches.
 
-**Open before building:** Wall label chunk 06 did not put the cost in Get's
+**Open before building (builder, 2026-10-08):** Wall label chunk 06 did not put the cost in Get's
 label. It kept "Cost: $" beside the button and the bound on a muted line
 beneath, because a cost inside the button changes Get's spoken name
 (`build-plan-wall-label.md` chunk 06, item 3). That was the builder's call,

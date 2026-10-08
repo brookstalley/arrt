@@ -2913,9 +2913,7 @@ dialog.confirm::backdrop {
    "$" beside a button reads as a second button. Its "Cost:" label is shown,
    not only spoken, for the same reason. */
 .badge-tier {
-  border: none;
-  background: none;
-  padding: 0;
+  white-space: nowrap;
   color: var(--text-muted);
   font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;

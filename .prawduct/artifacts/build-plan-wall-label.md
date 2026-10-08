@@ -56,7 +56,7 @@ The palette does not change. Both schemes keep their tokens, and
 | 03 | The Artworks grid and its filter rail |
 | 04 | A work's page |
 | 05 | Ruled sections everywhere, and the walk |
-| 06 | Controls: button rows, a size scale, touch heights, the cost in the button |
+| 06 | Controls: button rows, a size scale, touch heights, the cost as words beside its act |
 
 **Not in this plan.** Colour: the palette stays. A dark-scheme redesign: the
 dark scheme gets the new type and layout, and nothing more. Postarr's caption

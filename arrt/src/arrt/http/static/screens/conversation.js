@@ -543,15 +543,6 @@ function commitCard(view, { run, runProblem, estimate, direction, conversationId
     children.push(
       el("p", { class: "muted", text: "This is what the Get would look for. Change it if it is not quite right." }),
       el("div", { class: "field" }, [el("label", { for: "direction", text: "Direction" }), intent]),
-      el("p", {
-        class: "note",
-        // Stated as a bound rather than a typical figure, because a search may
-        // freely use its whole allowance and an estimate it can exceed is not
-        // one. The absence of a price is said out loud rather than left blank.
-        text: estimate
-          ? askingCost(estimate)
-          : "The cost of this Get could not be read just now. Pressing Get still starts it.",
-      }),
       el("div", { class: "row" }, [
         el("button", {
           class: "action primary",
@@ -574,6 +565,16 @@ function commitCard(view, { run, runProblem, estimate, direction, conversationId
         // Unpriced when the estimate could not be read, which the note says.
         estimate ? tierMark(estimate.tier) : null,
       ]),
+      el("p", {
+        class: "muted act-note",
+        // Under the act it prices, as on Ask, which starts the same Get. Stated
+        // as a bound rather than a typical figure, because a search may freely
+        // use its whole allowance and an estimate it can exceed is not one. The
+        // absence of a price is said out loud rather than left blank.
+        text: estimate
+          ? askingCost(estimate)
+          : "The cost of this Get could not be read just now. Pressing Get still starts it.",
+      }),
     );
   } else {
     children.push(

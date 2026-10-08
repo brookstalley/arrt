@@ -62,6 +62,28 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-08: Wall label: the boundary review's findings
+
+<!-- prawduct: scope=wall-label -->
+
+**Why:** The cumulative review over the merged branch.
+
+**What:**
+- A conversation's commit card says its cost under the Get row, as Ask does,
+  priced or not. It had sat above the Direction field.
+- The cost mark keeps "Cost:" and its tier on one line (`white-space:
+  nowrap`, lost with the `badge` class), and drops the border, background
+  and padding resets that no longer overrode anything.
+- `held_artists`' docstring says the artist's picture moves when the
+  circulating works or their masters change, not in two named cases only.
+- Get and review clarity keeps the owner's Ask ruling as given. Chunk 01
+  carries what Wall label built instead and puts it back to the owner.
+
+**Tests:** `test_the_commit_card_says_its_cost_under_the_get_it_prices`
+(priced and unpriced) failed before the move: there was no sentence under the
+row. `test_a_cost_is_words_beside_its_act_not_a_box` gains the `nowrap`
+check, which failed on `normal`.
+
 ## 2026-10-08: Wall label: the review's touch-size and picture-choice findings
 
 <!-- prawduct: scope=wall-label -->
