@@ -82,6 +82,12 @@ cards that had no picture and cards already decided
   never moves the card out from under the keyboard).
 - A page whose every card is folded says "Nothing here is left to judge by
   its picture."
+- A Get still looking redraws its page every poll, so each card's place and
+  each fold's open state are read back from the section being replaced and
+  kept: a card decided there stays put, and an opened fold stays open (the
+  review caught both). Only a decision is held back: a card whose search
+  ends with nothing while the Get looks still folds (the next review caught
+  the first fix holding every card in place).
 - `information-architecture.md` § Review records the rule as the owner's, and
   that the server's order already put works with an image first. The plan's
   premise that it put named works first was wrong.
@@ -91,6 +97,12 @@ failing first (the sixth, no fold lines on a page with nothing to fold,
 passed before as it must). Eleven tests about a decided or found-none card's
 own behaviour now open the folds first (`Ui.open_folds`), as a curator would;
 what each asserts about the card is unchanged.
+`test_a_card_decided_while_a_get_looks_stays_where_it_was` and
+`test_a_fold_opened_while_a_get_looks_stays_open` failed before the
+placement was carried across redraws;
+`test_a_card_whose_search_ends_with_nothing_folds_while_the_get_looks`
+failed against the first fix; the "nothing left to judge" sentence
+is tested present and absent.
 `test_a_discovery_run_s_page_is_unchanged` no longer asserts that the page
 never reads the cards, which chunk 02 changed on purpose (it reads them for
 the pictures). It asserts what it was for: a table, and no cards.

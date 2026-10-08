@@ -36,7 +36,7 @@ def _open_review(ui, cards):
     ui.serve_image("**/api/candidate-images/*/preview")
     ui.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page(cards))
     ui.open(f"#review/{RUN_ID}")
-    ui.page.wait_for_selector("#view li.review-card")
+    ui.page.wait_for_selector("#view li.review-card", state="attached")
 
 
 def _order(ui):
@@ -115,3 +115,123 @@ def test_a_fold_of_one_reads_in_the_singular(ui):
 
     assert ui.page.locator("#view details.fold-found-none > summary").inner_text().strip() == "1 found no image"
     assert ui.page.locator("#view details.fold-decided > summary").inner_text().strip() == "1 decided"
+
+
+def test_a_page_with_nothing_left_to_judge_says_so(ui):
+    _open_review(
+        ui,
+        [
+            _found_none("lost-1", "Nowhere To Be Found"),
+            a_card(work=a_candidate(work_id="taken", verdict=Verdict.ACCEPTED.value)),
+        ],
+    )
+
+    assert "Nothing here is left to judge by its picture." in ui.page.inner_text("#view")
+
+
+def test_a_page_with_a_card_to_judge_does_not_say_nothing_is_left(mixed):
+    assert "Nothing here is left to judge by its picture." not in mixed.page.inner_text("#view")
+
+
+# -- a Get still looking, whose page redraws every poll ------------------------------
+
+GET_ID = "get-under-test"
+
+
+def _a_get_still_looking(ui, pages):
+    """A Get of chosen works mid-search, its run changing on every poll so each one repaints."""
+    from payloads import a_run, a_run_view, a_spend
+
+    from arrt.persistence.discovery_records import RunStatus, WorkProvenance
+
+    def chosen(work_id, verdict=Verdict.PENDING.value, **more):
+        return a_candidate(work_id=work_id, provenance=WorkProvenance.CHOSEN.value, verdict=verdict, **more)
+
+    cards = [[card(chosen) for card in page] for page in pages]
+    runs = [
+        a_run(
+            run_id=GET_ID,
+            kind="get",
+            intent=None,
+            status=RunStatus.RESOLVING_IMAGES.value,
+            is_terminal=False,
+            actual_cost_usd=f"0.0{n}",
+        )
+        for n in range(1, 10)
+    ]
+    ui.serve(f"**/api/runs/{GET_ID}", [a_run_view(run=run, works=[c.work for c in cards[-1]]) for run in runs])
+    ui.serve(f"**/api/runs/{GET_ID}/candidates*", [a_candidate_page(page, run=runs[0]) for page in cards])
+    ui.serve(f"**/api/runs/{GET_ID}/spend", a_spend())
+    ui.serve_image("**/api/candidate-images/*/preview")
+    ui.open(f"#get/{GET_ID}")
+    ui.page.wait_for_selector("#view li.review-card", state="attached")
+
+
+def _repainted(ui, times=2):
+    """Wait until the page has read the cards `times` more times, which it does only to repaint."""
+    needle = f"/api/runs/{GET_ID}/candidates"
+    before = ui.page.evaluate(f"() => performance.getEntriesByType('resource').filter((e) => e.name.includes('{needle}')).length")
+    ui.page.wait_for_function(
+        f"() => performance.getEntriesByType('resource').filter((e) => e.name.includes('{needle}')).length >= {before + times}",
+        timeout=15000,
+    )
+
+
+def test_a_card_decided_while_a_get_looks_stays_where_it_was(ui):
+    def judge(chosen):
+        return a_card(work=chosen("judge"))
+
+    def decided_later(chosen):
+        return a_card(work=chosen("judge", verdict=Verdict.ACCEPTED.value))
+
+    _a_get_still_looking(ui, [[judge], [decided_later]])
+    _repainted(ui)
+
+    card = ui.page.locator("#view li.review-card[data-work='judge']")
+    assert card.is_visible(), "the card decided this visit moved out from under the curator"
+    assert ui.page.locator("#view details.fold-decided").count() == 0
+
+
+def test_a_fold_opened_while_a_get_looks_stays_open(ui):
+    def lost(chosen):
+        return a_card(
+            work=chosen(
+                "lost", resolution_status=ResolutionStatus.UNRESOLVED.value, unresolved_reason=UnresolvedReason.NOT_HELD.value
+            ),
+            shown=None,
+        )
+
+    def judge(chosen):
+        return a_card(work=chosen("judge"))
+
+    _a_get_still_looking(ui, [[judge, lost]])
+    ui.page.click("#view details.fold-found-none > summary")
+    _repainted(ui)
+
+    assert ui.page.locator("#view details.fold-found-none").get_attribute("open") is not None
+    assert ui.page.locator("#view li.review-card[data-work='lost']").is_visible()
+
+
+def test_a_card_whose_search_ends_with_nothing_folds_while_the_get_looks(ui):
+    def searching(chosen):
+        return a_card(work=chosen("lost", resolution_status=ResolutionStatus.PENDING.value), shown=None)
+
+    def found_none(chosen):
+        return a_card(
+            work=chosen(
+                "lost",
+                resolution_status=ResolutionStatus.UNRESOLVED.value,
+                unresolved_reason=UnresolvedReason.NOT_HELD.value,
+            ),
+            shown=None,
+        )
+
+    def judge(chosen):
+        return a_card(work=chosen("judge"))
+
+    _a_get_still_looking(ui, [[judge, searching], [judge, found_none]])
+    _repainted(ui)
+
+    fold = ui.page.locator("#view details.fold-found-none")
+    assert fold.count() == 1
+    assert fold.locator("li.review-card[data-work='lost']").count() == 1

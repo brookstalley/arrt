@@ -989,14 +989,36 @@ export function reviewSection(page, { keptFrom = null } = {}) {
    * dropped: each line opens onto the same cards. Decided at paint, so a card
    * decided now stays where the curator's hand is until the page is next
    * drawn. */
-  const decided = page.works.filter((card) => card.work.decided);
-  const open = page.works.filter((card) => !card.work.decided);
-  const foundNone = open.filter((card) => card.work.resolution_status === "unresolved");
-  const toJudge = open.filter((card) => card.work.resolution_status !== "unresolved");
+  //
+  // A Get still looking redraws this section every poll. So where each card
+  // was put, and whether each fold was open, is read back from the section
+  // being replaced (`keptFrom`): a card decided during this visit stays where
+  // it was, under the curator's hand, and an opened fold stays open. Only a
+  // decision is held back; a search that ends with nothing still folds its
+  // card, since nobody was judging a card with no picture.
+  const placedBefore = new Map();
+  const openBefore = new Set();
+  if (keptFrom) {
+    for (const node of keptFrom.querySelectorAll("li.review-card")) {
+      const fold = node.closest("details.fold");
+      placedBefore.set(node.dataset.work, fold ? fold.dataset.fold : "judge");
+    }
+    for (const fold of keptFrom.querySelectorAll("details.fold[open]")) openBefore.add(fold.dataset.fold);
+  }
+  const placeOf = (card) => {
+    const now = card.work.decided ? "decided" : card.work.resolution_status === "unresolved" ? "found-none" : "judge";
+    const before = placedBefore.get(card.work.work_id);
+    return now === "decided" && before && before !== "decided" ? before : now;
+  };
+  const decided = page.works.filter((card) => placeOf(card) === "decided");
+  const foundNone = page.works.filter((card) => placeOf(card) === "found-none");
+  const toJudge = page.works.filter((card) => placeOf(card) === "judge");
   const offered = toJudge.filter((card) => card.work.provenance === "offered");
   const named = toJudge.filter((card) => card.work.provenance !== "offered");
   const fold = (kind, summary, cards) =>
-    cards.length ? el("details", { class: `fold ${kind}` }, [el("summary", { text: summary }), gridOf(cards)]) : null;
+    cards.length
+      ? el("details", { class: `fold fold-${kind}`, "data-fold": kind, open: openBefore.has(kind) }, [el("summary", { text: summary }), gridOf(cards)])
+      : null;
 
   return [
     // The catalogue grid's own helper: `fetchAllCandidates` returns the
@@ -1028,7 +1050,7 @@ export function reviewSection(page, { keptFrom = null } = {}) {
         gridOf(group.cards),
       ]),
     ),
-    fold("fold-found-none", `${foundNone.length} found no image`, foundNone),
-    fold("fold-decided", `${decided.length} decided`, decided),
+    fold("found-none", `${foundNone.length} found no image`, foundNone),
+    fold("decided", `${decided.length} decided`, decided),
   ];
 }

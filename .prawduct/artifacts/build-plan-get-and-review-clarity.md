@@ -78,7 +78,7 @@ it is decided (hide it, or move it to the end).
 
 - [x] Chunk 01: Ask: one act and a quieter alternative
 - [x] Chunk 02: A Get's page: asked-for and offered, with pictures and counts
-- [ ] Chunk 03: Review: pictures first, "found none" collapsed
+- [x] Chunk 03: Review: pictures first, "found none" collapsed
 - [ ] Chunk 04: Queue's retry says what it retries, and the walk
 
 ### Chunk 01: Ask
