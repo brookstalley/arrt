@@ -10,6 +10,27 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Wall label: does it still look amateur? — added 2026-10-08
+
+**`build-plan-wall-label.md`, all chunks.** Visual change: yes. This is the
+judgement the plan can't make for itself.
+
+Built against a copy of the local `~/samsung-art` library and the synthetic
+corpus. `arrt/tools/ux_walk.py` photographed every screen at phone and desktop
+width in both schemes: no accessibility violations and no console errors. Not
+yet deployed.
+
+- **Look at, on the real library, in both schemes:** Artworks (tiles on a mat,
+  label beneath, rows even), a work's page (picture beside its label,
+  description in the serif, the record as ruled sections), Status, Walls,
+  Themes, Settings. Then compare with the canvas the direction was chosen
+  from: https://claude.ai/artifact/KKGdo4ktsDS32t15yyUpCS.
+- **Check especially:** that the dark scheme reads well in Newsreader (the
+  canvas never drew it), and whether the space each tile reserves for its
+  longest label leaves too much air between rows when every title is short.
+- **Regenerate:** `cd arrt && uv run python tools/ux_walk.py --base-url
+  <the deployment> --out ../.ux-walk/wall-label-deployed`.
+
 ### Walk S7, S9 and S12 on the real library — added 2026-10-08
 
 **`build-plan-lists-settings-and-scale.md` Chunk 11, deferred part.** Live walk.

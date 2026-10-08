@@ -342,3 +342,22 @@ def test_the_picture_sits_beside_its_label_and_the_record_is_ruled_not_boxed(ui,
     assert [h for h in wide["headings"] if h in RECORD] == RECORD
     assert not wide["boxed"]
     assert wide["ruled"]
+
+
+def test_the_description_is_set_in_the_label_serif_at_a_reading_measure(ui, service):
+    work = service.add_artwork(title="Untitled", description="A description. " * 80)
+    # Just under 60rem the label takes the main column's whole width, which is
+    # a little wider than 68ch; on a wide screen the label's own column is
+    # narrower than the cap, so a check there would pass without it.
+    ui.page.set_viewport_size({"width": 959, "height": 900})
+    open_work(ui, work)
+    family, width, ch = ui.page.locator(".facts dd .described").evaluate("""(node) => {
+          const probe = document.createElement('span');
+          probe.textContent = '0';
+          node.append(probe);
+          const ch = probe.getBoundingClientRect().width;
+          probe.remove();
+          return [getComputedStyle(node).fontFamily, node.getBoundingClientRect().width, ch];
+        }""")
+    assert family.strip('"').startswith("Newsreader")
+    assert width <= 68 * ch + 1

@@ -1942,12 +1942,16 @@ th {
 
 /* -- panels, forms, controls ----------------------------------------------- */
 
+/* A section of a page, set off by a rule above it rather than a box around
+   it. A bordered panel on a tinted ground round every part of every page is
+   what made the client read as a form; a rule and space is how a catalogue
+   separates its parts (`design-direction.md` § Component Patterns, Sections).
+   A card is kept only where it is a block of facts and acts about one thing:
+   a theme, a work under review. */
 .panel {
-  background: var(--surface-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-5);
-  margin-bottom: var(--space-5);
+  border-top: 1px solid var(--border-strong);
+  padding: var(--space-4) 0 0;
+  margin-bottom: var(--space-6);
 }
 
 /* `h2`, `h3` or `h4`, one treatment. The rank of a panel's heading depends on
@@ -2072,7 +2076,7 @@ section.wall {
  * same rank of thing — a titled block within a view — and the client has exactly
  * two heading treatments on purpose. It is repeated rather than shared with the
  * rule above: a selector list would tie two blocks that are free to diverge, and
- * `.panel h2` sits inside a bordered surface this one deliberately has not got.
+ * `.panel h2` sits under a section's rule, which this one deliberately has not got.
  *
  * These sections are direct children of the view root, so without a rule here
  * they fall back to browser defaults — the one failure in this bundle that no
@@ -2587,12 +2591,9 @@ dialog.confirm::backdrop {
   margin-bottom: var(--space-8);
 }
 
-.work-head > .panel,
-.work-record > .panel {
-  background: none;
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
+/* The head's two halves are not sections, so they carry no rule. */
+.work-head > .panel {
+  border-top: none;
   padding: 0;
   margin: 0;
 }
@@ -2623,6 +2624,10 @@ dialog.confirm::backdrop {
 /* The description is the label's own voice, so it is set in the label serif,
    larger, at a measure a paragraph reads well at. */
 .work-label dl.facts dd .described {
+  /* A block, because the cap does nothing to an inline span. The label's own
+     column is narrower than this on most screens; the cap is for the band
+     just under 60rem where the label spans the main column. */
+  display: block;
   font: 400 var(--text-lg) / 1.6 var(--font-label);
   color: var(--text-strong);
   max-width: 68ch;
@@ -2636,8 +2641,8 @@ dialog.confirm::backdrop {
 }
 
 .work-record > .panel {
-  border-top: 1px solid var(--border-strong);
-  padding: var(--space-4) 0 var(--space-6);
+  margin: 0;
+  padding-bottom: var(--space-6);
 }
 
 /* A table of sources or renditions needs the page's width: at half of it the

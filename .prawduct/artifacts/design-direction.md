@@ -265,8 +265,14 @@ classes the client never had.*
   carries the specifics and the glyph only the kind of state; a new meaning
   gets a new glyph. **A badge appears only where its value varies**: a badge
   every tile would carry ("native") is left off, and the exceptions show.
-- **Cards** — paper, not UI: 1px border, `--shadow-1`, 4px radius. The elevation is
-  barely there on purpose.
+- **Sections** *(Wall label, 2026-10-08)* — a part of a page (`.panel`) is set off
+  by a `--border-strong` rule above it and space below, never boxed. A bordered
+  panel on a tinted ground round every part of every page was what made the
+  client read as a form. Its heading is the second level (see Headings).
+- **Cards** — kept only where the card is a block of facts and acts about one
+  thing: a theme on the Themes index, a work under review. Paper, not UI: 1px
+  border, `--shadow-1`, 4px radius, elevation barely there on purpose. A work's
+  tile and an artist's poster are the thing itself and are not cards (Tiles).
 - **Tiles** — two densities (Posters, Overview; a Table view beside them) per `information-architecture.md`
   § Information Hierarchy. **Uniform row height in both**, which is a layout
   decision made for a behavioural reason: a grid of art that reflows as images

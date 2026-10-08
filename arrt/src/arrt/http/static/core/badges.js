@@ -128,9 +128,24 @@ export function facts(pairs) {
   for (const [term, value] of pairs) {
     if (value === null || value === undefined || value === "") continue;
     // A node is placed as it is, so a value can be a link; anything else is text.
-    list.append(el("dt", { text: term }), value instanceof Node ? el("dd", {}, [value]) : el("dd", { text: String(value) }));
+    list.append(el("dt", { text: term }), value instanceof Node ? el("dd", {}, [value]) : el("dd", {}, breakableAtSlashes(String(value))));
   }
   return list;
+}
+
+/* Text with a line-break opportunity after every slash. A file path or URL
+ * has none of its own: CSS does not break after "/" before a letter, so on a
+ * phone the stylesheet's `overflow-wrap: anywhere` broke it wherever the
+ * column's edge fell, mid-word as often as not. `<wbr>` adds no text, so the
+ * value reads and copies the same. */
+function breakableAtSlashes(text) {
+  if (!text.includes("/")) return [document.createTextNode(text)];
+  const parts = [];
+  for (const [index, piece] of text.split("/").entries()) {
+    if (index > 0) parts.push(document.createTextNode("/"), document.createElement("wbr"));
+    if (piece) parts.push(document.createTextNode(piece));
+  }
+  return parts;
 }
 
 /* A table that scrolls sideways inside its panel rather than widening the page.

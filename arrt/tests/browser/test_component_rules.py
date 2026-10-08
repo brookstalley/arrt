@@ -67,6 +67,25 @@ def test_every_page_heading_has_the_one_h1_treatment(ui, key):
 
 
 @pytest.mark.parametrize("key", sorted(PAGES))
+def test_every_section_heading_has_the_one_h2_treatment(ui, key):
+    """A section's heading is the second level everywhere: `--text-xl` in the
+    label serif, whichever rank (h2, h3, h4) the document needs there."""
+    ui.open(f"#{key}")
+    ui.page.wait_for_selector("#view h1")
+    ui.page.wait_for_load_state("networkidle")
+    sizes, expected = ui.page.evaluate("""() => {
+          const probe = document.createElement('span');
+          probe.style.fontSize = 'var(--text-xl)';
+          document.body.append(probe);
+          const expected = getComputedStyle(probe).fontSize;
+          probe.remove();
+          const headings = document.querySelectorAll('#view .panel :is(h2, h3, h4), #view .wall-title, #view .offer-group > h2');
+          return [[...headings].map((h) => getComputedStyle(h).fontSize), expected];
+        }""")
+    assert all(size == expected for size in sizes), sizes
+
+
+@pytest.mark.parametrize("key", sorted(PAGES))
 def test_an_empty_page_uses_the_one_empty_state(ui, key):
     """An empty page leads with a sentence, not a heading, in the shared shape;
     and a page that is not empty does not show one."""

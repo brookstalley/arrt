@@ -62,6 +62,35 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-08: Wall label, chunk 05: ruled sections everywhere, and the walk
+
+<!-- prawduct: scope=wall-label -->
+
+**Why:** `build-plan-wall-label.md` chunk 05.
+
+**What:**
+- `.panel` is a section set off by a `--border-strong` rule above it, with no
+  box, ground or radius, on every page. The work page's own overrides shrink to
+  what is specific to it. Theme cards and review cards keep their cards.
+  `design-direction.md` § Component Patterns gains *Sections*, and *Cards*
+  says where a card is still used.
+- Fact values that hold a path or URL get a line-break opportunity after each
+  slash (`<wbr>`, in `facts()` in `core/badges.js`). CSS does not break after
+  "/" before a letter, so on a phone `overflow-wrap: anywhere` broke paths
+  wherever the column's edge fell. Removing the panels' side padding moved
+  that edge into the middle of a word on Status, and
+  `test_the_health_page_s_facts_break_between_words` went red. It had been
+  passing only because of where the edge happened to fall.
+- The work page's description cap (68ch) never applied, because the
+  description is an inline span. It is now a block.
+- `arrt/tools/ux_walk.py` walked a copy of the local library: 100 captures,
+  no accessibility violations, no console errors.
+
+**Tests:** New: `test_every_section_heading_has_the_one_h2_treatment` (watched
+failing with the old h2 size), the description's serif and measure at 959px
+(watched failing without the cap: 687px against 673px), and a failed work's
+page keeping the layout with its failure in the Master image section.
+
 ## 2026-10-08: Wall label, chunk 04: a work's page
 
 <!-- prawduct: scope=wall-label -->
