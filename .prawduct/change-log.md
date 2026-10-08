@@ -62,6 +62,30 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-08: Wall label, chunk 02: the shell
+
+<!-- prawduct: scope=wall-label -->
+
+**Why:** `build-plan-wall-label.md` chunk 02.
+
+**What:**
+- The sidebar's edge is painted on `.shell`, which is as tall as the page. As
+  a border on the sticky sidebar it stopped one window down on any longer page.
+  The sidebar and the top bar now sit on the page's ground. The current page is
+  marked with a 2px accent bar, and sub-pages are set at `--text-sm`.
+- The search's magnifier, inside the field, is the form's submit button,
+  named "Search". On a phone the bar stays on one row as before, the magnifier
+  is hidden there as the button was, and the field's text starts at its edge.
+- The status indicator is its glyph and words in the state's colour, with no
+  box, and is still a link to System › Status. The brand is set at
+  `--text-2xl` (`--text-xl` on a phone) and never shrinks.
+
+**Tests:** New: `test_the_shell.py`. The sidebar-edge test reads the pixel at
+the sidebar's edge near the bottom of a page longer than the window. It was
+watched failing against the old stylesheet, where it read the ground instead
+of the border. The search-button test passes on both the old and new shells,
+on purpose: it pins the accessible name across the change.
+
 ## 2026-10-08: Wall label, chunk 01: Newsreader and Instrument Sans, self-hosted
 
 <!-- prawduct: scope=wall-label -->

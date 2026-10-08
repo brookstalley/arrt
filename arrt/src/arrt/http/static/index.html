@@ -24,7 +24,13 @@
       <form class="search" id="search-form" role="search">
         <label class="visually-hidden" for="search">Search artworks</label>
         <input type="search" id="search" name="q" placeholder="Search artworks" autocomplete="off" />
-        <button class="action quiet" type="submit">Search</button>
+        <!-- The magnifier inside the field is the submit button: Enter is not
+             discoverable to everyone, so there is still something to press, and
+             its name is the word a screen reader announces. -->
+        <button class="search-submit" type="submit">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+          <span class="visually-hidden">Search</span>
+        </button>
       </form>
       <!-- Always present, and never silent: reads "Well" or names what is wrong,
            and opens System › Status. It stays beside the sidebar's System badge

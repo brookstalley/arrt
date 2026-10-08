@@ -275,7 +275,7 @@ a {
    be pushed off the page. */
 header.topbar {
   border-bottom: 1px solid var(--border);
-  background: var(--surface-1);
+  background: var(--surface-0);
   padding: var(--space-3) var(--space-5);
   display: flex;
   flex-wrap: wrap;
@@ -285,9 +285,12 @@ header.topbar {
 
 .topbar .brand {
   margin: 0;
-  font: 400 var(--text-xl) / 1.2 var(--font-label);
-  letter-spacing: 0.01em;
+  font: 500 var(--text-2xl) / 1.1 var(--font-label);
+  letter-spacing: -0.01em;
   color: var(--text-strong);
+  /* The name never shrinks: the elements after it do (§ Spacing & Layout). A
+     brand allowed to shrink is drawn past its own box, under the search. */
+  flex: none;
   /* Sits above the sidebar's own column, so the two read as one strip. */
   min-width: calc(var(--sidebar) - var(--space-5) - var(--space-4));
 }
@@ -311,8 +314,32 @@ header.topbar {
   display: flex;
   gap: var(--space-2);
   align-items: center;
-  flex: 0 1 auto;
+  flex: 0 1 32rem;
   min-width: 0;
+}
+
+/* The magnifier, laid over the field's left edge. It is the form's submit
+   button, so it carries a hover and a focus ring like any other control. */
+.search-submit {
+  position: absolute;
+  left: var(--space-1);
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.search-submit:hover {
+  color: var(--text-strong);
 }
 
 /* The dropdown under the search box: library matches, then the row that hands
@@ -406,12 +433,15 @@ header.topbar {
 
 .topbar .search input {
   font: var(--text-sm) / 1.4 var(--font-ui);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3) var(--space-2) 2.5rem;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
-  background: var(--surface-0);
+  background: var(--surface-1);
   color: var(--text);
+  width: 100%;
   min-width: 12rem;
+  height: 2.5rem;
+  box-sizing: border-box;
 }
 
 /* Glyph, words and colour — three carriers, of which colour is the last. The
@@ -426,23 +456,27 @@ header.topbar {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
-  padding: var(--space-2) var(--space-3);
+  border: none;
+  padding: var(--space-2) 0;
   font: var(--text-sm) / 1.2 var(--font-ui);
   cursor: pointer;
-  background: var(--surface-0);
+  background: none;
   color: var(--text);
   text-align: left;
 }
 
+/* No box: a box around the status is a button, and this is a link to a page.
+   Its glyph and its words still carry the state with the colour. */
+.status-indicator:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .status-indicator[data-state="well"] {
-  background: var(--good-quiet);
   color: var(--good);
 }
 
 .status-indicator[data-state="unwell"] {
-  background: var(--warn-quiet);
   color: var(--warn);
 }
 
@@ -461,19 +495,29 @@ header.topbar {
   cursor: pointer;
 }
 
+/* The sidebar's edge is drawn by the shell, not the sidebar. The sidebar is
+   sticky, so it is only as tall as the viewport, and a rule drawn on it stopped
+   partway down any page longer than the window. The shell is as tall as the
+   page, so a one-pixel line painted on it at the sidebar's width runs the
+   whole way. */
 .shell {
   display: grid;
   grid-template-columns: var(--sidebar) minmax(0, 1fr);
   align-items: start;
+  min-height: calc(100vh - var(--masthead));
+  background-image: linear-gradient(var(--border), var(--border));
+  background-size: 1px 100%;
+  background-position: calc(var(--sidebar) - 1px) 0;
+  background-repeat: no-repeat;
 }
 
+/* No background of its own on a wide screen: it sits on the page's ground,
+   and a fill would cover the shell's rule beside it. The phone drawer gives it
+   one, since there it lies over the page. */
 nav.sidebar {
   position: sticky;
   top: 0;
-  min-height: calc(100vh - var(--masthead));
-  background: var(--surface-1);
-  border-right: 1px solid var(--border);
-  padding: var(--space-4) 0;
+  padding: var(--space-5) 0;
 }
 
 nav.sidebar ul {
@@ -487,10 +531,10 @@ nav.sidebar a {
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-2) var(--space-5);
-  color: var(--text-muted);
-  font: var(--text-sm) / 1.4 var(--font-ui);
+  color: var(--text);
+  font: var(--text-md) / 1.4 var(--font-ui);
   text-decoration: none;
-  border-left: 3px solid transparent;
+  border-left: 2px solid transparent;
 }
 
 nav.sidebar a:hover {
@@ -519,6 +563,7 @@ nav.sidebar li.section[data-open] > ul.pages {
 
 nav.sidebar ul.pages a {
   padding-left: calc(var(--space-5) + 1.25em + var(--space-3));
+  font-size: var(--text-sm);
 }
 
 /* The page you are on is marked three ways — weight, a rule down its left edge,
@@ -527,7 +572,6 @@ nav.sidebar ul.pages a {
 nav.sidebar a[aria-current="page"] {
   color: var(--text-strong);
   font-weight: 600;
-  background: var(--surface-0);
   border-left-color: var(--accent);
 }
 
@@ -548,7 +592,6 @@ nav.sidebar a[aria-current="page"] {
 .awaiting-count {
   display: inline-block;
   padding: 0 var(--space-2);
-  border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
   background: var(--surface-2);
   color: var(--text-strong);
@@ -584,8 +627,13 @@ nav.sidebar a[aria-current="page"] {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .shell {
+    background-image: none;
+  }
+
   nav.sidebar {
     display: none;
+    background: var(--surface-1);
     position: fixed;
     top: 0;
     bottom: 0;
@@ -2763,6 +2811,12 @@ input[type="checkbox"] {
   .topbar .search input {
     min-width: 0;
     width: 100%;
+    /* The magnifier is hidden below, so the field's text starts at its edge. */
+    padding-left: var(--space-3);
+  }
+
+  .topbar .brand {
+    font-size: var(--text-xl);
   }
 
   .topbar .search button[type="submit"] {

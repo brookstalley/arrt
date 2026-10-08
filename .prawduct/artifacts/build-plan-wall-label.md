@@ -138,7 +138,7 @@ the real library.
 ## Status
 
 - [x] Chunk 01: Typefaces and type scale
-- [ ] Chunk 02: The shell
+- [x] Chunk 02: The shell
 - [ ] Chunk 03: The Artworks grid
 - [ ] Chunk 04: A work's page
 - [ ] Chunk 05: Ruled sections everywhere, and the walk
