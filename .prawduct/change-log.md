@@ -75,8 +75,8 @@ setting, imperial by default; the first measurement only, with its qualifier.
   the first measurement of a museum's dimensions string and states it in one
   system, half rounding up, preferring the source's own figures in that system;
   a value under one unit keeps a decimal (never below 0.1); a first measurement
-  it cannot wholly read (none, two in one system, a figure outside any) comes
-  back unchanged. A bare fraction is one value, and a non-breaking space inside
+  it cannot wholly read comes back unchanged (the cases: `accessibility-spec.md`
+  § Dimensions on the label). A bare fraction is one value, and a non-breaking space inside
   a mixed number parses. No model: every string in the
   library follows a pattern a parser reads.
 - `LABEL_UNITS` (`config.py`, `.env.example`) reaches `LibraryFacade` through
