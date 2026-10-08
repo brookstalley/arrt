@@ -18,6 +18,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import Final
 
+from arrt.library.dimensions import Units
 from arrt.library.events import WorkChange, WorkChanged, WorkChangedHandler
 from arrt.library.readiness import (
     Media,
@@ -84,9 +85,11 @@ __all__ = [
 class LibraryFacade:
     """What Programming may ask the Library."""
 
-    def __init__(self, catalogue: CatalogueService, discovery: DiscoveryService) -> None:
+    def __init__(self, catalogue: CatalogueService, discovery: DiscoveryService, *, label_units: Units) -> None:
         self._catalogue = catalogue
         self._discovery = discovery
+        #: The system every label this facade sets states dimensions in.
+        self._label_units = label_units
 
     def playable(self, work_ids: Iterable[str]) -> dict[str, Playability]:
         """Whether each work can go on a wall, keyed by id, in the order asked.
@@ -111,7 +114,7 @@ class LibraryFacade:
         answers: dict[str, Mapping[str, str | None] | None] = {}
         for work_id in dict.fromkeys(work_ids):
             detail = self._catalogue.find_artwork(work_id)
-            answers[work_id] = None if detail is None else label_of(detail.artwork, detail.artist)
+            answers[work_id] = None if detail is None else label_of(detail.artwork, detail.artist, units=self._label_units)
         return answers
 
     def accepted_work_ids(self) -> Sequence[str]:
@@ -174,7 +177,7 @@ class LibraryFacade:
         # Hashed on first need for a render recorded before hashes were, so the
         # answer can say where its bytes are and how to check them.
         rendition = self._catalogue.with_content(inputs.tv_rendition) if inputs.tv_rendition else None
-        playable = playable_from(replace(inputs, tv_rendition=rendition))
+        playable = playable_from(replace(inputs, tv_rendition=rendition), units=self._label_units)
         if playable.media is None:
             # Said here, where the gap is decided: the work still reaches a wall
             # on the file channel, which reads `render_path`, and a Player on HTTP

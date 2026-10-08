@@ -27,6 +27,7 @@ from arrt.config import (
     DEFAULT_DISCOVERY_MODEL,
     DEFAULT_DISCOVERY_SEARCH_RESULTS,
     DEFAULT_INPUT_COST_USD_PER_MTOK,
+    DEFAULT_LABEL_UNITS,
     DEFAULT_MAT_BOTTOM_WEIGHT,
     DEFAULT_MAT_WIDTH_INCHES,
     DEFAULT_MAX_IMAGE_BYTES,
@@ -50,6 +51,7 @@ from arrt.config import (
     DEFAULT_TV_PANEL_WIDTH_PX,
     Settings,
 )
+from arrt.library.dimensions import Units
 from arrt.library.discovery.phase_one import OpenRouterEngine
 from arrt.library.facade import LibraryFacade
 from arrt.library.registry import RegistrySimilar
@@ -94,6 +96,7 @@ def _defaults(art_root, **overrides) -> Settings:
             preview_max_bytes=DEFAULT_PREVIEW_MAX_BYTES,
             rotation_interval_seconds=DEFAULT_ROTATION_INTERVAL_SECONDS,
             rotation_shuffle=DEFAULT_ROTATION_SHUFFLE,
+            label_units=DEFAULT_LABEL_UNITS,
             backup_dir=None,
             backup_interval_seconds=DEFAULT_BACKUP_INTERVAL_SECONDS,
             backup_keep=DEFAULT_BACKUP_KEEP,
@@ -184,7 +187,7 @@ def test_the_plane_moves_the_catalogue_onto_walls_before_it_serves(tmp_path, mon
             catalogue = CatalogueService(observer)
             display = DisplayService(
                 observer,
-                LibraryFacade(catalogue, DiscoveryService(SqliteDiscovery(opened), catalogue)),
+                LibraryFacade(catalogue, DiscoveryService(SqliteDiscovery(opened), catalogue), label_units=Units.IMPERIAL),
                 DisplaySettings(art_root=art_root, rotation_interval_seconds=180, shuffle=True),
             )
             wall = observer.list_walls()[0]
@@ -772,6 +775,24 @@ def test_startup_builds_the_services_over_the_plugins_it_loaded(tmp_path, monkey
     assert contexts[0].preview_max_bytes == 4321
     assert seen["route"] == "artic", "the roster did not reach acquisition"
     assert seen["collection"] == "artic", "the roster's collection did not reach the conversation"
+
+
+def test_labels_state_dimensions_in_the_deployments_units(tmp_path, monkeypatch):
+    """Through `main`, at metric, which is not the default, so a dropped argument shows."""
+    art_root = tmp_path / "art"
+    _stub_settings(monkeypatch, art_root, label_units=Units.METRIC)
+    seen = {}
+
+    def capture(services, **kwargs):
+        seen["units"] = services.clients._library._label_units
+        return object()
+
+    monkeypatch.setattr(entry_point, "create_app", capture)
+    monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
+
+    entry_point.main()
+
+    assert seen["units"] is Units.METRIC, "LABEL_UNITS did not reach the labels"
 
 
 def test_startup_prices_a_conversation_turn_at_the_deployments_settings(tmp_path, monkeypatch):

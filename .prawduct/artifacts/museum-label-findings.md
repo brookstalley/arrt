@@ -72,6 +72,17 @@ and the fields below it are a details list. It is not a wall label, and this
 product sets a wall label. Recorded here because it is the first thing a
 re-investigation will find.
 
+## Units on the label's dimensions
+
+*(2026-10-08, the owner's ruling; settles #142.)* Museums state dimensions in
+both systems, in one, or in their own house style (`68 x 68 cm`, `40 x 30,2 cm`,
+`w203 x h432 x d127 mm`, `h53 x w44.5 in`). **The label owes the visitor one
+system, not the source's words:** the first measurement, in the deployment's
+`LABEL_UNITS`, rounded to whole units, the source's own figures preferred and
+the other system converted when it is all the source gave. The stored string
+stays the source's. The rule and its edge cases: `accessibility-spec.md`
+§ Dimensions on the label.
+
 ## Where each source puts the maker
 
 **The two collections this product draws on model a culture-attributed work

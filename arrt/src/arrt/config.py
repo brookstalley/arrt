@@ -19,6 +19,7 @@ from typing import Final
 
 from dotenv import load_dotenv
 
+from arrt.library.dimensions import Units
 from arrt.library.discovery.images import DEFAULT_PREVIEW_MAX_BYTES
 from arrt.library.services.conversation import ConversationPricing
 from arrt.library.services.display_fit import ArtworkBox
@@ -144,6 +145,10 @@ DEFAULT_PORT: Final[int] = 8770
 #: would be a regression nobody asked for.
 DEFAULT_ROTATION_INTERVAL_SECONDS: Final[int] = 180
 DEFAULT_ROTATION_SHUFFLE: Final[bool] = True
+#: The system a label states a work's dimensions in. Imperial because the
+#: reference wall's household reads inches; a metric household sets
+#: `LABEL_UNITS=metric`.
+DEFAULT_LABEL_UNITS: Final[Units] = Units.IMPERIAL
 
 #: How often the catalogue is backed up when `BACKUP_DIR` is set: daily, as
 #: `operational-spec.md` § Backup and Restore plans, plus once at every start.
@@ -386,6 +391,9 @@ class Settings:
     wall_name: str
     rotation_interval_seconds: int
     rotation_shuffle: bool
+    #: Which system every label states a work's dimensions in, rounded to whole
+    #: units (`library/dimensions.py`).
+    label_units: Units
     #: Where the catalogue's backups go, or None when this deployment takes none
     #: (the health panel then says no backup has been recorded). A directory on
     #: storage other than the art root's, so losing one does not lose the other.
@@ -670,6 +678,7 @@ class Settings:
             wall_name=os.environ.get("WALL_NAME") or DEFAULT_WALL_NAME,
             rotation_interval_seconds=_positive_int("ROTATION_INTERVAL_SECONDS", DEFAULT_ROTATION_INTERVAL_SECONDS),
             rotation_shuffle=_flag("ROTATION_SHUFFLE", default=DEFAULT_ROTATION_SHUFFLE),
+            label_units=_units("LABEL_UNITS", DEFAULT_LABEL_UNITS),
             backup_dir=Path(os.environ["BACKUP_DIR"]) if os.environ.get("BACKUP_DIR") else None,
             backup_interval_seconds=_positive_int("BACKUP_INTERVAL_SECONDS", DEFAULT_BACKUP_INTERVAL_SECONDS),
             backup_keep=_positive_int("BACKUP_KEEP", DEFAULT_BACKUP_KEEP),
@@ -839,6 +848,17 @@ def _priced(name: str, default: str) -> Decimal:
     if value < 0:
         raise ConfigError(f"{name} is a price and cannot be negative, got {value}. Check .env.")
     return value
+
+
+def _units(name: str, default: Units) -> Units:
+    """Read a system of units, refusing anything that is not one by name."""
+    raw = os.environ.get(name)
+    if not raw:
+        return default
+    try:
+        return Units(raw.strip().lower())
+    except ValueError as exc:
+        raise ConfigError(f"{name} must be imperial or metric, got {raw!r}. Check .env.") from exc
 
 
 def _flag(name: str, *, default: bool) -> bool:

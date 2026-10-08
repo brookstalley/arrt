@@ -39,6 +39,7 @@ from arrt.config import (
     DEFAULT_CONVERSATION_INPUT_TOKENS,
     DEFAULT_CONVERSATION_MAX_OUTPUT_TOKENS,
     DEFAULT_CONVERSATION_OUTPUT_COST_USD_PER_MTOK,
+    DEFAULT_LABEL_UNITS,
     DEFAULT_MAT_IMAGE_MAX_EDGE,
     DEFAULT_MAX_IMAGE_BYTES,
     DEFAULT_MIN_FREE_BYTES,
@@ -60,6 +61,7 @@ from arrt.library.acquisition.queue import AcquisitionQueue
 from arrt.library.acquisition.service import AcquisitionService, AcquisitionSettings
 from arrt.library.acquisition.transport import no_transport
 from arrt.library.acquisition.urls import Resolver, check_fetchable
+from arrt.library.dimensions import Units
 from arrt.library.discovery.conversation import NO_CONVERSATION_KEY, ConversationEngine, UnavailableConversation
 from arrt.library.discovery.engine import DiscoveryEngine
 from arrt.library.discovery.openrouter import KeyStatus
@@ -232,6 +234,9 @@ class Services:
         artwork_box: ArtworkBox,
         engine: DiscoveryEngine,
         discovery_settings: DiscoverySettings,
+        #: The system every label states a work's dimensions in. Defaulted for the
+        #: suites, which set no deployment; `main` passes `LABEL_UNITS`.
+        label_units: Units = DEFAULT_LABEL_UNITS,
         acquisition: AcquisitionSettings | None = None,
         open_stream: StreamOpener | None = None,
         #: How a hostname becomes addresses for the fetch policy. Defaults to the
@@ -304,7 +309,7 @@ class Services:
         )
         # Discovery before the facade, because the facade answers where a Get
         # sent its accepted works, and only the run knows.
-        library = LibraryFacade(catalogue_service, discovery_service)
+        library = LibraryFacade(catalogue_service, discovery_service, label_units=label_units)
         # The same open file passed as Programming's store: one object serves
         # both protocols until Programming's tables get a file of their own.
         display_service = DisplayService(catalogue, library, display_settings)

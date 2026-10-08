@@ -13,6 +13,7 @@ from dataclasses import replace
 import pytest
 
 from arrt.library import readiness
+from arrt.library.dimensions import Units
 from arrt.library.facade import UnplayableReason
 from arrt.library.readiness import not_in_catalogue
 from arrt.persistence.records import (
@@ -528,7 +529,7 @@ def test_an_unrendered_work_cannot_be_made_into_an_entry(service):
     inputs = readiness.WorkInputs(artwork=work, artist=None, original=None, tv_rendition=None, mat_color=None)
 
     with pytest.raises(ValueError, match="no television render"):
-        readiness.playable_from(inputs)
+        readiness.playable_from(inputs, units=Units.IMPERIAL)
 
 
 def test_building_for_a_wall_with_nothing_hanging_is_refused_rather_than_writing_an_empty_manifest(display, wall_id):
