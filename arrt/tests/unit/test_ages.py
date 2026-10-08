@@ -76,37 +76,31 @@ def run(driver: str) -> object:
 
 
 def test_every_age_reads_as_the_server_reads_it():
-    said = run(
-        f"""
+    said = run(f"""
         const module = await import({json.dumps(AGES_MODULE.as_uri())});
         process.stdout.write(JSON.stringify({json.dumps(AGES)}.map((age) => module.ago(age))));
-        """
-    )
+        """)
     assert said == [ago(age) for age in AGES]
 
 
 def test_a_half_rounds_to_even_as_python_does():
     """The case the port exists to get right, named so a regression says what it is."""
-    said = run(
-        f"""
+    said = run(f"""
         const module = await import({json.dumps(AGES_MODULE.as_uri())});
         process.stdout.write(JSON.stringify([module.ago(150), module.ago(210)]));
-        """
-    )
+        """)
     assert said == ["2 minutes ago", "4 minutes ago"]
 
 
 def screen_states(ages: list[float | None]) -> list[str]:
     """`screenState` for a report of each age listing hdmi-a-1 as connected."""
-    return run(
-        f"""
+    return run(f"""
         const module = await import({json.dumps(OUTPUTS_MODULE.as_uri())});
         const ages = {json.dumps(ages)};
         const outputs = [{{ name: "hdmi-a-1", kind: "framebuffer", connected: true, screen: [1920, 1080] }}];
         process.stdout.write(JSON.stringify(ages.map((age) =>
             module.screenState({{ absent: false, problem: null, age_seconds: age, outputs }}, "hdmi-a-1"))));
-        """
-    )
+        """)
 
 
 def test_a_report_past_three_heartbeats_is_stale_and_one_at_the_threshold_is_not():
@@ -118,12 +112,11 @@ def test_a_report_from_the_future_is_said_as_it_is_not_called_stale():
 
 
 def test_a_stale_line_states_the_age_in_the_servers_words():
-    line = run(
-        f"""
+    line = run(f"""
         const module = await import({json.dumps(OUTPUTS_MODULE.as_uri())});
-        process.stdout.write(JSON.stringify(module.wallScreenLine("Hall Pi", "hdmi-a-1", module.STALE, {{ age_seconds: 432000 }})));
-        """
-    )
+        const line = module.wallScreenLine("Hall Pi", "hdmi-a-1", module.STALE, {{ age_seconds: 432000 }});
+        process.stdout.write(JSON.stringify(line));
+        """)
     assert line == (
         f"Assigned to Hall Pi on hdmi-a-1. Hall Pi last reported {ago(432000)}, so whether a screen is there now is not known."
     )

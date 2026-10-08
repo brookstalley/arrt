@@ -154,8 +154,9 @@ def test_the_take_down_note_is_said_once_however_many_walls_are_empty(ui, servic
 def test_each_walls_panels_nest_under_that_wall_rather_than_beside_it(ui, a_theme, services):
     """Two hung walls, and a reader navigating by heading can still tell the rooms apart.
 
-    The wall view renders one section per wall, each with its own Showing / Not
-    showing / How it rotates panels. When every one of those was an `h2` the
+    The wall view renders one section per wall, each with its own Not showing /
+    How it rotates panels (a third, Showing, left the card when it began leading
+    with the work on the wall). When every one of those was an `h2` the
     single-wall case read correctly by accident — with two walls hung it is six
     sibling headings in a row and no structural signal for which counts belong to
     which room. Asserted rather than left to the eye because nothing else
@@ -174,13 +175,14 @@ def test_each_walls_panels_nest_under_that_wall_rather_than_beside_it(ui, a_them
     ui.open("#walls")
     ui.page.wait_for_selector("h2")
 
-    # One h2 per wall, and every panel heading a rank below it.
-    assert sorted(ui.page.locator("h2").all_inner_texts()) == ["Study: Late night", "The wall: Late night"]
+    # One h2 per wall, and every panel heading a rank below it. The theme is on
+    # the line under the heading now, not in it.
+    assert sorted(ui.page.locator("h2").all_text_contents()) == ["Study", "The wall"]
     assert ui.page.locator("h2.wall-title").count() == 2
     assert ui.page.locator(".panel h2").count() == 0
-    # Three per wall: the manifest's three panels.
-    assert ui.page.locator(".panel h3").count() == 6
-    assert ui.page.locator("section.wall").nth(0).locator(".panel h3").count() == 3
+    # Two per wall: the setup's two panels.
+    assert ui.page.locator(".panel h3").count() == 4
+    assert ui.page.locator("section.wall").nth(0).locator(".panel h3").count() == 2
     # And with nothing empty there is no take-down note: a caption with nothing
     # to caption. This is the other half of the guard the sibling test above
     # exercises, and without it the guard could be deleted with the suite green.
