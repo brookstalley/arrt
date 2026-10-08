@@ -141,6 +141,9 @@ Nothing here is built for it, and these rules keep it possible:
    outputs; the server maps a wall's labels; a label renderer runs per label output
    on any client; `EPD_DEVICE`'s refusal without a Frame goes
    (`postarr/src/postarr/config.py`).
+   *(2026-10-08: built by `build-plan-displays-and-label-outputs.md`, which also
+   makes displays server records. #181 blocks only that plan's last chunk, on the
+   wall; the rest builds against the panel double.)*
 3. **Caption mode** (wave 6+, with the Player's compositor).
 
 ## Open questions

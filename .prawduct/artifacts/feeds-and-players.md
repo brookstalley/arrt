@@ -280,7 +280,10 @@ everything above the paint call.
 
 Measured or sourced 2026-10-08 in `apple-platform-findings.md`, which carries
 the evidence and labels each fact; this section keeps only what the design
-depends on.
+depends on. **Every fact still marked unverified there is verified on hardware
+before its platform's plan is written**: for tvOS, the connection to a Frame;
+for macOS, the saver's local-network permission and an external TV's reported
+size.
 
 - **Apple TV.** tvOS does not let third-party apps be screensavers, so the
   Player is a foreground app. **A backgrounded app is suspended and goes

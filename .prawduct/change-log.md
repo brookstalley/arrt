@@ -85,7 +85,13 @@ builder's recollection until a spike measured or sourced them.
 - `feeds-and-players.md` § Platforms corrected from it: a backgrounded tvOS app
   goes silent rather than reporting `in_use`; tvOS has no local-network permission
   and the Frame's certificate is the obstacle; the macOS saver host must be torn
-  down on `willstop`, and whether a saver can reach the LAN is its largest risk.
+  down on `willstop`, and whether a saver can reach the LAN is its largest risk;
+  `UIScreen` gives no physical size, so the relative mat width applies on Apple
+  TV; CoreText can do the label's measuring; and unverified facts are verified
+  on hardware before each platform's plan is written.
+- `labels-and-surfaces.md` § What changes, in order: #181 now blocks only the
+  plan's last chunk, the operator's.
+- `apple-platform-findings.md` registered in `project-state.yaml`.
 
 ## 2026-10-08: Feeds and players: one Player core for private walls and public channels
 
