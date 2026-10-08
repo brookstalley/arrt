@@ -97,9 +97,9 @@ class LabelSurface(ABC):
         which for e-paper is "the driver did not raise", since the panel offers
         no read-back.
 
-        **May block for seconds.** A full-frame e-paper refresh was measured at
-        1.5–1.9 s, and there is no partial refresh on that driver — every change,
-        even one character, is a whole frame. Callers must not run this anywhere
+        **May block for a second or more.** A full-frame e-paper refresh is the
+        cost (measured in `platform-and-dependency-findings.md` § The e-paper panel), and there is no partial refresh on that
+        driver — every change, even one character, is a whole frame. Callers must not run this anywhere
         that a second of latency matters, and specifically not on the television
         client's reader task.
         """

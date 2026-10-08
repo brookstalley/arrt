@@ -109,7 +109,7 @@ signal, not a heartbeat field on the heartbeat's cadence:
   read;
 - a label renderer polls a small label document per label output (about once a
   second, with an ETag) and redraws only when it changes, since an e-paper redraw
-  flashes for 1.5 to 1.9 s.
+  flashes for over half a second (0.57 s measured).
 
 ### Captions in the image (not designed; kept open)
 
