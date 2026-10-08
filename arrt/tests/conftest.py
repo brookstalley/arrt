@@ -150,27 +150,36 @@ def seeded_titles() -> tuple[str, ...]:
 
 @pytest.fixture
 def catalogue_file(tmp_path) -> Iterator[SqliteDurableStore]:
-    """An empty catalogue file, with every table both adapters read.
-
-    **No run or look is still writing when it closes.** The runner and the look
-    service start their work on daemon threads and return at once, which is the
-    contract. A test that returns while one still writes leaves teardown to close
-    the database under it; the thread then fails on a closed store, reported as an
-    unhandled-thread error against whichever test is running by then (#198, #324).
-    The join is here, at the one place the file closes, rather than in a `spawn`
-    each `services` override has to remember to pass: #198 put it in such a
-    fixture, and the overrides that did not ask for it were where #324 came from.
-    """
+    """An empty catalogue file, with every table both adapters read."""
     opened = open_catalogue_file(tmp_path / "catalogue.sqlite")
     yield opened
-    _join_worker_threads()
     opened.close()
+
+
+@pytest.fixture
+def quiet_catalogue_file(catalogue_file: SqliteDurableStore) -> Iterator[SqliteDurableStore]:
+    """The catalogue file, with no run or look still writing to it when it closes.
+
+    The runner and the look service start their work on daemon threads and
+    return at once, which is the contract. A test that returns while one still
+    writes leaves teardown to close the database under it; the thread then fails
+    on a closed store, reported as an unhandled-thread error against whichever
+    test is running by then. Pytest tears a fixture down before the one it
+    depends on, so joining here runs before `catalogue_file` closes, and a module
+    that overrides `catalogue_file` keeps the join: both stores are built from
+    this fixture, not from the file directly.
+    """
+    yield catalogue_file
+    _join_worker_threads()
 
 
 #: The threads that write to the catalogue on a run's or a look's behalf, by the
 #: names their own modules start them under.
 _WORKER_THREAD_NAMES: Final = frozenset({RUN_THREAD_NAME, LOOK_THREAD_NAME})
 _WORKER_JOIN_SECONDS: Final = 20.0
+#: Threads one test has already failed for. Still alive, they would otherwise
+#: fail every later test in the same process after another full wait.
+_abandoned: set[int] = set()
 
 
 def _join_worker_threads() -> None:
@@ -185,23 +194,27 @@ def _join_worker_threads() -> None:
         working = [
             thread
             for thread in threading.enumerate()
-            if thread.name in _WORKER_THREAD_NAMES and thread is not threading.current_thread() and thread.is_alive()
+            if thread.name in _WORKER_THREAD_NAMES
+            and thread is not threading.current_thread()
+            and thread.is_alive()
+            and thread.ident not in _abandoned
         ]
         if not working:
             return
         remaining = deadline - time.monotonic()
         if remaining <= 0:
+            _abandoned.update(thread.ident for thread in working if thread.ident is not None)
             pytest.fail(
                 f"run or look threads still working {_WORKER_JOIN_SECONDS:.0f} seconds after the test: "
-                f"{[thread.name for thread in working]}",
+                f"{[f'{thread.name} ({thread.ident})' for thread in working]}",
                 pytrace=False,
             )
         working[0].join(timeout=remaining)
 
 
 @pytest.fixture
-def store(catalogue_file: SqliteDurableStore) -> SqliteCatalogue:
-    return SqliteCatalogue(catalogue_file)
+def store(quiet_catalogue_file: SqliteDurableStore) -> SqliteCatalogue:
+    return SqliteCatalogue(quiet_catalogue_file)
 
 
 @pytest.fixture
@@ -220,8 +233,8 @@ def wall_id(store: SqliteCatalogue) -> str:
 
 
 @pytest.fixture
-def discovery_store(catalogue_file: SqliteDurableStore) -> SqliteDiscovery:
-    return SqliteDiscovery(catalogue_file)
+def discovery_store(quiet_catalogue_file: SqliteDurableStore) -> SqliteDiscovery:
+    return SqliteDiscovery(quiet_catalogue_file)
 
 
 @pytest.fixture
