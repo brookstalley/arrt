@@ -157,7 +157,7 @@ back a version per wall under Clients.
 - [x] Chunk 08: Queue at thousands
 - [x] Chunk 09: Topics before any are held
 - [x] Chunk 10: Status sources table
-- [ ] Chunk 11: Walk and re-photograph
+- [x] Chunk 11: Walk and re-photograph
 
 ### Chunk 01: Component rules (#287)
 
@@ -233,6 +233,8 @@ Done when:
    (new `core/selecting.js`; `core/selection.js` was already the hang-a-selection act): a Select toggle labelled with its state, Select all,
    and a fixed action bar with every action valid for the selection.
 2. Add to theme offers New theme…, so S7 runs without leaving Artworks.
+   *Descoped at the boundary review (2026-10-08):* on Search and a topic page
+   only works not held can be ticked; held works there are #317.
 3. Select all on a filter larger than what has loaded acts on every match (the
    server is given the filter, not just the loaded ids). A test checks this
    with a filter larger than one page.

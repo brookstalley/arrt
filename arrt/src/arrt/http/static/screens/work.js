@@ -947,7 +947,10 @@ function wallConsequence(names) {
   const walls = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
   const showing = names.length === 1 ? "is showing" : "are showing";
   const losing = names.length === 1 ? "loses" : "lose";
-  return `${walls} ${showing} this work, and ${losing} it the next time ${names.length === 1 ? "its theme is" : "their themes are"} hung. Re-hanging a wall's current theme does that now. It stays in the theme, and Restore brings it back.`;
+  // Now, not at the next hang: Programming takes an archived work off every
+  // published manifest that carries it as the archive lands (removals
+  // republish, additions wait; `tests/unit/test_reconciliation.py`).
+  return `${walls} ${showing} this work, and ${losing} it now. It stays in the theme, and Restore brings it back.`;
 }
 
 /* The artist's name as the way to their page, `#artist/<id>`. */

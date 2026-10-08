@@ -1026,6 +1026,14 @@ those terms; archive reaches the same room by a quieter route and inherits the s
 rule. `GET /api/manifest?theme_id=` evaluates a theme's exclusions without writing,
 so the confirmation can state the consequence rather than predict it.
 
+> *Superseded 2026-10-08.* The archive path republishes now. Programming's
+> reconciliation (`re-architecture.md` § Seam 1, wave 2) takes a work the Library
+> refuses off every published manifest that carries it as the Library announces
+> the change: removals republish, additions wait (the operator's ruling of
+> 2026-09-30, `tests/unit/test_reconciliation.py`). So the archive confirmations
+> say the room loses the work *now*, and no longer offer re-hanging as the way to
+> make it catch up. The rule that the confirmation names the rooms still holds.
+
 **A screen states a fact once.** The Work screen carried the movement twice — as an
 eyebrow above the title and as a row in the facts list three lines below — which
 is not merely redundant: two copies of one fact invite the reader to look for the

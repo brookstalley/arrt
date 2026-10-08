@@ -62,6 +62,33 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-08: Archiving says the room loses the work now; an unknown filter key is refused
+
+<!-- prawduct: scope=lists-settings-and-scale -->
+
+**Why:** The boundary review of `build-plan-lists-settings-and-scale.md`.
+
+**What:**
+- Both archive confirmations said a wall loses the work later ("at that wall's
+  next build", "the next time its theme is hung", with re-hanging offered as the
+  remedy). Programming has taken an archived work off every published manifest
+  as the archive lands since wave 2's reconciliation (removals republish,
+  additions wait). They now say *now*, and `information-architecture.md`'s note
+  that the archive path does not republish is marked superseded.
+- `WorksFilter` refuses a key it does not know (422), so an act on a whole
+  filter can never reach more works than the grid shows; a test keeps its keys
+  equal to `GET /api/works`'s query parameters.
+- Filed rather than built: #317 (held works on Search and Topic cannot be
+  selected), #318 (Queue's grouping by message text can split one cause).
+
+**Tests:** `test_archiving_a_work.py`'s `test_the_confirmation_says_how_to_make_the_room_catch_up`
+became `test_the_confirmation_says_the_room_loses_it_now`: its claim, *when*
+the room loses the picture, is kept and its premise corrected (the old test
+asserted a delay and a remedy that wave 2 removed; `test_reconciliation.py`
+pins the immediate removal). New in `test_acting_on_a_selection.py`: an unknown
+narrowing is refused and acts on nothing; the filter model's keys are the
+listing's. Each watched failing against the old code.
+
 ## 2026-10-08: One selection model, clean-up facets, every work reachable, Queue by cause, Topics before any are held
 
 <!-- prawduct: scope=lists-settings-and-scale -->
@@ -75,7 +102,10 @@ findings 17, 18, 23, 28 and 29 (#131, #281, #285, #288, #289).
   a Select toggle that reads *Select* / *Stop selecting*, ticks hidden outside
   select mode, and a sticky bar with Select all / Select none and every act
   valid for the selection: a theme picker with *New theme…*, Add, Remove from
-  the shown theme, Archive (asks first), or Get for works not held. Select all
+  the shown theme, Archive (asks first), or Get for works not held. **On Search
+  and a topic page only the not-held half is wired**: a held work there cannot
+  be added to a theme or archived from that page (descoped at the boundary
+  review, #317). Select all
   sends `{filter, except_ids}`, so it acts on every match, loaded or not
   (`POST /api/themes/{id}/works/bulk`, `/works/remove`, `POST /api/works/archive`).
 - **Chunk 06.** `GET /api/works` takes `fit` (native, matted small, below floor,

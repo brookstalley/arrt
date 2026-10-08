@@ -10,9 +10,13 @@ Every fixture holds a work the asserted filter would also select if a narrowing
 were dropped, so a route that ignored the filter would fail rather than pass.
 """
 
+import inspect
+
 import httpx
 import pytest
 
+from arrt.http.api import list_works
+from arrt.http.models import WorksFilter
 from arrt.library.services.catalogue import DEFAULT_LIST_LIMIT
 from arrt.persistence.records import ArtworkStatus, FacetDerivation, VocabularyKind
 
@@ -159,3 +163,21 @@ def test_an_unknown_id_refuses_the_whole_archive(http, seeded_service, studies):
 
     assert answer.status_code == 400
     assert seeded_service.get_artwork(studies[0]).artwork.status is ArtworkStatus.ACCEPTED
+
+
+def test_a_filter_with_a_narrowing_the_server_does_not_know_is_refused_and_acts_on_nothing(http, services, studies):
+    """Dropped silently, an unknown narrowing would widen the act past what the grid shows."""
+    theme = services.display.add_theme(name="Studies")
+
+    answer = http.post(f"/api/themes/{theme.id}/works/bulk", json={"filter": {"q": "study", "colour": ["red"]}})
+
+    assert answer.status_code == 422, answer.text
+    assert services.display.theme_work_ids(theme.id) == []
+
+
+def test_the_filter_an_act_takes_is_the_one_the_listing_takes():
+    """The body names every narrowing `GET /api/works` takes, and nothing else, so
+    Select all and the grid it sits beside cannot come to mean different works.
+    Paging is the listing's own and is no part of which works a filter means."""
+    listing = set(inspect.signature(list_works).parameters) - {"request", "limit", "offset"}
+    assert set(WorksFilter.model_fields) == listing

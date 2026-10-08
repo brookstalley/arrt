@@ -308,7 +308,7 @@ export function selectionMode({ held = null, notHeld = null, onToggle = () => {}
       const agreed = await confirmAct({
         title: `Archive ${works}?`,
         consequence:
-          "Each leaves every wall at that wall's next build and stays in its themes. " +
+          "Each comes off every wall showing it now, and stays in its themes. " +
           "An archived work is restored from its own page.",
         confirmLabel: "Archive",
       });

@@ -19,7 +19,7 @@ repository may bind to it.
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ArtistOut(BaseModel):
@@ -2269,7 +2269,13 @@ class WorksFilter(BaseModel):
     *Select all* on Artworks acts on exactly the works the grid beside it is
     counting, including the ones not yet loaded. `sort` decides only the order
     the works are acted on in, which is the order a theme they join keeps.
+
+    **An unknown key is refused, not dropped.** A narrowing added to the listing
+    and not here would otherwise be ignored, and the act would reach more works
+    than the grid shows.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     q: str | None = None
     status: str | None = None
