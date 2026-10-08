@@ -28,7 +28,7 @@ import httpx
 import pytest
 
 from arrt.config import DEFAULT_ROTATION_SHUFFLE
-from arrt.persistence.records import AcquisitionMethod, FetchStatus, RightsStatus, SourceClass
+from arrt.persistence.records import AcquisitionMethod, FetchStatus, RenditionKind, RightsStatus, SourceClass
 
 
 @pytest.fixture
@@ -315,6 +315,30 @@ class TestTheIndexCard:
 
         assert card["work_count"] == 6
         assert card["picture_ids"] == [works[0].id, works[2].id, works[3].id, works[4].id]
+
+    def test_a_work_whose_master_is_gone_is_not_pictured_though_its_wall_render_is_there(
+        self, http, services, service, settings, decodable_jpeg, pictured
+    ):
+        """A card's picture is a tile, and a tile is drawn from the master alone.
+
+        So a work with a current wall render and no master file would give the
+        card a slot that fails to load. It is counted and not pictured.
+        """
+        theme = services.display.add_theme(name="Winter")
+        gone = pictured("Gone")
+        rendered = f"ready/{gone.id}.jpg"
+        decodable_jpeg(settings.art_root / rendered, width=3840, height=2160)
+        service.record_rendition(
+            artwork_id=gone.id, kind=RenditionKind.TV_DISPLAY, target_width=3840, target_height=2160, path=rendered
+        )
+        (settings.art_root / f"raw/{gone.id}.jpg").unlink()
+        kept = pictured("Kept")
+        for position, work in enumerate([gone, kept]):
+            services.display.add_to_theme(theme_id=theme.id, artwork_id=work.id, position=position)
+
+        card = next(entry for entry in http.get("/api/themes").json()["themes"] if entry["theme"]["theme_id"] == theme.id)
+
+        assert (card["work_count"], card["picture_ids"]) == (2, [kept.id])
 
     def test_an_empty_theme_has_no_works_and_no_pictures(self, http):
         theme = _theme(http, "Quiet")

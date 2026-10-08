@@ -220,8 +220,9 @@ class ThumbnailService:
 
         Separate from `wall_preview` so a listing can say what the Work page will
         show — and say why it will show nothing — without decoding an image to
-        find out. A thumbnail is drawn from the master alone, so whether this
-        raises is also whether a tile has a picture.
+        find out. It is **not** whether a tile has a picture: a current wall
+        render answers here while the master's file is gone, and a tile is drawn
+        from the master alone. Ask `tile_source` that.
         """
         original = self._catalogue.get_original(artwork_id)
         if original is None:
@@ -250,6 +251,13 @@ class ThumbnailService:
 
         return self._master(original.relative_path)
 
+    def tile_source(self, artwork_id: str) -> ThumbnailSource:
+        """The master a tile is drawn from, or `ThumbnailUnavailable` saying why there is none."""
+        original = self._catalogue.get_original(artwork_id)
+        if original is None:
+            raise ThumbnailUnavailable("No master image has been acquired for this work yet.")
+        return self._master(original.relative_path)
+
     def _master(self, relative: str) -> ThumbnailSource:
         master = self._settings.art_root / relative
         if not master.is_file():
@@ -269,10 +277,7 @@ class ThumbnailService:
         keys a rendition on its kind *and* its box, so the two sizes are two
         rows and neither overwrites the other.
         """
-        original = self._catalogue.get_original(artwork_id)
-        if original is None:
-            raise ThumbnailUnavailable("No master image has been acquired for this work yet.")
-        source = self._master(original.relative_path)
+        source = self.tile_source(artwork_id)
         return self._cached(
             artwork_id,
             source,

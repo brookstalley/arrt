@@ -1666,7 +1666,7 @@ def _summary(services: Services, placement: ThemePlacement) -> ThemeSummaryOut:
         if len(pictured) == THEME_CARD_PICTURES:
             break
         try:
-            services.thumbnails.source_for(work_id)
+            services.thumbnails.tile_source(work_id)
         except ThumbnailUnavailable:
             continue
         pictured.append(work_id)
