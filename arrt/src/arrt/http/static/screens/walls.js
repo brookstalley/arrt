@@ -5,16 +5,24 @@
  * layout). It was the home page until the library took that place, as it has in
  * every *arr app.
  *
+ * **Each card leads with the work on the wall now** (`ia-proposal.md` § Walls):
+ * the work the wall's own heartbeat names as `current_work_id`, large, with its
+ * label facts and a link to its page. Below it, what the wall draws from and for
+ * how long, then the three acts — **Skip**, **Not this one again** and
+ * **Change** — and the way to the wall's history. What the theme holds in full
+ * is the theme's page; this card is about the one work a person in the room is
+ * looking at.
+ *
  * **One wall is the degenerate case of many, never a special case.** There is one
  * section per wall and no single-wall layout for a second display to replace: with
  * one wall this is one section filling the screen and reads exactly as a
  * single-wall home would, and with three it is three of the same thing.
  *
- * **Every act here names its wall, in the control and in the confirmation.** Not
- * "Hang Winter" but "Hang Winter on the living room", and not "Next" but "Move
- * the living room on to the next work" — even while there is one wall and the
- * answer is obvious. A sentence that reads correctly today only because there is
- * one possible target is a sentence that silently becomes wrong.
+ * **Every act names its wall**, in the control's accessible name and in any
+ * question it asks: the button reads "Skip", and is announced as "Skip the work
+ * on the living room" — even while there is one wall and the answer is obvious.
+ * A sentence that reads correctly today only because there is one possible
+ * target is a sentence that silently becomes wrong.
  *
  * **Nothing on the wall has four named reasons, and they are four branches.** No
  * theme hung, an empty theme, a display plane that has never spoken, and a plane
@@ -29,23 +37,36 @@
  * fourth is a request that did not. That is why it is the one whose sentence
  * names which of the two planes answered.
  *
- * **This screen does not poll**, and that is `core/status.js`'s decision applied
- * here rather than a gap. Mean time to detection on this surface is bounded by
- * how often the curator opens the page, repainting on every navigation is what
- * that bound already costs, and a background timer would add load to a Pi without
- * changing it. Should one ever be added it repaints through `refresh()` with no
- * argument: `refresh(true)` moves focus, and a poll that moves focus is the
- * recorded defect this client already shipped once, on the one screen with a
- * decision on it. This screen has a decision on it.
+ * **A report past `STALE_AFTER_SECONDS` says nothing about now** (`core/outputs.js`).
+ * The work a wall last reported is still the best answer to "what is on it", so
+ * it still leads the card, under the report's age rather than "On the wall now".
+ *
+ * **This screen does not poll in the background**, and that is `core/status.js`'s
+ * decision applied here rather than a gap. Mean time to detection on this surface
+ * is bounded by how often the curator opens the page, and a background timer
+ * would add load to a Pi without changing it. The one exception is bounded and
+ * asked for: after Skip or *Not this one again*, the card watches the wall's
+ * heartbeat until it names the next work (`awaitNext`), and replaces only the
+ * work it leads with, so the focus stays wherever the curator left it. Any other
+ * repaint goes through `refresh()` with no argument: `refresh(true)` moves focus,
+ * and a poll that moves focus is the recorded defect this client already shipped
+ * once, on the one screen with a decision on it.
  */
 
 import { attempt } from "../core/acting.js";
+import { ago, inWords } from "../core/ages.js";
 import { api } from "../core/api.js";
 import { absentImage, facts, table } from "../core/badges.js";
+import { counted } from "../core/counting.js";
 import { hangTheme } from "../core/hanging.js";
-import { el, guard, render } from "../core/render.js";
-import { screenState, wallScreenLine } from "../core/outputs.js";
+import { el, fill, guard, render } from "../core/render.js";
+import { isStale, screenState, STALE_AFTER_SECONDS, wallScreenLine } from "../core/outputs.js";
 import { link, refresh } from "../core/router.js";
+import { state } from "../core/state.js";
+
+/* How often the card asks for the wall's heartbeat while it waits for the work
+ * after a Skip. The run view's interval, the fastest anything here repaints. */
+const WATCH_MS = 2000;
 
 export async function viewWalls(generation) {
   let walls;
@@ -54,7 +75,8 @@ export async function viewWalls(generation) {
     // The themes come along because hanging is an act against a named wall and
     // the theme control lives on this screen: a picker that had to be fetched
     // when it was opened would be a control that is not there when the curator
-    // reaches for it.
+    // reaches for it. Selections are left out by the server, so Change never
+    // offers one.
     [walls, themes] = await Promise.all([api("/api/walls"), api("/api/themes")]);
   } catch (failure) {
     // The fourth reason, at the only scale it can be stated at when this is what
@@ -69,9 +91,8 @@ export async function viewWalls(generation) {
     return;
   }
 
-  const beats = await heartbeats();
-  const shownBy = await clientListing();
-  const builds = await Promise.all(walls.walls.map(built));
+  const [beats, shownBy, builds] = await Promise.all([heartbeats(), clientListing(), Promise.all(walls.walls.map(built))]);
+  const nows = await Promise.all(walls.walls.map((wall) => nowOn(wall, beats)));
 
   if (!walls.walls.length) {
     // Not one of the four, and stated rather than left as an empty page: a wall
@@ -88,7 +109,7 @@ export async function viewWalls(generation) {
     return;
   }
 
-  const sections = walls.walls.map((wall, index) => wallSection(wall, builds[index], beats, themes.themes, shownBy));
+  const sections = walls.walls.map((wall, index) => wallSection(wall, builds[index], beats, nows[index], themes.themes, shownBy));
   render(generation, heading(), ...sections, walls.walls.some((wall) => !wall.theme) ? takeDownNote() : null);
 }
 
@@ -134,13 +155,12 @@ async function clientListing() {
 /* Which client this wall is assigned to, on which output, and whether a screen
  * is there to show it — or that no client is assigned.
  *
- * "Shown by" only where the client reports a screen detected on that output
- * (`core/outputs.js` says why); otherwise the assignment, and what the report
- * says or why it cannot. A wall nobody shows is an ordinary state (`clients.md` § The model), and the
- * one where everything else on this screen happens to no screen at all — so it
- * is said, with the way to Settings › Clients, where a wall is assigned. A link
- * rather than a button, as the sidebar's are: it goes somewhere and does
- * nothing there. */
+ * "Shown by" only where the client reports a screen detected on that output, in
+ * a report young enough to speak for now (`core/outputs.js` says why); otherwise
+ * the assignment, and what the report says or why it cannot. A wall nobody shows
+ * is an ordinary state (`clients.md` § The model), and the one where everything
+ * else on this screen happens to no screen at all — so it is said, with the way
+ * to Settings › Clients, where a wall is assigned. */
 function assignmentLine(wall, shownBy) {
   if (!wall.client_id) {
     return el("p", { class: "muted wall-client" }, [
@@ -152,7 +172,7 @@ function assignmentLine(wall, shownBy) {
   return el("p", {
     class: "muted wall-client",
     text: client
-      ? wallScreenLine(client.name, wall.output, screenState(client.heartbeat, wall.output))
+      ? wallScreenLine(client.name, wall.output, screenState(client.heartbeat, wall.output), client.heartbeat)
       : `Assigned to ${wall.output} of a client whose name and report could not be read${shownBy.failure ? ` — ${shownBy.failure}` : ""}`,
   });
 }
@@ -166,15 +186,44 @@ function assignmentLine(wall, shownBy) {
  */
 async function heartbeats() {
   try {
-    const health = await api("/api/health");
-    // `walls` absent or the wrong shape leaves every wall with no reading, which
-    // lands in the silent branch rather than in a green one. A wall reported as
-    // well because its observation could not be found is precisely the failure
-    // this product exists to refuse.
-    const readings = Array.isArray(health.walls) ? health.walls : [];
-    return { byWall: new Map(readings.map((reading) => [reading.wall_id, reading.heartbeat])) };
+    return { byWall: readings(await api("/api/health")) };
   } catch (failure) {
     return { failure: failure.message };
+  }
+}
+
+/* `walls` absent or the wrong shape leaves every wall with no reading, which
+ * lands in the silent branch rather than in a green one. A wall reported as
+ * well because its observation could not be found is precisely the failure this
+ * product exists to refuse. */
+function readings(health) {
+  const listed = Array.isArray(health.walls) ? health.walls : [];
+  return new Map(listed.map((reading) => [reading.wall_id, reading.heartbeat]));
+}
+
+/* The work a wall's heartbeat says it is showing, or null where the reading
+ * names none. `reported` is the Player's document passed through, and
+ * `current_work_id` is the heartbeat contract's (`contract/schemas/
+ * heartbeat.v1.schema.json`); anything but a string is no answer. */
+function reportedWork(beat) {
+  if (!beat || beat.absent || beat.problem || !beat.reported) return null;
+  const id = beat.reported.current_work_id;
+  return typeof id === "string" && id ? id : null;
+}
+
+/* What the wall's heartbeat says is on it: the reading, the work's id, and the
+ * work itself — or why the work could not be read. A work the heartbeat names
+ * that the library can no longer answer for (archived since, or a fault) is
+ * still what the wall reported, so the card says that rather than nothing. */
+async function nowOn(wall, beats) {
+  const beat = beats.byWall ? beats.byWall.get(wall.wall_id) : null;
+  const workId = reportedWork(beat);
+  if (!workId) return { beat, workId: null };
+  try {
+    const dossier = await api(`/api/works/${encodeURIComponent(workId)}`);
+    return { beat, workId, work: dossier.work };
+  } catch (failure) {
+    return { beat, workId, failure: failure.message };
   }
 }
 
@@ -213,16 +262,20 @@ function reasonFor(wall, build, beats) {
   return "hanging";
 }
 
-function wallSection(wall, build, beats, themes, shownBy) {
+function wallSection(wall, build, beats, now, themes, shownBy) {
   const manifest = build.manifest;
   const reason = reasonFor(wall, build, beats);
-  return el("section", { class: "wall" }, [
-    // `h2` for the wall and `h3` for its panels, so the nesting survives a second
-    // wall: with two walls hung, sibling `h2`s would give a reader navigating by
-    // heading six headings in a row and no signal for which counts belong to
-    // which room. The single-wall view read correctly by accident, having only
-    // one room's worth of headings to confuse.
-    el("h2", { class: "wall-title", text: manifest ? `${wall.name}: ${manifest.theme.name}` : wall.name }),
+  // What the card's acts read the current work from. The lead can be replaced
+  // after a Skip without repainting the controls, so they read it here rather
+  // than from a value captured when they were drawn.
+  const card = { wall, now, lead: nowShowing(wall, now, reason), said: el("p", { class: "wall-said", role: "status" }) };
+  return el("section", { class: "wall", "data-wall": wall.wall_id }, [
+    // `h2` for the wall and `h3` for what is in it, so the nesting survives a
+    // second wall: a reader navigating by heading gets each room with its own
+    // work inside it.
+    el("h2", { class: "wall-title", text: wall.name }),
+    card.lead,
+    sourceLine(wall),
     assignmentLine(wall, shownBy),
     // The server's own sentence about how much of the theme reached the wall,
     // and not repeated when a reason below is about to say the same thing in
@@ -230,8 +283,80 @@ function wallSection(wall, build, beats, themes, shownBy) {
     // invite the reader to look for the difference between them.
     manifest && reason !== "empty-theme" ? el("p", { class: "note", text: manifest.summary }) : null,
     ...emptiness(reason, wall, build, beats),
-    controls(wall, themes, reason, manifest),
-    ...(manifest ? manifestPanels(manifest) : []),
+    controls(card, themes, reason, manifest),
+    card.said,
+    manifest ? setup(wall, manifest) : null,
+  ]);
+}
+
+/* The work on the wall, large, with its label: the card's lead.
+ *
+ * Under "On the wall now" while the heartbeat that named it is young, and under
+ * the report's age once it is not: the work is still the best answer to what is
+ * on the wall, but not a claim about this minute.
+ *
+ * The image carries the work and its artist in its `alt`, because here the image
+ * is the content rather than a thumbnail beside it. The title is the link to the
+ * work's page, so the card has one tab stop for the work rather than two. */
+function nowShowing(wall, now, reason) {
+  if (!now || !now.beat || now.beat.absent || now.beat.problem) return el("div", { class: "wall-now", hidden: true });
+  if (!now.workId) {
+    // Only said where something is hung and the display is speaking: the four
+    // reasons already account for every other wall with nothing to lead with.
+    return el("div", { class: "wall-now" }, [
+      reason === "hanging"
+        ? el("p", { class: "muted", text: `${wall.name}'s display is reporting, and has not said which work it is showing.` })
+        : null,
+    ]);
+  }
+  const when = isStale(now.beat)
+    ? `Last reported ${ago(now.beat.age_seconds)}, so it may have changed since`
+    : "On the wall now";
+  if (now.failure) {
+    return el("div", { class: "wall-now" }, [
+      el("p", { class: "wall-now-when", text: when }),
+      el("p", { class: "note", text: `${wall.name} reports showing a work that could not be read — ${now.failure}.` }),
+    ]);
+  }
+  const work = now.work;
+  const artist = work.artist ? work.artist.name : null;
+  const image = el("img", {
+    src: `/api/works/${encodeURIComponent(work.artwork_id)}/thumbnail`,
+    alt: artist ? `${work.title}, ${artist}` : work.title,
+  });
+  // A file can go away between the heartbeat and this fetch. Without this the
+  // lead renders as a blank box — silent, which is the failure mode this whole
+  // product exists to refuse.
+  image.addEventListener("error", () => {
+    image.replaceWith(absentImage("Its image could not be loaded just now."));
+  });
+  return el("figure", { class: "wall-now" }, [
+    el("p", { class: "wall-now-when", text: when }),
+    el("div", { class: "wall-now-picture" }, [image]),
+    el("figcaption", { class: "wall-now-label" }, [
+      el("h3", { class: "wall-now-title" }, [link({ view: "work", id: work.artwork_id }, { text: work.title })]),
+      el("p", { class: "wall-now-artist", text: artist || "Artist unrecorded" }),
+      work.date_created || work.medium
+        ? el("p", { class: "muted wall-now-facts", text: [work.date_created, work.medium].filter(Boolean).join(" · ") })
+        : null,
+    ]),
+  ]);
+}
+
+/* What the wall draws from, and for how long: a theme by its name and a link to
+ * it, or "a selection" for works hung by choosing them, whose theme is a made-up
+ * name the curator never gave (`api-contract.md` § History, selections and
+ * *Not this one again*). Every hang lasts until something else is hung, which is
+ * said, because the wave-4 schedule will make it a choice. */
+function sourceLine(wall) {
+  if (!wall.theme) return null;
+  if (wall.theme.hidden) {
+    return el("p", { class: "wall-source", text: "Drawing from a selection, until changed." });
+  }
+  return el("p", { class: "wall-source" }, [
+    "Drawing from ",
+    link({ view: "theme", id: wall.theme.theme_id }, { text: wall.theme.name }),
+    ", until changed.",
   ]);
 }
 
@@ -249,9 +374,9 @@ function emptiness(reason, wall, build, beats) {
 
 /* Reason one: no theme has been hung here.
  *
- * The fix is the theme control in this wall's own section, a few lines below —
- * so the sentence points at it rather than sending the curator to another screen
- * for the one act this screen is named for. */
+ * The fix is Change in this wall's own section, a few lines below — opened
+ * already when nothing is hung — so the sentence points at it rather than
+ * sending the curator to another screen for the one act this screen is named for. */
 function noThemeHung(wall) {
   return [
     el("p", {
@@ -306,9 +431,9 @@ function silence(wall, beat) {
     return `The health reading carries no heartbeat for ${wall.name}, so nothing here can say whether a display is serving it.`;
   }
   if (beat.problem) {
-    return `${wall.name}'s heartbeat cannot be read: ${beat.problem}. What is published below is what a display would pick up, and nothing confirms one has.`;
+    return `${wall.name}'s heartbeat cannot be read: ${beat.problem}. What is published is what a display would pick up, and nothing confirms one has.`;
   }
-  return `No display has ever reported for ${wall.name}. What is published below is waiting to be picked up; until something reports, nothing here can say the wall is showing it.`;
+  return `No display has ever reported for ${wall.name}. What is published is waiting to be picked up; until something reports, nothing here can say the wall is showing it.`;
 }
 
 /* Reason four: a plane could not be reached, and the sentence says which one did
@@ -340,24 +465,151 @@ function cannotReach(wall, build, beats) {
   return `The curation plane answered for ${wall.name}, and the reading that speaks for the display plane did not — ${beats.failure} — so nothing here can say whether anything is on the wall.`;
 }
 
-/* Change the theme, and move on to the next work: this screen's two acts.
+/* Skip, Not this one again, Change, and the wall's history: the card's acts.
  *
- * **A picker rather than a button per theme**, which is the opposite of the
- * choice `screens/theme.js` makes for walls, and for the reason stated there: a
- * button per target suits a small set, and the themes are the side that grows. It
- * carries the wall's name on its label as well as on the button, so a curator
- * tabbing into the control knows which room it belongs to without reading upward.
- *
- * **No take-down control here, deliberately.** The IA's action list for this
- * screen is change theme, next, and open work; taking down lives on the theme,
+ * **No take-down control here, deliberately.** Taking down lives on the theme,
  * where it exists to make a theme deletable. It would also read wrong here: a
  * take-down rewrites no manifest, so pressing it on the screen whose whole job is
  * to say what is on the wall would leave the section reading "nothing is hanging"
- * while the television went on showing the pictures. Changing the theme is the
- * act on this screen that actually changes the wall. */
-function controls(wall, themes, reason, manifest) {
+ * while the television went on showing the pictures. Change is the act on this
+ * screen that actually changes the wall. */
+function controls(card, themes, reason, manifest) {
+  const { wall } = card;
+  // Only where something is actually up. Skipping a wall that is showing
+  // nothing writes a directive nobody can act on, and offering it would say
+  // this screen thinks there is something to move on from.
+  //
+  // **Both halves are load-bearing.** The reason answers whether a display has
+  // spoken for this wall; the manifest answers whether there is anything for a
+  // step to advance through. A theme whose works were *all* excluded is not one
+  // of the four reasons — `considered` counts entries plus exclusions, so it
+  // reads as hanging — and it published an empty rotation.
+  const live = reason === "hanging" && manifest.entries.length > 0;
+  return el("div", { class: "wall-controls" }, [
+    el("div", { class: "row" }, [
+      live ? skipButton(card) : null,
+      // Only with a work to name: the heartbeat's, which is the one a person in
+      // the room is tired of. A wall that has not said what it shows has
+      // nothing for this to be about.
+      card.now && card.now.workId && wall.theme ? notAgain(card) : null,
+      wall.theme ? link({ view: "history", params: { wall: wall.wall_id } }, { class: "action quiet", text: "History", "aria-label": `History of ${wall.name}` }) : null,
+    ]),
+    change(wall, themes),
+  ]);
+}
+
+/* Skip: the next work in this wall's rotation, and only this wall's.
+ *
+ * **Unconfirmed, and that is a decision rather than an oversight.** Flow 6 names
+ * activation as the one act that gets a confirmation, and it is the one that
+ * replaces everything on a wall. A skip advances by one work in a rotation that
+ * was going to advance by itself anyway. A dialog in front of it would teach the
+ * curator to dismiss dialogs.
+ *
+ * The wall changes when its Player next reads the directive, and the card can
+ * only know which work came up when the heartbeat reports it, so it says so and
+ * watches for that (`awaitNext`). */
+function skipButton(card) {
+  const { wall } = card;
+  return el("button", {
+    class: "action",
+    type: "button",
+    text: "Skip",
+    "aria-label": `Skip the work on ${wall.name}`,
+    onclick: (event) =>
+      attempt(
+        event.currentTarget,
+        `skip the work on ${wall.name}`,
+        () => api("/api/directives", { method: "POST", body: JSON.stringify({ wall_id: wall.wall_id }) }),
+        { then: () => awaitNext(card, `Skipped. ${wall.name} shows its next work when its display next reports, usually within a minute.`) },
+      ),
+  });
+}
+
+/* *Not this one again*, and the one question it asks: from this theme, or from
+ * every wall. Two different changes (S8 says "nothing else changed"), so the
+ * curator says which; neither is Archive, which would take the work out of the
+ * library. The choice opens beside the button rather than in a dialog, because
+ * the question is the act: there is nothing to confirm once it is answered. */
+function notAgain(card) {
+  const { wall } = card;
+  const choiceId = `not-again-${wall.wall_id}`;
+  const choice = el("div", { class: "not-again-choice", id: choiceId, hidden: true });
+  const opener = el("button", {
+    class: "action quiet",
+    type: "button",
+    text: "Not this one again",
+    "aria-expanded": "false",
+    "aria-controls": choiceId,
+    "aria-label": `Not this one again on ${wall.name}`,
+    onclick: () => {
+      const open = choice.hidden;
+      choice.hidden = !open;
+      opener.setAttribute("aria-expanded", String(open));
+      if (open) fillChoice(card, choice, opener);
+    },
+  });
+  return el("span", { class: "not-again" }, [opener, choice]);
+}
+
+/* The two answers, built when the question is opened so they name the work the
+ * card leads with then, which a Skip may have changed since the card was drawn. */
+function fillChoice(card, choice, opener) {
+  const { wall } = card;
+  const title = card.now.work ? card.now.work.title : "this work";
+  const from = wall.theme.hidden ? "this selection" : wall.theme.name;
+  const answer = (scope, text, label, act) =>
+    el("button", {
+      class: "action quiet",
+      type: "button",
+      text,
+      "aria-label": label,
+      onclick: (event) =>
+        attempt(
+          event.currentTarget,
+          act,
+          () =>
+            api(`/api/walls/${encodeURIComponent(wall.wall_id)}/not-again`, {
+              method: "POST",
+              body: JSON.stringify({ artwork_id: card.now.workId, scope }),
+            }),
+          {
+            then: () => {
+              choice.hidden = true;
+              opener.setAttribute("aria-expanded", "false");
+              return awaitNext(card, notAgainSaid(wall, title, scope, from), scope === "every_wall" ? card.now.workId : null);
+            },
+          },
+        ),
+    });
+  fill(
+    choice,
+    el("p", { text: `Not ${title} again — from where?` }),
+    answer("theme", `From ${from}`, `Not ${title} again from ${from}`, `take ${title} out of ${from}`),
+    answer("every_wall", "From every wall", `Not ${title} again on any wall`, `keep ${title} off every wall`),
+  );
+}
+
+function notAgainSaid(wall, title, scope, from) {
+  const done =
+    scope === "every_wall"
+      ? `${title} is kept off every wall. It stays in the library and in its themes.`
+      : `${title} is out of ${from}. Nothing else changed.`;
+  return `${done} ${wall.name} shows its next work when its display next reports.`;
+}
+
+/* Change: hang a theme on this wall instead. Open already when nothing is
+ * hung, because reason one points at it.
+ *
+ * **A picker rather than a button per theme**, the opposite of the choice
+ * `screens/theme.js` makes for walls, and for the reason stated there: a button
+ * per target suits a small set, and the themes are the side that grows. It
+ * carries the wall's name on its label as well as on the button, so a curator
+ * tabbing into the control knows which room it belongs to without reading
+ * upward. Selections are not offered: the server leaves them out of the list. */
+function change(wall, themes) {
   if (!themes.length) {
-    return el("div", { class: "row wall-controls" }, [
+    return el("div", { class: "row wall-change" }, [
       el("p", { class: "muted", text: "No theme has been created yet, so there is nothing to hang here." }),
       link({ view: "theme" }, { class: "action", text: "Create a theme" }),
     ]);
@@ -369,30 +621,17 @@ function controls(wall, themes, reason, manifest) {
     picker.append(el("option", { value: placement.theme.theme_id, text: placement.theme.name }));
   }
 
-  return el("div", { class: "row wall-controls" }, [
-    el("div", { class: "field" }, [
-      el("label", { for: pickerId, text: `Theme for ${wall.name}` }),
-      picker,
+  return el("details", { class: "wall-change", open: !wall.theme }, [
+    el("summary", { class: "action quiet", text: "Change", "aria-label": `Change what ${wall.name} draws from` }),
+    el("div", { class: "row" }, [
+      el("div", { class: "field" }, [el("label", { for: pickerId, text: `Theme for ${wall.name}` }), picker]),
+      el("button", {
+        class: "action",
+        type: "button",
+        text: `Hang on ${wall.name}`,
+        onclick: (event) => hang(event.currentTarget, wall, themes, picker.value),
+      }),
     ]),
-    el("button", {
-      class: "action",
-      type: "button",
-      text: `Hang on ${wall.name}`,
-      onclick: (event) => hang(event.currentTarget, wall, themes, picker.value),
-    }),
-    // Only where something is actually up. Stepping a wall that is showing
-    // nothing writes a directive nobody can act on, and offering it would say
-    // this screen thinks there is something to move on from.
-    //
-    // **Both halves are load-bearing, and the second was the bug.** The reason
-    // answers whether a display has spoken for this wall; the manifest answers
-    // whether there is anything for a step to advance through. A theme whose
-    // works were *all* excluded is not one of the four reasons — `considered`
-    // counts entries plus exclusions, so it reads as hanging — and it published
-    // an empty rotation. Gating on the reason alone put this button beside
-    // "Nothing in this theme is currently displayable", which is precisely the
-    // case the sentence above rules out.
-    reason === "hanging" && manifest.entries.length ? nextButton(wall) : null,
   ]);
 }
 
@@ -408,91 +647,74 @@ function hang(control, wall, themes, themeId) {
   return hangTheme({ control, themeId, themeName: chosen.theme.name, wall, then: refresh });
 }
 
-/* Moving one wall on, and only that wall.
+/* After a Skip or *Not this one again*: say what happens next, then watch this
+ * wall's heartbeat until it names a different work, and lead the card with it.
  *
- * **Unconfirmed, and that is a decision rather than an oversight.** Flow 6 names
- * activation as the one act that gets a confirmation, and it is the one that
- * replaces everything on a wall. A step advances by one work in a rotation that
- * was going to advance by itself anyway, and is undone by pressing it again. A
- * dialog in front of it would teach the curator to dismiss dialogs. */
-function nextButton(wall) {
-  return el("button", {
-    class: "action quiet",
-    type: "button",
-    text: `Move ${wall.name} on to the next work`,
-    onclick: (event) =>
-      attempt(
-        event.currentTarget,
-        `move ${wall.name} on`,
-        () => api("/api/directives", { method: "POST", body: JSON.stringify({ wall_id: wall.wall_id }) }),
-        { then: refresh },
-      ),
-  });
+ * `gone` is a work that must not be taken for the new one even if the heartbeat
+ * names it again (a report written before the Player read the change).
+ *
+ * Bounded twice: by `STALE_AFTER_SECONDS`, past which a heartbeat that has not
+ * moved is a display that has stopped, and by leaving the screen (`state.poll`
+ * moves on every navigation, as the run view's chain reads it). Only the lead is
+ * replaced, so focus stays where the curator left it. A health read that fails
+ * mid-watch is not the act failing; the watch stops and says so. */
+async function awaitNext(card, sentence, gone = null) {
+  const { wall } = card;
+  const generation = state.poll;
+  const before = card.now ? card.now.workId : null;
+  card.said.textContent = sentence;
+  const deadline = Date.now() + STALE_AFTER_SECONDS * 1000;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, WATCH_MS));
+    if (state.poll !== generation || !card.said.isConnected) return;
+    let beats;
+    try {
+      beats = { byWall: readings(await api("/api/health")) };
+    } catch (failure) {
+      card.said.textContent = `${sentence} This page could not read ${wall.name}'s heartbeat to show it — ${failure.message}.`;
+      return;
+    }
+    const next = reportedWork(beats.byWall.get(wall.wall_id));
+    if (!next || next === before || next === gone) continue;
+    const now = await nowOn(wall, beats);
+    if (state.poll !== generation || !card.said.isConnected) return;
+    const lead = nowShowing(wall, now, "hanging");
+    card.lead.replaceWith(lead);
+    card.lead = lead;
+    card.now = now;
+    card.said.textContent = now.work ? `${wall.name} now shows ${now.work.title}.` : `${wall.name} now shows another work.`;
+    return;
+  }
+  card.said.textContent = `${sentence} It has not reported a new work in ${inWords(STALE_AFTER_SECONDS)}; Status has its reading.`;
 }
 
-function manifestPanels(manifest) {
-  return [
-    el("div", { class: "panel" }, [
-      el("h3", { text: `Showing (${manifest.entries.length})` }),
-      // The pictures, not a list of paths. The artwork is the primary content on
-      // every screen that shows one, and this is the screen the product exists
-      // to produce — a table of render paths under this heading was an inventory
-      // of the wall rather than a view of it.
-      manifest.entries.length
-        ? el("ul", { class: "hanging" }, manifest.entries.map(hungWork))
-        : el("p", { class: "muted", text: "Nothing in this theme is currently displayable." }),
-    ]),
+/* How the wall is set up: what of its theme is not reaching it, and how it
+ * rotates. Behind a disclosure, because the card is about the work on the wall;
+ * this is what to open when the wall is not doing what was expected. */
+function setup(wall, manifest) {
+  return el("details", { class: "wall-setup" }, [
+    el("summary", { text: `How ${wall.name} is set up` }),
     el("div", { class: "panel" }, [
       // Never omitted when empty: a section that appeared only on trouble would
       // train a reader to take its absence as "everything is fine".
       el("h3", { text: `Not showing (${manifest.exclusions.length})` }),
       manifest.exclusions.length
         ? table(
-            "Every work this theme holds that is not on the wall, and exactly why.",
+            "Every work this wall draws from that is not on it, and exactly why.",
             ["Title", "Reason", "What is missing"],
             manifest.exclusions.map((x) => [x.title, x.reason, x.detail]),
           )
-        : el("p", { class: "muted", text: "Every work in this theme reached the wall." }),
+        : el("p", {
+            class: "muted",
+            text: `Every work it draws from reaches the wall: ${counted(manifest.entries.length, "work")} in rotation.`,
+          }),
     ]),
     el("div", { class: "panel" }, [
       el("h3", { text: "How it rotates" }),
       facts([
         ["Interval", `${manifest.rotation_interval_seconds} seconds`],
         ["Order", manifest.shuffle ? "shuffled" : "as curated"],
-        ["Directive sequence", manifest.directive_sequence],
-        ["Pinned work", manifest.pinned_work_id],
       ]),
     ]),
-  ];
-}
-
-/* One work as it hangs: the picture, then its label.
- *
- * The image carries the work and its artist in its `alt`, because here the image
- * is the content rather than a thumbnail beside it — `accessibility-spec.md` is
- * explicit that there is no third state. That is also why it is not wrapped in a
- * button: an `aria-label` on the button would replace the alt text entirely, and
- * the picture would be announced as "Open Nighthawks" and nothing about what it
- * is. The title below is the control instead. */
-function hungWork(entry) {
-  const image = el("img", {
-    src: `/api/works/${encodeURIComponent(entry.artwork_id)}/thumbnail`,
-    alt: entry.artist ? `${entry.title}, ${entry.artist}` : entry.title,
-    loading: "lazy",
-  });
-  // A file can go away between the manifest being built and this fetch. Without
-  // this the tile renders as a blank box — silent, which is the failure mode this
-  // whole product exists to refuse.
-  image.addEventListener("error", () => {
-    image.replaceWith(absentImage("Its image could not be loaded just now."));
-  });
-  return el("li", { class: "hung" }, [
-    el("div", { class: "card-image" }, [image]),
-    // `h4`, a rank below the panel's `h3`, so a reader navigating by heading gets
-    // the works nested inside the wall's Showing section rather than beside it.
-    el("h4", { class: "card-title" }, [
-      link({ view: "work", id: entry.artwork_id }, { text: entry.title }),
-    ]),
-    el("p", { class: "card-artist", text: entry.artist || "Artist unrecorded" }),
   ]);
 }
