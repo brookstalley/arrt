@@ -90,10 +90,10 @@ carries a design choice:
 - [x] Chunk 06: The Work page
 - [x] Chunk 07: Search and Artist states
 - [x] Chunk 08: Review trust
-- [ ] Chunk 09: One vocabulary
+- [x] Chunk 09: One vocabulary
 - [x] Chunk 10: Spend as a budget and tiers
-- [ ] Chunk 11: Tiles show the art
-- [ ] Chunk 12: Keyboard and phone
+- [x] Chunk 11: Tiles show the art
+- [x] Chunk 12: Keyboard and phone
 - [ ] Chunk 13: Walk and re-photograph
 
 ### Chunk 01: Navigation is a link (#273)
