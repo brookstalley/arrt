@@ -168,7 +168,7 @@ function worksBySource(works, reviewPage) {
     if (!offeredBy.has(museum)) offeredBy.set(museum, []);
     offeredBy.get(museum).push(work);
   }
-  const rowOf = (work) => [rowPicture(cards.get(work.work_id)), work.title, work.artist || "—", el("div", { class: "stack-tight" }, [resolutionBadge(work), reasonBadge(work)])];
+  const rowOf = (work) => [rowPicture(cards.get(work.work_id), work, reviewPage !== null), work.title, work.artist || "—", el("div", { class: "stack-tight" }, [resolutionBadge(work), reasonBadge(work)])];
   const sections = [];
   if (asked.length) {
     sections.push(
@@ -209,7 +209,10 @@ function runCounts(view) {
   const list = facts([
     ["Asked for", view.tally.proposed],
     ["Found with an image", view.tally.resolved_proposals],
-    ["Not matched", view.tally.unresolved],
+    // Counted here over the works asked for: the tally's `unresolved` is over
+    // every work, and an offered work turned down and searched again in vain
+    // would otherwise make the three counts disagree.
+    ["Not matched", view.works.filter((work) => work.provenance === "proposed" && work.resolution_status === "unresolved").length],
   ]);
   list.classList.add("run-counts");
   return list;

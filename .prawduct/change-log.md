@@ -88,8 +88,14 @@ chunk 02).
   comment rather than inside it; `aboutCost` says "Cost unknown just now"
   for a figure that is not one, and its zero and non-figure branches are
   tested.
+- The review caught *Not matched* reading the tally's `unresolved`, which
+  counts offered works too: it now counts the unresolved works asked for. A
+  row with no picture says which kind of nothing: the cards could not be
+  read, the search is still running, or it found none.
 
-**Tests:** `test_a_finished_get_says_three_counts_rather_than_a_paragraph`,
+**Tests:** `test_a_finished_get_says_three_counts_rather_than_a_paragraph`
+(now with an offered work that ended unresolved),
+`test_a_row_without_a_picture_says_which_kind_of_nothing`,
 `test_offered_works_sit_under_the_museum_that_offered_them_without_a_reason`,
 `test_each_row_shows_the_picture_found_for_it` and
 `test_a_row_s_picture_stays_small_on_a_phone` were watched failing first.

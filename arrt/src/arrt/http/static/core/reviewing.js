@@ -217,9 +217,12 @@ export function wantedPicture(work) {
 /* A work's picture in a listing's row: the scan its review card pictures it by,
  * enlargeable, or why there is none in words, never a blank cell. The card's
  * `shown`, so a row and the card it leads to never picture a work differently. */
-export function rowPicture(card) {
+export function rowPicture(card, work, cardsRead = true) {
   if (!card || !card.shown) {
-    return el("div", { class: "row-picture" }, [el("div", { class: "card-image" }, [absentImage("No image found.")])]);
+    // Which kind of nothing: the cards were not read, the search has not
+    // finished, or it finished and found none. Only the last is "none".
+    const why = !cardsRead ? "Its picture could not be read just now." : work.resolution_status === "pending" ? "Still being looked for." : "No image found.";
+    return el("div", { class: "row-picture" }, [el("div", { class: "card-image" }, [absentImage(why)])]);
   }
   return el("div", { class: "row-picture" }, [
     instanceImage(card.shown, {

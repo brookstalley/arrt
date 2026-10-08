@@ -920,7 +920,18 @@ def test_a_finished_get_says_three_counts_rather_than_a_paragraph(ui):
         offered_for_artist="Salvador Dalí",
         offered_artist_matched=25,
     )
-    works = [found, *missing, offered]
+    # An offered work turned down and searched again in vain: unresolved, but
+    # not one of the works asked for, so not among "Not matched".
+    offered_lost = a_candidate(
+        work_id="gift-lost",
+        title="Mae West Lips Sofa",
+        provenance=WorkProvenance.OFFERED.value,
+        offered_for_artist="Salvador Dalí",
+        offered_artist_matched=25,
+        resolution_status=ResolutionStatus.UNRESOLVED.value,
+        unresolved_reason=UnresolvedReason.NOT_HELD.value,
+    )
+    works = [found, *missing, offered, offered_lost]
     _a_finished_discovery(ui, works, [a_card(work=w) for w in works])
 
     # Distinct figures, so a count read from the wrong tally field cannot pass.
@@ -991,6 +1002,30 @@ def test_each_row_shows_the_picture_found_for_it(ui):
     lost = rows.filter(has_text="Lost")
     assert lost.locator("img").count() == 0
     assert "No image found" in lost.inner_text()
+
+
+@pytest.mark.parametrize(
+    ("cards_answer", "status", "said"),
+    [
+        ("fails", ResolutionStatus.RESOLVED.value, "Its picture could not be read just now."),
+        ("reads", ResolutionStatus.PENDING.value, "Still being looked for."),
+    ],
+)
+def test_a_row_without_a_picture_says_which_kind_of_nothing(ui, cards_answer, status, said):
+    work = a_candidate(work_id="w", title="The Persistence of Memory", resolution_status=status)
+    run = a_run(status=RunStatus.COMPLETED.value, is_terminal=True)
+    ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(run=run, works=[work]))
+    if cards_answer == "fails":
+        ui.serve(f"**/api/runs/{RUN_ID}/candidates*", [(500, {"detail": "down"})])
+    else:
+        ui.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([a_card(work=work, shown=None)], run=run))
+    ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend())
+    ui.open(f"#get/{RUN_ID}")
+    ui.page.wait_for_selector("#view section.asked-for")
+
+    row = ui.page.locator("#view section.asked-for tbody tr")
+    assert said in row.inner_text()
+    assert "No image found" not in row.inner_text()
 
 
 def test_a_row_s_picture_stays_small_on_a_phone(ui):
