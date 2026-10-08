@@ -22,13 +22,16 @@ that safe.
 """
 
 import logging
+from collections import Counter
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Final, Literal
 
 from fastapi import APIRouter, Query, Request, Response
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
 from arrt.http.models import (
     AcquisitionQueueOut,
@@ -37,11 +40,11 @@ from arrt.http.models import (
     AddWork,
     AffinityListOut,
     AffinityOut,
+    ArchivedWorksOut,
     ArtistCandidateOut,
     ArtistListOut,
     ArtistOut,
     ArtistRegistryOut,
-    ArtworkBoxOut,
     AssignDisplay,
     AssignWall,
     BackupOut,
@@ -49,6 +52,7 @@ from arrt.http.models import (
     CandidateCardOut,
     CandidatePageOut,
     CandidateWorkOut,
+    CauseWorksOut,
     ClientHeartbeatOut,
     ClientListOut,
     ClientNameOut,
@@ -74,6 +78,8 @@ from arrt.http.models import (
     ExclusionOut,
     FacetGroupOut,
     FacetOptionOut,
+    FailureCauseOut,
+    FailureCausesOut,
     FitOut,
     GetOut,
     HangSelection,
@@ -100,11 +106,13 @@ from arrt.http.models import (
     NameClient,
     NotAgainOut,
     NotAgainRequest,
+    OfferedTopicOut,
     OriginalOut,
     PickItem,
     PicturesOut,
     QueuedWorkOut,
     QueuePauseOut,
+    RefusedRetryOut,
     RegistryCreatorOut,
     RegistryHolderOut,
     RegistryHoldingOut,
@@ -118,6 +126,8 @@ from arrt.http.models import (
     ReportedLabelOutputOut,
     ReportedOutputOut,
     ReportedStateOut,
+    RetryCause,
+    RetryCauseOut,
     RunListOut,
     RunOut,
     RunTallyOut,
@@ -137,6 +147,8 @@ from arrt.http.models import (
     SourceOut,
     SourcePluginOut,
     SourcesOut,
+    SourceYieldOut,
+    SourceYieldsOut,
     Speak,
     SpendOut,
     StartGet,
@@ -144,11 +156,14 @@ from arrt.http.models import (
     StartRun,
     StepDisplay,
     SuggestionOut,
+    ThemeAdditionOut,
     ThemeDetailOut,
     ThemeListOut,
     ThemeOptionOut,
     ThemeOut,
     ThemePlacementOut,
+    ThemeRemovalOut,
+    ThemeSummaryOut,
     TopicArtistsOut,
     TopicFoundOut,
     TopicKindOut,
@@ -176,20 +191,23 @@ from arrt.http.models import (
     WorkOut,
     WorkPageOut,
     WorkPlacementsOut,
+    WorkSelection,
+    WorksFilter,
 )
-from arrt.library.acquisition.queue import AcquisitionState, QueueListing, QueuePause
+from arrt.library.acquisition.queue import AcquisitionState, FailureCause, QueueEntry, QueuePause
 from arrt.library.services.artists import HeldArtist, RegistryView
-from arrt.library.services.catalogue import DEFAULT_LIST_LIMIT, FacetGroup, RenditionView
+from arrt.library.services.catalogue import DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT, FacetGroup, RenditionView
 from arrt.library.services.conversation import ConversationDeletion, ConversationView, TurnView
 from arrt.library.services.discovery import VerdictOutcome
-from arrt.library.services.display_fit import ArtworkBox, FitAssessment
+from arrt.library.services.display_fit import FitAssessment
 from arrt.library.services.look import LookPicture, LookView, SourceLook
 from arrt.library.services.review import CandidatePage, CandidateView, InstanceListing, InstanceView, WantedView
 from arrt.library.services.runner import Estimate, RunView, SpendReport
 from arrt.library.services.spending import CENTS_BELOW, DIMES_BELOW
-from arrt.library.services.survey import WorkDossier, WorkSurvey
+from arrt.library.services.survey import FIT_BANDS, WorkDossier, WorkSurvey
 from arrt.library.services.taste import AffinityView
-from arrt.library.services.topics import TopicIndex, TopicPage
+from arrt.library.services.thumbnails import ThumbnailUnavailable
+from arrt.library.services.topics import TopicIndex, TopicPage, TopicWorksView
 from arrt.library.services.twins import InReview
 from arrt.library.sources.plugin import API_VERSION
 from arrt.persistence.discovery_records import (
@@ -218,6 +236,7 @@ from arrt.programming.display_state import DisplayState
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.programming.manifest.heartbeat import HeartbeatReading
 from arrt.services.container import Services
+from arrt.services.errors import ServiceError
 from arrt.services.health import HealthReading, PicturesReading, SourceHealth
 
 log = logging.getLogger(__name__)
@@ -277,6 +296,8 @@ def list_works(
     sort: Annotated[str | None, Query()] = None,
     artist_id: Annotated[str | None, Query()] = None,
     theme: Annotated[str | None, Query()] = None,
+    fit: Annotated[list[str] | None, Query()] = None,
+    not_on_wall: Annotated[bool, Query()] = False,  # noqa: FBT002 -- a query parameter FastAPI passes by name
 ) -> WorkPageOut:
     """A page of works with the facet controls for exactly this filter.
 
@@ -297,11 +318,26 @@ def list_works(
     them: Programming names the theme's works, and the Library lists them. An
     unknown theme is refused by name rather than ignored, because ignoring it
     would answer with the whole catalogue labelled as the theme's.
+
+    `fit` narrows to works whose size on the wall is in one of the bands named
+    (`native`, `matted_small`, `below_floor`, or `unknown` for a work with no
+    master), and `not_on_wall` to works no wall plays now. Both are counted
+    like a facet, each ignoring its own selection, and every other count
+    narrows by them (`_Narrowing`).
     """
     services = _services(request)
-    within = None if theme is None else services.display.theme_work_ids(theme)
     chosen = {"artist": artist, "movement": movement, "era": era, "subject": subject, "medium": medium, "palette": palette}
     facets = {kind: values for kind, values in chosen.items() if values}
+    narrowing = _narrowing(
+        services,
+        status=status,
+        q=q,
+        facets=facets,
+        artist_id=artist_id,
+        theme=theme,
+        fit=fit or [],
+        not_on_wall=not_on_wall,
+    )
     page = services.survey.list_works(
         status=status,
         q=q,
@@ -310,12 +346,11 @@ def list_works(
         offset=offset,
         sort=sort,
         artist_id=artist_id,
-        within=within,
+        within=narrowing.within(),
     )
     # The theme options, counted as the facets are, with the theme's own
     # selection ignored: the Library names what the other filters select, and
     # Programming counts each theme's members among them.
-    others = services.catalogue.matching_ids(status=status, q=q, facets=facets, artist_id=artist_id)
     return WorkPageOut(
         works=[_work(entry) for entry in page.entries],
         total=page.total,
@@ -323,8 +358,169 @@ def list_works(
         offset=page.offset,
         truncated=page.truncated,
         facets=[_facet_group(group) for group in page.facets],
-        themes=[_theme_option(option) for option in services.display.theme_counts(others, selected=theme)],
+        themes=[_theme_option(option) for option in services.display.theme_counts(narrowing.among(but="theme"), selected=theme)],
+        fits=narrowing.fit_options(),
+        not_on_wall=narrowing.off_wall_option(),
     )
+
+
+def _meet(*restrictions: frozenset[str] | None) -> frozenset[str] | None:
+    """The works every restriction allows; None when none restricts anything."""
+    present = [restriction for restriction in restrictions if restriction is not None]
+    if not present:
+        return None
+    return frozenset.intersection(*present)
+
+
+@dataclass(frozen=True)
+class _Narrowing:
+    """Which works a filter selects, composed across the seam, with what each narrowing would count.
+
+    **The bindings compose; neither plane reaches the other.** The Library
+    answers what its own narrowings select (`matching_ids`) and each work's
+    size on the wall (`fit_bands`); Programming answers a theme's members and
+    which works a wall plays now (`work_ids_on_walls`), all as opaque ids. Here
+    they meet as sets, and the Library is handed the result as `within`, the
+    restriction it already lists theme slices by (`architecture.md` seam rule 1).
+
+    Three restrictions on top of the Library's own: the theme, the fit bands
+    and *Not on any wall*. Each is counted with its own selection dropped and
+    the others kept, as a facet is (`CatalogueService._facet_groups`), so an
+    option offered as enabled cannot lead to an empty grid.
+    """
+
+    base: frozenset[str]
+    theme: frozenset[str] | None
+    fit: frozenset[str] | None
+    wall: frozenset[str] | None
+    bands: Mapping[str, str]
+    on_walls: frozenset[str]
+    chosen_bands: frozenset[str]
+    not_on_wall: bool
+
+    def _restrictions(self, but: str | None = None) -> list[frozenset[str] | None]:
+        named = (("theme", self.theme), ("fit", self.fit), ("wall", self.wall))
+        return [restriction for name, restriction in named if name != but]
+
+    def within(self) -> frozenset[str] | None:
+        """The restriction the Library lists within: every one of the three in force."""
+        return _meet(*self._restrictions())
+
+    def among(self, *, but: str) -> frozenset[str]:
+        """What every narrowing but `but` selects: the set `but`'s options are counted over."""
+        return _meet(self.base, *self._restrictions(but)) or frozenset()
+
+    def fit_options(self) -> list[FacetOptionOut]:
+        counts = Counter(self.bands[work_id] for work_id in self.among(but="fit") if work_id in self.bands)
+        return [
+            FacetOptionOut(
+                value=band,
+                count=counts[band],
+                selected=band in self.chosen_bands,
+                disabled=counts[band] == 0 and band not in self.chosen_bands,
+            )
+            for band in FIT_BANDS
+        ]
+
+    def off_wall_option(self) -> FacetOptionOut:
+        count = len(self.among(but="wall") - self.on_walls)
+        return FacetOptionOut(
+            value="not_on_wall",
+            count=count,
+            selected=self.not_on_wall,
+            disabled=count == 0 and not self.not_on_wall,
+        )
+
+
+def _narrowing(
+    services: Services,
+    *,
+    status: str | None,
+    q: str | None,
+    facets: Mapping[str, Sequence[str]],
+    artist_id: str | None,
+    theme: str | None,
+    fit: Sequence[str],
+    not_on_wall: bool,
+) -> _Narrowing:
+    """Compose the Library's narrowings with the theme, the fit bands and *Not on any wall*."""
+    unknown = [band for band in fit if band not in FIT_BANDS]
+    if unknown:
+        raise ServiceError(f"fit must be one of {', '.join(FIT_BANDS)}; got {', '.join(repr(band) for band in unknown)}.")
+    base = services.catalogue.matching_ids(status=status, q=q, facets=facets, artist_id=artist_id)
+    chosen_bands = frozenset(fit)
+    bands = services.survey.fit_bands(base)
+    on_walls = services.display.work_ids_on_walls()
+    return _Narrowing(
+        base=base,
+        # An unknown theme is refused here, by name, as the listing always has.
+        theme=None if theme is None else frozenset(services.display.theme_work_ids(theme)),
+        fit=None if not chosen_bands else frozenset(work_id for work_id, band in bands.items() if band in chosen_bands),
+        wall=None if not not_on_wall else base - on_walls,
+        bands=bands,
+        on_walls=on_walls,
+        chosen_bands=chosen_bands,
+        not_on_wall=not_on_wall,
+    )
+
+
+def _filtered_ids(services: Services, narrowing: WorksFilter) -> Sequence[str]:
+    """Every work `narrowing` selects, in the order its listing shows them.
+
+    Composed exactly as `list_works` composes it (`_narrowing`), so *Select all*
+    acts on the works the grid beside it is counting.
+    """
+    chosen = {
+        "artist": narrowing.artist,
+        "movement": narrowing.movement,
+        "era": narrowing.era,
+        "subject": narrowing.subject,
+        "medium": narrowing.medium,
+        "palette": narrowing.palette,
+    }
+    facets = {kind: values for kind, values in chosen.items() if values}
+    composed = _narrowing(
+        services,
+        status=narrowing.status,
+        q=narrowing.q,
+        facets=facets,
+        artist_id=narrowing.artist_id,
+        theme=narrowing.theme,
+        fit=narrowing.fit,
+        not_on_wall=narrowing.not_on_wall,
+    )
+    return services.catalogue.matching_ids_in_order(
+        status=narrowing.status,
+        q=narrowing.q,
+        facets=facets,
+        artist_id=narrowing.artist_id,
+        within=composed.within(),
+        sort=narrowing.sort,
+    )
+
+
+def _selected_ids(services: Services, selection: WorkSelection) -> Sequence[str]:
+    """The works a selection means, by id, with the ones it leaves out taken away."""
+    if (selection.artwork_ids is None) == (selection.filter is None):
+        raise ServiceError("Name the works either by their ids or by a filter, and not both.")
+    named = selection.artwork_ids if selection.artwork_ids is not None else _filtered_ids(services, selection.filter)
+    leaving = set(selection.except_ids)
+    return [artwork_id for artwork_id in dict.fromkeys(named) if artwork_id not in leaving]
+
+
+@router.post("/works/archive")
+def archive_works(request: Request, body: WorkSelection) -> ArchivedWorksOut:
+    """Archive a selection: by id, or every work a filter matches.
+
+    *Select all* on Artworks means every work the filter matches, loaded or
+    not, so the filter travels rather than the ids the screen happens to hold.
+    One transaction: an id the catalogue does not hold refuses the whole act.
+    A work already archived is passed over and counted.
+    """
+    services = _services(request)
+    ids = _selected_ids(services, body)
+    archived = services.catalogue.archive_artworks(ids)
+    return ArchivedWorksOut(archived=list(archived), already=len(ids) - len(archived))
 
 
 @router.get("/works/{artwork_id}")
@@ -344,9 +540,80 @@ def retry_acquisition(request: Request, artwork_id: str) -> AcquisitionStateOut:
 
 
 @router.get("/acquisitions")
-def list_acquisitions(request: Request) -> AcquisitionQueueOut:
-    """Every work the acquisition queue owes something, in the order it will try them, and its pause if any."""
-    return _acquisition_queue(_services(request).acquisition_queue.listing())
+def list_acquisitions(
+    request: Request,
+    limit: Annotated[int | None, Query()] = None,
+    offset: Annotated[int, Query()] = 0,
+) -> AcquisitionQueueOut:
+    """The queue's pause if any, then one page of the works still in line, in the order it will try them.
+
+    A work that failed or was given up on is listed under its cause instead
+    (`/acquisitions/causes`), so thousands of works failing for one reason are
+    one row there rather than thousands here; this answer counts them.
+    """
+    listing = _services(request).acquisition_queue.listing()
+    in_line = listing.in_line
+    limit, page = _queue_page(in_line, limit, offset)
+    return AcquisitionQueueOut(
+        pause=None if listing.pause is None else _queue_pause(listing.pause),
+        works=[_queued_work(entry) for entry in page],
+        total=len(in_line),
+        limit=limit,
+        offset=offset,
+        failing=len(listing.entries) - len(in_line),
+        causes=len(listing.causes),
+    )
+
+
+@router.get("/acquisitions/causes")
+def list_failure_causes(
+    request: Request,
+    limit: Annotated[int | None, Query()] = None,
+    offset: Annotated[int, Query()] = 0,
+) -> FailureCausesOut:
+    """Every reason the queue's failed works failed for, one row each with how many, the largest first.
+
+    Grouped by the reason's words with the work's own name taken out, so works
+    that failed the same way share a row whatever they are called.
+    """
+    causes = _services(request).acquisition_queue.listing().causes
+    limit, page = _queue_page(causes, limit, offset)
+    return FailureCausesOut(causes=[_failure_cause(each) for each in page], total=len(causes), limit=limit, offset=offset)
+
+
+@router.get("/acquisitions/causes/works")
+def list_cause_works(
+    request: Request,
+    cause: Annotated[str, Query()],
+    limit: Annotated[int | None, Query()] = None,
+    offset: Annotated[int, Query()] = 0,
+) -> CauseWorksOut:
+    """One page of the works that failed for `cause`, worded as `/acquisitions/causes` words it.
+
+    A cause no work holds any more answers with no works rather than a refusal:
+    the group emptied because the queue tried them again, which is not an error.
+    """
+    group = next((each for each in _services(request).acquisition_queue.listing().causes if each.cause == cause), None)
+    entries = () if group is None else group.entries
+    limit, page = _queue_page(entries, limit, offset)
+    return CauseWorksOut(
+        cause=cause, works=[_queued_work(entry) for entry in page], total=len(entries), limit=limit, offset=offset
+    )
+
+
+@router.post("/acquisitions/causes/retry")
+def retry_failure_cause(request: Request, body: RetryCause) -> RetryCauseOut:
+    """Retry all: every work that failed for `cause`, in one request, fetching nothing in it.
+
+    Each is put back in line as its own Retry would put it; one the queue
+    refuses (no source, being fetched now) is counted under why, naming no work.
+    """
+    result = _services(request).acquisition_queue.retry_cause(body.cause)
+    return RetryCauseOut(
+        cause=result.cause,
+        retried=result.retried,
+        refused=[RefusedRetryOut(reason=reason, works=count) for reason, count in result.refused.items()],
+    )
 
 
 @router.post("/works/{artwork_id}/wikidata")
@@ -622,17 +889,42 @@ def get_topic_registry(request: Request, qid: str) -> TopicRegistryOut:
     )
 
 
-@router.get("/topics/{qid}/works")
-def get_topic_works(request: Request, qid: str) -> TopicWorksOut:
+#: The media type of a topic's works asked for as they arrive: one
+#: `TopicWorksOut` per line.
+NDJSON: Final[str] = "application/x-ndjson"
+
+
+@router.get("/topics/{qid}/works", responses={200: {"content": {NDJSON: {}}}})
+def get_topic_works(request: Request, qid: str) -> Response:
     """*Representative works*: the topic's most renowned works, each with what marks it: held, wanted, its image.
 
     Asked after the page is drawn: a period's works took 7 to 26 seconds to
     ask for. Always a 200 for a well-formed QID; a malformed one is a 400.
+
+    **Streamed when asked for as `application/x-ndjson`**: one `TopicWorksOut`
+    per line as each of Wikidata's answers lands, the works when their ranking
+    does and again with their makers, the last line `complete`. Streamed rather
+    than paged or polled because the answers are one request's work on the
+    server: a page or a poll would hold the half-answer somewhere between
+    requests, and a stream holds it nowhere. A kept answer is one complete line
+    at once. Anything else asking gets the last line alone, as JSON.
     """
-    view = _services(request).topics.works(qid)
+    stages = _services(request).topics.works_in_stages(qid)
+    if NDJSON not in request.headers.get("accept", ""):
+        last = next(stages)
+        for view in stages:
+            last = view
+        return JSONResponse(_topic_works(last).model_dump(mode="json"))
+    # A sync generator, so Starlette runs each step in its thread pool: the
+    # registry's questions block, and the event loop must not wait on them.
+    return StreamingResponse((_topic_works(view).model_dump_json() + "\n" for view in stages), media_type=NDJSON)
+
+
+def _topic_works(view: TopicWorksView) -> TopicWorksOut:
     return TopicWorksOut(
         state=str(view.state),
         note=view.note,
+        complete=view.complete,
         works=[
             TopicWorkOut(
                 qid=entry.work.qid,
@@ -680,6 +972,7 @@ def _topics(index: TopicIndex) -> TopicsOut:
             TopicKindOut(
                 kind=group.kind.value,
                 topics=[HeldTopicOut(qid=topic.qid, label=topic.label, works=topic.works) for topic in group.topics],
+                offered=[OfferedTopicOut(qid=offer.qid, label=offer.label) for offer in group.offered],
             )
             for group in index.groups
         ],
@@ -801,7 +1094,7 @@ def restore_work(request: Request, artwork_id: str) -> WorkDetailOut:
 @router.get("/themes")
 def list_themes(request: Request) -> ThemeListOut:
     """Every theme, and the walls each is hanging on."""
-    return ThemeListOut(themes=[_placement(placement) for placement in _services(request).display.survey_themes()])
+    return _theme_list(_services(request))
 
 
 @router.get("/themes/{theme_id}")
@@ -848,7 +1141,7 @@ def delete_theme(request: Request, theme_id: str) -> ThemeListOut:
     """
     services = _services(request)
     services.display.delete_theme(theme_id)
-    return ThemeListOut(themes=[_placement(placement) for placement in services.display.survey_themes()])
+    return _theme_list(services)
 
 
 @router.post("/themes/{theme_id}/default")
@@ -860,7 +1153,7 @@ def make_default_theme(request: Request, theme_id: str) -> ThemeListOut:
     """
     services = _services(request)
     services.display.make_default(theme_id)
-    return ThemeListOut(themes=[_placement(placement) for placement in services.display.survey_themes()])
+    return _theme_list(services)
 
 
 @router.post("/themes/{theme_id}/works")
@@ -875,6 +1168,27 @@ def add_to_theme(request: Request, theme_id: str, body: AddWork) -> ThemeDetailO
     services = _services(request)
     services.display.add_to_theme(theme_id=theme_id, artwork_id=body.artwork_id, position=body.position)
     return _theme_detail(services, theme_id)
+
+
+@router.post("/themes/{theme_id}/works/bulk")
+def add_selection_to_theme(request: Request, theme_id: str, body: WorkSelection) -> ThemeAdditionOut:
+    """Put a selection at the end of a theme, in the order its listing shows it.
+
+    The selection is by id or by a filter, so *Select all* on Artworks reaches
+    every work the filter matches rather than the ones loaded. Works the theme
+    already holds are passed over and counted; one transaction.
+    """
+    services = _services(request)
+    added, already = services.display.add_works_to_theme(theme_id=theme_id, artwork_ids=_selected_ids(services, body))
+    return ThemeAdditionOut(added=added, already=already)
+
+
+@router.post("/themes/{theme_id}/works/remove")
+def remove_selection_from_theme(request: Request, theme_id: str, body: WorkSelection) -> ThemeRemovalOut:
+    """Take a selection out of a theme, by id or by a filter, and say which works left."""
+    services = _services(request)
+    removed = services.display.remove_works_from_theme(theme_id=theme_id, artwork_ids=_selected_ids(services, body))
+    return ThemeRemovalOut(removed=list(removed))
 
 
 @router.delete("/themes/{theme_id}/works/{artwork_id}")
@@ -1225,6 +1539,28 @@ def get_sources(request: Request) -> SourcesOut:
     )
 
 
+@router.get("/sources/yields")
+def get_source_yields(request: Request) -> SourceYieldsOut:
+    """What each installed source plugin has given the library: offered, chosen, only here, median size.
+
+    Status's sources table reads it beside `GET /api/health`'s `sources`. Its own
+    route rather than a field of the health reading, because the top bar reads
+    that on every page and these are counts across the whole library.
+    """
+    return SourceYieldsOut(
+        sources=[
+            SourceYieldOut(
+                name=each.provider,
+                offered=each.offered,
+                chosen=each.chosen,
+                only_here=each.only_here,
+                median_long_edge=each.median_long_edge,
+            )
+            for each in _services(request).health.observe_yields()
+        ]
+    )
+
+
 # -- discovery runs -----------------------------------------------------------
 
 
@@ -1555,14 +1891,21 @@ def get_candidate_preview(
 
 
 @router.get("/works/{artwork_id}/thumbnail", response_class=FileResponse)
-def get_thumbnail(request: Request, artwork_id: str) -> Response:
+def get_thumbnail(
+    request: Request,
+    artwork_id: str,
+    size: Annotated[Literal["tile", "large"], Query()] = "tile",
+) -> Response:
     """A small copy of the work itself, drawn from its master, generated on first ask.
 
     What a library tile shows: the work at its own aspect, never the wall
     render's mat and bars, which are the wall's and appear only on the Work
-    page (`get_wall_preview`).
+    page (`get_wall_preview`). `size=large` is the same bare work in a box sharp
+    across Walls' lead picture on a 2x screen (`LARGE_THUMBNAIL_MAX_EDGE_PX`).
+    Any other value is refused rather than read as the default, so a misspelt
+    request is not quietly answered small.
     """
-    return _revalidated_file(request, _services(request).thumbnails.thumbnail(artwork_id))
+    return _revalidated_file(request, _services(request).thumbnails.thumbnail(artwork_id, large=size == "large"))
 
 
 @router.get("/works/{artwork_id}/wall-preview", response_class=FileResponse)
@@ -1638,11 +1981,51 @@ def service_error_response(message: str) -> JSONResponse:
 
 def _theme_detail(services: Services, theme_id: str) -> ThemeDetailOut:
     """A theme with its works, in curated order."""
+    theme = services.display.get_theme(theme_id)
     return ThemeDetailOut(
-        theme=_theme(services.display.get_theme(theme_id)),
+        theme=_theme(theme),
         # Two calls composed, as the MCP binding composes them: Programming's
         # order, and the Library's account of each work.
         works=[_work(entry) for entry in services.survey.survey_works(services.display.theme_work_ids(theme_id))],
+        shuffled=services.display.shuffles(theme),
+    )
+
+
+#: How many pictures a Themes index card draws. Enough to say what a theme looks
+#: like at a glance, few enough that ten cards fit on one screen.
+THEME_CARD_PICTURES = 4
+
+
+def _theme_list(services: Services) -> ThemeListOut:
+    """Every theme the index lists, each with what its card shows.
+
+    Two planes composed, as `_theme_detail` composes them: Programming names
+    each theme's works in order, and the Library says which of them has a
+    picture. The pictures are looked for in curated order and the search stops
+    at the fourth. What bounds the cost is the membership read, one per theme,
+    plus one picture check per work until four are found: a few checks for a
+    theme whose works hold images, and one per work only for a theme where
+    almost none do. No work is surveyed in full, which is what reading every
+    theme's detail would cost.
+    """
+    return ThemeListOut(themes=[_summary(services, placement) for placement in services.display.survey_themes()])
+
+
+def _summary(services: Services, placement: ThemePlacement) -> ThemeSummaryOut:
+    work_ids = services.display.theme_work_ids(placement.theme.id)
+    pictured: list[str] = []
+    for work_id in work_ids:
+        if len(pictured) == THEME_CARD_PICTURES:
+            break
+        try:
+            services.thumbnails.tile_source(work_id)
+        except ThumbnailUnavailable:
+            continue
+        pictured.append(work_id)
+    return ThemeSummaryOut(
+        **_placement(placement).model_dump(),
+        work_count=len(work_ids),
+        picture_ids=pictured,
     )
 
 
@@ -1710,11 +2093,26 @@ def _queue_pause(pause: QueuePause) -> QueuePauseOut:
     return QueuePauseOut(condition=pause.condition, detail=pause.detail, since=pause.since.isoformat(), remedy=pause.remedy)
 
 
-def _acquisition_queue(listing: QueueListing) -> AcquisitionQueueOut:
-    return AcquisitionQueueOut(
-        pause=None if listing.pause is None else _queue_pause(listing.pause),
-        works=[QueuedWorkOut(title=entry.title, acquisition=_acquisition(entry.state)) for entry in listing.entries],
-    )
+def _queued_work(entry: QueueEntry) -> QueuedWorkOut:
+    return QueuedWorkOut(title=entry.title, acquisition=_acquisition(entry.state))
+
+
+def _failure_cause(group: FailureCause) -> FailureCauseOut:
+    return FailureCauseOut(cause=group.cause, works=len(group.entries), failed=group.failed, gave_up=group.gave_up)
+
+
+def _queue_page[T](items: Sequence[T], limit: int | None, offset: int) -> tuple[int, Sequence[T]]:
+    """One page of a queue listing, at the service's default size and within its cap, as the other listings page.
+
+    The listing is built whole and sliced here: the queue owes a few thousand
+    works at most, and grouping by cause needs every one of them in hand.
+    """
+    resolved = DEFAULT_LIST_LIMIT if limit is None else limit
+    if not 1 <= resolved <= MAX_LIST_LIMIT:
+        raise ServiceError(f"limit must be between 1 and {MAX_LIST_LIMIT}, got {resolved}.")
+    if offset < 0:
+        raise ServiceError(f"offset cannot be negative, got {offset}.")
+    return resolved, items[offset : offset + resolved]
 
 
 def _facet(facet: WorkFacet) -> WorkFacetOut:
@@ -2231,7 +2629,6 @@ def _health(reading: HealthReading) -> HealthOut:
         ],
         description=reading.describe(),
         backup=_backup(reading.backup),
-        artwork_box=_artwork_box(reading.artwork_box),
         sources=[_source_plugin(each) for each in reading.sources],
         pictures=_pictures(reading.pictures),
     )
@@ -2340,15 +2737,6 @@ def _fit(fit: FitAssessment) -> FitOut:
     )
 
 
-def _artwork_box(box: ArtworkBox) -> ArtworkBoxOut:
-    return ArtworkBoxOut(
-        width=box.width,
-        height=box.height,
-        pixels_per_inch=box.pixels_per_inch,
-        floor_inches=box.floor_inches,
-    )
-
-
 # -- conversations ------------------------------------------------------------
 #
 # One block at the foot of the file rather than routes among the routes and
@@ -2381,6 +2769,17 @@ def start_conversation(request: Request) -> ConversationViewOut:
 @router.get("/conversations/{conversation_id}")
 def get_conversation(request: Request, conversation_id: str) -> ConversationViewOut:
     return _conversation_view(_services(request).conversation.get(conversation_id))
+
+
+@router.get("/conversations/{conversation_id}/estimate")
+def get_turn_estimate(request: Request, conversation_id: str) -> EstimateOut:
+    """What the next turn in this conversation may cost, for the tier beside Say it.
+
+    Free and read-only, like `GET /api/estimate`, and the same shape with
+    `phase` `conversation_turn`: an estimate shown before spending, never a
+    reading of what was spent.
+    """
+    return _estimate(_services(request).conversation.estimate(conversation_id))
 
 
 @router.post("/conversations/{conversation_id}/turns")

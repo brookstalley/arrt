@@ -271,9 +271,9 @@ def test_the_wanted_section_shows_its_count_once_something_is_wanted(ui, wanted)
 
 def test_with_nothing_wanted_the_section_is_shown_uncounted_and_the_page_names_the_controls_that_add_one(ui):
     open_wanted(ui)
-    ui.page.wait_for_selector(".panel.empty")
+    ui.page.wait_for_selector("#view .empty")
 
-    empty = ui.page.inner_text(".panel.empty")
+    empty = ui.page.inner_text("#view .empty")
     assert "Nothing is wanted." in empty
     # The controls that really put a work here, by the words they carry.
     assert "press Want on its review card" in empty
@@ -514,3 +514,38 @@ def test_search_all_tries_every_search_and_says_which_could_not_start(ui, wanted
     assert "Started 1 Get. 1 other could not start:" in outcome
     assert refusal in outcome
     assert ui.page.evaluate("() => window.location.hash") == "#wanted", "the page left before saying what was refused"
+
+
+# -- on a phone -------------------------------------------------------------------
+
+PHONE = {"width": 390, "height": 844}
+
+
+def test_on_a_phone_each_wanted_work_is_a_card_rather_than_a_row_that_scrolls_sideways(ui, wanted):
+    """Activity's tables stack on a phone; Wanted's scrolled sideways inside its box instead.
+
+    The page itself never scrolled, because `.table-scroll` swallows the overflow,
+    so the box is measured too: a row the curator has to drag sideways to reach
+    Get again is the defect, whatever the document width says.
+    """
+    ui.page.set_viewport_size(PHONE)
+    open_wanted(ui)
+    ui.page.wait_for_selector(".wanted table")
+
+    row = ui.page.locator(".wanted tbody tr").first
+    assert row.evaluate("(tr) => getComputedStyle(tr).display") == "block"
+    headings = row.locator("td").evaluate_all("(tds) => tds.map((td) => getComputedStyle(td, '::before').content)")
+    for heading in ("Work", "Why", "Wikidata", "From"):
+        assert f'"{heading}"' in headings, f"a cell lost the heading that says what it is: {headings}"
+    scroller = ui.page.locator(".wanted .table-scroll")
+    assert scroller.evaluate("(s) => s.scrollWidth - s.clientWidth") <= 0, "Wanted's table still scrolls sideways"
+    again = row.locator("button:text-is('Get again')").bounding_box()
+    assert again["x"] + again["width"] <= PHONE["width"], "Get again is past the screen's edge"
+
+
+def test_at_desktop_width_wanted_is_still_a_table(ui, wanted):
+    """The cards are a phone's; a wide screen scans across the row."""
+    ui.page.set_viewport_size({"width": 1280, "height": 800})
+    open_wanted(ui)
+    ui.page.wait_for_selector(".wanted table")
+    assert ui.page.locator(".wanted tbody tr").first.evaluate("(tr) => getComputedStyle(tr).display") == "table-row"

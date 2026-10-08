@@ -19,7 +19,7 @@ repository may bind to it.
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ArtistOut(BaseModel):
@@ -377,12 +377,22 @@ class HeldTopicOut(BaseModel):
     works: int
 
 
+class OfferedTopicOut(BaseModel):
+    """A topic Library › Topics offers whether or not any work is in it: the server's fixed list."""
+
+    qid: str
+    label: str
+
+
 class TopicKindOut(BaseModel):
-    """Every topic of one kind the library's works are in, by name."""
+    """Every topic of one kind the library's works are in, by name, and those of the fixed list that none is in."""
 
     #: `period`, `movement`, `subject` or `medium`.
     kind: str
     topics: list[HeldTopicOut]
+    #: The centuries and movements offered before any is held, in the list's
+    #: order, without any already under `topics`. Empty without a registry.
+    offered: list[OfferedTopicOut]
 
 
 class TopicsOut(BaseModel):
@@ -449,6 +459,10 @@ class TopicWorksOut(BaseModel):
     state: str
     note: str | None
     works: list[TopicWorkOut]
+    #: False on every line of the streamed answer but the last: the works are
+    #: listed and Wikidata is still being asked who made them, so `creators` is
+    #: empty and `creator_unknown` false because nothing has been said yet.
+    complete: bool
 
 
 class TopicArtistsOut(BaseModel):
@@ -585,6 +599,14 @@ class WorkPageOut(BaseModel):
     #: time, so there are tens of them. If that stops being true, so does the
     #: case for sending them whole with each page.
     themes: list[ThemeOptionOut] = []
+    #: *Size on the wall*: one option per fit band, always all four in the order
+    #: `native`, `matted_small`, `below_floor`, `unknown` (no master yet), each
+    #: counted over every other filter but the bands, as a facet is.
+    fits: list[FacetOptionOut] = []
+    #: *Not on any wall*: the works no wall plays now, through the theme or
+    #: selection hanging on it, counted over every other filter. Null only on
+    #: a page built before the facet existed.
+    not_on_wall: FacetOptionOut | None = None
 
 
 class SourceOut(BaseModel):
@@ -689,17 +711,76 @@ class QueuePauseOut(BaseModel):
 
 
 class QueuedWorkOut(BaseModel):
-    """One work the acquisition queue owes something, named for a person."""
+    """One work the acquisition queue owes something, named for a person.
+
+    `acquisition.detail` names the work by `title`, never by its id.
+    """
 
     title: str
     acquisition: AcquisitionStateOut
 
 
 class AcquisitionQueueOut(BaseModel):
-    """Activity › Queue's acquisitions: the pause, if any, then every work owed, in the order tried."""
+    """Activity › Queue's acquisitions: the pause, if any, then one page of the works still in line.
+
+    `works` is the works queued, being fetched or paused, in the order tried,
+    paged by `limit` and `offset` out of `total`. A work that failed or that the
+    queue gave up on is not among them: it is counted in `failing`, and listed
+    under its cause at `/api/acquisitions/causes`, of which there are `causes`.
+    """
 
     pause: QueuePauseOut | None
     works: list[QueuedWorkOut]
+    total: int
+    limit: int
+    offset: int
+    failing: int
+    causes: int
+
+
+class FailureCauseOut(BaseModel):
+    """Every work whose last try failed for one reason: the reason, naming no work, and how many."""
+
+    cause: str
+    works: int
+    #: Of `works`, how many will be tried again on their own, and how many the
+    #: queue gave up on and wait for Retry.
+    failed: int
+    gave_up: int
+
+
+class FailureCausesOut(BaseModel):
+    """One page of the causes the queue's failed works share, the largest first, out of `total`."""
+
+    causes: list[FailureCauseOut]
+    total: int
+    limit: int
+    offset: int
+
+
+class CauseWorksOut(BaseModel):
+    """One page of the works that failed for `cause`, in the order the queue holds them, out of `total`."""
+
+    cause: str
+    works: list[QueuedWorkOut]
+    total: int
+    limit: int
+    offset: int
+
+
+class RefusedRetryOut(BaseModel):
+    """Why Retry all left some works where they were, naming no work, and how many."""
+
+    reason: str
+    works: int
+
+
+class RetryCauseOut(BaseModel):
+    """What Retry all did: how many works it put back in line, and why it refused any it did not."""
+
+    cause: str
+    retried: int
+    refused: list[RefusedRetryOut]
 
 
 class WorkDetailOut(BaseModel):
@@ -771,10 +852,27 @@ class ThemePlacementOut(BaseModel):
     hanging_on: list[WallRefOut]
 
 
-class ThemeListOut(BaseModel):
-    """Every theme, and where each is hanging."""
+class ThemeSummaryOut(ThemePlacementOut):
+    """A theme as the Themes index draws its card: where it hangs, its size, and a few of its works.
 
-    themes: list[ThemePlacementOut]
+    The listing carries these rather than leaving the index to read every
+    theme's works, because a card needs a count and four pictures and a theme
+    may hold thousands of works; ten themes would otherwise be ten full reads.
+    """
+
+    #: How many works the theme holds, which is how many `GET /api/themes/{id}`
+    #: lists: every member, pictured or not.
+    work_count: int
+    #: Up to four of its works that have a picture, in curated order, for
+    #: `GET /api/works/{id}/thumbnail`. Fewer, or none, when fewer of its works
+    #: hold an image; a work with no image is skipped rather than drawn empty.
+    picture_ids: list[str]
+
+
+class ThemeListOut(BaseModel):
+    """Every theme, where each is hanging, and what its card shows."""
+
+    themes: list[ThemeSummaryOut]
 
 
 class ReportedStateOut(BaseModel):
@@ -1045,6 +1143,11 @@ class ThemeDetailOut(BaseModel):
 
     theme: ThemeOut
     works: list[WorkOut]
+    #: Whether a wall hanging it shows its works shuffled: `theme.shuffle`
+    #: resolved against the deployment's default, as the manifest resolves it.
+    #: `theme.shuffle` alone is null when it inherits, which says nothing about
+    #: whether the order on this page decides what the wall shows first.
+    shuffled: bool
 
 
 class ManifestEntryOut(BaseModel):
@@ -1127,20 +1230,6 @@ class HeartbeatOut(BaseModel):
     #: differently would go silently unreported — the exact failure the one named
     #: key exists to prevent, reintroduced for every other field.
     reported: dict[str, Any] | None
-
-
-class ArtworkBoxOut(BaseModel):
-    """The space this deployment renders a work into, as resolved at startup.
-
-    Shown because a wrong mat or floor is otherwise visible only as works being
-    labelled oddly in the grid, which reads as a catalogue problem rather than a
-    configuration one.
-    """
-
-    width: int
-    height: int
-    pixels_per_inch: float
-    floor_inches: float
 
 
 class BackupOut(BaseModel):
@@ -1237,7 +1326,10 @@ class PicturesOut(BaseModel):
 
 
 class HealthOut(BaseModel):
-    """Observations about the walls, the backup, and this deployment's geometry.
+    """Observations about the walls, the backup, the source plugins and the picture store.
+
+    **No geometry**, since 2026-10-08 (#266): there is no longer one television
+    to state it for. A wall's own geometry is wave 4's, under Clients.
 
     **The heartbeat is a list, one entry per wall**, since 2026-08-12. Each wall's
     display writes its own file, so "has the display plane reported" stopped being
@@ -1257,11 +1349,38 @@ class HealthOut(BaseModel):
     #: says how long ago rather than whether that is too long.
     description: str
     backup: BackupOut
-    artwork_box: ArtworkBoxOut
     #: Every installed source plugin, most preferred first. Empty when none is
     #: installed, which the panel says in words.
     sources: list[SourcePluginOut]
     pictures: PicturesOut
+
+
+class SourceYieldOut(BaseModel):
+    """What one installed source has given the library, counted from the records.
+
+    An observation, never a ranking, and it survives a restart because nothing
+    here is a tally: every figure is counted again from the catalogue and the
+    search records on each read.
+    """
+
+    #: The plugin's name, as `SourcePluginOut.name` carries it.
+    name: str
+    #: Distinct images, by address, it has offered to a search or as a held
+    #: work's source; one the curator turned down still counts.
+    offered: int
+    #: Works held by an image from it: their primary source is this one.
+    chosen: int
+    #: Of those, the works no other source offered any image for.
+    only_here: int
+    #: The median long edge, in pixels, of its offered images whose size is
+    #: known; null when none is.
+    median_long_edge: int | None
+
+
+class SourceYieldsOut(BaseModel):
+    """Every installed source plugin's yield, most preferred first, as `GET /api/health` lists the plugins."""
+
+    sources: list[SourceYieldOut]
 
 
 class RunOut(BaseModel):
@@ -1977,6 +2096,12 @@ class StepDisplay(BaseModel):
     wall_id: str
 
 
+class RetryCause(BaseModel):
+    """Retry all: the cause, exactly as `/api/acquisitions/causes` words it."""
+
+    cause: str
+
+
 class SetIdentity(BaseModel):
     """The curator's word on which Wikidata item this is.
 
@@ -2249,3 +2374,70 @@ class SetAffinity(BaseModel):
     #: Required by the service when `derivation` is `inferred`, and meaningless
     #: otherwise: a curator saying a thing is the whole provenance.
     source_turn_id: str | None = None
+
+
+class WorksFilter(BaseModel):
+    """The narrowing `GET /api/works` takes, as a body: which works an act on a whole filter means.
+
+    The same names and the same meanings as that route's query parameters, so
+    *Select all* on Artworks acts on exactly the works the grid beside it is
+    counting, including the ones not yet loaded. `sort` decides only the order
+    the works are acted on in, which is the order a theme they join keeps.
+
+    **An unknown key is refused, not dropped.** A narrowing added to the listing
+    and not here would otherwise be ignored, and the act would reach more works
+    than the grid shows.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    q: str | None = None
+    status: str | None = None
+    artist_id: str | None = None
+    theme: str | None = None
+    sort: str | None = None
+    artist: list[str] = []
+    movement: list[str] = []
+    era: list[str] = []
+    subject: list[str] = []
+    medium: list[str] = []
+    palette: list[str] = []
+    fit: list[str] = []
+    not_on_wall: bool = False
+
+
+class WorkSelection(BaseModel):
+    """Which works an act on a selection is for: by id, or every work a filter matches.
+
+    Exactly one of `artwork_ids` and `filter`. `except_ids` takes works out of a
+    filter's set — the ones the curator unticked after *Select all*.
+    """
+
+    artwork_ids: list[str] | None = None
+    filter: WorksFilter | None = None
+    except_ids: list[str] = []
+
+
+class ThemeAdditionOut(BaseModel):
+    """What adding a selection to a theme did."""
+
+    #: How many joined the theme now.
+    added: int
+    #: How many the theme already held, and so were passed over.
+    already: int
+
+
+class ThemeRemovalOut(BaseModel):
+    """What taking a selection out of a theme did."""
+
+    #: The ids that left, so a screen can take exactly those tiles away.
+    removed: list[str]
+
+
+class ArchivedWorksOut(BaseModel):
+    """What archiving a selection did."""
+
+    #: The ids archived now, so a screen can mark exactly those.
+    archived: list[str]
+    #: How many were archived already, and so were passed over.
+    already: int

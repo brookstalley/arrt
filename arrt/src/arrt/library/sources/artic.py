@@ -73,6 +73,10 @@ log = logging.getLogger(__name__)
 #: the data model, so this is a name rather than a member of an enum.
 PROVIDER: Final[str] = "artic"
 
+#: The name a curator knows this source by, for every sentence that names it
+#: (`names.museum_name`).
+MUSEUM: Final[str] = "Art Institute of Chicago"
+
 _SEARCH_URL: Final[str] = "https://api.artic.edu/api/v1/artworks/search"
 
 #: Where one object is read by id. The same collection the search endpoint is

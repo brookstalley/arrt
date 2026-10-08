@@ -193,8 +193,10 @@ function aStatus() {
  * `box(qid, title)` makes the tick box for one row; `node` is the control, which
  * reads *Get 3 works* and is disabled while nothing is ticked. A Get clears the
  * ticks, since those works are now being got. `defaultName` is passed on to
- * *Add to*. */
-export function getSelection({ defaultName = null } = {}) {
+ * *Add to*. `onChange` is told how many are ticked whenever that changes,
+ * including when a Get clears them, so the selection bar around this control
+ * (`core/selecting.js`) counts them without keeping a second copy of the ticks. */
+export function getSelection({ defaultName = null, onChange = () => {} } = {}) {
   const chosen = new Map();
   const status = aStatus();
   const destination = destinationControl({ defaultName });
@@ -202,6 +204,7 @@ export function getSelection({ defaultName = null } = {}) {
   const settle = () => {
     button.disabled = chosen.size === 0;
     button.textContent = chosen.size ? `Get ${counted(chosen.size, "work")}` : "Get";
+    onChange(chosen.size);
   };
   button.addEventListener("click", () => {
     const qids = [...chosen.keys()];

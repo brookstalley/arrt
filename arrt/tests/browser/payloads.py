@@ -359,7 +359,7 @@ def a_theme(**overrides) -> ThemeOut:
     return ThemeOut(**(fields | overrides))
 
 
-def a_theme_detail(works, *, theme: ThemeOut | None = None) -> dict:
+def a_theme_detail(works, *, theme: ThemeOut | None = None, shuffled: bool = False) -> dict:
     """A theme and its works in curated order, as every membership write answers.
 
     The order in this body is the whole point of the shape: `POST`/`DELETE` on a
@@ -368,7 +368,7 @@ def a_theme_detail(works, *, theme: ThemeOut | None = None) -> dict:
     Which means a test can hand the client an order no catalogue would produce
     and see whether the table shows it.
     """
-    return ThemeDetailOut(theme=theme or a_theme(), works=list(works)).model_dump(mode="json")
+    return ThemeDetailOut(theme=theme or a_theme(), works=list(works), shuffled=shuffled).model_dump(mode="json")
 
 
 def an_estimate(**overrides) -> dict:

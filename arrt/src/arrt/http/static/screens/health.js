@@ -17,7 +17,7 @@
 import { api } from "../core/api.js";
 import { facts } from "../core/badges.js";
 import { ago, dated } from "../core/dates.js";
-import { PLUGIN_STATE_WORDS } from "../core/providers.js";
+import { museumName, PLUGIN_STATE_WORDS } from "../core/providers.js";
 import { el, render } from "../core/render.js";
 import { backRow, link } from "../core/router.js";
 
@@ -92,7 +92,7 @@ function heartbeatPanel(wall, titles) {
   // over: `app.css` has a rule keyed on it that nothing was emitting after the
   // client split, and a test asking "is every wall named, and only walls" needs a
   // selector that means *a wall's panel* rather than *any panel on this screen* —
-  // the backup and the geometry are panels too.
+  // the backup, the sources and the picture store are panels too.
   return el("div", { class: "panel wall-reading" }, [
     // The wall's own name is the heading. "The display plane" was right while
     // there was one of it, and is a sentence that silently becomes wrong.
@@ -170,13 +170,78 @@ function heartbeatPanels(health, titles) {
   return health.walls.map((wall) => heartbeatPanel(wall, titles));
 }
 
-/* Every installed source plugin, in order of preference, as its own sentence.
+/* The sources table's columns, left to right. `drops` is the order they leave
+ * as the panel narrows (1 first), and `app.css` holds the widths, under
+ * `.source-table`: Source, State, Offered and Chosen never leave. Median long
+ * edge goes first because the owner did not name it; Faults since startup goes
+ * last, and when it does the count moves into the State cell, so a fault is on
+ * screen at every width (owner, 2026-10-08). The class is what the stylesheet
+ * and the width test both key on. */
+const SOURCE_COLUMNS = [
+  { name: "source", heading: "Source" },
+  { name: "state", heading: "State" },
+  { name: "offered", heading: "Offered" },
+  { name: "chosen", heading: "Chosen" },
+  { name: "only-here", heading: "Only here", drops: 3 },
+  { name: "median", heading: "Median long edge", drops: 1 },
+  { name: "faults", heading: "Faults since startup", drops: 4 },
+  { name: "last-fault", heading: "Last fault", drops: 2 },
+];
+
+/* A loaded plugin's faults in words; one that did not load has none to speak
+ * of unless it somehow has some. */
+function faultWords(source) {
+  if (source.faults) return `${source.faults} ${source.faults === 1 ? "fault" : "faults"}`;
+  return source.state === "loaded" ? "no faults" : null;
+}
+
+function count(value) {
+  return typeof value === "number" ? value.toLocaleString() : "—";
+}
+
+function sourceRow(source, yielded) {
+  const faults = faultWords(source);
+  const cells = {
+    // The museum's name, and for a plugin that is not working here, the reason
+    // in its own words, which names the setting that would change it.
+    source: [
+      el("span", { text: museumName(source.name) }),
+      source.state !== "loaded" && source.reason ? el("span", { class: "source-reason muted", text: source.reason }) : null,
+    ],
+    // A word, never a colour. The fault count beside it is shown only once the
+    // Faults column has gone (`app.css`), so it is never said twice.
+    state: [
+      el("span", { text: PLUGIN_STATE_WORDS[source.state] || source.state }),
+      faults ? el("span", { class: "state-faults", text: ` · ${faults}` }) : null,
+    ],
+    offered: count(yielded && yielded.offered),
+    chosen: count(yielded && yielded.chosen),
+    "only-here": count(yielded && yielded.only_here),
+    median: yielded && typeof yielded.median_long_edge === "number" ? `${yielded.median_long_edge.toLocaleString()} px` : "—",
+    faults: source.state === "loaded" || source.faults ? String(source.faults) : "—",
+    "last-fault":
+      source.last_fault && typeof source.last_fault_age_seconds === "number"
+        ? `${ago(source.last_fault_age_seconds)}: ${source.last_fault}`
+        : "—",
+  };
+  // `data-label` is the column's name over each cell once a phone stacks the
+  // rows into cards (`app.css`); the Source cell leads its card and needs none.
+  return el("tr", {}, SOURCE_COLUMNS.map(({ name, heading }) => {
+    const value = cells[name];
+    const label = name === "source" ? {} : { "data-label": heading };
+    return el("td", { class: `col-${name}`, ...label }, Array.isArray(value) ? value.filter(Boolean) : [String(value)]);
+  }));
+}
+
+/* Every installed source plugin, in order of preference, one row each.
  *
  * Declined is shown as plainly as loaded: a plugin this deployment has not
- * configured is a choice, and the sentence says which setting would change it.
- * The state is a word in the sentence and a fact below it, never a colour. */
-function sourcesPanel(health) {
+ * configured is a choice, and its row says which setting would change it. The
+ * counts are the library's own records (`GET /api/sources/yields`); a table
+ * that could not read them says so and still shows each source's state. */
+function sourcesPanel(health, yields) {
   const sources = Array.isArray(health.sources) ? health.sources : null;
+  const byName = new Map((yields.rows || []).map((row) => [row.name, row]));
   return el("div", { class: "panel" }, [
     el("h2", { text: "Image sources" }),
     sources === null
@@ -186,17 +251,31 @@ function sourcesPanel(health) {
             class: "muted",
             text: "No source plugin is installed, so no image can be found for a work. Arrt ships with built-in plugins, so none listed means the package was installed without its entry points.",
           })
-        : el("ul", { class: "source-readings" }, sources.map((source) =>
-            el("li", {}, [
-              el("p", { class: "reading-sentence", text: source.description }),
-              facts([
-                ["State", PLUGIN_STATE_WORDS[source.state] || source.state],
-                ["Faults since startup", String(source.faults)],
-                ["Last fault", source.last_fault],
+        : el("div", { class: "source-table" }, [
+            yields.problem ? el("p", { class: "note", text: `The counts could not be read: ${yields.problem}` }) : null,
+            el("div", { class: "table-scroll" }, [
+              el("table", {}, [
+                el("caption", {
+                  text: "Most preferred first. Offered: the images a source has offered. Chosen: the works held by an image from it. Only here: those no other source offered an image for.",
+                }),
+                el("thead", {}, [el("tr", {}, SOURCE_COLUMNS.map(({ name, heading }) => el("th", { scope: "col", class: `col-${name}`, text: heading })))]),
+                el("tbody", {}, sources.map((source) => sourceRow(source, byName.get(source.name)))),
               ]),
             ]),
-          )),
+          ]),
   ]);
+}
+
+/* The yields, or why they could not be read. Caught here rather than left to
+ * `guard`: counts that will not load are a fact about the table, and the rest
+ * of Status, the product's only alerting surface, still has to be read. */
+async function sourceYields() {
+  try {
+    const answer = await api("/api/sources/yields");
+    return { rows: Array.isArray(answer.sources) ? answer.sources : [], problem: null };
+  } catch (failure) {
+    return { rows: [], problem: failure.message };
+  }
 }
 
 /* How much the picture store keeps: every picture fetched from outside, kept for
@@ -226,9 +305,8 @@ function picturesPanel(health) {
 }
 
 export async function viewHealth(generation) {
-  const health = await api("/api/health");
+  const [health, yields] = await Promise.all([api("/api/health"), sourceYields()]);
   const titles = await showingTitles(Array.isArray(health.walls) ? health.walls : []);
-  const box = health.artwork_box;
   render(
     generation,
     backRow(),
@@ -239,7 +317,7 @@ export async function viewHealth(generation) {
     // deliberately declined to make.
     health.description ? el("p", { class: "note", text: health.description }) : null,
     ...heartbeatPanels(health, titles),
-    sourcesPanel(health),
+    sourcesPanel(health, yields),
     picturesPanel(health),
     el("div", { class: "panel" }, [
       el("h2", { text: "Backup" }),
@@ -268,19 +346,6 @@ export async function viewHealth(generation) {
         health.backup.reported ? el("h3", { text: "What it recorded" }) : null,
         reportedFacts(health.backup.reported),
       ),
-    ]),
-    el("div", { class: "panel" }, [
-      el("h2", { text: "This deployment's geometry" }),
-      el("p", {
-        class: "muted",
-        text: "The space a work is rendered into on this television, after the mat. Every size shown in the grid is judged against it.",
-      }),
-      facts([
-        ["Artwork box", `${box.width} × ${box.height} px`],
-        ["Scale", `${box.pixels_per_inch.toFixed(1)} pixels per inch on the wall`],
-        ["On the wall", `${(box.width / box.pixels_per_inch).toFixed(1)}″ × ${(box.height / box.pixels_per_inch).toFixed(1)}″`],
-        ["Resolution floor", `${box.floor_inches}″ on the long edge`],
-      ]),
     ]),
   );
 }

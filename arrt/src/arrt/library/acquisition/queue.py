@@ -176,18 +176,72 @@ class QueuePassResult:
 
 @dataclass(frozen=True, slots=True)
 class QueueEntry:
-    """One work the queue owes something, named for a person reading the queue."""
+    """One work the queue owes something, named for a person reading the queue.
+
+    `state.detail` names the work by its title, never its id. `cause` is set for
+    a work that failed or that the queue gave up on: why, in words that name no
+    work, so every work that failed for the same reason shares it.
+    """
 
     title: str
     state: AcquisitionState
+    cause: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class FailureCause:
+    """Every work whose last try failed for one reason, in the order the queue holds them."""
+
+    cause: str
+    entries: Sequence[QueueEntry]
+
+    @property
+    def failed(self) -> int:
+        """How many will be tried again on their own."""
+        return sum(1 for entry in self.entries if entry.state.phase is AcquisitionPhase.FAILED)
+
+    @property
+    def gave_up(self) -> int:
+        """How many the queue gave up on, which wait for Retry."""
+        return sum(1 for entry in self.entries if entry.state.phase is AcquisitionPhase.GAVE_UP)
 
 
 @dataclass(frozen=True, slots=True)
 class QueueListing:
-    """What Activity › Queue shows of acquisition: the pause, if any, then every work owed."""
+    """What Activity › Queue shows of acquisition: the pause, if any, then every work owed.
+
+    Split two ways for a surface, because thousands of works failing for one
+    reason are one problem: `in_line` is every work still in line (queued,
+    fetching, paused), and `causes` groups every work that failed or was given
+    up on by its cause, the largest group first.
+    """
 
     pause: QueuePause | None
     entries: Sequence[QueueEntry]
+
+    @property
+    def in_line(self) -> Sequence[QueueEntry]:
+        return tuple(entry for entry in self.entries if entry.cause is None)
+
+    @property
+    def causes(self) -> Sequence[FailureCause]:
+        grouped: dict[str, list[QueueEntry]] = {}
+        for entry in self.entries:
+            if entry.cause is not None:
+                grouped.setdefault(entry.cause, []).append(entry)
+        # Largest first; a tie keeps the order the queue holds the groups' first works in.
+        ordered = sorted(grouped.items(), key=lambda item: -len(item[1]))
+        return tuple(FailureCause(cause=cause, entries=tuple(entries)) for cause, entries in ordered)
+
+
+@dataclass(frozen=True, slots=True)
+class RetryAllResult:
+    """What Retry all did to one cause's works: how many it put back in line, and why it refused the rest."""
+
+    cause: str
+    retried: int
+    #: Each reason a work was not retried, naming no work, with how many it held back.
+    refused: Mapping[str, int]
 
 
 class _Paused(Exception):
@@ -243,19 +297,22 @@ class AcquisitionQueue:
         — a fetch for a work with no image, a preparation for one with.
         """
         artwork = self._catalogue.get_artwork(artwork_id).artwork
+        # Each refusal names the work by its title: it is read beside the Retry a
+        # curator pressed, where an id says nothing.
+        named = _quoted(artwork.title)
         if artwork.status is ArtworkStatus.ARCHIVED:
-            raise ServiceError(f"Artwork {artwork_id!r} is archived; restore it and it will be fetched.")
+            raise ServiceError(f"{named} is archived; restore it and it will be fetched.")
         sources = {source.id for source in self._catalogue.list_sources(artwork_id)}
         if not sources:
             # Refused here rather than queued to fail an hour later: nothing a
             # retry schedule does can give a work a source, and the caller asking
             # is the one who can.
-            raise ServiceError(f"Artwork {artwork_id!r} has no source to acquire from.")
+            raise ServiceError(f"{named} has no source to acquire from.")
         if source_id is not None and source_id not in sources:
-            raise ServiceError(f"Source {source_id!r} does not belong to artwork {artwork_id!r}.")
+            raise ServiceError(f"Source {source_id!r} does not belong to {named}.")
         with self._state_lock:
             if self._fetching is not None and self._fetching[0] == artwork_id:
-                raise ServiceError(f"Artwork {artwork_id!r} is being fetched now; there is nothing to retry yet.")
+                raise ServiceError(f"{named} is being fetched now; there is nothing to retry yet.")
             self._store.set_queued_acquisition(QueuedAcquisition(artwork_id=artwork_id, source_id=source_id))
             if artwork_id in self._front:
                 self._front.remove(artwork_id)
@@ -265,6 +322,41 @@ class AcquisitionQueue:
         )
         self.nudge()
         return self.state_of([artwork_id])[artwork_id]
+
+    def retry_cause(self, cause: str) -> RetryAllResult:
+        """Retry every work whose last try failed for `cause`, as `listing().causes` words it.
+
+        One call for the whole group, so a surface asks once however many works
+        share the cause. Each work is retried as `retry` retries it, and a work
+        `retry` refuses (no source, being fetched) is counted under its reason,
+        in words naming no work, rather than ending the rest. A cause no work
+        holds any more is refused by name: a group can empty between the
+        listing that showed it and the press.
+        """
+        group = next((each for each in self.listing().causes if each.cause == cause), None)
+        if group is None:
+            raise ServiceError(
+                "No work in the queue failed for that reason now; the queue may have tried them again since. "
+                "Load the queue again to see where they stand."
+            )
+        retried = 0
+        refused: dict[str, int] = {}
+        for entry in group.entries:
+            artwork_id = entry.state.artwork_id
+            try:
+                self.retry(artwork_id)
+            except ServiceError as refusal:
+                reason = _unnamed(str(refusal), artwork_id, entry.title)
+                refused[reason] = refused.get(reason, 0) + 1
+            else:
+                retried += 1
+        log.info(
+            "%d works asked for again together, %d refused",
+            retried,
+            sum(refused.values()),
+            extra={"event": "acquisition.queue_retry_cause", "retried": retried, "refused": sum(refused.values())},
+        )
+        return RetryAllResult(cause=cause, retried=retried, refused=refused)
 
     def owe_recomposition(self, layout: str) -> int:
         """Queue a preparation for every work whose canvas was drawn at another layout. Returns how many.
@@ -358,22 +450,26 @@ class AcquisitionQueue:
         acceptance; works given up on and works waiting for a retry follow in
         the same order, since each still holds its place.
         """
-        works = self._in_turn(list(self._store.works_to_acquire()))
         with self._state_lock:
-            fetching = None if self._fetching is None else self._fetching[0]
-        ids = [work.artwork_id for work in works]
-        if fetching in ids:
-            ids.remove(fetching)
-            ids.insert(0, fetching)
-        states = self.state_of(ids)
+            fetching, pause = self._fetching, self._pause
+        now = self._clock()
         entries = []
-        for artwork_id in ids:
-            state = states.get(artwork_id)
-            artwork = self._store.get_artwork(artwork_id)
-            if state is None or artwork is None:
-                continue
-            entries.append(QueueEntry(title=artwork.title, state=state))
-        return QueueListing(pause=self.pause, entries=tuple(entries))
+        # Each state from the row `works_to_acquire` already read, rather than
+        # through `state_of`, which reads it again: the listing is every work
+        # owed, and at thousands of them the second read per work is most of
+        # the answer's time. The works it selects are the ones `state_of`
+        # answers for: accepted, and holding no image or holding a queue row.
+        with self._store.reading():
+            works = self._in_turn(list(self._store.works_to_acquire()))
+            if fetching is not None:
+                works.sort(key=lambda work: work.artwork_id != fetching[0])
+            for work in works:
+                artwork = self._store.get_artwork(work.artwork_id)
+                if artwork is None:
+                    continue
+                state = _state(work.artwork_id, work.queued, now=now, fetching=fetching, pause=pause)
+                entries.append(_entry(artwork.title, state))
+        return QueueListing(pause=pause, entries=tuple(entries))
 
     # -- the worker ------------------------------------------------------------
 
@@ -593,6 +689,57 @@ class AcquisitionQueue:
         return min(IDLE_SECONDS, max(_MIN_WAIT_SECONDS, (min(upcoming) - now).total_seconds()))
 
 
+#: What a failed work's cause is when its row recorded none, which no path
+#: writes today; said rather than grouped under an empty heading.
+_NO_REASON: Final[str] = "No reason was recorded."
+
+
+def _quoted(title: str) -> str:
+    return f"\u201c{title}\u201d"
+
+
+def _renamed(text: str, artwork_id: str, title: str, *, first: str, rest: str) -> str:
+    """`text` with every way a recorded reason names this work replaced: `first` where it opens the text, else `rest`.
+
+    The ways are the id as a refusal quotes it, with or without "Artwork"
+    before it, and the title as `retry` quotes it; the longest first, so
+    "Artwork 'x'" goes whole rather than leaving "Artwork" behind. Plain
+    string replacement, not a pattern: a listing renames every work it owes,
+    and compiling a pattern per work was most of its time at thousands.
+    """
+    quoted_id = repr(artwork_id)
+    for form in (f"Artwork {quoted_id}", f"artwork {quoted_id}", quoted_id, _quoted(title)):
+        if text.startswith(form):
+            text = first + text[len(form) :]
+        text = text.replace(form, rest)
+    return text
+
+
+def _named(text: str, artwork_id: str, title: str) -> str:
+    """A reason with the work named by its title, never its id: what a curator reads beside the title."""
+    return _renamed(text, artwork_id, title, first=_quoted(title), rest=_quoted(title))
+
+
+def _unnamed(text: str, artwork_id: str, title: str) -> str:
+    """A reason naming no work, so every work that failed for it shares the words.
+
+    "Artwork 'x' has no source to acquire from." is one cause across a thousand
+    works only once the id is gone. At the start of the text it is "The work",
+    elsewhere "the work".
+    """
+    return _renamed(text, artwork_id, title, first="The work", rest="the work")
+
+
+def _entry(title: str, state: AcquisitionState) -> QueueEntry:
+    """One work's place, named by its title, with its cause when it failed or was given up on."""
+    artwork_id = state.artwork_id
+    cause = None
+    if state.phase in (AcquisitionPhase.FAILED, AcquisitionPhase.GAVE_UP):
+        cause = _unnamed(state.detail, artwork_id, title) if state.detail else _NO_REASON
+    detail = None if state.detail is None else _named(state.detail, artwork_id, title)
+    return QueueEntry(title=title, state=replace(state, detail=detail), cause=cause)
+
+
 class _Outcome(StrEnum):
     DONE = "done"
     FAILED = "failed"
@@ -698,9 +845,11 @@ __all__ = [
     "AcquisitionPhase",
     "AcquisitionQueue",
     "AcquisitionState",
+    "FailureCause",
     "QueueEntry",
     "QueueListing",
     "QueuePassResult",
     "QueuePause",
+    "RetryAllResult",
     "start_acquisition_queue",
 ]

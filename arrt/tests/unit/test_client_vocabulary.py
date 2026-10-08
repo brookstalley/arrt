@@ -399,7 +399,21 @@ def test_every_derivation_has_a_sentence_saying_what_the_claim_is():
     assert _object_keys("DERIVATION_WORDS") == {str(member) for member in AffinityDerivation}
 
 
-@pytest.mark.parametrize("name", ["TASTE_KIND_WORDS", "SENTIMENT_WORDS", "SENTIMENT_GLYPHS", "DERIVATION_WORDS"])
+def test_every_sentiment_shape_is_a_glyph_the_glyph_table_holds():
+    """Right keys, and each a real glyph: the hole the keys check above cannot see.
+
+    The shapes are named by meaning from `core/glyphs.js`, which holds each
+    glyph once (`tests/unit/test_glyphs_have_one_meaning.py`), so a sentiment
+    pointing at a meaning the table lacks would render as "undefined".
+    """
+    named = dict(re.findall(r"(\w+): GLYPHS\.(\w+)", _literal_body("SENTIMENT_GLYPHS")))
+    assert set(named) == {str(member) for member in AffinitySentiment}
+    table = (STATIC_DIR / "core" / "glyphs.js").read_text()
+    missing = sorted(meaning for meaning in named.values() if not re.search(rf"^\s*{meaning}: \"[^\"]+\",$", table, re.MULTILINE))
+    assert not missing, f"SENTIMENT_GLYPHS names {missing}, which core/glyphs.js does not hold"
+
+
+@pytest.mark.parametrize("name", ["TASTE_KIND_WORDS", "SENTIMENT_WORDS", "DERIVATION_WORDS"])
 def test_every_taste_phrase_a_curator_reads_actually_has_words_in_it(name):
     """Right keys, empty value — the hole the keys checks above cannot see."""
     values = _object_values(name)
@@ -509,6 +523,22 @@ def test_every_built_in_source_has_the_name_a_curator_knows_it_by():
             providers.add(declared)
     assert len(providers) >= 5, "too few sources were found for this guard to mean anything"
     assert _object_keys("MUSEUM_NAMES") == providers
+
+
+def test_the_client_names_each_museum_as_the_server_does():
+    """Two maps, one name each: the server's sentences and the client's labels must agree.
+
+    The server's names are each built-in's own `MUSEUM` (`library/sources/names.py`);
+    the client's are `MUSEUM_NAMES` in `core/providers.js`. Read pair by pair,
+    so a name changed on one side fails here rather than reading two ways.
+    """
+    from arrt.library.sources.names import built_in_museums
+
+    body = re.search(r"export const MUSEUM_NAMES = \{(.*?)\n\};", CLIENT, re.DOTALL)
+    assert body, "the client has no `MUSEUM_NAMES`"
+    client = dict(re.findall(r'^\s*([a-z_]+):\s*"((?:[^"\\]|\\.)*)",?\s*$', body.group(1), re.MULTILINE))
+    assert len(client) == len(_object_keys("MUSEUM_NAMES")), "a client entry was not read as a pair"
+    assert client == dict(built_in_museums())
 
 
 def test_both_surfaces_say_the_same_sentence_about_a_work_let_back_on_the_walls():

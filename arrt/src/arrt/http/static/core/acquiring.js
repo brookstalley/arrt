@@ -13,14 +13,15 @@ import { attempt } from "./acting.js";
 import { api } from "./api.js";
 import { counted } from "./counting.js";
 import { dated } from "./dates.js";
+import { GLYPHS } from "./glyphs.js";
 import { el } from "./render.js";
 
 const PHASES = {
-  queued: { glyph: "◌", word: "queued" },
-  fetching: { glyph: "↻", word: "fetching" },
-  failed: { glyph: "▲", word: "failed" },
-  gave_up: { glyph: "✗", word: "gave up" },
-  paused: { glyph: "‖", word: "paused" },
+  queued: { glyph: GLYPHS.waiting, word: "queued" },
+  fetching: { glyph: GLYPHS.moving, word: "fetching" },
+  failed: { glyph: GLYPHS.problem, word: "failed" },
+  gave_up: { glyph: GLYPHS.problem, word: "gave up" },
+  paused: { glyph: GLYPHS.paused, word: "paused" },
 };
 
 //: How many tries the queue makes before it gives up: the first and three
@@ -32,15 +33,19 @@ function when(iso) {
 }
 
 export function acquisitionBadge(state) {
-  const phase = PHASES[state.phase] || { glyph: "?", word: state.phase };
+  const phase = PHASES[state.phase] || { glyph: GLYPHS.unknown, word: state.phase };
   return el("span", { class: `badge badge-acquisition badge-acquisition-${state.phase}` }, [
     el("span", { class: "glyph", text: phase.glyph, "aria-hidden": true }),
     el("span", { text: phase.word }),
   ]);
 }
 
-/* What the state means, in one or two sentences a curator can act on. */
-export function acquisitionSentence(state) {
+/* What the state means, in one or two sentences a curator can act on.
+ *
+ * `cause: false` leaves out why a failed or given-up work failed, for a work
+ * read under its cause on Queue, where the cause is the group's heading. */
+export function acquisitionSentence(state, { cause = true } = {}) {
+  const why = cause ? `: ${state.detail}` : ".";
   switch (state.phase) {
     case "queued":
       return state.failures
@@ -49,9 +54,9 @@ export function acquisitionSentence(state) {
     case "fetching":
       return `Being fetched since ${when(state.since)}, then prepared for the wall. A tiled fetch can take up to half an hour.`;
     case "failed":
-      return `Try ${state.failures} of ${TRIES} failed: ${state.detail} It tries again at ${when(state.next_try_at)}.`;
+      return `Try ${state.failures} of ${TRIES} failed${why} It tries again at ${when(state.next_try_at)}.`;
     case "gave_up":
-      return `Gave up after ${counted(state.failures, "try", "tries")}: ${state.detail} Nothing tries again until you retry.`;
+      return `Gave up after ${counted(state.failures, "try", "tries")}${why} Nothing tries again until you retry.`;
     case "paused":
       return `Every fetch is paused: ${state.detail} ${state.remedy || "Nothing anticipated this error; the server's journal has it, as acquisition.queue_error."}`;
     default:

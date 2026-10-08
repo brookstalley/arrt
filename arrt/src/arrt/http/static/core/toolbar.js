@@ -5,9 +5,11 @@
  * screen: a page hands it its own actions and controls, built with the helpers
  * below, so every list page that has them puts them in the same place.
  *
- * **View and Sort are menu buttons, Filter is a toggle.** A menu button names
- * its current choice on its face ("View: Posters"), because a control whose
- * state can only be read by opening it is one a reader has to open to check.
+ * **View and Sort are menu buttons**, and the filter rails' control is a plain
+ * button whose label says what it does (*Show filters*, *Hide filters*), built
+ * by the page. A menu button names its current choice on its face
+ * ("View: Posters"), because a control whose state can only be read by opening
+ * it is one a reader has to open to check.
  * The menu is an ARIA menu of `menuitemradio`s: arrow keys move, Enter or Space
  * chooses, Escape closes and hands focus back to the button.
  */
@@ -93,15 +95,4 @@ export function menuButton({ label, options, current, onChoose }) {
   });
 
   return el("div", { class: "toolbar-menu-wrap" }, [button, menu]);
-}
-
-/* A control that is on or off, and says which with `aria-pressed`. */
-export function toggleButton({ label, pressed, onToggle }) {
-  return el("button", {
-    class: "action quiet",
-    type: "button",
-    "aria-pressed": pressed ? "true" : "false",
-    text: label,
-    onclick: () => onToggle(!pressed),
-  });
 }

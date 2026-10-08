@@ -126,18 +126,16 @@ def test_the_confirmation_names_the_wall_that_is_showing_the_work(ui, ready_work
     assert wall.name in ui.page.inner_text(".confirm-consequence")
 
 
-def test_the_confirmation_says_how_to_make_the_room_catch_up(ui, ready_work, hang):
-    """When *and* how, because the ruling that allows the delay rests on the how.
+def test_the_confirmation_says_the_room_loses_it_now(ui, ready_work, hang):
+    """When the room loses the picture: now, as the archive lands.
 
-    Nothing in the archive path republishes a manifest, so the picture stays up
-    until something rebuilds that wall. The operator ruled that acceptable on
-    condition that a path exists to force one — which makes the remedy part of
-    the sentence rather than a nicety, since a curator told only *when* is being
-    handed a fact they cannot act on.
-
-    Asserted apart from the wall-naming test above because they fail for
-    different reasons: that one breaks when the evaluation is wrong, this one
-    when a tidying edit shortens the sentence.
+    Programming takes an archived work off every published manifest that
+    carries it as soon as the Library announces the archive (removals
+    republish, additions wait: the operator's ruling of 2026-09-30, pinned by
+    `tests/unit/test_reconciliation.py`). This confirmation once said the room
+    would lose it "the next time its theme is hung" and offered re-hanging as
+    the way to make it catch up, which promised a delay and a remedy that no
+    longer exist.
     """
     work = ready_work(title="Nighthawks")
     hang(work)
@@ -146,9 +144,9 @@ def test_the_confirmation_says_how_to_make_the_room_catch_up(ui, ready_work, han
     ask(ui, "Archive")
 
     consequence = ui.page.inner_text(".confirm-consequence")
-    assert "the next time" in consequence
-    assert "hung" in consequence
-    assert "Re-hanging" in consequence
+    assert "loses it now" in consequence
+    assert "next time" not in consequence
+    assert "Re-hanging" not in consequence
 
 
 def test_a_work_hanging_in_two_rooms_names_both(ui, ready_work, hang):

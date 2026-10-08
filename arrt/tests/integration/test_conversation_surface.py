@@ -236,3 +236,27 @@ def test_an_unknown_conversation_is_refused_in_the_one_error_shape(server_url):
 
     assert response.status_code == 400
     assert "No conversation with id" in response.json()["error"]
+
+
+def test_a_turn_s_estimate_is_its_tier_and_spends_nothing(server_url, services, conversation_engine):
+    """The tier Say it carries, from the server: an estimate shown before spending."""
+    conversation_id = started(server_url)
+
+    response = httpx.get(f"{server_url}/api/conversations/{conversation_id}/estimate", timeout=20)
+
+    assert response.status_code == 200
+    estimate = response.json()
+    assert estimate["phase"] == "conversation_turn"
+    assert estimate["tier"] == "$"
+    # A string, to the provider's precision, as every other estimate.
+    assert Decimal(estimate["estimated_cost_usd"]) > 0
+    assert estimate["run_id"] is None
+    assert conversation_engine.threads == []
+    assert services.discovery._store.list_spend_records() == []
+
+
+def test_a_turn_s_estimate_for_an_unknown_conversation_is_refused(server_url):
+    response = httpx.get(f"{server_url}/api/conversations/not-a-conversation/estimate", timeout=20)
+
+    assert response.status_code == 400
+    assert "No conversation with id" in response.json()["error"]

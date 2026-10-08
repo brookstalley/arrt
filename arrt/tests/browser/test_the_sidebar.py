@@ -45,7 +45,7 @@ PAGES = {
     "Walls": [],
     "Activity": ["To review", "Queue", "History"],
     "Wanted": [],
-    "Settings": ["Taste", "Clients", "Sources"],
+    "Settings": ["Clients", "Sources", "Taste"],
     "System": ["Status"],
 }
 
@@ -60,8 +60,9 @@ SIDEBAR_PAGES = [
     ("to_review", "To review"),
     ("queue", "Queue"),
     ("history", "History"),
-    ("taste", "What this product thinks you like"),
+    ("settings", "Settings"),
     ("clients", "Clients"),
+    ("taste", "Taste"),
     ("wanted", "Wanted"),
     ("health", "Status"),
 ]
@@ -108,7 +109,7 @@ OPENS = {
     "Walls": "walls",
     "Activity": "to_review",
     "Wanted": "wanted",
-    "Settings": "taste",
+    "Settings": "settings",
     "System": "health",
 }
 
@@ -171,10 +172,12 @@ def test_each_page_is_addressable(ui, seeded_service, view, heading):
 
 
 def test_only_one_link_is_the_current_page(ui, seeded_service):
-    """Settings' link and Taste's point at the same address, and only one may say so.
+    """On a listed page the section is open too, and only the page's link may say so.
 
     `aria-current="page"` on two links tells a screen reader it is on two pages.
     The page's own link carries it; the section link is only styled as open.
+    (Settings' link and Taste's pointed at one address until Settings opened its
+    own index; Taste is still the listed page this checks from.)
     """
     ui.open("#taste")
     ui.page.wait_for_selector("#view h1")
@@ -324,7 +327,9 @@ def test_status_is_reached_by_the_top_bar_indicator(ui, seeded_service, a_health
     ui.page.click("#status")
     ui.page.wait_for_selector("#view h1:has-text('Status')")
 
-    assert "This deployment's geometry" in ui.text()
+    # A panel only Status has, so the page reached is that one's whole body. It
+    # was the geometry panel's heading until the owner removed it (#266).
+    assert "Image sources" in ui.text()
 
 
 def test_status_keeps_the_address_health_had(ui, seeded_service, a_health_reading):
@@ -372,7 +377,7 @@ def test_a_health_reading_the_screen_cannot_parse_is_stated_rather_than_thrown(u
     An exception here reaches the page's error banner reading like the server is
     down, which is a different fact leading to a different next move. Saying what
     the reading was missing is the honest answer, and it keeps the rest of the
-    screen — the backup and the geometry — readable.
+    screen — the backup — readable.
     """
     ui.serve(
         "**/api/health",
@@ -386,7 +391,6 @@ def test_a_health_reading_the_screen_cannot_parse_is_stated_rather_than_thrown(u
                 "description": "The catalogue was last backed up 6 hours ago.",
                 "reported": None,
             },
-            "artwork_box": {"width": 3840, "height": 2160, "pixels_per_inch": 72.0, "floor_inches": 20.0},
         },
     )
     ui.open("#health")

@@ -141,12 +141,21 @@ def themes_read(ui, scope="#view") -> None:
     ui.page.wait_for_selector(f"{scope} .get-into option[value='new']", state="attached")
 
 
+def select_mode(ui):
+    """Turn *Select* on. A list's ticks and its Get live in the selection model
+    every list shares (`core/selecting.js`), shown only in *Select* mode, so a
+    tick is reached the way a curator reaches it."""
+    ui.page.click("#view button.select-toggle")
+    ui.page.wait_for_selector("#view .selection", state="visible")
+
+
 def add_to(ui, scope="#view"):
     return ui.page.locator(scope).get_by_label("Add to", exact=True)
 
 
 def tick_the_harvesters_and_get(ui):
     ui.open(f"#artist/{BRUEGEL}")
+    select_mode(ui)
     ui.page.locator("section table tr:has-text('The Harvesters') input[type='checkbox']").check()
     themes_read(ui)
 
@@ -161,6 +170,7 @@ def status_text(ui) -> str:
 def test_their_work_gets_exactly_the_ticked_works_the_library_does_not_hold(ui, hunters_held, all_works):
     sent = answer_gets(ui, a_get())
     ui.open(f"#artist/{BRUEGEL}")
+    select_mode(ui)
     table = ui.page.locator("section table")
     table.wait_for()
 
@@ -181,6 +191,7 @@ def test_their_work_gets_exactly_the_ticked_works_the_library_does_not_hold(ui, 
 
 def test_unticking_the_last_work_disables_get_again(ui):
     ui.open(f"#artist/{BRUEGEL}")
+    select_mode(ui)
     box = ui.page.locator("section table tr:has-text('The Harvesters') input[type='checkbox']")
     box.wait_for()
     button = ui.page.locator("#view .get-control button.action")
@@ -195,6 +206,7 @@ def test_the_announcement_opens_the_run(ui):
     answer_gets(ui, a_get())
     ui.serve(f"**/api/runs/{GET_ID}", a_run_view(a_run(run_id=GET_ID, kind="get", intent=None)))
     ui.open(f"#artist/{BRUEGEL}")
+    select_mode(ui)
     ui.page.locator("section table tr:has-text('The Harvesters') input[type='checkbox']").check()
     ui.page.click("#view .get-control button.action")
 
@@ -221,6 +233,7 @@ def test_the_announcement_opens_the_run(ui):
 def test_what_a_get_left_out_is_said(ui, answer, said, all_works):
     answer_gets(ui, answer)
     ui.open(f"#artist/{BRUEGEL}")
+    select_mode(ui)
     table = ui.page.locator("section table")
     table.locator("tr:has-text('The Harvesters') input[type='checkbox']").check()
     table.locator("tr:has-text('The Corn Harvest') input[type='checkbox']").check()
@@ -238,6 +251,7 @@ def test_a_refused_get_is_said_beside_get_and_keeps_the_ticks(ui):
         "**/api/gets", (400, {"error": "A Get names its works by their Wikidata items, and this deployment has no registry."})
     )
     ui.open(f"#artist/{BRUEGEL}")
+    select_mode(ui)
     box = ui.page.locator("section table tr:has-text('The Harvesters') input[type='checkbox']")
     box.check()
     get = ui.page.locator("#view .get-control button.action")
@@ -258,6 +272,7 @@ def test_a_refused_get_is_said_beside_get_and_keeps_the_ticks(ui):
 def test_the_results_page_gets_the_ticked_wikidata_works(ui):
     sent = answer_gets(ui, a_get())
     ui.open("#search?q=harvest")
+    select_mode(ui)
     box = ui.page.locator("#view .results-list li:has-text('The Corn Harvest') input[type='checkbox']")
     box.wait_for()
 
@@ -392,6 +407,7 @@ def test_themes_that_cannot_be_read_start_nothing_and_say_why(ui, all_works):
     bodies = record_gets(ui, a_get())
     ui.serve("**/api/themes", (500, {"error": "The theme listing failed."}))
     ui.open(f"#artist/{BRUEGEL}")
+    select_mode(ui)
     ui.page.locator("section table tr:has-text('The Harvesters') input[type='checkbox']").check()
     ui.page.wait_for_selector("#view .get-into option:text-is('The themes could not be read')", state="attached")
 

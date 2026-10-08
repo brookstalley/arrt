@@ -10,12 +10,13 @@
  */
 
 import { agree } from "./counting.js";
+import { GLYPHS } from "./glyphs.js";
 import { el } from "./render.js";
 
 const FIT_GLYPHS = {
-  native: "●", // filled circle
-  matted_small: "◇", // open diamond
-  below_floor: "▲", // triangle
+  native: GLYPHS.good,
+  matted_small: GLYPHS.caution,
+  below_floor: GLYPHS.problem,
 };
 
 const FIT_WORDS = {
@@ -52,13 +53,13 @@ export function pixelSize(width, height) {
 export function fitBadge(sized, absentWord = "no size known") {
   if (!sized.fit) {
     return el("span", { class: "badge badge-unknown", title: sized.fit_note || "" }, [
-      el("span", { class: "glyph", text: "—", "aria-hidden": true }),
+      el("span", { class: "glyph", text: GLYPHS.cannot, "aria-hidden": true }),
       el("span", { text: absentWord }),
     ]);
   }
   const verdict = sized.fit.verdict;
   return el("span", { class: `badge badge-${verdict}` }, [
-    el("span", { class: "glyph", text: FIT_GLYPHS[verdict] || "●", "aria-hidden": true }),
+    el("span", { class: "glyph", text: FIT_GLYPHS[verdict] || GLYPHS.unknown, "aria-hidden": true }),
     // The verdict word alone. It carried "would show at 28.2″" until the owner
     // ruled it out (2026-10-02): that is the long edge on the one panel this
     // server is configured for, after the mat, and read beside a picture it
@@ -88,7 +89,7 @@ export function sourceBadge(work) {
   if (!work.image.available) return null;
   const rendered = work.image.source_kind === "tv_display";
   return el("span", { class: "badge" }, [
-    el("span", { class: "glyph", text: rendered ? "▣" : "□", "aria-hidden": true }),
+    el("span", { class: "glyph", text: rendered ? GLYPHS.render : GLYPHS.master, "aria-hidden": true }),
     el("span", { text: rendered ? "wall render" : "master image" }),
   ]);
 }
@@ -103,7 +104,7 @@ export function statusBadge(work) {
   // unrelated axes, and sharing a class would make an archived work and a
   // too-small work paint identically.
   return el("span", { class: "badge badge-archived" }, [
-    el("span", { class: "glyph", text: "⊘", "aria-hidden": true }),
+    el("span", { class: "glyph", text: GLYPHS.refused, "aria-hidden": true }),
     el("span", { text: work.status }),
   ]);
 }
@@ -153,7 +154,9 @@ export function table(caption, headers, rows, { stacked = false } = {}) {
   ])]);
 }
 
-/* Only ever shown when the runaway guard actually bit. Named rather than
+/* Only ever shown when a list stopped short of its own total: the runaway guard
+ * bit (`PAGE_CEILING`), or on Artworks, which pages as it scrolls, the server
+ * stopped sending works before its total said it would. Named rather than
  * silent: a list that stops short without saying so is indistinguishable from a
  * catalogue that holds no more. */
 export function shortfallNote(page) {
@@ -202,12 +205,12 @@ export function reasonBadge(work) {
   if (!work.unresolved_reason) return null;
   const value = work.unresolved_reason;
   return el("span", { class: "badge badge-unknown", title: REASON_SENTENCES[value] || "" }, [
-    el("span", { class: "glyph", text: "▲", "aria-hidden": true }),
+    el("span", { class: "glyph", text: GLYPHS.problem, "aria-hidden": true }),
     el("span", { text: REASON_WORDS[value] || value }),
   ]);
 }
 
-const RESOLUTION_GLYPHS = { resolved: "●", unresolved: "▲", pending: "◌" };
+const RESOLUTION_GLYPHS = { resolved: GLYPHS.good, unresolved: GLYPHS.problem, pending: GLYPHS.waiting };
 
 /* What `resolution_status` says, in the tense it actually holds.
  *
@@ -242,7 +245,7 @@ const RESOLUTION_WORDS = {
 export function resolutionBadge(work) {
   const status = work.resolution_status;
   return el("span", { class: `badge badge-${status}` }, [
-    el("span", { class: "glyph", text: RESOLUTION_GLYPHS[status] || "●", "aria-hidden": true }),
+    el("span", { class: "glyph", text: RESOLUTION_GLYPHS[status] || GLYPHS.unknown, "aria-hidden": true }),
     el("span", { text: RESOLUTION_WORDS[status] || status }),
   ]);
 }

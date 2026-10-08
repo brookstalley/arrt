@@ -19,6 +19,7 @@ import { attempt } from "../core/acting.js";
 import { api } from "../core/api.js";
 import { confirmAct } from "../core/confirm.js";
 import { agree, counted } from "../core/counting.js";
+import { GLYPHS } from "../core/glyphs.js";
 import { claimPoll, pollIsCurrent, schedulePollUnlessDone } from "../core/poll.js";
 import { el, guard, render } from "../core/render.js";
 import { backLink, go, link } from "../core/router.js";
@@ -102,6 +103,31 @@ export function directionFrom(turns) {
   return "";
 }
 
+/* What one turn may cost, as the server prices it, read once per conversation.
+ *
+ * Kept per thread rather than asked on every paint: the figure is a flat
+ * allowance that no turn moves (`ConversationPricing`), and this screen paints
+ * every two seconds while a Get is running. A failed read is not kept, so the
+ * next paint asks again, and until one lands Say it is unpriced and says so. */
+const turnEstimates = new Map();
+
+async function turnEstimate(conversationId) {
+  if (turnEstimates.has(conversationId)) return turnEstimates.get(conversationId);
+  try {
+    const estimate = await api(`/api/conversations/${encodeURIComponent(conversationId)}/estimate`);
+    turnEstimates.set(conversationId, estimate);
+    return estimate;
+  } catch {
+    return null;
+  }
+}
+
+/* The tier beside a control that asks the model, or the words for its absence:
+ * an unpriced control must not read as a free one. */
+function turnTier(estimate) {
+  return estimate ? tierMark(estimate.tier) : el("span", { class: "muted", text: "Cost unknown just now" });
+}
+
 export async function viewConversation(conversationId, generation) {
   // Claimed at the top and re-checked after every await, exactly as the run view
   // does: a paint still in flight when a newer one starts must not land over it
@@ -156,6 +182,11 @@ async function paint(view, { conversationId, generation, pollGeneration }) {
     if (!pollIsCurrent(pollGeneration)) return;
   }
 
+  // Every turn spends, so Say it and Ask again carry the tier before they are
+  // pressed, as every other spending control does.
+  const turnCost = await turnEstimate(conversationId);
+  if (!pollIsCurrent(pollGeneration)) return;
+
   /* A repaint that changes nothing is not free: `render` replaces the whole
    * subtree, so a keyboard user standing on "Search for this" loses it every two
    * seconds while a run is in flight. Compared against everything painted, not
@@ -168,7 +199,7 @@ async function paint(view, { conversationId, generation, pollGeneration }) {
    * spinner. */
   const done = run === null || run.run.is_terminal;
 
-  const body = JSON.stringify({ view, run, runProblem, estimate });
+  const body = JSON.stringify({ view, run, runProblem, estimate, turnCost });
   if (state.painted !== null && state.painted.conversationId === conversationId && state.painted.body === body) {
     schedulePoll(conversationId, pollGeneration, { done });
     return;
@@ -201,7 +232,7 @@ async function paint(view, { conversationId, generation, pollGeneration }) {
     // transcript above — it never vanishes, because it was written before the
     // model was ever asked — and this is the account of why it has no answer and
     // the way to ask for one again.
-    view.unanswered_turn_id ? unanswered(view, { conversationId, generation }) : null,
+    view.unanswered_turn_id ? unanswered(view, { conversationId, generation, turnCost }) : null,
     // Present on every paint, empty or not. A live region has to exist in the
     // document before the content it announces is put into it, and a region
     // created-and-filled in one step announces nothing to a reader who was
@@ -210,7 +241,7 @@ async function paint(view, { conversationId, generation, pollGeneration }) {
     el("div", { class: "panel" }, [
       el("h2", { text: "Say something" }),
       el("div", { class: "field" }, [el("label", { for: "say", text: "What are you after?" }), said]),
-      el("div", { class: "row" }, [send]),
+      el("div", { class: "row" }, [send, turnTier(turnCost)]),
     ]),
     el("div", { class: "panel" }, [
       el("h2", { text: "Delete this conversation" }),
@@ -331,7 +362,7 @@ function suggestion(entry, turnId) {
     el("p", { class: "suggestion-name" }, [
       // Glyph, word and value, so the kind survives greyscale and a reader who
       // has turned the lights down. Never colour alone anywhere on this surface.
-      el("span", { class: "glyph", "aria-hidden": "true", text: "◆" }),
+      el("span", { class: "glyph", "aria-hidden": "true", text: GLYPHS.putForward }),
       el("span", { class: "muted", text: `${KIND_WORDS[entry.kind] || entry.kind}: ` }),
       el("span", { text: entry.value }),
     ]),
@@ -446,7 +477,7 @@ function departure(entry) {
   ]);
 }
 
-function unanswered(view, { conversationId, generation }) {
+function unanswered(view, { conversationId, generation, turnCost }) {
   return el("div", { class: "panel" }, [
     el("p", {
       class: "note error",
@@ -480,6 +511,8 @@ function unanswered(view, { conversationId, generation }) {
             { then: (next) => repaint(next, { conversationId, generation }) },
           ),
       }),
+      // Asking again asks the model again, and is priced as a turn.
+      turnTier(turnCost),
     ]),
   ]);
 }
@@ -490,7 +523,7 @@ function commitCard(view, { run, runProblem, estimate, direction, conversationId
     const finished = run.run.status === "completed";
     children.push(
       el("p", {}, [
-        el("span", { class: "glyph", "aria-hidden": "true", text: run.run.is_terminal ? "●" : "◌" }),
+        el("span", { class: "glyph", "aria-hidden": "true", text: run.run.is_terminal ? GLYPHS.good : GLYPHS.waiting }),
         el("span", { text: ` ${commitSentence(run)}` }),
       ]),
       el("p", { class: "muted", text: `Asked for: ${run.run.intent || "—"}` }),

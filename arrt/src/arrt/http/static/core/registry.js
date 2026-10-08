@@ -10,6 +10,7 @@
  * value used as a URL is an image the server has already checked is a Commons
  * file. Links out are built here from a QID, never from a URL the registry gave. */
 
+import { GLYPHS } from "./glyphs.js";
 import { el } from "./render.js";
 import { link } from "./router.js";
 
@@ -132,7 +133,7 @@ export function workState(work, { noImage = null, opens = true, grouped = false,
     const words = held.length === 1 ? "Held" : `Held ×${held.length}`;
     const parts = [
       workPicture("held", `/api/works/${encodeURIComponent(held[0])}/thumbnail`),
-      el("span", { class: "glyph", text: "●", "aria-hidden": true }),
+      el("span", { class: "glyph", text: GLYPHS.good, "aria-hidden": true }),
       el("span", { text: words }),
     ];
     // Not a link where the row it sits in already opens the work: a link
@@ -144,9 +145,9 @@ export function workState(work, { noImage = null, opens = true, grouped = false,
   }
   if (work.in_review) return reviewMark(work.in_review, { inOption });
   const found = work.image ? `${work.image}?width=${FOUND_WIDTH}` : null;
-  if (work.wanted) return stateBadge("badge-wanted", "◑", "Wanted", found && workPicture("wanted", found));
-  if (found) return stateBadge("badge-image-found", "◐", grouped ? "Image found" : "Not held · Image found", workPicture("not-held", found));
-  return stateBadge("badge-not-held", "○", noImage || (grouped ? "No image known" : "Not held"));
+  if (work.wanted) return stateBadge("badge-wanted", GLYPHS.wanted, "Wanted", found && workPicture("wanted", found));
+  if (found) return stateBadge("badge-image-found", GLYPHS.imageFound, grouped ? "Image found" : "Not held · Image found", workPicture("not-held", found));
+  return stateBadge("badge-not-held", GLYPHS.none, noImage || (grouped ? "No image known" : "Not held"));
 }
 
 /* Whether a registry row can be ticked for a Get: not when the library holds
@@ -159,7 +160,7 @@ export function gettable(work) {
 /* *Waiting for review*, for a registry work or artist a run proposed and
  * nobody has judged: glyph, words, and the way to the review it waits on. */
 export function reviewMark(inReview, { inOption = false } = {}) {
-  const parts = [el("span", { class: "glyph", text: "◔", "aria-hidden": true }), el("span", { text: "Waiting for review" })];
+  const parts = [el("span", { class: "glyph", text: GLYPHS.forReview, "aria-hidden": true }), el("span", { text: "Waiting for review" })];
   if (inOption) return el("span", { class: "badge badge-in-review state-mark" }, parts);
   return link({ view: "review", id: inReview.run_id }, { class: "badge badge-in-review state-mark" }, parts);
 }
@@ -185,10 +186,10 @@ function workPicture(kind, src) {
  * (`accessibility-spec.md`). A work in a list takes `workState`, which adds
  * its picture. */
 export function stateMark({ held = false, wanted = false, image = false } = {}) {
-  if (held) return stateBadge("badge-held", "●", "In your library");
-  if (wanted) return stateBadge("badge-wanted", "◑", "Wanted");
-  if (image) return stateBadge("badge-image-found", "◐", "Not held · Image found");
-  return stateBadge("badge-not-held", "○", "Not held");
+  if (held) return stateBadge("badge-held", GLYPHS.good, "In your library");
+  if (wanted) return stateBadge("badge-wanted", GLYPHS.wanted, "Wanted");
+  if (image) return stateBadge("badge-image-found", GLYPHS.imageFound, "Not held · Image found");
+  return stateBadge("badge-not-held", GLYPHS.none, "Not held");
 }
 
 function stateBadge(kind, glyph, words, picture = null) {
@@ -201,8 +202,13 @@ function stateBadge(kind, glyph, words, picture = null) {
 
 /* A topic's name, or what to say when Wikidata has none in English: the label
  * service answers with the bare QID, as it does for a work (`named` above). */
+/* A topic's name standing on its own — a list item, a page title, a dropdown
+ * row — so it starts with a capital: Wikidata writes "realism" and "cubism"
+ * lower-case beside "Impressionism", and a list of names in two cases reads as
+ * two kinds of thing. */
 export function topicName(label, qid) {
-  return label && label !== qid ? label : `No English name (${qid})`;
+  if (!label || label === qid) return `No English name (${qid})`;
+  return label.charAt(0).toLocaleUpperCase("en") + label.slice(1);
 }
 
 /* A topic's kinds as a curator reads them, one and many, in the order the

@@ -886,6 +886,10 @@ class SqliteCatalogue(TableAdapter):
     def update_original(self, original: Original) -> None:
         self._update("originals", BY_ID, _original_row(original), subject=f"original for artwork {original.artwork_id!r}")
 
+    def original_sizes(self) -> Mapping[str, tuple[int, int]]:
+        rows = self._store.select_rows('SELECT o."artwork_id" AS id, o."width" AS width, o."height" AS height FROM originals o')
+        return {row["id"]: (int(row["width"]), int(row["height"])) for row in rows}
+
     # -- renditions -----------------------------------------------------------
 
     def add_rendition(self, rendition: Rendition) -> None:

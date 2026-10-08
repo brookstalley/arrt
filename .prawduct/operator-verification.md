@@ -10,6 +10,72 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Walk S7, S9 and S12 on the real library — added 2026-10-08
+
+**`build-plan-lists-settings-and-scale.md` Chunk 11, deferred part.** Live walk.
+
+Walked by the builder with writes on a throwaway synthetic library only.
+
+- **Try, after the deploy, on the operator's library:** S7 (a theme from a
+  selection, without leaving Artworks); S9 (*Size on the wall › matted small*,
+  then *Not on any wall*; Select all; Archive — check the confirmation says the
+  wall loses them now, and that it does); S12 (Topics › 16th century opens at once
+  once the sweep has warmed it).
+- **Also:** re-run `arrt/tools/ux_walk.py --base-url <the deployment>` and Pass 4
+  (`docs/ux-walkthrough.md`).
+
+### Selection, clean-up, Artworks paging, Queue by cause, Topics — added 2026-10-08
+
+**`build-plan-lists-settings-and-scale.md` Chunks 05–09.** Visual change: yes.
+
+Checked by the builders against seeded and synthetic libraries (Queue at 4,000
+works with `arrt/tools/ux_walk.py --synthetic 4000`); not yet deployed.
+
+- **Look at:** every list (Artworks, an artist, Search, a topic) has one Select
+  toggle and one bar at the foot of the window. Artworks' rail has *Size on the
+  wall* and *Walls › Not on any wall* once they would narrow anything. Topics
+  lists centuries and movements on its own.
+- **Try:** S7: on Artworks, Select, tick three, New theme…, name it, Add,
+  without leaving the page. S9: *Size on the wall › matted small* or *Not on any
+  wall*, Select all, Archive. S12: Topics › 16th century opens with works
+  already there (warmed), or fills as they arrive.
+- **Worth watching:** scrolling Artworks loads more without a jump; Back from a
+  work deep in the grid lands on it.
+
+### Themes as cards, Settings as an index, Status as a table — added 2026-10-08
+
+**`build-plan-lists-settings-and-scale.md` Chunks 03, 04, 10.** Visual change: yes.
+
+Checked by the builders against seeded libraries and by the browser tests named
+in the change-log; not yet deployed.
+
+- **Look at:** Themes is a grid of cards with pictures; a card opens its theme.
+  Settings opens on a list of Clients, Sources, Taste. Status's Image sources is
+  one table, and no panel mentions "this television".
+- **Try:** on a theme page, Move to top on the last work, then check Walls shows
+  it first (with shuffle off). Narrow the window on Status: Median long edge,
+  Last fault, Only here, then Faults go in that order, and the fault count
+  reappears in State.
+- **Worth watching:** whether "Only here" and "Offered" read as the value of a
+  source on the real library (46 works).
+
+### One heading scale, one empty page, one glyph per meaning — added 2026-10-08
+
+**`build-plan-lists-settings-and-scale.md` Chunk 01.** Visual change: yes.
+
+Checked by the builder in both schemes at desktop width against a synthetic
+library (`arrt/tools/ux_walk.py --synthetic 30`), and by
+`tests/browser/test_component_rules.py`.
+
+- **Look at:** Walls' heading is the same size as every other page's. An empty
+  To review, Queue, History or Wanted says one sentence in the serif, a muted
+  line under it and, where there is one, the way on, with no box around it.
+- **Try:** a disabled button (Get with nothing chosen) looks unavailable, and
+  hovering it does nothing. In Wanted or History on a phone, a card's whole row
+  still opens it after the pointer has passed over its link.
+- **Worth watching:** the reassigned glyphs read as their words: ◎ *you chose*
+  on a review card, ☆ *likes* on Taste, ▤ *wall render* on a Work page.
+
 ### The NGA as a source — added 2026-10-06
 
 **`build-plan-nga-source.md` Chunk 01.** Visual change: no; live integration.
@@ -460,7 +526,7 @@ your catalogue. Regenerate with
 `cd arrt && uv run pytest -m browser -n0 tests/browser/test_the_clients.py tests/browser/test_the_walls.py -k client`
 and a `page.screenshot` of your own.
 
-- **Settings › Clients** is under Settings, after Taste. *Add a client* takes a
+- **Settings › Clients** is under Settings, first (Clients, Sources, Taste since 2026-10-08). *Add a client* takes a
   name and issues its token in the same act: the token appears once, selected in
   a read-only field, with a sentence saying it is the only time and to set
   `CLIENT_TOKEN` and `SERVER_URL` in the Player's settings (the address is the

@@ -93,7 +93,9 @@ def _group(ui, half):
 
 
 def _note(ui):
-    return ui.page.locator("#view p[aria-live]")
+    """The Not held group's one line. Scoped to the group since the page's
+    selection bar (`core/selecting.js`) carries live regions of its own."""
+    return _group(ui, "not-held").locator("p[aria-live]")
 
 
 def test_the_dropdowns_last_row_opens_it(ui, matched):

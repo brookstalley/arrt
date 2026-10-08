@@ -29,6 +29,7 @@
  * current on one page and stale on the other. */
 
 import { ago } from "./dates.js";
+import { GLYPHS } from "./glyphs.js";
 
 /* How often a Player reports, both its client heartbeat and each wall's:
  * `postarr/src/postarr/heartbeat.py`'s `INTERVAL_SECONDS`, which
@@ -74,8 +75,8 @@ export function outputState(output) {
 /* The Clients table's Screen column: glyph and word, as every badge here is.
  * From a stale report it says what was reported and that it is not known now. */
 export function screenCell(output, stale = false) {
-  if (stale) return outputState(output) === DETECTED ? "◌ not known now (was detected)" : "◌ not known now (was none detected)";
-  return outputState(output) === DETECTED ? "● detected" : "○ none detected (off or unplugged)";
+  if (stale) return `${GLYPHS.waiting} not known now (was ${outputState(output) === DETECTED ? "detected" : "none detected"})`;
+  return outputState(output) === DETECTED ? `${GLYPHS.good} detected` : `${GLYPHS.none} none detected (off or unplugged)`;
 }
 
 /* The output picker's parenthesis, where the column's words would not fit. */

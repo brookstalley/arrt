@@ -27,6 +27,9 @@ request in production.
 import httpx
 import pytest
 
+from arrt.config import DEFAULT_ROTATION_SHUFFLE
+from arrt.persistence.records import AcquisitionMethod, FetchStatus, RenditionKind, RightsStatus, SourceClass
+
 
 @pytest.fixture
 def http(server_url):
@@ -248,3 +251,132 @@ class TestDeletingATheme:
         assert [entry["artwork_id"] for entry in detail["works"]] == [work["artwork_id"]]
         hanging = http.get("/api/walls").json()["walls"][0]["theme"]
         assert hanging["theme_id"] == theme["theme_id"]
+
+
+class TestTheIndexCard:
+    """What `GET /api/themes` carries so the Themes index can draw a card per theme.
+
+    A count and four pictures, answered with the listing so the index makes one
+    read however many themes there are, rather than reading every theme's works.
+    """
+
+    @pytest.fixture
+    def pictured(self, service, settings, decodable_jpeg):
+        """A work holding a master on disk, which is what gives it a thumbnail."""
+
+        def _pictured(title):
+            artwork = service.add_artwork(title=title)
+            source = service.add_source(
+                artwork_id=artwork.id,
+                url=f"https://museum.example/{artwork.id}",
+                provider="artic",
+                source_class=SourceClass.INSTITUTIONAL,
+                acquisition_method=AcquisitionMethod.DEZOOMIFY,
+                rights_status=RightsStatus.PUBLIC_DOMAIN,
+                is_primary=True,
+            )
+            relative = f"raw/{artwork.id}.jpg"
+            decodable_jpeg(settings.art_root / relative, width=1600, height=1200)
+            service.record_original(
+                artwork_id=artwork.id,
+                source_id=source.id,
+                path=relative,
+                width=1600,
+                height=1200,
+                byte_size=(settings.art_root / relative).stat().st_size,
+                content_hash=f"hash-{artwork.id}",
+                fetch_status=FetchStatus.OK,
+            )
+            return artwork
+
+        return _pictured
+
+    def test_the_card_counts_every_work_and_pictures_the_first_four_that_have_one(self, http, services, service, pictured):
+        """Six works, the second with no image: counted, skipped, and the sixth left off.
+
+        Each member of the fixture is one way to be wrong: the unpictured second
+        catches a card that takes the first four regardless, the sixth catches
+        one that takes every picture, and the count of six catches a count of
+        the pictured.
+        """
+        theme = services.display.add_theme(name="Winter")
+        works = [
+            pictured("One"),
+            service.add_artwork(title="Two"),
+            pictured("Three"),
+            pictured("Four"),
+            pictured("Five"),
+            pictured("Six"),
+        ]
+        for position, work in enumerate(works):
+            services.display.add_to_theme(theme_id=theme.id, artwork_id=work.id, position=position)
+
+        card = next(entry for entry in http.get("/api/themes").json()["themes"] if entry["theme"]["theme_id"] == theme.id)
+
+        assert card["work_count"] == 6
+        assert card["picture_ids"] == [works[0].id, works[2].id, works[3].id, works[4].id]
+
+    def test_a_work_whose_master_is_gone_is_not_pictured_though_its_wall_render_is_there(
+        self, http, services, service, settings, decodable_jpeg, pictured
+    ):
+        """A card's picture is a tile, and a tile is drawn from the master alone.
+
+        So a work with a current wall render and no master file would give the
+        card a slot that fails to load. It is counted and not pictured.
+        """
+        theme = services.display.add_theme(name="Winter")
+        gone = pictured("Gone")
+        rendered = f"ready/{gone.id}.jpg"
+        decodable_jpeg(settings.art_root / rendered, width=3840, height=2160)
+        service.record_rendition(
+            artwork_id=gone.id, kind=RenditionKind.TV_DISPLAY, target_width=3840, target_height=2160, path=rendered
+        )
+        (settings.art_root / f"raw/{gone.id}.jpg").unlink()
+        kept = pictured("Kept")
+        for position, work in enumerate([gone, kept]):
+            services.display.add_to_theme(theme_id=theme.id, artwork_id=work.id, position=position)
+
+        card = next(entry for entry in http.get("/api/themes").json()["themes"] if entry["theme"]["theme_id"] == theme.id)
+
+        assert (card["work_count"], card["picture_ids"]) == (2, [kept.id])
+
+    def test_an_empty_theme_has_no_works_and_no_pictures(self, http):
+        theme = _theme(http, "Quiet")
+        listed = http.get("/api/themes").json()["themes"]
+        card = next(entry for entry in listed if entry["theme"]["theme_id"] == theme["theme_id"])
+
+        assert (card["work_count"], card["picture_ids"]) == (0, [])
+
+    def test_every_answer_listing_the_themes_carries_the_card(self, http):
+        """A delete and a make-default answer with the listing too, in the same shape."""
+        kept = _theme(http, "Kept")
+        going = _theme(http, "Going")
+
+        made_default = http.post(f"/api/themes/{kept['theme_id']}/default").json()["themes"]
+        assert sorted((entry["work_count"], entry["picture_ids"]) for entry in made_default) == [(0, []), (0, [])]
+        deleted = http.delete(f"/api/themes/{going['theme_id']}").json()["themes"]
+        assert [(entry["work_count"], entry["picture_ids"]) for entry in deleted] == [(0, [])]
+
+
+class TestWhetherTheOrderDecides:
+    """`shuffled` on a theme's detail: the setting resolved the way the manifest resolves it.
+
+    The theme page says "Position decides what the wall shows first" only when it
+    does, and a theme that inherits the deployment's setting stores null, which
+    on its own says neither.
+    """
+
+    def test_a_theme_that_inherits_is_shuffled_as_the_deployment_is(self, http, services):
+        theme = services.display.add_theme(name="Winter")
+        assert theme.shuffle is None
+
+        assert http.get(f"/api/themes/{theme.id}").json()["shuffled"] is DEFAULT_ROTATION_SHUFFLE
+
+    def test_a_theme_that_says_otherwise_is_answered_with_its_own(self, http, services, the_wall):
+        theme = services.display.add_theme(name="Winter")
+        services.display.update_theme(theme.id, shuffle=not DEFAULT_ROTATION_SHUFFLE)
+
+        assert http.get(f"/api/themes/{theme.id}").json()["shuffled"] is (not DEFAULT_ROTATION_SHUFFLE)
+        # And it is the answer the wall is given, from the same resolution.
+        manifest = http.get("/api/manifest", params={"theme_id": theme.id, "wall_id": the_wall["wall_id"]}).json()
+        assert manifest["shuffle"] is (not DEFAULT_ROTATION_SHUFFLE)

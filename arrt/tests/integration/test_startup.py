@@ -772,3 +772,30 @@ def test_startup_builds_the_services_over_the_plugins_it_loaded(tmp_path, monkey
     assert contexts[0].preview_max_bytes == 4321
     assert seen["route"] == "artic", "the roster did not reach acquisition"
     assert seen["collection"] == "artic", "the roster's collection did not reach the conversation"
+
+
+def test_startup_prices_a_conversation_turn_at_the_deployments_settings(tmp_path, monkeypatch):
+    """Through `main`, at values that are not the defaults, so a dropped argument shows."""
+    art_root = tmp_path / "art"
+    _stub_settings(
+        monkeypatch,
+        art_root,
+        conversation_input_tokens=4_000,
+        conversation_max_output_tokens=500,
+        conversation_input_cost_usd_per_mtok=Decimal(1),
+        conversation_output_cost_usd_per_mtok=Decimal(10),
+    )
+    seen = {}
+
+    def capture(services, **kwargs):
+        conversation = services.conversation.start().conversation.id
+        seen["usd"] = services.conversation.estimate(conversation).cost_usd
+        return object()
+
+    monkeypatch.setattr(entry_point, "create_app", capture)
+    monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
+
+    entry_point.main()
+
+    # 4,000 x $1/M + 500 x $10/M.
+    assert seen["usd"] == Decimal("0.009")

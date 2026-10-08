@@ -66,18 +66,6 @@
   --text-lg: 1.125rem;
   --text-xl: 1.375rem;
   --text-2xl: 1.75rem;
-  /* The one step above the 1.25 scale, added for the Walls screen's single large
-     heading and used nowhere else.
-
-     **2.25rem is derived, not chosen.** The scale is nominally 1.25 but is not
-     one in fact: rounded to whole pixels it runs 1.167, 1.143, 1.125, 1.222,
-     1.273 — the ratios widen towards the display end, which is what a type scale
-     rounded onto a pixel grid does. Continuing that widening from 1.75rem gives
-     roughly 1.29, and 2.25rem (36px) is where that lands on the same 4px base
-     the spacing scale is built on. The nominal ratio would give 2.1875rem, which
-     is 35px: half a pixel off the grid every other value in this block sits on,
-     for a difference no reader could see. */
-  --text-3xl: 2.25rem;
 
   /* Spacing, 4px base. */
   --space-1: 0.25rem;
@@ -881,11 +869,72 @@ h1,
   text-underline-offset: 2px;
 }
 
+/* The selection's action bar (`core/selecting.js`), one shape on every list:
+   held at the foot of the window while *Select* is on, so its acts stay in
+   reach however far down the list the ticking went. Sticky rather than fixed,
+   so at the end of the list it settles under the last row instead of covering
+   it. */
 .selection {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-4);
+  padding: var(--space-3);
+  background: var(--surface-1);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-2);
+}
+
+.selection-group {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* A theme's name can be longer than a phone is wide: the picker shrinks to the
+   bar rather than pushing the page sideways. */
+.selection .selection-field {
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.selection select {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Below Artworks' grid: how many are on screen, and *Show more*, the way to the
+   next page for a keyboard and a screen reader (the next page also arrives as
+   this row nears the window). Placeholders for the page on its way sit above
+   it, a step below the grid. */
+.show-more-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.show-more-row .muted {
+  margin: 0;
+}
+
+.collection-main > .grid-skeleton {
+  margin-top: var(--space-4);
+}
+
+/* Get's own control, inside the bar: no margin of its own there. */
+.selection .get-control {
+  margin-block: 0;
 }
 
 .selection-field {
@@ -900,13 +949,6 @@ h1,
 .collection:not(.selecting) .tile-select,
 .collection:not(.selecting) .row-select {
   display: none;
-}
-
-.select-toggle[aria-pressed="true"] {
-  border-color: var(--border-strong);
-  background: var(--surface-2);
-  color: var(--text-strong);
-  font-weight: 600;
 }
 
 .selection-status {
@@ -1036,15 +1078,24 @@ h1,
   }
 }
 
+/* A page with nothing in it (`core/render.js`, `emptyState`): the lead in the
+   label serif, what fills it beneath, then the way on. No panel around it, so
+   an empty page does not look like a page with one empty box on it. */
 .empty {
-  padding: var(--space-8) 0;
+  padding: var(--space-6) 0;
   max-width: 34rem;
 }
 
-.empty h2 {
-  margin: 0;
-  font: 400 var(--text-xl) / 1.3 var(--font-label);
+/* Below the page's `h1` in size, never above it: the lead says what the page
+   holds, and the page's name still outranks it. */
+.empty-lead {
+  margin: 0 0 var(--space-2);
+  font: 400 var(--text-md) / 1.4 var(--font-label);
   color: var(--text-strong);
+}
+
+.empty > .row {
+  margin-top: var(--space-4);
 }
 
 /* The IA's three shapes. The rail becomes a horizontal scroller rather than
@@ -1351,8 +1402,9 @@ h1,
   background: var(--surface-2);
 }
 
-/* Where a work stands in the acquisition queue. The glyph and the word carry
-   the phase; the border only separates the ones a curator acts on (failed,
+/* Where a work stands in the acquisition queue. The word carries the phase,
+   and the glyph its kind (failed and gave up are both a problem, ▲); the
+   border separates the ones a curator acts on (failed,
    gave up) and the one an operator does (paused) from the ones that need time. */
 .badge-acquisition-failed {
   border-style: solid;
@@ -1685,16 +1737,8 @@ th {
 
 /* -- the walls -------------------------------------------------------------
 
-   The product's home, and the one screen whose primary content is the art
-   itself rather than a report about it. */
-
-/* The single large heading on this surface, and the only use of `--text-3xl`.
-   It is the product's home saying so — the one place the type is allowed to be
-   the size a gallery's own name is, and a size nothing else reaches so that it
-   stays that. Every other `h1` on this client keeps `--text-lg`. */
-.walls-heading {
-  font-size: var(--text-3xl);
-}
+   The one screen whose primary content is the art itself rather than a report
+   about it. */
 
 /* One wall's whole section. Separated by space rather than by a rule: with three
    walls a reader has to be able to see where one room's account ends, and a line
@@ -1849,8 +1893,24 @@ select {
   border-color: var(--border-strong);
 }
 
+/* Hover tints the act toward its own text colour, which moves the fill toward
+   the label (lighter on a filled act, darker on a quiet one) in both schemes. A wash of inset shadow rather than a
+   `filter`: a filter makes the act the containing block of anything absolutely
+   positioned inside it, so a full-card link's cover shrank to the act under the
+   pointer and a press on the card missed. */
 :is(button, a).action:hover {
-  filter: brightness(1.08);
+  box-shadow: inset 0 0 0 100vmax color-mix(in srgb, currentColor 10%, transparent);
+}
+
+/* Disabled looks disabled: no fill, muted text, no hover. A disabled act that
+   keeps the primary fill reads as one that is ready and silently refuses. */
+button.action:disabled,
+button.action:disabled:hover {
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border-color: var(--border);
+  box-shadow: none;
+  cursor: not-allowed;
 }
 
 .row {
@@ -1858,6 +1918,11 @@ select {
   flex-wrap: wrap;
   gap: var(--space-3);
   align-items: flex-end;
+}
+
+/* A row of acts under a sentence sits a step below it, never flush. */
+p + .row {
+  margin-top: var(--space-3);
 }
 
 /* A labelled field beside its button: the field's own bottom margin would hold
@@ -2671,11 +2736,230 @@ input[type="checkbox"] {
     position: absolute;
     inset: 0;
   }
+}
 
-  /* The act's hover brightening is a filter, and a filter makes the link the
-     box its own cover is placed in: the cover shrank to the link under the
-     pointer, and a press on the card hit the row instead. */
-  table.stacked .row-link:hover {
-    filter: none;
+/* -- Status: the image sources table ------------------------------------------
+   One row per source (`screens/health.js`, `SOURCE_COLUMNS`). Keyed on the
+   table's own width rather than the viewport's, since the sidebar and the
+   panel's padding decide how much of the screen it gets. As it narrows the
+   columns leave in the owner's order: Median long edge, Last fault, Only here,
+   then Faults since startup, whose count then moves into the State cell so a
+   fault is on screen at every width. Source, State, Offered and Chosen stay,
+   and on a phone each row stacks into a card. Each width leaves the columns
+   still showing room at letter-spacing 0.25em on this Mac, because CI's fonts
+   are wider than this Mac's: 0.16em here reproduced the overflow CI saw at
+   the narrower widths first chosen;
+   `tests/browser/test_the_status_sources_table.py` holds the order, and that
+   the table never needs its sideways scroll. */
+
+.source-table {
+  container-type: inline-size;
+  container-name: source-table;
+}
+
+.source-table .source-reason {
+  display: block;
+  font-size: var(--text-xs);
+}
+
+/* A reason names a setting (`WIKIDATA_USER_AGENT`) and a fault an exception,
+   neither with a space to break at: without this either sets the table's width. */
+.source-table .source-reason,
+.source-table .col-last-fault {
+  overflow-wrap: anywhere;
+}
+
+.source-table .state-faults {
+  display: none;
+}
+
+@container source-table (max-width: 60rem) {
+  .source-table .col-median {
+    display: none;
   }
+}
+
+@container source-table (max-width: 52rem) {
+  .source-table .col-last-fault {
+    display: none;
+  }
+}
+
+@container source-table (max-width: 45rem) {
+  .source-table .col-only-here {
+    display: none;
+  }
+}
+
+@container source-table (max-width: 38rem) {
+  .source-table .col-faults {
+    display: none;
+  }
+
+  .source-table .state-faults {
+    display: inline;
+  }
+}
+
+/* A phone: four columns of words do not fit across, so each source becomes a
+   card of its own, every cell under its column's name, as Activity's rows do
+   (`table.stacked`). The four kept columns are all still there. */
+@container source-table (max-width: 31rem) {
+  .source-table table,
+  .source-table caption,
+  .source-table tbody,
+  .source-table td {
+    display: block;
+  }
+
+  .source-table .col-source {
+    grid-column: 1 / -1;
+  }
+
+  .source-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  /* The source's name across the card, and its three figures side by side
+     beneath it, so ten sources stay ten short cards rather than a long column. */
+  .source-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-1);
+    padding: var(--space-2) var(--space-3);
+    margin-bottom: var(--space-3);
+  }
+
+  /* A word wider than its third of the card breaks rather than pushing the
+     card past the screen, on the narrowest phones and the widest fonts. */
+  .source-table td {
+    overflow-wrap: anywhere;
+    border: none;
+    padding: var(--space-1) 0;
+  }
+
+  .source-table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+  }
+}
+
+/* -- Themes: the index's cards ---------------------------------------------
+   One card per theme, small enough that ten fit on a desktop screen: a strip of
+   four square slots for its first pictures, then its name, count and badges.
+   The strip keeps four slots whatever it holds, so every card in a row is one
+   height, and each picture is letterboxed in its slot rather than cropped. */
+.grid.theme-cards {
+  grid-template-columns: repeat(auto-fill, minmax(min(11rem, 100%), 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.theme-card-pictures {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  aspect-ratio: 4 / 1;
+  background: var(--border);
+}
+
+.theme-card-slot {
+  position: relative;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.theme-card-slot img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.theme-card .card-body {
+  padding: var(--space-2) var(--space-3) var(--space-3);
+}
+
+.card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+/* -- Settings: the index of its pages ----------------------------------------
+   One row per page, its name a link and one muted line on what it holds, as
+   Sonarr's /settings lists its pages. */
+.settings-index {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-4) 0 0;
+  display: grid;
+  gap: var(--space-4);
+  max-width: 40rem;
+}
+
+.settings-index li {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--space-3);
+}
+
+.settings-index-link {
+  font: 400 var(--text-md) / 1.3 var(--font-label);
+  color: var(--text-strong);
+}
+
+.settings-index li p {
+  margin: var(--space-1) 0 0;
+}
+
+/* -- Queue: failed fetches by cause -------------------------------------------
+   One row per cause, its count and its acts beneath the reason, and the
+   group's works under it when opened: thousands of works failing for one
+   reason read as one problem. */
+.failure-causes {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-3) 0 0;
+  display: grid;
+  gap: var(--space-4);
+}
+
+.failure-cause {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--space-3);
+}
+
+.failure-cause-head p {
+  margin: 0;
+}
+
+/* A cause can quote a URL or a path with no space to break at. */
+.failure-cause-why {
+  overflow-wrap: anywhere;
+}
+
+.failure-cause-head .row {
+  margin-top: var(--space-2);
+}
+
+.failure-cause-works {
+  margin-top: var(--space-3);
+}
+
+/* A list whose first column holds the selection's ticks shows that column only
+   while some tick is shown, so outside Select mode, and while a topic's works
+   are still arriving, there is no "Get" heading over an empty column. */
+table.select-column:not(:has(input[type="checkbox"]:not([hidden]))) :is(th, td):first-child {
+  display: none;
 }

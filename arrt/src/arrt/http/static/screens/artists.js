@@ -20,12 +20,11 @@
  * the server has already checked, and nothing else is offered as one. */
 
 import { attempt } from "../core/acting.js";
-import { api, fetchAllWorks } from "../core/api.js";
+import { api, fetchAllWorks, worksFilterBody } from "../core/api.js";
 import { absentImage, facts, workName } from "../core/badges.js";
 import { identityControl, storeIdentity } from "../core/identity.js";
-import { addedSentence, addWorksToTheme, stoppedSentence } from "../core/membership.js";
-import { getSelection } from "../core/getting.js";
-import { el, fill, render } from "../core/render.js";
+import { el, emptyState, fill, render } from "../core/render.js";
+import { selectionMode } from "../core/selecting.js";
 import { gettable, isQid, lifeDates, listHeadings, named, stateMark, wikidataLink, workCell, workState, yearCell } from "../core/registry.js";
 import { backLink, backRow, goWithParams, link, redirect, refresh, setTitle } from "../core/router.js";
 import { state } from "../core/state.js";
@@ -64,8 +63,7 @@ export async function viewArtists(artistId, generation) {
       ? shown === TABLE
         ? artistTable(listing.artists, count)
         : artistPosters(listing.artists, count)
-      : el("div", { class: "panel" }, [
-          el("p", { class: "muted", text: "No artists yet. Works you accept bring their artists here." }),
+      : emptyState("No artists yet.", "Works you accept bring their artists here.", [
           link({ view: "discover" }, { class: "action", text: "Ask" }),
         ]),
   );
@@ -161,6 +159,29 @@ async function oneArtist(artistId, generation) {
   const about = el("div", { class: "stack" });
   const similarSection = artist.wikidata_qid ? similarShell() : null;
 
+  // One selection over both halves (`core/selecting.js`): held works to add to a
+  // theme or archive, and the registry's works the library does not hold, to get.
+  // *Select all* on the held half means every work of theirs in circulation, by
+  // the filter the list was read with.
+  const held = el("ul", { class: "grid" });
+  const selection = selectionMode({
+    held: works.works.length
+      ? {
+          themes: themes.themes.map((placement) => ({ theme_id: placement.theme.theme_id, name: placement.theme.name })),
+          filter: worksFilterBody("", null, null, { artistId, status: "accepted" }),
+          total: works.total,
+          // Archived works leave circulation, and so leave *In your library*.
+          onArchived: (ids) => {
+            for (const artworkId of ids) {
+              const card = held.querySelector(`[data-artwork="${CSS.escape(artworkId)}"]`);
+              if (card) card.remove();
+            }
+          },
+        }
+      : null,
+    notHeld: {},
+  });
+
   setTitle(generation, artist.name);
   render(
     generation,
@@ -175,9 +196,11 @@ async function oneArtist(artistId, generation) {
       about,
       tasteControls(artist),
     ]),
-    heldSection(works, themes.themes),
+    toolbar({ actions: [selection.toggle] }),
+    heldSection(works, held, selection),
     registrySection,
     similarSection,
+    selection.bar,
   );
 
   // After the page is drawn, and into its own section: see the module's note
@@ -189,7 +212,7 @@ async function oneArtist(artistId, generation) {
     view = { state: "unavailable", note: "Wikidata could not be asked just now. What the library holds is above; try again later." };
   }
   if (!registrySection.isConnected) return;
-  paintRegistry(registrySection, about, view, { name: artist.name, artistId });
+  paintRegistry(registrySection, about, view, { name: artist.name, artistId, selection });
   if (similarSection) await paintSimilar(similarSection, artist.wikidata_qid);
 }
 
@@ -226,6 +249,7 @@ async function registryArtist(qid, generation) {
             : "Nothing of theirs is in your library.",
         });
   const name = view.name ? named(view.name, qid) : `Wikidata ${qid}`;
+  const selection = selectionMode({ notHeld: {} });
   setTitle(generation, name);
   render(
     generation,
@@ -238,10 +262,12 @@ async function registryArtist(qid, generation) {
       heldNote,
       ...(view.unlinked || []).map((artist) => namesakeOffer(artist, qid)),
     ]),
+    toolbar({ actions: [selection.toggle] }),
     registrySection,
     similarSection,
+    selection.bar,
   );
-  paintRegistry(registrySection, about, view, { name: view.name && view.name !== qid ? view.name : null });
+  paintRegistry(registrySection, about, view, { name: view.name && view.name !== qid ? view.name : null, selection });
   await paintSimilar(similarSection, qid);
 }
 
@@ -324,74 +350,24 @@ function tasteControls(artist) {
   ]);
 }
 
-/* *In your library*: the artist's works in circulation, each selectable, and
- * *Add to theme* on the selection, the act Library › Works offers on one. */
-function heldSection(works, themes) {
-  const chosen = new Set();
-  const announcement = el("p", { class: "muted selection-status", "aria-live": "polite", tabindex: "-1" });
-  const picker = el("select", { id: "artist-add-to-theme", "aria-label": "Theme to add the selected works to" });
-  for (const placement of themes) picker.append(el("option", { value: placement.theme.theme_id, text: placement.theme.name }));
-  const add = el("button", { class: "action", type: "button", text: "Add to theme", disabled: true });
-  // Not rewritten unchanged, as on Artworks: a live region reassigned the same
-  // sentence announces it again, which trains a listener to tune the region out.
-  const say = (words) => {
-    if (announcement.textContent !== words) announcement.textContent = words;
-  };
-  const settle = () => {
-    add.disabled = chosen.size === 0 || !themes.length;
-    say(chosen.size === 0 ? "No works selected." : `${chosen.size} selected.`);
-  };
-  const grid = el("ul", { class: "grid" }, works.works.map((work) => heldCard(work, chosen, settle)));
-  add.addEventListener("click", () => {
-    const name = picker.options[picker.selectedIndex].text;
-    const asked = chosen.size;
-    return attempt(add, `add ${asked} ${asked === 1 ? "work" : "works"} to ${name}`, async () => {
-      const untick = (artworkId) => {
-        chosen.delete(artworkId);
-        const box = grid.querySelector(`[data-artwork="${CSS.escape(artworkId)}"] input[type="checkbox"]`);
-        if (box) box.checked = false;
-      };
-      let outcome;
-      try {
-        outcome = await addWorksToTheme(picker.value, [...chosen], { onAdded: untick });
-      } catch (failure) {
-        settle();
-        if (failure.progress) say(stoppedSentence(failure.progress, name));
-        // Rethrown so the server's reason is said beside Add, where the retry is.
-        throw failure;
-      }
-      for (const artworkId of [...chosen]) untick(artworkId);
-      settle();
-      say(addedSentence(outcome, name));
-      announcement.focus();
-    });
-  });
-  settle();
+/* *In your library*: the artist's works in circulation, each selectable in
+ * *Select* mode, whose bar adds them to a theme or archives them. */
+function heldSection(works, grid, selection) {
+  for (const work of works.works) grid.append(heldCard(work, selection));
   const shown = works.works.length;
   return el("section", { class: "panel", "aria-labelledby": "in-your-library" }, [
     el("h2", { id: "in-your-library", text: `In your library (${works.total})` }),
-    shown
-      ? grid
-      : el("p", { class: "muted", text: "None of their works is in circulation." }),
+    shown ? grid : el("p", { class: "muted", text: "None of their works is in circulation." }),
     works.total > shown ? el("p", { class: "muted", text: `Showing ${shown} of ${works.total}.` }) : null,
-    shown && themes.length
-      ? el("div", { class: "row" }, [el("div", { class: "field" }, [el("label", { for: "artist-add-to-theme", text: "Theme" }), picker]), add, announcement])
-      : null,
   ]);
 }
 
-function heldCard(work, chosen, settle) {
-  const box = el("input", { type: "checkbox", "aria-label": `Select ${workName(work)}` });
-  box.addEventListener("change", () => {
-    if (box.checked) chosen.add(work.artwork_id);
-    else chosen.delete(work.artwork_id);
-    settle();
-  });
+function heldCard(work, selection) {
   const picture = work.image.available
     ? el("img", { src: `/api/works/${encodeURIComponent(work.artwork_id)}/thumbnail`, alt: "", loading: "lazy" })
     : absentImage(work.image.note);
   return el("li", { class: "card", "data-artwork": work.artwork_id }, [
-    el("label", { class: "card-select" }, [box]),
+    el("label", { class: "card-select" }, [selection.heldBox(work)]),
     el("div", { class: "card-image" }, [picture]),
     el("div", { class: "card-body" }, [
       el("h3", { class: "card-title" }, [link({ view: "work", id: work.artwork_id }, { text: work.title, "aria-label": workName(work) })]),
@@ -447,7 +423,7 @@ function askForTheirWork(name) {
  * Every work the library does not hold can be ticked and got, image found or not:
  * a museum may hold one Wikidata has no picture of. A held row has no tick box,
  * and nor has one waiting for review, whose mark links to the review instead. */
-function paintRegistry(section, about, view, { name = null, artistId = null } = {}) {
+function paintRegistry(section, about, view, { name = null, artistId = null, selection } = {}) {
   const heading = section.querySelector("h2");
   if (view.state !== "known") {
     const candidates = view.candidates || [];
@@ -462,10 +438,9 @@ function paintRegistry(section, about, view, { name = null, artistId = null } = 
     view.description ? el("p", { text: view.description }) : null,
     view.movements.length ? el("p", { class: "muted", text: view.movements.join(", ") }) : null,
   );
-  const getting = getSelection();
   const rows = view.works.map((work) =>
     el("tr", {}, [
-      el("td", {}, [gettable(work) ? getting.box(work.qid, named(work.title, work.qid)) : null]),
+      el("td", {}, [gettable(work) ? selection.registryBox(work.qid, named(work.title, work.qid)) : null]),
       workCell(work),
       yearCell(work),
       el("td", {}, [workState(work)]),
@@ -475,7 +450,7 @@ function paintRegistry(section, about, view, { name = null, artistId = null } = 
   fill(section,
     heading,
     view.works.length
-      ? el("div", { class: "artist-works" }, [el("table", {}, [
+      ? el("div", { class: "artist-works" }, [el("table", { class: "select-column" }, [
           el("caption", {
             text: `The most renowned of the ${view.works_total} works Wikidata lists, by how many Wikipedias cover them, and every one the library holds`,
           }),
@@ -484,7 +459,6 @@ function paintRegistry(section, about, view, { name = null, artistId = null } = 
         ])])
       : el("p", { class: "muted", text: "Wikidata lists no works for them." }),
     view.works.length || !name ? null : askForTheirWork(name),
-    view.works.some(gettable) ? getting.node : null,
     el("h2", { id: "holdings", text: "Holdings" }),
     holdings.length ? el("ul", { "aria-labelledby": "holdings" }, holdings) : el("p", { class: "muted", text: "Wikidata names no collection holding their work." }),
   );

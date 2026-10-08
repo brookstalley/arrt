@@ -59,6 +59,10 @@ log = logging.getLogger(__name__)
 #: The name these instances are recorded under.
 PROVIDER: Final[str] = "commons"
 
+#: The name a curator knows this source by, for every sentence that names it
+#: (`names.museum_name`).
+MUSEUM: Final[str] = "Wikimedia Commons"
+
 API_URL: Final[str] = "https://commons.wikimedia.org/w/api.php"
 
 #: The widest rendering Commons serves (measured: 3840 answered, 5000 and 7680

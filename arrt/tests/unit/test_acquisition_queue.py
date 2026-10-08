@@ -798,6 +798,115 @@ class TestTheListing:
         assert listing.pause is None
 
 
+def _fail(store, artwork_id, detail, *, failures=1, next_try_at=_A_MOMENT + timedelta(hours=1)):
+    """Leave a work as a failed try leaves it: what `_record_failure` writes."""
+    gave_up = failures >= GIVE_UP_AFTER
+    store.set_queued_acquisition(
+        QueuedAcquisition(artwork_id=artwork_id, failures=failures, next_try_at=None if gave_up else next_try_at, detail=detail)
+    )
+
+
+class TestFailuresGroupedByCause:
+    """Thousands of works failing for one reason are one problem, so the listing groups them by it."""
+
+    def test_works_that_failed_for_one_reason_share_one_cause_naming_none_of_them(self, queue, work, store):
+        first, second = work("Toward a Folded Map"), work("Harbour at Dusk")
+        for artwork_id in (first, second):
+            # The words the acquirer's refusal carries, the work's own id in them.
+            _fail(store, artwork_id, f"Artwork {artwork_id!r} has no source to acquire from.")
+
+        causes = queue.listing().causes
+
+        assert [(group.cause, len(group.entries)) for group in causes] == [("The work has no source to acquire from.", 2)]
+        assert first not in causes[0].cause
+        assert second not in causes[0].cause
+
+    def test_each_work_s_own_reason_names_it_by_title_never_by_id(self, queue, work, store):
+        artwork_id = work("Toward a Folded Map")
+        _fail(store, artwork_id, f"Source 's-1' does not belong to artwork {artwork_id!r}.")
+
+        (entry,) = queue.listing().entries
+
+        assert entry.state.detail == "Source 's-1' does not belong to “Toward a Folded Map”."
+        assert artwork_id not in entry.state.detail
+        assert entry.cause == "Source 's-1' does not belong to the work."
+
+    def test_groups_come_largest_first_and_keep_the_queue_s_order_inside(self, queue, work, store):
+        lone = work("Lone")
+        many = [work(f"Many {number}") for number in range(3)]
+        _fail(store, lone, "the museum answered 404.")
+        for artwork_id in many:
+            _fail(store, artwork_id, "the connection was reset.")
+
+        causes = queue.listing().causes
+
+        assert [group.cause for group in causes] == ["the connection was reset.", "the museum answered 404."]
+        assert [entry.title for entry in causes[0].entries] == ["Many 0", "Many 1", "Many 2"]
+
+    def test_failed_and_given_up_share_a_cause_and_are_counted_apart(self, queue, work, store):
+        tried_once, given_up = work("Tried once"), work("Given up")
+        _fail(store, tried_once, "refused.")
+        _fail(store, given_up, "refused.", failures=GIVE_UP_AFTER)
+
+        (group,) = queue.listing().causes
+
+        assert (group.failed, group.gave_up) == (1, 1)
+
+    def test_only_failed_and_given_up_works_are_grouped_and_the_rest_stay_in_line(self, queue, work, store, clock):
+        waiting, failed = work("Waiting"), work("Failed")
+        due_again = work("Due again")
+        _fail(store, failed, "refused.")
+        # Failed once and due again now: back in line, its reason said beside it.
+        _fail(store, due_again, "refused.", next_try_at=clock.now - timedelta(minutes=1))
+
+        listing = queue.listing()
+
+        assert [entry.title for entry in listing.in_line] == ["Waiting", "Due again"]
+        assert [entry.title for group in listing.causes for entry in group.entries] == ["Failed"]
+        assert {entry.state.artwork_id for entry in listing.in_line} == {waiting, due_again}
+
+
+class TestRetryAll:
+    def test_retry_all_puts_every_work_of_the_cause_back_in_line_and_leaves_other_causes(self, queue, work, store):
+        reset = [work(f"Reset {number}") for number in range(3)]
+        other = work("Other")
+        for artwork_id in reset:
+            _fail(store, artwork_id, "the connection was reset.", failures=GIVE_UP_AFTER)
+        _fail(store, other, "the museum answered 404.")
+
+        result = queue.retry_cause("the connection was reset.")
+
+        assert (result.retried, dict(result.refused)) == (3, {})
+        assert {queue.state_of([artwork_id])[artwork_id].phase for artwork_id in reset} == {AcquisitionPhase.QUEUED}
+        assert store.get_queued_acquisition(reset[0]).failures == 0
+        assert queue.state_of([other])[other].phase is AcquisitionPhase.FAILED, "another cause's work was retried"
+
+    def test_a_work_retry_refuses_is_counted_under_its_reason_naming_no_work(self, queue, work, service, store):
+        sourced = work("Sourced")
+        sourceless = [service.add_artwork(title=f"Sourceless {number}").id for number in range(2)]
+        for artwork_id in (sourced, *sourceless):
+            _fail(store, artwork_id, "refused.")
+
+        result = queue.retry_cause("refused.")
+
+        assert result.retried == 1
+        assert dict(result.refused) == {"The work has no source to acquire from.": 2}
+
+    def test_a_cause_no_work_holds_is_refused_by_name(self, queue, work, store):
+        work("Waiting")
+
+        with pytest.raises(ServiceError, match="No work in the queue failed for that reason now"):
+            queue.retry_cause("the connection was reset.")
+
+    def test_a_single_retry_refusal_names_the_work_by_title(self, queue, service):
+        artwork_id = service.add_artwork(title="Untraceable").id
+
+        with pytest.raises(ServiceError) as refusal:
+            queue.retry(artwork_id)
+
+        assert str(refusal.value) == "“Untraceable” has no source to acquire from."
+
+
 class TestTheWorkerSurvives:
     def test_an_error_while_waiting_pauses_rather_than_ending_the_thread(self, queue, work, monkeypatch, caplog):
         """Waiting reads the store; a failed read there must not end the worker silently."""

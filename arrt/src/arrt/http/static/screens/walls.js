@@ -63,7 +63,7 @@ import { api } from "../core/api.js";
 import { absentImage, facts, table } from "../core/badges.js";
 import { counted } from "../core/counting.js";
 import { hangTheme } from "../core/hanging.js";
-import { el, fill, guard, render } from "../core/render.js";
+import { el, emptyState, fill, guard, render } from "../core/render.js";
 import { screenState, STALE_AFTER_SECONDS, wallScreenLine } from "../core/outputs.js";
 import { link, refresh } from "../core/router.js";
 import { state } from "../core/state.js";
@@ -105,10 +105,10 @@ export async function viewWalls(generation) {
     render(
       generation,
       heading(),
-      el("p", {
-        class: "note",
-        text: "No wall is recorded, so there is nowhere to hang anything. A wall is created when the plane first opens the catalogue.",
-      }),
+      emptyState(
+        "No wall is recorded, so there is nowhere to hang anything.",
+        "A wall is created when the plane first opens the catalogue.",
+      ),
     );
     return;
   }
@@ -117,12 +117,10 @@ export async function viewWalls(generation) {
   render(generation, heading(), ...sections, walls.walls.some((wall) => !wall.theme) ? takeDownNote() : null);
 }
 
-/* The one heading on this surface set at `--text-3xl`, and the token's only use.
- * `design-direction.md` adds it "for the Walls screen's single large heading",
- * which is this one: the page about what the product exists to produce saying
- * so, at a size nothing else on the client reaches. */
+/* The page's heading, at the size every page's `h1` has: Walls is a page
+ * among the others, and the art on it is what is large. */
 function heading() {
-  return el("h1", { class: "walls-heading", text: "Walls" });
+  return el("h1", { text: "Walls" });
 }
 
 /* The fact the MCP surface already states after an unhang, said here too: taking
@@ -369,7 +367,9 @@ function nowShowing(wall, now, reason) {
   const work = now.work;
   const artist = work.artist ? work.artist.name : null;
   const image = el("img", {
-    src: `/api/works/${encodeURIComponent(work.artwork_id)}/thumbnail`,
+    // The large size: this box is drawn up to 48rem wide, and the tile's 480 px
+    // is soft there on a 2x screen. Still the bare work, never the wall render.
+    src: `/api/works/${encodeURIComponent(work.artwork_id)}/thumbnail?size=large`,
     alt: artist ? `${work.title}, ${artist}` : work.title,
   });
   // A file can go away between the heartbeat and this fetch. Without this the

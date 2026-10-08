@@ -136,6 +136,182 @@ high-impact assumption, that a Frame names itself, was checked first.
   because the server's route test holds mounted and named routes equal.
 - `build-plan-display-state.md` and `build-plan-walls-work-and-trust.md` no
   longer claim their merged branches: each has only the operator's walk left.
+## 2026-10-08: Archiving says the room loses the work now; an unknown filter key is refused
+
+<!-- prawduct: scope=lists-settings-and-scale -->
+
+**Why:** The boundary review of `build-plan-lists-settings-and-scale.md`.
+
+**What:**
+- Both archive confirmations said a wall loses the work later ("at that wall's
+  next build", "the next time its theme is hung", with re-hanging offered as the
+  remedy). Programming has taken an archived work off every published manifest
+  as the archive lands since wave 2's reconciliation (removals republish,
+  additions wait). They now say *now*, and `information-architecture.md`'s note
+  that the archive path does not republish is marked superseded.
+- `WorksFilter` refuses a key it does not know (422), so an act on a whole
+  filter can never reach more works than the grid shows; a test keeps its keys
+  equal to `GET /api/works`'s query parameters.
+- Filed rather than built: #317 (held works on Search and Topic cannot be
+  selected), #318 (Queue's grouping by message text can split one cause).
+
+**Tests:** `test_archiving_a_work.py`'s `test_the_confirmation_says_how_to_make_the_room_catch_up`
+became `test_the_confirmation_says_the_room_loses_it_now`: its claim, *when*
+the room loses the picture, is kept and its premise corrected (the old test
+asserted a delay and a remedy that wave 2 removed; `test_reconciliation.py`
+pins the immediate removal). New in `test_acting_on_a_selection.py`: an unknown
+narrowing is refused and acts on nothing; the filter model's keys are the
+listing's. Each watched failing against the old code.
+
+## 2026-10-08: One selection model, clean-up facets, every work reachable, Queue by cause, Topics before any are held
+
+<!-- prawduct: scope=lists-settings-and-scale -->
+
+**Why:** Chunks 05–09 of `build-plan-lists-settings-and-scale.md`: review
+findings 17, 18, 23, 28 and 29 (#131, #281, #285, #288, #289).
+
+**What:**
+- **Chunk 05.** One selection module, `core/selecting.js` (`core/selection.js`
+  was already the hang-a-selection act), on Artworks, Artist, Search and Topic:
+  a Select toggle that reads *Select* / *Stop selecting*, ticks hidden outside
+  select mode, and a sticky bar with Select all / Select none and every act
+  valid for the selection: a theme picker with *New theme…*, Add, Remove from
+  the shown theme, Archive (asks first), or Get for works not held. **On Search
+  and a topic page only the not-held half is wired**: a held work there cannot
+  be added to a theme or archived from that page (descoped at the boundary
+  review, #317). Select all
+  sends `{filter, except_ids}`, so it acts on every match, loaded or not
+  (`POST /api/themes/{id}/works/bulk`, `/works/remove`, `POST /api/works/archive`).
+- **Chunk 06.** `GET /api/works` takes `fit` (native, matted small, below floor,
+  no size known) and `not_on_wall`, each counted like the other facets. *Not on
+  any wall* is the owner's ruling for "never hung": what no hung theme or
+  selection plays now, less works kept off every wall. The planes meet as id
+  sets in the HTTP layer only (`DisplayService.work_ids_on_walls`), so neither
+  imports the other. The rail toggle reads *Show filters* / *Hide filters*.
+  Backlog item filed for recording which works a wall shows.
+- **Chunk 07.** Artworks pages from the server as the curator scrolls, with
+  *Show more* for the keyboard; `PAGE_CEILING` no longer limits it. Back
+  restores the pages loaded and focuses the card opened (card 900 stays card
+  900). A Posters tile with no image now opens its work.
+- **Chunk 08.** Queue groups failed fetches by cause on the server (a cause is
+  the reason with the work's own id or title taken out), largest first, each
+  with *Retry all* in one request; a group opens into its works, 25 a page,
+  named by title. Works in line page too. Retry's refusals name the work by
+  title, over MCP as well. `tools/ux_walk.py` wrote spaces as `+` in addresses,
+  which the client reads literally; it writes `%20` now.
+- **Chunk 09.** Topics always offers the 13th–21st centuries and twelve major
+  movements (`OFFERED_TOPICS`, QIDs checked 2026-10-08), each a link, a held one
+  never twice. A topic's works stream (NDJSON on `Accept`) so they show before
+  their makers are known, and the TopicSweep thread keeps the offered list's
+  answers warm, a week at most, one topic at a time, stopped by any refusal
+  (at most 63 queries a week). Topic names start with a capital.
+
+**Tests:** new `test_one_selection_model.py`, `test_acting_on_a_selection.py`,
+`test_clean_up_facets.py` (browser), `test_clean_up_facet_routes.py`,
+`test_acquisition_queue.py`, `test_acquisition_routes.py`, `test_topics_offered.py`,
+`test_topics_offered_surface.py`, `test_topics_before_any_are_held.py`,
+`test_wikidata_topics.py`, and new cases in `test_the_grid.py`,
+`test_navigation.py`, `test_acquisition_states.py`, each watched failing first or
+by mutation. Changed, not weakened: Select-toggle assertions read the label (no
+`aria-pressed`); the "no themes" tests now expect Select with *New theme…* and
+Archive; Get tests on Artist, Search and Topic enter select mode first; grid
+paging tests reach the end through *Show more*, and the runaway-guard test is
+replaced by one paging past the old ceiling (the 2,000-work test asserts every
+work is reachable); Queue's listing tests read failed works from their cause;
+Topics' held-list selector is narrowed now that a kind also holds the offered
+list, and two expectations capitalise the topic name; the three search-typing
+helpers wait for the dropdown's answer to all the words, because under load it
+opened on a mid-word pause (seen twice); a modifier-click test waits for the new
+tab's address rather than reading `about:blank`.
+
+## 2026-10-08: Themes as cards, Settings as an index, Status as a table, and the #297 follow-ups
+
+<!-- prawduct: scope=lists-settings-and-scale -->
+
+**Why:** Chunks 02, 03, 04 and 10 of `build-plan-lists-settings-and-scale.md`:
+the follow-ups PR #297 filed, review findings 22 and 24, and the owner's
+System-page feedback of 2026-10-07 (#265, #266).
+
+**What:**
+- **Chunk 02.** The Walls lead picture asks `GET /api/works/{id}/thumbnail?size=large`
+  (the bare work fitted to 1,536 px, cached apart from the tile) (#303). Wanted's
+  table stacks on a phone (#304). An Ask turn shows its cost tier from
+  `GET /api/conversations/{id}/estimate`, a flat allowance at the conversation
+  model's prices (new `CONVERSATION_*` settings); it reads and writes no spend
+  (#306). Server sentences name the museum: each built-in plugin declares
+  `MUSEUM`, `library/sources/names.py` gathers them, and the client's
+  `MUSEUM_NAMES` is tested against them pair by pair (#298). #305 shipped in
+  chunk 01.
+- **Chunk 03.** `#theme` is a grid of cards (name, count, four pictures, the
+  walls it hangs on), each linking to `#theme/<id>`, where rename, delete and
+  membership live, with Move to top and Move to bottom. The order copy follows
+  the theme's shuffle, from one `DisplayService.shuffles()` the manifest uses
+  too. Renaming retitles the tab (#302). `GET /api/themes` gains `work_count`
+  and `picture_ids`; theme answers gain `shuffled`.
+- **Chunk 04.** Settings opens `#settings`, an index of Clients, Sources and
+  Taste, in that order. Taste is headed "Taste" and names every way taste is
+  recorded.
+- **Chunk 10.** Status's Image sources panel is one table, a row per source,
+  from `GET /api/sources/yields` (one SQL statement): Source, State, Offered,
+  Chosen, Only here, Median long edge, Faults since startup, Last fault. Columns
+  drop by the table's width in the ruled order, and the fault count moves into
+  State when its column goes, so it shows once at every width; below 31rem a
+  row stacks. The geometry panel and `artwork_box` on `/api/health` are gone
+  (#266); nothing else read the field.
+
+**Tests:** new `test_sentences_name_the_museum.py`, `test_source_yields.py`,
+`test_the_status_sources_table.py` (a width sweep, plain and with wider
+letter-spacing), `test_the_themes_index.py`, `test_the_settings_index.py`,
+`test_theme_routes.py` cases, each watched failing first. Changed, not weakened:
+wording expectations now name the museum where they named the plugin id (five
+files, and the health-panel stubs in `browser/conftest.py`, which described
+sentences the server no longer writes); single-theme tests open `#theme/<id>`,
+and the two delete tests now check that the index lands without the theme
+(the "repaints from the delete's answer" claim is retired, because delete
+moved to the theme page); the sidebar tests take the new Settings order; the
+integration test of the geometry panel is removed with the panel (#266), and
+`/api/health`'s key-set test asserts `artwork_box` is absent; one Walls
+thumbnail route glob was widened to match the query string, the assertion
+unchanged.
+
+## 2026-10-08: Component rules — one heading scale, one empty page, one glyph per meaning
+
+<!-- prawduct: scope=lists-settings-and-scale -->
+
+**Why:** The October review (finding 27, #287) found five heading treatments,
+four empty-page patterns, disabled acts drawn as ready, and glyphs that meant
+different things on different screens (◇ was "matted small", "cool" and "you
+chose"). Chunk 01 of `build-plan-lists-settings-and-scale.md` sets the rules the
+later chunks build to.
+
+**What:**
+- `design-direction.md` § Component Patterns rewritten to what the stylesheet
+  holds (it named `.btn`, `.primary` and `.danger`, which never existed) and
+  extended: headings, empty states, buttons and their disabled state, spacing,
+  badges with one meaning per glyph.
+- `core/glyphs.js` (new) names every badge glyph by meaning; every screen takes
+  its glyphs from it. Reassigned so no glyph is shared: *you chose* ◇ → ◎,
+  *likes* ◆ → ☆, *declines* ✕ → ✗, *gave up* ✗ → ▲ (a failure, not a verdict),
+  the wall render ▣ → ▤ (▣ is the Artworks section icon), *Already in your
+  library* ✓ → ●. The decorative ◦ before a taste row's derivation is gone.
+- One `emptyState()` in `core/render.js` for every page whose list is empty
+  (Artworks, Themes, Topics, Artists, To review, Queue, History, Wanted, Taste,
+  Clients, Sources, Walls without a wall). The lead is a paragraph, not an `h2`.
+- Walls' 36px heading and the `--text-3xl` token only it used are gone: every
+  page's `h1` is one size.
+- A disabled act looks disabled. Hover tints with an inset shadow instead of a
+  `filter`, so a full-card link inside an act keeps covering its card (#305);
+  the stacked-table exception that worked around the filter is removed.
+
+**Tests:** new `tests/unit/test_glyphs_have_one_meaning.py` and
+`tests/browser/test_component_rules.py`, each watched failing against the old
+code. Changed, not weakened: `test_the_review_grid.py` expects ◎ for *you chose*
+(the glyph was reassigned); `test_activity.py`'s empty-queue check asserts the
+lead's exact words instead of a trailing space, and its absence check keys on
+`.empty` (`.panel.empty` no longer exists, so the old check would pass on
+anything); `test_wanted.py` reads `.empty`; in `test_client_vocabulary.py` the
+sentiment-glyph check verifies each shape names a meaning `core/glyphs.js`
+holds, since the values are no longer string literals.
 
 ## 2026-10-08: Plan displays and label outputs; the Apple platform findings
 

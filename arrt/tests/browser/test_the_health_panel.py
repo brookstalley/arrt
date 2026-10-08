@@ -109,7 +109,13 @@ def test_a_wall_that_has_never_reported_says_so_without_a_verdict(ui, settings, 
 
 
 def test_the_panel_states_every_installed_source_plugin_in_words(ui, a_health_reading, a_source_reading):
-    """Declined, failed and loaded each as its own sentence, the state a word and never only a colour."""
+    """Declined, failed and loaded each as its own row, the state a word and never only a colour.
+
+    A row rather than a sentence since the owner's ruling of 2026-10-08 (#265):
+    a box per source was too long. What the sentence carried is still on the
+    row: the state in words, the reason a plugin is not working here, and the
+    fault count (`test_the_status_sources_table.py` holds it at every width).
+    """
     ui.serve(
         "**/api/health",
         a_health_reading(
@@ -121,13 +127,16 @@ def test_the_panel_states_every_installed_source_plugin_in_words(ui, a_health_re
         ),
     )
     ui.open("#health")
-    ui.page.wait_for_selector("h2:has-text('Image sources')")
+    ui.page.wait_for_selector(".source-table tbody tr")
 
-    sentences = ui.page.locator("ul.source-readings .reading-sentence").all_inner_texts()
-    assert sentences == [
-        "commons is installed and not configured here: WIKIDATA_USER_AGENT is unset.",
-        "artic is loaded, with 3 faults since startup, the last 12 seconds ago (KeyError: 'x').",
-        "gallery is installed and was not loaded: it could not be imported.",
+    rows = [
+        [cell.inner_text().strip() for cell in row.locator("td.col-source, td.col-state, td.col-faults").all()]
+        for row in ui.page.locator(".source-table tbody tr").all()
+    ]
+    assert rows == [
+        ["Wikimedia Commons\nWIKIDATA_USER_AGENT is unset", "Not configured here", "—"],
+        ["Art Institute of Chicago", "Loaded", "3"],
+        ["gallery\nit could not be imported", "Could not be loaded", "—"],
     ]
 
 

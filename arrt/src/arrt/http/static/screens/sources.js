@@ -21,7 +21,7 @@
 import { api } from "../core/api.js";
 import { facts } from "../core/badges.js";
 import { museumName, PLUGIN_STATE_WORDS } from "../core/providers.js";
-import { el, render } from "../core/render.js";
+import { el, emptyState, render } from "../core/render.js";
 
 /* What a plugin's parts provide, in the words a curator reads. */
 const PART_WORDS = {
@@ -46,10 +46,10 @@ export async function viewSources(generation) {
         "a plugin is a change to the image Arrt runs from, and how each is doing since startup is on Status.",
     }),
     sources.length === 0
-      ? el("p", {
-          class: "muted",
-          text: "No source plugin is installed, so no image can be found for a work. Arrt ships with built-in plugins, so none listed means the package was installed without its entry points.",
-        })
+      ? emptyState(
+          "No source plugin is installed, so no image can be found for a work.",
+          "Arrt ships with built-in plugins, so none listed means the package was installed without its entry points.",
+        )
       : el("ol", { class: "source-inventory" }, sources.map((source, index) => sourcePanel(source, index, sources.length, interfaceMajor))),
   );
 }

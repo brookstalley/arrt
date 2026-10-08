@@ -93,7 +93,8 @@ def _type(ui, words):
     ui.page.wait_for_selector("#view h1")
     ui.page.click("#search")
     ui.page.keyboard.type(words)
-    ui.page.wait_for_selector(f"{LISTBOX}:not([hidden]) [role='option']")
+    # The answer to all the words, not to where typing paused on a loaded machine.
+    ui.page.wait_for_selector(f"{LISTBOX}:not([hidden]) [role='option']:text-is('All results for “{words}”')")
 
 
 def _options(ui):

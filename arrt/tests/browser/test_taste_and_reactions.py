@@ -384,7 +384,9 @@ def test_discover_offers_the_way_into_taste(ui):
     ui.page.wait_for_selector("#intent")
 
     ui.page.click("a:has-text('See what this product thinks you like')")
-    ui.page.wait_for_selector("text=What this product thinks you like")
+    # The heading, not the words: the link's own text holds the old heading's,
+    # so a wait on those would be met before the click had gone anywhere.
+    ui.page.wait_for_selector("#view h1:text-is('Taste')")
 
     assert ui.page.url.endswith("#taste")
 

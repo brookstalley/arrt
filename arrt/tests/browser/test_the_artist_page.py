@@ -323,8 +323,10 @@ class TestTheArtistPage:
         artist, work = rothko
         _page(ui, artist)
 
+        # In *Select* mode, whose bar holds Add for every list (`core/selecting.js`).
+        ui.page.click("#view button.select-toggle")
         ui.page.check(f"input[aria-label^='Select {work.title},']")
-        ui.page.click("section[aria-labelledby='in-your-library'] button:has-text('Add to theme')")
+        ui.page.click("#view .selection button.selection-add")
         ui.page.wait_for_selector("text=Added 1 work to Colour fields.")
 
         theme = next(t for t in services.display.list_themes() if t.name == "Colour fields")

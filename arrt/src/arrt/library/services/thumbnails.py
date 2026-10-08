@@ -58,6 +58,16 @@ log = logging.getLogger(__name__)
 #: rendition rows meaningless, and every tile in the library draws this one.
 THUMBNAIL_MAX_EDGE_PX: Final[int] = 480
 
+#: The box a *large* thumbnail is fitted into: the work itself, bare, for a
+#: surface that draws it far larger than a tile. Walls leads each card with the
+#: work on the wall in a box up to 48rem wide and 32rem tall, which on a 2x
+#: screen is 1536 by 1024 device pixels; a 480 px tile is a third of that and
+#: visibly soft. 1536 is sharp at either bound for any aspect, and is not the
+#: wall preview's 1920 because that one is the canvas, mat and bars included,
+#: which a Walls lead must not show. One more fixed size, for the reason the
+#: tile has one.
+LARGE_THUMBNAIL_MAX_EDGE_PX: Final[int] = 1536
+
 #: Quality for the re-encode. High enough that the grid is not visibly artefacted
 #: on a retina display, low enough that forty of them are a page.
 THUMBNAIL_JPEG_QUALITY: Final[int] = 82
@@ -79,6 +89,7 @@ WALL_PREVIEW_JPEG_QUALITY: Final[int] = 85
 #: bare work — would otherwise be served as current forever: nothing on its row
 #: records what it was drawn from, and the master's hash still matches.
 _THUMBNAIL_DIRNAME: Final[str] = "tiles"
+_LARGE_THUMBNAIL_DIRNAME: Final[str] = "tiles-large"
 _WALL_PREVIEW_DIRNAME: Final[str] = "wall-previews"
 
 
@@ -209,8 +220,9 @@ class ThumbnailService:
 
         Separate from `wall_preview` so a listing can say what the Work page will
         show — and say why it will show nothing — without decoding an image to
-        find out. A thumbnail is drawn from the master alone, so whether this
-        raises is also whether a tile has a picture.
+        find out. It is **not** whether a tile has a picture: a current wall
+        render answers here while the master's file is gone, and a tile is drawn
+        from the master alone. Ask `tile_source` that.
         """
         original = self._catalogue.get_original(artwork_id)
         if original is None:
@@ -239,30 +251,39 @@ class ThumbnailService:
 
         return self._master(original.relative_path)
 
+    def tile_source(self, artwork_id: str) -> ThumbnailSource:
+        """The master a tile is drawn from, or `ThumbnailUnavailable` saying why there is none."""
+        original = self._catalogue.get_original(artwork_id)
+        if original is None:
+            raise ThumbnailUnavailable("No master image has been acquired for this work yet.")
+        return self._master(original.relative_path)
+
     def _master(self, relative: str) -> ThumbnailSource:
         master = self._settings.art_root / relative
         if not master.is_file():
             raise ThumbnailUnavailable(f"The master image is recorded at {relative} but no file is there.")
         return ThumbnailSource(kind="original", path=master, generated_at=None)
 
-    def thumbnail(self, artwork_id: str) -> Path:
+    def thumbnail(self, artwork_id: str, *, large: bool = False) -> Path:
         """An absolute path to a current thumbnail — the work itself — generating one if needed.
 
         Drawn from the master and nothing else, whatever canvas the work has, so
         a tile shows the work at its own aspect rather than the wall's mat and
         bars. Its parent is the original, so the catalogue's staleness rule is
         the whole currency test.
+
+        `large` is the same product in a bigger box (`LARGE_THUMBNAIL_MAX_EDGE_PX`),
+        cached in its own directory and recorded as its own row: the catalogue
+        keys a rendition on its kind *and* its box, so the two sizes are two
+        rows and neither overwrites the other.
         """
-        original = self._catalogue.get_original(artwork_id)
-        if original is None:
-            raise ThumbnailUnavailable("No master image has been acquired for this work yet.")
-        source = self._master(original.relative_path)
+        source = self.tile_source(artwork_id)
         return self._cached(
             artwork_id,
             source,
             kind=RenditionKind.THUMBNAIL,
-            dirname=_THUMBNAIL_DIRNAME,
-            max_edge=THUMBNAIL_MAX_EDGE_PX,
+            dirname=_LARGE_THUMBNAIL_DIRNAME if large else _THUMBNAIL_DIRNAME,
+            max_edge=LARGE_THUMBNAIL_MAX_EDGE_PX if large else THUMBNAIL_MAX_EDGE_PX,
             quality=THUMBNAIL_JPEG_QUALITY,
         )
 

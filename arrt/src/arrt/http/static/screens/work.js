@@ -36,6 +36,7 @@ import { absentImage, facts, fitBadge, pixelSize, sourceBadge, statusBadge, tabl
 import { confirmAct } from "../core/confirm.js";
 import { counted } from "../core/counting.js";
 import { dated } from "../core/dates.js";
+import { GLYPHS } from "../core/glyphs.js";
 import { FETCH_WORDS, museumName, RIGHTS_WORDS } from "../core/providers.js";
 import { enlarge } from "../core/enlarge.js";
 import { getOne } from "../core/getting.js";
@@ -74,7 +75,7 @@ const FACET_KIND_WORDS = {
  * outrank the facts particular to this one; a museum label puts its
  * qualifications at the foot for the same reason. */
 const DERIVATION_FOOTNOTE =
-  "Every value above is inferred unless it carries ✓, which marks the few a source recorded.";
+  `Every value above is inferred unless it carries ${GLYPHS.yes}, which marks the few a source recorded.`;
 
 /* What a restore does and, just as importantly, when.
  *
@@ -212,12 +213,12 @@ const LOOK_SHOWN = 6;
 /* A source's row: a glyph and a word, so the state survives greyscale. Keyed by
  * the server's `SourceState`, which `test_client_vocabulary.py` holds them to. */
 const LOOK_SOURCE_GLYPHS = {
-  asking: "◌",
-  found: "●",
-  holds_none: "○",
-  refused: "⊘",
-  unreachable: "▲",
-  cannot: "—",
+  asking: GLYPHS.waiting,
+  found: GLYPHS.good,
+  holds_none: GLYPHS.none,
+  refused: GLYPHS.refused,
+  unreachable: GLYPHS.problem,
+  cannot: GLYPHS.cannot,
 };
 
 const LOOK_SOURCE_WORDS = {
@@ -587,7 +588,7 @@ function paint(detail, generation, { where, focusAction = false }) {
               r.kind,
               `${r.target_width} × ${r.target_height}`,
               r.relative_path,
-              r.stale ? "▲ stale — needs regenerating" : "● current",
+              r.stale ? `${GLYPHS.problem} stale — needs regenerating` : `${GLYPHS.good} current`,
             ]),
           )
         : el("p", { class: "muted", text: "Nothing has been rendered for this work yet." }),
@@ -646,14 +647,8 @@ function facetValues(held) {
     if (facet.derivation === "sourced") {
       nodes.push(
         el("span", { class: "sourced" }, [
-          // The string, not the boolean. `el` renders a `true` as an empty
-          // attribute — right for `hidden`, and wrong for an ARIA state, where
-          // an empty value is invalid and falls back to *not* hidden. Every
-          // other glyph in this client passes the boolean and is therefore
-          // announced as "check mark sourced"; that is a one-line fix in `el`
-          // and it belongs to whoever can make it without three screens being
-          // rebuilt around it at the same time.
-          el("span", { class: "tick", text: "✓", "aria-hidden": "true" }),
+          // Hidden from a screen reader, which hears "sourced" instead.
+          el("span", { class: "tick", text: GLYPHS.yes, "aria-hidden": true }),
           el("span", { class: "visually-hidden", text: "sourced" }),
         ]),
       );
@@ -952,7 +947,10 @@ function wallConsequence(names) {
   const walls = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
   const showing = names.length === 1 ? "is showing" : "are showing";
   const losing = names.length === 1 ? "loses" : "lose";
-  return `${walls} ${showing} this work, and ${losing} it the next time ${names.length === 1 ? "its theme is" : "their themes are"} hung. Re-hanging a wall's current theme does that now. It stays in the theme, and Restore brings it back.`;
+  // Now, not at the next hang: Programming takes an archived work off every
+  // published manifest that carries it as the archive lands (removals
+  // republish, additions wait; `tests/unit/test_reconciliation.py`).
+  return `${walls} ${showing} this work, and ${losing} it now. It stays in the theme, and Restore brings it back.`;
 }
 
 /* The artist's name as the way to their page, `#artist/<id>`. */

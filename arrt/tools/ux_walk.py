@@ -57,7 +57,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.error import URLError
-from urllib.parse import parse_qsl, urlencode
+from urllib.parse import parse_qsl, quote, urlencode
 
 if TYPE_CHECKING:  # the `browser` group is optional; annotations only
     from playwright.sync_api import Browser, BrowserContext, Page
@@ -181,7 +181,9 @@ class Address:
         if not self.route:
             return ""  # the bare shell: whatever the router makes the home page
         path = self.route + (f"/{self.ident}" if self.ident else "")
-        return "#" + path + (f"?{urlencode(self.query)}" if self.query else "")
+        # `quote`, not the default `quote_plus`: the client reads `+` as itself
+        # (`core/route.js`, `parseParams`), so a space must travel as %20.
+        return "#" + path + (f"?{urlencode(self.query, quote_via=quote)}" if self.query else "")
 
     @property
     def slug(self) -> str:
