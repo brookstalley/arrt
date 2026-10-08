@@ -86,8 +86,10 @@ screen is doing, so labels need that report before they can be split from walls.
   and `dark`, and 30 minutes into `unreachable` (the owner's number).
 - **The HDMI controller** reports `showing_art`, `dark` (no screen detected) and
   `no_screen` (output gone).
-- **The server** keeps each wall's state, adds `unassigned` and `silent`, refuses an
-  invalid `display_state`, and carries it on `/api/walls` and `art_display`; **Walls**
+- **The server** keeps each wall's state, adds `unassigned` and `silent`, refuses a
+  malformed `display_state` but reads a state name it does not know as `unreachable`
+  (so a Player can upgrade before the server), and carries it on `/api/walls` and
+  `art_display`; **Walls**
   leads with it ("Somebody is using the screen", "Its screen is off", "Not heard from
   since …").
 
@@ -97,7 +99,8 @@ PowerState read, unreachable at 29 and 31 minutes); server unit and browser test
 real heartbeats for each state, a pre-minor-3 one and a stale one;
 `test_staleness_threshold.py` ties the Player, server and client thresholds together.
 
-**Deploy:** the server and the Pi's Player both. A minor-2 Player keeps working: the
+**Deploy:** the server and the Pi's Player both, in either order: a server reads a
+state a later Player adds as `unreachable`. A minor-2 Player keeps working: the
 server reads its `current_work_id` as `showing_art`. Rolling back either side alone is
 safe; nothing new is stored beyond the heartbeat file.
 

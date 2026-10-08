@@ -2093,8 +2093,7 @@ for `silent`: `{state, work_id, since}` from the last readable report, null when
 there never was one. A heartbeat before minor 3 reads as `showing_art` with its
 `current_work_id`, and as `unreachable` when it names no work. Derived in one
 function (`programming/display_state.py`) for both surfaces.
-`POST /walls/{wall_id}/heartbeat` now refuses, `400` and nothing written, a
-`display_state` that is malformed (not exactly `state`, `work_id` and `since`, a work beside a known state other than `showing_art`, a `since` without an offset) is refused with a 400 and nothing written. **A state name the server does not know is accepted** and read as `unreachable` with no work, because minors only add and Players upgrade first (`player-contract.md`); refusing it would make an upgraded Player's wall silent. A heartbeat file that fails the same test reads as unreadable on every screen alike (`heartbeat.read` applies it).
+On `POST /walls/{wall_id}/heartbeat`, a `display_state` that is malformed (not exactly `state`, `work_id` and `since`, a work beside a known state other than `showing_art`, a `since` without an offset) is refused with a 400 and nothing written. **A state name the server does not know is accepted** and read as `unreachable` with no work, because minors only add and Players upgrade first (`player-contract.md`); refusing it would make an upgraded Player's wall silent. A heartbeat file that fails the same test reads as unreadable on every screen alike (`heartbeat.read` applies it).
 
 **Retired 2026-10-02:** `POST /api/walls/{wall_id}/token` and
 `art_display(action='issue_token')`, with the Walls screen's Player token panel.
