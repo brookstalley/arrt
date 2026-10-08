@@ -164,6 +164,34 @@ def test_one_entry_per_work_however_many_made_it():
     assert sorted(creator.name for creator in shared.creators) == sorted(ANSWERS["two makers"]["makers"])
 
 
+def test_the_ranked_works_are_yielded_before_their_makers_are_asked():
+    """A Topic page draws the works as soon as the slow query lands; the makers' question comes after."""
+    asked: list[str] = []
+    stages = _answering(ANSWERS["works two makers"], ANSWERS["makers two makers"], asked=asked).topic_works_in_stages(
+        _topic("Q7017", TopicKind.PERIOD, start=1501, end=1600), limit=50
+    )
+
+    first = next(stages)
+    assert len(asked) == 1
+    assert first.complete is False
+    assert [work.qid for work in first.works] == [row["work"]["value"].rsplit("/", 1)[-1] for row in ANSWERS["works two makers"]]
+    # Not yet said, which is not the same as nobody: no maker and none unknown.
+    assert not any(work.creators or work.creator_unknown for work in first.works)
+
+    last = next(stages)
+    assert len(asked) == 2
+    assert last.complete is True
+    assert [work.qid for work in last.works] == [work.qid for work in first.works]
+    assert any(work.creators for work in last.works)
+    assert next(stages, None) is None
+
+
+def test_a_topic_with_no_works_is_one_complete_stage():
+    stages = list(_answering([]).topic_works_in_stages(_topic("Q1311", TopicKind.SUBJECT), limit=50))
+
+    assert [(stage.works, stage.complete) for stage in stages] == [((), True)]
+
+
 def test_a_maker_recorded_as_unknown_is_an_unknown_maker_never_its_url():
     works = _answering(ANSWERS["works unknown maker"], ANSWERS["makers unknown maker"]).topic_works(
         _topic("Q18219090", TopicKind.MEDIUM), limit=50

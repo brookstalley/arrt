@@ -377,12 +377,22 @@ class HeldTopicOut(BaseModel):
     works: int
 
 
+class OfferedTopicOut(BaseModel):
+    """A topic Library › Topics offers whether or not any work is in it: the server's fixed list."""
+
+    qid: str
+    label: str
+
+
 class TopicKindOut(BaseModel):
-    """Every topic of one kind the library's works are in, by name."""
+    """Every topic of one kind the library's works are in, by name, and those of the fixed list that none is in."""
 
     #: `period`, `movement`, `subject` or `medium`.
     kind: str
     topics: list[HeldTopicOut]
+    #: The centuries and movements offered before any is held, in the list's
+    #: order, without any already under `topics`. Empty without a registry.
+    offered: list[OfferedTopicOut]
 
 
 class TopicsOut(BaseModel):
@@ -449,6 +459,10 @@ class TopicWorksOut(BaseModel):
     state: str
     note: str | None
     works: list[TopicWorkOut]
+    #: False on every line of the streamed answer but the last: the works are
+    #: listed and Wikidata is still being asked who made them, so `creators` is
+    #: empty and `creator_unknown` false because nothing has been said yet.
+    complete: bool
 
 
 class TopicArtistsOut(BaseModel):

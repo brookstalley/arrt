@@ -51,6 +51,7 @@ from arrt.library.registry import (
     RegistryTopicRef,
     RegistryTopicsOf,
     RegistryTopicWork,
+    RegistryTopicWorksStage,
     RegistryUnavailable,
     RegistryWork,
     RegistryWorkEntry,
@@ -531,9 +532,21 @@ class WikidataRegistry:
         return _topic(item, rows) if rows else None
 
     def topic_works(self, topic: RegistryTopic, *, limit: int) -> Sequence[RegistryTopicWork]:
+        last: tuple[RegistryTopicWork, ...] = ()
+        for stage in self.topic_works_in_stages(topic, limit=limit):
+            last = stage.works
+        return list(last)
+
+    def topic_works_in_stages(self, topic: RegistryTopic, *, limit: int) -> Iterator[RegistryTopicWorksStage]:
+        # Two answers, yielded as each lands: the ranked works, which is the
+        # query that takes seconds, and then their makers, asked by VALUES over
+        # just those works. Nothing here is asked twice to make a first answer
+        # sooner: the ranking is one scan and sort over the whole topic, and a
+        # part of it (a decade, an OFFSET, one class of work) rescans it.
         where = _works_in(topic)
         if where is None:
-            return []
+            yield RegistryTopicWorksStage(works=(), complete=True)
+            return
         # The most renowned works are chosen first and named after: the label
         # service and the optional facts, run over every work in a century, are
         # what would make this slow. One row per work, however many made it.
@@ -551,7 +564,9 @@ class WikidataRegistry:
         )
         works = [(_qid(row, "work"), row) for row in rows]
         if not works:
-            return []
+            yield RegistryTopicWorksStage(works=(), complete=True)
+            return
+        yield RegistryTopicWorksStage(works=tuple(_topic_work(work, row) for work, row in works), complete=False)
         made = self._select(f"""SELECT ?work ?maker ?makerLabel WHERE {{
               VALUES ?work {{ {" ".join(f"wd:{work}" for work, _ in works)} }}
               ?work wdt:P170 ?maker .
@@ -567,18 +582,18 @@ class WikidataRegistry:
                 unknown.add(work)
             else:
                 makers.setdefault(work, {}).setdefault(maker, RegistryText(_value(row, "makerLabel")))
-        return [
-            RegistryTopicWork(
-                qid=work,
-                title=RegistryText(_value(row, "workLabel")),
-                sitelinks=_integer(row, "links") or 0,
-                year=_integer(row, "year"),
-                image=_commons_file(row.get("img", {}).get("value")),
-                creators=tuple(RegistryCreator(qid=qid, name=name) for qid, name in sorted(makers.get(work, {}).items())),
-                creator_unknown=work in unknown,
-            )
-            for work, row in works
-        ]
+        yield RegistryTopicWorksStage(
+            works=tuple(
+                _topic_work(
+                    work,
+                    row,
+                    creators=tuple(RegistryCreator(qid=qid, name=name) for qid, name in sorted(makers.get(work, {}).items())),
+                    creator_unknown=work in unknown,
+                )
+                for work, row in works
+            ),
+            complete=True,
+        )
 
     def topic_artists(self, topic: RegistryTopic, *, limit: int) -> Sequence[RegistrySimilar]:
         # Ranked by the fame of their works in the topic, the sum of those works'
@@ -854,6 +869,21 @@ def _is_work(row: Mapping[str, Any]) -> bool:
 
 #: Binds `?work` to a work of visual art: an instance of one of the ten classes.
 _ARTWORK: Final[str] = f"?work wdt:P31 ?class . VALUES ?class {{ {' '.join(f'wd:{qid}' for qid in _ARTWORK_CLASSES)} }}"
+
+
+def _topic_work(
+    work: ItemId, row: Mapping[str, Any], *, creators: tuple[RegistryCreator, ...] = (), creator_unknown: bool = False
+) -> RegistryTopicWork:
+    """One ranked work from its row; its makers are a second answer's, so a first stage has none."""
+    return RegistryTopicWork(
+        qid=work,
+        title=RegistryText(_value(row, "workLabel")),
+        sitelinks=_integer(row, "links") or 0,
+        year=_integer(row, "year"),
+        image=_commons_file(row.get("img", {}).get("value")),
+        creators=creators,
+        creator_unknown=creator_unknown,
+    )
 
 
 def _works_in(topic: RegistryTopic) -> str | None:

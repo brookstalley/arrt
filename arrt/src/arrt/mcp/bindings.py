@@ -207,6 +207,7 @@ def _list_topics(services: Services, _arguments: Mapping[str, Any]) -> dict[str,
             {
                 "kind": group.kind.value,
                 "topics": [{"qid": topic.qid, "label": topic.label, "works": topic.works} for topic in group.topics],
+                "offered": [{"qid": offer.qid, "label": offer.label} for offer in group.offered],
             }
             for group in index.groups
         ],
