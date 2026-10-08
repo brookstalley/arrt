@@ -18,6 +18,7 @@ from arrt.library.registry import (
     RegistryText,
     RegistryTopic,
     RegistryTopicWork,
+    RegistryTopicWorksStage,
     RegistryUnavailable,
     TopicKind,
 )
@@ -76,6 +77,10 @@ class TopicRegistry:
     def topic_works(self, topic, *, limit):
         self._ask("topic_works", topic.qid)
         return self.works.get(topic.qid, [])[:limit]
+
+    def topic_works_in_stages(self, topic, *, limit):
+        """One complete stage, asked as `topic_works` is: the staging is the Wikidata client's, tested there."""
+        yield RegistryTopicWorksStage(works=tuple(self.topic_works(topic, limit=limit)), complete=True)
 
     def topic_artists(self, topic, *, limit):
         self._ask("topic_artists", topic.qid)

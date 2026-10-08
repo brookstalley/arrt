@@ -25,10 +25,10 @@ import logging
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Final, Literal
 
 from fastapi import APIRouter, Query, Request, Response
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
 from arrt.http.models import (
     AcquisitionQueueOut,
@@ -92,6 +92,7 @@ from arrt.http.models import (
     NameClient,
     NotAgainOut,
     NotAgainRequest,
+    OfferedTopicOut,
     OriginalOut,
     PickItem,
     PicturesOut,
@@ -183,7 +184,7 @@ from arrt.library.services.spending import CENTS_BELOW, DIMES_BELOW
 from arrt.library.services.survey import WorkDossier, WorkSurvey
 from arrt.library.services.taste import AffinityView
 from arrt.library.services.thumbnails import ThumbnailUnavailable
-from arrt.library.services.topics import TopicIndex, TopicPage
+from arrt.library.services.topics import TopicIndex, TopicPage, TopicWorksView
 from arrt.library.services.twins import InReview
 from arrt.library.sources.plugin import API_VERSION
 from arrt.persistence.discovery_records import (
@@ -615,17 +616,42 @@ def get_topic_registry(request: Request, qid: str) -> TopicRegistryOut:
     )
 
 
-@router.get("/topics/{qid}/works")
-def get_topic_works(request: Request, qid: str) -> TopicWorksOut:
+#: The media type of a topic's works asked for as they arrive: one
+#: `TopicWorksOut` per line.
+NDJSON: Final[str] = "application/x-ndjson"
+
+
+@router.get("/topics/{qid}/works", responses={200: {"content": {NDJSON: {}}}})
+def get_topic_works(request: Request, qid: str) -> Response:
     """*Representative works*: the topic's most renowned works, each with what marks it: held, wanted, its image.
 
     Asked after the page is drawn: a period's works took 7 to 26 seconds to
     ask for. Always a 200 for a well-formed QID; a malformed one is a 400.
+
+    **Streamed when asked for as `application/x-ndjson`**: one `TopicWorksOut`
+    per line as each of Wikidata's answers lands, the works when their ranking
+    does and again with their makers, the last line `complete`. Streamed rather
+    than paged or polled because the answers are one request's work on the
+    server: a page or a poll would hold the half-answer somewhere between
+    requests, and a stream holds it nowhere. A kept answer is one complete line
+    at once. Anything else asking gets the last line alone, as JSON.
     """
-    view = _services(request).topics.works(qid)
+    stages = _services(request).topics.works_in_stages(qid)
+    if NDJSON not in request.headers.get("accept", ""):
+        last = next(stages)
+        for view in stages:
+            last = view
+        return JSONResponse(_topic_works(last).model_dump(mode="json"))
+    # A sync generator, so Starlette runs each step in its thread pool: the
+    # registry's questions block, and the event loop must not wait on them.
+    return StreamingResponse((_topic_works(view).model_dump_json() + "\n" for view in stages), media_type=NDJSON)
+
+
+def _topic_works(view: TopicWorksView) -> TopicWorksOut:
     return TopicWorksOut(
         state=str(view.state),
         note=view.note,
+        complete=view.complete,
         works=[
             TopicWorkOut(
                 qid=entry.work.qid,
@@ -673,6 +699,7 @@ def _topics(index: TopicIndex) -> TopicsOut:
             TopicKindOut(
                 kind=group.kind.value,
                 topics=[HeldTopicOut(qid=topic.qid, label=topic.label, works=topic.works) for topic in group.topics],
+                offered=[OfferedTopicOut(qid=offer.qid, label=offer.label) for offer in group.offered],
             )
             for group in index.groups
         ],

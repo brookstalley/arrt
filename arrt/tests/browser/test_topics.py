@@ -205,7 +205,7 @@ class TestTheIndex:
 
         headings = ui.page.locator("#view section h2").all_inner_texts()
         assert headings == ["Periods", "Movements", "Subjects", "Media"]
-        periods = ui.page.locator("section[aria-labelledby='topics-period'] li").all_inner_texts()
+        periods = ui.page.locator("section[aria-labelledby='topics-period'] ul.topic-held li").all_inner_texts()
         assert [" ".join(row.split()) for row in periods] == ["16th century · 2 works"]
         subjects = ui.page.locator("section[aria-labelledby='topics-subject'] li").all_inner_texts()
         assert [" ".join(row.split()) for row in subjects] == ["winter · 1 work"]

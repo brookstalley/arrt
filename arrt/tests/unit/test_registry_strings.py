@@ -72,6 +72,8 @@ CALLS = {
     "topic": lambda registry: registry.topic("Q1"),
     # A subject reaches both of a topic's queries, the works' and their makers'.
     "topic_works": lambda registry: registry.topic_works(_A_SUBJECT, limit=5),
+    # Drained, so both stages are made and every string in either is checked.
+    "topic_works_in_stages": lambda registry: list(registry.topic_works_in_stages(_A_SUBJECT, limit=5)),
     "topic_artists": lambda registry: registry.topic_artists(_A_SUBJECT, limit=5),
     "topics_named": lambda registry: registry.topics_named("anything"),
     "topics_of": lambda registry: registry.topics_of(["Q1"], ["Q2"]),

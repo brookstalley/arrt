@@ -187,3 +187,38 @@ export async function fetchAllCandidates(runId) {
   }
   return { run, works, total };
 }
+
+/* A streamed answer, one JSON value per line, each handed to `onLine` as it
+ * arrives: a Topic page's works, which the server sends when their ranking
+ * lands and again when their makers do (`GET /api/topics/<qid>/works`).
+ *
+ * Refusals and faults are told apart as `api` tells them, from the status,
+ * before anything is read. A connection that drops mid-answer throws, so a
+ * caller never mistakes the lines it got for the whole. */
+export async function apiLines(path, onLine) {
+  let response;
+  try {
+    response = await fetch(path, { headers: { accept: "application/x-ndjson" } });
+  } catch (failure) {
+    failure.unanswered = true;
+    throw failure;
+  }
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    const failure = new Error(body && body.error ? body.error : `The server answered ${response.status} for ${path}.`);
+    failure.status = response.status;
+    throw failure;
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let pending = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    pending += decoder.decode(value || new Uint8Array(), { stream: !done });
+    const lines = pending.split("\n");
+    pending = lines.pop();
+    for (const line of lines) if (line.trim()) onLine(JSON.parse(line));
+    if (done) break;
+  }
+  if (pending.trim()) onLine(JSON.parse(pending));
+}

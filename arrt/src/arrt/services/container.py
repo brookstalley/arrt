@@ -318,7 +318,10 @@ class Services:
         # service that wired itself could not be built for a test without it.
         library.subscribe(display_service.on_work_changed)
         thumbnail_service = ThumbnailService(catalogue_service, thumbnails)
-        topic_sweep = TopicSweep(catalogue, catalogue_service, registry)
+        topic_service = TopicService(catalogue, registry, kept=kept, wanted=discovery_service)
+        # The sweep's thread is the one Wikidata thread the plane runs; it warms
+        # what Library › Topics offers after each pass, rather than a second one.
+        topic_sweep = TopicSweep(catalogue, catalogue_service, registry, warm=topic_service.warm_offered)
         # The Library's own announcement, heard by the Library's own sweep: an
         # accepted or restored work is asked about now rather than at the
         # interval. Identity changes reach it through `identity` below.
@@ -442,7 +445,7 @@ class Services:
                 pictures=pictures,
                 **({} if look_now is None else {"now": look_now}),
             ),
-            topics=TopicService(catalogue, registry, kept=kept, wanted=discovery_service),
+            topics=topic_service,
             topic_sweep=topic_sweep,
             wikidata_match=WikidataMatchService(discovery_service, registry),
             sightings=sighting_service,
