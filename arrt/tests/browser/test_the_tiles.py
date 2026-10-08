@@ -76,3 +76,23 @@ def test_a_tile_is_not_boxed_and_its_picture_sits_on_the_mat(ui):
     assert look["shadow"] == "none"
     assert look["background"] == "rgba(0, 0, 0, 0)"
     assert look["picture"] == look["mat"]
+
+
+def test_a_tile_label_is_never_set_below_the_small_text_size(ui):
+    """The label under a picture is read at a distance from the art it names,
+    so its smallest lines, the artist and the date and medium, stay at
+    `--text-sm` or above."""
+    ui.serve("**/api/works?*", a_listing(_works()))
+    ui.open("#collection?density=catalogue")
+    ui.page.locator("#view li.card[data-artwork='w0']").wait_for()
+    sizes, floor = ui.page.evaluate("""() => {
+          const probe = document.createElement('span');
+          probe.style.fontSize = 'var(--text-sm)';
+          document.body.append(probe);
+          const floor = parseFloat(getComputedStyle(probe).fontSize);
+          probe.remove();
+          const lines = document.querySelectorAll('#view li.card[data-artwork] :is(.card-title, .card-artist, .card-meta)');
+          return [[...lines].map((line) => parseFloat(getComputedStyle(line).fontSize)), floor];
+        }""")
+    assert sizes, "the fixture drew no labels, so this proves nothing"
+    assert min(sizes) >= floor

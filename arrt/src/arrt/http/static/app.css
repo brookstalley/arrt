@@ -185,7 +185,8 @@
 
   /* Layout. */
   --rail: 13rem;
-  --masthead: 3.5rem;
+  /* The top bar's height: a 2.5rem search field, its padding and its 1px rule. */
+  --masthead: calc(4rem + 1px);
   --sidebar: 14rem;
 }
 
@@ -885,15 +886,12 @@ h1 {
   min-height: 1.75rem;
 }
 
-.card:is([data-artwork], [data-artist], .tile-skeleton) .card-title {
-  font-size: var(--text-lg);
-  line-height: 1.25;
-}
-
 /* Clamped, so one long title cannot make its row taller than the rest: two
    lines of title, one of artist, two of date and medium. The full text is the
    link's accessible name and is on the work's own page. */
 .card:is([data-artwork], [data-artist], .tile-skeleton) .card-title {
+  font-size: var(--text-lg);
+  line-height: 1.25;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -2568,14 +2566,19 @@ dialog.confirm::backdrop {
 /* -- the Work page ------------------------------------------------------------
 
    The picture is the largest thing on the page: the wall render, mat and all,
-   across the column and up to most of the screen's height, kept at its own
-   aspect. The state strip sits under the title, and the secondary acts after
-   the facts. A description keeps the blank lines between its paragraphs. */
+   across its column beside the label (above it below 60rem), up to most of
+   the screen's height, kept at its own aspect. The state strip sits under the
+   title, and the secondary acts after the facts. A description keeps the
+   blank lines between its paragraphs. */
 
 .work-hero .work-picture {
   width: 100%;
   max-height: 75vh;
   object-fit: contain;
+  border: none;
+  border-radius: 0;
+  margin: 0;
+  filter: drop-shadow(var(--shadow-art));
 }
 
 /* Wall label: the picture and its label side by side, as on a gallery wall,
@@ -2596,17 +2599,6 @@ dialog.confirm::backdrop {
   border-top: none;
   padding: 0;
   margin: 0;
-}
-
-.work-hero .work-picture {
-  border: none;
-  border-radius: 0;
-  margin: 0;
-  filter: drop-shadow(var(--shadow-art));
-}
-
-.work-hero .card-footer {
-  justify-content: center;
 }
 
 /* The picture stays in view while a long label is read beside it. */

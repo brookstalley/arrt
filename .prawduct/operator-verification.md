@@ -16,9 +16,12 @@ each entry, which is the durable form.
 judgement the plan can't make for itself.
 
 Built against a copy of the local `~/samsung-art` library and the synthetic
-corpus. `arrt/tools/ux_walk.py` photographed every screen at phone and desktop
-width in both schemes: no accessibility violations and no console errors. Not
-yet deployed.
+corpus. `arrt/tools/ux_walk.py` photographed every screen it reached at phone
+and desktop width in both schemes, on both libraries: the library copy gave
+100 captures, and the 2,000-work synthetic corpus gave 84 across the same 21
+screens as the walk before this plan (`.ux-walk/after-lists-settings`). Both
+had no accessibility violations, no console errors and no dead ends, the same
+as before. Not yet deployed.
 
 - **Look at, on the real library, in both schemes:** Artworks (tiles on a mat,
   label beneath, rows even), a work's page (picture beside its label,
