@@ -38,7 +38,7 @@ from jsonschema import Draft202012Validator
 
 from postarr import manifest
 from postarr.client import ClientDocumentUnreadable, client_heartbeat, client_outputs, parse_client_document
-from postarr.heartbeat import Health
+from postarr.heartbeat import DisplayReport, Health, ScreenState
 
 CONTRACT = Path(__file__).resolve().parents[2] / "contract"
 INDEX = json.loads((CONTRACT / "fixtures" / "index.json").read_text(encoding="utf-8"))["fixtures"]
@@ -141,6 +141,24 @@ def test_a_heartbeat_from_a_running_player_conforms():
     )
 
     assert _heartbeat_errors(health.document(reported_at=datetime(2026, 9, 30, 14, 0, 5, 123456, tzinfo=UTC))) == []
+
+
+@pytest.mark.parametrize("state", list(ScreenState))
+def test_a_heartbeat_carrying_each_display_state_conforms(state):
+    work_id = "w-dali-1" if state is ScreenState.SHOWING_ART else None
+    since = datetime(2026, 10, 8, 14, 0, tzinfo=UTC)
+    health = Health(display_state=DisplayReport(state=state, work_id=work_id, since=since))
+
+    document = health.document(reported_at=datetime(2026, 10, 8, 14, 0, 5, tzinfo=UTC))
+
+    assert _heartbeat_errors(document) == []
+    assert document["schema"] == {"major": 1, "minor": 3}
+
+
+def test_a_display_state_naming_a_work_beside_anything_but_art_is_refused_before_it_is_written():
+    """The schema refuses it; the writer refuses it first, so it never reaches the server."""
+    with pytest.raises(ValueError, match="names no work"):
+        DisplayReport(state=ScreenState.IN_USE, work_id="w-dali-1", since=datetime(2026, 10, 8, tzinfo=UTC))
 
 
 def test_a_heartbeat_from_a_player_that_has_only_just_started_conforms():

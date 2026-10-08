@@ -1,13 +1,20 @@
-"""Each wall's card leads with the work its heartbeat names, in a real browser.
+"""Each wall's card leads with what its screen is doing, in a real browser.
 
 `ia-proposal.md` § Walls: the work on the wall now, large, with its label facts,
 then what the wall draws from and "until changed", then Skip, *Not this one
-again* and Change, and the wall's history from its card.
+again* and Change, and the wall's history from its card. `labels-and-surfaces.md`
+§ Display state: when the screen is not showing art, the card says what it is
+doing instead, in words.
 
 **The heartbeat is real.** Each test records the wall's heartbeat through
-`record_heartbeat`, the path a Player's POST takes, so the card reads what the
-health reading really carries (`reported.current_work_id`) rather than a stub's
-idea of it, and a Skip's new work arrives the way a Player's next report does.
+`record_heartbeat`, the path a Player's POST takes, so the card reads the
+`display_state` the server derives from it rather than a stub's idea of it, and a
+Skip's new work arrives the way a Player's next report does. `report` writes a
+heartbeat as a Player before minor 3 does (`current_work_id` alone);
+`report_state` writes minor 3's `display_state`.
+
+**The wall is assigned to a client output**, because a wall no client shows is
+`unassigned` whatever its heartbeat file says.
 """
 
 from datetime import UTC, datetime, timedelta
@@ -24,7 +31,10 @@ from arrt.persistence.records import ArtworkStatus, MatMethod, RenditionKind
 
 @pytest.fixture
 def the_wall(services):
-    return services.display.survey_walls()[0].wall
+    wall = services.display.survey_walls()[0].wall
+    hall = services.clients.add_client(name="Hall Pi")
+    services.clients.assign_wall(wall.id, client_id=hall.id, output="hdmi-a-1")
+    return services.display.get_wall(wall.id)
 
 
 @pytest.fixture
@@ -67,6 +77,19 @@ def report(services, wall, work_id, *, ago=timedelta(seconds=5)):
     )
 
 
+def report_state(services, wall, state, work_id=None, *, since="2026-10-08T19:30:00+00:00", ago=timedelta(seconds=5)):
+    """What a minor 3 Player says its wall's screen is doing."""
+    services.display.record_heartbeat(
+        wall.id,
+        {
+            "reported_at": (datetime.now(UTC) - ago).isoformat(timespec="seconds"),
+            "current_work_id": "not-what-the-card-reads",
+            "schema": {"major": 1, "minor": 3},
+            "display_state": {"state": state, "work_id": work_id, "since": since},
+        },
+    )
+
+
 def card(ui, wall):
     return ui.page.locator(f"section.wall[data-wall='{wall.id}']")
 
@@ -103,13 +126,20 @@ def test_the_work_the_heartbeat_names_leads_the_card(ui, services, the_wall, win
     )
 
 
-def test_an_old_heartbeat_still_leads_with_its_work_under_its_age(ui, services, the_wall, winter, two_works):
-    """The last report is the best answer to what is on the wall, but not a claim about now."""
+def test_an_old_heartbeat_still_leads_with_its_work_under_when_it_was_last_heard_from(ui, services, the_wall, winter, two_works):
+    """The last report is the best answer to what is on the wall, but not a claim about now.
+
+    Reworded from "Last reported 5 hours ago, so it may have changed since" when
+    the server began calling such a wall `silent`: the card now says when the wall
+    was last heard from, with the date (`core/dates.js`) and the age.
+    """
     report(services, the_wall, two_works[0].id, ago=timedelta(hours=5))
     open_walls(ui)
 
     lead = card(ui, the_wall).locator(".wall-now")
-    assert lead.locator(".wall-now-when").inner_text() == "Last reported 5 hours ago, so it may have changed since"
+    when = lead.locator(".wall-now-when").inner_text()
+    assert when.startswith("Not heard from since ")
+    assert when.endswith("(5 hours ago), so this may have changed since")
     assert "On the wall now" not in card(ui, the_wall).inner_text()
     assert lead.get_by_role("link", name="Nighthawks").count() == 1
 
@@ -227,3 +257,116 @@ def test_a_lead_whose_image_loads_keeps_its_picture(ui, services, the_wall, wint
     )
 
     assert "Its image could not be loaded just now." not in ui.text()
+
+
+# -- the states that are not a work -------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("state", "words"),
+    [
+        ("in_use", "Somebody is using the screen"),
+        ("dark", "Its screen is off"),
+        ("no_screen", "No screen"),
+        ("unreachable", "Not known"),
+    ],
+)
+def test_a_screen_not_showing_art_leads_with_what_it_is_doing(ui, services, the_wall, winter, two_works, state, words):
+    """Not the work: a Frame somebody is watching television on is not showing Nighthawks."""
+    report_state(services, the_wall, state)
+    open_walls(ui)
+
+    lead = card(ui, the_wall).locator(".wall-now")
+    assert lead.get_attribute("data-state") == state
+    assert lead.locator(".wall-now-state").inner_text() == words
+    assert "Since " in lead.inner_text()
+    # The sentence for a Player before display state is not said of one that
+    # reports state: an unreachable Frame has lost its set, not its words.
+    assert "has not said which work it is showing" not in lead.inner_text()
+    if state == "unreachable":
+        assert "cannot reach its screen" in lead.inner_text()
+    assert lead.locator("img").count() == 0
+    assert "On the wall now" not in lead.inner_text()
+    # The lead still leads the card.
+    assert card(ui, the_wall).locator("> *").nth(1).get_attribute("class") == "wall-now"
+    # Nothing on screen to be tired of.
+    assert ui.page.get_by_role("button", name=f"Not this one again on {the_wall.name}").count() == 0
+
+
+def test_minor_3_is_read_over_current_work_id(ui, services, the_wall, winter, two_works):
+    """The card reads the state, never `current_work_id` alone: here it names a work and the screen is in use."""
+    services.display.record_heartbeat(
+        the_wall.id,
+        {
+            "reported_at": datetime.now(UTC).isoformat(timespec="seconds"),
+            "current_work_id": two_works[0].id,
+            "schema": {"major": 1, "minor": 3},
+            "display_state": {"state": "in_use", "work_id": None, "since": "2026-10-08T19:30:00+00:00"},
+        },
+    )
+    open_walls(ui)
+
+    lead = card(ui, the_wall).locator(".wall-now")
+    assert lead.locator(".wall-now-state").inner_text() == "Somebody is using the screen"
+    assert "Nighthawks" not in lead.inner_text()
+
+
+def test_a_minor_3_wall_showing_a_work_leads_with_it(ui, services, the_wall, winter, two_works):
+    _, automat = two_works
+    report_state(services, the_wall, "showing_art", automat.id)
+    open_walls(ui)
+
+    lead = card(ui, the_wall).locator(".wall-now")
+    assert lead.locator(".wall-now-when").inner_text() == "On the wall now"
+    assert lead.locator("h3").inner_text() == "Automat"
+
+
+def test_a_picture_this_wall_did_not_put_there_reads_as_one(ui, services, the_wall, winter):
+    """A remote-control change to art the wall cannot name: showing art, and not one of ours."""
+    report_state(services, the_wall, "showing_art", None)
+    open_walls(ui)
+
+    lead = card(ui, the_wall).locator(".wall-now")
+    assert lead.locator(".wall-now-when").inner_text() == "On the wall now"
+    assert lead.locator(".wall-now-state").inner_text() == f"A picture {the_wall.name} did not put there"
+    assert lead.locator("img").count() == 0
+    assert ui.page.get_by_role("button", name=f"Not this one again on {the_wall.name}").count() == 0
+
+
+def test_a_wall_no_client_shows_leads_with_that_whatever_its_heartbeat_says(ui, services, the_wall, winter, two_works):
+    report(services, the_wall, two_works[0].id)
+    services.clients.unassign_wall(the_wall.id)
+    open_walls(ui)
+
+    lead = card(ui, the_wall).locator(".wall-now")
+    assert lead.get_attribute("data-state") == "unassigned"
+    assert lead.locator(".wall-now-state").inner_text() == "Not assigned to a screen"
+    assert "Nighthawks" not in lead.inner_text()
+    # The way to fix it is the assignment line's link, still beneath.
+    assert card(ui, the_wall).get_by_role("link", name="Assign it in Settings › Clients").count() == 1
+
+
+def test_a_silent_wall_says_when_it_was_last_heard_from_and_what_it_said(ui, services, the_wall, winter):
+    report_state(services, the_wall, "dark", ago=timedelta(hours=2))
+    open_walls(ui)
+
+    lead = card(ui, the_wall).locator(".wall-now")
+    assert lead.get_attribute("data-state") == "silent"
+    when = lead.locator(".wall-now-when").inner_text()
+    assert when.startswith("Not heard from since ")
+    assert when.endswith("(2 hours ago)")
+    assert "When it last reported: Its screen is off." in lead.inner_text()
+
+
+def test_a_skip_watched_through_a_minor_3_report(ui, services, the_wall, winter, two_works):
+    """The watch after Skip reads the state too: a report naming the next work replaces the lead."""
+    nighthawks, automat = two_works
+    report_state(services, the_wall, "showing_art", nighthawks.id)
+    open_walls(ui)
+
+    ui.page.get_by_role("button", name=f"Skip the work on {the_wall.name}").click()
+    said = card(ui, the_wall).locator(".wall-said")
+    said.filter(has_text="Skipped.").wait_for()
+    report_state(services, the_wall, "showing_art", automat.id)
+    said.filter(has_text=f"{the_wall.name} now shows Automat.").wait_for(timeout=10_000)
+    assert card(ui, the_wall).locator(".wall-now h3").inner_text() == "Automat"

@@ -1686,7 +1686,7 @@ had designed:
 | Route | Tool | What it is for |
 |---|---|---|
 | `POST /api/walls` | `art_display(action='add_wall')` | Nothing else creates a wall. The migration makes the first one; a second room needs an operation. **Create only** — no delete and no rename, because deleting a wall raises consequences for its assignment, its directive row and any display configured to serve it that nothing has ruled on. |
-| `GET /api/walls` | `art_display(action='walls')` | What rooms exist, and what hangs in each. |
+| `GET /api/walls` | `art_display(action='walls')` | What rooms exist, what hangs in each, and what each wall's screen is doing (`display_state`, from 2026-10-08; § Clients). |
 | `DELETE /api/walls/{wall_id}/theme` | `art_theme(action='unhang')` | Takes the picture down. See § Deleting a theme for why this had to exist before the delete refusal could be made absolute. |
 | — | — | `GET /api/themes` reshaped to `{theme, hanging_on[]}` per entry, because `ThemeOut.is_active` had nothing to become: "is it active" is now "which walls is it on". The MCP listing stays flat with a `hanging_on` key added, since a model reads a list better than a nesting. |
 
@@ -2074,6 +2074,26 @@ two services: until then these routes were HTTP-only, a recorded gap in parity.
 
 `WallOut` and the MCP wall shape lose `token_issued_at` and gain `client_id` and
 `output` (both null while no client shows the wall).
+
+**Each wall's display state — built 2026-10-08** (`build-plan-display-state.md`
+Chunk 04; `labels-and-surfaces.md` § Display state). `WallOut` and the MCP wall
+shape (`art_display(action='walls')`, and every answer carrying a wall) gain
+`display_state`, additive:
+`{state, work_id, since, reported_at, age_seconds, last}`. `state` is the
+controller's (`showing_art`, `in_use`, `dark`, `no_screen`, `unreachable`) read
+from the wall's heartbeat, or the server's own: **`unassigned`** when no client
+output shows the wall, whatever its heartbeat file says, and **`silent`** when
+there is no readable heartbeat or it is older than `STALE_AFTER_SECONDS` (three
+heartbeat intervals, `programming/manifest/heartbeat.py`; held to the Player's
+and the browser's by `tests/preferences/test_staleness_threshold.py`). `work_id`
+only with `showing_art`, null there for a picture the wall did not put there.
+`since` is the controller's, null from a Player before minor 3 and for
+`unassigned`; for `silent` it is the last report's instant. `last` is set only
+for `silent`: `{state, work_id, since}` from the last readable report, null when
+there never was one. A heartbeat before minor 3 reads as `showing_art` with its
+`current_work_id`, and as `unreachable` when it names no work. Derived in one
+function (`programming/display_state.py`) for both surfaces.
+On `POST /walls/{wall_id}/heartbeat`, a `display_state` that is malformed (not exactly `state`, `work_id` and `since`, a work beside a known state other than `showing_art`, a `since` without an offset) is refused with a 400 and nothing written. **A state name the server does not know is accepted** and read as `unreachable` with no work, because minors only add and Players upgrade first (`player-contract.md`); refusing it would make an upgraded Player's wall silent. A heartbeat file that fails the same test reads as unreadable on every screen alike (`heartbeat.read` applies it).
 
 **Retired 2026-10-02:** `POST /api/walls/{wall_id}/token` and
 `art_display(action='issue_token')`, with the Walls screen's Player token panel.

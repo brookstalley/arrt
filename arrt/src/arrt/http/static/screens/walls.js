@@ -5,9 +5,12 @@
  * layout). It was the home page until the library took that place, as it has in
  * every *arr app.
  *
- * **Each card leads with the work on the wall now** (`ia-proposal.md` § Walls):
- * the work the wall's own heartbeat names as `current_work_id`, large, with its
- * label facts and a link to its page. Below it, what the wall draws from and for
+ * **Each card leads with what the wall's screen is doing** (`labels-and-surfaces.md`
+ * § Display state), which the server derives for each wall and `/api/walls`
+ * carries as `display_state`. When it is showing art, that is the work on the
+ * wall now (`ia-proposal.md` § Walls), large, with its label facts and a link to
+ * its page; otherwise the state in plain words, because a screen somebody is
+ * watching television on is not a wall with nothing hung. Below it, what the wall draws from and for
  * how long, then the three acts — **Skip**, **Not this one again** and
  * **Change** — and the way to the wall's history. What the theme holds in full
  * is the theme's page; this card is about the one work a person in the room is
@@ -37,16 +40,17 @@
  * fourth is a request that did not. That is why it is the one whose sentence
  * names which of the two planes answered.
  *
- * **A report past `STALE_AFTER_SECONDS` says nothing about now** (`core/outputs.js`).
- * The work a wall last reported is still the best answer to "what is on it", so
- * it still leads the card, under the report's age rather than "On the wall now".
+ * **A report past `STALE_AFTER_SECONDS` says nothing about now** (`core/outputs.js`),
+ * and the server calls that wall `silent` past the same threshold. The work a wall
+ * last reported is still the best answer to "what is on it", so it still leads
+ * the card, under when it was last heard from rather than "On the wall now".
  *
  * **This screen does not poll in the background**, and that is `core/status.js`'s
  * decision applied here rather than a gap. Mean time to detection on this surface
  * is bounded by how often the curator opens the page, and a background timer
  * would add load to a Pi without changing it. The one exception is bounded and
  * asked for: after Skip or *Not this one again*, the card watches the wall's
- * heartbeat until it names the next work (`awaitNext`), and replaces only the
+ * display state until it names the next work (`awaitNext`), and replaces only the
  * work it leads with, so the focus stays wherever the curator left it. Any other
  * repaint goes through `refresh()` with no argument: `refresh(true)` moves focus,
  * and a poll that moves focus is the recorded defect this client already shipped
@@ -54,13 +58,13 @@
  */
 
 import { attempt } from "../core/acting.js";
-import { ago, inWords } from "../core/dates.js";
+import { ago, inWords, readable } from "../core/dates.js";
 import { api } from "../core/api.js";
 import { absentImage, facts, table } from "../core/badges.js";
 import { counted } from "../core/counting.js";
 import { hangTheme } from "../core/hanging.js";
 import { el, fill, guard, render } from "../core/render.js";
-import { isStale, screenState, STALE_AFTER_SECONDS, wallScreenLine } from "../core/outputs.js";
+import { screenState, STALE_AFTER_SECONDS, wallScreenLine } from "../core/outputs.js";
 import { link, refresh } from "../core/router.js";
 import { state } from "../core/state.js";
 
@@ -92,7 +96,7 @@ export async function viewWalls(generation) {
   }
 
   const [beats, shownBy, builds] = await Promise.all([heartbeats(), clientListing(), Promise.all(walls.walls.map(built))]);
-  const nows = await Promise.all(walls.walls.map((wall) => nowOn(wall, beats)));
+  const nows = await Promise.all(walls.walls.map((wall) => nowOn(wall)));
 
   if (!walls.walls.length) {
     // Not one of the four, and stated rather than left as an empty page: a wall
@@ -201,29 +205,30 @@ function readings(health) {
   return new Map(listed.map((reading) => [reading.wall_id, reading.heartbeat]));
 }
 
-/* The work a wall's heartbeat says it is showing, or null where the reading
- * names none. `reported` is the Player's document passed through, and
- * `current_work_id` is the heartbeat contract's (`contract/schemas/
- * heartbeat.v1.schema.json`); anything but a string is no answer. */
-function reportedWork(beat) {
-  if (!beat || beat.absent || beat.problem || !beat.reported) return null;
-  const id = beat.reported.current_work_id;
-  return typeof id === "string" && id ? id : null;
+/* The work a wall's display state names, or null where it names none: the
+ * work on screen while it is showing art, and for a wall gone silent the work it
+ * last reported showing. Null for a picture this wall did not put there, which
+ * the server states as `showing_art` with no work. */
+function shownWork(shown) {
+  if (!shown) return null;
+  const said = shown.state === "silent" ? shown.last : shown;
+  if (!said || said.state !== "showing_art") return null;
+  return typeof said.work_id === "string" && said.work_id ? said.work_id : null;
 }
 
-/* What the wall's heartbeat says is on it: the reading, the work's id, and the
- * work itself — or why the work could not be read. A work the heartbeat names
+/* What the wall's display state says is on it: the state, the work's id, and
+ * the work itself — or why the work could not be read. A work the wall names
  * that the library can no longer answer for (archived since, or a fault) is
  * still what the wall reported, so the card says that rather than nothing. */
-async function nowOn(wall, beats) {
-  const beat = beats.byWall ? beats.byWall.get(wall.wall_id) : null;
-  const workId = reportedWork(beat);
-  if (!workId) return { beat, workId: null };
+async function nowOn(wall) {
+  const shown = wall.display_state || null;
+  const workId = shownWork(shown);
+  if (!workId) return { shown, workId: null };
   try {
     const dossier = await api(`/api/works/${encodeURIComponent(workId)}`);
-    return { beat, workId, work: dossier.work };
+    return { shown, workId, work: dossier.work };
   } catch (failure) {
-    return { beat, workId, failure: failure.message };
+    return { shown, workId, failure: failure.message };
   }
 }
 
@@ -289,29 +294,72 @@ function wallSection(wall, build, beats, now, themes, shownBy) {
   ]);
 }
 
-/* The work on the wall, large, with its label: the card's lead.
+/* A screen not showing art, in the product's voice. `showing_art` and `silent`
+ * are worded where the card is built, because they lead with a work or with
+ * when the wall was last heard from. */
+const STATE_WORDS = {
+  in_use: "Somebody is using the screen",
+  dark: "Its screen is off",
+  no_screen: "No screen",
+  unassigned: "Not assigned to a screen",
+  unreachable: "Not known",
+};
+
+/* What a state says about the screen, for one the card names in words. A state
+ * this client has no words for is said to be not known, never read as another. */
+function stateWords(state) {
+  return STATE_WORDS[state] || STATE_WORDS.unreachable;
+}
+
+/* The lead for a wall that names no work: the state, and since when. */
+function stateLead(wall, shown, said, silent) {
+  const words = said.state === "showing_art" ? `A picture ${wall.name} did not put there` : stateWords(said.state);
+  const lines = silent
+    ? [el("p", { class: "wall-now-when", text: lastHeard(shown) }), el("p", { class: "muted", text: `When it last reported: ${words}.` })]
+    : said.state === "showing_art"
+      ? [el("p", { class: "wall-now-when", text: "On the wall now" }), el("p", { class: "wall-now-state", text: words })]
+      : [
+          el("p", { class: "wall-now-state", text: words }),
+          // A Player before display state has a work or nothing to say; one
+          // that reports state and says unreachable has lost its screen.
+          said.state === "unreachable"
+            ? el("p", {
+                class: "muted",
+                text: shown.since
+                  ? `${wall.name}'s display is reporting, and cannot reach its screen.`
+                  : `${wall.name}'s display is reporting, and has not said which work it is showing.`,
+              })
+            : null,
+          shown.since ? el("p", { class: "muted", text: `Since ${readable(shown.since)}` }) : null,
+        ];
+  return el("div", { class: "wall-now", "data-state": shown.state }, lines);
+}
+
+/* When the wall was last heard from, from the server's own age of the report. */
+function lastHeard(shown) {
+  return `Not heard from since ${readable(shown.reported_at)} (${ago(shown.age_seconds)})`;
+}
+
+/* The card's lead: what the wall's screen is doing.
  *
- * Under "On the wall now" while the heartbeat that named it is young, and under
- * the report's age once it is not: the work is still the best answer to what is
- * on the wall, but not a claim about this minute.
+ * Showing art: the work, large, with its label, under "On the wall now"; a
+ * picture this wall did not put there (a remote-control change the wall could
+ * not match to a work) is said to be one. Silent: when it was last heard from,
+ * and the work it last reported, which is still the best answer to what is on
+ * the wall but not a claim about this minute. Anything else: the state in words.
+ * A wall that has never readably reported leads with nothing, because reason
+ * three below says so with the way to its reading.
  *
  * The image carries the work and its artist in its `alt`, because here the image
  * is the content rather than a thumbnail beside it. The title is the link to the
  * work's page, so the card has one tab stop for the work rather than two. */
 function nowShowing(wall, now, reason) {
-  if (!now || !now.beat || now.beat.absent || now.beat.problem) return el("div", { class: "wall-now", hidden: true });
-  if (!now.workId) {
-    // Only said where something is hung and the display is speaking: the four
-    // reasons already account for every other wall with nothing to lead with.
-    return el("div", { class: "wall-now" }, [
-      reason === "hanging"
-        ? el("p", { class: "muted", text: `${wall.name}'s display is reporting, and has not said which work it is showing.` })
-        : null,
-    ]);
-  }
-  const when = isStale(now.beat)
-    ? `Last reported ${ago(now.beat.age_seconds)}, so it may have changed since`
-    : "On the wall now";
+  const shown = now ? now.shown : null;
+  if (!shown || (shown.state === "silent" && !shown.last)) return el("div", { class: "wall-now", hidden: true });
+  const silent = shown.state === "silent";
+  const said = silent ? shown.last : shown;
+  if (!now.workId) return stateLead(wall, shown, said, silent);
+  const when = silent ? `${lastHeard(shown)}, so this may have changed since` : "On the wall now";
   if (now.failure) {
     return el("div", { class: "wall-now" }, [
       el("p", { class: "wall-now-when", text: when }),
@@ -488,7 +536,7 @@ function controls(card, themes, reason, manifest) {
   return el("div", { class: "wall-controls" }, [
     el("div", { class: "row" }, [
       live ? skipButton(card) : null,
-      // Only with a work to name: the heartbeat's, which is the one a person in
+      // Only with a work to name: the display state's, which is the one a person in
       // the room is tired of. A wall that has not said what it shows has
       // nothing for this to be about.
       card.now && card.now.workId && wall.theme ? notAgain(card) : null,
@@ -648,15 +696,15 @@ function hang(control, wall, themes, themeId) {
 }
 
 /* After a Skip or *Not this one again*: say what happens next, then watch this
- * wall's heartbeat until it names a different work, and lead the card with it.
+ * wall's display state until it names a different work, and lead the card with it.
  *
- * `gone` is a work that must not be taken for the new one even if the heartbeat
+ * `gone` is a work that must not be taken for the new one even if the wall
  * names it again (a report written before the Player read the change).
  *
  * Bounded twice: by `STALE_AFTER_SECONDS`, past which a heartbeat that has not
  * moved is a display that has stopped, and by leaving the screen (`state.poll`
  * moves on every navigation, as the run view's chain reads it). Only the lead is
- * replaced, so focus stays where the curator left it. A health read that fails
+ * replaced, so focus stays where the curator left it. A walls read that fails
  * mid-watch is not the act failing; the watch stops and says so. */
 async function awaitNext(card, sentence, gone = null) {
   const { wall } = card;
@@ -667,16 +715,16 @@ async function awaitNext(card, sentence, gone = null) {
   while (Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, WATCH_MS));
     if (state.poll !== generation || !card.said.isConnected) return;
-    let beats;
+    let current;
     try {
-      beats = { byWall: readings(await api("/api/health")) };
+      current = (await api("/api/walls")).walls.find((each) => each.wall_id === wall.wall_id);
     } catch (failure) {
-      card.said.textContent = `${sentence} This page could not read ${wall.name}'s heartbeat to show it — ${failure.message}.`;
+      card.said.textContent = `${sentence} This page could not read what ${wall.name} is showing — ${failure.message}.`;
       return;
     }
-    const next = reportedWork(beats.byWall.get(wall.wall_id));
+    const next = current ? shownWork(current.display_state) : null;
     if (!next || next === before || next === gone) continue;
-    const now = await nowOn(wall, beats);
+    const now = await nowOn(current);
     if (state.poll !== generation || !card.said.isConnected) return;
     const lead = nowShowing(wall, now, "hanging");
     card.lead.replaceWith(lead);

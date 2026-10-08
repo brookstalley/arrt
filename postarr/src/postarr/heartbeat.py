@@ -36,6 +36,7 @@ A verdict computed here from a file that may simply be young is how a health
 surface starts lying.
 """
 
+import enum
 import json
 import logging
 import os
@@ -61,6 +62,58 @@ REPORTED_AT_KEY: Final[str] = "reported_at"
 #: How often it is rewritten. See the docstring: bounded below by SD-card wear,
 #: above by the rotation interval.
 INTERVAL_SECONDS: Final[float] = 60.0
+
+#: The heartbeat's version, as `heartbeat.v1`'s `schema` key carries it. Minor 3
+#: is the first to carry `display_state` (`player-contract.md` § The heartbeat,
+#: minor 3); the server reads any minor of major 1 and keeps keys it does not know.
+SCHEMA_MAJOR: Final[int] = 1
+SCHEMA_MINOR: Final[int] = 3
+
+
+class ScreenState(enum.StrEnum):
+    """What a wall's screen is doing, as its controller sees it (`labels-and-surfaces.md` § Display state).
+
+    The members are the contract's spelling, so a value goes on disk as it is.
+    The server adds `unassigned` and `silent` of its own; no controller reports
+    either, which is why they are not here.
+    """
+
+    SHOWING_ART = "showing_art"
+    IN_USE = "in_use"
+    DARK = "dark"
+    NO_SCREEN = "no_screen"
+    UNREACHABLE = "unreachable"
+
+
+@dataclass(frozen=True, slots=True)
+class DisplayReport:
+    """One controller's display state: what, which work, and since when.
+
+    **`since` is when the screen entered the state, not when it was last
+    observed in it**, so `moved_to` hands back the same report for an unchanged
+    reading. That identity is what a controller compares to decide whether the
+    heartbeat is owed now or can wait for its interval.
+    """
+
+    state: ScreenState
+    #: The work on screen, only with `showing_art`, and None there for a picture
+    #: this wall did not put there. The schema refuses a work beside any other
+    #: state, so this refuses one too, at construction rather than on the server.
+    work_id: str | None
+    since: datetime
+
+    def __post_init__(self) -> None:
+        if self.work_id is not None and self.state is not ScreenState.SHOWING_ART:
+            raise ValueError(f"a display state of {self.state} names no work, and {self.work_id!r} was given")
+
+    def moved_to(self, state: ScreenState, work_id: str | None, *, at: datetime) -> "DisplayReport":
+        """This report if the reading is unchanged, else a new one starting `at`."""
+        if state is self.state and work_id == self.work_id:
+            return self
+        return DisplayReport(state=state, work_id=work_id, since=at)
+
+    def document(self) -> dict[str, Any]:
+        return {"state": self.state.value, "work_id": self.work_id, "since": self.since.isoformat()}
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,6 +155,12 @@ class Health:
     label_surface_working: bool | None = None
     #: The last thing that went wrong, in the words the journal got.
     last_error: str | None = None
+    #: What the wall's screen is doing (minor 3). **Supersedes
+    #: `television_showing_art` and does not replace `current_work_id`**: both
+    #: stay, with their old meanings, for readers built before it. None only for
+    #: a writer that has no controller to ask, and then the key is left out,
+    #: which is what a pre-minor-3 heartbeat looks like to the server.
+    display_state: DisplayReport | None = None
 
     def document(self, *, reported_at: datetime) -> dict[str, Any]:
         """The whole document, as it goes on disk.
@@ -110,7 +169,8 @@ class Health:
         holds no clock of its own and a test can place a heartbeat at any moment
         without patching one.
         """
-        return {
+        document: dict[str, Any] = {
+            "schema": {"major": SCHEMA_MAJOR, "minor": SCHEMA_MINOR},
             REPORTED_AT_KEY: reported_at.isoformat(),
             "manifest_schema": self.manifest_schema,
             "theme_id": self.theme_id,
@@ -122,6 +182,9 @@ class Health:
             "label_surface_working": self.label_surface_working,
             "last_error": self.last_error,
         }
+        if self.display_state is not None:
+            document["display_state"] = self.display_state.document()
+        return document
 
 
 def path_in(root: Path, wall_id: str) -> Path:

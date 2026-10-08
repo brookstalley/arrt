@@ -288,6 +288,23 @@ The heartbeat does not need a new major: capabilities are additive. Minor 2 adds
   say before a cutover which Players it would leave on yesterday's wall.
 - **`scene_id`:** the scene the wall is showing, or null.
 
+### The heartbeat, minor 3
+
+Minor 3 adds **`display_state`**: `{state, work_id, since}`, what the wall's screen
+is doing as its controller sees it, written when it changes rather than on the
+heartbeat's interval (`labels-and-surfaces.md` § Display state, ruled
+2026-10-08). `state` is one of `showing_art`, `in_use` (somebody else has the
+screen: a Frame showing television), `dark` (off, or no screen detected on the
+connector), `no_screen` (the output is absent) or `unreachable` (the controller
+cannot tell). `work_id` names the work only with `showing_art`, and is null there
+for a picture this wall did not put there; the schema refuses a work beside any
+other state. Every label of the wall reads this record and shows a caption only
+while it says `showing_art`. A heartbeat without it is a Player before minor 3,
+whose `current_work_id` the server reads as `showing_art`.
+`television_showing_art` stays for older readers. **A reader reads a state name
+it does not know as `unreachable`**, naming no work, and keeps the rest of the
+heartbeat: a later minor may add a state, and Players upgrade before the server.
+
 ### The cutover
 
 A major 1 Player refuses a major 2 manifest as an unsupported version and keeps

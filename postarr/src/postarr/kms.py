@@ -446,6 +446,11 @@ class KmsOutput:
         self._absent = ReportOnce()
 
     @property
+    def listed(self) -> bool:
+        """Whether the kernel lists this connector at all — the same listing `connected` is read from."""
+        return any(report.name == self._name for report in hdmi_outputs(self._drm_root))
+
+    @property
     def connected(self) -> bool:
         return self._report().connected
 

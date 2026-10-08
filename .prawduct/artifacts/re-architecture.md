@@ -570,9 +570,13 @@ are the panel and none, and today's `EPD_*` Player configuration decides which. 
 `accessibility-spec.md` (a type floor derived from geometry and reading distance)
 apply to a caption in the mat exactly as they apply to the panel.
 
-**One process per wall** drives both the picture and the label, so they can
-never disagree about what is showing. That keeps the Player on the Pi at walls
-with an e-ink panel, even though a Frame could be driven from anywhere on the LAN.
+~~**One process per wall** drives both the picture and the label, so they can
+never disagree about what is showing.~~ *Reversed by the owner 2026-10-08
+(`labels-and-surfaces.md` § Rulings): a label is its own output, on any client,
+mapped to any wall; it follows the wall controller's reported **display state**
+(showing art, in use, dark, no screen), never the schedule, and is blank whenever
+the screen is in use or dark. A caption in the image stays the wall controller's,
+since it is part of the image. Label mode as a wall setting, above, stands.*
 
 **Each new Player host needs its text stack re-verified.** The label is typeset
 with Pango through PyGObject (`platform-and-dependency-findings.md`). A Pi driving
