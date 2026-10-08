@@ -141,15 +141,15 @@ back a version per wall under Clients.
 ## Status
 
 - [x] Chunk 01: Component rules
-- [ ] Chunk 02: Follow-ups and an Ask turn's tier
-- [ ] Chunk 03: Themes index as cards
-- [ ] Chunk 04: Settings index
+- [x] Chunk 02: Follow-ups and an Ask turn's tier
+- [x] Chunk 03: Themes index as cards
+- [x] Chunk 04: Settings index
 - [ ] Chunk 05: One selection model
 - [ ] Chunk 06: Clean-up facets
 - [ ] Chunk 07: Artworks reaches every work
 - [ ] Chunk 08: Queue at thousands
 - [ ] Chunk 09: Topics before any are held
-- [ ] Chunk 10: Status sources table
+- [x] Chunk 10: Status sources table
 - [ ] Chunk 11: Walk and re-photograph
 
 ### Chunk 01: Component rules (#287)

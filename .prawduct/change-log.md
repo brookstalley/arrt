@@ -62,6 +62,56 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-08: Themes as cards, Settings as an index, Status as a table, and the #297 follow-ups
+
+<!-- prawduct: scope=lists-settings-and-scale -->
+
+**Why:** Chunks 02, 03, 04 and 10 of `build-plan-lists-settings-and-scale.md`:
+the follow-ups PR #297 filed, review findings 22 and 24, and the owner's
+System-page feedback of 2026-10-07 (#265, #266).
+
+**What:**
+- **Chunk 02.** The Walls lead picture asks `GET /api/works/{id}/thumbnail?size=large`
+  (the bare work fitted to 1,536 px, cached apart from the tile) (#303). Wanted's
+  table stacks on a phone (#304). An Ask turn shows its cost tier from
+  `GET /api/conversations/{id}/estimate`, a flat allowance at the conversation
+  model's prices (new `CONVERSATION_*` settings); it reads and writes no spend
+  (#306). Server sentences name the museum: each built-in plugin declares
+  `MUSEUM`, `library/sources/names.py` gathers them, and the client's
+  `MUSEUM_NAMES` is tested against them pair by pair (#298). #305 shipped in
+  chunk 01.
+- **Chunk 03.** `#theme` is a grid of cards (name, count, four pictures, the
+  walls it hangs on), each linking to `#theme/<id>`, where rename, delete and
+  membership live, with Move to top and Move to bottom. The order copy follows
+  the theme's shuffle, from one `DisplayService.shuffles()` the manifest uses
+  too. Renaming retitles the tab (#302). `GET /api/themes` gains `work_count`
+  and `picture_ids`; theme answers gain `shuffled`.
+- **Chunk 04.** Settings opens `#settings`, an index of Clients, Sources and
+  Taste, in that order. Taste is headed "Taste" and names every way taste is
+  recorded.
+- **Chunk 10.** Status's Image sources panel is one table, a row per source,
+  from `GET /api/sources/yields` (one SQL statement): Source, State, Offered,
+  Chosen, Only here, Median long edge, Faults since startup, Last fault. Columns
+  drop by the table's width in the ruled order, and the fault count moves into
+  State when its column goes, so it shows once at every width; below 26rem a
+  row stacks. The geometry panel and `artwork_box` on `/api/health` are gone
+  (#266); nothing else read the field.
+
+**Tests:** new `test_sentences_name_the_museum.py`, `test_source_yields.py`,
+`test_the_status_sources_table.py` (a width sweep, plain and with wider
+letter-spacing), `test_the_themes_index.py`, `test_the_settings_index.py`,
+`test_theme_routes.py` cases, each watched failing first. Changed, not weakened:
+wording expectations now name the museum where they named the plugin id (five
+files, and the health-panel stubs in `browser/conftest.py`, which described
+sentences the server no longer writes); single-theme tests open `#theme/<id>`,
+and the two delete tests now check that the index lands without the theme
+(the "repaints from the delete's answer" claim is retired, because delete
+moved to the theme page); the sidebar tests take the new Settings order; the
+integration test of the geometry panel is removed with the panel (#266), and
+`/api/health`'s key-set test asserts `artwork_box` is absent; one Walls
+thumbnail route glob was widened to match the query string, the assertion
+unchanged.
+
 ## 2026-10-08: Component rules — one heading scale, one empty page, one glyph per meaning
 
 <!-- prawduct: scope=lists-settings-and-scale -->

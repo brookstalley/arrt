@@ -50,6 +50,7 @@ import pytest
 from PIL import Image
 
 from arrt.http.models import BackupOut, HealthOut, PicturesOut, SourcePluginOut, WallHeartbeatOut
+from arrt.library.sources.names import museum_name
 from arrt.persistence.records import (
     AcquisitionMethod,
     FetchStatus,
@@ -228,14 +229,19 @@ def _a_source(
     api_major=1,
     provides=None,
 ):
+    # The server's own wording (`services/health.py`, `describe`): by the
+    # museum, never the plugin id.
+    museum = museum_name(name)
     if state == "declined":
-        description = f"{name} is installed and not configured here: {reason}."
+        description = f"The {museum} plugin is installed and not configured here: {reason}."
     elif state == "failed":
-        description = f"{name} is installed and was not loaded: {reason}."
+        description = f"The {museum} plugin is installed and was not loaded: {reason}."
     elif faults:
-        description = f"{name} is loaded, with {faults} faults since startup, the last 12 seconds ago (KeyError: 'x')."
+        description = (
+            f"The {museum} plugin is loaded, with {faults} faults since startup, the last 12 seconds ago (KeyError: 'x')."
+        )
     else:
-        description = f"{name} is loaded, with no faults since startup."
+        description = f"The {museum} plugin is loaded, with no faults since startup."
     return {
         "name": name,
         "state": state,

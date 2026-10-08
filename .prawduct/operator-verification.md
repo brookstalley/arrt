@@ -10,6 +10,23 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Themes as cards, Settings as an index, Status as a table — added 2026-10-08
+
+**`build-plan-lists-settings-and-scale.md` Chunks 03, 04, 10.** Visual change: yes.
+
+Checked by the builders against seeded libraries and by the browser tests named
+in the change-log; not yet deployed.
+
+- **Look at:** Themes is a grid of cards with pictures; a card opens its theme.
+  Settings opens on a list of Clients, Sources, Taste. Status's Image sources is
+  one table, and no panel mentions "this television".
+- **Try:** on a theme page, Move to top on the last work, then check Walls shows
+  it first (with shuffle off). Narrow the window on Status: Median long edge,
+  Last fault, Only here, then Faults go in that order, and the fault count
+  reappears in State.
+- **Worth watching:** whether "Only here" and "Offered" read as the value of a
+  source on the real library (46 works).
+
 ### One heading scale, one empty page, one glyph per meaning — added 2026-10-08
 
 **`build-plan-lists-settings-and-scale.md` Chunk 01.** Visual change: yes.
@@ -477,7 +494,7 @@ your catalogue. Regenerate with
 `cd arrt && uv run pytest -m browser -n0 tests/browser/test_the_clients.py tests/browser/test_the_walls.py -k client`
 and a `page.screenshot` of your own.
 
-- **Settings › Clients** is under Settings, after Taste. *Add a client* takes a
+- **Settings › Clients** is under Settings, first (Clients, Sources, Taste since 2026-10-08). *Add a client* takes a
   name and issues its token in the same act: the token appears once, selected in
   a read-only field, with a sentence saying it is the only time and to set
   `CLIENT_TOKEN` and `SERVER_URL` in the Player's settings (the address is the
