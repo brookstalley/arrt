@@ -62,6 +62,41 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-08: Wall label, chunk 03: the work on a mat, its label beneath
+
+<!-- prawduct: scope=wall-label -->
+
+**Why:** `build-plan-wall-label.md` chunk 03.
+
+**What:**
+- A work's tile (Artworks, an artist's works, a topic's) and an artist's
+  poster have no card: the picture sits on a `--surface-2` mat with
+  `--shadow-art` (a new token in both schemes), and the label sits beneath on
+  the page's ground. Selected by the `data-artwork` and `data-artist`
+  attributes the tiles already carry. The Artworks skeleton carries
+  `.tile-skeleton`, so it takes the same geometry. Theme cards and review
+  cards keep their cards.
+- The label's text is clamped (two lines of title, one of artist, two of date
+  and medium), and the label has a minimum height that fits its longest shape
+  and one row of badges. That is what keeps rows uniform. Sizing rows to the
+  tallest tile (`grid-auto-rows: 1fr`) was tried first and broke
+  `test_the_way_back_link_returns_to_card_20_as_back_does`: the page's length
+  changed as later pages arrived, and the restored scroll landed 90px short.
+- Facet counts are set in tabular figures. Right-aligning them is descoped,
+  with the reason in the plan.
+
+**Tests:** New: `test_the_tiles.py` (uniform rows with a three-line title in
+the first row, a two-line clamp, and no box with the picture on the mat).
+Watched failing against the old stylesheet: rows of 384 and 322px, four title
+lines, a solid border. `test_design_tokens.py` (chunk 02's status work, landed
+here): `test_a_status_ground_keeps_its_control_boundary` checked
+`--border-strong` on the status grounds, a pair drawn only by the old boxed
+status indicator. It is replaced by
+`test_a_status_badge_keeps_its_boundary_on_its_own_ground` (the state colour
+as a badge's border on its ground, at 3:1) and
+`test_every_status_colour_clears_aa_on_the_page_ground` (the status words on
+the page). Both were watched failing with `--warn` weakened.
+
 ## 2026-10-08: Wall label, chunk 02: the shell
 
 <!-- prawduct: scope=wall-label -->

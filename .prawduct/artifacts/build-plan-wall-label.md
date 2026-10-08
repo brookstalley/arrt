@@ -100,8 +100,12 @@ the real library.
   where they are, and one treatment per level is kept | owner can veto]`
 - `[DECISION: sections are separated by a rule, not by a card. A .panel loses
   its border, background and shadow and gains a top rule. Cards survive only
-  where the card is the thing itself: a theme on the Themes index, and a
-  tile. This amends § Component Patterns "Cards". | a bordered box around
+  where the card is a block of facts and acts about a thing: a theme on the
+  Themes index, and a work under review. A work's tile and an artist's poster
+  are the thing itself, so they lose the card too, and become a picture on a
+  mat with a label beneath (chunk 03). *(Corrected at chunk 03: this said a
+  tile survives as a card, which contradicted chunk 03's "no card border".)*
+  This amends § Component Patterns "Cards". | a bordered box around
   every section is what made the work page read as a form | owner can veto]`
 - `[ASSUMPTION: Latin and Latin Extended cover the library's names. A title in
   another script (Japanese, Cyrillic) falls back to the system serif or sans,
@@ -139,7 +143,7 @@ the real library.
 
 - [x] Chunk 01: Typefaces and type scale
 - [x] Chunk 02: The shell
-- [ ] Chunk 03: The Artworks grid
+- [x] Chunk 03: The Artworks grid
 - [ ] Chunk 04: A work's page
 - [ ] Chunk 05: Ruled sections everywhere, and the walk
 
@@ -200,7 +204,12 @@ Done when:
    clamps to two lines and the artist to one, and nothing reflows as images
    arrive.
 3. The filter rail's group names are small capitals in the sans, and counts
-   are tabular figures aligned to the right.
+   are tabular figures. *(Descoped at build: "aligned to the right". A count
+   is part of its button's text, "Native (39)", which is the button's
+   accessible name and is pinned by about twenty browser tests. Moving it to
+   a separate, right-aligned element would change every filter's spoken name
+   for a small visual gain. The counts keep their parentheses and are set in
+   tabular figures.)*
 4. Posters, Overview and Table keep working. Table is a table, not tiles, and
    gets the new type only.
 5. `test_the_grid.py` and `test_the_collection.py` stay green. A new test

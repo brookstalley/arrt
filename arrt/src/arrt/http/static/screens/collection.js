@@ -341,7 +341,7 @@ function skeletonGrid(density) {
   const tiles = [];
   for (let index = 0; index < SKELETON_TILES; index += 1) {
     tiles.push(
-      el("li", { class: density === CONTACT ? "tile skeleton" : "card skeleton" }, [
+      el("li", { class: density === CONTACT ? "tile skeleton" : "card tile-skeleton skeleton" }, [
         el("div", { class: "card-image" }),
         density === CONTACT ? null : el("div", { class: "card-body" }, [el("p", { class: "skeleton-line" })]),
       ]),

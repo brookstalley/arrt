@@ -178,16 +178,28 @@ def test_every_status_colour_clears_aa_on_its_own_quiet_ground(scheme, token):
 
 
 @pytest.mark.parametrize(("scheme", "token"), STATUS_PAIRS)
-def test_a_status_ground_keeps_its_control_boundary(scheme, token):
-    """The indicator is a button, and its border has to stay findable on it.
+def test_a_status_badge_keeps_its_boundary_on_its_own_ground(scheme, token):
+    """A badge on a status ground is bordered in the state's own colour (the
+    sidebar's System count, a held or in-review badge), and that border is what
+    marks out the badge, so it is held to WCAG 1.4.11's floor.
 
-    WCAG 1.4.11's floor, applied to the one control that changes its own
-    background: a boundary that disappears when the state goes wrong is a
-    boundary missing exactly when the control matters most.
+    This replaced a check of `--border-strong` on the quiet grounds, written
+    when the top bar's status indicator was a button with that border on a
+    status ground. The indicator no longer has a box, and nothing draws that
+    pair any more.
     """
     tokens = SCHEMES[scheme]
-    ratio = _ratio(tokens["border-strong"], tokens[f"{token}-quiet"])
-    assert ratio >= UI_CONTRAST_FLOOR, f"{scheme}: --border-strong on --{token}-quiet is {ratio:.2f}:1"
+    ratio = _ratio(tokens[token], tokens[f"{token}-quiet"])
+    assert ratio >= UI_CONTRAST_FLOOR, f"{scheme}: --{token} on --{token}-quiet is {ratio:.2f}:1"
+
+
+@pytest.mark.parametrize(("scheme", "token"), STATUS_PAIRS)
+def test_every_status_colour_clears_aa_on_the_page_ground(scheme, token):
+    """The top bar's status is its words in the state's colour, straight on the
+    page's ground, with no tinted box of its own to lean on."""
+    tokens = SCHEMES[scheme]
+    ratio = _ratio(tokens[token], tokens["surface-0"])
+    assert ratio >= TEXT_CONTRAST_FLOOR, f"{scheme}: --{token} on --surface-0 is {ratio:.2f}:1"
 
 
 def test_the_accent_is_legible_both_as_text_and_beneath_its_own_label():

@@ -176,6 +176,9 @@
   /* Elevation: barely there, so a card reads as paper rather than as UI. */
   --shadow-1: 0 1px 2px rgb(28 26 23 / 6%);
   --shadow-2: 0 2px 8px rgb(28 26 23 / 10%);
+  /* Under a picture on its mat: enough to lift the work off the board, as a
+     hung print sits a hair proud of the wall. */
+  --shadow-art: 0 1px 3px rgb(28 26 23 / 22%);
 
   --font-ui: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-label: "Newsreader", ui-serif, Georgia, "Times New Roman", serif;
@@ -212,6 +215,7 @@
     --scrim-text: #f6efe3;
     --shadow-1: 0 1px 2px rgb(0 0 0 / 45%);
     --shadow-2: 0 2px 10px rgb(0 0 0 / 55%);
+    --shadow-art: 0 1px 4px rgb(0 0 0 / 50%);
   }
 }
 
@@ -820,6 +824,102 @@ h1 {
   gap: var(--space-2);
 }
 
+/* -- a tile: the work on its mat, and its label beneath -------------------
+   A work's tile (Artworks, an artist's works, a topic's) and an artist's poster
+   are the thing itself, so they are not boxed: no border, no paper, no shadow
+   around the tile. The picture sits on a `--surface-2` mat with room round it,
+   and the label sits on the page's ground underneath, as a wall label sits
+   under a hung work. A theme's card and a work under review keep their card,
+   because each is a block of facts and acts about a thing, not the thing.
+   Matched by the data attribute each tile already carries, so no screen's
+   markup had to change to opt in. The Artworks skeleton's placeholder carries
+   `.tile-skeleton` instead, so it occupies the tile's final geometry rather
+   than a card's. */
+.card:is([data-artwork], [data-artist], .tile-skeleton) {
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.card:is([data-artwork], [data-artist], .tile-skeleton) .card-image,
+.card:is([data-artwork], [data-artist], .tile-skeleton) .card-image:has(img) {
+  background: var(--surface-2);
+}
+
+.card:is([data-artwork], [data-artist], .tile-skeleton) .card-image img {
+  inset: var(--space-4);
+  width: calc(100% - 2 * var(--space-4));
+  height: calc(100% - 2 * var(--space-4));
+  /* The shadow follows the picture, not its box: `contain` leaves the box
+     wider or taller than the work, and a shadow on the box would outline
+     empty mat. A drop-shadow filter is drawn from the painted pixels. */
+  filter: drop-shadow(var(--shadow-art));
+}
+
+/* The label is one fixed height on every tile: the most its clamped lines can
+   take, plus the badge row a tile shows only when its value is unusual. So a
+   tile's height never depends on its words, and every row is the same height
+   without any row's height depending on another's (§ Component Patterns,
+   Tiles). Sizing rows to the tallest tile instead made the page's length
+   change as later pages arrived, and the scroll restored on the way back to
+   Artworks landed short. */
+.card:is([data-artwork], [data-artist], .tile-skeleton) .card-body {
+  --tile-line: 1.45;
+  padding: var(--space-3) 0 0;
+  gap: 2px;
+  min-height: calc(
+    var(--space-3) + 2 * 1.25 * var(--text-lg) + 3 * var(--tile-line) * var(--text-sm) + 3 * 2px + var(--space-3) +
+      1.75rem
+  );
+  box-sizing: border-box;
+}
+
+.card:is([data-artwork], [data-artist], .tile-skeleton) :is(.card-artist, .card-meta) {
+  line-height: var(--tile-line);
+}
+
+.card:is([data-artwork], [data-artist], .tile-skeleton) .card-footer {
+  min-height: 1.75rem;
+}
+
+.card:is([data-artwork], [data-artist], .tile-skeleton) .card-title {
+  font-size: var(--text-lg);
+  line-height: 1.25;
+}
+
+/* Clamped, so one long title cannot make its row taller than the rest: two
+   lines of title, one of artist, two of date and medium. The full text is the
+   link's accessible name and is on the work's own page. */
+.card:is([data-artwork], [data-artist], .tile-skeleton) .card-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.card:is([data-artwork], [data-artist], .tile-skeleton) .card-artist {
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card:is([data-artwork], [data-artist], .tile-skeleton) .card-meta {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+/* The row gap is small because each label already reserves its longest
+   shape (above), and the space it leaves usually separates the rows. */
+.grid:has(> .card:is([data-artwork], [data-artist])),
+.grid-skeleton:has(> .card.tile-skeleton) {
+  gap: var(--space-3) var(--space-5);
+}
+
 /* -- collection: the rails, the density control and the contact sheet -------
    Written here, with the grid, rather than at the end of the file: this is what
    the grid is embedded in, and the two are read together.
@@ -884,6 +984,8 @@ h1 {
 
 .facet-option {
   width: 100%;
+  /* The counts line up down the rail as a column of figures would. */
+  font-variant-numeric: tabular-nums;
 }
 
 .facet-option:hover:enabled {
