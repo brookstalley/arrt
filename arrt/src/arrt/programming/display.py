@@ -25,12 +25,22 @@ from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 from typing import Any, Final
 
 from arrt import observations
-from arrt.library.facade import LibraryFacade, PlayableWork, Unplayable, UnplayableReason, WorkChange, WorkChanged
-from arrt.persistence.records import Directive, Theme, ThemeAssignment, ThemeMembership, Wall
+from arrt.library.facade import (
+    EventKind,
+    LibraryFacade,
+    PlayableWork,
+    ProgrammingAct,
+    Unplayable,
+    UnplayableReason,
+    WorkChange,
+    WorkChanged,
+)
+from arrt.persistence.records import Directive, Theme, ThemeAssignment, ThemeMembership, Wall, WorkExclusion
 from arrt.programming.manifest import heartbeat
 from arrt.programming.manifest.builder import (
     Exclusion,
@@ -45,7 +55,7 @@ from arrt.programming.manifest.builder import (
 from arrt.programming.manifest.heartbeat import HeartbeatReading, heartbeat_path_in
 from arrt.programming.store import ProgrammingStore
 from arrt.services.errors import ServiceError
-from arrt.services.fields import require_text
+from arrt.services.fields import require_member, require_text
 from arrt.services.store import store_write
 
 log = logging.getLogger(__name__)
@@ -205,6 +215,36 @@ class ThemePlacement:
 
 
 @dataclass(frozen=True, slots=True)
+class WorkPlacements:
+    """Where one work is: the themes holding it, and whether it is kept off every wall."""
+
+    themes: Sequence[ThemePlacement]
+    exclusion: WorkExclusion | None
+
+
+class NotAgainScope(StrEnum):
+    """The one question *Not this one again* asks: how far the curator meant it."""
+
+    #: Out of the theme hanging on this wall, and so off every wall hanging it.
+    THEME = "theme"
+    #: Off every wall, whatever hangs there, until allowed again. The work stays held.
+    EVERY_WALL = "every_wall"
+
+
+@dataclass(frozen=True, slots=True)
+class NotAgain:
+    """What *Not this one again* did: the theme the work left, or the exclusion now standing."""
+
+    scope: NotAgainScope
+    artwork_id: str
+    wall_id: str
+    #: The theme the work left, for `THEME`; None otherwise.
+    left_theme: Theme | None = None
+    #: The exclusion now standing, for `EVERY_WALL`; None otherwise.
+    exclusion: WorkExclusion | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Reconciliation:
     """What one reconciliation found and did, so a caller and a test can read it rather than the journal."""
 
@@ -241,6 +281,24 @@ class DisplayService:
         theme = self._store.get_theme(theme_id)
         if theme is None:
             raise ServiceError(f"No theme with id {theme_id!r} is in the catalogue.")
+        return theme
+
+    def get_listed_theme(self, theme_id: str) -> Theme:
+        """A theme a curator can name: any theme but a hung selection.
+
+        A selection lives only as long as it hangs (`_retire_selection`), so a
+        Get that sent its works there, a default that pointed at it, a work
+        added to it or a name given it would all be lost the day the wall
+        changes. Each names a theme from a picker that never offers a
+        selection; this refuses the id arriving another way. Taking a work out
+        of one stays allowed: *Not this one again* does it on the wall's behalf.
+        """
+        theme = self.get_theme(theme_id)
+        if theme.hidden:
+            raise ServiceError(
+                f"{theme.name!r} is the selection hanging on a wall, not a theme, so it cannot be renamed, "
+                "made the default, or have works sent or added to it. Choose a theme from Themes."
+            )
         return theme
 
     def default_theme(self) -> Theme | None:
@@ -328,7 +386,10 @@ class DisplayService:
                 # same way round, whatever order the assignments came back in.
                 walls=[wall for wall in walls.values() if wall.id in set(hung.get(theme.id, ()))],
             )
+            # A selection is not a theme the curator made, so the Themes index
+            # leaves it out; the wall it hangs on is where it is seen.
             for theme in self._store.list_themes()
+            if not theme.hidden
         ]
 
     @staticmethod
@@ -366,6 +427,9 @@ class DisplayService:
                     selected=theme.id == selected,
                 )
                 for theme in self._store.list_themes()
+                # A selection is no filter a curator would look for, unless it
+                # is the one they followed a link to.
+                if not theme.hidden or theme.id == selected
             ]
 
     def theme_work_ids(self, theme_id: str) -> Sequence[str]:
@@ -446,7 +510,7 @@ class DisplayService:
         then, and marking a theme is not a request to fill it with everything
         accepted before; a curator who wants that adds them from Library › Works.
         """
-        self.get_theme(theme_id)
+        self.get_listed_theme(theme_id)
         store_write(self._store.mark_default_theme, theme_id)
         return self.get_theme(theme_id)
 
@@ -555,6 +619,7 @@ class DisplayService:
         """
         self.get_theme(theme_id)
         self.get_wall(wall_id)
+        replaced = self._store.get_assignment(wall_id)
         # One transaction around the hang and the publish, so a manifest that
         # could not be written takes the hang back with it. Recording the hang
         # and then failing to publish left the catalogue naming a theme the wall
@@ -564,7 +629,168 @@ class DisplayService:
                 self._store.set_assignment,
                 ThemeAssignment(wall_id=wall_id, theme_id=theme_id, assigned_at=datetime.now(UTC)),
             )
-            return self.sync(wall_id, theme_id)
+            build = self.sync(wall_id, theme_id)
+            self._retire_selection(replaced)
+        self._record_hang(build)
+        return build
+
+    def hang_selection(self, artwork_ids: Sequence[str], *, wall_id: str) -> ManifestBuild:
+        """Hang these works on this wall, until something else is hung there.
+
+        **A selection is stored as a theme with the hidden flag**, made here and
+        holding these works in the order given, so the manifest, readiness and
+        the directive work on it exactly as on any theme. It is left off the
+        Themes index and the theme pickers, because the curator chose works, not
+        a theme, and would not recognise it in a list of theirs.
+
+        Every id has to name a work the Library holds, and the whole hang is
+        refused otherwise, in the catalogue's words. A work the Library holds
+        but will not show is hung all the same and named in the build's
+        exclusions, as hanging a theme does, so the curator learns why the wall
+        is short rather than finding the act refused.
+        """
+        chosen = list(dict.fromkeys(artwork_ids))
+        if not chosen:
+            raise ServiceError("A selection needs at least one work to hang.")
+        wall = self.get_wall(wall_id)
+        # One question for every work, as the manifest build asks it: the facade
+        # is written as if remote.
+        for answer in self._library.playable(chosen).values():
+            if not isinstance(answer, PlayableWork) and answer.reason is UnplayableReason.NOT_IN_CATALOGUE:
+                raise ServiceError(answer.detail)
+        now = datetime.now(UTC)
+        replaced = self._store.get_assignment(wall_id)
+        theme_id = str(uuid.uuid4())
+        theme = Theme(
+            id=theme_id,
+            # Names are unique across themes, hidden or not, so the id's head
+            # keeps two selections for one wall apart.
+            name=f"Selection for {wall.name} ({theme_id[:8]})",
+            created_at=now,
+            hidden=True,
+        )
+        with self._store.transaction():
+            store_write(self._store.add_theme, theme)
+            for position, artwork_id in enumerate(chosen):
+                store_write(
+                    self._store.add_membership,
+                    ThemeMembership(theme_id=theme_id, artwork_id=artwork_id, added_at=now, position=position),
+                )
+            store_write(self._store.set_assignment, ThemeAssignment(wall_id=wall_id, theme_id=theme_id, assigned_at=now))
+            build = self.sync(wall_id, theme_id)
+            self._retire_selection(replaced)
+        self._record_hang(build)
+        return build
+
+    # -- writes: not this one again -------------------------------------------
+
+    def not_this_one_again(self, artwork_id: str, *, wall_id: str, scope: NotAgainScope | str) -> NotAgain:
+        """The Walls card's *Not this one again*, answered *from this theme* or *from every wall*.
+
+        One method for both answers, so a click and an agent asking the same
+        question reach the same act; each answer is its own method below.
+        """
+        resolved = require_member(scope, enum=NotAgainScope, field="scope")
+        if resolved is NotAgainScope.THEME:
+            left = self.leave_theme(artwork_id, wall_id=wall_id)
+            return NotAgain(scope=resolved, artwork_id=artwork_id, wall_id=wall_id, left_theme=left)
+        exclusion = self.exclude_work(artwork_id, wall_id=wall_id)
+        return NotAgain(scope=resolved, artwork_id=artwork_id, wall_id=wall_id, exclusion=exclusion)
+
+    def leave_theme(self, artwork_id: str, *, wall_id: str) -> Theme:
+        """*Not this one again*, from this theme: take the work out of what hangs on this wall.
+
+        The work leaves the theme, so it leaves every wall hanging that theme,
+        and the published manifests of those walls lose it now rather than at
+        the next sync: a curator who said "not this one" and saw it again a
+        minute later would conclude the act did nothing. A standing pin naming
+        it on those walls is withdrawn without advancing, as reconciliation
+        withdraws one. Nothing else changes, on any wall: no entry arrives with
+        the patch, and the work stays held and in every other theme.
+
+        Returns the theme it left, so the answer can say which.
+        """
+        wall = self.get_wall(wall_id)
+        theme = self._require_hanging(wall)
+        if self._store.get_membership(theme.id, artwork_id) is None:
+            raise ServiceError(
+                f"Artwork {artwork_id!r} is not in {theme.name!r}, which is what hangs on {wall.name!r}, "
+                "so there is nothing to take it out of."
+            )
+        with self._store.transaction():
+            store_write(self._store.remove_membership, theme.id, artwork_id)
+            self._withdraw(artwork_id, [hung.id for hung in self.walls_hanging(theme.id)], cause="leaving its theme")
+        self._library.record(
+            ProgrammingAct(
+                kind=EventKind.LEFT_THEME,
+                wall_id=wall_id,
+                theme_id=theme.id,
+                work_id=artwork_id,
+                detail={"theme_name": theme.name, "selection": theme.hidden},
+            )
+        )
+        return theme
+
+    def exclude_work(self, artwork_id: str, *, wall_id: str | None = None) -> WorkExclusion:
+        """*Not this one again*, from every wall: keep the work off every wall until it is allowed again.
+
+        **Not Archive.** The work stays in the Library and in every theme that
+        holds it; what changes is that no manifest carries it. Every published
+        manifest loses it now, and every pin naming it is withdrawn without
+        advancing, for the reason `leave_theme` gives.
+
+        `wall_id` is the wall the curator was looking at, recorded in the
+        history so that wall's history shows the act. It changes nothing else.
+        """
+        self._require_held(artwork_id)
+        if wall_id is not None:
+            self.get_wall(wall_id)
+        if any(exclusion.artwork_id == artwork_id for exclusion in self._store.list_exclusions()):
+            raise ServiceError(f"Artwork {artwork_id!r} is already kept off every wall.")
+        exclusion = WorkExclusion(artwork_id=artwork_id, excluded_at=datetime.now(UTC))
+        with self._store.transaction():
+            store_write(self._store.add_exclusion, exclusion)
+            self._withdraw(artwork_id, [wall.id for wall in self._store.list_walls()], cause="being kept off every wall")
+        self._library.record(ProgrammingAct(kind=EventKind.EXCLUDED, wall_id=wall_id, work_id=artwork_id))
+        return exclusion
+
+    def allow_work(self, artwork_id: str) -> None:
+        """Undo *Not this one again* from every wall: the work may go on walls again.
+
+        **Nothing is republished**, by the rule that keeps reconciliation from
+        adding: deciding when work reaches a wall is what sync and hanging are
+        for. A theme holding it carries it again at the next build.
+        """
+        if not any(exclusion.artwork_id == artwork_id for exclusion in self._store.list_exclusions()):
+            raise ServiceError(f"Artwork {artwork_id!r} is not kept off the walls, so there is nothing to allow.")
+        store_write(self._store.remove_exclusion, artwork_id)
+        self._library.record(ProgrammingAct(kind=EventKind.ALLOWED, work_id=artwork_id))
+
+    def excluded_works(self) -> Sequence[WorkExclusion]:
+        """Every work kept off every wall, oldest first."""
+        return self._store.list_exclusions()
+
+    def placements_of(self, artwork_id: str) -> WorkPlacements:
+        """Every theme holding this work, with the walls hanging each, and whether it is kept off every wall.
+
+        **Selections included.** A hidden theme is how one work hangs on a wall
+        by itself, so leaving them out would hide the very hang the Work page
+        exists to show; the caller decides which of them a curator would
+        recognise. Read in one scope, so the themes, the walls and the exclusion
+        describe one instant.
+        """
+        with self._store.reading():
+            walls = list(self._store.list_walls())
+            hung: dict[str, set[str]] = {}
+            for assignment in self._store.list_assignments():
+                hung.setdefault(assignment.theme_id, set()).add(assignment.wall_id)
+            themes = [
+                ThemePlacement(theme=theme, walls=[wall for wall in walls if wall.id in hung.get(theme.id, ())])
+                for theme in self._store.list_themes()
+                if any(membership.artwork_id == artwork_id for membership in self._store.list_memberships(theme.id))
+            ]
+            exclusion = next((kept for kept in self._store.list_exclusions() if kept.artwork_id == artwork_id), None)
+        return WorkPlacements(themes=themes, exclusion=exclusion)
 
     def clear_wall(self, wall_id: str) -> None:
         """Take down whatever is hanging, leaving the wall holding nothing.
@@ -588,7 +814,10 @@ class DisplayService:
         assignment = self._store.get_assignment(wall_id)
         if assignment is None:
             raise ServiceError(f"Nothing is hanging on wall {wall_id!r}, so there is nothing to take down.")
-        store_write(self._store.remove_assignment, wall_id)
+        taken_down = self.get_theme(assignment.theme_id)
+        with self._store.transaction():
+            store_write(self._store.remove_assignment, wall_id)
+            self._retire_selection(assignment)
         # The only operation in this plane that deliberately leaves the catalogue
         # and the wall disagreeing for an unbounded time, so it is the one an
         # operator asking "why is the set showing a theme that hangs nowhere"
@@ -597,7 +826,7 @@ class DisplayService:
         # writes no manifest to record it anywhere else.
         log.info(
             "Took theme %r down from wall %r. The wall goes on showing it until a theme is hung.",
-            self.get_theme(assignment.theme_id).name,
+            taken_down.name,
             wall.name,
         )
 
@@ -628,7 +857,7 @@ class DisplayService:
         `added_at` picking the winner, and an add can produce that tie exactly as
         a move could.
         """
-        self.get_theme(theme_id)
+        self.get_listed_theme(theme_id)
         self._require_held(artwork_id)
         target = self._require_position(position)
         membership = ThemeMembership(
@@ -742,7 +971,7 @@ class DisplayService:
         and "inherit the global default" for the two rotation settings. Without
         it, a caller changing only the name would silently clear the theme's pace.
         """
-        theme = self.get_theme(theme_id)
+        theme = self.get_listed_theme(theme_id)
         updated = replace(
             theme,
             name=theme.name if name is None else require_text(name, field="name"),
@@ -855,6 +1084,10 @@ class DisplayService:
         answer = self._require_held(artwork_id)
         if not isinstance(answer, PlayableWork):
             raise ServiceError(f"Artwork {artwork_id!r} cannot be shown on the wall: {answer.detail}")
+        if any(exclusion.artwork_id == artwork_id for exclusion in self._store.list_exclusions()):
+            # The manifest leaves it out, so a pin would name a work no wall
+            # carries: the silence this method's readiness check exists to stop.
+            raise ServiceError(f"Artwork {answer.title!r} is kept off every wall. Allow it again from its page first.")
         return self._advance(wall_id, pinned_work_id=artwork_id)
 
     # -- the manifest ---------------------------------------------------------
@@ -878,11 +1111,17 @@ class DisplayService:
 
         entries = []
         exclusions = []
+        kept_off = {exclusion.artwork_id for exclusion in self._store.list_exclusions()}
         # One question for the whole theme rather than one per work: the facade
         # is written as if it were remote, and so is this call.
         answers = self._library.playable(membership.artwork_id for membership in self._store.list_memberships(theme.id))
         for answer in answers.values():
-            if isinstance(answer, PlayableWork):
+            # The curator's word comes first: a work kept off every wall is
+            # reported as that, whatever the Library would say of it, because
+            # allowing it again is the act that would change anything.
+            if answer.work_id in kept_off:
+                exclusions.append(Exclusion.kept_off(answer))
+            elif isinstance(answer, PlayableWork):
                 entries.append(ManifestEntry.of(answer))
             else:
                 exclusions.append(Exclusion.of(answer))
@@ -1101,6 +1340,69 @@ class DisplayService:
         return result
 
     # -- internals ------------------------------------------------------------
+
+    def _retire_selection(self, replaced: ThemeAssignment | None) -> None:
+        """Delete the selection a wall stopped hanging, if no other wall still hangs it.
+
+        A selection is made for one hang and has no name a curator chose, so
+        once nothing hangs it nobody can find it to hang again, and keeping it
+        would leave one hidden theme behind per hang for good. History does not
+        need the row: a hang event carries the selection's name and id itself.
+        Called inside the caller's transaction, after the new assignment is
+        written, so `walls_hanging` already sees the wall as moved on.
+        """
+        if replaced is None:
+            return
+        theme = self._store.get_theme(replaced.theme_id)
+        if theme is None or not theme.hidden or self.walls_hanging(theme.id):
+            return
+        for membership in self._store.list_memberships(theme.id):
+            store_write(self._store.remove_membership, theme.id, membership.artwork_id)
+        store_write(self._store.remove_theme, theme.id)
+
+    def _record_hang(self, build: ManifestBuild) -> None:
+        """Tell the Library's history what was hung where, once the hang has committed."""
+        self._library.record(
+            ProgrammingAct(
+                kind=EventKind.HUNG,
+                wall_id=build.wall.id,
+                theme_id=build.theme.id,
+                detail={
+                    "theme_name": build.theme.name,
+                    "selection": build.theme.hidden,
+                    "works": build.considered,
+                    "wall_name": build.wall.name,
+                },
+            )
+        )
+
+    def _withdraw(self, artwork_id: str, wall_ids: Iterable[str], *, cause: str) -> None:
+        """Take one work off these walls' published manifests and pins, adding nothing.
+
+        The patch reconciliation applies, narrowed to one work and to the walls
+        named: entries for the work leave, a pin naming it is withdrawn without
+        advancing the sequence, and nothing arrives.
+        """
+        for wall_id in wall_ids:
+            directive = self._store.get_directive(wall_id)
+            if directive.pinned_work_id == artwork_id:
+                store_write(self._store.set_directive, replace(directive, pinned_work_id=None))
+            path = self._settings.manifest_path(wall_id)
+            document = read_published(path)
+            if document is None:
+                continue
+            kept = [entry for entry in document["entries"] if entry["work_id"] != artwork_id]
+            pinned = (document.get("directive") or {}).get("pinned_work_id") == artwork_id
+            if len(kept) == len(document["entries"]) and not pinned:
+                continue
+            document["entries"] = kept
+            if pinned:
+                document["directive"] = {**document["directive"], "pinned_work_id": None}
+            document["generated_at"] = datetime.now(UTC).isoformat()
+            write_atomically(path, document)
+            log.info(
+                "Wall %r: took work %s off the published manifest (after %s).", self.get_wall(wall_id).name, artwork_id, cause
+            )
 
     def _advance(self, wall_id: str, *, pinned_work_id: str | None) -> Directive:
         """Move one wall's directive on by one.

@@ -42,8 +42,11 @@ from arrt.persistence.records import (
     Artist,
     Artwork,
     ArtworkStatus,
+    EventKind,
+    EventPage,
     FacetDerivation,
     FetchStatus,
+    HistoryEvent,
     IdentitySetBy,
     MatColor,
     MatMethod,
@@ -636,7 +639,11 @@ class CatalogueService:
         if artwork.status is ArtworkStatus.ARCHIVED:
             raise ServiceError(f"Artwork {artwork_id!r} is already archived.")
         archived = replace(artwork, status=ArtworkStatus.ARCHIVED)
-        store_write(self._store.update_artwork, archived)
+        # The event commits with the change it records, so the history never
+        # names an archive that was rolled back, nor misses one that landed.
+        with self._store.transaction():
+            store_write(self._store.update_artwork, archived)
+            self.record_event(EventKind.ARCHIVED, work_id=artwork_id, detail={"title": artwork.title})
         # A pin naming a work out of circulation is withdrawn by Programming,
         # which hears this and owns the directive. The Library writes no
         # Programming table, and so needs to know nothing about walls.
@@ -654,9 +661,66 @@ class CatalogueService:
         if artwork.status is ArtworkStatus.ACCEPTED:
             raise ServiceError(f"Artwork {artwork_id!r} is not archived.")
         restored = replace(artwork, status=ArtworkStatus.ACCEPTED)
-        store_write(self._store.update_artwork, restored)
+        with self._store.transaction():
+            store_write(self._store.update_artwork, restored)
+            self.record_event(EventKind.RESTORED, work_id=artwork_id, detail={"title": artwork.title})
         self._announce(WorkChange.ACCEPTED, artwork_id)
         return restored
+
+    # -- the history ----------------------------------------------------------
+
+    def record_event(
+        self,
+        kind: EventKind | str,
+        *,
+        work_id: str | None = None,
+        run_id: str | None = None,
+        wall_id: str | None = None,
+        theme_id: str | None = None,
+        detail: Mapping[str, object] | None = None,
+    ) -> HistoryEvent:
+        """Write one act into the history, now.
+
+        **Called where the act happens, by the service that performs it**, inside
+        that act's transaction where it has one, so the history and the change
+        it records commit together. Nothing here checks the references: a wall or
+        a theme is Programming's, and the history keeps what it was told.
+        """
+        event = HistoryEvent(
+            id=str(uuid.uuid4()),
+            kind=require_member(kind, enum=EventKind, field="kind"),
+            occurred_at=datetime.now(UTC),
+            work_id=work_id,
+            run_id=run_id,
+            wall_id=wall_id,
+            theme_id=theme_id,
+            detail=None if detail is None else dict(detail),
+        )
+        store_write(self._store.add_event, event)
+        return event
+
+    def list_events(
+        self,
+        *,
+        kinds: Sequence[EventKind | str] = (),
+        wall_id: str | None = None,
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> EventPage:
+        """What happened, newest first: every kind named (all of them when none is), on one wall if one is named.
+
+        A wall's history is every event naming it, which today is what was hung
+        there and what was kept off it from there. The wall is not checked: an
+        id no wall carries has no history, which is an answer rather than a
+        fault, and the Library cannot see Programming's walls to say otherwise.
+        """
+        resolved = tuple(dict.fromkeys(require_member(kind, enum=EventKind, field="kind") for kind in kinds))
+        resolved_limit = DEFAULT_LIST_LIMIT if limit is None else limit
+        if not 1 <= resolved_limit <= MAX_LIST_LIMIT:
+            raise ServiceError(f"limit must be between 1 and {MAX_LIST_LIMIT}, got {resolved_limit}.")
+        if offset < 0:
+            raise ServiceError(f"offset cannot be negative, got {offset}.")
+        return self._store.list_events(kinds=resolved, wall_id=wall_id, limit=resolved_limit, offset=offset)
 
     # -- what a work is -------------------------------------------------------
 

@@ -15,7 +15,7 @@ day a sixth tool or a new action arrives with nothing exercising it.
 from dataclasses import replace
 
 import pytest
-from fakes import a_museum_holding, a_roster, a_work, a_work_list, take_the_picture_away
+from fakes import a_museum_holding, a_roster, a_work, a_work_list, stored_awaiting_approval, take_the_picture_away
 from scenarios import ACCEPTANCE_ROUTE, DISCOVERY_ROUTE, REFERENCE_ROUTE, REVIEW_ROUTE, Call, Transcript, connect
 
 from arrt.library.discovery.engine import WorkList
@@ -247,13 +247,14 @@ async def test_a_curator_can_jump_the_wall_to_one_work_and_step_off_it(server_ur
     assert stepped["sequence"] > pinned["sequence"]
 
 
-async def test_a_run_can_be_priced_started_watched_and_approved_through_the_tools_alone(server_url, engine):
+async def test_a_run_can_be_priced_started_and_watched_through_the_tools_alone(server_url, engine):
     """The money flow, start to finish, using nothing but what the surface returns.
 
-    Threaded like the flow above: the run id reaches `status` and `approve` as
-    the value `start` actually returned. That is what fails when one action names
-    it `run_id` and another expects `id` — a defect invisible from inside either
-    action's own tests.
+    Threaded like the flow above: the run id reaches `status` as the value
+    `start` actually returned. That is what fails when one action names it
+    `run_id` and another expects `id` — a defect invisible from inside either
+    action's own tests. Twenty-six works, where the retired gate stopped at
+    twenty-five: starting is the approval, so the run goes straight on.
     """
     engine.result = replace(a_work_list(26), strategy="Read as Surrealists with a strong blue palette.")
 
@@ -262,53 +263,45 @@ async def test_a_run_can_be_priced_started_watched_and_approved_through_the_tool
         # Priced before anything is committed to, which is the whole point of
         # the action leading this route.
         assert quoted["phase"] == "phase_1"
+        assert quoted["tier"] in {"$", "$$", "$$$"}
 
         started = await caller.ok("art_discovery", "start", intent="Surrealist paintings with strong blues")
         run_id = started["run_id"]
 
         watched = await caller.ok("art_discovery", "status", run_id=run_id)
-        assert watched["status"] == "awaiting_approval"
-        assert watched["works"]["total"] == 26
-        # How the intent was read, beside the wording of it. Asserted at this
-        # level because a curator decides at the gate below on the *reading* as
-        # much as on the count, so a field that quietly stopped being sent would
-        # take the grounds for that decision with it.
-        assert watched["strategy"] == engine.result.strategy
 
-        approved = await caller.ok("art_discovery", "approve", run_id=run_id)
-
-    assert approved["run_id"] == run_id
-    assert approved["status"] == "resolving_images"
+    assert watched["run_id"] == run_id
+    assert watched["status"] == "resolving_images"
+    assert watched["approval_required"] is False
+    assert watched["works"]["total"] == 26
+    # How the intent was read, beside the wording of it: what a curator reads
+    # the run's list by, so a field that quietly stopped being sent would take
+    # the grounds for judging it with it.
+    assert watched["strategy"] == engine.result.strategy
     assert tuple(caller.transcript.steps) == DISCOVERY_ROUTE
 
 
-async def test_the_price_a_run_is_approved_against_is_the_one_it_was_quoted(server_url, engine):
-    """A gate authorising against a figure nobody saw is not a gate.
-
-    The two `estimate` calls answer different questions — what asking costs, and
-    what resolving what was found costs — and the second is the number the
-    approval is actually about, so it has to be readable before approving rather
-    than reconstructible afterwards.
-    """
+async def test_the_phase_two_figure_a_run_reports_is_the_one_estimate_quotes(server_url, engine):
+    """The two `estimate` calls answer different questions, and the second is readable from the run itself."""
     engine.result = a_work_list(26)
 
     async with connect(server_url) as caller:
         started = await caller.ok("art_discovery", "start", intent="Surrealist paintings")
         run_id = started["run_id"]
-        waiting = await caller.ok("art_discovery", "status", run_id=run_id)
+        watched = await caller.ok("art_discovery", "status", run_id=run_id)
         quoted = await caller.ok("art_discovery", "estimate", run_id=run_id)
-        approved = await caller.ok("art_discovery", "approve", run_id=run_id)
 
     assert quoted["phase"] == "phase_2"
-    assert quoted["estimated_cost_usd"] == waiting["estimated_cost_usd"]
-    assert approved["estimated_cost_usd"] == quoted["estimated_cost_usd"]
+    assert quoted["estimated_cost_usd"] == watched["estimated_cost_usd"]
+    assert quoted["tier"] == "free", "phase 2 asks museum APIs, which are free"
 
 
-async def test_a_declined_run_leaves_the_month_where_phase_one_left_it(server_url, engine):
+async def test_a_declined_run_leaves_the_month_where_phase_one_left_it(server_url, engine, discovery_store):
     """Declining stops the spending that had not happened yet, and only that.
 
     What phase 1 already cost stays on the books: a run the curator refused
-    still made the model call that produced the list they refused.
+    still made the model call that produced the list they refused. The run is
+    one stored awaiting approval, as a file written before 2026-10-07 holds.
     """
     engine.result = a_work_list(26)
 
@@ -316,6 +309,7 @@ async def test_a_declined_run_leaves_the_month_where_phase_one_left_it(server_ur
         started = await caller.ok("art_discovery", "start", intent="Surrealist paintings")
         run_id = started["run_id"]
         await caller.ok("art_discovery", "status", run_id=run_id)
+        stored_awaiting_approval(discovery_store, run_id)
         before = await caller.ok("art_discovery", "spend")
 
         declined = await caller.ok("art_discovery", "decline", run_id=run_id)

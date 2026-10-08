@@ -5,7 +5,7 @@
  * THE SEAM IS THIS SCREEN'S HARD REQUIREMENT, NOT A POLISH ITEM. Committing a
  * direction never navigates: the commit card *becomes* the run's progress card
  * in place, and then becomes "12 works ready to review", with the transcript
- * above it the whole time. A commit that called `go("run", …)` — which is what
+ * above it the whole time. A commit that called `go("get", …)` — which is what
  * the direct-intent box on Ask does, correctly, because it has no
  * transcript to keep — would turn this conversation into a wizard wearing a
  * costume, which is the exact risk the flow was designed against.
@@ -15,12 +15,15 @@
  * a committed turn at the end of it, and painting that is the transform.
  */
 
+import { attempt } from "../core/acting.js";
 import { api } from "../core/api.js";
 import { confirmAct } from "../core/confirm.js";
 import { agree, counted } from "../core/counting.js";
 import { claimPoll, pollIsCurrent, schedulePollUnlessDone } from "../core/poll.js";
 import { el, guard, render } from "../core/render.js";
-import { backLink, go } from "../core/router.js";
+import { backLink, go, link } from "../core/router.js";
+import { STATE_WORDS } from "../core/runs.js";
+import { askingCost, tierMark } from "../core/spend.js";
 import { state } from "../core/state.js";
 import { REACTIONS, recordReaction } from "../core/taste.js";
 
@@ -78,11 +81,13 @@ export function commitSentence(view) {
     return `${counted(count, "work")} ${agree(count, "is", "are")} ready to review.`;
   }
   if (run.status === "awaiting_approval") {
-    return `This search proposed ${counted(tally.proposed, "work")}, which is more than the threshold, so it stopped to ask.`;
+    // Only a Get stored here before asking became the approval: none stops
+    // to ask any more, so the sentence names no threshold.
+    return `This Get proposed ${counted(tally.proposed, "work")} and stopped to ask, as a long list once did.`;
   }
   if (run.status === "resolving_works") return "Working out which works match this direction.";
   if (run.status === "resolving_images") return `The list of ${counted(tally.proposed, "work")} is settled; looking for an image of each.`;
-  return `This search is ${run.status}. Open it to see what happened.`;
+  return `This Get: ${(STATE_WORDS[run.status] || run.status).toLowerCase()}. Open it to see what happened.`;
 }
 
 /* The direction a commit would search for, composed from what the last turn
@@ -126,7 +131,7 @@ async function paint(view, { conversationId, generation, pollGeneration }) {
       // it, and a card that retried silently for as long as the tab stayed open
       // would be the stale-page-that-looks-live failure wearing a spinner.
       runProblem =
-        `The search this conversation started could not be read: ${failure.message} ` +
+        `The Get this conversation started could not be read: ${failure.message} ` +
         "Reload the page to try reading it again.";
     }
     if (!pollIsCurrent(pollGeneration)) return;
@@ -174,20 +179,23 @@ async function paint(view, { conversationId, generation, pollGeneration }) {
     class: "action",
     type: "button",
     text: "Say it",
-    onclick: () =>
-      guard(async () => {
-        const next = await api(`/api/conversations/${encodeURIComponent(conversationId)}/turns`, {
-          method: "POST",
-          body: JSON.stringify({ text: said.value }),
-        });
-        await repaint(next, { conversationId, generation });
-      }),
+    onclick: (event) =>
+      attempt(
+        event.currentTarget,
+        "say it",
+        () =>
+          api(`/api/conversations/${encodeURIComponent(conversationId)}/turns`, {
+            method: "POST",
+            body: JSON.stringify({ text: said.value }),
+          }),
+        { then: (next) => repaint(next, { conversationId, generation }) },
+      ),
   });
 
   render(
     generation,
     el("p", {}, [backLink()]),
-    el("h2", { text: "Working out what to look for" }),
+    el("h1", { text: "Working out what to look for" }),
     thread(view),
     // The whole of the retryable failed turn. The turn itself is already in the
     // transcript above — it never vanishes, because it was written before the
@@ -200,12 +208,12 @@ async function paint(view, { conversationId, generation, pollGeneration }) {
     // already on the page.
     commitCard(view, { run, runProblem, estimate, direction, conversationId, generation }),
     el("div", { class: "panel" }, [
-      el("h3", { text: "Say something" }),
+      el("h2", { text: "Say something" }),
       el("div", { class: "field" }, [el("label", { for: "say", text: "What are you after?" }), said]),
       el("div", { class: "row" }, [send]),
     ]),
     el("div", { class: "panel" }, [
-      el("h3", { text: "Delete this conversation" }),
+      el("h2", { text: "Delete this conversation" }),
       el("p", {
         class: "muted",
         // Said before the button rather than only in the dialog, because this is
@@ -220,7 +228,7 @@ async function paint(view, { conversationId, generation, pollGeneration }) {
           class: "action quiet",
           type: "button",
           text: "Delete this conversation",
-          onclick: () => guard(() => destroy(conversationId)),
+          onclick: (event) => destroy(event.currentTarget, conversationId),
         }),
       ]),
     ]),
@@ -243,7 +251,7 @@ async function paint(view, { conversationId, generation, pollGeneration }) {
  * commit stays because there is still a conversation to stay in; here there is
  * not, and a screen left pointing at a deleted thread would fail its next poll
  * with an error about something the curator meant to happen. */
-async function destroy(conversationId) {
+async function destroy(control, conversationId) {
   const agreed = await confirmAct({
     title: "Delete this conversation?",
     consequence:
@@ -254,12 +262,15 @@ async function destroy(conversationId) {
     confirmLabel: "Delete it",
   });
   if (!agreed) return;
-  await api(`/api/conversations/${encodeURIComponent(conversationId)}`, { method: "DELETE" });
-  // Claimed and discarded, so a poll already in flight cannot land a paint over
-  // the screen that replaces this one — exactly as a write does, except that
-  // there is no paint here to hold the generation for.
-  claimPoll();
-  go("discover");
+  await attempt(control, "delete this conversation", () => api(`/api/conversations/${encodeURIComponent(conversationId)}`, { method: "DELETE" }), {
+    then: () => {
+      // Claimed and discarded, so a poll already in flight cannot land a paint
+      // over the screen that replaces this one — exactly as a write does,
+      // except that there is no paint here to hold the generation for.
+      claimPoll();
+      go("discover");
+    },
+  });
 }
 
 /* Paint a view that arrived from a write rather than from a poll.
@@ -385,13 +396,14 @@ function reactions(entry, turnId) {
         // with nothing saying what "this" is.
         "aria-label": `${reaction}: ${entry.value}`,
         onclick: () =>
-          guard(async () => {
-            await recordReaction({ kind: entry.kind, value: entry.value, reaction, sourceTurnId: turnId });
-            // Said, not merely styled, and said in the past tense so it reads as
-            // a record rather than as an offer. `aria-live` on the row is what
-            // carries it to a reader who is not looking at the button.
-            control.textContent = `${reaction} — recorded`;
-            control.disabled = true;
+          attempt(control, `record ${reaction} for ${entry.value}`, () => recordReaction({ kind: entry.kind, value: entry.value, reaction, sourceTurnId: turnId }), {
+            then: () => {
+              // Said, not merely styled, and said in the past tense so it reads
+              // as a record rather than as an offer. `aria-live` on the row is
+              // what carries it to a reader who is not looking at the button.
+              control.textContent = `${reaction} — recorded`;
+              control.disabled = true;
+            },
           }),
       });
       return control;
@@ -420,19 +432,17 @@ function reactions(entry, turnId) {
 function departure(entry) {
   if (entry.kind !== "artist") return null;
   return el("div", { class: "row departure" }, [
-    el("button", {
-      class: "action quiet",
-      type: "button",
-      text: `Go to ${entry.value}'s work`,
-      // `encodeURIComponent` before the value goes in, because a facet in the
-      // fragment is escaped once by whoever writes it and once more by
-      // `core/route.js` — Artworks unescapes both on the way back out, which
-      // is how a value holding the separator survives the trip. The one call is
-      // duplicated from the Artworks screen's own `joinValues` rather than shared,
-      // because a screen never imports another screen; the browser test that
-      // follows this button into the empty state is what holds the two together.
-      onclick: () => go("collection", null, { artist: encodeURIComponent(entry.value) }),
-    }),
+    // `encodeURIComponent` before the value goes in, because a facet in the
+    // fragment is escaped once by whoever writes it and once more by
+    // `core/route.js` — Artworks unescapes both on the way back out, which
+    // is how a value holding the separator survives the trip. The one call is
+    // duplicated from the Artworks screen's own `joinValues` rather than shared,
+    // because a screen never imports another screen; the browser test that
+    // follows this link into the empty state is what holds the two together.
+    link(
+      { view: "collection", params: { artist: encodeURIComponent(entry.value) } },
+      { class: "action quiet", text: `Go to ${entry.value}'s work` },
+    ),
   ]);
 }
 
@@ -453,26 +463,29 @@ function unanswered(view, { conversationId, generation }) {
         class: "action",
         type: "button",
         text: "Ask again",
-        onclick: () =>
-          guard(async () => {
-            // No text. Retrying asks for the answer to the question already in
-            // the thread rather than re-sending the question, which is what
-            // keeps pressing this twice from buying two answers: once a turn has
-            // been answered there is nothing outstanding, and the server says so
-            // instead of spending again.
-            const next = await api(`/api/conversations/${encodeURIComponent(conversationId)}/turns`, {
-              method: "POST",
-              body: JSON.stringify({}),
-            });
-            await repaint(next, { conversationId, generation });
-          }),
+        // No text. Retrying asks for the answer to the question already in the
+        // thread rather than re-sending the question, which is what keeps
+        // pressing this twice from buying two answers: once a turn has been
+        // answered there is nothing outstanding, and the server says so instead
+        // of spending again.
+        onclick: (event) =>
+          attempt(
+            event.currentTarget,
+            "ask again",
+            () =>
+              api(`/api/conversations/${encodeURIComponent(conversationId)}/turns`, {
+                method: "POST",
+                body: JSON.stringify({}),
+              }),
+            { then: (next) => repaint(next, { conversationId, generation }) },
+          ),
       }),
     ]),
   ]);
 }
 
 function commitCard(view, { run, runProblem, estimate, direction, conversationId, generation }) {
-  const children = [el("h3", { text: "Search for a direction" })];
+  const children = [el("h2", { text: "Get a direction" })];
   if (run !== null) {
     const finished = run.run.status === "completed";
     children.push(
@@ -480,64 +493,60 @@ function commitCard(view, { run, runProblem, estimate, direction, conversationId
         el("span", { class: "glyph", "aria-hidden": "true", text: run.run.is_terminal ? "●" : "◌" }),
         el("span", { text: ` ${commitSentence(run)}` }),
       ]),
-      el("p", { class: "muted", text: `Searching for: ${run.run.intent || "—"}` }),
+      el("p", { class: "muted", text: `Asked for: ${run.run.intent || "—"}` }),
       el("div", { class: "row" }, [
         // The one navigation this screen makes, and it is the curator choosing
         // to act on the result rather than the commit taking them somewhere.
         // Offered only once there is something to review: a button onto an empty
         // grid is a promise the next screen cannot keep.
         finished && run.works.length
-          ? el("button", {
-              class: "action",
-              type: "button",
-              text: "Review these works",
-              onclick: () => go("review", run.run.run_id),
-            })
+          ? link({ view: "review", id: run.run.run_id }, { class: "action", text: "Review these works" })
           : null,
-        el("button", {
-          class: "action quiet",
-          type: "button",
-          text: "Open the search",
-          onclick: () => go("run", run.run.run_id),
-        }),
+        link({ view: "get", id: run.run.run_id }, { class: "action quiet", text: "Open the Get" }),
       ]),
     );
   } else if (direction) {
     const intent = el("textarea", { id: "direction", rows: 2, required: true, text: direction });
     children.push(
-      el("p", { class: "muted", text: "This is what would be searched for. Change it if it is not quite right." }),
-      el("div", { class: "field" }, [el("label", { for: "direction", text: "The direction to search for" }), intent]),
+      el("p", { class: "muted", text: "This is what the Get would look for. Change it if it is not quite right." }),
+      el("div", { class: "field" }, [el("label", { for: "direction", text: "Direction" }), intent]),
       el("p", {
         class: "note",
         // Stated as a bound rather than a typical figure, because a search may
         // freely use its whole allowance and an estimate it can exceed is not
         // one. The absence of a price is said out loud rather than left blank.
         text: estimate
-          ? `Searching costs at most $${estimate.estimated_cost_usd}. ${estimate.basis}`
-          : "The cost of searching could not be read just now. Committing still starts a search.",
+          ? askingCost(estimate)
+          : "The cost of this Get could not be read just now. Pressing Get still starts it.",
       }),
       el("div", { class: "row" }, [
         el("button", {
           class: "action primary",
           type: "button",
-          text: "Search for this",
-          onclick: () =>
-            guard(async () => {
-              const next = await api(`/api/conversations/${encodeURIComponent(conversationId)}/commit`, {
-                method: "POST",
-                body: JSON.stringify({ intent: intent.value }),
-              });
+          text: "Get",
+          "aria-label": "Get this direction",
+          onclick: (event) =>
+            attempt(
+              event.currentTarget,
+              "start the Get",
+              () =>
+                api(`/api/conversations/${encodeURIComponent(conversationId)}/commit`, {
+                  method: "POST",
+                  body: JSON.stringify({ intent: intent.value }),
+                }),
               // Painted, never navigated. This one line is the seam.
-              await repaint(next, { conversationId, generation });
-            }),
+              { then: (next) => repaint(next, { conversationId, generation }) },
+            ),
         }),
+        // Unpriced when the estimate could not be read, which the note says.
+        estimate ? tierMark(estimate.tier) : null,
       ]),
     );
   } else {
     children.push(
       el("p", {
         class: "muted",
-        text: "Once this conversation names an artist or a movement, the search it would run is offered here.",
+        text: "Once this conversation names an artist or a movement, the Get it would start is offered here.",
       }),
     );
   }

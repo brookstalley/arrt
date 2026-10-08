@@ -61,7 +61,13 @@ identifier.**
   string (`innerHTML`, `document.write`, `srcdoc`, `eval`, a timer handed a
   string, and the rest the test lists), and no page there carries script of its
   own. Nodes are built with `el` (`core/render.js`), which sets text through
-  `textContent`.
+  `textContent`. A catalogue description's emphasis is the one place an element
+  comes from a string, and it is not parsed either: `emphasised` in
+  `core/render.js` reads the four tags (`<i>`, `</i>`, `<b>`, `</b>`) and five
+  escapes that the ingest reduction (`services/fields.py`, `description_markup`)
+  writes, as tokens, builds each element with `createElement`, and shows
+  anything else — another tag, an attribute, another entity — as its own
+  characters (#162, `tests/browser/test_the_work_page.py`).
 - **A registry's strings say what they are.** Every string a registry hands the
   Library, in a type or in a question's answer, is typed as registry text, an
   item id, a museum identifier the caller asked about, a Commons file, or a work

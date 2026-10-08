@@ -22,6 +22,7 @@ import tempfile
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 from typing import Any, Final
 
@@ -65,6 +66,18 @@ def manifest_path_in(art_root: Path, wall_id: str) -> Path:
     return art_root / MANIFEST_FILENAME_TEMPLATE.format(wall_id=wall_id)
 
 
+class KeptOff(StrEnum):
+    """Why Programming leaves a work the Library would show off a wall.
+
+    Beside `UnplayableReason` rather than in it, because the Library judges
+    whether a work *can* go on a wall and this is the curator saying it *should
+    not*: a different owner, and a different thing to undo.
+    """
+
+    #: *Not this one again*, from every wall. Undone from the work's page.
+    EVERY_WALL = "kept_off_every_wall"
+
+
 @dataclass(frozen=True, slots=True)
 class Exclusion:
     """One work that is in the theme and not on the wall, and why."""
@@ -73,7 +86,7 @@ class Exclusion:
     #: The work's id when the id names no work the catalogue holds, because an
     #: exclusion is read by a curator scanning a list and every row needs a name.
     title: str
-    reason: UnplayableReason
+    reason: UnplayableReason | KeptOff
     #: A sentence a curator can act on, not a restatement of the enum.
     detail: str
 
@@ -85,6 +98,16 @@ class Exclusion:
             title=unplayable.title if unplayable.title is not None else unplayable.work_id,
             reason=unplayable.reason,
             detail=unplayable.detail,
+        )
+
+    @classmethod
+    def kept_off(cls, answer: PlayableWork | Unplayable) -> Exclusion:
+        """A work the curator said not to show again, on any wall."""
+        return cls(
+            work_id=answer.work_id,
+            title=answer.title if answer.title is not None else answer.work_id,
+            reason=KeptOff.EVERY_WALL,
+            detail="You said not to show this again on any wall. Allow it again from its page to put it back.",
         )
 
 

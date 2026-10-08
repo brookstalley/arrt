@@ -6,10 +6,15 @@ service decides which of the chosen items a Get asks for, and the runner does
 the asking.
 
 **An item is skipped, never refused, when it cannot be asked for**: one the
-library already holds, one a Get under way is already looking for, and one the
-registry has no work for. A selection usually mixes these, and a Get that
+library already holds, one a Get under way is already looking for, one a run
+already found that waits in To review, and one the registry has no work for. A selection usually mixes these, and a Get that
 refused the whole selection over one held work would make the curator untick it
 by hand to get the rest. Every skip is reported with its reason.
+
+A work waiting in To review is matched as Search and the Artist page match it
+(`twins.Twins.waiting_work`): by the item, or by title and artist for one
+proposed by name. Asking for it again would pay a second time for an image a
+verdict is already owed on.
 """
 
 import logging
@@ -21,6 +26,7 @@ from arrt.library.registry import Registry, RegistryUnavailable, RegistryWork
 from arrt.library.services.discovery import ChosenWork, DiscoveryService
 from arrt.library.services.remembered import checked_qid
 from arrt.library.services.runner import DiscoveryRunner
+from arrt.library.services.twins import Twins
 from arrt.persistence.catalogue import CatalogueStore
 from arrt.persistence.discovery_records import DiscoveryRun, InitiatedBy
 from arrt.services.errors import ServiceError
@@ -38,6 +44,7 @@ class SkipReason(StrEnum):
 
     HELD = "held"
     BEING_GOT = "being_got"
+    IN_REVIEW = "in_review"
     NOT_FOUND = "not_found"
 
 
@@ -114,6 +121,7 @@ class GetService:
             )
         held = self._store.circulating_ids_by_qid()
         being_got = self._discovery.items_being_got()
+        twins = Twins(self._store, self._discovery)
         skipped: list[Skipped] = []
         chosen: list[ChosenWork] = []
         for qid in wanted:
@@ -127,8 +135,9 @@ class GetService:
                 work = self._registry.work(qid)
             except RegistryUnavailable as exc:
                 raise ServiceError(f"Wikidata could not be asked about {qid}, so nothing was started. Try again.") from exc
-            if work is None:
-                skipped.append(Skipped(qid, SkipReason.NOT_FOUND))
+            reason = SkipReason.NOT_FOUND if work is None else self._already_here(qid, work, twins)
+            if reason is not None:
+                skipped.append(Skipped(qid, reason))
                 continue
             chosen.append(chosen_work(qid, work))
         run = (
@@ -147,3 +156,20 @@ class GetService:
             },
         )
         return GetOutcome(run=run, skipped=tuple(skipped))
+
+    @staticmethod
+    def _already_here(qid: str, work: RegistryWork, twins: Twins) -> SkipReason | None:
+        """Why a work the registry knows is not asked for, or None to ask for it.
+
+        Held by its Wikidata item is answered before the registry is asked; a
+        held work with no item, or another, is matched as search and the Artist
+        page match it, so no surface pays for a work the browser shows as held.
+        A work a run found and nobody has judged is not paid for twice either.
+        """
+        maker = work.creators[0] if work.creators else None
+        name, maker_qid = (maker.name, maker.qid) if maker else (None, None)
+        if twins.held_work(qid, work.title, maker=name, maker_qid=maker_qid):
+            return SkipReason.HELD
+        if twins.waiting_work(qid, work.title, maker=name, maker_qid=maker_qid) is not None:
+            return SkipReason.IN_REVIEW
+        return None

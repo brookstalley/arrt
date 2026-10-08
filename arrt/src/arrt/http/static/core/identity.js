@@ -22,6 +22,7 @@
 import { api } from "./api.js";
 import { confirmAct } from "./confirm.js";
 import { isQid, lifeDates, named, wikidataLink } from "./registry.js";
+import { attempt } from "./acting.js";
 import { el, guard } from "./render.js";
 
 /* Store which item a work or artist is (`qid`), or that there is none (null),
@@ -67,27 +68,28 @@ export function identityControl(kind, record, onChanged) {
     }
   };
 
-  use.addEventListener("click", () =>
-    guard(async () => {
-      if (!found) return;
-      onChanged(await storeIdentity(kind, id, found));
-    }),
-  );
+  use.addEventListener("click", () => {
+    if (!found) return;
+    const qid = found;
+    attempt(use, `use ${qid} for ${kind === "work" ? record.title : record.name}`, () => storeIdentity(kind, id, qid), { then: onChanged });
+  });
 
   const none = el("button", {
     class: "action quiet",
     type: "button",
     text: "There is none",
-    onclick: () =>
-      guard(async () => {
-        const agreed = await confirmAct({
-          title: `Say Wikidata has no item for ${kind === "work" ? record.title : record.name}?`,
-          consequence: "The matcher stops looking for one. You can set an item here later.",
-          confirmLabel: "There is none",
-        });
-        if (!agreed) return;
-        onChanged(await storeIdentity(kind, id, null));
-      }),
+    onclick: async (event) => {
+      const control = event.currentTarget;
+      const agreed = await confirmAct({
+        title: `Say Wikidata has no item for ${kind === "work" ? record.title : record.name}?`,
+        consequence: "The matcher stops looking for one. You can set an item here later.",
+        confirmLabel: "There is none",
+      });
+      if (!agreed) return;
+      attempt(control, `say Wikidata has no item for ${kind === "work" ? record.title : record.name}`, () => storeIdentity(kind, id, null), {
+        then: onChanged,
+      });
+    },
   });
 
   form.append(el("div", { class: "row" }, [none]));

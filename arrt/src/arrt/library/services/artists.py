@@ -32,6 +32,7 @@ from typing import Final, Protocol
 from arrt.library.registry import Registry, RegistryArtist, RegistryPerson, RegistrySimilar, RegistryUnavailable
 from arrt.library.services.identity import open_to_match, years_agree
 from arrt.library.services.remembered import NOT_CONFIGURED_NOTE, REMEMBERED, checked_qid
+from arrt.library.services.twins import AwaitingReview, InReview, Twins
 from arrt.persistence.catalogue import CatalogueStore, WorkQuery
 from arrt.persistence.folding import search_fold
 from arrt.persistence.kept import JsonCodec, Kept, KeptAnswers
@@ -118,6 +119,8 @@ class RegistryView:
     held: Mapping[str, Sequence[str]] = field(default_factory=dict)
     #: The QIDs among the listed works that a wanted work names.
     wanted: frozenset[str] = frozenset()
+    #: The proposed work awaiting a verdict that each listed work not held is, by QID.
+    waiting: Mapping[str, InReview] = field(default_factory=dict)
     #: For a library artist with no QID: who Wikidata's name search says they
     #: might be, those whose years agree with the library's first. Proposed,
     #: never stored: the curator's click stores one (`data-model.md` § Registry
@@ -155,10 +158,19 @@ class WantedItems(Protocol):
 class ArtistService:
     """Read the artists the library holds, and ask the registry about one."""
 
-    def __init__(self, store: CatalogueStore, registry: Registry | None, *, kept: KeptAnswers, wanted: WantedItems) -> None:
+    def __init__(
+        self,
+        store: CatalogueStore,
+        registry: Registry | None,
+        *,
+        kept: KeptAnswers,
+        wanted: WantedItems,
+        awaiting: AwaitingReview,
+    ) -> None:
         self._store = store
         self._registry = registry
         self._wanted = wanted
+        self._awaiting = awaiting
         self._known_artists: Kept[tuple[str, tuple[str, ...]], RegistryArtist] = kept.namespace(
             "registry.artist", codec=JsonCodec(RegistryArtist), max_age=REGISTRY_KEPT_FOR, size=REMEMBERED
         )
@@ -299,20 +311,29 @@ class ArtistService:
                 state=RegistryState.NOT_CONFIGURED,
                 note=NOT_CONFIGURED_NOTE,
             )
-        # "Held" means in circulation, as *In your library* does, so an archived
-        # work is neither listed there nor marked here.
-        holdings = self._store.circulating_ids_by_qid()
         try:
             known = self._known(qid, mine, self._registry)
         except RegistryUnavailable as exc:
             log.warning("Could not ask Wikidata about %s: %s", qid, exc)
             return RegistryView(state=RegistryState.UNAVAILABLE, note=unavailable)
         wanted = self._wanted.wanted_qids()
+        # "Held" means in circulation, as *In your library* does, so an archived
+        # work is neither listed there nor marked here. Matched by QID, or by
+        # title and this artist for a held work with none (`twins.py`).
+        twins = Twins(self._store, self._awaiting)
+        held: dict[str, Sequence[str]] = {}
+        waiting: dict[str, InReview] = {}
+        for entry in known.works:
+            if found := twins.held_work(entry.qid, entry.title, maker=known.name, maker_qid=known.qid):
+                held[entry.qid] = found
+            elif (review := twins.waiting_work(entry.qid, entry.title, maker=known.name, maker_qid=known.qid)) is not None:
+                waiting[entry.qid] = review
         return RegistryView(
             state=RegistryState.KNOWN,
             known=known,
-            held={entry.qid: holdings[entry.qid] for entry in known.works if entry.qid in holdings},
+            held=held,
             wanted=frozenset(entry.qid for entry in known.works if entry.qid in wanted),
+            waiting=waiting,
         )
 
     def _known(self, qid: str, mine: Sequence[str], registry: Registry) -> RegistryArtist:

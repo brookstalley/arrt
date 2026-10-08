@@ -338,6 +338,7 @@ header.topbar {
    state is legible in the DOM to a reader who cannot see the hue. */
 .status-indicator {
   appearance: none;
+  text-decoration: none;
   margin-left: auto;
   flex: 0 1 auto;
   min-width: 0;
@@ -541,7 +542,11 @@ main {
   min-width: 0;
 }
 
-h2 {
+/* A screen's own heading is its `h1`; the product's name in the top bar is not
+   a heading at all. The confirmation's title is an `h2` beneath whichever page
+   it opens over, and takes the same type. */
+h1,
+.confirm-title {
   font: 400 var(--text-lg) / 1.3 var(--font-label);
   color: var(--text-strong);
   margin: 0 0 var(--space-4);
@@ -625,7 +630,10 @@ h2 {
   margin: 0;
 }
 
-.card-title button {
+/* A card's title opens its page, so it is a link (`information-architecture.md`
+   § Direction); a title that does something else here is still a button. Both
+   read as the title, underlined on hover. */
+.card-title :is(a, button) {
   appearance: none;
   background: none;
   border: none;
@@ -636,14 +644,19 @@ h2 {
   cursor: pointer;
 }
 
-.card-title button:hover {
+.card-title :is(a, button) {
+  text-decoration: none;
+}
+
+.card-title :is(a, button):hover {
   text-decoration: underline;
 }
 
 /* A name that leads to its own page: an artist's, wherever a work names one.
    Underlined, because unlike a card's title nothing else on its line says it
-   can be pressed. */
-button.link {
+   can be pressed. One treatment for every such name, so going to an artist
+   looks the same wherever it is offered. */
+.link {
   appearance: none;
   background: none;
   border: none;
@@ -698,7 +711,7 @@ button.link {
   overflow-y: auto;
 }
 
-.rail h3 {
+.rail h2 {
   margin: 0 0 var(--space-2);
   font: 600 var(--text-xs) / 1.2 var(--font-ui);
   letter-spacing: 0.08em;
@@ -1028,7 +1041,7 @@ button.link {
   max-width: 34rem;
 }
 
-.empty h3 {
+.empty h2 {
   margin: 0;
   font: 400 var(--text-xl) / 1.3 var(--font-label);
   color: var(--text-strong);
@@ -1175,9 +1188,10 @@ button.link {
 }
 
 /* A registry work the library holds, and one Wikidata has a free image of. The
-   held one is a button to the work, so it reads as the stronger mark; both lead
+   held one is a link to the work, so it reads as the stronger mark; both lead
    with glyph and word, as every badge here does. */
 .badge-held {
+  text-decoration: none;
   background: var(--good-quiet);
   border-color: var(--good);
   color: var(--text-strong);
@@ -1206,9 +1220,10 @@ button.link {
    The owner's ruling on issue 172: held, wanted and not held are told apart first
    by how the picture is drawn, then by glyph and word (`workState` in
    `core/registry.js`). The three are defined together so they can be tuned
-   against one another, which is what the owner asked to iterate on. First
-   try: held plain, wanted with a dashed accent outline, not held under
-   diagonal hatching — recognisable, and never mistakable for held. */
+   against one another, which is what the owner asked to iterate on. Held has a
+   thin outline, wanted a dashed accent one, and not held is the picture plain:
+   the owner's ruling on tiles (2026-10-07) is that a preview of a work not held
+   is a real picture marked by its badge, not hatched over. */
 .work-pic {
   position: relative;
   display: inline-block;
@@ -1235,16 +1250,6 @@ button.link {
   outline-offset: -2px;
 }
 
-.work-pic-not-held::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--surface-1) 70%, transparent) 0 2px,
-    transparent 2px 5px
-  );
-}
 
 /* The theme new works join. Solid accent, because it is a standing role rather
    than a state a curator is warned about; the star and the word carry it first. */
@@ -1465,6 +1470,15 @@ button.card-image.enlargeable {
   white-space: nowrap;
 }
 
+/* The museum is a name, not a fact compared down the column, and museums'
+   names run from "SMK" to "The Metropolitan Museum of Art": it wraps at word
+   breaks within a bounded width, so the longest does not push the table past
+   its card. */
+.scans .scan-source {
+  min-width: 6rem;
+  max-width: 10rem;
+}
+
 /* The first row of a scan carries no rule beneath it: it and its sentences are
    one scan, and the rule belongs after both. */
 .scans tr.alternate td {
@@ -1633,14 +1647,14 @@ th {
   margin-bottom: var(--space-5);
 }
 
-/* `h3`, `h4` or `h5`, one treatment. The rank of a panel's heading depends on
- * what it sits under — at the top of a view it is an `h3`, inside a wall's own
- * section on the walls view an `h4`, and inside one wall's heartbeat reading on
- * the health view an `h5`, so that neither two hung walls nor two reporting ones
+/* `h2`, `h3` or `h4`, one treatment. The rank of a panel's heading depends on
+ * what it sits under — at the top of a view it is an `h2`, inside a wall's own
+ * section on the walls view an `h3`, and inside one wall's heartbeat reading on
+ * the health view an `h4`, so that neither two hung walls nor two reporting ones
  * present a reader navigating by heading with a flat run of siblings. That is a
  * document-structure fact and not a typographic one: the panels look the same
  * whichever rank is used, which is what this selector says. */
-.panel :is(h3, h4, h5) {
+.panel :is(h2, h3, h4) {
   margin: 0 0 var(--space-3);
   font: 400 var(--text-md) / 1.3 var(--font-label);
   color: var(--text-strong);
@@ -1658,7 +1672,7 @@ th {
 }
 
 /* One wall's section heading on the walls view. A direct child of the view root,
- * so like `.offer-group > h3` above it would otherwise fall back to browser
+ * so like `.offer-group > h2` above it would otherwise fall back to browser
  * defaults — the failure the comment there names, and the one no browser test
  * can see, since the text and the attributes are correct either way. It takes
  * the same treatment because it is the same rank of thing: a titled block within
@@ -1677,7 +1691,7 @@ th {
 /* The single large heading on this surface, and the only use of `--text-3xl`.
    It is the product's home saying so — the one place the type is allowed to be
    the size a gallery's own name is, and a size nothing else reaches so that it
-   stays that. Every other `h2` on this client keeps `--text-lg`. */
+   stays that. Every other `h1` on this client keeps `--text-lg`. */
 .walls-heading {
   font-size: var(--text-3xl);
 }
@@ -1687,36 +1701,6 @@ th {
    between them would draw a border across a page of paintings. */
 section.wall {
   margin-bottom: var(--space-8);
-}
-
-/* What is hanging, at the size the IA asks for: the artwork is the primary
-   content on every screen that shows one, and this is the screen that shows the
-   most of them. A wider minimum than the collection grid's 15rem, because this
-   is a handful of works being looked at rather than a catalogue being scanned. */
-.hanging {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
-  gap: var(--space-5);
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-/* No card, no border, no shadow. A work on this screen is hung, not filed, and
-   the fixed-aspect image box above it is doing the alignment a card would
-   otherwise be doing. */
-.hung {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-/* A work's own title inside the Showing panel. The panel's heading rule sets a
-   paragraph's worth of space under a heading, which is right for a section title
-   and wrong under a picture whose artist line belongs with it. */
-.hung .card-title {
-  margin: 0;
 }
 
 /* The wall's controls, held apart from the account of what is on it: hanging a
@@ -1789,11 +1773,11 @@ section.wall {
 
 /* One query's offered works, under the sentence that describes that query.
  *
- * The heading takes `.panel h3`'s type rather than a new size, because it is the
+ * The heading takes `.panel h2`'s type rather than a new size, because it is the
  * same rank of thing — a titled block within a view — and the client has exactly
  * two heading treatments on purpose. It is repeated rather than shared with the
  * rule above: a selector list would tie two blocks that are free to diverge, and
- * `.panel h3` sits inside a bordered surface this one deliberately has not got.
+ * `.panel h2` sits inside a bordered surface this one deliberately has not got.
  *
  * These sections are direct children of the view root, so without a rule here
  * they fall back to browser defaults — the one failure in this bundle that no
@@ -1804,10 +1788,10 @@ section.wall {
 }
 
 /* `>` and not a descendant selector: a card inside this group carries an
- * `h3.card-title`, which a bare `.offer-group h3` outranks and re-margins — so
+ * `h2.card-title`, which a bare `.offer-group h2` outranks and re-margins — so
  * offered works' titles would sit further from their artist line than the named
  * works' titles do, on the same page, for no reason a reader could find. */
-.offer-group > h3 {
+.offer-group > h2 {
   margin: 0 0 var(--space-1);
   font: 400 var(--text-md) / 1.3 var(--font-label);
   color: var(--text-strong);
@@ -1843,7 +1827,12 @@ select {
   padding: var(--space-2) var(--space-3);
 }
 
-button.action {
+/* An act, and a way to another page offered at the same weight — "All
+   themes", "Go to Ask", a way back. The second is a link, as every navigation
+   is, and wears the act's shape because it sits among acts. */
+:is(button, a).action {
+  display: inline-block;
+  text-decoration: none;
   appearance: none;
   font: var(--text-sm) / 1 var(--font-ui);
   color: var(--accent-text);
@@ -1854,13 +1843,13 @@ button.action {
   cursor: pointer;
 }
 
-button.action.quiet {
+:is(button, a).action.quiet {
   color: var(--accent);
   background: var(--surface-1);
   border-color: var(--border-strong);
 }
 
-button.action:hover {
+:is(button, a).action:hover {
   filter: brightness(1.08);
 }
 
@@ -1925,6 +1914,24 @@ button.action:hover {
 .error {
   border-left-color: var(--crit);
   font-weight: 600;
+}
+
+/* A failed act, said beside the control that sent it (`core/acting.js`): on a
+   line of its own under the control, wherever that sits — a row, a cell, a
+   card — in the failure colour with a word to carry it, as the banner is. */
+.act-failure {
+  display: block;
+  flex-basis: 100%;
+  margin-top: var(--space-2);
+  padding-left: var(--space-3);
+  border-left: 3px solid var(--crit);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.act-failure:empty {
+  display: none;
 }
 
 .stack {
@@ -2236,4 +2243,439 @@ dialog.confirm::backdrop {
 .wanted .wanted-picture .card-image {
   width: 8rem;
   border-radius: var(--radius-sm);
+}
+
+/* -- the Work page ------------------------------------------------------------
+
+   The picture is the largest thing on the page: the wall render, mat and all,
+   across the column and up to most of the screen's height, kept at its own
+   aspect. The state strip sits under the title, and the secondary acts after
+   the facts. A description keeps the blank lines between its paragraphs. */
+
+.work-hero .work-picture {
+  width: 100%;
+  max-height: 75vh;
+  object-fit: contain;
+}
+
+.state-strip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-5);
+}
+
+.state-strip .wall-picker {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.state-strip .strip-said {
+  margin: 0;
+}
+
+.secondary-actions {
+  margin-top: var(--space-4);
+}
+
+.described {
+  white-space: pre-line;
+}
+
+/* -- Walls: the card that leads with the work on the wall --------------------
+
+   The work a wall's heartbeat names, large: the one thing on this card a
+   person in the room is looking at. Its own aspect, never cropped, inside a
+   height bound so a portrait work does not push the controls off a laptop
+   screen. */
+
+.wall-now {
+  margin: 0 0 var(--space-4);
+}
+
+.wall-now-when {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.wall-now-picture {
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  display: flex;
+  justify-content: center;
+  max-width: 48rem;
+}
+
+.wall-now-picture img {
+  display: block;
+  max-width: 100%;
+  max-height: 32rem;
+  height: auto;
+  object-fit: contain;
+}
+
+.wall-now-label {
+  margin-top: var(--space-3);
+}
+
+.wall-now-title {
+  margin: 0;
+  font-size: var(--text-xl);
+}
+
+.wall-now-artist,
+.wall-now-facts {
+  margin: var(--space-1) 0 0;
+}
+
+.wall-source {
+  margin: 0 0 var(--space-2);
+}
+
+.wall-controls > * + * {
+  margin-top: var(--space-3);
+}
+
+.not-again {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.not-again-choice:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.not-again-choice p {
+  margin: 0;
+}
+
+/* The summary is Change's button, so it reads as one and keeps the browser's
+   disclosure triangle out of a row of buttons. */
+.wall-change > summary {
+  display: inline-block;
+  list-style: none;
+  cursor: pointer;
+}
+
+.wall-change > summary::-webkit-details-marker {
+  display: none;
+}
+
+.wall-change[open] > summary {
+  margin-bottom: var(--space-2);
+}
+
+.wall-said:empty {
+  display: none;
+}
+
+.wall-setup {
+  margin-top: var(--space-4);
+}
+
+.wall-setup > summary {
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+/* -- History: the event log --------------------------------------------------- */
+
+.history-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  list-style: none;
+}
+
+.history-kinds a[aria-current="page"] {
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.history-events {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.history-events li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.history-events time {
+  min-width: 9rem;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+/* -- Clients: a report too old to speak for now -------------------------------- */
+
+.client-stale {
+  margin: 0 0 var(--space-2);
+}
+
+/* Search and the Artist page: a registry work or artist waiting for review. A
+   link to the review it waits on, so it reads as a mark to act on, between
+   held and not held; glyph and word carry the state. */
+.badge-in-review {
+  text-decoration: none;
+  border-color: var(--warn);
+  background: var(--warn-quiet);
+  color: var(--text-strong);
+}
+
+/* Review: whether a source confirms the work, and a verdict waiting out its
+   hold. Not confirmed is the stronger mark, since it is the one that should
+   stop an Accept; Unchecked says only that nobody asked. */
+.badge-unconfirmed {
+  border-color: var(--warn);
+  background: var(--warn-quiet);
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+.badge-unchecked {
+  border-style: dotted;
+}
+
+.note.not-confirmed {
+  border-left: 3px solid var(--warn);
+  padding-left: var(--space-2);
+}
+
+.verdict-held {
+  align-items: center;
+}
+
+/* Spend: the tier beside a spending control, and what is left of this month's
+   budget under the sidebar's sections. The tier is words, never colour alone;
+   a control that spends reads a shade stronger than one that is free. */
+.badge-tier {
+  font-variant-numeric: tabular-nums;
+}
+
+.badge-tier.tier-spends {
+  border-color: var(--border-strong);
+  font-weight: 600;
+}
+
+.sidebar .budget {
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border);
+  font-size: var(--text-sm);
+}
+
+.sidebar .budget p {
+  margin: 0;
+}
+
+.sidebar .budget .budget-note {
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* -- tiles show the art ------------------------------------------------------
+   A library tile is the work itself at its own aspect (ruling 7 of 2026-10-07):
+   the thumbnail route now serves the bare work, so the tile's box is the wall
+   the work hangs on rather than a frame around a letterboxed television. The
+   box keeps its fixed shape, because a grid that reflows as pictures arrive is
+   the opposite of the identity (`design-direction.md` § Tiles); the picture
+   sits in it uncropped, on the card's own ground. */
+.card-image:has(img) {
+  background: transparent;
+}
+
+/* A listed work's picture, held or not, is drawn whole: cropping a work to a
+   square is the one thing an art tool must not do, and at the size a list draws
+   it the crop was most of what a curator could not see. */
+.work-pic img {
+  object-fit: contain;
+}
+
+/* Large enough to judge before spending, which is what a not-held preview is
+   for. 5rem stays sharp from the 250 px Commons rendering on a 3x screen
+   (`FOUND_WIDTH` in `core/registry.js`). The search typeahead keeps its small
+   mark, being a list of names to choose between. */
+.artist-works .work-pic {
+  width: 5rem;
+  height: 5rem;
+}
+
+/* On a phone the picture sits inside the State column's badge, so its size is
+   the column's floor; 4rem keeps it well over the 48 px a work is told apart
+   by and leaves the title its room. */
+@media (max-width: 40rem) {
+  .artist-works .work-pic {
+    width: 4rem;
+    height: 4rem;
+  }
+}
+
+.results-list .work-pic {
+  width: 3.5rem;
+  height: 3.5rem;
+}
+
+/* -- keyboard and phone ------------------------------------------------------
+   The focus ring on a card's picture is drawn inside it. The default ring sits
+   2px outside the control, and a picture fills its card edge to edge inside two
+   boxes that clip (`.card`, `.tile` and `.card-image` all hide overflow, for
+   the rounded corners and the caption), so on one Tab stop in three the ring
+   was clipped on three sides (`ux-review-2026-10.md` finding 15). Painted over
+   the picture by a layer above it, in the focus colour with a band of the
+   card's ground inside, so it reads against a dark painting and a light one. */
+.card-image:focus-visible {
+  outline: none;
+}
+
+.card-image:focus-visible::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 0 2px var(--focus),
+    inset 0 0 0 4px var(--surface-1);
+}
+
+/* A tick a finger and a tremor can land on; the browser's 13px box was the
+   smallest target on the page. */
+input[type="checkbox"] {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+/* The browser's placeholder grey measured 3.7:1; the muted text token is one
+   of the pairs the contrast test holds above 4.5:1. */
+::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+/* A picker as wide as its longest option was what made Themes 497 px wide on a
+   390 px phone: *Add a work* lists every title in the library. A field and its
+   picker never outgrow the row they sit in; a long option is cut in the closed
+   picker and read whole in the open one. */
+.field {
+  min-width: 0;
+}
+
+.field select {
+  max-width: 100%;
+}
+
+@media (max-width: 40rem) {
+  /* The top bar on one row: the search field takes what the menu, the name
+     and the indicator leave, the Search button is Enter's (still there for a
+     screen reader), and an indicator naming a long trouble shows its start,
+     its glyph first, with the whole sentence a tap away on Status. */
+  header.topbar {
+    flex-wrap: nowrap;
+    padding: var(--space-2) var(--space-3);
+    gap: var(--space-2);
+  }
+
+  .topbar .search {
+    flex: 1 1 auto;
+  }
+
+  .topbar .search input {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .topbar .search button[type="submit"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .status-indicator {
+    flex: 0 1 auto;
+    max-width: 7rem;
+    overflow: hidden;
+    margin-left: 0;
+  }
+
+  .status-indicator > span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Activity's tables as stacked cards: a phone reads a run one row at a time,
+     each value under the heading that says what it is, and the row's own link
+     covers the card so the whole card opens it (`table(..., { stacked })` in
+     `core/badges.js`). */
+  table.stacked,
+  table.stacked caption,
+  table.stacked tbody,
+  table.stacked tr,
+  table.stacked td {
+    display: block;
+  }
+
+  table.stacked thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  table.stacked tr {
+    position: relative;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-1);
+    padding: var(--space-2) var(--space-3);
+    margin-bottom: var(--space-3);
+  }
+
+  table.stacked td {
+    border: none;
+    padding: var(--space-1) 0;
+    overflow-wrap: anywhere;
+  }
+
+  table.stacked td[data-label]:not([data-label=""])::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+  }
+
+  table.stacked .row-link::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+
+  /* The act's hover brightening is a filter, and a filter makes the link the
+     box its own cover is placed in: the cover shrank to the link under the
+     pointer, and a press on the card hit the row instead. */
+  table.stacked .row-link:hover {
+    filter: none;
+  }
 }

@@ -5,10 +5,20 @@
  */
 
 export async function api(path, options) {
-  const response = await fetch(path, {
-    headers: { "content-type": "application/json" },
-    ...options,
-  });
+  let response;
+  try {
+    response = await fetch(path, {
+      headers: { "content-type": "application/json" },
+      ...options,
+    });
+  } catch (failure) {
+    // No answer at all: the server is down or the network dropped. Marked,
+    // because the browser's words for it ("Failed to fetch", "Load failed")
+    // differ per browser and say nothing a curator can act on, and because a
+    // write that got no answer may or may not have happened (`core/acting.js`).
+    failure.unanswered = true;
+    throw failure;
+  }
   const body = await response.json().catch(() => null);
   if (!response.ok) {
     // The service layer writes its refusals to be shown; anything else is a

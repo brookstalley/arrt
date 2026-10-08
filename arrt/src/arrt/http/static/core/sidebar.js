@@ -18,6 +18,7 @@
  */
 
 import { el, fill } from "./render.js";
+import { paintBudget } from "./spend.js";
 
 /* The page a section's own link opens, and which pages it lists beneath it.
  *
@@ -74,10 +75,7 @@ export function paintSidebar(table, sectionList, pick) {
       "ul",
       {},
       sections.map(({ section, opens, listed }) =>
-        // `untilCounted`: hidden until its count arrives. Wanted's alone, and
-        // `paintWanted` (`core/awaiting.js`) is what shows it; a second section
-        // using the flag needs a painter of its own.
-        el("li", { class: "section", "data-section": section.key, hidden: Boolean(section.untilCounted) }, [
+        el("li", { class: "section", "data-section": section.key }, [
           link(
             opens,
             { class: "section-link" },
@@ -114,7 +112,11 @@ export function paintSidebar(table, sectionList, pick) {
         ]),
       ),
     ),
+    // What is left of this month's budget, under the sections as Sonarr puts
+    // its disk space: a standing fact, read on its own and never in the way.
+    el("div", { class: "budget", id: "budget" }),
   );
+  paintBudget({ force: true });
 }
 
 /* Mark where the curator is.
@@ -127,6 +129,9 @@ export function paintSidebar(table, sectionList, pick) {
  * state a reader needs announced. */
 export function lightSidebar(page) {
   const nav = document.getElementById("sidebar");
+  // Read again on a navigation once the last read is a minute old, so a figure
+  // left on screen all afternoon does not stand for this month's.
+  paintBudget();
   for (const node of nav.querySelectorAll("[aria-current]")) node.removeAttribute("aria-current");
   for (const node of nav.querySelectorAll("li.section")) node.removeAttribute("data-open");
   const current = sections.find(({ opens, listed }) => opens === page || listed.some((entry) => entry.view === page));

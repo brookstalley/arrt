@@ -13,6 +13,7 @@ from arrt.library.registry import RegistryCreator, RegistryPerson, RegistryWorkM
 
 ROTHKO = "Q160149"
 DALI = "Q5577"
+HOPPER = "Q203401"
 HELD_ROTHKO = "Q20270685"
 
 
@@ -22,6 +23,7 @@ def registry():
         people={
             "rothko": [RegistryPerson(qid=ROTHKO, label="Mark Rothko", born=1903, died=1970)],
             "dali": [RegistryPerson(qid=DALI, label="Salvador Dalí", born=1904, died=1989)],
+            "hopper": [RegistryPerson(qid=HOPPER, label="Edward Hopper", born=1882, died=1967)],
         },
         matches={
             # A title search: the name search finds nobody, and the maker is held.
@@ -38,6 +40,15 @@ def registry():
                     qid="Q2956755", title="Rothko Chapel", sitelinks=13, creator=RegistryCreator(qid=ROTHKO, name="Mark Rothko")
                 ),
                 RegistryWorkMatch(qid=HELD_ROTHKO, title="Untitled (Purple, White, and Red)", sitelinks=0),
+            ],
+            "hopper": [
+                RegistryWorkMatch(
+                    qid="Q912097",
+                    title="Nighthawks",
+                    sitelinks=40,
+                    image="https://commons.wikimedia.org/wiki/Special:FilePath/N.jpg",
+                    creator=RegistryCreator(qid=HOPPER, name="Edward Hopper"),
+                )
             ],
             "dali": [
                 RegistryWorkMatch(
@@ -77,7 +88,9 @@ def test_artists_and_works_come_back_marked_where_the_library_holds_them(http, h
     found = _search(http, "rothko", prefix="true")
 
     assert found["state"] == "known"
-    assert found["artists"] == [{"qid": ROTHKO, "name": "Mark Rothko", "born": 1903, "died": 1970, "artist_id": rothko.id}]
+    assert found["artists"] == [
+        {"qid": ROTHKO, "name": "Mark Rothko", "born": 1903, "died": 1970, "artist_id": rothko.id, "in_review": None}
+    ]
     assert [(w["title"], w["held_artwork_ids"]) for w in found["works"]] == [
         ("Rothko Chapel", []),
         ("Untitled (Purple, White, and Red)", [kept.id]),
@@ -86,11 +99,28 @@ def test_artists_and_works_come_back_marked_where_the_library_holds_them(http, h
 
 
 def test_an_unheld_match_carries_no_library_ids(http, held):
-    found = _search(http, "dali")
+    found = _search(http, "hopper")
 
     assert found["artists"][0]["artist_id"] is None
+    assert found["works"][0]["held_artwork_ids"] == []
     assert found["works"][0]["creator"]["artist_id"] is None
     assert found["works"][0]["image"].startswith("https://commons.wikimedia.org/wiki/Special:FilePath/")
+
+
+def test_a_held_artist_and_work_carrying_no_qid_are_one_row_each(http, store):
+    """#275 as the seeded library meets it: Dalí and *The Persistence of Memory* are held, with no QID.
+
+    By name and life dates, and by title and artist, they are the registry's rows,
+    so neither is offered again as not held. The work's maker is the same item as
+    the artist found, so it links to the same library artist.
+    """
+    dali = next(artist for artist in store.list_artists() if artist.name == "Salvador Dalí")
+
+    found = _search(http, "dali")
+
+    assert found["artists"][0]["artist_id"] == dali.id
+    assert len(found["works"][0]["held_artwork_ids"]) == 1
+    assert found["works"][0]["creator"]["artist_id"] == dali.id
 
 
 def test_the_last_word_is_a_prefix_only_when_asked(http, registry):

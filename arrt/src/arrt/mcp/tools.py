@@ -33,7 +33,7 @@ from arrt.library.services.look import ANSWER_KEPT_FOR, LOOK_HOLD_SECONDS, UNREA
 from arrt.library.services.review import MAX_REVIEW_LIMIT
 from arrt.mcp.registry import Action, Param, ToolRecord
 from arrt.persistence.discovery_records import AffinityDerivation, AffinitySentiment, RunKind, RunStatus
-from arrt.persistence.records import ArtworkStatus, VocabularyKind, WorkOrder
+from arrt.persistence.records import ArtworkStatus, EventKind, VocabularyKind, WorkOrder
 
 _STATUS = Param(
     name="status",
@@ -387,6 +387,40 @@ ART_CATALOGUE: Final = ToolRecord(
                 ),
             ),
         ),
+        Action(
+            name="history",
+            description="Return what happened, newest first: Gets, verdicts, archives, restores, and what was hung.",
+            example="art_catalogue(action='history', kinds=['wall.hung'], wall_id='<a wall_id>')",
+            params=(
+                Param(
+                    name="kinds",
+                    type="array",
+                    items="string",
+                    description=(
+                        "Only these kinds of event, any of them: "
+                        + ", ".join(kind.value for kind in EventKind)
+                        + ". Omit for every kind."
+                    ),
+                ),
+                Param(
+                    name="wall_id",
+                    type="string",
+                    description="Only this wall's history, as art_display(action='walls') names walls. Omit for every wall.",
+                ),
+                _LIMIT,
+                _OFFSET,
+            ),
+            tips=(
+                (
+                    "Recorded from the day the history arrived; nothing earlier is recovered, so an empty history "
+                    "means nothing has happened since, not that nothing ever did."
+                ),
+                (
+                    "Ids in an event may no longer resolve (an archived work, a deleted theme). Each event's detail "
+                    "carries the words it is read by: title, theme_name, selection, and how a Get ended (status)."
+                ),
+            ),
+        ),
     ),
 )
 
@@ -397,7 +431,9 @@ ART_CATALOGUE: Final = ToolRecord(
 #: it governed both — telling a model that omitting `run_id` prices a new question
 #: on the four actions where omitting it is simply an error. What each action does
 #: with it belongs in that action's own description and tips, which `help` shows.
-_RUN_ID_DESCRIPTION = "A discovery run's id, as returned by action='start' or action='list_runs'."
+_RUN_ID_DESCRIPTION = (
+    "A discovery run's id (a Get, in the curator's browser), as returned by action='start' or action='list_runs'."
+)
 
 _RUN_ID = Param(name="run_id", type="string", description=_RUN_ID_DESCRIPTION, required=True)
 
@@ -410,9 +446,17 @@ ART_DISCOVERY: Final = ToolRecord(
     #: No longer "the only tool that spends money" — `art_catalogue`'s
     #: `set_mat_color` asks a vision model when given no colour. The distinction
     #: that survives is scale, and it is the one a curator needs: a discovery run
-    #: is the operation with a budget, an approval gate and a ceiling behind it,
-    #: while a mat call is a fraction of a cent against one work.
-    summary="Propose and resolve new works. The only tool that spends money in amounts worth authorising.",
+    #: is the operation with an estimate, a tier and a ceiling behind it, while
+    #: a mat call is a fraction of a cent against one work.
+    #: The action names stay as they are — tool and action names are a frozen
+    #: contract with every agent already calling them, and this surface has no
+    #: action aliases — so the curator's word is carried in the summary instead:
+    #: every run is what the browser calls a Get, and an agent talking to the
+    #: curator should call it that (`information-architecture.md` § Vocabulary).
+    summary=(
+        "Propose and resolve new works. The only tool that spends money in amounts worth pricing first. "
+        "Each run is what the curator's browser calls a Get, at #get/<run_id>; say Get, not run or search, to them."
+    ),
     read_only=False,
     destructive=True,
     open_world=True,
@@ -429,11 +473,15 @@ ART_DISCOVERY: Final = ToolRecord(
                 ),
                 (
                     "With no run_id the answer covers phase 1 — one model call and its search allowance. With a "
-                    "run_id it is that run's stored phase-2 figure, which is what its approval gate authorises against."
+                    "run_id it is that run's stored phase-2 figure."
                 ),
                 (
                     "Both figures are bounded rather than typical: they price the whole search allowance, because a "
                     "number a run may freely exceed is not an estimate."
+                ),
+                (
+                    "`tier` is the figure as the curator sees it before acting: free, $ (under $0.05), $$ (under "
+                    "$0.50) or $$$. Starting the run is the approval; nothing stops to ask."
                 ),
             ),
         ),
@@ -455,8 +503,8 @@ ART_DISCOVERY: Final = ToolRecord(
                     "with that id, which holds until something changes rather than answering straight away."
                 ),
                 (
-                    "A run that proposes more works than the configured threshold stops and waits for "
-                    "action='approve' before spending anything on phase 2."
+                    "Starting is the approval: a run goes from its work list straight on to finding images, "
+                    "however many works it proposed. Price it first with action='estimate'."
                 ),
                 (
                     "Works the curator has already rejected are skipped rather than proposed again, so a run may "
@@ -486,7 +534,12 @@ ART_DISCOVERY: Final = ToolRecord(
             description="Accept a run's work list and its price, letting it proceed to finding images.",
             example="art_discovery(action='approve', run_id='<a run_id awaiting approval>')",
             params=(_RUN_ID,),
-            tips=("Only a run in 'awaiting_approval' can be approved; check action='status' first.",),
+            tips=(
+                (
+                    "Only a run in 'awaiting_approval' can be approved, and no run stops there now: only one "
+                    "stored there before asking became the approval. Check action='status' first."
+                ),
+            ),
         ),
         Action(
             name="decline",
@@ -496,7 +549,7 @@ ART_DISCOVERY: Final = ToolRecord(
             tips=(
                 (
                     "Declining is not the same as cancelling: it is a judgement on the work list, and it is "
-                    "available only while the run is waiting for one."
+                    "available only for a run stored waiting for one before asking became the approval."
                 ),
             ),
         ),
@@ -507,8 +560,8 @@ ART_DISCOVERY: Final = ToolRecord(
             params=(_RUN_ID,),
             tips=(
                 (
-                    "Available from every state a run can still leave, including while it waits for approval — "
-                    "wanting a run gone is a different thing from declining what it found."
+                    "Available from every state a run can still leave, including a run stored waiting for "
+                    "approval — wanting a run gone is a different thing from declining what it found."
                 ),
                 "A run that has already ended cannot be cancelled; the refusal names how it ended.",
             ),
@@ -575,9 +628,9 @@ ART_DISCOVERY: Final = ToolRecord(
             tips=(
                 "This spends nothing: a Get has no phase 1, and the image sources it asks are free.",
                 (
-                    "An item the library already holds, one a Get under way is already looking for, and one "
-                    "Wikidata has no work for are skipped and listed under `skipped`, not refused. When every "
-                    "item is skipped no run starts and `run_id` is null."
+                    "An item the library already holds, one a Get under way is already looking for, one waiting "
+                    "in To review, and one Wikidata has no work for are skipped and listed under `skipped`, not "
+                    "refused. When every item is skipped no run starts and `run_id` is null."
                 ),
                 (
                     "The run is like any other: action='status' and action='cancel' take its run_id, and its works "
@@ -632,7 +685,7 @@ ART_DISCOVERY: Final = ToolRecord(
         Action(
             name="list_runs",
             description="List discovery runs, newest first, optionally narrowed to one state or kind.",
-            example="art_discovery(action='list_runs', status='awaiting_approval')",
+            example="art_discovery(action='list_runs', status='resolving_images')",
             params=(
                 Param(
                     name="status",
@@ -790,6 +843,12 @@ ART_REVIEW: Final = ToolRecord(
                     "Works with an image found for them come first, then ones nothing was found for. A work "
                     "reported unresolved is not a defect; read `unresolved_reason` for which kind of nothing. "
                     "Only `not_held` suggests the work may not exist."
+                ),
+                (
+                    "Within each of those, `confirmation` orders the rows: `confirmed` (a source names the "
+                    "work), then `unknown` (the model said nothing), then `unconfirmed` (the model said no "
+                    "source it was given names it). A work that is not confirmed may be a title the model "
+                    "invented; check it before accepting."
                 ),
                 (
                     "Read `provenance` on every row. `proposed` is a work the model named for this intent; "
@@ -1214,6 +1273,72 @@ ART_THEME: Final = ToolRecord(
                     "art_display(action='sync') does — a theme can be half-displayable."
                 ),
                 "Switching costs no television writes: the whole library stays on the TV and rotation is driven from here.",
+            ),
+        ),
+        Action(
+            name="hang_selection",
+            description="Hang one or more chosen works on a named wall, until something else is hung there.",
+            example="art_theme(action='hang_selection', wall_id='<a wall_id>', artwork_ids=['<an artwork_id>'])",
+            params=(
+                _WALL_ID,
+                Param(
+                    name="artwork_ids",
+                    type="array",
+                    items="string",
+                    description="The works to hang, in the order they should show, as art_catalogue(action='list') names them.",
+                    required=True,
+                ),
+            ),
+            tips=(
+                (
+                    "A selection is kept as a theme marked hidden: action='list' leaves it out, and the wall it hangs "
+                    "on reports it with hidden=true. Hanging anything else there replaces it."
+                ),
+                (
+                    "The result is the same as action='activate': every work that will NOT be on the wall and why, "
+                    "including a work kept off every wall by action='not_again'."
+                ),
+            ),
+        ),
+        Action(
+            name="not_again",
+            description="Not this one again: take a work out of the theme on a wall, or keep it off every wall.",
+            example="art_theme(action='not_again', wall_id='<a wall_id>', artwork_id='<an artwork_id>', scope='theme')",
+            params=(
+                _WALL_ID,
+                Param(name="artwork_id", type="string", description="The work to take off.", required=True),
+                Param(
+                    name="scope",
+                    type="string",
+                    description=(
+                        "theme: out of the theme hanging on that wall, and so off every wall hanging it. "
+                        "every_wall: off every wall until allowed again; the work stays in the library and its themes."
+                    ),
+                    choices=("theme", "every_wall"),
+                    required=True,
+                ),
+            ),
+            tips=(
+                "Ask which the curator meant; the two are different changes. Neither archives the work.",
+                "The walls carrying it lose it now, without a sync, and nothing else on them changes.",
+                "every_wall is undone with action='allow_again'.",
+            ),
+        ),
+        Action(
+            name="kept_off",
+            description="Return every work kept off every wall by action='not_again', oldest first.",
+            example="art_theme(action='kept_off')",
+        ),
+        Action(
+            name="allow_again",
+            description="Let a work kept off every wall go on walls again.",
+            example="art_theme(action='allow_again', artwork_id='<an artwork_id>')",
+            params=(Param(name="artwork_id", type="string", description="The work to allow again.", required=True),),
+            tips=(
+                (
+                    "Nothing is republished: a theme holding the work carries it again the next time it is hung or "
+                    "synced (art_display(action='sync'))."
+                ),
             ),
         ),
         Action(

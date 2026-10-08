@@ -13,6 +13,7 @@ that criterion end to end; the rest pin the pieces it would be easy to break
 without failing it.
 """
 
+import io
 import json
 import pathlib
 import re
@@ -21,6 +22,7 @@ from typing import ClassVar
 
 import httpx
 import pytest
+from PIL import Image
 
 from arrt.http.pages import STATIC_DIR, UI_PATHS
 from arrt.persistence.backup import BACKUP_RECEIPT_FILENAME
@@ -134,7 +136,9 @@ class TestTheClientIsServed:
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
         assert "<title>Arrt</title>" in response.text
-        assert '<h1 class="brand">Arrt</h1>' in response.text
+        assert '<p class="brand">Arrt</p>' in response.text
+        # Each screen's heading is its h1, so the shell itself carries none.
+        assert "<h1" not in response.text
 
     def test_a_deep_link_survives_a_reload(self, http):
         """In-page navigation writes a fragment, but a bookmark is a real path.
@@ -268,6 +272,40 @@ class TestThumbnails:
     def test_a_work_with_no_image_refuses_with_the_reason_shown_on_its_card(self, http, seeded_service):
         empty = next(work for work in seeded_service.list_artworks().entries)
         response = http.get(f"/api/works/{empty.artwork.id}/thumbnail")
+        assert response.status_code == 400
+        assert "No master image" in response.json()["error"]
+
+    def test_a_thumbnail_is_the_work_itself_while_the_wall_preview_is_the_canvas(self, http, hold):
+        """A tile shows the work at its own aspect; the wall render is the Work page's.
+
+        A portrait master under a 16:9 canvas, so the two routes cannot agree by
+        accident: the tile keeps the master's shape and the preview takes the
+        canvas's, and the preview is larger, because the Work page draws it across
+        a column.
+        """
+        artwork = hold("Automat", width=3000, height=4000, rendered=True, mat=True)
+        tile = http.get(f"/api/works/{artwork.id}/thumbnail")
+        preview = http.get(f"/api/works/{artwork.id}/wall-preview")
+        assert tile.status_code == preview.status_code == 200
+        assert preview.headers["content-type"] == "image/jpeg"
+        with Image.open(io.BytesIO(tile.content)) as picture:
+            assert picture.size[1] / picture.size[0] == pytest.approx(4000 / 3000, abs=0.01)
+            tile_edge = max(picture.size)
+        with Image.open(io.BytesIO(preview.content)) as picture:
+            assert picture.size[0] / picture.size[1] == pytest.approx(3840 / 2160, abs=0.01)
+            assert max(picture.size) > tile_edge
+
+    def test_a_wall_preview_revalidates_and_answers_a_held_copy_with_a_304(self, http, hold):
+        """A recomposed canvas rewrites the preview under the same name, as a new master does a thumbnail."""
+        artwork = hold("Automat", rendered=True)
+        first = http.get(f"/api/works/{artwork.id}/wall-preview")
+        assert "no-cache" in first.headers["cache-control"]
+        again = http.get(f"/api/works/{artwork.id}/wall-preview", headers={"If-None-Match": first.headers["etag"]})
+        assert again.status_code == 304
+
+    def test_a_work_with_no_image_has_no_wall_preview_either(self, http, seeded_service):
+        empty = next(work for work in seeded_service.list_artworks().entries)
+        response = http.get(f"/api/works/{empty.artwork.id}/wall-preview")
         assert response.status_code == 400
         assert "No master image" in response.json()["error"]
 
@@ -487,13 +525,15 @@ class TestHealth:
         assert backup["reported"]["destination"].endswith("catalogue-2026-08-05.sqlite")
 
     def test_no_budget_balance_appears_anywhere_on_the_panel(self, http):
-        """Settled 2026-08-04, and asserted because the temptation recurs.
+        """The month's budget is the sidebar's, from `/api/budget`, and never this panel's.
 
-        `limit_remaining` reads non-zero while calls are already being refused, so
-        it fails by inversion rather than by staleness — and stating its age, this
-        panel's whole remedy for a stale figure, would not warn about the case
-        that bites. A future edit that adds it back has to delete this test, which
-        is the point at which the decision gets reopened rather than forgotten.
+        Shown since the owner's ruling of 2026-10-07 (#290), which reversed the
+        2026-08-04 decision to show it nowhere. It stays off this panel: the
+        panel states observations with their ages, and `limit_remaining` fails
+        by inversion rather than by staleness (it reads non-zero while calls are
+        already refused), so an age beside it would not warn about the case that
+        bites. The sidebar says what is left; the provider's refusal at the cap
+        says the month's budget is spent.
         """
         named = _every_key(http.get("/api/health").json())
         assert not [key for key in named if any(word in key for word in ("limit", "credit", "balance", "budget"))]
@@ -707,13 +747,15 @@ class TestThumbnailRevalidation:
         so is visible to the catalogue's inherited staleness rule. Setting a mat
         colour moves nothing that rule can see: same original, same path, same
         geometry. So this is the case where a validator a browser is holding must
-        stop matching because of the thumbnail's own rule and nothing else — and
-        `no-cache` means the browser asks every time, so a 304 here is a curator
-        looking at the colour they just replaced.
+        stop matching because of the wall preview's own rule and nothing else —
+        and `no-cache` means the browser asks every time, so a 304 here is a
+        curator looking at the colour they just replaced. The Work page is where
+        the mat is seen; a tile is the work itself, so its validator holds.
         """
         artwork = hold("Automat", rendered=True, mat=True)
         rendered = f"ready/{artwork.id}.jpg"
-        stale_etag = http.get(f"/api/works/{artwork.id}/thumbnail").headers["etag"]
+        stale_etag = http.get(f"/api/works/{artwork.id}/wall-preview").headers["etag"]
+        tile_etag = http.get(f"/api/works/{artwork.id}/thumbnail").headers["etag"]
 
         # What pressing a mat preset amounts to: recompose in place, re-record.
         decodable_jpeg(settings.art_root / rendered, width=3840, height=2160, color=(200, 190, 170))
@@ -725,9 +767,11 @@ class TestThumbnailRevalidation:
             path=rendered,
         )
 
-        response = http.get(f"/api/works/{artwork.id}/thumbnail", headers={"If-None-Match": stale_etag})
+        response = http.get(f"/api/works/{artwork.id}/wall-preview", headers={"If-None-Match": stale_etag})
         assert response.status_code == 200, "the browser was told its picture of the old mat is still current"
         assert response.headers["etag"] != stale_etag
+        tile = http.get(f"/api/works/{artwork.id}/thumbnail", headers={"If-None-Match": tile_etag})
+        assert tile.status_code == 304, "a mat is the wall's, and the tile of the work itself should not change with it"
 
     def test_a_wildcard_validator_matches_whatever_is_held(self, http, hold):
         """`*` matches any current representation, per RFC 9110.

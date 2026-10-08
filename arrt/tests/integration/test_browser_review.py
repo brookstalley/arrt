@@ -20,6 +20,7 @@ comes back.
 """
 
 import json
+from dataclasses import replace
 from io import BytesIO
 
 import httpx
@@ -112,6 +113,23 @@ class TestTheGrid:
         assert {card["work"]["title"] for card in page["works"]} == {"The Elephants", "Swans Reflecting Elephants"}
         assert all(card["shown"] is not None for card in page["works"])
         assert all(card["shown"]["preview_available"] for card in page["works"])
+
+    def test_a_card_says_whether_a_source_confirms_its_work(self, http, engine):
+        """#276: the model's word on its source reaches the card; the order it sets is the review service's."""
+        engine.result = WorkList(
+            works=(
+                replace(a_work("The Elephants"), source_confirmed=False),
+                replace(a_work("Swans Reflecting Elephants"), source_confirmed=True),
+            )
+        )
+        run_id = a_finished_run(http)
+
+        page = http.get(f"/api/runs/{run_id}/candidates").json()
+
+        assert {card["work"]["title"]: card["work"]["confirmation"] for card in page["works"]} == {
+            "The Elephants": "unconfirmed",
+            "Swans Reflecting Elephants": "confirmed",
+        }
 
     def test_the_picture_a_card_points_at_is_a_real_image(self, http):
         """Asserted as decodable bytes, not as a 200.

@@ -31,12 +31,13 @@
  * one exception is deliberate and marked where it happens.
  */
 
+import { attempt } from "../core/acting.js";
 import { api, fetchAllWorks } from "../core/api.js";
 import { fitBadge, shortfallNote, table } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
 import { hangTheme } from "../core/hanging.js";
 import { el, fill, guard, render } from "../core/render.js";
-import { backLink, backRow, go, refresh } from "../core/router.js";
+import { backLink, backRow, go, link, refresh, setTitle } from "../core/router.js";
 
 export async function viewTheme(themeId, generation) {
   // The walls come along because hanging is an act against a named wall: a
@@ -75,23 +76,25 @@ export async function viewTheme(themeId, generation) {
 
   const name = el("input", { type: "text", id: "new-theme-name", required: true });
   const create = el("div", { class: "panel" }, [
-    el("h3", { text: "New theme" }),
+    el("h2", { text: "New theme" }),
     el("div", { class: "row" }, [
       el("div", { class: "field" }, [el("label", { for: "new-theme-name", text: "Name" }), name]),
       el("button", {
         class: "action",
         type: "button",
         text: "Create",
-        onclick: () =>
-          guard(async () => {
-            await api("/api/themes", { method: "POST", body: JSON.stringify({ name: name.value }) });
-            await refresh();
-          }),
+        onclick: (event) =>
+          attempt(
+            event.currentTarget,
+            name.value.trim() ? `create ${name.value.trim()}` : "create the theme",
+            () => api("/api/themes", { method: "POST", body: JSON.stringify({ name: name.value }) }),
+            { then: () => refresh() },
+          ),
       }),
     ]),
   ]);
 
-  const panels = [backRow(), el("h2", { text: "Themes" }), create, ...notes];
+  const panels = [backRow(), el("h1", { text: "Themes" }), create, ...notes];
 
   /* The themes, in their own container so a delete can repaint them from the
    * answer it was given rather than reloading the screen. Nothing else on this
@@ -114,8 +117,8 @@ export async function viewTheme(themeId, generation) {
  *
  * The panel is the index's, unchanged, so every act arrives with it. What
  * differs is that its name is the page's own heading rather than one of many
- * below a heading reading "Themes" — hence `heading: "h2"`: a screen about one
- * thing whose only `h2` named the set would leave a reader tabbing by heading
+ * below a heading reading "Themes" — hence `heading: "h1"`: a screen about one
+ * thing whose only `h1` named the set would leave a reader tabbing by heading
  * with nothing saying which theme they are on.
  *
  * **A theme that is not in the listing is an ordinary state, not an error.** The
@@ -128,13 +131,13 @@ function oneTheme(themeId, { themes, walls, works, notes, generation }) {
     render(
       generation,
       el("p", {}, [backLink()]),
-      el("h2", { text: "That theme is not here" }),
+      el("h1", { text: "That theme is not here" }),
       el("p", {
         class: "note",
         text: "Nothing in the collection has this address. It was most likely deleted — the themes that do exist are listed together.",
       }),
       el("div", { class: "row" }, [
-        el("button", { class: "action", type: "button", text: "All themes", onclick: () => go("theme") }),
+        link({ view: "theme" }, { class: "action", text: "All themes" }),
       ]),
     );
     return;
@@ -143,15 +146,16 @@ function oneTheme(themeId, { themes, walls, works, notes, generation }) {
   // rather than repainting a list this page does not show. The index's own
   // delete repaints in place, which is right there and wrong here: the answer
   // names the themes that remain, and none of them is the one being addressed.
+  setTitle(generation, placement.theme.name);
   render(
     generation,
     el("p", {}, [backLink()]),
     ...notes,
-    themePanel(placement, walls.walls, works.works, () => go("theme"), { heading: "h2" }),
+    themePanel(placement, walls.walls, works.works, () => go("theme"), { heading: "h1" }),
   );
 }
 
-function themePanel(placement, walls, allWorks, repaintThemes, { heading: headingTag = "h3" } = {}) {
+function themePanel(placement, walls, allWorks, repaintThemes, { heading: headingTag = "h2" } = {}) {
   const theme = placement.theme;
   const hangingOn = placement.hanging_on;
   // The name is read back from every rename rather than kept as the value that
@@ -204,29 +208,36 @@ function themePanel(placement, walls, allWorks, repaintThemes, { heading: headin
     type: "button",
     text: "Rename",
     "aria-label": `Rename ${currentName}`,
-    onclick: () =>
-      guard(async () => {
-        const renamed = await api(`/api/themes/${encodeURIComponent(theme.theme_id)}`, {
-          method: "POST",
-          body: JSON.stringify({ name: rename.value }),
-        });
-        currentName = renamed.name;
-        heading.textContent = currentName;
-        rename.value = currentName;
-        nameTheControls();
-        // The membership controls name the theme they remove from, so they
-        // are repainted too — a table still offering "Remove from Winter"
-        // under a heading that reads "Late night" is one a curator has to
-        // work out which of the two to believe.
-        paintMembers(members);
-      }),
+    onclick: (event) =>
+      attempt(
+        event.currentTarget,
+        `rename ${currentName}`,
+        () =>
+          api(`/api/themes/${encodeURIComponent(theme.theme_id)}`, {
+            method: "POST",
+            body: JSON.stringify({ name: rename.value }),
+          }),
+        {
+          then: (renamed) => {
+            currentName = renamed.name;
+            heading.textContent = currentName;
+            rename.value = currentName;
+            nameTheControls();
+            // The membership controls name the theme they remove from, so they
+            // are repainted too — a table still offering "Remove from Winter"
+            // under a heading that reads "Late night" is one a curator has to
+            // work out which of the two to believe.
+            paintMembers(members);
+          },
+        },
+      ),
   });
   const deleteButton = el("button", {
     class: "action quiet",
     type: "button",
     text: "Delete",
     "aria-label": `Delete ${currentName}`,
-    onclick: () => guard(() => remove(theme.theme_id, currentName, repaintThemes)),
+    onclick: (event) => remove(event.currentTarget, theme.theme_id, currentName, repaintThemes),
   });
   /* **Unconfirmed, like taking a theme down**: it moves a mark, changes no wall
    * and touches no work already in any theme, and the undo is the same button on
@@ -241,11 +252,13 @@ function themePanel(placement, walls, allWorks, repaintThemes, { heading: headin
         type: "button",
         text: "Make default",
         "aria-label": `Make default: ${currentName}`,
-        onclick: () =>
-          guard(async () => {
-            await api(`/api/themes/${encodeURIComponent(theme.theme_id)}/default`, { method: "POST" });
-            await refresh();
-          }),
+        onclick: (event) =>
+          attempt(
+            event.currentTarget,
+            `make ${currentName} the default`,
+            () => api(`/api/themes/${encodeURIComponent(theme.theme_id)}/default`, { method: "POST" }),
+            { then: () => refresh() },
+          ),
       });
   /* **Every theme on this screen renders the same three controls, so the visible
    * words cannot tell them apart.** A curator reading the panel has the heading
@@ -310,14 +323,17 @@ function themePanel(placement, walls, allWorks, repaintThemes, { heading: headin
         class: "action quiet",
         type: "button",
         text: "Add",
-        onclick: () =>
-          guard(async () => {
-            const detail = await api(`/api/themes/${encodeURIComponent(theme.theme_id)}/works`, {
-              method: "POST",
-              body: JSON.stringify({ artwork_id: picker.value }),
-            });
-            paintMembers(detail.works);
-          }),
+        onclick: (event) =>
+          attempt(
+            event.currentTarget,
+            `add ${picker.selectedOptions.length ? picker.selectedOptions[0].text : "the work"} to ${currentName}`,
+            () =>
+              api(`/api/themes/${encodeURIComponent(theme.theme_id)}/works`, {
+                method: "POST",
+                body: JSON.stringify({ artwork_id: picker.value }),
+              }),
+            { then: (detail) => paintMembers(detail.works) },
+          ),
       }),
       // One button per wall, named for that wall. There is no single-wall
       // shortcut to replace when a second display arrives, which is the whole
@@ -338,7 +354,7 @@ function themePanel(placement, walls, allWorks, repaintThemes, { heading: headin
             class: "action",
             type: "button",
             text: `Hang on ${wall.name}`,
-            onclick: () => guard(() => hang(theme.theme_id, currentName, wall)),
+            onclick: (event) => hang(event.currentTarget, theme.theme_id, currentName, wall),
           }),
         ),
       // **Unconfirmed, and that is a decision.** Flow 6 makes activation the act
@@ -352,11 +368,13 @@ function themePanel(placement, walls, allWorks, repaintThemes, { heading: headin
           class: "action quiet",
           type: "button",
           text: `Take down from ${wall.name}`,
-          onclick: () =>
-            guard(async () => {
-              await api(`/api/walls/${encodeURIComponent(wall.wall_id)}/theme`, { method: "DELETE" });
-              await refresh();
-            }),
+          onclick: (event) =>
+            attempt(
+              event.currentTarget,
+              `take ${currentName} down from ${wall.name}`,
+              () => api(`/api/walls/${encodeURIComponent(wall.wall_id)}/theme`, { method: "DELETE" }),
+              { then: () => refresh() },
+            ),
         }),
       ),
     ]),
@@ -367,8 +385,8 @@ function themePanel(placement, walls, allWorks, repaintThemes, { heading: headin
 /* Leaves for the Walls screen, which is where the result of this act is. The
  * question, the preview and the request are `core/hanging.js`'s — the Walls
  * screen asks the same one, and one act must not have two wordings. */
-const hang = (themeId, themeName, wall) =>
-  hangTheme({ themeId, themeName, wall, then: async () => go("walls") });
+const hang = (control, themeId, themeName, wall) =>
+  hangTheme({ control, themeId, themeName, wall, then: async () => go("walls") });
 
 /* Deleting a theme — the one act on this screen that destroys something.
  *
@@ -384,12 +402,17 @@ const hang = (themeId, themeName, wall) =>
  *
  * **The refusal is the server's and is shown as it was written.** A theme
  * hanging anywhere cannot be deleted, and the message names the rooms and both
- * ways out of it; `guard` puts that sentence in front of the curator unchanged.
+ * ways out of it, said beside Delete as it was written (`core/acting.js`).
  * Nothing here predicts the refusal from `hanging_on` — a second copy of the
  * rule would be a second thing to keep true, and it would be wrong about a theme
  * somebody hung from another tab a moment ago. */
-async function remove(themeId, themeName, repaintThemes) {
-  const detail = await api(`/api/themes/${encodeURIComponent(themeId)}`);
+async function remove(control, themeId, themeName, repaintThemes) {
+  const act = `delete ${themeName}`;
+  let detail = null;
+  const read = await attempt(control, act, async () => {
+    detail = await api(`/api/themes/${encodeURIComponent(themeId)}`);
+  });
+  if (!read) return;
   const held = detail.works.length;
   const confirmed = await confirmAct({
     title: `Delete ${themeName}?`,
@@ -399,8 +422,9 @@ async function remove(themeId, themeName, repaintThemes) {
     confirmLabel: "Delete",
   });
   if (!confirmed) return;
-  const remaining = await api(`/api/themes/${encodeURIComponent(themeId)}`, { method: "DELETE" });
-  repaintThemes(remaining.themes);
+  await attempt(control, act, () => api(`/api/themes/${encodeURIComponent(themeId)}`, { method: "DELETE" }), {
+    then: (remaining) => repaintThemes(remaining.themes),
+  });
 }
 
 function memberList(themeId, themeName, works, paint) {
@@ -412,14 +436,17 @@ function memberList(themeId, themeName, works, paint) {
     // from it. A second read would be the same order arrived at more slowly, and
     // repainting from the *sent* position would be optimism: the service clamps
     // and renumbers, so where a work lands is its answer to give.
-    const move = (position) =>
-      guard(async () => {
-        const detail = await api(
-          `/api/themes/${encodeURIComponent(themeId)}/works/${encodeURIComponent(work.artwork_id)}/position`,
-          { method: "POST", body: JSON.stringify({ position }) },
-        );
-        paint(detail.works);
-      });
+    const move = (position, words) => (event) =>
+      attempt(
+        event.currentTarget,
+        `move ${work.title} ${words}`,
+        () =>
+          api(`/api/themes/${encodeURIComponent(themeId)}/works/${encodeURIComponent(work.artwork_id)}/position`, {
+            method: "POST",
+            body: JSON.stringify({ position }),
+          }),
+        { then: (detail) => paint(detail.works) },
+      );
     const controls = el("div", { class: "row" }, [
       el("button", {
         class: "action quiet",
@@ -427,7 +454,7 @@ function memberList(themeId, themeName, works, paint) {
         text: "↑",
         "aria-label": `Move ${work.title} earlier`,
         disabled: index === 0,
-        onclick: () => move(index - 1),
+        onclick: move(index - 1, "earlier"),
       }),
       el("button", {
         class: "action quiet",
@@ -435,7 +462,7 @@ function memberList(themeId, themeName, works, paint) {
         text: "↓",
         "aria-label": `Move ${work.title} later`,
         disabled: index === works.length - 1,
-        onclick: () => move(index + 1),
+        onclick: move(index + 1, "later"),
       }),
       // **The label says which collection the work is leaving.** "Remove" alone
       // promises the work is gone, and `information-architecture.md` rules that
@@ -450,14 +477,13 @@ function memberList(themeId, themeName, works, paint) {
         type: "button",
         text: `Remove from ${themeName}`,
         "aria-label": `Remove ${work.title} from ${themeName}`,
-        onclick: () =>
-          guard(async () => {
-            const detail = await api(
-              `/api/themes/${encodeURIComponent(themeId)}/works/${encodeURIComponent(work.artwork_id)}`,
-              { method: "DELETE" },
-            );
-            paint(detail.works);
-          }),
+        onclick: (event) =>
+          attempt(
+            event.currentTarget,
+            `remove ${work.title} from ${themeName}`,
+            () => api(`/api/themes/${encodeURIComponent(themeId)}/works/${encodeURIComponent(work.artwork_id)}`, { method: "DELETE" }),
+            { then: (detail) => paint(detail.works) },
+          ),
       }),
     ]);
     return [String(index + 1), work.title, work.artist ? work.artist.name : "—", fitBadge(work), controls];

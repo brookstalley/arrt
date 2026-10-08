@@ -105,6 +105,29 @@ Two findings were resolved in this branch rather than filed: the stale
 already holds them), and the harness's own blind spot for pictures below the
 fold.
 
+## Closed by `build-plan-walls-work-and-trust.md` (2026-10-08)
+
+Built on `feature/walls-work-and-trust` against the ranked list above. **Closed:**
+1–3 and 13 (Walls leads with the work on the wall; Skip, *Not this one again*,
+Change; the Work page's state strip and Hang…; Archive secondary), 4, 5 and 21
+(navigation is a link; scroll, focus and Back; a title per page), 6 (a stale
+client report no longer reads "Shown by"), 7 and 9 (search folds held twins and
+marks works waiting for review; a Get skips both), 10 (*Not confirmed*, Markdown
+as text, Undo by a 5-second hold, since an accept cannot be reversed on the
+server), 11 (failures beside the control), 12 (tiles show the art), 14, 15 and
+30 (phone layout and keyboard), 16 (Get, everywhere), 20 (one date formatter,
+costs to the cent, plain words), 24's Wanted half, and 26 (History is events).
+Ruling 3's budget and tiers are built too.
+
+**Not closed:** 8 (#252, the hand-run matcher), 17 (#131), 18 (#281), 19 (#282),
+22 (#284), 23 (#285), 24's Settings half (#286), 25 (#265), 27 (#287), 28
+(#288), 29 (#289). Server sentences that still name plugins are filed apart.
+
+**Re-photographed:** Pass 1 against a synthetic 2,000-work library on 2026-10-08:
+no screen is reached only by a script button, and none is a dead end. The live
+walk of S1, S6 and S8, with writes, waits on the branch being deployed, and Pass 4
+is still the owner's.
+
 ## What works, and should survive a redesign
 
 Several reviewers named these independently.

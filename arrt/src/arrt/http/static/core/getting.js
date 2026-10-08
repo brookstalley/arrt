@@ -24,8 +24,10 @@
 
 import { api } from "./api.js";
 import { agree, counted } from "./counting.js";
-import { el, fill, guard } from "./render.js";
-import { go } from "./router.js";
+import { attempt } from "./acting.js";
+import { el, fill } from "./render.js";
+import { tierMark } from "./spend.js";
+import { link } from "./router.js";
 
 /* The select's values for *New theme…* and for a caller's name that is no theme
  * yet. Theme ids are UUIDs, and the default theme's option has the empty value,
@@ -94,7 +96,7 @@ function destinationControl({ defaultName = null } = {}) {
     if (offered) picker.value = OFFERED;
     showNaming();
   });
-  // The server's reason is said when the Get is pressed, by the Get's own guard,
+  // The server's reason is said when the Get is pressed, beside the Get,
   // since `resolve` awaits this. Caught here as well, so the select does not go
   // on saying it is reading and a listing nobody has asked about yet is not an
   // unhandled rejection.
@@ -144,6 +146,7 @@ function destinationControl({ defaultName = null } = {}) {
 export const SKIP_WORDS = {
   held: ["is already in your library", "are already in your library"],
   being_got: ["is already being got", "are already being got"],
+  in_review: ["is already waiting for review", "are already waiting for review"],
   not_found: ["is not a work Wikidata has", "are not works Wikidata has"],
 };
 
@@ -174,7 +177,7 @@ async function getAndSay(qids, status, destination) {
     el("span", { text: getSentence(qids.length, outcome, into.name) }),
     outcome.run ? " " : null,
     outcome.run
-      ? el("button", { class: "link", type: "button", text: "Open the Get", onclick: () => go("run", outcome.run.run_id) })
+      ? link({ view: "get", id: outcome.run.run_id }, { class: "link", text: "Open the Get" })
       : null,
   );
   status.focus();
@@ -200,9 +203,9 @@ export function getSelection({ defaultName = null } = {}) {
     button.disabled = chosen.size === 0;
     button.textContent = chosen.size ? `Get ${counted(chosen.size, "work")}` : "Get";
   };
-  button.addEventListener("click", () =>
-    guard(async () => {
-      const qids = [...chosen.keys()];
+  button.addEventListener("click", () => {
+    const qids = [...chosen.keys()];
+    attempt(button, `get ${counted(qids.length, "work")}`, async () => {
       button.disabled = true;
       try {
         await getAndSay(qids, status, destination);
@@ -211,11 +214,13 @@ export function getSelection({ defaultName = null } = {}) {
       } finally {
         settle();
       }
-    }),
-  );
+    });
+  });
   settle();
   return {
-    node: el("div", { class: "row get-control" }, [destination.node, button, status]),
+    // Free by construction: a Get has no model phase, and the image sources it
+    // asks charge nothing (`api-contract.md` § `POST /api/gets`).
+    node: el("div", { class: "row get-control" }, [destination.node, button, tierMark("free"), status]),
     box(qid, title) {
       const box = el("input", { type: "checkbox", "aria-label": `Select ${title} to get` });
       box.addEventListener("change", () => {
@@ -234,7 +239,7 @@ export function getOne(qid, { defaultName = null } = {}) {
   const destination = destinationControl({ defaultName });
   const button = el("button", { class: "action", type: "button", text: "Get this work" });
   button.addEventListener("click", () =>
-    guard(async () => {
+    attempt(button, "get this work", async () => {
       button.disabled = true;
       try {
         const outcome = await getAndSay([qid], status, destination);
@@ -246,5 +251,5 @@ export function getOne(qid, { defaultName = null } = {}) {
       }
     }),
   );
-  return el("div", { class: "row get-control" }, [destination.node, button, status]);
+  return el("div", { class: "row get-control" }, [destination.node, button, tierMark("free"), status]);
 }

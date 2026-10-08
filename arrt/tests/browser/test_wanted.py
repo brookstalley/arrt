@@ -2,9 +2,11 @@
 
 The owner's ruling on #168 (2026-10-02): a work its search found no scan for
 offers **Want** and **Forget** in place of Accept and Reject; wanted works, with
-or without a scan, wait in **Wanted**, each with *Search again* and
-*Forget*, and *Search all*; Search again on a work with no Wikidata item first
-offers Wikidata's matches to pick from (`build-plan-after-review.md` Chunks 03-05).
+or without a scan, wait in **Wanted**, each with *Get again* and *Forget*, and
+*Get all again*; Get again on a work with no Wikidata item first offers
+Wikidata's matches to pick from (`build-plan-after-review.md` Chunks 03-05).
+Wanted is always in the sidebar, counted when something is wanted (ruling 5 of
+2026-10-07), and Forget is held for Undo as a review card's verdict is.
 
 Cards are stubbed, as the review grid's tests stub them; the Wanted page runs
 against the real server over works this file wants through the service, so the
@@ -150,7 +152,7 @@ def wanted(discovery, propose, resolved_work):
 
 def open_wanted(ui):
     ui.open("#wanted")
-    ui.page.wait_for_selector("h2:has-text('Wanted')")
+    ui.page.wait_for_selector("h1:has-text('Wanted')")
 
 
 def a_wanted_listing(*works: WantedWorkOut) -> dict:
@@ -260,30 +262,29 @@ def test_wanted_lists_both_kinds_saying_which(ui, wanted):
     assert "spends nothing" in ui.text()
 
 
-def test_the_wanted_section_appears_with_its_count_once_something_is_wanted(ui, wanted):
+def test_the_wanted_section_shows_its_count_once_something_is_wanted(ui, wanted):
     open_wanted(ui)
     ui.page.wait_for_function("() => document.querySelector(\"[data-count-slot='wanted']\").textContent === '2'")
 
     assert ui.page.locator("#sidebar li.section:has([data-count-slot='wanted'])").is_visible()
 
 
-def test_with_nothing_wanted_the_section_is_hidden_and_the_page_says_how_a_work_gets_here(ui):
+def test_with_nothing_wanted_the_section_is_shown_uncounted_and_the_page_names_the_controls_that_add_one(ui):
     open_wanted(ui)
     ui.page.wait_for_selector(".panel.empty")
 
-    assert "Nothing is wanted." in ui.text()
-    ui.page.wait_for_function("() => document.querySelector(\"#sidebar li.section:has([data-count-slot='wanted'])\").hidden")
-    # Not only marked hidden: a stylesheet giving the item a display would show it anyway.
-    assert ui.page.locator("#sidebar li.section:has([data-count-slot='wanted'])").is_hidden()
+    empty = ui.page.inner_text(".panel.empty")
+    assert "Nothing is wanted." in empty
+    # The controls that really put a work here, by the words they carry.
+    assert "press Want on its review card" in empty
+    assert "Turn it down" in empty
+    section = ui.page.locator("#sidebar li.section:has([data-count-slot='wanted'])")
+    assert section.is_visible()
+    assert ui.page.inner_text("[data-count-slot='wanted']") == "", "a zero says nothing a curator acts on"
 
 
-def test_the_wanted_section_is_not_shown_before_its_count_arrives(ui, wanted):
-    """Hidden from the first paint, not shown and then hidden.
-
-    Drawn visible and hidden only once `/api/wanted` answered, the section flashed
-    on every load with nothing wanted, and a test reading the sidebar in between
-    saw a section that was not there. Held here so the in-between is certain.
-    """
+def test_the_wanted_section_is_shown_before_its_count_arrives(ui, wanted):
+    """Shown from the first paint, whatever the count will say: the section is always there."""
     held = []
 
     def hold(route) -> None:
@@ -294,18 +295,19 @@ def test_the_wanted_section_is_not_shown_before_its_count_arrives(ui, wanted):
     ui.page.wait_for_selector("nav.sidebar a.section-link")
     ui.page.wait_for_function("() => document.querySelector('nav.sidebar [data-count-slot=wanted]') !== null")
 
-    assert ui.page.locator("#sidebar li.section:has([data-count-slot='wanted'])").is_hidden()
+    assert ui.page.locator("#sidebar li.section:has([data-count-slot='wanted'])").is_visible()
     for route in held:
         route.continue_()
     ui.page.wait_for_function("() => document.querySelector(\"[data-count-slot='wanted']\").textContent === '2'")
-    assert ui.page.locator("#sidebar li.section:has([data-count-slot='wanted'])").is_visible()
 
 
-def test_on_wanted_its_section_is_lit_as_where_the_curator_is(ui, wanted):
+@pytest.mark.parametrize("wanting", [True, False], ids=["something wanted", "nothing wanted"])
+def test_on_wanted_its_section_is_lit_as_where_the_curator_is(ui, request, wanting):
+    """Reached by address, Wanted is highlighted, with or without anything in it."""
+    if wanting:
+        request.getfixturevalue("wanted")
     open_wanted(ui)
-    # The screen and the sidebar ask for the wanted list separately, and only the
-    # sidebar's answer shows the section: wait for that one, not the screen's.
-    ui.page.wait_for_function("() => document.querySelector(\"[data-count-slot='wanted']\").textContent === '2'")
+    ui.page.wait_for_selector("#view h1:text-is('Wanted')")
 
     assert ui.page.locator("nav.sidebar a[data-view='wanted'][aria-current='page']").is_visible()
 
@@ -325,9 +327,53 @@ def test_forget_takes_a_work_off_the_list(ui, wanted, discovery):
     open_wanted(ui)
 
     ui.page.click("button[aria-label='Forget Lobster Telephone (1938): stop proposing it']")
-    ui.page.wait_for_function("() => !document.querySelector('.wanted')?.innerText.includes('Lobster Telephone')")
+    ui.page.wait_for_function("() => !document.querySelector('.wanted')?.innerText.includes('Lobster Telephone')", timeout=15000)
 
     assert str(discovery.get_candidate_work(nothing.id).verdict) == "rejected"
+
+
+def test_forget_waits_with_undo_and_undo_sends_nothing(ui, wanted, discovery):
+    nothing, _ = wanted
+    sent = posted(ui, "/verdict")
+    open_wanted(ui)
+
+    ui.page.click("button[aria-label='Forget Lobster Telephone (1938): stop proposing it']")
+    undo = ui.page.locator('button[aria-label="Undo: don\'t forget Lobster Telephone (1938)"]')
+    assert undo.is_visible()
+    ui.page.wait_for_timeout(1000)
+    assert sent == [], "nothing is sent while Undo can still take it back"
+    undo.click()
+    ui.page.wait_for_timeout(6000)
+
+    assert sent == []
+    assert str(discovery.get_candidate_work(nothing.id).verdict) == "wanted"
+    assert ui.page.locator("button[aria-label='Forget Lobster Telephone (1938): stop proposing it']").is_visible()
+
+
+def test_a_row_drawn_again_while_its_forget_is_held_shows_the_hold(ui, wanted, discovery):
+    """Another row's Forget repaints the page; the held row keeps its Undo, and Undo still works."""
+    _, turned = wanted
+    open_wanted(ui)
+
+    ui.page.click("button[aria-label='Forget Lobster Telephone (1938): stop proposing it']")
+    ui.page.wait_for_timeout(1500)
+    ui.page.click("button[aria-label='Forget The Persistence of Memory: stop proposing it']")
+    # Lobster's hold runs out and lands, and the page repaints with the other row still held.
+    ui.page.wait_for_function("() => !document.querySelector('.wanted')?.innerText.includes('Lobster Telephone')", timeout=15000)
+    undo = ui.page.locator('button[aria-label="Undo: don\'t forget The Persistence of Memory"]')
+    assert undo.is_visible()
+    undo.click()
+    ui.page.wait_for_timeout(6000)
+
+    assert str(discovery.get_candidate_work(turned.id).verdict) == "wanted"
+
+
+def test_get_again_carries_its_tier(ui, wanted):
+    open_wanted(ui)
+    ui.page.wait_for_selector(".wanted table")
+
+    row = ui.page.locator(".wanted tbody tr", has_text="Lobster Telephone")
+    assert row.locator(".badge-tier").inner_text().endswith("Free")
 
 
 def test_search_again_on_a_work_with_an_item_re_searches_it_and_opens_the_run(ui, wanted):
@@ -336,8 +382,8 @@ def test_search_again_on_a_work_with_an_item_re_searches_it_and_opens_the_run(ui
     requests = posted(ui, "/api/runs/resolve")
 
     open_wanted(ui)
-    ui.page.click("button[aria-label='Search again for The Persistence of Memory']")
-    ui.page.wait_for_function("() => window.location.hash.startsWith('#run/resolve-1')")
+    ui.page.click("button[aria-label='Get The Persistence of Memory again']")
+    ui.page.wait_for_function("() => window.location.hash.startsWith('#get/resolve-1')")
 
     assert json.loads(requests[0][2]) == {"work_ids": [turned.id]}
 
@@ -376,7 +422,7 @@ def test_search_again_on_a_work_with_no_item_offers_wikidata_s_matches_and_picks
     calls = posted(ui, "/api/")
 
     open_wanted(ui)
-    ui.page.click("button[aria-label='Search again for Lobster Telephone (1938)']")
+    ui.page.click("button[aria-label='Get Lobster Telephone (1938) again']")
     ui.page.wait_for_selector(".picker li")
     picker = ui.page.inner_text(".picker")
     assert "Which is Lobster Telephone (1938)?" in picker
@@ -384,7 +430,7 @@ def test_search_again_on_a_work_with_no_item_offers_wikidata_s_matches_and_picks
     assert "no picture on Wikidata" in picker
 
     ui.page.click("button[aria-label='Pick Q2990594, Lobster Telephone by Salvador Dalí']")
-    ui.page.wait_for_function("() => window.location.hash.startsWith('#run/resolve-2')")
+    ui.page.wait_for_function("() => window.location.hash.startsWith('#get/resolve-2')")
 
     writes = [(method, url.split("/api/")[1]) for method, url, _ in calls if method in ("PUT", "POST")]
     assert writes == [
@@ -404,8 +450,8 @@ def test_search_all_starts_one_re_search_per_search_the_works_came_from_then_ope
     requests = posted(ui, "/api/runs/resolve")
 
     open_wanted(ui)
-    assert "One re-search for each of the 2 searches" in ui.text()
-    ui.page.click("button:text-is('Search all')")
+    assert "One Get for each of the 2 Gets" in ui.text()
+    ui.page.click("button:text-is('Get all again')")
     ui.page.wait_for_function("() => window.location.hash === '#queue'")
 
     covered = sorted(sorted(json.loads(body)["work_ids"]) for _, _, body in requests)
@@ -424,14 +470,14 @@ def test_with_wikidata_off_the_picker_says_why_and_still_searches_without_an_ite
     calls = posted(ui, "/api/")
 
     open_wanted(ui)
-    ui.page.click("button[aria-label='Search again for Lobster Telephone (1938)']")
+    ui.page.click("button[aria-label='Get Lobster Telephone (1938) again']")
     ui.page.wait_for_selector(".picker")
     assert note in ui.page.inner_text(".picker")
     assert ui.page.locator(".picker button:text-is('This one')").count() == 0
     assert ui.page.evaluate("() => document.activeElement.classList.contains('picker-heading')"), "the picker took no focus"
 
-    ui.page.click(".picker button:text-is('Search without an item')")
-    ui.page.wait_for_function("() => window.location.hash.startsWith('#run/resolve-3')")
+    ui.page.click(".picker button:text-is('Get without an item')")
+    ui.page.wait_for_function("() => window.location.hash.startsWith('#get/resolve-3')")
 
     writes = [(method, url.split("/api/")[1]) for method, url, _ in calls if method in ("PUT", "POST")]
     assert writes == [("POST", "runs/resolve")], "searching without an item picks nothing first"
@@ -442,9 +488,9 @@ def test_search_all_over_one_search_opens_that_re_search(ui, wanted):
     requests = posted(ui, "/api/runs/resolve")
 
     open_wanted(ui)
-    assert "One re-search for each" not in ui.text()
-    ui.page.click("button:text-is('Search all')")
-    ui.page.wait_for_function("() => window.location.hash.startsWith('#run/resolve-one')")
+    assert "One Get for each" not in ui.text()
+    ui.page.click("button:text-is('Get all again')")
+    ui.page.wait_for_function("() => window.location.hash.startsWith('#get/resolve-one')")
 
     assert [method for method, _, _ in requests if method == "POST"] == ["POST"], "one search, one re-search"
 
@@ -460,11 +506,11 @@ def test_search_all_tries_every_search_and_says_which_could_not_start(ui, wanted
     requests = posted(ui, "/api/runs/resolve")
 
     open_wanted(ui)
-    ui.page.click("button:text-is('Search all')")
+    ui.page.click("button:text-is('Get all again')")
     ui.page.wait_for_selector(".search-all-outcome")
 
     assert [method for method, _, _ in requests if method == "POST"] == ["POST", "POST"], "a refusal stopped the rest"
     outcome = ui.page.inner_text(".search-all-outcome")
-    assert "Started 1 re-search. 1 other could not start:" in outcome
+    assert "Started 1 Get. 1 other could not start:" in outcome
     assert refusal in outcome
     assert ui.page.evaluate("() => window.location.hash") == "#wanted", "the page left before saying what was refused"

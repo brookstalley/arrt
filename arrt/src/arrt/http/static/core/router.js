@@ -36,7 +36,7 @@
 
 import { state } from "./state.js";
 import { el, guard } from "./render.js";
-import { formatRoute, parseRoute } from "./route.js";
+import { formatRoute, parseRoute, resolveAlias } from "./route.js";
 import { installDrawer, lightSidebar, paintSidebar } from "./sidebar.js";
 
 let table = {};
@@ -86,7 +86,8 @@ export function pageFor(view = state.view, params = state.params, detailId = sta
 function returnTarget(from) {
   if (!from || !from.includes("/")) return null;
   const slash = from.indexOf("/");
-  const view = from.slice(0, slash);
+  // An opener written under an old name still returns where it says.
+  const view = resolveAlias(from.slice(0, slash));
   const id = from.slice(slash + 1);
   return table[view] && table[view].returnLabel && id ? { view, id } : null;
 }
@@ -108,23 +109,37 @@ function defaultReturn(view) {
  * `#theme/<id>`, whose way back is its own index. */
 export function backLink() {
   const opener = returnTarget(state.params && state.params.from);
-  if (opener) {
-    return el("button", {
-      class: "action quiet",
-      type: "button",
-      text: `← ${table[opener.view].returnLabel}`,
-      onclick: () => go(opener.view, opener.id),
-    });
-  }
+  if (opener) return returning(opener.view, opener.id, `← ${table[opener.view].returnLabel}`);
   const page = pageFor();
   if (!page) return null;
   if (page === state.view && !state.detailId) return null;
-  return el("button", {
-    class: "action quiet",
-    type: "button",
-    text: `← ${table[page].page}`,
-    onclick: () => go(page),
-  });
+  return returning(page, null, `← ${table[page].page}`);
+}
+
+/* A way back that is the browser's Back when that is where it goes.
+ *
+ * When the entry before this one is the screen the link names, the click goes
+ * back to it — the same list, with its filters and its sort, scrolled where it
+ * was and with the card that was opened in focus (`rememberPlace`). A new entry
+ * at the same address would start at the top. Otherwise — a bookmark, a link
+ * from somewhere else — it is the plain link to the screen. Captured so it is
+ * decided before `link`'s own click handler, which then stands aside. */
+function returning(view, id, text) {
+  const node = link({ view, id }, { class: "action quiet", text });
+  node.addEventListener(
+    "click",
+    (event) => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const came = window.history.state && window.history.state.came;
+      if (!came) return;
+      const before = parseRoute(came, table, { fallback: home });
+      if (before.view !== view || (before.id || null) !== (id || null)) return;
+      event.preventDefault();
+      window.history.back();
+    },
+    { capture: true },
+  );
+  return node;
 }
 
 /* The back link in the paragraph every screen sets it in, or nothing when the
@@ -165,9 +180,80 @@ export function openedFrom(view, detailId = null) {
   return inherited(view, detailId);
 }
 
-export function go(view, detailId = null, params = null) {
+/* The address `go` would write for this navigation, for a link to carry. */
+export function hrefFor(view, detailId = null, params = null) {
   const entry = table[view];
   const next = params === null ? inherited(view, detailId) : params;
+  return formatRoute(view, entry && entry.detail ? detailId : null, next);
+}
+
+/* A navigation, as `information-architecture.md` § Direction requires one:
+ * an `<a href="#…">`, so it opens in a new tab, copies as an address, previews
+ * in the status bar and is announced as a link.
+ *
+ * `target` is `{ view, id, params }`, read as `go` reads its arguments: a
+ * missing `params` inherits the opener, as every `go` without them does.
+ *
+ * **A plain click still goes through `go`.** Following a link to the address
+ * already showing fires no `hashchange`, and the click is also where the place
+ * being left is remembered, with the link itself as the thing Back refocuses —
+ * a pointer press does not focus a link in every browser, so the active
+ * element cannot be trusted to name it. A click with a modifier, or any other
+ * button, is the browser's: a new tab or window, or a download. */
+export function link(target, attrs = {}, children = []) {
+  const { view, id = null, params = null } = target;
+  return el(
+    "a",
+    {
+      href: hrefFor(view, id, params),
+      ...attrs,
+      onclick: (event) => {
+        if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        navigate(view, id, params, event.currentTarget);
+      },
+    },
+    children,
+  );
+}
+
+/* Remember, on the history entry being left, where its page was scrolled and
+ * which link left it — so Back can put the curator where they were, on the card
+ * they opened, rather than at the top of a list sixty-eight Tabs from it.
+ *
+ * Kept in `history.state` because that is the entry's own: it survives Back and
+ * Forward and goes when the entry does, which a table keyed by address would
+ * not — two entries can share an address and mean two different scrolls.
+ *
+ * The link is recorded as its address and which of the links carrying that
+ * address it was, because a card can reach one work by its picture and its
+ * title, and the one opened is the one Back refocuses. */
+function rememberPlace(opener) {
+  const view = document.getElementById("view");
+  const candidate = opener || document.activeElement;
+  const left = candidate && candidate.matches && candidate.matches("a[href]") && view.contains(candidate) ? candidate : null;
+  let opened = null;
+  if (left) {
+    const href = left.getAttribute("href");
+    const same = [...view.querySelectorAll("a[href]")].filter((node) => node.getAttribute("href") === href);
+    opened = { href, index: same.indexOf(left) };
+  }
+  window.history.replaceState({ ...(window.history.state || {}), scrollY: window.scrollY, opened }, "");
+}
+
+/* The address this client is navigating away from, until the new entry has
+ * arrived and been told it (`came`, which `returning` reads). */
+let leaving = null;
+
+export function go(view, detailId = null, params = null) {
+  navigate(view, detailId, params, null);
+}
+
+function navigate(view, detailId, params, opener) {
+  const entry = table[view];
+  const next = params === null ? inherited(view, detailId) : params;
+  rememberPlace(opener);
+  const from = formatRoute(state.view, state.detailId, state.params);
   state.view = view;
   state.detailId = detailId;
   state.params = next;
@@ -187,9 +273,12 @@ export function go(view, detailId = null, params = null) {
   state.painted = null;
   const hash = formatRoute(view, entry && entry.detail ? detailId : null, next);
   if (window.location.hash !== hash) {
+    leaving = from;
     window.location.hash = hash;
     return; // hashchange re-enters here
   }
+  // The screen already showing, asked for again: a fresh arrival, at the top.
+  shown = null;
   refresh(true);
 }
 
@@ -219,7 +308,35 @@ export function goWithParams(changes) {
   go(state.view, state.detailId, { ...state.params, ...changes });
 }
 
-export function refresh(moveFocus = false) {
+/* What the last paint showed, as `view/id`, so a refresh can tell arriving at
+ * a screen from repainting the one already there. */
+let shown = null;
+
+/* The product's name, after the page's in every title, as the *arr apps write
+ * theirs: the page is what a tab strip, a bookmark and a history list need to
+ * tell apart, and every one of them used to read "Arrt". */
+const PRODUCT = "Arrt";
+
+function titled(name) {
+  return `${name} - ${PRODUCT}`;
+}
+
+/* A screen's title before it knows what it is showing: its sidebar label, or
+ * the `title` a contextual route declares. */
+function routeTitle(entry) {
+  return entry.title || entry.page;
+}
+
+/* Name the page after the thing a detail screen shows, once it knows it — the
+ * work's title, the artist's name. `generation` is the paint's own, as
+ * `render` takes it, so a paint that lost its view cannot retitle the one that
+ * replaced it. */
+export function setTitle(generation, name) {
+  if (generation !== state.nav || !name) return;
+  document.title = titled(name);
+}
+
+export function refresh(moveFocus = false, { arrival = null } = {}) {
   const entry = table[state.view];
   lightSidebar(pageFor());
   // The top bar's status indicator and search box, repainted on every
@@ -231,6 +348,22 @@ export function refresh(moveFocus = false) {
   // Captured here, before the view starts, so it is the navigation that
   // commissioned this paint rather than whatever is current when it finishes.
   const generation = state.nav;
+  const here = `${state.view}/${state.detailId || ""}`;
+  const arrived = here !== shown;
+  shown = here;
+  if (arrived) document.title = titled(routeTitle(entry));
+  const restoring = moveFocus && arrival && typeof arrival.scrollY === "number";
+  // A new screen starts at its top. Without this the page kept the scroll of
+  // the one it replaced, so a work opened from low on a list opened at its
+  // sources table. Done now rather than after the paint, so the new screen is
+  // never seen part-way down. A change of state on the same screen — a sort,
+  // a filter — keeps the curator where they were, as any act on a page does.
+  if (moveFocus && arrived && !restoring) window.scrollTo(0, 0);
+  // A change of state on the same screen — a facet, a theme in the rail —
+  // repaints the control that made it, and focus would fall to the view's top,
+  // a Tab sequence away from where the curator was. The control's key is what
+  // finds it again in the new paint.
+  const keep = moveFocus && !arrived ? focusKey(document.activeElement) : null;
   const done = guard(
     entry.detail ? () => entry.render(state.detailId, generation) : () => entry.render(generation),
   );
@@ -240,9 +373,51 @@ export function refresh(moveFocus = false) {
     // the page. Sending it to the new view is what makes the surface navigable
     // by keyboard at all. Not done on first paint: stealing focus from a
     // freshly loaded page is its own bug.
-    done.then(() => document.getElementById("view").focus());
+    //
+    // `preventScroll`, because focusing a view taller than the window scrolls
+    // it, and where the page sits is decided above, not by the focus.
+    done.then(() => {
+      if (generation !== state.nav) return;
+      const kept = keep && keyed(keep);
+      if (kept) {
+        kept.focus({ preventScroll: true });
+        return;
+      }
+      if (restoring) {
+        window.scrollTo(0, arrival.scrollY);
+        const opened = openedLink(arrival.opened);
+        if (opened) {
+          opened.focus({ preventScroll: true });
+          return;
+        }
+      }
+      document.getElementById("view").focus({ preventScroll: true });
+    });
   }
   return done;
+}
+
+/* A control that keeps the keyboard across a repaint of its own screen says so
+ * with `data-focus-key`, unique on the page: a facet option by its kind and
+ * value, a theme option by its id. Its text cannot be the key, since the count
+ * in it is what the repaint changes. */
+function focusKey(node) {
+  const view = document.getElementById("view");
+  if (!node || !view || !view.contains(node)) return null;
+  return node.dataset ? node.dataset.focusKey || null : null;
+}
+
+function keyed(key) {
+  const view = document.getElementById("view");
+  return [...view.querySelectorAll("[data-focus-key]")].find((node) => node.dataset.focusKey === key && !node.disabled) || null;
+}
+
+/* The link a remembered entry was left by, on the page Back has repainted. */
+function openedLink(opened) {
+  if (!opened || !opened.href) return null;
+  const view = document.getElementById("view");
+  const same = [...view.querySelectorAll("a[href]")].filter((node) => node.getAttribute("href") === opened.href);
+  return same[opened.index] || same[0] || null;
 }
 
 export function readHash() {
@@ -259,7 +434,7 @@ export function readHash() {
   // acquiring one is not a correction.
   if (window.location.hash) {
     const canonical = formatRoute(route.view, route.id, route.params);
-    if (window.location.hash !== canonical) window.history.replaceState(null, "", canonical);
+    if (window.location.hash !== canonical) window.history.replaceState(window.history.state, "", canonical);
   }
   // A fragment change is a navigation like any other, and the screen being left
   // may have had a refresh scheduled over a page it is about to lose.
@@ -296,9 +471,19 @@ export function install(routes, { sections, onNavigate } = {}) {
   });
   closeDrawer = installDrawer();
   installSkipLink();
+  // The scroll a history entry is returned to is this module's to decide
+  // (`rememberPlace`): the browser's own restoration runs before the screen has
+  // repainted, against a page that is not yet the one it remembers.
+  window.history.scrollRestoration = "manual";
   window.addEventListener("hashchange", () => {
+    // A new entry this client made records the address it came from, which is
+    // how a way back knows the entry behind it is where it leads.
+    if (leaving !== null && !window.history.state) window.history.replaceState({ came: leaving }, "");
+    leaving = null;
     readHash();
-    refresh(true);
+    // The entry arrived at: one this client left, by Back or Forward, carries
+    // where it was; a new one carries nothing and starts at the top.
+    refresh(true, { arrival: window.history.state });
   });
   readHash();
   refresh();

@@ -56,7 +56,7 @@ ROUTES = {
     "collection": {},
     "discover": {},
     "work": {"detail": True},
-    "run": {"detail": True},
+    "get": {"detail": True},
     "theme": {"detail": OPTIONAL_ID},
     "health": {},
 }
@@ -115,7 +115,7 @@ def test_a_destination_is_read_from_its_own_name():
 
 
 def test_a_screen_that_addresses_one_thing_carries_its_id():
-    assert parse("#run/abc-123") == {"view": "run", "id": "abc-123", "params": {}}
+    assert parse("#get/abc-123") == {"view": "get", "id": "abc-123", "params": {}}
 
 
 def test_a_screen_that_addresses_one_thing_is_not_entered_without_one():
@@ -295,6 +295,17 @@ def test_an_address_from_before_the_reshape_opens_the_screen_that_took_over(old,
 
 def test_an_old_address_keeps_its_state_across_the_rename():
     assert parse("#works?q=hopper") == {"view": "collection", "id": None, "params": {"q": "hopper"}}
+
+
+def test_a_get_addressed_as_a_run_opens_the_get_with_its_id():
+    """Every spending request is a Get, at `#get/<id>`; a link or bookmark to `#run/<id>` still opens it.
+
+    Its own test rather than a row above, because the id is the half that
+    matters: an alias that kept the view and dropped the id would open a Get's
+    page for nothing.
+    """
+    assert parse("#run/abc-123?from=history") == {"view": "get", "id": "abc-123", "params": {"from": "history"}}
+    assert format_route("get", "abc-123") == "#get/abc-123"
 
 
 # -- falling back --------------------------------------------------------------

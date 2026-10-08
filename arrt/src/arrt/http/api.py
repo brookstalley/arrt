@@ -22,6 +22,8 @@ that safe.
 """
 
 import logging
+from decimal import Decimal
+from pathlib import Path
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Query, Request, Response
@@ -40,6 +42,7 @@ from arrt.http.models import (
     ArtworkBoxOut,
     AssignWall,
     BackupOut,
+    BudgetOut,
     CandidateCardOut,
     CandidatePageOut,
     CandidateWorkOut,
@@ -54,21 +57,28 @@ from arrt.http.models import (
     ConversationOut,
     ConversationTurnOut,
     ConversationViewOut,
+    CostTiersOut,
     CreateTheme,
     CreateWall,
     DirectiveOut,
     EstimateOut,
+    ExcludedWorkListOut,
+    ExcludedWorkOut,
     ExclusionOut,
     FacetGroupOut,
     FacetOptionOut,
     FitOut,
     GetOut,
+    HangSelection,
     HangTheme,
     HealthOut,
     HeartbeatOut,
     HeldArtistOut,
     HeldTopicOut,
+    HistoryEventOut,
+    HistoryPageOut,
     ImageOut,
+    InReviewOut,
     InstanceListingOut,
     InstanceOut,
     LookOut,
@@ -79,6 +89,8 @@ from arrt.http.models import (
     MatColorOut,
     MoveWork,
     NameClient,
+    NotAgainOut,
+    NotAgainRequest,
     OriginalOut,
     PickItem,
     PicturesOut,
@@ -151,19 +163,22 @@ from arrt.http.models import (
     WorkMatchOut,
     WorkOut,
     WorkPageOut,
+    WorkPlacementsOut,
 )
 from arrt.library.acquisition.queue import AcquisitionState, QueueListing, QueuePause
 from arrt.library.services.artists import HeldArtist, RegistryView
-from arrt.library.services.catalogue import FacetGroup, RenditionView
+from arrt.library.services.catalogue import DEFAULT_LIST_LIMIT, FacetGroup, RenditionView
 from arrt.library.services.conversation import ConversationDeletion, ConversationView, TurnView
 from arrt.library.services.discovery import VerdictOutcome
 from arrt.library.services.display_fit import ArtworkBox, FitAssessment
 from arrt.library.services.look import LookPicture, LookView, SourceLook
 from arrt.library.services.review import CandidatePage, CandidateView, InstanceListing, InstanceView, WantedView
 from arrt.library.services.runner import Estimate, RunView, SpendReport
+from arrt.library.services.spending import CENTS_BELOW, DIMES_BELOW
 from arrt.library.services.survey import WorkDossier, WorkSurvey
 from arrt.library.services.taste import AffinityView
 from arrt.library.services.topics import TopicIndex, TopicPage
+from arrt.library.services.twins import InReview
 from arrt.library.sources.plugin import API_VERSION
 from arrt.persistence.discovery_records import (
     CandidateImage,
@@ -176,6 +191,7 @@ from arrt.persistence.records import (
     Artist,
     BackupReading,
     Directive,
+    HistoryEvent,
     IdentitySetBy,
     MatColor,
     Original,
@@ -194,8 +210,9 @@ log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api")
 
-#: Thumbnails are revalidated rather than held for a fixed window. A replaced
-#: master regenerates the file under the same name, so a cached copy is a
+#: Thumbnails and wall previews are revalidated rather than held for a fixed
+#: window. A replaced master, or a recomposed canvas, regenerates the file under
+#: the same name, so a cached copy is a
 #: *superseded acquisition* on screen — the exact thing the staleness rule
 #: refuses everywhere else. The cost of that correctness is one conditional
 #: request per card, answered below with a 304 rather than the bytes.
@@ -396,7 +413,14 @@ def search_registry(
         state=str(found.state),
         note=found.note,
         artists=[
-            RegistryPersonFoundOut(qid=p.qid, name=p.label, born=p.born, died=p.died, artist_id=held_artists.get(p.qid))
+            RegistryPersonFoundOut(
+                qid=p.qid,
+                name=p.label,
+                born=p.born,
+                died=p.died,
+                artist_id=held_artists.get(p.qid),
+                in_review=_in_review(found.waiting_artists.get(p.qid)),
+            )
             for p in found.artists
         ],
         works=[
@@ -412,6 +436,7 @@ def search_registry(
                 ),
                 held_artwork_ids=list(held_works.get(w.qid, ())),
                 wanted=w.qid in found.wanted_works,
+                in_review=_in_review(found.waiting_works.get(w.qid)),
             )
             for w in found.works
         ],
@@ -658,6 +683,10 @@ def _topic_page(page: TopicPage, works: list[WorkOut]) -> TopicPageOut:
     )
 
 
+def _in_review(waiting: InReview | None) -> InReviewOut | None:
+    return None if waiting is None else InReviewOut(run_id=waiting.run_id, candidate_work_id=waiting.candidate_work_id)
+
+
 def _artist_registry(view: RegistryView, *, artist_id: str | None = None) -> ArtistRegistryOut:
     known = view.known
     return ArtistRegistryOut(
@@ -682,6 +711,7 @@ def _artist_registry(view: RegistryView, *, artist_id: str | None = None) -> Art
                     image=entry.image,
                     held_artwork_ids=list(view.held.get(entry.qid, ())),
                     wanted=entry.qid in view.wanted,
+                    in_review=_in_review(view.waiting.get(entry.qid)),
                 )
                 for entry in known.works
             ]
@@ -922,6 +952,123 @@ def clear_wall(request: Request, wall_id: str) -> WallOut:
     return _wall(services.display.get_wall_view(wall_id))
 
 
+@router.post("/walls/{wall_id}/selection")
+def hang_selection(request: Request, wall_id: str, body: HangSelection) -> ManifestOut:
+    """Hang one or more chosen works on this wall, until something else is hung there.
+
+    Answers with the build, as hanging a theme does: what reached the wall, and
+    every work that did not, with why.
+    """
+    return _manifest(_services(request).display.hang_selection(body.artwork_ids, wall_id=wall_id))
+
+
+@router.post("/walls/{wall_id}/not-again")
+def not_this_one_again(request: Request, wall_id: str, body: NotAgainRequest) -> NotAgainOut:
+    """*Not this one again*, from this theme (`scope=theme`) or from every wall (`scope=every_wall`).
+
+    From this theme takes the work out of what hangs on this wall. From every
+    wall keeps it off every wall until allowed again, and the work stays held.
+    Either way the walls carrying it lose it now. Answers with the wall as it
+    now stands, read back after the act, for the reason `clear_wall` gives.
+    """
+    services = _services(request)
+    done = services.display.not_this_one_again(body.artwork_id, wall_id=wall_id, scope=body.scope)
+    return NotAgainOut(
+        scope=str(done.scope),
+        artwork_id=done.artwork_id,
+        wall=_wall(services.display.get_wall_view(wall_id)),
+        left_theme=None if done.left_theme is None else _theme(done.left_theme),
+        excluded_at=None if done.exclusion is None else done.exclusion.excluded_at.isoformat(),
+    )
+
+
+@router.get("/exclusions")
+def list_exclusions(request: Request) -> ExcludedWorkListOut:
+    """Every work kept off every wall, oldest first. Each is still held."""
+    return _exclusions(_services(request))
+
+
+@router.delete("/exclusions/{artwork_id}")
+def allow_again(request: Request, artwork_id: str) -> ExcludedWorkListOut:
+    """Let a work kept off every wall go on walls again: the undo, from the work's page.
+
+    Nothing is republished. A theme holding the work carries it again at its
+    next build, as with a restored work. Answers with the exclusions that remain.
+    """
+    services = _services(request)
+    services.display.allow_work(artwork_id)
+    return _exclusions(services)
+
+
+def _exclusions(services: Services) -> ExcludedWorkListOut:
+    return ExcludedWorkListOut(
+        exclusions=[
+            ExcludedWorkOut(artwork_id=exclusion.artwork_id, excluded_at=exclusion.excluded_at.isoformat())
+            for exclusion in services.display.excluded_works()
+        ]
+    )
+
+
+@router.get("/works/{artwork_id}/placements")
+def work_placements(request: Request, artwork_id: str) -> WorkPlacementsOut:
+    """Where a held work is: every theme holding it with the walls hanging each, and whether it is kept off every wall.
+
+    Selections (hidden themes) are included, because a selection is how a work
+    hangs on a wall by itself. The Work page's state strip reads this, and an
+    agent reaches the same facts through `art_theme`'s `list`, `get` and
+    `kept_off`. Refused for a work the catalogue does not hold.
+    """
+    services = _services(request)
+    services.catalogue.get_artwork(artwork_id)
+    placements = services.display.placements_of(artwork_id)
+    return WorkPlacementsOut(
+        artwork_id=artwork_id,
+        themes=[_placement(placement) for placement in placements.themes],
+        excluded_at=None if placements.exclusion is None else placements.exclusion.excluded_at.isoformat(),
+    )
+
+
+# -- history ------------------------------------------------------------------
+
+
+@router.get("/history")
+def list_history(
+    request: Request,
+    kind: Annotated[list[str] | None, Query()] = None,
+    wall_id: Annotated[str | None, Query()] = None,
+    limit: Annotated[int | None, Query()] = None,
+    offset: Annotated[int, Query()] = 0,
+) -> HistoryPageOut:
+    """What happened, newest first: Gets started and finished, verdicts, archives, restores, hangs.
+
+    `kind` repeats, and any of those named matches (`?kind=work.accepted&kind=
+    work.rejected`); none named is every kind. `wall_id` narrows to one wall's
+    history: what was hung there, and what was kept off from there. Events are
+    recorded from the day the history arrived, and nothing earlier is recovered.
+    """
+    page = _services(request).catalogue.list_events(kinds=kind or (), wall_id=wall_id, limit=limit, offset=offset)
+    return HistoryPageOut(
+        events=[_history_event(event) for event in page.events],
+        total=page.total,
+        # The service's default, stated so a reader can page without guessing it.
+        limit=DEFAULT_LIST_LIMIT if limit is None else limit,
+        offset=offset,
+    )
+
+
+def _history_event(event: HistoryEvent) -> HistoryEventOut:
+    return HistoryEventOut(
+        event_id=event.id,
+        kind=str(event.kind),
+        occurred_at=event.occurred_at.isoformat(),
+        artwork_id=event.work_id,
+        run_id=event.run_id,
+        wall_id=event.wall_id,
+        theme_id=event.theme_id,
+        detail=dict(event.detail or {}),
+    )
+
+
 # -- clients ------------------------------------------------------------------
 
 
@@ -1048,6 +1195,30 @@ def get_estimate(request: Request, run_id: Annotated[str | None, Query()] = None
     return _estimate(_services(request).runner.estimate(run_id))
 
 
+@router.get("/budget")
+def get_budget(request: Request) -> BudgetOut:
+    """What is left of this month's budget, for the sidebar, read from the provider's key.
+
+    Always a 200: `state` says how the figure is known, or why there is none.
+    Display only, and up to a minute old; the provider's own refusal at its
+    limit is what stops spending. The tier boundaries ride along so every
+    spending control words its estimate the same way.
+    """
+    view = _services(request).budget.view()
+    return BudgetOut(
+        state=str(view.state),
+        remaining_usd=_usd(view.remaining_usd),
+        budget_usd=_usd(view.budget_usd),
+        spent_usd=_usd(view.spent_usd),
+        note=view.note,
+        tiers=CostTiersOut(cents_below_usd=str(CENTS_BELOW), dimes_below_usd=str(DIMES_BELOW)),
+    )
+
+
+def _usd(amount: Decimal | None) -> str | None:
+    return None if amount is None else str(amount)
+
+
 @router.post("/runs")
 def start_run(request: Request, body: StartRun) -> RunOut:
     """Begin a discovery run and return its handle at once.
@@ -1081,7 +1252,7 @@ def start_get(request: Request, body: StartGet) -> GetOut:
     starts), and the Library starts the Get.
     """
     services = _services(request)
-    destination = None if body.theme_id is None else services.display.get_theme(body.theme_id).id
+    destination = None if body.theme_id is None else services.display.get_listed_theme(body.theme_id).id
     outcome = services.get.start(body.qids, initiated_by=InitiatedBy.WEB_UI, destination_theme_id=destination)
     return GetOut(
         run=None if outcome.run is None else _run(outcome.run),
@@ -1340,7 +1511,27 @@ def get_candidate_preview(
 
 @router.get("/works/{artwork_id}/thumbnail", response_class=FileResponse)
 def get_thumbnail(request: Request, artwork_id: str) -> Response:
-    """A small copy of the work's held image, generated on first ask.
+    """A small copy of the work itself, drawn from its master, generated on first ask.
+
+    What a library tile shows: the work at its own aspect, never the wall
+    render's mat and bars, which are the wall's and appear only on the Work
+    page (`get_wall_preview`).
+    """
+    return _revalidated_file(request, _services(request).thumbnails.thumbnail(artwork_id))
+
+
+@router.get("/works/{artwork_id}/wall-preview", response_class=FileResponse)
+def get_wall_preview(request: Request, artwork_id: str) -> Response:
+    """The wall render, mat and all, at a size the Work page's column draws sharply.
+
+    Drawn from the current television canvas, or from the master where the work
+    has none yet; the work's `image.source_kind` says which.
+    """
+    return _revalidated_file(request, _services(request).thumbnails.wall_preview(artwork_id))
+
+
+def _revalidated_file(request: Request, path: Path) -> Response:
+    """A cached image, answered with a 304 when the client already holds it.
 
     **The conditional check is done here because nothing else does it.**
     `FileResponse` *sets* an `ETag` and never *reads* one — only Starlette's
@@ -1352,7 +1543,6 @@ def get_thumbnail(request: Request, artwork_id: str) -> Response:
     Starlette itself would have produced rather than a second implementation of
     its formula.
     """
-    path = _services(request).thumbnails.thumbnail(artwork_id)
     headers = {"Cache-Control": THUMBNAIL_CACHE_CONTROL}
     response = FileResponse(path, media_type="image/jpeg", headers=headers, stat_result=path.stat())
     etag = response.headers.get("etag")
@@ -1590,6 +1780,7 @@ def _theme(theme: Theme) -> ThemeOut:
         shuffle=theme.shuffle,
         created_at=theme.created_at.isoformat(),
         is_default=theme.is_default,
+        hidden=theme.hidden,
     )
 
 
@@ -1751,6 +1942,7 @@ def _candidate_work(work: CandidateWork) -> CandidateWorkOut:
         decided=work.verdict.is_terminal,
         resolution_status=str(work.resolution_status),
         unresolved_reason=None if work.unresolved_reason is None else str(work.unresolved_reason),
+        confirmation=str(work.confirmation),
     )
 
 
@@ -1896,6 +2088,7 @@ def _estimate(estimate: Estimate) -> EstimateOut:
         # it: a price through binary floating point comes back as
         # 0.12699999999999999.
         estimated_cost_usd=str(estimate.cost_usd),
+        tier=str(estimate.tier),
         basis=estimate.basis,
         run_id=estimate.run_id,
     )

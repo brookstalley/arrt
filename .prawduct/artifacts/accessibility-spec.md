@@ -1131,6 +1131,43 @@ convenient".
   and leaves the address alone**, because the hash router reads `#view` as a
   page called "view" and a plain link sent the reader to the home page instead
   (`core/router.js`, found and fixed 2026-09-30).
+- **A navigation lands at the top of the screen it opens, with focus on the
+  view and the page not scrolled by the focus** (`preventScroll`). **Back returns
+  to where the page it went back to was scrolled, with focus on the link that was
+  followed** — card 20 of Artworks, not the top of the grid. A screen's own *← …*
+  link is Back when the entry behind is the screen it names. Pinned by
+  `arrt/tests/browser/test_navigation.py` (`core/router.js`, `rememberPlace`).
+- **Every page has its own title and its own `h1`.** `document.title` is the
+  page's name and the product's ("Artworks - Arrt"), and a detail page's is the
+  thing it shows ("Nighthawks - Arrt"); the screen's heading is the document's
+  only `h1`, and the product name in the top bar is not a heading. Section
+  headings sit one rank under it. Pinned per route, from the route table, by
+  the same file.
+- **Navigation is a link and an act is a button** (`information-architecture.md`
+  § Direction), so a screen reader announces "link" for what moves the reader
+  and "button" for what does something.
+- **A change of state on the screen already showing keeps the keyboard where it
+  was.** A facet or a theme in Artworks' rail repaints the rail; the control
+  carries `data-focus-key` and the router focuses its successor in the new
+  paint, rather than the view's top (`core/router.js`, `focusKey`). *(2026-10-07,
+  #280.)*
+- **A card is one Tab stop to its work.** On Overview the title is the link and
+  the picture, which opens the same page, is out of the Tab order and hidden
+  from assistive technology; on Posters the picture is the tile's only way in
+  and keeps its stop. **A card's picture draws its focus ring inside itself**,
+  because the card clips anything drawn outside it: a ring in `--focus` with a
+  band of the card's ground within it, painted above the picture. *(2026-10-07,
+  #280.)*
+- **Works listed together have different accessible names.** A held work's
+  links and its tick are named title, artist and date (`workName` in
+  `core/badges.js`), so two works called *Untitled* are two names; the name
+  starts with the visible title. A review card's note field is named for its
+  work by a visually hidden part of its label. *(2026-10-07, #280.)*
+- **A table wider than its box is a Tab stop**, named by its caption, while and
+  only while it overflows (`core/scrolling.js`), so a keyboard can scroll it.
+  *(2026-10-07, #280.)*
+- **Checkboxes are 18 px and placeholders use the muted text token**, not the
+  browser's 13 px box and 3.7:1 grey. *(2026-10-07, #280.)*
 - **The sidebar is a `nav` landmark labelled "Sections"**, and exactly one of its
   links carries `aria-current="page"`: the page's own link, never its section's
   as well. Below 40rem it is a drawer behind a menu button with
@@ -1170,12 +1207,19 @@ rewritten with content it already holds.** The review view repaints its re-searc
 offer only when a work's *membership* of the waiting set moved, not merely when a
 verdict changed, because rewriting a live region re-announces it — a curator
 working by screen reader would otherwise hear the whole offer read out again for a
-verdict that did not concern it.
+verdict that did not concern it. The top bar's status indicator, read again on every
+navigation, is written only when its state or words change (`core/status.js`;
+2026-10-07, #280), where it had re-announced "Well" on every page.
 
 ### Announcement and semantics
 
-**Practised:** `lang="en"` on the document; a `<nav>` labelled *Sections*; failures
-announced through a `role="alert"` banner rather than shown as a colour; the
+**Practised:** `lang="en"` on the document; a `<nav>` labelled *Sections*; a page
+that could not load announced through a `role="alert"` banner rather than shown
+as a colour; **a failed act announced through a `role="alert"` sentence placed
+directly after the control that sent it**, naming the act and what became of it
+("Couldn't reject *Nighthawks*: … Nothing was changed."), with the control left
+as it was so the retry is one press (`core/acting.js`; pinned by
+`arrt/tests/browser/test_failures_beside_the_control.py`); the
 re-search offer as a `role="status"` region, polite rather than assertive because
 an offer appearing is news and not an emergency.
 

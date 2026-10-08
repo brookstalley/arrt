@@ -5,7 +5,7 @@ import logging
 import os
 import shutil
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 import uvicorn
 
@@ -24,7 +24,7 @@ from arrt.library.discovery.conversation import (
 )
 from arrt.library.discovery.engine import DiscoveryEngine, unavailable_engine
 from arrt.library.discovery.images import offers_images
-from arrt.library.discovery.openrouter import OpenRouterClient
+from arrt.library.discovery.openrouter import KeyStatus, OpenRouterClient
 from arrt.library.discovery.phase_one import build_engine
 from arrt.library.registry import Registry
 from arrt.library.registry.wikidata import INTERACTIVE_TIMEOUT_SECONDS, WikidataRegistry
@@ -87,6 +87,22 @@ def _mat_engine(settings: Settings) -> MatEngine:
             max_output_tokens=settings.mat_max_output_tokens,
         )
     return MatEngine(client, image_max_edge=settings.mat_image_max_edge)
+
+
+def _key_status(settings: Settings) -> Callable[[], KeyStatus] | None:
+    """How the budget asks the provider what is left of the month, or None with no key.
+
+    Its own client rather than an engine's: reading `/key` is free, takes no
+    model, and must not wait behind a run's completion on one session.
+    """
+    if not settings.openrouter_api_key:
+        return None
+    client = OpenRouterClient(
+        settings.openrouter_api_key,
+        model=settings.discovery_model,
+        max_output_tokens=settings.discovery_max_output_tokens,
+    )
+    return client.key_status
 
 
 def _conversation_engine(settings: Settings) -> ConversationEngine:
@@ -217,9 +233,8 @@ def main(argv: Sequence[str] = ()) -> None:
     # because the test that reads as the guard here deliberately cannot see a
     # deployment's own `.env` — see `test_the_search_price_matches_the_engine_that_is_pinned`.
     log.info(
-        "discovery gate=%d works phase1_searches=%d phase2_searches_per_work=%d offered_works_per_run=%s "
+        "discovery phase1_searches=%d phase2_searches_per_work=%d offered_works_per_run=%s "
         "search_engine=%s search_price=$%s phase1_estimate=$%s",
-        discovery.approval_threshold,
         discovery.phase1_search_allowance,
         discovery.phase2_searches_per_work,
         # Named rather than left at 0, because this is the setting whose "off" is
@@ -329,6 +344,8 @@ def main(argv: Sequence[str] = ()) -> None:
             artwork_box=box,
             engine=_engine(settings),
             discovery_settings=settings.discovery_settings,
+            key_status=_key_status(settings),
+            monthly_budget_usd=settings.monthly_budget_usd,
             sources=sources,
             acquisition=AcquisitionSettings(
                 art_root=settings.art_root,

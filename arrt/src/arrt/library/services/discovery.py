@@ -55,7 +55,7 @@ from arrt.persistence.discovery_records import (
     Verdict,
     WorkProvenance,
 )
-from arrt.persistence.records import AcquisitionMethod, Artist, RightsStatus, SourceClass
+from arrt.persistence.records import AcquisitionMethod, Artist, EventKind, RightsStatus, SourceClass
 from arrt.services.errors import ServiceError
 from arrt.services.fields import relative_path, require_member, require_text
 from arrt.services.store import store_write
@@ -245,30 +245,26 @@ class DiscoveryService:
             started_at=datetime.now(UTC),
             intent_text=require_text(intent_text, field="intent_text"),
         )
-        store_write(self._store.add_run, run)
+        with self._store.transaction():
+            store_write(self._store.add_run, run)
+            self._record_started(run, intent=run.intent_text)
         return run
 
     def finish_work_list(
         self,
         run_id: str,
         *,
-        approval_threshold: int,
         estimated_cost_usd: Decimal | None = None,
         strategy: str | None = None,
         citations: Sequence[str] = (),
     ) -> DiscoveryRun:
-        """Close phase 1 and either stop for approval or go straight to phase 2.
+        """Close phase 1 and go straight to phase 2.
 
-        The gate is on the **work count**, not on the estimate. A dollar
-        threshold gates on the axis that does not discriminate — real runs cost
-        well under a dollar — while the judgement the gate exists to invite is
-        scope: "you asked for Dalí and I found 200 works — really?". More works
-        than the threshold stops for approval; exactly the threshold does not,
-        because a limit a curator set is a number they already accepted.
-
-        Whether the gate fired is stored rather than left to be re-derived: the
-        threshold is configuration, and a run that stopped for approval last
-        month must still read that way under today's setting.
+        **No run stops for approval** (the owner's ruling 3 of 2026-10-07,
+        #290): asking is the approval, and the month's budget and each action's
+        tier are what keep spend in view. A run stored `awaiting_approval`
+        before the gate was removed can still be approved or declined
+        (`approve_run`, `decline_run`); nothing writes that state now.
 
         `strategy` lands here because this is the moment it becomes known — it is
         the engine's account of how the intent was read, and it explains the very
@@ -280,15 +276,12 @@ class DiscoveryService:
         same reason and with the same single writer. Phase 2 hands them to the
         finders (`run_citations`).
         """
-        if approval_threshold < 0:
-            raise ServiceError(f"An approval threshold cannot be negative, got {approval_threshold}.")
         with self._store.transaction():
             run = self._require_status(run_id, RunStatus.RESOLVING_WORKS, doing="finish its work list")
-            required = len(self._store.list_candidate_works(run_id)) > approval_threshold
             advanced = replace(
                 run,
-                status=RunStatus.AWAITING_APPROVAL if required else RunStatus.RESOLVING_IMAGES,
-                approval_required=required,
+                status=RunStatus.RESOLVING_IMAGES,
+                approval_required=False,
                 estimated_cost_usd=estimated_cost_usd,
                 strategy=strategy,
             )
@@ -301,7 +294,11 @@ class DiscoveryService:
         return self._store.list_run_citations(run_id)
 
     def approve_run(self, run_id: str) -> DiscoveryRun:
-        """Accept the work list and its price; phase 2 may proceed."""
+        """Accept the work list and its price; phase 2 may proceed.
+
+        Only for a run stored `awaiting_approval` before the gate was removed
+        (`finish_work_list`): nothing puts a run there now.
+        """
         with self._store.transaction():
             run = self._require_status(run_id, RunStatus.AWAITING_APPROVAL, doing="be approved")
             approved = replace(run, status=RunStatus.RESOLVING_IMAGES)
@@ -314,6 +311,7 @@ class DiscoveryService:
             run = self._require_status(run_id, RunStatus.AWAITING_APPROVAL, doing="be declined")
             declined = self._ended(run, RunStatus.DECLINED)
             store_write(self._store.update_run, declined)
+            self._record_ended(declined)
         return declined
 
     def complete_run(self, run_id: str, *, actual_cost_usd: Decimal | None = None) -> DiscoveryRun:
@@ -333,6 +331,7 @@ class DiscoveryService:
                 unresolved_work_count=len(unresolved),
             )
             store_write(self._store.update_run, completed)
+            self._record_ended(completed)
         return completed
 
     def fail_run(self, run_id: str, *, reason: str, actual_cost_usd: Decimal | None = None) -> DiscoveryRun:
@@ -444,6 +443,7 @@ class DiscoveryService:
             store_write(self._store.add_run, run)
             for work in works:
                 store_write(self._store.add_coverage, ResolveRunWork(resolve_run_id=run.id, candidate_work_id=work.id))
+            self._record_started(run, works=len(works))
         return run
 
     def start_get_run(
@@ -502,6 +502,7 @@ class DiscoveryService:
                         wikidata_qid=work.qid,
                     ),
                 )
+            self._record_started(run, works=len(chosen))
         return run
 
     def awaiting_verdict(self) -> Mapping[str, int]:
@@ -512,6 +513,14 @@ class DiscoveryService:
         waiting are absent.
         """
         return dict(Counter(work.discovery_run_id for work in self._store.list_works_awaiting_verdict()))
+
+    def works_awaiting_review(self) -> Sequence[CandidateWork]:
+        """Every work that found an image and awaits a verdict: the works *To review* counts, by title.
+
+        What Search and the Artist page mark *Waiting for review*, so a work a
+        run already found is not offered for another Get.
+        """
+        return self._store.list_works_awaiting_verdict()
 
     def destinations(self, artwork_ids: Iterable[str]) -> Mapping[str, str | None]:
         """Where each artwork's acceptance asked it to go: a theme id, or None for the default.
@@ -584,7 +593,9 @@ class DiscoveryService:
                     # Coverage is released by the run becoming terminal, not by
                     # deleting its rows: the join records what the run's scope
                     # was, and that stays true after the run has ended.
-                    store_write(self._store.update_run, self._ended(run, RunStatus.INTERRUPTED))
+                    interrupted = self._ended(run, RunStatus.INTERRUPTED)
+                    store_write(self._store.update_run, interrupted)
+                    self._record_ended(interrupted)
             self._reclean_proposed_titles()
 
     def _reclean_proposed_titles(self) -> None:
@@ -763,11 +774,14 @@ class DiscoveryService:
         work_dedup_key: str,
         proposed_artist: str | None = None,
         reconsider: bool = False,
+        source_confirmed: bool | None = None,
     ) -> CandidateWork:
         """Record a work phase 1 proposed, unless the curator has already declined it.
 
         `rationale` is required because a review card that cannot say *why* this
         work matched the intent asks the curator to judge a bare title.
+        `source_confirmed` is phase 1's word on whether a source confirms it, or
+        `None` for none (`CandidateWork.confirmation`).
 
         Suppression is refused rather than silently skipped, and `reconsider`
         exists because the rule is "unless the curator explicitly reconsiders it"
@@ -797,6 +811,7 @@ class DiscoveryService:
                 rationale=require_text(rationale, field="rationale"),
                 work_dedup_key=key,
                 proposed_artist=proposed_artist,
+                source_confirmed=source_confirmed,
             )
             store_write(self._store.add_candidate_work, work)
         return work
@@ -898,9 +913,23 @@ class DiscoveryService:
             if work.verdict.is_terminal:
                 raise ServiceError(f"Candidate work {candidate_work_id!r} was already {work.verdict}, and that is final.")
             if target is Verdict.ACCEPTED:
-                return self._accept(work)
+                outcome = self._accept(work)
+                self._catalogue.record_event(
+                    EventKind.ACCEPTED,
+                    work_id=outcome.work.artwork_id,
+                    run_id=work.discovery_run_id,
+                    detail={"title": work.proposed_title, "candidate_work_id": work.id},
+                )
+                return outcome
             rejected = replace(work, verdict=target, rejected_reason=reason, decided_at=datetime.now(UTC))
             store_write(self._store.update_candidate_work, rejected)
+            # A turned-down candidate never became a work, so the event names it
+            # by its candidate id and its title rather than by a work id.
+            self._catalogue.record_event(
+                EventKind.REJECTED,
+                run_id=work.discovery_run_id,
+                detail={"title": work.proposed_title, "candidate_work_id": work.id},
+            )
         return VerdictOutcome(work=rejected)
 
     # -- reads and writes: image instances ------------------------------------
@@ -1567,6 +1596,22 @@ class DiscoveryService:
     def _spend_total(self, run_id: str) -> Decimal:
         return sum((record.cost_usd for record in self._store.list_spend_records(run_id=run_id)), Decimal(0))
 
+    def _record_started(self, run: DiscoveryRun, *, intent: str | None = None, works: int | None = None) -> None:
+        """Write the history's line for a Get beginning, inside the transaction that begins it."""
+        detail: dict[str, object] = {"run_kind": str(run.kind)}
+        if intent is not None:
+            detail["intent"] = intent
+        if works is not None:
+            detail["works"] = works
+        self._catalogue.record_event(EventKind.GET_STARTED, run_id=run.id, detail=detail)
+
+    def _record_ended(self, run: DiscoveryRun) -> None:
+        """Write the history's line for a Get ending, however it ended, inside the transaction that ends it."""
+        detail: dict[str, object] = {"run_kind": str(run.kind), "status": str(run.status)}
+        if run.end_reason is not None:
+            detail["reason"] = run.end_reason
+        self._catalogue.record_event(EventKind.GET_FINISHED, run_id=run.id, detail=detail)
+
     def _require_status(self, run_id: str, expected: RunStatus, *, doing: str) -> DiscoveryRun:
         """Refuse a transition the run is not standing on the edge of."""
         run = self.get_run(run_id)
@@ -1609,6 +1654,7 @@ class DiscoveryService:
                 )
             ended = replace(self._ended(run, ending, actual_cost_usd=actual_cost_usd), end_reason=reason)
             store_write(self._store.update_run, ended)
+            self._record_ended(ended)
         return ended
 
     @staticmethod

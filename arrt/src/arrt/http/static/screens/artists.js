@@ -19,14 +19,15 @@
  * through `el`'s `text` and never as markup; image sources are Commons file URLs
  * the server has already checked, and nothing else is offered as one. */
 
+import { attempt } from "../core/acting.js";
 import { api, fetchAllWorks } from "../core/api.js";
-import { absentImage, facts } from "../core/badges.js";
+import { absentImage, facts, workName } from "../core/badges.js";
 import { identityControl, storeIdentity } from "../core/identity.js";
 import { addedSentence, addWorksToTheme, stoppedSentence } from "../core/membership.js";
 import { getSelection } from "../core/getting.js";
-import { el, fill, guard, render } from "../core/render.js";
-import { isQid, lifeDates, listHeadings, named, stateMark, wikidataLink, workCell, workState, yearCell } from "../core/registry.js";
-import { backLink, backRow, go, goWithParams, redirect, refresh } from "../core/router.js";
+import { el, fill, render } from "../core/render.js";
+import { gettable, isQid, lifeDates, listHeadings, named, stateMark, wikidataLink, workCell, workState, yearCell } from "../core/registry.js";
+import { backLink, backRow, goWithParams, link, redirect, refresh, setTitle } from "../core/router.js";
 import { state } from "../core/state.js";
 import { recordReaction } from "../core/taste.js";
 import { menuButton, toolbar } from "../core/toolbar.js";
@@ -46,7 +47,7 @@ export async function viewArtists(artistId, generation) {
   render(
     generation,
     backRow(),
-    el("h2", { text: "Artists" }),
+    el("h1", { text: "Artists" }),
     listing.artists.length
       ? toolbar({
           controls: [
@@ -65,7 +66,7 @@ export async function viewArtists(artistId, generation) {
         : artistPosters(listing.artists, count)
       : el("div", { class: "panel" }, [
           el("p", { class: "muted", text: "No artists yet. Works you accept bring their artists here." }),
-          el("button", { class: "action", type: "button", text: "Ask", onclick: () => go("discover") }),
+          link({ view: "discover" }, { class: "action", text: "Ask" }),
         ]),
   );
 }
@@ -94,14 +95,14 @@ function artistPosters(artists, count) {
   return el("section", { "aria-label": count }, [
     el("p", { class: "muted", text: count }),
     el("ul", { class: "grid artist-posters" }, artists.map(({ artist, held, pictured_artwork_id: pictured }) => {
-      const open = () => go("artist", artist.artist_id);
+      const target = { view: "artist", id: artist.artist_id };
       const img = el("img", { src: `/api/works/${encodeURIComponent(pictured)}/thumbnail`, alt: "", loading: "lazy" });
       img.addEventListener("error", () => img.replaceWith(el("span", { class: "card-image-absent", text: "No picture" })));
-      const picture = el("button", { class: "card-image", type: "button", tabindex: "-1", "aria-hidden": true, onclick: open }, [img]);
+      const picture = link(target, { class: "card-image", tabindex: "-1", "aria-hidden": true }, [img]);
       return el("li", { class: "card", "data-artist": artist.artist_id }, [
         picture,
         el("div", { class: "card-body" }, [
-          el("h3", { class: "card-title" }, [el("button", { type: "button", text: artist.name, onclick: open })]),
+          el("h2", { class: "card-title" }, [link(target, { text: artist.name })]),
           el("p", { class: "card-meta", text: [lifeDates(artist), `${held} ${held === 1 ? "work" : "works"}`].filter(Boolean).join(" · ") }),
         ]),
       ]);
@@ -112,7 +113,7 @@ function artistPosters(artists, count) {
 function artistTable(artists, count) {
   const rows = artists.map(({ artist, held }) =>
     el("tr", {}, [
-      el("td", {}, [el("button", { class: "row-title", type: "button", text: artist.name, onclick: () => go("artist", artist.artist_id) })]),
+      el("td", {}, [link({ view: "artist", id: artist.artist_id }, { class: "row-title", text: artist.name })]),
       el("td", { text: lifeDates(artist) || "—" }),
       el("td", { text: String(held) }),
     ]),
@@ -139,9 +140,9 @@ async function oneArtist(artistId, generation) {
     render(
       generation,
       el("p", {}, [backLink()]),
-      el("h2", { text: "That artist is not here" }),
+      el("h1", { text: "That artist is not here" }),
       el("p", { class: "note", text: "Nothing in the library has this address. The artists the library holds are listed together." }),
-      el("div", { class: "row" }, [el("button", { class: "action", type: "button", text: "All artists", onclick: () => go("artist") })]),
+      el("div", { class: "row" }, [link({ view: "artist" }, { class: "action", text: "All artists" })]),
     );
     return;
   }
@@ -154,17 +155,18 @@ async function oneArtist(artistId, generation) {
   ]);
 
   const registrySection = el("section", { class: "panel", "aria-labelledby": "their-work" }, [
-    el("h3", { id: "their-work", text: "Their work" }),
+    el("h2", { id: "their-work", text: "Their work" }),
     el("p", { class: "muted", "aria-live": "polite", text: "Asking Wikidata…" }),
   ]);
   const about = el("div", { class: "stack" });
   const similarSection = artist.wikidata_qid ? similarShell() : null;
 
+  setTitle(generation, artist.name);
   render(
     generation,
     el("p", {}, [backLink()]),
     el("div", { class: "panel" }, [
-      el("h2", { text: artist.name }),
+      el("h1", { text: artist.name }),
       facts([
         ["Life", lifeDates(artist)],
         ["Nationality", artist.display_nationality || artist.nationality],
@@ -207,7 +209,7 @@ async function registryArtist(qid, generation) {
     redirect("artist", view.artist_id);
     return;
   }
-  const registrySection = el("section", { class: "panel", "aria-labelledby": "their-work" }, [el("h3", { id: "their-work", text: "Their work" })]);
+  const registrySection = el("section", { class: "panel", "aria-labelledby": "their-work" }, [el("h2", { id: "their-work", text: "Their work" })]);
   const about = el("div", { class: "stack" });
   const similarSection = similarShell();
   // Said only when it can be known. A held work listed here belongs to a library
@@ -223,11 +225,13 @@ async function registryArtist(qid, generation) {
             ? "Some of their work is in your library, filed under another artist; it is marked Held below."
             : "Nothing of theirs is in your library.",
         });
+  const name = view.name ? named(view.name, qid) : `Wikidata ${qid}`;
+  setTitle(generation, name);
   render(
     generation,
     el("p", {}, [backLink()]),
     el("div", { class: "panel" }, [
-      el("h2", { text: view.name ? named(view.name, qid) : `Wikidata ${qid}` }),
+      el("h1", { text: name }),
       facts([["Life", lifeDates(view)]]),
       el("p", { class: "muted" }, [wikidataLink(qid, `Wikidata ${qid}`)]),
       about,
@@ -256,10 +260,9 @@ function namesakeOffer(artist, qid) {
       type: "button",
       text: "Link them to this item",
       "aria-label": `Link the library's ${artist.name} to ${qid}`,
-      onclick: () =>
-        guard(async () => {
-          await storeIdentity("artist", artist.artist_id, qid);
-          redirect("artist", artist.artist_id);
+      onclick: (event) =>
+        attempt(event.currentTarget, `link ${artist.name} to ${qid}`, () => storeIdentity("artist", artist.artist_id, qid), {
+          then: () => redirect("artist", artist.artist_id),
         }),
     }),
   ]);
@@ -270,7 +273,7 @@ function namesakeOffer(artist, qid) {
  * to an artist nobody can supply. Asked last: the query takes seconds. */
 function similarShell() {
   return el("section", { class: "panel", "aria-labelledby": "similar-artists" }, [
-    el("h3", { id: "similar-artists", text: "Similar artists" }),
+    el("h2", { id: "similar-artists", text: "Similar artists" }),
     el("p", { class: "muted", "aria-live": "polite", text: "Asking Wikidata…" }),
   ]);
 }
@@ -283,7 +286,7 @@ async function paintSimilar(section, qid) {
     view = { state: "unavailable", note: "Wikidata could not be asked just now.", artists: [] };
   }
   if (!section.isConnected) return;
-  const heading = section.querySelector("h3");
+  const heading = section.querySelector("h2");
   if (view.state !== "known") {
     fill(section, heading, el("p", { class: "note", text: view.note }));
     return;
@@ -293,7 +296,7 @@ async function paintSimilar(section, qid) {
     view.artists.length
       ? el("ul", { class: "results-list" }, view.artists.map((person) =>
           el("li", {}, [
-            el("button", { class: "row-title", type: "button", text: named(person.name, person.qid), onclick: () => go("artist", person.artist_id || person.qid) }),
+            link({ view: "artist", id: person.artist_id || person.qid }, { class: "row-title", text: named(person.name, person.qid) }),
             lifeDates(person) ? el("span", { class: "muted", text: ` ${lifeDates(person)}` }) : null,
             el("span", { class: "muted", text: ` · ${person.images} ${person.images === 1 ? "work" : "works"} with an image` }),
             stateMark({ held: Boolean(person.artist_id) }),
@@ -308,14 +311,15 @@ async function paintSimilar(section, qid) {
  * judgment about one artist, wherever it is made. */
 function tasteControls(artist) {
   const said = el("p", { class: "muted", "aria-live": "polite" });
-  const react = (reaction) =>
-    guard(async () => {
-      await recordReaction({ kind: "artist", value: artist.name, reaction });
-      said.textContent = `Recorded: ${reaction} for ${artist.name}.`;
+  const react = (reaction) => (event) =>
+    attempt(event.currentTarget, `record ${reaction} for ${artist.name}`, () => recordReaction({ kind: "artist", value: artist.name, reaction }), {
+      then: () => {
+        said.textContent = `Recorded: ${reaction} for ${artist.name}.`;
+      },
     });
   return el("div", { class: "row" }, [
-    el("button", { class: "action quiet", type: "button", text: "More like this", onclick: () => react("more like this") }),
-    el("button", { class: "action quiet", type: "button", text: "Not this", onclick: () => react("not this") }),
+    el("button", { class: "action quiet", type: "button", text: "More like this", onclick: react("more like this") }),
+    el("button", { class: "action quiet", type: "button", text: "Not this", onclick: react("not this") }),
     said,
   ]);
 }
@@ -338,9 +342,10 @@ function heldSection(works, themes) {
     say(chosen.size === 0 ? "No works selected." : `${chosen.size} selected.`);
   };
   const grid = el("ul", { class: "grid" }, works.works.map((work) => heldCard(work, chosen, settle)));
-  add.addEventListener("click", () =>
-    guard(async () => {
-      const name = picker.options[picker.selectedIndex].text;
+  add.addEventListener("click", () => {
+    const name = picker.options[picker.selectedIndex].text;
+    const asked = chosen.size;
+    return attempt(add, `add ${asked} ${asked === 1 ? "work" : "works"} to ${name}`, async () => {
       const untick = (artworkId) => {
         chosen.delete(artworkId);
         const box = grid.querySelector(`[data-artwork="${CSS.escape(artworkId)}"] input[type="checkbox"]`);
@@ -352,19 +357,19 @@ function heldSection(works, themes) {
       } catch (failure) {
         settle();
         if (failure.progress) say(stoppedSentence(failure.progress, name));
-        announcement.focus();
+        // Rethrown so the server's reason is said beside Add, where the retry is.
         throw failure;
       }
       for (const artworkId of [...chosen]) untick(artworkId);
       settle();
       say(addedSentence(outcome, name));
       announcement.focus();
-    }),
-  );
+    });
+  });
   settle();
   const shown = works.works.length;
   return el("section", { class: "panel", "aria-labelledby": "in-your-library" }, [
-    el("h3", { id: "in-your-library", text: `In your library (${works.total})` }),
+    el("h2", { id: "in-your-library", text: `In your library (${works.total})` }),
     shown
       ? grid
       : el("p", { class: "muted", text: "None of their works is in circulation." }),
@@ -376,7 +381,7 @@ function heldSection(works, themes) {
 }
 
 function heldCard(work, chosen, settle) {
-  const box = el("input", { type: "checkbox", "aria-label": `Select ${work.title}` });
+  const box = el("input", { type: "checkbox", "aria-label": `Select ${workName(work)}` });
   box.addEventListener("change", () => {
     if (box.checked) chosen.add(work.artwork_id);
     else chosen.delete(work.artwork_id);
@@ -389,7 +394,7 @@ function heldCard(work, chosen, settle) {
     el("label", { class: "card-select" }, [box]),
     el("div", { class: "card-image" }, [picture]),
     el("div", { class: "card-body" }, [
-      el("h4", { class: "card-title" }, [el("button", { type: "button", text: work.title, onclick: () => go("work", work.artwork_id) })]),
+      el("h3", { class: "card-title" }, [link({ view: "work", id: work.artwork_id }, { text: work.title, "aria-label": workName(work) })]),
       el("p", { class: "card-meta", text: work.date_created || " " }),
     ]),
   ]);
@@ -415,10 +420,9 @@ function candidateList(candidates, artistId) {
           type: "button",
           text: "This is them",
           "aria-label": `${named(person.name, person.qid)}${life ? `, ${life}` : ""}, ${person.qid}: this is them`,
-          onclick: () =>
-            guard(async () => {
-              await storeIdentity("artist", artistId, person.qid);
-              refresh();
+          onclick: (event) =>
+            attempt(event.currentTarget, `say ${named(person.name, person.qid)} is them`, () => storeIdentity("artist", artistId, person.qid), {
+              then: () => refresh(),
             }),
         }),
       ]);
@@ -432,12 +436,7 @@ function candidateList(candidates, artistId) {
  * is: asking is a paid run, and the curator presses the button beside its price. */
 function askForTheirWork(name) {
   return el("div", { class: "row" }, [
-    el("button", {
-      class: "action",
-      type: "button",
-      text: "Ask for their work",
-      onclick: () => go("discover", null, { term: `Paintings by ${name}` }),
-    }),
+    link({ view: "discover", params: { term: `Paintings by ${name}` } }, { class: "action", text: "Ask for their work" }),
   ]);
 }
 
@@ -446,9 +445,10 @@ function askForTheirWork(name) {
  * title); then the collections.
  *
  * Every work the library does not hold can be ticked and got, image found or not:
- * a museum may hold one Wikidata has no picture of. A held row has no tick box. */
+ * a museum may hold one Wikidata has no picture of. A held row has no tick box,
+ * and nor has one waiting for review, whose mark links to the review instead. */
 function paintRegistry(section, about, view, { name = null, artistId = null } = {}) {
-  const heading = section.querySelector("h3");
+  const heading = section.querySelector("h2");
   if (view.state !== "known") {
     const candidates = view.candidates || [];
     fill(section,
@@ -465,7 +465,7 @@ function paintRegistry(section, about, view, { name = null, artistId = null } = 
   const getting = getSelection();
   const rows = view.works.map((work) =>
     el("tr", {}, [
-      el("td", {}, [work.held_artwork_ids.length ? null : getting.box(work.qid, named(work.title, work.qid))]),
+      el("td", {}, [gettable(work) ? getting.box(work.qid, named(work.title, work.qid)) : null]),
       workCell(work),
       yearCell(work),
       el("td", {}, [workState(work)]),
@@ -484,8 +484,8 @@ function paintRegistry(section, about, view, { name = null, artistId = null } = 
         ])])
       : el("p", { class: "muted", text: "Wikidata lists no works for them." }),
     view.works.length || !name ? null : askForTheirWork(name),
-    view.works.some((work) => !work.held_artwork_ids.length) ? getting.node : null,
-    el("h3", { id: "holdings", text: "Holdings" }),
+    view.works.some(gettable) ? getting.node : null,
+    el("h2", { id: "holdings", text: "Holdings" }),
     holdings.length ? el("ul", { "aria-labelledby": "holdings" }, holdings) : el("p", { class: "muted", text: "Wikidata names no collection holding their work." }),
   );
 }

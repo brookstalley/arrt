@@ -16,6 +16,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
+from fakes import stored_awaiting_approval
 
 from arrt.persistence.discovery_records import InitiatedBy, ResolutionStatus, RunStatus, SpendCategory, Verdict
 from arrt.services.errors import ServiceError
@@ -640,7 +641,7 @@ def test_rejecting_an_alternate_leaves_the_standing_selection_alone(discovery, p
     assert [image.id for image in images.values() if image.is_selected] == [modest.id]
 
 
-def test_a_run_waiting_for_the_curator_holds_no_coverage_to_release(discovery, run, propose):
+def test_a_run_waiting_for_the_curator_holds_no_coverage_to_release(discovery, run, propose, discovery_store):
     """Only a resolve run covers works, and a resolve run never awaits approval.
 
     So "the ids are held by a run awaiting approval" describes a state this model
@@ -649,7 +650,8 @@ def test_a_run_waiting_for_the_curator_holds_no_coverage_to_release(discovery, r
     trying to unstick something real.
     """
     work = propose()
-    discovery.finish_work_list(run.id, approval_threshold=0)
+    discovery.finish_work_list(run.id)
+    stored_awaiting_approval(discovery_store, run.id)
     assert discovery.get_run(run.id).status is RunStatus.AWAITING_APPROVAL
 
     resolve = discovery.start_resolve_run(candidate_work_ids=[work.id], initiated_by=InitiatedBy.WEB_UI)

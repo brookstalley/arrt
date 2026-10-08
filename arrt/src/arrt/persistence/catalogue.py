@@ -30,6 +30,9 @@ from arrt.persistence.records import (
     Artwork,
     ArtworkPage,
     ArtworkStatus,
+    EventKind,
+    EventPage,
+    HistoryEvent,
     MatColor,
     Original,
     QueuedAcquisition,
@@ -237,6 +240,15 @@ class CatalogueStore(Protocol):
         """Every work in circulation that carries a Wikidata QID, keyed by it; several where works share one."""
         ...
 
+    def circulating_without_qid(self) -> Sequence[tuple[str, str, str | None]]:
+        """Every work in circulation that carries no Wikidata QID and is open to one: id, title and artist id, oldest first.
+
+        What a registry row is matched against by title and artist where no QID
+        can match it. A work the curator said has no item is left out: they said
+        it is no registry row.
+        """
+        ...
+
     def accepted_artwork_ids(self) -> Sequence[str]:
         """Every work in circulation, by id, oldest first."""
         ...
@@ -387,6 +399,16 @@ class CatalogueStore(Protocol):
 
     def remove_queued_acquisition(self, artwork_id: str) -> None:
         """Delete the queue's row for this work. A missing row is not an error."""
+        ...
+
+    # -- the history ----------------------------------------------------------
+
+    def add_event(self, event: HistoryEvent) -> None:
+        """Record one act. Raises if the id is already stored."""
+        ...
+
+    def list_events(self, *, kinds: Sequence[EventKind] = (), wall_id: str | None = None, limit: int, offset: int) -> EventPage:
+        """A page of history, newest first, narrowed to these kinds (any, when none) and to one wall."""
         ...
 
 

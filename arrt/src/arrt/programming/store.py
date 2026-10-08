@@ -1,7 +1,7 @@
 """The persistence contract over Programming's tables.
 
-Themes, what each holds, walls, what hangs on each, each wall's directive, and
-the clients that show walls.
+Themes, what each holds, walls, what hangs on each, each wall's directive, the
+clients that show walls, and the works kept off every wall.
 Programming reaches its storage only through this protocol and never through
 `persistence.catalogue.CatalogueStore`, which is the Library's. Today one SQLite
 file serves both and one object implements both protocols. The split is
@@ -19,7 +19,7 @@ from contextlib import AbstractContextManager
 from datetime import datetime
 from typing import Protocol
 
-from arrt.persistence.records import Client, Directive, Theme, ThemeAssignment, ThemeMembership, Wall
+from arrt.persistence.records import Client, Directive, Theme, ThemeAssignment, ThemeMembership, Wall, WorkExclusion
 
 
 class ProgrammingStore(Protocol):
@@ -190,4 +190,18 @@ class ProgrammingStore(Protocol):
 
     def list_directives(self) -> Sequence[Directive]:
         """Every wall's standing directive, in a stable order."""
+        ...
+
+    # -- works kept off every wall --------------------------------------------
+
+    def add_exclusion(self, exclusion: WorkExclusion) -> None:
+        """Keep a work off every wall. Raises if it is already kept off."""
+        ...
+
+    def remove_exclusion(self, artwork_id: str) -> None:
+        """Let a work go on walls again. Removing an absent exclusion is not an error."""
+        ...
+
+    def list_exclusions(self) -> Sequence[WorkExclusion]:
+        """Every work kept off every wall, oldest first."""
         ...

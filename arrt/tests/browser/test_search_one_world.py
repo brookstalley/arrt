@@ -90,7 +90,7 @@ def matched(services, seeded_service):
 
 def _type(ui, words):
     ui.open("#walls")
-    ui.page.wait_for_selector("#view h2")
+    ui.page.wait_for_selector("#view h1")
     ui.page.click("#search")
     ui.page.keyboard.type(words)
     ui.page.wait_for_selector(f"{LISTBOX}:not([hidden]) [role='option']")
@@ -132,7 +132,7 @@ def test_wikidata_follows_the_library_and_shows_nothing_twice(ui, matched):
     assert badge.locator(".glyph").get_attribute("aria-hidden") == "true"
 
 
-def test_a_wanted_match_says_wanted_and_only_the_unheld_picture_is_hatched(ui, matched, want_item, pictures_load):
+def test_a_wanted_match_says_wanted_and_only_the_unheld_picture_is_styled_not_held(ui, matched, want_item, pictures_load):
     """The typeahead's half of #172: *Image found* no longer reads as if it might mean held."""
     want_item("Q99", "Crucifixion")
     _type(ui, "dali")
@@ -339,7 +339,7 @@ def test_a_new_query_starts_with_nothing_highlighted_so_enter_opens_the_results(
     ui.page.keyboard.press("Enter")
 
     ui.page.wait_for_function("() => window.location.hash.startsWith('#search?') && window.location.hash.includes('q=dali')")
-    ui.page.wait_for_selector("#view h2:text-is('Results for “dali”')")
+    ui.page.wait_for_selector("#view h1:text-is('Results for “dali”')")
 
 
 def test_choosing_a_theme_opens_it(ui, services, matched):

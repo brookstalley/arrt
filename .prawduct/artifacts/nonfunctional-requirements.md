@@ -70,7 +70,7 @@ unbounded bill.
 > `services/health.py` carries the same decision at the site that would hold the
 > field, and says not to add it back without reopening the decision.)*
 >
-> *(**Reversed by the owner 2026-10-07** (`ia-proposal.md` § Rulings (2026-10-07), ruling 3): the month's remaining budget is shown in the sidebar, read from the provider as this corollary says, and approvals give way to cost tiers. The inversion recorded here was weighed and accepted: it bites only at the edge of the cap, where the provider's refusal is authoritative and the screen must say so, and how the figure reads near zero is #290's to design (the builder's proposal, not part of the ruling: "under $1 left" below about $1, rather than a precise amount). Built by #290; until it lands, the code still omits the figure and the test asserting its absence still holds.)*
+> *(**Reversed by the owner 2026-10-07** (`ia-proposal.md` § Rulings (2026-10-07), ruling 3): the month's remaining budget is shown in the sidebar, read from the provider as this corollary says, and approvals give way to cost tiers. The inversion recorded here was weighed and accepted: it bites only at the edge of the cap, where the provider's refusal is authoritative and the screen must say so, and how the figure reads near zero is #290's to design (the builder's proposal, not part of the ruling: "under $1 left" below about $1, rather than a precise amount). **Server half built 2026-10-07** (`build-plan-walls-work-and-trust.md` Chunk 10): `GET /api/budget` reads `limit_remaining`, which on a key with a monthly reset is the month's (re-measured, `openrouter-api-findings.md`), or, on a key with no limit, the provider's own `usage_monthly` against `MONTHLY_BUDGET_USD`, never a ledger tally; the refusal at the cap now leads with "This month's budget is spent"; the approval gate is gone. The health panel still carries no balance, and its test says why. The sidebar shows the figure ("$12.40 left this month", built 2026-10-08, `core/spend.js`).)*
 >
 > **Scope note:** this norm governs *ceilings*, not *budgeting*. A per-run search
 > cap (below, under Cost) is application-enforced and does not depart from this —
@@ -820,8 +820,8 @@ than a silent truncation of results.
 > holds far more than any run will show — one real run's four artists had 69
 > offerable works between them — and the museum's relevance score is unusable for
 > ordering them (`artic-api-findings.md`). So the works kept are taken one per
-> artist per pass, and this number is how many passes. Twelve is about half the
-> approval threshold, which keeps the supplement visibly secondary while still
+> artist per pass, and this number is how many passes. Twelve was about half the
+> approval threshold the gate used until 2026-10-07, which keeps the supplement visibly secondary while still
 > giving a four-artist run three works each. Zero turns it off.
 >
 > **Overrunning the allowance fails the run rather than trimming its results.**

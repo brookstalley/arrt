@@ -62,6 +62,66 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-08: Walls, Work, and signals you can trust
+
+<!-- prawduct: scope=walls-work-and-trust -->
+
+**Why:** The high-priority findings of `ux-review-2026-10.md`, built as one plan and one
+PR at the owner's request ("minimize ceremony"). The two weekly scenarios failed: one
+held work could not be hung (S1), and Walls could not say what was on the wall (S6, S8).
+The review also found navigation by script buttons, signals that contradicted
+themselves, a product voice that was the code's rather than the curator's, and art
+shown as the wall render.
+
+**What:**
+- **Walls and Work** (#272, #295, #162): each wall card leads with the work its
+  heartbeat names, with Skip, *Not this one again* (this theme, or every wall) and
+  Change; a client report older than three heartbeats is said as unknown. The Work
+  page's state strip lists the walls and themes a work is on, with Hang…; Archive is
+  secondary; museum `<i>`/`<b>` render through an allow-listed tokeniser.
+- **Programming**: a wall can hang a selection (a theme with a hidden flag, deleted once
+  no wall hangs it, refused as a destination, default, add target or rename target); a
+  work can be kept off every wall (`work_exclusions`) and allowed again;
+  `GET /api/works/{id}/placements`.
+- **History is events** (#293): a Library-side `history_events` log of Gets, verdicts,
+  archives, restores, hangs and exclusions, from now on; History and each wall read it.
+- **Navigation is a link** (#273): every list opens its items by `<a href>`; scroll,
+  focus and Back keep the place; each screen has its own title and h1.
+- **Failures beside the control** (#277), through one helper.
+- **Search and review trust** (#275, #276, #89): registry rows fold into held twins;
+  works waiting for review are marked and a Get skips them, and skips held works matched
+  by title and artist; review candidates carry confirmed / unconfirmed / unknown
+  (`source_found` from the model); a verdict is held 5 s with Undo.
+- **Spend** (#290): the approval gate is retired (ruling 3); `GET /api/budget` and the
+  sidebar's "left this month"; a cost tier on every spending action.
+- **One vocabulary** (#291, #292, #267, #283): Get everywhere (`#get/`, `#run` aliased),
+  Wanted always shown, bare-noun labels, one date formatter, costs to the cent, museum
+  names.
+- **Tiles show the art** (#278, ruling 7), with a 1920 px `/wall-preview` for the Work
+  page; **keyboard and phone** (#280, #279).
+- Retired the parked round-2 UI plan; carried its operator-ruled § Boundaries amendment.
+
+**Tests:** guards new with this branch include `test_navigation_is_a_link.py`,
+`test_labels_are_bare.py`, `test_no_machine_dates.py`, `test_one_date_formatter.py`,
+`test_stylesheet_is_whole.py`, `test_staleness_threshold.py`, and browser suites for
+Walls, the Work page, History, review trust, spend, tiles, keyboard and phone (a
+sideways-scroll check over every route at 390 px). Each new test was watched failing
+against the unfixed code. Existing tests changed deliberately are named in their
+commits; none was weakened.
+
+**Deploy and roll back:** the catalogue gains `history_events`, `work_exclusions`,
+`themes.is_hidden` and `candidate_works.source_confirmed`, added at startup; tiles and
+wall previews cache under `thumbs/tiles/` and `thumbs/wall-previews/`, and an old
+thumbnail row regenerates. `MONTHLY_BUDGET_USD` is optional (only for a key with no
+provider limit). **Rolling back to an older image is not clean:** an older build reads
+every hidden selection as an ordinary theme, and puts back on the walls every work kept
+off with *Not this one again from every wall*. Restore the catalogue backup taken
+before this deploy alongside the older image, rather than the image alone.
+
+**Not done:** the live walk of S1, S6 and S8 on the real wall (chunk 13), owned by the
+operator after deploy. Pass 1 re-run on a synthetic 2,000-work library found no screen
+reached only by a button and no dead end.
+
 ## 2026-10-07: Walls says "Shown by" only when a screen is there
 
 <!-- prawduct: scope=wall-screen-state -->

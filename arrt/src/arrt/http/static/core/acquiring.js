@@ -9,9 +9,11 @@
  * so Retry never fetches in the request: it moves the work to the front and the
  * line repaints from the state the server answers with. */
 
+import { attempt } from "./acting.js";
 import { api } from "./api.js";
 import { counted } from "./counting.js";
-import { el, guard } from "./render.js";
+import { dated } from "./dates.js";
+import { el } from "./render.js";
 
 const PHASES = {
   queued: { glyph: "◌", word: "queued" },
@@ -26,7 +28,7 @@ const PHASES = {
 const TRIES = 4;
 
 function when(iso) {
-  return iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : null;
+  return iso ? dated(iso) : null;
 }
 
 export function acquisitionBadge(state) {
@@ -67,11 +69,13 @@ export function retryButton(state, title, onRetry) {
     type: "button",
     text: state.phase === "gave_up" ? "Retry" : "Retry now",
     "aria-label": `Retry fetching ${title}`,
-    onclick: () =>
-      guard(async () => {
-        const fresh = await api(`/api/works/${encodeURIComponent(state.artwork_id)}/acquisition/retry`, { method: "POST" });
-        await onRetry(fresh);
-      }),
+    onclick: (event) =>
+      attempt(
+        event.currentTarget,
+        `retry fetching ${title}`,
+        () => api(`/api/works/${encodeURIComponent(state.artwork_id)}/acquisition/retry`, { method: "POST" }),
+        { then: onRetry },
+      ),
   });
 }
 

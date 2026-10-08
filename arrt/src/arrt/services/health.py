@@ -16,14 +16,14 @@ a UI, and it would be worse than no panel at all because it manufactures
 confidence. Each reading says what was found, when, and — when there is nothing
 to say — that there is nothing to say.
 
-**There is no budget balance here, and its absence is a decision rather than an
-omission** (operator, 2026-08-04). The provider's `limit_remaining` was observed
-reporting credit while live calls were already being refused, so it fails by
-inversion rather than by staleness — and stating its age, which is this panel's
-whole remedy for a stale figure, would not warn anyone about the case that bites.
-The honest budget signals are recorded per-run spend and the `halted_by_budget`
-outcome, and both are on the run view. Do not add the field back here without
-reopening that decision.
+**There is no budget balance here; the month's budget is the sidebar's**
+(`library/services/spending.py`, `GET /api/budget`, the owner's ruling of
+2026-10-07, #290). It stays off this panel because this panel's remedy for a
+stale figure is to state its age, and the provider's `limit_remaining` fails by
+inversion rather than by staleness: it was observed reporting credit while live
+calls were already being refused, so an age beside it would not warn anyone
+about the case that bites. The refusal at the cap names the month's budget as
+spent, and that is what a curator meets at the edge.
 
 Composed in the service layer rather than in the handler, so both the assembly
 and its rules are testable without HTTP, and so the surface stays the thin

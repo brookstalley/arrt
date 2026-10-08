@@ -288,7 +288,11 @@ convenience would otherwise make that split a migration.
 > handler and the catch-up both ask of `LibraryFacade.destinations`, the theme
 > its Get named or None for the default, so a lost event and a delivered one
 > land the work in the same theme. The run holds the theme id opaquely, with no
-> foreign key; `arrt/tests/integration/test_get_destination.py` holds it.)* **Still in the
+> foreign key; `arrt/tests/integration/test_get_destination.py` holds it.
+> 2026-10-07: Programming's acts on the walls (a hang, *Not this one again*, its
+> undo) reach the Library's history through `LibraryFacade.record`, written after
+> Programming's own change commits, and the facade refuses any other kind;
+> `work_exclusions` holds its work ids with no foreign key, as rule 3 asks.)* **Still in the
 > inventory:** the two foreign keys (rule 3), and one migration:
 > `mark_the_default_theme` (`persistence/migrations.py`) reads the Library's
 > `artworks` to back-fill Programming's `default_theme_offers` on a file that
@@ -581,8 +585,8 @@ is no network between planes.
   `DiscoveryService` owns the *records* — both state machines, the verdicts, the
   spend rows — and is deliberately synchronous with no notion of a process.
   `DiscoveryRunner` sits above it and owns everything that has one: a worker per
-  run behind the handle `start` returns, the `status` hold, the approval gate's
-  threshold, the estimates, and spend reporting. A record layer that also knew
+  run behind the handle `start` returns, the `status` hold, the estimates and
+  their tiers, and spend reporting. A record layer that also knew
   about worker threads would be untestable without them.
 
   **`DiscoveryEngine` is a Protocol, and every call that can cost money is behind
@@ -704,6 +708,11 @@ is no network between planes.
   page, recording each as a `RenditionKind.THUMBNAIL` so the cache is catalogued
   rather than loose on disk and inherits the staleness rule already governing the
   television render.
+  **Since 2026-10-07 it produces two kinds** (ruling 7, `ia-proposal.md`): a
+  `THUMBNAIL` is the work itself, always drawn from the master, for a library
+  tile; a `WALL_PREVIEW` is the wall render at a size the Work page draws sharply,
+  drawn from the canvas when there is one. What the paragraphs below say of "the
+  thumbnail" drawn from a canvas is now true of the wall preview.
 
   **That "inherits" became true on 2026-08-05 and was not before.** The rule was
   written twice — once in `CatalogueService.list_renditions`, once inline in the

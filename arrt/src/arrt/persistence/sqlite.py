@@ -44,8 +44,11 @@ from arrt.persistence.records import (
     ArtworkStatus,
     Client,
     Directive,
+    EventKind,
+    EventPage,
     FacetDerivation,
     FetchStatus,
+    HistoryEvent,
     IdentitySetBy,
     MatColor,
     MatMethod,
@@ -61,6 +64,7 @@ from arrt.persistence.records import (
     ThemeMembership,
     VocabularyKind,
     Wall,
+    WorkExclusion,
     WorkFacet,
     WorkOrder,
 )
@@ -179,7 +183,8 @@ CREATE TABLE IF NOT EXISTS themes (
     created_at                TEXT NOT NULL,
     rotation_interval_seconds INTEGER,
     shuffle                   INTEGER,
-    is_default                INTEGER NOT NULL DEFAULT 0
+    is_default                INTEGER NOT NULL DEFAULT 0,
+    is_hidden                 INTEGER NOT NULL DEFAULT 0
 );
 
 -- New works join the default theme, and there is at most one. "At most", not
@@ -339,6 +344,36 @@ CREATE TABLE IF NOT EXISTS default_theme_offers (
     offered_at  TEXT NOT NULL
 );
 
+-- The works a curator said not to show again on any wall. Filtered out of every
+-- manifest, and the work stays held and in its themes. `artwork_id` is not a
+-- foreign key: it is Programming's opaque reference to a Library work. A new
+-- table, so `CREATE TABLE IF NOT EXISTS` reaches an older file unaided.
+CREATE TABLE IF NOT EXISTS work_exclusions (
+    artwork_id   TEXT PRIMARY KEY,
+    excluded_at  TEXT NOT NULL
+);
+
+-- The history: one row per act, the Library's, written where each act happens
+-- and from the day this table arrived (nothing earlier is recovered). No
+-- foreign keys, deliberately: a history outlives what it names, and walls and
+-- themes are Programming's, held here as opaque references. `detail` is JSON
+-- carrying the words the event is read by, copied at the time.
+CREATE TABLE IF NOT EXISTS history_events (
+    id           TEXT PRIMARY KEY,
+    kind         TEXT NOT NULL,
+    occurred_at  TEXT NOT NULL,
+    work_id      TEXT,
+    run_id       TEXT,
+    wall_id      TEXT,
+    theme_id     TEXT,
+    detail       TEXT
+);
+
+-- Newest first is the only order the history is read in, and a wall's history
+-- is the one filter narrow enough to want its own index.
+CREATE INDEX IF NOT EXISTS history_events_by_time ON history_events(occurred_at);
+CREATE INDEX IF NOT EXISTS history_events_by_wall ON history_events(wall_id, occurred_at) WHERE wall_id IS NOT NULL;
+
 -- One row per wall, seeded when the wall is created so no caller ever has to
 -- make one. The standing directive is a property of the *wall* rather than of
 -- any theme, because the sequence has to survive every manifest rebuild and
@@ -406,6 +441,9 @@ _BY_RECENCY: Final[tuple[OrderBy, ...]] = (OrderBy("chosen_at", descending=True)
 #: the file, because a listing with no ORDER BY is a different order on a
 #: different day and every caller here is comparing sets.
 _BY_WALL_ID: Final[tuple[OrderBy, ...]] = (OrderBy("wall_id"),)
+
+#: Oldest exclusion first, the work id breaking a tie, so the list is the same twice.
+_BY_EXCLUDED: Final[tuple[OrderBy, ...]] = (OrderBy("excluded_at"), OrderBy("artwork_id"))
 
 #: Grouped by kind so a work's facets read as a vocabulary rather than a list.
 _BY_KIND_VALUE: Final[tuple[OrderBy, ...]] = (OrderBy("kind"), OrderBy("value", ignore_case=True), OrderBy("id"))
@@ -665,6 +703,15 @@ class SqliteCatalogue(TableAdapter):
         for row in rows:
             found.setdefault(row["qid"], []).append(row["id"])
         return found
+
+    def circulating_without_qid(self) -> Sequence[tuple[str, str, str | None]]:
+        rows = self._store.select_rows(
+            'SELECT a."id" AS id, a."title" AS title, a."artist_id" AS artist_id FROM artworks a '
+            'WHERE a."wikidata_qid" IS NULL AND a."status" = ? '
+            'AND (a."wikidata_qid_set_by" IS NULL OR a."wikidata_qid_set_by" != ?) ORDER BY a."created_at", a.rowid',
+            (str(ArtworkStatus.ACCEPTED), str(IdentitySetBy.CURATOR)),
+        )
+        return [(row["id"], row["title"], row["artist_id"]) for row in rows]
 
     def accepted_artwork_ids(self) -> Sequence[str]:
         # Oldest first, `rowid` breaking a tie within one clock tick, so a catch-up
@@ -1042,6 +1089,48 @@ class SqliteCatalogue(TableAdapter):
     def list_directives(self) -> Sequence[Directive]:
         return self._list("directives", None, _BY_WALL_ID, _directive)
 
+    # -- works kept off every wall --------------------------------------------
+
+    def add_exclusion(self, exclusion: WorkExclusion) -> None:
+        self._add(
+            "work_exclusions",
+            {"artwork_id": exclusion.artwork_id, "excluded_at": to_iso(exclusion.excluded_at)},
+            subject=f"the exclusion of artwork {exclusion.artwork_id!r}",
+            key=_BY_ARTWORK,
+        )
+
+    def remove_exclusion(self, artwork_id: str) -> None:
+        self._delete("work_exclusions", {"artwork_id": artwork_id})
+
+    def list_exclusions(self) -> Sequence[WorkExclusion]:
+        return self._list("work_exclusions", None, _BY_EXCLUDED, _exclusion)
+
+    # -- the history ----------------------------------------------------------
+
+    def add_event(self, event: HistoryEvent) -> None:
+        self._add("history_events", _event_row(event), subject=f"the {event.kind} event {event.id!r}")
+
+    def list_events(self, *, kinds: Sequence[EventKind] = (), wall_id: str | None = None, limit: int, offset: int) -> EventPage:
+        clauses: list[str] = []
+        values: list[Any] = []
+        if kinds:
+            clauses.append(f"kind IN ({', '.join('?' for _ in kinds)})")
+            values.extend(str(kind) for kind in kinds)
+        if wall_id is not None:
+            clauses.append("wall_id = ?")
+            values.append(wall_id)
+        where = " AND ".join(clauses) if clauses else "1"
+        # Counted from the same clause as the page, so the total describes the
+        # rows beside it. `rowid` breaks a tie between two acts in one clock tick
+        # in the order they were written.
+        counted = f"SELECT COUNT(*) AS total FROM history_events WHERE {where}"  # noqa: S608 -- constants and ? placeholders only
+        total = int(self._store.select_rows(counted, values)[0]["total"])
+        rows = self._store.select_rows(
+            f"SELECT * FROM history_events WHERE {where} ORDER BY occurred_at DESC, rowid DESC LIMIT ? OFFSET ?",  # noqa: S608 -- constants and ? placeholders only
+            (*values, limit, offset),
+        )
+        return EventPage(events=[_event(row) for row in rows], total=total)
+
 
 # -- record to row ------------------------------------------------------------
 
@@ -1182,6 +1271,7 @@ def _theme_row(theme: Theme) -> dict[str, Any]:
         "shuffle": None if theme.shuffle is None else int(theme.shuffle),
         # `is_default` is not written from the record: only `mark_default_theme`
         # writes it, so saving a theme leaves the mark where it is.
+        "is_hidden": int(theme.hidden),
     }
 
 
@@ -1374,6 +1464,7 @@ def _theme(row: Mapping[str, Any]) -> Theme:
         rotation_interval_seconds=row["rotation_interval_seconds"],
         shuffle=None if row["shuffle"] is None else bool(row["shuffle"]),
         is_default=bool(row["is_default"]),
+        hidden=bool(row["is_hidden"]),
     )
 
 
@@ -1407,6 +1498,36 @@ def _assignment(row: Mapping[str, Any]) -> ThemeAssignment:
 
 def _directive(row: Mapping[str, Any]) -> Directive:
     return Directive(wall_id=row["wall_id"], sequence=row["sequence"], pinned_work_id=row["pinned_work_id"])
+
+
+def _exclusion(row: Mapping[str, Any]) -> WorkExclusion:
+    return WorkExclusion(artwork_id=row["artwork_id"], excluded_at=require_datetime(row["excluded_at"], "excluded_at"))
+
+
+def _event_row(event: HistoryEvent) -> dict[str, Any]:
+    return {
+        "id": event.id,
+        "kind": str(event.kind),
+        "occurred_at": to_iso(event.occurred_at),
+        "work_id": event.work_id,
+        "run_id": event.run_id,
+        "wall_id": event.wall_id,
+        "theme_id": event.theme_id,
+        "detail": None if event.detail is None else json.dumps(event.detail, sort_keys=True),
+    }
+
+
+def _event(row: Mapping[str, Any]) -> HistoryEvent:
+    return HistoryEvent(
+        id=row["id"],
+        kind=EventKind(row["kind"]),
+        occurred_at=require_datetime(row["occurred_at"], "occurred_at"),
+        work_id=row["work_id"],
+        run_id=row["run_id"],
+        wall_id=row["wall_id"],
+        theme_id=row["theme_id"],
+        detail=None if row["detail"] is None else json.loads(row["detail"]),
+    )
 
 
 def _membership(row: Mapping[str, Any]) -> ThemeMembership:

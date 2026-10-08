@@ -69,6 +69,21 @@ export function fitBadge(sized, absentWord = "no size known") {
   ]);
 }
 
+/* A tile's fit mark: only where the fit is news.
+ *
+ * On a library tile "native" is what nearly every work says, so it says nothing
+ * (`ux-review-2026-10.md` finding 27): a mark on every tile is noise that hides
+ * the tile that needs one. A work that would hang small, below the floor, or at
+ * a size nobody can state keeps its badge. The Work page, a review card and a
+ * theme's rows still say "native", where the fit is what is being judged. */
+export function tileFitBadge(work) {
+  if (work.fit && work.fit.verdict === "native") return null;
+  return fitBadge(work);
+}
+
+/* Which image the Work page's picture is: the wall render, or the master where
+ * no wall render exists yet. Not drawn on a tile, which is always the work
+ * itself (ruling 7 of 2026-10-07), so the word would say nothing there. */
 export function sourceBadge(work) {
   if (!work.image.available) return null;
   const rendered = work.image.source_kind === "tv_display";
@@ -93,6 +108,16 @@ export function statusBadge(work) {
   ]);
 }
 
+/* A held work's accessible name where several works are listed: its title, and
+ * who made it and when, so two works sharing a title ("Untitled", "Water
+ * Lilies") are two different things to somebody moving through the links one at
+ * a time. It starts with the visible title, so a voice command that says what
+ * it sees still finds the control. */
+export function workName(work) {
+  const artist = work.artist ? work.artist.name : null;
+  return [work.title, artist, work.date_created].filter(Boolean).join(", ");
+}
+
 export function absentImage(note) {
   return el("div", { class: "card-image-absent", text: note || "No image held." });
 }
@@ -109,13 +134,22 @@ export function facts(pairs) {
 
 /* A table that scrolls sideways inside its panel rather than widening the page.
  * Its cells hold file paths and museum URLs with no break in them, which on a
- * phone made the whole Work page wider than the screen. */
-export function table(caption, headers, rows) {
-  return el("div", { class: "table-scroll" }, [el("table", {}, [
+ * phone made the whole Work page wider than the screen.
+ *
+ * `stacked`: below 40rem each row becomes a card of its own, every cell under
+ * its column's heading (`data-label`), for a list a phone reads one row at a
+ * time rather than scans across — Activity's (`ux-review-2026-10.md` finding
+ * 14). A cell link marked `row-link` then covers its whole card, so the row is
+ * the link (`app.css`). */
+export function table(caption, headers, rows, { stacked = false } = {}) {
+  const cell = (c, index) => {
+    const label = headers[index] ? { "data-label": headers[index] } : {};
+    return c instanceof Node ? el("td", label, [c]) : el("td", { ...label, text: c === null || c === undefined ? "—" : String(c) });
+  };
+  return el("div", { class: "table-scroll" }, [el("table", { class: stacked ? "stacked" : null }, [
     el("caption", { text: caption }),
     el("thead", {}, [el("tr", {}, headers.map((h) => el("th", { scope: "col", text: h })))]),
-    el("tbody", {}, rows.map((cells) => el("tr", {}, cells.map((c) => (c instanceof Node ? el("td", {}, [c]) : el("td", { text: c === null || c === undefined ? "—" : String(c) }))))),
-    ),
+    el("tbody", {}, rows.map((cells) => el("tr", {}, cells.map(cell)))),
   ])]);
 }
 
@@ -200,8 +234,8 @@ const RESOLUTION_GLYPHS = { resolved: "●", unresolved: "▲", pending: "◌" }
  * These words mean the same on the grid, in the run table, and beside the raw
  * `resolution_status` an agent reads over MCP. */
 const RESOLUTION_WORDS = {
-  resolved: "the run found an image",
-  unresolved: "the run found none",
+  resolved: "the Get found an image",
+  unresolved: "the Get found none",
   pending: "not looked up",
 };
 

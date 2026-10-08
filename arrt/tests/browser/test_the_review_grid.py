@@ -11,8 +11,6 @@ never load are as broken as alternates loaded thirty at a time, and a card that
 repaints the whole grid loses the curator their scroll position on every verdict.
 """
 
-import json
-
 import pytest
 from payloads import (
     a_candidate,
@@ -355,7 +353,7 @@ def test_an_accepted_card_says_so_in_place_of_its_controls(grid):
 
     assert _controls(grid) == {"why": 0, "accept": 0, "reject": 0}
     assert grid.page.locator("li.card .decided p").inner_text() == "Accepted. It is in your library."
-    grid.page.click("li.card .decided button:text-is('Open it in Artworks')")
+    grid.page.click("li.card .decided a:text-is('Open it in Artworks')")
     grid.page.wait_for_function("() => window.location.hash.startsWith('#work/art-1')")
 
 
@@ -460,7 +458,7 @@ def test_nothing_offers_a_re_search_when_no_work_is_wanted(grid):
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
 
-    assert "Look again for these" not in grid.text()
+    assert "Get these again" not in grid.text()
 
 
 def test_a_wanted_work_is_offered_a_re_search(grid):
@@ -509,8 +507,8 @@ def test_the_re_search_asks_only_for_the_works_that_are_waiting(grid):
 
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
-    grid.page.click("button:has-text('Look again for these')")
-    grid.page.wait_for_url("**/#run/resolve-run")
+    grid.page.click("button:has-text('Get these again')")
+    grid.page.wait_for_url("**/#get/resolve-run")
 
     assert len(sent) == 1
     assert sent[0].post_data_json == {"work_ids": ["wanting"]}
@@ -541,7 +539,7 @@ def test_the_offer_to_re_search_appears_when_a_scan_is_turned_down(grid):
     grid.serve("**/api/candidates/work-1", a_card(work=wanting).model_dump(mode="json"))
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
-    assert "Look again for these" not in grid.text()
+    assert "Get these again" not in grid.text()
 
     grid.page.click("summary")
     grid.page.wait_for_selector("tr.alternate")
@@ -550,7 +548,7 @@ def test_the_offer_to_re_search_appears_when_a_scan_is_turned_down(grid):
 
     shown = grid.text()
     assert "1 work is wanted." in shown
-    assert "Look again for these" in shown
+    assert "Get these again" in shown
 
 
 def test_the_re_search_covers_a_work_turned_down_after_the_page_loaded(grid):
@@ -589,8 +587,8 @@ def test_the_re_search_covers_a_work_turned_down_after_the_page_loaded(grid):
 
     assert "2 works are wanted." in grid.text()
 
-    grid.page.click("button:has-text('Look again for these')")
-    grid.page.wait_for_url("**/#run/resolve-run")
+    grid.page.click("button:has-text('Get these again')")
+    grid.page.wait_for_url("**/#get/resolve-run")
 
     assert len(sent) == 1
     assert sent[0].post_data_json == {"work_ids": ["work-1", "work-2"]}
@@ -685,12 +683,12 @@ def test_the_offer_withdraws_when_the_last_waiting_work_is_settled(grid):
     grid.serve("**/api/candidates/work-1", a_card(work=a_candidate(verdict=Verdict.ACCEPTED.value)).model_dump(mode="json"))
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
-    assert "Look again for these" in grid.text()
+    assert "Get these again" in grid.text()
 
     grid.page.click("button:has-text('Accept')")
     grid.page.wait_for_selector(".badge:has-text('accepted')")
 
-    assert "Look again for these" not in grid.text()
+    assert "Get these again" not in grid.text()
 
 
 # -- paging through the run's works -------------------------------------------
@@ -935,7 +933,7 @@ def test_a_work_whose_every_scan_was_turned_down_is_not_told_nothing_was_found(u
     # the RUN found and rejecting an image deliberately does not rewrite it — so
     # the column was right and "has an image" was the wrong tense for it. The
     # badge and the sentence now say compatible things about the same card.
-    assert "the run found an image" in ui.text()
+    assert "the Get found an image" in ui.text()
     assert "has an image" not in ui.text(), (
         "a present-tense badge beside 'you have turned down everything that was found for it' "
         "is the contradiction this card had three of"
@@ -966,8 +964,8 @@ def test_the_run_view_offers_the_way_into_the_grid(ui):
     ui.serve_image("**/api/candidate-images/*/preview")
     ui.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([a_card()]))
 
-    ui.open(f"#run/{RUN_ID}")
-    ui.page.click("button:has-text('Review these works')")
+    ui.open(f"#get/{RUN_ID}")
+    ui.page.click("a:has-text('Review these works')")
 
     ui.page.wait_for_selector("li.card")
     assert ui.page.url.endswith(f"#review/{RUN_ID}")
@@ -982,7 +980,7 @@ def test_a_run_holding_no_works_offers_no_way_into_an_empty_grid(ui):
         a_run_view(run=a_run(status=RunStatus.COMPLETED.value, is_terminal=True), works=[]),
     )
 
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("#view p.note")
 
     assert "Review these works" not in ui.text()
@@ -1077,7 +1075,7 @@ def test_the_offer_reconciles_what_the_collection_holds_with_what_one_run_shows(
 
     group = grid.page.locator("section.offer-group")
     assert group.count() == 1
-    assert "The collection holds 25 works by them; these 3 are what this run offered." in group.inner_text()
+    assert "The collection holds 25 works by them; these 3 are what this Get offered." in group.inner_text()
 
 
 def test_the_offer_reconciliation_agrees_over_a_single_offered_work(grid):
@@ -1093,7 +1091,7 @@ def test_the_offer_reconciliation_agrees_over_a_single_offered_work(grid):
     grid.page.wait_for_selector("li.card")
 
     said = grid.page.locator("section.offer-group").inner_text()
-    assert "this 1 is what this run offered" in said
+    assert "this 1 is what this Get offered" in said
     assert "these 1 are" not in said
 
 
@@ -1159,7 +1157,7 @@ def test_an_offer_that_is_the_whole_of_what_is_held_claims_no_cap(grid):
 
     shown = grid.text()
     assert "These are all 1 work the collection holds by them." in shown
-    assert "what this run offered" not in shown, "a subset was described where every held work is present"
+    assert "what this Get offered" not in shown, "a subset was described where every held work is present"
 
 
 def test_two_queries_are_two_groups_rather_than_one_run_of_cards(grid):
@@ -1195,14 +1193,14 @@ def test_two_queries_are_two_groups_rather_than_one_run_of_cards(grid):
 
     # The visible heading, not only the attribute. Rescoping these assertions to
     # `data-offer-artist` removed the last assertion on rendered heading text —
-    # after which deleting the artist's name from the h3 would leave the whole
+    # after which deleting the artist's name from the h2 would leave the whole
     # browser suite green while putting #95's symptom back, hidden behind an
     # attribute nobody can see.
-    # `h3:not(.card-title)` because a card's own title is an h3 too — the group
+    # `h2:not(.card-title)` because a card's own title is an h2 too — the group
     # heading and the works it heads are the same rank in the markup, which is
     # worth its own look and is recorded as such rather than changed in passing.
-    assert "Offered by the collection — Salvador Dalí" in dali.locator("h3:not(.card-title)").inner_text()
-    assert "Offered by the collection — Ellsworth Kelly" in kelly.locator("h3:not(.card-title)").inner_text()
+    assert "Offered by the collection — Salvador Dalí" in dali.locator("h2:not(.card-title)").inner_text()
+    assert "Offered by the collection — Ellsworth Kelly" in kelly.locator("h2:not(.card-title)").inner_text()
 
     assert "holds 25 works" in dali.inner_text()
     assert "holds 400 works" not in dali.inner_text(), "one query's holdings total sits above another's works"
@@ -1299,7 +1297,7 @@ def test_an_offer_with_nothing_named_beside_it_claims_no_failed_works(grid):
 def test_the_group_heading_rule_does_not_reach_the_cards_inside_the_group(grid):
     """A heading rule scoped with a descendant selector re-margins the works it heads.
 
-    `.offer-group h3` is more specific than `.card-title` and declared later, so
+    `.offer-group h2` is more specific than `.card-title` and declared later, so
     the descendant form silently won on every card title inside a group: offered
     works' titles sat further from their artist line than the named works' did, on
     the same page, for no reason a reader could find. It shipped that way and a
@@ -1324,7 +1322,7 @@ def test_the_group_heading_rule_does_not_reach_the_cards_inside_the_group(grid):
     grid.page.wait_for_selector("section.offer-group li.card")
 
     margins = grid.page.evaluate("""() => {
-             const titles = [...document.querySelectorAll('li.card h3.card-title')];
+             const titles = [...document.querySelectorAll('li.card h2.card-title')];
              const of = (list) => list.map((n) => getComputedStyle(n).marginBottom);
              return {
                inside: of(titles.filter((n) => n.closest('.offer-group'))),
@@ -1366,29 +1364,25 @@ def test_a_work_already_in_the_library_says_so_and_leads_with_opening_it(ui):
     assert fresh_card.locator("button[aria-label='Accept Automat']").count() == 1
     assert fresh_card.locator("button:has-text('Accept anyway')").count() == 0
 
-    held_card.locator("button:has-text('Open it in Artworks')").click()
+    held_card.locator("a:has-text('Open it in Artworks')").click()
     ui.page.wait_for_function("() => window.location.hash.startsWith('#work/artwork-held')")
 
 
 def test_accept_anyway_records_an_acceptance(ui):
     """The quiet control is a real Accept, for a work that only shares a title and artist."""
     held = a_card(a_candidate(work_id="work-held", title="Untitled"), held_artwork_id="artwork-held")
-    sent = []
-
-    def verdict(route):
-        sent.append(route.request.post_data_json)
-        route.fulfill(status=200, content_type="application/json", body=json.dumps(a_verdict()))
-
     ui.serve_image("**/api/candidate-images/*/preview")
     ui.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([held]))
-    ui.page.route("**/api/candidates/work-held/verdict", verdict)
+    ui.serve("**/api/candidates/work-held/verdict", a_verdict())
     ui.open(f"#review/{RUN_ID}")
     ui.page.wait_for_selector("li.card")
 
-    with ui.page.expect_request("**/api/candidates/work-held/verdict"):
+    # Read off the request itself: the route handler records it on the
+    # server's side of the wait, which a held verdict now reaches seconds later.
+    with ui.page.expect_request("**/api/candidates/work-held/verdict") as request:
         ui.page.click("button:has-text('Accept anyway')")
 
-    assert sent[0]["verdict"] == "accepted"
+    assert request.value.post_data_json["verdict"] == "accepted"
 
 
 def test_a_work_opened_from_a_review_card_returns_to_that_review(ui, service):
@@ -1405,11 +1399,11 @@ def test_a_work_opened_from_a_review_card_returns_to_that_review(ui, service):
     ui.open(f"#review/{RUN_ID}")
     ui.page.wait_for_selector("li.card")
 
-    ui.page.click("button:has-text('Open it in Artworks')")
-    ui.page.wait_for_selector("#view button:has-text('← The review')")
+    ui.page.click("a:has-text('Open it in Artworks')")
+    ui.page.wait_for_selector("#view a:has-text('← Review')")
     assert ui.page.evaluate("() => window.location.hash") == f"#work/{artwork.id}?from=review%2F{RUN_ID}"
 
-    ui.page.click("#view button:has-text('← The review')")
+    ui.page.click("#view a:has-text('← Review')")
     ui.page.wait_for_selector("li.card")
     assert ui.page.evaluate("() => window.location.hash") == f"#review/{RUN_ID}"
 

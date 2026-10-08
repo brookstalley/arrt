@@ -85,7 +85,7 @@ class TestSimilarArtists:
             "Jackson Pollock 1912–1956 · 0 works with an image ○ Not held",
             "Barnett Newman 1905–1970 · 17 works with an image ○ Not held",
         ]
-        ui.page.click("section[aria-labelledby='similar-artists'] button:has-text('Jackson Pollock')")
+        ui.page.click("section[aria-labelledby='similar-artists'] a:has-text('Jackson Pollock')")
         ui.page.wait_for_function("(qid) => window.location.hash.split('?')[0] === `#artist/${qid}`", arg=POLLOCK)
 
     def test_an_unheld_artists_page_lists_them_and_marks_the_held_one(self, ui, rothko):
@@ -93,7 +93,7 @@ class TestSimilarArtists:
         ui.open(f"#artist/{POLLOCK}")
 
         assert _similar(ui) == ["Mark Rothko 1903–1970 · 1 work with an image ● In your library"]
-        ui.page.click("section[aria-labelledby='similar-artists'] button:has-text('Mark Rothko')")
+        ui.page.click("section[aria-labelledby='similar-artists'] a:has-text('Mark Rothko')")
         ui.page.wait_for_function("(id) => window.location.hash.startsWith(`#artist/${id}`)", arg=artist.id)
 
     def test_an_outage_says_so_in_the_section(self, ui, rothko, registry):

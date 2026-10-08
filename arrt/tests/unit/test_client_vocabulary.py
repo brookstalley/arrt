@@ -23,10 +23,12 @@ from arrt.http.pages import STATIC_DIR
 from arrt.library.discovery.conversation import SUGGESTION_KINDS
 from arrt.library.services.get import SkipReason
 from arrt.library.services.look import SourceState
+from arrt.library.services.spending import CostTier
 from arrt.mcp.bindings import RESTORE_NOTICE
 from arrt.persistence.discovery_records import (
     AffinityDerivation,
     AffinitySentiment,
+    Confirmation,
     ResolutionStatus,
     RunKind,
     RunStatus,
@@ -281,6 +283,28 @@ def test_every_provenance_has_words_and_a_glyph(name):
     assert _object_keys(name) == {str(provenance) for provenance in WorkProvenance}
 
 
+def test_every_confirmation_is_drawn_as_itself():
+    """A review card never reads as confirmed for a state the client has no words for.
+
+    `confirmed` maps to no badge on purpose; the other two each carry one. A
+    fourth member keyed nowhere would fall to the client's fallback, which is
+    honest but wordless, so it fails here by name instead.
+    """
+    assert _object_keys("CONFIRMATION_MARKS") == {str(confirmation) for confirmation in Confirmation}
+
+
+def test_every_cost_tier_has_words_a_spending_control_can_show():
+    """A tier the client has no word for is drawn as the server spells it; one keyed nowhere fails here.
+
+    Read from the raw literal rather than through `_object_keys`, whose keys are
+    identifiers: three of the four tiers are spelled in dollar signs and are
+    quoted keys.
+    """
+    body = _literal_body("TIER_WORDS")
+    keys = {quoted or bare for quoted, bare in re.findall(r'^\s*(?:"([^"]+)"|([A-Za-z_]\w*))\s*:', body, re.MULTILINE)}
+    assert keys == {str(tier) for tier in CostTier}
+
+
 def test_every_facet_kind_has_a_word_the_work_screen_can_label_it_with():
     """The typed vocabulary reaches a museum label, so every kind needs one.
 
@@ -443,3 +467,63 @@ def test_every_state_a_source_can_answer_a_look_with_has_words_and_a_glyph(name)
     assert _object_keys(name) == {str(state) for state in SourceState}
     values = _object_values(name)
     assert all(value.strip() for value in values.values()), f"`{name}` has a state with nothing to show"
+
+
+def test_every_run_status_has_a_word_for_a_table_cell():
+    """Queue's State column said `resolving_images`; a status keyed nowhere here would again."""
+    assert _object_keys("STATE_WORDS") == {str(status) for status in RunStatus}
+    values = _object_values("STATE_WORDS")
+    assert all(value.strip() for value in values.values())
+
+
+def test_every_reason_a_work_is_not_on_a_wall_has_a_word():
+    """Walls' *Not showing* table said `kept_off_every_wall`; a reason keyed nowhere here would again."""
+    from arrt.library.readiness import UnplayableReason
+    from arrt.programming.manifest.builder import KeptOff
+
+    assert _object_keys("EXCLUSION_WORDS") == {str(reason) for reason in [*UnplayableReason, *KeptOff]}
+
+
+def test_every_plugin_state_has_a_word():
+    from arrt.library.sources.loading import PluginState
+
+    assert _object_keys("PLUGIN_STATE_WORDS") == {str(state) for state in PluginState}
+
+
+def test_every_built_in_source_has_the_name_a_curator_knows_it_by():
+    """A scan "from artic" names a plugin; "from the Art Institute of Chicago" names a museum.
+
+    Keyed on the `PROVIDER` every built-in source module declares, gathered from
+    the package rather than listed, so an eleventh source fails here until it has
+    a name.
+    """
+    import importlib
+    import pkgutil
+
+    from arrt.library import sources
+
+    providers = set()
+    for module in pkgutil.iter_modules(sources.__path__):
+        declared = getattr(importlib.import_module(f"{sources.__name__}.{module.name}"), "PROVIDER", None)
+        if isinstance(declared, str):
+            providers.add(declared)
+    assert len(providers) >= 5, "too few sources were found for this guard to mean anything"
+    assert _object_keys("MUSEUM_NAMES") == providers
+
+
+def test_both_surfaces_say_the_same_sentence_about_a_work_let_back_on_the_walls():
+    """The Work page's *Allow on walls again* and `art_theme(action='allow_again')`, in one wording."""
+    from arrt.mcp.bindings import ALLOW_AGAIN_NOTICE
+
+    assert ALLOW_AGAIN_NOTICE in CLIENT
+    assert "sync" not in ALLOW_AGAIN_NOTICE
+    assert "manifest" not in ALLOW_AGAIN_NOTICE
+
+
+@pytest.mark.parametrize("name", ["RIGHTS_WORDS", "FETCH_WORDS"])
+def test_every_rights_and_fetch_state_has_words(name):
+    """The Work page's sources and a review card's scans said `public_domain` and `partial_tiles`."""
+    from arrt.persistence.records import FetchStatus, RightsStatus
+
+    enum = {"RIGHTS_WORDS": RightsStatus, "FETCH_WORDS": FetchStatus}[name]
+    assert _object_keys(name) == {str(member) for member in enum}

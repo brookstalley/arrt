@@ -33,6 +33,9 @@ POLLS = 15_000
 
 BILLE = RegistryCreator(qid=ItemId("Q5001"), name=RegistryText("Ejler Bille"))
 
+#: How a find of Tantra-Vision is named: by its museum, never its plugin id.
+TANTRA_NAMED = "Tantra-Vision, by Ejler Bille, from SMK, National Gallery of Denmark, 2,201 × 2,221 px"
+
 
 class Smk:
     """SMK as a finder: it holds *Tantra-Vision* at 2,201 × 2,221 and serves a real JPEG."""
@@ -94,7 +97,7 @@ def test_a_work_wikidata_pictures_with_nothing_shows_what_smk_holds_without_a_ge
     ui.open(f"#work/{TANTRA}")
     ui.page.wait_for_selector("#view .look-source:has-text('1 found')", timeout=POLLS)
 
-    assert _rows(ui) == ["smk ● 1 found"]
+    assert _rows(ui) == ["SMK, National Gallery of Denmark ● 1 found"]
     top = ui.page.locator("#view .look-top img.detail-image")
     top.wait_for()
     assert "/api/registry/works/Q20267229/look/pictures/" in top.get_attribute("src")
@@ -104,7 +107,8 @@ def test_a_work_wikidata_pictures_with_nothing_shows_what_smk_holds_without_a_ge
     assert _summary(ui) == "1 picture found, from 1 source."
     assert ui.requests_matching("/api/gets") == [], "nothing was got"
     assert (
-        " ".join(ui.page.locator("#view .look-top .picture-size").inner_text().split()) == "2,201 × 2,221 px, from smk ● native"
+        " ".join(ui.page.locator("#view .look-top .picture-size").inner_text().split())
+        == "2,201 × 2,221 px, from SMK, National Gallery of Denmark ● native"
     )
 
 
@@ -114,7 +118,7 @@ def test_the_line_under_get_says_what_the_panel_is_and_what_a_get_adds(ui):
 
     line = "These are what the sources hold now; getting the work records them and spends nothing."
     assert ui.page.locator("#view p.muted", has_text=line).count() == 1
-    assert ui.page.locator("#view h3#look-heading").inner_text() == "What the image sources hold"
+    assert ui.page.locator("#view h2#look-heading").inner_text() == "What the image sources hold"
 
 
 # -- across polls ------------------------------------------------------------------------
@@ -133,17 +137,15 @@ def test_rows_fill_in_over_successive_polls_and_focus_never_moves(ui):
     ui.serve_image(PICTURES)
     ui.open(f"#work/{TANTRA}")
     ui.page.wait_for_selector("#view .look-source:has-text('Asking…')")
-    assert _rows(ui) == ["smk ◌ Asking…", "met ◌ Asking…"]
+    assert _rows(ui) == ["SMK, National Gallery of Denmark ◌ Asking…", "Metropolitan Museum of Art ◌ Asking…"]
 
     button = ui.page.locator("#view .look-pictures button.enlargeable")
     button.wait_for(timeout=POLLS)
     button.focus()
     ui.page.wait_for_selector("#view .look-source:has-text('Holds none')", timeout=POLLS)
 
-    assert _rows(ui) == ["smk ● 1 found", "met ○ Holds none"]
-    assert ui.page.evaluate("() => document.activeElement.getAttribute('aria-label')") == (
-        "Enlarge Tantra-Vision, by Ejler Bille, from smk, 2,201 × 2,221 px"
-    )
+    assert _rows(ui) == ["SMK, National Gallery of Denmark ● 1 found", "Metropolitan Museum of Art ○ Holds none"]
+    assert ui.page.evaluate("() => document.activeElement.getAttribute('aria-label')") == (f"Enlarge {TANTRA_NAMED}")
     looks = len(ui.requests_matching("/look"))
     ui.page.wait_for_timeout(2500)
     assert len(ui.requests_matching("/look")) == looks, "once no source is asking, the page stops polling"
@@ -205,7 +207,7 @@ def test_the_first_picture_to_arrive_takes_the_top_and_is_never_swapped(ui):
     top.wait_for(timeout=POLLS)
     assert _key(1) in top.get_attribute("src")
 
-    ui.page.wait_for_selector("#view .look-source:has-text('smk') >> text=1 found", timeout=POLLS)
+    ui.page.wait_for_selector("#view .look-source:has-text('SMK') >> text=1 found", timeout=POLLS)
     assert _key(1) in top.get_attribute("src"), "the top picture was swapped for a better one"
     cards = ui.page.locator("#view .look-pictures img")
     assert [_key(2) in cards.nth(0).get_attribute("src"), _key(1) in cards.nth(1).get_attribute("src")] == [
@@ -247,9 +249,9 @@ def test_each_source_s_answer_is_a_glyph_and_words(ui):
     ui.page.wait_for_selector("#view .look-source:has-text('Holds none')")
 
     assert _rows(ui) == [
-        "met ⊘ Holds a work by this title by another artist; not shown",
-        "artic ▲ Could not be asked; trying again in 10 minutes",
-        "commons — Can't look this work up",
+        "Metropolitan Museum of Art ⊘ Holds a work by this title by another artist; not shown",
+        "Art Institute of Chicago ▲ Could not be asked; trying again in 10 minutes",
+        "Wikimedia Commons — Can't look this work up",
         "moma ○ Holds this work but gives no size for it; not shown",
         "aic ○ Holds none",
     ]
@@ -316,7 +318,7 @@ def test_a_picture_enlarges_in_place_and_escape_returns_to_it(ui):
     dialog = ui.page.locator("dialog.enlarged")
     dialog.wait_for()
     assert dialog.locator("img").get_attribute("src").endswith(f"/look/pictures/{_key(5)}?size=large")
-    assert dialog.get_attribute("aria-label") == "Tantra-Vision, by Ejler Bille, from smk, 2,201 × 2,221 px"
+    assert dialog.get_attribute("aria-label") == TANTRA_NAMED
     ui.page.keyboard.press("Escape")
     dialog.wait_for(state="detached")
     assert ui.page.evaluate("() => document.activeElement.classList.contains('enlargeable')")
@@ -331,6 +333,6 @@ def test_a_find_states_its_pixels_fit_source_and_why(ui):
 
     text = " ".join(card.inner_text().split())
     assert "2,201 × 2,221 px ● native" in text
-    assert "From smk" in text
+    assert "From SMK, National Gallery of Denmark" in text
     assert "matching the requested title and artist" in text
-    assert card.locator("img").get_attribute("alt") == "Tantra-Vision, by Ejler Bille, from smk, 2,201 × 2,221 px"
+    assert card.locator("img").get_attribute("alt") == TANTRA_NAMED

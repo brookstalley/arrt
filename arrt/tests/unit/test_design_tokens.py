@@ -228,7 +228,7 @@ def test_the_rules_that_check_was_run_against_are_most_of_the_stylesheet():
     """
     css = (STATIC_DIR / "app.css").read_text(encoding="utf-8")
     assert len(COMPONENT_RULES) > len(css) * 0.5, "the token-block cut removed most of the stylesheet"
-    for selector in (".card-image", ".badge", "button.action", "nav.sidebar a", ".skip-link", ":focus-visible"):
+    for selector in (".card-image", ".badge", ":is(button, a).action", "nav.sidebar a", ".skip-link", ":focus-visible"):
         assert selector in COMPONENT_RULES, f"{selector} is not in the text the colour check reads"
 
 

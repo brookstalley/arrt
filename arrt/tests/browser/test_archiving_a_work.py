@@ -52,7 +52,7 @@ def hang(services):
 
 def open_work(ui, work):
     ui.open(f"#work/{work.id}")
-    ui.page.wait_for_selector("#view h2")
+    ui.page.wait_for_selector("#view h1")
 
 
 def ask(ui, label):
@@ -64,13 +64,16 @@ def ask(ui, label):
 # -- the label -----------------------------------------------------------------
 
 
-def test_the_control_reads_archive_and_is_styled_as_an_ordinary_act(ui, service):
-    """Not `danger`, and there is no danger class in this stylesheet to reach for.
+def test_the_control_reads_archive_and_is_styled_as_a_secondary_act(ui, service):
+    """Quiet: not `danger`, and not the filled primary either.
 
     Archive's whole point is that Restore exists. Dressing a cheap reversible act
     as a destructive one produces exactly the hesitation the IA argues the word
     "Remove" produces — and teaches the operator that this dialog means danger,
-    which is the wrong lesson on the day one of them is not.
+    which is the wrong lesson on the day one of them is not. And it is not the
+    page's primary: a wall card opens this page, and the loudest button in reach
+    of a curator who wanted one picture off one wall must not take it out of the
+    whole library (`ux-review-2026-10.md` finding 3).
     """
     work = service.add_artwork(title="Chop Suey")
     open_work(ui, work)
@@ -79,7 +82,7 @@ def test_the_control_reads_archive_and_is_styled_as_an_ordinary_act(ui, service)
 
     assert control.count() == 1
     assert control.inner_text() == "Archive"
-    assert control.get_attribute("class") == "action"
+    assert control.get_attribute("class") == "action quiet"
 
 
 @pytest.mark.parametrize("word", ["Remove", "Delete"])
@@ -143,7 +146,8 @@ def test_the_confirmation_says_how_to_make_the_room_catch_up(ui, ready_work, han
     ask(ui, "Archive")
 
     consequence = ui.page.inner_text(".confirm-consequence")
-    assert "next manifest build" in consequence
+    assert "the next time" in consequence
+    assert "hung" in consequence
     assert "Re-hanging" in consequence
 
 
@@ -276,7 +280,8 @@ def test_restoring_says_which_act_it_is_and_what_the_wall_will_do(ui, ready_work
 
     assert ui.page.inner_text(".confirm-title") == "Restore Nighthawks?"
     consequence = ui.page.inner_text(".confirm-consequence")
-    assert "next manifest build" in consequence
+    assert "the next time" in consequence
+    assert "hung" in consequence
     assert "Re-hanging" in consequence
 
     ui.page.click(".confirm-actions button:has-text('Restore')")
@@ -286,7 +291,7 @@ def test_restoring_says_which_act_it_is_and_what_the_wall_will_do(ui, ready_work
 
 
 def test_a_refused_archive_is_announced_rather_than_silently_ignored(ui, service):
-    """The catalogue's own sentence, in the surface's one failure channel.
+    """The catalogue's own sentence, said beside the button that was pressed.
 
     The work is archived out from under the open screen — which is what a second
     tab, or an agent over MCP, does — so the button the curator presses is
@@ -298,9 +303,10 @@ def test_a_refused_archive_is_announced_rather_than_silently_ignored(ui, service
 
     ask(ui, "Archive")
     ui.page.click(".confirm-actions button:has-text('Archive')")
-    ui.page.wait_for_selector("#error:not([hidden])")
+    said = ui.said_beside(ui.page.locator("#view button:text-is('Archive')"))
 
-    assert "already archived" in ui.page.inner_text("#error")
+    assert said.startswith("Couldn't archive Chop Suey: ")
+    assert "already archived" in said
 
 
 # -- what the work is said to be -----------------------------------------------

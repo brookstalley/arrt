@@ -8,6 +8,7 @@ wherever the registry shows it.
 """
 
 import json
+from dataclasses import replace
 from decimal import Decimal
 
 import httpx
@@ -19,7 +20,7 @@ from arrt.library.discovery.images import FoundImage, ImageQuery
 from arrt.library.registry import CommonsFile, ItemId, RegistryCreator, RegistryText, RegistryWork
 from arrt.library.services.discovery import ChosenWork
 from arrt.library.services.get import MAX_ITEMS_PER_GET
-from arrt.persistence.discovery_records import InitiatedBy, ResolutionStatus, RunKind, RunStatus
+from arrt.persistence.discovery_records import InitiatedBy, ResolutionStatus, RunKind, RunStatus, Verdict
 from arrt.persistence.records import IdentitySetBy
 from arrt.services.container import Services
 from arrt.services.errors import ServiceError
@@ -168,6 +169,43 @@ async def test_items_that_cannot_be_got_are_skipped_and_named(server_url, servic
         {"qid": SWANS, "reason": "being_got"},
         {"qid": UNKNOWN, "reason": "not_found"},
     ]
+    assert [work["wikidata_qid"] for work in await candidates(server_url, body["run"]["run_id"])] == [NOWHERE]
+
+
+async def test_a_work_waiting_in_review_is_skipped_by_its_item_or_by_its_title(server_url, services, discovery_store, propose):
+    """A work a run found and nobody has judged is not paid for twice.
+
+    The Elephants waits by the item a Get chose it by; Swans by its title and
+    artist, proposed by name as an Ask proposes. A work given a verdict waits no
+    longer, so Nowhere, rejected, is asked for again.
+    """
+    first = (await request("POST", f"{server_url}/api/gets", json={"qids": [ELEPHANTS]}, timeout=10)).json()
+    await finished(server_url, first["run"]["run_id"])
+    swans = propose("Swans Reflecting Elephants", proposed_artist="Salvador Dalí")
+    discovery_store.update_candidate_work(replace(swans, resolution_status=ResolutionStatus.RESOLVED))
+    judged = propose("A Painting Nobody Has", proposed_artist="Salvador Dalí")
+    discovery_store.update_candidate_work(replace(judged, resolution_status=ResolutionStatus.RESOLVED))
+    services.discovery.set_verdict(judged.id, Verdict.REJECTED)
+
+    body = (await request("POST", f"{server_url}/api/gets", json={"qids": [ELEPHANTS, SWANS, NOWHERE]}, timeout=10)).json()
+
+    assert body["skipped"] == [{"qid": ELEPHANTS, "reason": "in_review"}, {"qid": SWANS, "reason": "in_review"}]
+    assert [work["wikidata_qid"] for work in await candidates(server_url, body["run"]["run_id"])] == [NOWHERE]
+
+
+async def test_a_work_held_without_its_item_is_skipped_by_title_and_artist(server_url, seeded_service):
+    """Held, as search and the Artist page say it is, though no Wikidata item is recorded on it.
+
+    The library's Swans carries no item, so only its title and artist can say it
+    is the registry's; a Get asked through the API must not pay for it again.
+    Nowhere, held by nobody, is still got.
+    """
+    dali = next(artist for artist in seeded_service.list_artists() if artist.name == "Salvador Dalí")
+    seeded_service.add_artwork(title="Swans Reflecting Elephants", artist_id=dali.id, date_created="1937")
+
+    body = (await request("POST", f"{server_url}/api/gets", json={"qids": [SWANS, NOWHERE]}, timeout=10)).json()
+
+    assert body["skipped"] == [{"qid": SWANS, "reason": "held"}]
     assert [work["wikidata_qid"] for work in await candidates(server_url, body["run"]["run_id"])] == [NOWHERE]
 
 

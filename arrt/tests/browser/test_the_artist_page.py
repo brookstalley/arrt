@@ -66,7 +66,7 @@ def rothko(services, service):
 
 def _page(ui, artist):
     ui.open(f"#artist/{artist.id}")
-    ui.page.wait_for_selector(f"#view h2:has-text('{artist.name}')")
+    ui.page.wait_for_selector(f"#view h1:has-text('{artist.name}')")
 
 
 def _registry_answered(ui):
@@ -90,8 +90,8 @@ class TestTheIndex:
         assert rothko_card.locator(".card-meta").inner_text() == "1903–1970 · 1 work"
         assert rothko_card.locator("img").get_attribute("src") == f"/api/works/{work.id}/thumbnail"
 
-        ui.page.click("ul.artist-posters button:has-text('Mark Rothko')")
-        ui.page.wait_for_selector("#view h2:has-text('Mark Rothko')")
+        ui.page.click("ul.artist-posters a:has-text('Mark Rothko')")
+        ui.page.wait_for_selector("#view h1:has-text('Mark Rothko')")
         assert ui.page.evaluate("() => window.location.hash") == f"#artist/{artist.id}"
 
     def test_the_table_view_is_the_same_order_and_is_kept_in_the_address(self, ui, rothko, seeded_service):
@@ -154,10 +154,10 @@ class TestTheIndex:
 
     def test_the_sidebar_offers_artists_under_artworks(self, ui, rothko):
         ui.open("#collection")
-        ui.page.wait_for_selector("#view h2")
+        ui.page.wait_for_selector("#view h1")
 
         ui.page.get_by_role("link", name="Artists").click()
-        ui.page.wait_for_selector("#view h2:has-text('Artists')")
+        ui.page.wait_for_selector("#view h1:has-text('Artists')")
 
 
 class TestTheArtistPage:
@@ -187,7 +187,7 @@ class TestTheArtistPage:
         # By address, not by heading: the twin's title contains the first's, so a
         # heading match passes whichever of the two opened.
         ui.page.wait_for_function("(id) => window.location.hash.startsWith(`#work/${id}`)", arg=work.id)
-        ui.page.wait_for_selector(f"#view h2:text-is('{work.title}')")
+        ui.page.wait_for_selector(f"#view h1:text-is('{work.title}')")
 
     def test_their_work_marks_a_wanted_one_wanted_and_draws_each_picture_in_its_style(self, ui, rothko, want_item, pictures_load):
         artist, _work = rothko
@@ -222,7 +222,7 @@ class TestTheArtistPage:
         assert "1276" in ui.page.locator("section[aria-labelledby='their-work'] caption").inner_text()
 
         ui.page.click("section[aria-labelledby='their-work'] .badge-held")
-        ui.page.wait_for_selector(f"#view h2:has-text('{work.title}')")
+        ui.page.wait_for_selector(f"#view h1:has-text('{work.title}')")
 
     @pytest.mark.parametrize("width", [1280, 390], ids=["desktop", "phone"])
     def test_their_work_shows_each_picture_large_enough_to_choose_by(self, ui, rothko, registry, pictures_load, width):
@@ -323,7 +323,7 @@ class TestTheArtistPage:
         artist, work = rothko
         _page(ui, artist)
 
-        ui.page.check(f"input[aria-label='Select {work.title}']")
+        ui.page.check(f"input[aria-label^='Select {work.title},']")
         ui.page.click("section[aria-labelledby='in-your-library'] button:has-text('Add to theme')")
         ui.page.wait_for_selector("text=Added 1 work to Colour fields.")
 
@@ -341,11 +341,11 @@ class TestTheArtistPage:
 
         ui.page.wait_for_selector("#error:not([hidden])")
         assert "500" in ui.page.inner_text("#error")
-        assert ui.page.locator("#view h2:has-text('That artist is not here')").count() == 0
+        assert ui.page.locator("#view h1:has-text('That artist is not here')").count() == 0
 
     def test_an_address_naming_nobody_says_so(self, ui):
         ui.open("#artist/nobody")
-        ui.page.wait_for_selector("#view h2:has-text('That artist is not here')")
+        ui.page.wait_for_selector("#view h1:has-text('That artist is not here')")
 
 
 class TestTheWaysIn:
@@ -354,16 +354,16 @@ class TestTheWaysIn:
         ui.open("#collection")
         ui.page.wait_for_selector("ul.grid li.card")
 
-        ui.page.locator(".card-artist button", has_text="Mark Rothko").first.click()
-        ui.page.wait_for_selector("#view h2:has-text('Mark Rothko')")
+        ui.page.locator(".card-artist a", has_text="Mark Rothko").first.click()
+        ui.page.wait_for_selector("#view h1:has-text('Mark Rothko')")
 
     def test_the_artist_on_a_work_page_opens_their_page(self, ui, rothko):
         _artist, work = rothko
         ui.open(f"#work/{work.id}")
-        ui.page.wait_for_selector(f"#view h2:has-text('{work.title}')")
+        ui.page.wait_for_selector(f"#view h1:has-text('{work.title}')")
 
-        ui.page.click("dl.facts button:has-text('Mark Rothko')")
-        ui.page.wait_for_selector("#view h2:has-text('Mark Rothko')")
+        ui.page.click("dl.facts a:has-text('Mark Rothko')")
+        ui.page.wait_for_selector("#view h1:has-text('Mark Rothko')")
 
 
 LUCY_BULL = "Q123365005"
@@ -413,10 +413,10 @@ class TestAnUnlinkedArtist:
         other = service.add_artist(name="Someone Else")
         services.identity.set_artist_identity(other.id, ROTHKO)
 
-        _their_work(ui).locator("li").first.locator("button").click()
-        ui.page.wait_for_selector("#error:not([hidden])")
+        this_is_them = _their_work(ui).locator("li").first.locator("button")
+        this_is_them.click()
 
-        assert "already" in ui.page.inner_text("#error")
+        assert "already" in ui.said_beside(this_is_them)
         assert services.artists.get(unlinked.id).artist.wikidata_qid is None
 
     def test_linking_a_namesake_to_a_taken_item_is_refused_and_stays_on_the_page(self, ui, registry, services, service, unlinked):
@@ -426,8 +426,9 @@ class TestAnUnlinkedArtist:
         other = service.add_artist(name="Someone Else")
         services.identity.set_artist_identity(other.id, ROTHKO)
 
-        ui.page.click("#view button:text-is('Link them to this item')")
-        ui.page.wait_for_selector("#error:not([hidden])")
+        link_them = ui.page.locator("#view button:text-is('Link them to this item')")
+        link_them.click()
+        assert "already" in ui.said_beside(link_them)
 
         assert ui.page.evaluate("() => window.location.hash") == f"#artist/{ROTHKO}"
         assert services.artists.get(unlinked.id).artist.wikidata_qid is None
@@ -448,14 +449,21 @@ class TestAnUnlinkedArtist:
         assert "Your library has Mark Rothko (1903–1970), not linked to Wikidata." in ui.page.locator(".namesake").inner_text()
         ui.page.click("#view button:text-is('Link them to this item')")
         ui.page.wait_for_function("(id) => window.location.hash === `#artist/${id}`", arg=unlinked.id)
-        ui.page.wait_for_selector("section[aria-labelledby='their-work'] table")
+        # The hash changes before the artist's own page replaces the registry
+        # page, which also has a table under Their work; wait for the new page
+        # (no namesake offer) and for its Wikidata answer, not for any table.
+        ui.page.wait_for_function("""() => {
+              const section = document.querySelector("section[aria-labelledby='their-work']");
+              return !document.querySelector("#view .namesake") && section && section.querySelector("table")
+                && !section.innerText.includes("Asking Wikidata");
+            }""")
 
         assert "Rothko Chapel" in _their_work(ui).inner_text()
 
     def test_a_linked_artists_namesake_page_offers_no_link(self, ui, registry, rothko):
         """The paired negative: the page by QID of someone the library holds linked forwards, and offers nothing."""
         ui.open(f"#artist/{ROTHKO}")
-        ui.page.wait_for_selector("#view h2:has-text('Mark Rothko')")
+        ui.page.wait_for_selector("#view h1:has-text('Mark Rothko')")
         _registry_answered(ui)
 
         assert ui.page.locator("#view .namesake").count() == 0
@@ -473,9 +481,9 @@ class TestWhenWikidataListsNoWorks:
 
     def test_her_page_by_qid_offers_ask_filled_in_and_not_started(self, ui, lucy_bull):
         ui.open(f"#artist/{LUCY_BULL}")
-        ui.page.wait_for_selector("#view button:text-is('Ask for their work')")
+        ui.page.wait_for_selector("#view a:text-is('Ask for their work')")
 
-        ui.page.click("#view button:text-is('Ask for their work')")
+        ui.page.click("#view a:text-is('Ask for their work')")
         ui.page.wait_for_selector("#view textarea#intent")
 
         assert ui.page.evaluate("() => window.location.hash") == "#discover?term=Paintings%20by%20Lucy%20Bull"
@@ -487,7 +495,7 @@ class TestWhenWikidataListsNoWorks:
         services.identity.set_artist_identity(painter.id, LUCY_BULL)
         _page(ui, painter)
 
-        ui.page.wait_for_selector("section[aria-labelledby='their-work'] button:text-is('Ask for their work')")
+        ui.page.wait_for_selector("section[aria-labelledby='their-work'] a:text-is('Ask for their work')")
 
     def test_an_artist_wikidata_lists_works_for_is_not_offered_it(self, ui, rothko):
         """The paired negative: Ask is the way on from nothing, not a button on every page."""
@@ -495,15 +503,15 @@ class TestWhenWikidataListsNoWorks:
         _page(ui, artist)
         _registry_answered(ui)
 
-        assert ui.page.locator("#view button:text-is('Ask for their work')").count() == 0
+        assert ui.page.locator("#view a:text-is('Ask for their work')").count() == 0
 
 
 def test_an_empty_artist_index_offers_ask(ui):
     """With no artists yet, the index sends the curator where works come from."""
     ui.serve("**/api/artists", {"artists": []})
     ui.open("#artist")
-    button = ui.page.locator("#view button:text-is('Ask')")
+    button = ui.page.locator("#view a:text-is('Ask')")
 
     button.click()
 
-    ui.page.wait_for_selector("#view h2:text-is('Ask')")
+    ui.page.wait_for_selector("#view h1:text-is('Ask')")

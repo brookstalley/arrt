@@ -13,9 +13,9 @@
  */
 
 import { api } from "./api.js";
-import { named, topicKinds, topicName, workState } from "./registry.js";
+import { named, reviewMark, topicKinds, topicName, workState } from "./registry.js";
 import { el, fill } from "./render.js";
-import { go, openedFrom } from "./router.js";
+import { go, goWithParams, openedFrom } from "./router.js";
 import { state } from "./state.js";
 
 /* The field shows the search that is currently in the address bar.
@@ -455,13 +455,14 @@ export function installSearch() {
 
 /* The way out of a search, offered where the emptiness is. Written here beside
  * the affordance it undoes rather than in the screen, so the two cannot come to
- * disagree about what clearing a search means. */
+ * disagree about what clearing a search means. An act on the Artworks page it
+ * sits on, as a filter's own control is, so a button. */
 export function clearSearchLink(text = "Clear the search") {
   return el("button", {
     class: "action quiet",
     type: "button",
     text,
-    onclick: () => go("collection", null, { ...state.params, q: "" }),
+    onclick: () => goWithParams({ q: "" }),
   });
 }
 
@@ -470,7 +471,10 @@ export function clearSearchLink(text = "Clear the search") {
  * own artist rows beside it never carried one. */
 function registryPersonRow(person) {
   const years = person.born || person.died ? ` (${person.born || "?"}–${person.died || ""})` : "";
-  return [`${named(person.name, person.qid)}${years} — artist`];
+  // Waiting for review is said, as the group cannot say it: a run proposed a
+  // work of theirs and nobody has judged it.
+  const waiting = !person.artist_id && person.in_review ? reviewMark(person.in_review, { inOption: true }) : null;
+  return [`${named(person.name, person.qid)}${years} — artist`, waiting];
 }
 
 /* A registry topic as a row: its name, its kinds, and Wikidata's description,
@@ -486,5 +490,5 @@ function registryTopicRow(topic) {
  * carries one, glyph and word and colour (`accessibility-spec.md`). */
 function registryWorkRow(work) {
   const maker = work.creator ? ` — ${named(work.creator.name, work.creator.qid)}` : "";
-  return [`${named(work.title, work.qid)}${maker}`, workState(work, { opens: false, grouped: true })];
+  return [`${named(work.title, work.qid)}${maker}`, workState(work, { opens: false, grouped: true, inOption: true })];
 }
