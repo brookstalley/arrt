@@ -232,9 +232,9 @@ class CatalogueStore(Protocol):
 
         The picture is their first accepted work that holds a master image, or
         their first accepted work when none does yet: no artist has a picture of
-        their own, and the earliest such work is a stable choice. It changes
-        only when an earlier-accepted work first gets its master, or the
-        pictured work leaves circulation. A work with no image is passed over,
+        their own, and the earliest such work is a stable choice: it moves only
+        when the set of circulating works, or which of them hold a master,
+        changes. A work with no image is passed over,
         because the Artists index asked for its thumbnail and was refused,
         drawing "No picture" for an artist whose other works had pictures.
         """
