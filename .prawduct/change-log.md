@@ -62,6 +62,36 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-08: Wall label, chunk 01: Newsreader and Instrument Sans, self-hosted
+
+<!-- prawduct: scope=wall-label -->
+
+**Why:** The owner said the client still looked amateur in its layout, type
+and design system. They chose direction A ("Wall label") from a Claude Design
+canvas, and ruled that webfonts may be used, reversing design-direction's
+"no webfont" (`build-plan-wall-label.md`).
+
+**What:**
+- Newsreader (`--font-label`) and Instrument Sans (`--font-ui`) are served
+  from `arrt/src/arrt/http/static/fonts/` as variable woff2 files in Latin and
+  Latin Extended subsets. Each family's OFL licence is beside its files, and a
+  README names the source package and version. The system stacks remain as
+  fallbacks. No CDN.
+- `--text-3xl` (2.5rem) is a page's `h1` on every page. Section headings
+  (`.panel` h2–h4, a wall's title, an offered group) and the confirmation's
+  title are now `--text-xl` at weight 500.
+- `design-direction.md` § Typography is rewritten as the owner's ruling, with
+  the old reasons answered rather than deleted, and § Component Patterns
+  "Headings" records the new sizes.
+
+**Tests:** New: `test_the_typefaces.py` reads the browser's record of each
+face and requires both Latin upright faces to be `loaded`; also
+`test_every_font_the_stylesheet_names_is_served_as_a_font`. Both were watched
+failing with `newsreader/latin-normal.woff2` renamed: the face's status was
+`error`, and the served-font test got a 404. `test_component_rules.py`'s h1
+probe now reads `--text-3xl`. The contract is unchanged: one h1 size on every
+page; the size it names is what changed.
+
 ## 2026-10-08: Archiving says the room loses the work now; an unknown filter key is refused
 
 <!-- prawduct: scope=lists-settings-and-scale -->

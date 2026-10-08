@@ -57,7 +57,7 @@ def test_every_page_heading_has_the_one_h1_treatment(ui, key):
     ui.page.wait_for_selector("#view h1")
     size, expected = ui.page.evaluate("""() => {
           const probe = document.createElement('span');
-          probe.style.fontSize = 'var(--text-lg)';
+          probe.style.fontSize = 'var(--text-3xl)';
           document.body.append(probe);
           const expected = getComputedStyle(probe).fontSize;
           probe.remove();

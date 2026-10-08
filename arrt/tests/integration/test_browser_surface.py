@@ -185,6 +185,24 @@ class TestTheClientIsServed:
         for module in modules:
             assert http.get(f"/static/{module}").status_code == 200, module
 
+    def test_every_font_the_stylesheet_names_is_served_as_a_font(self, http):
+        """A font file the static mount does not serve is a page in the fallback face.
+
+        `font-display: swap` draws that page as if nothing were wrong, so a
+        renamed file or a typo in a `url()` is invisible in a browser. The list
+        is read from the stylesheet, not from the directory, because the
+        stylesheet is what the browser asks for.
+        """
+        css = (pathlib.Path(STATIC_DIR) / "app.css").read_text(encoding="utf-8")
+        faces = re.findall(r"@font-face\s*\{[^}]*\}", css)
+        named = sorted({url for face in faces for url in re.findall(r'url\("([^"]+)"\)', face)})
+        assert len(faces) == len(named) >= 4, "each face names one file, and both families are declared"
+        for url in named:
+            response = http.get(f"/static/{url}")
+            assert response.status_code == 200, url
+            assert response.headers["content-type"] == "font/woff2", url
+            assert response.content[:4] == b"wOF2", url
+
     def test_the_client_revalidates_every_file_so_a_deploy_never_mixes_versions(self, http):
         """Why, and what a phone did without it: `pages.CLIENT_CACHE_CONTROL`."""
         static = pathlib.Path(STATIC_DIR)

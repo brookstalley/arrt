@@ -137,7 +137,7 @@ the real library.
 
 ## Status
 
-- [ ] Chunk 01: Typefaces and type scale
+- [x] Chunk 01: Typefaces and type scale
 - [ ] Chunk 02: The shell
 - [ ] Chunk 03: The Artworks grid
 - [ ] Chunk 04: A work's page
@@ -163,8 +163,11 @@ Done when:
    failing once with a font file renamed, because a webfont that fails to load
    looks like a working page in a fallback face.
 5. `design-direction.md` § Typography is rewritten as the owner's 2026-10-08
-   ruling, with the old "no webfont" reasoning kept and answered. The
-   platform-and-dependency findings list both fonts and their licence.
+   ruling, with the old "no webfont" reasoning kept and answered. *(At build:
+   the plan said the platform-and-dependency findings would list the fonts,
+   but that artifact covers hardware and the Python platform, and the repo has
+   no dependency manifest. The fonts are recorded in § Typography and in
+   `arrt/src/arrt/http/static/fonts/README.md`, beside the files.)*
 
 ### Chunk 02: The shell
 
@@ -232,7 +235,9 @@ Done when:
 
 1. `.panel` and every per-screen card variant that is a section becomes a
    ruled section, per the DECISION above. Theme cards and tiles stay cards.
-   § Component Patterns "Cards" is rewritten to match.
+   § Component Patterns "Cards" is rewritten to match. `test_component_rules.py`
+   gains an h2 check beside its h1 check: every section heading on every page
+   computes to `--text-xl` (chunk 01 changed the h2 size and nothing pins it).
 2. `arrt/tools/ux_walk.py` photographs every screen at phone and desktop
    widths in both schemes, on the synthetic corpus and on the real library.
    The contact sheets are compared with `.ux-walk/after-lists-settings`, and
