@@ -69,7 +69,7 @@ SCREEN_NAMES = {
     "discover": "Ask",
     "work": "Work",
     "search": "Search results",
-    "run": "Run",
+    "get": "Get",
     "conversation": "Conversation",
     "review": "Review",
     "theme": "Themes",

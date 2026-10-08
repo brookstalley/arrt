@@ -95,7 +95,7 @@ def at_desktop(ui):
 def test_a_get_s_page_is_where_its_works_are_judged(ui):
     """Accept and Reject on the Get's own page, and no second page to go to."""
     a_finished_get(ui)
-    ui.open(f"#run/{GET_ID}")
+    ui.open(f"#get/{GET_ID}")
     ui.page.wait_for_selector("li.card button:text-is('Accept')")
 
     assert ui.page.locator("li.card button:text-is('Reject')").count() == 1
@@ -109,12 +109,12 @@ def test_a_verdict_on_the_get_s_page_is_recorded_there(ui):
     a_finished_get(ui)
     ui.serve("**/api/candidates/work-1/verdict", a_verdict(work=chosen(verdict=Verdict.ACCEPTED.value)))
     ui.serve("**/api/candidates/work-1", a_card(work=chosen(verdict=Verdict.ACCEPTED.value)).model_dump(mode="json"))
-    ui.open(f"#run/{GET_ID}")
+    ui.open(f"#get/{GET_ID}")
 
     ui.page.click("li.card button:text-is('Accept')")
 
     ui.page.wait_for_selector("li.card .badge:has-text('accepted')")
-    assert ui.page.evaluate("() => window.location.hash") == f"#run/{GET_ID}"
+    assert ui.page.evaluate("() => window.location.hash") == f"#get/{GET_ID}"
 
 
 def test_a_discovery_run_s_page_is_unchanged(ui):
@@ -125,7 +125,7 @@ def test_a_discovery_run_s_page_is_unchanged(ui):
         f"**/api/runs/{RUN_ID}",
         a_run_view(run=a_run(run_id=RUN_ID, status=RunStatus.COMPLETED.value, is_terminal=True), works=[a_candidate()]),
     )
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("#view table")
 
     assert ui.page.locator("a:text-is('Review these works')").count() == 1
@@ -139,21 +139,21 @@ def test_review_still_answers_for_a_get(ui):
     ui.open(f"#review/{GET_ID}")
 
     ui.page.wait_for_selector("li.card button:text-is('Accept')")
-    assert ui.page.locator("#view a:text-is('← The Get')").count() == 1
+    assert ui.page.locator("#view a:text-is('← Get')").count() == 1
 
 
 def test_a_work_opened_from_a_get_s_card_returns_to_the_get(ui):
     """As a Work opened from Review returns to Review, one opened from a Get's card returns to the Get."""
     a_finished_get(ui)
-    ui.open(f"#run/{GET_ID}")
+    ui.open(f"#get/{GET_ID}")
     ui.page.wait_for_selector("li.card")
 
     ui.page.click("li.card .card-meta a:text-is('Q3226397')")
-    ui.page.wait_for_selector("#view a:has-text('← The Get')")
-    assert ui.page.evaluate("() => window.location.hash") == f"#work/Q3226397?from=run%2F{GET_ID}"
+    ui.page.wait_for_selector("#view a:has-text('← Get')")
+    assert ui.page.evaluate("() => window.location.hash") == f"#work/Q3226397?from=get%2F{GET_ID}"
 
-    ui.page.click("#view a:has-text('← The Get')")
-    ui.page.wait_for_function(f"() => window.location.hash === '#run/{GET_ID}'")
+    ui.page.click("#view a:has-text('← Get')")
+    ui.page.wait_for_function(f"() => window.location.hash === '#get/{GET_ID}'")
 
 
 def test_a_get_s_page_that_cannot_read_its_cards_says_so_and_keeps_the_rest(ui):
@@ -162,7 +162,7 @@ def test_a_get_s_page_that_cannot_read_its_cards_says_so_and_keeps_the_rest(ui):
     ui.serve(f"**/api/runs/{GET_ID}", a_run_view(run=run, works=[chosen()]))
     ui.serve(f"**/api/runs/{GET_ID}/spend", a_spend())
     ui.serve(f"**/api/runs/{GET_ID}/candidates*", (500, {"error": "The listing broke."}))
-    ui.open(f"#run/{GET_ID}")
+    ui.open(f"#get/{GET_ID}")
 
     ui.page.wait_for_selector("text=This Get's works could not be read")
     assert "This Get finished" in ui.text()
@@ -174,7 +174,7 @@ def test_a_card_for_a_work_not_yet_looked_up_does_not_say_nothing_was_found(ui):
     run = a_run(run_id=GET_ID, kind="get", intent=None, status=RunStatus.RESOLVING_IMAGES.value, is_terminal=False)
     ui.serve(f"**/api/runs/{GET_ID}", a_run_view(run=run, works=[card.work]))
     ui.serve(f"**/api/runs/{GET_ID}/candidates*", a_candidate_page([card], run=run))
-    ui.open(f"#run/{GET_ID}")
+    ui.open(f"#get/{GET_ID}")
 
     ui.page.wait_for_selector("li.card .card-image-absent")
     said = ui.page.locator("li.card .card-image-absent").inner_text()
@@ -187,7 +187,7 @@ def test_a_card_for_a_work_not_yet_looked_up_does_not_say_nothing_was_found(ui):
 def test_one_card_is_wider_than_half_the_page_at_desktop_width(ui):
     """One work to a row: the narrow column was what wrapped everything on it."""
     at_desktop(a_finished_get(ui))
-    ui.open(f"#run/{GET_ID}")
+    ui.open(f"#get/{GET_ID}")
     ui.page.wait_for_selector("li.card")
 
     card = ui.page.locator("li.card").bounding_box()
@@ -204,7 +204,7 @@ def test_on_a_phone_the_card_is_one_column(ui):
     """The picture above its facts at phone width, and nothing wider than the screen."""
     a_finished_get(ui)
     ui.page.set_viewport_size({"width": 375, "height": 740})
-    ui.open(f"#run/{GET_ID}")
+    ui.open(f"#get/{GET_ID}")
     ui.page.wait_for_selector("li.card")
     ui.page.click("li.card summary")
     ui.page.wait_for_selector("tr.alternate")
@@ -245,7 +245,7 @@ WRAPPED_LABELS = """
 def test_scans_are_a_table_one_row_a_scan(ui):
     """The columns a curator compares scans by, as an *arr app lists releases."""
     a_finished_get(ui)
-    ui.open(f"#run/{GET_ID}")
+    ui.open(f"#get/{GET_ID}")
     ui.page.click("li.card summary")
     ui.page.wait_for_selector("tr.alternate")
 
@@ -253,7 +253,7 @@ def test_scans_are_a_table_one_row_a_scan(ui):
     assert [h.strip().lower() for h in headers] == [
         "scan",
         "resolution",
-        "provider",
+        "source",
         "rights",
         "confidence",
         "chosen",
@@ -262,10 +262,11 @@ def test_scans_are_a_table_one_row_a_scan(ui):
     rows = [" ".join(row.split()) for row in ui.page.locator("tr.alternate").all_inner_texts()]
     assert len(rows) == 2
     assert "3,840 × 2,604 px" in rows[0], rows[0]
-    assert "artic" in rows[0], rows[0]
+    assert "Art Institute of Chicago" in rows[0], rows[0]
+    assert "Public domain" in rows[0], rows[0]
     assert "on offer" in rows[0], rows[0]
     assert "1,600 × 1,085 px" in rows[1], rows[1]
-    assert "commons" in rows[1], rows[1]
+    assert "Wikimedia Commons" in rows[1], rows[1]
     assert "Use this one" in rows[1], rows[1]
     # What does not compare down a column is still there, under its scan.
     assert RATIONALE in ui.text()
@@ -273,7 +274,7 @@ def test_scans_are_a_table_one_row_a_scan(ui):
 
 def test_scans_start_collapsed(ui):
     a_finished_get(ui)
-    ui.open(f"#run/{GET_ID}")
+    ui.open(f"#get/{GET_ID}")
     ui.page.wait_for_selector("li.card")
 
     assert ui.page.locator("li.card details[open]").count() == 0
@@ -283,7 +284,7 @@ def test_scans_start_collapsed(ui):
 def test_no_label_in_the_scans_wraps_onto_two_lines_at_desktop_width(ui):
     """The owner's card ran to about 7,000 px at 1280 with every fact wrapped."""
     at_desktop(a_finished_get(ui))
-    ui.open(f"#run/{GET_ID}")
+    ui.open(f"#get/{GET_ID}")
     ui.page.click("li.card summary")
     ui.page.wait_for_selector("tr.alternate")
 
@@ -308,7 +309,7 @@ def test_no_label_in_the_scans_wraps_onto_two_lines_at_desktop_width(ui):
 
 def test_the_card_states_the_scan_s_pixels_above_the_fold(ui):
     at_desktop(a_finished_get(ui))
-    ui.open(f"#run/{GET_ID}")
+    ui.open(f"#get/{GET_ID}")
     ui.page.wait_for_selector("li.card .card-resolution")
 
     assert ui.page.locator("li.card .card-resolution").inner_text() == "3,840 × 2,604 px"
@@ -322,7 +323,7 @@ def test_the_card_states_the_scan_s_pixels_above_the_fold(ui):
 def test_a_scan_whose_size_nobody_recorded_says_so_rather_than_inventing_one(ui):
     unsized = an_instance(width=None, height=None, fit=None, fit_note="The provider did not report this image's dimensions.")
     a_finished_get(ui, [a_card(work=chosen(), shown=unsized)])
-    ui.open(f"#run/{GET_ID}")
+    ui.open(f"#get/{GET_ID}")
     ui.page.wait_for_selector("li.card")
 
     assert ui.page.locator("li.card .card-resolution").count() == 0
@@ -358,7 +359,7 @@ def test_no_screen_that_draws_a_fit_badge_says_inches(ui, services, work_with_an
 
 def test_clicking_the_picture_enlarges_it_without_leaving_the_page(ui):
     a_finished_get(ui)
-    ui.open(f"#run/{GET_ID}")
+    ui.open(f"#get/{GET_ID}")
     ui.page.wait_for_selector("li.card > button.card-image")
     before = ui.page.url
 
@@ -374,7 +375,7 @@ def test_clicking_the_picture_enlarges_it_without_leaving_the_page(ui):
 def test_the_enlarged_picture_closes_and_gives_focus_back(ui, closed_by):
     a_finished_get(ui)
     at_desktop(ui)
-    ui.open(f"#run/{GET_ID}")
+    ui.open(f"#get/{GET_ID}")
     ui.page.wait_for_selector("li.card > button.card-image")
     before = ui.page.url
     ui.page.focus("li.card > button.card-image")
@@ -397,7 +398,7 @@ def test_the_enlarged_picture_closes_and_gives_focus_back(ui, closed_by):
 def test_a_click_on_the_enlarged_picture_itself_does_not_close_it(ui):
     """The paired negative: only a click outside the picture is a click away."""
     a_finished_get(ui)
-    ui.open(f"#run/{GET_ID}")
+    ui.open(f"#get/{GET_ID}")
     ui.page.click("li.card > button.card-image")
     ui.page.wait_for_selector("dialog.enlarged[open] img")
 
@@ -409,7 +410,7 @@ def test_a_click_on_the_enlarged_picture_itself_does_not_close_it(ui):
 
 def test_a_scan_in_the_table_enlarges_too(ui):
     a_finished_get(ui)
-    ui.open(f"#run/{GET_ID}")
+    ui.open(f"#get/{GET_ID}")
     ui.page.click("li.card summary")
     ui.page.wait_for_selector("tr.alternate")
 
@@ -424,14 +425,14 @@ def test_a_scan_in_the_table_enlarges_too(ui):
 def test_a_scan_enlarged_from_the_table_is_named_for_the_picture_not_the_button(ui):
     """The button says what pressing it does; what opens is the picture, and says which."""
     a_finished_get(ui)
-    ui.open(f"#run/{GET_ID}")
+    ui.open(f"#get/{GET_ID}")
     ui.page.click("li.card summary")
     ui.page.wait_for_selector("tr.alternate")
 
     ui.page.locator("tr.alternate").nth(1).locator("button.card-image").click()
     ui.page.wait_for_selector("dialog.enlarged[open] img")
 
-    named = "The Magpie, by Claude Monet — the scan from commons, 1,600 × 1,085 px"
+    named = "The Magpie, by Claude Monet — the scan from Wikimedia Commons, 1,600 × 1,085 px"
     assert ui.page.locator("dialog.enlarged").get_attribute("aria-label") == named
     assert ui.page.locator("dialog.enlarged img").get_attribute("alt") == named
     # The button keeps its own name: it is the control, not the picture.
@@ -442,7 +443,7 @@ def test_a_scan_enlarged_from_the_table_is_named_for_the_picture_not_the_button(
 def test_the_card_s_own_picture_enlarged_is_named_for_the_work(ui):
     """The paired case: the card's picture was already named for the work, and stays so."""
     a_finished_get(ui)
-    ui.open(f"#run/{GET_ID}")
+    ui.open(f"#get/{GET_ID}")
     ui.page.click("li.card > button.card-image")
     ui.page.wait_for_selector("dialog.enlarged[open] img")
 
@@ -459,7 +460,7 @@ def test_a_finished_get_whose_cards_could_not_be_read_says_to_reload(ui):
     ui.serve(f"**/api/runs/{GET_ID}", a_run_view(run=run, works=[chosen()]))
     ui.serve(f"**/api/runs/{GET_ID}/spend", a_spend())
     ui.serve(f"**/api/runs/{GET_ID}/candidates*", (500, {"error": "The listing broke."}))
-    ui.open(f"#run/{GET_ID}")
+    ui.open(f"#get/{GET_ID}")
 
     ui.page.wait_for_selector("text=This Get's works could not be read")
     said = ui.page.locator(".get-review p.note").inner_text()
@@ -473,7 +474,7 @@ def test_a_running_get_whose_cards_could_not_be_read_asks_again_by_itself(ui):
     ui.serve(f"**/api/runs/{GET_ID}", a_run_view(run=run, works=[card.work]))
     ui.serve(f"**/api/runs/{GET_ID}/candidates*", [(500, {"error": "The listing broke."}), a_candidate_page([card], run=run)])
     ui.serve_image("**/api/candidate-images/*/preview*")
-    ui.open(f"#run/{GET_ID}")
+    ui.open(f"#get/{GET_ID}")
 
     ui.page.wait_for_selector("text=This Get's works could not be read")
     assert "Reload" not in ui.page.locator(".get-review p.note").inner_text()
@@ -513,7 +514,7 @@ def a_get_still_looking(ui):
 def test_a_running_get_s_redraw_keeps_the_why_the_open_scans_and_the_focus(ui):
     """Each work the Get finds redraws the page; the card being judged must not notice."""
     haystacks_found = a_get_still_looking(ui)
-    ui.open(f"#run/{GET_ID}")
+    ui.open(f"#get/{GET_ID}")
     ui.page.wait_for_selector("li.card[data-work='work-2'] .card-image-absent")
 
     ui.page.fill("#reason-work-1", WHY)
@@ -534,7 +535,7 @@ def test_a_running_get_s_redraw_keeps_the_why_the_open_scans_and_the_focus(ui):
 def test_a_card_kept_across_a_redraw_still_reaches_the_offer_to_look_again(ui):
     """A kept card tells the page it is now on about its verdict, not the page it came from."""
     haystacks_found = a_get_still_looking(ui)
-    ui.open(f"#run/{GET_ID}")
+    ui.open(f"#get/{GET_ID}")
     ui.page.wait_for_selector("li.card[data-work='work-1'] summary")
     ui.page.click("li.card[data-work='work-1'] summary")
     ui.page.wait_for_selector(USE_THE_SECOND_SCAN)
@@ -558,14 +559,14 @@ def test_a_get_s_page_opened_again_is_built_afresh(ui):
     or turned down since, so the cards of a visit that ended are not reused.
     """
     a_finished_get(ui)
-    ui.open(f"#run/{GET_ID}")
+    ui.open(f"#get/{GET_ID}")
     ui.page.fill("#reason-work-1", WHY)
     ui.page.click("li.card summary")
     ui.page.wait_for_selector("tr.alternate")
 
     ui.page.click("li.card .card-meta a:text-is('Q3226397')")
-    ui.page.wait_for_selector("#view a:has-text('← The Get')")
-    ui.page.click("#view a:has-text('← The Get')")
+    ui.page.wait_for_selector("#view a:has-text('← Get')")
+    ui.page.click("#view a:has-text('← Get')")
     ui.page.wait_for_selector("li.card summary")
 
     assert ui.page.input_value("#reason-work-1") == ""

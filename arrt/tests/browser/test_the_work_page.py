@@ -240,7 +240,9 @@ def test_a_work_kept_off_every_wall_says_so_and_offers_the_undo(ui, api, service
 
     assert api.get("/api/exclusions").json()["exclusions"] == []
     assert strip_value(ui, "Walls") == wall.name
-    assert ui.page.inner_text(".state-strip .strip-said").startswith("It may go on walls again.")
+    assert ui.page.inner_text(".state-strip .strip-said") == (
+        "It may go on walls again the next time a theme holding it is hung. " "Re-hanging a wall's current theme does that now."
+    )
     assert ui.page.evaluate("() => document.activeElement.textContent") == "Hang…"
 
 

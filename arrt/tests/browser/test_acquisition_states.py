@@ -47,7 +47,7 @@ def accepted(services):
 
 def open_work(ui, work):
     ui.open(f"#work/{work.id}")
-    ui.page.wait_for_selector("#view h2:has-text('The master image')")
+    ui.page.wait_for_selector("#view h2:has-text('Master image')")
 
 
 # -- the Work page ------------------------------------------------------------
@@ -62,7 +62,7 @@ def test_a_work_with_no_image_says_it_is_queued_and_offers_no_retry(ui, accepted
     assert "queued" in line
     assert "Waiting its turn to be fetched" in line
     assert ui.page.locator(".acquisition-line button").count() == 0, "nothing has failed, so there is nothing to retry"
-    panel = ui.page.locator(".panel:has(h2:has-text('The master image'))").inner_text()
+    panel = ui.page.locator(".panel:has(h2:has-text('Master image'))").inner_text()
     assert "No master image has been acquired" not in panel, "the queue's line replaces the bare sentence"
 
 

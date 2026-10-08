@@ -314,7 +314,7 @@ function tableAround(body, selection) {
     ...["Title", "Artist", "Date", "Medium", "Status"].map((name) => el("th", { scope: "col", text: name })),
   ];
   return el("table", { class: "work-table" }, [
-    el("caption", { class: "visually-hidden", text: "The works, one row each." }),
+    el("caption", { class: "visually-hidden", text: "Works, one row each." }),
     el("thead", {}, [el("tr", {}, head)]),
     body,
   ]);
@@ -791,7 +791,7 @@ function emptyState(query, chosen, shownTheme) {
     el("h2", { text: "Nothing held matches this filter." }),
     // The filter itself, named. "No results" without saying what was asked for
     // leaves a curator guessing which of three narrowings did it.
-    el("p", { class: "muted", text: `The filter is ${filterPhrase(query, chosen, shownTheme)}.` }),
+    el("p", { class: "muted", text: `Filtered by ${filterPhrase(query, chosen, shownTheme)}.` }),
     el("div", { class: "row" }, [
       // "Show everything" rather than "Clear the filter", and the wording is a
       // contract rather than a preference: it is what the way out of a search has

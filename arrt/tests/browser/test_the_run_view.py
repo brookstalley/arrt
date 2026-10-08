@@ -55,7 +55,7 @@ def test_a_poll_that_changes_nothing_leaves_the_focus_alone(at_the_gate):
     be decided on.
     """
     ui = at_the_gate
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("button:has-text('Approve the list')")
 
     ui.page.focus("button:has-text('Approve the list')")
@@ -91,7 +91,7 @@ def test_a_poll_that_changes_something_does_repaint(ui):
             ),
         ],
     )
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("td:has-text('First')")
 
     assert "Second arrival" not in ui.text()
@@ -115,7 +115,7 @@ def test_two_concurrent_paints_leave_only_one_poll_chain(at_the_gate):
     is what pins it.
     """
     ui = at_the_gate
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("button:has-text('Approve the list')")
 
     before = len(ui.requests_matching(f"/api/runs/{RUN_ID}"))
@@ -153,7 +153,7 @@ def test_a_paint_superseded_in_flight_never_reaches_the_page(ui):
         a_run_view(run=a_run(run_id="left-behind", intent="A run left behind", status=RunStatus.RESOLVING_WORKS.value)),
     )
 
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("#view p.note")
 
     # A paint begins, and something supersedes it before its answer lands — which
@@ -167,7 +167,7 @@ def test_a_paint_superseded_in_flight_never_reaches_the_page(ui):
 def test_leaving_the_run_view_stops_its_polling(at_the_gate):
     """A run page left behind must not keep repainting under what replaced it."""
     ui = at_the_gate
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("button:has-text('Approve the list')")
 
     # Health left the navigation in the reshape, so the way to it is the
@@ -215,14 +215,14 @@ def test_a_family_total_that_cannot_be_read_says_so(a_finished_run):
     ui = a_finished_run
     ui.page.route(f"**/api/runs/{RUN_ID}/spend", lambda route: route.fulfill(status=503, body="{}"))
 
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("#view dl.facts")
 
     shown = ui.text()
-    assert "The total including every re-search could not be read" in shown
+    assert "The total including every Get again could not be read" in shown
     # The panel survives the failure: the two figures beside it are read off the
     # run record and are still true, so losing the rollup must not cost them.
-    assert "Spent by this run alone" in shown
+    assert "Spent by this Get alone" in shown
 
 
 def test_a_run_that_has_stopped_is_not_polled_again(a_finished_run):
@@ -243,7 +243,7 @@ def test_a_run_that_has_stopped_is_not_polled_again(a_finished_run):
     ui = a_finished_run
     ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend())
 
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("#view dl.facts")
     settled = len(ui.requests_matching(f"/api/runs/{RUN_ID}"))
     # Not decoration: a page that never asked at all would satisfy the equality
@@ -260,12 +260,12 @@ def test_a_family_total_that_reads_fine_says_nothing(a_finished_run):
     ui = a_finished_run
     ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend())
 
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("#view dl.facts")
 
     shown = ui.text()
     assert "could not be read" not in shown
-    assert "Spent including every re-search" in shown
+    assert "Spent including every Get again" in shown
 
 
 # -- which kind of nothing --------------------------------------------------
@@ -294,7 +294,7 @@ def test_an_unresolved_work_says_which_kind_of_nothing(ui, reason):
             ],
         ),
     )
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("table")
 
     shown = ui.text()
@@ -322,7 +322,7 @@ def test_an_unresolved_work_says_which_kind_of_nothing(ui, reason):
     # Both halves, because only the pair says the reword happened: the new
     # wording present proves it renders, and the old wording absent proves it is
     # gone rather than sitting beside it.
-    assert "the run found none" in shown
+    assert "the Get found none" in shown
     assert "no image" not in shown, (
         "a present-tense claim about the work is what the reword removed — `resolution_status` "
         "records what the run found, and only a resolution attempt recomputes it"
@@ -339,7 +339,7 @@ def test_an_unresolved_work_says_which_kind_of_nothing(ui, reason):
 MAX_FAILURES = 5
 
 #: What the service answers for a run id it does not know — the case that made
-#: this necessary. A bookmarked `#run/<id>` outlives its run.
+#: this necessary. A bookmarked `#get/<id>` outlives its run.
 GONE = (400, {"error": "There is no run with that id."})
 
 
@@ -358,7 +358,7 @@ def test_the_client_and_this_test_agree_on_the_limit(ui):
 def test_a_run_that_will_never_answer_stops_being_watched(ui):
     """The loop proved to terminate, rather than read to.
 
-    Opening a stale bookmarked `#run/<id>` after the run is gone had the service
+    Opening a stale bookmarked `#get/<id>` after the run is gone had the service
     answer 400, the catch re-arm, and the tab request that run every two seconds
     for as long as it stayed open — bounded only by navigation, with nothing on
     screen saying the watch was still retrying.
@@ -369,7 +369,7 @@ def test_a_run_that_will_never_answer_stops_being_watched(ui):
     """
     ui.serve(f"**/api/runs/{RUN_ID}", GONE)
 
-    ui.page.goto(f"{ui.base_url}/#run/{RUN_ID}")
+    ui.page.goto(f"{ui.base_url}/#get/{RUN_ID}")
     ui.page.wait_for_selector("#error:not([hidden])")
 
     # Long enough for several more polls than the limit allows, so a loop that
@@ -389,12 +389,12 @@ def test_a_watch_that_gave_up_says_so_rather_than_only_what_failed(ui):
     """
     ui.serve(f"**/api/runs/{RUN_ID}", GONE)
 
-    ui.page.goto(f"{ui.base_url}/#run/{RUN_ID}")
+    ui.page.goto(f"{ui.base_url}/#get/{RUN_ID}")
     ui.page.wait_for_selector("#error:not([hidden])")
     ui.page.wait_for_timeout(POLL_MS * (MAX_FAILURES + 1))
 
     message = ui.page.inner_text("#error")
-    assert "Gave up watching this run" in message
+    assert "Gave up watching this Get" in message
     assert "reload" in message, "saying it stopped without saying how to resume leaves the curator stuck"
     assert "There is no run with that id." in message, "the original fault must survive; it is the diagnosis"
 
@@ -416,7 +416,7 @@ def test_one_blip_does_not_end_the_watch(ui):
         ],
     )
 
-    ui.page.goto(f"{ui.base_url}/#run/{RUN_ID}")
+    ui.page.goto(f"{ui.base_url}/#get/{RUN_ID}")
 
     # The run's own content arriving is the recovery: it can only be painted by
     # a poll that the blip did not stop.
@@ -440,7 +440,7 @@ def test_a_success_clears_the_failure_count(ui):
     bad = (502, {"error": "The server answered 502."})
     ui.serve(f"**/api/runs/{RUN_ID}", [bad, bad, good])
 
-    ui.page.goto(f"{ui.base_url}/#run/{RUN_ID}")
+    ui.page.goto(f"{ui.base_url}/#get/{RUN_ID}")
     ui.page.wait_for_selector("#view p.note")
 
     assert ui.page.evaluate("() => state.watch.failures") == 0, (
@@ -465,7 +465,7 @@ def test_failures_with_a_success_between_them_never_end_the_watch(ui):
     bad = (502, {"error": "The server answered 502."})
     ui.serve(f"**/api/runs/{RUN_ID}", [bad, bad, bad, bad, good, bad, bad, bad, bad, good])
 
-    ui.page.goto(f"{ui.base_url}/#run/{RUN_ID}")
+    ui.page.goto(f"{ui.base_url}/#get/{RUN_ID}")
     ui.page.wait_for_selector("#view p.note")
     ui.page.wait_for_timeout(POLL_MS * 4 + 500)
 
@@ -540,7 +540,7 @@ def test_the_run_table_does_not_head_a_column_with_the_works_own_provenance(ui):
     ui.serve("**/api/estimate?*", an_estimate())
     ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(works=[a_candidate()]))
 
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("table")
 
     text = ui.text()
@@ -595,7 +595,7 @@ def test_the_run_sentence_agrees_with_itself_at_a_count_of_one(ui):
     )
     run = a_run(status=RunStatus.COMPLETED.value, is_terminal=True)
     ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(run=run, works=[named]))
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("table")
 
     shown = ui.text()
@@ -619,7 +619,7 @@ def test_a_settled_work_list_of_one_says_so_in_the_singular(ui):
         f"**/api/runs/{RUN_ID}",
         a_run_view(run=run, works=[a_candidate(resolution_status=ResolutionStatus.PENDING.value)]),
     )
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
 
     ui.page.wait_for_selector("text=The work list of 1 work is settled")
     assert "1 works" not in ui.text()
@@ -657,7 +657,7 @@ def test_one_of_several_works_takes_the_singular_verb(ui, kind, expected):
     ]
     run = a_run(status=RunStatus.COMPLETED.value, is_terminal=True, kind=kind)
     ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(run=run, works=works))
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("table")
 
     shown = ui.text()
@@ -695,7 +695,7 @@ def test_a_run_that_cannot_look_for_images_says_so_in_the_singular(ui):
             image_resolution_available=False,
         ),
     )
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
 
     ui.page.wait_for_selector("text=There is 1 work to find images for")
     assert "1 works" not in ui.text()
@@ -720,7 +720,7 @@ def test_a_run_with_no_phase_one_that_cannot_look_counts_every_work_it_holds(ui,
         a_candidate(work_id=f"w{n}", provenance=provenance, resolution_status=ResolutionStatus.PENDING.value) for n in range(2)
     ]
     ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(run=run, works=works, image_resolution_available=False))
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
 
     ui.page.wait_for_selector("text=There are 2 works to find images for")
 
@@ -737,9 +737,9 @@ def test_a_re_search_over_one_work_says_so_in_the_singular(ui):
         f"**/api/runs/{RUN_ID}",
         a_run_view(run=run, works=[a_candidate(resolution_status=ResolutionStatus.PENDING.value)]),
     )
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
 
-    ui.page.wait_for_selector("text=Looking again for images of the 1 work this re-search covers")
+    ui.page.wait_for_selector("text=Looking again for images of the 1 work this Get covers")
     assert "1 works" not in ui.text()
 
 
@@ -756,7 +756,7 @@ def test_one_work_the_provider_could_not_be_asked_about_reads_in_the_singular(ui
         f"**/api/runs/{RUN_ID}",
         a_run_view(run=run, works=[a_candidate(resolution_status=ResolutionStatus.PENDING.value)]),
     )
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("table")
 
     shown = ui.text()
@@ -801,14 +801,14 @@ def test_the_run_sentence_does_not_deny_the_works_listed_underneath_it(ui):
     )
     run = a_run(status=RunStatus.COMPLETED.value, is_terminal=True)
     ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(run=run, works=[named, offered]))
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("table")
 
     shown = ui.text()
     # Singular at a count of one. The first version of this assertion pinned
     # "1 more works" — a test can hold a grammatical bug still just as firmly as
     # it holds a behaviour, and this one did until a reviewer read the string.
-    assert "the collection offered 1 more work by artists this run found no image for" in shown
+    assert "the collection offered 1 more work by artists this Get found no image for" in shown
     assert "1 more works" not in shown
     assert "could not confirm" not in shown, "the run view still denies work it lists directly below"
 
@@ -831,7 +831,7 @@ def _ended(ui, *, status: RunStatus, end_reason: str | None):
     run = a_run(status=status.value, is_terminal=True, completed_at="2026-10-05T10:05:00+00:00", end_reason=end_reason)
     ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(run=run, works=[]))
     ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend())
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("#view dl.facts")
     return ui.text()
 
@@ -839,7 +839,7 @@ def _ended(ui, *, status: RunStatus, end_reason: str | None):
 @pytest.mark.parametrize(
     ("status", "sentence"),
     [
-        (RunStatus.FAILED, "This run hit an error and stopped."),
+        (RunStatus.FAILED, "This Get hit an error and stopped."),
         (RunStatus.HALTED_BY_BUDGET, "The provider refused further spend"),
     ],
 )
@@ -861,7 +861,7 @@ def test_a_run_that_ended_badly_says_why_beside_what_happened(ui, status, senten
 def test_a_failed_run_from_before_reasons_were_kept_still_points_at_the_log(ui):
     shown = _ended(ui, status=RunStatus.FAILED, end_reason=None)
 
-    assert "This run hit an error and stopped. The server log has the details." in shown
+    assert "This Get hit an error and stopped. The server log has the details." in shown
     assert "Why it stopped" not in shown
 
 

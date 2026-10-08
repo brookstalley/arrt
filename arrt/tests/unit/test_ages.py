@@ -2,7 +2,7 @@
 
 Clients prints the server's sentence about a report ("It last reported 4
 minutes ago."), and Walls composes its own line about the same report with
-`core/ages.js`. #295's acceptance is that the two pages agree for one report, so
+`core/dates.js`. #295's acceptance is that the two pages agree for one report, so
 the client's words are run here against `observations.ago` over the ages where
 they could part: every unit boundary, the halves Python rounds to even and
 `Math.round` would not, and a report stamped in the future.
@@ -24,7 +24,7 @@ import pytest
 from arrt.http.pages import STATIC_DIR
 from arrt.observations import ago
 
-AGES_MODULE = STATIC_DIR / "core" / "ages.js"
+AGES_MODULE = STATIC_DIR / "core" / "dates.js"
 OUTPUTS_MODULE = STATIC_DIR / "core" / "outputs.js"
 
 pytestmark = pytest.mark.skipif(

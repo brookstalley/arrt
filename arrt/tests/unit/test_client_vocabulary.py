@@ -467,3 +467,63 @@ def test_every_state_a_source_can_answer_a_look_with_has_words_and_a_glyph(name)
     assert _object_keys(name) == {str(state) for state in SourceState}
     values = _object_values(name)
     assert all(value.strip() for value in values.values()), f"`{name}` has a state with nothing to show"
+
+
+def test_every_run_status_has_a_word_for_a_table_cell():
+    """Queue's State column said `resolving_images`; a status keyed nowhere here would again."""
+    assert _object_keys("STATE_WORDS") == {str(status) for status in RunStatus}
+    values = _object_values("STATE_WORDS")
+    assert all(value.strip() for value in values.values())
+
+
+def test_every_reason_a_work_is_not_on_a_wall_has_a_word():
+    """Walls' *Not showing* table said `kept_off_every_wall`; a reason keyed nowhere here would again."""
+    from arrt.library.readiness import UnplayableReason
+    from arrt.programming.manifest.builder import KeptOff
+
+    assert _object_keys("EXCLUSION_WORDS") == {str(reason) for reason in [*UnplayableReason, *KeptOff]}
+
+
+def test_every_plugin_state_has_a_word():
+    from arrt.library.sources.loading import PluginState
+
+    assert _object_keys("PLUGIN_STATE_WORDS") == {str(state) for state in PluginState}
+
+
+def test_every_built_in_source_has_the_name_a_curator_knows_it_by():
+    """A scan "from artic" names a plugin; "from the Art Institute of Chicago" names a museum.
+
+    Keyed on the `PROVIDER` every built-in source module declares, gathered from
+    the package rather than listed, so an eleventh source fails here until it has
+    a name.
+    """
+    import importlib
+    import pkgutil
+
+    from arrt.library import sources
+
+    providers = set()
+    for module in pkgutil.iter_modules(sources.__path__):
+        declared = getattr(importlib.import_module(f"{sources.__name__}.{module.name}"), "PROVIDER", None)
+        if isinstance(declared, str):
+            providers.add(declared)
+    assert len(providers) >= 5, "too few sources were found for this guard to mean anything"
+    assert _object_keys("MUSEUM_NAMES") == providers
+
+
+def test_both_surfaces_say_the_same_sentence_about_a_work_let_back_on_the_walls():
+    """The Work page's *Allow on walls again* and `art_theme(action='allow_again')`, in one wording."""
+    from arrt.mcp.bindings import ALLOW_AGAIN_NOTICE
+
+    assert ALLOW_AGAIN_NOTICE in CLIENT
+    assert "sync" not in ALLOW_AGAIN_NOTICE
+    assert "manifest" not in ALLOW_AGAIN_NOTICE
+
+
+@pytest.mark.parametrize("name", ["RIGHTS_WORDS", "FETCH_WORDS"])
+def test_every_rights_and_fetch_state_has_words(name):
+    """The Work page's sources and a review card's scans said `public_domain` and `partial_tiles`."""
+    from arrt.persistence.records import FetchStatus, RightsStatus
+
+    enum = {"RIGHTS_WORDS": RightsStatus, "FETCH_WORDS": FetchStatus}[name]
+    assert _object_keys(name) == {str(member) for member in enum}

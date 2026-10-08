@@ -146,7 +146,8 @@ def test_the_confirmation_says_how_to_make_the_room_catch_up(ui, ready_work, han
     ask(ui, "Archive")
 
     consequence = ui.page.inner_text(".confirm-consequence")
-    assert "next manifest build" in consequence
+    assert "the next time" in consequence
+    assert "hung" in consequence
     assert "Re-hanging" in consequence
 
 
@@ -279,7 +280,8 @@ def test_restoring_says_which_act_it_is_and_what_the_wall_will_do(ui, ready_work
 
     assert ui.page.inner_text(".confirm-title") == "Restore Nighthawks?"
     consequence = ui.page.inner_text(".confirm-consequence")
-    assert "next manifest build" in consequence
+    assert "the next time" in consequence
+    assert "hung" in consequence
     assert "Re-hanging" in consequence
 
     ui.page.click(".confirm-actions button:has-text('Restore')")

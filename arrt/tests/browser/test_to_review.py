@@ -49,8 +49,8 @@ def test_it_lists_the_runs_waiting_with_how_many_each_holds(ui):
 
     rows = [" ".join(row.split()) for row in ui.page.locator("#view tbody tr").all_inner_texts()]
     assert ui.page.locator("#view h2").first.inner_text() == "3 works to review"
-    assert rows[0].startswith("Works you chose Get 2 ")
-    assert rows[1].startswith("Quiet interiors search 1 ")
+    assert rows[0].startswith("Works you chose Get of chosen works 2 ")
+    assert rows[1].startswith("Quiet interiors Get from Ask 1 ")
 
 
 def test_a_get_opens_on_its_own_page_where_it_is_reviewed(ui):
@@ -65,7 +65,7 @@ def test_a_get_opens_on_its_own_page_where_it_is_reviewed(ui):
 
     ui.page.locator("#view tbody tr").first.locator("a:text-is('Review')").click()
 
-    ui.page.wait_for_function(f"() => window.location.hash.startsWith('#run/{GET_ID}')")
+    ui.page.wait_for_function(f"() => window.location.hash.startsWith('#get/{GET_ID}')")
 
 
 def test_a_search_still_opens_review(ui):

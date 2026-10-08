@@ -34,6 +34,7 @@ import { api } from "../core/api.js";
 import { facts, table } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
 import { agree, counted } from "../core/counting.js";
+import { dated } from "../core/dates.js";
 import { isStale, screenCell, screenPhrase, STALE_AFTER_SECONDS } from "../core/outputs.js";
 import { el, render } from "../core/render.js";
 import { refresh } from "../core/router.js";
@@ -171,7 +172,7 @@ function clientPanel(client, walls, names, shown, said) {
 }
 
 function when(iso) {
-  return new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  return dated(iso);
 }
 
 /* The token, the one time it exists here, and what to do with it.
@@ -215,7 +216,7 @@ function outputs(client) {
   } else {
     const stale = isStale(beat);
     body = table(
-      `The outputs ${client.name} last reported.`,
+      `Outputs ${client.name} last reported.`,
       ["Output", "Kind", "Screen", "Size"],
       beat.outputs.map((output) => [
         output.name,

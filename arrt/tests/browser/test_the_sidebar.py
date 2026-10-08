@@ -35,7 +35,7 @@ pytest.importorskip(
 #: because every *arr app puts its library first; Walls second, in Calendar's
 #: slot; then Activity, Wanted, Settings and System in Sonarr's order. Wanted is
 #: a section of its own, as in Sonarr, Radarr and Lidarr (the owner's ruling of
-#: 2026-10-05), shown once something is wanted.
+#: 2026-10-05), and always shown (ruling 5 of 2026-10-07).
 SECTIONS = ["Artworks", "Walls", "Activity", "Wanted", "Settings", "System"]
 
 #: The pages each section lists beneath its own name, when it is the current one.
@@ -62,6 +62,7 @@ SIDEBAR_PAGES = [
     ("history", "History"),
     ("taste", "What this product thinks you like"),
     ("clients", "Clients"),
+    ("wanted", "Wanted"),
     ("health", "Status"),
 ]
 
@@ -112,14 +113,11 @@ OPENS = {
 }
 
 
-#: Wanted lists no pages, and is hidden while nothing is wanted, so waiting for its
-#: lit link would wait for a link that is correctly not shown; `test_wanted.py`
-#: holds when it appears.
-@pytest.mark.parametrize("section", [name for name in SECTIONS if name != "Wanted"])
+@pytest.mark.parametrize("section", SECTIONS)
 def test_each_section_lists_exactly_its_pages(ui, seeded_service, section):
-    """Every section that lists pages, so a page added to or dropped from one fails by name.
+    """Every section, so a page added to or dropped from one fails by name.
 
-    Wanted lists none, and `test_wanted.py` holds when it shows.
+    Wanted lists none, and is in the list with nothing wanted: it is always shown.
     """
     ui.open(f"#{OPENS[section]}")
     # The links exist before the router opens the current section, so waiting
@@ -893,7 +891,15 @@ def test_every_old_address_opens_the_page_that_took_over(ui, seeded_service):
     table = aliases(ui)
     assert table, "the alias table read as empty, which would make this test pass vacuously"
 
+    # An alias of a screen that addresses one thing is followed with its id:
+    # `#run/<id>`, a Get's old address, opens the Get at `#get/<id>`.
+    addressed = {"get"}
+    assert set(table.values()) & addressed, "no alias of an addressed screen was read; that half would go untested"
     for old, now in table.items():
+        if now in addressed:
+            ui.open(f"#{old}/an-old-bookmark")
+            ui.page.wait_for_function(f"() => window.location.hash === '#{now}/an-old-bookmark'")
+            continue
         ui.open(f"#{old}")
         ui.page.wait_for_function(f"() => window.location.hash === '#{now}'")
         ui.page.wait_for_selector("#view h1")

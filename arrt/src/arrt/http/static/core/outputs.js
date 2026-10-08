@@ -28,7 +28,7 @@
  * Clients and Walls both read the threshold from here, so one report cannot be
  * current on one page and stale on the other. */
 
-import { ago } from "./ages.js";
+import { ago } from "./dates.js";
 
 /* How often a Player reports, both its client heartbeat and each wall's:
  * `postarr/src/postarr/heartbeat.py`'s `INTERVAL_SECONDS`, which

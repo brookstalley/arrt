@@ -68,7 +68,7 @@ def test_an_empty_queue_says_so_and_offers_add_new(ui):
     ui.open("#queue")
     ui.page.wait_for_selector("#view .empty")
 
-    assert "No search is in flight" in ui.text()
+    assert "No Get is in flight" in ui.text()
     ui.page.click("#view a:has-text('Go to Ask')")
     ui.page.wait_for_selector("#view h1:text-is('Ask')")
 
@@ -89,10 +89,10 @@ def test_a_search_opened_from_the_queue_carries_no_opener(ui):
     ui.open("#queue")
     ui.page.wait_for_selector("h2:has-text('In flight')")
 
-    ui.page.click("#view a[aria-label='Open the search for Working on it']")
-    ui.page.wait_for_function("() => window.location.hash.startsWith('#run/')")
+    ui.page.click("#view a[aria-label='Open the Get from Ask: Working on it']")
+    ui.page.wait_for_function("() => window.location.hash.startsWith('#get/')")
 
-    assert ui.page.evaluate("() => window.location.hash") == "#run/r-working"
+    assert ui.page.evaluate("() => window.location.hash") == "#get/r-working"
 
 
 def test_an_empty_queue_over_a_truncated_listing_does_not_claim_nothing_is_in_flight(ui):
@@ -108,7 +108,7 @@ def test_an_empty_queue_over_a_truncated_listing_does_not_claim_nothing_is_in_fl
     ui.open("#queue")
     ui.page.wait_for_selector("#view .empty")
 
-    assert "No search is in flight among the 1 most recent searches." in ui.text()
+    assert "No Get is in flight among the 1 most recent Gets." in ui.text()
 
 
 def test_a_complete_empty_queue_says_nothing_is_in_flight_plainly(ui):
@@ -116,7 +116,7 @@ def test_a_complete_empty_queue_says_nothing_is_in_flight_plainly(ui):
     ui.open("#queue")
     ui.page.wait_for_selector("#view .empty")
 
-    assert "No search is in flight. " in ui.text()
+    assert "No Get is in flight. " in ui.text()
     assert "most recent" not in ui.text()
 
 

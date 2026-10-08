@@ -36,7 +36,7 @@
 
 import { state } from "./state.js";
 import { el, guard } from "./render.js";
-import { formatRoute, parseRoute } from "./route.js";
+import { formatRoute, parseRoute, resolveAlias } from "./route.js";
 import { installDrawer, lightSidebar, paintSidebar } from "./sidebar.js";
 
 let table = {};
@@ -86,7 +86,8 @@ export function pageFor(view = state.view, params = state.params, detailId = sta
 function returnTarget(from) {
   if (!from || !from.includes("/")) return null;
   const slash = from.indexOf("/");
-  const view = from.slice(0, slash);
+  // An opener written under an old name still returns where it says.
+  const view = resolveAlias(from.slice(0, slash));
   const id = from.slice(slash + 1);
   return table[view] && table[view].returnLabel && id ? { view, id } : null;
 }

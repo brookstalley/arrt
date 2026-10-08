@@ -25,6 +25,8 @@ import {
   shortfallNote,
 } from "./badges.js";
 import { enlarge } from "./enlarge.js";
+import { heldFor, hold, showHold } from "./holding.js";
+import { museumName, RIGHTS_WORDS } from "./providers.js";
 import { el, fill, guard } from "./render.js";
 import { go, link } from "./router.js";
 import { tierMark } from "./spend.js";
@@ -45,7 +47,7 @@ const VERDICT_WORDS = {
 
 /* What a card says once a work becomes wanted, so a curator knows where it went
  * and that nothing is looking for it yet. */
-const WANTED_NO_SCAN = "Wanted. It waits in Wanted, where Search again looks for a scan when you ask.";
+const WANTED_NO_SCAN = "Wanted. It waits in Wanted, where Get again looks for a scan when you ask.";
 const WANTED_AFTER_TURNING_DOWN =
   "Turned down, and the work is wanted: it waits in Wanted for a better scan, and nothing looks until you ask there.";
 
@@ -94,7 +96,7 @@ function provenanceBadge(work) {
  * name rather than drawing as its raw token. */
 const CONFIRMATION_MARKS = {
   confirmed: null,
-  unconfirmed: ["?", "Not confirmed", "No source the search found names this work by this artist. It may not exist."],
+  unconfirmed: ["?", "Not confirmed", "No source the Get found names this work by this artist. It may not exist."],
   unknown: ["?", "Unchecked", "Nothing was asked to confirm this work exists."],
 };
 
@@ -264,7 +266,7 @@ function instanceStateBadges(instance) {
  * the table. They are sentences and addresses, not figures to compare down a
  * column, and set in a column of their own they are what squeezed every other
  * fact into a few characters' width. */
-const SCAN_COLUMNS = ["Scan", "Resolution", "Provider", "Rights", "Confidence", "Chosen", "Actions"];
+const SCAN_COLUMNS = ["Scan", "Resolution", "Source", "Rights", "Confidence", "Chosen", "Actions"];
 
 /* A work, as its picture is named: its title, and its artist where known. */
 function pictured(work) {
@@ -275,7 +277,7 @@ function pictured(work) {
  * where the scan came from and its size, which is how the row tells it apart
  * from its neighbours. */
 function scanName(instance, work) {
-  const which = [`the scan from ${instance.provider}`, scanSize(instance)].filter(Boolean).join(", ");
+  const which = [`the scan from ${museumName(instance.provider)}`, scanSize(instance)].filter(Boolean).join(", ");
   return `${pictured(work)} — ${which}`;
 }
 
@@ -312,8 +314,8 @@ function instanceRows(instance, work, after, decided = false) {
           fitBadge(instance, "size unrecorded"),
         ]),
       ]),
-      el("td", { class: "scan-fact", text: instance.provider }),
-      el("td", { class: "scan-fact", text: instance.rights_status || "—" }),
+      el("td", { class: "scan-fact", text: museumName(instance.provider) }),
+      el("td", { class: "scan-fact", text: instance.rights_status ? RIGHTS_WORDS[instance.rights_status] || instance.rights_status : "—" }),
       el("td", { class: "scan-fact", text: instance.confidence.toFixed(2) }),
       el("td", { class: "scan-fact" }, chosen.length ? [el("div", { class: "stack-tight" }, chosen)] : ["—"]),
       el("td", { class: "scan-actions" }, [
@@ -451,31 +453,6 @@ function absentScanReason(card) {
   return "No scan was found for this work.";
 }
 
-/* How long a verdict waits, with Undo beside it, before it is sent.
- *
- * **Undo is the client's, because the server's cannot be**: accepting creates
- * the artwork and wakes the acquisition queue, and rejecting suppresses the
- * work from every later run. So a verdict is held here for a few seconds and
- * only then sent; Undo inside that window means nothing was ever asked.
- *
- * **A held verdict is never dropped.** Leaving the page — another address, a
- * reload, closing the tab — sends every held verdict at once (`sendHeld`),
- * with `keepalive` so the request outlives the page that made it. */
-export const VERDICT_HOLD_MS = 5000;
-
-/* Every verdict waiting out its hold, by work: what sends it now. */
-const HELD = new Map();
-
-function sendHeld() {
-  for (const send of [...HELD.values()]) send({ leaving: true });
-}
-
-window.addEventListener("hashchange", sendHeld);
-window.addEventListener("pagehide", sendHeld);
-
-/* What a held verdict is called while it waits, by the act the curator pressed. */
-const HOLDING_WORDS = { accept: "Accepting", reject: "Rejecting", forget: "Forgetting" };
-
 /* What each card on the page was built from, and where it sends its verdicts.
  *
  * Read by `reviewSection` when it is handed the section it replaces: a card
@@ -539,68 +516,30 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
   const reason = el("input", { type: "text", id: `reason-${work.work_id}` });
   // `words` is the act as the failure would name it: "accept Nighthawks".
   //
-  // Pressed, the verdict is held (`VERDICT_HOLD_MS`): the card's controls give
+  // Pressed, the verdict is held (`core/holding.js`): the card's controls give
   // way to what is about to happen and Undo, and only when the hold runs out,
   // or the curator leaves the page, is it sent. A failure to send brings the
   // controls back with the failure said beside the button that was pressed.
-  const decide = (verdict, words) => (event) => {
-    const pressed = event.currentTarget;
-    if (HELD.has(work.work_id)) return;
-    const undo = el("button", {
-      class: "action quiet",
-      type: "button",
-      text: "Undo",
-      "aria-label": `Undo: don't ${words} ${work.title}`,
+  const decide = (verdict, words) => (event) =>
+    hold({
+      key: work.work_id,
+      act: words,
+      title: work.title,
+      controls,
+      pressed: event.currentTarget,
+      write: ({ keepalive }) =>
+        api(`/api/candidates/${encodeURIComponent(work.work_id)}/verdict`, {
+          method: "POST",
+          body: JSON.stringify({ verdict, reason: reason.value || null }),
+          keepalive,
+        }),
+      then: async (outcome) => {
+        // A verdict is one fewer work to review: the sidebar's count is read
+        // again as soon as it is recorded, whatever happens to the repaint.
+        paintAwaiting();
+        await repaint(outcome.notice);
+      },
     });
-    const said = el("span", { role: "status" });
-    const holding = el("div", { class: "row verdict-held" }, [said, undo]);
-    let timer = null;
-    const restore = () => {
-      holding.remove();
-      controls.hidden = false;
-    };
-    const send = async ({ leaving = false } = {}) => {
-      clearTimeout(timer);
-      HELD.delete(work.work_id);
-      undo.remove();
-      said.textContent = `${HOLDING_WORDS[words]} ${work.title}…`;
-      const sent = await attempt(
-        pressed,
-        `${words} ${work.title}`,
-        () =>
-          api(`/api/candidates/${encodeURIComponent(work.work_id)}/verdict`, {
-            method: "POST",
-            body: JSON.stringify({ verdict, reason: reason.value || null }),
-            keepalive: leaving,
-          }),
-        {
-          then: async (outcome) => {
-            // A verdict is one fewer work to review: the sidebar's count is read
-            // again as soon as it is recorded, whatever happens to the repaint.
-            paintAwaiting();
-            await repaint(outcome.notice);
-          },
-        },
-      );
-      if (!sent) restore();
-    };
-    undo.addEventListener("click", () => {
-      clearTimeout(timer);
-      HELD.delete(work.work_id);
-      restore();
-      pressed.focus();
-    });
-    controls.hidden = true;
-    controls.after(holding);
-    HELD.set(work.work_id, send);
-    timer = setTimeout(send, VERDICT_HOLD_MS);
-    // Filled a task after the region is on the page, which is when a live
-    // region announces (`accessibility-spec.md` § Announcement and semantics).
-    setTimeout(() => {
-      if (HELD.has(work.work_id)) said.textContent = `${HOLDING_WORDS[words]} ${work.title} in a few seconds.`;
-    }, 0);
-    undo.focus();
-  };
 
   const alternates = el("div", { class: "stack" }, [el("p", { class: "muted", text: "Loading this work's scans…" })]);
   // **"Scans", not "other scans", and the count is deliberately every scan the
@@ -769,6 +708,13 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
     // wrapped.
     disclosure,
   );
+  // A card drawn again while its verdict is held shows the hold, not a
+  // verdict to press a second time.
+  const held = decided ? null : heldFor(work.work_id);
+  if (held) {
+    const pressed = [...controls.querySelectorAll("button")].find((button) => button.textContent.toLowerCase().startsWith(held.act)) || null;
+    showHold(held, controls, pressed);
+  }
   return node;
 }
 
@@ -829,19 +775,19 @@ function reSearchOffer(wanted) {
       // see. Wanting a work records a wish; it does not start a search, and a
       // page that stayed silent would leave them waiting for one that is
       // never coming.
-      text: `${works.length} ${works.length === 1 ? "work is" : "works are"} wanted. Nothing is looking for a scan — a re-search is what looks, and it costs nothing.`,
+      text: `${works.length} ${works.length === 1 ? "work is" : "works are"} wanted. Nothing is looking for a scan — Get again is what looks, and it costs nothing.`,
     }),
     el("div", { class: "row" }, [
       el("button", {
         class: "action",
         type: "button",
-        text: "Look again for these",
+        text: "Get these again",
         onclick: (event) =>
           attempt(
             event.currentTarget,
-            "start the re-search",
+            "get these again",
             () => api("/api/runs/resolve", { method: "POST", body: JSON.stringify({ work_ids: wanted() }) }),
-            { then: (run) => go("run", run.run_id) },
+            { then: (run) => go("get", run.run_id) },
           ),
       }),
       tierMark("free"),
@@ -910,7 +856,7 @@ function offeredGroupSentence(group, allCards) {
   const works = (n) => counted(n, "work");
 
   const clauses = [];
-  if (named > 0) clauses.push(`This run found no image for ${works(named)} it named by this artist.`);
+  if (named > 0) clauses.push(`This Get found no image for ${works(named)} it named by this artist.`);
   if (typeof matched !== "number") {
     // No holdings count recorded — say nothing about a total rather than guess
     // one, which is the failure this whole change is undoing.
@@ -927,7 +873,7 @@ function offeredGroupSentence(group, allCards) {
     // defect as "1 works" with an extra word in it, and a run that offered one
     // work out of several the collection holds is the ordinary case here.
     clauses.push(
-      `The collection holds ${works(matched)} by them; ${agree(shown, "this", "these")} ${shown} ${agree(shown, "is", "are")} what this run offered.`,
+      `The collection holds ${works(matched)} by them; ${agree(shown, "this", "these")} ${shown} ${agree(shown, "is", "are")} what this Get offered.`,
     );
   } else {
     clauses.push(`These are all ${works(matched)} the collection holds by them.`);
@@ -1025,7 +971,7 @@ export function reviewSection(page, { keptFrom = null } = {}) {
     // one grid comes to word truncation differently from the other.
     shortfallNote(page),
     offer,
-    page.works.length ? null : el("p", { class: "muted", text: "This run settled on no works, so there is nothing to review." }),
+    page.works.length ? null : el("p", { class: "muted", text: "This Get settled on no works, so there is nothing to review." }),
     named.length ? gridOf(named) : null,
     // Each group in its own element rather than as three loose siblings. The
     // requirement is an *association* — this sentence belongs to these works —

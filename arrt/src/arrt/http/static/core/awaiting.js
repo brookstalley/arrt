@@ -39,14 +39,13 @@ export async function paintAwaiting() {
   }
 }
 
-/* How many works are wanted, on the Wanted section's link — and the section only once one is.
+/* How many works are wanted, on the Wanted section's link.
  *
- * `ia-proposal.md` § The map: "Wanted appears once something is in it", as
- * Lidarr's Wanted does when nothing is missing. So with none wanted the section
- * is hidden rather than counting zero; its address still answers, and says it is
- * empty. The sidebar draws it hidden (`untilCounted`), so this is what shows it.
- * Its own count, kept off Activity's: that one is To review's, the queue that
- * needs the curator now, and a wanted work waits until they ask. */
+ * The section is always shown, as in every *arr app (`ia-proposal.md` § Rulings
+ * 2026-10-07, ruling 5), and counted only when something is wanted: a zero says
+ * nothing a curator acts on. Its own count, kept off Activity's: that one is To
+ * review's, the queue that needs the curator now, and a wanted work waits until
+ * they ask. */
 export async function paintWanted() {
   const slots = document.querySelectorAll("[data-count-slot='wanted']");
   if (!slots.length) return;
@@ -54,15 +53,13 @@ export async function paintWanted() {
   try {
     wanted = (await api("/api/wanted")).works.length;
   } catch (failure) {
-    // Shown rather than hidden on a failed read: hiding would say "nothing is
-    // wanted", which the client does not know. Wanted itself reports the failure.
+    // No count rather than a zero: "nothing is wanted" is not known. Wanted
+    // itself reports the failure.
     console.warn(`The Wanted count could not be read: ${failure.message}`);
-    for (const slot of slots) slot.closest("li").hidden = false;
     return;
   }
   for (const slot of slots) {
     const link = slot.closest("a");
-    slot.closest("li").hidden = wanted === 0;
     fill(slot, wanted ? el("span", { class: "awaiting-count", text: String(wanted) }) : null);
     if (wanted) link.setAttribute("aria-label", `Wanted: ${counted(wanted, "work")} wanted`);
     else link.removeAttribute("aria-label");

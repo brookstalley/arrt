@@ -75,10 +75,7 @@ export function paintSidebar(table, sectionList, pick) {
       "ul",
       {},
       sections.map(({ section, opens, listed }) =>
-        // `untilCounted`: hidden until its count arrives. Wanted's alone, and
-        // `paintWanted` (`core/awaiting.js`) is what shows it; a second section
-        // using the flag needs a painter of its own.
-        el("li", { class: "section", "data-section": section.key, hidden: Boolean(section.untilCounted) }, [
+        el("li", { class: "section", "data-section": section.key }, [
           link(
             opens,
             { class: "section-link" },

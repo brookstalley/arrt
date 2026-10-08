@@ -54,15 +54,14 @@ import { viewWork } from "./screens/work.js";
  * its amendment. A subsystem that gains a UI gets a page in an existing section.
  * Wanted is a section of its own, as in Sonarr, Radarr and Lidarr (the owner's
  * ruling of 2026-10-05): the works the curator wants and holds no acceptable
- * scan of (#168). `untilCounted` draws it hidden, and `paintWanted` shows it
- * once its count says something is wanted (or once the count cannot be read),
- * rather than drawing it and then hiding it. */
+ * scan of (#168). **Always shown, with its count when non-zero**, as every *arr
+ * app keeps it (ruling 5 of 2026-10-07); `paintWanted` writes the count. */
 const SECTIONS = [
   { key: "artworks", label: "Artworks", glyph: "▣" },
   { key: "walls", label: "Walls", glyph: "▢" },
   // `badge` names the count `core/awaiting.js` writes beside the label.
   { key: "activity", label: "Activity", glyph: "↻", badge: "awaiting" },
-  { key: "wanted", label: "Wanted", glyph: "◑", badge: "wanted", untilCounted: true },
+  { key: "wanted", label: "Wanted", glyph: "◑", badge: "wanted" },
   { key: "settings", label: "Settings", glyph: "⚙" },
   // `status` marks the section whose link carries the health badge.
   { key: "system", label: "System", glyph: "♥", status: true },
@@ -94,7 +93,7 @@ const ROUTES = {
   collection: { render: viewCollection, section: "artworks", page: "Artworks" },
   // Ask, in the slot Radarr's Add New holds (ruling 3 dissolved Add New into
   // Get): the intent box and the conversations. Keyed `discover`, the address it
-  // has always had; the searches it starts are listed under Activity.
+  // has always had; the Gets it starts are listed under Activity.
   discover: { render: viewDiscover, section: "artworks", page: "Ask" },
   // An index *and* an addressable detail, which is what the optional id buys:
   // `#theme` is every theme, `#theme/<id>` is one. § Navigation Structure
@@ -113,11 +112,11 @@ const ROUTES = {
   // What waits for the curator's verdict, first under Activity because it is
   // the one queue that needs them (`ia-proposal.md` § The map), with its count.
   to_review: { render: viewToReview, section: "activity", page: "To review", badge: "awaiting" },
-  // Radarr's Activity: the searches in flight, and the ones that ended.
+  // Radarr's Activity: the Gets in flight, and what has happened.
   queue: { render: viewQueue, section: "activity", page: "Queue" },
   history: { render: viewHistory, section: "activity", page: "History" },
   // Lidarr's Wanted: works the curator wants and holds no acceptable scan of.
-  // Its section appears once one is wanted (`core/awaiting.js`).
+  // Its section is always in the sidebar, counted when anything is wanted.
   wanted: { render: viewWanted, section: "wanted", page: "Wanted" },
   // Radarr's Profiles: the preferences that rank what it finds.
   taste: { render: viewTaste, section: "settings", page: "Taste" },
@@ -139,15 +138,16 @@ const ROUTES = {
   // bookmark. Its own route rather than an id on `topics`, as the plan
   // addresses it (`#topic/<qid>`).
   topic: { render: viewTopic, detail: true, opensFrom: "topics", title: "Topic" },
-  // A search is listed under Activity, so a bookmark to one returns to Queue.
-  // Run and Review share that default because they are one search's two pages:
-  // each opens the other, and with different defaults every hop between them
-  // would record an opener the curator never chose.
+  // A Get is listed under Activity, so a bookmark to one returns to Queue. A
+  // Get and its Review share that default because they are one Get's two
+  // pages: each opens the other, and with different defaults every hop between
+  // them would record an opener the curator never chose.
   //
-  // A Get's page is its review, so a Work opened from one of its cards returns
-  // to it, as one opened from Review returns to Review. Labelled for a Get
-  // because a Get's page is the only run page that opens a Work.
-  run: { render: viewRun, detail: true, opensFrom: "queue", title: "Run", returnLabel: "The Get", returnFor: ["work"] },
+  // A Get's page holds the review cards of a Get of chosen works, so a Work
+  // opened from one of them returns to it, as one opened from Review returns
+  // to Review. Addressed `#get/<id>`; `#run/<id>`, its address before every
+  // spending request was called a Get, is an alias (`core/route.js`).
+  get: { render: viewRun, detail: true, opensFrom: "queue", title: "Get", returnLabel: "Get", returnFor: ["work"] },
   // Contextual rather than a page: a conversation is something a curator does
   // *within* Ask, and returns there.
   conversation: { render: viewConversation, detail: true, opensFrom: "discover", title: "Conversation" },
@@ -156,7 +156,7 @@ const ROUTES = {
   // unreachable by URL.
   // `returnLabel` makes Review a place to come back to: a Work opened from a
   // review card returns to that review, not to the page the review sits under.
-  review: { render: viewReview, detail: true, opensFrom: "queue", title: "Review", returnLabel: "The review", returnFor: ["work"] },
+  review: { render: viewReview, detail: true, opensFrom: "queue", title: "Review", returnLabel: "Review", returnFor: ["work"] },
 };
 
 installStatus();
