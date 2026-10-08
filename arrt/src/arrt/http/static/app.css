@@ -1470,6 +1470,15 @@ button.card-image.enlargeable {
   white-space: nowrap;
 }
 
+/* The museum is a name, not a fact compared down the column, and museums'
+   names run from "SMK" to "The Metropolitan Museum of Art": it wraps at word
+   breaks within a bounded width, so the longest does not push the table past
+   its card. */
+.scans .scan-source {
+  min-width: 6rem;
+  max-width: 10rem;
+}
+
 /* The first row of a scan carries no rule beneath it: it and its sentences are
    one scan, and the rule belongs after both. */
 .scans tr.alternate td {
@@ -2504,6 +2513,16 @@ dialog.confirm::backdrop {
 .artist-works .work-pic {
   width: 5rem;
   height: 5rem;
+}
+
+/* On a phone the picture sits inside the State column's badge, so its size is
+   the column's floor; 4rem keeps it well over the 48 px a work is told apart
+   by and leaves the title its room. */
+@media (max-width: 40rem) {
+  .artist-works .work-pic {
+    width: 4rem;
+    height: 4rem;
+  }
 }
 
 .results-list .work-pic {

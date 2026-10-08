@@ -314,7 +314,7 @@ function instanceRows(instance, work, after, decided = false) {
           fitBadge(instance, "size unrecorded"),
         ]),
       ]),
-      el("td", { class: "scan-fact", text: museumName(instance.provider) }),
+      el("td", { class: "scan-source", text: museumName(instance.provider) }),
       el("td", { class: "scan-fact", text: instance.rights_status ? RIGHTS_WORDS[instance.rights_status] || instance.rights_status : "—" }),
       el("td", { class: "scan-fact", text: instance.confidence.toFixed(2) }),
       el("td", { class: "scan-fact" }, chosen.length ? [el("div", { class: "stack-tight" }, chosen)] : ["—"]),

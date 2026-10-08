@@ -288,7 +288,12 @@ def test_no_label_in_the_scans_wraps_onto_two_lines_at_desktop_width(ui):
     ui.page.click("li.card summary")
     ui.page.wait_for_selector("tr.alternate")
 
-    assert ui.page.locator("table.scans td.scan-fact").count() >= 10, "the measurement found no cells to measure"
+    # Four facts a row over the two scans. The museum's name is not among them:
+    # it is a name that wraps within a bounded column by design, since museums'
+    # names run to "The Metropolitan Museum of Art"; the overflow check below
+    # is what holds it.
+    assert ui.page.locator("table.scans td.scan-fact").count() >= 8, "the measurement found no cells to measure"
+    assert ui.page.locator("table.scans td.scan-source").count() >= 2
     assert ui.page.evaluate(WRAPPED_LABELS) == []
     # The table fits the card at this width rather than escaping sideways.
     table = ui.page.locator("table.scans").bounding_box()
