@@ -462,6 +462,11 @@ def image_query(title: str, artist: str | None, qid: str | None, *, pages: tuple
     return ImageQuery(title=title, artist=artist, qid=None if qid is None else ItemId(qid), pages=pages)
 
 
+#: The name every thread carrying a run's work is started under, so something
+#: outside the runner (a test closing the store it writes to) can find them.
+RUN_THREAD_NAME: Final = "discovery-run"
+
+
 def _daemon_thread(work: Callable[[], None]) -> None:
     """Run a run's phase-1 work behind the handle that was already returned.
 
@@ -472,7 +477,7 @@ def _daemon_thread(work: Callable[[], None]) -> None:
     its own death. Draining instead would hold a deploy restart open for the
     length of a run to reach the same place.
     """
-    threading.Thread(target=work, name="discovery-run", daemon=True).start()
+    threading.Thread(target=work, name=RUN_THREAD_NAME, daemon=True).start()
 
 
 class DiscoveryRunner:

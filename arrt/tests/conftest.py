@@ -67,7 +67,8 @@ from arrt.library.registry import Registry
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.conversation import ConversationService
 from arrt.library.services.discovery import DiscoveryService
-from arrt.library.services.runner import DiscoveryRunner
+from arrt.library.services.look import LOOK_THREAD_NAME
+from arrt.library.services.runner import RUN_THREAD_NAME, DiscoveryRunner
 from arrt.library.services.thumbnails import ThumbnailService, ThumbnailSettings
 from arrt.library.sources.artic import claims as artic_claims
 from arrt.library.sources.loading import SourceRoster
@@ -149,10 +150,53 @@ def seeded_titles() -> tuple[str, ...]:
 
 @pytest.fixture
 def catalogue_file(tmp_path) -> Iterator[SqliteDurableStore]:
-    """An empty catalogue file, with every table both adapters read."""
+    """An empty catalogue file, with every table both adapters read.
+
+    **No run or look is still writing when it closes.** The runner and the look
+    service start their work on daemon threads and return at once, which is the
+    contract. A test that returns while one still writes leaves teardown to close
+    the database under it; the thread then fails on a closed store, reported as an
+    unhandled-thread error against whichever test is running by then (#198, #324).
+    The join is here, at the one place the file closes, rather than in a `spawn`
+    each `services` override has to remember to pass: #198 put it in such a
+    fixture, and the overrides that did not ask for it were where #324 came from.
+    """
     opened = open_catalogue_file(tmp_path / "catalogue.sqlite")
     yield opened
+    _join_worker_threads()
     opened.close()
+
+
+#: The threads that write to the catalogue on a run's or a look's behalf, by the
+#: names their own modules start them under.
+_WORKER_THREAD_NAMES: Final = frozenset({RUN_THREAD_NAME, LOOK_THREAD_NAME})
+_WORKER_JOIN_SECONDS: Final = 20.0
+
+
+def _join_worker_threads() -> None:
+    """Wait for every run and look thread, including any one of them started while waiting.
+
+    Asked of `threading.enumerate()` again after each join, because a run's
+    thread can start the next (phase 1 hands its works to a resolve run), and a
+    list taken once would miss the thread started during the wait.
+    """
+    deadline = time.monotonic() + _WORKER_JOIN_SECONDS
+    while True:
+        working = [
+            thread
+            for thread in threading.enumerate()
+            if thread.name in _WORKER_THREAD_NAMES and thread is not threading.current_thread() and thread.is_alive()
+        ]
+        if not working:
+            return
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            pytest.fail(
+                f"run or look threads still working {_WORKER_JOIN_SECONDS:.0f} seconds after the test: "
+                f"{[thread.name for thread in working]}",
+                pytrace=False,
+            )
+        working[0].join(timeout=remaining)
 
 
 @pytest.fixture
@@ -300,35 +344,7 @@ def sources() -> SourceRoster:
 
 
 @pytest.fixture
-def run_threads(store: SqliteCatalogue, discovery_store: SqliteDiscovery) -> Iterator[Callable[[Callable[[], None]], None]]:
-    """A run's background work on recorded threads, each joined before the store closes.
-
-    The runner starts a run's work on a daemon thread and returns its handle at
-    once, which is the contract. A test that returns while that thread still
-    writes leaves teardown to close the database under it, and the thread then
-    fails on a closed store, reported (if at all) as a warning about some other
-    test. Pytest tears fixtures down in reverse order of setup, so this one asks
-    for both stores: that is what sets it up after them and so joins its threads
-    before either is closed. Without them it can be set up first and torn down
-    last, joining threads that already failed on a closed store.
-    """
-    threads: list[threading.Thread] = []
-
-    def spawn(work: Callable[[], None]) -> None:
-        thread = threading.Thread(target=work, name="discovery-run", daemon=True)
-        threads.append(thread)
-        thread.start()
-
-    yield spawn
-    for thread in threads:
-        thread.join(timeout=20)
-    still = [thread.name for thread in threads if thread.is_alive()]
-    assert not still, f"run threads still working 20 seconds after the test: {still}"
-
-
-@pytest.fixture
 def services(
-    run_threads: Callable[[Callable[[], None]], None],
     store: SqliteCatalogue,
     discovery_store: SqliteDiscovery,
     wall_settings: DisplaySettings,
@@ -377,7 +393,6 @@ def services(
         # it and every acquisition test starts resolving real hostnames again with
         # nothing failing to say so.
         resolve=lambda _host: ["93.184.216.34"],
-        spawn=run_threads,
         # Injected for the same reason `engine` is: the container's own default
         # refuses every turn, which is the keyless deployment and is right for
         # it — and would make every conversation test assert against a refusal.
