@@ -71,7 +71,7 @@ def panel(ui, client):
 
 def open_clients(ui):
     ui.open("#clients")
-    ui.page.wait_for_selector("#view h2:has-text('Clients')")
+    ui.page.wait_for_selector("#view h1:has-text('Clients')")
 
 
 # -- the page --------------------------------------------------------------------
@@ -80,7 +80,7 @@ def open_clients(ui):
 def test_the_page_is_under_settings_and_answers_its_own_path(ui, seeded_service):
     """A bookmark is a path as well as a fragment; `pages.py` has to serve it."""
     ui.page.goto(f"{ui.base_url}/clients")
-    ui.page.wait_for_selector("#view h2:has-text('Clients')")
+    ui.page.wait_for_selector("#view h1:has-text('Clients')")
 
     current = ui.page.locator("nav.sidebar a[data-view='clients'][aria-current='page']")
     assert current.inner_text() == "Clients"
@@ -283,7 +283,7 @@ def test_assigning_to_a_typed_output_when_none_is_reported_shows_the_servers_not
     assert services.display.get_wall_view(the_wall.id).wall.client_id == hall.id
 
 
-def test_an_output_already_showing_a_wall_is_named_and_a_second_is_refused_in_the_banner(
+def test_an_output_already_showing_a_wall_is_named_and_a_second_is_refused_beside_assign(
     ui, services, settings, hall, the_wall, study
 ):
     report(settings, hall)
@@ -296,10 +296,10 @@ def test_an_output_already_showing_a_wall_is_named_and_a_second_is_refused_in_th
     # The output showing nothing is the one offered first.
     assert ui.page.get_by_label("Output of Hall Pi").input_value() == "hdmi-a-2"
     ui.page.get_by_label("Output of Hall Pi").select_option("hdmi-a-1")
-    ui.page.get_by_role("button", name="Assign to Hall Pi").click()
-    ui.page.wait_for_selector("#error:not([hidden])")
+    assign = ui.page.get_by_role("button", name="Assign to Hall Pi")
+    assign.click()
 
-    assert "already shows" in ui.page.inner_text("#error")
+    assert "already shows" in ui.said_beside(assign)
     assert services.display.get_wall_view(study.id).wall.client_id is None
 
 
@@ -323,7 +323,7 @@ def test_renaming_a_client_keeps_its_walls(ui, services, hall, the_wall):
 
     ui.page.get_by_label("Name of Hall Pi").fill("Study Pi")
     ui.page.get_by_role("button", name="Rename Hall Pi").click()
-    ui.page.wait_for_selector("section.client h3:has-text('Study Pi')")
+    ui.page.wait_for_selector("section.client h2:has-text('Study Pi')")
 
     assert services.clients.get_client(hall.id).name == "Study Pi"
     assert f"{the_wall.name}, on hdmi-a-1" in panel(ui, hall).inner_text()

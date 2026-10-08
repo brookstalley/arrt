@@ -11,7 +11,7 @@
  * file. Links out are built here from a QID, never from a URL the registry gave. */
 
 import { el } from "./render.js";
-import { go } from "./router.js";
+import { link } from "./router.js";
 
 /* A Wikidata item id, as the server checks it: the address of a page about
  * something the library may not hold. A library id is a uuid and never this. */
@@ -44,12 +44,7 @@ export function lifeDates(person) {
  * library holds it, the registry's otherwise. */
 export function workLink(work) {
   const held = work.held_artwork_ids || [];
-  return el("button", {
-    class: "row-title",
-    type: "button",
-    text: named(work.title, work.qid),
-    onclick: () => (held.length ? go("work", held[0]) : go("work", work.qid)),
-  });
+  return link({ view: "work", id: held.length ? held[0] : work.qid }, { class: "row-title", text: named(work.title, work.qid) });
 }
 
 /* A listed work's title cell: its link, and under it who made it (where the
@@ -89,12 +84,7 @@ export function listHeadings(names) {
 /* A registry person's name, opening their page here: the library's artist when
  * it holds them, the registry's otherwise. */
 export function personLink(person) {
-  return el("button", {
-    class: "link",
-    type: "button",
-    text: named(person.name, person.qid),
-    onclick: () => go("artist", person.artist_id || person.qid),
-  });
+  return link({ view: "artist", id: person.artist_id || person.qid }, { class: "link", text: named(person.name, person.qid) });
 }
 
 /* The Commons rendering a listed work's picture is asked at. Commons serves
@@ -109,7 +99,7 @@ const FOUND_WIDTH = 250;
  * the results page, the Topic, Artist and Work pages: its picture, in the
  * image style of its state, then glyph and word.
  *
- *   ● *Held*: the library's own thumbnail, and a button to the work.
+ *   ● *Held*: the library's own thumbnail, and a link to the work.
  *   ◑ *Wanted*: Wikidata's picture, where it has one (the Wanted section).
  *   ◐ *Not held · Image found*: Wikidata's picture.
  *   ○ *Not held* (or `noImage`'s words): no picture.
@@ -139,12 +129,12 @@ export function workState(work, { noImage = null, opens = true, grouped = false 
       el("span", { class: "glyph", text: "●", "aria-hidden": true }),
       el("span", { text: words }),
     ];
-    // Not a button where the row it sits in already opens the work: a button
+    // Not a link where the row it sits in already opens the work: a link
     // inside a search suggestion is a control inside an option, which ARIA
     // forbids and which Tab would land on, and a results row would carry two
     // ways to the same page.
     if (!opens) return el("span", { class: "badge badge-held state-mark" }, parts);
-    return el("button", { class: "badge badge-held state-mark", type: "button", onclick: () => go("work", held[0]) }, parts);
+    return link({ view: "work", id: held[0] }, { class: "badge badge-held state-mark" }, parts);
   }
   const found = work.image ? `${work.image}?width=${FOUND_WIDTH}` : null;
   if (work.wanted) return stateBadge("badge-wanted", "◑", "Wanted", found && workPicture("wanted", found));

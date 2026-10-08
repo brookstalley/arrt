@@ -65,7 +65,7 @@ def test_the_table_view_lists_every_work_and_opens_one(ui, seeded_service):
     assert sorted(table_titles(ui)) == sorted(BY_TITLE)
     assert ui.page.locator("ul.grid").count() == 0
     ui.page.click("table.work-table .row-title:has-text('Nighthawks')")
-    ui.page.wait_for_selector("#view h2:has-text('Nighthawks')")
+    ui.page.wait_for_selector("#view h1:has-text('Nighthawks')")
 
 
 def test_the_view_menu_names_its_choice_and_is_keyboard_driven(ui, seeded_service):
@@ -143,7 +143,7 @@ def test_showing_everything_keeps_how_the_page_is_shown(ui, seeded_service):
     ui.open("#collection?q=nothingmatchesthis&density=table&sort=artist&filters=hidden")
     ui.page.wait_for_selector("#view .empty")
 
-    ui.page.click("#view button:has-text('Show everything')")
+    ui.page.click("#view a:has-text('Show everything')")
     ui.page.wait_for_selector("table.work-table")
 
     hash_now = ui.page.evaluate("() => window.location.hash")

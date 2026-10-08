@@ -111,11 +111,12 @@ def test_a_screen_reached_only_by_address_is_marked_so(browser, server_url, tmp_
     assert all(v["address"].lstrip("#") in inventory["summary"]["declared_not_reached_by_link"] for v in by_address)
 
 
-def test_a_screen_a_button_opens_is_found_and_marked_as_reached_by_script(browser, server_url, tmp_path):
-    """Artworks opens a work with a button that calls the router, not a link; the probe follows it.
+def test_a_work_opened_from_artworks_is_reached_by_a_link(browser, server_url, tmp_path):
+    """Artworks opens a work with a link (`information-architecture.md` § Direction),
+    so the walk records it as reached by link and not as reached only by script.
 
-    And says how it got there: a page reached only by script cannot be opened in
-    a new tab or copied as a link, which is a finding about the page, not the walk.
+    This test pinned the opposite while Artworks opened works with a button that
+    called the router; the norm ruled that a defect and the client was migrated.
     """
     inventory = ux_walk.run_walk(
         browser, server_url, tmp_path, scan_accessibility=False, variants=[("desktop", "light")], clicks_per_page=40
@@ -123,20 +124,18 @@ def test_a_screen_a_button_opens_is_found_and_marked_as_reached_by_script(browse
 
     works = [visit for fragment, visit in inventory["visits"].items() if fragment.startswith("#work/")]
     assert works
-    assert {visit["reached_by"] for visit in works} == {"button"}
-    assert "work" in inventory["summary"]["reached_only_by_button"]
-    collection = inventory["visits"]["#collection"]
-    assert any(edge["to"].startswith("#work/") for edge in collection["buttons_to"])
+    assert {visit["reached_by"] for visit in works} == {"link"}
+    assert "work" not in inventory["summary"]["reached_only_by_button"]
 
 
-def test_without_clicks_the_walk_follows_links_only(browser, server_url, tmp_path):
-    """The member that makes the probe test falsifiable: the same server, the probe off, and no work is reached."""
+def test_without_clicks_a_work_is_still_reached(browser, server_url, tmp_path):
+    """The probe off, and the works are reached anyway: by the links alone."""
     inventory = ux_walk.run_walk(
         browser, server_url, tmp_path, scan_accessibility=False, variants=[("desktop", "light")], clicks_per_page=0
     )
 
-    assert not [fragment for fragment in inventory["visits"] if fragment.startswith("#work/")]
-    assert "work" in inventory["summary"]["declared_never_visited"]
+    assert [fragment for fragment in inventory["visits"] if fragment.startswith("#work/")]
+    assert "work" not in inventory["summary"]["declared_never_visited"]
 
 
 #: A stand-in for axe-core with axe's own result shape, so the three states the

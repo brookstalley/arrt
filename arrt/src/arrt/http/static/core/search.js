@@ -15,7 +15,7 @@
 import { api } from "./api.js";
 import { named, topicKinds, topicName, workState } from "./registry.js";
 import { el, fill } from "./render.js";
-import { go, openedFrom } from "./router.js";
+import { go, goWithParams, openedFrom } from "./router.js";
 import { state } from "./state.js";
 
 /* The field shows the search that is currently in the address bar.
@@ -455,13 +455,14 @@ export function installSearch() {
 
 /* The way out of a search, offered where the emptiness is. Written here beside
  * the affordance it undoes rather than in the screen, so the two cannot come to
- * disagree about what clearing a search means. */
+ * disagree about what clearing a search means. An act on the Artworks page it
+ * sits on, as a filter's own control is, so a button. */
 export function clearSearchLink(text = "Clear the search") {
   return el("button", {
     class: "action quiet",
     type: "button",
     text,
-    onclick: () => go("collection", null, { ...state.params, q: "" }),
+    onclick: () => goWithParams({ q: "" }),
   });
 }
 

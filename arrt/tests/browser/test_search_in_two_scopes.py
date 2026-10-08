@@ -31,7 +31,7 @@ def options(ui) -> list[str]:
 
 def test_typing_offers_library_matches_then_a_search_of_everything(ui, seeded_service):
     ui.open("#walls")
-    ui.page.wait_for_selector("#view h2")
+    ui.page.wait_for_selector("#view h1")
 
     type_into_search(ui, "Dalí")
 
@@ -63,7 +63,7 @@ def test_typing_without_the_accent_still_offers_the_library_match(ui, seeded_ser
     """The typeahead asks the same route as the grid, so the fold reaches it; this
     holds that it asks with the words as typed rather than reaching nothing."""
     ui.open("#walls")
-    ui.page.wait_for_selector("#view h2")
+    ui.page.wait_for_selector("#view h1")
 
     type_into_search(ui, "dali")
 
@@ -80,7 +80,7 @@ def test_with_no_library_match_held_is_one_line_and_only_the_search_of_everythin
     heading an empty list; here the Held half says so in one line, with no group
     for each kind it lacks (the owner, 2026-10-06)."""
     ui.open("#walls")
-    ui.page.wait_for_selector("#view h2")
+    ui.page.wait_for_selector("#view h1")
 
     type_into_search(ui, "Vermeer")
 
@@ -94,7 +94,7 @@ def test_with_no_library_match_held_is_one_line_and_only_the_search_of_everythin
 def test_a_library_match_leaves_out_the_nothing_held_line(ui, seeded_service):
     """The paired negative: the one line is for an empty half only."""
     ui.open("#walls")
-    ui.page.wait_for_selector("#view h2")
+    ui.page.wait_for_selector("#view h1")
 
     type_into_search(ui, "Dalí")
 
@@ -103,7 +103,7 @@ def test_a_library_match_leaves_out_the_nothing_held_line(ui, seeded_service):
 
 def test_the_field_is_a_combobox_the_keyboard_can_drive(ui, seeded_service):
     ui.open("#walls")
-    ui.page.wait_for_selector("#view h2")
+    ui.page.wait_for_selector("#view h1")
     field = ui.page.locator("#search")
     assert field.get_attribute("role") == "combobox"
     assert field.get_attribute("aria-expanded") == "false"
@@ -123,7 +123,7 @@ def test_the_field_is_a_combobox_the_keyboard_can_drive(ui, seeded_service):
 
 def test_choosing_a_library_match_opens_that_work(ui, seeded_service):
     ui.open("#walls")
-    ui.page.wait_for_selector("#view h2")
+    ui.page.wait_for_selector("#view h1")
 
     type_into_search(ui, "Dalí")
     # Past the artist to the work.
@@ -131,7 +131,7 @@ def test_choosing_a_library_match_opens_that_work(ui, seeded_service):
     ui.page.keyboard.press("ArrowDown")
     ui.page.keyboard.press("Enter")
 
-    ui.page.wait_for_selector("#view h2:has-text('The Persistence of Memory')")
+    ui.page.wait_for_selector("#view h1:has-text('The Persistence of Memory')")
     assert ui.page.evaluate("() => window.location.hash").startswith("#work/")
 
 
@@ -139,7 +139,7 @@ def test_a_failed_artist_lookup_keeps_the_work_matches(ui, seeded_service):
     """The artist group is an extra; its failure must not cost the library's matches."""
     ui.page.route("**/api/artists?q=*", lambda route: route.fulfill(status=500, content_type="application/json", body="{}"))
     ui.open("#walls")
-    ui.page.wait_for_selector("#view h2")
+    ui.page.wait_for_selector("#view h1")
 
     type_into_search(ui, "dali")
 
@@ -149,13 +149,13 @@ def test_a_failed_artist_lookup_keeps_the_work_matches(ui, seeded_service):
 
 def test_choosing_an_artist_opens_their_page(ui, seeded_service):
     ui.open("#walls")
-    ui.page.wait_for_selector("#view h2")
+    ui.page.wait_for_selector("#view h1")
 
     type_into_search(ui, "dali")
     ui.page.keyboard.press("ArrowDown")
     ui.page.keyboard.press("Enter")
 
-    ui.page.wait_for_selector("#view h2:has-text('Salvador Dalí')")
+    ui.page.wait_for_selector("#view h1:has-text('Salvador Dalí')")
     assert ui.page.evaluate("() => window.location.hash").startswith("#artist/")
 
 
@@ -163,12 +163,12 @@ def test_searching_museums_hands_the_words_to_add_new_and_spends_nothing(ui, ser
     """Sonarr's lookup is free, so its Add New runs it at once; an Arrt search
     is a paid run, so Ask fills the words in and waits for the button."""
     ui.open("#walls")
-    ui.page.wait_for_selector("#view h2")
+    ui.page.wait_for_selector("#view h1")
 
     type_into_search(ui, "Vermeer interiors")
     ui.page.click(f"{LISTBOX} [role='option']:has-text('Ask about')")
 
-    ui.page.wait_for_selector("#view h2:text-is('Ask')")
+    ui.page.wait_for_selector("#view h1:text-is('Ask')")
     assert ui.page.input_value("#intent") == "Vermeer interiors"
     assert ui.page.evaluate("() => window.location.hash") == "#discover?term=Vermeer%20interiors"
     # Nothing was asked of any museum or model: no run exists.
@@ -178,7 +178,7 @@ def test_searching_museums_hands_the_words_to_add_new_and_spends_nothing(ui, ser
 def test_add_new_reached_without_a_term_starts_empty(ui, seeded_service):
     """The paired negative: the box is filled only from a handed-over term."""
     ui.open("#discover")
-    ui.page.wait_for_selector("#view h2:text-is('Ask')")
+    ui.page.wait_for_selector("#view h1:text-is('Ask')")
 
     assert ui.page.input_value("#intent") == ""
 
@@ -188,7 +188,7 @@ def test_enter_with_several_matches_opens_the_results_page_not_the_first(ui, see
     arbitrary one; Enter opens every match, on the results page (the owner,
     2026-10-06). "the" matches two seeded works."""
     ui.open("#collection")
-    ui.page.wait_for_selector("#view h2")
+    ui.page.wait_for_selector("#view h1")
 
     type_into_search(ui, "the")
     library = ui.page.get_by_role("listbox", name="Suggestions").get_by_role("group", name="Held: works", exact=True)
@@ -197,7 +197,7 @@ def test_enter_with_several_matches_opens_the_results_page_not_the_first(ui, see
     ), "the fixture must match more than one work, or this cannot tell first from all"
     ui.page.keyboard.press("Enter")
 
-    ui.page.wait_for_selector("#view h2:text-is('Results for “the”')")
+    ui.page.wait_for_selector("#view h1:text-is('Results for “the”')")
     # Opened from Artworks, the results page's own default return, so no `from`.
     assert ui.page.evaluate("() => window.location.hash") == "#search?q=the"
     assert ui.page.locator("section[aria-labelledby='results-held-works'] li").count() == 2
@@ -205,7 +205,7 @@ def test_enter_with_several_matches_opens_the_results_page_not_the_first(ui, see
 
 def test_enter_with_no_match_opens_the_results_page_saying_so(ui, seeded_service):
     ui.open("#walls")
-    ui.page.wait_for_selector("#view h2")
+    ui.page.wait_for_selector("#view h1")
 
     type_into_search(ui, "Vermeer")
     ui.page.keyboard.press("Enter")
@@ -224,7 +224,7 @@ def test_a_failed_library_lookup_still_offers_the_search_of_everything(ui, seede
     """
     ui.page.route("**/api/works?q=*", lambda route: route.fulfill(status=503, body="{}"))
     ui.open("#walls")
-    ui.page.wait_for_selector("#view h2")
+    ui.page.wait_for_selector("#view h1")
 
     type_into_search(ui, "Dalí")
 
@@ -236,7 +236,7 @@ def test_a_failed_library_lookup_still_offers_the_search_of_everything(ui, seede
 
 def test_a_lookup_that_found_nothing_does_not_claim_it_failed(ui, seeded_service):
     ui.open("#walls")
-    ui.page.wait_for_selector("#view h2")
+    ui.page.wait_for_selector("#view h1")
 
     type_into_search(ui, "Vermeer")
 
@@ -255,7 +255,7 @@ def test_a_slow_answer_to_an_earlier_keystroke_does_not_replace_a_later_one(ui, 
 
     ui.page.route("**/api/works?q=*", handler)
     ui.open("#walls")
-    ui.page.wait_for_selector("#view h2")
+    ui.page.wait_for_selector("#view h1")
 
     ui.page.click("#search")
     ui.page.keyboard.type("Nig")

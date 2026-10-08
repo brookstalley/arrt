@@ -47,7 +47,7 @@ def accepted(services):
 
 def open_work(ui, work):
     ui.open(f"#work/{work.id}")
-    ui.page.wait_for_selector("#view h3:has-text('The master image')")
+    ui.page.wait_for_selector("#view h2:has-text('The master image')")
 
 
 # -- the Work page ------------------------------------------------------------
@@ -62,7 +62,7 @@ def test_a_work_with_no_image_says_it_is_queued_and_offers_no_retry(ui, accepted
     assert "queued" in line
     assert "Waiting its turn to be fetched" in line
     assert ui.page.locator(".acquisition-line button").count() == 0, "nothing has failed, so there is nothing to retry"
-    panel = ui.page.locator(".panel:has(h3:has-text('The master image'))").inner_text()
+    panel = ui.page.locator(".panel:has(h2:has-text('The master image'))").inner_text()
     assert "No master image has been acquired" not in panel, "the queue's line replaces the bare sentence"
 
 
@@ -157,7 +157,7 @@ def test_the_queue_lists_every_work_owed_its_image_in_the_order_it_will_try_them
     )
 
     ui.open("#queue")
-    ui.page.wait_for_selector("h3:has-text('Fetching images')")
+    ui.page.wait_for_selector("h2:has-text('Fetching images')")
 
     rows = ui.page.locator(".acquisitions tbody tr").all_inner_texts()
     titles = [row.split("\t")[0] for row in rows]
@@ -213,7 +213,7 @@ def test_a_queue_owing_nothing_says_so(ui):
     ui.serve("**/api/acquisitions", {"pause": None, "works": []})
 
     ui.open("#queue")
-    ui.page.wait_for_selector("h3:has-text('Fetching images (0)')")
+    ui.page.wait_for_selector("h2:has-text('Fetching images (0)')")
 
     assert "Every accepted work holds its image." in ui.text()
     assert ui.page.locator(".acquisition-pause").count() == 0

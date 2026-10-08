@@ -144,8 +144,8 @@ def test_the_control_that_leaves_the_thread_is_kept_apart_from_the_three(talking
     open_thread(talking)
 
     assert talking.page.locator(".reactions button").count() == 3
-    assert talking.page.locator('.reactions button:has-text("Go to Agnes Martin\'s work")').count() == 0
-    assert talking.page.locator('.departure button:has-text("Go to Agnes Martin\'s work")').count() == 1
+    assert talking.page.locator('.reactions a:has-text("Go to Agnes Martin\'s work")').count() == 0
+    assert talking.page.locator('.departure a:has-text("Go to Agnes Martin\'s work")').count() == 1
 
 
 def test_going_to_an_artists_work_lands_on_the_normal_empty_state(talking):
@@ -160,7 +160,7 @@ def test_going_to_an_artists_work_lands_on_the_normal_empty_state(talking):
     """
     open_thread(talking)
 
-    talking.page.click(".departure button")
+    talking.page.click(".departure a")
     # The empty state's own headline, which the conversation screen never
     # renders — so this waits for the landing rather than for something the
     # departing screen already had.
@@ -168,7 +168,7 @@ def test_going_to_an_artists_work_lands_on_the_normal_empty_state(talking):
 
     assert "artist=Agnes" in talking.page.url
     assert "That is the normal answer, not a failed search" in talking.text()
-    assert talking.page.locator("button:has-text('Ask for some')").count() == 1
+    assert talking.page.locator("a:has-text('Ask for some')").count() == 1
 
 
 # -- the Taste screen ---------------------------------------------------------
@@ -250,7 +250,7 @@ def test_a_judgment_whose_conversation_was_deleted_renders_without_a_dead_link(u
     assert "Kandinsky" in ui.text()
     assert "Read out of something you said" in ui.text()
     assert "they asked for stillness" in ui.text()
-    assert ui.page.locator("button:has-text('See the conversation')").count() == 0
+    assert ui.page.locator("a:has-text('See the conversation')").count() == 0
 
 
 def test_a_judgment_that_still_has_its_thread_offers_the_way_back(ui):
@@ -272,7 +272,7 @@ def test_a_judgment_that_still_has_its_thread_offers_the_way_back(ui):
     ui.open("#taste")
     ui.page.wait_for_selector(".affinity")
 
-    assert ui.page.locator("button:has-text('See the conversation')").count() == 1
+    assert ui.page.locator("a:has-text('See the conversation')").count() == 1
 
 
 def test_correcting_a_judgment_writes_it_as_the_curators_own_words(ui):
@@ -375,7 +375,7 @@ def test_a_taste_nobody_has_expressed_says_what_would_create_one(ui):
     ui.page.wait_for_selector(".empty")
 
     assert "Nothing is known about your taste yet." in ui.text()
-    assert ui.page.locator("button:has-text('Start a conversation in Ask')").count() == 1
+    assert ui.page.locator("a:has-text('Start a conversation in Ask')").count() == 1
 
 
 def test_discover_offers_the_way_into_taste(ui):
@@ -383,7 +383,7 @@ def test_discover_offers_the_way_into_taste(ui):
     ui.open("#discover")
     ui.page.wait_for_selector("#intent")
 
-    ui.page.click("button:has-text('See what this product thinks you like')")
+    ui.page.click("a:has-text('See what this product thinks you like')")
     ui.page.wait_for_selector("text=What this product thinks you like")
 
     assert ui.page.url.endswith("#taste")

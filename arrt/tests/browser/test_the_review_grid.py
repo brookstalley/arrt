@@ -355,7 +355,7 @@ def test_an_accepted_card_says_so_in_place_of_its_controls(grid):
 
     assert _controls(grid) == {"why": 0, "accept": 0, "reject": 0}
     assert grid.page.locator("li.card .decided p").inner_text() == "Accepted. It is in your library."
-    grid.page.click("li.card .decided button:text-is('Open it in Artworks')")
+    grid.page.click("li.card .decided a:text-is('Open it in Artworks')")
     grid.page.wait_for_function("() => window.location.hash.startsWith('#work/art-1')")
 
 
@@ -967,7 +967,7 @@ def test_the_run_view_offers_the_way_into_the_grid(ui):
     ui.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([a_card()]))
 
     ui.open(f"#run/{RUN_ID}")
-    ui.page.click("button:has-text('Review these works')")
+    ui.page.click("a:has-text('Review these works')")
 
     ui.page.wait_for_selector("li.card")
     assert ui.page.url.endswith(f"#review/{RUN_ID}")
@@ -1195,14 +1195,14 @@ def test_two_queries_are_two_groups_rather_than_one_run_of_cards(grid):
 
     # The visible heading, not only the attribute. Rescoping these assertions to
     # `data-offer-artist` removed the last assertion on rendered heading text —
-    # after which deleting the artist's name from the h3 would leave the whole
+    # after which deleting the artist's name from the h2 would leave the whole
     # browser suite green while putting #95's symptom back, hidden behind an
     # attribute nobody can see.
-    # `h3:not(.card-title)` because a card's own title is an h3 too — the group
+    # `h2:not(.card-title)` because a card's own title is an h2 too — the group
     # heading and the works it heads are the same rank in the markup, which is
     # worth its own look and is recorded as such rather than changed in passing.
-    assert "Offered by the collection — Salvador Dalí" in dali.locator("h3:not(.card-title)").inner_text()
-    assert "Offered by the collection — Ellsworth Kelly" in kelly.locator("h3:not(.card-title)").inner_text()
+    assert "Offered by the collection — Salvador Dalí" in dali.locator("h2:not(.card-title)").inner_text()
+    assert "Offered by the collection — Ellsworth Kelly" in kelly.locator("h2:not(.card-title)").inner_text()
 
     assert "holds 25 works" in dali.inner_text()
     assert "holds 400 works" not in dali.inner_text(), "one query's holdings total sits above another's works"
@@ -1299,7 +1299,7 @@ def test_an_offer_with_nothing_named_beside_it_claims_no_failed_works(grid):
 def test_the_group_heading_rule_does_not_reach_the_cards_inside_the_group(grid):
     """A heading rule scoped with a descendant selector re-margins the works it heads.
 
-    `.offer-group h3` is more specific than `.card-title` and declared later, so
+    `.offer-group h2` is more specific than `.card-title` and declared later, so
     the descendant form silently won on every card title inside a group: offered
     works' titles sat further from their artist line than the named works' did, on
     the same page, for no reason a reader could find. It shipped that way and a
@@ -1324,7 +1324,7 @@ def test_the_group_heading_rule_does_not_reach_the_cards_inside_the_group(grid):
     grid.page.wait_for_selector("section.offer-group li.card")
 
     margins = grid.page.evaluate("""() => {
-             const titles = [...document.querySelectorAll('li.card h3.card-title')];
+             const titles = [...document.querySelectorAll('li.card h2.card-title')];
              const of = (list) => list.map((n) => getComputedStyle(n).marginBottom);
              return {
                inside: of(titles.filter((n) => n.closest('.offer-group'))),
@@ -1366,7 +1366,7 @@ def test_a_work_already_in_the_library_says_so_and_leads_with_opening_it(ui):
     assert fresh_card.locator("button[aria-label='Accept Automat']").count() == 1
     assert fresh_card.locator("button:has-text('Accept anyway')").count() == 0
 
-    held_card.locator("button:has-text('Open it in Artworks')").click()
+    held_card.locator("a:has-text('Open it in Artworks')").click()
     ui.page.wait_for_function("() => window.location.hash.startsWith('#work/artwork-held')")
 
 
@@ -1405,11 +1405,11 @@ def test_a_work_opened_from_a_review_card_returns_to_that_review(ui, service):
     ui.open(f"#review/{RUN_ID}")
     ui.page.wait_for_selector("li.card")
 
-    ui.page.click("button:has-text('Open it in Artworks')")
-    ui.page.wait_for_selector("#view button:has-text('← The review')")
+    ui.page.click("a:has-text('Open it in Artworks')")
+    ui.page.wait_for_selector("#view a:has-text('← The review')")
     assert ui.page.evaluate("() => window.location.hash") == f"#work/{artwork.id}?from=review%2F{RUN_ID}"
 
-    ui.page.click("#view button:has-text('← The review')")
+    ui.page.click("#view a:has-text('← The review')")
     ui.page.wait_for_selector("li.card")
     assert ui.page.evaluate("() => window.location.hash") == f"#review/{RUN_ID}"
 

@@ -68,7 +68,7 @@ def matched(services, seeded_service):
 
 def _results(ui, query, extra=""):
     ui.open(f"#search?q={query}{extra}")
-    ui.page.wait_for_selector("#view h2:has-text('Results for')")
+    ui.page.wait_for_selector("#view h1:has-text('Results for')")
 
 
 def _answered(ui):
@@ -98,43 +98,43 @@ def _note(ui):
 
 def test_the_dropdowns_last_row_opens_it(ui, matched):
     ui.open("#walls")
-    ui.page.wait_for_selector("#view h2")
+    ui.page.wait_for_selector("#view h1")
     ui.page.click("#search")
     ui.page.keyboard.type("dali")
     ui.page.click("#search-suggestions [role='option']:has-text('All results for “dali”')")
 
-    ui.page.wait_for_selector("#view h2:text-is('Results for “dali”')")
+    ui.page.wait_for_selector("#view h1:text-is('Results for “dali”')")
     assert ui.page.evaluate("() => window.location.hash").startswith("#search?")
     # Contextual: it returns to the page it was opened from, not to Artworks.
     assert "from=walls" in ui.page.evaluate("() => window.location.hash")
-    assert ui.page.locator("#view p a, #view p button").first.inner_text() == "← Walls"
+    assert ui.page.locator("#view p a").first.inner_text() == "← Walls"
 
 
 def test_enter_in_the_search_box_opens_it_and_it_returns_where_it_was_opened(ui, matched):
     """The owner's ruling of 2026-10-06: Enter opens the results page, not Artworks."""
     ui.open("#walls")
-    ui.page.wait_for_selector("#view h2")
+    ui.page.wait_for_selector("#view h1")
     ui.page.click("#search")
     ui.page.keyboard.type("dali")
     ui.page.wait_for_selector("#search-suggestions:not([hidden]) [role='option']")
     assert ui.page.get_attribute("#search", "aria-activedescendant") is None, "nothing highlighted, or Enter opens that row"
     ui.page.keyboard.press("Enter")
 
-    ui.page.wait_for_selector("#view h2:text-is('Results for “dali”')")
+    ui.page.wait_for_selector("#view h1:text-is('Results for “dali”')")
     hash_now = ui.page.evaluate("() => window.location.hash")
     assert hash_now.startswith("#search?")
     assert "q=dali" in hash_now
     assert "from=walls" in hash_now
     assert not ui.page.locator("#search-suggestions").is_visible()
-    ui.page.click("#view p button:text-is('← Walls')")
-    ui.page.wait_for_selector("#view h2:has-text('Walls')")
+    ui.page.click("#view p a:text-is('← Walls')")
+    ui.page.wait_for_selector("#view h1:has-text('Walls')")
 
 
 def test_held_then_not_held_marked_only_where_the_group_does_not_say_and_nothing_twice(ui, matched):
     _results(ui, "dali")
     _answered(ui)
 
-    assert ui.page.locator("#view h3").all_inner_texts() == ["Held", "Not held"]
+    assert ui.page.locator("#view h2").all_inner_texts() == ["Held", "Not held"]
     assert _rows(ui, "held", "artists") == ["Salvador Dalí 1904–1989"]
     assert _rows(ui, "held", "works") == ["The Persistence of Memory — Salvador Dalí ● Held"]
     assert _rows(ui, "not-held", "artists") == [
@@ -148,12 +148,12 @@ def test_held_then_not_held_marked_only_where_the_group_does_not_say_and_nothing
     ]
     # Inside a group a mark says only what the heading does not (the owner,
     # 2026-10-06): no artist row is marked, and no row says "Not held" again.
-    assert _group(ui, "held").locator(".results-kind:has(h4:has-text('Artists')) .state-mark").count() == 0
-    assert _group(ui, "not-held").locator(".results-kind:has(h4:has-text('Artists')) .state-mark").count() == 0
+    assert _group(ui, "held").locator(".results-kind:has(h3:has-text('Artists')) .state-mark").count() == 0
+    assert _group(ui, "not-held").locator(".results-kind:has(h3:has-text('Artists')) .state-mark").count() == 0
     assert "Not held" not in " ".join(_group(ui, "not-held").locator(".results-list").all_inner_texts())
     # Each kind is headed inside its group, and the heading carries the group's
     # name, unseen, so a reader hears which half a kind is in.
-    assert _group(ui, "held").locator("h4").evaluate_all("nodes => nodes.map((n) => n.textContent)") == [
+    assert _group(ui, "held").locator("h3").evaluate_all("nodes => nodes.map((n) => n.textContent)") == [
         "Held: Artists",
         "Held: Works",
     ]
@@ -200,7 +200,7 @@ def test_a_query_matching_only_held_things_shows_nothing_twice_and_says_so(ui, m
     assert _group(ui, "not-held").locator("li").count() == 0
     assert _note(ui).inner_text() == "Wikidata has nothing more."
     # Wikidata found something, all of it held: no Ask, which is for finding nothing.
-    assert ui.page.locator("#view button:has-text('Ask about')").count() == 0
+    assert ui.page.locator("#view a:has-text('Ask about')").count() == 0
 
 
 def test_a_held_match_the_librarys_rows_do_not_show_is_under_held(ui, matched):
@@ -215,7 +215,7 @@ def test_a_held_match_the_librarys_rows_do_not_show_is_under_held(ui, matched):
 
     assert _rows(ui, "held", "works") == ["The Persistence of Memory — Salvador Dalí ● Held"]
     assert "The Persistence of Memory" not in " ".join(_rows(ui, "not-held", "works"))
-    ui.page.click("section[aria-labelledby='results-held-works'] button:has-text('The Persistence of Memory')")
+    ui.page.click("section[aria-labelledby='results-held-works'] a:has-text('The Persistence of Memory')")
     ui.page.wait_for_function("(id) => window.location.hash.startsWith(`#work/${id}`)", arg=work.id)
 
 
@@ -236,14 +236,14 @@ def test_words_naming_one_artist_put_them_first(ui, matched):
 
     top = ui.page.locator("section[aria-labelledby='results-top']")
     assert " ".join(top.locator("p").inner_text().split()) == "Salvador Dalí 1904–1989 ● In your library"
-    top.locator("button").click()
+    top.locator("a").click()
     ui.page.wait_for_function("(id) => window.location.hash.startsWith(`#artist/${id}`)", arg=dali.id)
 
 
 def test_an_unheld_result_opens_its_page_here(ui, matched):
     _results(ui, "dali")
     _answered(ui)
-    ui.page.click("section[aria-labelledby='results-not-held-works'] button:has-text('The Burning Giraffe')")
+    ui.page.click("section[aria-labelledby='results-not-held-works'] a:has-text('The Burning Giraffe')")
 
     ui.page.wait_for_function("(qid) => window.location.hash.split('?')[0] === `#work/${qid}`", arg=GIRAFFE)
 
@@ -254,7 +254,7 @@ def test_when_wikidata_has_nothing_it_says_so_and_offers_museums(ui, seeded_serv
 
     assert _note(ui).inner_text() == "Wikidata has nothing for “vermeer”."
     assert _group(ui, "held").locator(".results-none").is_visible()
-    ui.page.click("#view button:has-text('Ask about “vermeer”')")
+    ui.page.click("#view a:has-text('Ask about “vermeer”')")
     ui.page.wait_for_function("() => window.location.hash.startsWith('#discover')")
 
 
@@ -282,7 +282,7 @@ def test_registry_text_arrives_as_words_not_markup(ui, seeded_service):
 
 def test_the_librarys_matches_open_in_artworks(ui, matched):
     _results(ui, "dali")
-    ui.page.click("section[aria-labelledby='results-held-works'] button:has-text('Open in Artworks')")
+    ui.page.click("section[aria-labelledby='results-held-works'] a:has-text('Open in Artworks')")
 
     ui.page.wait_for_function("() => window.location.hash === '#collection?q=dali'")
 
@@ -300,9 +300,9 @@ def test_more_library_matches_than_listed_are_all_one_click_away_in_artworks(ui,
     _results(ui, "dali")
 
     works = ui.page.locator("section[aria-labelledby='results-held-works']")
-    works.locator("button:text-is('All 120 in Artworks')").wait_for()
+    works.locator("a:text-is('All 120 in Artworks')").wait_for()
     assert "Your library has 120 matching works; the first 1 are here." in works.inner_text()
-    works.locator("button:text-is('All 120 in Artworks')").click()
+    works.locator("a:text-is('All 120 in Artworks')").click()
     ui.page.wait_for_function("() => window.location.hash === '#collection?q=dali'")
 
 

@@ -20,6 +20,7 @@
  */
 
 import { acquisitionBadge, acquisitionSentence, retryButton } from "../core/acquiring.js";
+import { attempt } from "../core/acting.js";
 import { api } from "../core/api.js";
 import { paintWanted } from "../core/awaiting.js";
 import { table } from "../core/badges.js";
@@ -27,7 +28,7 @@ import { counted } from "../core/counting.js";
 import { destinationOf, destinationWords, readThemes } from "../core/destination.js";
 import { el, fill, guard, render } from "../core/render.js";
 import { wantedPicture, wantedWhy } from "../core/reviewing.js";
-import { go } from "../core/router.js";
+import { go, link } from "../core/router.js";
 import { KIND_WORDS } from "../core/runs.js";
 
 /* The runs as rows. A re-search and a Get are runs too. A Get has no intent of
@@ -43,13 +44,7 @@ function runTable(caption, runs, themes) {
       destinationWords(destinationOf(run, themes)),
       run.status,
       run.started_at,
-      el("button", {
-        class: "action quiet",
-        type: "button",
-        text: "Open",
-        "aria-label": `Open the ${KIND_WORDS[run.kind] || "run"} for ${run.intent || (run.kind === "get" ? "the works you chose" : run.run_id)}`,
-        onclick: () => go("run", run.run_id),
-      }),
+      link({ view: "run", id: run.run_id }, { class: "action quiet", text: "Open", "aria-label": `Open the ${KIND_WORDS[run.kind] || "run"} for ${run.intent || (run.kind === "get" ? "the works you chose" : run.run_id)}` }),
     ]),
   );
 }
@@ -76,7 +71,7 @@ function truncation(runs, which) {
  * needs the curator rather than the machine. */
 export async function viewToReview(generation) {
   const runs = await api("/api/runs?awaiting=true");
-  const panels = [el("h2", { text: "To review" })];
+  const panels = [el("h1", { text: "To review" })];
   if (!runs.runs.length) {
     panels.push(
       el("div", { class: "panel empty" }, [
@@ -88,7 +83,7 @@ export async function viewToReview(generation) {
   } else {
     panels.push(
       el("div", { class: "panel" }, [
-        el("h3", { text: `${counted(runs.awaiting_works, "work")} to review` }),
+        el("h2", { text: `${counted(runs.awaiting_works, "work")} to review` }),
         table(
           "Every run with works waiting for your verdict, newest first.",
           ["Asked for", "Kind", "To review", "Started", "Open"],
@@ -97,14 +92,15 @@ export async function viewToReview(generation) {
             KIND_WORDS[run.kind] || run.kind,
             String(runs.awaiting[run.run_id] || 0),
             run.started_at,
-            el("button", {
-              class: "action quiet",
-              type: "button",
-              text: "Review",
-              "aria-label": `Review the ${KIND_WORDS[run.kind] || "run"} for ${run.intent || (run.kind === "get" ? "the works you chose" : run.run_id)}`,
-              // A Get is reviewed on its own page; every other run on Review.
-              onclick: () => (run.kind === "get" ? go("run", run.run_id) : go("review", run.run_id)),
-            }),
+            // A Get is reviewed on its own page; every other run on Review.
+            link(
+              { view: run.kind === "get" ? "run" : "review", id: run.run_id },
+              {
+                class: "action quiet",
+                text: "Review",
+                "aria-label": `Review the ${KIND_WORDS[run.kind] || "run"} for ${run.intent || (run.kind === "get" ? "the works you chose" : run.run_id)}`,
+              },
+            ),
           ]),
         ),
       ]),
@@ -123,12 +119,7 @@ export async function viewToReview(generation) {
 function acquisitionPanel(listing, generation) {
   const repaint = () => viewQueue(generation);
   const rows = listing.works.map(({ title, acquisition }) => [
-    el("button", {
-      class: "link",
-      type: "button",
-      text: title,
-      onclick: () => go("work", acquisition.artwork_id),
-    }),
+    link({ view: "work", id: acquisition.artwork_id }, { class: "link", text: title }),
     acquisitionBadge(acquisition),
     el("div", { class: "stack-tight" }, [
       el("span", { text: acquisitionSentence(acquisition) }),
@@ -136,7 +127,7 @@ function acquisitionPanel(listing, generation) {
     ]),
   ]);
   return el("div", { class: "panel acquisitions" }, [
-    el("h3", { text: `Fetching images (${listing.works.length})` }),
+    el("h2", { text: `Fetching images (${listing.works.length})` }),
     listing.pause
       ? el("p", { class: "note acquisition-pause" }, [
           el("span", { class: "glyph", text: "‖", "aria-hidden": true }),
@@ -152,7 +143,7 @@ function acquisitionPanel(listing, generation) {
 export async function viewQueue(generation) {
   const [runs, themes, acquisitions] = await Promise.all([api("/api/runs"), readThemes(), api("/api/acquisitions")]);
   const active = runs.runs.filter((run) => !run.is_terminal);
-  const panels = [el("h2", { text: "Queue" })];
+  const panels = [el("h1", { text: "Queue" })];
   if (!active.length) {
     // Only as sure as the listing: when the cap left older searches out, one of
     // them may still be at the approval gate, so the page says what it checked
@@ -168,13 +159,13 @@ export async function viewQueue(generation) {
             `${nothing} A search you start in Ask, or a Get, shows here while it works, ` +
             "and while it waits for you to approve its price.",
         }),
-        el("button", { class: "action", type: "button", text: "Go to Ask", onclick: () => go("discover") }),
+        link({ view: "discover" }, { class: "action", text: "Go to Ask" }),
       ]),
     );
   } else {
     panels.push(
       el("div", { class: "panel" }, [
-        el("h3", { text: `In flight (${active.length})` }),
+        el("h2", { text: `In flight (${active.length})` }),
         runTable("Every search still working or waiting for approval, newest first.", active, themes),
       ]),
     );
@@ -187,13 +178,13 @@ export async function viewQueue(generation) {
 export async function viewHistory(generation) {
   const [runs, themes] = await Promise.all([api("/api/runs"), readThemes()]);
   const finished = runs.runs.filter((run) => run.is_terminal);
-  const panels = [el("h2", { text: "History" })];
+  const panels = [el("h1", { text: "History" })];
   if (!finished.length) {
     panels.push(el("p", { class: "muted empty", text: "No search has finished yet." }));
   } else {
     panels.push(
       el("div", { class: "panel" }, [
-        el("h3", { text: `Finished (${finished.length})` }),
+        el("h2", { text: `Finished (${finished.length})` }),
         runTable("Every search that has ended, newest first, with how it ended.", finished, themes),
       ]),
     );
@@ -219,7 +210,7 @@ export async function viewWanted(generation) {
   const listing = await api("/api/wanted");
   const works = listing.works;
   const picker = el("div", { class: "wanted-picker" });
-  const panels = [el("h2", { text: "Wanted" }), picker];
+  const panels = [el("h1", { text: "Wanted" }), picker];
   if (!works.length) {
     panels.push(
       el("div", { class: "panel empty" }, [
@@ -237,7 +228,7 @@ export async function viewWanted(generation) {
   const repaint = () => viewWanted(generation);
   panels.push(
     el("div", { class: "panel wanted" }, [
-      el("h3", { text: `${counted(works.length, "work")} wanted` }),
+      el("h2", { text: `${counted(works.length, "work")} wanted` }),
       el("p", {
         class: "muted",
         text:
@@ -250,7 +241,7 @@ export async function viewWanted(generation) {
           type: "button",
           text: "Search all",
           "aria-label": `Search again for all ${counted(works.length, "wanted work")}`,
-          onclick: () => searchAll(works, picker),
+          onclick: (event) => searchAll(event.currentTarget, works, picker),
         }),
         runs.size > 1
           ? el("span", { class: "muted", text: `One re-search for each of the ${runs.size} searches these came from.` })
@@ -264,31 +255,38 @@ export async function viewWanted(generation) {
           el("span", {}, [el("strong", { text: work.title }), work.artist ? ` — ${work.artist}` : ""]),
           wantedWhy(work),
           work.wikidata_qid
-            ? el("button", { class: "link", type: "button", text: work.wikidata_qid, onclick: () => go("work", work.wikidata_qid) })
+            ? link({ view: "work", id: work.wikidata_qid }, { class: "link", text: work.wikidata_qid })
             : "No item",
-          el("button", { class: "link", type: "button", text: "The search", "aria-label": `Open the search ${work.title} came from`, onclick: () => go("run", work.run_id) }),
+          link({ view: "run", id: work.run_id }, { class: "link", text: "The search", "aria-label": `Open the search ${work.title} came from` }),
           el("div", { class: "stack-tight" }, [
             el("button", {
               class: "action quiet",
               type: "button",
               text: "Search again",
               "aria-label": `Search again for ${work.title}`,
-              onclick: () => (work.wikidata_qid ? searchFor([work.work_id]) : offerItems(picker, work)),
+              onclick: (event) => (work.wikidata_qid ? searchFor(event.currentTarget, work) : offerItems(picker, work)),
             }),
             el("button", {
               class: "action quiet",
               type: "button",
               text: "Forget",
               "aria-label": `Forget ${work.title}: stop proposing it`,
-              onclick: () =>
-                guard(async () => {
-                  await api(`/api/candidates/${encodeURIComponent(work.work_id)}/verdict`, {
-                    method: "POST",
-                    body: JSON.stringify({ verdict: "rejected", reason: null }),
-                  });
-                  paintWanted();
-                  await repaint();
-                }),
+              onclick: (event) =>
+                attempt(
+                  event.currentTarget,
+                  `forget ${work.title}`,
+                  () =>
+                    api(`/api/candidates/${encodeURIComponent(work.work_id)}/verdict`, {
+                      method: "POST",
+                      body: JSON.stringify({ verdict: "rejected", reason: null }),
+                    }),
+                  {
+                    then: async () => {
+                      paintWanted();
+                      await repaint();
+                    },
+                  },
+                ),
             }),
           ]),
         ]),
@@ -298,12 +296,14 @@ export async function viewWanted(generation) {
   render(generation, ...panels);
 }
 
-/* One re-search over these works, all from one search, then its page. */
-function searchFor(workIds) {
-  return guard(async () => {
-    const run = await api("/api/runs/resolve", { method: "POST", body: JSON.stringify({ work_ids: workIds }) });
-    go("run", run.run_id);
-  });
+/* One re-search for this work, then its page. */
+function searchFor(control, work) {
+  return attempt(
+    control,
+    `search again for ${work.title}`,
+    () => api("/api/runs/resolve", { method: "POST", body: JSON.stringify({ work_ids: [work.work_id] }) }),
+    { then: (run) => go("run", run.run_id) },
+  );
 }
 
 /* A re-search per originating search, since one covers one search's works; then
@@ -314,8 +314,8 @@ function searchFor(workIds) {
  * one row; stopping there would leave every search after it unstarted, and
  * pressing again would fail the same way. So each is tried, and when any was
  * refused the page stays and says which started and why the others did not. */
-function searchAll(works, slot) {
-  return guard(async () => {
+function searchAll(control, works, slot) {
+  return attempt(control, "search again for these", async () => {
     const byRun = new Map();
     for (const work of works) byRun.set(work.run_id, [...(byRun.get(work.run_id) || []), work.work_id]);
     const started = [];
@@ -345,7 +345,7 @@ function searchAll(works, slot) {
         }),
         el("ul", {}, refused.map((message) => el("li", { text: message }))),
         started.length
-          ? el("button", { class: "action quiet", type: "button", text: "Open Queue", onclick: () => go("queue") })
+          ? link({ view: "queue" }, { class: "action quiet", text: "Open Queue" })
           : null,
       ]),
     );
@@ -360,7 +360,7 @@ function offerItems(picker, work) {
       class: "action quiet",
       type: "button",
       text: found.matches.length ? "None of these — search without an item" : "Search without an item",
-      onclick: () => searchFor([work.work_id]),
+      onclick: (event) => searchFor(event.currentTarget, work),
     });
     fill(
       picker,
@@ -368,7 +368,7 @@ function offerItems(picker, work) {
         // Focusable, and focused once drawn: the picker opens above the table,
         // away from the button that opened it, and a screen reader would
         // otherwise hear nothing happen.
-        el("h3", { class: "picker-heading", tabindex: "-1", text: `Which is ${work.title}?` }),
+        el("h2", { class: "picker-heading", tabindex: "-1", text: `Which is ${work.title}?` }),
         el("p", {
           class: "muted",
           text:
@@ -389,20 +389,22 @@ function offerItems(picker, work) {
                     type: "button",
                     text: "This one",
                     "aria-label": `Pick ${match.qid}, ${match.title}${match.creator ? ` by ${match.creator}` : ""}`,
-                    onclick: () =>
-                      guard(async () => {
-                        await api(`/api/candidates/${encodeURIComponent(work.work_id)}/wikidata-item`, {
+                    onclick: async (event) => {
+                      const control = event.currentTarget;
+                      const picked = await attempt(control, `pick ${match.qid} for ${work.title}`, () =>
+                        api(`/api/candidates/${encodeURIComponent(work.work_id)}/wikidata-item`, {
                           method: "PUT",
                           body: JSON.stringify({ qid: match.qid }),
-                        });
-                        await searchFor([work.work_id]);
-                      }),
+                        }),
+                      );
+                      if (picked) await searchFor(control, work);
+                    },
                   }),
                   " ",
                   el("strong", { text: match.title }),
                   match.creator ? ` — ${match.creator}` : " — maker unrecorded",
                   " · ",
-                  el("button", { class: "link", type: "button", text: match.qid, onclick: () => go("work", match.qid) }),
+                  link({ view: "work", id: match.qid }, { class: "link", text: match.qid }),
                   match.has_image ? " · has a picture" : " · no picture on Wikidata",
                 ]),
               ),

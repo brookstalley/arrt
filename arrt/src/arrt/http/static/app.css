@@ -338,6 +338,7 @@ header.topbar {
    state is legible in the DOM to a reader who cannot see the hue. */
 .status-indicator {
   appearance: none;
+  text-decoration: none;
   margin-left: auto;
   flex: 0 1 auto;
   min-width: 0;
@@ -541,7 +542,11 @@ main {
   min-width: 0;
 }
 
-h2 {
+/* A screen's own heading is its `h1`; the product's name in the top bar is not
+   a heading at all. The confirmation's title is an `h2` beneath whichever page
+   it opens over, and takes the same type. */
+h1,
+.confirm-title {
   font: 400 var(--text-lg) / 1.3 var(--font-label);
   color: var(--text-strong);
   margin: 0 0 var(--space-4);
@@ -625,7 +630,10 @@ h2 {
   margin: 0;
 }
 
-.card-title button {
+/* A card's title opens its page, so it is a link (`information-architecture.md`
+   § Direction); a title that does something else here is still a button. Both
+   read as the title, underlined on hover. */
+.card-title :is(a, button) {
   appearance: none;
   background: none;
   border: none;
@@ -636,14 +644,19 @@ h2 {
   cursor: pointer;
 }
 
-.card-title button:hover {
+.card-title :is(a, button) {
+  text-decoration: none;
+}
+
+.card-title :is(a, button):hover {
   text-decoration: underline;
 }
 
 /* A name that leads to its own page: an artist's, wherever a work names one.
    Underlined, because unlike a card's title nothing else on its line says it
-   can be pressed. */
-button.link {
+   can be pressed. One treatment for every such name, so going to an artist
+   looks the same wherever it is offered. */
+.link {
   appearance: none;
   background: none;
   border: none;
@@ -698,7 +711,7 @@ button.link {
   overflow-y: auto;
 }
 
-.rail h3 {
+.rail h2 {
   margin: 0 0 var(--space-2);
   font: 600 var(--text-xs) / 1.2 var(--font-ui);
   letter-spacing: 0.08em;
@@ -1028,7 +1041,7 @@ button.link {
   max-width: 34rem;
 }
 
-.empty h3 {
+.empty h2 {
   margin: 0;
   font: 400 var(--text-xl) / 1.3 var(--font-label);
   color: var(--text-strong);
@@ -1175,9 +1188,10 @@ button.link {
 }
 
 /* A registry work the library holds, and one Wikidata has a free image of. The
-   held one is a button to the work, so it reads as the stronger mark; both lead
+   held one is a link to the work, so it reads as the stronger mark; both lead
    with glyph and word, as every badge here does. */
 .badge-held {
+  text-decoration: none;
   background: var(--good-quiet);
   border-color: var(--good);
   color: var(--text-strong);
@@ -1633,14 +1647,14 @@ th {
   margin-bottom: var(--space-5);
 }
 
-/* `h3`, `h4` or `h5`, one treatment. The rank of a panel's heading depends on
- * what it sits under — at the top of a view it is an `h3`, inside a wall's own
- * section on the walls view an `h4`, and inside one wall's heartbeat reading on
- * the health view an `h5`, so that neither two hung walls nor two reporting ones
+/* `h2`, `h3` or `h4`, one treatment. The rank of a panel's heading depends on
+ * what it sits under — at the top of a view it is an `h2`, inside a wall's own
+ * section on the walls view an `h3`, and inside one wall's heartbeat reading on
+ * the health view an `h4`, so that neither two hung walls nor two reporting ones
  * present a reader navigating by heading with a flat run of siblings. That is a
  * document-structure fact and not a typographic one: the panels look the same
  * whichever rank is used, which is what this selector says. */
-.panel :is(h3, h4, h5) {
+.panel :is(h2, h3, h4) {
   margin: 0 0 var(--space-3);
   font: 400 var(--text-md) / 1.3 var(--font-label);
   color: var(--text-strong);
@@ -1658,7 +1672,7 @@ th {
 }
 
 /* One wall's section heading on the walls view. A direct child of the view root,
- * so like `.offer-group > h3` above it would otherwise fall back to browser
+ * so like `.offer-group > h2` above it would otherwise fall back to browser
  * defaults — the failure the comment there names, and the one no browser test
  * can see, since the text and the attributes are correct either way. It takes
  * the same treatment because it is the same rank of thing: a titled block within
@@ -1677,7 +1691,7 @@ th {
 /* The single large heading on this surface, and the only use of `--text-3xl`.
    It is the product's home saying so — the one place the type is allowed to be
    the size a gallery's own name is, and a size nothing else reaches so that it
-   stays that. Every other `h2` on this client keeps `--text-lg`. */
+   stays that. Every other `h1` on this client keeps `--text-lg`. */
 .walls-heading {
   font-size: var(--text-3xl);
 }
@@ -1789,11 +1803,11 @@ section.wall {
 
 /* One query's offered works, under the sentence that describes that query.
  *
- * The heading takes `.panel h3`'s type rather than a new size, because it is the
+ * The heading takes `.panel h2`'s type rather than a new size, because it is the
  * same rank of thing — a titled block within a view — and the client has exactly
  * two heading treatments on purpose. It is repeated rather than shared with the
  * rule above: a selector list would tie two blocks that are free to diverge, and
- * `.panel h3` sits inside a bordered surface this one deliberately has not got.
+ * `.panel h2` sits inside a bordered surface this one deliberately has not got.
  *
  * These sections are direct children of the view root, so without a rule here
  * they fall back to browser defaults — the one failure in this bundle that no
@@ -1804,10 +1818,10 @@ section.wall {
 }
 
 /* `>` and not a descendant selector: a card inside this group carries an
- * `h3.card-title`, which a bare `.offer-group h3` outranks and re-margins — so
+ * `h2.card-title`, which a bare `.offer-group h2` outranks and re-margins — so
  * offered works' titles would sit further from their artist line than the named
  * works' titles do, on the same page, for no reason a reader could find. */
-.offer-group > h3 {
+.offer-group > h2 {
   margin: 0 0 var(--space-1);
   font: 400 var(--text-md) / 1.3 var(--font-label);
   color: var(--text-strong);
@@ -1843,7 +1857,12 @@ select {
   padding: var(--space-2) var(--space-3);
 }
 
-button.action {
+/* An act, and a way to another page offered at the same weight — "All
+   themes", "Go to Ask", a way back. The second is a link, as every navigation
+   is, and wears the act's shape because it sits among acts. */
+:is(button, a).action {
+  display: inline-block;
+  text-decoration: none;
   appearance: none;
   font: var(--text-sm) / 1 var(--font-ui);
   color: var(--accent-text);
@@ -1854,13 +1873,13 @@ button.action {
   cursor: pointer;
 }
 
-button.action.quiet {
+:is(button, a).action.quiet {
   color: var(--accent);
   background: var(--surface-1);
   border-color: var(--border-strong);
 }
 
-button.action:hover {
+:is(button, a).action:hover {
   filter: brightness(1.08);
 }
 
@@ -1925,6 +1944,24 @@ button.action:hover {
 .error {
   border-left-color: var(--crit);
   font-weight: 600;
+}
+
+/* A failed act, said beside the control that sent it (`core/acting.js`): on a
+   line of its own under the control, wherever that sits — a row, a cell, a
+   card — in the failure colour with a word to carry it, as the banner is. */
+.act-failure {
+  display: block;
+  flex-basis: 100%;
+  margin-top: var(--space-2);
+  padding-left: var(--space-3);
+  border-left: 3px solid var(--crit);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.act-failure:empty {
+  display: none;
 }
 
 .stack {

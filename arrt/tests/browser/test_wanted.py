@@ -150,7 +150,7 @@ def wanted(discovery, propose, resolved_work):
 
 def open_wanted(ui):
     ui.open("#wanted")
-    ui.page.wait_for_selector("h2:has-text('Wanted')")
+    ui.page.wait_for_selector("h1:has-text('Wanted')")
 
 
 def a_wanted_listing(*works: WantedWorkOut) -> dict:

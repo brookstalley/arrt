@@ -80,6 +80,10 @@ const SECTIONS = [
  * `#health` is Status. A bookmark or an agent's link is an address, and every
  * one of them would otherwise break for a word the curator never sees.
  *
+ * **A contextual screen carries `title`**, which a sidebar page takes from
+ * `page`: what the browser's tab, history and bookmarks call it until the
+ * screen knows the name of what it shows (`core/router.js`, `setTitle`).
+ *
  * `opensFrom` is a *default* return, not a parent: a contextual screen returns
  * to the page it was actually opened from, which travels in the address as
  * `?from=`. The default is what a bookmark or an agent's link gets, having no
@@ -123,17 +127,17 @@ const ROUTES = {
   // are the installed source plugins, with where each came from.
   sources: { render: viewSources, section: "settings", page: "Sources" },
   health: { render: viewHealth, section: "system", page: "Status" },
-  work: { render: viewWork, detail: true, opensFrom: "collection" },
+  work: { render: viewWork, detail: true, opensFrom: "collection", title: "Work" },
   // Everything a few words find, the library's and Wikidata's (ruling 2), as
   // Sonarr's search results are a page of their own. Reached by Enter in the
   // search box (the owner, 2026-10-06) and from the dropdown's last row; it
   // returns to Artworks by default.
-  search: { render: viewSearch, opensFrom: "collection" },
+  search: { render: viewSearch, opensFrom: "collection", title: "Search results" },
   // One topic, browsed like a genre, reached from Library › Topics, the top
   // bar's dropdown, or a search on the Topics page, and returned to Topics by a
   // bookmark. Its own route rather than an id on `topics`, as the plan
   // addresses it (`#topic/<qid>`).
-  topic: { render: viewTopic, detail: true, opensFrom: "topics" },
+  topic: { render: viewTopic, detail: true, opensFrom: "topics", title: "Topic" },
   // A search is listed under Activity, so a bookmark to one returns to Queue.
   // Run and Review share that default because they are one search's two pages:
   // each opens the other, and with different defaults every hop between them
@@ -142,16 +146,16 @@ const ROUTES = {
   // A Get's page is its review, so a Work opened from one of its cards returns
   // to it, as one opened from Review returns to Review. Labelled for a Get
   // because a Get's page is the only run page that opens a Work.
-  run: { render: viewRun, detail: true, opensFrom: "queue", returnLabel: "The Get", returnFor: ["work"] },
+  run: { render: viewRun, detail: true, opensFrom: "queue", title: "Run", returnLabel: "The Get", returnFor: ["work"] },
   // Contextual rather than a page: a conversation is something a curator does
   // *within* Ask, and returns there.
-  conversation: { render: viewConversation, detail: true, opensFrom: "discover" },
+  conversation: { render: viewConversation, detail: true, opensFrom: "discover", title: "Conversation" },
   // Keyed by the run whose works are being judged, not by a work: a curator
   // reviews a run's output as a set, and a per-work address would make the grid
   // unreachable by URL.
   // `returnLabel` makes Review a place to come back to: a Work opened from a
   // review card returns to that review, not to the page the review sits under.
-  review: { render: viewReview, detail: true, opensFrom: "queue", returnLabel: "The review", returnFor: ["work"] },
+  review: { render: viewReview, detail: true, opensFrom: "queue", title: "Review", returnLabel: "The review", returnFor: ["work"] },
 };
 
 installStatus();

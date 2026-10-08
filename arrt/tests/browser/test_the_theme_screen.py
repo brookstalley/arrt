@@ -284,7 +284,7 @@ class TestRenaming:
 
         ui.page.fill("#rename-" + winter.id, "Late night")
         ui.page.click("button[aria-label='Rename Winter']")
-        ui.page.wait_for_selector("h3:has-text('Late night')")
+        ui.page.wait_for_selector("h2:has-text('Late night')")
 
         assert ui.page.locator("button[aria-label='Delete Late night']").count() == 1
         assert ui.page.locator("button[aria-label='Delete Winter']").count() == 0
@@ -301,7 +301,7 @@ class TestRenaming:
 
         ui.page.fill("#rename-" + winter.id, "Late night")
         ui.page.click("button:has-text('Rename')")
-        ui.page.wait_for_selector("h3:has-text('Late night')")
+        ui.page.wait_for_selector("h2:has-text('Late night')")
 
         assert ui.page.locator("button", has_text="Remove from Late night").count() == len(POLLOCKS)
         assert ui.page.locator("button", has_text="Remove from Winter").count() == 0
@@ -318,7 +318,7 @@ class TestRenaming:
 
         ui.page.fill("#rename-" + winter.id, "  Late night  ")
         ui.page.click("button:has-text('Rename')")
-        ui.page.wait_for_selector("h3:has-text('Late night')")
+        ui.page.wait_for_selector("h2:has-text('Late night')")
 
         assert ui.page.input_value("#rename-" + winter.id) == "Late night"
 
@@ -328,11 +328,11 @@ class TestRenaming:
         _painted(ui)
 
         ui.page.fill("#rename-" + winter.id, "   ")
-        ui.page.click("button:has-text('Rename')")
-        ui.page.wait_for_selector("#error:not([hidden])")
+        rename = ui.page.locator("button:has-text('Rename')")
+        rename.click()
 
-        assert ui.page.inner_text("#error") == "name cannot be empty."
-        assert ui.page.locator("h3", has_text="Winter").count() == 1
+        assert ui.said_beside(rename) == "Couldn't rename Winter: name cannot be empty. Nothing was changed."
+        assert ui.page.locator("h2", has_text="Winter").count() == 1
 
 
 class TestHanging:
@@ -391,7 +391,7 @@ class TestHanging:
         """The wall view repaints from the manifest that was published, not from the preview.
 
         Waited on the wall section rather than on a heading: the theme screen
-        already carries an `h2`, so a heading wait would match instantly and the
+        already carries an `h1`, so a heading wait would match instantly and the
         assertions below would read the state from before the click.
         """
         wall = services.display.survey_walls()[0].wall
@@ -433,7 +433,7 @@ class TestDeleting:
         ui.page.keyboard.press("Escape")
         ui.page.wait_for_selector("dialog.confirm", state="detached")
 
-        assert ui.page.locator("h3", has_text="Winter").count() == 1
+        assert ui.page.locator("h2", has_text="Winter").count() == 1
 
     def test_confirming_removes_the_panel_by_repainting_from_what_remains(self, ui, winter, services):
         """`DELETE /api/themes/{id}` answers with the themes that are left.
@@ -450,7 +450,7 @@ class TestDeleting:
         _confirm(ui, "Delete")
         ui.page.wait_for_selector("text=No themes yet.")
 
-        assert ui.page.locator(".panel h3", has_text="Winter").count() == 0
+        assert ui.page.locator(".panel h2", has_text="Winter").count() == 0
         assert [theme.name for theme in services.display.list_themes()] == []
 
     def test_the_themes_that_are_left_are_the_ones_the_answer_named(self, ui, winter, services):
@@ -466,15 +466,15 @@ class TestDeleting:
         services.display.add_theme(name="Late night")
         ui.open("#theme")
         _painted(ui)
-        assert sorted(ui.page.locator(".panel h3").all_inner_texts()) == ["Late night", "New theme", "Winter"]
+        assert sorted(ui.page.locator(".panel h2").all_inner_texts()) == ["Late night", "New theme", "Winter"]
 
         # Winter's Delete, not Late night's — named, so choosing it needs nothing
         # about the panel it sits in.
         ui.page.click("button[aria-label='Delete Winter']")
         _confirm(ui, "Delete")
-        ui.page.wait_for_selector("h3:has-text('Winter')", state="detached")
+        ui.page.wait_for_selector("h2:has-text('Winter')", state="detached")
 
-        assert sorted(ui.page.locator(".panel h3").all_inner_texts()) == ["Late night", "New theme"]
+        assert sorted(ui.page.locator(".panel h2").all_inner_texts()) == ["Late night", "New theme"]
         assert ui.page.locator("text=No themes yet.").count() == 0
 
     def test_a_theme_hanging_in_two_rooms_refuses_and_says_what_to_do_about_it(self, ui, winter, services):
@@ -496,18 +496,18 @@ class TestDeleting:
         ui.open("#theme")
         _painted(ui)
 
-        ui.page.click("button:has-text('Delete')")
+        delete = ui.page.locator("button:has-text('Delete')")
+        delete.click()
         _confirm(ui, "Delete")
-        ui.page.wait_for_selector("#error:not([hidden])")
 
-        assert ui.page.inner_text("#error") == (
-            "Theme 'Winter' is hanging on 'The study', 'The wall'. Hang another theme there first, or take "
-            "this one down, so that what those walls show next is a choice rather than whatever was on them "
-            "before."
+        assert ui.said_beside(delete) == (
+            "Couldn't delete Winter: Theme 'Winter' is hanging on 'The study', 'The wall'. Hang another theme "
+            "there first, or take this one down, so that what those walls show next is a choice rather than "
+            "whatever was on them before. Nothing was changed."
         )
         # Refused, not partly done: the theme is still there and still hanging in
         # both rooms.
-        assert ui.page.locator(".panel h3", has_text="Winter").count() == 1
+        assert ui.page.locator(".panel h2", has_text="Winter").count() == 1
         assert [wall.name for wall in services.display.walls_hanging(winter.id)] == ["The study", "The wall"]
 
 
@@ -536,7 +536,7 @@ class TestOneThemeHasItsOwnAddress:
         ui.open(f"#theme/{two_themes.id}")
         _painted(ui)
 
-        assert ui.page.locator("h2", has_text="Winter").count() == 1
+        assert ui.page.locator("h1", has_text="Winter").count() == 1
         assert ui.page.locator("text=Late night").count() == 0
         assert _titles(ui) == list(POLLOCKS)
 
@@ -550,8 +550,8 @@ class TestOneThemeHasItsOwnAddress:
         ui.open("#theme")
         _painted(ui)
 
-        assert ui.page.locator(".panel h3", has_text="Winter").count() == 1
-        assert ui.page.locator(".panel h3", has_text="Late night").count() == 1
+        assert ui.page.locator(".panel h2", has_text="Winter").count() == 1
+        assert ui.page.locator(".panel h2", has_text="Late night").count() == 1
         assert ui.page.locator("#new-theme-name").count() == 1
 
     def test_every_act_is_still_offered_from_the_addressed_view(self, ui, two_themes):
@@ -597,9 +597,9 @@ class TestOneThemeHasItsOwnAddress:
 
         ui.page.click("button[aria-label='Delete Winter']")
         _confirm(ui, "Delete")
-        ui.page.wait_for_selector(".panel h3:has-text('Late night')")
+        ui.page.wait_for_selector(".panel h2:has-text('Late night')")
 
-        assert ui.page.locator("h2", has_text="Themes").count() == 1
+        assert ui.page.locator("h1", has_text="Themes").count() == 1
         assert ui.page.locator("text=Winter").count() == 0
 
     def test_an_address_whose_theme_is_gone_says_so_rather_than_going_home(self, ui, two_themes):
@@ -610,11 +610,11 @@ class TestOneThemeHasItsOwnAddress:
         stop for `/discover`, arriving here by a different route.
         """
         ui.open("#theme/theme-that-never-existed")
-        ui.page.wait_for_selector("h2:has-text('That theme is not here')")
+        ui.page.wait_for_selector("h1:has-text('That theme is not here')")
 
         assert "most likely deleted" in ui.text()
-        ui.page.click("button:has-text('All themes')")
-        ui.page.wait_for_selector(".panel h3:has-text('Winter')")
+        ui.page.click("a:has-text('All themes')")
+        ui.page.wait_for_selector(".panel h2:has-text('Winter')")
 
     def test_the_address_survives_a_reload(self, ui, two_themes):
         """Bookmarkable is the requirement, and it is not the same as reachable.
@@ -629,7 +629,7 @@ class TestOneThemeHasItsOwnAddress:
         ui.page.reload()
         _painted(ui)
 
-        assert ui.page.locator("h2", has_text="Winter").count() == 1
+        assert ui.page.locator("h1", has_text="Winter").count() == 1
         assert _titles(ui) == list(POLLOCKS)
 
 
@@ -644,7 +644,7 @@ class TestTheDefaultTheme:
 
     @staticmethod
     def _panel(ui, name):
-        return ui.page.locator(".panel", has=ui.page.locator(f"h3 > span:text-is('{name}')"))
+        return ui.page.locator(".panel", has=ui.page.locator(f"h2 > span:text-is('{name}')"))
 
     def test_the_default_says_so_in_words_and_the_others_offer_to_become_it(self, ui, all_works, winter):
         ui.open("#theme")
@@ -699,8 +699,8 @@ class TestTheDefaultTheme:
         ui.open("#theme")
         _painted(ui)
 
-        ui.page.click("button[aria-label='Delete All works']")
+        delete = ui.page.locator("button[aria-label='Delete All works']")
+        delete.click()
         _confirm(ui, "Delete")
 
-        ui.page.wait_for_selector("#error:not([hidden])")
-        assert "Make another theme the default first" in ui.page.inner_text("#error")
+        assert "Make another theme the default first" in ui.said_beside(delete)

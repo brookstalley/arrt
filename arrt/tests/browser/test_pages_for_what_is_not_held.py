@@ -109,7 +109,7 @@ def _fact(ui, term):
 class TestAWorkNotHeld:
     def test_it_shows_what_wikidata_says_and_how_to_find_it(self, ui):
         ui.open(f"#work/{HUNTERS}")
-        ui.page.wait_for_selector("#view h2:text-is('The Hunters in the Snow')")
+        ui.page.wait_for_selector("#view h1:text-is('The Hunters in the Snow')")
 
         facts = ui.page.locator("#view dl.facts").inner_text()
         assert "Pieter Brueghel the Elder" in facts
@@ -142,7 +142,7 @@ class TestAWorkNotHeld:
 
     def test_with_one_dimension_and_no_picture_size_it_says_only_what_it_knows(self, ui):
         ui.open("#work/Q9")
-        ui.page.wait_for_selector("#view h2:text-is('Half measured')")
+        ui.page.wait_for_selector("#view h1:text-is('Half measured')")
 
         assert _fact(ui, "Size") == "117 cm high (46.1 in)"
         assert ui.page.locator("#view .picture-size").count() == 0
@@ -160,7 +160,7 @@ class TestAWorkNotHeld:
         ui.page.wait_for_selector("#view button:text-is('Get this work')")
 
         # Neither the old wording nor today's for a search in words: this page gets.
-        assert ui.page.locator("#view button:has-text('Search museums'), #view button:has-text('Ask about')").count() == 0
+        assert ui.page.locator("#view button:has-text('Search museums'), #view :is(a, button):has-text('Ask about')").count() == 0
 
     def test_the_rest_of_their_work_follows_without_this_one(self, ui):
         ui.open(f"#work/{HUNTERS}")
@@ -170,7 +170,7 @@ class TestAWorkNotHeld:
         titles = ui.page.locator("section[aria-labelledby='more-by'] tbody td:first-child").all_inner_texts()
         assert titles == ["The Harvesters"]
 
-        ui.page.click("section[aria-labelledby='more-by'] button:has-text('The Harvesters')")
+        ui.page.click("section[aria-labelledby='more-by'] a:has-text('The Harvesters')")
         ui.page.wait_for_function("(qid) => window.location.hash.split('?')[0] === `#work/${qid}`", arg=HARVESTERS)
 
     def test_a_wanted_work_says_so_on_its_page_and_in_the_rest_of_their_work(self, ui, want_item):
@@ -185,30 +185,30 @@ class TestAWorkNotHeld:
 
     def test_its_unheld_artist_opens_their_page_here(self, ui):
         ui.open(f"#work/{HUNTERS}")
-        ui.page.click("#view dl.facts button:has-text('Pieter Brueghel the Elder')")
+        ui.page.click("#view dl.facts a:has-text('Pieter Brueghel the Elder')")
 
-        ui.page.wait_for_selector("#view h2:text-is('Pieter Brueghel the Elder')")
+        ui.page.wait_for_selector("#view h1:text-is('Pieter Brueghel the Elder')")
         assert _hash(ui).split("?")[0] == f"#artist/{BRUEGEL}"
 
     def test_a_held_artist_opens_the_library_page(self, ui, rothko):
         artist, _work = rothko
         ui.open("#work/Q8")
-        ui.page.click("#view dl.facts button:has-text('Mark Rothko')")
+        ui.page.click("#view dl.facts a:has-text('Mark Rothko')")
 
         ui.page.wait_for_function("(id) => window.location.hash.split('?')[0] === `#artist/${id}`", arg=artist.id)
 
     def test_registry_text_arrives_as_words_not_markup(self, ui):
         ui.open("#work/Q7")
-        ui.page.wait_for_selector("#view h2")
+        ui.page.wait_for_selector("#view h1")
 
-        assert "<img" in ui.page.locator("#view h2").inner_text()
-        assert ui.page.locator("#view h2 img").count() == 0
+        assert "<img" in ui.page.locator("#view h1").inner_text()
+        assert ui.page.locator("#view h1 img").count() == 0
         assert ui.page.evaluate("() => window.pwned") is None
         assert ui.page.locator("#view .card-footer").inner_text().strip().endswith("Not held")
 
     def test_an_item_wikidata_does_not_have_says_so(self, ui):
         ui.open("#work/Q999999")
-        ui.page.wait_for_selector("#view h2:text-is('Wikidata has no such work')")
+        ui.page.wait_for_selector("#view h1:text-is('Wikidata has no such work')")
 
         assert "Q999999" in ui.page.locator("#view p.note").inner_text()
 
@@ -227,13 +227,13 @@ class TestAWorkHeld:
         ui.page.evaluate("(qid) => { window.location.hash = `#work/${qid}`; }", HELD_ROTHKO)
 
         ui.page.wait_for_function("(id) => window.location.hash.startsWith(`#work/${id}`)", arg=work.id)
-        ui.page.wait_for_selector(f"#view h2:text-is('{work.title}')")
+        ui.page.wait_for_selector(f"#view h1:text-is('{work.title}')")
         ui.page.go_back()
         ui.page.wait_for_function("() => window.location.hash.startsWith('#collection')")
 
     def test_their_work_on_the_artist_page_opens_the_unheld_ones_here(self, ui):
         ui.open(f"#artist/{BRUEGEL}")
-        ui.page.click("section[aria-labelledby='their-work'] button:has-text('The Harvesters')")
+        ui.page.click("section[aria-labelledby='their-work'] a:has-text('The Harvesters')")
 
         ui.page.wait_for_function("(qid) => window.location.hash.split('?')[0] === `#work/${qid}`", arg=HARVESTERS)
 
@@ -241,7 +241,7 @@ class TestAWorkHeld:
 class TestAnArtistNotHeld:
     def test_it_shows_the_registry_half_and_says_nothing_is_held(self, ui):
         ui.open(f"#artist/{BRUEGEL}")
-        ui.page.wait_for_selector("#view h2:text-is('Pieter Brueghel the Elder')")
+        ui.page.wait_for_selector("#view h1:text-is('Pieter Brueghel the Elder')")
         ui.page.wait_for_selector("section[aria-labelledby='their-work'] table")
 
         assert "1525–1569" in ui.page.locator("#view dl.facts").inner_text()
@@ -267,7 +267,7 @@ class TestAnArtistNotHeld:
         ui.open(f"#artist/{ROTHKO}")
 
         ui.page.wait_for_function("(id) => window.location.hash.startsWith(`#artist/${id}`)", arg=artist.id)
-        ui.page.wait_for_selector("#view h3:has-text('In your library')")
+        ui.page.wait_for_selector("#view h2:has-text('In your library')")
 
     def test_an_outage_says_so_under_the_header(self, ui, registry):
         registry.failing = True

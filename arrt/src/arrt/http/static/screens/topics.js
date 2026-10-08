@@ -41,7 +41,7 @@ import {
   yearCell,
 } from "../core/registry.js";
 import { el, fill, render } from "../core/render.js";
-import { backLink, go } from "../core/router.js";
+import { backLink, go, link, setTitle } from "../core/router.js";
 import { state } from "../core/state.js";
 
 /* What a section says when its request failed outright, rather than answering
@@ -62,7 +62,7 @@ export async function viewTopics(generation) {
   const held = listing.kinds.some((group) => group.topics.length);
   render(
     generation,
-    el("h2", { text: "Topics" }),
+    el("h1", { text: "Topics" }),
     // Said first, and only when it is so: without a registry the groups hold
     // what an earlier configuration recorded, and nothing renews them.
     configured ? null : el("p", { class: "note", text: listing.note }),
@@ -84,11 +84,11 @@ function kindSection(group) {
   const words = TOPIC_KINDS[group.kind] || [group.kind, group.kind];
   const id = `topics-${group.kind}`;
   return el("section", { class: "panel", "aria-labelledby": id }, [
-    el("h3", { id, text: words[1] }),
+    el("h2", { id, text: words[1] }),
     group.topics.length
       ? el("ul", { class: "results-list topic-columns" }, group.topics.map((topic) =>
           el("li", {}, [
-            el("button", { class: "row-title", type: "button", text: topicName(topic.label, topic.qid), onclick: () => go("topic", topic.qid) }),
+            link({ view: "topic", id: topic.qid }, { class: "row-title", text: topicName(topic.label, topic.qid) }),
             el("span", { class: "muted", text: ` · ${counted(topic.works, "work")}` }),
           ]),
         ))
@@ -114,7 +114,7 @@ function searchForm(query) {
 }
 
 async function paintFound(section, query) {
-  const heading = el("h3", { id: "topic-search", text: `Topics Wikidata finds for “${query}”` });
+  const heading = el("h2", { id: "topic-search", text: `Topics Wikidata finds for “${query}”` });
   fill(section, heading, el("p", { class: "muted", "aria-live": "polite", text: "Asking Wikidata…" }));
   let answer;
   try {
@@ -132,7 +132,7 @@ async function paintFound(section, query) {
     answer.topics.length
       ? el("ul", { class: "results-list" }, answer.topics.map((topic) =>
           el("li", {}, [
-            el("button", { class: "row-title", type: "button", text: topicName(topic.label, topic.qid), onclick: () => go("topic", topic.qid) }),
+            link({ view: "topic", id: topic.qid }, { class: "row-title", text: topicName(topic.label, topic.qid) }),
             el("span", { class: "muted", text: ` — ${[topicKinds(topic.kinds), topicYears(topic)].filter(Boolean).join(", ")}` }),
             // What tells six *Impressionism*s apart: the music one, the Greek one.
             topic.description ? el("p", { class: "muted", text: topic.description }) : null,
@@ -154,16 +154,18 @@ export async function viewTopic(qid, generation) {
     render(
       generation,
       el("p", {}, [backLink()]),
-      el("h2", { text: "That is not a topic's address" }),
+      el("h1", { text: "That is not a topic's address" }),
       el("p", { class: "note", text: "A topic is addressed by its Wikidata item, a Q and digits. The topics your works are in are listed together." }),
-      el("div", { class: "row" }, [el("button", { class: "action", type: "button", text: "All topics", onclick: () => go("topics") })]),
+      el("div", { class: "row" }, [link({ view: "topics" }, { class: "action", text: "All topics" })]),
     );
     return;
   }
   // The server's QID, which it has checked; checked again here because it is
   // about to become part of an address out.
   const item = isQid(page.qid) ? page.qid : null;
-  const name = el("h2", { text: page.label ? topicName(page.label, page.qid) : `Wikidata ${page.qid}` });
+  const title = page.label ? topicName(page.label, page.qid) : `Wikidata ${page.qid}`;
+  setTitle(generation, title);
+  const name = el("h1", { text: title });
   const kinds = el("div");
   const about = el("div", { class: "stack" });
   const showKinds = (list) => fill(kinds, facts([["Kind", topicKinds(list)]]));
@@ -222,7 +224,7 @@ function defaultName(page, known) {
 
 function asking(id, title) {
   return el("section", { class: "panel", "aria-labelledby": id }, [
-    el("h3", { id, text: title }),
+    el("h2", { id, text: title }),
     el("p", { class: "muted", "aria-live": "polite", text: "Asking Wikidata…" }),
   ]);
 }
@@ -230,7 +232,7 @@ function asking(id, title) {
 /* *In your library*: your works in circulation in the topic, each opening its page. */
 function heldSection(works) {
   return el("section", { class: "panel", "aria-labelledby": "in-your-library" }, [
-    el("h3", { id: "in-your-library", text: `In your library (${works.length})` }),
+    el("h2", { id: "in-your-library", text: `In your library (${works.length})` }),
     works.length
       ? el("ul", { class: "grid" }, works.map(heldCard))
       : el("p", { class: "muted", text: "None of your works in circulation is in this topic." }),
@@ -244,7 +246,7 @@ function heldCard(work) {
   return el("li", { class: "card", "data-artwork": work.artwork_id }, [
     el("div", { class: "card-image" }, [picture]),
     el("div", { class: "card-body" }, [
-      el("h4", { class: "card-title" }, [el("button", { type: "button", text: work.title, onclick: () => go("work", work.artwork_id) })]),
+      el("h3", { class: "card-title" }, [link({ view: "work", id: work.artwork_id }, { text: work.title })]),
       el("p", { class: "card-meta", text: [work.artist ? work.artist.name : null, work.date_created].filter(Boolean).join(", ") || " " }),
     ]),
   ]);
@@ -260,7 +262,7 @@ function heldCard(work) {
  * were found by, which is the first the registry gives. */
 function paintWorks(section, known, view, name) {
   const years = known.state === "known" && known.kinds[0] === "period" ? topicYears(known) : null;
-  const heading = el("h3", { id: "representative-works", text: years ? `Works from ${years}` : "Representative works" });
+  const heading = el("h2", { id: "representative-works", text: years ? `Works from ${years}` : "Representative works" });
   if (view.state !== "known") {
     fill(section, heading, el("p", { class: "note", text: view.note }));
     return;
@@ -314,7 +316,7 @@ function stateOf(work) {
 /* *Artists*: those whose works in the topic are best known, each opening their page, the
  * library's own where it holds them. */
 function paintArtists(section, view) {
-  const heading = el("h3", { id: "topic-artists", text: "Artists" });
+  const heading = el("h2", { id: "topic-artists", text: "Artists" });
   if (view.state !== "known") {
     fill(section, heading, el("p", { class: "note", text: view.note }));
     return;

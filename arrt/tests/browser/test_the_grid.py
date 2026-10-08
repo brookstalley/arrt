@@ -51,12 +51,12 @@ def test_the_grid_pages_through_a_catalogue_larger_than_one_page(ui, a_catalogue
     """
     ui.open("#collection")
     # Waited on the tiles, not on the heading. The screen now says it is loading
-    # in an `h2` of its own — the placeholder holds the real heading's place so
-    # nothing jumps when the count arrives — so `h2` stopped meaning "the grid has
+    # in an `h1` of its own — the placeholder holds the real heading's place so
+    # nothing jumps when the count arrives — so `h1` stopped meaning "the grid has
     # painted". The assertion below is unchanged; only what it waits for is.
     ui.page.wait_for_selector("ul.grid li.card")
 
-    assert ui.page.inner_text("h2") == f"{a_catalogue_past_one_page} works"
+    assert ui.page.inner_text("h1") == f"{a_catalogue_past_one_page} works"
     assert ui.page.locator("ul.grid li.card").count() == a_catalogue_past_one_page
 
     # The count alone passes against a server that answered in one page, which
@@ -142,7 +142,7 @@ def test_the_grid_reports_what_the_runaway_guard_left_out(ui):
 
     # The guard is 50 pages, and this stub hands back one work per page.
     assert len(ui.requests_matching("/api/works?")) == 50
-    assert ui.page.inner_text("h2") == "50 of 999 works"
+    assert ui.page.inner_text("h1") == "50 of 999 works"
     assert "949 more are held and are not on this page" in ui.text()
 
 
@@ -223,7 +223,7 @@ def test_navigating_moves_focus_into_the_view(ui, seeded_service):
     ui.page.wait_for_selector("ul.grid")
 
     ui.page.click("nav.sidebar a[data-view='walls']")
-    ui.page.wait_for_selector("h2:has-text('Walls')")
+    ui.page.wait_for_selector("h1:has-text('Walls')")
 
     assert ui.focused() == "view"
 
@@ -262,13 +262,13 @@ def test_a_slow_view_does_not_paint_over_the_one_navigated_to(ui):
     )
 
     ui.open("#health")
-    ui.page.wait_for_selector("h2:has-text('Status')")
+    ui.page.wait_for_selector("h1:has-text('Status')")
 
     # The collection grid starts loading, and is left before its request answers.
     ui.page.evaluate("() => go('collection')")
     ui.page.wait_for_timeout(300)
     ui.page.evaluate("() => go('health')")
-    ui.page.wait_for_selector("h2:has-text('Status')")
+    ui.page.wait_for_selector("h1:has-text('Status')")
 
     # Now let the abandoned request finish. Its paint must not land.
     for route in held:
