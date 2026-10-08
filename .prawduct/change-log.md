@@ -62,6 +62,49 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-08: Labels as outputs, and each wall reports its display state
+
+<!-- prawduct: scope=display-state -->
+
+**Why:** The owner, declining an interim fix for the Pi's e-ink panel: labels are
+their own outputs, mappable to any wall on any device, kept in sync; blank while
+somebody watches a movie on the Frame; and the abstractions must stay clean for a
+caption composited into the image later. Only a wall's controller knows what its
+screen is doing, so labels need that report before they can be split from walls.
+
+**What:**
+- `labels-and-surfaces.md` (new): the owner's rulings of 2026-10-08 (ruling 1 revised
+  the same day from schedule-first to report-first), five nouns (wall, client, output,
+  wall controller, label renderer), the display states and what a label shows in each,
+  and the rules that keep a caption-in-image possible. Reverses "one process per wall
+  drives both picture and label" in `re-architecture.md` and `clients.md`.
+- **Heartbeat minor 3** carries `display_state {state, work_id, since}`: `showing_art`,
+  `in_use`, `dark`, `no_screen`, `unreachable`; a work only beside `showing_art`.
+- **The Frame controller** reports it on change: a remote-control change resolved to a
+  work through the bindings; `in_use` vs `dark` from one read-only PowerState GET taken
+  only after `get_artmode` says off (never a key press). Its panel blanks for `in_use`
+  and `dark`, and 30 minutes into `unreachable` (the owner's number).
+- **The HDMI controller** reports `showing_art`, `dark` (no screen detected) and
+  `no_screen` (output gone).
+- **The server** keeps each wall's state, adds `unassigned` and `silent`, refuses an
+  invalid `display_state`, and carries it on `/api/walls` and `art_display`; **Walls**
+  leads with it ("Somebody is using the screen", "Its screen is off", "Not heard from
+  since …").
+
+**Tests:** contract fixtures on both sides of the work-id rule; `postarr/tests/test_display_state.py`
+drives the TV double through each transition (remote change, TV and back, standby, a failed
+PowerState read, unreachable at 29 and 31 minutes); server unit and browser tests seed
+real heartbeats for each state, a pre-minor-3 one and a stale one;
+`test_staleness_threshold.py` ties the Player, server and client thresholds together.
+
+**Deploy:** the server and the Pi's Player both. A minor-2 Player keeps working: the
+server reads its `current_work_id` as `showing_art`. Rolling back either side alone is
+safe; nothing new is stored beyond the heartbeat file.
+
+**Not done:** chunk 05, the owner's check on the wall. The PowerState read goes to the
+set's TLS port (8002), unmeasured on the set until then. Label outputs and their mapping
+are #188, next.
+
 ## 2026-10-08: Walls, Work, and signals you can trust
 
 <!-- prawduct: scope=walls-work-and-trust -->
