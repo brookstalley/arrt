@@ -26,6 +26,7 @@ from arrt.library.readiness import (
     UnplayableReason,
     WorkInputs,
     assess,
+    label_of,
     not_in_catalogue,
     playable_from,
     tv_rendition_of,
@@ -97,6 +98,21 @@ class LibraryFacade:
         dangling reference unbuildable. An id asked twice is answered once.
         """
         return {work_id: self._answer(work_id) for work_id in dict.fromkeys(work_ids)}
+
+    def labels(self, work_ids: Iterable[str]) -> dict[str, Mapping[str, str | None] | None]:
+        """Each work's label text, keyed by id, or None for an id the catalogue does not hold.
+
+        The same ten keys `playable` carries, from the same function, for a
+        reader that needs the words and not whether the work can go on a wall:
+        a label captioning a picture already on a screen. Asked about once a
+        second per label, so it reads only the work and its artist, and says
+        nothing in the journal.
+        """
+        answers: dict[str, Mapping[str, str | None] | None] = {}
+        for work_id in dict.fromkeys(work_ids):
+            detail = self._catalogue.find_artwork(work_id)
+            answers[work_id] = None if detail is None else label_of(detail.artwork, detail.artist)
+        return answers
 
     def accepted_work_ids(self) -> Sequence[str]:
         """Every work in circulation, oldest first.

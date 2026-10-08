@@ -2,7 +2,7 @@
 artifact: build-plan
 version: 1
 scope: displays-and-label-outputs
-branch: feature/displays-and-label-outputs
+# branch: feature/displays-and-label-outputs — merged to develop on 2026-10-08. Chunk 07, the only one left, is the operator's at the wall and claims no branch; it is ticked in whichever PR follows the walk.
 partition: Chunk 01 serial (the contract both sides build to); then two delegates in isolated worktrees — A the server (02, 03; arrt/ and contract tests only), B the Player (05, 06; postarr/ only); the coordinator integrates, reviews and verifies. Chunk 04 (the interface) is serial and waits for feature/lists-settings-and-scale to merge, because that branch is rewriting the Walls and Settings screens. Chunk 07 is the operator's.
 depends_on:
   - artifact: feeds-and-players
@@ -59,12 +59,31 @@ here forbids it; caption mode; any non-Pi Player.
 30-minute blank and the no-discovery rule (`labels-and-surfaces.md` § Rulings,
 `feeds-and-players.md` § Rulings). **Medium** for mechanism, because of these:
 
-- `[ASSUMPTION: a Frame's /api/v2/ device description carries a stable device id (the set's "id" or "duid") that survives a reboot and a network change, so it can key the Display record | HIGH impact | verify against the set before Chunk 05 builds on it; samsung-tv-state-findings.md does not record the field]`
+- `[ASSUMPTION: a Frame's /api/v2/ device description carries a stable device id (the set's "id" or "duid") that survives a reboot and a network change, so it can key the Display record | HIGH impact | PRESENCE VERIFIED 2026-10-08: id, duid and udn carry one uuid on 8001 and 8002 (samsung-tv-state-findings.md § The set's identity). Survival across a reboot or reset is still the UPnP standard's promise, not a measurement; a reset would show as a new display with no walls, which a curator maps again]`
 - `[ASSUMPTION: an attached output (an HDMI connector, a panel) has no device id a client can read reliably, so its identity is the client's id plus the output's name, as clients.md does today. Such a display cannot move between clients, which is true of the hardware | MED impact | owner can correct]`
 - `[DECISION: the label renderer applies the label table itself, from a label document carrying the wall's display state (the server's seven, with since) and the work's label text, rather than the server sending a finished "show this" | labels-and-surfaces.md § What a label says: "one pure rule, run identically by every renderer, wherever it is"; the 30-minute blank is a clock the renderer must run anyway when the server is unreachable | builder's call, from the note]`
 - `[DECISION: the label rule ships as conformance vectors in contract/ (display state, since, now, label text → caption, card or blank), the first behaviour vectors of feeds-and-players.md § Reuse across platforms | the rule will be implemented again on Apple platforms, and vectors are the reuse mechanism ruled 2026-10-08 | builder's call]`
 - `[DECISION: client-heartbeat and client documents grow by additive keys, with no schema major | both carry no schema key and allow unknown keys (player-contract.md § Transport): additions are free, and a breaking change would be a new route | conforms]`
 - `[ASSUMPTION: a label output is held by at most one wall, like a display output | MED impact | the owner ruled "a label captions at most one wall"; this plan reads it as a store constraint]`
+
+- `[DECISION: showing_art with no label (a picture this wall did not put there) is the quiet card, not a caption and not blank | the table's "no work to show" row; blank is kept for a screen somebody else is using | builder's call, owner can veto]`
+- `[DECISION: for silent and unreachable, the label document's label is the work the wall last showed where the server knows it, and the renderer holds it for 30 minutes from since; with no label or no since it blanks at once | the hold must be a pure function of the document and the clock for the vectors to state it, so the renderer is never asked to remember its own last caption | builder's call]`
+- `[DECISION: contract/routes.json gains the label route in Chunk 03, not Chunk 01 | arrt's route test holds the mounted routes and routes.json equal in both directions, so naming a route the server does not mount turns that suite red between chunks; player-contract.md describes the route from Chunk 01 | amended at Chunk 01]`
+
+Recorded while building Chunks 02, 03, 05 and 06 (builder's calls, owner can veto):
+
+- `[DECISION: the Frame's identity is read by the client, not by a wall's worker: one GET of /api/v2/ through the TV module, no art channel, no key, kept for the life of the process once read | a Frame with no wall on a new client would otherwise never report it and never move | coordinator]`
+- `[DECISION: a display first reported without identity is re-keyed when its identity arrives and keeps its walls; a Frame moved to another client absorbs that client's placeholder display: no wall there, the placeholder is deleted; only the placeholder has a wall, the wall moves; both have one, the Frame's display keeps its own and the placeholder's is unassigned (logged at WARNING) | an output shows at most one wall | coordinator]`
+- `[DECISION: Display.client_id is nullable: a different device reported on a client's output leaves the old display with its wall and no client; Display.kind is nullable until reported; removing a client deletes its displays and label outputs and unassigns their walls | builder]`
+- `[DECISION: a duplicate-display fault counts only readable reports no older than STALE_AFTER_SECONDS, so a host switched off stops claiming; while in fault the display stays with its current client and neither client is admitted to the wall | builder]`
+- `[DECISION: mapping a label output that already captions a wall is refused, not moved; GET /labels for the client's own unmapped label output is 404 | builder]`
+- `[DECISION: label text is read through LibraryFacade.labels(), sharing label_of() with the manifest builder | playable() logs per call, and labels poll once a second | builder]`
+- `[DECISION: assign_wall(client_id, output) stays, finding or creating the display, so today's browser screens work unchanged until Chunk 04 | builder]`
+- `[DECISION: while the server is unreachable the renderer reads its last document as unreachable from the last answer, holding only a caption; a refusal (401/403/404) or an unreadable document keeps the last document without starting the hold; a renderer with no document yet draws blank (no disk cache); a retired renderer blanks its panel, a stopping client leaves it | builder]`
+- `[DECISION: the panel and its draw gate live in LabelPanel, opened once per process, so a renderer restarted onto a panel mid-draw cannot send a second draw; the redraw check compares outcome, label text and wall name | builder]`
+- `[DECISION: label outputs are mapped on Settings › Clients, in the client's panel beside "Assign a wall", not on Walls; Walls says which labels caption each wall (only when one does) and links there | walls are already assigned on that page, per client, as Radarr keeps Download Clients, and two places to map one thing would be two forms to keep in step | builder, departs from Chunk 04 item 2's "Walls maps"; owner can veto]`
+- `[DECISION: Walls' sentence for an unreachable screen is "cannot say what its screen is showing", true both of a controller that cannot reach its screen and of a state the server has no name for and reads as unreachable | the two arrive identically, so only a sentence true of both is honest | builder]`
+- `[GAP: why a panel would not open, and a geometry with no usable area, were wall-heartbeat signals; the client heartbeat has no field for them, so today they reach the journal only (observability-strategy.md says so). An additive key on label_outputs would carry them | not in this plan; #315]`
 
 **What would raise it:** one read of the Frame's `/api/v2/` on the operator's set
 (with the Player stopped, through the existing `power_probe.py` REST sample, no
@@ -92,12 +111,12 @@ Seeded with `prawduct-hook jurisdiction`; dispositions:
 
 ## Status
 
-- [ ] Chunk 01: The contract
-- [ ] Chunk 02: The server's records
-- [ ] Chunk 03: The server's routes
-- [ ] Chunk 04: The interface
-- [ ] Chunk 05: The Player reports
-- [ ] Chunk 06: The label renderer
+- [x] Chunk 01: The contract
+- [x] Chunk 02: The server's records
+- [x] Chunk 03: The server's routes
+- [x] Chunk 04: The interface
+- [x] Chunk 05: The Player reports
+- [x] Chunk 06: The label renderer
 - [ ] Chunk 07: On the wall
 
 ### Chunk 01: The contract
@@ -115,7 +134,7 @@ Done when:
    wall_name, display_state: {state, work_id, since}, label | null}`, where
    `state` is one of the server's seven (`labels-and-surfaces.md` § Display
    state) and `label` is the ten text keys the manifest already carries.
-4. `contract/routes.json` names `label: GET /labels/{label_id}`.
+4. *(Moved to Chunk 03, see the decision above: `contract/routes.json` names the route when the server mounts it.)*
 5. new `contract/vectors/label-rule.json`: (state, since, now, label) → `caption`,
    `card` or `blank`, covering every row of the table, the 30-minute boundary on
    both sides for `silent` and `unreachable`, and a state name the reader does not
@@ -134,13 +153,13 @@ Done when:
    LabelOutput record (id, client_id, output, wall_id nullable) exist in
    Programming, and Wall's `client_id`/`output` give way to `display_id`.
 2. A migration turns each assigned wall's (client_id, output) into a Display with
-   identity `{client_id}/{output}`, so walls stay where they hang. A test opens a
+   identity {client_id}/{output}, so walls stay where they hang. A test opens a
    catalogue in today's shape and finds every wall on the same screen after.
 3. The store enforces, and the docstrings state exactly what it enforces: one
    identity per Display; one wall per Display; a LabelOutput's (client_id, output)
    unique; a LabelOutput on at most one wall (a wall may have many).
 4. A client heartbeat creates or refreshes the Displays it reports, keyed on
-   `identity` when present and on `{client_id}/{name}` otherwise, and the
+   `identity` when present and on {client_id}/{name} otherwise, and the
    LabelOutputs it reports. A Display reported by a different client than last
    time moves to that client, with its walls (the Frame moved from Pi to Mac).
 5. `data-model.md` gains both records, with § What this data must answer: which
@@ -163,7 +182,8 @@ Done when:
 4. HTTP and MCP (`art_display`) can map a wall's display and add or remove its
    label outputs, through one service, with the assignment rules in one place
    (`programming/clients.py`).
-5. `arrt/tests/contract/test_client_surface.py` validates every served document
+5. `contract/routes.json` names `label: GET /labels/{label_id}`;
+   `arrt/tests/contract/test_client_surface.py` validates every served document
    against its schema, and the route test asserts the mounted routes against
    `contract/routes.json`.
 6. Carried in from the display-state review: a server test asserts that
@@ -193,14 +213,17 @@ Done when:
    by a test; and a state name Walls does not know, read as
    `unreachable`, no longer says "cannot reach its screen", which is wrong for
    that case.
+7. Carried in from Chunk 03: a wall whose display is in the duplicate-display
+   fault still carries `client_id` in `/api/walls`, so today's Walls shows it
+   assigned while its state is `unassigned`. Walls and Settings › Clients read
+   `display.fault` (walls) and `faults` (clients) instead.
 
 ### Chunk 05: The Player reports
 
 Done when:
 
 1. The Frame output reports `identity` from the set's `/api/v2/` device
-   description, read once per connection and never by a key press, after the
-   assumption above is verified. HDMI outputs report no identity.
+   description (`device.duid`), read once per connection and never by a key press. HDMI outputs report no identity.
 2. A configured panel (`EPD_DEVICE`) is reported as a label output, and
    `config.py` no longer refuses `EPD_DEVICE` without `TV_ADDRESS`.
 3. Tests in `postarr/tests` validate the heartbeat the client writes against the

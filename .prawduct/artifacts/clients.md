@@ -78,26 +78,25 @@ transport, recorded in `player-contract.md`.
 
 ## The Player
 
-One process per **client**, supervising one worker per assigned wall. Each
-worker is today's wall loop (manifest, cache, rotation, heartbeat) bound to
-one output; the label panel, where present, belongs to the wall whose output
-is the Frame.
+One process per **client**, supervising one worker per assigned wall and one
+label renderer per mapped label output. Each worker is today's wall loop
+(manifest, cache, rotation, heartbeat) bound to one output, and only reports
+what its screen is doing; it draws no label.
 
-> **Direction changed 2026-10-02 (the owner): labels become outputs.** "Each
-> client provides zero or more display outputs, and zero or more label
-> outputs. Mappings are server side." A client's e-ink panel will be reported
-> like its HDMI connectors and Frames, and the server will map a wall's label
-> to it, so the panel can caption an HDMI wall or any Frame without an edit on
-> the host. Until that plan lands (it follows this one, after #181), the
-> sentence above is what runs: an HDMI wall has no label.
-
-`re-architecture.md`'s "one process per wall drives both the
-picture and the label, so they can never disagree" was kept *per worker* until
-2026-10-08, when the owner reversed it (`labels-and-surfaces.md`): labels become
-outputs mapped to any wall on any client, and follow the wall controller's
-reported display state. What runs today is still the panel on the Frame loop. The supervisor polls
-`GET /client`, starts a worker for a newly assigned wall, stops one for a wall
-taken away, and reports outputs.
+A client's e-ink panel is a **label output** (owner, 2026-10-02: "each client
+provides zero or more display outputs, and zero or more label outputs. Mappings
+are server side"). The client reports it in `label_outputs`; the server maps it
+to any wall on any client; `GET /client` lists this client's mapped labels; and a
+renderer polls that label's document and applies the label rule
+(`labels-and-surfaces.md` § What a label says,
+`contract/vectors/label-rule.json`). So the panel can caption an HDMI wall or any
+Frame without an edit on the host, and a client with a panel and no screen is an
+ordinary client. This reverses `re-architecture.md`'s "one process per wall drives
+both the picture and the label, so they can never disagree" (the owner,
+2026-10-08, `labels-and-surfaces.md`): a label follows its wall's reported display
+state instead. The supervisor polls `GET /client`, starts a worker for a newly
+assigned wall and a renderer for a newly mapped label, stops either when its
+mapping goes, and reports outputs and label outputs.
 
 **As built (`build-plan-clients.md` Chunk 03), where it adds to the above:**
 

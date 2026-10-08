@@ -60,6 +60,7 @@ from websockets.exceptions import WebSocketException
 
 from postarr.tv.client import (
     UPLOADED_CATEGORY,
+    IdentityUnreadable,
     PowerStateUnreadable,
     RemovalOutcome,
     SelectionAnnouncement,
@@ -116,6 +117,12 @@ _NO_MATTE: Final[str] = "none"
 #: REST client has no timeout of its own, so without this a set that stopped
 #: answering HTTP would hold the poll for as long as the socket took to give up.
 POWER_STATE_TIMEOUT_SECONDS: Final[float] = 2.0
+
+#: How long the identity read may take. The same read as `PowerState`'s, measured
+#: answering in 0.14 s from standby on port 8002 (`samsung-tv-state-findings.md`
+#: § The set's identity); a set that does not answer in this long is reported
+#: without an identity and asked again on the client's next report.
+IDENTITY_TIMEOUT_SECONDS: Final[float] = 2.0
 
 #: The set's announcement that a selection took effect. It carries the id and an
 #: `is_shown` flag, and it is the only signal on this firmware that distinguishes
@@ -589,6 +596,32 @@ class SamsungTv(TvClient):
             raise PowerStateUnreadable("the set's device description carries no PowerState")
         return power
 
+    async def read_identity(self) -> str:
+        """The set's `device.duid`, read with one GET of `/api/v2/` and nothing else. See `TvClient`.
+
+        **Its own short-lived client, never the art connection's**, so a client
+        with no wall on its Frame can still say who the Frame is, and a read here
+        can never take the one art-channel slot the set keeps for a worker.
+        """
+        rest_only = self._construct_rest_only()
+        try:
+            rest = rest_only._get_rest_api()  # noqa: SLF001 -- the library's own helper; see `_RestOnly`
+            info = await asyncio.wait_for(rest.rest_device_info(), timeout=IDENTITY_TIMEOUT_SECONDS)
+        # Every way an HTTP read can fail is one answer here: unreadable.
+        except Exception as exc:  # prawduct:allow prawduct/broad-except -- converted, never swallowed
+            raise IdentityUnreadable(_named(exc)) from exc
+        finally:
+            await self._quietly_close(rest_only)
+        device = info.get("device") if isinstance(info, dict) else None
+        duid = device.get("duid") if isinstance(device, dict) else None
+        if not isinstance(duid, str) or not duid:
+            raise IdentityUnreadable("the set's device description carries no device.duid")
+        return duid
+
+    def _construct_rest_only(self) -> SamsungTVAsyncArt:
+        """A client for the REST helper only. Cheap: no token check, no websocket (see `_RestOnly`)."""
+        return _RestOnly(host=self._host, port=self._port, timeout=IDENTITY_TIMEOUT_SECONDS)
+
     async def reported_art_mode(self) -> str | None:
         """The set's own art-mode flag, for a log line and nothing else.
 
@@ -668,6 +701,23 @@ class SamsungTv(TvClient):
             if art is not None:
                 await self._quietly_close(art)
             raise TvUnavailable(f"{verb} failed against the television at {self._host} ({_named(exc)})") from exc
+
+
+class _RestOnly(SamsungTVAsyncArt):
+    """The art client with its constructor's token check taken out, used only for its REST helper.
+
+    **`SamsungTVAsyncArt.__init__` ends by calling `get_token()`**, which builds a
+    synchronous remote-control client: a REST read for the model year, and on an
+    empty token file, an open of the remote-control websocket to mint one — a
+    pairing prompt on the screen of whoever is watching. The identity read needs
+    neither, so this skips it. Nothing here calls `start_listening`, so the art
+    channel is never opened; `_get_rest_api` builds the library's REST client on a
+    session the library owns, which `close()` closes. That is why this plane need
+    not import an HTTP client of its own to read the set's description.
+    """
+
+    def get_token(self) -> None:
+        return None
 
 
 def _named(exc: Exception) -> str:

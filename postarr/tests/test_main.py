@@ -12,11 +12,10 @@ wall's, opened by that wall's worker, so it parks that wall and says so once; th
 process and every other wall keep running.
 
 **And one thing that is emphatically not a refusal**: a label panel that will not
-open. The television is the product and the label annotates it, so that costs the
-label, says so in the journal, and reports itself on the heartbeat — driven
-through `run_frame_wall`, the Frame's worker, because the claim is about the
-wiring between a raise and a constructor argument, and a test of either end alone
-leaves the line between them undefended.
+open. It costs the label, says so in the journal, and is reported as a label
+output that is not connected — driven through `label_panel`, because the claim is
+about the wiring between a raise and what the client reports, and a test of
+either end alone leaves the line between them undefended.
 
 **And how a wall's worker holds its pull**: beside the Frame's loop, stopped with
 it, and ending the worker when it dies, so the supervisor starts both again.
@@ -77,15 +76,15 @@ class TestWhetherThisDeviceHasALabelSurface:
     annotation of the product and never a precondition for it.
     """
 
-    def test_a_device_with_no_panel_configured_gets_no_surface_and_no_complaint(self, settings, caplog):
+    def test_a_device_with_no_panel_configured_gets_no_surface_and_no_complaint(self, panel_settings, caplog):
         import logging
 
         with caplog.at_level(logging.WARNING):
-            assert entry.label_surface(settings) is None
+            assert entry.label_surface(panel_settings) is None
 
         assert caplog.records == [], "a supported deployment was reported as a fault"
 
-    def test_a_configured_panel_that_will_not_open_is_a_raise_and_not_a_second_none(self, settings):
+    def test_a_configured_panel_that_will_not_open_is_a_raise_and_not_a_second_none(self, panel_settings):
         """The panel is absent on every machine this suite runs on, which is what
         makes this the real path rather than a simulated one.
 
@@ -96,7 +95,7 @@ class TestWhetherThisDeviceHasALabelSurface:
         """
         import dataclasses
 
-        configured = dataclasses.replace(settings, epd_device="no_such_vendor.no_such_panel")
+        configured = dataclasses.replace(panel_settings, epd_device="no_such_vendor.no_such_panel")
 
         with pytest.raises(SurfaceUnavailable) as raised:
             entry.label_surface(configured)
@@ -117,7 +116,7 @@ class TestWhetherThisDeviceHasALabelSurface:
         ],
     )
     def test_a_panel_whose_viewing_conditions_are_unstated_loses_the_label_and_not_the_wall(
-        self, settings, unstated: str, named: str
+        self, panel_settings, unstated: str, named: str
     ):
         """**The third road to no label, and it is a fault of the same shape.**
 
@@ -135,14 +134,14 @@ class TestWhetherThisDeviceHasALabelSurface:
         """
         import dataclasses
 
-        configured = dataclasses.replace(settings, epd_device="omni_epd.mock", **{unstated: None})
+        configured = dataclasses.replace(panel_settings, epd_device="omni_epd.mock", **{unstated: None})
 
         with pytest.raises(SurfaceUnavailable) as raised:
             entry.label_surface(configured)
 
         assert named in str(raised.value), f"the operator is not told which key to set: {raised.value}"
 
-    def test_the_unstated_distance_is_reported_before_the_driver_is_even_looked_for(self, settings):
+    def test_the_unstated_distance_is_reported_before_the_driver_is_even_looked_for(self, panel_settings):
         """Both are reasons this device draws no label; only one is a value
         somebody typed. A deployment that has not stated its viewing distance must
         be told *that* — not told its text stack is missing, which on a machine
@@ -150,7 +149,9 @@ class TestWhetherThisDeviceHasALabelSurface:
         """
         import dataclasses
 
-        configured = dataclasses.replace(settings, epd_device="no_such_vendor.no_such_panel", epd_viewing_distance_inches=None)
+        configured = dataclasses.replace(
+            panel_settings, epd_device="no_such_vendor.no_such_panel", epd_viewing_distance_inches=None
+        )
 
         with pytest.raises(SurfaceUnavailable) as raised:
             entry.label_surface(configured)
@@ -162,7 +163,7 @@ class TestWhetherThisDeviceHasALabelSurface:
         ("margin", "named"),
         [(None, "derived"), (17, "EPD_MARGIN_PX")],
     )
-    def test_the_derived_numbers_reach_the_journal_even_with_no_text_stack(self, settings, caplog, margin, named):
+    def test_the_derived_numbers_reach_the_journal_even_with_no_text_stack(self, panel_settings, caplog, margin, named):
         """**What the wall actually computed, not just what it was told.**
 
         The startup line carries the two inputs; without this an operator asking
@@ -186,7 +187,7 @@ class TestWhetherThisDeviceHasALabelSurface:
         import dataclasses
         import logging
 
-        configured = dataclasses.replace(settings, epd_device="no_such_vendor.no_such_panel", epd_margin_px=margin)
+        configured = dataclasses.replace(panel_settings, epd_device="no_such_vendor.no_such_panel", epd_margin_px=margin)
 
         with caplog.at_level(logging.INFO), pytest.raises(SurfaceUnavailable):
             entry.label_surface(configured)
@@ -195,7 +196,7 @@ class TestWhetherThisDeviceHasALabelSurface:
         assert len(derived) == 1, "the derived type never reached the journal"
         assert named in derived[0].getMessage()
 
-    def test_the_border_derives_from_the_type_when_the_deployment_states_none(self, settings):
+    def test_the_border_derives_from_the_type_when_the_deployment_states_none(self, panel_settings):
         """**The shipped path**, and the one the old 40 px default occupied.
 
         A border trades directly against how many lines survive the drop rule, so
@@ -208,18 +209,18 @@ class TestWhetherThisDeviceHasALabelSurface:
         from postarr.panel.legibility import margin_for, type_scale_for
 
         scale = type_scale_for(
-            width_px=settings.epd_panel_width_px,
-            height_px=settings.epd_panel_height_px,
-            diagonal_inches=settings.epd_panel_diagonal_inches,
-            viewing_distance_inches=settings.epd_viewing_distance_inches,
+            width_px=panel_settings.epd_panel_width_px,
+            height_px=panel_settings.epd_panel_height_px,
+            diagonal_inches=panel_settings.epd_panel_diagonal_inches,
+            viewing_distance_inches=panel_settings.epd_viewing_distance_inches,
         )
 
-        geometry = entry.label_geometry(settings, scale)
+        geometry = entry.label_geometry(panel_settings, scale)
 
         assert geometry.margin_px == margin_for(scale)
         assert geometry.margin_px > 0, "the label was given no border at all"
 
-    def test_a_deployment_that_states_a_border_keeps_it(self, settings):
+    def test_a_deployment_that_states_a_border_keeps_it(self, panel_settings):
         """The override, for the surface whose border is a physical fact: a device
         drawing its label into the mat around an artwork does not choose where the
         picture ends."""
@@ -228,61 +229,69 @@ class TestWhetherThisDeviceHasALabelSurface:
         from postarr.panel.legibility import margin_for, type_scale_for
 
         scale = type_scale_for(width_px=1448, height_px=1072, diagonal_inches=6.0, viewing_distance_inches=84.0)
-        stated = dataclasses.replace(settings, epd_margin_px=17)
+        stated = dataclasses.replace(panel_settings, epd_margin_px=17)
 
         assert entry.label_geometry(stated, scale).margin_px == 17
         assert margin_for(scale) != 17, "the override happens to equal the derived value, so this proves nothing"
 
-    async def test_a_broken_panel_does_not_stop_the_daemon_starting(self, monkeypatch, settings, tv, caplog):
-        """**Driven through the Frame's worker rather than around it**, because the
-        claim is about the wiring and not about either end of it.
+    def test_a_client_with_no_panel_configured_has_no_label_output(self, panel_settings, caplog):
+        import logging
 
-        `label_surface` raising and the daemon reporting `surface_error` were both
-        tested while the line joining them — the `except` in the composition root —
-        was covered by nothing; a mutation sweep changed it to catch
-        `ZeroDivisionError` and every test still passed. That mutation is a daemon
-        that refuses to start because a panel is unplugged, which inverts this
-        product's whole posture: the television is the product and the label
-        annotates it.
+        with caplog.at_level(logging.WARNING):
+            assert entry.label_panel(panel_settings) is None
+
+        assert caplog.records == [], "a supported deployment was reported as a fault"
+
+    def test_a_broken_panel_is_a_label_output_that_is_not_connected(self, monkeypatch, panel_settings, caplog):
+        """**Driven through `label_panel` rather than around it**, because the claim
+        is about the wiring and not about either end of it.
+
+        Moved from the Frame worker, which opened the panel while it drew the
+        label: `label_surface` raising and the result reporting the panel broken
+        were both tested while the `except` joining them was covered by nothing,
+        and a mutation sweep changed it to catch `ZeroDivisionError` with every
+        test still passing. That mutation is a client that refuses to start
+        because a panel is unplugged. The reason, which the Frame loop's heartbeat
+        used to carry, is in the journal and on the panel object.
         """
         import dataclasses
         import logging
 
-        from postarr import daemon as daemon_module
-
-        built: dict[str, object] = {}
-
-        class Recorder(daemon_module.Daemon):
-            def __init__(self, **kwargs) -> None:
-                built.update(kwargs)
-                super().__init__(**kwargs)
-
-            async def run(self, stop) -> None:
-                return None
-
         def _no_panel(_settings):
             # Stubbed rather than provoked, so the message is the same on a laptop
-            # with no text stack and on a Pi with one — this test is about the line
-            # that joins the two ends, not about either end.
+            # with no text stack and on a Pi with one.
             raise SurfaceUnavailable("could not open the e-paper device 'waveshare_epd.it8951' (no SPI device)")
 
-        monkeypatch.setattr(entry, "SamsungTv", lambda **kwargs: tv)
-        monkeypatch.setattr(entry, "Daemon", Recorder)
-        monkeypatch.setattr(entry, "Pull", _PullRecorder)
         monkeypatch.setattr(entry, "label_surface", _no_panel)
 
         with caplog.at_level(logging.WARNING):
-            # Returning at all is the assertion: a panel that would not open did
-            # not stop a worker whose television was fine.
-            await asyncio.wait_for(
-                entry.run_frame_wall(dataclasses.replace(settings, epd_device="waveshare_epd.it8951"), asyncio.Event()),
-                timeout=5,
-            )
+            panel = entry.label_panel(dataclasses.replace(panel_settings, epd_device="waveshare_epd.it8951"))
 
-        assert built["surface"] is None
-        assert "no SPI device" in str(built["surface_error"]), "the reason was dropped on the way in"
+        assert panel is not None, "a broken panel reported as a client that has none"
+        assert panel.surface is None
+        assert panel.report().connected is False
+        assert panel.report().name == "epd-0"
+        assert "no SPI device" in str(panel.error), "the reason was dropped on the way in"
         assert any(record.__dict__.get("event") == "panel.unavailable" for record in caplog.records)
         assert "waveshare_epd.it8951" in caplog.text, "the journal does not name which device could not be opened"
+
+    def test_a_panel_that_opens_is_a_connected_label_output_of_its_size(self, monkeypatch, panel_settings):
+        import dataclasses
+
+        from fakes import FakeSurface
+
+        surface = FakeSurface()
+        monkeypatch.setattr(entry, "label_surface", lambda _settings: surface)
+
+        panel = entry.label_panel(
+            dataclasses.replace(
+                panel_settings, epd_device="waveshare_epd.it8951", epd_panel_width_px=800, epd_panel_height_px=600
+            )
+        )
+
+        assert panel is not None
+        assert panel.surface is surface
+        assert panel.report().document() == {"name": "epd-0", "kind": "epaper", "connected": True, "size": [800, 600]}
 
 
 async def test_a_crash_still_closes_the_art_channel_on_the_way_out(settings, tv, state, clock):

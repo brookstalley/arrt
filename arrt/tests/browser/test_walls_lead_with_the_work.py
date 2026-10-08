@@ -278,6 +278,8 @@ def test_a_lead_whose_image_loads_keeps_its_picture(ui, services, the_wall, wint
         ("dark", "Its screen is off"),
         ("no_screen", "No screen"),
         ("unreachable", "Not known"),
+        # A state from a later minor, which the server reads as unreachable.
+        ("dimmed", "Not known"),
     ],
 )
 def test_a_screen_not_showing_art_leads_with_what_it_is_doing(ui, services, the_wall, winter, two_works, state, words):
@@ -286,14 +288,18 @@ def test_a_screen_not_showing_art_leads_with_what_it_is_doing(ui, services, the_
     open_walls(ui)
 
     lead = card(ui, the_wall).locator(".wall-now")
-    assert lead.get_attribute("data-state") == state
+    assert lead.get_attribute("data-state") == ("unreachable" if state == "dimmed" else state)
     assert lead.locator(".wall-now-state").inner_text() == words
     assert "Since " in lead.inner_text()
     # The sentence for a Player before display state is not said of one that
     # reports state: an unreachable Frame has lost its set, not its words.
     assert "has not said which work it is showing" not in lead.inner_text()
-    if state == "unreachable":
-        assert "cannot reach its screen" in lead.inner_text()
+    # The server reads a state it has no name for as unreachable, so the
+    # sentence is one true of both: never "cannot reach its screen", which
+    # would be false of a screen in a state this server cannot name.
+    if state in ("unreachable", "dimmed"):
+        assert "cannot say what its screen is showing" in lead.inner_text()
+    assert "cannot reach its screen" not in lead.inner_text()
     assert lead.locator("img").count() == 0
     assert "On the wall now" not in lead.inner_text()
     # The lead still leads the card.

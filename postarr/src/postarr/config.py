@@ -12,8 +12,13 @@ the Frame's store) is derived from `CACHE_DIR` and the wall's id by `wall()`, so
 two walls on one client can never share a file.
 
 **The Frame is an output this client may or may not have.** `TV_ADDRESS` present
-means it has one, named `frame`, and the television's and the label panel's
-settings are read; absent means it has none, and none of them are required.
+means it has one, named `frame`, and the television's settings are read; absent
+means it has none, and none of them are required.
+
+**So is a label panel, and the two are independent** (`labels-and-surfaces.md`).
+`EPD_DEVICE` set means this client holds one label output, named `epd-0`, which
+the server may map to any wall on any client; a client with a panel and no Frame
+is an ordinary client.
 
 Resolution is a function rather than module-level constants, so importing this
 module does not require an environment — otherwise the test suite and every tool
@@ -55,6 +60,16 @@ CLIENT_DOCUMENT_FILENAME: Final[str] = ".client.json"
 #: The name of this client's Frame output, as it reports it and as a curator
 #: assigns a wall to it. One per client: a client drives at most one television.
 FRAME_OUTPUT: Final[str] = "frame"
+
+#: The name of this client's e-paper panel, as it reports it among its label
+#: outputs and as a curator maps a wall's label to it. One panel per client today.
+PANEL_OUTPUT: Final[str] = "epd-0"
+
+#: How often a label renderer asks the server for its label document. **The
+#: label's latency budget is 15 s from a picture changing**
+#: (`nonfunctional-requirements.md`), and most of that is the panel's own redraw;
+#: a one-second poll with an ETag costs a 304 a second.
+DEFAULT_LABEL_POLL_SECONDS: Final[float] = 1.0
 
 #: How often the client asks the server which walls it drives. Assigning a wall
 #: therefore reaches the screen within about this long; it is a curatorial act,
@@ -263,19 +278,13 @@ class WallSettings:
 
 
 @dataclass(frozen=True)
-class FrameSettings:
-    """The Frame output: the television, the sun it follows, and the label panel beside it.
+class PanelSettings:
+    """This client's e-paper label panel: a label output, whatever walls this client shows.
 
-    Present only on a client configured with `TV_ADDRESS`. **The label panel is
-    here rather than on the client**, because it annotates the picture on the
-    Frame and belongs to the wall shown there: one worker decides both, so they
-    can never disagree.
+    Read on every client. **Empty `epd_device` is a client with no panel**, and
+    then the rest describes a panel nobody has; the geometry still takes its
+    defaults so a panel added later needs one key, not seven.
     """
-
-    tv_address: str
-    tv_port: int
-    tv_token_file: Path
-    tv_client_name: str
 
     #: The **e-paper label** panel, never the television's. This plane is handed
     #: a composed canvas and never needs the TV's size; holding one here is how
@@ -319,6 +328,54 @@ class FrameSettings:
     #: on a machine where the panel is absent but the driver is installed.
     epd_device: str
 
+    def _viewing_conditions(self) -> str:
+        """The panel's diagonal and its reading distance, or what their absence costs.
+
+        Says the consequence rather than the word "unset", because "unset" reads
+        as a value nobody needed: a reader who has not met this pair cannot tell
+        from that whether their label is missing on purpose.
+        """
+        if self.epd_panel_diagonal_inches is None or self.epd_viewing_distance_inches is None:
+            return "(not stated — no label can be sized, so this device draws none)"
+        return f'{self.epd_panel_diagonal_inches}" panel read from {self.epd_viewing_distance_inches}"'
+
+    def panel_lines(self) -> dict[str, object]:
+        """The panel's part of the client's startup line.
+
+        This plane's own panel geometry, per `operational-spec.md`
+        § Configuration — a wrong panel otherwise shows up as a label that renders
+        off the edge of a display nobody is looking at closely.
+        """
+        return {
+            "epd_panel_px": f"{self.epd_panel_width_px}x{self.epd_panel_height_px}",
+            # **The line that would have caught the defect this pair exists for.**
+            # A wrong viewing distance is invisible everywhere else: the daemon
+            # starts, the panel draws, every test passes, and the only symptom is
+            # type nobody can read from where they stand. Naming both facts in the
+            # startup line puts them one `journalctl` away from the person who
+            # typed them.
+            "epd_viewing": self._viewing_conditions(),
+            # Named even when empty, because "this device has no panel" and "this
+            # device's panel is broken" look identical in a journal otherwise, and
+            # only one of them is worth acting on.
+            "epd_device": self.epd_device or "(none — this device renders no label)",
+        }
+
+
+@dataclass(frozen=True)
+class FrameSettings:
+    """The Frame output: the television and the sun it follows.
+
+    Present only on a client configured with `TV_ADDRESS`. The label panel that
+    used to live here is a label output of the client now (`PanelSettings`),
+    mapped to a wall by the server rather than belonging to the wall on the Frame.
+    """
+
+    tv_address: str
+    tv_port: int
+    tv_token_file: Path
+    tv_client_name: str
+
     latitude: float
     longitude: float
     location_name: str
@@ -335,40 +392,13 @@ class FrameSettings:
     tv_retry_min_seconds: float
     tv_retry_max_seconds: float
 
-    def _viewing_conditions(self) -> str:
-        """The panel's diagonal and its reading distance, or what their absence costs.
-
-        Says the consequence rather than the word "unset", because "unset" reads
-        as a value nobody needed: a reader who has not met this pair cannot tell
-        from that whether their label is missing on purpose.
-        """
-        if self.epd_panel_diagonal_inches is None or self.epd_viewing_distance_inches is None:
-            return "(not stated — no label can be sized, so this device draws none)"
-        return f'{self.epd_panel_diagonal_inches}" panel read from {self.epd_viewing_distance_inches}"'
-
     def frame_lines(self) -> dict[str, object]:
         """The Frame's part of a startup line, so a misconfiguration is one line away.
-
-        This plane's own panel geometry, per `operational-spec.md`
-        § Configuration — a wrong panel otherwise shows up as a label that renders
-        off the edge of a display nobody is looking at closely.
 
         No secret is resolvable from these. The pairing token is a **path** here,
         never its contents.
         """
         return {
-            "epd_panel_px": f"{self.epd_panel_width_px}x{self.epd_panel_height_px}",
-            # **The line that would have caught the defect this pair exists for.**
-            # A wrong viewing distance is invisible everywhere else: the daemon
-            # starts, the panel draws, every test passes, and the only symptom is
-            # type nobody can read from where they stand. Naming both facts in the
-            # startup line puts them one `journalctl` away from the person who
-            # typed them.
-            "epd_viewing": self._viewing_conditions(),
-            # Named even when empty, because "this device has no panel" and "this
-            # device's panel is broken" look identical in a journal otherwise, and
-            # only one of them is worth acting on.
-            "epd_device": self.epd_device or "(none — this device renders no label)",
             "tv_address": f"{self.tv_address}:{self.tv_port}",
             "tv_token_file": str(self.tv_token_file),
             "tv_client_name": self.tv_client_name,
@@ -381,8 +411,8 @@ class Settings(WallSettings, FrameSettings):
 
     **Both halves, as one object, because the loop reads both.** It is a
     `WallSettings`, so the same pull that serves a wall on any output serves this
-    one, and a `FrameSettings`, so the label surface is built from it as it was
-    when a Player served one wall. Made by `ClientSettings.frame_wall`.
+    one, and a `FrameSettings`, so the television is built from it. Made by
+    `ClientSettings.frame_wall`.
     """
 
     def startup_lines(self) -> dict[str, object]:
@@ -403,7 +433,10 @@ class ClientSettings:
     rotation_shuffle_fallback: bool
     #: The Frame output, or None for a client that has none.
     frame: FrameSettings | None
+    #: The label panel; `epd_device` empty for a client that has none.
+    panel: PanelSettings
     client_poll_seconds: float = DEFAULT_CLIENT_POLL_SECONDS
+    label_poll_seconds: float = DEFAULT_LABEL_POLL_SECONDS
 
     @property
     def client_document_path(self) -> Path:
@@ -439,6 +472,7 @@ class ClientSettings:
             "server_url": self.server_url,
             "cache_dir": str(self.cache_dir),
             "frame": self.frame.frame_lines() if self.frame is not None else "(none — TV_ADDRESS is not set)",
+            "panel": self.panel.panel_lines(),
         }
 
 
@@ -469,6 +503,7 @@ def load(environ: dict[str, str] | None = None) -> ClientSettings:
         rotation_interval_fallback_seconds=_int(env, "ROTATION_INTERVAL_SECONDS", DEFAULT_ROTATION_INTERVAL_SECONDS),
         rotation_shuffle_fallback=_bool(env, "ROTATION_SHUFFLE", default=DEFAULT_ROTATION_SHUFFLE),
         frame=_frame(env, cache_dir),
+        panel=_panel(env),
     )
 
 
@@ -480,15 +515,10 @@ def _frame(env: dict[str, str], cache_dir: Path) -> FrameSettings | None:
     Frame has no use for a location; requiring one anyway is how an installer
     learns to type plausible values into keys that do nothing.
 
-    A label panel with no Frame is refused rather than dropped: it is configured
-    to caption the picture on a television this client does not drive.
+    A label panel needs no Frame: it is a label output the server may map to any
+    wall, so `EPD_DEVICE` is read by `_panel` whether or not this is set.
     """
     if not env.get("TV_ADDRESS"):
-        if (env.get("EPD_DEVICE") or "").strip():
-            raise ConfigError(
-                "EPD_DEVICE is set and TV_ADDRESS is not. The label panel captions the wall on this client's Frame, "
-                "and without TV_ADDRESS this client has no Frame; set TV_ADDRESS or empty EPD_DEVICE."
-            )
         return None
 
     token_file = env.get("TV_TOKEN_FILE") or ""
@@ -497,13 +527,6 @@ def _frame(env: dict[str, str], cache_dir: Path) -> FrameSettings | None:
         tv_port=_int(env, "TV_PORT", 8002),
         tv_token_file=Path(token_file).expanduser() if token_file else cache_dir / "token_file",
         tv_client_name=env.get("TV_CLIENT_NAME") or DEFAULT_TV_CLIENT_NAME,
-        epd_panel_width_px=_int(env, "EPD_PANEL_WIDTH_PX", DEFAULT_EPD_PANEL_WIDTH_PX),
-        epd_panel_height_px=_int(env, "EPD_PANEL_HEIGHT_PX", DEFAULT_EPD_PANEL_HEIGHT_PX),
-        epd_panel_diagonal_inches=_optional_float(env, "EPD_PANEL_DIAGONAL_INCHES"),
-        epd_viewing_distance_inches=_optional_float(env, "EPD_VIEWING_DISTANCE_INCHES"),
-        epd_margin_px=_optional_int(env, "EPD_MARGIN_PX"),
-        epd_rotate_degrees=_int(env, "EPD_ROTATE_DEGREES", DEFAULT_EPD_ROTATE_DEGREES),
-        epd_device=(env.get("EPD_DEVICE") or "").strip(),
         latitude=_float(env, "LATITUDE", None),
         longitude=_float(env, "LONGITUDE", None),
         location_name=_require(env, "LOCATION_NAME"),
@@ -517,6 +540,19 @@ def _frame(env: dict[str, str], cache_dir: Path) -> FrameSettings | None:
         tv_connect_timeout_seconds=_float(env, "TV_CONNECT_TIMEOUT_SECONDS", DEFAULT_TV_CONNECT_TIMEOUT_SECONDS),
         tv_retry_min_seconds=_float(env, "TV_RETRY_MIN_SECONDS", DEFAULT_TV_RETRY_MIN_SECONDS),
         tv_retry_max_seconds=_float(env, "TV_RETRY_MAX_SECONDS", DEFAULT_TV_RETRY_MAX_SECONDS),
+    )
+
+
+def _panel(env: dict[str, str]) -> PanelSettings:
+    """The label panel, on any client. `EPD_DEVICE` empty is a client with none."""
+    return PanelSettings(
+        epd_panel_width_px=_int(env, "EPD_PANEL_WIDTH_PX", DEFAULT_EPD_PANEL_WIDTH_PX),
+        epd_panel_height_px=_int(env, "EPD_PANEL_HEIGHT_PX", DEFAULT_EPD_PANEL_HEIGHT_PX),
+        epd_panel_diagonal_inches=_optional_float(env, "EPD_PANEL_DIAGONAL_INCHES"),
+        epd_viewing_distance_inches=_optional_float(env, "EPD_VIEWING_DISTANCE_INCHES"),
+        epd_margin_px=_optional_int(env, "EPD_MARGIN_PX"),
+        epd_rotate_degrees=_int(env, "EPD_ROTATE_DEGREES", DEFAULT_EPD_ROTATE_DEGREES),
+        epd_device=(env.get("EPD_DEVICE") or "").strip(),
     )
 
 

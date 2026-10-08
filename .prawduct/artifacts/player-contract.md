@@ -44,8 +44,8 @@ for it here.
 
 ## Versioning
 
-The manifest and the wall heartbeat carry `schema: {major, minor}`; the two
-client documents do not (§ Transport). The manifest has always carried
+The manifest, the wall heartbeat and the label document carry `schema: {major,
+minor}`; the two client documents do not (§ Transport). The manifest has always carried
 it. The heartbeat gains it in wave 2, and a heartbeat without one is 1.0.
 
 - **A new major is a breaking change**: a field removed, a meaning changed, a new
@@ -128,8 +128,9 @@ of walls, each on one of its outputs. It learns its walls from the server.
 
 | Route | Body | Answers |
 |---|---|---|
-| `GET /client` | none | `200` with the client document (`contract/schemas/client.v1.schema.json`): `{client_id, name, walls: [{wall_id, name, output}]}`, only the walls assigned to this client, and an `ETag`; `304` when `If-None-Match` matches. Polled about every 30 seconds |
-| `POST /client/heartbeat` | the client heartbeat (`contract/schemas/client-heartbeat.v1.schema.json`): `{reported_at, outputs: [{name, kind, connected, screen}]}` | `204`; `400` naming the problem for a body that is not JSON or not a client heartbeat |
+| `GET /client` | none | `200` with the client document (`contract/schemas/client.v1.schema.json`): `{client_id, name, walls: [{wall_id, name, output, display}], labels: [{label_id, output, wall_id}]}`, only the walls assigned to this client and only its label outputs that caption a wall, and an `ETag`; `304` when `If-None-Match` matches. Polled about every 30 seconds |
+| `POST /client/heartbeat` | the client heartbeat (`contract/schemas/client-heartbeat.v1.schema.json`): `{reported_at, outputs: [{name, kind, connected, screen, identity?}], label_outputs?: [{name, kind, connected, size}]}` | `204`; `400` naming the problem for a body that is not JSON or not a client heartbeat |
+| `GET /labels/{label_id}` | none | `200` with the label document (`contract/schemas/label.v1.schema.json`): `{schema, wall_id, wall_name, display_state: {state, work_id, since}, label}`, and an `ETag`; `304` when `If-None-Match` matches. Polled about once a second by the label's renderer. `403` for a label output this client does not hold, or one the server does not; `404` for its own label output that captions no wall. Named in `contract/routes.json` (`label`) |
 | `GET /walls/{wall_id}/manifest` | none | `200` with the manifest and an `ETag`; `304` when `If-None-Match` matches. Polled about once a second |
 | `GET /media/sha256-{hex}` | none | `200` with the image, `Cache-Control: public, max-age=31536000, immutable`. A hash never serves different bytes |
 | `POST /walls/{wall_id}/heartbeat` | the heartbeat | `204` |
@@ -154,6 +155,45 @@ of walls, each on one of its outputs. It learns its walls from the server.
   reports them in the client heartbeat. **No two outputs in one report share a
   name**, which a schema cannot state and the server refuses. An output of one
   client shows at most one wall.
+- **A display is a record, and its identity is what the client reads from the
+  device.** A display output that can say who it is reports `identity`: a Frame
+  gives its device id from its REST device description (`/api/v2/`,
+  `device.duid`), read without a key press. The server keys the display on it,
+  so a Frame moved from one client to another keeps its walls. An output with no
+  readable identity, such as an HDMI connector, reports none, and the server keys
+  it on the client and the output's name. `GET /client` names each wall's
+  display beside its output; the client keys its worker on the output. While two
+  clients report one identity, a configuration fault, `GET /client` lists that
+  display's wall for neither until one stops (a report counts while it is no
+  older than three heartbeat intervals).
+- **A label output is a surface that captions a wall rather than showing one.**
+  The client reports each in `label_outputs` (`epaper` today), and no two share a
+  name, which the server refuses as it does for outputs. A wall has any number of
+  labels, on any clients; a label captions at most one wall. `GET /client` lists
+  this client's labels that caption a wall, and a client with labels and no
+  display is an ordinary client.
+- **A label renderer decides what to draw itself, by one rule.** The label
+  document carries the wall's display state, as Walls states it, and the text
+  the label would show; never a layout. The renderer applies the rule in
+  `labels-and-surfaces.md` § What a label says, whose conformance vectors are
+  `contract/vectors/label-rule.json`: every renderer, on every platform, runs
+  them. It runs the rule rather than being told the outcome because the
+  30-minute hold must still run while the server is unreachable. A state the
+  renderer does not know is read as `unreachable`.
+- **As built in Postarr** (`label_rule.py`, `label_renderer.py`; build plan
+  displays-and-label-outputs, Chunks 05 and 06). The Frame's identity is read
+  by the client, not by a wall's worker, with one `GET /api/v2/` on a REST-only
+  client that opens no art channel and checks no token, so a Frame with no wall
+  on it is still identified; it is asked again on each report until it answers
+  and then kept, and a failure is said once per episode. A configured panel is
+  the label output `epd-0`, `connected: false` when it would not open or its
+  last draw failed. While the server cannot be reached (no answer, a timeout, a
+  `5xx`), the renderer reads its last document as `unreachable` from the last
+  instant the server answered, holding a caption and nothing else; a refusal or
+  an unreadable document keeps the last one as it is. It redraws only when the
+  drawing would change (outcome, label text or the card's wall name), and a
+  label output whose mapping goes is drawn blank; a client stopping leaves the
+  panel as it was.
 - **Media is identified by the SHA-256 of its bytes and located by its `url`.**
   The manifest gives `url`, `sha256`, `bytes` and `content_type`. The `url` is
   a URI reference resolved against the manifest's own URL. Today it is

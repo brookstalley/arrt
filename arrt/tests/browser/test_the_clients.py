@@ -304,8 +304,8 @@ def test_assigning_a_wall_to_a_reported_output(ui, services, settings, hall, the
     ui.page.get_by_role("button", name="Assign to Hall Pi").click()
     ui.page.wait_for_selector("section.client li:has-text('Study, on hdmi-a-2')")
 
-    wall = services.display.get_wall_view(study.id).wall
-    assert (wall.client_id, wall.output) == (hall.id, "hdmi-a-2")
+    placement = services.clients.placement_of(study.id)
+    assert (placement.client.id, placement.output) == (hall.id, "hdmi-a-2")
     said = panel(ui, hall).locator("[data-said]")
     assert said.inner_text() == "Study is now assigned to Hall Pi on hdmi-a-2."
     assert ui.page.evaluate("() => document.activeElement.hasAttribute('data-said')")
@@ -329,7 +329,7 @@ def test_assigning_to_a_typed_output_when_none_is_reported_shows_the_servers_not
     said = panel(ui, hall).locator("[data-said]").inner_text()
     assert said.startswith(f"{the_wall.name} is now assigned to Hall Pi on hdmi-a-1. ")
     assert "Hall Pi has not reported its outputs yet, so whether it has one called 'hdmi-a-1' cannot be checked" in said
-    assert services.display.get_wall_view(the_wall.id).wall.client_id == hall.id
+    assert services.clients.placement_of(the_wall.id).client.id == hall.id
 
 
 def test_an_output_already_showing_a_wall_is_named_and_a_second_is_refused_beside_assign(
@@ -349,7 +349,7 @@ def test_an_output_already_showing_a_wall_is_named_and_a_second_is_refused_besid
     assign.click()
 
     assert "already shows" in ui.said_beside(assign)
-    assert services.display.get_wall_view(study.id).wall.client_id is None
+    assert services.clients.placement_of(study.id).client is None
 
 
 def test_unassigning_a_wall_from_the_clients_list(ui, services, hall, the_wall):
@@ -360,7 +360,7 @@ def test_unassigning_a_wall_from_the_clients_list(ui, services, hall, the_wall):
     ui.page.get_by_role("button", name=f"Unassign {the_wall.name} from Hall Pi").click()
     ui.page.wait_for_selector("section.client p:has-text('Hall Pi has no wall assigned yet.')")
 
-    assert services.display.get_wall_view(the_wall.id).wall.client_id is None
+    assert services.clients.placement_of(the_wall.id).client is None
     said = panel(ui, hall).locator("[data-said]").inner_text()
     assert said == f"{the_wall.name} is no longer assigned to Hall Pi. It keeps its theme."
 
@@ -403,7 +403,7 @@ def test_removing_asks_first_and_names_the_walls_left_without_a_client(ui, servi
     said = ui.page.locator("[data-said]").inner_text()
     assert said == f"Hall Pi is removed. 2 walls now have no client: {both}."
     assert services.clients.list_clients() == []
-    assert services.display.get_wall_view(study.id).wall.client_id is None
+    assert services.clients.placement_of(study.id).client is None
     assert admitted(server_url, token) == 401
 
 
@@ -418,7 +418,7 @@ def test_declining_a_removal_keeps_the_client_and_its_walls(ui, services, hall, 
     ui.page.wait_for_selector("dialog.confirm", state="detached")
 
     assert [view.client.id for view in services.clients.list_clients()] == [hall.id]
-    assert services.display.get_wall_view(the_wall.id).wall.client_id == hall.id
+    assert services.clients.placement_of(the_wall.id).client.id == hall.id
 
 
 def test_removing_a_client_that_shows_nothing_says_no_wall_is_affected(ui, hall):

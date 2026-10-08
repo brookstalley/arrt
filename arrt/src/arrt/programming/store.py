@@ -1,7 +1,8 @@
 """The persistence contract over Programming's tables.
 
 Themes, what each holds, walls, what hangs on each, each wall's directive, the
-clients that show walls, and the works kept off every wall.
+clients that show walls, their displays and label outputs, and the works kept
+off every wall.
 Programming reaches its storage only through this protocol and never through
 `persistence.catalogue.CatalogueStore`, which is the Library's. Today one SQLite
 file serves both and one object implements both protocols. The split is
@@ -19,7 +20,17 @@ from contextlib import AbstractContextManager
 from datetime import datetime
 from typing import Protocol
 
-from arrt.persistence.records import Client, Directive, Theme, ThemeAssignment, ThemeMembership, Wall, WorkExclusion
+from arrt.persistence.records import (
+    Client,
+    Directive,
+    Display,
+    LabelOutput,
+    Theme,
+    ThemeAssignment,
+    ThemeMembership,
+    Wall,
+    WorkExclusion,
+)
 
 
 class ProgrammingStore(Protocol):
@@ -116,7 +127,12 @@ class ProgrammingStore(Protocol):
         ...
 
     def update_wall(self, wall: Wall) -> None:
-        """Overwrite a stored wall with this one. Raises if the id is absent."""
+        """Overwrite a stored wall with this one.
+
+        Raises if the id is absent, if `display_id` names no stored display, or
+        if another wall already names that display: at most one wall per
+        display, which is a partial unique index over the non-null ids.
+        """
         ...
 
     def list_walls(self) -> Sequence[Wall]:
@@ -145,7 +161,57 @@ class ProgrammingStore(Protocol):
         ...
 
     def remove_client(self, client_id: str) -> None:
-        """Delete a client. No wall may still name it; removing an absent one is not an error."""
+        """Delete a client. No display or label output may still name it; removing an absent one is not an error."""
+        ...
+
+    # -- displays -------------------------------------------------------------
+
+    def add_display(self, display: Display) -> None:
+        """Persist a display.
+
+        Raises if the id or the identity is already stored (one display per
+        identity), or if a display with a client already sits on that client's
+        output (one display per output of a client, among displays whose client
+        is not null).
+        """
+        ...
+
+    def get_display(self, display_id: str) -> Display | None:
+        """Return the display, or None if no such id is stored."""
+        ...
+
+    def update_display(self, display: Display) -> None:
+        """Overwrite a stored display. Raises if the id is absent, or on either uniqueness `add_display` states."""
+        ...
+
+    def list_displays(self) -> Sequence[Display]:
+        """Every display, in a stable order. Unpaged: a household has a few."""
+        ...
+
+    def remove_display(self, display_id: str) -> None:
+        """Delete a display. No wall may still name it; removing an absent one is not an error."""
+        ...
+
+    # -- label outputs --------------------------------------------------------
+
+    def add_label_output(self, label: LabelOutput) -> None:
+        """Persist a label output. Raises if the id is stored, or the client already has one by that name."""
+        ...
+
+    def get_label_output(self, label_id: str) -> LabelOutput | None:
+        """Return the label output, or None if no such id is stored."""
+        ...
+
+    def update_label_output(self, label: LabelOutput) -> None:
+        """Overwrite a stored label output. Raises if the id is absent or `wall_id` names no stored wall."""
+        ...
+
+    def list_label_outputs(self) -> Sequence[LabelOutput]:
+        """Every label output, in a stable order. Unpaged: a household has a few."""
+        ...
+
+    def remove_label_output(self, label_id: str) -> None:
+        """Delete a label output. Removing an absent one is not an error."""
         ...
 
     # -- what is hanging ------------------------------------------------------

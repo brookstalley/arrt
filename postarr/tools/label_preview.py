@@ -226,7 +226,7 @@ def _viewing_conditions(args: argparse.Namespace, parser: argparse.ArgumentParse
     from postarr.config import load
 
     try:
-        settings = load().frame
+        settings = load().panel
     # prawduct:allow prawduct/broad-except -- every way an .env can be unreadable
     # arrives here, and one printed line plus the refusal below answers all of
     # them; a traceback would bury the two variable names that actually fix it.

@@ -891,7 +891,8 @@ class DisplayStateOut(BaseModel):
 
     The controller's five states, read from the wall's heartbeat (a Player before
     minor 3 is read as `showing_art` with its `current_work_id`), and the
-    server's own two: `unassigned`, no client output shows the wall; `silent`,
+    server's own two: `unassigned`, no client shows the wall (it has no display,
+    its display has no client, or two clients report its display); `silent`,
     no readable report, or one older than three heartbeat intervals.
     """
 
@@ -906,6 +907,59 @@ class DisplayStateOut(BaseModel):
     age_seconds: float | None
     #: For `silent`, what the last readable report said; null otherwise.
     last: ReportedStateOut | None
+
+
+class ClientNameOut(BaseModel):
+    """A client named where another record mentions it."""
+
+    client_id: str
+    name: str
+
+
+class DisplayFaultOut(BaseModel):
+    """One display two or more clients report now: neither shows its wall until one stops."""
+
+    identity: str
+    #: Every client reporting it, in name order. Two or more.
+    clients: list[ClientNameOut]
+    #: The server's record under that identity, null when it holds none.
+    display_id: str | None
+    #: The wall on that display, which neither client shows.
+    wall_id: str | None
+    #: The fault in one sentence, naming both clients, the same words on every surface.
+    description: str
+
+
+class DisplayOut(BaseModel):
+    """One physical screen, keyed by who the device says it is (`feeds-and-players.md` § Displays).
+
+    Nothing about the device beyond what it is and where it is plugged in.
+    """
+
+    display_id: str
+    #: A Frame's device id as its client read it, or `{client_id}/{output}` for
+    #: an output with no identity a client can read.
+    identity: str
+    #: `frame` or `framebuffer`; null until its client has reported it.
+    kind: str | None
+    #: The client that last reported it; null once another device has been
+    #: reported on its output.
+    client_id: str | None
+    output: str
+    first_seen: str
+    #: The wall shown on it, or null.
+    wall_id: str | None
+    #: Set while two clients report it.
+    fault: DisplayFaultOut | None
+
+
+class WallLabelOut(BaseModel):
+    """A label output captioning a wall, and the client that holds it."""
+
+    label_id: str
+    client_id: str
+    client_name: str
+    output: str
 
 
 class WallOut(BaseModel):
@@ -929,12 +983,18 @@ class WallOut(BaseModel):
     #: the thing a reader has to be able to see is per-wall.
     directive_sequence: int
     pinned_work_id: str | None
-    #: The client that shows this wall, or null while none does — an ordinary
-    #: state, like a wall with nothing hanging.
+    #: The client of the wall's display, or null while it has none — an
+    #: ordinary state, like a wall with nothing hanging. Read from `display`;
+    #: whether that client shows the wall now is `display.fault` being null.
     client_id: str | None
     #: The name of that client's output the wall is shown on. Null exactly when
     #: `client_id` is.
     output: str | None
+    #: The display the wall is on, or null while it has none.
+    display_id: str | None
+    display: DisplayOut | None
+    #: Every label output captioning the wall, on any client.
+    labels: list[WallLabelOut]
     #: What the wall's screen is doing now, as far as the server can say.
     display_state: DisplayStateOut
 
@@ -956,6 +1016,29 @@ class ReportedOutputOut(BaseModel):
     connected: bool
     #: [width, height] in pixels, or null when the client does not know it.
     screen: list[int] | None
+    #: Who the display is, as the client read it from the device; null for an
+    #: output with none a client can read.
+    identity: str | None
+
+
+class ReportedLabelOutputOut(BaseModel):
+    """One label output as the client last reported it."""
+
+    name: str
+    #: `epaper`.
+    kind: str
+    connected: bool
+    #: [width, height] in pixels, or null when the client does not know it.
+    size: list[int] | None
+
+
+class LabelOutputOut(BaseModel):
+    """A label output a client holds, and the wall it captions."""
+
+    label_id: str
+    output: str
+    #: Null while it captions no wall.
+    wall_id: str | None
 
 
 class ClientHeartbeatOut(BaseModel):
@@ -971,6 +1054,7 @@ class ClientHeartbeatOut(BaseModel):
     #: so the page and the tool surface say it in the same words.
     description: str
     outputs: list[ReportedOutputOut]
+    label_outputs: list[ReportedLabelOutputOut]
 
 
 class ClientOut(BaseModel):
@@ -984,7 +1068,13 @@ class ClientOut(BaseModel):
     created_at: str
     #: Null while the client has no token, and is admitted nowhere.
     token_issued_at: str | None
+    #: The walls it shows now: those on its displays, but for a display in fault.
     walls: list[ClientWallOut]
+    #: The displays whose client it is, a wall on one or not.
+    displays: list[DisplayOut]
+    label_outputs: list[LabelOutputOut]
+    #: The display faults it is one side of, each naming every client involved.
+    faults: list[DisplayFaultOut]
     heartbeat: ClientHeartbeatOut
 
 
@@ -1003,11 +1093,22 @@ class ClientTokenOut(BaseModel):
 
 
 class WallAssignmentOut(BaseModel):
-    """A wall just placed on a client's output, and anything the curator should know about it."""
+    """A wall just placed on a display, and anything the curator should know about it."""
 
     wall: WallOut
     #: Set when the output could not be confirmed against the client's last
-    #: report; the assignment is made either way.
+    #: report, or the display has no client or is in fault; the assignment is
+    #: made either way.
+    notice: str | None
+
+
+class LabelAssignmentOut(BaseModel):
+    """A wall just given a label, and anything the curator should know about it."""
+
+    wall: WallOut
+    label_id: str
+    #: Set when the label output could not be confirmed against the client's
+    #: last report; the mapping is made either way.
     notice: str | None
 
 
@@ -1870,6 +1971,19 @@ class NameClient(BaseModel):
 
 class AssignWall(BaseModel):
     """Which client shows the wall, and on which of its outputs, by the name the client reports."""
+
+    client_id: str
+    output: str
+
+
+class AssignDisplay(BaseModel):
+    """Which display shows the wall, by the display's id."""
+
+    display_id: str
+
+
+class AddLabel(BaseModel):
+    """Which label output captions the wall: a client's, by the name the client reports."""
 
     client_id: str
     output: str

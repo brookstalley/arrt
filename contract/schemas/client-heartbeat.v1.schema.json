@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/brookstalley/arrt/contract/schemas/client-heartbeat.v1.schema.json",
   "title": "Client heartbeat, major 1",
-  "description": "What a client reports about its outputs to POST /client/heartbeat, as facts rather than a verdict: which outputs exist, of what kind, whether each is connected and at what size. The server keeps it as a file beside the wall heartbeats so a curator can place a wall on an output by name; it stores nothing else about the device. Additive keys are allowed. One rule a schema cannot state: no two outputs share a name, because the name is how a wall is placed on one. Semantics are in .prawduct/artifacts/player-contract.md § Transport.",
+  "description": "What a client reports about its outputs to POST /client/heartbeat, as facts rather than a verdict: which outputs exist, of what kind, whether each is connected and at what size, and for a display that can say who it is, its identity; and separately, which label outputs it holds. The server keeps it as a file beside the wall heartbeats so a curator can place a wall on an output by name; it stores nothing else about the device. Additive keys are allowed. One rule a schema cannot state: no two outputs share a name, and no two label outputs share a name, because the name is how a wall or a label is placed on one. Semantics are in .prawduct/artifacts/player-contract.md § Transport.",
   "type": "object",
   "required": [
     "reported_at",
@@ -44,6 +44,54 @@
             "type": "boolean"
           },
           "screen": {
+            "description": "[width, height] in pixels, or null when the client does not know it.",
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "identity": {
+            "description": "Who the display is, as the client read it from the device itself, so the server can key the display on it and a display moved to another client keeps its walls. A Frame reports its device id from its REST device description (/api/v2/, device.duid). Absent for an output with no identity a client can read reliably, such as an HDMI connector; the server then keys the display on the client and the output's name.",
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "label_outputs": {
+      "description": "Every label output the client holds, connected or not: a surface that captions a wall rather than showing it. Absent from a client that reports none, and from a client before label outputs existed. A client may hold label outputs and no display at all.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "kind",
+          "connected",
+          "size"
+        ],
+        "properties": {
+          "name": {
+            "description": "The client's name for the label output, stable across restarts (epd-0).",
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "description": "epaper: an e-paper panel this client draws a label on.",
+            "enum": [
+              "epaper"
+            ]
+          },
+          "connected": {
+            "description": "Whether the panel answers now. A panel that failed to open is false, and is still listed.",
+            "type": "boolean"
+          },
+          "size": {
             "description": "[width, height] in pixels, or null when the client does not know it.",
             "type": [
               "array",

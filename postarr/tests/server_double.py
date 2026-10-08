@@ -9,7 +9,9 @@ another repository will not have:
 * a per-wall route for a wall not assigned to that client is `403`;
 * `GET /client` lists that client's walls with an ETag, `304` on a match;
 * `POST /client/heartbeat` is `204`, and `400` for a body the contract's schema
-  refuses — so a Player writing a bad one fails here as it would against Arrt.
+  refuses — so a Player writing a bad one fails here as it would against Arrt;
+* `GET /labels/{label_id}` serves a label document with an ETag, `304` on a
+  match, and `403` for a label output another client holds or an unknown id.
 """
 
 import copy
@@ -55,6 +57,10 @@ class ServerDouble:
         self.authorizations: list[str | None] = []
         self.requests: list[tuple[str, str]] = []
         self.echo_heartbeats_to: Path | None = None
+        #: Each label's document, by label id.
+        self.label_documents: dict[str, dict] = {}
+        #: A forced answer for every label request, for the failure tests.
+        self.label_status: int | None = None
         self._default_wall = wall_id
 
     # -- the app ---------------------------------------------------------------------
@@ -67,6 +73,7 @@ class ServerDouble:
             ("manifest", self.serve_manifest),
             ("media", self.serve_media),
             ("heartbeat", self.receive_heartbeat),
+            ("label", self.serve_label),
         ):
             application.router.add_route(ROUTES[key]["method"], ROUTES[key]["path"], handler)
         return application
@@ -111,6 +118,22 @@ class ServerDouble:
             return web.json_response({"error": "; ".join(errors)}, status=400)
         self.client_heartbeats.append(document)
         return web.Response(status=204)
+
+    async def serve_label(self, request: web.Request) -> web.Response:
+        client, refused = self._admit(request, None)
+        if refused is not None:
+            return refused
+        if self.label_status is not None:
+            return web.Response(status=self.label_status)
+        label_id = request.match_info["label_id"]
+        document = self.label_documents.get(label_id)
+        if document is None or label_id not in {label["label_id"] for label in client.get("labels", [])}:
+            return web.json_response({"error": "That label output is not this client's."}, status=403)
+        body = json.dumps(document).encode()
+        etag = f'"{hashlib.sha256(body).hexdigest()}"'
+        if request.headers.get("If-None-Match") == etag:
+            return web.Response(status=304, headers={"ETag": etag})
+        return web.Response(body=body, content_type="application/json", headers={"ETag": etag})
 
     async def serve_manifest(self, request: web.Request) -> web.Response:
         wall_id = request.match_info["wall_id"]
@@ -170,6 +193,17 @@ class ServerDouble:
         self.clients.setdefault(client_id, {"name": client_id, "walls": []})["walls"].append(
             {"wall_id": wall_id, "name": wall_id, "output": output}
         )
+
+    def map_label(self, label_id: str, output: str, wall_id: str, document: dict, *, client_id: str = CLIENT_ID) -> None:
+        """Map one of a client's label outputs to a wall, serving `document` for it."""
+        client = self.clients.setdefault(client_id, {"name": client_id, "walls": []})
+        client["labels"] = [label for label in client.get("labels", []) if label["output"] != output]
+        client["labels"].append({"label_id": label_id, "output": output, "wall_id": wall_id})
+        self.label_documents[label_id] = document
+
+    def unmap_label(self, label_id: str) -> None:
+        for client in self.clients.values():
+            client["labels"] = [label for label in client.get("labels", []) if label["label_id"] != label_id]
 
     def unassign(self, wall_id: str) -> None:
         for client in self.clients.values():

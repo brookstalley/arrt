@@ -25,6 +25,9 @@ from postarr import __main__ as entry
 from postarr.client import (
     Assignment,
     ClientDocument,
+    FrameIdentity,
+    LabelAssignment,
+    LabelOutputReport,
     OutputReport,
     Supervisor,
     client_outputs,
@@ -98,13 +101,13 @@ def television(monkeypatch, tv: FakeTv) -> FakeTv:
     return tv
 
 
-def supervisor_for(client, drm: Path, *, worker=None, link=None, **overrides) -> Supervisor:
+def supervisor_for(client, drm: Path, *, worker=None, link=None, outputs=None, **overrides) -> Supervisor:
     clock = Clock.system()
     return Supervisor(
         settings=client,
         link=link if link is not None else ClientPull(client),
         worker=worker if worker is not None else partial(entry.run_wall, client),
-        outputs=partial(client_outputs, client, drm_root=drm),
+        outputs=outputs if outputs is not None else partial(client_outputs, client, drm_root=drm),
         now=clock.now,
         monotonic=clock.monotonic,
         **overrides,
@@ -536,3 +539,295 @@ async def test_sigterm_stops_every_worker_and_closes_the_art_channel(monkeypatch
 
     assert await asyncio.wait_for(running, timeout=5) == 0
     assert television.closed >= 1, "the art channel was left open at the set"
+
+
+# -- the Frame's identity ----------------------------------------------------------------------
+
+
+def identified(client, tv: FakeTv) -> FrameIdentity:
+    return FrameIdentity(tv.read_identity, budget_seconds=1.0)
+
+
+def supervisor_with_identity(client, drm: Path, identity: FrameIdentity, **overrides) -> Supervisor:
+    return supervisor_for(
+        client,
+        drm,
+        outputs=lambda: client_outputs(client, drm_root=drm, frame_identity=identity.value),
+        frame_identity=identity,
+        **overrides,
+    )
+
+
+async def test_a_frame_with_no_wall_on_it_still_reports_its_identity(client, server, drm, tv):
+    """**The case the identity exists for.** A Frame moved to a new client has no
+    wall there yet; it must say who it is for its walls to follow it. Read through
+    the television double, with no worker running and no art channel opened."""
+    server.unassign("living-room")
+    identity = identified(client, tv)
+
+    async with Running(supervisor_with_identity(client, drm, identity)) as supervisor:
+        await eventually(lambda: server.client_heartbeats, what="the client heartbeat")
+        assert supervisor.running == {}, "a worker ran, so this is not the no-wall case"
+
+    frame = server.client_heartbeats[0]["outputs"][0]
+    assert frame == {"name": "frame", "kind": "frame", "connected": True, "screen": None, "identity": tv.device_id}
+    assert tv.connects == 0, "the identity read opened the art channel"
+
+
+async def test_hdmi_outputs_report_no_identity(client, server, drm, tv):
+    identity = identified(client, tv)
+
+    async with Running(supervisor_with_identity(client, drm, identity, worker=_idle)):
+        await eventually(lambda: server.client_heartbeats, what="the client heartbeat")
+
+    hdmi = [output for output in server.client_heartbeats[0]["outputs"] if output["kind"] == "framebuffer"]
+    assert hdmi, "no HDMI output was reported, so this proves nothing"
+    assert all("identity" not in output for output in hdmi)
+
+
+async def test_a_frame_whose_id_cannot_be_read_is_reported_without_one_and_said_once(client, server, drm, tv, caplog):
+    tv.unavailable = True
+    identity = identified(client, tv)
+    supervisor = supervisor_with_identity(client, drm, identity, worker=_idle)
+
+    with caplog.at_level(logging.WARNING, logger="postarr.client"):
+        for _ in range(3):
+            await supervisor.cycle()
+    await supervisor.stop_all()
+
+    assert tv.identity_reads == 3, "the read was not tried again on each report"
+    assert "identity" not in server.client_heartbeats[0]["outputs"][0]
+    unreadable = [record for record in caplog.records if record.__dict__.get("event") == "client.identity_unreadable"]
+    assert len(unreadable) == 1, "an unreadable identity was said on every report"
+
+
+async def test_an_identity_read_late_is_reported_at_once_and_then_never_read_again(client, server, drm, tv):
+    """A set asleep at boot is identified once it answers; once read, the
+    identity is kept, so a later failed read cannot make it flap away."""
+    tv.unavailable = True
+    identity = identified(client, tv)
+    supervisor = supervisor_with_identity(client, drm, identity, worker=_idle)
+
+    await supervisor.cycle()
+    tv.unavailable = False
+    await supervisor.cycle()
+    tv.unavailable = True
+    await supervisor.cycle()
+    await supervisor.stop_all()
+
+    assert [beat["outputs"][0].get("identity") for beat in server.client_heartbeats] == [None, tv.device_id]
+    assert tv.identity_reads == 2
+
+
+async def test_an_identity_read_that_hangs_costs_the_report_its_identity_and_nothing_else(client, server, drm):
+    async def hangs() -> str:
+        await asyncio.Event().wait()
+        return "never"
+
+    identity = FrameIdentity(hangs, budget_seconds=0.05)
+    supervisor = supervisor_with_identity(client, drm, identity, worker=_idle)
+
+    await asyncio.wait_for(supervisor.cycle(), timeout=5)
+    await supervisor.stop_all()
+
+    assert server.client_heartbeats, "a hung read held the report back"
+    assert "identity" not in server.client_heartbeats[0]["outputs"][0]
+
+
+async def test_the_entry_point_reads_the_identity_from_the_frames_rest_description(monkeypatch, client, server, drm, tv):
+    """The composition root's wiring: a `FrameIdentity` over the Frame's own client."""
+    monkeypatch.setattr(entry, "SamsungTv", lambda **kwargs: tv)
+    monkeypatch.setattr(entry, "load", lambda: client)
+    monkeypatch.setattr(entry, "client_outputs", partial(_outputs_beside, drm))
+    server.unassign("living-room")
+
+    running = asyncio.create_task(entry._run())
+    try:
+        await eventually(lambda: server.client_heartbeats, what="the client heartbeat")
+    finally:
+        os.kill(os.getpid(), signal.SIGTERM)
+        await asyncio.wait_for(running, timeout=5)
+
+    assert server.client_heartbeats[0]["outputs"][0]["identity"] == tv.device_id
+
+
+def _outputs_beside(drm: Path, settings, *, frame_identity=None):
+    return client_outputs(settings, drm_root=drm, frame_identity=frame_identity)
+
+
+async def _idle(wall, output, stop):
+    await stop.wait()
+
+
+# -- label outputs -----------------------------------------------------------------------------
+
+LABEL_DOCUMENT = {
+    "schema": {"major": 1, "minor": 0},
+    "wall_id": "living-room",
+    "wall_name": "Living room",
+    "display_state": {"state": "showing_art", "work_id": "w1", "since": "2026-10-08T16:00:00Z"},
+    "label": {"title": "Cat Litter"},
+}
+
+
+class RecordingLabels:
+    """A label worker that records what it was started for, and how it was stopped."""
+
+    def __init__(self) -> None:
+        self.started: list[LabelAssignment] = []
+        self.stopped: list[tuple[LabelAssignment, bool]] = []
+
+    async def __call__(self, assignment, stop, retired) -> None:
+        self.started.append(assignment)
+        await stop.wait()
+        self.stopped.append((assignment, retired.is_set()))
+
+
+def with_a_panel(client, drm, labels, **overrides) -> Supervisor:
+    report = LabelOutputReport(name="epd-0", kind="epaper", connected=True, size=(1448, 1072))
+    return supervisor_for(client, drm, worker=_idle, label_worker=labels, label_outputs=lambda: [report], **overrides)
+
+
+async def test_a_mapped_label_output_starts_a_renderer_and_an_unmapped_one_retires_it(client, server, drm):
+    labels = RecordingLabels()
+    server.map_label("label-1", "epd-0", "a-wall-on-another-client", LABEL_DOCUMENT)
+
+    async with Running(with_a_panel(client, drm, labels)) as supervisor:
+        await eventually(lambda: labels.started, what="the renderer to start")
+        assert supervisor.labels == {"epd-0": LabelAssignment("label-1", "epd-0", "a-wall-on-another-client")}
+
+        server.unmap_label("label-1")
+        await eventually(lambda: labels.stopped, what="the renderer to stop")
+        assert supervisor.labels == {}
+
+    assert labels.stopped == [(labels.started[0], True)], "a label that captions no wall was not retired"
+
+
+async def test_a_label_moved_to_another_wall_is_restarted_not_retired(client, server, drm):
+    labels = RecordingLabels()
+    server.map_label("label-1", "epd-0", "living-room", LABEL_DOCUMENT)
+
+    async with Running(with_a_panel(client, drm, labels)):
+        await eventually(lambda: labels.started, what="the renderer to start")
+        server.map_label("label-2", "epd-0", "study", {**LABEL_DOCUMENT, "wall_id": "study"})
+        await eventually(lambda: len(labels.started) == 2, what="the renderer to start again")
+
+    assert labels.stopped[0] == (LabelAssignment("label-1", "epd-0", "living-room"), False)
+    assert labels.started[1] == LabelAssignment("label-2", "epd-0", "study")
+
+
+async def test_a_client_going_down_stops_its_renderers_without_retiring_them(client, server, drm):
+    """The panel keeps what it last showed through a restart; blanking it would flash every restart."""
+    labels = RecordingLabels()
+    server.map_label("label-1", "epd-0", "living-room", LABEL_DOCUMENT)
+
+    async with Running(with_a_panel(client, drm, labels)):
+        await eventually(lambda: labels.started, what="the renderer to start")
+
+    assert labels.stopped == [(labels.started[0], False)]
+
+
+async def test_a_label_on_an_output_this_client_lacks_is_reported_once_and_not_started(client, server, drm, caplog):
+    labels = RecordingLabels()
+    server.map_label("label-1", "epd-7", "living-room", LABEL_DOCUMENT)
+
+    with caplog.at_level(logging.ERROR, logger="postarr.client"):
+        async with Running(with_a_panel(client, drm, labels)):
+            await eventually(lambda: len(server.client_heartbeats) >= 1, what="a poll")
+            await asyncio.sleep(0.2)
+
+    assert labels.started == []
+    unplaceable = [record for record in caplog.records if record.__dict__.get("event") == "client.label_unplaceable"]
+    assert len(unplaceable) == 1
+
+
+async def test_two_labels_on_one_output_start_one_renderer(client, server, drm, caplog):
+    labels = RecordingLabels()
+    server.map_label("label-1", "epd-0", "living-room", LABEL_DOCUMENT)
+    server.clients[CLIENT_ID]["labels"].append({"label_id": "label-2", "output": "epd-0", "wall_id": "study"})
+
+    with caplog.at_level(logging.ERROR, logger="postarr.client"):
+        async with Running(with_a_panel(client, drm, labels)):
+            await eventually(lambda: labels.started, what="the renderer to start")
+            await asyncio.sleep(0.2)
+
+    assert [assignment.label_id for assignment in labels.started] == ["label-1"]
+    assert [record.__dict__.get("event") for record in caplog.records].count("client.label_unplaceable") == 1
+
+
+async def test_a_crashed_renderer_is_logged_and_started_again(client, server, drm, caplog):
+    calls: list[str] = []
+
+    async def fails_once(assignment, stop, retired):
+        calls.append(assignment.label_id)
+        if len(calls) == 1:
+            raise RuntimeError("something nobody predicted")
+        await stop.wait()
+
+    server.map_label("label-1", "epd-0", "living-room", LABEL_DOCUMENT)
+    supervisor = with_a_panel(client, drm, fails_once, restart_min_seconds=0.01, restart_max_seconds=0.05)
+    with caplog.at_level(logging.ERROR, logger="postarr.client"):
+        async with Running(supervisor):
+            await eventually(lambda: len(calls) >= 2, what="the renderer to be started again")
+
+    crashes = [record for record in caplog.records if record.__dict__.get("event") == "client.label_crashed"]
+    assert len(crashes) == 1
+    assert crashes[0].__dict__.get("label_id") == "label-1"
+
+
+async def test_the_client_heartbeat_reports_the_panel_and_a_client_without_one_reports_no_label_outputs(client, server, drm):
+    async with Running(with_a_panel(client, drm, RecordingLabels())):
+        await eventually(lambda: server.client_heartbeats, what="the client heartbeat")
+    with_panel = server.client_heartbeats[-1]
+
+    server.client_heartbeats.clear()
+    async with Running(supervisor_for(client, drm, worker=_idle)):
+        await eventually(lambda: server.client_heartbeats, what="the client heartbeat")
+    without = server.client_heartbeats[-1]
+
+    assert with_panel["label_outputs"] == [{"name": "epd-0", "kind": "epaper", "connected": True, "size": [1448, 1072]}]
+    assert "label_outputs" not in without
+
+
+async def test_a_panel_whose_health_changes_is_reported_at_once(client, server, drm):
+    connected = {"now": True}
+
+    def label_outputs():
+        return [LabelOutputReport(name="epd-0", kind="epaper", connected=connected["now"], size=(1448, 1072))]
+
+    supervisor = supervisor_for(client, drm, worker=_idle, label_worker=RecordingLabels(), label_outputs=label_outputs)
+    async with Running(supervisor):
+        await eventually(lambda: server.client_heartbeats, what="the client heartbeat")
+        connected["now"] = False
+        await eventually(lambda: len(server.client_heartbeats) == 2, what="the panel's failure to be reported")
+
+    assert server.client_heartbeats[1]["label_outputs"][0]["connected"] is False
+
+
+async def test_the_entry_point_draws_a_mapped_label_on_its_panel(monkeypatch, client, server, drm, tv):
+    """**Through the composition root**: the panel opened once, a renderer per
+    mapping polling the label route, and the panel closed on the way out."""
+    from fakes import FakeSurface
+
+    surface = FakeSurface()
+    monkeypatch.setattr(entry, "SamsungTv", lambda **kwargs: tv)
+    monkeypatch.setattr(entry, "label_surface", lambda _settings: surface)
+    monkeypatch.setattr(entry, "client_outputs", partial(_outputs_beside, drm))
+    with_panel = replace(client, frame=None, panel=replace(client.panel, epd_device="omni_epd.mock"), label_poll_seconds=0.02)
+    monkeypatch.setattr(entry, "load", lambda: with_panel)
+    server.unassign("living-room")
+    server.map_label("label-1", "epd-0", "a-wall-on-another-client", LABEL_DOCUMENT)
+
+    running = asyncio.create_task(entry._run())
+    try:
+        await eventually(lambda: surface.shown, what="the label to be drawn")
+        await eventually(lambda: server.client_heartbeats, what="the client heartbeat")
+    finally:
+        os.kill(os.getpid(), signal.SIGTERM)
+        await asyncio.wait_for(running, timeout=5)
+        surface.release.set()
+
+    assert surface.last_text == ["Cat Litter"]
+    assert all(output["kind"] != "frame" for output in server.client_heartbeats[0]["outputs"]), "a panel needs no Frame"
+    assert server.client_heartbeats[0]["label_outputs"][0]["name"] == "epd-0"
+    assert surface.closed == 1, "the panel was not powered down on the way out"

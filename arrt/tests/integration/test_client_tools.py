@@ -102,7 +102,13 @@ async def test_the_listing_carries_what_the_client_reported_in_the_browsers_fiel
     assert client["heartbeat"].keys() == browser["heartbeat"].keys()
     assert client["heartbeat"]["outputs"] == browser["heartbeat"]["outputs"]
     assert [output["name"] for output in client["heartbeat"]["outputs"]] == ["hdmi-a-1", "hdmi-a-2"]
-    assert client["heartbeat"]["outputs"][1] == {"name": "hdmi-a-2", "kind": "framebuffer", "connected": False, "screen": None}
+    assert client["heartbeat"]["outputs"][1] == {
+        "name": "hdmi-a-2",
+        "kind": "framebuffer",
+        "connected": False,
+        "screen": None,
+        "identity": None,
+    }
     assert client["heartbeat"]["description"].startswith("It last reported ")
     assert client["heartbeat"]["description"] == browser["heartbeat"]["description"]
 
@@ -306,3 +312,94 @@ async def test_the_walls_read_carries_each_walls_display_state_in_the_browsers_s
         "age_seconds": None,
         "last": None,
     }
+
+
+# -- displays and labels ----------------------------------------------------------------------
+
+_FRAME = "uuid:8e7b6c2a-1f3d-4e5a-9b0c-2d4e6f8a0b1c"
+
+
+def _frame_report() -> dict:
+    return {
+        "reported_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "outputs": [{"name": "frame", "kind": "frame", "connected": True, "screen": None, "identity": _FRAME}],
+        "label_outputs": [{"name": "epd-0", "kind": "epaper", "connected": True, "size": [800, 480]}],
+    }
+
+
+async def test_a_wall_is_mapped_to_a_display_by_the_id_the_listing_gives(server_url, services, hall, wall):
+    services.clients.record_heartbeat(hall, _frame_report())
+    [client] = (await ok(server_url, "clients"))["clients"]
+    [display] = client["displays"]
+    assert (display["identity"], display["kind"], display["output"], display["wall_id"]) == (_FRAME, "frame", "frame", None)
+
+    assigned = await ok(server_url, "assign_display", wall_id=wall, display_id=display["display_id"])
+
+    assert assigned["notice"] is None
+    assert (assigned["wall"]["display_id"], assigned["wall"]["client_id"], assigned["wall"]["output"]) == (
+        display["display_id"],
+        hall,
+        "frame",
+    )
+    assert assigned["wall"]["display"]["identity"] == _FRAME
+
+
+async def test_labels_are_added_and_removed_by_ids_the_surface_gives(server_url, services, hall, wall):
+    services.clients.record_heartbeat(hall, _frame_report())
+    [client] = (await ok(server_url, "clients"))["clients"]
+    assert client["label_outputs"][0]["output"] == "epd-0"
+
+    added = await ok(server_url, "add_label", wall_id=wall, client_id=hall, output="epd-0")
+
+    assert added["notice"] is None
+    [label] = added["wall"]["labels"]
+    assert (label["label_id"], label["client_id"], label["client_name"], label["output"]) == (
+        added["label_id"],
+        hall,
+        "Hall Pi",
+        "epd-0",
+    )
+    listed = next(entry for entry in (await ok(server_url, "walls"))["walls"] if entry["wall_id"] == wall)
+    assert [entry["label_id"] for entry in listed["labels"]] == [added["label_id"]]
+
+    removed = await ok(server_url, "remove_label", wall_id=wall, label_id=listed["labels"][0]["label_id"])
+
+    assert removed["wall"]["labels"] == []
+
+
+async def test_a_wall_reads_the_same_on_both_surfaces_display_and_labels_included(server_url, services, hall, wall):
+    services.clients.record_heartbeat(hall, _frame_report())
+    await ok(server_url, "assign_wall", wall_id=wall, client_id=hall, output="frame")
+    await ok(server_url, "add_label", wall_id=wall, client_id=hall, output="epd-0")
+
+    tool = next(entry for entry in (await ok(server_url, "walls"))["walls"] if entry["wall_id"] == wall)
+    browser = next(
+        entry for entry in (await request("GET", f"{server_url}/api/walls")).json()["walls"] if entry["wall_id"] == wall
+    )
+
+    for key in ("client_id", "output", "display_id", "display", "labels"):
+        assert tool[key] == browser[key], key
+    assert browser["display"]["identity"] == _FRAME
+    assert len(browser["labels"]) == 1
+
+
+async def test_a_display_two_clients_report_is_named_on_both_surfaces_with_both_names(server_url, services, hall, wall):
+    services.clients.record_heartbeat(hall, _frame_report())
+    await ok(server_url, "assign_wall", wall_id=wall, client_id=hall, output="frame")
+    other = (await ok(server_url, "add_client", name="Study Mac"))["client"]["client_id"]
+    services.clients.record_heartbeat(other, _frame_report())
+
+    tool = {entry["client_id"]: entry for entry in (await ok(server_url, "clients"))["clients"]}
+    browser = {entry["client_id"]: entry for entry in (await request("GET", f"{server_url}/api/clients")).json()["clients"]}
+    walls = (await request("GET", f"{server_url}/api/walls")).json()["walls"]
+
+    for client_id in (hall, other):
+        [fault] = tool[client_id]["faults"]
+        assert fault == browser[client_id]["faults"][0]
+        assert [entry["name"] for entry in fault["clients"]] == ["Hall Pi", "Study Mac"]
+        assert fault["wall_id"] == wall
+        assert "Hall Pi and Study Mac both report" in fault["description"]
+        assert tool[client_id]["walls"] == []
+    shown = next(entry for entry in walls if entry["wall_id"] == wall)
+    assert shown["display"]["fault"]["description"] == fault["description"]
+    assert shown["display_state"]["state"] == "unassigned"
