@@ -26,8 +26,7 @@ walk and the owner's rulings, and is to be built after Wall label merges.
 **Owner rulings, 2026-10-08** (asked as options, each with a recommendation,
 and each chosen as recommended):
 
-- **Ask** offers one main act, Get, which carries its cost in its own label
-  (Wall label chunk 06), and a quieter *Talk it through first* with a
+- **Ask** offers one main act, Get, with its cost beside it, and a quieter *Talk it through first* with a
   one-line explanation that a conversation is free. *See what this product
   thinks you like* is removed from Ask: it is a link to Settings › Taste,
   where it already lives.
@@ -81,8 +80,8 @@ it is decided (hide it, or move it to the end).
 
 ### Chunk 01: Ask
 
-Done when: the Taste link is gone from Ask, Get is the one filled act and
-carries its cost, *Talk it through first* is quiet and explained in one
+Done when: the Taste link is gone from Ask, Get is the one filled act, with
+its cost beside it as Wall label left it, *Talk it through first* is quiet and explained in one
 line, and `information-architecture.md`'s Ask screen table matches.
 
 ### Chunk 02: A Get's page
