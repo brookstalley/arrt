@@ -11,6 +11,10 @@ in one string.
 import pytest
 
 from arrt.library.dimensions import Units, for_label
+from arrt.library.facade import LibraryFacade
+from arrt.library.services.catalogue import CatalogueService
+from arrt.library.services.discovery import DiscoveryService
+from arrt.persistence.sqlite_discovery import SqliteDiscovery
 
 CORPUS = [
     ("74.8 × 59.7 cm (29 1/2 × 23 1/2 in.)", "30 × 24 in", "75 × 60 cm"),
@@ -107,3 +111,49 @@ def test_a_string_with_no_measurement_is_left_as_the_source_wrote_it(source):
 
 def test_no_dimensions_stay_none():
     assert for_label(None, Units.METRIC) is None
+
+
+@pytest.mark.parametrize(
+    ("source", "imperial"),
+    [
+        # A fraction alone was read as two numbers, "13 × 16 in".
+        ("H.: 2 cm (13/16 in.)", "H.: 0.8 in"),
+        # The "h" ending "Width" was taken for a dimension letter.
+        ("Width 30 cm", "Width 12 in"),
+        # The Met's height with no colon kept its "H." only by luck of a colon.
+        ("H. 8 1/4 in. (21 cm)", "H. 8 in"),
+    ],
+)
+def test_words_and_fractions_around_a_measurement_are_read_as_written(source, imperial):
+    assert for_label(source, Units.IMPERIAL) == imperial
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        # Two measurements in one system: converting the first would drop the 40.
+        "30 cm × 40 cm",
+        # A figure outside any measurement: "Sheet 3" is not a dimension.
+        "Sheet 3: 10 × 12 cm",
+    ],
+)
+def test_a_part_not_wholly_read_is_left_as_the_source_wrote_it(source):
+    assert for_label(source, Units.IMPERIAL) == source
+
+
+def test_a_value_too_small_to_state_is_never_stated_as_nothing():
+    assert for_label("0.01 × 5 cm", Units.IMPERIAL) == "0.1 × 2 in"
+
+
+@pytest.mark.parametrize(("units", "stated"), [(Units.METRIC, "77 × 97 cm"), (Units.IMPERIAL, "30 × 38 in")])
+def test_the_label_a_wall_is_given_states_the_deployments_units(store, units, stated):
+    """Through the facade Programming reads a label from, so a `label_of` that
+    stopped converting would show here and not only in the parser's tests."""
+    catalogue = CatalogueService(store)
+    facade = LibraryFacade(catalogue, DiscoveryService(SqliteDiscovery(store._store), catalogue), label_units=units)
+    work = catalogue.add_artwork(title="Nighthawks", dimensions="76.5 × 97.3 cm (30 1/8 × 38 1/4 in.)")
+
+    assert facade.labels([work.id])[work.id]["dimensions"] == stated
+    assert (
+        catalogue.get_artwork(work.id).artwork.dimensions == "76.5 × 97.3 cm (30 1/8 × 38 1/4 in.)"
+    ), "the stored string changed"

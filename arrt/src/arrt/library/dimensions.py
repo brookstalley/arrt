@@ -34,43 +34,46 @@ _PER_INCH: Final[dict[str, Fraction]] = {
     "mm": Fraction(254, 10),
 }
 
-#: A number as museums write one: whole, decimal (with a point or a comma), a
-#: whole number and a fraction ("29 7/16"), or a fraction alone ("13/16").
-_NUMBER: Final = r"\d+(?:[.,]\d+)?(?:\s+\d+/\d+)?|\d+/\d+"
+#: A number as museums write one: a whole number and a fraction ("29 7/16"), a
+#: fraction alone ("13/16"), or whole or decimal (with a point or a comma). The
+#: fractions come first, because an alternation takes the first branch that
+#: matches, and "13" alone matches the start of "13/16".
+_NUMBER: Final = r"\d+\s+\d+/\d+|\d+/\d+|\d+(?:[.,]\d+)?"
 
 #: One measured value, with the letter some sources put on it ("w203", "h53").
-_VALUE: Final = rf"(?:[whdWHD]\s*)?(?:{_NUMBER})"
+#: The letter must begin a word, so the "h" ending "Width" is not taken for one.
+_VALUE: Final = rf"(?:\b[whdWHD]\s*)?(?:{_NUMBER})"
 
 #: Values joined by "×" or "x", then the unit they are all in.
 _MEASUREMENT: Final = re.compile(
     rf"(?P<values>{_VALUE}(?:\s*[×xX]\s*{_VALUE})*)\s*(?P<unit>cm|mm|inches|inch|in\b\.?|\")",
 )
 
-#: Words naming what the measurement is of ("Image/paper", "Including frame",
-#: "H."), ending in a colon at the start of the measurement.
-_QUALIFIER: Final = re.compile(r"^\s*(?P<qualifier>[^\d:;]{1,40}?)\s*:\s*")
-
-_ONE_VALUE: Final = re.compile(rf"(?P<letter>[whdWHD]?)\s*(?P<number>{_NUMBER})")
+_ONE_VALUE: Final = re.compile(rf"(?:\b(?P<letter>[whdWHD]))?\s*(?P<number>{_NUMBER})")
 
 
 def for_label(dimensions: str | None, units: Units) -> str | None:
     """The first measurement in `dimensions`, in `units`, rounded to whole units.
 
     "76.5 × 97.3 cm (30 1/8 × 38 1/4 in.)" is "30 × 38 in" in imperial and
-    "77 × 97 cm" in metric. A qualifier on the first measurement stays with it
-    ("Image/paper: 8 × 10 in"); later measurements (a mount, a frame, a repeat,
-    side panels) are dropped. The source's figures in the asked-for system are
-    preferred to a conversion of the other's, since they are what it measured.
+    "77 × 97 cm" in metric. Words before the first measurement stay with it
+    ("Image/paper: 8 × 10 in", "H. 8 in"); later measurements (a mount, a frame,
+    a repeat, side panels) are dropped. The source's figures in the asked-for
+    system are preferred to a conversion of the other's, since they are what it
+    measured.
+
+    **A part this does not wholly read is left as the source wrote it**: two
+    measurements in one system ("30 cm × 40 cm"), or a figure outside any
+    measurement, would otherwise lose a dimension without saying so.
     """
     if dimensions is None:
         return None
     first = _first_part(dimensions)
-    qualifier_match = _QUALIFIER.match(first)
-    qualifier = qualifier_match.group("qualifier") if qualifier_match else None
-    body = first[qualifier_match.end() :] if qualifier_match else first
-    measurements = [(match.group("values"), _unit(match.group("unit"))) for match in _MEASUREMENT.finditer(body)]
-    if not measurements:
+    found = list(_MEASUREMENT.finditer(first))
+    if not found or not _wholly_read(first, found):
         return dimensions
+    qualifier = first[: found[0].start()].strip()
+    measurements = [(match.group("values"), _unit(match.group("unit"))) for match in found]
     target = "in" if units is Units.IMPERIAL else "cm"
     values, unit = next(
         ((values, unit) for values, unit in measurements if _system(unit) == _system(target)),
@@ -78,7 +81,18 @@ def for_label(dimensions: str | None, units: Units) -> str | None:
     )
     stated = " × ".join(_converted(match, unit, target) for match in _ONE_VALUE.finditer(values))
     text = f"{stated} {target}"
-    return f"{qualifier}: {text}" if qualifier else text
+    return f"{qualifier} {text}" if qualifier else text
+
+
+def _wholly_read(part: str, found: list[re.Match[str]]) -> bool:
+    """At most one measurement per system, and no figure left outside them."""
+    systems = [_system(_unit(match.group("unit"))) for match in found]
+    if len(systems) != len(set(systems)):
+        return False
+    outside = part
+    for match in found:
+        outside = outside.replace(match.group(0), "", 1)
+    return not re.search(r"\d", outside)
 
 
 def _first_part(dimensions: str) -> str:
@@ -101,12 +115,12 @@ def _system(unit: str) -> str:
 def _converted(value: re.Match[str], unit: str, target: str) -> str:
     """One value, in the target unit, rounded half up to a whole number.
 
-    A value under one whole unit keeps one decimal place, because rounding it
-    would state a size of nothing.
+    A value under one whole unit keeps one decimal place, and is never stated
+    as less than 0.1, because rounding it would state a size of nothing.
     """
     amount = _parsed(value.group("number")) / _PER_INCH[unit] * _PER_INCH[target]
-    shown = f"{float(amount):.1f}" if amount < 1 else str(math.floor(amount + Fraction(1, 2)))
-    return f"{value.group('letter').lower()}{shown}"
+    shown = f"{max(float(amount), 0.1):.1f}" if amount < 1 else str(math.floor(amount + Fraction(1, 2)))
+    return f"{(value.group('letter') or '').lower()}{shown}"
 
 
 def _parsed(number: str) -> Fraction:
