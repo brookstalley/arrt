@@ -82,10 +82,10 @@ carries a design choice:
 
 ## Status
 
-- [ ] Chunk 01: Navigation is a link
-- [ ] Chunk 02: Failures beside the control
+- [x] Chunk 01: Navigation is a link
+- [x] Chunk 02: Failures beside the control
 - [ ] Chunk 03: History is an event log
-- [ ] Chunk 04: Selections and exclusions in Programming
+- [x] Chunk 04: Selections and exclusions in Programming
 - [ ] Chunk 05: Walls leads with what is on the wall
 - [ ] Chunk 06: The Work page
 - [ ] Chunk 07: Search and Artist states
