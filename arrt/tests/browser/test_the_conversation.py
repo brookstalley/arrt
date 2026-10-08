@@ -383,8 +383,8 @@ def a_turn_estimate(cost="0.0005") -> dict:
 
 
 def shown_tier(scope):
-    """The tier a sighted reader sees, without the words only a screen reader hears."""
-    return scope.locator(".badge-tier > span:not(.visually-hidden)").inner_text()
+    """The tier itself, without the "Cost:" label shown before it."""
+    return scope.locator(".badge-tier > .tier-value").inner_text()
 
 
 def say_row(ui):
@@ -423,3 +423,33 @@ def test_a_turn_whose_price_cannot_be_read_says_so_rather_than_reading_as_free(t
     row = say_row(talking)
     assert "Cost unknown just now" in row.inner_text()
     assert row.locator(".badge-tier").count() == 0
+
+
+#: Where a priced act's sentence sits, read as "the paragraph right after the
+#: row holding the act". Ask and the commit card start the same Get, so the
+#: sentence is under the row on both (`design-direction.md` § Controls).
+COST_AFTER_ROW = """(button) => {
+  const row = button.closest('.row');
+  const next = row.nextElementSibling;
+  return next && next.tagName === 'P' ? next.textContent : null;
+}"""
+
+
+@pytest.mark.parametrize("priced", [True, False], ids=["priced", "unpriced"])
+def test_the_commit_card_says_its_cost_under_the_get_it_prices(talking, priced):
+    if not priced:
+        talking.serve("**/api/estimate*", [(503, {"detail": "the estimate is down"})])
+    open_thread(talking)
+
+    get = talking.page.locator("#commit-card button:text-is('Get')")
+    sentence = get.evaluate(COST_AFTER_ROW)
+    assert sentence is not None, "no sentence directly under the Get row"
+    assert ("costs at most" if priced else "could not be read") in sentence
+    # And not above the field as well: one place, not two.
+    before_field = talking.page.evaluate(
+        "() => { const f = document.getElementById('direction').closest('.field');"
+        " let t = ''; for (let n = f.previousElementSibling; n; n = n.previousElementSibling) t += n.textContent;"
+        " return t; }"
+    )
+    assert "costs at most" not in before_field
+    assert "could not be read" not in before_field

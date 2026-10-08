@@ -166,19 +166,43 @@ test.
 
 ## Typography
 
-Unchanged, and it is a considered pairing rather than a default:
+*Rewritten 2026-10-08, when the owner chose the "Wall label" direction
+(`build-plan-wall-label.md`) and ruled that the client may use webfonts. The
+serif/sans split is unchanged. What changed is that each side now has a face of
+its own instead of whatever the operator's machine supplies.*
 
-- `--font-label` — `ui-serif, Georgia` — for headings, work titles and anything in
-  the voice of a museum label.
-- `--font-ui` — `system-ui` — for chrome, controls and data.
+- `--font-label`: **Newsreader**, an optical-size serif, falling back to
+  `ui-serif, Georgia`. Used for page names, work titles, section headings, a
+  work's description, and anything else in the voice of a museum label.
+- `--font-ui`: **Instrument Sans**, falling back to `system-ui`. Used for
+  chrome, controls and data.
 
-**No webfont, and this is a decision.** The curation plane is a loopback service on
-a Pi with no build step; a font file is a payload to serve, a licence to track, and
-a silent fallback when it fails. The serif/sans split does the identity work
-without one, and a system serif on the operator's machines is a real serif.
+**Webfonts, self-hosted: the owner's ruling, 2026-10-08.** This section used
+to refuse webfonts, for three reasons. Each is answered here rather than
+deleted, so the ruling can be challenged on its merits:
 
-Scale is 1.25 from a 16px base, `--text-xs` through `--text-2xl`. (`--text-3xl`
-was added for a large Walls heading and removed with it on 2026-10-08.)
+- *A payload to serve.* Two variable families in Latin and Latin Extended come
+  to about 600 KB on disk, and a page usually fetches the two upright Latin
+  files, about 190 KB, which are then revalidated rather than re-sent. The
+  owner judged that the identity is worth that cost on a home network.
+- *A licence to track.* Both families are under the SIL Open Font License.
+  Each family's `OFL.txt` sits beside its files in
+  `arrt/src/arrt/http/static/fonts/`, and that directory's `README.md` names
+  the package and version each file came from.
+- *A silent fallback when it fails.* That risk is real: `font-display: swap`
+  draws a page that looks like it works in the fallback face. It is made loud
+  by `arrt/tests/browser/test_the_typefaces.py`, which reads the browser's own
+  record of each face, and by `test_every_font_the_stylesheet_names_is_served_as_a_font`
+  in `arrt/tests/integration/test_browser_surface.py`.
+
+**No font CDN.** The files are served by the app's own `/static` mount. A CDN
+would put an outside request in front of every page of a home-network service,
+and leave the fallback face in front of a curator whose internet is down.
+
+Scale is 1.25 from a 16px base, `--text-xs` through `--text-2xl`, plus
+`--text-3xl` (2.5rem) used only for a page's `h1`. *(An earlier `--text-3xl`
+was added for a large Walls heading and removed with it on 2026-10-08. The new
+one is the same size on every page, Walls included.)*
 
 ## Spacing & Layout
 
@@ -201,9 +225,10 @@ at *tablet* width the moment the status label grew. A top bar whose items cannot
 shrink will overflow again the next time a word gets longer.
 
 **Touch targets are keyed on the pointer, not the viewport.** `@media (pointer:
-coarse)` raises control heights to 2.75rem (44px). The 2.25rem default clears WCAG
-2.2 AA's 24px floor, but 44px is what every touch platform assumes, and a small
-window on a desktop still has a mouse — so viewport width is the wrong signal.
+coarse)` raises control heights to 2.75rem (44px). The 2.5rem default
+(`--control-h`) clears WCAG 2.2 AA's 24px floor, but 44px is what every touch
+platform assumes, and a small window on a desktop still has a mouse — so
+viewport width is the wrong signal.
 
 ## Component Patterns
 
@@ -213,9 +238,13 @@ found ungoverned. The earlier text named `.btn`, `.primary` and `.danger`
 classes the client never had.*
 
 - **Headings** — one treatment per level. A page's `h1` is its name at
-  `--text-lg` in the label serif, on every page; Walls has no larger one,
-  because the art on it is what is large. A section's `h2` (`.panel h2`) is
-  `--text-md` serif. A filter rail's group names are small capitals in the UI
+  `--text-3xl` in the label serif, weight 500, on every page, Walls included.
+  *(Until 2026-10-08 it was `--text-lg`, because "the art on it is what is
+  large". Wall label takes the boxes away from a page's sections, and once they
+  are gone the page's name is what tells a curator where they are:
+  `build-plan-wall-label.md`, a DECISION the owner can veto.)* A section's `h2`
+  (`.panel h2`, a wall's title, an offered group) is `--text-xl` serif, weight
+  500. The confirmation's title is an `h2` and takes the same type. A filter rail's group names are small capitals in the UI
   sans, a label rather than a section. Nothing else is a heading: an empty
   page's lead sentence is a paragraph.
 - **Empty states** — one shape, `emptyState()` in `core/render.js`: the lead
@@ -230,20 +259,46 @@ classes the client never had.*
   text, no hover, a not-allowed cursor. There is no destructive style:
   removal is confirmed in words (`core/confirm.js`), and colour reaching the
   reader before the label is the problem a red button would cause.
-- **Spacing** — a row of acts under a paragraph sits a step below it, never
-  flush.
+- **Spacing** — a row of acts sits one step (`--space-4`) below whatever
+  precedes it, never flush: a paragraph, a facts list, another row. *(Until
+  2026-10-08 only `p + .row` was spaced, so the Artist page spaced its three
+  rows of acts three different ways.)* A row inside a flex column is spaced
+  by that column's gap. A one-line note under a row (`.act-note`) says what
+  pressing costs or does, and sits close beneath it.
+- **Controls** *(2026-10-08)* — one height for every act and field,
+  `--control-h` (2.5rem), and a compact one, `--control-h-compact` (2rem),
+  for a menu's items. Under `@media (pointer: coarse)` both are 2.75rem.
+- **Cost** — a priced act's tier is never a boxed badge, because a box
+  beside a button reads as another button. Where the cost sits is not ruled:
+  the owner asked for Get to carry it in its own label, and Wall label built
+  "Cost: $" as words beside the act instead (the builder's call, so that
+  Get's spoken name stays "Get"). Get and review clarity chunk 01 puts the
+  two to the owner.
 - **Badges** — glyph + word + colour, never fewer than all three. **A glyph
   has one meaning on every screen**, named in `core/glyphs.js`, where the word
   carries the specifics and the glyph only the kind of state; a new meaning
   gets a new glyph. **A badge appears only where its value varies**: a badge
   every tile would carry ("native") is left off, and the exceptions show.
-- **Cards** — paper, not UI: 1px border, `--shadow-1`, 4px radius. The elevation is
-  barely there on purpose.
+- **Sections** *(Wall label, 2026-10-08)* — a part of a page (`.panel`) is set off
+  by a `--border-strong` rule above it and space below, never boxed. A bordered
+  panel on a tinted ground round every part of every page was what made the
+  client read as a form. Its heading is the second level (see Headings).
+- **Cards** — kept only where the card is a block of facts and acts about one
+  thing: a theme on the Themes index, a work under review. Paper, not UI: 1px
+  border, `--shadow-1`, 4px radius, elevation barely there on purpose. A work's
+  tile and an artist's poster are the thing itself and are not cards (Tiles).
 - **Tiles** — two densities (Posters, Overview; a Table view beside them) per `information-architecture.md`
   § Information Hierarchy. **Uniform row height in both**, which is a layout
   decision made for a behavioural reason: a grid of art that reflows as images
   arrive is the opposite of the identity, and the built client has already shipped
-  that bug.
+  that bug. *(Wall label, 2026-10-08.)* A work's tile and an artist's poster are
+  not cards: the picture sits on a `--surface-2` mat with `--shadow-art` under
+  it, and the label sits beneath on the page's ground. The label is at least
+  the height of its longest shape: its clamped lines (two of title, one of
+  artist, two of date and medium) and one badge row. That minimum is what makes
+  rows uniform; only a tile whose badges wrap is taller. Sizing rows to the tallest tile instead (`grid-auto-rows: 1fr`)
+  was tried and broke scroll restoration, because the page's length changed as
+  later pages arrived.
 - **Skeletons** occupy the final geometry rather than approximating it.
 
 ## Motion & Transitions

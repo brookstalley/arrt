@@ -228,11 +228,15 @@ class CatalogueStore(Protocol):
         ...
 
     def held_artists(self) -> Sequence[tuple[Artist, int, str]]:
-        """Every artist with at least one work in circulation, how many, and the first accepted of them, by name.
+        """Every artist with at least one work in circulation, how many, and the work to picture them by, by name.
 
-        The first accepted work is the one the Artists index pictures the artist
-        by: no artist has a picture of their own, and the earliest acquisition is
-        a stable choice that does not change as more works arrive.
+        The picture is their first accepted work that holds a master image, or
+        their first accepted work when none does yet: no artist has a picture of
+        their own, and the earliest such work is a stable choice: it moves only
+        when the set of circulating works, or which of them hold a master,
+        changes. A work with no image is passed over,
+        because the Artists index asked for its thumbnail and was refused,
+        drawing "No picture" for an artist whose other works had pictures.
         """
         ...
 

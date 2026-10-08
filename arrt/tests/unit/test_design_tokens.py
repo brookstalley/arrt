@@ -178,16 +178,12 @@ def test_every_status_colour_clears_aa_on_its_own_quiet_ground(scheme, token):
 
 
 @pytest.mark.parametrize(("scheme", "token"), STATUS_PAIRS)
-def test_a_status_ground_keeps_its_control_boundary(scheme, token):
-    """The indicator is a button, and its border has to stay findable on it.
-
-    WCAG 1.4.11's floor, applied to the one control that changes its own
-    background: a boundary that disappears when the state goes wrong is a
-    boundary missing exactly when the control matters most.
-    """
+def test_every_status_colour_clears_aa_on_the_page_ground(scheme, token):
+    """The top bar's status is its words in the state's colour, straight on the
+    page's ground, with no tinted box of its own to lean on."""
     tokens = SCHEMES[scheme]
-    ratio = _ratio(tokens["border-strong"], tokens[f"{token}-quiet"])
-    assert ratio >= UI_CONTRAST_FLOOR, f"{scheme}: --border-strong on --{token}-quiet is {ratio:.2f}:1"
+    ratio = _ratio(tokens[token], tokens["surface-0"])
+    assert ratio >= TEXT_CONTRAST_FLOOR, f"{scheme}: --{token} on --surface-0 is {ratio:.2f}:1"
 
 
 def test_the_accent_is_legible_both_as_text_and_beneath_its_own_label():

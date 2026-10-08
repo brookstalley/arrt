@@ -57,13 +57,69 @@ def test_every_page_heading_has_the_one_h1_treatment(ui, key):
     ui.page.wait_for_selector("#view h1")
     size, expected = ui.page.evaluate("""() => {
           const probe = document.createElement('span');
-          probe.style.fontSize = 'var(--text-lg)';
+          probe.style.fontSize = 'var(--text-3xl)';
           document.body.append(probe);
           const expected = getComputedStyle(probe).fontSize;
           probe.remove();
           return [getComputedStyle(document.querySelector('#view h1')).fontSize, expected];
         }""")
     assert size == expected
+
+
+#: Headings that are deliberately not a section's: a tile's or card's title
+#: (the work's name, in the tile's own type), a filter rail's group name (a
+#: label in small capitals), and the screen-reader-only headings.
+NOT_SECTION_HEADINGS = ".card *, .rail *, .visually-hidden, .search-suggestions *"
+
+#: The sidebar pages whose suite library gives them at least one section.
+#: Named, so a page that silently lost its sections fails rather than passing
+#: with nothing to check.
+PAGES_WITH_SECTIONS = {"health", "sources", "discover", "walls", "clients"}
+
+
+def test_the_pages_named_with_sections_are_sidebar_pages():
+    assert PAGES.keys() >= PAGES_WITH_SECTIONS
+
+
+@pytest.mark.parametrize("key", sorted(PAGES))
+def test_every_section_heading_has_the_one_h2_treatment(ui, key):
+    """A section's heading is the second level everywhere: `--text-xl` in the
+    label serif, whichever rank (h2, h3, h4) the document needs there. The
+    headings are taken from the page, not from the stylesheet's selectors, so a
+    heading nothing styles is caught rather than skipped."""
+    ui.open(f"#{key}")
+    ui.page.wait_for_selector("#view h1")
+    ui.page.wait_for_load_state("networkidle")
+    found, expected = ui.page.evaluate(
+        """(excluded) => {
+          const probe = document.createElement('span');
+          probe.style.fontSize = 'var(--text-xl)';
+          document.body.append(probe);
+          const expected = getComputedStyle(probe).fontSize;
+          probe.remove();
+          const headings = [...document.querySelectorAll('#view :is(h2, h3, h4)')]
+            .filter((h) => !h.matches(excluded) && h.offsetParent !== null);
+          return [headings.map((h) => [h.textContent.trim(), getComputedStyle(h).fontSize]), expected];
+        }""",
+        NOT_SECTION_HEADINGS,
+    )
+    if key in PAGES_WITH_SECTIONS:
+        assert found, f"{key} drew no section heading to check"
+    wrong = [(text, size) for text, size in found if size != expected]
+    assert not wrong, f"expected {expected}: {wrong}"
+
+
+def test_no_rule_is_drawn_above_a_page_s_name(ui, service):
+    """A section's rule separates the page's parts; the page's name heads them.
+    An artist's page keeps its name inside a section, which drew a rule over it."""
+    artist = service.add_artist(name="Charles Demuth", born=1883, died=1935)
+    ui.open(f"#artist/{artist.id}")
+    ui.page.wait_for_selector("#view h1")
+    ruled = ui.page.evaluate("""() => {
+          const section = document.querySelector('#view h1').closest('.panel');
+          return section ? getComputedStyle(section).borderTopStyle : 'none';
+        }""")
+    assert ruled == "none"
 
 
 @pytest.mark.parametrize("key", sorted(PAGES))

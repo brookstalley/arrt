@@ -119,7 +119,7 @@ export async function viewWalls(generation) {
 }
 
 /* The page's heading, at the size every page's `h1` has: Walls is a page
- * among the others, and the art on it is what is large. */
+ * among the others, with no larger heading of its own. */
 function heading() {
   return el("h1", { text: "Walls" });
 }
