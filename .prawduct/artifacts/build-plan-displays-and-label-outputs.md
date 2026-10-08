@@ -114,7 +114,7 @@ Seeded with `prawduct-hook jurisdiction`; dispositions:
 - [x] Chunk 01: The contract
 - [x] Chunk 02: The server's records
 - [x] Chunk 03: The server's routes
-- [ ] Chunk 04: The interface
+- [x] Chunk 04: The interface
 - [x] Chunk 05: The Player reports
 - [x] Chunk 06: The label renderer
 - [ ] Chunk 07: On the wall
