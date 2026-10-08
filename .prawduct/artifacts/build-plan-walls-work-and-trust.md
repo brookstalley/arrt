@@ -80,6 +80,14 @@ carries a design choice:
   intervals (#295 leaves the threshold open). It is a named constant, shared
   with Clients so both pages agree.]`
 
+**Confirmed by the owner, 2026-10-08:** works whose candidate came from Wikidata
+or a museum collection read as *confirmed* by their provenance; on a key with no
+provider limit the budget reads the provider's `usage_monthly` against
+`MONTHLY_BUDGET_USD` (not the local ledger); the builders' wording ("Unchecked",
+"Nothing spends", "Budget unknown", the museum display names in `core/providers.js`,
+"Get from Ask", "Get again", "Get of chosen works", "under $0.01") stands. The
+three-heartbeat staleness threshold remains the plan's assumption.
+
 ## Status
 
 - [x] Chunk 01: Navigation is a link
