@@ -450,7 +450,7 @@ function paintRegistry(section, about, view, { name = null, artistId = null, sel
   fill(section,
     heading,
     view.works.length
-      ? el("div", { class: "artist-works" }, [el("table", {}, [
+      ? el("div", { class: "artist-works" }, [el("table", { class: "select-column" }, [
           el("caption", {
             text: `The most renowned of the ${view.works_total} works Wikidata lists, by how many Wikipedias cover them, and every one the library holds`,
           }),

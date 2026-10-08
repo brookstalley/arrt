@@ -124,3 +124,22 @@ def test_a_topic_page_shows_its_first_works_before_wikidata_has_said_who_made_th
     assert "Still asking" not in ui.page.locator(WORKS).inner_text()
     assert ui.page.locator(f"{WORKS} tbody tr").count() == 2
     assert ui.page.locator(f"{WORKS} input[type='checkbox']").count() == 2
+
+
+def test_the_get_column_shows_only_while_there_are_ticks_to_show(ui, registry):
+    """Outside Select mode, and while the works are still arriving, the list has
+    no ticks; a "Get" heading over an empty column there says nothing."""
+    registry.makers_gate = threading.Event()
+    try:
+        ui.open(f"#topic/{SIXTEENTH}")
+        ui.page.wait_for_selector(f"{WORKS} tbody tr")
+        assert not ui.page.locator(f"{WORKS} th", has_text="Get").is_visible()
+    finally:
+        registry.makers_gate.set()
+    ui.page.wait_for_selector(f"{WORKS} td.by-col a:text-is('Pieter Bruegel the Elder')")
+    assert not ui.page.locator(f"{WORKS} th", has_text="Get").is_visible()
+
+    ui.page.click("button.select-toggle")
+    assert ui.page.locator(f"{WORKS} th", has_text="Get").is_visible()
+    ui.page.click("button.select-toggle")
+    assert not ui.page.locator(f"{WORKS} th", has_text="Get").is_visible()

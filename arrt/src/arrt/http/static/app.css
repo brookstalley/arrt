@@ -2951,3 +2951,10 @@ input[type="checkbox"] {
 .failure-cause-works {
   margin-top: var(--space-3);
 }
+
+/* A list whose first column holds the selection's ticks shows that column only
+   while some tick is shown, so outside Select mode, and while a topic's works
+   are still arriving, there is no "Get" heading over an empty column. */
+table.select-column:not(:has(input[type="checkbox"]:not([hidden]))) :is(th, td):first-child {
+  display: none;
+}

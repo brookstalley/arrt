@@ -128,6 +128,43 @@ no screen is reached only by a script button, and none is a dead end. The live
 walk of S1, S6 and S8, with writes, waits on the branch being deployed, and Pass 4
 is still the owner's.
 
+## Closed by `build-plan-lists-settings-and-scale.md` (2026-10-08)
+
+Built on `feature/lists-settings-and-scale` against the findings the previous
+plan left open. **Closed:** 17 (Artworks pages from the server as you scroll;
+every work of 2,003 reachable, #131), 18 (Queue groups failures by cause, pages,
+and retries a cause in one request; one row for 4,000 failures, #281), 22
+(Themes is a card grid, ordering lives on the theme page, the order copy
+follows shuffle, #284), 23 (one selection model on every list, Select all by
+filter, *New theme…* from any selection, #285), 24's Settings half (Settings
+opens an index; Taste is headed Taste, #286), 27 (one heading scale, one empty
+state, a disabled act looks disabled, one meaning per glyph in
+`core/glyphs.js`, #287), 28 (*Size on the wall* and *Not on any wall* facets,
+the owner's ruling for "never hung", #288), and 29 (Topics offers centuries and
+movements before any are held, and a topic's works arrive as they are found,
+#289). 25 is partly closed: Status's sources are one table with what each is
+worth (#265) and the single-television geometry panel is gone (#266); About,
+Logs and Tasks are not built.
+
+**Still open:** 8 (#252, the hand-run matcher), 19 (#282, a gallery-room photo
+offered as a match), 25's About, Logs and Tasks, and the records filed on the
+way: #313 (each search, so a source's value survives a restart) and #316 (which
+works a wall shows, for a real "never shown").
+
+**Walked, with writes, on a throwaway synthetic library (300 works):** S7 made
+a three-work theme from Artworks' selection without leaving the page. S9 found
+297 works on *Not on any wall* once that theme hung, selected all and archived
+them in one request; they stay on Artworks with their badge, as designed. S12
+reached 16th century on Topics without typing; on a cold start the first works
+took 19 s, the one Wikidata query that no split makes cheaper, and a warmed
+topic answers at once. *Size on the wall* could not be walked there: the
+synthetic library has no masters, so it has one band and the facet is not drawn.
+
+**Re-photographed:** Pass 1 against a synthetic 2,000-work library, 21 pages,
+84 captures: every capture scans clean, no console errors, no screen reached
+only by a button, no dead end. The walk on the operator's library, and Pass 4,
+wait on the branch being deployed.
+
 ## What works, and should survive a redesign
 
 Several reviewers named these independently.
