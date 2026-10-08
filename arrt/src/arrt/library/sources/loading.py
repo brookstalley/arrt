@@ -54,6 +54,7 @@ from arrt.library.discovery.images import (
     ImageSearchFailure,
     offers_images,
 )
+from arrt.library.sources.names import museum_name
 from arrt.library.sources.plugin import API_VERSION, Declined, SourceContext, SourceParts, SourcePlugin
 from arrt.library.sources.reading import FetchLocator, Reader
 from arrt.logs import scrub
@@ -290,7 +291,7 @@ class _ContainedFinder:
             _reraise_scrubbed(exc, ImageQueryUnanswerable)
         except Exception as exc:  # prawduct:allow prawduct/broad-except -- a plugin fault must not fail a run
             self._faults.record(self._plugin, "find_images", exc)
-            raise ImageSearchFailure(f"the {self._plugin} plugin faulted: {type(exc).__name__}") from exc
+            raise ImageSearchFailure(f"the {museum_name(self._plugin)} plugin faulted: {type(exc).__name__}") from exc
 
     def fetch_preview(self, url: str) -> bytes | None:
         try:
@@ -315,7 +316,7 @@ class _ContainedReader:
             _reraise_scrubbed(exc, ImageSearchFailure)
         except Exception as exc:  # prawduct:allow prawduct/broad-except -- recorded against the source instead
             self._faults.record(self._plugin, "read", exc)
-            raise ImageSearchFailure(f"the {self._plugin} plugin faulted: {type(exc).__name__}") from exc
+            raise ImageSearchFailure(f"the {museum_name(self._plugin)} plugin faulted: {type(exc).__name__}") from exc
 
 
 class _ContainedCollection:
@@ -337,7 +338,12 @@ class _ContainedCollection:
             _reraise_scrubbed(exc, CollectionBrowseFailure)
         except Exception as exc:  # prawduct:allow prawduct/broad-except -- a plugin fault must not fail a run
             self._faults.record(self._plugin, "browse", exc)
-            raise CollectionBrowseFailure(f"the {self._plugin} plugin faulted: {type(exc).__name__}") from exc
+            raise CollectionBrowseFailure(f"the {museum_name(self._plugin)} plugin faulted: {type(exc).__name__}") from exc
+
+
+def _not_loaded(plugin: str, reason: str | None) -> str:
+    """Why a URL this plugin claims cannot be read here, naming the museum rather than the id."""
+    return f"the {museum_name(plugin)} source plugin is installed and not loaded: {reason}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -415,10 +421,7 @@ class SourceRoster:
                     _Claimant(name, claims, _ContainedReader(reader, name, faults), None)
                     for name, (claims, reader) in readers.items()
                 ),
-                *(
-                    _Claimant(name, claims, None, f"the {name} source plugin is installed and not loaded: {reason}")
-                    for name, (claims, reason) in unavailable.items()
-                ),
+                *(_Claimant(name, claims, None, _not_loaded(name, reason)) for name, (claims, reason) in unavailable.items()),
             ],
             states=[
                 *((name, PluginState.LOADED, None) for name in dict.fromkeys(names)),
@@ -479,7 +482,10 @@ class SourceRoster:
         if provider is not None and provider in self._unknowable:
             return Route(
                 plugin=provider,
-                unavailable=f"the {provider} source plugin is installed and could not be loaded: {self._unknowable[provider]}",
+                unavailable=(
+                    f"the {museum_name(provider)} source plugin is installed and could not be loaded: "
+                    f"{self._unknowable[provider]}"
+                ),
             )
         return Route()
 
@@ -579,7 +585,7 @@ def load_sources(
             name=n,
             claims=plugins[n].claims,
             reader=(_ContainedReader(parts[n].reader, n, faults) if n in parts and parts[n].reader is not None else None),
-            unavailable=None if n in parts else f"the {n} source plugin is installed and not loaded: {states[n][1]}",
+            unavailable=None if n in parts else _not_loaded(n, states[n][1]),
         )
         for n in ranked
         if n in plugins and plugins[n].claims is not None

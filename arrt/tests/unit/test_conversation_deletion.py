@@ -17,6 +17,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
+from fakes import A_TURN_PRICE
 
 from arrt.library.discovery.conversation import Suggestion
 from arrt.library.services.conversation import ConversationService
@@ -28,7 +29,7 @@ from arrt.services.errors import ServiceError
 def talking(services, conversation_engine, discovery_store, runner):
     """A conversation with something to say, over a runner that does not spawn."""
     conversation_engine.suggested = (Suggestion(kind="artist", value="Agnes Martin"),)
-    return ConversationService(discovery_store, conversation_engine, services.discovery, runner)
+    return ConversationService(discovery_store, conversation_engine, services.discovery, runner, pricing=A_TURN_PRICE)
 
 
 @pytest.fixture

@@ -35,6 +35,10 @@ from typing import Protocol
 # real cycle ever appears, the fix is to move the constants, not to hide the edge.
 from arrt.config import (
     DEFAULT_ACQUISITION_USER_AGENT,
+    DEFAULT_CONVERSATION_INPUT_COST_USD_PER_MTOK,
+    DEFAULT_CONVERSATION_INPUT_TOKENS,
+    DEFAULT_CONVERSATION_MAX_OUTPUT_TOKENS,
+    DEFAULT_CONVERSATION_OUTPUT_COST_USD_PER_MTOK,
     DEFAULT_MAT_IMAGE_MAX_EDGE,
     DEFAULT_MAX_IMAGE_BYTES,
     DEFAULT_MIN_FREE_BYTES,
@@ -66,7 +70,7 @@ from arrt.library.facade import LibraryFacade
 from arrt.library.registry import Registry
 from arrt.library.services.artists import ArtistService
 from arrt.library.services.catalogue import CatalogueService
-from arrt.library.services.conversation import ConversationService
+from arrt.library.services.conversation import ConversationPricing, ConversationService
 from arrt.library.services.discovery import DiscoveryService
 from arrt.library.services.display_fit import ArtworkBox
 from arrt.library.services.get import GetService
@@ -250,6 +254,10 @@ class Services:
         #: the curator's evidence that the product works would be the product
         #: fabricating it.
         conversation_engine: ConversationEngine | None = None,
+        #: What a turn is priced at before it is sent. Defaults to the shipped
+        #: defaults, which is what `Settings.conversation_pricing` resolves to
+        #: with nothing set; a deployment passes its own.
+        conversation_pricing: ConversationPricing | None = None,
         #: Wikidata, or None while `WIKIDATA_USER_AGENT` is unset. Never a default
         #: client, for the reason `sources` has none: a test suite must not
         #: be able to reach a foreign API through a wiring default.
@@ -411,6 +419,7 @@ class Services:
                 # coupling the accounting split is filed to remove.
                 discovery_service,
                 runner_service,
+                pricing=conversation_pricing or _default_conversation_pricing(),
                 collection=sources.collection,
             ),
             # Over the same store the conversations live in, because a judgment's
@@ -529,6 +538,16 @@ def _default_conversation_engine() -> ConversationEngine:
     ones. So the keyless deployment gets a thread that says what is missing.
     """
     return UnavailableConversation(NO_CONVERSATION_KEY)
+
+
+def _default_conversation_pricing() -> ConversationPricing:
+    """A turn's price for a caller that configured none: the shipped defaults."""
+    return ConversationPricing(
+        input_tokens=DEFAULT_CONVERSATION_INPUT_TOKENS,
+        output_tokens=DEFAULT_CONVERSATION_MAX_OUTPUT_TOKENS,
+        input_cost_usd_per_mtok=Decimal(DEFAULT_CONVERSATION_INPUT_COST_USD_PER_MTOK),
+        output_cost_usd_per_mtok=Decimal(DEFAULT_CONVERSATION_OUTPUT_COST_USD_PER_MTOK),
+    )
 
 
 def _default_preparation(art_root: Path, artwork_box: ArtworkBox) -> PreparationSettings:

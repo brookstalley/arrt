@@ -36,6 +36,7 @@ from arrt.library.discovery.engine import (
 )
 from arrt.library.discovery.images import FoundImage, ImageQuery, ImageSearchFailure
 from arrt.library.registry import RegistryArtist, RegistryTopicsOf, RegistryUnavailable
+from arrt.library.services.conversation import ConversationPricing
 from arrt.library.sources.artic import claims as artic_claims
 from arrt.library.sources.loading import SourceRoster
 from arrt.library.sources.reading import FetchLocator
@@ -632,3 +633,14 @@ def stored_awaiting_approval(store, run_id: str) -> str:
     run = store.get_run(run_id)
     store.update_run(replace(run, status=RunStatus.AWAITING_APPROVAL, approval_required=True, completed_at=None))
     return run_id
+
+
+#: A turn's price for a conversation service a test builds by hand: the shipped
+#: defaults' shape, at round figures, so a test reading the estimate can compute
+#: it. 10,000 input tokens at $1/M and 1,000 output at $2/M is $0.012.
+A_TURN_PRICE = ConversationPricing(
+    input_tokens=10_000,
+    output_tokens=1_000,
+    input_cost_usd_per_mtok=Decimal(1),
+    output_cost_usd_per_mtok=Decimal(2),
+)

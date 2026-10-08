@@ -525,6 +525,22 @@ def test_every_built_in_source_has_the_name_a_curator_knows_it_by():
     assert _object_keys("MUSEUM_NAMES") == providers
 
 
+def test_the_client_names_each_museum_as_the_server_does():
+    """Two maps, one name each: the server's sentences and the client's labels must agree.
+
+    The server's names are each built-in's own `MUSEUM` (`library/sources/names.py`);
+    the client's are `MUSEUM_NAMES` in `core/providers.js`. Read pair by pair,
+    so a name changed on one side fails here rather than reading two ways.
+    """
+    from arrt.library.sources.names import built_in_museums
+
+    body = re.search(r"export const MUSEUM_NAMES = \{(.*?)\n\};", CLIENT, re.DOTALL)
+    assert body, "the client has no `MUSEUM_NAMES`"
+    client = dict(re.findall(r'^\s*([a-z_]+):\s*"((?:[^"\\]|\\.)*)",?\s*$', body.group(1), re.MULTILINE))
+    assert len(client) == len(_object_keys("MUSEUM_NAMES")), "a client entry was not read as a pair"
+    assert client == dict(built_in_museums())
+
+
 def test_both_surfaces_say_the_same_sentence_about_a_work_let_back_on_the_walls():
     """The Work page's *Allow on walls again* and `art_theme(action='allow_again')`, in one wording."""
     from arrt.mcp.bindings import ALLOW_AGAIN_NOTICE

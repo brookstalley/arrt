@@ -74,6 +74,10 @@ log = logging.getLogger(__name__)
 #: The name these instances are recorded under.
 PROVIDER: Final[str] = "rijksmuseum"
 
+#: The name a curator knows this source by, for every sentence that names it
+#: (`names.museum_name`).
+MUSEUM: Final[str] = "Rijksmuseum"
+
 _RECORD_HOST: Final[str] = "id.rijksmuseum.nl"
 #: An object's number, as Wikidata's format for P13234 states it.
 _OBJECT_NUMBER: Final[re.Pattern[str]] = re.compile(r"/(\d{7,9})")

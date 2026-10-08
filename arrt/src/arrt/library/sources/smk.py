@@ -63,6 +63,10 @@ log = logging.getLogger(__name__)
 #: The name these instances are recorded under.
 PROVIDER: Final[str] = "smk"
 
+#: The name a curator knows this source by, for every sentence that names it
+#: (`names.museum_name`).
+MUSEUM: Final[str] = "SMK, National Gallery of Denmark"
+
 _API_HOST: Final[str] = "api.smk.dk"
 _OBJECT_URL: Final[str] = f"https://{_API_HOST}/api/v1/art/"
 _SEARCH_URL: Final[str] = f"https://{_API_HOST}/api/v1/art/search/"

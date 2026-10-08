@@ -37,6 +37,7 @@ from pathlib import Path
 
 from arrt.library.services.pictures import PictureStore
 from arrt.library.sources.loading import PluginReading, PluginState, SourceRoster
+from arrt.library.sources.names import museum_name
 from arrt.persistence import backup
 from arrt.persistence.discovery_records import SourceYield
 from arrt.persistence.records import BackupReading
@@ -54,15 +55,18 @@ class SourceHealth:
     def describe(self) -> str:
         """What happened to this plugin, in a sentence: an observation, never a verdict."""
         reading = self.reading
+        # By the museum, not the plugin id: the id is a key, and a curator
+        # reading "smk is loaded" learns nothing about which collection.
+        museum = museum_name(reading.name)
         if reading.state is PluginState.DECLINED:
-            return f"{reading.name} is installed and not configured here: {reading.reason}."
+            return f"The {museum} plugin is installed and not configured here: {reading.reason}."
         if reading.state is PluginState.FAILED:
-            return f"{reading.name} is installed and was not loaded: {reading.reason}."
+            return f"The {museum} plugin is installed and was not loaded: {reading.reason}."
         if reading.faults == 0:
-            return f"{reading.name} is loaded, with no faults since startup."
+            return f"The {museum} plugin is loaded, with no faults since startup."
         plural = "fault" if reading.faults == 1 else "faults"
         return (
-            f"{reading.name} is loaded, with {reading.faults} {plural} since startup, the last "
+            f"The {museum} plugin is loaded, with {reading.faults} {plural} since startup, the last "
             f"{self.last_fault_age_seconds:.0f} seconds ago ({reading.last_fault}). Each was recorded as the "
             "source not being reachable, so works it would have answered wait instead of being settled."
         )

@@ -344,6 +344,7 @@ def main(argv: Sequence[str] = ()) -> None:
             artwork_box=box,
             engine=_engine(settings),
             discovery_settings=settings.discovery_settings,
+            conversation_pricing=settings.conversation_pricing,
             key_status=_key_status(settings),
             monthly_budget_usd=settings.monthly_budget_usd,
             sources=sources,

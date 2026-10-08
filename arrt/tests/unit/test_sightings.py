@@ -212,14 +212,14 @@ def test_a_finder_of_pages_alone_is_not_a_source_that_answered(pages):
     """Its answer says nothing about images, so the work waits rather than being held by nobody."""
     roster = SourceRoster.of(finders=[_Pages("wikidata", *pages, offers_images=False)])
 
-    with pytest.raises(NoSourceCanAnswer, match="wikidata finds pages only"):
+    with pytest.raises(NoSourceCanAnswer, match="Wikidata finds pages only"):
         ImageSourcePool(roster.finders).find_images(ImageQuery(title="Drowning Girl", qid=ItemId(DROWNING_GIRL)))
 
 
 def test_a_finder_of_pages_beside_one_that_declined_still_leaves_the_work_waiting():
     roster = SourceRoster.of(finders=[_Raw("commons", _declines), _Pages("wikidata", FoundPage(url=MOMA), offers_images=False)])
 
-    with pytest.raises(NoSourceCanAnswer, match="commons cannot; wikidata finds pages only"):
+    with pytest.raises(NoSourceCanAnswer, match="Wikimedia Commons cannot; Wikidata finds pages only"):
         ImageSourcePool(roster.finders).find_images(ImageQuery(title="Drowning Girl"))
 
 
@@ -261,7 +261,7 @@ def test_a_finder_of_pages_that_could_not_be_asked_leaves_no_image_in_doubt():
 def test_a_finder_of_pages_that_could_not_be_asked_alone_still_leaves_the_work_waiting():
     roster = SourceRoster.of(finders=[_pages_only(_Raw("wikidata", _unreachable))])
 
-    with pytest.raises(NoSourceCanAnswer, match="wikidata finds pages only"):
+    with pytest.raises(NoSourceCanAnswer, match="Wikidata finds pages only"):
         ImageSourcePool(roster.finders).find_images(ImageQuery(title="Drowning Girl"))
 
 
