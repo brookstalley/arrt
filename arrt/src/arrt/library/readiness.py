@@ -24,6 +24,7 @@ from pathlib import PurePosixPath
 from types import MappingProxyType
 from typing import Final
 
+from arrt.library.dimensions import Units, for_label
 from arrt.persistence.records import (
     Artist,
     Artwork,
@@ -200,7 +201,7 @@ def assess(inputs: WorkInputs) -> Unplayable | None:
     return None
 
 
-def playable_from(inputs: WorkInputs) -> PlayableWork:
+def playable_from(inputs: WorkInputs, *, units: Units) -> PlayableWork:
     """Turn a ready work into what the wall is told about it.
 
     Label *text* crosses to the display plane; label *rendering* does not. The
@@ -227,15 +228,16 @@ def playable_from(inputs: WorkInputs) -> PlayableWork:
         title=inputs.artwork.title,
         render_path=inputs.tv_rendition.relative_path,
         media=media_of(inputs.tv_rendition),
-        label=label_of(inputs.artwork, inputs.artist),
+        label=label_of(inputs.artwork, inputs.artist, units=units),
     )
 
 
-def label_of(artwork: Artwork, artist: Artist | None) -> Mapping[str, str | None]:
+def label_of(artwork: Artwork, artist: Artist | None, *, units: Units) -> Mapping[str, str | None]:
     """The ten text keys a label is set from, for the manifest and the label document alike.
 
     One function for both, so a wall's manifest and the label captioning that
-    wall cannot set one work in two ways.
+    wall cannot set one work in two ways. `units` is the system the dimensions
+    are stated in; the stored string is the source's and is not changed.
     """
     # Read-only, so the answer is as frozen as the dataclass holding it: nothing
     # a caller does to the label can change what the next caller is told.
@@ -255,7 +257,10 @@ def label_of(artwork: Artwork, artist: Artist | None) -> Mapping[str, str | None
             "artist_dates": None if artist is None else _artist_dates(artist),
             "date_created": artwork.date_created,
             "medium": artwork.medium,
-            "dimensions": artwork.dimensions,
+            # Set here for the reason the nationality above is: which units a
+            # label states is the deployment's choice, made once on this side of
+            # the seam, not re-decided by every display.
+            "dimensions": for_label(artwork.dimensions, units),
             "commentary": artwork.commentary,
         }
     )

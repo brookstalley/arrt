@@ -367,7 +367,7 @@ only entity the curator thinks of as "a piece of art".
 | `artist_id` | UUID | FK → Artist, nullable | Null for anonymous or unattributed works. |
 | `date_created` | string | nullable | Free text — sources give "1931", "c. 1650", "1888–89". Not a date type; normalising would destroy information. |
 | `medium` | string | nullable | e.g. "Oil and graphite on fiber board". |
-| `dimensions` | string | nullable | Physical dimensions as the source states them. |
+| `dimensions` | string | nullable | Physical dimensions as the source states them. Never rewritten: a label states the first measurement in the deployment's `LABEL_UNITS`, rounded to whole units, when its text is set (`arrt/src/arrt/library/dimensions.py`; accessibility-spec.md § Dimensions on the label). |
 | `description` | text | nullable | May contain limited markup; see Constraints. The **holding institution's own paragraph**, at whatever length it was written. |
 | `commentary` | text | nullable | A line written **for a wall label**, to be read at standing distance. Not `description`, and neither substitutes for the other. |
 | `rights` | string | nullable | Rights statement as given. Display-only — rights gate nothing (decided 2026-07-20; constraint 13). |

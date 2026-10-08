@@ -15,6 +15,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from arrt.library.dimensions import Units
 from arrt.library.facade import LibraryFacade
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.discovery import DiscoveryService
@@ -75,7 +76,7 @@ def _display(store, tmp_path, *, catalogue=None):
     discovery = DiscoveryService(SqliteDiscovery(store._store), catalogue)
     return DisplayService(
         store,
-        LibraryFacade(catalogue, discovery),
+        LibraryFacade(catalogue, discovery, label_units=Units.IMPERIAL),
         DisplaySettings(art_root=tmp_path, rotation_interval_seconds=180, shuffle=True),
     )
 

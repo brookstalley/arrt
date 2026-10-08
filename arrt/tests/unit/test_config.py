@@ -24,6 +24,7 @@ from arrt.config import (
     ConfigError,
     Settings,
 )
+from arrt.library.dimensions import Units
 
 
 @pytest.fixture(autouse=True)
@@ -50,6 +51,7 @@ def _clean_env(monkeypatch):
         "CURATION_PORT",
         "ROTATION_INTERVAL_SECONDS",
         "ROTATION_SHUFFLE",
+        "LABEL_UNITS",
         "TV_PANEL_WIDTH_PX",
         "TV_PANEL_HEIGHT_PX",
         "TV_PANEL_DIAGONAL_INCHES",
@@ -849,4 +851,28 @@ def test_a_monthly_budget_that_is_not_money_is_refused_by_name(monkeypatch, tmp_
     monkeypatch.setenv("MONTHLY_BUDGET_USD", "ten dollars")
 
     with pytest.raises(ConfigError, match="MONTHLY_BUDGET_USD"):
+        Settings.from_env()
+
+
+def test_labels_are_imperial_unless_told_otherwise(monkeypatch, tmp_path):
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+
+    assert Settings.from_env().label_units is Units.IMPERIAL
+
+
+@pytest.mark.parametrize("spelling", ["metric", "METRIC", " Metric "])
+def test_labels_are_metric_however_metric_is_spelled(monkeypatch, tmp_path, spelling):
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    monkeypatch.setenv("LABEL_UNITS", spelling)
+
+    assert Settings.from_env().label_units is Units.METRIC
+
+
+def test_a_system_of_units_that_is_neither_is_refused_rather_than_guessed(monkeypatch, tmp_path):
+    """A typo falling back to imperial would leave a metric household's labels
+    unchanged with nothing said."""
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    monkeypatch.setenv("LABEL_UNITS", "metirc")
+
+    with pytest.raises(ConfigError, match="LABEL_UNITS must be imperial or metric, got 'metirc'"):
         Settings.from_env()

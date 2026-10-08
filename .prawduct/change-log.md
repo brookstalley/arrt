@@ -62,6 +62,34 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-08: A label states dimensions in one system, rounded to whole units
+
+<!-- prawduct: scope=feature-label-units -->
+
+**Why:** the owner asked for imperial or metric on the label, not both, and
+whole inches ("not 30 1/8 x 38 1/4 in, just 30 x 38 in"). Rulings: one server
+setting, imperial by default; the first measurement only, with its qualifier.
+
+**What:**
+- `arrt/src/arrt/library/dimensions.py`: `for_label(dimensions, units)` reads
+  the first measurement of a museum's dimensions string and states it in one
+  system, half rounding up, preferring the source's own figures in that system;
+  a value under one unit keeps a decimal (never below 0.1); a first measurement
+  it cannot wholly read comes back unchanged (the cases: `accessibility-spec.md`
+  § Dimensions on the label). A bare fraction is one value, and a non-breaking space inside
+  a mixed number parses. No model: every string in the
+  library follows a pattern a parser reads.
+- `LABEL_UNITS` (`config.py`, `.env.example`) reaches `LibraryFacade` through
+  `Services.bind`, and `label_of` applies it, so the manifest and the label
+  document set the same text. The stored string is unchanged.
+- Tests: every distinct dimensions string in the reference library (38),
+  checked by hand in both systems; the half-up and source-preference rules and
+  the `main` wiring each seen failing when broken.
+- `accessibility-spec.md` § Dimensions on the label holds the rule;
+  `data-model.md` points at it; `museum-label-findings.md` records the ruling,
+  settling #142. The Settings › General control is deferred until the interface
+  redesign merges (#329).
+
 ## 2026-10-08: Wall label: the boundary review's findings
 
 <!-- prawduct: scope=wall-label -->
