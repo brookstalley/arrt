@@ -63,6 +63,7 @@ import { api } from "../core/api.js";
 import { absentImage, facts, table } from "../core/badges.js";
 import { counted } from "../core/counting.js";
 import { hangTheme } from "../core/hanging.js";
+import { GLYPHS } from "../core/glyphs.js";
 import { el, emptyState, fill, guard, render } from "../core/render.js";
 import { screenState, STALE_AFTER_SECONDS, wallScreenLine } from "../core/outputs.js";
 import { link, refresh } from "../core/router.js";
@@ -164,6 +165,14 @@ async function clientListing() {
  * else on this screen happens to no screen at all — so it is said, with the way
  * to Settings › Clients, where a wall is assigned. */
 function assignmentLine(wall, shownBy) {
+  // A display two clients report is shown by neither, whatever `client_id`
+  // still names, so the fault is said in place of the assignment.
+  if (wall.display && wall.display.fault) {
+    return el("p", { class: "note wall-client wall-fault" }, [
+      el("span", { text: `${GLYPHS.problem} ${wall.display.fault.description} ` }),
+      link({ view: "clients" }, { text: "See Settings › Clients" }),
+    ]);
+  }
   if (!wall.client_id) {
     return el("p", { class: "muted wall-client" }, [
       el("span", { text: "No client shows this wall. " }),
@@ -177,6 +186,26 @@ function assignmentLine(wall, shownBy) {
       ? wallScreenLine(client.name, wall.output, screenState(client.heartbeat, wall.output), client.heartbeat)
       : `Assigned to ${wall.output} of a client whose name and report could not be read${shownBy.failure ? ` — ${shownBy.failure}` : ""}`,
   });
+}
+
+/* Which label outputs caption this wall, and on which client each is.
+ *
+ * Said only when there is one: most walls have no label, and a line saying so
+ * on every card would be noise. Labels are mapped in Settings › Clients, beside
+ * the client's other surfaces, and this line links there. */
+function labelsLine(wall) {
+  if (!wall.labels || !wall.labels.length) return null;
+  const named = wall.labels.map((label) => `${label.output} on ${label.client_name}`);
+  return el("p", { class: "muted wall-labels" }, [
+    el("span", { text: `Captioned by ${listed(named)}. ` }),
+    link({ view: "clients" }, { text: "Change in Settings › Clients" }),
+  ]);
+}
+
+/* "a", "a and b", "a, b and c". */
+function listed(names) {
+  if (names.length < 2) return names.join("");
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
 /* Every wall's last observation, or the fact that the reading did not arrive.
@@ -271,7 +300,7 @@ function wallSection(wall, build, beats, now, themes, shownBy) {
   // What the card's acts read the current work from. The lead can be replaced
   // after a Skip without repainting the controls, so they read it here rather
   // than from a value captured when they were drawn.
-  const card = { wall, now, lead: nowShowing(wall, now, reason), said: el("p", { class: "wall-said", role: "status" }) };
+  const card = { wall, now, lead: nowShowing(wall, now), said: el("p", { class: "wall-said", role: "status" }) };
   return el("section", { class: "wall", "data-wall": wall.wall_id }, [
     // `h2` for the wall and `h3` for what is in it, so the nesting survives a
     // second wall: a reader navigating by heading gets each room with its own
@@ -280,6 +309,7 @@ function wallSection(wall, build, beats, now, themes, shownBy) {
     card.lead,
     sourceLine(wall),
     assignmentLine(wall, shownBy),
+    labelsLine(wall),
     // The server's own sentence about how much of the theme reached the wall,
     // and not repeated when a reason below is about to say the same thing in
     // more useful words: a screen states a fact once, and two copies of one fact
@@ -318,13 +348,15 @@ function stateLead(wall, shown, said, silent) {
       ? [el("p", { class: "wall-now-when", text: "On the wall now" }), el("p", { class: "wall-now-state", text: words })]
       : [
           el("p", { class: "wall-now-state", text: words }),
-          // A Player before display state has a work or nothing to say; one
-          // that reports state and says unreachable has lost its screen.
+          // A Player before display state has a work or nothing to say. One
+          // that reports state and says unreachable cannot tell what its screen
+          // shows; the server also reads a state it has no name for as
+          // unreachable, so the sentence must be true of both.
           said.state === "unreachable"
             ? el("p", {
                 class: "muted",
                 text: shown.since
-                  ? `${wall.name}'s display is reporting, and cannot reach its screen.`
+                  ? `${wall.name}'s display is reporting, and cannot say what its screen is showing.`
                   : `${wall.name}'s display is reporting, and has not said which work it is showing.`,
               })
             : null,
@@ -351,7 +383,7 @@ function lastHeard(shown) {
  * The image carries the work and its artist in its `alt`, because here the image
  * is the content rather than a thumbnail beside it. The title is the link to the
  * work's page, so the card has one tab stop for the work rather than two. */
-function nowShowing(wall, now, reason) {
+function nowShowing(wall, now) {
   const shown = now ? now.shown : null;
   if (!shown || (shown.state === "silent" && !shown.last)) return el("div", { class: "wall-now", hidden: true });
   const silent = shown.state === "silent";
@@ -726,7 +758,7 @@ async function awaitNext(card, sentence, gone = null) {
     if (!next || next === before || next === gone) continue;
     const now = await nowOn(current);
     if (state.poll !== generation || !card.said.isConnected) return;
-    const lead = nowShowing(wall, now, "hanging");
+    const lead = nowShowing(wall, now);
     card.lead.replaceWith(lead);
     card.lead = lead;
     card.now = now;

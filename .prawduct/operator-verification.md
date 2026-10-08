@@ -10,6 +10,23 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Displays and labels on Clients and Walls, and the panel on the wall — added 2026-10-08
+
+**`build-plan-displays-and-label-outputs.md` Chunks 04 and 07.** Visual change: yes; then live.
+
+Checked by the builder in the browser suite against seeded reports; not yet deployed.
+
+- **Look at:** Settings › Clients shows each client's *Labels* table (e-paper
+  panel, whether it is answering, its size, the wall it captions) and a *Caption a
+  wall* form. Walls says "Captioned by epd-0 on {client}" under a wall a label
+  captions, and nothing under one that has none.
+- **Deploying changes the panel:** after the Player update, the panel draws
+  nothing until a label is mapped. Map it on Settings › Clients first.
+- **Try on the wall (Chunk 07, after #181 and with the Frame on a client):** map
+  the panel to the HDMI wall, then the Frame wall, from Clients alone; see the
+  caption change within 15 s of a picture change; see it blank while the Frame
+  shows television; restart a client and see its display keep its walls.
+
 ### Walk S7, S9 and S12 on the real library — added 2026-10-08
 
 **`build-plan-lists-settings-and-scale.md` Chunk 11, deferred part.** Live walk.
