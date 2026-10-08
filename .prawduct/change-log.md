@@ -81,6 +81,13 @@ the first the heaviest flashing the panel has. Measured on the wall's panel:
   as the real one does; seen failing with the call removed.
 - `platform-and-dependency-findings.md` § The e-paper panel and
   `labels-and-surfaces.md`: the 1.5–1.9 s figure was two refreshes; now 0.57 s.
+  The comments that quoted it (`surface.py`, `label_renderer.py`, `tests/fakes.py`,
+  `tools/label_preview.py`) point at the findings instead.
+- `_never_clear` runs inside `open_panel`'s guard: a driver that refuses it is
+  `SurfaceUnavailable`, with a test.
+- The panel now never gets an INIT refresh; #326 watches for ghosting.
+- On the wall (2026-10-08): a rotation's caption landed 1.85 s after the picture
+  changed, end to end, against 2.9–3.8 s before.
 
 ## 2026-10-08: Every run and look thread is joined before a test's catalogue closes (#324)
 

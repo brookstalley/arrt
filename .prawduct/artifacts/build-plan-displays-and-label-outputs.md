@@ -237,7 +237,7 @@ Done when:
 1. The supervisor starts one label renderer per label output that `GET /client`
    maps, and stops it when the mapping goes. The renderer polls its label
    document through `pull.py` about once a second, applies the rule, and redraws
-   only when the outcome changes (an e-paper redraw flashes for about 2 s).
+   only when the outcome changes (an e-paper redraw flashes; `platform-and-dependency-findings.md` § The e-paper panel has its cost).
 2. The rule is one pure function, and `postarr/tests` runs it over every vector
    in `contract/vectors/label-rule.json`.
 3. With the server unreachable, the renderer keeps its last document and still
