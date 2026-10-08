@@ -379,7 +379,8 @@ class FakeSurface(LabelSurface):
         self.measurement_explodes = False
         #: How long a draw takes, in real seconds. **The real one is not
         #: instantaneous and no amount of arranging makes it so**: a full 16-level
-        #: frame was measured at 1.5–1.9 s with no partial refresh, so a fake that
+        #: frame takes the time measured in `platform-and-dependency-findings.md`
+        #: § The e-paper panel, with no partial refresh, so a fake that
         #: returned immediately would let a caller drawing on the event loop pass
         #: every test a caller drawing off it passes.
         self.draw_takes_seconds = 0.0

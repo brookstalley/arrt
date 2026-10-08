@@ -189,7 +189,7 @@ omni-epd or IT8951 bump** — both are dormant repositories, so a version move i
 the only thing that changes these.
 
 **The panel loads clean and reports 1448x1072**, matching § Target hardware.
-Full-frame draw takes **1.5–1.9 s** against the 15 s label budget in
+Full-frame draw took **1.5–1.9 s** against the 15 s label budget in
 `nonfunctional-requirements.md` — roughly 10× headroom, so that
 `[ASSUMPTION: 15 s | LOW impact]` is safe by a wide margin. `gray16` (1.49 s)
 measured *faster* than `bw` (1.86 s), which is counterintuitive; that is one
@@ -230,6 +230,16 @@ confirmation.
 **No partial refresh exists** on omni-epd's surface for this driver. The whole
 surface is `clear`, `close`, `display`, `prepare`, `sleep`. Every label change —
 even one changed character — is a full-frame redraw at the cost measured above.
+
+**That cost was two refreshes, not one** (measured 2026-10-08 on the same panel,
+omni-epd 1a3acf5, IT8951 9f13613). The driver's `_display()` calls `clear()`
+before every frame, which draws a white frame in the INIT waveform (the heaviest
+flashing the panel has), and only then draws the frame in GC16. GC16 rewrites
+every pixel on its own. With `clear()` silenced a label takes **0.57 s** (two
+samples each: 1.77 and 2.31 s with the clear, 0.57 and 0.57 s without).
+`open_panel` silences it (`postarr/src/postarr/panel/epaper.py`). The panel has
+had no INIT clear since; if ghosting ever builds up over weeks, an occasional INIT
+(at startup, say) is the remedy, not one per label.
 
 ### The text stack installs under uv, and needs no distro *Python* packages
 

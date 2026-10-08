@@ -24,9 +24,16 @@ measurement against the real panel on 2026-08-04
 * `display()` returns `None` on success and on failure alike, so nothing here
   reads a return value as confirmation; a failure is a raised
   `SurfaceUnavailable` or it is nothing.
-* There is **no partial refresh**. Every label change is a full frame at 1.5–1.9 s,
+* There is **no partial refresh**. Every label change is a full frame,
   which is why `LabelSurface.show` warns that it blocks and why the daemon calls
   it from its own task rather than from the television client's reader.
+* **omni-epd's IT8951 driver clears the panel before every frame**: its
+  `_display()` calls `clear()`, a white frame drawn in the INIT waveform, and
+  only then draws the frame in GC16. That is two full refreshes per label, the
+  first the heaviest flashing the panel has, for nothing: GC16 rewrites every
+  pixel on its own. `open_panel` turns the driver's `clear()` into a no-op.
+  Measured on the wall's panel 2026-10-08: 1.8–2.3 s per label with the clear,
+  0.57 s without (`platform-and-dependency-findings.md` § The e-paper panel).
 """
 
 import logging
@@ -70,8 +77,8 @@ class Epd(Protocol):
     **A structural protocol rather than the library's own class**, because naming
     that class here would import it — which is the one thing this module is
     arranged not to do. These are the members this surface *requires*: `clear`
-    exists on the library's object too and is unused, since every label replaces
-    the last.
+    exists on the library's object too and this surface never calls it, since
+    every label replaces the last; `open_panel` silences it (`_never_clear`).
 
     `mode` is a read-write attribute and both directions matter: the driver comes
     up in one bit, and reading it back is the only honest check that it took the
@@ -202,8 +209,9 @@ class EpaperSurface(LabelSurface):
     def show(self, layout: Layout) -> None:
         """Typeset this label and put the whole frame on the panel.
 
-        **Blocks for seconds** — 1.5–1.9 s measured, and no partial refresh exists
-        for this driver, so even a one-character change is a whole frame.
+        **Blocks for over half a second** — 0.57 s measured, and no partial
+        refresh exists for this driver, so even a one-character change is a whole
+        frame.
         """
         try:
             # **Typesetting is inside the guard, not before it.** The rasterizer
@@ -263,9 +271,28 @@ def open_panel(device_name: str) -> Epd:
     try:
         from omni_epd import displayfactory
 
-        return displayfactory.load_display_driver(device_name)
-    # Covers the library being absent (ImportError) and the device being
-    # unopenable (EPDNotFoundError, and whatever the driver raises below it).
+        epd = displayfactory.load_display_driver(device_name)
+        _never_clear(epd)
+    # Covers the library being absent (ImportError), the device being
+    # unopenable (EPDNotFoundError, and whatever the driver raises below it), and
+    # a driver object that will not take the silenced `clear`.
     # One outcome here: this device has no panel it can draw on.
     except Exception as exc:  # prawduct:allow prawduct/broad-except -- see above
         raise SurfaceUnavailable(f"could not open the e-paper device {device_name!r} ({exc})") from exc
+    return epd
+
+
+def _never_clear(epd: object) -> None:
+    """Make the driver's `clear()` do nothing, so a frame is one refresh and not two.
+
+    **Nothing in this surface calls `clear()`**: a frame repaints every pixel. The
+    one caller left is omni-epd's IT8951 driver, whose `_display()` clears before
+    every frame, so silencing it here is what removes that second, heavier
+    refresh. No other driver in the pinned omni-epd calls `clear()` from its draw
+    path (read 2026-10-08), so for them this changes nothing.
+    """
+    epd.clear = _no_clear  # type: ignore[attr-defined]
+
+
+def _no_clear() -> None:
+    return None

@@ -62,6 +62,33 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-08: A label is one panel refresh, not a clear and then a frame
+
+<!-- prawduct: scope=fix-epaper-single-refresh -->
+
+**Why:** the owner noticed the e-paper flashing more than expected. omni-epd's
+IT8951 driver calls `clear()` inside `_display()` before every frame: a white
+frame in the INIT waveform, then the label in GC16. Two full refreshes per label,
+the first the heaviest flashing the panel has. Measured on the wall's panel:
+1.77 and 2.31 s per label as shipped, 0.57 and 0.57 s without the clear.
+
+**What:**
+- `postarr/src/postarr/panel/epaper.py`: `open_panel` makes the opened driver's
+  `clear()` a no-op (`_never_clear`). Nothing in the surface calls it; the
+  driver's own `_display()` was the only caller.
+- `postarr/tests/test_epaper.py`: `TestALabelIsOneRefreshNotTwo` drives
+  `open_panel` against a stand-in omni-epd whose driver clears before each frame,
+  as the real one does; seen failing with the call removed.
+- `platform-and-dependency-findings.md` § The e-paper panel and
+  `labels-and-surfaces.md`: the 1.5–1.9 s figure was two refreshes; now 0.57 s.
+  The comments that quoted it (`surface.py`, `label_renderer.py`, `tests/fakes.py`,
+  `tools/label_preview.py`) point at the findings instead.
+- `_never_clear` runs inside `open_panel`'s guard: a driver that refuses it is
+  `SurfaceUnavailable`, with a test.
+- The panel now never gets an INIT refresh; #326 watches for ghosting.
+- On the wall (2026-10-08): a rotation's caption landed 1.85 s after the picture
+  changed, end to end, against 2.9–3.8 s before.
+
 ## 2026-10-08: Every run and look thread is joined before a test's catalogue closes (#324)
 
 <!-- prawduct: scope=fix-324-discovery-thread-teardown -->
