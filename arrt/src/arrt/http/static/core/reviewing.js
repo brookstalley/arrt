@@ -25,6 +25,7 @@ import {
   shortfallNote,
 } from "./badges.js";
 import { enlarge } from "./enlarge.js";
+import { heldFor, hold, showHold } from "./holding.js";
 import { el, fill, guard } from "./render.js";
 import { go, link } from "./router.js";
 import { tierMark } from "./spend.js";
@@ -451,31 +452,6 @@ function absentScanReason(card) {
   return "No scan was found for this work.";
 }
 
-/* How long a verdict waits, with Undo beside it, before it is sent.
- *
- * **Undo is the client's, because the server's cannot be**: accepting creates
- * the artwork and wakes the acquisition queue, and rejecting suppresses the
- * work from every later run. So a verdict is held here for a few seconds and
- * only then sent; Undo inside that window means nothing was ever asked.
- *
- * **A held verdict is never dropped.** Leaving the page — another address, a
- * reload, closing the tab — sends every held verdict at once (`sendHeld`),
- * with `keepalive` so the request outlives the page that made it. */
-export const VERDICT_HOLD_MS = 5000;
-
-/* Every verdict waiting out its hold, by work: what sends it now. */
-const HELD = new Map();
-
-function sendHeld() {
-  for (const send of [...HELD.values()]) send({ leaving: true });
-}
-
-window.addEventListener("hashchange", sendHeld);
-window.addEventListener("pagehide", sendHeld);
-
-/* What a held verdict is called while it waits, by the act the curator pressed. */
-const HOLDING_WORDS = { accept: "Accepting", reject: "Rejecting", forget: "Forgetting" };
-
 /* What each card on the page was built from, and where it sends its verdicts.
  *
  * Read by `reviewSection` when it is handed the section it replaces: a card
@@ -539,68 +515,30 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
   const reason = el("input", { type: "text", id: `reason-${work.work_id}` });
   // `words` is the act as the failure would name it: "accept Nighthawks".
   //
-  // Pressed, the verdict is held (`VERDICT_HOLD_MS`): the card's controls give
+  // Pressed, the verdict is held (`core/holding.js`): the card's controls give
   // way to what is about to happen and Undo, and only when the hold runs out,
   // or the curator leaves the page, is it sent. A failure to send brings the
   // controls back with the failure said beside the button that was pressed.
-  const decide = (verdict, words) => (event) => {
-    const pressed = event.currentTarget;
-    if (HELD.has(work.work_id)) return;
-    const undo = el("button", {
-      class: "action quiet",
-      type: "button",
-      text: "Undo",
-      "aria-label": `Undo: don't ${words} ${work.title}`,
+  const decide = (verdict, words) => (event) =>
+    hold({
+      key: work.work_id,
+      act: words,
+      title: work.title,
+      controls,
+      pressed: event.currentTarget,
+      write: ({ keepalive }) =>
+        api(`/api/candidates/${encodeURIComponent(work.work_id)}/verdict`, {
+          method: "POST",
+          body: JSON.stringify({ verdict, reason: reason.value || null }),
+          keepalive,
+        }),
+      then: async (outcome) => {
+        // A verdict is one fewer work to review: the sidebar's count is read
+        // again as soon as it is recorded, whatever happens to the repaint.
+        paintAwaiting();
+        await repaint(outcome.notice);
+      },
     });
-    const said = el("span", { role: "status" });
-    const holding = el("div", { class: "row verdict-held" }, [said, undo]);
-    let timer = null;
-    const restore = () => {
-      holding.remove();
-      controls.hidden = false;
-    };
-    const send = async ({ leaving = false } = {}) => {
-      clearTimeout(timer);
-      HELD.delete(work.work_id);
-      undo.remove();
-      said.textContent = `${HOLDING_WORDS[words]} ${work.title}…`;
-      const sent = await attempt(
-        pressed,
-        `${words} ${work.title}`,
-        () =>
-          api(`/api/candidates/${encodeURIComponent(work.work_id)}/verdict`, {
-            method: "POST",
-            body: JSON.stringify({ verdict, reason: reason.value || null }),
-            keepalive: leaving,
-          }),
-        {
-          then: async (outcome) => {
-            // A verdict is one fewer work to review: the sidebar's count is read
-            // again as soon as it is recorded, whatever happens to the repaint.
-            paintAwaiting();
-            await repaint(outcome.notice);
-          },
-        },
-      );
-      if (!sent) restore();
-    };
-    undo.addEventListener("click", () => {
-      clearTimeout(timer);
-      HELD.delete(work.work_id);
-      restore();
-      pressed.focus();
-    });
-    controls.hidden = true;
-    controls.after(holding);
-    HELD.set(work.work_id, send);
-    timer = setTimeout(send, VERDICT_HOLD_MS);
-    // Filled a task after the region is on the page, which is when a live
-    // region announces (`accessibility-spec.md` § Announcement and semantics).
-    setTimeout(() => {
-      if (HELD.has(work.work_id)) said.textContent = `${HOLDING_WORDS[words]} ${work.title} in a few seconds.`;
-    }, 0);
-    undo.focus();
-  };
 
   const alternates = el("div", { class: "stack" }, [el("p", { class: "muted", text: "Loading this work's scans…" })]);
   // **"Scans", not "other scans", and the count is deliberately every scan the
@@ -764,6 +702,13 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
     // wrapped.
     disclosure,
   );
+  // A card drawn again while its verdict is held shows the hold, not a
+  // verdict to press a second time.
+  const held = decided ? null : heldFor(work.work_id);
+  if (held) {
+    const pressed = [...controls.querySelectorAll("button")].find((button) => button.textContent.toLowerCase().startsWith(held.act)) || null;
+    showHold(held, controls, pressed);
+  }
   return node;
 }
 

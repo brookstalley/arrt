@@ -184,6 +184,53 @@ def test_a_held_verdict_that_fails_gives_the_controls_back_and_says_so_beside_th
     assert _card(ui).locator(".verdict-held").count() == 0
 
 
+def test_a_held_verdict_that_fails_after_leaving_is_said_on_the_page_left_for(ui):
+    """Sent because the curator navigated away, a failed verdict is said at page level, naming the act and the work.
+
+    Its card is gone, so beside the button is nowhere; and the error banner is
+    cleared by the next page's paint, which can land after the failure.
+    """
+    ui.serve("**/api/candidates/work-1/verdict", (500, {"error": "The catalogue is locked."}))
+    _review(ui, [a_card()])
+
+    _card(ui).locator("button:text-is('Accept')").click()
+    ui.page.evaluate("() => { window.location.hash = '#queue'; }")
+    ui.page.wait_for_selector("#view h1:text-is('Queue')")
+
+    # Any alert on the page, so the claim is that it is said and stays said,
+    # not where the markup happens to put it; then still there once the new
+    # page has painted and settled.
+    said = ui.page.locator("[role='alert']:visible", has_text="Couldn't accept The Persistence of Memory")
+    said.first.wait_for(timeout=3000)
+    ui.page.wait_for_timeout(1000)
+    assert said.count() == 1
+    assert "the server failed while doing it: The catalogue is locked." in said.first.inner_text()
+
+    elsewhere = ui.page.locator("#failures-elsewhere p")
+    elsewhere.first.locator("button:text-is('Dismiss')").click()
+    assert ui.page.locator("#failures-elsewhere").count() == 0
+
+
+def test_a_card_drawn_again_during_the_hold_shows_the_hold_and_its_undo_works(ui):
+    """A redraw while a verdict is held draws the hold, Undo and the seconds left, never Accept again."""
+    sent = _verdicts(ui)
+    _review(ui, [a_card()])
+
+    _card(ui).locator("button:text-is('Accept')").click()
+    ui.page.evaluate(
+        "() => { document.querySelector(\"li.card[data-work='work-1']\").dataset.before = 'yes'; window.refresh(); }"
+    )
+    ui.page.wait_for_selector("li.card[data-work='work-1']:not([data-before])")
+
+    assert _card(ui).locator("button:text-is('Accept')").is_hidden()
+    assert _card(ui).locator(".verdict-countdown").inner_text().endswith(" s")
+    _card(ui).locator("button:text-is('Undo')").click()
+
+    assert _card(ui).locator("button:text-is('Accept')").is_visible()
+    ui.page.wait_for_timeout((HOLD_SECONDS + 1) * 1000)
+    assert sent == [], "the hold undone on the redrawn card is never sent"
+
+
 # -- the scans take the card's whole width ------------------------------------------
 
 

@@ -21,7 +21,7 @@
  * load is a fact about the page, not about any one control on it.
  */
 
-import { guard, showError } from "./render.js";
+import { el, guard, showError } from "./render.js";
 
 /* The sentence beside each control that has one, so the next press removes it. */
 const said = new WeakMap();
@@ -77,8 +77,8 @@ function sayBeside(control, sentence) {
  *
  * Answers whether the write succeeded, and never throws. A control the write
  * took off the page has nowhere to be beside, so its failure goes to the banner
- * rather than nowhere. */
-export async function attempt(control, act, write, { then = null } = {}) {
+ * rather than nowhere, or to `elsewhere` when the caller names a better place. */
+export async function attempt(control, act, write, { then = null, elsewhere = showError } = {}) {
   if (control) forget(control);
   let answer;
   try {
@@ -86,9 +86,39 @@ export async function attempt(control, act, write, { then = null } = {}) {
   } catch (failure) {
     const sentence = failedSentence(act, failure);
     if (control && control.isConnected) sayBeside(control, sentence);
-    else showError(sentence);
+    else elsewhere(sentence);
     return false;
   }
   if (then) await guard(() => then(answer));
   return true;
+}
+
+/* Say a failure at page level, where it outlives the next paint.
+ *
+ * For an act whose control is gone by the time it fails: a held verdict sent
+ * because the curator navigated away. The error banner is cleared by the next
+ * page's paint, which can land after the failure, so these lines sit in a
+ * region of their own above it and stay until dismissed. Created on first use,
+ * inside `main` before the banner, so the page's markup is unchanged until a
+ * failure needs it. */
+export function reportElsewhere(sentence) {
+  let region = document.getElementById("failures-elsewhere");
+  if (!region) {
+    region = el("div", { id: "failures-elsewhere", class: "note error failures-elsewhere", role: "alert" });
+    document.getElementById("error").before(region);
+  }
+  const line = el("p", {});
+  const dismiss = el("button", {
+    class: "action quiet",
+    type: "button",
+    text: "Dismiss",
+    onclick: () => {
+      line.remove();
+      if (!region.querySelector("p")) region.remove();
+    },
+  });
+  line.append(dismiss);
+  region.append(line);
+  // Filled a task later, so the alert announces what was put into it.
+  setTimeout(() => dismiss.before(`${sentence} `), 0);
 }
