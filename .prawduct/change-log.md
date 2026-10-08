@@ -62,6 +62,41 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-08: Every run and look thread is joined before a test's catalogue closes (#324)
+
+<!-- prawduct: scope=fix-324-discovery-thread-teardown -->
+
+**Why:** #324. CI blamed `test_a_rejected_image_can_be_re_searched_over_the_wire`
+for a `discovery-run` thread that hit a closed database in `_close_phase_two`.
+With a 0.5s sleep put into `_close_phase_two` for the experiment,
+`pytest -n0 -p no:randomly tests/integration/test_resolve_surface.py` failed the
+same way, 1 failed and 8 passed. The thread belonged to the test before it,
+`test_a_client_can_obtain_the_work_ids_the_actions_taking_one_require`. That test
+returns once phase 1 hands the run to phase 2, and the thread dies during the
+next test. #198 joined threads through a `run_threads` spawn. Only the shared
+`services` fixture and two overrides passed it. Every other file's `services`
+override used the runner's bare daemon thread. Under the same sleep, the tests
+that left a thread alive at teardown were four in `test_get_surface.py`, one in
+`test_resolve_surface.py` and two in `test_browser_review.py` (`TestTheReSearch`).
+
+**What:**
+- `arrt/tests/conftest.py`: a new `quiet_catalogue_file` fixture, which both
+  stores are built from, joins every live thread named `RUN_THREAD_NAME` or
+  `LOOK_THREAD_NAME` before `catalogue_file` closes, so a module that overrides
+  `catalogue_file` keeps the join. It enumerates again after each join, so it also
+  catches a follow-on run. It fails the test after 20s, and remembers the threads
+  it failed for so one hung thread fails one test, not every later one. `run_threads` is retired, along with its uses in
+  `test_browser_discovery.py` and `test_look_surface.py`. The look never received
+  that spawn anyway, because `Services.bind` passed it to the runner only.
+- `runner.py`, `look.py`: the thread names became module constants.
+- `services/container.py`: `Services.bind(spawn=)` is removed. Nothing else
+  passed it.
+- `arrt/pyproject.toml`: corrected the comment on the `filterwarnings` error that
+  #198 added. The error is reported against whichever test is running when the
+  thread dies, not the test that started it.
+- Checked by removing the join with the sleep still in. Then
+  `test_resolve_surface.py` plus `test_get_surface.py` gave 3 failed and 2 errors.
+
 ## 2026-10-08: The panel opens again: jetson-gpio no longer overwrites RPi.GPIO (#181)
 
 <!-- prawduct: scope=fix-181-gpio-shim -->

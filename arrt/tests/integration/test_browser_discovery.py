@@ -447,9 +447,7 @@ class TestWhatTheRunBroughtBack:
         return a_collection_holding(**{"Salvador Dalí": ("Soft Construction with Boiled Beans",)})
 
     @pytest.fixture
-    def services(
-        self, run_threads, store, discovery_store, wall_settings, thumbnail_settings, settings, engine, museum, collection
-    ):
+    def services(self, store, discovery_store, wall_settings, thumbnail_settings, settings, engine, museum, collection):
         engine.result = WorkList(
             works=(
                 a_work("The Elephants"),
@@ -469,7 +467,6 @@ class TestWhatTheRunBroughtBack:
             engine=engine,
             discovery_settings=settings.discovery_settings,
             sources=a_roster(museum, collection=collection),
-            spawn=run_threads,
         )
 
     def finished(self, http, run_id: str) -> dict:
