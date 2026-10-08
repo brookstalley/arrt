@@ -2667,6 +2667,10 @@ suppresses it and leaves the verdict where it was.
     gains sharing or export, or the catalogue itself becomes public — those change
     the analysis, and this is recorded so the trigger is recognisable rather than
     rediscovered.
+    **Reopened 2026-10-08 for public channels only** (`feeds-and-players.md`
+    ruling 5): sharing arrived as public channels, and a channel carries only works
+    whose chosen image is `public_domain`, refusing `unknown`. Private walls are
+    unchanged, and rights still gate nothing there.
 14. **A CandidateWork is covered by at most one active `resolve` run at a time.**
     Coverage is recorded in **ResolveRunWork**; the constraint is enforced at
     run-creation time by checking that table — `resolve_images` refuses any work id

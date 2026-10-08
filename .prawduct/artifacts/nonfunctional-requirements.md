@@ -1143,6 +1143,13 @@ is a *downscale* or a *native-size paste*.
 
 ### The mat is geometric, and the floor is physical (decided 2026-07-20)
 
+> **Direction changed 2026-10-08 (`feeds-and-players.md` § Mat modes).** The rule
+> below becomes one of three mat modes a client draws: `none` (black),
+> `proportional` (this rule) and `full` (mat colour to every edge, the rule before
+> 2026-10-02). The feed carries only the mat colour, and the mode and width are
+> the client's. A client that knows its pixel density keeps this rule; one that
+> does not uses a relative width that the wave 4 layout spec pins.
+
 **The mat is specified in physical units, not pixels or ratios.** A mat width in
 inches, with the bottom margin weighted larger than the top — the conservator's
 convention, because a true-centred image reads as sitting low. This is what
