@@ -96,6 +96,13 @@ criteria, or an owner ruling from 2026-10-08. **Medium** for 01, 05, 07, 08 and
   short list of movements (at most twelve, defined in one constant), whether or
   not any work is held. A topic page shows each work as its answer arrives. |
   #289; see the doubt above | owner can veto the movements]`
+- `[DECISION (2026-10-08, chunk 09 at build): a topic page streams its answers
+  (topic, ranked works, makers) as they land, and the existing TopicSweep thread
+  also keeps the fixed list's answers warm, about a week old at most, asked one at
+  a time and stopped by any refusal. | the 22 s is one SPARQL range scan that no
+  split makes cheaper (wikidata-findings.md § Topics), so streaming alone saves
+  only the makers query; warming 21 fixed topics is about 42 queries a week on a
+  thread that already exists | owner can veto]`
 - `[DECISION: chunk 01's rules are written into design-direction.md §
   Component Patterns, and the stylesheet supplies a shared class for each. The
   "native" and "wall render" badges are removed from tiles. Disabled buttons
