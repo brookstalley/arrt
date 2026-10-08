@@ -249,6 +249,15 @@ def test_a_connector_the_kernel_does_not_list_is_never_connected(tmp_path):
     assert (output.connected, output.screen) == (False, None)
 
 
+def test_listed_tells_a_connector_with_no_screen_from_one_the_kernel_does_not_list(tmp_path):
+    """`dark` and `no_screen` are different states, and `connected` alone says false for both."""
+    bench = Bench(tmp_path, status="disconnected", size=None)
+    absent = KmsOutput("hdmi-a-3", drm_root=bench.root, device_for=bench._open)
+
+    assert (bench.output.listed, bench.output.connected) == (True, False)
+    assert (absent.listed, absent.connected) == (False, False)
+
+
 def test_a_wall_on_an_hdmi_connector_draws_through_kernel_mode_setting(client_settings):
     output = entry.screen_output(client_settings.wall("living-room"), "hdmi-a-2")
 

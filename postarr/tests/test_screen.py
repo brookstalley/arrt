@@ -9,11 +9,13 @@ consumed early cannot pass for one correctly withheld.
 import json
 import logging
 import random
+from pathlib import Path
 
 import pytest
 from fakes import RecordingOutput
+from jsonschema import Draft202012Validator
 
-from postarr.heartbeat import path_in
+from postarr.heartbeat import INTERVAL_SECONDS, path_in
 from postarr.manifest import Watcher
 from postarr.screen import ScreenWall
 
@@ -214,3 +216,79 @@ async def test_a_screen_that_cannot_be_drawn_again_is_said_once_and_rotation_goe
     assert events.count("screen.refresh_recovered") == 1
     assert shown(output) == ["w1", "w2", "w1", "w2"]
     assert "Permission denied" in json.loads(path_in(wall_dir, "living-room").read_text())["last_error"]
+
+
+# -- display state: what the screen is doing (labels-and-surfaces.md § Display state) -------
+
+_SCHEMA = json.loads(
+    (Path(__file__).resolve().parents[2] / "contract" / "schemas" / "heartbeat.v1.schema.json").read_text(encoding="utf-8")
+)
+
+
+def _display(wall_dir) -> tuple[str, str | None]:
+    document = json.loads(path_in(wall_dir, "living-room").read_text())
+    errors = [
+        e.message for e in Draft202012Validator(_SCHEMA, format_checker=Draft202012Validator.FORMAT_CHECKER).iter_errors(document)
+    ]
+    assert errors == [], errors
+    assert document["schema"] == {"major": 1, "minor": 3}
+    return document["display_state"]["state"], document["display_state"]["work_id"]
+
+
+async def test_a_drawn_work_is_showing_art(screen, publish, wall_dir):
+    publish(["w1", "w2"])
+
+    await screen.tick()
+
+    assert _display(wall_dir) == ("showing_art", "w1")
+
+
+async def test_a_connector_reporting_no_screen_is_dark_and_a_returning_screen_is_art_again(
+    screen, output, publish, wall_dir, clock
+):
+    publish(["w1", "w2"], interval_seconds=900)
+    await screen.tick()
+
+    output.connected = False
+    clock.advance(1.3)
+    await screen.tick()
+    assert _display(wall_dir) == ("dark", None)
+
+    output.connected = True
+    clock.advance(1.3)
+    await screen.tick()
+    assert _display(wall_dir) == ("showing_art", "w1")
+
+
+async def test_an_output_the_client_no_longer_lists_is_no_screen(screen, output, publish, wall_dir, clock):
+    publish(["w1"])
+    await screen.tick()
+
+    output.listed = False
+    output.connected = False
+    clock.advance(1.3)
+    await screen.tick()
+
+    assert _display(wall_dir) == ("no_screen", None)
+
+
+async def test_before_anything_is_drawn_the_screen_is_dark(screen, wall_dir):
+    """No manifest yet: the screen shows the console's black, not art."""
+    await screen.tick()
+
+    assert _display(wall_dir) == ("dark", None)
+
+
+async def test_a_change_is_written_at_once_and_an_unchanged_state_keeps_the_interval(screen, output, publish, wall_dir, clock):
+    publish(["w1", "w2"], interval_seconds=900)
+    await screen.tick()
+    first = path_in(wall_dir, "living-room").read_text()
+
+    clock.advance(INTERVAL_SECONDS / 7)
+    await screen.tick()
+    assert path_in(wall_dir, "living-room").read_text() == first, "an unchanged state was written before the interval"
+
+    output.connected = False
+    clock.advance(INTERVAL_SECONDS / 7)
+    await screen.tick()
+    assert path_in(wall_dir, "living-room").read_text() != first, "a change waited for the interval"

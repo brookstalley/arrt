@@ -49,6 +49,16 @@ class TvUploadFailed(Exception):
     """An image was not put on the television, confirmed rather than assumed."""
 
 
+class PowerStateUnreadable(Exception):
+    """The set's `PowerState` could not be read, though the art channel may have answered.
+
+    **Not a `TvUnavailable`, and the difference is the wall's.** The read goes over
+    a different transport from everything else here (REST, beside the art
+    websocket), so its failing says nothing about whether the art channel is
+    usable, and must not drop the connection or start the outage backoff.
+    """
+
+
 class TvRemovalUnconfirmed(Exception):
     """What the television holds after a removal could not be established.
 
@@ -186,6 +196,25 @@ class TvClient(ABC):
         read.
 
         Synchronous and consuming — it reports an edge, and clears it.
+        """
+
+    @abstractmethod
+    async def power_state(self) -> str:
+        """The set's REST `PowerState` — `on` or `standby` — or raise `PowerStateUnreadable`.
+
+        **The one thing that tells somebody watching television from a set that is
+        off**, both of which `showing_art` answers no to
+        (`samsung-tv-state-findings.md` § The states). It says whether the panel is
+        lit and nothing else, so it is never a permission question: it is asked
+        only after `showing_art` has already said no, to report which of the two
+        the wall is in.
+
+        **A read, never a press.** It is a GET of the set's device description, the
+        same one `power_probe.py` samples; it changes nothing on the set, so the
+        rule that the television belongs to whoever is using it is not engaged.
+
+        Bounded by a short timeout of its own, and never raises `TvUnavailable`:
+        its transport is not the art channel's, and its failing is not an outage.
         """
 
     @abstractmethod

@@ -33,6 +33,7 @@ from postarr.panel import (
     type_scale_for,
 )
 from postarr.tv import (
+    PowerStateUnreadable,
     RemovalOutcome,
     SelectionAnnouncement,
     SelectionObserver,
@@ -127,6 +128,13 @@ class FakeTv(TvClient):
         self.art_mode_announced = False
         #: How many times the set has been asked whether it is showing art.
         self.art_mode_reads = 0
+        #: The set's REST `PowerState`: `"on"` for a lit panel (art mode or a
+        #: programme alike), `"standby"` for a set switched off at the remote.
+        self.power = "on"
+        #: Armed to make the `PowerState` read fail while the art channel answers,
+        #: which the real seam reports as unreadable rather than as an outage.
+        self.power_unreadable = False
+        self.power_reads = 0
 
     async def connect(self) -> None:
         """Cheap once connected, exactly as the real client is.
@@ -146,6 +154,10 @@ class FakeTv(TvClient):
         self._check_reachable()
         self.connects += 1
         self._connected = True
+        # **A connection is itself news, as the real client says it is**: the set
+        # may have changed state while nobody could hear it, so `SamsungTv.connect`
+        # leaves an art-mode announcement pending, and so does this.
+        self.art_mode_announced = True
 
     async def close(self) -> None:
         self.closed += 1
@@ -235,6 +247,14 @@ class FakeTv(TvClient):
         # often it is asked, and nothing else here can express it.
         self.art_mode_reads += 1
         return self.art_mode == "on"
+
+    async def power_state(self) -> str:
+        # Never `TvUnavailable`: the real read rides REST beside the art channel,
+        # and its failing neither drops the connection nor is an outage.
+        self.power_reads += 1
+        if self.power_unreadable or self.unavailable or not self._connected:
+            raise PowerStateUnreadable("the set's device description did not answer")
+        return self.power
 
     def observe_selections(self, observer: SelectionObserver) -> None:
         # Idempotent, as the real client is: subscribing twice must not mean being
@@ -450,6 +470,9 @@ class RecordingOutput:
 
     def __init__(self, *, connected: bool = True, screen: tuple[int, int] | None = (1920, 1080)) -> None:
         self.shown: list[Path] = []
+        #: Whether the output exists at all. False models a connector the kernel
+        #: stopped listing under a running worker.
+        self.listed = True
         self.connected = connected
         self.screen = screen
         #: Armed to make `show` raise, as a driver that loses its device would.
