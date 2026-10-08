@@ -30,7 +30,7 @@ export const TIER_WORDS = {
  * because an unpriced control reads as a free one. */
 export function tierMark(tier) {
   const words = TIER_WORDS[tier] || String(tier || "unpriced");
-  return el("span", { class: `badge badge-tier tier-${tier === "free" ? "free" : "spends"}` }, [
+  return el("span", { class: `badge-tier tier-${tier === "free" ? "free" : "spends"}` }, [
     el("span", { text: "Cost: " }),
     el("span", { class: "tier-value", text: words }),
   ]);

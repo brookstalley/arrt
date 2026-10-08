@@ -109,18 +109,23 @@ def test_every_act_is_at_least_the_control_height(ui, key):
     assert not short, f"acts shorter than {height}px: {short}"
 
 
-def test_a_touch_screen_gets_44px_controls(browser, server_url):
-    """`pointer: coarse` raises every act and field to 2.75rem, whatever the
-    viewport, because a finger is what matters, not the window's width."""
+@pytest.mark.parametrize("key", ["discover", "collection", "artist", "health"])
+def test_a_touch_screen_gets_44px_controls(browser, server_url, key):
+    """`pointer: coarse` raises every control to 2.75rem, whatever the
+    viewport, because a finger is what matters, not the window's width. Every
+    visible control is measured, the top bar's included, on a page of each
+    kind: a form, a list with its filter rail, an index, and a report."""
     context = browser.new_context(has_touch=True, is_mobile=True, viewport={"width": 1024, "height": 800})
     try:
         ui = Ui(context.new_page(), server_url)
-        _settled(ui, "discover")
-        sizes = ui.page.evaluate("""() => [...document.querySelectorAll('#view :is(button.action, textarea, input[type="text"])')]
-              .filter((node) => node.offsetParent !== null)
-              .map((node) => node.getBoundingClientRect().height)""")
-        assert sizes, "the Ask page drew no controls to measure"
-        assert min(sizes) >= 44
+        _settled(ui, key)
+        small = ui.page.evaluate("""() => [...document.querySelectorAll(
+              'button, input[type="text"], input[type="search"], textarea, select, nav.sidebar a')]
+              .filter((node) => node.offsetParent !== null && !node.closest('.visually-hidden'))
+              .map((node) => [node.textContent.trim().slice(0, 30) || node.getAttribute('aria-label')
+                || node.getAttribute('placeholder') || node.tagName, node.getBoundingClientRect().height])
+              .filter(([, h]) => h < 44 - 0.5)""")
+        assert not small, f"controls under 44px on a touch screen: {small}"
     finally:
         context.close()
 

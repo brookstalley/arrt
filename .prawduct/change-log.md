@@ -62,6 +62,31 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-08: Wall label: the review's touch-size and picture-choice findings
+
+<!-- prawduct: scope=wall-label -->
+
+**Why:** The cumulative review of chunk 06 (`rev-20261008T213736Z-54a26b10`).
+
+**What:**
+- The 44px touch rule now reaches the top bar and the sidebar: the search
+  field, the magnifier, every sidebar link and the filter options are sized
+  from `--control-h` / `--control-h-compact`. `--masthead` is derived from
+  `--control-h` instead of copying its value.
+- How an artist's picture is chosen (a work with an image first) is now said
+  in `api-contract.md`, `information-architecture.md`, `http/models.py`,
+  `library/services/artists.py` and `screens/artists.js`. The docstring no
+  longer claims the choice never changes.
+- The cost mark drops the `badge` class.
+
+**Tests:** `test_a_touch_screen_gets_44px_controls` now measures every
+visible control on four kinds of page. Before the fix it failed on the
+search field (40px), the magnifier (32px) and every sidebar link (36–39px).
+`test_a_status_badge_keeps_its_boundary_on_its_own_ground`, added in chunk 03,
+is removed. It checked the state colour on its quiet ground at 3:1, the same
+pair `test_every_status_colour_clears_aa_on_its_own_quiet_ground` holds at
+4.5:1, so it could never fail on its own.
+
 ## 2026-10-08: Wall label, chunk 06: controls
 
 <!-- prawduct: scope=wall-label -->

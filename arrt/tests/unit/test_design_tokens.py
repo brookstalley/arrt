@@ -178,17 +178,6 @@ def test_every_status_colour_clears_aa_on_its_own_quiet_ground(scheme, token):
 
 
 @pytest.mark.parametrize(("scheme", "token"), STATUS_PAIRS)
-def test_a_status_badge_keeps_its_boundary_on_its_own_ground(scheme, token):
-    """A badge on a status ground is bordered in the state's own colour (the
-    sidebar's System count, a held or in-review badge), and that border is what
-    marks out the badge, so it is held to WCAG 1.4.11's floor.
-    """
-    tokens = SCHEMES[scheme]
-    ratio = _ratio(tokens[token], tokens[f"{token}-quiet"])
-    assert ratio >= UI_CONTRAST_FLOOR, f"{scheme}: --{token} on --{token}-quiet is {ratio:.2f}:1"
-
-
-@pytest.mark.parametrize(("scheme", "token"), STATUS_PAIRS)
 def test_every_status_colour_clears_aa_on_the_page_ground(scheme, token):
     """The top bar's status is its words in the state's colour, straight on the
     page's ground, with no tinted box of its own to lean on."""

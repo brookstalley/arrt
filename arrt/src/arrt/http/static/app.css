@@ -190,8 +190,9 @@
 
   /* Layout. */
   --rail: 13rem;
-  /* The top bar's height: a 2.5rem search field, its padding and its 1px rule. */
-  --masthead: calc(4rem + 1px);
+  /* The top bar's height: a search field of one control's height, the bar's
+     padding and its 1px rule. */
+  --masthead: calc(var(--control-h) + 2 * var(--space-3) + 1px);
   --sidebar: 14rem;
 }
 
@@ -349,8 +350,8 @@ header.topbar {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2rem;
-  height: 2rem;
+  width: var(--control-h-compact);
+  height: var(--control-h-compact);
   padding: 0;
   border: none;
   border-radius: var(--radius-sm);
@@ -454,14 +455,14 @@ header.topbar {
 
 .topbar .search input {
   font: var(--text-sm) / 1.4 var(--font-ui);
-  padding: var(--space-2) var(--space-3) var(--space-2) 2.5rem;
+  padding: var(--space-2) var(--space-3) var(--space-2) calc(var(--control-h-compact) + var(--space-2));
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
   background: var(--surface-1);
   color: var(--text);
   width: 100%;
   min-width: 12rem;
-  height: 2.5rem;
+  height: var(--control-h);
   box-sizing: border-box;
 }
 
@@ -553,6 +554,8 @@ nav.sidebar a {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  min-height: var(--control-h-compact);
+  box-sizing: border-box;
   padding: var(--space-2) var(--space-5);
   color: var(--text);
   font: var(--text-md) / 1.4 var(--font-ui);
@@ -1001,6 +1004,7 @@ h1 {
 
 .facet-option {
   width: 100%;
+  min-height: var(--control-h-compact);
   /* The counts line up down the rail as a column of figures would. */
   font-variant-numeric: tabular-nums;
 }
@@ -2210,19 +2214,14 @@ button.action:disabled:hover {
 }
 
 /* A row of acts sits one step below whatever precedes it, never flush: a
-   sentence, a list of facts, another row. It was `p + .row` alone, so a row
-   under a facts list or under another row sat against it, and a page with
-   three rows of acts spaced them three different ways. Rows inside a flex
-   column (`.stack`) are already spaced by its gap, and are left to it. */
+   sentence, a list of facts, another row. Rows inside a flex column (`.stack`,
+   `.stack-tight`) are already spaced by its gap, and are left to it; a new
+   flex column of rows needs adding here, or its rows are spaced twice. */
 :not(.stack, .stack-tight, .row) > * + .row,
 :not(.stack, .stack-tight, .row) > * + .identity {
   margin-top: var(--space-4);
 }
 
-/* A labelled field beside its button: the field's own bottom margin would hold
-   the input above the row's bottom edge while the button sat on it, so every
-   "Create", "Rename" or "Look up" landed a margin lower than the box it acts
-   on. Inside a row the row's gap spaces things, and the margin goes. */
 /* A line under a row of acts that says what pressing costs or does. Close to
    the row it explains, and small. */
 .row + .act-note {
@@ -2230,6 +2229,10 @@ button.action:disabled:hover {
   font-size: var(--text-sm);
 }
 
+/* A labelled field beside its button: the field's own bottom margin would hold
+   the input above the row's bottom edge while the button sat on it, so every
+   "Create", "Rename" or "Look up" landed a margin lower than the box it acts
+   on. Inside a row the row's gap spaces things, and the margin goes. */
 .row > .field {
   margin-bottom: 0;
 }
