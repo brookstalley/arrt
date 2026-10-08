@@ -293,7 +293,13 @@ Done when:
 3. A cost is part of the act it prices: the tier mark is no longer a boxed
    badge beside a button, and on the Ask page the Get button carries its
    bound ("Get · up to $0.01"), replacing the separate note. Every priced act
-   still carries its tier (the IA ruling "a cost tier on every action").
+   still carries its tier (the IA ruling "a cost tier on every action"). *(Built differently: the tier stays beside the
+   act, as plain words, "Cost: $", and the Ask page's bound moved from a boxed
+   note above the buttons to one muted line directly under them. Putting the
+   bound inside the button would change Get's spoken name, and the tier
+   beside it, which every priced act shares, is pinned by the spend tests.
+   The owner's complaint, a "$" that looked like a button, is answered either
+   way.)*
 4. Tests: rows of acts are spaced from what precedes them on every sidebar
    page; every `.action` meets `--control-h`, and 2.75rem in a coarse-pointer
    context; no tier mark is drawn as a box. Each is watched failing once.

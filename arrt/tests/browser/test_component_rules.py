@@ -109,6 +109,19 @@ def test_every_section_heading_has_the_one_h2_treatment(ui, key):
     assert not wrong, f"expected {expected}: {wrong}"
 
 
+def test_no_rule_is_drawn_above_a_page_s_name(ui, service):
+    """A section's rule separates the page's parts; the page's name heads them.
+    An artist's page keeps its name inside a section, which drew a rule over it."""
+    artist = service.add_artist(name="Charles Demuth", born=1883, died=1935)
+    ui.open(f"#artist/{artist.id}")
+    ui.page.wait_for_selector("#view h1")
+    ruled = ui.page.evaluate("""() => {
+          const section = document.querySelector('#view h1').closest('.panel');
+          return section ? getComputedStyle(section).borderTopStyle : 'none';
+        }""")
+    assert ruled == "none"
+
+
 @pytest.mark.parametrize("key", sorted(PAGES))
 def test_an_empty_page_uses_the_one_empty_state(ui, key):
     """An empty page leads with a sentence, not a heading, in the shared shape;

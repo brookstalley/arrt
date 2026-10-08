@@ -24,14 +24,15 @@ export const TIER_WORDS = {
   "$$$": "$$$",
 };
 
-/* The mark beside a spending control: glyph-free, the tier itself. A tier the
+/* The mark beside a spending control: glyph-free, the word "Cost" and the
+ * tier, as text rather than a badge's box, so it is not mistaken for an act. A tier the
  * client has no word for is drawn as the server spells it rather than dropped,
  * because an unpriced control reads as a free one. */
 export function tierMark(tier) {
   const words = TIER_WORDS[tier] || String(tier || "unpriced");
   return el("span", { class: `badge badge-tier tier-${tier === "free" ? "free" : "spends"}` }, [
-    el("span", { class: "visually-hidden", text: "Cost: " }),
-    el("span", { text: words }),
+    el("span", { text: "Cost: " }),
+    el("span", { class: "tier-value", text: words }),
   ]);
 }
 

@@ -383,8 +383,8 @@ def a_turn_estimate(cost="0.0005") -> dict:
 
 
 def shown_tier(scope):
-    """The tier a sighted reader sees, without the words only a screen reader hears."""
-    return scope.locator(".badge-tier > span:not(.visually-hidden)").inner_text()
+    """The tier itself, without the "Cost:" label shown before it."""
+    return scope.locator(".badge-tier > .tier-value").inner_text()
 
 
 def say_row(ui):

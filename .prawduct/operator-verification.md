@@ -28,9 +28,10 @@ as before. Not yet deployed.
   description in the serif, the record as ruled sections), Status, Walls,
   Themes, Settings. Then compare with the canvas the direction was chosen
   from: https://claude.ai/artifact/KKGdo4ktsDS32t15yyUpCS.
-- **Check especially:** that the dark scheme reads well in Newsreader (the
-  canvas never drew it), and whether the space each tile reserves for its
-  longest label leaves too much air between rows when every title is short.
+- **Check especially:** whether the space each tile reserves for its longest
+  label leaves too much air between rows when every title is short. (The
+  owner judged the colours of both schemes good on 2026-10-08 and asked for
+  attention on layout and flow instead.)
 - **Regenerate:** `cd arrt && uv run python tools/ux_walk.py --base-url
   <the deployment> --out ../.ux-walk/wall-label-deployed`.
 

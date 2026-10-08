@@ -169,6 +169,11 @@
   --space-6: 2rem;
   --space-8: 3rem;
 
+  /* Controls: one height for every act and field, and a compact one for a
+     menu's items and the menu button. A coarse pointer raises both below. */
+  --control-h: 2.5rem;
+  --control-h-compact: 2rem;
+
   /* Radius: crisp. A museum label is not a pill. */
   --radius-sm: 2px;
   --radius-md: 4px;
@@ -188,6 +193,17 @@
   /* The top bar's height: a 2.5rem search field, its padding and its 1px rule. */
   --masthead: calc(4rem + 1px);
   --sidebar: 14rem;
+}
+
+/* A finger is not a pointer: on a touch screen every control is at least
+   44px (2.75rem), what every touch platform assumes. Keyed on the pointer,
+   not the viewport, because a small window on a desktop still has a mouse
+   (§ Spacing & Layout). */
+@media (pointer: coarse) {
+  :root {
+    --control-h: 2.75rem;
+    --control-h-compact: 2.75rem;
+  }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -491,9 +507,11 @@ header.topbar {
   appearance: none;
   align-items: center;
   gap: var(--space-2);
+  min-height: var(--control-h);
+  box-sizing: border-box;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-1) var(--space-3);
   font: var(--text-sm) / 1.2 var(--font-ui);
   background: var(--surface-0);
   color: var(--text);
@@ -1063,7 +1081,11 @@ h1 {
 }
 
 .toolbar-menu [role="menuitemradio"] {
-  padding: var(--space-2) var(--space-3);
+  display: flex;
+  align-items: center;
+  min-height: var(--control-h-compact);
+  box-sizing: border-box;
+  padding: var(--space-1) var(--space-3);
   font: var(--text-sm) / 1.4 var(--font-ui);
   color: var(--text);
   cursor: pointer;
@@ -1952,6 +1974,13 @@ th {
   margin-bottom: var(--space-6);
 }
 
+/* The section that holds a page's own name is the page's head, not one of its
+   parts, so no rule is drawn above the name. */
+.panel:has(> h1) {
+  border-top: none;
+  padding-top: 0;
+}
+
 /* `h2`, `h3` or `h4`, one treatment. The rank of a panel's heading depends on
  * what it sits under — at the top of a view it is an `h2`, inside a wall's own
  * section on the walls view an `h3`, and inside one wall's heartbeat reading on
@@ -2116,6 +2145,8 @@ label {
 input[type="text"],
 textarea,
 select {
+  min-height: var(--control-h);
+  box-sizing: border-box;
   font: var(--text-md) / 1.4 var(--font-ui);
   color: var(--text);
   background: var(--surface-1);
@@ -2128,15 +2159,20 @@ select {
    themes", "Go to Ask", a way back. The second is a link, as every navigation
    is, and wears the act's shape because it sits among acts. */
 :is(button, a).action {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--control-h);
+  box-sizing: border-box;
   text-decoration: none;
   appearance: none;
-  font: var(--text-sm) / 1 var(--font-ui);
+  font: var(--text-sm) / 1.2 var(--font-ui);
   color: var(--accent-text);
   background: var(--accent);
   border: 1px solid var(--accent);
   border-radius: var(--radius-md);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-1) var(--space-4);
   cursor: pointer;
 }
 
@@ -2173,15 +2209,27 @@ button.action:disabled:hover {
   align-items: flex-end;
 }
 
-/* A row of acts under a sentence sits a step below it, never flush. */
-p + .row {
-  margin-top: var(--space-3);
+/* A row of acts sits one step below whatever precedes it, never flush: a
+   sentence, a list of facts, another row. It was `p + .row` alone, so a row
+   under a facts list or under another row sat against it, and a page with
+   three rows of acts spaced them three different ways. Rows inside a flex
+   column (`.stack`) are already spaced by its gap, and are left to it. */
+:not(.stack, .stack-tight, .row) > * + .row,
+:not(.stack, .stack-tight, .row) > * + .identity {
+  margin-top: var(--space-4);
 }
 
 /* A labelled field beside its button: the field's own bottom margin would hold
    the input above the row's bottom edge while the button sat on it, so every
    "Create", "Rename" or "Look up" landed a margin lower than the box it acts
    on. Inside a row the row's gap spaces things, and the margin goes. */
+/* A line under a row of acts that says what pressing costs or does. Close to
+   the row it explains, and small. */
+.row + .act-note {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+}
+
 .row > .field {
   margin-bottom: 0;
 }
@@ -2858,12 +2906,21 @@ dialog.confirm::backdrop {
 /* Spend: the tier beside a spending control, and what is left of this month's
    budget under the sidebar's sections. The tier is words, never colour alone;
    a control that spends reads a shade stronger than one that is free. */
+/* A cost is read as words beside the act it prices, never as a box: a boxed
+   "$" beside a button reads as a second button. Its "Cost:" label is shown,
+   not only spoken, for the same reason. */
 .badge-tier {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
+  align-self: center;
 }
 
-.badge-tier.tier-spends {
-  border-color: var(--border-strong);
+.badge-tier.tier-spends > .tier-value {
+  color: var(--text-strong);
   font-weight: 600;
 }
 

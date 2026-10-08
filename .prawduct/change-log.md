@@ -62,6 +62,41 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-08: Wall label, chunk 06: controls
+
+<!-- prawduct: scope=wall-label -->
+
+**Why:** The owner walked the redesign and found buttons "spaced
+erratically", "a jumble of button sizes", and a "$" that read as a button
+(`build-plan-wall-label.md` chunk 06).
+
+**What:**
+- A row of acts sits one step below whatever precedes it (it was `p + .row`
+  only), except inside a flex column, whose gap spaces it.
+- `--control-h` (2.5rem) and `--control-h-compact` (2rem) size every act,
+  field, menu item and the menu button. Both become 2.75rem under
+  `@media (pointer: coarse)`. `design-direction.md` had described that rule
+  as built for months; it was not in `app.css`.
+- A cost tier is words, "Cost: $", with no badge box, and its "Cost:" label
+  is visible. On Ask, the cost line moved from a boxed note above the buttons
+  to one muted line under them.
+- No rule is drawn above a page's name when the name sits inside a section
+  (the Artist page).
+- Found by the walk: the Artists index pictured an artist by their first
+  accepted work even when it had no image, so its thumbnail request was
+  answered 400 and the poster read "No picture". `held_artists` now prefers
+  the first accepted work holding a master.
+
+**Tests:** New: `test_the_controls.py` (rows spaced on every sidebar page and
+on an artist's page; every act at least `--control-h`; 44px controls in a
+touch context; the cost mark not boxed),
+`test_no_rule_is_drawn_above_a_page_s_name`, and
+`test_an_artist_is_pictured_by_a_work_with_an_image_before_one_without`. Each
+was watched failing against the code before it. `test_the_conversation.py`'s
+`shown_tier` helper now reads `.tier-value`: it read "the tier without the
+words only a screen reader hears", and the "Cost:" label is now shown to
+everyone. The tier it checks is unchanged.
+
 ## 2026-10-08: Wall label, chunk 05: ruled sections everywhere, and the walk
 
 <!-- prawduct: scope=wall-label -->

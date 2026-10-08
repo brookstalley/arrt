@@ -11,6 +11,7 @@ import pytest
 from fakes import FakeRegistry
 
 from arrt.library.registry import RegistryArtist, RegistryHolding, RegistryWorkEntry
+from arrt.persistence.records import AcquisitionMethod, FetchStatus, RightsStatus, SourceClass
 
 ROTHKO = "Q160149"
 
@@ -85,6 +86,39 @@ class TestTheIndex:
         assert pictured != later.id
         # And the one artist's own route says the same.
         assert http.get(f"/api/artists/{rothko.id}").raise_for_status().json()["pictured_artwork_id"] == kept.id
+
+    def test_an_artist_is_pictured_by_a_work_with_an_image_before_one_without(self, http, held, service):
+        """The Artists index fetches the pictured work's thumbnail, which a work
+        with no master answers 400. So a first work still waiting for its image
+        gives way to a later one that has one, and the index draws a picture
+        instead of "No picture"."""
+        rothko, kept = held
+        later = service.add_artwork(title="Untitled (Later)", artist_id=rothko.id)
+        source = service.add_source(
+            artwork_id=later.id,
+            url=f"https://museum.example/{later.id}",
+            provider="artic",
+            source_class=SourceClass.INSTITUTIONAL,
+            acquisition_method=AcquisitionMethod.DEZOOMIFY,
+            rights_status=RightsStatus.PUBLIC_DOMAIN,
+            is_primary=True,
+        )
+        service.record_original(
+            artwork_id=later.id,
+            source_id=source.id,
+            path=f"raw/{later.id}.tif",
+            width=6000,
+            height=4000,
+            byte_size=90_000_000,
+            content_hash="hash-later",
+            fetch_status=FetchStatus.OK,
+        )
+
+        listed = http.get("/api/artists").raise_for_status().json()["artists"]
+        pictured = next(entry["pictured_artwork_id"] for entry in listed if entry["artist"]["name"] == "Mark Rothko")
+
+        assert pictured == later.id, "the first accepted work has no image, so the later one with an image is shown"
+        assert pictured != kept.id
 
     def test_a_query_ignores_accents(self, http, held):
         found = http.get("/api/artists", params={"q": "dali"}).raise_for_status().json()["artists"]
