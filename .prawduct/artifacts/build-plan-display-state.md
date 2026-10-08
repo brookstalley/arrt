@@ -30,8 +30,9 @@ Label outputs and their mapping (#188) are the next plan, not this one.
 | 05 | On the wall: a remote change, TV in use, and the set off, each seen on Walls (the operator) |
 
 **Not in this plan:** label outputs, their mapping and renderers on other clients
-(#188); caption mode; the label's own 30-minute silence threshold (it belongs with
-label renderers off the wall's own device, where silence is possible).
+(#188); caption mode. The 30-minute rule for a *silent* wall belongs with label
+renderers off the wall's own device, where silence is possible; the Frame loop's own
+panel applies it to `unreachable` here.
 
 ## Requirements Confidence
 
@@ -86,7 +87,8 @@ Done when:
 2. A change writes the heartbeat at once; an unchanged state keeps the interval.
 3. The panel follows `labels-and-surfaces.md`'s table: blank for `in_use` and
    `dark`; the work's caption for `showing_art`; a remote change gets the right
-   caption (today's behaviour kept); `unreachable` keeps the last caption.
+   caption (today's behaviour kept); `unreachable` keeps the last caption for 30
+   minutes and then blanks (the owner, 2026-10-08), one named constant.
 4. Tests in `postarr/tests` drive the TV double through each transition, including
    a remote change and TV in use then back to art; the existing label wiring tests
    stay green or change deliberately with the reason recorded.

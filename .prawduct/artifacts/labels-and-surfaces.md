@@ -45,7 +45,7 @@ recommendation taken in each but the first, which the owner then revised.
 | 1 | Where a label learns what its wall shows | **The wall's reported display state, never the schedule.** First ruled "wait for wave 4's schedule"; revised the same day once the movie case showed that the schedule says what a wall *should* show and only its controller knows what it *is* showing. |
 | 2 | The guarantee that replaces "one process drives picture and label" | **A label follows its wall's reported state.** They can disagree only between a change and its report, and a label whose wall stops reporting keeps its last caption only for a bounded time, then blanks. |
 | 3 | Cardinality | **A wall has 0..n labels; a label captions at most one wall.** Mapping is server-side. A label output may live on a client with no display at all. |
-| 4 | What a label shows with no signal | **A quiet card with the wall's name when the wall is unassigned or has no work; while the wall is silent, the last caption stays, and blanks once it has been silent longer than a set time** (starting proposal 30 min, the builder's number). And from the movie case: **blank whenever the screen is in use or dark**, *"to be not-distracting"*. |
+| 4 | What a label shows with no signal | **A quiet card with the wall's name when the wall is unassigned or has no work; while the wall is silent, the last caption stays, and blanks once it has been silent or unreachable for 30 minutes** (the owner confirmed the number, 2026-10-08). And from the movie case: **blank whenever the screen is in use or dark**, *"to be not-distracting"*. |
 | 5 | Order | **This note, then the display-state report as a small build ahead of wave 4, then label outputs and their mapping.** |
 
 ## The model
@@ -89,7 +89,7 @@ One pure rule, run identically by every renderer, wherever it is:
 | `showing_art` | the work's label text |
 | `in_use`, `dark`, `no_screen` | blank: somebody is using the screen, or there is none to caption |
 | `unassigned`, or no work to show | a quiet card with the wall's name |
-| `silent`, `unreachable` | the last caption, until the wall has been silent longer than a set time (proposal: 30 min); then blank |
+| `silent`, `unreachable` | the last caption, for 30 minutes (the owner, 2026-10-08); then blank |
 
 That rule is the whole of the sync guarantee. Every label of a wall reads the same
 record, so two panels on two devices cannot disagree with each other, and each
@@ -144,8 +144,8 @@ Nothing here is built for it, and these rules keep it possible:
 
 ## Open questions
 
-- **The label's own silence threshold** (30 min proposed) against Walls' three
-  heartbeats: they answer different questions (is the report current; should the room
-  lose its caption), so they may differ.
+- **Two thresholds, on purpose.** Walls calls a report stale after three heartbeats
+  (is the report current?); a label blanks after 30 minutes (should the room lose its
+  caption?). They answer different questions.
 - **Several Frames per client** (#184) is unchanged by this, and simpler under it:
   each Frame is a display output with its own controller.
