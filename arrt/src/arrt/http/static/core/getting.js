@@ -26,6 +26,7 @@ import { api } from "./api.js";
 import { agree, counted } from "./counting.js";
 import { attempt } from "./acting.js";
 import { el, fill } from "./render.js";
+import { tierMark } from "./spend.js";
 import { link } from "./router.js";
 
 /* The select's values for *New theme…* and for a caller's name that is no theme
@@ -145,6 +146,7 @@ function destinationControl({ defaultName = null } = {}) {
 export const SKIP_WORDS = {
   held: ["is already in your library", "are already in your library"],
   being_got: ["is already being got", "are already being got"],
+  in_review: ["is already waiting for review", "are already waiting for review"],
   not_found: ["is not a work Wikidata has", "are not works Wikidata has"],
 };
 
@@ -216,7 +218,9 @@ export function getSelection({ defaultName = null } = {}) {
   });
   settle();
   return {
-    node: el("div", { class: "row get-control" }, [destination.node, button, status]),
+    // Free by construction: a Get has no model phase, and the image sources it
+    // asks charge nothing (`api-contract.md` § `POST /api/gets`).
+    node: el("div", { class: "row get-control" }, [destination.node, button, tierMark("free"), status]),
     box(qid, title) {
       const box = el("input", { type: "checkbox", "aria-label": `Select ${title} to get` });
       box.addEventListener("change", () => {
@@ -247,5 +251,5 @@ export function getOne(qid, { defaultName = null } = {}) {
       }
     }),
   );
-  return el("div", { class: "row get-control" }, [destination.node, button, status]);
+  return el("div", { class: "row get-control" }, [destination.node, button, tierMark("free"), status]);
 }

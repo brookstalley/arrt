@@ -24,6 +24,7 @@ import { absentImage, facts } from "../core/badges.js";
 import { counted } from "../core/counting.js";
 import { getSelection } from "../core/getting.js";
 import {
+  gettable,
   isQid,
   lifeDates,
   named,
@@ -274,7 +275,7 @@ function paintWorks(section, known, view, name) {
   const getting = getSelection({ defaultName: name });
   const rows = view.works.map((work) =>
     el("tr", {}, [
-      el("td", {}, [work.held_artwork_ids.length ? null : getting.box(work.qid, named(work.title, work.qid))]),
+      el("td", {}, [gettable(work) ? getting.box(work.qid, named(work.title, work.qid)) : null]),
       workCell(work, { by: makers(work) }),
       byCell(makers(work)),
       yearCell(work),
@@ -288,7 +289,7 @@ function paintWorks(section, known, view, name) {
       el("thead", {}, [listHeadings(["Get", "Work", "By", "Year", "State"])]),
       el("tbody", {}, rows),
     ])]),
-    view.works.some((work) => !work.held_artwork_ids.length) ? getting.node : null,
+    view.works.some(gettable) ? getting.node : null,
   );
 }
 

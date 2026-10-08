@@ -26,7 +26,7 @@ import { identityControl, storeIdentity } from "../core/identity.js";
 import { addedSentence, addWorksToTheme, stoppedSentence } from "../core/membership.js";
 import { getSelection } from "../core/getting.js";
 import { el, fill, render } from "../core/render.js";
-import { isQid, lifeDates, listHeadings, named, stateMark, wikidataLink, workCell, workState, yearCell } from "../core/registry.js";
+import { gettable, isQid, lifeDates, listHeadings, named, stateMark, wikidataLink, workCell, workState, yearCell } from "../core/registry.js";
 import { backLink, backRow, goWithParams, link, redirect, refresh, setTitle } from "../core/router.js";
 import { state } from "../core/state.js";
 import { recordReaction } from "../core/taste.js";
@@ -445,7 +445,8 @@ function askForTheirWork(name) {
  * title); then the collections.
  *
  * Every work the library does not hold can be ticked and got, image found or not:
- * a museum may hold one Wikidata has no picture of. A held row has no tick box. */
+ * a museum may hold one Wikidata has no picture of. A held row has no tick box,
+ * and nor has one waiting for review, whose mark links to the review instead. */
 function paintRegistry(section, about, view, { name = null, artistId = null } = {}) {
   const heading = section.querySelector("h2");
   if (view.state !== "known") {
@@ -464,7 +465,7 @@ function paintRegistry(section, about, view, { name = null, artistId = null } = 
   const getting = getSelection();
   const rows = view.works.map((work) =>
     el("tr", {}, [
-      el("td", {}, [work.held_artwork_ids.length ? null : getting.box(work.qid, named(work.title, work.qid))]),
+      el("td", {}, [gettable(work) ? getting.box(work.qid, named(work.title, work.qid)) : null]),
       workCell(work),
       yearCell(work),
       el("td", {}, [workState(work)]),
@@ -483,7 +484,7 @@ function paintRegistry(section, about, view, { name = null, artistId = null } = 
         ])])
       : el("p", { class: "muted", text: "Wikidata lists no works for them." }),
     view.works.length || !name ? null : askForTheirWork(name),
-    view.works.some((work) => !work.held_artwork_ids.length) ? getting.node : null,
+    view.works.some(gettable) ? getting.node : null,
     el("h2", { id: "holdings", text: "Holdings" }),
     holdings.length ? el("ul", { "aria-labelledby": "holdings" }, holdings) : el("p", { class: "muted", text: "Wikidata names no collection holding their work." }),
   );

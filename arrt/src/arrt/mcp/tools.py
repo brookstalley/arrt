@@ -618,9 +618,9 @@ ART_DISCOVERY: Final = ToolRecord(
             tips=(
                 "This spends nothing: a Get has no phase 1, and the image sources it asks are free.",
                 (
-                    "An item the library already holds, one a Get under way is already looking for, and one "
-                    "Wikidata has no work for are skipped and listed under `skipped`, not refused. When every "
-                    "item is skipped no run starts and `run_id` is null."
+                    "An item the library already holds, one a Get under way is already looking for, one waiting "
+                    "in To review, and one Wikidata has no work for are skipped and listed under `skipped`, not "
+                    "refused. When every item is skipped no run starts and `run_id` is null."
                 ),
                 (
                     "The run is like any other: action='status' and action='cancel' take its run_id, and its works "

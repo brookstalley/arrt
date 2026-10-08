@@ -19,6 +19,7 @@ import { el, guard, render } from "../core/render.js";
 import { reviewSection } from "../core/reviewing.js";
 import { backLink, link, refresh, setTitle } from "../core/router.js";
 import { runTitle } from "../core/runs.js";
+import { tierMark } from "../core/spend.js";
 import { state } from "../core/state.js";
 
 /* What this run's state means, in a sentence.
@@ -49,7 +50,9 @@ export function runSentence(view) {
     return "Working out which works match the intent.";
   }
   if (run.status === "awaiting_approval") {
-    return `This run proposed ${counted(tally.proposed, "work")}, which is more than the threshold, so it stopped to ask. Nothing further is spent until you decide.`;
+    // Only a run stored here before asking became the approval: no run stops
+    // to ask any more, and these are decided as they always were.
+    return `This run proposed ${counted(tally.proposed, "work")} and stopped to ask, as a long list once did. Nothing further is spent until you decide.`;
   }
   if (run.status === "resolving_images") {
     if (!view.image_resolution_available) {
@@ -101,7 +104,9 @@ export function runSentence(view) {
     return sentence;
   }
   if (run.status === "halted_by_budget") {
-    return "The provider refused further spend, so this run stopped where it was. Retrying will fail the same way until the credit limit resets or is raised.";
+    // The provider's refusal at the cap is the server's `end_reason`, said on
+    // the line beneath ("This month's budget is spent…").
+    return "The provider refused further spend, so this run stopped where it was. Asking again will fail the same way until the month's budget resets or is raised.";
   }
   if (run.status === "interrupted") {
     return "The process working on this run stopped underneath it — a restart or a crash, not a fault in the run. Start it again with the same intent.";
@@ -337,6 +342,7 @@ export async function viewRun(runId, generation) {
             }),
         })
       : null,
+    run.status === "awaiting_approval" && gateEstimate ? tierMark(gateEstimate.tier) : null,
     run.status === "awaiting_approval"
       ? el("button", {
           class: "action quiet",

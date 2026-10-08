@@ -23,10 +23,12 @@ from arrt.http.pages import STATIC_DIR
 from arrt.library.discovery.conversation import SUGGESTION_KINDS
 from arrt.library.services.get import SkipReason
 from arrt.library.services.look import SourceState
+from arrt.library.services.spending import CostTier
 from arrt.mcp.bindings import RESTORE_NOTICE
 from arrt.persistence.discovery_records import (
     AffinityDerivation,
     AffinitySentiment,
+    Confirmation,
     ResolutionStatus,
     RunKind,
     RunStatus,
@@ -279,6 +281,28 @@ def test_every_provenance_has_words_and_a_glyph(name):
     moment a curator accepts a work believing it was something else.
     """
     assert _object_keys(name) == {str(provenance) for provenance in WorkProvenance}
+
+
+def test_every_confirmation_is_drawn_as_itself():
+    """A review card never reads as confirmed for a state the client has no words for.
+
+    `confirmed` maps to no badge on purpose; the other two each carry one. A
+    fourth member keyed nowhere would fall to the client's fallback, which is
+    honest but wordless, so it fails here by name instead.
+    """
+    assert _object_keys("CONFIRMATION_MARKS") == {str(confirmation) for confirmation in Confirmation}
+
+
+def test_every_cost_tier_has_words_a_spending_control_can_show():
+    """A tier the client has no word for is drawn as the server spells it; one keyed nowhere fails here.
+
+    Read from the raw literal rather than through `_object_keys`, whose keys are
+    identifiers: three of the four tiers are spelled in dollar signs and are
+    quoted keys.
+    """
+    body = _literal_body("TIER_WORDS")
+    keys = {quoted or bare for quoted, bare in re.findall(r'^\s*(?:"([^"]+)"|([A-Za-z_]\w*))\s*:', body, re.MULTILINE)}
+    assert keys == {str(tier) for tier in CostTier}
 
 
 def test_every_facet_kind_has_a_word_the_work_screen_can_label_it_with():

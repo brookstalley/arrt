@@ -6,10 +6,15 @@ service decides which of the chosen items a Get asks for, and the runner does
 the asking.
 
 **An item is skipped, never refused, when it cannot be asked for**: one the
-library already holds, one a Get under way is already looking for, and one the
-registry has no work for. A selection usually mixes these, and a Get that
+library already holds, one a Get under way is already looking for, one a run
+already found that waits in To review, and one the registry has no work for. A selection usually mixes these, and a Get that
 refused the whole selection over one held work would make the curator untick it
 by hand to get the rest. Every skip is reported with its reason.
+
+A work waiting in To review is matched as Search and the Artist page match it
+(`twins.Twins.waiting_work`): by the item, or by title and artist for one
+proposed by name. Asking for it again would pay a second time for an image a
+verdict is already owed on.
 """
 
 import logging
@@ -21,6 +26,7 @@ from arrt.library.registry import Registry, RegistryUnavailable, RegistryWork
 from arrt.library.services.discovery import ChosenWork, DiscoveryService
 from arrt.library.services.remembered import checked_qid
 from arrt.library.services.runner import DiscoveryRunner
+from arrt.library.services.twins import Twins
 from arrt.persistence.catalogue import CatalogueStore
 from arrt.persistence.discovery_records import DiscoveryRun, InitiatedBy
 from arrt.services.errors import ServiceError
@@ -38,6 +44,7 @@ class SkipReason(StrEnum):
 
     HELD = "held"
     BEING_GOT = "being_got"
+    IN_REVIEW = "in_review"
     NOT_FOUND = "not_found"
 
 
@@ -114,6 +121,7 @@ class GetService:
             )
         held = self._store.circulating_ids_by_qid()
         being_got = self._discovery.items_being_got()
+        twins = Twins(self._store, self._discovery)
         skipped: list[Skipped] = []
         chosen: list[ChosenWork] = []
         for qid in wanted:
@@ -129,6 +137,18 @@ class GetService:
                 raise ServiceError(f"Wikidata could not be asked about {qid}, so nothing was started. Try again.") from exc
             if work is None:
                 skipped.append(Skipped(qid, SkipReason.NOT_FOUND))
+                continue
+            maker = work.creators[0] if work.creators else None
+            if (
+                twins.waiting_work(
+                    qid,
+                    work.title,
+                    maker=maker.name if maker else None,
+                    maker_qid=maker.qid if maker else None,
+                )
+                is not None
+            ):
+                skipped.append(Skipped(qid, SkipReason.IN_REVIEW))
                 continue
             chosen.append(chosen_work(qid, work))
         run = (

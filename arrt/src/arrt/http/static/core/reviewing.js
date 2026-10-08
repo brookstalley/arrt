@@ -27,6 +27,7 @@ import {
 import { enlarge } from "./enlarge.js";
 import { el, fill, guard } from "./render.js";
 import { go, link } from "./router.js";
+import { tierMark } from "./spend.js";
 
 /* What the curator has decided about a work, in words.
  *
@@ -76,6 +77,80 @@ function provenanceBadge(work) {
     el("span", { class: "glyph", text: PROVENANCE_GLYPHS[work.provenance] || "◆", "aria-hidden": true }),
     el("span", { text: PROVENANCE_WORDS[work.provenance] || work.provenance }),
   ]);
+}
+
+/* Whether a source confirms the work exists, one entry per `confirmation`
+ * (`data-model.md` § CandidateWork). A model asked for works can name a
+ * plausible one that does not exist, so a card never reads as a match the
+ * model itself doubted.
+ *
+ *   `confirmed` draws nothing: a work the search found, the curator chose, or a
+ *   collection offered is the ordinary case, and a badge on every card is one a
+ *   reader learns to stop looking at.
+ *   `unconfirmed`: the model said no source it was given names the work.
+ *   `unknown`: nothing was asked or said, so the card claims neither way.
+ *
+ * The vocabulary test holds the keys to the enum, so a fourth state fails by
+ * name rather than drawing as its raw token. */
+const CONFIRMATION_MARKS = {
+  confirmed: null,
+  unconfirmed: ["?", "Not confirmed", "No source the search found names this work by this artist. It may not exist."],
+  unknown: ["?", "Unchecked", "Nothing was asked to confirm this work exists."],
+};
+
+function confirmationBadge(work) {
+  const mark = CONFIRMATION_MARKS[work.confirmation];
+  if (mark === null) return null;
+  // A state this client has no words for is drawn as itself rather than as
+  // confirmed: silence here would be the one claim the badge exists to refuse.
+  const [glyph, words] = mark || ["?", work.confirmation || "Unchecked"];
+  return el("span", { class: `badge badge-${work.confirmation === "unconfirmed" ? "unconfirmed" : "unchecked"}` }, [
+    el("span", { class: "glyph", text: glyph, "aria-hidden": true }),
+    el("span", { text: words }),
+  ]);
+}
+
+/* The sentence under the badge, for the state where the card must say why. */
+function confirmationNote(work) {
+  const mark = CONFIRMATION_MARKS[work.confirmation];
+  return work.confirmation === "unconfirmed" && mark ? el("p", { class: "note not-confirmed", text: mark[2] }) : null;
+}
+
+/* The model's Markdown, as words and links on the page.
+ *
+ * A model writes `[a source](https://…)`, `**emphasis**` and `` `code` ``, and
+ * a card printing them raw put brackets and asterisks in front of a curator.
+ * Nothing here is parsed as HTML: each piece becomes a text node, an `<em>` or
+ * `<strong>` holding text, or a link. **Only an `http:` or `https:` address
+ * becomes a link**, opened in a new tab with no referrer, so a model's note
+ * cannot point the page at a `javascript:` address; any other link keeps its
+ * words and drops its address. */
+const MARKDOWN = /\[([^\]\n]+)\]\(([^)\s]+)\)|\*\*([^*\n]+)\*\*|__([^_\n]+)__|\*([^*\n]+)\*|(?<![\w])_([^_\n]+)_(?![\w])|`([^`\n]+)`/g;
+
+export function prose(text) {
+  if (!text) return [];
+  const pieces = [];
+  let at = 0;
+  for (const match of String(text).matchAll(MARKDOWN)) {
+    if (match.index > at) pieces.push(text.slice(at, match.index));
+    const [, label, href, strong, strongToo, em, emToo, code] = match;
+    if (label !== undefined) {
+      pieces.push(
+        /^https?:\/\//i.test(href)
+          ? el("a", { href, rel: "noopener noreferrer", target: "_blank", class: "link", text: label })
+          : label,
+      );
+    } else if (strong !== undefined || strongToo !== undefined) {
+      pieces.push(el("strong", { text: strong ?? strongToo }));
+    } else if (em !== undefined || emToo !== undefined) {
+      pieces.push(el("em", { text: em ?? emToo }));
+    } else {
+      pieces.push(el("code", { text: code }));
+    }
+    at = match.index + match[0].length;
+  }
+  if (at < text.length) pieces.push(text.slice(at));
+  return pieces;
 }
 
 /* The picture for one instance, or what stands in for it.
@@ -219,7 +294,7 @@ function instanceRows(instance, work, after, decided = false) {
     });
   const chosen = instanceStateBadges(instance).filter(Boolean);
   const detail = facts([
-    ["Why this one", instance.selection_rationale],
+    ["Why this one", instance.selection_rationale ? el("span", {}, prose(instance.selection_rationale)) : null],
     // Shown as text rather than as a link. The URL comes from a museum this
     // product does not control, and a rendered anchor is one click from
     // navigating a curator's browser to an attacker-chosen address on a page
@@ -376,6 +451,31 @@ function absentScanReason(card) {
   return "No scan was found for this work.";
 }
 
+/* How long a verdict waits, with Undo beside it, before it is sent.
+ *
+ * **Undo is the client's, because the server's cannot be**: accepting creates
+ * the artwork and wakes the acquisition queue, and rejecting suppresses the
+ * work from every later run. So a verdict is held here for a few seconds and
+ * only then sent; Undo inside that window means nothing was ever asked.
+ *
+ * **A held verdict is never dropped.** Leaving the page — another address, a
+ * reload, closing the tab — sends every held verdict at once (`sendHeld`),
+ * with `keepalive` so the request outlives the page that made it. */
+export const VERDICT_HOLD_MS = 5000;
+
+/* Every verdict waiting out its hold, by work: what sends it now. */
+const HELD = new Map();
+
+function sendHeld() {
+  for (const send of [...HELD.values()]) send({ leaving: true });
+}
+
+window.addEventListener("hashchange", sendHeld);
+window.addEventListener("pagehide", sendHeld);
+
+/* What a held verdict is called while it waits, by the act the curator pressed. */
+const HOLDING_WORDS = { accept: "Accepting", reject: "Rejecting", forget: "Forgetting" };
+
 /* What each card on the page was built from, and where it sends its verdicts.
  *
  * Read by `reviewSection` when it is handed the section it replaces: a card
@@ -416,12 +516,18 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
     // the card's own Accept and Reject, and choosing or turning down a scan in
     // the alternates below, which reaches here as `after`.
     hooks.onVerdict(work.work_id, fresh.work.verdict);
+    // A held verdict can land after the page redrew this card from a newer
+    // answer; the card standing for the work now is the one repainted.
+    const current = node.isConnected
+      ? node
+      : document.querySelector(`li.review-card[data-work="${CSS.escape(work.work_id)}"]`);
+    if (!current) return;
     // The disclosure's state is carried over, because choosing between scans is
     // a sequence rather than one act: a curator turning one down is usually
     // about to turn down or choose another. Rebuilding the card closed would
     // collapse the list they are working in, on every click, and cost a second
     // fetch to get back to where they were.
-    node.replaceWith(candidateCard(fresh, message, disclosure.open, hooks.onVerdict));
+    current.replaceWith(candidateCard(fresh, message, disclosure.open, hooks.onVerdict));
   };
 
   // An accepted work's image is fetched by the acquisition queue, not by the
@@ -432,24 +538,69 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
 
   const reason = el("input", { type: "text", id: `reason-${work.work_id}` });
   // `words` is the act as the failure would name it: "accept Nighthawks".
-  const decide = (verdict, words) => (event) =>
-    attempt(
-      event.currentTarget,
-      `${words} ${work.title}`,
-      () =>
-        api(`/api/candidates/${encodeURIComponent(work.work_id)}/verdict`, {
-          method: "POST",
-          body: JSON.stringify({ verdict, reason: reason.value || null }),
-        }),
-      {
-        then: async (outcome) => {
-          // A verdict is one fewer work to review: the sidebar's count is read
-          // again as soon as it is recorded, whatever happens to the repaint.
-          paintAwaiting();
-          await repaint(outcome.notice);
+  //
+  // Pressed, the verdict is held (`VERDICT_HOLD_MS`): the card's controls give
+  // way to what is about to happen and Undo, and only when the hold runs out,
+  // or the curator leaves the page, is it sent. A failure to send brings the
+  // controls back with the failure said beside the button that was pressed.
+  const decide = (verdict, words) => (event) => {
+    const pressed = event.currentTarget;
+    if (HELD.has(work.work_id)) return;
+    const undo = el("button", {
+      class: "action quiet",
+      type: "button",
+      text: "Undo",
+      "aria-label": `Undo: don't ${words} ${work.title}`,
+    });
+    const said = el("span", { role: "status" });
+    const holding = el("div", { class: "row verdict-held" }, [said, undo]);
+    let timer = null;
+    const restore = () => {
+      holding.remove();
+      controls.hidden = false;
+    };
+    const send = async ({ leaving = false } = {}) => {
+      clearTimeout(timer);
+      HELD.delete(work.work_id);
+      undo.remove();
+      said.textContent = `${HOLDING_WORDS[words]} ${work.title}…`;
+      const sent = await attempt(
+        pressed,
+        `${words} ${work.title}`,
+        () =>
+          api(`/api/candidates/${encodeURIComponent(work.work_id)}/verdict`, {
+            method: "POST",
+            body: JSON.stringify({ verdict, reason: reason.value || null }),
+            keepalive: leaving,
+          }),
+        {
+          then: async (outcome) => {
+            // A verdict is one fewer work to review: the sidebar's count is read
+            // again as soon as it is recorded, whatever happens to the repaint.
+            paintAwaiting();
+            await repaint(outcome.notice);
+          },
         },
-      },
-    );
+      );
+      if (!sent) restore();
+    };
+    undo.addEventListener("click", () => {
+      clearTimeout(timer);
+      HELD.delete(work.work_id);
+      restore();
+      pressed.focus();
+    });
+    controls.hidden = true;
+    controls.after(holding);
+    HELD.set(work.work_id, send);
+    timer = setTimeout(send, VERDICT_HOLD_MS);
+    // Filled a task after the region is on the page, which is when a live
+    // region announces (`accessibility-spec.md` § Announcement and semantics).
+    setTimeout(() => {
+      if (HELD.has(work.work_id)) said.textContent = `${HOLDING_WORDS[words]} ${work.title} in a few seconds.`;
+    }, 0);
+    undo.focus();
+  };
 
   const alternates = el("div", { class: "stack" }, [el("p", { class: "muted", text: "Loading this work's scans…" })]);
   // **"Scans", not "other scans", and the count is deliberately every scan the
@@ -535,6 +686,19 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
     }),
   ];
 
+  const controls = el("div", { class: "row" }, [
+    el("div", { class: "field" }, [
+      el("label", { for: `reason-${work.work_id}`, text: "Why (optional)" }),
+      reason,
+    ]),
+    // **A work nothing was ever found for offers Want and Forget**, not
+    // Accept and Reject: accepting it would mint a work with no image, and
+    // rejecting it is "forget it for good", which is said as such. Want is
+    // the one way to say "I want this painting; no scan exists yet", and it
+    // waits in Wanted (the owner's ruling on #168, 2026-10-02).
+    ...(noScan ? wantOrForget() : acceptOrReject()),
+  ]);
+
   node.append(
     card.shown
       ? instanceImage(card.shown, {
@@ -552,6 +716,7 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
       el("div", { class: "card-footer" }, [
         verdictBadge(work),
         provenanceBadge(work),
+        confirmationBadge(work),
         resolutionBadge(work),
         reasonBadge(work),
         card.shown ? fitBadge(card.shown, "size unrecorded") : null,
@@ -564,7 +729,8 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
             "You chose this from Wikidata: ",
             link({ view: "work", id: work.wikidata_qid }, { class: "link", text: work.wikidata_qid }),
           ])
-        : el("p", { class: "card-meta", text: work.rationale }),
+        : el("p", { class: "card-meta" }, prose(work.rationale)),
+      confirmationNote(work),
       // The picture is not the one a verdict would accept on, and saying so is
       // the difference between a curator understanding the refusal and being
       // surprised by it. Accepting really is refused in this state — the service
@@ -591,20 +757,7 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
             el("span", { text: " Already in your library, by title and artist. Accepting it again acquires a second artwork." }),
           ])
         : null,
-      decided
-        ? decidedLine(work)
-        : el("div", { class: "row" }, [
-            el("div", { class: "field" }, [
-              el("label", { for: `reason-${work.work_id}`, text: "Why (optional)" }),
-              reason,
-            ]),
-            // **A work nothing was ever found for offers Want and Forget**, not
-            // Accept and Reject: accepting it would mint a work with no image, and
-            // rejecting it is "forget it for good", which is said as such. Want is
-            // the one way to say "I want this painting; no scan exists yet", and it
-            // waits in Wanted (the owner's ruling on #168, 2026-10-02).
-            ...(noScan ? wantOrForget() : acceptOrReject()),
-          ]),
+      decided ? decidedLine(work) : controls,
     ]),
     // Beneath the picture and the facts both, the card's full width: the Scans
     // table needs it, and at the facts column's width its columns were what
@@ -686,6 +839,7 @@ function reSearchOffer(wanted) {
             { then: (run) => go("run", run.run_id) },
           ),
       }),
+      tierMark("free"),
     ]),
   ]);
 }
