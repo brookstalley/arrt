@@ -771,10 +771,27 @@ class ThemePlacementOut(BaseModel):
     hanging_on: list[WallRefOut]
 
 
-class ThemeListOut(BaseModel):
-    """Every theme, and where each is hanging."""
+class ThemeSummaryOut(ThemePlacementOut):
+    """A theme as the Themes index draws its card: where it hangs, its size, and a few of its works.
 
-    themes: list[ThemePlacementOut]
+    The listing carries these rather than leaving the index to read every
+    theme's works, because a card needs a count and four pictures and a theme
+    may hold thousands of works; ten themes would otherwise be ten full reads.
+    """
+
+    #: How many works the theme holds, which is how many `GET /api/themes/{id}`
+    #: lists: every member, pictured or not.
+    work_count: int
+    #: Up to four of its works that have a picture, in curated order, for
+    #: `GET /api/works/{id}/thumbnail`. Fewer, or none, when fewer of its works
+    #: hold an image; a work with no image is skipped rather than drawn empty.
+    picture_ids: list[str]
+
+
+class ThemeListOut(BaseModel):
+    """Every theme, where each is hanging, and what its card shows."""
+
+    themes: list[ThemeSummaryOut]
 
 
 class ReportedStateOut(BaseModel):
@@ -944,6 +961,11 @@ class ThemeDetailOut(BaseModel):
 
     theme: ThemeOut
     works: list[WorkOut]
+    #: Whether a wall hanging it shows its works shuffled: `theme.shuffle`
+    #: resolved against the deployment's default, as the manifest resolves it.
+    #: `theme.shuffle` alone is null when it inherits, which says nothing about
+    #: whether the order on this page decides what the wall shows first.
+    shuffled: bool
 
 
 class ManifestEntryOut(BaseModel):

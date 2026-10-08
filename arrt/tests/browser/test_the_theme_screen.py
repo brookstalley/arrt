@@ -57,6 +57,11 @@ def _painted(ui):
     ui.page.wait_for_selector("tbody tr")
 
 
+def _index_painted(ui):
+    """Wait until the index's cards have arrived."""
+    ui.page.wait_for_selector("li.theme-card")
+
+
 def _first_row_becomes(ui, title):
     """A wait that is false before the act and true only after it.
 
@@ -103,7 +108,7 @@ class TestReordering:
         The reload is the half that matters: a table that reordered itself and
         told nobody looks identical until the curator comes back to it.
         """
-        ui.open("#theme")
+        ui.open(f"#theme/{winter.id}")
         _painted(ui)
         assert _titles(ui) == list(POLLOCKS)
 
@@ -111,7 +116,7 @@ class TestReordering:
         _first_row_becomes(ui, "Blue Poles")
         assert _titles(ui) == ["Blue Poles", "Autumn Rhythm", "Convergence"]
 
-        ui.open("#theme")
+        ui.open(f"#theme/{winter.id}")
         _painted(ui)
         assert _titles(ui) == ["Blue Poles", "Autumn Rhythm", "Convergence"]
 
@@ -127,7 +132,7 @@ class TestReordering:
         Adding first is what makes this test able to see that.
         """
         service.add_artwork(title="Number 1")
-        ui.open("#theme")
+        ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
         ui.page.select_option(f"#add-{winter.id}", label="Number 1")
@@ -161,7 +166,7 @@ class TestReordering:
         give — a screen that predicts it is right until the day it is not, and
         wrong silently.
         """
-        ui.open("#theme")
+        ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
         ui.serve(
@@ -180,7 +185,7 @@ class TestReordering:
         the buttons do not shuffle sideways as a work reaches the end of the list
         and land somewhere else under a curator's cursor.
         """
-        ui.open("#theme")
+        ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
         assert ui.page.is_disabled("button[aria-label='Move Autumn Rhythm earlier']")
@@ -199,7 +204,7 @@ class TestTheMembershipControl:
         something cheap. Naming the theme is the fix that stays true — borrowing
         "Archive" would say something false about the catalogue instead.
         """
-        ui.open("#theme")
+        ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
         assert ui.page.locator("tbody button", has_text="Remove").all_inner_texts() == (["Remove from Winter"] * len(POLLOCKS))
@@ -214,7 +219,7 @@ class TestTheMembershipControl:
 
     def test_removing_a_work_leaves_the_rest_in_order(self, ui, winter):
         """And repaints from the answer, which is the same shape a move gets back."""
-        ui.open("#theme")
+        ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
         ui.page.click("button[aria-label='Remove Blue Poles from Winter']")
@@ -232,7 +237,7 @@ class TestTheMembershipControl:
         add and a remove both answer with the new order, so a count painted once
         would be wrong on the second glance rather than absent.
         """
-        ui.open("#theme")
+        ui.open(f"#theme/{winter.id}")
         _painted(ui)
         assert _count(ui) == "3 works"
 
@@ -243,7 +248,7 @@ class TestTheMembershipControl:
 
     def test_one_work_is_not_one_works(self, ui, winter):
         """The count is read, so it is written the way it is read."""
-        ui.open("#theme")
+        ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
         for title in ("Blue Poles", "Convergence"):
@@ -264,14 +269,23 @@ class TestRenaming:
         them, and had to reconstruct which panel they were in from reading order.
         Two themes rather than one, because with one theme every naming scheme
         including no scheme at all announces unambiguously.
+
+        These controls were on every panel of the index and are now on each
+        theme's own page, so the claim is checked on two pages: each names its
+        own theme and not the other.
         """
-        services.display.add_theme(name="Late night")
-        ui.open("#theme")
+        late = services.display.add_theme(name="Late night")
+        ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
-        assert _labels(ui, "button[aria-label^='Rename ']") == ["Rename Late night", "Rename Winter"]
-        assert _labels(ui, "button[aria-label^='Delete ']") == ["Delete Late night", "Delete Winter"]
+        assert _labels(ui, "button[aria-label^='Rename ']") == ["Rename Winter"]
+        assert _labels(ui, "button[aria-label^='Delete ']") == ["Delete Winter"]
         assert ui.page.get_attribute(f"#rename-{winter.id}", "aria-label") == "Name of Winter"
+
+        ui.open(f"#theme/{late.id}")
+        ui.page.wait_for_selector("#view h1:has-text('Late night')")
+        assert _labels(ui, "button[aria-label^='Rename ']") == ["Rename Late night"]
+        assert _labels(ui, "button[aria-label^='Delete ']") == ["Delete Late night"]
 
     def test_the_accessible_names_follow_the_new_name_too(self, ui, winter):
         """A control announcing a theme by its old name is worse than one naming none.
@@ -279,12 +293,12 @@ class TestRenaming:
         The visible words on these three never change, so nothing on screen shows
         this going stale — which is exactly why it would.
         """
-        ui.open("#theme")
+        ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
         ui.page.fill("#rename-" + winter.id, "Late night")
         ui.page.click("button[aria-label='Rename Winter']")
-        ui.page.wait_for_selector("h2:has-text('Late night')")
+        ui.page.wait_for_selector("h1:has-text('Late night')")
 
         assert ui.page.locator("button[aria-label='Delete Late night']").count() == 1
         assert ui.page.locator("button[aria-label='Delete Winter']").count() == 0
@@ -296,12 +310,12 @@ class TestRenaming:
         A table still offering "Remove from Winter" under a heading reading
         "Late night" leaves a curator working out which of the two to believe.
         """
-        ui.open("#theme")
+        ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
         ui.page.fill("#rename-" + winter.id, "Late night")
         ui.page.click("button:has-text('Rename')")
-        ui.page.wait_for_selector("h2:has-text('Late night')")
+        ui.page.wait_for_selector("h1:has-text('Late night')")
 
         assert ui.page.locator("button", has_text="Remove from Late night").count() == len(POLLOCKS)
         assert ui.page.locator("button", has_text="Remove from Winter").count() == 0
@@ -313,18 +327,18 @@ class TestRenaming:
         night " beside a heading and a listing that both say "Late night", and
         the next rename would send the untrimmed string back.
         """
-        ui.open("#theme")
+        ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
         ui.page.fill("#rename-" + winter.id, "  Late night  ")
         ui.page.click("button:has-text('Rename')")
-        ui.page.wait_for_selector("h2:has-text('Late night')")
+        ui.page.wait_for_selector("h1:has-text('Late night')")
 
         assert ui.page.input_value("#rename-" + winter.id) == "Late night"
 
     def test_a_name_with_nothing_in_it_is_refused_in_the_servers_words(self, ui, winter):
         """The rule lives in the service, and its refusal reaches the curator unchanged."""
-        ui.open("#theme")
+        ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
         ui.page.fill("#rename-" + winter.id, "   ")
@@ -332,7 +346,7 @@ class TestRenaming:
         rename.click()
 
         assert ui.said_beside(rename) == "Couldn't rename Winter: name cannot be empty. Nothing was changed."
-        assert ui.page.locator("h2", has_text="Winter").count() == 1
+        assert ui.page.locator("h1", has_text="Winter").count() == 1
 
 
 class TestHanging:
@@ -344,7 +358,7 @@ class TestHanging:
         target is the last place a mistake could have been caught.
         """
         wall = services.display.survey_walls()[0].wall
-        ui.open("#theme")
+        ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
         ui.page.click(f"button:has-text('Hang on {wall.name}')")
@@ -365,7 +379,7 @@ class TestHanging:
         wall = services.display.survey_walls()[0].wall
         preview = services.display.build_manifest(wall.id, winter.id)
 
-        ui.open("#theme")
+        ui.open(f"#theme/{winter.id}")
         _painted(ui)
         ui.page.click(f"button:has-text('Hang on {wall.name}')")
         ui.page.wait_for_selector("dialog.confirm[open]")
@@ -375,7 +389,7 @@ class TestHanging:
     def test_declining_leaves_the_wall_alone(self, ui, winter, services):
         """Escape is a no, and a no here means nothing was published."""
         wall = services.display.survey_walls()[0].wall
-        ui.open("#theme")
+        ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
         ui.page.click(f"button:has-text('Hang on {wall.name}')")
@@ -395,7 +409,7 @@ class TestHanging:
         assertions below would read the state from before the click.
         """
         wall = services.display.survey_walls()[0].wall
-        ui.open("#theme")
+        ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
         ui.page.click(f"button:has-text('Hang on {wall.name}')")
@@ -413,7 +427,7 @@ class TestDeleting:
         over something cheap; one who does not know the grouping is gone for good
         will do it without reading.
         """
-        ui.open("#theme")
+        ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
         ui.page.click("button:has-text('Delete')")
@@ -425,7 +439,7 @@ class TestDeleting:
         )
 
     def test_declining_leaves_the_theme_where_it_was(self, ui, winter):
-        ui.open("#theme")
+        ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
         ui.page.click("button:has-text('Delete')")
@@ -433,48 +447,46 @@ class TestDeleting:
         ui.page.keyboard.press("Escape")
         ui.page.wait_for_selector("dialog.confirm", state="detached")
 
-        assert ui.page.locator("h2", has_text="Winter").count() == 1
+        assert ui.page.locator("h1", has_text="Winter").count() == 1
 
-    def test_confirming_removes_the_panel_by_repainting_from_what_remains(self, ui, winter, services):
-        """`DELETE /api/themes/{id}` answers with the themes that are left.
+    def test_confirming_lands_on_the_index_with_the_theme_gone(self, ui, winter, services):
+        """A deleted theme's page is an address naming nothing, so the delete goes to the index.
 
-        Nothing else on this page can have changed — the refusal makes a hung
-        theme undeletable, so no wall moved and no work was touched — which is
-        what lets the list repaint from the answer instead of reloading the
-        screen.
+        Rewritten from *removes the panel by repainting from what remains*: the
+        delete lived on the index, beside every other theme, and repainted the
+        list from the answer naming the themes left. It now lives on the theme's
+        own page, which the answer cannot repaint, so it goes to the index; with
+        one theme that index is empty.
         """
-        ui.open("#theme")
+        ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
         ui.page.click("button:has-text('Delete')")
         _confirm(ui, "Delete")
         ui.page.wait_for_selector("text=No themes yet.")
 
-        assert ui.page.locator(".panel h2", has_text="Winter").count() == 0
+        assert ui.page.locator("li.theme-card").count() == 0
         assert [theme.name for theme in services.display.list_themes()] == []
 
-    def test_the_themes_that_are_left_are_the_ones_the_answer_named(self, ui, winter, services):
-        """The other half of repainting from the response, and the half that can be wrong.
+    def test_the_themes_that_are_left_are_the_ones_the_index_shows(self, ui, winter, services):
+        """The half of landing on the index that can be wrong: which themes are there.
 
-        With one theme, "repaint from the answer" and "repaint from nothing"
-        produce the identical empty screen — so a client that threw the body away
-        passes the test above. Two themes is the smallest state that tells them
-        apart: the one that survives has to still be on the page, with its
-        controls, without the screen having gone back to the server for a listing
-        it was just handed.
+        With one theme, "the index after the delete" and "an index of nothing"
+        are the identical empty screen, so the test above passes against an index
+        that lost every theme. Two themes is the smallest state that tells them
+        apart: the one that survives has to be there, and the one deleted not.
         """
-        services.display.add_theme(name="Late night")
-        ui.open("#theme")
+        late = services.display.add_theme(name="Late night")
+        ui.open(f"#theme/{winter.id}")
         _painted(ui)
-        assert sorted(ui.page.locator(".panel h2").all_inner_texts()) == ["Late night", "New theme", "Winter"]
 
-        # Winter's Delete, not Late night's — named, so choosing it needs nothing
-        # about the panel it sits in.
         ui.page.click("button[aria-label='Delete Winter']")
         _confirm(ui, "Delete")
-        ui.page.wait_for_selector("h2:has-text('Winter')", state="detached")
+        ui.page.wait_for_selector("#view h1:has-text('Themes')")
+        ui.page.wait_for_selector("li.theme-card")
 
-        assert sorted(ui.page.locator(".panel h2").all_inner_texts()) == ["Late night", "New theme"]
+        assert ui.page.locator("li.theme-card h2").all_inner_texts() == ["Late night"]
+        assert ui.page.locator(f"li.theme-card[data-theme='{late.id}']").count() == 1
         assert ui.page.locator("text=No themes yet.").count() == 0
 
     def test_a_theme_hanging_in_two_rooms_refuses_and_says_what_to_do_about_it(self, ui, winter, services):
@@ -493,7 +505,7 @@ class TestDeleting:
         services.display.activate_theme(winter.id, wall_id=the_wall.id)
         services.display.activate_theme(winter.id, wall_id=study.id)
 
-        ui.open("#theme")
+        ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
         delete = ui.page.locator("button:has-text('Delete')")
@@ -507,7 +519,7 @@ class TestDeleting:
         )
         # Refused, not partly done: the theme is still there and still hanging in
         # both rooms.
-        assert ui.page.locator(".panel h2", has_text="Winter").count() == 1
+        assert ui.page.locator("h1", has_text="Winter").count() == 1
         assert [wall.name for wall in services.display.walls_hanging(winter.id)] == ["The study", "The wall"]
 
 
@@ -548,18 +560,18 @@ class TestOneThemeHasItsOwnAddress:
         the whole reason the id is optional rather than required.
         """
         ui.open("#theme")
-        _painted(ui)
+        _index_painted(ui)
 
-        assert ui.page.locator(".panel h2", has_text="Winter").count() == 1
-        assert ui.page.locator(".panel h2", has_text="Late night").count() == 1
+        assert ui.page.locator("li.theme-card h2", has_text="Winter").count() == 1
+        assert ui.page.locator("li.theme-card h2", has_text="Late night").count() == 1
         assert ui.page.locator("#new-theme-name").count() == 1
 
-    def test_every_act_is_still_offered_from_the_addressed_view(self, ui, two_themes):
-        """A curator who arrived by address must not have fewer acts than one who did not.
+    def test_every_act_is_offered_from_the_addressed_view(self, ui, two_themes):
+        """Every act on a theme is on its own page, which is now the only place they are.
 
-        Asserted as the four controls rather than by performing each: the acts
-        themselves are exercised in the classes above, and what a second route
-        into the same panel can lose is a control, not a behaviour.
+        Asserted as the controls rather than by performing each: the acts
+        themselves are exercised in the classes above, and what a route into
+        the page can lose is a control, not a behaviour.
         """
         ui.open(f"#theme/{two_themes.id}")
         _painted(ui)
@@ -587,17 +599,16 @@ class TestOneThemeHasItsOwnAddress:
     def test_deleting_the_addressed_theme_lands_on_the_index(self, ui, two_themes):
         """The screen cannot stay pointed at what it just destroyed.
 
-        The index repaints in place from the answer, which names the themes that
-        remain — and none of them is this one. So this path navigates, and it
-        navigates to the list where the survivors are rather than leaving a
-        curator on an address that now resolves to nothing.
+        So this path navigates, and it navigates to the list where the survivors
+        are rather than leaving a curator on an address that now resolves to
+        nothing.
         """
         ui.open(f"#theme/{two_themes.id}")
         _painted(ui)
 
         ui.page.click("button[aria-label='Delete Winter']")
         _confirm(ui, "Delete")
-        ui.page.wait_for_selector(".panel h2:has-text('Late night')")
+        ui.page.wait_for_selector("li.theme-card h2:has-text('Late night')")
 
         assert ui.page.locator("h1", has_text="Themes").count() == 1
         assert ui.page.locator("text=Winter").count() == 0
@@ -614,7 +625,7 @@ class TestOneThemeHasItsOwnAddress:
 
         assert "most likely deleted" in ui.text()
         ui.page.click("a:has-text('All themes')")
-        ui.page.wait_for_selector(".panel h2:has-text('Winter')")
+        ui.page.wait_for_selector("li.theme-card h2:has-text('Winter')")
 
     def test_the_address_survives_a_reload(self, ui, two_themes):
         """Bookmarkable is the requirement, and it is not the same as reachable.
@@ -634,7 +645,11 @@ class TestOneThemeHasItsOwnAddress:
 
 
 class TestTheDefaultTheme:
-    """The theme new works join: marked in glyph, word and colour, and movable from here."""
+    """The theme new works join: marked in glyph, word and colour, and movable from its page.
+
+    The mark is on the default's card in the index and on its own page; the act
+    that moves it is on each other theme's page.
+    """
 
     @pytest.fixture
     def all_works(self, services, winter):
@@ -643,34 +658,49 @@ class TestTheDefaultTheme:
         return theme
 
     @staticmethod
-    def _panel(ui, name):
-        return ui.page.locator(".panel", has=ui.page.locator(f"h2 > span:text-is('{name}')"))
+    def _card(ui, theme):
+        return ui.page.locator(f"li.theme-card[data-theme='{theme.id}']")
+
+    @staticmethod
+    def _open(ui, theme):
+        ui.open(f"#theme/{theme.id}")
+        ui.page.wait_for_selector(f"#view h1:has-text('{theme.name}')")
 
     def test_the_default_says_so_in_words_and_the_others_offer_to_become_it(self, ui, all_works, winter):
         ui.open("#theme")
-        _painted(ui)
+        _index_painted(ui)
 
-        badge = self._panel(ui, "All works").locator(".badge-default")
+        badge = self._card(ui, all_works).locator(".badge-default")
         assert badge.inner_text().strip().endswith("default")
         # The star is decoration beside the word, not a second announcement of it.
         assert badge.locator(".glyph").get_attribute("aria-hidden") == "true"
-        assert self._panel(ui, "Winter").locator(".badge-default").count() == 0
+        assert self._card(ui, winter).locator(".badge-default").count() == 0
+
+        # The default's own page says so too, and offers no act to become what it is.
+        self._open(ui, all_works)
+        assert ui.page.locator("#view h1 .badge-default").count() == 1
+        assert ui.page.locator("button:has-text('Make default')").count() == 0
+        self._open(ui, winter)
+        assert ui.page.locator("#view h1 .badge-default").count() == 0
         assert _labels(ui, "button:has-text('Make default')") == ["Make default: Winter"]
 
     def test_making_another_the_default_moves_the_mark(self, ui, services, all_works, winter):
-        ui.open("#theme")
-        _painted(ui)
+        self._open(ui, winter)
 
         ui.page.click("button[aria-label='Make default: Winter']")
-        ui.page.wait_for_selector("button[aria-label='Make default: All works']")
+        ui.page.wait_for_selector("#view h1 .badge-default")
 
-        assert self._panel(ui, "Winter").locator(".badge-default").count() == 1
-        assert self._panel(ui, "All works").locator(".badge-default").count() == 0
+        assert ui.page.locator("button:has-text('Make default')").count() == 0
         assert services.display.default_theme().id == winter.id
+        # And it moved rather than being added: the index marks one card.
+        ui.open("#theme")
+        _index_painted(ui)
+        assert self._card(ui, winter).locator(".badge-default").count() == 1
+        assert self._card(ui, all_works).locator(".badge-default").count() == 0
 
     def test_with_no_default_the_screen_says_where_acceptances_go(self, ui, winter):
         ui.open("#theme")
-        _painted(ui)
+        _index_painted(ui)
 
         assert ui.page.locator("p.note", has_text="No theme is the default").count() == 1
 
@@ -682,22 +712,20 @@ class TestTheDefaultTheme:
         assert ui.page.locator("p.note", has_text="No theme is the default").count() == 1
 
     def test_only_the_default_says_what_joins_it(self, ui, all_works, winter):
-        ui.open("#theme")
-        _painted(ui)
-
         joins = "Works you accept join this theme"
-        assert self._panel(ui, "All works").locator("p.muted", has_text=joins).count() == 1
-        assert self._panel(ui, "Winter").locator("p.muted", has_text=joins).count() == 0
+        self._open(ui, all_works)
+        assert ui.page.locator("p.muted", has_text=joins).count() == 1
+        self._open(ui, winter)
+        assert ui.page.locator("p.muted", has_text=joins).count() == 0
 
     def test_the_note_is_absent_once_a_theme_is_the_default(self, ui, all_works):
         ui.open("#theme")
-        _painted(ui)
+        _index_painted(ui)
 
         assert ui.page.locator("p.note", has_text="No theme is the default").count() == 0
 
     def test_deleting_the_default_shows_the_servers_reason(self, ui, all_works):
-        ui.open("#theme")
-        _painted(ui)
+        self._open(ui, all_works)
 
         delete = ui.page.locator("button[aria-label='Delete All works']")
         delete.click()

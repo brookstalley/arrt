@@ -6,16 +6,14 @@
  * genuinely about the theme rather than about a work — its name, the order its
  * works reach the wall in, where it hangs, and whether it exists.
  *
- * **An index and an addressable detail, from one module.** `#theme` is every
- * theme; `#theme/<id>` is one, which is what a wall's theme control points at
- * and what a curator or an agent can link to. § Navigation Structure requires
- * that every consequential state be addressable and one theme is one — it had
- * been unaddressable since the screen was built (#133).
- *
- * **The same panel renders on both paths, and that is the requirement rather
- * than an economy.** A curator who arrived at one theme must not lose rename,
- * reorder, hang or delete by having arrived a different way; two renderings of
- * one screen is how one of them quietly grows fewer acts than the other.
+ * **An index of cards, and a page per theme, from one module.** `#theme` is
+ * every theme as a card — its name, how many works, a few of their pictures and
+ * the walls it hangs on — each a link to `#theme/<id>`, as Radarr's Collections
+ * index is posters that open a collection. Every act on a theme lives on its
+ * own page: renaming, deleting, ordering, adding and hanging are each about one
+ * theme, and an index that expanded every theme with all of its acts and its
+ * whole membership grew by a table row per work in every theme. The index
+ * creates a theme, because a theme not yet made has no page to be created on.
  *
  * **Membership is edited from the grid *and* here, and the duplication is
  * deliberate.** Putting works into a theme is organising, and organising happens
@@ -26,9 +24,9 @@
  * belong, should not have to go and find it in a grid of everything to say so.
  *
  * **Every write repaints from the answer it was given.** `POST`/`DELETE` on a
- * theme's works return the resulting order and the delete returns the themes
- * that remain, so nothing here guesses where a work landed and then asks. The
- * one exception is deliberate and marked where it happens.
+ * theme's works return the resulting order, so nothing here guesses where a
+ * work landed and then asks. A delete leaves the page pointing at nothing, so it
+ * goes to the index, which reads the themes that remain.
  */
 
 import { attempt } from "../core/acting.js";
@@ -40,93 +38,134 @@ import { hangTheme } from "../core/hanging.js";
 import { el, emptyState, fill, guard, render } from "../core/render.js";
 import { backLink, backRow, go, link, refresh, setTitle } from "../core/router.js";
 
+/* How many pictures a card's strip holds: the server's `THEME_CARD_PICTURES`,
+ * which is how many it sends. Every card keeps this many slots, filled or not,
+ * so the cards in a row are one height. */
+const CARD_PICTURES = 4;
+
 export async function viewTheme(themeId, generation) {
-  // The walls come along because hanging is an act against a named wall: a
-  // theme panel cannot offer "put this up" without saying where, and it cannot
-  // say where without knowing what the walls are called.
-  const [themes, walls, works] = await Promise.all([api("/api/themes"), api("/api/walls"), fetchAllWorks()]);
-
-  // Both paths state the same standing facts, from one place. They are about
-  // hanging rather than about the index, so a detail view that dropped them
-  // would offer "Hang on the living room" beside no explanation of why nothing
-  // can be hung.
-  const notes = [];
-  const shortfall = shortfallNote(works);
-  if (shortfall) notes.push(shortfall);
-  // Said on both paths, because it is about where acceptances go rather than
-  // about the index: a curator on one theme's page who could make it the
-  // default should know that nothing is the default now.
-  if (themes.themes.length && !themes.themes.some((entry) => entry.theme.is_default)) {
-    notes.push(
-      el("p", {
-        class: "note",
-        text: "No theme is the default, so works you accept join no theme. Make one the default to have them land there.",
-      }),
-    );
-  }
-  if (!walls.walls.length) {
-    notes.push(
-      el("p", { class: "note", text: "There are no walls, so nothing can be hung. A wall is created when the plane first opens the catalogue." }),
-    );
-  }
-
   if (themeId) {
-    oneTheme(themeId, { themes, walls, works, notes, generation });
+    await oneTheme(themeId, generation);
     return;
   }
-
-  const name = el("input", { type: "text", id: "new-theme-name", required: true });
-  const create = el("div", { class: "panel" }, [
-    el("h2", { text: "New theme" }),
-    el("div", { class: "row" }, [
-      el("div", { class: "field" }, [el("label", { for: "new-theme-name", text: "Name" }), name]),
-      el("button", {
-        class: "action",
-        type: "button",
-        text: "Create",
-        onclick: (event) =>
-          attempt(
-            event.currentTarget,
-            name.value.trim() ? `create ${name.value.trim()}` : "create the theme",
-            () => api("/api/themes", { method: "POST", body: JSON.stringify({ name: name.value }) }),
-            { then: () => refresh() },
-          ),
-      }),
-    ]),
-  ]);
-
-  const panels = [backRow(), el("h1", { text: "Themes" }), create, ...notes];
-
-  /* The themes, in their own container so a delete can repaint them from the
-   * answer it was given rather than reloading the screen. Nothing else on this
-   * page changes when a theme goes: the refusal makes a hung theme undeletable,
-   * so no wall's state can move, and no work is touched. */
-  const list = el("div", { class: "stack" });
-  const paintThemes = (placements) => {
-    fill(list,
-      ...(placements.length
-        ? placements.map((placement) => themePanel(placement, walls.walls, works.works, paintThemes))
-        : [emptyState("No themes yet.", "Create one, then add works to it.")]),
-    );
-  };
-  paintThemes(themes.themes);
-
-  render(generation, ...panels, list);
+  await themeIndex(generation);
 }
 
-/* One theme, addressed by `#theme/<id>`.
+/* Said on both pages, because it is about where acceptances go rather than
+ * about either: a curator on one theme's page who could make it the default
+ * should know that nothing is the default now, and so should one looking at
+ * the set of them. */
+function noDefaultNote(placements) {
+  if (!placements.length || placements.some((entry) => entry.theme.is_default)) return null;
+  return el("p", {
+    class: "note",
+    text: "No theme is the default, so works you accept join no theme. Make one the default to have them land there.",
+  });
+}
+
+/* -- the index -------------------------------------------------------------- */
+
+async function themeIndex(generation) {
+  // The listing alone: each entry carries its count, its first pictures and its
+  // walls, so ten themes are one read rather than ten reads of their works.
+  const themes = await api("/api/themes");
+
+  const name = el("input", { type: "text", id: "new-theme-name", required: true });
+  const create = el("div", { class: "row" }, [
+    el("div", { class: "field" }, [el("label", { for: "new-theme-name", text: "New theme" }), name]),
+    el("button", {
+      class: "action",
+      type: "button",
+      text: "Create",
+      onclick: (event) =>
+        attempt(
+          event.currentTarget,
+          name.value.trim() ? `create ${name.value.trim()}` : "create the theme",
+          () => api("/api/themes", { method: "POST", body: JSON.stringify({ name: name.value }) }),
+          { then: () => refresh() },
+        ),
+    }),
+  ]);
+
+  render(
+    generation,
+    backRow(),
+    el("h1", { text: "Themes" }),
+    create,
+    noDefaultNote(themes.themes),
+    themes.themes.length
+      ? el("ul", { class: "grid theme-cards" }, themes.themes.map(themeCard))
+      : emptyState("No themes yet.", "Create one, then add works to it from Artworks or from its own page."),
+  );
+}
+
+/* One theme's card: a link to its page, and what a curator choosing between
+ * themes reads first — the name, how many works, what they look like, and
+ * whether it is the default or hanging anywhere.
  *
- * The panel is the index's, unchanged, so every act arrives with it. What
- * differs is that its name is the page's own heading rather than one of many
- * below a heading reading "Themes" — hence `heading: "h1"`: a screen about one
- * thing whose only `h1` named the set would leave a reader tabbing by heading
- * with nothing saying which theme they are on.
+ * **Built as Artists' poster cards are**: the title is the link and the one Tab
+ * stop, and the pictures open the same page to a pointer without a second stop
+ * that would announce the name again. The pictures are the theme's first four
+ * that have one, in its order, uncropped. */
+function themeCard({ theme, hanging_on: hangingOn, work_count: count, picture_ids: pictured }) {
+  const target = { view: "theme", id: theme.theme_id };
+  const slots = [];
+  for (let index = 0; index < CARD_PICTURES; index += 1) {
+    const workId = pictured[index];
+    const slot = el("span", { class: "theme-card-slot" });
+    if (workId) {
+      const img = el("img", { src: `/api/works/${encodeURIComponent(workId)}/thumbnail`, alt: "", loading: "lazy" });
+      // A picture that fails to load leaves its slot empty rather than drawing
+      // a broken image; the card's words still say what the theme is.
+      img.addEventListener("error", () => img.remove());
+      slot.append(img);
+    }
+    slots.push(slot);
+  }
+  const badges = [theme.is_default ? defaultBadge() : null, hangingOn.length ? hangingBadge(hangingOn) : null].filter(Boolean);
+  return el("li", { class: "card theme-card", "data-theme": theme.theme_id }, [
+    link(target, { class: "theme-card-pictures", tabindex: "-1", "aria-hidden": true }, slots),
+    el("div", { class: "card-body" }, [
+      el("h2", { class: "card-title" }, [link(target, { text: theme.name })]),
+      // Said when the theme holds works and none has a picture yet, so an empty
+      // strip is not read as an empty theme.
+      el("p", { class: "card-meta", text: `${count === 1 ? "1 work" : `${count} works`}${count && !pictured.length ? " · no pictures yet" : ""}` }),
+      badges.length ? el("p", { class: "card-badges" }, badges) : null,
+    ]),
+  ]);
+}
+
+// Glyph, word and the accent colour, in that order of importance: the colour is
+// the third signal, as on every badge here.
+const defaultBadge = () =>
+  el("span", { class: "badge badge-default" }, [
+    el("span", { class: "glyph", text: GLYPHS.picked, "aria-hidden": true }),
+    el("span", { text: "default" }),
+  ]);
+
+// Hanging carries a glyph and the words beside any colour — and the words name
+// the walls, because "on the wall" reads correctly today only while there is
+// one of them.
+const hangingBadge = (walls) =>
+  el("span", { class: "badge" }, [
+    el("span", { class: "glyph", text: GLYPHS.good, "aria-hidden": true }),
+    el("span", { text: `on ${walls.map((wall) => wall.name).join(", ")}` }),
+  ]);
+
+/* -- one theme -------------------------------------------------------------- */
+
+/* One theme, addressed by `#theme/<id>`, with every act that is its own.
  *
  * **A theme that is not in the listing is an ordinary state, not an error.** The
  * address outlives the theme — a bookmark, a link in a note, an agent's message
  * — and a curator who deleted it a week ago is owed a sentence rather than the
  * product's home with no explanation of why they are there. */
-function oneTheme(themeId, { themes, walls, works, notes, generation }) {
+async function oneTheme(themeId, generation) {
+  // The walls come along because hanging is an act against a named wall: a
+  // theme page cannot offer "put this up" without saying where, and it cannot
+  // say where without knowing what the walls are called. Every work comes along
+  // for the picker that adds one.
+  const [themes, walls, works] = await Promise.all([api("/api/themes"), api("/api/walls"), fetchAllWorks()]);
   const placement = themes.themes.find((entry) => entry.theme.theme_id === themeId);
   if (!placement) {
     render(
@@ -143,20 +182,27 @@ function oneTheme(themeId, { themes, walls, works, notes, generation }) {
     );
     return;
   }
-  // A delete leaves this screen pointing at nothing, so it goes to the index
-  // rather than repainting a list this page does not show. The index's own
-  // delete repaints in place, which is right there and wrong here: the answer
-  // names the themes that remain, and none of them is the one being addressed.
+
+  // The standing facts about hanging, which is an act this page offers: it
+  // would otherwise offer "Hang on the living room" beside no explanation of
+  // why nothing can be hung.
+  const notes = [shortfallNote(works), noDefaultNote(themes.themes)];
+  if (!walls.walls.length) {
+    notes.push(
+      el("p", { class: "note", text: "There are no walls, so nothing can be hung. A wall is created when the plane first opens the catalogue." }),
+    );
+  }
+
   setTitle(generation, placement.theme.name);
   render(
     generation,
     el("p", {}, [backLink()]),
     ...notes,
-    themePanel(placement, walls.walls, works.works, () => go("theme"), { heading: "h1" }),
+    themePanel(placement, walls.walls, works.works, generation),
   );
 }
 
-function themePanel(placement, walls, allWorks, repaintThemes, { heading: headingTag = "h2" } = {}) {
+function themePanel(placement, walls, allWorks, generation) {
   const theme = placement.theme;
   const hangingOn = placement.hanging_on;
   // The name is read back from every rename rather than kept as the value that
@@ -188,15 +234,17 @@ function themePanel(placement, walls, allWorks, repaintThemes, { heading: headin
   const count = el("span", { class: "muted" });
   // Held rather than only rendered, so a rename can relabel the membership
   // controls without asking the server for an order it has already been given.
-  let members = [];
-  const paintMembers = (works) => {
-    members = works;
-    count.textContent = members.length === 1 ? "1 work" : `${members.length} works`;
+  // Every membership answer carries both: the order, and whether the wall
+  // follows it.
+  let members = { works: [], shuffled: false };
+  const paintMembers = (detail) => {
+    members = detail;
+    count.textContent = members.works.length === 1 ? "1 work" : `${members.works.length} works`;
     fill(body, memberList(theme.theme_id, currentName, members, paintMembers));
   };
   // The one read here that is a read: nothing has answered with this theme's
   // works yet, because the listing this panel was built from does not carry them.
-  guard(async () => paintMembers((await api(`/api/themes/${encodeURIComponent(theme.theme_id)}`)).works));
+  guard(async () => paintMembers(await api(`/api/themes/${encodeURIComponent(theme.theme_id)}`)));
 
   const rename = el("input", {
     type: "text",
@@ -223,6 +271,9 @@ function themePanel(placement, walls, allWorks, repaintThemes, { heading: headin
             currentName = renamed.name;
             heading.textContent = currentName;
             rename.value = currentName;
+            // The tab, the history entry and a bookmark name the theme too, and
+            // were the one place the old name outlived a rename.
+            setTitle(generation, currentName);
             nameTheControls();
             // The membership controls name the theme they remove from, so they
             // are repainted too — a table still offering "Remove from Winter"
@@ -238,14 +289,13 @@ function themePanel(placement, walls, allWorks, repaintThemes, { heading: headin
     type: "button",
     text: "Delete",
     "aria-label": `Delete ${currentName}`,
-    onclick: (event) => remove(event.currentTarget, theme.theme_id, currentName, repaintThemes),
+    onclick: (event) => remove(event.currentTarget, theme.theme_id, currentName),
   });
   /* **Unconfirmed, like taking a theme down**: it moves a mark, changes no wall
    * and touches no work already in any theme, and the undo is the same button on
-   * the theme that had it. The whole screen repaints, because the act changes two
-   * panels — the one marked and the one that stopped being — and on a theme's
-   * own page the other one is not drawn. Absent on the default itself, whose
-   * delete the server refuses with the reason. */
+   * the theme that had it. The page repaints, because the act changes two
+   * themes — this one, and whichever stopped being the default. Absent on the
+   * default itself, whose delete the server refuses with the reason. */
   const defaultButton = theme.is_default
     ? null
     : el("button", {
@@ -261,16 +311,14 @@ function themePanel(placement, walls, allWorks, repaintThemes, { heading: headin
             { then: () => refresh() },
           ),
       });
-  /* **Every theme on this screen renders the same three controls, so the visible
-   * words cannot tell them apart.** A curator reading the panel has the heading
-   * above to go on; somebody moving through the form controls one at a time hears
-   * "Name, edit text" and "Rename" and "Delete" once per theme, with the panel
-   * they belong to reconstructible only from the reading order — on a control that
-   * destroys something. `accessibility-spec.md` asks a control to name what it acts
-   * on, and the membership table in this same panel already does ("Remove Blue
-   * Poles from Winter"). Re-applied after a rename for the reason the membership
-   * controls are repainted: a label naming a theme by its old name is worse than
-   * one naming no theme at all. */
+  /* **The controls name the theme they act on.** `accessibility-spec.md` asks a
+   * control to name what it acts on, and the membership table in this same panel
+   * already does ("Remove Blue Poles from Winter"); somebody moving through the
+   * form controls one at a time otherwise hears "Name, edit text", "Rename" and
+   * "Delete" with the theme reconstructible only from the heading — on a control
+   * that destroys something. Re-applied after a rename for the reason the
+   * membership controls are repainted: a label naming a theme by its old name is
+   * worse than one naming no theme at all. */
   const nameTheControls = () => {
     rename.setAttribute("aria-label", `Name of ${currentName}`);
     renameButton.setAttribute("aria-label", `Rename ${currentName}`);
@@ -288,29 +336,14 @@ function themePanel(placement, walls, allWorks, repaintThemes, { heading: headin
   ]);
 
   return el("div", { class: "panel" }, [
-    el(headingTag, {}, [
+    el("h1", {}, [
       heading,
-      // Glyph, word and the accent colour, in that order of importance: the
-      // colour is the third signal, as on every badge here.
-      theme.is_default
-        ? el("span", { class: "badge badge-default", style: "margin-left: 0.5rem" }, [
-            el("span", { class: "glyph", text: GLYPHS.picked, "aria-hidden": true }),
-            el("span", { text: "default" }),
-          ])
-        : null,
-      // Hanging carries a glyph and the words beside any colour — and the words
-      // name the walls, because "on the wall" reads correctly today only while
-      // there is one of them.
-      hangingOn.length
-        ? el("span", { class: "badge", style: "margin-left: 0.5rem" }, [
-            el("span", { class: "glyph", text: GLYPHS.good, "aria-hidden": true }),
-            el("span", { text: `on ${hangingOn.map((wall) => wall.name).join(", ")}` }),
-          ])
-        : null,
+      theme.is_default ? el("span", { style: "margin-left: 0.5rem" }, [defaultBadge()]) : null,
+      hangingOn.length ? el("span", { style: "margin-left: 0.5rem" }, [hangingBadge(hangingOn)]) : null,
     ]),
     // Below the heading rather than inside it: the heading is the theme's name,
     // and a count spliced into it becomes part of the name everywhere a heading
-    // is read back — including by anything listing the themes on this screen.
+    // is read back.
     el("p", { class: "muted" }, [count]),
     theme.is_default ? el("p", { class: "muted", text: "Works you accept join this theme, at the end." }) : null,
     theme.description ? el("p", { class: "muted", text: theme.description }) : null,
@@ -333,7 +366,7 @@ function themePanel(placement, walls, allWorks, repaintThemes, { heading: headin
                 method: "POST",
                 body: JSON.stringify({ artwork_id: picker.value }),
               }),
-            { then: (detail) => paintMembers(detail.works) },
+            { then: (detail) => paintMembers(detail) },
           ),
       }),
       // One button per wall, named for that wall. There is no single-wall
@@ -406,8 +439,11 @@ const hang = (control, themeId, themeName, wall) =>
  * ways out of it, said beside Delete as it was written (`core/acting.js`).
  * Nothing here predicts the refusal from `hanging_on` — a second copy of the
  * rule would be a second thing to keep true, and it would be wrong about a theme
- * somebody hung from another tab a moment ago. */
-async function remove(control, themeId, themeName, repaintThemes) {
+ * somebody hung from another tab a moment ago.
+ *
+ * Once it is gone the page is an address naming nothing, so it goes to the
+ * index, where the themes that remain are. */
+async function remove(control, themeId, themeName) {
   const act = `delete ${themeName}`;
   let detail = null;
   const read = await attempt(control, act, async () => {
@@ -424,14 +460,27 @@ async function remove(control, themeId, themeName, repaintThemes) {
   });
   if (!confirmed) return;
   await attempt(control, act, () => api(`/api/themes/${encodeURIComponent(themeId)}`, { method: "DELETE" }), {
-    then: (remaining) => repaintThemes(remaining.themes),
+    then: () => go("theme"),
   });
 }
 
-function memberList(themeId, themeName, works, paint) {
+/* The order copy, which depends on whether the wall follows the order.
+ *
+ * With shuffle off, position is what decides what the wall shows first, and
+ * saying so is why the moves are worth making. With it on, saying that would be
+ * false, so the caption says what Walls says ("shuffled") instead; the order is
+ * still kept, and is what the wall follows once shuffle is turned off. */
+function orderCaption(shuffled) {
+  return shuffled
+    ? "Shown in shuffled order, so position here does not decide what the wall shows first."
+    : "In curated order. Position decides what the wall shows first.";
+}
+
+function memberList(themeId, themeName, { works, shuffled }, paint) {
   if (!works.length) {
     return el("p", { class: "muted", text: "This theme holds no works yet." });
   }
+  const last = works.length - 1;
   const rows = works.map((work, index) => {
     // The answer to the move is what the list becomes, so the table is repainted
     // from it. A second read would be the same order arrived at more slowly, and
@@ -446,8 +495,15 @@ function memberList(themeId, themeName, works, paint) {
             method: "POST",
             body: JSON.stringify({ position }),
           }),
-        { then: (detail) => paint(detail.works) },
+        { then: (detail) => paint(detail) },
       );
+    /* **Four moves, all buttons, none a drag.** A drag has no keyboard
+     * equivalent, and in a theme of hundreds ↑ alone is hundreds of presses to
+     * bring the last work first. The top and the bottom are the two ends a
+     * curator reorders towards; the bottom is sent as the last index, since a
+     * null position means "unplaced" rather than "last". Disabled rather than
+     * absent at the ends, so the row keeps its shape and the buttons do not
+     * shuffle sideways under a cursor as a work reaches an end. */
     const controls = el("div", { class: "row" }, [
       el("button", {
         class: "action quiet",
@@ -462,8 +518,24 @@ function memberList(themeId, themeName, works, paint) {
         type: "button",
         text: "↓",
         "aria-label": `Move ${work.title} later`,
-        disabled: index === works.length - 1,
+        disabled: index === last,
         onclick: move(index + 1, "later"),
+      }),
+      el("button", {
+        class: "action quiet",
+        type: "button",
+        text: "Move to top",
+        "aria-label": `Move ${work.title} to the top`,
+        disabled: index === 0,
+        onclick: move(0, "to the top"),
+      }),
+      el("button", {
+        class: "action quiet",
+        type: "button",
+        text: "Move to bottom",
+        "aria-label": `Move ${work.title} to the bottom`,
+        disabled: index === last,
+        onclick: move(last, "to the bottom"),
       }),
       // **The label says which collection the work is leaving.** "Remove" alone
       // promises the work is gone, and `information-architecture.md` rules that
@@ -483,17 +555,17 @@ function memberList(themeId, themeName, works, paint) {
             event.currentTarget,
             `remove ${work.title} from ${themeName}`,
             () => api(`/api/themes/${encodeURIComponent(themeId)}/works/${encodeURIComponent(work.artwork_id)}`, { method: "DELETE" }),
-            { then: (detail) => paint(detail.works) },
+            { then: (detail) => paint(detail) },
           ),
       }),
     ]);
     return [String(index + 1), work.title, work.artist ? work.artist.name : "—", fitBadge(work), controls];
   });
   return table(
-    "In curated order. Position decides what the wall shows first.",
+    orderCaption(shuffled),
     // The last column is named rather than left blank: an empty `th` is
     // announced as an empty column header, which tells a screen-reader user
-    // nothing about the three buttons in every row beneath it.
+    // nothing about the buttons in every row beneath it.
     ["#", "Title", "Artist", "Size on the wall", "Order and membership"],
     rows,
   );

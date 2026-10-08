@@ -24,8 +24,9 @@ import { paintBudget } from "./spend.js";
  *
  * A section's link opens its first page in table order. A page whose label is
  * the section's own label *is* that link and is not listed again — Artworks
- * under Artworks, Walls under Walls. Every other page is listed, which is why
- * Status sits under System and Taste under Settings, as they do in Sonarr. */
+ * under Artworks, Walls under Walls, the Settings index under Settings. Every
+ * other page is listed, which is why Status sits under System and Clients,
+ * Sources and Taste under Settings, as they do in Sonarr. */
 function layout(table, sections) {
   const pages = Object.entries(table).filter(([, entry]) => entry.page);
   return sections.map((section) => {
@@ -121,10 +122,10 @@ export function paintSidebar(table, sectionList, pick) {
 
 /* Mark where the curator is.
  *
- * **One link carries `aria-current`, and it is the page's own.** Settings' link
- * and Taste's point at the same address, and marking both would tell a screen
- * reader it is on two pages. So the listed page's link is marked when there is
- * one, and the section link only when the page is the section itself. The
+ * **One link carries `aria-current`, and it is the page's own.** On a listed
+ * page the section's link is lit too, as open, and marking both would tell a
+ * screen reader it is on two pages. So the listed page's link is marked when
+ * there is one, and the section link only when the page is the section itself. The
  * current section is shown open through `data-open`, which is styling, not
  * state a reader needs announced. */
 export function lightSidebar(page) {

@@ -1,6 +1,6 @@
 /* Taste — what the product has come to believe about the curator, correctable.
  *
- * **A page under Settings**, where Radarr keeps the profiles that rank what it
+ * **A page under Settings, listed last**, where Radarr keeps the profiles that rank what it
  * finds (`information-architecture.md` § The *arr layout). Also reached from a
  * suggestion's "why am I seeing this?".
  *
@@ -91,7 +91,7 @@ export async function viewTaste(generation) {
 }
 
 function paint(taste, generation) {
-  const panels = [backRow(), el("h1", { text: "What this product thinks you like" })];
+  const panels = [backRow(), el("h1", { text: "Taste" }), howTasteIsRecorded()];
 
   if (!taste.count) {
     panels.push(empty());
@@ -117,6 +117,44 @@ function paint(taste, generation) {
   render(generation, ...panels);
 }
 
+/* Every way a judgment gets here, each named by the words on its control.
+ *
+ * Said on the empty page and the full one alike, because a curator wondering
+ * why a judgment is here, or how to add one, needs the list either way. Each
+ * control is named as it reads where it is: a conversation's three reactions
+ * are lower-case on its samples, and an artist's page says *More like this* and
+ * *Not this*. The corrections on this page are listed too, since a correction
+ * records a judgment of its own (`core/taste.js`). An assistant writes through
+ * `art_taste`, which records what it read out of something the curator said. */
+function howTasteIsRecorded() {
+  const control = (words) => el("em", { text: words });
+  return el("div", { class: "taste-help" }, [
+    el("p", { class: "muted", text: "What the product has come to think you like. A judgment is recorded when you:" }),
+    el("ul", { class: "muted" }, [
+      el("li", {}, [
+        "react to a picture in a conversation in Ask, with ",
+        control("more like this"),
+        ", ",
+        control("not this"),
+        " or ",
+        control("tell me more"),
+        ";",
+      ]),
+      el("li", {}, ["press ", control("More like this"), " or ", control("Not this"), " on an artist's page;"]),
+      el("li", {}, [
+        "correct one here, with ",
+        control("More of this"),
+        ", ",
+        control("Not this"),
+        " or ",
+        control("Keep showing me"),
+        ";",
+      ]),
+      el("li", {}, ["or tell an assistant connected to Arrt, which records what it read out of what you said."]),
+    ]),
+  ]);
+}
+
 /* Nothing known yet, and what would create some.
  *
  * The IA's rule for this screen's empty state, and it is not the same as "no
@@ -126,8 +164,7 @@ function paint(taste, generation) {
 function empty() {
   return emptyState(
     "Nothing is known about your taste yet.",
-    "This fills up as you talk: reacting to a picture in a conversation — more like this, not this, " +
-      "tell me more — is what records a judgment here.",
+    "Any of the ways above records the first judgment; a conversation in Ask is the quickest.",
     [link({ view: "discover" }, { class: "action", text: "Start a conversation in Ask" })],
   );
 }
