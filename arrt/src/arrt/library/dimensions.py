@@ -124,8 +124,9 @@ def _converted(value: re.Match[str], unit: str, target: str) -> str:
 
 
 def _parsed(number: str) -> Fraction:
-    whole, _, fraction = number.replace(",", ".").partition(" ")
-    if "/" in whole:
-        return Fraction(whole)
-    amount = Fraction(whole)
-    return amount + Fraction(fraction.strip()) if fraction.strip() else amount
+    """A number `_NUMBER` matched, as an exact fraction.
+
+    Split on any whitespace, as `_NUMBER` matches any: text taken from a web page
+    often joins "29" and "7/16" with a non-breaking space.
+    """
+    return sum((Fraction(piece) for piece in number.replace(",", ".").split()), Fraction(0))

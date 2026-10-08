@@ -122,6 +122,9 @@ def test_no_dimensions_stay_none():
         ("Width 30 cm", "Width 12 in"),
         # The Met's height with no colon kept its "H." only by luck of a colon.
         ("H. 8 1/4 in. (21 cm)", "H. 8 in"),
+        # A non-breaking space between a whole number and its fraction, as text
+        # taken from a web page carries; it matched and then failed to parse.
+        ("74.7 × 109.6 cm (29\u00a07/16 × 43\u00a03/16 in.)", "29 × 43 in"),
     ],
 )
 def test_words_and_fractions_around_a_measurement_are_read_as_written(source, imperial):
