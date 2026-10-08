@@ -34,7 +34,7 @@
 
 import { attempt } from "../core/acting.js";
 import { api, fetchAllWorks, fetchFilterCounts } from "../core/api.js";
-import { absentImage, fitBadge, shortfallNote, sourceBadge, statusBadge } from "../core/badges.js";
+import { absentImage, shortfallNote, statusBadge, tileFitBadge, workName } from "../core/badges.js";
 import { addedSentence, addWorksToTheme, stoppedSentence } from "../core/membership.js";
 import { el, fill, guard, render } from "../core/render.js";
 import { goWithParams, link } from "../core/router.js";
@@ -191,7 +191,12 @@ function resolveDensity(total) {
 
 /* -- the tiles -------------------------------------------------------------- */
 
-function cardImage(work) {
+/* `inTabOrder` is false on the Overview card, whose title link opens the same
+ * page: two Tab stops to one place, one of them a picture that announces the
+ * title again, was a third of every card's stops (`ux-review-2026-10.md`
+ * finding 30). The picture still opens the work to a pointer. On a Posters
+ * tile the picture is the only way in, so it keeps its stop and its name. */
+function cardImage(work, { inTabOrder = true } = {}) {
   if (!work.image.available) {
     return el("div", { class: "card-image" }, [absentImage(work.image.note)]);
   }
@@ -209,7 +214,8 @@ function cardImage(work) {
   image.addEventListener("error", () => {
     image.replaceWith(absentImage("Its image could not be loaded just now."));
   });
-  return link({ view: "work", id: work.artwork_id }, { class: "card-image", "aria-label": `Open ${work.title}` }, [image]);
+  const named = inTabOrder ? { "aria-label": `Open ${workName(work)}` } : { tabindex: "-1", "aria-hidden": true };
+  return link({ view: "work", id: work.artwork_id }, { class: "card-image", ...named }, [image]);
 }
 
 /* The tick that puts a work in a selection.
@@ -226,7 +232,7 @@ function selectBox(work, onChange) {
     type: "checkbox",
     class: "tile-select",
     checked: selected.has(work.artwork_id),
-    "aria-label": `Select ${work.title}`,
+    "aria-label": `Select ${workName(work)}`,
   });
   box.addEventListener("change", () => {
     if (box.checked) selected.add(work.artwork_id);
@@ -240,17 +246,17 @@ function selectBox(work, onChange) {
 function workCard(work, selection) {
   return el("li", { class: "card", "data-artwork": work.artwork_id }, [
     selection ? selectBox(work, selection.settle) : null,
-    cardImage(work),
+    cardImage(work, { inTabOrder: false }),
     el("div", { class: "card-body" }, [
       el("h2", { class: "card-title" }, [
-        link({ view: "work", id: work.artwork_id }, { text: work.title }),
+        link({ view: "work", id: work.artwork_id }, { text: work.title, "aria-label": workName(work) }),
       ]),
       el("p", { class: "card-artist" }, [artistName(work)]),
       el("p", {
         class: "card-meta",
         text: [work.date_created, work.medium].filter(Boolean).join(" · ") || " ",
       }),
-      el("div", { class: "card-footer" }, [statusBadge(work), fitBadge(work), sourceBadge(work)]),
+      el("div", { class: "card-footer" }, [statusBadge(work), tileFitBadge(work)]),
     ]),
   ]);
 }
@@ -292,7 +298,7 @@ function contactTile(work, selection) {
 function workRow(work, selection) {
   return el("tr", { "data-artwork": work.artwork_id }, [
     selection ? el("td", { class: "row-select" }, [selectBox(work, selection.settle)]) : null,
-    el("td", {}, [link({ view: "work", id: work.artwork_id }, { class: "row-title", text: work.title })]),
+    el("td", {}, [link({ view: "work", id: work.artwork_id }, { class: "row-title", text: work.title, "aria-label": workName(work) })]),
     el("td", {}, [artistName(work)]),
     el("td", { text: work.date_created || "—" }),
     el("td", { text: work.medium || "—" }),
@@ -428,6 +434,9 @@ function facetOption(kind, option, chosen) {
     // intersection.
     disabled: option.disabled,
     text: `${option.value} (${option.count})`,
+    // What finds this option again after the repaint its click causes, so the
+    // keyboard stays on it (`core/router.js`).
+    "data-focus-key": `facet:${kind}:${option.value}`,
     // A toggle on this page's filter, so a button (`aria-pressed`), as Sort
     // and View are: it changes what the page shows, not which page it is.
     onclick: () => goWithParams(facetChange(chosen, kind, option.value)),
@@ -454,6 +463,7 @@ function themeOption(option) {
     class: "facet-option",
     type: "button",
     "data-theme": option.theme_id,
+    "data-focus-key": `theme:${option.theme_id}`,
     "aria-pressed": option.selected ? "true" : "false",
     disabled: option.disabled,
     text: `${option.name} (${option.count})`,

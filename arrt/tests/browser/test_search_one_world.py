@@ -132,7 +132,7 @@ def test_wikidata_follows_the_library_and_shows_nothing_twice(ui, matched):
     assert badge.locator(".glyph").get_attribute("aria-hidden") == "true"
 
 
-def test_a_wanted_match_says_wanted_and_only_the_unheld_picture_is_hatched(ui, matched, want_item, pictures_load):
+def test_a_wanted_match_says_wanted_and_only_the_unheld_picture_is_styled_not_held(ui, matched, want_item, pictures_load):
     """The typeahead's half of #172: *Image found* no longer reads as if it might mean held."""
     want_item("Q99", "Crucifixion")
     _type(ui, "dali")

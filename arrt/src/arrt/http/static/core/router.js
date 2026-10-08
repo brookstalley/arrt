@@ -358,6 +358,11 @@ export function refresh(moveFocus = false, { arrival = null } = {}) {
   // never seen part-way down. A change of state on the same screen — a sort,
   // a filter — keeps the curator where they were, as any act on a page does.
   if (moveFocus && arrived && !restoring) window.scrollTo(0, 0);
+  // A change of state on the same screen — a facet, a theme in the rail —
+  // repaints the control that made it, and focus would fall to the view's top,
+  // a Tab sequence away from where the curator was. The control's key is what
+  // finds it again in the new paint.
+  const keep = moveFocus && !arrived ? focusKey(document.activeElement) : null;
   const done = guard(
     entry.detail ? () => entry.render(state.detailId, generation) : () => entry.render(generation),
   );
@@ -372,6 +377,11 @@ export function refresh(moveFocus = false, { arrival = null } = {}) {
     // it, and where the page sits is decided above, not by the focus.
     done.then(() => {
       if (generation !== state.nav) return;
+      const kept = keep && keyed(keep);
+      if (kept) {
+        kept.focus({ preventScroll: true });
+        return;
+      }
       if (restoring) {
         window.scrollTo(0, arrival.scrollY);
         const opened = openedLink(arrival.opened);
@@ -384,6 +394,21 @@ export function refresh(moveFocus = false, { arrival = null } = {}) {
     });
   }
   return done;
+}
+
+/* A control that keeps the keyboard across a repaint of its own screen says so
+ * with `data-focus-key`, unique on the page: a facet option by its kind and
+ * value, a theme option by its id. Its text cannot be the key, since the count
+ * in it is what the repaint changes. */
+function focusKey(node) {
+  const view = document.getElementById("view");
+  if (!node || !view || !view.contains(node)) return null;
+  return node.dataset ? node.dataset.focusKey || null : null;
+}
+
+function keyed(key) {
+  const view = document.getElementById("view");
+  return [...view.querySelectorAll("[data-focus-key]")].find((node) => node.dataset.focusKey === key && !node.disabled) || null;
 }
 
 /* The link a remembered entry was left by, on the page Back has repainted. */

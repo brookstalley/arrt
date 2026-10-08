@@ -1327,7 +1327,8 @@ the client with them.
 | `GET /static/…` | The client: a stylesheet and a tree of ES modules under `app.js`, no build step. Every file, and the shell on every UI path, carries `Cache-Control: no-cache` (`pages.CLIENT_CACHE_CONTROL`, which says why): the modules import names from one another, so a browser holding any of them across a deploy can stop the client from starting. A `/static` file answers a conditional request with 304. **Added 2026-10-05.** |
 | `GET /api/works` | A page of works, each with its fit verdict and image state. `sort` is `title` (the default), `artist` (unattributed last) or `newest`, and orders the page only: the total and the facet counts describe the same set whatever the order. An unknown value is refused by name. |
 | `GET /api/works/{id}` | One work with sources, renditions and mat history. |
-| `GET /api/works/{id}/thumbnail` | A downscaled copy, generated on first ask and revalidated thereafter. |
+| `GET /api/works/{id}/thumbnail` | The work itself, downscaled from its master to fit 480 px, for a library tile: its own aspect, never the wall render's mat and bars. Generated on first ask and revalidated thereafter. **Drawn from the master since 2026-10-07** (ruling 7, `ia-proposal.md`); until then it was the wall render when one existed. |
+| `GET /api/works/{id}/wall-preview` | The wall render, mat and all, downscaled to fit 1920 px, for the Work page, where it is the subject; the master where no canvas exists yet (`image.source_kind` on the work says which). Generated on first ask and revalidated thereafter. **Added 2026-10-07.** |
 | `GET /api/themes`, `GET /api/themes/{id}` | Themes, and one theme's works in curated order. |
 | `POST /api/themes` | Record a theme. |
 | `POST`/`DELETE /api/themes/{id}/works[/{work_id}]`, `POST .../position` | Membership and order. Each returns the resulting order, so the surface repaints from the response. |

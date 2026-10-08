@@ -614,16 +614,16 @@ A derived, device-specific output. **Regenerated, never transported.**
 |---|---|---|---|
 | `id` | UUID | PK | |
 | `artwork_id` | UUID | FK → Artwork, required | |
-| `kind` | enum | required | `tv_display` \| `thumbnail`. **`label` was removed 2026-07-20** — see below. |
+| `kind` | enum | required | `tv_display` \| `thumbnail` \| `wall_preview`. A `thumbnail` is the work itself, drawn from the Original, for a library tile; a `wall_preview` is the `tv_display` canvas (or the Original, where there is none yet) downscaled for the Work page. **`wall_preview` was added and `thumbnail` stopped being drawn from the canvas 2026-10-07** (ruling 7, `ia-proposal.md`: tiles show the work at its own aspect). **`label` was removed 2026-07-20** — see below. |
 | `target_width` | integer | required | e.g. 3840 for the TV canvas. |
 | `target_height` | integer | required | e.g. 2160. |
 | `relative_path` | string | required | Relative to `ART_ROOT`. |
-| `source_content_hash` | string | required | The `Original.content_hash` this was rendered from. Mismatch ⇒ stale ⇒ regenerate. Note it is the *Original's* hash on every row, including a `thumbnail` actually drawn from a `tv_display` canvas — see invariant 4. |
-| `generated_at` | datetime | auto | Refreshed on upsert, so a recomposed canvas is newer than it was. Load-bearing rather than bookkeeping: it is the only column that moves when a canvas is redrawn at the same path from the same Original, which is what makes a stale `thumbnail` of it detectable (invariant 4). |
+| `source_content_hash` | string | required | The `Original.content_hash` this was rendered from. Mismatch ⇒ stale ⇒ regenerate. Note it is the *Original's* hash on every row, including a `wall_preview` actually drawn from a `tv_display` canvas — see invariant 4. |
+| `generated_at` | datetime | auto | Refreshed on upsert, so a recomposed canvas is newer than it was. Load-bearing rather than bookkeeping: it is the only column that moves when a canvas is redrawn at the same path from the same Original, which is what makes a stale `wall_preview` of it detectable (invariant 4). |
 | `content_sha256` | string | optional, indexed | *(Added 2026-09-30, wave 2b.)* The SHA-256 of the file's bytes: the render's identity once it is served, at `/media/sha256-<hex>`. The catalogue service hashes the file itself when the rendition is recorded, never taking it from the caller, for the reason `source_content_hash` is read rather than accepted. Null for a render recorded before the column existed, or whose file was not there to read, and filled in the first time the Library is asked to offer it as media. |
 | `byte_size` | integer | optional | *(Added 2026-09-30.)* The file's size, recorded with the hash so a manifest can state it. |
-| `layout` | string | optional | *(Added 2026-10-02, #189.)* For a `tv_display` canvas, the geometry and drawing rule it was composed with: the panel and artwork box in pixels and the compositor's rule name (`compose.layout`). Answers Q42. A canvas whose layout is not the one this deployment composes with now is recomposed, and at startup the acquisition queue is given a preparation for each such work; the old canvas stays on the wall until the new one is recorded. Null for a thumbnail, and for a canvas recorded before the column existed, which counts as out of date. Goes with `tv_display` in wave 4. |
-| `mat_hex` | string | optional | *(Added 2026-10-03, #183.)* For a `tv_display` canvas, the mat colour it was painted in. A canvas whose `mat_hex` is not the work's current mat is not current and is recomposed by the next preparation, so a mat recorded before its canvas was redrawn (a crash or failed redraw between the two) cannot leave the old colour on the wall. Null for a thumbnail, and for a canvas recorded before the column existed, which counts as out of date. Goes with `tv_display` in wave 4. |
+| `layout` | string | optional | *(Added 2026-10-02, #189.)* For a `tv_display` canvas, the geometry and drawing rule it was composed with: the panel and artwork box in pixels and the compositor's rule name (`compose.layout`). Answers Q42. A canvas whose layout is not the one this deployment composes with now is recomposed, and at startup the acquisition queue is given a preparation for each such work; the old canvas stays on the wall until the new one is recorded. Null for a thumbnail or wall preview, and for a canvas recorded before the column existed, which counts as out of date. Goes with `tv_display` in wave 4. |
+| `mat_hex` | string | optional | *(Added 2026-10-03, #183.)* For a `tv_display` canvas, the mat colour it was painted in. A canvas whose `mat_hex` is not the work's current mat is not current and is recomposed by the next preparation, so a mat recorded before its canvas was redrawn (a crash or failed redraw between the two) cannot leave the old colour on the wall. Null for a thumbnail or wall preview, and for a canvas recorded before the column existed, which counts as out of date. Goes with `tv_display` in wave 4. |
 
 > **Q8.** Geometry is *columns*, not a filename suffix. The 2024 design encoded
 > it as `_w648_h480` in the filename, which is why the recovered catalogue points
@@ -646,7 +646,7 @@ A derived, device-specific output. **Regenerated, never transported.**
 >
 > What remains here is correct: `tv_display` at 3840×2160 is a property of the
 > *artwork's presentation*, not of a device — any 4K display shows it, and the mat
-> is composed against that canvas. `thumbnail` is device-independent by definition.
+> is composed against that canvas. `thumbnail` is device-independent by definition. `wall_preview` is a copy of whatever `tv_display` is, so it is exactly as device-specific as that.
 >
 > **Reversed 2026-09-30 (effective at wave 4; `re-architecture.md` § Compositing
 > moves to the Player).** The paragraph above held only while there was one
@@ -657,7 +657,7 @@ A derived, device-specific output. **Regenerated, never transported.**
 > device-independent, capped, unmatted, and served by hash to Players.
 > `tv_display` is removed, and its producers (`library/acquisition/compose.py`, the
 > `TV_PANEL_*` and `MAT_*` settings on the server) move to or are rebuilt on the
-> Player. `thumbnail` is unchanged.
+> Player. `thumbnail` is unchanged; `wall_preview` goes with `tv_display`, since what a wall shows is then the Player's to compose.
 
 ### MatColor
 
@@ -2561,13 +2561,14 @@ suppresses it and leaves the verdict where it was.
 3. **At most one Source per Artwork has `is_primary = true`.**
 4. **A Rendition is stale when its `source_content_hash` differs from its
    Artwork's Original `content_hash`.** Stale renditions are regenerated, never
-   served. **This is necessary and, for `kind = 'thumbnail'`, not sufficient
-   (amended 2026-08-10).** Every other rendition is drawn from the Original, so
-   comparing against it answers the whole question. A thumbnail is drawn from the
-   *`tv_display` rendition* whenever one is current — it is the model's only
-   derived-from-derived row — and composing or recomposing that canvas never
-   touches the Original, so this invariant reports "current" for a thumbnail of
-   an image that has since been redrawn. A thumbnail is additionally stale when
+   served. **This is necessary and, for `kind = 'wall_preview'`, not sufficient
+   (amended 2026-08-10, when it was `thumbnail` that was drawn from the canvas;
+   moved to `wall_preview` 2026-10-07).** Every other rendition is drawn from the
+   Original, so comparing against it answers the whole question. A wall preview is
+   drawn from the *`tv_display` rendition* whenever one is current — it is the
+   model's only derived-from-derived row — and composing or recomposing that canvas
+   never touches the Original, so this invariant reports "current" for a preview of
+   an image that has since been redrawn. A wall preview is additionally stale when
    its `generated_at` does not postdate the `generated_at` of the rendition it
    would be made from now. **Enforced at `ThumbnailService._drawn_from`, not in
    `list_renditions`/`view.stale`** — a reader implementing a second consumer will
@@ -2575,7 +2576,7 @@ suppresses it and leaves the verdict where it was.
    (`architecture.md`). The two states that reached a curator before this was
    added: a card badged "wall render" showing the unmatted master, and a mat
    colour they set that changed the wall and not the picture in front of them.
-   **Still open (#116)**: nothing records what a cached thumbnail was actually drawn
+   **Still open (#116)** for the wall preview: nothing records what a cached one was actually drawn
    from, so the mirror — canvas-derived bytes served under an `original` badge
    once the canvas file goes — is reachable and needs provenance on the row.
 5. **`Original.byte_size` must be greater than zero.** A zero-byte original is a

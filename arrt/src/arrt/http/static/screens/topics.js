@@ -20,7 +20,7 @@
  * built from a QID checked against `Q` and digits, never from a URL. */
 
 import { api } from "../core/api.js";
-import { absentImage, facts } from "../core/badges.js";
+import { absentImage, facts, workName } from "../core/badges.js";
 import { counted } from "../core/counting.js";
 import { getSelection } from "../core/getting.js";
 import {
@@ -247,7 +247,7 @@ function heldCard(work) {
   return el("li", { class: "card", "data-artwork": work.artwork_id }, [
     el("div", { class: "card-image" }, [picture]),
     el("div", { class: "card-body" }, [
-      el("h3", { class: "card-title" }, [link({ view: "work", id: work.artwork_id }, { text: work.title })]),
+      el("h3", { class: "card-title" }, [link({ view: "work", id: work.artwork_id }, { text: work.title, "aria-label": workName(work) })]),
       el("p", { class: "card-meta", text: [work.artist ? work.artist.name : null, work.date_created].filter(Boolean).join(", ") || " " }),
     ]),
   ]);

@@ -323,7 +323,7 @@ class TestTheArtistPage:
         artist, work = rothko
         _page(ui, artist)
 
-        ui.page.check(f"input[aria-label='Select {work.title}']")
+        ui.page.check(f"input[aria-label^='Select {work.title},']")
         ui.page.click("section[aria-labelledby='in-your-library'] button:has-text('Add to theme')")
         ui.page.wait_for_selector("text=Added 1 work to Colour fields.")
 
@@ -452,13 +452,11 @@ class TestAnUnlinkedArtist:
         # The hash changes before the artist's own page replaces the registry
         # page, which also has a table under Their work; wait for the new page
         # (no namesake offer) and for its Wikidata answer, not for any table.
-        ui.page.wait_for_function(
-            """() => {
+        ui.page.wait_for_function("""() => {
               const section = document.querySelector("section[aria-labelledby='their-work']");
               return !document.querySelector("#view .namesake") && section && section.querySelector("table")
                 && !section.innerText.includes("Asking Wikidata");
-            }"""
-        )
+            }""")
 
         assert "Rothko Chapel" in _their_work(ui).inner_text()
 

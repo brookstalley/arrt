@@ -708,6 +708,11 @@ is no network between planes.
   page, recording each as a `RenditionKind.THUMBNAIL` so the cache is catalogued
   rather than loose on disk and inherits the staleness rule already governing the
   television render.
+  **Since 2026-10-07 it produces two kinds** (ruling 7, `ia-proposal.md`): a
+  `THUMBNAIL` is the work itself, always drawn from the master, for a library
+  tile; a `WALL_PREVIEW` is the wall render at a size the Work page draws sharply,
+  drawn from the canvas when there is one. What the paragraphs below say of "the
+  thumbnail" drawn from a canvas is now true of the wall preview.
 
   **That "inherits" became true on 2026-08-05 and was not before.** The rule was
   written twice — once in `CatalogueService.list_renditions`, once inline in the

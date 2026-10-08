@@ -42,8 +42,9 @@ function runTable(caption, runs, themes) {
       destinationWords(destinationOf(run, themes)),
       run.status,
       run.started_at,
-      link({ view: "run", id: run.run_id }, { class: "action quiet", text: "Open", "aria-label": `Open the ${KIND_WORDS[run.kind] || "run"} for ${run.intent || (run.kind === "get" ? "the works you chose" : run.run_id)}` }),
+      link({ view: "run", id: run.run_id }, { class: "action quiet row-link", text: "Open", "aria-label": `Open the ${KIND_WORDS[run.kind] || "run"} for ${run.intent || (run.kind === "get" ? "the works you chose" : run.run_id)}` }),
     ]),
+    { stacked: true },
   );
 }
 
@@ -94,12 +95,13 @@ export async function viewToReview(generation) {
             link(
               { view: run.kind === "get" ? "run" : "review", id: run.run_id },
               {
-                class: "action quiet",
+                class: "action quiet row-link",
                 text: "Review",
                 "aria-label": `Review the ${KIND_WORDS[run.kind] || "run"} for ${run.intent || (run.kind === "get" ? "the works you chose" : run.run_id)}`,
               },
             ),
           ]),
+          { stacked: true },
         ),
       ]),
     );
@@ -133,7 +135,7 @@ function acquisitionPanel(listing, generation) {
         ])
       : null,
     listing.works.length
-      ? table("Every accepted work still owed its image or its preparation, in the order the queue will try them.", ["Work", "State", "What happened"], rows)
+      ? table("Every accepted work still owed its image or its preparation, in the order the queue will try them.", ["Work", "State", "What happened"], rows, { stacked: true })
       : el("p", { class: "muted", text: "Every accepted work holds its image. A work you accept is fetched here, one at a time, then prepared for the wall." }),
   ]);
 }

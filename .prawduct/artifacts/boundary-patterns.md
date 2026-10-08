@@ -404,7 +404,13 @@
   it would now be drawn from — a work's first canvas, or a recompose in a new mat
   colour, neither of which touches the master the first trigger watches.
   Enforced at `ThumbnailService._drawn_from`, not in the shared currency
-  predicate; `architecture.md` says why. Nothing else ever deletes one, and
+  predicate; `architecture.md` says why. **Since 2026-10-07 that third trigger
+  belongs to the `wall_preview` kind**, the Work page's copy of the canvas; a
+  `thumbnail` is the bare work, drawn from the master alone, and the first two
+  triggers are its whole rule. Each kind is cached in its own subdirectory of
+  `thumbs/`, and a row moved to a new path deletes the file it used to name, which
+  is how thumbnails cached from a canvas before that date are replaced rather than
+  served on. Nothing else ever deletes one, and
   archiving a work therefore leaves its file and its `RenditionKind.THUMBNAIL`
   row where they are.
   `[DECISION: thumbnails are never evicted — regenerated when stale or absent,

@@ -488,6 +488,7 @@ export async function viewRun(runId, generation) {
               el("div", { class: "stack-tight" }, [resolutionBadge(work), reasonBadge(work)]),
               work.rationale,
             ]),
+            { stacked: true },
           )
         : el("p", { class: "muted", text: "This run has not settled on any works yet." }),
     ]),
