@@ -109,6 +109,15 @@ sideways-scroll check over every route at 390 px). Each new test was watched fai
 against the unfixed code. Existing tests changed deliberately are named in their
 commits; none was weakened.
 
+**Deploy and roll back:** the catalogue gains `history_events`, `work_exclusions`,
+`themes.is_hidden` and `candidate_works.source_confirmed`, added at startup; tiles and
+wall previews cache under `thumbs/tiles/` and `thumbs/wall-previews/`, and an old
+thumbnail row regenerates. `MONTHLY_BUDGET_USD` is optional (only for a key with no
+provider limit). **Rolling back to an older image is not clean:** an older build reads
+every hidden selection as an ordinary theme, and puts back on the walls every work kept
+off with *Not this one again from every wall*. Restore the catalogue backup taken
+before this deploy alongside the older image, rather than the image alone.
+
 **Not done:** the live walk of S1, S6 and S8 on the real wall (chunk 13), owned by the
 operator after deploy. Pass 1 re-run on a synthetic 2,000-work library found no screen
 reached only by a button and no dead end.
