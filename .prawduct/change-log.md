@@ -83,8 +83,9 @@ setting, imperial by default; the first measurement only, with its qualifier.
   checked by hand in both systems; the half-up and source-preference rules and
   the `main` wiring each seen failing when broken.
 - `accessibility-spec.md` § Dimensions on the label holds the rule;
-  `data-model.md` points at it. The Settings › General control is deferred
-  until the interface redesign merges.
+  `data-model.md` points at it; `museum-label-findings.md` records the ruling,
+  settling #142. The Settings › General control is deferred until the interface
+  redesign merges (#329).
 
 ## 2026-10-08: A label is one panel refresh, not a clear and then a frame
 
