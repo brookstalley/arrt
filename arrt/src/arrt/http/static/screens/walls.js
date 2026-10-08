@@ -585,8 +585,8 @@ function fillChoice(card, choice, opener) {
   fill(
     choice,
     el("p", { text: `Not ${title} again — from where?` }),
-    answer("theme", `From ${from}`, `Not ${title} again from ${from}`, `take ${title} out of ${from}`),
-    answer("every_wall", "From every wall", `Not ${title} again on any wall`, `keep ${title} off every wall`),
+    answer("theme", `From ${from}`, `Not ${title} again, from ${from}`, `take ${title} out of ${from}`),
+    answer("every_wall", "From every wall", `Not ${title} again, from every wall`, `keep ${title} off every wall`),
   );
 }
 

@@ -1703,36 +1703,6 @@ section.wall {
   margin-bottom: var(--space-8);
 }
 
-/* What is hanging, at the size the IA asks for: the artwork is the primary
-   content on every screen that shows one, and this is the screen that shows the
-   most of them. A wider minimum than the collection grid's 15rem, because this
-   is a handful of works being looked at rather than a catalogue being scanned. */
-.hanging {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
-  gap: var(--space-5);
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-/* No card, no border, no shadow. A work on this screen is hung, not filed, and
-   the fixed-aspect image box above it is doing the alignment a card would
-   otherwise be doing. */
-.hung {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-/* A work's own title inside the Showing panel. The panel's heading rule sets a
-   paragraph's worth of space under a heading, which is right for a section title
-   and wrong under a picture whose artist line belongs with it. */
-.hung .card-title {
-  margin: 0;
-}
-
 /* The wall's controls, held apart from the account of what is on it: hanging a
    different theme is the one act on this screen that other people in the house
    see, and it should not read as another row of facts. */
