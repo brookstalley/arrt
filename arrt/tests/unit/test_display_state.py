@@ -12,14 +12,12 @@ from pathlib import Path
 
 import pytest
 
-from arrt.persistence.records import Wall
 from arrt.programming.display_state import ScreenState, display_state_of
 from arrt.programming.manifest import heartbeat
 from arrt.programming.manifest.heartbeat import STALE_AFTER_SECONDS
 
 CONTRACT = Path(__file__).resolve().parents[3] / "contract" / "fixtures" / "heartbeat.v1"
 NOW = datetime(2026, 10, 8, 20, 0, tzinfo=UTC)
-ASSIGNED = Wall(id="w1", name="The hall", created_at=NOW, client_id="c1", output="hdmi-a-1")
 
 
 def reading_of(tmp_path, document, *, age=timedelta(seconds=5)):
@@ -40,7 +38,7 @@ def minor_3(state, work_id=None, since="2026-10-08T19:00:00+00:00"):
 @pytest.mark.parametrize("state", ["showing_art", "in_use", "dark", "no_screen", "unreachable"])
 def test_a_minor_3_report_is_the_walls_state(tmp_path, state):
     work_id = "w-dali" if state == "showing_art" else None
-    shown = display_state_of(ASSIGNED, reading_of(tmp_path, minor_3(state, work_id)))
+    shown = display_state_of(reading_of(tmp_path, minor_3(state, work_id)), shown=True)
 
     assert shown.state is ScreenState(state)
     assert shown.work_id == work_id
@@ -51,14 +49,14 @@ def test_a_minor_3_report_is_the_walls_state(tmp_path, state):
 
 def test_display_state_is_read_over_current_work_id(tmp_path):
     """A Frame after a remote-control change: the state says so, the old field does not."""
-    shown = display_state_of(ASSIGNED, reading_of(tmp_path, minor_3("showing_art", None)))
+    shown = display_state_of(reading_of(tmp_path, minor_3("showing_art", None)), shown=True)
 
     assert shown.state is ScreenState.SHOWING_ART
     assert shown.work_id is None
 
 
 def test_a_pre_minor_3_report_naming_a_work_is_showing_art(tmp_path):
-    shown = display_state_of(ASSIGNED, reading_of(tmp_path, {"current_work_id": "w-dali"}))
+    shown = display_state_of(reading_of(tmp_path, {"current_work_id": "w-dali"}), shown=True)
 
     assert shown.state is ScreenState.SHOWING_ART
     assert shown.work_id == "w-dali"
@@ -68,15 +66,14 @@ def test_a_pre_minor_3_report_naming_a_work_is_showing_art(tmp_path):
 @pytest.mark.parametrize("current", [None, "", 7])
 def test_a_pre_minor_3_report_naming_no_work_cannot_tell(tmp_path, current):
     document = {} if current is None else {"current_work_id": current}
-    shown = display_state_of(ASSIGNED, reading_of(tmp_path, document))
+    shown = display_state_of(reading_of(tmp_path, document), shown=True)
 
     assert shown.state is ScreenState.UNREACHABLE
     assert shown.work_id is None
 
 
 def test_a_wall_no_client_shows_is_unassigned_whatever_its_file_says(tmp_path):
-    unassigned = Wall(id="w1", name="The hall", created_at=NOW)
-    shown = display_state_of(unassigned, reading_of(tmp_path, minor_3("showing_art", "w-dali")))
+    shown = display_state_of(reading_of(tmp_path, minor_3("showing_art", "w-dali")), shown=False)
 
     assert shown.state is ScreenState.UNASSIGNED
     assert shown.work_id is None
@@ -85,7 +82,7 @@ def test_a_wall_no_client_shows_is_unassigned_whatever_its_file_says(tmp_path):
 
 def test_a_report_past_the_threshold_is_silent_and_keeps_what_it_said(tmp_path):
     age = timedelta(seconds=STALE_AFTER_SECONDS + 1)
-    shown = display_state_of(ASSIGNED, reading_of(tmp_path, minor_3("showing_art", "w-dali"), age=age))
+    shown = display_state_of(reading_of(tmp_path, minor_3("showing_art", "w-dali"), age=age), shown=True)
 
     assert shown.state is ScreenState.SILENT
     assert shown.work_id is None
@@ -97,19 +94,19 @@ def test_a_report_past_the_threshold_is_silent_and_keeps_what_it_said(tmp_path):
 
 def test_a_report_at_the_threshold_still_speaks(tmp_path):
     age = timedelta(seconds=STALE_AFTER_SECONDS)
-    shown = display_state_of(ASSIGNED, reading_of(tmp_path, minor_3("dark"), age=age))
+    shown = display_state_of(reading_of(tmp_path, minor_3("dark"), age=age), shown=True)
 
     assert shown.state is ScreenState.DARK
 
 
 def test_a_report_stamped_ahead_of_this_clock_is_not_silent(tmp_path):
-    shown = display_state_of(ASSIGNED, reading_of(tmp_path, minor_3("in_use"), age=timedelta(minutes=-10)))
+    shown = display_state_of(reading_of(tmp_path, minor_3("in_use"), age=timedelta(minutes=-10)), shown=True)
 
     assert shown.state is ScreenState.IN_USE
 
 
 def test_no_report_is_silent_with_nothing_last(tmp_path):
-    shown = display_state_of(ASSIGNED, heartbeat.read(tmp_path / "absent.json", now=NOW))
+    shown = display_state_of(heartbeat.read(tmp_path / "absent.json", now=NOW), shown=True)
 
     assert shown.state is ScreenState.SILENT
     assert (shown.since, shown.reported_at, shown.age_seconds, shown.last) == (None, None, None, None)
@@ -127,7 +124,7 @@ MALFORMED = sorted(
 def test_a_file_carrying_a_malformed_display_state_is_silent(tmp_path, fixture):
     """The file channel is not checked on the way in, so the read refuses what POST would."""
     document = json.loads(fixture.read_text())
-    shown = display_state_of(ASSIGNED, reading_of(tmp_path, document))
+    shown = display_state_of(reading_of(tmp_path, document), shown=True)
 
     assert shown.state is ScreenState.SILENT
     assert shown.last is None
@@ -143,7 +140,7 @@ def test_a_state_a_later_minor_added_is_read_as_unreachable_naming_no_work(tmp_p
     document["display_state"]["work_id"] = "w-dali-1"
 
     assert heartbeat.problem_with(document) is None
-    shown = display_state_of(ASSIGNED, reading_of(tmp_path, document))
+    shown = display_state_of(reading_of(tmp_path, document), shown=True)
     assert (shown.state, shown.work_id) == (ScreenState.UNREACHABLE, None)
 
 
@@ -151,7 +148,7 @@ def test_a_state_a_later_minor_added_is_read_as_unreachable_naming_no_work(tmp_p
 def test_every_valid_heartbeat_reads_as_a_reported_state(tmp_path, fixture):
     document = json.loads(fixture.read_text())
     assert heartbeat.problem_with(document) is None
-    shown = display_state_of(ASSIGNED, reading_of(tmp_path, document))
+    shown = display_state_of(reading_of(tmp_path, document), shown=True)
     assert shown.state in {ScreenState.SHOWING_ART, ScreenState.IN_USE, ScreenState.DARK, ScreenState.UNREACHABLE}
     if "display_state" in document:
         assert shown.state is ScreenState(document["display_state"]["state"])
@@ -185,3 +182,13 @@ def test_the_server_knows_exactly_the_states_the_schema_names():
 
     assert set(heartbeat.REPORTED_DISPLAY_STATES) == named
     assert {state.value for state in ScreenState} - named == {"unassigned", "silent"}
+    # Both directions: a state the schema gains and the server lacks fails here
+    # by name, as does one the server gains alone.
+    assert {state.value for state in ScreenState} == named | {"unassigned", "silent"}
+
+
+def test_the_label_document_names_exactly_the_servers_states():
+    """The label schema's states are the server's seven, so a label and Walls name the same states."""
+    schema = json.loads((Path(__file__).parents[3] / "contract" / "schemas" / "label.v1.schema.json").read_text())
+
+    assert set(schema["properties"]["display_state"]["properties"]["state"]["enum"]) == {state.value for state in ScreenState}

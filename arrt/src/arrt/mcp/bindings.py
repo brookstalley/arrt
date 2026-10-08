@@ -50,8 +50,8 @@ from arrt.persistence.discovery_records import (
     RunStatus,
     Verdict,
 )
-from arrt.persistence.records import Artist, Artwork, Client, Directive, Source, Theme, VocabularyKind, Wall
-from arrt.programming.clients import ClientView
+from arrt.persistence.records import Artist, Artwork, Client, Directive, Display, Source, Theme, VocabularyKind, Wall
+from arrt.programming.clients import ClientView, DisplayFault, PlacementSurvey
 from arrt.programming.display import UNSET, ThemePlacement, WallView
 from arrt.programming.display_state import DisplayState
 from arrt.programming.manifest.builder import ManifestBuild
@@ -404,7 +404,7 @@ def _list_themes(services: Services, _arguments: Mapping[str, Any]) -> dict[str,
     # theme would ask once and guess after. The pairing is the service's, not
     # this binding's: the browser surface states the same fact.
     placements = services.display.survey_themes()
-    return ok(themes=[_placement_fields(placement) for placement in placements], count=len(placements))
+    return ok(themes=[_placement_fields(services, placement) for placement in placements], count=len(placements))
 
 
 def _get_theme(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -470,13 +470,13 @@ def _reorder_in_theme(services: Services, arguments: Mapping[str, Any]) -> dict[
 def _activate_theme(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     # Hanging publishes, so this answers with the same shape as `sync` — the
     # caller needs to know how much of the theme actually reached the wall.
-    return _built(services.display.activate_theme(arguments["theme_id"], wall_id=arguments["wall_id"]))
+    return _built(services, services.display.activate_theme(arguments["theme_id"], wall_id=arguments["wall_id"]))
 
 
 def _hang_selection(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     # The answer `activate` gives, because it is the same question: what is on
     # the wall now, and what is not.
-    return _built(services.display.hang_selection(arguments["artwork_ids"], wall_id=arguments["wall_id"]))
+    return _built(services, services.display.hang_selection(arguments["artwork_ids"], wall_id=arguments["wall_id"]))
 
 
 def _not_again(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -484,7 +484,7 @@ def _not_again(services: Services, arguments: Mapping[str, Any]) -> dict[str, An
     return ok(
         scope=str(done.scope),
         artwork_id=done.artwork_id,
-        wall=_wall_view_fields(services.display.get_wall_view(done.wall_id)),
+        wall=_wall_view_fields(services, services.display.get_wall_view(done.wall_id)),
         left_theme=None if done.left_theme is None else _theme_fields(done.left_theme),
         excluded_at=None if done.exclusion is None else _moment(done.exclusion.excluded_at),
     )
@@ -1098,21 +1098,22 @@ def _pictures_fields(reading: PicturesReading) -> dict[str, Any]:
 
 
 def _sync(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    return _built(services.display.sync(arguments["wall_id"], arguments.get("theme_id")))
+    return _built(services, services.display.sync(arguments["wall_id"], arguments.get("theme_id")))
 
 
 def _list_walls(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
     views = services.display.survey_walls()
-    return ok(walls=[_wall_view_fields(view) for view in views], count=len(views))
+    return ok(walls=[_wall_view_fields(services, view) for view in views], count=len(views))
 
 
 def _add_wall(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    return ok(wall=_wall_fields(services.display.add_wall(name=arguments["name"])))
+    return ok(wall=_wall_fields(services, services.display.add_wall(name=arguments["name"])))
 
 
 def _list_clients(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
     views = services.clients.list_clients()
-    return ok(clients=[_client_view_fields(view) for view in views], count=len(views))
+    survey = services.clients.placements.survey()
+    return ok(clients=[_client_view_fields(view, survey) for view in views], count=len(views))
 
 
 def _add_client(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -1143,7 +1144,7 @@ def _remove_client(services: Services, arguments: Mapping[str, Any]) -> dict[str
         client_id=arguments["client_id"],
         # Never omitted when empty, so "no wall was affected" is stated rather
         # than left to be inferred from an absent key.
-        released_walls=[_wall_fields(wall) for wall in released],
+        released_walls=[_wall_fields(services, wall) for wall in released],
         notice=f"That client is forgotten and its token no longer works. {affected}",
     )
 
@@ -1165,16 +1166,41 @@ def _issue_client_token(services: Services, arguments: Mapping[str, Any]) -> dic
 def _assign_wall(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     assignment = services.clients.assign_wall(arguments["wall_id"], client_id=arguments["client_id"], output=arguments["output"])
     return ok(
-        wall=_wall_fields(assignment.wall),
-        client=_client_fields(assignment.client),
+        wall=_wall_fields(services, assignment.wall),
+        client=None if assignment.client is None else _client_fields(assignment.client),
         # The service's own sentence, or None when the client last reported an
         # output by that name and nothing about the assignment needs saying.
         notice=assignment.notice,
     )
 
 
+def _assign_display(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    assignment = services.clients.assign_display(arguments["wall_id"], display_id=arguments["display_id"])
+    return ok(
+        wall=_wall_fields(services, assignment.wall),
+        # Null when no client reports the display now; the notice then says so.
+        client=None if assignment.client is None else _client_fields(assignment.client),
+        notice=assignment.notice,
+    )
+
+
 def _unassign_wall(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    return ok(wall=_wall_fields(services.clients.unassign_wall(arguments["wall_id"])))
+    return ok(wall=_wall_fields(services, services.clients.unassign_wall(arguments["wall_id"])))
+
+
+def _add_label(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    assignment = services.clients.add_label(arguments["wall_id"], client_id=arguments["client_id"], output=arguments["output"])
+    return ok(
+        wall=_wall_fields(services, assignment.wall),
+        label_id=assignment.label.id,
+        client=_client_fields(assignment.client),
+        notice=assignment.notice,
+    )
+
+
+def _remove_label(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    services.clients.remove_label(arguments["wall_id"], label_id=arguments["label_id"])
+    return ok(wall=_wall_fields(services, services.clients.placement_of(arguments["wall_id"]).wall))
 
 
 def _client_fields(client: Client) -> dict[str, Any]:
@@ -1192,12 +1218,17 @@ def _client_fields(client: Client) -> dict[str, Any]:
     }
 
 
-def _client_view_fields(view: ClientView) -> dict[str, Any]:
-    """A client with its walls and what it last reported, as `GET /api/clients` carries it."""
+def _client_view_fields(view: ClientView, survey: PlacementSurvey) -> dict[str, Any]:
+    """A client with what it shows, holds and last reported, as `GET /api/clients` carries it."""
     reading = view.heartbeat
     return {
         **_client_fields(view.client),
-        "walls": [{"wall_id": wall.id, "name": wall.name, "output": wall.output} for wall in view.walls],
+        "walls": [{"wall_id": shown.wall.id, "name": shown.wall.name, "output": shown.display.output} for shown in view.walls],
+        "displays": [_display_fields(display, survey) for display in view.displays],
+        "label_outputs": [
+            {"label_id": label.id, "output": label.output, "wall_id": label.wall_id} for label in view.label_outputs
+        ],
+        "faults": [_fault_fields(fault) for fault in view.faults],
         "heartbeat": {
             "reported_at": _moment(reading.reported_at),
             "age_seconds": reading.age_seconds,
@@ -1210,8 +1241,18 @@ def _client_view_fields(view: ClientView) -> dict[str, Any]:
                     "kind": output.kind,
                     "connected": output.connected,
                     "screen": None if output.screen is None else list(output.screen),
+                    "identity": output.identity,
                 }
                 for output in reading.outputs
+            ],
+            "label_outputs": [
+                {
+                    "name": label.name,
+                    "kind": label.kind,
+                    "connected": label.connected,
+                    "size": None if label.size is None else list(label.size),
+                }
+                for label in reading.label_outputs
             ],
         },
     }
@@ -1282,7 +1323,7 @@ def _affinity_fields(view: AffinityView) -> dict[str, Any]:
     }
 
 
-def _built(build: ManifestBuild) -> dict[str, Any]:
+def _built(services: Services, build: ManifestBuild) -> dict[str, Any]:
     """What a manifest build looks like to a caller. Shared by `sync` and `activate`.
 
     One shape for both, because they answer the same question — what is on the
@@ -1293,7 +1334,7 @@ def _built(build: ManifestBuild) -> dict[str, Any]:
         # The wall by name, so a caller reporting back says "in the living room"
         # rather than "on the wall" — a sentence that reads correctly today only
         # because there is one wall is one that silently becomes wrong.
-        wall=_wall_fields(build.wall),
+        wall=_wall_fields(services, build.wall),
         theme=_theme_fields(build.theme),
         on_the_wall=[{"artwork_id": entry.work_id, "title": entry.label["title"]} for entry in build.entries],
         # Never omitted when empty: a caller that saw this key only sometimes
@@ -1390,6 +1431,9 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_display", "issue_client_token"): _issue_client_token,
     ("art_display", "assign_wall"): _assign_wall,
     ("art_display", "unassign_wall"): _unassign_wall,
+    ("art_display", "assign_display"): _assign_display,
+    ("art_display", "add_label"): _add_label,
+    ("art_display", "remove_label"): _remove_label,
     ("art_taste", "list"): _list_taste,
     ("art_taste", "set"): _set_taste,
     ("art_taste", "delete"): _delete_taste,
@@ -1558,23 +1602,67 @@ def _theme_fields(theme: Theme) -> dict[str, Any]:
     }
 
 
-def _wall_fields(wall: Wall) -> dict[str, Any]:
-    """One wall as a caller sees it: a place and a name, never a device."""
+def _wall_fields(services: Services, wall: Wall) -> dict[str, Any]:
+    """One wall as a caller sees it: a place and a name, the display it is on and its labels.
+
+    Field names match `WallOut` on the browser surface.
+    """
+    survey = services.clients.placements.survey()
+    placement = survey.placement_of(wall)
     return {
         "wall_id": wall.id,
         "name": wall.name,
         "created_at": _moment(wall.created_at),
-        # The client that shows the wall and the name of its output, or None for
-        # both while no client does — an ordinary state, stated rather than omitted.
-        "client_id": wall.client_id,
-        "output": wall.output,
+        # The display's client and the name of its output, or None for both while
+        # it has none — an ordinary state, stated rather than omitted. Whether that
+        # client shows the wall now is the display's fault being None.
+        "client_id": None if placement.client is None else placement.client.id,
+        "output": placement.output,
+        "display_id": wall.display_id,
+        "display": None if placement.display is None else _display_fields(placement.display, survey),
+        "labels": [
+            {
+                "label_id": label.id,
+                "client_id": label.client_id,
+                "client_name": survey.clients[label.client_id].name if label.client_id in survey.clients else "",
+                "output": label.output,
+            }
+            for label in placement.labels
+        ],
     }
 
 
-def _wall_view_fields(view: WallView) -> dict[str, Any]:
+def _display_fields(display: Display, survey: PlacementSurvey) -> dict[str, Any]:
+    """One display, as `DisplayOut` carries it."""
+    fault = survey.faults.get(display.identity)
+    wall = next((wall for wall in survey.walls if wall.display_id == display.id), None)
+    return {
+        "display_id": display.id,
+        "identity": display.identity,
+        "kind": display.kind,
+        "client_id": display.client_id,
+        "output": display.output,
+        "first_seen": _moment(display.first_seen),
+        "wall_id": None if wall is None else wall.id,
+        "fault": None if fault is None else _fault_fields(fault),
+    }
+
+
+def _fault_fields(fault: DisplayFault) -> dict[str, Any]:
+    """Two or more clients reporting one display, as `DisplayFaultOut` carries it."""
+    return {
+        "identity": fault.identity,
+        "clients": [{"client_id": client.id, "name": client.name} for client in fault.clients],
+        "display_id": None if fault.display is None else fault.display.id,
+        "wall_id": None if fault.wall is None else fault.wall.id,
+        "description": fault.describe(),
+    }
+
+
+def _wall_view_fields(services: Services, view: WallView) -> dict[str, Any]:
     """One wall, what hangs on it, and what it was last told to do."""
     return {
-        **_wall_fields(view.wall),
+        **_wall_fields(services, view.wall),
         # Never omitted when nothing hangs: a key a caller saw only sometimes
         # would be read as "there is always something", and an empty wall is an
         # ordinary state this surface has to be able to state.
@@ -1597,9 +1685,9 @@ def _display_state_fields(shown: DisplayState) -> dict[str, Any]:
     }
 
 
-def _placement_fields(placement: ThemePlacement) -> dict[str, Any]:
+def _placement_fields(services: Services, placement: ThemePlacement) -> dict[str, Any]:
     """One theme and every wall showing it."""
-    return {**_theme_fields(placement.theme), "hanging_on": [_wall_fields(wall) for wall in placement.walls]}
+    return {**_theme_fields(placement.theme), "hanging_on": [_wall_fields(services, wall) for wall in placement.walls]}
 
 
 def _directive_fields(directive: Directive) -> dict[str, Any]:

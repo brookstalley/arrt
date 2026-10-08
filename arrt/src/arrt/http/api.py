@@ -33,6 +33,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from arrt.http.models import (
     AcquisitionQueueOut,
     AcquisitionStateOut,
+    AddLabel,
     AddWork,
     AffinityListOut,
     AffinityOut,
@@ -41,6 +42,7 @@ from arrt.http.models import (
     ArtistOut,
     ArtistRegistryOut,
     ArtworkBoxOut,
+    AssignDisplay,
     AssignWall,
     BackupOut,
     BudgetOut,
@@ -49,6 +51,7 @@ from arrt.http.models import (
     CandidateWorkOut,
     ClientHeartbeatOut,
     ClientListOut,
+    ClientNameOut,
     ClientOut,
     ClientTokenOut,
     ClientWallOut,
@@ -62,6 +65,8 @@ from arrt.http.models import (
     CreateTheme,
     CreateWall,
     DirectiveOut,
+    DisplayFaultOut,
+    DisplayOut,
     DisplayStateOut,
     EstimateOut,
     ExcludedWorkListOut,
@@ -83,6 +88,8 @@ from arrt.http.models import (
     InReviewOut,
     InstanceListingOut,
     InstanceOut,
+    LabelAssignmentOut,
+    LabelOutputOut,
     LookOut,
     LookPictureOut,
     LookSourceOut,
@@ -108,6 +115,7 @@ from arrt.http.models import (
     RegistryWorkPageOut,
     RenameTheme,
     RenditionOut,
+    ReportedLabelOutputOut,
     ReportedOutputOut,
     ReportedStateOut,
     RunListOut,
@@ -154,6 +162,7 @@ from arrt.http.models import (
     VerdictOut,
     WallAssignmentOut,
     WallHeartbeatOut,
+    WallLabelOut,
     WallListOut,
     WallOut,
     WallRefOut,
@@ -194,6 +203,7 @@ from arrt.persistence.records import (
     Artist,
     BackupReading,
     Directive,
+    Display,
     HistoryEvent,
     IdentitySetBy,
     MatColor,
@@ -202,7 +212,7 @@ from arrt.persistence.records import (
     Theme,
     WorkFacet,
 )
-from arrt.programming.clients import ClientView
+from arrt.programming.clients import ClientView, DisplayFault, PlacementSurvey
 from arrt.programming.display import ThemeCount, ThemePlacement, WallView
 from arrt.programming.display_state import DisplayState
 from arrt.programming.manifest.builder import ManifestBuild
@@ -899,8 +909,9 @@ def activate_theme(request: Request, theme_id: str, body: HangTheme) -> Manifest
 
 @router.get("/walls")
 def list_walls(request: Request) -> WallListOut:
-    """Every wall, and what is hanging on each."""
-    return WallListOut(walls=[_wall(view) for view in _services(request).display.survey_walls()])
+    """Every wall, what is hanging on each, and where each is shown."""
+    services = _services(request)
+    return WallListOut(walls=[_wall(services, view) for view in services.display.survey_walls()])
 
 
 @router.post("/walls")
@@ -915,7 +926,7 @@ def create_wall(request: Request, body: CreateWall) -> WallOut:
     a second wall overwrote it silently.
     """
     services = _services(request)
-    return _wall(services.display.get_wall_view(services.display.add_wall(name=body.name).id))
+    return _wall(services, services.display.get_wall_view(services.display.add_wall(name=body.name).id))
 
 
 @router.post("/walls/{wall_id}/client")
@@ -928,7 +939,36 @@ def assign_wall(request: Request, wall_id: str, body: AssignWall) -> WallAssignm
     """
     services = _services(request)
     assignment = services.clients.assign_wall(wall_id, client_id=body.client_id, output=body.output)
-    return WallAssignmentOut(wall=_wall(services.display.get_wall_view(wall_id)), notice=assignment.notice)
+    return WallAssignmentOut(wall=_wall(services, services.display.get_wall_view(wall_id)), notice=assignment.notice)
+
+
+@router.post("/walls/{wall_id}/display")
+def assign_display(request: Request, wall_id: str, body: AssignDisplay) -> WallAssignmentOut:
+    """Show this wall on a display, by the display's id: one a client reported, wherever it now is.
+
+    Read-back-after-mutate, for the reason `clear_wall` gives.
+    """
+    services = _services(request)
+    assignment = services.clients.assign_display(wall_id, display_id=body.display_id)
+    return WallAssignmentOut(wall=_wall(services, services.display.get_wall_view(wall_id)), notice=assignment.notice)
+
+
+@router.post("/walls/{wall_id}/labels")
+def add_label(request: Request, wall_id: str, body: AddLabel) -> LabelAssignmentOut:
+    """Caption this wall with a client's label output, by the name the client reports. A wall may have several."""
+    services = _services(request)
+    assignment = services.clients.add_label(wall_id, client_id=body.client_id, output=body.output)
+    return LabelAssignmentOut(
+        wall=_wall(services, services.display.get_wall_view(wall_id)), label_id=assignment.label.id, notice=assignment.notice
+    )
+
+
+@router.delete("/walls/{wall_id}/labels/{label_id}")
+def remove_label(request: Request, wall_id: str, label_id: str) -> WallOut:
+    """Stop a label output captioning this wall. The label output stays recorded, captioning nothing."""
+    services = _services(request)
+    services.clients.remove_label(wall_id, label_id=label_id)
+    return _wall(services, services.display.get_wall_view(wall_id))
 
 
 @router.delete("/walls/{wall_id}/client")
@@ -936,7 +976,7 @@ def unassign_wall(request: Request, wall_id: str) -> WallOut:
     """Take the wall off whichever client showed it. Its theme stays hung."""
     services = _services(request)
     services.clients.unassign_wall(wall_id)
-    return _wall(services.display.get_wall_view(wall_id))
+    return _wall(services, services.display.get_wall_view(wall_id))
 
 
 @router.delete("/walls/{wall_id}/theme")
@@ -953,7 +993,7 @@ def clear_wall(request: Request, wall_id: str) -> WallOut:
     """
     services = _services(request)
     services.display.clear_wall(wall_id)
-    return _wall(services.display.get_wall_view(wall_id))
+    return _wall(services, services.display.get_wall_view(wall_id))
 
 
 @router.post("/walls/{wall_id}/selection")
@@ -980,7 +1020,7 @@ def not_this_one_again(request: Request, wall_id: str, body: NotAgainRequest) ->
     return NotAgainOut(
         scope=str(done.scope),
         artwork_id=done.artwork_id,
-        wall=_wall(services.display.get_wall_view(wall_id)),
+        wall=_wall(services, services.display.get_wall_view(wall_id)),
         left_theme=None if done.left_theme is None else _theme(done.left_theme),
         excluded_at=None if done.exclusion is None else done.exclusion.excluded_at.isoformat(),
     )
@@ -1079,14 +1119,15 @@ def _history_event(event: HistoryEvent) -> HistoryEventOut:
 @router.get("/clients")
 def list_clients(request: Request) -> ClientListOut:
     """Every client, with its walls and what it last reported about its outputs."""
-    return ClientListOut(clients=[_client(view) for view in _services(request).clients.list_clients()])
+    return _clients(_services(request))
 
 
 @router.post("/clients")
 def add_client(request: Request, body: NameClient) -> ClientOut:
     """Record a client. It has no token until one is issued."""
     services = _services(request)
-    return _client(services.clients.get_client_view(services.clients.add_client(name=body.name).id))
+    added = services.clients.add_client(name=body.name)
+    return _client(services.clients.get_client_view(added.id), services.clients.placements.survey())
 
 
 @router.post("/clients/{client_id}")
@@ -1094,7 +1135,7 @@ def rename_client(request: Request, client_id: str, body: NameClient) -> ClientO
     """Rename a client. Its token and its walls are unchanged."""
     services = _services(request)
     services.clients.rename_client(client_id, name=body.name)
-    return _client(services.clients.get_client_view(client_id))
+    return _client(services.clients.get_client_view(client_id), services.clients.placements.survey())
 
 
 @router.delete("/clients/{client_id}")
@@ -1102,7 +1143,7 @@ def remove_client(request: Request, client_id: str) -> ClientListOut:
     """Forget a client. Its token stops working and its walls become unassigned."""
     services = _services(request)
     services.clients.remove_client(client_id)
-    return ClientListOut(clients=[_client(view) for view in services.clients.list_clients()])
+    return _clients(services)
 
 
 @router.post("/clients/{client_id}/token")
@@ -1788,7 +1829,9 @@ def _theme(theme: Theme) -> ThemeOut:
     )
 
 
-def _wall(view: WallView) -> WallOut:
+def _wall(services: Services, view: WallView) -> WallOut:
+    survey = services.clients.placements.survey()
+    placement = survey.placement_of(view.wall)
     return WallOut(
         wall_id=view.wall.id,
         name=view.wall.name,
@@ -1796,9 +1839,45 @@ def _wall(view: WallView) -> WallOut:
         theme=None if view.hanging is None else _theme(view.hanging),
         directive_sequence=view.directive.sequence,
         pinned_work_id=view.directive.pinned_work_id,
-        client_id=view.wall.client_id,
-        output=view.wall.output,
+        client_id=None if placement.client is None else placement.client.id,
+        output=placement.output,
+        display_id=view.wall.display_id,
+        display=None if placement.display is None else _display(placement.display, survey),
+        labels=[
+            WallLabelOut(
+                label_id=label.id,
+                client_id=label.client_id,
+                client_name=survey.clients[label.client_id].name if label.client_id in survey.clients else "",
+                output=label.output,
+            )
+            for label in placement.labels
+        ],
         display_state=_display_state(view.display_state),
+    )
+
+
+def _display(display: Display, survey: PlacementSurvey) -> DisplayOut:
+    fault = survey.faults.get(display.identity)
+    wall = next((wall for wall in survey.walls if wall.display_id == display.id), None)
+    return DisplayOut(
+        display_id=display.id,
+        identity=display.identity,
+        kind=display.kind,
+        client_id=display.client_id,
+        output=display.output,
+        first_seen=display.first_seen.isoformat(),
+        wall_id=None if wall is None else wall.id,
+        fault=None if fault is None else _fault(fault),
+    )
+
+
+def _fault(fault: DisplayFault) -> DisplayFaultOut:
+    return DisplayFaultOut(
+        identity=fault.identity,
+        clients=[ClientNameOut(client_id=client.id, name=client.name) for client in fault.clients],
+        display_id=None if fault.display is None else fault.display.id,
+        wall_id=None if fault.wall is None else fault.wall.id,
+        description=fault.describe(),
     )
 
 
@@ -1818,7 +1897,12 @@ def _display_state(shown: DisplayState) -> DisplayStateOut:
     )
 
 
-def _client(view: ClientView) -> ClientOut:
+def _clients(services: Services) -> ClientListOut:
+    survey = services.clients.placements.survey()
+    return ClientListOut(clients=[_client(view, survey) for view in services.clients.list_clients()])
+
+
+def _client(view: ClientView, survey: PlacementSurvey) -> ClientOut:
     client = view.client
     reading = view.heartbeat
     return ClientOut(
@@ -1826,8 +1910,12 @@ def _client(view: ClientView) -> ClientOut:
         name=client.name,
         created_at=client.created_at.isoformat(),
         token_issued_at=None if client.token_issued_at is None else client.token_issued_at.isoformat(),
-        # Every wall a client listing holds is assigned, so it has an output.
-        walls=[ClientWallOut(wall_id=wall.id, name=wall.name, output=wall.output or "") for wall in view.walls],
+        walls=[ClientWallOut(wall_id=shown.wall.id, name=shown.wall.name, output=shown.display.output) for shown in view.walls],
+        displays=[_display(display, survey) for display in view.displays],
+        label_outputs=[
+            LabelOutputOut(label_id=label.id, output=label.output, wall_id=label.wall_id) for label in view.label_outputs
+        ],
+        faults=[_fault(fault) for fault in view.faults],
         heartbeat=ClientHeartbeatOut(
             reported_at=None if reading.reported_at is None else reading.reported_at.isoformat(),
             age_seconds=reading.age_seconds,
@@ -1840,8 +1928,18 @@ def _client(view: ClientView) -> ClientOut:
                     kind=output.kind,
                     connected=output.connected,
                     screen=None if output.screen is None else list(output.screen),
+                    identity=output.identity,
                 )
                 for output in reading.outputs
+            ],
+            label_outputs=[
+                ReportedLabelOutputOut(
+                    name=label.name,
+                    kind=label.kind,
+                    connected=label.connected,
+                    size=None if label.size is None else list(label.size),
+                )
+                for label in reading.label_outputs
             ],
         ),
     )

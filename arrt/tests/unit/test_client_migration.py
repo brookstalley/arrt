@@ -15,7 +15,7 @@ import pytest
 
 from arrt.persistence.catalogue import StorageError
 from arrt.persistence.file import open_catalogue_file
-from arrt.persistence.records import Client
+from arrt.persistence.records import Client, Display
 from arrt.persistence.sqlite import SqliteCatalogue
 
 #: The three tables a wall-token file held about walls, as that revision declared them.
@@ -102,7 +102,7 @@ def test_a_wall_token_file_opens_with_its_walls_kept_and_unassigned(tmp_path):
         walls = {wall.id: wall for wall in catalogue.list_walls()}
         assert set(walls) == {"w-living", "w-study"}, "opening must neither lose a wall nor seed another"
         assert walls["w-living"].name == "Living room"
-        assert (walls["w-living"].client_id, walls["w-living"].output) == (None, None)
+        assert walls["w-living"].display_id is None
         assert catalogue.get_assignment("w-living").theme_id == "t1"
         assert catalogue.get_directive("w-living").sequence == 7
         assert catalogue.list_clients() == []
@@ -115,7 +115,7 @@ def test_the_wall_token_columns_are_dropped_and_the_old_verifier_is_in_no_table(
 
     open_catalogue_file(path).close()
 
-    assert _columns(path, "walls") == {"id", "name", "created_at", "client_id", "output"}
+    assert _columns(path, "walls") == {"id", "name", "created_at", "display_id"}
     for (table,) in _raw(path, "SELECT name FROM sqlite_master WHERE type = 'table'"):
         for column in _columns(path, table):
             found = _raw(
@@ -125,20 +125,32 @@ def test_the_wall_token_columns_are_dropped_and_the_old_verifier_is_in_no_table(
             assert found == [(0,)], f"{table}.{column} still holds a retired wall token's verifier"
 
 
-def test_the_widened_client_column_refuses_a_client_that_does_not_exist(tmp_path):
-    """The reference `walls.client_id` declares holds on an upgraded file, not only on a fresh one."""
+def _display(display_id: str, client_id: str, output: str) -> Display:
+    return Display(
+        id=display_id,
+        identity=f"{client_id}/{output}",
+        client_id=client_id,
+        output=output,
+        kind="framebuffer",
+        first_seen=datetime.now(UTC),
+    )
+
+
+def test_the_widened_display_column_refuses_a_display_that_does_not_exist(tmp_path):
+    """The reference `walls.display_id` declares holds on an upgraded file, not only on a fresh one."""
     path = _wall_token_catalogue(tmp_path / "catalogue.sqlite")
 
     catalogue = SqliteCatalogue(open_catalogue_file(path))
     try:
-        assert _raw(path, "PRAGMA foreign_key_list(walls)")[0][2:5] == ("clients", "client_id", "id")
+        assert _raw(path, "PRAGMA foreign_key_list(walls)")[0][2:5] == ("displays", "display_id", "id")
         wall = catalogue.get_wall("w-study")
         with pytest.raises(StorageError, match="refers to a record that is not stored"):
-            catalogue.update_wall(replace(wall, client_id="nobody", output="hdmi-a-1"))
+            catalogue.update_wall(replace(wall, display_id="nowhere"))
 
         catalogue.add_client(Client(id="c1", name="The Pi", created_at=datetime.now(UTC)))
-        catalogue.update_wall(replace(wall, client_id="c1", output="hdmi-a-1"))
-        assert catalogue.get_wall("w-study").client_id == "c1"
+        catalogue.add_display(_display("d1", "c1", "hdmi-a-1"))
+        catalogue.update_wall(replace(wall, display_id="d1"))
+        assert catalogue.get_wall("w-study").display_id == "d1"
     finally:
         catalogue.close()
 
@@ -148,14 +160,16 @@ def test_opening_again_changes_nothing_and_keeps_an_assignment(tmp_path, caplog)
     path = _wall_token_catalogue(tmp_path / "catalogue.sqlite")
     first = SqliteCatalogue(open_catalogue_file(path))
     first.add_client(Client(id="c1", name="The Pi", created_at=datetime.now(UTC)))
+    first.add_display(_display("d1", "c1", "frame"))
     wall = first.get_wall("w-living")
-    first.update_wall(replace(wall, client_id="c1", output="frame"))
+    first.update_wall(replace(wall, display_id="d1"))
     first.close()
 
     with caplog.at_level("INFO", logger="arrt.persistence.migrations"):
         second = SqliteCatalogue(open_catalogue_file(path))
     try:
-        assert (second.get_wall("w-living").client_id, second.get_wall("w-living").output) == ("c1", "frame")
+        assert second.get_wall("w-living").display_id == "d1"
+        assert (second.get_display("d1").client_id, second.get_display("d1").output) == ("c1", "frame")
         assert not [record for record in caplog.records if "Dropped walls." in record.getMessage()]
     finally:
         second.close()

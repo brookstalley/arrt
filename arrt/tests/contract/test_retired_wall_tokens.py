@@ -74,11 +74,12 @@ def test_the_former_wall_token_is_unauthenticated_on_every_route(server_url, wal
         "heartbeat": lambda url: httpx.post(
             url, json={"reported_at": "2026-10-02T12:00:00+00:00"}, headers=_bearer(FORMER_WALL_TOKEN)
         ),
+        "label": lambda url: httpx.get(url, headers=_bearer(FORMER_WALL_TOKEN)),
     }
     assert set(requests) == set(ROUTES), "every route the contract names is asked"
 
     for name, send in requests.items():
-        url = server_url + ROUTES[name]["path"].format(wall_id=wall_id, sha256="0" * 64)
+        url = server_url + ROUTES[name]["path"].format(wall_id=wall_id, sha256="0" * 64, label_id="some-label")
         assert send(url).status_code == 401, name
 
 
@@ -94,6 +95,7 @@ def test_the_wall_survives_and_a_client_token_opens_it(server_url, services, wal
 
     response = httpx.get(server_url + ROUTES["client"]["path"], headers=_bearer(token))
 
-    assert response.json()["walls"] == [{"wall_id": "w-living", "name": "Living room", "output": "frame"}]
+    display = services.clients.placement_of(wall_id).display
+    assert response.json()["walls"] == [{"wall_id": "w-living", "name": "Living room", "output": "frame", "display": display.id}]
     heartbeat = server_url + ROUTES["heartbeat"]["path"].format(wall_id=wall_id)
     assert httpx.post(heartbeat, json={"reported_at": "2026-10-02T12:00:00+00:00"}, headers=_bearer(token)).status_code == 204

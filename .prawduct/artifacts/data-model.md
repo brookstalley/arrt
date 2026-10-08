@@ -229,6 +229,11 @@ to serve, elicited from the Product Brief's core flows:
 | Q45 | Where else has this work been seen? Not asked yet: a work's page will. | Agent 2026-10-03 (same) |
 | Q46 | Which pages did this run's web search read, in its order? Asked by phase 2 whenever it searches a work the run proposed: on approval, on a re-search, and after a restart. | Owner 2026-10-05 (gallery works found through Ask's search, `build-plan-ask-pages.md`) |
 | Q47 | Which hosts do the citations of runs with unresolved works name? Not asked yet: sightings for works with no Wikidata item would. | Agent 2026-10-05 (same) |
+| Q48 | Which display does this wall use? Asked by Walls, by every listing of walls, and by the wall's own state. | Owner 2026-10-08 (`feeds-and-players.md` ruling 1, `build-plan-displays-and-label-outputs.md`) |
+| Q49 | Which client drives that display? Asked by `GET /client` (the client's own walls), by admission to the per-wall routes, and by Walls. | Owner 2026-10-08 (same) |
+| Q50 | Which label outputs caption this wall? Asked by Walls and by `GET /client` (the labels a client renders). | Owner 2026-10-08 (`labels-and-surfaces.md` ruling 3) |
+| Q51 | Which client holds each label output? Asked by `GET /client` and by admission to `GET /labels/{label_id}`. | Owner 2026-10-08 (same) |
+| Q52 | Was a display reported by two clients? Asked by `GET /client`, by admission, and by Walls and Settings › Clients, which name both. | Owner 2026-10-08 (`feeds-and-players.md` § Displays are configured) |
 
 **Q22 to Q24 are answered by one column, `DiscoveryRun.destination_theme_id`**
 (`build-plan-topics-and-destinations.md` Chunk 01). A work reaches its run
@@ -275,18 +280,33 @@ own. Q37 is whether a wanted work holds any instance with `rejected_at` set — 
 count read at the listing, so it cannot disagree with the rows it counts. Storing
 the reason beside the verdict would be a second truth about the same instances.
 
-**Q38 to Q41 are answered by `Client` and two columns on `Wall`, `client_id` and
-`output`** (`build-plan-clients.md` Chunk 01, `clients.md`). Q38 is the two
-columns read directly. Q39 is the walls whose `client_id` is the client's, served
+**Q38 to Q41 were answered by `Client` and two columns on `Wall`, `client_id` and
+`output`, until 2026-10-08** (`build-plan-clients.md` Chunk 01, `clients.md`),
+when displays replaced the columns (the next paragraph). Q38 was the two
+columns read directly. Q39 was the walls whose `client_id` is the client's, served
 by the partial unique index `walls_one_per_output (client_id, output)`, which also
-holds that one output of one client shows at most one wall. Q40 is the client the
+held that one output of one client shows at most one wall. Q40 was the client the
 presented token's verifier matches (`Client.token_verifier`) compared with the
-wall's `client_id`. **Q41 is deliberately not in the catalogue**: what outputs a
+wall's `client_id`. **Q41 is deliberately not in the catalogue**, still: what outputs a
 client has, whether each is connected and its size are the device's runtime
 state, reported in `client-heartbeat-{client_id}.json` under `ART_ROOT` beside
 the wall heartbeats and read as an observation with an age. The server stores
-only the output's *name* on the wall, the one device fact the owner's ruling
-needs it to hold.
+of the device only what § Display holds: who it is, where it is plugged in, and
+its kind.
+
+**Q38 to Q40 and Q48 to Q52 are answered by `Display` and `LabelOutput`, and
+`Wall.display_id`, from 2026-10-08** (`build-plan-displays-and-label-outputs.md`
+Chunk 02), which replaced the two columns above. Q48 is `Wall.display_id`. Q49
+is `Display.client_id`, written by the client's heartbeat. Q50 is the label
+outputs whose `wall_id` is the wall's; Q51 is `LabelOutput.client_id`. **Q52 is
+deliberately not stored**: it is read from the client heartbeat files, as every
+identity two or more clients report in a current report (readable, and no older
+than the stale threshold Walls uses), so a host switched off stops claiming its
+display without anything being cleared. Q38 is Q48 then Q49; Q39 is the walls on
+the client's displays, less any display in Q52; Q40 is the same answer compared
+with the presented token's client. The question `clients.Placements` answers once
+for all three, so `GET /client`, admission and every display state cannot
+disagree.
 
 **Q15 is what makes the collection navigable at the amended scale**
 (`nonfunctional-requirements.md`, thousands of works). At 41 works a curator
@@ -851,17 +871,23 @@ operator's ruling that themes are created globally and assigned per wall.)*
 | `id` | UUID | PK | Stable identity, referenced across the plane boundary **by id only**, exactly as `TvBinding` already references an Artwork. |
 | `name` | string | required, unique | "Living room". The curator's own word, and the noun every confirmation names — "Hang Winter in the living room". |
 | `created_at` | datetime | auto | |
-| `client_id` | UUID | optional, FK → Client | *(Added 2026-10-02, `clients.md`.)* The client that shows this wall. Null while none does, which is an ordinary state. Set together with `output`. |
-| `output` | string | optional | *(Added 2026-10-02.)* The name of that client's output the wall is shown on, as the client reported it (`hdmi-a-1`, `frame`). Null exactly when `client_id` is. At most one wall per (`client_id`, `output`), held by a partial unique index. |
+| `display_id` | UUID | optional, FK → Display | *(Added 2026-10-08, `build-plan-displays-and-label-outputs.md`.)* The display the wall is shown on. Null while it has none, which is an ordinary state. At most one wall per display, held by the partial unique index `walls_one_per_display` over the non-null ids. |
+
+*Removed 2026-10-08:* `client_id` and `output` (added 2026-10-02), which named the
+client showing the wall and its output. A wall names a display now, and the
+display names its client (§ Display). `migrations.walls_name_displays` carries
+each assigned wall onto a display keyed `{client_id}/{output}` on the same client
+and output, so every wall stays on its screen, then drops both columns and the
+`walls_one_per_output` index.
 
 *Removed 2026-10-02:* `token_verifier` and `token_issued_at`, the per-wall Player
 token (added 2026-09-30). Clients replaced it; `migrations.retire_wall_tokens`
 drops both columns from a catalogue that has them.
 
 **Few fields, and the shortness is the design.** A Wall is an identity, a name,
-and its assignment: which client shows it, on which output by name. It is not a
-device. The credential now belongs to the client (§ Client), and the output's
-name is the one device fact the wall holds, by the owner's ruling of 2026-10-02.
+and the display it is shown on. It is not a device. The credential belongs to the
+client (§ Client), and the display is a record of its own (§ Display), so a
+screen moved to another client takes its wall with it.
 
 > **This entity sits inside the catalogue, and that is a ruling against the third
 > Direction norm rather than an oversight.** "Per-device runtime state never lives
@@ -918,8 +944,51 @@ client's token and nothing else.
 
 **Nothing about the device**: no address, no geometry, no model. What outputs a
 client has is what it reports in `client-heartbeat-{client_id}.json` (Q41).
-Removing a client unassigns its walls (they keep their themes) and drops its
-heartbeat file.
+Removing a client removes its displays and label outputs, unassigns the walls
+on those displays (they keep their themes) and drops its heartbeat file.
+
+### Display
+
+> **Programming-owned, added 2026-10-08** (`feeds-and-players.md` § Displays are configured, never discovered; `build-plan-displays-and-label-outputs.md` Chunk 02).
+
+One physical screen a wall can be shown on, keyed by the identity its client read
+from the device, so a Frame moved from one client to another keeps its walls.
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `id` | UUID | PK | What `Wall.display_id` and `GET /client`'s `display` name. |
+| `identity` | string | required, unique | Who the display is: a Frame's device id as its client read it (`device.duid`), or `{client_id}/{output}` for an output with no identity a client can read (an HDMI connector), and for a display placed before its client reported it. One display per identity. |
+| `client_id` | UUID | optional, FK → Client | The client that last reported it, and so drives it. Null once another device has been reported on the output it was on: its wall then stays on it, shown by nobody. |
+| `output` | string | required | The client's name for the output (`frame`, `hdmi-a-1`). At most one display per (`client_id`, `output`) among displays with a client, held by the partial unique index `displays_one_per_output`. |
+| `kind` | string | optional | `frame` or `framebuffer`, as the client reported it; null until it has. A category, not a measurement. |
+| `first_seen` | datetime | auto | When the server first recorded it. |
+
+**Kept by the client's heartbeat** (`ClientService.record_heartbeat`): an output
+reported with an identity is matched on it, one without on the client and the
+output's name. A display recorded by place takes the identity when its output
+first reports one, with its wall; an identity recorded on another client moves to
+the reporting one with its wall, unless that client still reports it (Q52), which
+is a fault left for the curator. Nothing about the device beyond what it is and
+where it is plugged in: the forbidden list on § Wall holds here too, and the
+Frame's network address stays on the client's host.
+`[DECISION: the Display record carries kind (frame, framebuffer) | Walls and Settings must say what a display is without asking the client, and kind is a category, not a measurement | builder's call, owner can veto]`
+
+### LabelOutput
+
+> **Programming-owned, added 2026-10-08** (`labels-and-surfaces.md` § The model; `build-plan-displays-and-label-outputs.md` Chunk 02).
+
+A surface that captions a wall rather than showing one: today an e-paper panel,
+on any client, mapped to a wall here.
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `id` | UUID | PK | What `GET /labels/{label_id}` takes. |
+| `client_id` | UUID | required, FK → Client | The client that holds it. A label output never moves between clients. |
+| `output` | string | required | The client's name for it (`epd-0`). Unique per client (`label_outputs_one_per_output`). |
+| `wall_id` | UUID | optional, FK → Wall | The wall it captions, or null. **A label output captions at most one wall** because this is one column; a wall may have many. |
+
+Recorded when its client first reports it, or when a curator maps one the client
+has not reported yet.
 
 ### ThemeAssignment
 
@@ -2290,10 +2359,12 @@ the catalogue.
   share a database. This is why `wall_id` on that table carries no FK while the
   identical column on **ThemeAssignment** does: the catalogue can enforce what it
   owns, and the display plane holds a copy of an id it was configured with.
-- A **Client** shows many **Walls** (one-to-many, optional both ways, via
-  `Wall.client_id`), each on one of its outputs by name, and an output of a
-  client shows at most one wall. A wall nobody shows and a client with no walls
-  are both ordinary.
+- A **Client** drives many **Displays** (one-to-many, via `Display.client_id`),
+  one per output; a **Display** shows at most one **Wall** (via
+  `Wall.display_id`). A wall nobody shows, a display with no wall and a client
+  with no displays are all ordinary.
+- A **Client** holds many **LabelOutputs**; a **LabelOutput** captions at most one
+  **Wall**, and a wall has any number, on any clients.
 - **Nothing in the catalogue points at a device.** A Wall is a place; which
   television or panel serves it is the client's, and the catalogue holds only
   which client and the output's name, and is rebuildable without knowing more.

@@ -22,6 +22,7 @@ from arrt.persistence.migrations import (
     mark_the_default_theme,
     rename_awaiting_to_wanted,
     retire_wall_tokens,
+    walls_name_displays,
 )
 from arrt.persistence.sqlite import CATALOGUE_SCHEMA
 from arrt.persistence.sqlite_discovery import DISCOVERY_SCHEMA
@@ -48,5 +49,8 @@ def open_catalogue_file(path: Path | str, *, wall_name: str = DEFAULT_WALL_NAME)
             mark_the_default_theme,
             rename_awaiting_to_wanted,
             retire_wall_tokens,
+            # After the wall tokens go: both take columns off `walls`, and this
+            # one carries rows onto `displays` before it does.
+            walls_name_displays,
         ),
     )

@@ -75,9 +75,15 @@ def test_the_client_document_lists_its_own_walls_and_outputs_and_no_others(clien
     assert (document["client_id"], document["name"]) == (hall_pi.id, "The Pi in the hall")
     landing = next(wall for wall in services.display.survey_walls() if wall.wall.name == "Landing").wall
     assert document["walls"] == [
-        {"wall_id": landing.id, "name": "Landing", "output": "hdmi-a-2"},
-        {"wall_id": wall_id, "name": services.display.get_wall(wall_id).name, "output": "hdmi-a-1"},
+        {"wall_id": landing.id, "name": "Landing", "output": "hdmi-a-2", "display": landing.display_id},
+        {
+            "wall_id": wall_id,
+            "name": services.display.get_wall(wall_id).name,
+            "output": "hdmi-a-1",
+            "display": services.display.get_wall(wall_id).display_id,
+        },
     ]
+    assert document["labels"] == []
     assert "Study" not in response.text
 
 
@@ -86,7 +92,7 @@ def test_a_client_with_no_walls_gets_an_empty_list(client_url, services):
     response = httpx.get(client_url, headers=_bearer(services.access.issue(idle.id).token))
 
     assert response.status_code == 200
-    assert response.json() == {"client_id": idle.id, "name": "A spare Pi", "walls": []}
+    assert response.json() == {"client_id": idle.id, "name": "A spare Pi", "walls": [], "labels": []}
 
 
 def test_the_client_document_is_etagged_and_answers_304_until_an_assignment_changes(
@@ -269,9 +275,39 @@ def test_unassigning_over_http_leaves_the_wall_with_no_client(server_url, servic
     assert (response.json()["client_id"], response.json()["output"]) == (None, None)
 
 
+def test_a_wall_is_mapped_to_a_display_and_given_labels_over_http(server_url, services, wall_id, heartbeat_url):
+    client = services.clients.add_client(name="The Pi in the hall")
+    token = services.access.issue(client.id).token
+    report = _fixture("fixtures/client-heartbeat.v1/valid/frame-with-identity-and-a-panel.json")
+    assert httpx.post(heartbeat_url, json=report, headers=_bearer(token)).status_code == 204
+    [listed] = httpx.get(server_url + "/api/clients").json()["clients"]
+    display = next(entry for entry in listed["displays"] if entry["output"] == "hdmi-a-1")
+
+    assigned = httpx.post(server_url + f"/api/walls/{wall_id}/display", json={"display_id": display["display_id"]})
+    labelled = httpx.post(server_url + f"/api/walls/{wall_id}/labels", json={"client_id": client.id, "output": "epd-0"})
+
+    assert assigned.status_code == 200
+    assert (assigned.json()["wall"]["client_id"], assigned.json()["wall"]["output"]) == (client.id, "hdmi-a-1")
+    assert assigned.json()["wall"]["display"]["display_id"] == display["display_id"]
+    assert labelled.status_code == 200
+    label_id = labelled.json()["label_id"]
+    assert [entry["label_id"] for entry in labelled.json()["wall"]["labels"]] == [label_id]
+    document = httpx.get(server_url + ROUTES["client"]["path"], headers=_bearer(token)).json()
+    assert _schema("client.v1.schema.json").is_valid(document)
+    assert document["labels"] == [{"label_id": label_id, "output": "epd-0", "wall_id": wall_id}]
+
+    removed = httpx.delete(server_url + f"/api/walls/{wall_id}/labels/{label_id}")
+
+    assert removed.status_code == 200
+    assert removed.json()["labels"] == []
+
+
 @pytest.mark.parametrize(
     ("method", "path", "body", "names"),
     [
+        ("POST", "/api/walls/no-such-wall/display", {"display_id": "x"}, "No wall with id"),
+        ("POST", "/api/walls/no-such-wall/labels", {"client_id": "x", "output": "epd-0"}, "No wall with id"),
+        ("DELETE", "/api/walls/no-such-wall/labels/x", None, "No wall with id"),
         ("POST", "/api/clients", {"name": "  "}, "name cannot be empty"),
         ("POST", "/api/clients/no-such-client", {"name": "x"}, "No client with id"),
         ("DELETE", "/api/clients/no-such-client", None, "No client with id"),

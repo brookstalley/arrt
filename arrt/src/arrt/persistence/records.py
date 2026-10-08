@@ -613,22 +613,78 @@ class Client:
 
 
 @dataclass(frozen=True, slots=True)
+class Display:
+    """One physical screen a wall can be shown on, keyed by who the device says it is.
+
+    `feeds-and-players.md` § Displays are configured, never discovered. A wall
+    names a display, and the display names the client that drives it, so a Frame
+    moved from one client to another moves no wall: the new client reports the
+    same `identity`, and the record's client changes.
+
+    **Nothing about the device beyond what it is and where it is plugged in**, for
+    the reason the `Wall` record gives: no address, no geometry, no model. The
+    Frame's network address stays on the client's host (ruling 9).
+    """
+
+    id: str
+    #: Who the display is. A Frame's device id as its client read it from the set
+    #: (`device.duid`, a `uuid:...` string); for an output with no identity a
+    #: client can read, such as an HDMI connector, `{client_id}/{output}`. One per
+    #: display: the store refuses a second display with the same identity.
+    identity: str
+    #: The client that last reported this display, and so drives it. None while no
+    #: client does: another device has since been reported on the output it was
+    #: on. Together with `output`, unique among displays that have a client.
+    client_id: str | None
+    #: The client's name for the output the display is on (`frame`, `hdmi-a-1`).
+    output: str
+    #: `frame` or `framebuffer`, as the client reported it; None until it has —
+    #: a display a curator placed a wall on before its client first ran. A
+    #: category, not a measurement, so Walls and Settings can say what the
+    #: display is without asking the client.
+    kind: str | None
+    #: When the server first recorded it.
+    first_seen: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class LabelOutput:
+    """A surface that captions a wall rather than showing one: today an e-paper panel.
+
+    `labels-and-surfaces.md` § The model. Reported by the client that holds it
+    and mapped to a wall here, server-side, so a panel can caption any wall on any
+    client. **A label output captions at most one wall**, which is the shape of
+    the record rather than a rule anything checks: `wall_id` is one nullable
+    column. A wall may have many label outputs.
+    """
+
+    id: str
+    #: The client that holds the panel. A label output never moves between
+    #: clients: it is attached to its host.
+    client_id: str
+    #: The client's name for it (`epd-0`). Unique per client in the store.
+    output: str
+    #: The wall it captions, or None while it captions none.
+    wall_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Wall:
-    """A place where art hangs, and which client shows it on which output.
+    """A place where art hangs, and which display shows it.
 
     **Few fields, and the shortness is the design.** A wall is an identity, a
-    name, and its assignment: the client that drives it and the name of the
-    output that client shows it on. It is not a device. Geometry, network
-    address, panel model, TV content ids, upload state, reachability and
-    last-heartbeat are all per-device runtime state and are permanently
-    forbidden here — they belong to the client, which reports what it can drive
-    in its own heartbeat.
+    name, and its display: the server's record of the screen it is shown on.
+    It is not a device. Geometry, network address, panel model, TV content ids,
+    upload state, reachability and last-heartbeat are all per-device runtime
+    state and are permanently forbidden here — they belong to the client, which
+    reports what it can drive in its own heartbeat.
 
-    **The assignment is the one fact about the display the catalogue holds**,
-    by the owner's ruling of 2026-10-02 (`clients.md`): the server has to tell a
-    client its walls, and an output's *name* (`hdmi-a-1`, `frame`) is the
-    smallest fact that lets a curator place a wall on a screen without the
-    device's geometry or address entering the catalogue.
+    **The display is the one fact about the screen the catalogue holds**, by the
+    owner's rulings of 2026-10-02 (`clients.md`) and 2026-10-08
+    (`feeds-and-players.md` ruling 1): the server has to tell a client its walls,
+    and a display record keyed by the device's own identity lets a curator place
+    a wall on a screen without the device's geometry or address entering the
+    catalogue, and keeps the wall there when the screen moves to another client.
 
     That this record lives in the catalogue at all is a ruling against
     `data-model.md`'s "per-device runtime state never lives in the catalogue"
@@ -643,12 +699,10 @@ class Wall:
     id: str
     name: str
     created_at: datetime
-    #: The client that drives this wall, or None while none does — an ordinary
-    #: state, like a wall with nothing hanging. Set together with `output`.
-    client_id: str | None = None
-    #: The name of the client's output this wall is shown on, as the client
-    #: reported it. None exactly when `client_id` is.
-    output: str | None = None
+    #: The display this wall is shown on, or None while it has none — an
+    #: ordinary state, like a wall with nothing hanging. At most one wall per
+    #: display, which the store enforces.
+    display_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
