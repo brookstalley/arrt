@@ -59,6 +59,15 @@ class PowerStateUnreadable(Exception):
     """
 
 
+class IdentityUnreadable(Exception):
+    """The set's device id could not be read from its REST device description.
+
+    Not a `TvUnavailable`: the read is REST, needs no art channel, and a set
+    asleep on the network may simply not answer it. The client reports its Frame
+    without an identity and asks again on its next report.
+    """
+
+
 class TvRemovalUnconfirmed(Exception):
     """What the television holds after a removal could not be established.
 
@@ -215,6 +224,19 @@ class TvClient(ABC):
 
         Bounded by a short timeout of its own, and never raises `TvUnavailable`:
         its transport is not the art channel's, and its failing is not an outage.
+        """
+
+    @abstractmethod
+    async def read_identity(self) -> str:
+        """The set's own device id (`device.duid` from `/api/v2/`), or raise `IdentityUnreadable`.
+
+        **Independent of the art channel, deliberately.** The client reports its
+        Frame's identity whether or not a wall is on it, because a Frame moved to a
+        new client has no wall there yet and must still say who it is for its walls
+        to follow it (`player-contract.md` § Transport). So this opens no
+        websocket, presses no key and needs no pairing: one GET of the device
+        description, bounded by a timeout, and nothing that could contend with a
+        running worker's art connection.
         """
 
     @abstractmethod
