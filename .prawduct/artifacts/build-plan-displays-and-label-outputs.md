@@ -2,7 +2,7 @@
 artifact: build-plan
 version: 1
 scope: displays-and-label-outputs
-branch: feature/displays-and-label-outputs
+# branch: feature/displays-and-label-outputs — merged to develop on 2026-10-08. Chunk 07, the only one left, is the operator's at the wall and claims no branch; it is ticked in whichever PR follows the walk.
 partition: Chunk 01 serial (the contract both sides build to); then two delegates in isolated worktrees — A the server (02, 03; arrt/ and contract tests only), B the Player (05, 06; postarr/ only); the coordinator integrates, reviews and verifies. Chunk 04 (the interface) is serial and waits for feature/lists-settings-and-scale to merge, because that branch is rewriting the Walls and Settings screens. Chunk 07 is the operator's.
 depends_on:
   - artifact: feeds-and-players

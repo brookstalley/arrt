@@ -179,6 +179,26 @@ the television.
    `.env.pre-clients-<date>`, install that revision's `deploy/display.service`,
    and start it again.
 
+## Displays and labels (2026-10-08, `build-plan-displays-and-label-outputs.md`)
+
+**Copy the catalogue before deploying this server.** Opening the catalogue
+gives every assigned wall a display record and drops `walls.client_id` and
+`walls.output`, so an older image cannot read it afterwards:
+
+    sqlite3 <art root>/catalogue.sqlite ".backup <backups dir>/pre-displays-<timestamp>.sqlite"
+
+The way back is that copy and the previous image, together.
+
+**Either order works, and server first is the one to choose.** A new server
+reads an older Player's client heartbeat (the new keys are optional), and an
+older Player ignores the new keys in `GET /client`. A new Player against an old
+server is given no labels, so its panel draws nothing until the server is
+updated.
+
+**After the Player update, a panel draws nothing until it is mapped.** It is
+reported as the client's label output `epd-0`; caption a wall with it on
+Settings › Clients. `EPD_DEVICE` no longer needs `TV_ADDRESS`.
+
 ## The two new units, and where everything they name now lives
 
 `display.service` and `curation.service` are the planes this product is being

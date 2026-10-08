@@ -62,6 +62,31 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-08: Labels mapped on Settings › Clients; Walls says which caption each wall
+
+<!-- prawduct: scope=displays-and-label-outputs -->
+
+**Why:** Chunk 04 of `build-plan-displays-and-label-outputs.md`: the interface for
+the records Chunks 02 and 03 made.
+
+**What:**
+- Settings › Clients: each client's *Labels* table (kind, whether the panel
+  answers, size, the wall it captions), a *Caption a wall* form for any wall on
+  any client, a Stop per mapping, and a ▲ note in both clients' panels for a
+  display two clients report. Removing a client says which labels stop.
+- Walls: "Captioned by {output} on {client}" under a wall a label captions; the
+  duplicate-display fault in place of the client line.
+- Mapping lives on Clients beside wall assignment, not on Walls as the plan said;
+  the plan records it as a decision the owner can veto.
+- Carried in: `nowShowing`'s unused parameter removed; `STATE_WORDS` held to the
+  label schema's states by `test_wall_state_words.py`; an unreachable screen now
+  "cannot say what its screen is showing", true of an unknown state too.
+- Tests: `tests/browser/test_displays_and_labels.py` (the panel mapped to two
+  HDMI walls and a Frame wall in turn, a refused second mapping, no panel, the
+  fault on both pages), each watched failing against a re-break.
+- Deploying: `deploy/README.md` § Displays and labels says to copy the catalogue
+  first, since the migration drops the walls' client and output columns.
+
 ## 2026-10-08: Displays as records, label outputs, and a label renderer per panel
 
 <!-- prawduct: scope=displays-and-label-outputs -->
@@ -136,6 +161,7 @@ high-impact assumption, that a Frame names itself, was checked first.
   because the server's route test holds mounted and named routes equal.
 - `build-plan-display-state.md` and `build-plan-walls-work-and-trust.md` no
   longer claim their merged branches: each has only the operator's walk left.
+
 ## 2026-10-08: Archiving says the room loses the work now; an unknown filter key is refused
 
 <!-- prawduct: scope=lists-settings-and-scale -->
