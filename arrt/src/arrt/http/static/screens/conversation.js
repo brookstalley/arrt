@@ -22,6 +22,7 @@ import { agree, counted } from "../core/counting.js";
 import { claimPoll, pollIsCurrent, schedulePollUnlessDone } from "../core/poll.js";
 import { el, guard, render } from "../core/render.js";
 import { backLink, go, link } from "../core/router.js";
+import { tierMark } from "../core/spend.js";
 import { state } from "../core/state.js";
 import { REACTIONS, recordReaction } from "../core/taste.js";
 
@@ -79,7 +80,9 @@ export function commitSentence(view) {
     return `${counted(count, "work")} ${agree(count, "is", "are")} ready to review.`;
   }
   if (run.status === "awaiting_approval") {
-    return `This search proposed ${counted(tally.proposed, "work")}, which is more than the threshold, so it stopped to ask.`;
+    // Only a search stored here before asking became the approval: none stops
+    // to ask any more, so the sentence names no threshold.
+    return `This search proposed ${counted(tally.proposed, "work")} and stopped to ask, as a long list once did.`;
   }
   if (run.status === "resolving_works") return "Working out which works match this direction.";
   if (run.status === "resolving_images") return `The list of ${counted(tally.proposed, "work")} is settled; looking for an image of each.`;
@@ -533,6 +536,8 @@ function commitCard(view, { run, runProblem, estimate, direction, conversationId
               { then: (next) => repaint(next, { conversationId, generation }) },
             ),
         }),
+        // Unpriced when the estimate could not be read, which the note says.
+        estimate ? tierMark(estimate.tier) : null,
       ]),
     );
   } else {

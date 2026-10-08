@@ -11,8 +11,6 @@ never load are as broken as alternates loaded thirty at a time, and a card that
 repaints the whole grid loses the curator their scroll position on every verdict.
 """
 
-import json
-
 import pytest
 from payloads import (
     a_candidate,
@@ -1373,22 +1371,18 @@ def test_a_work_already_in_the_library_says_so_and_leads_with_opening_it(ui):
 def test_accept_anyway_records_an_acceptance(ui):
     """The quiet control is a real Accept, for a work that only shares a title and artist."""
     held = a_card(a_candidate(work_id="work-held", title="Untitled"), held_artwork_id="artwork-held")
-    sent = []
-
-    def verdict(route):
-        sent.append(route.request.post_data_json)
-        route.fulfill(status=200, content_type="application/json", body=json.dumps(a_verdict()))
-
     ui.serve_image("**/api/candidate-images/*/preview")
     ui.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([held]))
-    ui.page.route("**/api/candidates/work-held/verdict", verdict)
+    ui.serve("**/api/candidates/work-held/verdict", a_verdict())
     ui.open(f"#review/{RUN_ID}")
     ui.page.wait_for_selector("li.card")
 
-    with ui.page.expect_request("**/api/candidates/work-held/verdict"):
+    # Read off the request itself: the route handler records it on the
+    # server's side of the wait, which a held verdict now reaches seconds later.
+    with ui.page.expect_request("**/api/candidates/work-held/verdict") as request:
         ui.page.click("button:has-text('Accept anyway')")
 
-    assert sent[0]["verdict"] == "accepted"
+    assert request.value.post_data_json["verdict"] == "accepted"
 
 
 def test_a_work_opened_from_a_review_card_returns_to_that_review(ui, service):

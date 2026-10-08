@@ -2284,3 +2284,54 @@ dialog.confirm::backdrop {
   background: var(--warn-quiet);
   color: var(--text-strong);
 }
+
+/* Review: whether a source confirms the work, and a verdict waiting out its
+   hold. Not confirmed is the stronger mark, since it is the one that should
+   stop an Accept; Unchecked says only that nobody asked. */
+.badge-unconfirmed {
+  border-color: var(--warn);
+  background: var(--warn-quiet);
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+.badge-unchecked {
+  border-style: dotted;
+}
+
+.note.not-confirmed {
+  border-left: 3px solid var(--warn);
+  padding-left: var(--space-2);
+}
+
+.verdict-held {
+  align-items: center;
+}
+
+/* Spend: the tier beside a spending control, and what is left of this month's
+   budget under the sidebar's sections. The tier is words, never colour alone;
+   a control that spends reads a shade stronger than one that is free. */
+.badge-tier {
+  font-variant-numeric: tabular-nums;
+}
+
+.badge-tier.tier-spends {
+  border-color: var(--border-strong);
+  font-weight: 600;
+}
+
+.sidebar .budget {
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border);
+  font-size: var(--text-sm);
+}
+
+.sidebar .budget p {
+  margin: 0;
+}
+
+.sidebar .budget .budget-note {
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}

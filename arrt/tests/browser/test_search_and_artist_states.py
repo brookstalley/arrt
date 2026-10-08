@@ -156,3 +156,12 @@ def test_the_artist_page_shows_a_work_in_review_without_a_get(ui, harvesters_wai
     assert mark.get_attribute("href").split("?")[0] == f"#review/{harvesters_waiting.discovery_run_id}"
     assert table.locator("tr:has-text('The Hunters in the Snow')").count() == 1, "held, and listed once"
     assert table.locator("tr:has-text('The Hunters in the Snow') input[type='checkbox']").count() == 0
+
+
+def test_get_shows_it_is_free_before_it_is_pressed(ui):
+    """A Get spends nothing by construction, and says so with the tier every spending control carries."""
+    ui.open(f"#artist/{BRUEGEL}")
+    get = ui.page.locator("#view .get-control button.action")
+    get.wait_for()
+
+    assert " ".join(get.locator("xpath=following-sibling::*[1]").inner_text().split()) == "Cost: Free"

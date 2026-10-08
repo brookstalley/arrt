@@ -140,7 +140,7 @@ def test_committing_a_direction_transforms_the_card_in_place(talking):
 @pytest.mark.parametrize(
     ("status", "expected"),
     [
-        (RunStatus.AWAITING_APPROVAL, "This search proposed 1 work, which is more than the threshold"),
+        (RunStatus.AWAITING_APPROVAL, "This search proposed 1 work and stopped to ask"),
         (RunStatus.RESOLVING_IMAGES, "The list of 1 work is settled"),
         (RunStatus.COMPLETED, "1 work is ready to review"),
     ],

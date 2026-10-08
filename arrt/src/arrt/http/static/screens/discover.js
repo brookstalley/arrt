@@ -12,6 +12,7 @@ import { api } from "../core/api.js";
 import { table } from "../core/badges.js";
 import { el, render } from "../core/render.js";
 import { go, link } from "../core/router.js";
+import { tierMark } from "../core/spend.js";
 import { state } from "../core/state.js";
 
 export async function viewDiscover(generation) {
@@ -75,7 +76,8 @@ export async function viewDiscover(generation) {
       // allowance and an estimate it can exceed is not an estimate.
       text: `Asking costs at most $${estimate.estimated_cost_usd}. ${estimate.basis}`,
     }),
-    el("div", { class: "row" }, [start, talk, taste]),
+    // The tier beside the button it prices, so it is read before the press.
+    el("div", { class: "row" }, [start, tierMark(estimate.tier), talk, taste]),
   ]);
 
   const panels = [el("h1", { text: "Ask" }), entry];
